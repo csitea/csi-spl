@@ -595,13 +595,14 @@
       "files": "Filer",
       "messages": "Meddelanden",
       "tenants": "Hyresgäster",
-      "events": "Händelselogg"
+      "events": "Händelselogg",
+      "issues": "Ärenden"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",
-    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (deploy*) för samma sak. type:tenant och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn.",
+    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (deploy*) för samma sak. type:tenant och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. status:, priority:, assignee: och label: söker ärenden.",
     "help_operators": "Operatorer",
     "current_tenant": "Nuvarande",
     "op": {

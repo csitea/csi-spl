@@ -17,8 +17,9 @@ const FROM_ROSTER_CAP = 8
 const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
- *  tenants and events are opt-in: the hub returns them for type:tenant and type:event. */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'events']
+ *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
+ *  type:event and type:issue. */
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'events', 'issues']
 
 /**
  * Built-in operator catalogue — the offline fallback of search-v1 §6
@@ -26,13 +27,23 @@ export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants',
  * `values` are closed value sets offered after the colon.
  */
 /** Canonical kinds first, then the aliases a person actually types. */
-const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'thread', 'person', 'workspace', 'log']
+const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets']
 
 /** Rows the omnibox list shows. The nine kinds fit; a longer prefix narrows the rest. */
 export const OP_PICKER_CAP = 12
 
 /** Values the omnibox still offers when an older operators document omits them. */
-const REQUIRED_TYPE_VALUES = ['tenant', 'event', 'thread', 'person', 'workspace', 'log']
+const REQUIRED_TYPE_VALUES = ['tenant', 'event', 'issue', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets']
+
+/** Issue operators (grammar 1.2). Status and priority are closed; assignee offers me and none; label: is free text. */
+function issueOperators() {
+  return [
+    { op: 'status:', example: 'status:in_progress', values: ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled'] },
+    { op: 'priority:', example: 'priority:1', values: ['0', '1', '2', '3', '4'] },
+    { op: 'assignee:', example: 'assignee:me', values: ['me', 'none'] },
+    { op: 'label:', example: 'label:bug' },
+  ]
+}
 
 export const SEARCH_OPERATORS = [
   { op: 'from:', example: 'from:CLE-07' },
@@ -51,6 +62,7 @@ export const SEARCH_OPERATORS = [
   { op: 'title:', example: 'title:"release plan"' },
   { op: 'subject:', example: 'subject:migration' },
   { op: 'name:', example: 'name:ops' },
+  ...issueOperators(),
   { op: 'filename:', example: 'filename:"q3 report"' },
   { op: 'ext:', example: 'ext:pdf' },
   { op: 'larger:', example: 'larger:1M' },
@@ -80,10 +92,11 @@ function typeNamesOf(data) {
 }
 
 /**
- * Hub catalogue plus the 1.1 operators a document from before this grammar
- * does not list yet: tenant/event (and thread, person, workspace, log) on
- * type: and kind:, plus kind: and channel: when the document has type: / in:.
- * A catalogue that already has them is returned unchanged.
+ * Hub catalogue plus the operators a document from before this grammar does
+ * not list yet: tenant, event and issue (and their aliases) on type: and
+ * kind:, kind: and channel: when the document has type: / in:, and the issue
+ * operators status:, priority:, assignee: and label:. A catalogue that
+ * already has them is returned unchanged.
  */
 export function ensureSearchOperators(catalogue = SEARCH_OPERATORS) {
   const src = Array.isArray(catalogue) && catalogue.length ? catalogue : SEARCH_OPERATORS
@@ -110,6 +123,9 @@ export function ensureSearchOperators(catalogue = SEARCH_OPERATORS) {
     const inn = out.find((o) => o.op === 'in:')
     out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm'] })
     changed = true
+  }
+  for (const extra of issueOperators()) {
+    if (!has(extra.op)) { out.push(extra); changed = true }
   }
   return changed ? out : src
 }
@@ -339,10 +355,15 @@ function textOf(v) {
 function displayOf(r) {
   return textOf(r.snippet) || textOf(r.title) || textOf(r.name) || textOf(r.display_name)
     || (typeof r.message === 'string' && r.message ? { text: r.message, highlights: [] } : null)
-    || { text: String(r.body || r.id || r.box_id || r.channel || r.task_id || r.error_id || r.tenant_id || ''), highlights: [] }
+    || { text: String(r.body || r.id || r.key || r.box_id || r.channel || r.task_id || r.error_id || r.tenant_id || ''), highlights: [] }
 }
 
 function keyOf(type, r, i) {
+  // The list key overwrites r.key. An issue is identified by that field, not by task_id.
+  if (type === 'issues') {
+    const k = String(r.key ?? '').trim()
+    return `issues:${k || i}`
+  }
   const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
   return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
@@ -365,7 +386,11 @@ export function normalizeSearchResponse(data) {
     groups.push({
       type,
       next,
-      items: rows.filter((r) => r && typeof r === 'object').map((r, i) => ({ ...r, type, key: keyOf(type, r, i), display: displayOf(r) })),
+      items: rows.filter((r) => r && typeof r === 'object').map((r, i) => {
+        const row = { ...r, type, key: keyOf(type, r, i), display: displayOf(r) }
+        if (type === 'issues') row.issue_key = String(r.key ?? '').trim()
+        return row
+      }),
     })
   }
   const warnings = (Array.isArray(d.warnings) ? d.warnings : []).map((w) =>
@@ -454,6 +479,12 @@ export function searchTarget(row) {
       const n = Number(r.event_id != null ? r.event_id : r.id)
       if (!Number.isInteger(n) || n <= 0) return { path: '/events' }
       return { path: `/events#${n}` }
+    }
+    case 'issues': {
+      const raw = Object.prototype.hasOwnProperty.call(r, 'issue_key') ? r.issue_key : r.key
+      const key = String(raw ?? '').trim()
+      if (!key) return null
+      return { path: `/issues?issue=${encodeURIComponent(key)}` }
     }
     default:
       return null

@@ -754,7 +754,7 @@ declare module '~/utils/highlighter.mjs' {
 }
 
 declare module '~/utils/search.mjs' {
-  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'events'
+  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'events' | 'issues'
   export interface SearchOperator { op: string, example?: string, values?: string[] }
   export interface SearchRow {
     type: SearchGroupType

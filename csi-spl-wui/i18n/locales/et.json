@@ -595,13 +595,14 @@
       "files": "Failid",
       "messages": "Sõnumid",
       "tenants": "Rentnikud",
-      "events": "Sündmuste logi"
+      "events": "Sündmuste logi",
+      "issues": "Probleemid"
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",
-    "help_content": "Sõnad vastavad tekstile; rõhumärgid ja suurtähed ei loe. Sõna, mida kirjutad, vastab pikemate sõnade algusele. Keskel oleva sõna lõppu pane * (deploy*). type:tenant ja type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele.",
+    "help_content": "Sõnad vastavad tekstile; rõhumärgid ja suurtähed ei loe. Sõna, mida kirjutad, vastab pikemate sõnade algusele. Keskel oleva sõna lõppu pane * (deploy*). type:tenant ja type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele. status:, priority:, assignee: ja label: otsivad probleeme.",
     "help_operators": "Operaatorid",
     "current_tenant": "Praegune",
     "op": {

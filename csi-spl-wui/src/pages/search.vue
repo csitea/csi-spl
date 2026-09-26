@@ -1,6 +1,6 @@
 <!-- 022 FR-020..025: global search results, deep-linkable as /search?q=….
      Grouped sections (robots, users, channels, boxes, tenants, topics, files,
-     messages, events; search-v1 §4), highlights from offsets rendered as text nodes,
+     messages, events, issues; search-v1 §4), highlights from offsets rendered as text nodes,
      one listbox across all sections (ArrowUp/Down wrap, Home/End, Enter
      opens), per-section "Load more" on that section's cursor. -->
 <template>
@@ -172,6 +172,7 @@ const examples = [
   'type:tenant name:ops',
   'type:tenant csitea',
   'type:event fetch',
+  'status:in_progress',
 ]
 const helpRows = computed(() => operatorHelpRows(search.operators))
 
@@ -211,6 +212,12 @@ function meta(row: SearchRow): string {
       return [String(r.tenant_id || ''), roleLabel, r.current ? t('search.current_tenant') : ''].filter(Boolean).join(' · ')
     }
     case 'events': return [r.code || r.path || r.error_id, when(r.received_at)].filter(Boolean).join(' · ')
+    case 'issues': {
+      const status = r.status == null || r.status === '' ? '' : String(r.status)
+      const priority = r.priority == null || r.priority === '' ? '' : String(r.priority)
+      const assignee = r.assignee == null || r.assignee === '' ? '' : String(r.assignee)
+      return [status, priority, assignee].filter((part) => part !== '').join(' · ')
+    }
     default: return ''
   }
 }

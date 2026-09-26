@@ -594,13 +594,14 @@
       "topics": "Témy",
       "files": "Súbory",
       "messages": "Správy",
-      "tenants": "Nájomníci",      "events": "Denník udalostí"
+      "tenants": "Nájomníci",      "events": "Denník udalostí",
+      "issues": "Úlohy"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "help_button": "Syntax vyhľadávania",
     "help_title": "Syntax vyhľadávania",
-    "help_content": "Slová sa zhodujú s textom; dĺžne a veľkosť písmen nerozhodujú. Slovo, ktoré píšete, sa zhoduje so začiatkom dlhších slov. Slovu v strede dajte na koniec * (deploy*). type:tenant a type:event hľadajú vaše pracovné priestory a váš denník. name: sa zhoduje s menom.",
+    "help_content": "Slová sa zhodujú s textom; dĺžne a veľkosť písmen nerozhodujú. Slovo, ktoré píšete, sa zhoduje so začiatkom dlhších slov. Slovu v strede dajte na koniec * (deploy*). type:tenant a type:event hľadajú vaše pracovné priestory a váš denník. name: sa zhoduje s menom. status:, priority:, assignee: a label: hľadajú úlohy.",
     "help_operators": "Operátory",
     "current_tenant": "Aktuálny",
     "op": {

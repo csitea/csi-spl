@@ -595,13 +595,14 @@
       "files": "Fișiere",
       "messages": "Mesaje",
       "tenants": "Chiriași",
-      "events": "Jurnal de evenimente"
+      "events": "Jurnal de evenimente",
+      "issues": "Probleme"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",
-    "help_content": "Cuvintele se potrivesc cu textul; accentele și majusculele nu contează. Cuvântul pe care îl scrii se potrivește cu începutul cuvintelor mai lungi. Pentru un cuvânt la mijloc pune * la sfârșit (deploy*). type:tenant și type:event caută spațiile tale și jurnalul tău. name: se potrivește cu un nume.",
+    "help_content": "Cuvintele se potrivesc cu textul; accentele și majusculele nu contează. Cuvântul pe care îl scrii se potrivește cu începutul cuvintelor mai lungi. Pentru un cuvânt la mijloc pune * la sfârșit (deploy*). type:tenant și type:event caută spațiile tale și jurnalul tău. name: se potrivește cu un nume. status:, priority:, assignee: și label: caută probleme.",
     "help_operators": "Operatori",
     "current_tenant": "Curent",
     "op": {

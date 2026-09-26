@@ -595,13 +595,14 @@
       "files": "Files",
       "messages": "Messages",
       "tenants": "Tenants",
-      "events": "Event log"
+      "events": "Event log",
+      "issues": "Issues"
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",
-    "help_content": "Words match the text; accents and case do not matter. The word you are typing matches the start of longer words; end another word with * (deploy*) for the same. type:tenant and type:event search your workspaces and your own event log. name: matches a name.",
+    "help_content": "Words match the text; accents and case do not matter. The word you are typing matches the start of longer words; end another word with * (deploy*) for the same. type:tenant and type:event search your workspaces and your own event log. name: matches a name. status:, priority:, assignee: and label: search issues.",
     "help_operators": "Operators",
     "current_tenant": "Current",
     "op": {

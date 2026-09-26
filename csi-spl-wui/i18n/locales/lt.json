@@ -595,13 +595,14 @@
       "files": "Failai",
       "messages": "Žinutės",
       "tenants": "Nuomininkai",
-      "events": "Įvykių žurnalas"
+      "events": "Įvykių žurnalas",
+      "issues": "Problemos"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",
-    "help_content": "Žodžiai atitinka tekstą; kirčiai ir didžiosios raidės nesvarbu. Žodis, kurį rašote, atitinka ilgesnių žodžių pradžią. Žodžiui viduryje gale dėkite * (deploy*). type:tenant ir type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą.",
+    "help_content": "Žodžiai atitinka tekstą; kirčiai ir didžiosios raidės nesvarbu. Žodis, kurį rašote, atitinka ilgesnių žodžių pradžią. Žodžiui viduryje gale dėkite * (deploy*). type:tenant ir type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą. status:, priority:, assignee: ir label: ieško problemų.",
     "help_operators": "Operatoriai",
     "current_tenant": "Dabartinis",
     "op": {

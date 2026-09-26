@@ -595,13 +595,14 @@
       "files": "Tiedostot",
       "messages": "Viestit",
       "tenants": "Vuokralaiset",
-      "events": "Tapahtumaloki"
+      "events": "Tapahtumaloki",
+      "issues": "Asiat"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",
-    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:tenant ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen.",
+    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:tenant ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. status:, priority:, assignee: ja label: hakevat asioita.",
     "help_operators": "Operaattorit",
     "current_tenant": "Nykyinen",
     "op": {

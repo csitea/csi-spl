@@ -595,12 +595,14 @@
       "files": "Датотеке",
       "messages": "Поруке",
       "tenants": "Zakupci",
-      "events": "Дневник догађаја"    },
+      "events": "Дневник догађаја",
+      "issues": "Проблеми"
+    },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",
-    "help_content": "Reči se poklapaju sa tekstom; akcenti i velika slova nisu bitni. Reč koju kucate poklapa se sa početkom dužih reči. Reči u sredini stavite * na kraj (deploy*). type:tenant i type:event traže vaše prostore i vaš dnevnik. name: se poklapa sa imenom.",
+    "help_content": "Reči se poklapaju sa tekstom; akcenti i velika slova nisu bitni. Reč koju kucate poklapa se sa početkom dužih reči. Reči u sredini stavite * na kraj (deploy*). type:tenant i type:event traže vaše prostore i vaš dnevnik. name: se poklapa sa imenom. status:, priority:, assignee: i label: traže probleme.",
     "help_operators": "Operatori",
     "current_tenant": "Tekući",
     "op": {

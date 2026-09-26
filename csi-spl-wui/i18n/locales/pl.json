@@ -594,13 +594,14 @@
       "topics": "Tematy",
       "files": "Pliki",
       "messages": "Wiadomości",
-      "tenants": "Dzierżawy",      "events": "Dziennik zdarzeń"
+      "tenants": "Dzierżawy",      "events": "Dziennik zdarzeń",
+      "issues": "Zgłoszenia"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "help_button": "Składnia wyszukiwania",
     "help_title": "Składnia wyszukiwania",
-    "help_content": "Słowa pasują do tekstu; akcenty i wielkość liter nie mają znaczenia. Słowo, które piszesz, pasuje do początku dłuższych słów. Słowu w środku dopisz na końcu * (deploy*). type:tenant i type:event szukają twoich obszarów i twojego dziennika. name: pasuje do nazwy.",
+    "help_content": "Słowa pasują do tekstu; akcenty i wielkość liter nie mają znaczenia. Słowo, które piszesz, pasuje do początku dłuższych słów. Słowu w środku dopisz na końcu * (deploy*). type:tenant i type:event szukają twoich obszarów i twojego dziennika. name: pasuje do nazwy. status:, priority:, assignee: i label: szukają zgłoszeń.",
     "help_operators": "Operatory",
     "current_tenant": "Bieżący",
     "op": {

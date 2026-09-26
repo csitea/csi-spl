@@ -3,6 +3,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  SEARCH_GROUPS,
   SEARCH_OPERATORS,
   applyCompletion,
   completeOperators,
@@ -186,10 +187,11 @@ describe('operator autocomplete', () => {
       assert.ok(ops.includes(op), op)
     }
     const types = SEARCH_OPERATORS.find((o) => o.op === 'type:').values
-    assert.ok(types.includes('tenant') && types.includes('event'))
+    for (const v of ['tenant', 'event', 'issue', 'issues', 'ticket', 'tickets']) assert.ok(types.includes(v), v)
     const shown = completeOperators('type:').map((c) => c.insert).slice(0, OP_PICKER_CAP)
     assert.ok(shown.includes('type:tenant '))
     assert.ok(shown.includes('type:event '))
+    assert.ok(shown.includes('type:issue '))
     assert.equal(operatorHelpRows().some((r) => r.op === 'name:' && r.hintKey === 'search.op.name'), true)
     const en = JSON.parse(read('i18n/locales/en.json'))
     assert.match(en.search.help_content, /deploy\*/)
@@ -318,11 +320,15 @@ describe('1.1 operators on an older catalogue', () => {
     ]
     const once = ensureSearchOperators(older)
     assert.deepEqual(once.find((o) => o.op === 'type:').values.slice(0, 2), ['message', 'topic'])
-    for (const v of ['tenant', 'event', 'thread', 'person', 'workspace', 'log']) {
+    for (const v of ['tenant', 'event', 'issue', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets']) {
       assert.ok(once.find((o) => o.op === 'type:').values.includes(v), v)
     }
     assert.equal(once.find((o) => o.op === 'kind:').example, 'kind:message')
     assert.equal(once.find((o) => o.op === 'channel:').example, 'channel:#lobby')
+    assert.equal(once.find((o) => o.op === 'status:').example, 'status:in_progress')
+    assert.deepEqual(once.find((o) => o.op === 'priority:').values, ['0', '1', '2', '3', '4'])
+    assert.deepEqual(once.find((o) => o.op === 'assignee:').values, ['me', 'none'])
+    assert.equal(once.find((o) => o.op === 'label:').example, 'label:bug')
     assert.equal(ensureSearchOperators(once), once)
     assert.equal(ensureSearchOperators(SEARCH_OPERATORS), SEARCH_OPERATORS)
   })
@@ -383,6 +389,82 @@ describe('click targets', () => {
   it('CONTROL: a row without an id goes nowhere', () => {
     for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'tenants' }, { type: 'nope', id: 'x' }]) {
       assert.equal(searchTarget(r), null)
+    }
+  })
+})
+
+describe('issue hits (grammar 1.2)', () => {
+  it('issues is the group after events', () => {
+    assert.equal(SEARCH_GROUPS[SEARCH_GROUPS.indexOf('events') + 1], 'issues')
+    const r = normalizeSearchResponse({
+      groups: {
+        events: { results: [{ event_id: 1, name: { text: 'network', highlights: [] } }], next: null },
+        issues: { results: [{ key: 'SPL-4', number: 4, title: { text: 'Scan hub', highlights: [[0, 4]] }, status: 'in_progress', priority: 0, assignee: null, task_id: 't-shared' }], next: 'ci' },
+      },
+    })
+    assert.deepEqual(r.groups.map((g) => g.type), ['events', 'issues'])
+    const hit = r.groups.find((g) => g.type === 'issues').items[0]
+    assert.equal(hit.display.text, 'Scan hub')
+    assert.equal(hit.key, 'issues:SPL-4')
+    assert.equal(hit.issue_key, 'SPL-4')
+    assert.equal(r.groups.find((g) => g.type === 'issues').next, 'ci')
+    assert.deepEqual(searchTarget(hit), { path: '/issues?issue=SPL-4' })
+  })
+  it('two issues that share a thread stay two hits', () => {
+    const r = normalizeSearchResponse({
+      groups: {
+        issues: {
+          results: [
+            { key: 'SPL-1', task_id: 'same', title: { text: 'A', highlights: [] } },
+            { key: 'SPL-2', task_id: 'same', title: { text: 'B', highlights: [] } },
+          ],
+          next: null,
+        },
+      },
+    })
+    assert.deepEqual(r.groups[0].items.map((x) => x.key), ['issues:SPL-1', 'issues:SPL-2'])
+    assert.deepEqual(r.groups[0].items.map((x) => searchTarget(x)), [
+      { path: '/issues?issue=SPL-1' },
+      { path: '/issues?issue=SPL-2' },
+    ])
+  })
+  it('a row with only a key shows that key', () => {
+    const hit = normalizeSearchResponse({ groups: { issues: { results: [{ key: 'SPL-9' }] } } }).groups[0].items[0]
+    assert.equal(hit.display.text, 'SPL-9')
+    assert.deepEqual(searchTarget(hit), { path: '/issues?issue=SPL-9' })
+    assert.deepEqual(searchTarget({ type: 'issues', key: 'SPL-4' }), { path: '/issues?issue=SPL-4' })
+  })
+  it('CONTROL: a row without a key goes nowhere', () => {
+    for (const row of [{ type: 'issues' }, { type: 'issues', key: '' }, { type: 'issues', key: '   ' }, { type: 'issues', issue_key: '' }]) {
+      assert.equal(searchTarget(row), null)
+    }
+    const bare = normalizeSearchResponse({ groups: { issues: { results: [{ status: 'todo' }] } } }).groups[0].items[0]
+    assert.equal(searchTarget(bare), null)
+  })
+  it('the fallback catalogue offers issue operators', () => {
+    const ops = SEARCH_OPERATORS.map((o) => o.op)
+    for (const op of ['status:', 'priority:', 'assignee:', 'label:']) assert.ok(ops.includes(op), op)
+    assert.ok(SEARCH_OPERATORS.find((o) => o.op === 'type:').values.includes('issue'))
+    assert.deepEqual(completeOperators('status:in').map((c) => c.insert), ['status:in_progress ', 'status:in_review '])
+    assert.deepEqual(completeOperators('priority:').map((c) => c.insert), ['priority:0 ', 'priority:1 ', 'priority:2 ', 'priority:3 ', 'priority:4 '])
+    assert.deepEqual(completeOperators('assignee:').map((c) => c.insert), ['assignee:me ', 'assignee:none '])
+    assert.deepEqual(completeOperators('label:'), [])
+    const page = read('src/pages/search.vue')
+    assert.match(page, /status:in_progress/)
+    assert.match(page, /case 'issues'/)
+  })
+  it('every locale names the issues group and the issue operators', () => {
+    const files = readdirSync(join(WUI, 'i18n/locales')).filter((f) => f.endsWith('.json')).sort()
+    assert.equal(files.length, 19)
+    const en = JSON.parse(read('i18n/locales/en.json')).search.group.issues
+    for (const f of files) {
+      const data = JSON.parse(read('i18n/locales/' + f))
+      const label = data.search.group.issues
+      assert.equal(typeof label, 'string', f)
+      assert.ok(label.trim(), f)
+      const help = data.search.help_content
+      for (const tok of ['status:', 'priority:', 'assignee:', 'label:']) assert.ok(help.includes(tok), f + ' ' + tok)
+      if (f !== 'en.json') assert.notEqual(label, en, f)
     }
   })
 })

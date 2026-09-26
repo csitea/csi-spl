@@ -595,13 +595,14 @@
       "files": "Faili",
       "messages": "Ziņas",
       "tenants": "Nomnieki",
-      "events": "Notikumu žurnāls"
+      "events": "Notikumu žurnāls",
+      "issues": "Problēmas"
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",
-    "help_content": "Vārdi atbilst tekstam; garumzīmes un lielie burti nav svarīgi. Vārds, ko rakstāt, atbilst garāku vārdu sākumam. Vārdam vidū beigās lieciet * (deploy*). type:tenant un type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam.",
+    "help_content": "Vārdi atbilst tekstam; garumzīmes un lielie burti nav svarīgi. Vārds, ko rakstāt, atbilst garāku vārdu sākumam. Vārdam vidū beigās lieciet * (deploy*). type:tenant un type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam. status:, priority:, assignee: un label: meklē problēmas.",
     "help_operators": "Operatori",
     "current_tenant": "Pašreizējais",
     "op": {

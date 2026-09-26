@@ -135,6 +135,7 @@ type Handler struct {
 	defLocale  string  // SPOOL_HUB_DEFAULT_LOCALE (i18n)
 	native     *native // spec 015; nil = native sign-in off
 	now        func() time.Time
+	pageTenant func(*http.Request) string // SPL-959; nil = off
 }
 
 // Options are the optional collaborators.
@@ -157,8 +158,11 @@ type Options struct {
 	// request names none, and the locale WUI links carry no prefix for
 	// (prefix_except_default). "" = i18n.DefaultLocale.
 	DefaultLocale string
-	HTTP          *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now           func() time.Time
+	// PageTenant names the tenant of the WUI page a request comes from (its
+	// tenant host, SPL-959); nil or "" = the session's `t` decides, as before.
+	PageTenant func(*http.Request) string
+	HTTP       *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now        func() time.Time
 }
 
 // New builds the handler from a validated Config.
@@ -167,7 +171,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
 		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
 		federated: o.Federated, now: o.Now,
-		defLocale: o.DefaultLocale,
+		defLocale: o.DefaultLocale, pageTenant: o.PageTenant,
 	}
 	if h.now == nil {
 		h.now = time.Now

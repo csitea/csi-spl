@@ -268,6 +268,13 @@ type Hub struct {
 	// only; "session" = member sessions only + credentialed CORS (010 FR-009).
 	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
 	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
+	// SPL-959 tenant hosts: the WUI of tenant <t> is https://<t>.<fqdn>
+	// (TenantHostPattern), and the hub serves a browser request as the tenant
+	// its Origin names (member-only), with credentialed CORS for those hosts.
+	// WUIApexTenant is the tenant of the apex https://<fqdn> ("" = the
+	// session's tenant there, as before). Both off by default.
+	WUITenantHosts bool   `env:"SPOOL_HUB_WUI_TENANT_HOSTS" envDefault:"false"`
+	WUIApexTenant  string `env:"SPOOL_HUB_WUI_APEX_TENANT"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -387,6 +394,9 @@ func LoadHub() (*Hub, error) {
 	if h.LobbyTaskID != "" && !uuidRe.MatchString(h.LobbyTaskID) {
 		return nil, fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)
 	}
+	if h.WUIApexTenant != "" && (!h.WUITenantHosts || !tenantIDRe.MatchString(h.WUIApexTenant)) {
+		return nil, fmt.Errorf("SPOOL_HUB_WUI_APEX_TENANT %q needs SPOOL_HUB_WUI_TENANT_HOSTS=true and a tenant id", h.WUIApexTenant)
+	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {
 			return nil, err
@@ -464,5 +474,7 @@ func checkOrigin(o string) error {
 	}
 	return nil
 }
+
+var tenantIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)

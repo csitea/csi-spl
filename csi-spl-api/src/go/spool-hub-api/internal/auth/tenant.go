@@ -45,6 +45,9 @@ var (
 	// ErrTenantMismatch: a legacy tenant Host names another tenant than the
 	// session resolves to (403).
 	ErrTenantMismatch = errors.New("auth: host tenant differs from the session's tenant")
+	// ErrPageNotMember: the WUI page's tenant host (SPL-959, Options.PageTenant)
+	// names a tenant the human is not a member of (403 not_member).
+	ErrPageNotMember = errors.New("auth: not a member of the page's tenant")
 )
 
 // ActiveTenant resolves the tenant of a human request: `t` while still a
@@ -64,6 +67,23 @@ func (h *Handler) ActiveTenant(r *http.Request, hostTenant string) (Session, str
 		return Session{}, "", ErrNoMembership
 	}
 	ctx := r.Context()
+	// SPL-959: a WUI page on a tenant host (or the apex) IS that tenant, per
+	// request, whatever `t` says: two tabs on two hosts never cross. It is a
+	// selection like `t`: membership still decides.
+	if page := h.pageTenantOf(r); page != "" {
+		ok, err := h.members.Member(ctx, s.HumanID, page)
+		if err != nil {
+			return Session{}, "", err
+		}
+		if !ok {
+			return Session{}, "", ErrPageNotMember
+		}
+		if hostTenant != "" && hostTenant != page {
+			return Session{}, "", ErrTenantMismatch
+		}
+		s.Tenant = page
+		return s, page, nil
+	}
 	active := ""
 	if validTenant(s.Tenant) {
 		ok, err := h.members.Member(ctx, s.HumanID, s.Tenant)
@@ -243,4 +263,16 @@ func (h *Handler) sessionTenants(r *http.Request, out *sessionResp) {
 	if _, t, err := h.ActiveTenant(r, ""); err == nil {
 		out.ActiveTenant = &t
 	}
+}
+
+// pageTenantOf is the tenant the request's WUI page host names (SPL-959), ""
+// when tenant hosts are off or the request names none (a box, curl, lde).
+func (h *Handler) pageTenantOf(r *http.Request) string {
+	if h.pageTenant == nil {
+		return ""
+	}
+	if t := h.pageTenant(r); validTenant(t) {
+		return t
+	}
+	return ""
 }

@@ -64,21 +64,16 @@ func (s *Server) routeView(mux *http.ServeMux) {
 // only for an exact allow-listed origin (010 OQ-A1 (a)).
 func (s *Server) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
 	o := r.Header.Get("Origin")
-	if o == "" {
+	if !s.originAllowed(o) {
 		return false
 	}
-	for _, a := range s.o.ViewCORSOrigins {
-		if o == a {
-			h := w.Header()
-			h.Set("Access-Control-Allow-Origin", o)
-			h.Add("Vary", "Origin")
-			if s.o.ViewDoor == ViewDoorSession {
-				h.Set("Access-Control-Allow-Credentials", "true")
-			}
-			return true
-		}
+	h := w.Header()
+	h.Set("Access-Control-Allow-Origin", o)
+	h.Add("Vary", "Origin")
+	if s.o.ViewDoor == ViewDoorSession {
+		h.Set("Access-Control-Allow-Credentials", "true")
 	}
-	return false
+	return true
 }
 
 func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {

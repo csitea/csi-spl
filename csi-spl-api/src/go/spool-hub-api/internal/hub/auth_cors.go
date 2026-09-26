@@ -39,20 +39,16 @@ func (s *Server) authCORS(next http.Handler) http.Handler {
 	})
 }
 
-// allowAuthOrigin: exact allow-listed Origin -> ACAO + credentials.
+// allowAuthOrigin: an allow-listed Origin (exact, or a tenant host of this
+// env, SPL-959) -> ACAO + credentials.
 func (s *Server) allowAuthOrigin(w http.ResponseWriter, r *http.Request) bool {
 	h := w.Header()
 	h.Add("Vary", "Origin")
 	o := r.Header.Get("Origin")
-	if o == "" {
+	if !s.originAllowed(o) {
 		return false
 	}
-	for _, a := range s.o.ViewCORSOrigins {
-		if o == a {
-			h.Set("Access-Control-Allow-Origin", o)
-			h.Set("Access-Control-Allow-Credentials", "true")
-			return true
-		}
-	}
-	return false
+	h.Set("Access-Control-Allow-Origin", o)
+	h.Set("Access-Control-Allow-Credentials", "true")
+	return true
 }

@@ -159,12 +159,19 @@ func (h *humanIDs) get(ns, tenant, name string) string {
 	return v
 }
 
-// wuiOrigins turns the view CORS allow-list into websocket origin patterns.
-func (s *Server) wuiOrigins() []string {
+// wuiOrigins turns the view CORS allow-list into websocket origin patterns,
+// plus this request's Origin when it is a tenant host of this env (SPL-959:
+// exact, never a *.<fqdn> glob, which would also admit the other env).
+func (s *Server) wuiOrigins(r *http.Request) []string {
 	var out []string
 	for _, o := range s.o.ViewCORSOrigins {
 		if u, err := url.Parse(o); err == nil && u.Host != "" {
 			out = append(out, u.Host)
+		}
+	}
+	if o := r.Header.Get("Origin"); s.o.OriginTenant.TenantHost(o) {
+		if h, ok := originHost(o); ok {
+			out = append(out, h)
 		}
 	}
 	return out
@@ -183,7 +190,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wuiOrigins()})
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wuiOrigins(r)})
 	if err != nil {
 		return
 	}

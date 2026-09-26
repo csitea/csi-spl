@@ -62,6 +62,9 @@ type Options struct {
 	// allow-list (empty = same-origin only).
 	ViewDoor        string
 	ViewCORSOrigins []string
+	// OriginTenant (SPL-959): the WUI tenant hosts; nil = off (the session's
+	// tenant, and only the exact CORS entries).
+	OriginTenant *OriginTenant
 	// LobbyTaskID is cnf SPOOL_HUB_LOBBY_TASK_ID (wui-live-ws.md §1); "" = lobby off.
 	LobbyTaskID string
 	// Auth is the social sign-in surface (spec 010, /api/v1/auth/*); nil = not

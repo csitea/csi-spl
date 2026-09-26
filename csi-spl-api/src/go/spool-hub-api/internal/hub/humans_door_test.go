@@ -79,16 +79,19 @@ func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var ot *hub.OriginTenant
 	e := newEnv(t, func(o *hub.Options) {
 		hooks := store.AuthHooks{H: o.Store.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: true}, Blob: o.Blob}
 		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks,
-			HTTP: &http.Client{Transport: tr, Timeout: 5 * time.Second}})
+			HTTP:       &http.Client{Transport: tr, Timeout: 5 * time.Second},
+			PageTenant: func(r *http.Request) string { return ot.Request(r) }})
 		o.ViewDoor = hub.ViewDoorSession
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.LobbyTaskID = lobby
 		for _, m := range mut {
 			m(o)
 		}
+		ot = o.OriginTenant // SPL-959: the auth side reads the same resolver
 	})
 	hubAddr = e.ts.Listener.Addr().String()
 	jar, _ := cookiejar.New(nil)

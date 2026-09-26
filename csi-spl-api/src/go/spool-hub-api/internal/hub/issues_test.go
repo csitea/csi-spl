@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // specs/039 issues-v1: create, read, patch, labels, filters and sort under
@@ -79,7 +80,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 	one := issueOf(t, out)
 	if one["key"] != "SPL-2" || one["status"] != "backlog" || one["deadline"] != "2026-10-01T12:30:00Z" || one["created_by"] != dev ||
-		one["channel"] != "tasks" || one["task_id"] == "" || one["assignee"] != "CLE-07" {
+		one["channel"] != store.ChannelIssues || one["task_id"] == "" || one["assignee"] != "CLE-07" {
 		t.Fatalf("created %v", one)
 	}
 	if f := readType(t, watcher, "issue"); f["op"] != "create" || f["issue"].(map[string]any)["key"] != "SPL-2" {

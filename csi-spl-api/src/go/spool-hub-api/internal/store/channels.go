@@ -14,17 +14,38 @@ import (
 // even for a tenant whose rows were never seeded.
 const (
 	ChannelLobby  = "lobby"
-	ChannelTasks  = "tasks"
 	ChannelAlerts = "alerts"
 	// ChannelFeedback is where any member tags the business owner(s) with
 	// feedback (owner, 2026-09-25; channels-v1 §1).
 	ChannelFeedback = "feedback"
 	// ChannelGeneralAlias is the pre-M3 lobby name: an input alias only (C3).
 	ChannelGeneralAlias = "general"
+	// ChannelIssues is where every issue's discussion is stored (specs/039
+	// §3.4, rdb 0050): a reserved channel id that is NOT a channel. It has no
+	// channels row, is never listed, cannot be created and takes no agents;
+	// every member of the tenant reads it, as they read the issue list.
+	// #tasks held these discussions until the owner removed it (2026-09-26:
+	// "the tasks channel should be removed - issues should be used for it").
+	ChannelIssues = "issues"
+	// ChannelTasks is the retired #tasks. rdb 0050 moves its messages (issue
+	// discussions to ChannelIssues, the rest to #lobby) and deletes its rows;
+	// the hub rolls BEFORE that migration, so until then it must still read
+	// the old issue threads here. It stays hidden and public, and can never
+	// be created again (a new #tasks would inherit stray old messages).
+	ChannelTasks = "tasks"
 )
 
 // DefaultChannels in display order.
-var DefaultChannels = []string{ChannelLobby, ChannelTasks, ChannelAlerts, ChannelFeedback}
+var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback}
+
+// PublicChannels are the channel ids every member of a tenant reads without
+// a membership row: the defaults and the issue discussions. The read doors
+// hand this list to SQL; the channel list and the seeding use DefaultChannels.
+var PublicChannels = append(append([]string{}, DefaultChannels...), ChannelIssues, ChannelTasks)
+
+// ChannelHidden reports whether id is stored on messages but is not a
+// channel anyone lists: the issue discussions and the retired #tasks.
+func ChannelHidden(id string) bool { return id == ChannelIssues || id == ChannelTasks }
 
 var channelRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
@@ -39,6 +60,12 @@ func IsDefaultChannel(id string) bool {
 		}
 	}
 	return false
+}
+
+// ChannelReserved reports whether id can never be a created channel: a
+// default, the lobby alias, the issue discussions or the retired #tasks.
+func ChannelReserved(id string) bool {
+	return id == ChannelGeneralAlias || ChannelHidden(id) || IsDefaultChannel(id)
 }
 
 // NormalizeChannel maps the general alias to lobby; anything else unchanged.

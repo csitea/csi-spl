@@ -25,7 +25,7 @@ func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
 			if err := s.InviteChannelAgent(ctx, tid, "live-proof", "box-desk", "CLE-07", now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"tasks"}, now); err != nil {
+			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"feedback"}, now); err != nil {
 				t.Fatal(err)
 			}
 			m, err := s.ChannelMembers(ctx, tid, "live-proof")
@@ -38,7 +38,7 @@ func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
 			if err := s.RemoveChannelAgent(ctx, tid, "live-proof", "box-desk", "CLE-07", now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"live-proof", "tasks"}, now); err != nil {
+			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"live-proof", "feedback"}, now); err != nil {
 				t.Fatal(err)
 			}
 			m, err = s.ChannelMembers(ctx, tid, "live-proof")
@@ -87,8 +87,8 @@ func TestDefaultChannelAgentsArePicked(t *testing.T) {
 			if got := members("lobby"); len(got) != 1 || got[0] != "CLE-07" {
 				t.Fatalf("lobby after invite + announce: %v", got)
 			}
-			if got := members("tasks"); len(got) != 0 {
-				t.Fatalf("a lobby invite leaked into #tasks: %v", got)
+			if got := members("feedback"); len(got) != 0 {
+				t.Fatalf("a lobby invite leaked into #feedback: %v", got)
 			}
 			if err := s.RemoveChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); err != nil {
 				t.Fatal(err)
@@ -156,23 +156,23 @@ func TestStoreChannels(t *testing.T) {
 			if err := s.SetRoster(ctx, tid, "box-b", []string{"CLE-07", "CLE-08"}, now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07", "CLE-08"}, []string{"tasks", "releases", "nosuch", "lobby"}, now); err != nil {
+			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07", "CLE-08"}, []string{"feedback", "releases", "nosuch", "lobby"}, now); err != nil {
 				t.Fatal(err)
 			}
 			// An announce never subscribes a default channel; a member does.
-			if m, err := s.ChannelMembers(ctx, tid, "tasks"); err != nil || len(m) != 0 {
-				t.Fatalf("tasks members after announce: %v %+v", err, m)
+			if m, err := s.ChannelMembers(ctx, tid, "feedback"); err != nil || len(m) != 0 {
+				t.Fatalf("feedback members after announce: %v %+v", err, m)
 			}
 			// CLE-34986: nor a created one - naming a channel seats nobody.
 			if m, err := s.ChannelMembers(ctx, tid, "releases"); err != nil || len(m) != 0 {
 				t.Fatalf("releases members after announce: %v %+v", err, m)
 			}
-			if err := s.InviteChannelAgent(ctx, tid, "tasks", "box-b", "CLE-07", now); err != nil {
+			if err := s.InviteChannelAgent(ctx, tid, "feedback", "box-b", "CLE-07", now); err != nil {
 				t.Fatal(err)
 			}
-			m, err := s.ChannelMembers(ctx, tid, "tasks")
+			m, err := s.ChannelMembers(ctx, tid, "feedback")
 			if err != nil || len(m) != 1 || len(m["box-b"]) != 1 || m["box-b"][0] != "CLE-07" {
-				t.Fatalf("tasks members: %v %+v", err, m)
+				t.Fatalf("feedback members: %v %+v", err, m)
 			}
 			if m, _ := s.ChannelMembers(ctx, tid, "nosuch"); len(m) != 0 {
 				t.Fatalf("unknown channel got members: %+v", m)
@@ -188,14 +188,14 @@ func TestStoreChannels(t *testing.T) {
 				t.Fatalf("announce seated an agent: %+v", m)
 			}
 
-			// messages: two #tasks posts, one DM topic, a child topic, an expired #alerts
+			// messages: two #feedback posts, one DM topic, a child topic, an expired #alerts
 			root, child, dm := uuid4(), uuid4(), uuid4()
 			a1 := msgFor(tid, root, "box-wui", now, now.Add(-5*time.Minute), "a1")
-			a1.Channel = "tasks"
+			a1.Channel = "feedback"
 			a2 := msgFor(tid, root, "box-wui", now, now.Add(-4*time.Minute), "a2")
-			a2.Channel, a2.FromID = "tasks", "HUM-1"
+			a2.Channel, a2.FromID = "feedback", "HUM-1"
 			c1 := msgFor(tid, child, "box-b", now, now.Add(-3*time.Minute), "c1")
-			c1.Channel, c1.ParentTaskID = "tasks", root
+			c1.Channel, c1.ParentTaskID = "feedback", root
 			d1 := msgFor(tid, dm, "box-b", now, now.Add(-2*time.Minute), "d1")
 			d1.FromID, d1.FromBox, d1.ToID, d1.ToBox = "HUM-1", "box-wui", "CLE-07", "box-b"
 			old := msgFor(tid, uuid4(), "box-wui", now, now.Add(-time.Hour), "o1")
@@ -206,17 +206,17 @@ func TestStoreChannels(t *testing.T) {
 				}
 			}
 
-			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"tasks": {At: a1.ReceivedAt, MsgID: a1.MsgID}})
-			if err != nil || len(stats) != 5 { // 4 defaults (incl. feedback) + releases
+			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"feedback": {At: a1.ReceivedAt, MsgID: a1.MsgID}})
+			if err != nil || len(stats) != 4 { // 3 defaults (no #tasks since rdb 0050) + releases
 				t.Fatalf("stats: %v %+v", err, stats)
 			}
 			byID := map[string]ChannelStat{}
 			for _, st := range stats {
 				byID[st.ChannelID] = st
 			}
-			if st := byID["tasks"]; !st.Default || st.Count != 3 || st.Unread != 2 || st.Posters != 2 ||
+			if st := byID["feedback"]; !st.Default || st.Count != 3 || st.Unread != 2 || st.Posters != 2 ||
 				st.Agents != 1 || st.Boxes != 1 || st.LastMsgID != c1.MsgID || !st.LastAt.Equal(c1.ReceivedAt) {
-				t.Fatalf("tasks stat: %+v", st)
+				t.Fatalf("feedback stat: %+v", st)
 			}
 			if st := byID["alerts"]; st.Count != 0 || st.Unread != 0 || !st.LastAt.IsZero() {
 				t.Fatalf("alerts stat (expired only): %+v", st)
@@ -260,9 +260,9 @@ func TestStoreChannels(t *testing.T) {
 			eq("dm peer wrong box", ids(TopicQuery{DM: true, Agent: "CLE-07", AgentBox: "box-a"}))
 			eq("dm viewer party", ids(TopicQuery{DM: true, Viewer: "HUM-1"}), dm)
 			eq("dm viewer not party", ids(TopicQuery{DM: true, Viewer: "HUM-2"}))
-			eq("channel roots", ids(TopicQuery{Channel: "tasks", Roots: true}), root)
+			eq("channel roots", ids(TopicQuery{Channel: "feedback", Roots: true}), root)
 			rows, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Parent: root})
-			if len(rows) != 1 || rows[0].Parent != root || rows[0].Channel != "tasks" {
+			if len(rows) != 1 || rows[0].Parent != root || rows[0].Channel != "feedback" {
 				t.Fatalf("child row: %+v", rows)
 			}
 		})

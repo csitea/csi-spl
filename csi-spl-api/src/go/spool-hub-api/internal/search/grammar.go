@@ -146,7 +146,7 @@ var Operators = []Operator{
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
-	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#tasks", Doc: "a channel (#name or name), or dm for direct messages"},
+	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#lobby", Doc: "a channel (#name or name), or dm for direct messages"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
 		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},

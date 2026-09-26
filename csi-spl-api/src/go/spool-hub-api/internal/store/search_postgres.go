@@ -237,7 +237,7 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 		v := c.arg(q.Viewer)
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
-		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		pub, mine := c.arg(PublicChannels), c.arg(q.ViewerChannels)
 		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
 		// end of any message of the task, so a search handed over another
 		// member's DM that shared a task with one of yours).
@@ -287,7 +287,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 		v := c.arg(q.Viewer)
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
-		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		pub, mine := c.arg(PublicChannels), c.arg(q.ViewerChannels)
 		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
 		// end of any message of the task, so a search handed over another
 		// member's DM that shared a task with one of yours).
@@ -341,7 +341,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 	door := ""
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
-		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		pub, mine := c.arg(PublicChannels), c.arg(q.ViewerChannels)
 		door = " AND ((channel IS NULL AND (from_id = " + v + " OR to_id = " + v + "))" +
 			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}

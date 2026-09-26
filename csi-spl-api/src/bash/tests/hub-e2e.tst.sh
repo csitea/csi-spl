@@ -298,7 +298,7 @@ roster="$(view_get /v1/view/roster)"
 echo "$roster" | python3 -c 'import json,sys; ids={b["box_id"] for b in json.load(sys.stdin)["boxes"]}; assert ids>={"box-a","box-b"}, ids' \
   || fail "view roster: $roster"
 channels="$(view_get /v1/view/channels)"
-echo "$channels" | python3 -c 'import json,sys; s={c["channel"] for c in json.load(sys.stdin)["channels"]}; assert s>={"lobby","tasks","alerts"}, s' \
+echo "$channels" | python3 -c 'import json,sys; s={c["channel"] for c in json.load(sys.stdin)["channels"]}; assert s>={"lobby","alerts","feedback"} and not s&{"tasks","issues"}, s' \
   || fail "view channels: $channels"
 ok "door-off GET /v1/view/{topics,topics/{id},children,roster,channels}"
 wsout="$(wui_hello_subscribe)"

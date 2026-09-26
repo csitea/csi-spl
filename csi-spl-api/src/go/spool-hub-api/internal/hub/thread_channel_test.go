@@ -12,7 +12,7 @@ import (
 // CLE-34977: a thread reply lives on its topic's task and the WUI reply pane
 // sends no channel tag, so a #lobby reply was stored with channel NULL while
 // its topic said lobby. A reply now inherits its topic root's channel; the
-// #tasks and DM rows are the controls (tagged stays tagged, a DM stays a DM).
+// #feedback and DM rows are the controls (tagged stays tagged, a DM stays a DM).
 func TestThreadReplyInheritsTopicChannel(t *testing.T) {
 	e := wuiEnv(t)
 	tid, _ := e.tenant()
@@ -45,7 +45,7 @@ func TestThreadReplyInheritsTopicChannel(t *testing.T) {
 		name, task, topicTag, want string
 	}{
 		{"lobby", "22222222-2222-4222-8222-222222222201", "lobby", "lobby"},
-		{"tasks control", "22222222-2222-4222-8222-222222222202", "tasks", "tasks"},
+		{"feedback control", "22222222-2222-4222-8222-222222222202", "feedback", "feedback"},
 		{"dm control", "22222222-2222-4222-8222-222222222203", "", ""},
 	}
 	for _, c := range cases {
@@ -60,8 +60,8 @@ func TestThreadReplyInheritsTopicChannel(t *testing.T) {
 	}
 
 	// An explicit tag still wins over the topic's channel.
-	if got := stored(post(cases[0].task, "tasks", "L2 tagged", 0)); got != "tasks" {
-		t.Errorf("tagged reply channel %q, want tasks", got)
+	if got := stored(post(cases[0].task, "feedback", "L2 tagged", 0)); got != "feedback" {
+		t.Errorf("tagged reply channel %q, want feedback", got)
 	}
 
 	// A box agent's untagged reply under the lobby topic inherits it too.

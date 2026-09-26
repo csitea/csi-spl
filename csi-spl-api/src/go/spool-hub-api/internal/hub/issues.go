@@ -22,15 +22,16 @@ import (
 // (issue frames, ws.go). Every change reaches every browser of the tenant as
 // an `issue` frame, so a list updates without a reload.
 //
-// The discussion of an issue is an ordinary topic on its task_id in #tasks
-// (a default channel every member reads), posted at reply level so it never
-// becomes a card in the #tasks feed.
+// The discussion of an issue is an ordinary topic on its task_id in the
+// reserved channel id store.ChannelIssues (SPL-68: #tasks is gone), which
+// every member reads and no channel list shows; comments are posted at reply
+// level.
 
 const (
 	issueFrame      = "issue"
 	issueLabelFrame = "issue_label"
 	// IssueChannel is the channel an issue's discussion is posted in.
-	IssueChannel = store.ChannelTasks
+	IssueChannel = store.ChannelIssues
 	issueMaxBody = 64 << 10
 )
 

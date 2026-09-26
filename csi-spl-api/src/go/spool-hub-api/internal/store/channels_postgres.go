@@ -19,7 +19,7 @@ const pgSeedDefaults = `INSERT INTO channels (tenant_id, channel_id, name, creat
 	ON CONFLICT (tenant_id, channel_id) DO NOTHING`
 
 func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
-	if c.ChannelID == ChannelGeneralAlias || !ValidChannelID(c.ChannelID) || IsDefaultChannel(c.ChannelID) {
+	if !ValidChannelID(c.ChannelID) || ChannelReserved(c.ChannelID) {
 		return ErrConflict
 	}
 	var created *time.Time
@@ -74,7 +74,7 @@ func (s *Postgres) SetMembersOpenInvite(ctx context.Context, tenant, id string, 
 }
 
 func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, error) {
-	if IsDefaultChannel(id) {
+	if IsDefaultChannel(id) || id == ChannelIssues { // the issue discussions have no row
 		return true, nil
 	}
 	var ok bool
@@ -260,7 +260,9 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	}
 	out := make([]ChannelStat, 0, len(by))
 	for _, st := range by {
-		out = append(out, *st)
+		if !ChannelHidden(st.ChannelID) { // issue discussions are not a channel
+			out = append(out, *st)
+		}
 	}
 	SortChannelStats(out) // CLE-3425: newest activity first
 	return out, nil
@@ -386,7 +388,7 @@ func (s *Postgres) FileReadableByHuman(ctx context.Context, tenant, fileID, huma
 		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND `+fileCarrier+` AND (
 			(m.channel IS NULL AND (m.from_id = $4 OR m.to_id = $4))
 			OR m.channel = ANY($5::text[]) OR m.channel = ANY($6::text[])))`,
-		[]any{tenant, fileID, now, human, DefaultChannels, channels}, &ok)
+		[]any{tenant, fileID, now, human, PublicChannels, channels}, &ok)
 	return ok, err
 }
 

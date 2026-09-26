@@ -173,7 +173,7 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	// line as its subject and the DM's ends among its parties.
 	aggDoor := ""
 	if q.Reader != "" {
-		rd, pub, mine := c.arg(q.Reader), c.arg(DefaultChannels), c.arg(q.ReaderChannels)
+		rd, pub, mine := c.arg(q.Reader), c.arg(PublicChannels), c.arg(q.ReaderChannels)
 		walk += " AND (SELECT true FROM messages d WHERE " + topic("d") + " AND (" +
 			"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
 			"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
@@ -242,7 +242,7 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 	if q.Reader != "" {
 		door = `((channel IS NULL AND (from_id = $9 OR to_id = $9))
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))`
-		doorArgs = []any{q.Reader, DefaultChannels, q.ReaderChannels}
+		doorArgs = []any{q.Reader, PublicChannels, q.ReaderChannels}
 	}
 	// Two single-statement batches, two round trips (CLE-34985; it was a
 	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement

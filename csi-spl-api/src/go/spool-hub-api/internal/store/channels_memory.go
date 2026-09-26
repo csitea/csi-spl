@@ -48,7 +48,7 @@ func (c *memChannels) seedLocked(tenant string, now time.Time) {
 }
 
 func (s *Memory) CreateChannel(_ context.Context, c Channel) error {
-	if c.ChannelID == ChannelGeneralAlias || !ValidChannelID(c.ChannelID) {
+	if !ValidChannelID(c.ChannelID) || ChannelReserved(c.ChannelID) {
 		return ErrConflict
 	}
 	s.mu.Lock()
@@ -98,7 +98,7 @@ func (s *Memory) SetMembersOpenInvite(_ context.Context, tenant, id string, open
 }
 
 func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error) {
-	if IsDefaultChannel(id) {
+	if IsDefaultChannel(id) || id == ChannelIssues { // the issue discussions have no row
 		return true, nil
 	}
 	s.mu.Lock()
@@ -277,7 +277,9 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	}
 	out := make([]ChannelStat, 0, len(by))
 	for _, st := range by {
-		out = append(out, *st)
+		if !ChannelHidden(st.ChannelID) { // issue discussions are not a channel
+			out = append(out, *st)
+		}
 	}
 	SortChannelStats(out) // CLE-3425: newest activity first
 	return out, nil

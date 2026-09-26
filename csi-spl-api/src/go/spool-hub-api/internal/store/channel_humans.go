@@ -15,11 +15,16 @@ import (
 // channel in it.
 
 // ChannelPublic reports whether channelID is readable by every member of the
-// tenant without a membership row. The three default channels are (owner's
-// call, 2026-09-23: lobby is the channel every tester needs); every created
-// channel is members-only. Public is about PEOPLE only: the agents of a
-// default channel are the ones a member invited (owner decision 2026-09-25).
-func ChannelPublic(channelID string) bool { return IsDefaultChannel(NormalizeChannel(channelID)) }
+// tenant without a membership row. The default channels are (owner's
+// call, 2026-09-23: lobby is the channel every tester needs), and so are the
+// issue discussions (ChannelIssues and the retired ChannelTasks: who may
+// read an issue may read its thread); every created channel is members-only. Public is about PEOPLE
+// only: the agents of a default channel are the ones a member invited (owner
+// decision 2026-09-25).
+func ChannelPublic(channelID string) bool {
+	id := NormalizeChannel(channelID)
+	return ChannelHidden(id) || IsDefaultChannel(id)
+}
 
 // TopicAccess is what a read door needs to know about one topic without
 // reading its messages: the channel it belongs to, and the ids at both ends

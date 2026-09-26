@@ -13,7 +13,8 @@ import (
 // to a browser:
 //
 //   - a CHANNEL message is readable by the HUMANS in that channel. The three
-//     default channels (#lobby, #tasks, #alerts) are public to the tenant and
+//     default channels (#lobby, #alerts, #feedback) and the issue
+//     discussions (store.ChannelIssues) are public to the tenant and
 //     need no membership; every created channel is members-only, and a
 //     non-member cannot learn it exists - it is absent from the channel list
 //     and its topics read 404, never 403.

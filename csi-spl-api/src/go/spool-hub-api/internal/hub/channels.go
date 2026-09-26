@@ -128,7 +128,7 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 // channel is a post into that channel, and only a member agent may post one -
 // the sending agent itself must be a member on the box that signed it
 // (channel_subscriptions, invited agents included). A default channel is no
-// exception: since rdb 0036 #lobby / #tasks / #alerts have no agents until a
+// exception: since rdb 0036 the default channels have no agents until a
 // member picks them. A non-member is answered like a channel that does not
 // exist (unknown_channel, 404 - never 403, the read door's rule, rdb 0028).
 func (s *Server) agentInChannel(ctx context.Context, tenant, channel, box, agent string) (bool, error) {

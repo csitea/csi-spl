@@ -48,7 +48,7 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 	if q.Reader != "" {
 		door = `((m.channel IS NULL AND (m.from_id = $5 OR m.to_id = $5))
 			OR m.channel = ANY($6::text[]) OR m.channel = ANY($7::text[]))`
-		args = append(args, q.Reader, DefaultChannels, q.ReaderChannels)
+		args = append(args, q.Reader, PublicChannels, q.ReaderChannels)
 	}
 	where := map[string]*ViewMsg{}
 	var ids []string

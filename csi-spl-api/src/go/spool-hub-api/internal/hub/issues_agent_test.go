@@ -17,7 +17,7 @@ import (
 // own box socket, through the real front end (action.Issue == `spool issue`
 // == the MCP tool), as itself - and only as an agent its box announced. A
 // progress comment lands in the issue's discussion at reply level, so it
-// is not a card in the #tasks feed. Browsers see every change live.
+// is not a card in any feed. Browsers see every change live.
 func TestAgentIssues(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()
@@ -96,7 +96,7 @@ func TestAgentIssues(t *testing.T) {
 		t.Fatalf("get missing: %v", err)
 	}
 
-	// Progress goes onto the issue, at reply level, in #tasks.
+	// Progress goes onto the issue, at reply level, in the issue channel (SPL-68).
 	out, err = do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-2", Body: "key rotated on dev, prd next"})
 	if err != nil || out["issue"] != "SPL-2" || out["task_id"] != iss["task_id"] {
 		t.Fatalf("comment: %v %v", err, out)
@@ -109,20 +109,20 @@ func TestAgentIssues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m, err := env.Inner(); err != nil || m.From != "CLE-07" || m.Body != "key rotated on dev, prd next" || env.Channel != "tasks" || env.FromBox != "box-a" {
+	if m, err := env.Inner(); err != nil || m.From != "CLE-07" || m.Body != "key rotated on dev, prd next" || env.Channel != store.ChannelIssues || env.FromBox != "box-a" {
 		t.Fatalf("comment envelope: %+v %+v %v", env, m, err)
 	}
-	// Not a topic of any list the WUI draws (#tasks cards, the Topics tab)...
-	for _, q := range []string{"?channel=tasks", ""} {
+	// Not a topic of any list the WUI draws (channel cards, the Topics tab)...
+	for _, q := range []string{"?channel=issues", ""} {
 		if code, out := call(t, e, tid, "GET", "/v1/view/topics"+q, "HUM-1", nil); code != 200 || len(out["topics"].([]any)) != 0 {
 			t.Fatalf("topics%s lists the issue's discussion: %d %v", q, code, out)
 		}
 	}
-	// ...CONTROL: the store holds it as a #tasks topic; only the filter hides it.
-	if rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: "tasks"}); len(rows) != 1 {
+	// ...CONTROL: the store holds it as an issue-channel topic; only the filter hides it.
+	if rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: store.ChannelIssues}); len(rows) != 1 {
 		t.Fatalf("control: %+v", rows)
 	}
-	if rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: "tasks", NoIssues: true}); len(rows) != 0 {
+	if rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: store.ChannelIssues, NoIssues: true}); len(rows) != 0 {
 		t.Fatalf("store NoIssues: %+v", rows)
 	}
 	// The issue's own topic read still has it (the right pane).

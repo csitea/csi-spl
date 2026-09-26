@@ -146,8 +146,8 @@ func (s *Server) agentGetIssue(ctx context.Context, tenant, ref string) (any, *i
 }
 
 // agentComment posts the agent's progress line into the issue's discussion
-// topic: reply level (033 level 2) in #tasks, so it shows in the issue's
-// right pane and never as a card in the #tasks feed. The hub builds the
+// topic: reply level (033 level 2) in the issue channel, so it shows in the
+// issue's right pane and never as a card in any feed. The hub builds the
 // message, like a browser post; it is shown in browsers and delivered to no
 // box.
 func (s *Server) agentComment(ctx context.Context, x *session, agent, ref, body string) (any, *issueErr) {

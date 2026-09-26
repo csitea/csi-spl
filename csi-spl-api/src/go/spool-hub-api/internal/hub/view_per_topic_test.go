@@ -38,12 +38,12 @@ func TestViewTopicsPerTopicMatchesTopicReads(t *testing.T) {
 	w := &wuiClient{t: t, c: c}
 	me := w.read("welcome").As
 
-	// Topics of 1, 3, 5 and 7 messages in #tasks, one reaction.
+	// Topics of 1, 3, 5 and 7 messages in #feedback, one reaction.
 	var reacted string
 	for n := 1; n <= 7; n += 2 {
 		task := uuid4()
 		for i := 0; i < n; i++ {
-			a := channelFrame(t, c, uuid4(), task, "tasks", fmt.Sprintf("topic %d line %d", n, i))
+			a := channelFrame(t, c, uuid4(), task, "feedback", fmt.Sprintf("topic %d line %d", n, i))
 			if reacted == "" {
 				reacted, _ = a["msg_id"].(string)
 			}
@@ -59,7 +59,7 @@ func TestViewTopicsPerTopicMatchesTopicReads(t *testing.T) {
 		return code, []byte(body)
 	}
 	for _, per := range []int{1, 3, 5, 50} {
-		code, body := get(fmt.Sprintf("/v1/view/topics?channel=tasks&limit=20&per_topic=%d", per))
+		code, body := get(fmt.Sprintf("/v1/view/topics?channel=feedback&limit=20&per_topic=%d", per))
 		if code != http.StatusOK {
 			t.Fatalf("per_topic=%d: %d %s", per, code, body)
 		}
@@ -98,17 +98,17 @@ func TestViewTopicsPerTopicMatchesTopicReads(t *testing.T) {
 			}
 		}
 	}
-	if !bytes.Contains(func() []byte { _, b := get("/v1/view/topics?channel=tasks&per_topic=50"); return b }(), []byte(`"emoji":"👍"`)) {
+	if !bytes.Contains(func() []byte { _, b := get("/v1/view/topics?channel=feedback&per_topic=50"); return b }(), []byte(`"emoji":"👍"`)) {
 		t.Fatal("the reaction is not inlined")
 	}
 
 	// CONTROL: without per_topic the list is the §4.3 shape, unchanged.
-	if _, b := get("/v1/view/topics?channel=tasks"); bytes.Contains(b, []byte(`"messages"`)) {
+	if _, b := get("/v1/view/topics?channel=feedback"); bytes.Contains(b, []byte(`"messages"`)) {
 		t.Fatalf("messages without per_topic: %s", b)
 	}
 	// CONTROL: out-of-range values are refused, not clamped.
 	for _, v := range []string{"0", "51", "-1", "x"} {
-		if code, b := get("/v1/view/topics?channel=tasks&per_topic=" + v); code != http.StatusBadRequest {
+		if code, b := get("/v1/view/topics?channel=feedback&per_topic=" + v); code != http.StatusBadRequest {
 			t.Fatalf("per_topic=%s: %d %s", v, code, b)
 		}
 	}

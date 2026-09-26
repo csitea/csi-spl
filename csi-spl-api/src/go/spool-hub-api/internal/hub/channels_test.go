@@ -158,20 +158,20 @@ func TestChannelMembershipRouting(t *testing.T) {
 	b := e.box(tid, "box-b", "CLE-07", "CLE-08")
 	e.pin(tid, a)
 	e.pin(tid, b)
-	rb := e.rawBox(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
+	rb := e.rawBox(tid, b, []string{"CLE-07", "CLE-08"}, []string{"feedback"})
 	// Owner decision 2026-09-25: announcing a default channel joins nobody;
 	// a member picks its agents (POST /v1/channels/tasks/agents).
-	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
-		t.Fatalf("announce put agents in #tasks: %+v", m)
+	if m, _ := e.st.ChannelMembers(ctx, tid, "feedback"); len(m) != 0 {
+		t.Fatalf("announce put agents in #feedback: %+v", m)
 	}
 	for _, id := range []string{"CLE-07", "CLE-08"} {
-		if err := e.st.InviteChannelAgent(ctx, tid, "tasks", "box-b", id, time.Now()); err != nil {
+		if err := e.st.InviteChannelAgent(ctx, tid, "feedback", "box-b", id, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// specs/038 FR-004: only a member agent posts into a channel, so the
 	// poster is seated in every channel it writes to below.
-	for _, ch := range []string{"tasks", "alerts", "lobby"} {
+	for _, ch := range []string{"feedback", "alerts", "lobby"} {
 		if err := e.st.InviteChannelAgent(ctx, tid, ch, "box-a", "GRK-03", time.Now()); err != nil {
 			t.Fatal(err)
 		}
@@ -188,11 +188,11 @@ func TestChannelMembershipRouting(t *testing.T) {
 		return m, f, err
 	}
 
-	// THE control for the owner rule (2026-09-22): a plain line in #tasks,
+	// THE control for the owner rule (2026-09-22): a plain line in #feedback,
 	// no mention and a broadcast `to`, reaches BOTH members of box-b. Delete
 	// the membership routing and this is the assertion that goes red - the
 	// pre-rule hub answered "no deliveries row, no recv" here.
-	m0, f, err := post("tasks", "ALL-0", "build is green, @CLE-07x is not a mention")
+	m0, f, err := post("feedback", "ALL-0", "build is green, @CLE-07x is not a mention")
 	if err != nil || f.Delivery != wire.DeliverySent {
 		t.Fatalf("plain send: %v %+v", err, f)
 	}
@@ -204,7 +204,7 @@ func TestChannelMembershipRouting(t *testing.T) {
 	}
 
 	// A mention neither narrows nor widens it: still every member.
-	m1, _, err := post("tasks", "ALL-0", "@CLE-07 please run the suite")
+	m1, _, err := post("feedback", "ALL-0", "@CLE-07 please run the suite")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,13 +212,13 @@ func TestChannelMembershipRouting(t *testing.T) {
 	if len(r.Agents) != 2 {
 		t.Fatalf("mention agents: %+v", r.Agents)
 	}
-	if got, _ := wire.ParseEnvelope(r.Env); got == nil || got.Channel != "tasks" || got.ToBox != hub.WUIBox {
+	if got, _ := wire.ParseEnvelope(r.Env); got == nil || got.Channel != "feedback" || got.ToBox != hub.WUIBox {
 		t.Fatalf("recv env: %s", r.Env)
 	}
 	if st, _ := e.st.DeliveryState(ctx, tid, m1.MsgID, "box-b"); st != store.StateSent {
 		t.Fatalf("mention delivery state %q", st)
 	}
-	if _, _, err := post("tasks", "ALL-0", "heads up @channel"); err != nil {
+	if _, _, err := post("feedback", "ALL-0", "heads up @channel"); err != nil {
 		t.Fatal(err)
 	}
 	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
@@ -269,13 +269,13 @@ func TestChannelMembershipRouting(t *testing.T) {
 	trace("offline: CloseNow box-b")
 	rb.c.CloseNow() //nolint:errcheck
 	eventually(t, "box-b offline", func() bool {
-		m, f, err := post("tasks", "ALL-0", "while you were out")
+		m, f, err := post("feedback", "ALL-0", "while you were out")
 		st, serr := e.st.DeliveryState(ctx, tid, m.MsgID, "box-b")
 		trace("offline post %s: send err=%v delivery=%q; box-b row %q (%v)", m.MsgID, err, f.Delivery, st, serr)
 		return st == store.StateQueued
 	})
 	trace("reconnect box-b (no drain)")
-	rb = e.rawBoxNoDrain(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
+	rb = e.rawBoxNoDrain(tid, b, []string{"CLE-07", "CLE-08"}, []string{"feedback"})
 	rb.trace = trace
 	trace("welcome read; waiting for the drained recv")
 	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
@@ -288,7 +288,7 @@ func TestChannelMembershipRouting(t *testing.T) {
 		t.Fatalf("unknown channel: %v", err)
 	}
 	bad := chanMsg(task, "ALL-0", "note", "x")
-	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", task, bad)); err == nil || !strings.Contains(err.Error(), "bad_json") {
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "feedback", task, bad)); err == nil || !strings.Contains(err.Error(), "bad_json") {
 		t.Fatalf("parent == task accepted: %v", err)
 	}
 }
@@ -315,7 +315,7 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	b := e.box(tid, "box-b", "CLE-07")
 	e.pin(tid, a)
 	e.pin(tid, b)
-	if err := e.st.InviteChannelAgent(ctx, tid, "tasks", "box-a", "GRK-03", time.Now()); err != nil { // specs/038
+	if err := e.st.InviteChannelAgent(ctx, tid, "feedback", "box-a", "GRK-03", time.Now()); err != nil { // specs/038
 		t.Fatal(err)
 	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
@@ -329,7 +329,7 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	if f, err := cli.Send(ctx, legacy); err != nil || f.Delivery != wire.DeliveryQueued {
 		t.Fatalf("legacy send: %v %+v", err, f)
 	}
-	if _, err := cli.Send(ctx, signedIn(t, a, "box-b", "tasks", root, chanMsg(child, "CLE-07", "task", "sub-task"))); err != nil {
+	if _, err := cli.Send(ctx, signedIn(t, a, "box-b", "feedback", root, chanMsg(child, "CLE-07", "task", "sub-task"))); err != nil {
 		t.Fatal(err)
 	}
 	get := func(path string) map[string]any {
@@ -355,7 +355,7 @@ func TestChannelEnvelopeStored(t *testing.T) {
 		t.Fatalf("roots: %+v", roots)
 	}
 	kids := topics(get("/v1/view/topics/" + root + "/children"))
-	if len(kids) != 1 || kids[0]["task_id"] != child || kids[0]["parent_task_id"] != root || kids[0]["channel"] != "tasks" {
+	if len(kids) != 1 || kids[0]["task_id"] != child || kids[0]["parent_task_id"] != root || kids[0]["channel"] != "feedback" {
 		t.Fatalf("children: %+v", kids)
 	}
 	if all := topics(get("/v1/view/topics?roots=false")); len(all) != 2 {
@@ -377,7 +377,7 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	}
 	// The stored envelope keeps its signed tags byte-for-byte.
 	msgs, _ := e.st.ViewTopic(ctx, tid, store.TopicMsgQuery{TaskID: child, Now: time.Now()})
-	if len(msgs) != 1 || !bytes.Contains(msgs[0].Env, []byte(`"channel":"tasks"`)) || !bytes.Contains(msgs[0].Env, []byte(`"parent_task_id":"`+root+`"`)) {
+	if len(msgs) != 1 || !bytes.Contains(msgs[0].Env, []byte(`"channel":"feedback"`)) || !bytes.Contains(msgs[0].Env, []byte(`"parent_task_id":"`+root+`"`)) {
 		t.Fatalf("stored env: %+v", msgs)
 	}
 }
@@ -457,8 +457,8 @@ func TestChannelsCreateAndList(t *testing.T) {
 		return out
 	}
 	all := list("")
-	if len(all) != 6 || all["feedback"]["default"] != true || all["alerts"]["retention_days"] != float64(7) || all["tasks"]["retention_days"] != float64(30) ||
-		all["releases"]["name"] != "Releases" || all["tasks"]["last_ts"] != nil {
+	if len(all) != 5 || all["tasks"] != nil || all["feedback"]["default"] != true || all["alerts"]["retention_days"] != float64(7) || all["feedback"]["retention_days"] != float64(30) ||
+		all["releases"]["name"] != "Releases" || all["feedback"]["last_ts"] != nil {
 		t.Fatalf("channels: %+v", all)
 	}
 	/* §5.2 carries the description back; a default channel and a channel made
@@ -575,8 +575,8 @@ func TestHubclientChannelRecv(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
-		t.Fatalf("SPOOL_CHANNELS put agents in #tasks: %+v", m)
+	if m, _ := e.st.ChannelMembers(ctx, tid, "feedback"); len(m) != 0 {
+		t.Fatalf("SPOOL_CHANNELS put agents in #feedback: %+v", m)
 	}
 	for _, ch := range []string{"releases", "alerts"} { // specs/038: the poster is a member
 		if err := e.st.InviteChannelAgent(ctx, tid, ch, "box-a", "GRK-03", time.Now()); err != nil {

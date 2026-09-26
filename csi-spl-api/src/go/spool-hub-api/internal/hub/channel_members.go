@@ -263,7 +263,7 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 // agent. The same people who may add a human may invite an agent. The row
 // is origin invite, so the box's next announce does not drop it.
 //
-// A default channel (#lobby, #tasks, #alerts) takes agents the same way
+// A default channel (#lobby, #alerts, #feedback) takes agents the same way
 // (owner decision 2026-09-25): it starts with none, and an announce never
 // adds one. Its created_by is "hub", so mayInviteChannel lets any signed-in
 // member of the tenant pick its agents. Its PEOPLE stay everyone.

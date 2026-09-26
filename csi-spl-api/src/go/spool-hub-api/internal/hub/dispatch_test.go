@@ -452,13 +452,13 @@ func TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly(t *testing.T) {
 	e.pin(tid, a)
 	e.pinKey(tid, hub.WUIBox, pub)
 	now := time.Now()
-	e.st.SetRoster(ctx, tid, "box-a", []string{"CLE-07"}, now)                           //nolint:errcheck
-	e.st.SetSubscriptions(ctx, tid, "box-a", []string{"CLE-07"}, []string{"tasks"}, now) //nolint:errcheck
+	e.st.SetRoster(ctx, tid, "box-a", []string{"CLE-07"}, now)                              //nolint:errcheck
+	e.st.SetSubscriptions(ctx, tid, "box-a", []string{"CLE-07"}, []string{"feedback"}, now) //nolint:errcheck
 
 	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
 	task := "3c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f"
 	id := "4d5e6f7a-8b9c-4d1e-9f20-3b4c5d6e7f80"
-	if ack := channelFrame(t, w, id, task, "tasks", "a tester says hello"); ack["type"] != "ack" {
+	if ack := channelFrame(t, w, id, task, "feedback", "a tester says hello"); ack["type"] != "ack" {
 		t.Fatalf("tester post: %v", ack)
 	}
 	envs, _ := e.st.TaskEnvelopes(ctx, tid, task)

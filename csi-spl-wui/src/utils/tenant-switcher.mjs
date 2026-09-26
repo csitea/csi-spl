@@ -77,3 +77,18 @@ export function tenantHint(box, t) {
   const tail = box && box.canSwitch ? t('sidebar.tenant_hint_switch') : t('sidebar.tenant_hint_one')
   return t('sidebar.tenant_hint', { name }) + ' ' + tail
 }
+
+/** The UA dropdown arrow, in px. The gap before it is the owner's 3px. */
+export const TENANT_SELECT_ARROW_PX = 16
+export const TENANT_SELECT_GAP_PX = 3
+
+/**
+ * Select width so the arrow sits 3px after the widest tenant name.
+ * `textWidthPx` is the measured width of that name in the select's font.
+ * @param {number} textWidthPx
+ * @returns {number}
+ */
+export function tenantSelectWidthPx(textWidthPx) {
+  const w = Number.isFinite(textWidthPx) && textWidthPx > 0 ? textWidthPx : 0
+  return Math.ceil(w) + TENANT_SELECT_GAP_PX + TENANT_SELECT_ARROW_PX
+}

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption, tenantHint, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, tenantHint, tenantSelectWidthPx, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -238,5 +238,14 @@ describe('switchTenant (auth-client, specs/026 §6)', () => {
     const out = await createAuthClient({ fetchFn }).switchTenant('zz')
     assert.equal(out.ok, false)
     assert.equal(out.error, 'not_member')
+  })
+})
+
+describe('tenantSelectWidthPx', () => {
+  it('puts the arrow 3px after the widest name', () => {
+    assert.equal(tenantSelectWidthPx(40), 59)
+    assert.equal(tenantSelectWidthPx(40.2), 60)
+    assert.equal(tenantSelectWidthPx(0), 19)
+    assert.equal(tenantSelectWidthPx(Number.NaN), 19)
   })
 })

@@ -5,9 +5,10 @@
          membership, and choosing one switches the session's tenant.
          CLE-34991: one slim row, a glyph instead of a visible caption; the
          caption is the select's name and hovering explains what a tenant is. -->
-    <div class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
+    <div class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText" :style="tenantSelectStyle">
       <UiIcon name="building" :size="14" class="tenant-switcher__icon" />
       <select
+        ref="tenantSelectEl"
         class="tenant-switcher__select"
         data-testid="tenant-switcher-select"
         :value="tenantBox.selected"
@@ -486,7 +487,7 @@ import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { tenantHint, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
+import { tenantHint, tenantSelectWidthPx, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'events' | 'users'
@@ -550,6 +551,23 @@ const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
 const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
+/* The arrow sits 3px after the widest option. Capped by the sidebar in CSS. */
+const tenantSelectEl = ref<HTMLSelectElement | null>(null)
+const tenantSelectWidth = ref('')
+const tenantSelectStyle = computed(() => tenantSelectWidth.value ? { '--tenant-select-w': tenantSelectWidth.value } : {})
+function fitTenantSelect() {
+  const sel = tenantSelectEl.value
+  if (!sel) return
+  const labels = tenantBox.value.options.map((o) => o.label || o.id || t('sidebar.tenant'))
+  const ctx = document.createElement('canvas').getContext('2d')
+  if (!ctx) return
+  ctx.font = getComputedStyle(sel).font
+  let text = 0
+  for (const label of labels) text = Math.max(text, ctx.measureText(label).width)
+  tenantSelectWidth.value = tenantSelectWidthPx(text) + 'px'
+}
+onMounted(() => { fitTenantSelect() })
+watch(tenantBox, () => { nextTick(() => fitTenantSelect()) })
 const authClient = useAuthClient()
 const switching = ref(false)
 const switchFailed = ref(false)
@@ -1090,7 +1108,8 @@ async function onCreate() {
   gap: 4px;
   flex: 0 0 auto;
   align-self: flex-start;
-  width: min(9rem, calc(100% - 12px));
+  width: max-content;
+  max-width: calc(100% - 12px);
   min-width: 0;
   box-sizing: border-box;
   margin: 4px 6px 0;
@@ -1106,13 +1125,14 @@ async function onCreate() {
   color: var(--color-danger);
 }
 .tenant-switcher__select {
-  flex: 1 1 auto;
-  width: 0;
-  min-width: 0;
+  flex: 0 0 auto;
+  width: var(--tenant-select-w, max-content);
+  max-width: 100%;
   box-sizing: border-box;
   min-height: 24px;
   height: 24px;
-  padding: 0 2px;
+  /* 16px is the dropdown arrow. The width adds 3px of text before it. */
+  padding: 0 16px 0 2px;
   background: transparent;
   color: var(--color-fg);
   border: 0;
@@ -1123,7 +1143,8 @@ async function onCreate() {
 }
 @media (max-width: 800px) {
   .tenant-switcher {
-    width: calc(100% - 8px);
+    width: max-content;
+    max-width: calc(100% - 8px);
     margin: 4px 4px 0;
     padding: 0 2px;
   }

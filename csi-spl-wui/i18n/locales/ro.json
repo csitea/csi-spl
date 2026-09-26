@@ -884,6 +884,7 @@
     "group": "Grupare după",
     "group_none": "Niciuna",
     "col_key": "Cheie",
-    "col_title": "Titlu"
+    "col_title": "Titlu",
+    "comment_hint": "Enter trimite, Shift+Enter adaugă un rând"
   }
 }

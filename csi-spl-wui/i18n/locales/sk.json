@@ -884,6 +884,7 @@
     "group": "Zoskupiť podľa",
     "group_none": "Žiadne",
     "col_key": "Kľúč",
-    "col_title": "Názov"
+    "col_title": "Názov",
+    "comment_hint": "Enter odošle, Shift+Enter pridá riadok"
   }
 }

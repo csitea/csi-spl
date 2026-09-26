@@ -884,6 +884,7 @@
     "group": "Ομαδοποίηση",
     "group_none": "Καμία",
     "col_key": "Κλειδί",
-    "col_title": "Τίτλος"
+    "col_title": "Τίτλος",
+    "comment_hint": "Το Enter στέλνει, το Shift+Enter προσθέτει γραμμή"
   }
 }

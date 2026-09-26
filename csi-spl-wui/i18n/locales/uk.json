@@ -884,6 +884,7 @@
     "group": "Групування",
     "group_none": "Немає",
     "col_key": "Ключ",
-    "col_title": "Назва"
+    "col_title": "Назва",
+    "comment_hint": "Enter надсилає, Shift+Enter додає рядок"
   }
 }

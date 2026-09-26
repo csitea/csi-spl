@@ -280,6 +280,52 @@ try {
   const flatStatus = await p.$eval('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', (el) => ({ status: el.getAttribute('data-status'), text: el.textContent.trim() })).catch(() => null)
   ok('5c back in the flat list the row shows its new status', flatStatus && flatStatus.status === 'wip' && flatStatus.text === '03-wip', flatStatus)
 
+  /* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it and on Esc */
+  const menuUp = () => p.$('[data-test=issues-menu]').then(Boolean)
+  await p.click('[data-test=issues-row][data-key="SPL-3"] [data-test=issues-row-status]')
+  const openedA = await menuUp()
+  await p.click('[data-test=issues-heading]')
+  const afterOutside = await menuUp()
+  await p.click('[data-test=issues-row][data-key="SPL-3"] [data-test=issues-row-status]')
+  const openedB = await menuUp()
+  await p.keyboard.press('Escape')
+  const afterEsc = await menuUp()
+  ok('5d an open row menu closes on a click outside it and on Esc', openedA && !afterOutside && openedB && !afterEsc, { openedA, afterOutside, openedB, afterEsc })
+
+  /* prio is a select box in the sheet */
+  await p.select('[data-test=issues-row][data-key="SPL-3"] [data-test=issues-row-priority]', '1')
+  await p.waitForFunction(() => document.querySelector('[data-test=issues-row][data-key="SPL-3"]')?.getAttribute('data-priority') === '1', { timeout: 5000 }).catch(() => {})
+  const prio = await p.$eval('[data-test=issues-row][data-key="SPL-3"]', (el) => ({ row: el.getAttribute('data-priority'), box: el.querySelector('[data-test=issues-row-priority]').tagName }))
+  ok('5e the Prio cell is a select box and saves the new prio', prio.row === '1' && prio.box === 'SELECT', prio)
+
+  /* level is a select box that moves the issue in the tree: 2 -> 3 under a picked
+     issue (a subtask is listed under its parent, not as a row of the sheet) */
+  await p.select('[data-test=issues-row][data-key="SPL-3"] [data-test=issues-row-level]', '3')
+  await p.waitForSelector('[data-test=issues-menu-option][data-value="SPL-2"]', { visible: true, timeout: 5000 }).catch(() => {})
+  const parentOpts = await p.$$eval('[data-test=issues-menu-option]', (els) => els.map((e) => e.getAttribute('data-value')))
+  await p.click('[data-test=issues-menu-option][data-value="SPL-2"]').catch(() => {})
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-row][data-key="SPL-3"]'), { timeout: 5000 }).catch(() => {})
+  const rowGone = !(await p.$('[data-test=issues-row][data-key="SPL-3"]'))
+  await p.click('[data-test=issues-row][data-key="SPL-2"] .issues-c-key')
+  await p.waitForSelector('[data-test=issues-subtask]', { visible: true, timeout: 5000 }).catch(() => {})
+  const subs = await p.$$eval('[data-test=issues-subtask]', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()))
+  ok('5f the Level cell is a select box: 3 moves the issue under a picked issue, listed as its subtask',
+    parentOpts.includes('SPL-2') && !parentOpts.includes('SPL-3') && rowGone && subs.some((x) => x.includes('SPL-3')), { parentOpts, rowGone, subs })
+
+  await create(p, 'A third row for J', '')
+  /* the deadline box is as wide as "YYYY-MM-DD HH:MM" (topic 593a804a) */
+  const dl = await p.$eval('[data-test=issues-filter-deadline-date]', (el) => {
+    const probe = document.createElement('span')
+    const cs = getComputedStyle(el)
+    probe.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${cs.font};font-variant-numeric:tabular-nums`
+    probe.textContent = '2026-09-26 17:45'
+    document.body.appendChild(probe)
+    const text = probe.getBoundingClientRect().width
+    probe.remove()
+    return { box: Math.round(el.getBoundingClientRect().width), text: Math.round(text) }
+  })
+  ok('5g the deadline box fits YYYY-MM-DD HH:MM and no more', dl.box >= dl.text && dl.box <= dl.text + 32, dl)
+
   /* start on the first row of the sheet, so J has a row below it */
   const firstKey = await p.$eval('[data-test=issues-row]', (el) => el.getAttribute('data-key'))
   await p.click(`[data-test=issues-row][data-key="${firstKey}"] .issues-c-key`)

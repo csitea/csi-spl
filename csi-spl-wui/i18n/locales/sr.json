@@ -884,6 +884,7 @@
     "group": "Grupiši po",
     "group_none": "Bez",
     "col_key": "Ključ",
-    "col_title": "Naslov"
+    "col_title": "Naslov",
+    "comment_hint": "Enter šalje, Shift+Enter dodaje red"
   }
 }

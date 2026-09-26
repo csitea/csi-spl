@@ -884,6 +884,7 @@
     "group": "Grupuoti pagal",
     "group_none": "Nėra",
     "col_key": "Raktas",
-    "col_title": "Pavadinimas"
+    "col_title": "Pavadinimas",
+    "comment_hint": "Enter siunčia, Shift+Enter prideda eilutę"
   }
 }

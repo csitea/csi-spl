@@ -884,6 +884,7 @@
     "group": "Ryhmittely",
     "group_none": "Ei mitään",
     "col_key": "Tunnus",
-    "col_title": "Otsikko"
+    "col_title": "Otsikko",
+    "comment_hint": "Enter lähettää, Shift+Enter lisää rivin"
   }
 }

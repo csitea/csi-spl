@@ -884,6 +884,7 @@
     "group": "Rühmita",
     "group_none": "Puudub",
     "col_key": "Võti",
-    "col_title": "Pealkiri"
+    "col_title": "Pealkiri",
+    "comment_hint": "Enter saadab, Shift+Enter lisab rea"
   }
 }

@@ -884,6 +884,7 @@
     "group": "Group by",
     "group_none": "None",
     "col_key": "Key",
-    "col_title": "Title"
+    "col_title": "Title",
+    "comment_hint": "Enter sends, Shift+Enter adds a line"
   }
 }

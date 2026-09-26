@@ -884,6 +884,7 @@
     "group": "Gruppera efter",
     "group_none": "Ingen",
     "col_key": "Nyckel",
-    "col_title": "Titel"
+    "col_title": "Titel",
+    "comment_hint": "Enter skickar, Shift+Enter lägger till en rad"
   }
 }

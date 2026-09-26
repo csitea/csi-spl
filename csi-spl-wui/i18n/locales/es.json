@@ -884,6 +884,7 @@
     "group": "Agrupar por",
     "group_none": "Ninguno",
     "col_key": "Clave",
-    "col_title": "Título"
+    "col_title": "Título",
+    "comment_hint": "Enter envía, Shift+Enter añade una línea"
   }
 }

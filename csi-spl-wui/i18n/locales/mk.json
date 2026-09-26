@@ -884,6 +884,7 @@
     "group": "Групирај по",
     "group_none": "Без",
     "col_key": "Клуч",
-    "col_title": "Наслов"
+    "col_title": "Наслов",
+    "comment_hint": "Enter испраќа, Shift+Enter додава ред"
   }
 }

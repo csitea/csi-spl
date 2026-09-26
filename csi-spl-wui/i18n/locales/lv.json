@@ -884,6 +884,7 @@
     "group": "Grupēt pēc",
     "group_none": "Nav",
     "col_key": "Atslēga",
-    "col_title": "Nosaukums"
+    "col_title": "Nosaukums",
+    "comment_hint": "Enter nosūta, Shift+Enter pievieno rindu"
   }
 }

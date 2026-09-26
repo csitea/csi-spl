@@ -219,7 +219,9 @@ try {
 
   // 4. attributes from the right pane
   await pick(p, 'issues-status', 'wip')
-  await pick(p, 'issues-priority', '1')
+  /* SPL-972: prio is a select box in the right pane (and in the sheet) */
+  await p.select('[data-test=issues-priority]', '1')
+  await sleep(1200)
   /* SPL-949: level is the tree's, shown and never picked */
   const lvl = await p.$eval('[data-test=issues-level]', (el) => ({ tag: el.tagName, level: el.getAttribute('data-level'), text: el.textContent.trim() }))
   step('4 level is read-only and the tree\'s: an issue under an epic is 2', lvl.tag !== 'BUTTON' && lvl.level === '2' && /\b2$/.test(lvl.text), lvl)
@@ -296,7 +298,7 @@ try {
   const note = `progress ${run}: dev done, prd next`
   await p.click('[data-test=issues-comment-input]')
   await p.type('[data-test=issues-comment-input]', note)
-  await p.click('[data-test=issues-comment-send]')
+  await p.keyboard.press('Enter') /* SPL-973: Enter sends, there is no Comment button */
   const said = await until(() => p.evaluate((n) => [...document.querySelectorAll('[data-test=issues-comment]')].some((c) => c.innerText.includes(n)), note), 15000)
   step('6 a comment lands in the issue discussion', !!said, {})
 

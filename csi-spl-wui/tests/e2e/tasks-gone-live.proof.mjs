@@ -156,7 +156,7 @@ try {
       const note = `SPL-68 proof comment ${Date.now().toString(36)}`
       await p.click('[data-test=issues-comment-input]')
       await p.type('[data-test=issues-comment-input]', note)
-      await p.click('[data-test=issues-comment-send]')
+      await p.keyboard.press('Enter') /* SPL-973: Enter sends, there is no Comment button */
       const said = await until(() => p.$$eval('[data-test=issues-comment]', (els, n) => els.some((c) => c.innerText.includes(n)), note), 15000)
       const stored = await until(async () => {
         const t = await hub(p, `/v1/view/topics/${topic.issue.task_id}`)

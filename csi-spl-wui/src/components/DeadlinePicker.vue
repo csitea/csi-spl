@@ -24,6 +24,7 @@
       @change="commitText"
       @keydown.enter.prevent="commitText"
       @keydown.down.alt.prevent="openPop"
+      @keydown.esc="open && close()"
     >
     <button
       ref="opener"
@@ -226,7 +227,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dlp { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.dlp__text { width: 11.5rem; max-width: 100%; font-variant-numeric: tabular-nums; }
+/* owner, topic 593a804a: as wide as "YYYY-MM-DD HH:MM", no wider (20ch: `ch` is a "0", the separators are narrower; + padding and border) */
+.dlp__text { box-sizing: border-box; width: calc(20ch + 18px); max-width: 100%; font-variant-numeric: tabular-nums; }
 .dlp__text[aria-invalid="true"] { border-color: var(--color-danger); }
 .dlp__open { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; }
 .dlp__pop {

@@ -234,7 +234,7 @@ async function issueProof(p) {
   if (!key) throw new Error('no issue')
   await p.waitForSelector('[data-test=issues-comment-input]', { visible: true, timeout: 10000 })
   await p.type('[data-test=issues-comment-input]', `${PROBE_MARK} ${TOKEN} a comment on the issue`)
-  await p.click('[data-test=issues-comment-send]')
+  await p.keyboard.press('Enter') /* SPL-973: Enter sends, there is no Comment button */
   const commented = await until(() => p.evaluate((t) => [...document.querySelectorAll('[data-test=issues-comment]')].some((c) => c.innerText.includes(t)), TOKEN), 15000)
   step('5 the comment is posted', !!commented)
 

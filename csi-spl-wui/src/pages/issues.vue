@@ -18,6 +18,7 @@
            scrolls sideways inside its pane. -->
       <div class="issues-tools" data-test="issues-tools">
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
+        <p v-if="saveError && !form" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
         <table class="issues-table" data-test="issues-table">
@@ -144,12 +145,35 @@
                     <span class="issues-status-code">{{ statusLabel(issue.status) }}</span>
                   </button>
                 </td>
-                <td>
-                  <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
-                    <span class="issues-prio" data-test="issues-row-prio" :class="'issues-prio--' + issue.priority">{{ issue.priority }}</span>
-                  </button>
+                <!-- owner, topic e0f6f074 (SPL-972): prio and level are select boxes in the sheet -->
+                <td @click.stop>
+                  <select
+                    class="issues-cell-select issues-prio"
+                    :class="'issues-prio--' + issue.priority"
+                    data-test="issues-row-priority"
+                    :data-priority="issue.priority"
+                    :aria-label="t('issues.field_priority')"
+                    :value="String(issue.priority)"
+                    @keydown.stop
+                    @change="onRowPriority(issue, $event)"
+                  >
+                    <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
+                  </select>
                 </td>
-                <td><span class="issues-level" data-test="issues-row-level" :title="t(levelKey(issue.level))">{{ levelShort(issue.level) || issue.level }}</span></td>
+                <td @click.stop>
+                  <select
+                    class="issues-cell-select"
+                    data-test="issues-row-level"
+                    :data-level="issue.level"
+                    :aria-label="t('issues.field_level')"
+                    :title="t(levelKey(issue.level))"
+                    :value="String(issue.level)"
+                    @keydown.stop
+                    @change="onRowLevel(issue, $event)"
+                  >
+                    <option v-for="n in ISSUE_LEVELS" :key="'rl' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
+                  </select>
+                </td>
                 <td>
                   <button type="button" class="issues-person" data-test="issues-row-assignee" :data-assignee="issue.assignee" :aria-label="t('issues.field_assignee')" @click.stop="openMenu('assign', issue, $event)">
                     <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
@@ -232,9 +256,13 @@
             <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(form.status)) }}</span>
           </span>
         </button>
-        <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
-          <span>{{ t('issues.field_priority') }} {{ form.priority }}</span>
-        </button>
+        <!-- owner, topic e0f6f074 (SPL-972): a select box, like the sheet's prio cells -->
+        <label class="issues-prop issues-prop--select">
+          <span>{{ t('issues.field_priority') }}</span>
+          <select class="issues-cell-select" data-test="issues-priority" :aria-label="t('issues.field_priority')" :value="String(form.priority)" @keydown.stop @change="onDetailPriority">
+            <option v-for="n in ISSUE_PRIORITIES" :key="'dp' + n" :value="String(n)">{{ n }}</option>
+          </select>
+        </label>
         <!-- SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it, nobody picks it -->
         <span class="issues-prop issues-prop--fixed" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
           {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
@@ -313,9 +341,16 @@
         </article>
         <label class="issues-field">
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
-          <textarea v-model="commentText" data-test="issues-comment-input" rows="2" :placeholder="t('issues.comment_placeholder')" />
+          <!-- owner, topic 593a804a (SPL-973): no Comment button; Enter sends, Shift+Enter is a new line -->
+          <textarea
+            v-model="commentText"
+            data-test="issues-comment-input"
+            rows="2"
+            :placeholder="t('issues_view.comment_hint')"
+            :disabled="busy"
+            @keydown.enter.exact.prevent="sendComment"
+          />
         </label>
-        <button type="button" class="btn" data-test="issues-comment-send" :disabled="busy || !commentText.trim()" @click="sendComment">{{ t('issues.comment_send') }}</button>
       </section>
     </aside>
     <div v-if="menu" class="issues-menu" :class="{ 'issues-menu--status': menu.kind === 'status' }" role="listbox" data-test="issues-menu" :style="menuStyle" @click.stop>
@@ -740,6 +775,9 @@ const menuOptions = computed(() => {
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
   if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
+  /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
+  if (kind === 'move-epic') return epics.value.filter((e) => e.key !== menu.value?.key).map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
+  if (kind === 'move-parent') return levelTwoParents(menu.value?.key || '').map((i) => ({ value: i.key, label: `${i.key} ${i.title}`, hint }))
   return []
 })
 const menuStyle = computed(() => ({ top: `${menuPos.value.top}px`, left: `${menuPos.value.left}px` }))
@@ -819,6 +857,40 @@ function applyDeadline(local: string) {
   if (deadline === null) return
   void save(detail.value.key, { deadline })
 }
+function onRowPriority(issue: Issue, ev: Event) {
+  const n = Number((ev.target as HTMLSelectElement).value)
+  if (n && n !== issue.priority) void save(issue.key, { priority: n })
+}
+function onDetailPriority(ev: Event) {
+  const n = Number((ev.target as HTMLSelectElement).value)
+  if (creating.value) { draft.priority = n; return }
+  if (detail.value && n && n !== detail.value.priority) void save(detail.value.key, { priority: n })
+}
+/* level-2 issues an issue can go under (SPL-972): same epic first, never itself */
+function levelTwoParents(key: string) {
+  const me = issues.value.find((i) => i.key === key)
+  const twos = issues.value.filter((i) => i.level === 2 && i.key !== key)
+  const same = me?.epic ? twos.filter((i) => i.epic === me.epic) : []
+  return same.length ? same : twos
+}
+/*
+ * owner, topic e0f6f074: "add the dropboxes for the level column as well".
+ * The level is the tree's (SPL-949), so a new level MOVES the issue:
+ *   -> 1  it becomes a feature at the top (kind feature, no parent)
+ *   -> 2  from 3: straight under its epic; from 1: pick the epic / feature
+ *   -> 3  pick the level-2 issue it goes under
+ * The hub still judges the tree (an epic with issues cannot drop a level) and
+ * its refusal is shown; the box snaps back to the real level either way.
+ */
+function onRowLevel(issue: Issue, ev: Event) {
+  const sel = ev.target as HTMLSelectElement
+  const want = Number(sel.value)
+  sel.value = String(issue.level)
+  if (!want || want === issue.level) return
+  if (want === 1) { void save(issue.key, { kind: 'feature' }); return }
+  if (want === 2 && issue.level === 3 && issue.epic) { void save(issue.key, { parent: issue.epic }); return }
+  openMenu(want === 2 ? 'move-epic' : 'move-parent', issue, ev)
+}
 async function applyMenu(value: string) {
   const kind = menu.value?.kind || ''
   if (!kind) return
@@ -833,13 +905,16 @@ async function applyMenu(value: string) {
     if (kind !== 'label') menu.value = null
     return
   }
-  const issue = detail.value || issues.value.find((i) => i.key === menu.value?.key)
+  /* the row the menu was opened on, not whichever issue the detail shows */
+  const issue = issues.value.find((i) => i.key === menu.value?.key) || detail.value
   if (!issue || !issue.key) return
   const body: Record<string, unknown> = {}
   if (kind === 'status') body.status = value
   else if (kind === 'priority') body.priority = Number(value)
   else if (kind === 'assign') body.assignee = value
   else if (kind === 'epic') body.parent = value /* issues-v1: parent is the epic; an older hub knows only parent */
+  else if (kind === 'move-epic') { body.kind = 'issue'; body.parent = value }
+  else if (kind === 'move-parent') { if (issue.level === 1) body.kind = 'issue'; body.parent = value }
   else if (kind === 'label') {
     body.labels = issue.labels.includes(value) ? issue.labels.filter((x) => x !== value) : [...issue.labels, value]
   }
@@ -965,6 +1040,7 @@ function onDocKey(ev: KeyboardEvent) {
   const typing = typingTarget(ev.target)
   const menuOpen = Boolean(menu.value)
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return
+  if (key === 'Escape' && (menuOpen || statusOpen.value)) { ev.preventDefault(); menu.value = null; statusOpen.value = false; return }
   if (key === 'Escape' && typing) { (ev.target as HTMLElement).blur(); ev.preventDefault(); return }
   if (key === 'Escape') {
     ev.preventDefault()
@@ -1042,12 +1118,15 @@ let offLabel = () => {}
 let offMsg = () => {}
 let offBack = () => {}
 let detailObserver: ResizeObserver | null = null
+/* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it */
 function onDocPointer(ev: Event) {
-  if (!statusOpen.value) return
-  const root = pageEl.value?.querySelector('[data-test=issues-filter-status]')
   const t = ev.target
-  if (root && t instanceof Node && root.contains(t)) return
-  statusOpen.value = false
+  const inside = (sel: string) => {
+    const el = pageEl.value?.querySelector(sel)
+    return Boolean(el && t instanceof Node && el.contains(t))
+  }
+  if (statusOpen.value && !inside('[data-test=issues-filter-status]')) statusOpen.value = false
+  if (menu.value && !inside('[data-test=issues-menu]')) menu.value = null
 }
 onMounted(() => {
   useTopicStore().close()
@@ -1147,6 +1226,21 @@ onUnmounted(() => {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* owner, topic e0f6f074 (SPL-972): prio / level cells are select boxes, the same box as the filter row's */
+.issues-cell-select {
+  min-width: 3.25rem;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25rem; font-size: 0.875rem; text-align: start; }
+.issues-prop--select { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
 .issues-row-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; white-space: nowrap; }
 .issues-status-dd { position: relative; }
 .issues-status-dd__btn { cursor: pointer; text-align: start; }
@@ -1269,7 +1363,6 @@ onUnmounted(() => {
 .issues-title-cell .issues-epic-tag { max-width: 8rem; }
 .issues-table .issues-person { max-width: 10rem; }
 .issues-table .issues-pill { max-width: 7rem; }
-.issues-frow .dlp__text { width: 9.5rem; }
 /* owner, topic e00da93b: sort by a header click; only the sorted column shows its triangle */
 .issues-sort-h {
   display: inline-block;

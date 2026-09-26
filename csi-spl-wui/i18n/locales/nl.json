@@ -884,6 +884,7 @@
     "group": "Groeperen op",
     "group_none": "Geen",
     "col_key": "Sleutel",
-    "col_title": "Titel"
+    "col_title": "Titel",
+    "comment_hint": "Enter verstuurt, Shift+Enter voegt een regel toe"
   }
 }

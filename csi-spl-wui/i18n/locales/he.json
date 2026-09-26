@@ -884,6 +884,7 @@
     "group": "קיבוץ לפי",
     "group_none": "ללא",
     "col_key": "מפתח",
-    "col_title": "כותרת"
+    "col_title": "כותרת",
+    "comment_hint": "Enter שולח, Shift+Enter מוסיף שורה"
   }
 }

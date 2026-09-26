@@ -884,6 +884,7 @@
     "group": "Группировка",
     "group_none": "Нет",
     "col_key": "Ключ",
-    "col_title": "Название"
+    "col_title": "Название",
+    "comment_hint": "Enter отправляет, Shift+Enter добавляет строку"
   }
 }

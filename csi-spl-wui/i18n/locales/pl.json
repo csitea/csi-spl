@@ -884,6 +884,7 @@
     "group": "Grupuj według",
     "group_none": "Brak",
     "col_key": "Klucz",
-    "col_title": "Tytuł"
+    "col_title": "Tytuł",
+    "comment_hint": "Enter wysyła, Shift+Enter dodaje wiersz"
   }
 }

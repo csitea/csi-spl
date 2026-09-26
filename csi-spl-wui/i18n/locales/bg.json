@@ -884,6 +884,7 @@
     "group": "Групиране",
     "group_none": "Без",
     "col_key": "Ключ",
-    "col_title": "Заглавие"
+    "col_title": "Заглавие",
+    "comment_hint": "Enter изпраща, Shift+Enter добавя ред"
   }
 }

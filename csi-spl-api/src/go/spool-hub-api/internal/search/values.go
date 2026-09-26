@@ -100,6 +100,10 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 			return bad(err)
 		}
 	case OpTitle:
+		if !phrase {
+			v, term.Prefix = prefixWord(v)
+			term.Value = v
+		}
 		term.Lexemes = Words(v)
 		if len(term.Lexemes) == 0 {
 			return bad("title: needs a letter or digit")

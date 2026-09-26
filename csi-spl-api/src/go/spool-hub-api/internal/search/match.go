@@ -242,7 +242,21 @@ func FTS(text string, t *Term) bool {
 	for _, w := range words {
 		have[w] = true
 	}
-	for _, l := range lex {
+	for i, l := range lex {
+		if t.Prefix && i == len(lex)-1 {
+			// Postgres: plainto_tsquery(...)::text || ':*' - the LAST lexeme only
+			found := false
+			for _, w := range words {
+				if strings.HasPrefix(w, l) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+			continue
+		}
 		if !have[l] {
 			return false
 		}

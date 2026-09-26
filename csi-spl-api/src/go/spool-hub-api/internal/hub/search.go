@@ -370,6 +370,53 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 			add(search.Entity{Name: c.ChannelID, Text: []string{c.ChannelID, c.Name}},
 				map[string]any{"channel": c.ChannelID, "default": c.Default, "count": c.Count, "last_ts": last})
 		}
+	case search.TypeTenant:
+		// The reader's OWN memberships only; a door-off or box reader has none.
+		ml, ok := s.o.Store.(store.MembershipLister)
+		if !ok || sq.Viewer == "" {
+			break
+		}
+		ms, err := ml.Memberships(ctx, sq.Viewer)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range ms {
+			name := m.DisplayName
+			if name == "" {
+				name = m.TenantID
+			}
+			add(search.Entity{Name: name, Text: []string{m.TenantID, m.DisplayName}},
+				map[string]any{"tenant_id": m.TenantID, "role": m.Role, "current": m.TenantID == tenant})
+		}
+	case search.TypeEvent:
+		// The reader's OWN event log (events-v1: same privacy as GET /events).
+		he, ok := s.o.Store.(store.HumanEvents)
+		if !ok || sq.Viewer == "" {
+			break
+		}
+		evs, err := he.HumanEventsPage(ctx, sq.Viewer, 0, searchEventScan)
+		if err != nil {
+			return nil, err
+		}
+		for _, ev := range evs {
+			name := ev.Code
+			if name == "" {
+				name = ev.Message
+			}
+			if name == "" {
+				name = ev.ErrorID
+			}
+			add(search.Entity{Name: name, Text: []string{ev.ErrorID, ev.Code, ev.Message, ev.Path, ev.Source, ev.Route}},
+				map[string]any{"event_id": ev.ID, "error_id": ev.ErrorID, "code": ev.Code, "message": ev.Message,
+					"status": ev.Status, "method": ev.Method, "path": ev.Path, "source": ev.Source, "received_at": rfc(ev.ReceivedAt)})
+		}
+	}
+	if ty == search.TypeEvent { // newest first, as the log reads (HumanEventsPage order)
+		out := make([]any, len(rows))
+		for i, r := range rows {
+			out[i] = r.v
+		}
+		return out, nil
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].e.Name < rows[j].e.Name })
 	out := make([]any, len(rows))
@@ -378,6 +425,10 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 	}
 	return out, nil
 }
+
+// searchEventScan bounds how many of the reader's newest events one search
+// reads (the log itself is trimmed to HumanEventsKeep rows).
+const searchEventScan = 500
 
 // handleSearchOperators is search-v1 §6: the grammar as data.
 func (s *Server) handleSearchOperators(w http.ResponseWriter, _ *http.Request, _ store.Tenant) {

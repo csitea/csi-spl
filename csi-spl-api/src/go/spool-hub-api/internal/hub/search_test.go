@@ -202,7 +202,7 @@ func TestSearchAPI(t *testing.T) {
 			Applies []string `json:"applies_to"`
 		} `json:"operators"`
 	}
-	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.0" || len(ops.Types) != 7 || len(ops.Operators) < 17 || ops.Types[6].Group != "boxes" {
+	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.0" || len(ops.Types) != 9 || len(ops.Operators) < 17 || ops.Types[6].Group != "boxes" || ops.Types[8].Group != "events" {
 		t.Fatalf("operators: %d %s", code, b)
 	}
 }
@@ -240,5 +240,99 @@ func TestSearchDoorAndRate(t *testing.T) {
 	code, h, _, raw = searchGet(t, e, tid, "(x", "", "X-Test-Human", "HUM-3", "Origin", wuiOrigin)
 	if code != http.StatusBadRequest || raw["pos"] != float64(0) || h.Get("Access-Control-Allow-Origin") != wuiOrigin {
 		t.Fatalf("400 CORS: %d %v %+v", code, h, raw)
+	}
+}
+
+// owner, 2026-09-26: the omnibox searches every object of the UI. type:tenant
+// is the reader's OWN memberships; type:event the reader's OWN event log.
+func TestSearchTenantsAndEvents(t *testing.T) {
+	r := newDoorRig(t)
+	mine, _ := r.e.tenant()
+	ctx := context.Background()
+	if landed := r.signIn(t, mine); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	reader := r.session(t).HumanID
+	he, ok := r.e.st.(store.HumanEvents)
+	if !ok {
+		t.Skip("store has no human events")
+	}
+	now := time.Now()
+	if _, err := he.AddHumanEvents(ctx, reader, []store.HumanEvent{{Code: "upload_failed", Message: "boom while uploading", Path: "/v1/files", Status: 500}}, now); err != nil {
+		t.Fatal(err)
+	}
+	// CONTROL: another human's event must never surface
+	h := r.e.st.(store.Humans)
+	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "eve@example.com", Role: store.RoleDefault,
+		InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+		t.Fatal(err)
+	}
+	eve, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "eve-sub", Email: "eve@example.com"}, mine, store.AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := he.AddHumanEvents(ctx, eve, []store.HumanEvent{{Code: "boom_eve", Message: "boom of eve"}}, now); err != nil {
+		t.Fatal(err)
+	}
+	get := func(q string) map[string]struct {
+		Results []map[string]any `json:"results"`
+	} {
+		t.Helper()
+		code, _, body := r.get(t, mine, "/v1/view/search?q="+url.QueryEscape(q))
+		var out struct {
+			Groups map[string]struct {
+				Results []map[string]any `json:"results"`
+			} `json:"groups"`
+		}
+		if code != http.StatusOK || json.Unmarshal([]byte(body), &out) != nil {
+			t.Fatalf("%q: %d %s", q, code, body)
+		}
+		return out.Groups
+	}
+	g := get("type:event boom")
+	if ev := g["events"].Results; len(ev) != 1 || ev[0]["code"] != "upload_failed" {
+		t.Fatalf("own event only: %+v", g["events"])
+	}
+	// prefix works on the new sections too
+	if ev := get("type:event uploa*")["events"].Results; len(ev) != 1 {
+		t.Fatalf("uploa*: %+v", ev)
+	}
+	// the reader's memberships (a shared test DB may hold several); the
+	// current one is flagged, and nothing outside them is ever listed
+	ms, err := r.e.st.(store.MembershipLister).Memberships(ctx, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := map[string]bool{}
+	for _, m := range ms {
+		member[m.TenantID] = true
+	}
+	tn := get("type:tenant")["tenants"].Results
+	cur := 0
+	for _, x := range tn {
+		if !member[x["tenant_id"].(string)] {
+			t.Fatalf("not a membership of the reader: %+v", x)
+		}
+		if x["current"] == true {
+			if x["tenant_id"] != mine {
+				t.Fatalf("current must be %s: %+v", mine, x)
+			}
+			cur++
+		}
+	}
+	if len(tn) != len(ms) || cur != 1 {
+		t.Fatalf("own tenants: %d rows, %d memberships, %d current: %+v", len(tn), len(ms), cur, tn)
+	}
+	// CONTROL: tenant/event are opt-in - a plain content search leaves them out
+	if g := get("boom"); len(g["events"].Results) != 0 || len(g["tenants"].Results) != 0 {
+		t.Fatalf("default search must not include events/tenants: %+v", g)
+	}
+	// CONTROL: a query that names nothing finds no tenant
+	if tn := get("type:tenant zzqqnothing")["tenants"].Results; len(tn) != 0 {
+		t.Fatalf("no match expected: %+v", tn)
+	}
+	// thread is still an alias of topic (pre-rename spelling)
+	if code, _, body := r.get(t, mine, "/v1/view/search?q="+url.QueryEscape("type:thread x")); code != http.StatusOK {
+		t.Fatalf("type:thread: %d %s", code, body)
 	}
 }

@@ -90,6 +90,15 @@ wait until a locale needs stemming). A **phrase** matches its words adjacent
 and in order (`phraseto_tsquery`). A word with no letter or digit (`!!!`)
 matches nothing: it is dropped with a warning.
 
+**Prefix** (owner, 2026-09-26: "the omnibox should be really smart"): one
+trailing `*` on an unquoted text or `title:` word (`deplo*`, `title:mig*`)
+makes the LAST word of that term match as a prefix (`hub gre*` = `hub` AND a
+word starting with `gre`). SQL: the value still reaches Postgres only as the
+bind parameter of `plainto_tsquery`; `:*` is appended to that function's
+OUTPUT (quoted, escaped lexemes) and cast back, and an empty tsquery stays
+empty. Entity sections (`name:`, users, channels, tenants, events) match by
+substring already. A quoted phrase is never a prefix; a bare `*` is text.
+
 Every user string reaches SQL as a **bind parameter** of `plainto_tsquery`,
 `phraseto_tsquery`, `=`, or `strpos(lower(…), lower($n))` — never
 concatenated, never passed to `to_tsquery`, never used as a `LIKE` pattern.
@@ -125,11 +134,17 @@ attachment without `bytes`, or a directory) matches neither.
 `type:<t>[,<t>…]` picks the sections. Values (aliases in brackets):
 `message` [`msg`, `messages`], `thread` [`threads`], `file` [`attachment`,
 `files`], `robot` [`agent`, `bot`, `robots`], `user` [`human`, `users`],
-`channel` [`channels`], `box` [`boxes`].
+`channel` [`channels`], `box` [`boxes`], `tenant` [`tenants`, `workspace`,
+`workspaces`], `event` [`events`, `log`, `error`, `errors`]. `thread`
+[`threads`] is accepted as the pre-rename spelling of `topic`.
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
   not negated) → else `400 bad_query`.
-- Without `type:` the candidate types are all seven.
+- Without `type:` the candidate types are the seven CONTENT types (message,
+  topic, file, robot, user, channel, box). `tenant` and `event` are opt-in:
+  only `type:tenant` / `type:event` searches them, so a plain search keeps the
+  spec 027 round-trip budget (owner 2026-09-26: "the normal search should be by
+  content, but there should be a syntax to search by specific names").
 - **Applicability**: a section is searched only when **every** operator in
   the query applies to its type (§3.2). `from:CLE-07 report` searches
   messages, threads and files; `filename:plan` searches files only;
@@ -155,7 +170,7 @@ attachment without `bytes`, or a directory) matches neither.
 | `thread:` | `<task_id>` (UUID) | message, thread, file | `task_id` = value |
 | `before:` `after:` `on:` | §2.3 | message, thread, file | receive time (thread: last activity) |
 | `title:` [`subject:`] | text | thread | the thread title (first line of its first message, ≤ 140 chars, view-v1 §4.3), FTS |
-| `name:` | text | file, robot, user, channel, box | the entity's name only (substring) |
+| `name:` | text | file, robot, user, channel, box, tenant, event | the entity's name only (substring) |
 | `filename:` | text | file | the attachment `name` (substring) |
 | `ext:` | `[a-z0-9]{1,16}`, leading `.` allowed | file | `name` ends with `.<ext>` (case-insensitive) |
 | `larger:` `smaller:` | §2.4 | file | attachment `bytes` |
@@ -286,6 +301,20 @@ it would be an oracle for addresses the roster does not show.
   "last_hello_at": "…", "name": { "text": "box-a", "highlights": [] } }
 ```
 
+### 4.8 `tenant`
+
+The reader's OWN memberships (never another human's; a door-off or box
+reader gets `[]`): `{ "tenant_id", "name": {text, highlights}, "role",
+"current" }`. Free text and `name:` match the tenant name and id.
+
+### 4.9 `event`
+
+The reader's OWN event log (events-v1; the same privacy as `GET /events`),
+newest first, at most the newest 500 scanned: `{ "event_id", "error_id",
+"name": {text, highlights}, "code", "message", "status", "method", "path",
+"source", "received_at" }`. Free text matches error id, code, message, path,
+source and route.
+
 ## 5. Errors and warnings
 
 ### 5.1 Errors
@@ -362,7 +391,7 @@ rate-limited beyond the edge limits.
 ## 8. Not in v1
 
 Saved searches, search inside file **contents**, per-language stemming,
-fuzzy / prefix matching (`deplo*`), `label:`, total counts, cross-tenant
+fuzzy (typo-tolerant) matching, `label:`, total counts, cross-tenant
 search (never).
 
 <!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

@@ -58,6 +58,14 @@ func (c *sqlc) tsq(t *search.Term) string {
 	if t.Phrase {
 		fn = "phraseto_tsquery"
 	}
+	if t.Prefix && !t.Phrase {
+		// "deplo*": the user text still reaches SQL only as a bind parameter
+		// of plainto_tsquery; ':*' is appended to ITS output (quoted, escaped
+		// lexemes), so the last lexeme matches as a prefix. An empty tsquery
+		// stays empty (numnode 0) instead of casting ':*'.
+		p := "plainto_tsquery('simple', " + c.arg(t.Value) + "::text)"
+		return "(CASE WHEN numnode(" + p + ") = 0 THEN " + p + " ELSE (" + p + "::text || ':*')::tsquery END)"
+	}
 	return fn + "('simple', " + c.arg(t.Value) + "::text)"
 }
 

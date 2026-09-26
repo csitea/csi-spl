@@ -108,6 +108,31 @@ func TestSearch(t *testing.T) {
 					t.Fatalf("%q: %v %v", bad, err, msgIDs(rs))
 				}
 			}
+			// prefix (search-v1 §2.2, owner 2026-09-26): "deplo*" == "deploy" here
+			if rs, err := se.SearchMessages(ctx, ta, sq(t, "deplo*", now)); err != nil || fmt.Sprint(msgIDs(rs)) != fmt.Sprint([]string{d2.MsgID, d1.MsgID, m2.MsgID, m1.MsgID}) {
+				t.Fatalf("deplo*: %v %v", err, msgIDs(rs))
+			}
+			if rs, err := se.SearchMessages(ctx, ta, sq(t, "migrat*", now)); err != nil || fmt.Sprint(msgIDs(rs)) != fmt.Sprint([]string{m3.MsgID}) {
+				t.Fatalf("migrat*: %v %v", err, msgIDs(rs))
+			}
+			// only the LAST word is a prefix: "hub gre*" finds m2 (hub ... green)
+			if rs, err := se.SearchMessages(ctx, ta, sq(t, "hub gre*", now)); err != nil || fmt.Sprint(msgIDs(rs)) != fmt.Sprint([]string{m2.MsgID}) {
+				t.Fatalf("hub gre*: %v %v", err, msgIDs(rs))
+			}
+			// CONTROL: without '*' a fragment is not a word
+			if rs, _ := se.SearchMessages(ctx, ta, sq(t, "deplo", now)); len(rs) != 0 {
+				t.Fatalf("deplo (no *) must match nothing: %v", msgIDs(rs))
+			}
+			// CONTROL: the ':*' path stays injection-proof
+			for _, bad := range []string{`o'rei*`, `a:*|b*`, `'; DROP TABLE messages; --*`, `!!!*`, `&*`} {
+				p, err := search.Parse(bad, now)
+				if err != nil {
+					continue
+				}
+				if _, err := se.SearchMessages(ctx, ta, SearchQuery{Q: p, Now: now}); err != nil {
+					t.Fatalf("%q: %v", bad, err)
+				}
+			}
 			if rs, _ := se.SearchMessages(ctx, ta, sq(t, "deploy", now)); len(rs) != 4 {
 				t.Fatal("messages table must be intact after SQL-shaped queries")
 			}

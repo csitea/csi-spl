@@ -270,3 +270,36 @@ func TestOperatorTable(t *testing.T) {
 		}
 	}
 }
+
+// search-v1 §2.2 prefix (owner, 2026-09-26).
+func TestParsePrefix(t *testing.T) {
+	now := time.Now()
+	leafOf := func(q string) *Term {
+		t.Helper()
+		p, err := Parse(q, now)
+		if err != nil || p.Root == nil || p.Root.Kind != Leaf {
+			t.Fatalf("%q: %v %+v", q, err, p)
+		}
+		return p.Root.Term
+	}
+	if tm := leafOf("deplo*"); !tm.Prefix || tm.Value != "deplo" {
+		t.Fatalf("deplo*: %+v", tm)
+	}
+	if tm := leafOf("title:mig*"); !tm.Prefix || tm.Lexemes[0] != "mig" {
+		t.Fatalf("title:mig*: %+v", tm)
+	}
+	// CONTROL: a quoted phrase and a plain word are never a prefix
+	if tm := leafOf(`"deplo*"`); tm.Prefix {
+		t.Fatalf("phrase must not be a prefix: %+v", tm)
+	}
+	if tm := leafOf("deploy"); tm.Prefix {
+		t.Fatalf("plain word: %+v", tm)
+	}
+	// FTS (memory store) agrees with Postgres: the last lexeme only
+	if !FTS("the hub is green", &Term{Lexemes: []string{"hub", "gre"}, Prefix: true}) {
+		t.Fatal("hub gre* must match 'hub is green'")
+	}
+	if FTS("the hub is green", &Term{Lexemes: []string{"hu", "green"}, Prefix: true}) {
+		t.Fatal("CONTROL: only the LAST word is a prefix")
+	}
+}

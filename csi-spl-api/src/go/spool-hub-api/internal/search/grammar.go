@@ -35,10 +35,21 @@ const (
 	TypeUser    Type = "user"
 	TypeChannel Type = "channel"
 	TypeBox     Type = "box"
+	// TypeTenant: the reader's own memberships (owner, 2026-09-26: search
+	// every object of the UI). TypeEvent: the reader's own event log (events-v1).
+	TypeTenant Type = "tenant"
+	TypeEvent  Type = "event"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}
+
+// DefaultTypes are searched when no type: is given: content search (owner,
+// 2026-09-26: "the normal search should be by content, but there should be a
+// syntax to search by specific names"). tenant and event are opt-in with
+// type: - they cost DB reads the default search's round-trip budget (spec
+// 027 P2, TestRoundTripsPerRequest) does not carry.
+var DefaultTypes = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
 
 // Group is the plural response key of t.
 func (t Type) Group() string {
@@ -50,12 +61,14 @@ func (t Type) Group() string {
 
 var typeAliases = map[string]Type{
 	"message": TypeMessage, "msg": TypeMessage, "messages": TypeMessage,
-	"topic": TypeTopic, "topics": TypeTopic,
+	"topic": TypeTopic, "topics": TypeTopic, "thread": TypeTopic, "threads": TypeTopic, // thread = the pre-rename name
 	"file": TypeFile, "files": TypeFile, "attachment": TypeFile,
 	"robot": TypeRobot, "robots": TypeRobot, "agent": TypeRobot, "bot": TypeRobot,
 	"user": TypeUser, "users": TypeUser, "human": TypeUser,
 	"channel": TypeChannel, "channels": TypeChannel,
 	"box": TypeBox, "boxes": TypeBox,
+	"tenant": TypeTenant, "tenants": TypeTenant, "workspace": TypeTenant, "workspaces": TypeTenant,
+	"event": TypeEvent, "events": TypeEvent, "log": TypeEvent, "error": TypeEvent, "errors": TypeEvent,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -110,7 +123,7 @@ var (
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box (comma list)"},
+	{Name: OpType, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
@@ -127,7 +140,7 @@ var Operators = []Operator{
 	{Name: OpAfter, Values: "date", Applies: msgTopicFile, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
 	{Name: OpOn, Values: "date", Applies: msgTopicFile, Example: "on:2026-09-19", Doc: "received on a UTC day"},
 	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic}, Example: "title:migration", Doc: "topic title words"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, Example: "name:ops", Doc: "the entity's name contains this"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}, Example: "name:ops", Doc: "the entity's name contains this"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
@@ -151,6 +164,10 @@ type Term struct {
 	Op     string // canonical operator name; OpText for free text
 	Value  string // the value as typed (phrase quotes removed)
 	Phrase bool   // the value was "quoted"
+	// Prefix: the last word matches as a prefix ("deplo*" finds deploy,
+	// deployment); set by a trailing '*' on an unquoted text / title: value
+	// (search-v1 §2.2, owner 2026-09-26 "the omnibox should be really smart").
+	Prefix bool
 	Pos    int    // UTF-16 offset of the term in q
 	Raw    string // the term as typed
 
@@ -482,7 +499,8 @@ func (p *parser) atom(depth int, neg bool) (*Node, error) {
 				p.q.Warnings = append(p.q.Warnings, Warning{Token: t.raw, Pos: t.pos, Detail: "unknown operator " + name + ": searched as text"})
 			}
 		}
-		return p.leaf(&Term{Op: OpText, Value: t.text, Pos: t.pos, Raw: t.raw}, neg)
+		v, prefix := prefixWord(t.text)
+		return p.leaf(&Term{Op: OpText, Value: v, Prefix: prefix, Pos: t.pos, Raw: t.raw}, neg)
 	}
 	return nil, &Error{Pos: t.pos, Token: t.raw, Detail: "unexpected token"}
 }
@@ -551,7 +569,7 @@ func (q *Query) finish(root *Node) error {
 			cand[t] = true
 		}
 	} else {
-		for _, t := range Types {
+		for _, t := range DefaultTypes {
 			cand[t] = true
 		}
 	}
@@ -640,6 +658,15 @@ func positives(n *Node, neg bool, out []*Term) []*Term {
 
 // Words splits s the way the Postgres 'simple' configuration roughly does:
 // runs of letters and digits, lower-cased.
+// prefixWord strips ONE trailing '*' from an unquoted word that has a letter
+// or digit before it: "deplo*" -> ("deplo", true). A bare "*" stays text.
+func prefixWord(w string) (string, bool) {
+	if len(w) > 1 && strings.HasSuffix(w, "*") && len(Words(strings.TrimSuffix(w, "*"))) > 0 {
+		return strings.TrimSuffix(w, "*"), true
+	}
+	return w, false
+}
+
 func Words(s string) []string {
 	var out []string
 	for _, sp := range wordSpans(s) {

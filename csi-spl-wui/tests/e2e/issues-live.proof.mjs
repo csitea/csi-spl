@@ -21,6 +21,8 @@
 //      it, a subtask in the right pane, the panel's count
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member>
+//     (prd: BASE=https://<tenant>.<domain> - the apex is t1's host; the run
+//     refuses to write unless the session's tenant is TENANT)
 //     PW_FILE=<0600 file> OUT=<dir> [TENANT=t1] [CHROME_PATH=...]
 //     [PUPPETEER_CORE=<path>] node tests/e2e/issues-live.proof.mjs
 //
@@ -95,7 +97,8 @@ const ROW = (key) => {
   if (!el) return null
   const g = el.closest('.issues-group')
   return {
-    status: g ? g.getAttribute('data-status') : '',
+    /* a867e5de: the list is a sheet; the row's status cell carries it, a grouped list its group */
+    status: ((el.querySelector('[data-test=issues-row-status]') || g) ? (el.querySelector('[data-test=issues-row-status]') || g).getAttribute('data-status') : ''),
     priority: el.getAttribute('data-priority'),
     level: el.getAttribute('data-level'),
     assignee: (el.querySelector('[data-test=issues-row-assignee]') || {}).getAttribute?.('data-assignee') || '',
@@ -136,6 +139,30 @@ async function signIn(browser) {
   const ok = await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).then(() => true, () => false)
   step('native sign-in', ok, { url: p.url() })
   if (!ok) throw new Error('not signed in')
+  /* Nothing is written unless BOTH the session's tenant (claim t) and the
+     tenant the page writes to are TENANT. With tenant hosts on (SPL-959) the
+     WUI writes to the page host's tenant (useSpoolApi hostTenant: the apex is
+     t1) whatever the claim says: on 2026-09-26 this proof wrote SPL-967..970
+     into prd t1 from the apex, one run with the claim reading e2e. On prd run
+     it at https://<tenant>.<domain>. */
+  const where = await until(() => p.evaluate(() => {
+    const app = document.querySelector('#__nuxt')?.__vue_app__
+    const g = app && app.config.globalProperties
+    const s = g && g.$pinia && g.$pinia.state.value.session
+    const pub = (g && g.$config && g.$config.public) || null
+    if (!pub || !s || !s.claims) return null
+    const hosts = String(pub.tenantHosts || '0') === '1'
+    let page = ''
+    if (hosts) {
+      const site = new URL(String(pub.siteUrl || location.origin)).hostname.toLowerCase()
+      const h = location.hostname.toLowerCase()
+      page = h === site ? String(pub.tenant || '') : h.endsWith('.' + site) ? h.slice(0, -site.length - 1) : '?'
+    }
+    return { claim: String(s.claims.t || ''), hosts, page }
+  }), 15000)
+  const inTenant = !!where && where.claim === TENANT && (!where.hosts || where.page === TENANT)
+  step('the session AND the page host are in TENANT before anything is written', inTenant, { want: TENANT, ...where, url: p.url() })
+  if (!inTenant) throw new Error(`not in ${TENANT} (${JSON.stringify(where)}): refusing to write`)
   return p
 }
 
@@ -202,26 +229,29 @@ try {
     const pad = (n) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T15:30`
   })
-  /* owner 2026-09-26 (topic 32a56460): a date plus a 24-hour time, 07-22 */
-  const dlType = await p.$eval('[data-test=issues-deadline]', (el) => el.type)
+  /* owner 2026-09-26: a 24-hour time 07-22 (topic 32a56460) in a calendar
+     control that reads YYYY-MM-DD HH:MM (topic 778ad161, DeadlinePicker) */
+  const dlType = await p.$eval('[data-test=issues-deadline]', (el) => el.type + ':' + el.placeholder)
+  await p.click('[data-test=issues-deadline-open]')
+  await p.waitForSelector('[data-test=issues-deadline-time]', { visible: true, timeout: 5000 })
   const times = await p.$$eval('[data-test=issues-deadline-time] option', (els) => els.map((e) => e.textContent.trim()))
-  step('4 the deadline is a date plus a 24-hour time from 07:00 to 22:00 (no AM/PM)', dlType === 'date' && times[0] === '07:00' &&
-    times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)), { type: dlType, first: times[0], last: times[times.length - 1], n: times.length })
+  await p.click('[data-test=issues-deadline-open]')
+  step('4 the deadline is a YYYY-MM-DD HH:MM calendar control with a 24-hour time from 07:00 to 22:00 (no AM/PM)',
+    dlType === 'text:YYYY-MM-DD HH:MM' && times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)),
+    { control: dlType, first: times[0], last: times[times.length - 1], n: times.length })
   const setField = (sel, v) => p.$eval(sel, (el, val) => {
     el.value = val
     el.dispatchEvent(new Event('input', { bubbles: true }))
     el.dispatchEvent(new Event('change', { bubbles: true }))
   }, v)
-  await setField('[data-test=issues-deadline]', local.slice(0, 10))
+  await setField('[data-test=issues-deadline]', local.replace('T', ' '))
   await sleep(1500)
-  await setField('[data-test=issues-deadline-time]', local.slice(11))
-  await sleep(1200)
   const row1 = await until(() => p.evaluate((k) => {
     const r = ((key) => {
       const el = document.querySelector(`[data-test=issues-row][data-key="${key}"]`)
       if (!el) return null
       const g = el.closest('.issues-group')
-      return { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') }
+      return { status: ((el.querySelector('[data-test=issues-row-status]') || g) ? (el.querySelector('[data-test=issues-row-status]') || g).getAttribute('data-status') : ''), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') }
     })(k)
     return r && r.status === 'wip' && r.priority === '1' && r.level === '2' ? r : null
   }, key))
@@ -236,7 +266,7 @@ try {
   }, 15000)
   step('4 the hub holds the same values; the deadline is the calendar+time value in UTC',
     hub.status === 'wip' && hub.priority === 1 && hub.level === 2 && hub.assignee === who && hub.deadline === wantUTC &&
-    hub.description === descr && dlType === 'date',
+    hub.description === descr,
     { status: hub.status, priority: hub.priority, level: hub.level, assignee: hub.assignee, deadline: hub.deadline, want: wantUTC, control: dlType })
   await shot(p, '02-edited-detail')
 
@@ -255,7 +285,7 @@ try {
   const live = await until(() => p2.evaluate((k) => {
     const el = document.querySelector(`[data-test=issues-row][data-key="${k}"]`)
     const g = el && el.closest('.issues-group')
-    return g && g.getAttribute('data-status') === 'qas'
+    return !!el && ((el.querySelector('[data-test=issues-row-status]') || g) ? (el.querySelector('[data-test=issues-row-status]') || g).getAttribute('data-status') : '') === 'qas'
   }, key), 15000)
   step('5 a second tab moves the row to 07-qas without a reload', !!live, { socket_open: !!sockOpen })
   await shot(p2, '03-second-tab-live')
@@ -276,13 +306,13 @@ try {
   const row2 = await until(() => p.evaluate((k) => {
     const el = document.querySelector(`[data-test=issues-row][data-key="${k}"]`)
     const g = el && el.closest('.issues-group')
-    return el ? { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') } : null
+    return el ? { status: ((el.querySelector('[data-test=issues-row-status]') || g) ? (el.querySelector('[data-test=issues-row-status]') || g).getAttribute('data-status') : ''), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') } : null
   }, key), 30000)
   step('7 after a reload the row is still 07-qas, prio 1, level 2',
     !!row2 && row2.status === 'qas' && row2.priority === '1' && row2.level === '2', { row: row2 })
   await p.click(`[data-test=issues-row][data-key="${key}"]`)
   await p.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: 10000 })
-  const dlAfter = await p.evaluate(() => document.querySelector('[data-test=issues-deadline]').value + 'T' + document.querySelector('[data-test=issues-deadline-time]').value)
+  const dlAfter = await p.evaluate(() => document.querySelector('[data-test=issues-deadline]').value.replace(' ', 'T'))
   const rowWhen = await p.evaluate((k) => (document.querySelector(`[data-test=issues-row][data-key="${k}"] .issues-when`) || {}).textContent || '', key)
   step('7 the deadline control shows the same local date and time; the list shows it 24-hour', dlAfter === local && rowWhen.includes('15:30') && !/am|pm/i.test(rowWhen),
     { got: dlAfter, want: local, row: rowWhen })
@@ -297,17 +327,19 @@ try {
   }), 30000)
   step('8 /issues?issue=<key> opens that issue in the right pane', opened === key, { got: opened })
 
-  // 8b SPL-966: the issue set to 05-blocked, then 06-onhold, lists under that group
+  // 8b SPL-966: the issue set to 05-blocked, then 06-onhold, shows it on its row
   for (const st of ['blocked', 'onhold']) {
     await pick(p, 'issues-status', st)
     const inGroup = await until(() => p.evaluate((k, want) => {
       const el = document.querySelector(`[data-test=issues-row][data-key="${k}"]`)
       const g = el && el.closest('.issues-group')
-      return g && g.getAttribute('data-status') === want ? (g.innerText || '').split('\n')[0].trim() || want : ''
+      const c = el && el.querySelector('[data-test=issues-row-status]')
+      const s = c ? c.getAttribute('data-status') : (g ? g.getAttribute('data-status') : '')
+      return s === want ? (((c || g).innerText || '').trim().split('\n')[0] || want) : ''
     }, key, st), 15000)
     let hubSt = ''
     await until(async () => { hubSt = (await hubIssue(p, key)).status; return hubSt === st }, 15000)
-    step(`8b the issue set to ${st} lists under its group and the hub holds it`, !!inGroup && hubSt === st, { group: inGroup, hub: hubSt })
+    step(`8b the issue set to ${st} shows it in the list and the hub holds it`, !!inGroup && hubSt === st, { shown: inGroup, hub: hubSt })
   }
   res.key = key
 

@@ -930,5 +930,9 @@
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
     "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta."
+  },
+  "mention": {
+    "not_told": "Nu au fost anunțați, nu pot citi asta: {ids}",
+    "poke_failed": "Nu am putut anunța: {ids}. Textul tău este salvat."
   }
 }

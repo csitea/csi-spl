@@ -930,5 +930,9 @@
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
     "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän."
+  },
+  "mention": {
+    "not_told": "Ei ilmoitettu, he eivät voi lukea tätä: {ids}",
+    "poke_failed": "Ilmoitus ei mennyt perille: {ids}. Tekstisi on tallennettu."
   }
 }

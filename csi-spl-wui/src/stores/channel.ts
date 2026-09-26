@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { useMentionPoke } from '~/composables/useMentionPoke'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
 import {
   applyChannelFrame,
@@ -52,6 +53,8 @@ export const useChannelStore = defineStore('channel', () => {
   const api = useSpoolApi()
   /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
   const i18n = useNuxtApp().$i18n
+  /* SPL-985: resolved at setup - after an await there is no Nuxt context */
+  const mentionPoke = useMentionPoke()
   const channels = ref<ChannelInfo[]>([])
   const active = ref<string | null>(null)
   const peer = ref<string | null>(null)
@@ -387,6 +390,14 @@ export const useChannelStore = defineStore('channel', () => {
       if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
       throw e
     }
+    /* SPL-985 (spec 042 §3): stored - now each person or agent the text
+       mentions gets a DM asking them to act. The DM peer, or the agent a
+       leading @ already dispatched to, has the message itself (K3). */
+    void mentionPoke.poke({
+      text,
+      addressee: asDm ? peerId : (frame.to || ''),
+      where: asDm ? { peer: String(peer.value || ''), taskId: frame.task_id } : { channel: channelNow || '', taskId: frame.task_id },
+    })
     const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
     if (!row.msg_id) row.msg_id = String(frame.msg_id || '')
     if (row.msg_id && showHere) {

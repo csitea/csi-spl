@@ -396,6 +396,7 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
+import { useMentionPoke } from '~/composables/useMentionPoke'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -495,6 +496,9 @@ const comments = ref<Note[]>([])
 const commentText = ref('')
 const commentEl = ref<HTMLTextAreaElement | null>(null)
 const commentMp = useMentionPicker({ text: commentText, el: commentEl })
+/* SPL-985 (spec 042 §3): whoever a stored description, comment or new issue
+   newly mentions gets a DM asking them to act; issues are tenant-wide (K4) */
+const { poke } = useMentionPoke()
 const menu = ref<{ kind: string, key: string } | null>(null)
 const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
@@ -545,6 +549,7 @@ async function loadSubtasks(issue: Issue | null) {
 }
 /* SPL-974: the dialog created it; show it now, then re-read the list */
 function onSubtaskCreated(sub: Issue) {
+  void poke({ text: sub.title, where: { issue: true, issueKey: sub.key } })
   const parent = detail.value
   if (!parent || sub.parent !== parent.key) return
   if (!subtasks.value.some((s) => s.key === sub.key)) subtasks.value = [...subtasks.value, sub]
@@ -884,7 +889,10 @@ async function saveDescription(value: string) {
   if (creating.value) { draft.description = value; return true }
   if (!detail.value) return false
   if (value === detail.value.description) return true
-  await save(detail.value.key, { description: value })
+  const key = detail.value.key
+  const before = detail.value.description
+  await save(key, { description: value })
+  if (!saveError.value) void poke({ text: value, before, where: { issue: true, issueKey: key } })
   return !saveError.value
 }
 function applyDeadline(local: string) {
@@ -997,6 +1005,7 @@ async function createIssue() {
     const data = await withSessionRetry(api, () => api.createIssue(body))
     const created = normalizeIssue(data.issue)
     hold(created)
+    void poke({ text: `${title}\n${String(body.description || '')}`, where: { issue: true, issueKey: created.key } })
     creating.value = false
     openKey.value = created.key
     detail.value = created
@@ -1068,6 +1077,7 @@ async function sendComment() {
       await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
     }
     commentText.value = ''
+    void poke({ text, where: { issue: true, issueKey: issue.key } })
     await loadComments(issue)
   } catch {
     saveError.value = 'issues.save_failed'

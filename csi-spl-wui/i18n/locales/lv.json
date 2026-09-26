@@ -930,5 +930,9 @@
     "unarchive": "Atjaunot no arhīva",
     "delete": "Dzēst",
     "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators."
+  },
+  "mention": {
+    "not_told": "Nav paziņots, viņi to nevar lasīt: {ids}",
+    "poke_failed": "Neizdevās paziņot: {ids}. Jūsu teksts ir saglabāts."
   }
 }

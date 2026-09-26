@@ -930,5 +930,9 @@
     "unarchive": "Återställ från arkiv",
     "delete": "Radera",
     "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta."
+  },
+  "mention": {
+    "not_told": "Inte meddelade, de kan inte läsa detta: {ids}",
+    "poke_failed": "Kunde inte meddela {ids}. Din text är sparad."
   }
 }

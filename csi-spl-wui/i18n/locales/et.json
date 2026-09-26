@@ -930,5 +930,9 @@
     "unarchive": "Taasta arhiivist",
     "delete": "Kustuta",
     "error_forbidden": "Seda saab teha ainult autor, omanik või administraator."
+  },
+  "mention": {
+    "not_told": "Ei teavitatud, nad ei saa seda lugeda: {ids}",
+    "poke_failed": "Ei õnnestunud teavitada: {ids}. Sinu tekst on salvestatud."
   }
 }

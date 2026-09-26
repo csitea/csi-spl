@@ -930,5 +930,9 @@
     "unarchive": "Desarchivar",
     "delete": "Eliminar",
     "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo."
+  },
+  "mention": {
+    "not_told": "No avisados, no pueden leer esto: {ids}",
+    "poke_failed": "No se pudo avisar a {ids}. Tu texto está guardado."
   }
 }

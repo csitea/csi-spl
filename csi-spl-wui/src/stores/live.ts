@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { useMentionPoke } from '~/composables/useMentionPoke'
+import { topicWhere } from '~/utils/mention-poke.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
@@ -28,6 +30,7 @@ function setup(key: 'main' | 'pane') {
   const live = useLive()
   /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
   const i18n = useNuxtApp().$i18n
+  const { poke } = useMentionPoke()
   const taskId = ref<string | null>(null)
   const messages = ref<SpoolMessage[]>([])
   const error = ref<string | null>(null)
@@ -252,6 +255,10 @@ function setup(key: 'main' | 'pane') {
       if (client) {
         const frame = { task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
         const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
+        /* SPL-985 (spec 042 §3): the mention poke. This send names only a
+           task, so where it lives (K4) is read from the topic's other rows. */
+        const at = channel !== undefined ? { channel } : topicWhere(messages.value.filter((m) => m.msg_id !== msgId), task)
+        void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {
           merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])

@@ -930,5 +930,9 @@
     "unarchive": "Unarchive",
     "delete": "Delete",
     "error_forbidden": "Only the author, the owner or an admin may do this."
+  },
+  "mention": {
+    "not_told": "Not told, they cannot read this: {ids}",
+    "poke_failed": "Could not tell {ids}. Your text is saved."
   }
 }

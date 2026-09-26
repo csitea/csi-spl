@@ -91,3 +91,41 @@ describe('topicWhere (K4 for a task-only send)', () => {
     assert.equal(topicWhere([], 't'), null)
   })
 })
+
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+describe('every store path pokes after the store succeeded (K1, K3)', () => {
+  const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const src = (f) => readFileSync(join(wui, f), 'utf8')
+  it('channel and DM sends: after the ack, the DM peer / dispatch target skipped', () => {
+    const s = src('src/stores/channel.ts')
+    assert.ok(s.indexOf('mentionPoke.poke(') > s.indexOf('await sendWithResend(() => client.send(frame))'))
+    assert.match(s, /addressee: asDm \? peerId : \(frame\.to \|\| ''\)/)
+  })
+  it('lobby and topic panes: where comes from the topic rows, unknown tells nobody', () => {
+    const s = src('src/stores/live.ts')
+    assert.ok(s.indexOf('void poke(') > s.indexOf('await sendWithResend(() => client.send(frame))'))
+    assert.match(s, /topicWhere\(/)
+    assert.match(s, /\{ unknown: true, taskId: task \}/)
+  })
+  it('an edit pokes only what it added', () => {
+    const s = src('src/components/MessageCard.vue')
+    assert.match(s, /poke\(\{ text: body, before: state\.original, where: editWhere\(\) \}\)/)
+    assert.ok(s.indexOf('before: state.original') > s.indexOf('await commit(state.msgId, body)'))
+  })
+  it('issues: description (with before), new issue, comment, subtask', () => {
+    const s = src('src/pages/issues.vue')
+    assert.match(s, /poke\(\{ text: value, before, where: \{ issue: true, issueKey: key \} \}\)/)
+    assert.match(s, /issueKey: created\.key/)
+    assert.match(s, /poke\(\{ text, where: \{ issue: true, issueKey: issue\.key \} \}\)/)
+    assert.match(s, /issueKey: sub\.key/)
+  })
+  it('the mock tenant tells nobody; the strings exist', () => {
+    assert.match(src('src/composables/useMentionPoke.ts'), /if \(api\.mock\) return/)
+    const en = JSON.parse(src('i18n/locales/en.json'))
+    assert.ok(en.mention.not_told.includes('{ids}'))
+    assert.ok(en.mention.poke_failed.includes('{ids}'))
+  })
+})

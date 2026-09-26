@@ -930,5 +930,9 @@
     "unarchive": "Uit archief halen",
     "delete": "Verwijderen",
     "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen."
+  },
+  "mention": {
+    "not_told": "Niet ingelicht, zij kunnen dit niet lezen: {ids}",
+    "poke_failed": "Kon {ids} niet inlichten. Je tekst is opgeslagen."
   }
 }

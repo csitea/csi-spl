@@ -270,6 +270,7 @@ import {
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMentionPicker } from '~/composables/useMentionPicker'
+import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
@@ -742,6 +743,19 @@ const draft = computed({
   get: () => edit.value?.draft ?? '',
   set: (v: string) => { edit.value = withDraft(edit.value, v) },
 })
+const { poke } = useMentionPoke()
+/* K4: where this message lives - an issue comment, a channel, or a DM between its two ends */
+function editWhere(): PokeWhere {
+  const m = props.msg
+  const taskId = String(m.task_id || '')
+  const channel = String(m.channel || '')
+  /* 'issues' = utils/parent-section.mjs ISSUE_CHANNEL, which must stay out of the initial chunk */
+  if (channel === 'issues') return { issue: true, taskId }
+  if (channel) return { channel, taskId }
+  const to = String(m.to || '')
+  if (!to || to === '@channel') return { channel: '', taskId }
+  return { ends: [String(m.from || ''), to], taskId }
+}
 const editMp = useMentionPicker({
   text: draft,
   el: editEl,
@@ -869,6 +883,8 @@ async function save() {
     /* the hub has answered: only NOW may the screen change, and the host owns
        the rows, so it is told rather than reaching into props.msg */
     emit('edited', row)
+    /* SPL-985 K3: only a mention the edit ADDED pokes, never one already told */
+    void poke({ text: body, before: state.original, where: editWhere() })
     closeEdit()
   } catch (e) {
     saving.value = false

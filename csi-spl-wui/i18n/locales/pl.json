@@ -930,5 +930,9 @@
     "unarchive": "Przywróć z archiwum",
     "delete": "Usuń",
     "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić."
+  },
+  "mention": {
+    "not_told": "Nie powiadomiono, nie mają dostępu do tego: {ids}",
+    "poke_failed": "Nie udało się powiadomić: {ids}. Twój tekst jest zapisany."
   }
 }

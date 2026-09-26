@@ -489,6 +489,33 @@
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
       <div class="foot-row">
+        <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
+             ship?" is answerable from the page instead of from build.json.
+             Owner, 2026-09-26: on the same row, right of the dot, bell and
+             note; one line, the hash ellipsized first, the full text on hover. -->
+        <!-- owner, 2026-09-26: only the version shows; hovering or focusing it
+             opens a card with the commit that STAYS open while the pointer is
+             on it (0.6 s grace to cross over), so the sha can be selected and
+             copied. No native title: it vanishes before anyone can copy it. -->
+        <span
+          class="vs-wrap"
+          :class="{ 'is-open': vsOpen }"
+          tabindex="0"
+          data-test="app-version-wrap"
+          :aria-label="versionText || undefined"
+          :aria-expanded="vsOpen"
+          @click="vsOpen = !vsOpen"
+          @keydown.esc.stop="vsOpen = false; ($event.currentTarget as HTMLElement).blur()"
+        >
+          <p id="app-version" class="version-stamp" data-test="app-version"><span class="vs-ver">{{ versionLabel }}</span></p>
+          <span v-if="buildCommit" class="vs-pop" role="tooltip" data-test="app-version-card">
+            <span class="vs-pop__row">
+              <span class="vs-pop__sha">{{ buildCommit }}</span>
+              <button type="button" class="vs-pop__copy" data-test="app-version-copy" @click.stop="copyCommit">{{ vsCopied ? t('code.copied') : t('code.copy') }}</button>
+            </span>
+            <span v-if="buildMeta" class="vs-pop__meta">{{ buildMeta }}</span>
+          </span>
+        </span>
         <div
           class="health"
           data-testid="connection-health"
@@ -499,11 +526,6 @@
           <span class="health-dot" :class="health" />
         </div>
         <NotificationCenter />
-        <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
-             ship?" is answerable from the page instead of from build.json.
-             Owner, 2026-09-26: on the same row, right of the dot, bell and
-             note; one line, the hash ellipsized first, the full text on hover. -->
-        <p id="app-version" class="version-stamp" :title="versionTitle || versionText || undefined" data-test="app-version"><span class="vs-ver">{{ versionLabel }}</span><span v-if="commitLabel" class="vs-sha">{{ commitLabel }}</span></p>
       </div>
       <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
     </div>
@@ -538,7 +560,7 @@ import { useLive } from '~/composables/useLive'
 import HumanName from '~/components/HumanName.vue'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
-import { buildStampText, buildStampTitle, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
+import { buildStampText, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
@@ -1017,10 +1039,24 @@ const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
 const build = ref(null)
 onMounted(async () => { build.value = await readBuildStamp() })
 const versionText = computed(() => buildStampText(version.value, build.value))
-const versionTitle = computed(() => buildStampTitle(build.value))
 /* owner, 2026-09-26: the version smaller, the commit smaller still, a tight gap */
 const versionLabel = computed(() => String(version.value || '').trim())
-const commitLabel = computed(() => shortCommit((build.value as { commit?: string } | null)?.commit))
+const buildCommit = computed(() => String((build.value as { commit?: string } | null)?.commit || '').trim())
+/* the card also opens by a tap (touch has no hover) and closes on Esc */
+const vsOpen = ref(false)
+const vsCopied = ref(false)
+async function copyCommit() {
+  try {
+    await navigator.clipboard.writeText(buildCommit.value)
+    vsCopied.value = true
+    setTimeout(() => { vsCopied.value = false }, 1500)
+  } catch { /* the text stays selectable by hand */ }
+}
+const buildMeta = computed(() => {
+  const b = build.value as { built_at?: string, run?: string } | null
+  if (!b) return ''
+  return [b.built_at || '', b.run ? `run ${b.run}` : ''].filter(Boolean).join(' · ')
+})
 
 /* SPL-72, channels-v1 §5.4: Delete channel. Offered to its creator only; the
    hub refuses anyone else (403, or 404 to a non-member) whatever this shows. */
@@ -1337,8 +1373,9 @@ async function onCreate() {
   }
   .tenant-switcher__icon { display: none; }
 }
-.foot-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }
+.foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
+.foot-row .vs-wrap { position: relative; flex: 0 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
 .foot-row .version-stamp {
   flex: 1 1 auto;
   min-width: 0;
@@ -1347,11 +1384,52 @@ async function onCreate() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
 }
+/* the commit card: directly above the version (no gap to fall through),
+   shown on hover / keyboard focus, hidden only 0.6 s after the pointer
+   leaves both - long enough to move onto it and select the sha */
+.foot-row .vs-pop {
+  position: absolute;
+  bottom: 100%;
+  inset-inline-start: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(360px, 90vw);
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface, var(--color-bg));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  user-select: text;
+  -webkit-user-select: text;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease 0.4s, visibility 0s linear 0.55s;
+}
+.foot-row .vs-wrap:hover .vs-pop,
+.foot-row .vs-wrap:focus-within .vs-pop,
+.foot-row .vs-wrap.is-open .vs-pop {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+.foot-row .vs-pop__row { display: flex; align-items: center; gap: 6px; }
+.foot-row .vs-pop__sha { white-space: nowrap; }
+.foot-row .vs-pop__copy {
+  font: inherit; font-family: var(--font-sans, inherit); font-size: 0.7rem;
+  padding: 1px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: transparent; color: inherit; cursor: pointer;
+}
+.foot-row .vs-pop__meta { color: var(--color-muted); overflow-wrap: anywhere; }
 /* em, so the font-size setting still scales both; the muted colour of
    .version-stamp keeps them readable on every theme */
 .foot-row .vs-ver { font-size: 0.9em; }
-.foot-row .vs-sha { font-size: 0.78em; margin-inline-start: 0.3em; opacity: 0.85; }
+
 @media (max-width: 800px) {
   .foot-row { flex-direction: column; padding: 6px 4px; }
 }

@@ -52,14 +52,23 @@ describe('build stamp (CLE-3433)', () => {
     assert.match(s, /onMounted\(async \(\) => \{ build\.value = await readBuildStamp\(\) \}\)/)
     assert.match(s, /data-test="app-version"/)
     // owner 2026-09-26: the stamp sits IN the icon row, right of the note, one line
-    const row = s.slice(s.indexOf('<div class="foot-row">'), s.indexOf('</div>', s.indexOf('data-test="app-version"')))
-    assert.ok(row.indexOf('<NotificationCenter />') >= 0 && row.indexOf('<NotificationCenter />') < row.indexOf('data-test="app-version"'), 'version must follow the bell/note in .foot-row')
+    // owner 2026-09-26: the version is FIRST in the row, then the dot, bell and note
+    const row = s.slice(s.indexOf('<div class="foot-row">'), s.indexOf('<NotificationCenter />') + 30)
+    const iv = row.indexOf('data-test="app-version"'), ih = row.indexOf('data-testid="connection-health"'), inc = row.indexOf('<NotificationCenter />')
+    assert.ok(iv > 0 && iv < ih && ih < inc, 'order must be version, dot, bell/note')
+    assert.match(s, /\.foot-row \{ display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; \}/)
     assert.match(s, /\.foot-row \.version-stamp \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
-    // owner 2026-09-26: version smaller, commit smaller still (em), no '·' gap
-    assert.match(s, /class="vs-ver"/)
-    assert.match(s, /class="vs-sha"/)
-    const ver = Number((s.match(/\.foot-row \.vs-ver \{ font-size: ([0-9.]+)em/) || [])[1])
-    const sha = Number((s.match(/\.foot-row \.vs-sha \{ font-size: ([0-9.]+)em/) || [])[1])
-    assert.ok(ver > 0 && ver < 1 && sha > 0 && sha < ver, `version ${ver}em > commit ${sha}em`)
+    // owner 2026-09-26: only the version shows; the commit is in a card that
+    // stays open (hover/focus/tap), closes on Esc after a grace delay, copyable
+    assert.doesNotMatch(s, /class="vs-sha"/)
+    assert.doesNotMatch(s, /data-test="app-version"[^>]*:title=/)
+    assert.match(s, /data-test="app-version-card"/)
+    assert.match(s, /data-test="app-version-copy"/)
+    assert.match(s, /navigator\.clipboard\.writeText\(buildCommit\.value\)/)
+    assert.match(s, /@keydown\.esc\.stop=/)
+    assert.match(s, /\.vs-wrap:focus-within \.vs-pop/)
+    assert.match(s, /\.vs-wrap\.is-open \.vs-pop/)
+    assert.match(s, /user-select: text;/)
+    assert.match(s, /transition: opacity 0\.15s ease 0\.4s/)
   })
 })

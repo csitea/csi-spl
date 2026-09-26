@@ -143,7 +143,7 @@ const measure = (p) => p.evaluate(() => {
   if (!b) return { barH: Math.round(bar.height) }
   const r = b.getBoundingClientRect()
   return { barH: Math.round(bar.height * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10,
-    text: b.textContent.trim(), aria: b.getAttribute('aria-label'), disabled: b.getAttribute('aria-disabled') || String(b.disabled),
+    text: [...b.childNodes].filter((c) => !(c.classList && c.classList.contains('composer-go__tip'))).map((c) => c.textContent).join('').trim(), aria: b.getAttribute('aria-label'), disabled: b.getAttribute('aria-disabled') || String(b.disabled),
     icon: b.querySelector('svg') ? b.querySelector('svg').getAttribute('data-icon') : '', test: b.getAttribute('data-testid') || b.getAttribute('data-test') }
 })
 async function typeInto(p, text) {

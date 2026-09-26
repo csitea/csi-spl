@@ -28,10 +28,20 @@ describe('SPL-982 the replies link reads "n >>"', () => {
   })
 })
 
-describe('SPL-982 the emoji stays 5px after the time on an edited card', () => {
-  it('the (edited) marker paints after the emoji and takes the push to the right', () => {
-    assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; margin-inline-end: auto; \}/)
-    assert.match(vue, /\.msg-edited ~ \.msg-actions \.icon-btn\[data-testid="msg-emoji-btn"\] \{ margin-inline-end: 0; \}/)
-    // order 2: after the emoji (1); before Open topic (also 2) because the marker is earlier in the DOM
+describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon', () => {
+  it('the chips are inside .msg-meta, after the actions, and no longer below the body', () => {
+    const meta = vue.slice(vue.indexOf('<div class="msg-meta">'), vue.indexOf('<span class="msg-meta-spacer"'))
+    assert.match(meta, /class="msg-reactions" data-testid="msg-reactions"/)
+    assert.ok(meta.indexOf('data-testid="msg-reactions"') > meta.indexOf('data-testid="msg-emoji-btn"'))
+    assert.equal(vue.split('data-testid="msg-reactions"').length - 1, 1)
+  })
+  it('paints emoji, chips, (edited), spacer, then the right-hand controls', () => {
+    assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 1; margin-inline-start: -13px; flex: 0 1 auto; min-width: 0; align-self: center; \}/)
+    assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; \}/)
+    assert.match(vue, /\.msg-reactions \{\s*display: inline-flex;\s*flex-wrap: wrap;/)
+  })
+  it('a chip shows its count from 2 people on, and its tooltip names who reacted', () => {
+    assert.match(vue, /<span v-if="chip\.showCount" class="msg-reaction__n">\{\{ chip\.count \}\}<\/span>/)
+    assert.match(vue, /:title="chipWho\(chip\.actors\)"/)
   })
 })

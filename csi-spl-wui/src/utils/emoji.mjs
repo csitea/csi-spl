@@ -45,12 +45,19 @@ export function normalizeReactions(list) {
   return out
 }
 
-/** Chips for one card. `mine` is the signed-in member. */
+/**
+ * Chips for one card. `mine` is the signed-in member. `actors` names who
+ * reacted (the chip's tooltip); `showCount` is true from 2 people on
+ * (SPL-982, owner: "if there are multiple persons with the same reaction add
+ * a number"), so one person's chip is the emoji alone.
+ */
 export function reactionChips(list, me) {
   const who = String(me || '')
   return normalizeReactions(list).map((r) => ({
     emoji: r.emoji,
     count: r.actors.length,
+    showCount: r.actors.length >= 2,
+    actors: r.actors.slice(),
     mine: Boolean(who) && r.actors.includes(who),
   }))
 }

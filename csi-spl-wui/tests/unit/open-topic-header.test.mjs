@@ -30,8 +30,8 @@ describe('open topic is left of replies (SPL-948)', () => {
     const replies = actions.indexOf('data-test="topic-replies"')
     assert.ok(open > 0 && replies > 0, 'both controls live in the header actions')
     // SPL-982: order is now across the whole meta row (actions are display: contents)
-    assert.match(vue, /\.msg-actions \[data-test="open-topic"\] \{ order: 2; \}/)
-    assert.match(vue, /\.msg-actions \.replies \{ order: 3;/)
+    assert.match(vue, /\.msg-actions \[data-test="open-topic"\] \{ order: 3; \}/)
+    assert.match(vue, /\.msg-actions \.replies \{ order: 4;/)
   })
 
   it('has no open-topic outside the header', () => {

@@ -33,9 +33,10 @@ describe('replies tab stop (SPL-942)', () => {
 
   it('SPL-982: paints the emoji just after the time, then open, replies and the menu on the right', () => {
     assert.match(vue, /\.msg-actions \{ display: contents; \}/)
-    assert.match(vue, /\.msg-actions \.icon-btn\[data-testid="msg-emoji-btn"\] \{ order: 1; margin-inline-start: -11px; margin-inline-end: auto; \}/)
-    assert.match(vue, /\.msg-actions \.replies \{ order: 3;/)
-    assert.match(vue, /\.msg-actions \.msg-menu-btn \{ order: 4; \}/)
+    assert.match(vue, /\.msg-actions \.icon-btn\[data-testid="msg-emoji-btn"\] \{ order: 1; margin-inline-start: -11px; \}/)
+    assert.match(vue, /\.msg-meta-spacer \{ order: 2; flex: 1 1 0; min-width: 0; \}/)
+    assert.match(vue, /\.msg-actions \.replies \{ order: 4;/)
+    assert.match(vue, /\.msg-actions \.msg-menu-btn \{ order: 5; \}/)
   })
 
   it('omits the link unless the card has replies or is always a topic, and uses no positive tabindex', () => {

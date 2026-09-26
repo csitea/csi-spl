@@ -103,3 +103,12 @@ describe('emoji reactions', () => {
     assert.match(born, /<MessageCard/)
   })
 })
+
+describe('SPL-982 chip count and who', () => {
+  it('one chip per emoji; the count shows from 2 people on; actors kept for the tooltip', async () => {
+    const { reactionChips: chipsOf } = await import('../../src/utils/emoji.mjs')
+    const c = chipsOf([{ emoji: '👍', actors: ['HUM-1', 'HUM-2', 'CLE-7'] }, { emoji: '🎉', actors: ['HUM-1'] }], 'HUM-1')
+    assert.deepEqual(c.map((x) => [x.emoji, x.count, x.showCount, x.mine]), [['👍', 3, true, true], ['🎉', 1, false, true]])
+    assert.deepEqual(c[0].actors, ['HUM-1', 'HUM-2', 'CLE-7'])
+  })
+})

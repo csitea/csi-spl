@@ -107,6 +107,29 @@
             <UiIcon name="open" :size="16" />
           </button>
         </span>
+        <!-- SPL-982 (owner, topic 8296eeec): the reactions sit in the header,
+             3px after the Add-emoji icon; one chip per emoji, its count from 2
+             people on, and its tooltip names who reacted -->
+        <span v-if="chips.length && !titleOnly" class="msg-reactions" data-testid="msg-reactions">
+          <button
+            v-for="chip in chips"
+            :key="chip.emoji"
+            type="button"
+            class="msg-reaction"
+            data-testid="msg-reaction"
+            :data-emoji="chip.emoji"
+            :data-count="chip.count"
+            :data-mine="chip.mine ? 'true' : undefined"
+            :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: chip.emoji }) : t('feed.emoji.chip', { emoji: chip.emoji, n: chip.count })"
+            :title="chipWho(chip.actors)"
+            :disabled="busy || !msg.msg_id || !!msg.pending"
+            @click.stop="onReact(chip.emoji)"
+          >
+            <span aria-hidden="true">{{ chip.emoji }}</span>
+            <span v-if="chip.showCount" class="msg-reaction__n">{{ chip.count }}</span>
+          </button>
+        </span>
+        <span class="msg-meta-spacer" aria-hidden="true" />
       </div>
       <!--
         CLE-3445: the row BECOMES the box ("the msg becomes once again a
@@ -188,23 +211,6 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
       </p>
-      <div v-if="chips.length && !titleOnly" class="msg-reactions" data-testid="msg-reactions">
-        <button
-          v-for="chip in chips"
-          :key="chip.emoji"
-          type="button"
-          class="msg-reaction"
-          data-testid="msg-reaction"
-          :data-emoji="chip.emoji"
-          :data-mine="chip.mine ? 'true' : undefined"
-          :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: chip.emoji }) : t('feed.emoji.chip', { emoji: chip.emoji, n: chip.count })"
-          :disabled="busy || !msg.msg_id || !!msg.pending"
-          @click.stop="onReact(chip.emoji)"
-        >
-          <span aria-hidden="true">{{ chip.emoji }}</span>
-          <span class="msg-reaction__n">{{ chip.count }}</span>
-        </button>
-      </div>
       <p v-if="reactError && !titleOnly" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
@@ -569,6 +575,10 @@ const pickerAt = ref({ x: 0, y: 0 })
 const busy = ref(false)
 const reactError = ref('')
 const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
+/** A chip's tooltip: who reacted, by the name the row would show. */
+function chipWho(actors: string[]) {
+  return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
+}
 
 function openPickerFromButton(ev: MouseEvent) {
   const btn = ev.currentTarget
@@ -887,20 +897,23 @@ async function save() {
 .msg-meta { align-items: center; }
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
-.msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; margin-inline-end: auto; }
-/* an edited card: "(edited)" comes after the emoji, so the emoji stays 5px
-   after the time, and the marker takes the push to the right */
-.msg-meta > .msg-edited { order: 2; margin-inline-end: auto; }
-.msg-edited ~ .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { margin-inline-end: 0; }
-.msg-actions [data-test="open-topic"] { order: 2; }
-.msg-actions .replies { order: 3; margin-top: 0; align-self: center; white-space: nowrap; }
-.msg-actions .msg-menu-btn { order: 4; }
+.msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; }
+/* the reactions follow the emoji (same order, later in the DOM): the chips
+   start 3px after its glyph (8px button padding + 8px row gap - 13px) and
+   wrap inside themselves, so many chips never widen the card */
+.msg-meta > .msg-reactions { order: 1; margin-inline-start: -13px; flex: 0 1 auto; min-width: 0; align-self: center; }
+/* "(edited)" follows them; the spacer then pushes Open topic, the replies
+   link and the menu to the right */
+.msg-meta > .msg-edited { order: 2; }
+.msg-meta-spacer { order: 2; flex: 1 1 0; min-width: 0; }
+.msg-actions [data-test="open-topic"] { order: 3; }
+.msg-actions .replies { order: 4; margin-top: 0; align-self: center; white-space: nowrap; }
+.msg-actions .msg-menu-btn { order: 5; }
 .msg-menu-btn { align-self: center; }
 .msg-reactions {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
 }
 .msg-reaction {
   appearance: none;

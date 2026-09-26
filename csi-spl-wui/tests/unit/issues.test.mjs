@@ -146,3 +146,41 @@ describe('issue detail pane width', () => {
     assert.equal(saved.issues, 500)
   })
 })
+
+describe('SPL-18 epics', async () => {
+  const { createMockIssues, issueQuery: q2, matchIssue: m2, normalizeIssue: n2 } = await import('../../src/utils/issues.mjs')
+  const { epicProgress } = await import('../../src/utils/issues-view.mjs')
+  it('an epic is the reserved label; an issue names its epic', () => {
+    assert.equal(n2({ key: 'SPL-1', labels: ['epic'] }).kind, 'epic')
+    assert.equal(n2({ key: 'SPL-1', labels: ['epic'], parent: 'SPL-9' }).epic, '')
+    const i = n2({ key: 'SPL-2', parent: 'SPL-1' })
+    assert.equal(i.kind, 'issue')
+    assert.equal(i.epic, 'SPL-1')
+    assert.equal(n2({ key: 'SPL-3', kind: 'issue', epic: 'SPL-4' }).epic, 'SPL-4')
+  })
+  it('kind and epic filter like the hub (case-insensitive keys)', () => {
+    const rows = [n2({ key: 'SPL-1', labels: ['epic'] }), n2({ key: 'SPL-2', epic: 'SPL-1' }), n2({ key: 'SPL-3', epic: 'SPL-9' })]
+    assert.deepEqual(rows.filter((i) => m2(i, { kind: 'issue' })).map((i) => i.key), ['SPL-2', 'SPL-3'])
+    assert.deepEqual(rows.filter((i) => m2(i, { kind: 'epic' })).map((i) => i.key), ['SPL-1'])
+    assert.deepEqual(rows.filter((i) => m2(i, { epic: ['spl-1'] })).map((i) => i.key), ['SPL-2'])
+    assert.equal(q2({ kind: 'issue', epic: ['SPL-1'] }), 'kind=issue&epic=SPL-1')
+  })
+  it('progress is done out of the issues not canceled', () => {
+    assert.equal(epicProgress({ total: 4, done: 1, canceled: 2 }), 50)
+    assert.equal(epicProgress({ total: 1, canceled: 1 }), 0)
+    assert.equal(epicProgress({}), 0)
+  })
+  it('the mock hub keeps the rule and answers the summary', () => {
+    const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T09:00:00Z' })
+    assert.throws(() => hub.create({ title: 'x' }), (e) => e.token === 'epic_required')
+    const a = hub.create({ title: 'a', epic: 'SPL-1', status: 'done' }).issue
+    assert.throws(() => hub.create({ title: 'b', epic: a.key }), (e) => e.token === 'bad_epic')
+    const e = hub.create({ title: 'E', kind: 'epic' }).issue
+    assert.equal(e.kind, 'epic')
+    assert.throws(() => hub.update('SPL-1', { kind: 'issue', epic: e.key }), (x) => x.token === 'epic_has_issues')
+    assert.equal(hub.update(a.key, { epic: e.key }).issue.epic, e.key)
+    const list = hub.list('kind=issue')
+    assert.deepEqual(list.issues.map((i) => i.key), [a.key])
+    assert.deepEqual(list.epics.map((x) => [x.key, x.total, x.done]), [['SPL-1', 0, 0], [e.key, 1, 1]])
+  })
+})

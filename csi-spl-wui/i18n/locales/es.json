@@ -364,7 +364,8 @@
     },
     "users": "Usuarios",
     "events": "Registro de eventos",
-    "issues": "Incidencias"
+    "issues": "Incidencias",
+    "epics": "Épicas"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Todas las incidencias",
+    "kind_epic": "Épica",
+    "kind_issue": "Incidencia",
+    "no_epic": "Sin épica",
+    "err_epic_required": "Cada incidencia necesita una épica.",
+    "err_bad_epic": "El padre debe ser una épica, y una épica no tiene padre.",
+    "err_epic_has_issues": "Mueve antes las incidencias de esta épica a otra épica."
   },
   "markdown": {
     "show_source": "Ver fuente",

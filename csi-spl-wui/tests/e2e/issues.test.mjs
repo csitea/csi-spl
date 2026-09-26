@@ -1,5 +1,6 @@
-// Issues screen in a real browser (GRK-3519). Mock mode starts with an empty
-// catalogue (the shared issues mock), so the test creates the rows it reads.
+// Issues screen in a real browser (GRK-3519). Mock mode starts with the one
+// epic every tenant has (SPL-1 "random", SPL-18), so the rows it creates
+// start at SPL-2 and land under that epic by default.
 //
 //   pnpm run test:e2e:issues
 //   BASE_URL=<generated bundle> pnpm run test:e2e:issues
@@ -72,9 +73,9 @@ try {
   await create(p, 'The first read drops', 'Only in the detail')
   await create(p, 'Show the display name', '')
   const listText = await p.$eval('[data-test=issues-list]', (el) => el.innerText)
-  ok('3 the list shows the key and not the description', listText.includes('SPL-1') && listText.includes('The first read drops') && !listText.includes('Only in the detail'), listText.slice(0, 280))
+  ok('3 the list shows the key and not the description', listText.includes('SPL-2') && listText.includes('The first read drops') && !listText.includes('Only in the detail'), listText.slice(0, 280))
 
-  await p.click('[data-test=issues-row][data-key="SPL-1"]')
+  await p.click('[data-test=issues-row][data-key="SPL-2"]')
   await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 5000 })
   const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
   const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.type)
@@ -90,14 +91,14 @@ try {
   await p.click('[data-test=issues-menu-option][data-value="in_progress"]')
   await p.waitForFunction(() => {
     const group = document.querySelector('[data-status="in_progress"]')
-    return Boolean(group && group.querySelector('[data-key="SPL-1"]'))
+    return Boolean(group && group.querySelector('[data-key="SPL-2"]'))
   }, { timeout: 5000 }).catch(() => null)
-  ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="in_progress"] [data-key="SPL-1"]')))
+  ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="in_progress"] [data-key="SPL-2"]')))
 
-  await p.click('[data-test=issues-row][data-key="SPL-2"]')
+  await p.click('[data-test=issues-row][data-key="SPL-3"]')
   await p.waitForFunction(() => {
     const el = document.querySelector('[data-test=issues-row][data-selected="true"]')
-    return el && el.getAttribute('data-key') === 'SPL-2' && new URL(location.href).searchParams.get('issue') === 'SPL-2'
+    return el && el.getAttribute('data-key') === 'SPL-3' && new URL(location.href).searchParams.get('issue') === 'SPL-3'
   }, { timeout: 5000 })
   const before = await p.$eval('[data-test=issues-row][data-selected="true"]', (el) => el.getAttribute('data-key'))
   await p.keyboard.press('KeyJ')

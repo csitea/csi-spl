@@ -6,7 +6,7 @@
   <div ref="pageEl" class="issues-page" data-test="issues-page" :style="detailStyle">
     <div class="issues-list" data-test="issues-list">
       <header class="feed-header issues-head">
-        <h2>{{ t('issues.title') }}</h2>
+        <h2 data-test="issues-heading">{{ epicTitle || t('issues.title') }}</h2>
         <button type="button" class="btn" data-test="issues-new" @click="startCreate">{{ t('issues.new') }}</button>
       </header>
       <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
@@ -80,6 +80,7 @@
               </button>
               <span class="issues-key">{{ issue.key }}</span>
               <span class="issues-title">{{ issue.title }}</span>
+              <button v-if="!epicF && issue.epic" type="button" class="issues-pill issues-epic-tag" data-test="issues-row-epic" @click.stop="openMenu('epic', issue, $event)">{{ epicTitleOf(issue.epic) }}</button>
               <button v-if="levelShort(issue.level)" type="button" class="issues-level" data-test="issues-row-level" @click.stop="openMenu('level', issue, $event)">{{ levelShort(issue.level) }}</button>
               <span v-if="issue.labels.length" class="issues-pills">
                 <button v-for="id in issue.labels" :key="id" type="button" class="issues-pill" data-test="issues-row-label" @click.stop="openMenu('label', issue, $event)">
@@ -142,6 +143,12 @@
         :body="form.description"
       />
       <div class="issues-props">
+        <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :aria-pressed="draft.kind === 'epic' ? 'true' : 'false'" @click="toggleKind">
+          <span>{{ draft.kind === 'epic' ? t('issues.kind_epic') : t('issues.kind_issue') }}</span>
+        </button>
+        <button v-if="form.kind !== 'epic'" type="button" class="issues-prop" data-test="issues-epic" @click="openMenu('epic', detailOrDraft(), $event)">
+          <span>{{ form.epic ? epicLabel(form.epic) : t('issues.no_epic') }}</span>
+        </button>
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
           <IssueGlyph :name="statusIcon(form.status)" :size="16" />
           <span>{{ t(statusKey(form.status)) }}</span>
@@ -174,7 +181,7 @@
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
       <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
       <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
-      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
+      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (draft.kind !== 'epic' && !draft.epic)" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
       <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
         <h3>{{ t('issues.discussion') }}</h3>
         <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
@@ -211,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
+import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { hasMarkdownBlock } from '~/utils/code-blocks.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -315,7 +322,27 @@ const detailRoom = ref(720)
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: 0, level: 0,
   assignee: '', labels: [] as string[], deadlineLocal: '',
+  epic: '', kind: 'issue' as 'issue' | 'epic',
 })
+/* SPL-18: the epics of the tenant (the hub's summary), shared with the
+   Issues tab's left-most panel (ChannelSidebar reads the same state). */
+const epics = useState<EpicSummary[]>('issue-epics', () => [])
+const epicF = computed(() => {
+  const q = route.query.epic
+  const raw = Array.isArray(q) ? q[0] : q
+  return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
+})
+const epicTitle = computed(() => epics.value.find((e) => e.key === epicF.value)?.title || '')
+function epicLabel(key: string) {
+  const e = epics.value.find((x) => x.key === key)
+  return e ? `${e.key} ${e.title}` : key
+}
+function epicTitleOf(key: string) {
+  return epics.value.find((x) => x.key === key)?.title || key
+}
+function toggleKind() {
+  draft.kind = draft.kind === 'epic' ? 'issue' : 'epic'
+}
 
 function boxOf(id: string) {
   return roster.people.find((p) => p.id === id)?.box || ''
@@ -353,7 +380,8 @@ function isCollapsed(status: string) {
   return Boolean(collapsed.value[status])
 }
 function serverFilter(): IssueFilter {
-  const f: IssueFilter = {}
+  const f: IssueFilter = { kind: 'issue' }
+  if (epicF.value) f.epic = [epicF.value]
   if (statusF.value) f.status = [statusF.value]
   if (priorityF.value !== '') f.priority = [Number(priorityF.value)]
   if (levelF.value !== '') f.level = [Number(levelF.value)]
@@ -371,6 +399,9 @@ function errorKey(err: { status?: number, token?: string }, which: 'list' | 'one
   if (status === 401 || token === 'view_door' || token === 'unauthenticated') return 'issues.signed_out'
   if (status === 403) return 'issues.forbidden'
   if (status === 404) return which === 'list' ? 'issues.unavailable' : 'issues.not_found'
+  if (token === 'epic_required') return 'issues.err_epic_required'
+  if (token === 'bad_epic') return 'issues.err_bad_epic'
+  if (token === 'epic_has_issues') return 'issues.err_epic_has_issues'
   if (status === 503 || token === 'unavailable') return 'issues.unavailable'
   return which === 'list' ? 'issues.load_failed' : 'issues.save_failed'
 }
@@ -416,7 +447,7 @@ const form = computed(() => {
     return {
       key: '', title: draft.title, description: draft.description, status: draft.status,
       priority: draft.priority, level: draft.level, deadline: draft.deadlineLocal,
-      created_by: '', updated_by: '', task_id: '',
+      created_by: '', updated_by: '', task_id: '', epic: draft.kind === 'epic' ? '' : draft.epic, kind: draft.kind,
     }
   }
   const d = detail.value
@@ -424,7 +455,7 @@ const form = computed(() => {
   return {
     key: d.key, title: d.title, description: d.description, status: d.status,
     priority: d.priority, level: d.level, deadline: deadlineToLocalInput(d.deadline),
-    created_by: d.created_by, updated_by: d.updated_by, task_id: d.task_id,
+    created_by: d.created_by, updated_by: d.updated_by, task_id: d.task_id, epic: d.epic, kind: d.kind,
   }
 })
 
@@ -441,6 +472,7 @@ async function load() {
     const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort: sortF.value }))
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
+    epics.value = data.epics || []
     if (cursorKey.value && !flat.value.some((i) => i.key === cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
     void openLinkedIssue()
   } catch (e) {
@@ -509,6 +541,8 @@ function startCreate() {
   draft.assignee = ''
   draft.labels = []
   draft.deadlineLocal = ''
+  draft.kind = 'issue'
+  draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'canceled')?.key || epics.value[0]?.key || ''
   menu.value = null
   saveError.value = ''
   void nextTick(() => titleEl.value?.focus())
@@ -524,6 +558,8 @@ function detailOrDraft(): Issue {
     level: draft.level,
     assignee: draft.assignee,
     labels: draft.labels,
+    epic: draft.epic,
+    kind: draft.kind,
   })
 }
 
@@ -533,7 +569,8 @@ const menuOptions = computed(() => {
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: t(priorityKey(n)) }))
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)) }))
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee') }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label }))]
-  if (kind === 'label') return labels.value.map((l) => ({ value: l.id, label: l.name }))
+  if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name }))
+  if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}` }))
   return []
 })
 const menuStyle = computed(() => ({ top: `${menuPos.value.top}px`, left: `${menuPos.value.left}px` }))
@@ -571,6 +608,7 @@ function move(delta: number) {
 }
 function hold(issue: Issue) {
   issues.value = applyIssueFrame(issues.value, { type: 'issue', issue })
+  refreshEpics()
   if (detail.value && detail.value.key === issue.key) detail.value = issue
 }
 
@@ -618,6 +656,7 @@ async function applyMenu(value: string) {
     else if (kind === 'priority') draft.priority = Number(value)
     else if (kind === 'level') draft.level = Number(value)
     else if (kind === 'assign') draft.assignee = value
+    else if (kind === 'epic') draft.epic = value
     else if (kind === 'label') {
       draft.labels = draft.labels.includes(value) ? draft.labels.filter((x) => x !== value) : [...draft.labels, value]
     }
@@ -631,6 +670,7 @@ async function applyMenu(value: string) {
   else if (kind === 'priority') body.priority = Number(value)
   else if (kind === 'level') body.level = Number(value)
   else if (kind === 'assign') body.assignee = value
+  else if (kind === 'epic') body.parent = value /* issues-v1: parent is the epic; an older hub knows only parent */
   else if (kind === 'label') {
     body.labels = issue.labels.includes(value) ? issue.labels.filter((x) => x !== value) : [...issue.labels, value]
   }
@@ -667,6 +707,10 @@ async function createIssue() {
   }
   if (draft.assignee) body.assignee = draft.assignee
   if (draft.labels.length) body.labels = draft.labels.slice()
+  /* The label and parent forms work on every hub since 0.7.0 (issues-v1 §8:
+     the epic label makes an epic, parent is the epic). */
+  if (draft.kind === 'epic') body.labels = [...draft.labels.filter((l) => l !== 'epic'), 'epic']
+  else body.parent = draft.epic
   const deadline = localInputToDeadline(draft.deadlineLocal)
   if (deadline) body.deadline = deadline
   try {
@@ -781,7 +825,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
 }
 
-watch([statusF, priorityF, levelF, assigneeF, labelF, fromF, untilF, sortF], () => { void load() })
+watch([statusF, priorityF, levelF, assigneeF, labelF, fromF, untilF, sortF, epicF], () => { void load() })
 watch(() => session.state, () => { void load() }, { immediate: true })
 async function openLinkedIssue() {
   const key = issueLinkKey()
@@ -807,6 +851,19 @@ watch(() => {
 }, () => { void openLinkedIssue() })
 watch(creating, (on) => { if (on) comments.value = [] })
 
+/* SPL-18: a frame can move an issue between epics or change its status, so
+   the left-most panel's counts are re-read (one light read, debounced). */
+let epicsTimer: ReturnType<typeof setTimeout> | null = null
+function refreshEpics() {
+  if (epicsTimer) clearTimeout(epicsTimer)
+  epicsTimer = setTimeout(async () => {
+    epicsTimer = null
+    try {
+      const data = await withSessionRetry(api, () => api.listIssues({ filter: { kind: 'epic' } }))
+      epics.value = data.epics || []
+    } catch { /* the next load re-reads it */ }
+  }, 400)
+}
 let offIssue = () => {}
 let offLabel = () => {}
 let offMsg = () => {}
@@ -822,7 +879,10 @@ onMounted(() => {
     detailObserver = new ResizeObserver(() => measureDetailRoom())
     detailObserver.observe(pageEl.value)
   }
-  offIssue = live.onIssue((f) => { issues.value = applyIssueFrame(issues.value, f) })
+  offIssue = live.onIssue((f) => {
+    issues.value = applyIssueFrame(issues.value, f)
+    refreshEpics()
+  })
   offLabel = live.onIssueLabel((f) => { labels.value = applyLabelFrame(labels.value, f) })
   offMsg = live.onMessage((m) => {
     const issue = detail.value

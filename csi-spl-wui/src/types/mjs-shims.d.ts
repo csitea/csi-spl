@@ -1021,6 +1021,8 @@ declare module '~/utils/event-log.mjs' {
 declare module '~/utils/issues.mjs' {
   export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'canceled'
   export interface Issue {
+    kind: 'epic' | 'issue'
+    epic: string
     key: string
     number: number
     title: string
@@ -1043,6 +1045,8 @@ declare module '~/utils/issues.mjs' {
   }
   export interface IssueLabel { id: string, name: string, color: string }
   export interface IssueFilter {
+    kind?: string
+    epic?: string[]
     status?: string[]
     priority?: number[]
     level?: number[]
@@ -1061,6 +1065,8 @@ declare module '~/utils/issues.mjs' {
     labels?: string[]
     deadline?: string
     parent?: string
+    epic?: string
+    kind?: 'epic' | 'issue'
   }
   export interface IssueList {
     prefix: string
@@ -1069,6 +1075,17 @@ declare module '~/utils/issues.mjs' {
     issues: Issue[]
     labels: IssueLabel[]
     channel: string
+    epics?: EpicSummary[]
+  }
+  export interface EpicSummary {
+    key: string
+    number: number
+    title: string
+    status: string
+    total: number
+    done: number
+    canceled: number
+    counts: Record<string, number>
   }
   export interface IssueGroup { status: IssueStatus, count: number, issues: Issue[] }
   export const ISSUE_STATUSES: IssueStatus[]
@@ -1119,4 +1136,5 @@ declare module '~/utils/issues-view.mjs' {
   export function clampIssuePane(width: unknown, ceiling?: number): number
   export function loadIssuePane(store?: unknown): number
   export function saveIssuePane(width: number, store?: unknown): boolean
+  export function epicProgress(e: { total?: number, done?: number, canceled?: number }): number
 }

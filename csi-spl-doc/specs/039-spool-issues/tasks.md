@@ -59,7 +59,15 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       store TestIssueEpicRule (memory + pg), TestMigration0049EpicBackfill
       (pg, incl. a second pass), hub TestIssueEpics, desk-actions.tst.sh §9;
       api run-all-tests ALL PASSED
-- [ ] T010 SPL-18 WUI: left-most panel lists the epics (count + progress, All),
-      a click filters the list, the create form requires an epic
+- [x] T010 SPL-18 WUI: left-most panel lists the epics (done / open count +
+      progress bar, All issues), a click filters the list (`?epic=`), the list
+      shows issues only, the create form requires an epic (defaults to the
+      selected one) or makes an epic, an epic picker in the detail. The
+      commit adding this line; tests/unit/issues.test.mjs (SPL-18 block),
+      tests/e2e/issues.test.mjs 9/9 on the mock, typecheck, unit 105/105.
+      Sends `parent` / the `epic` label, so it works on hub 0.7.x before the
+      roll (an older hub refuses unknown body fields)
+- [ ] T010b owner 09:08 (topic 070843ba): level 1 epics AND features, level 2
+      issues, level 3 subtasks; the done git-specs imported into that tree
 - [ ] T011 SPL-18 rdb 0049 on dev + prd, hub roll, live proof
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

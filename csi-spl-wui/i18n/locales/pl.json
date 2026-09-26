@@ -364,7 +364,8 @@
     },
     "users": "Użytkownicy",
     "events": "Dziennik zdarzeń",
-    "issues": "Zgłoszenia"
+    "issues": "Zgłoszenia",
+    "epics": "Epiki"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Wszystkie zadania",
+    "kind_epic": "Epik",
+    "kind_issue": "Zadanie",
+    "no_epic": "Bez epiku",
+    "err_epic_required": "Każde zadanie wymaga epiku.",
+    "err_bad_epic": "Rodzic musi być epikiem, a epik nie ma rodzica.",
+    "err_epic_has_issues": "Najpierw przenieś zadania tego epiku do innego epiku."
   },
   "markdown": {
     "show_source": "Pokaż źródło",

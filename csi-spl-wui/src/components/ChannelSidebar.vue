@@ -443,7 +443,24 @@
         data-testid="sidebar-panel-issues"
       >
         <h2>{{ t('sidebar.issues') }}</h2>
-        <NuxtLink class="nav-row" data-testid="sidebar-issues-open" :to="localePath('/issues')">{{ t('issues.title') }}</NuxtLink>
+        <NuxtLink class="nav-item" :class="{ active: isIssuesPath && !epicQuery }" data-testid="sidebar-issues-open" :to="localePath('/issues')">{{ t('issues.all_issues') }}</NuxtLink>
+        <!-- SPL-18: the epics, like Linear's projects - a click filters the
+             list to one epic; the Issues page fills this state. -->
+        <h2 v-if="issueEpics.length" data-testid="sidebar-epics-h">{{ t('sidebar.epics') }}</h2>
+        <NuxtLink
+          v-for="e in issueEpics"
+          :key="e.key"
+          class="nav-item epic-row"
+          :class="{ active: epicQuery === e.key, 'epic-row--closed': e.status === 'done' || e.status === 'canceled' }"
+          data-testid="sidebar-epic"
+          :data-key="e.key"
+          :title="`${e.key} ${e.title}`"
+          :to="localePath({ path: '/issues', query: { epic: e.key } })"
+        >
+          <span class="epic-row__title">{{ e.title }}</span>
+          <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
+          <span class="epic-row__bar" aria-hidden="true"><span :style="{ width: epicPct(e) + '%' }" /></span>
+        </NuxtLink>
       </div>
       <!-- CLE-34990: the personal Event log; the list lives on /events -->
       <div
@@ -678,6 +695,19 @@ async function onTenantChange(ev: Event) {
   el.value = box.selected
 }
 const localePath = useLocalePath()
+/* SPL-18: the Issues tab's epics (issues.vue fills it from the hub summary) */
+type EpicRow = { key: string, title: string, status: string, total: number, done: number, canceled: number }
+const issueEpics = useState<EpicRow[]>('issue-epics', () => [])
+const isIssuesPath = computed(() => tabForPath(route.path) === ISSUES_TAB)
+const epicQuery = computed(() => {
+  const q = route.query.epic
+  const raw = Array.isArray(q) ? q[0] : q
+  return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
+})
+function epicPct(e: EpicRow) {
+  const open = e.total - e.canceled
+  return open > 0 ? Math.round((e.done * 100) / open) : 0
+}
 /* CLE-34969: Users after flow, only when the hub lists members.invite. */
 const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
 const rail = computed(() => (usersVisible.value
@@ -1131,6 +1161,12 @@ async function onCreate() {
 
 /* Each object keeps the link full width. The three-line menu sits on the
    trailing edge and must not cover the name. */
+.epic-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; }
+.epic-row__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.epic-row__count { font-size: 0.75rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.epic-row__bar { grid-column: 1 / -1; height: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
+.epic-row__bar > span { display: block; height: 100%; background: var(--color-accent); }
+.epic-row--closed { opacity: 0.6; }
 .nav-row {
   position: relative;
   min-width: 0;

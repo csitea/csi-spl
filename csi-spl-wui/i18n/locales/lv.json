@@ -364,7 +364,8 @@
     },
     "users": "Lietotāji",
     "events": "Notikumu žurnāls",
-    "issues": "Problēmas"
+    "issues": "Problēmas",
+    "epics": "Episki"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Visi uzdevumi",
+    "kind_epic": "Episks",
+    "kind_issue": "Uzdevums",
+    "no_epic": "Bez episka",
+    "err_epic_required": "Katram uzdevumam vajag episku.",
+    "err_bad_epic": "Vecākam jābūt episkam, un episkam nav vecāka.",
+    "err_epic_has_issues": "Vispirms pārvietojiet šī episka uzdevumus uz citu episku."
   },
   "markdown": {
     "show_source": "Rādīt avotu",

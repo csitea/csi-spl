@@ -364,7 +364,8 @@
     },
     "users": "Users",
     "events": "Event log",
-    "issues": "Issues"
+    "issues": "Issues",
+    "epics": "Epics"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "All issues",
+    "kind_epic": "Epic",
+    "kind_issue": "Issue",
+    "no_epic": "No epic",
+    "err_epic_required": "Every issue needs an epic.",
+    "err_bad_epic": "The parent must be an epic, and an epic has no parent.",
+    "err_epic_has_issues": "Move this epic's issues to another epic first."
   },
   "markdown": {
     "show_source": "Show source",

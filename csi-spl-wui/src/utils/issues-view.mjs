@@ -147,3 +147,13 @@ export function isOverdue(issue, now = Date.now()) {
   return !Number.isNaN(d) && d < now && issue.status !== 'done' && issue.status !== 'canceled'
 }
 
+
+/**
+ * SPL-18: an epic's progress the way Linear shows a project's - done out of
+ * the issues that were not canceled, 0..100 (0 when it has none).
+ * @param {{ total?: number, done?: number, canceled?: number }} e
+ */
+export function epicProgress(e) {
+  const open = (Number(e && e.total) || 0) - (Number(e && e.canceled) || 0)
+  return open > 0 ? Math.round(((Number(e && e.done) || 0) * 100) / open) : 0
+}

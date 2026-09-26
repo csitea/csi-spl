@@ -364,7 +364,8 @@
     },
     "users": "Gebruikers",
     "events": "Gebeurtenissenlogboek",
-    "issues": "Kwesties"
+    "issues": "Kwesties",
+    "epics": "Epics"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Alle issues",
+    "kind_epic": "Epic",
+    "kind_issue": "Issue",
+    "no_epic": "Geen epic",
+    "err_epic_required": "Elk issue heeft een epic nodig.",
+    "err_bad_epic": "De ouder moet een epic zijn, en een epic heeft geen ouder.",
+    "err_epic_has_issues": "Verplaats eerst de issues van deze epic naar een andere epic."
   },
   "markdown": {
     "show_source": "Bron tonen",

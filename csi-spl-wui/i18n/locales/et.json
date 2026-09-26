@@ -364,7 +364,8 @@
     },
     "users": "Kasutajad",
     "events": "Sündmuste logi",
-    "issues": "Probleemid"
+    "issues": "Probleemid",
+    "epics": "Eepikud"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Kõik ülesanded",
+    "kind_epic": "Eepik",
+    "kind_issue": "Ülesanne",
+    "no_epic": "Eepikuta",
+    "err_epic_required": "Igal ülesandel peab olema eepik.",
+    "err_bad_epic": "Vanem peab olema eepik ja eepikul pole vanemat.",
+    "err_epic_has_issues": "Vii selle eepiku ülesanded esmalt teise eepikusse."
   },
   "markdown": {
     "show_source": "Näita lähteteksti",

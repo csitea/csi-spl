@@ -364,7 +364,8 @@
     },
     "users": "Utilizatori",
     "events": "Jurnal de evenimente",
-    "issues": "Probleme"
+    "issues": "Probleme",
+    "epics": "Epice"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Toate problemele",
+    "kind_epic": "Epic",
+    "kind_issue": "Problemă",
+    "no_epic": "Fără epic",
+    "err_epic_required": "Fiecare problemă are nevoie de un epic.",
+    "err_bad_epic": "Părintele trebuie să fie un epic, iar un epic nu are părinte.",
+    "err_epic_has_issues": "Mută mai întâi problemele acestui epic în alt epic."
   },
   "markdown": {
     "show_source": "Arată sursa",

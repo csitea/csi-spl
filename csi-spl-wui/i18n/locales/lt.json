@@ -364,7 +364,8 @@
     },
     "users": "Naudotojai",
     "events": "Įvykių žurnalas",
-    "issues": "Problemos"
+    "issues": "Problemos",
+    "epics": "Epikai"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Visos užduotys",
+    "kind_epic": "Epikas",
+    "kind_issue": "Užduotis",
+    "no_epic": "Be epiko",
+    "err_epic_required": "Kiekvienai užduočiai reikia epiko.",
+    "err_bad_epic": "Tėvas turi būti epikas, o epikas neturi tėvo.",
+    "err_epic_has_issues": "Pirmiausia perkelkite šio epiko užduotis į kitą epiką."
   },
   "markdown": {
     "show_source": "Rodyti šaltinį",

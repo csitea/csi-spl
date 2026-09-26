@@ -364,7 +364,8 @@
     },
     "users": "Používatelia",
     "events": "Denník udalostí",
-    "issues": "Úlohy"
+    "issues": "Úlohy",
+    "epics": "Epiky"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -818,7 +819,14 @@
       "3": "M",
       "4": "L",
       "5": "XL"
-    }
+    },
+    "all_issues": "Všetky úlohy",
+    "kind_epic": "Epik",
+    "kind_issue": "Úloha",
+    "no_epic": "Bez epiku",
+    "err_epic_required": "Každá úloha potrebuje epik.",
+    "err_bad_epic": "Rodič musí byť epik a epik nemá rodiča.",
+    "err_epic_has_issues": "Najprv presuňte úlohy tohto epiku do iného epiku."
   },
   "markdown": {
     "show_source": "Zobraziť zdroj",

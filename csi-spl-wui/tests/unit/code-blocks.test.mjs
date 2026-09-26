@@ -105,6 +105,28 @@ describe('fence parser', () => {
     ])
   })
 
+  it('a closed wiki region renders markdown and an open one stays text', () => {
+    const wiki = '{{wiki}}\n# Title\n- **one** and *two*\n1. [docs](https://example.com/a)\n> quoted\n```\n{{/wiki}}\n```\n{{/wiki}}\nafter'
+    const blocks = parseBody(wiki)
+    assert.equal(blocks[0].type, 'heading')
+    assert.equal(blocks[0].level, 1)
+    assert.equal(blocks[0].parts[0].text, 'Title')
+    assert.equal(blocks[1].type, 'list')
+    assert.equal(blocks[1].ordered, false)
+    assert.deepEqual(blocks[1].items[0].parts.map((p) => p.type), ['strong', 'text', 'em'])
+    assert.equal(blocks[2].ordered, true)
+    assert.equal(blocks[2].items[0].parts[0].href, 'https://example.com/a')
+    assert.equal(blocks[3].type, 'quote')
+    assert.equal(blocks[4].type, 'code')
+    assert.equal(blocks[4].text, '{{/wiki}}')
+    assert.deepEqual(blocks[5], para(txt('after')))
+    assert.equal(parseBody('hello\n{{wiki}}\n# Title').some((b) => b.type === 'heading'), false)
+    const html = bodyToHtml('{{wiki}}\n<script>alert(1)</script>\n[x](javascript:alert(1))\n{{/wiki}}')
+    assert.equal(html.includes('<script'), false)
+    assert.equal(html.includes('javascript:'), true)
+    assert.ok(html.includes('&lt;script&gt;'))
+  })
+
   it('tokenize keeps an empty body empty', () => {
     assert.deepEqual(tokenize(''), [])
     assert.deepEqual(parseBody(null), [])
@@ -137,6 +159,7 @@ describe('never markup (SEC)', () => {
     // not only the one that used to hold the markup.
     for (const f of [
       'src/components/MessageBody.vue',
+      'src/components/MessageRuns.vue',
       'src/components/CodeBlock.vue',
       'src/components/CodeLines.vue',
       'src/components/CodeViewer.vue',

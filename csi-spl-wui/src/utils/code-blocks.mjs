@@ -19,6 +19,10 @@
  *   - 1 or 2 backticks open inline code closed by the same run on the same
  *     line; a ``` inside such a span is content, not a fence
  *   - CRLF / CR are read as LF
+ *   - a line that is exactly {{wiki}} opens a markdown region; a line that
+ *     is exactly {{/wiki}} closes it. Inside, headings, lists, quotes and
+ *     emphasis render. An unclosed opener stays ordinary text. A fence
+ *     inside the region can hold the closer as code.
  *
  * Pure: node tests import this file directly.
  */
@@ -242,11 +246,173 @@ function trimPara(p) {
 /**
  * The render tree of a body: blocks of
  *   { type: 'code', text, lang, closed }
- *   { type: 'para', parts: [{ type: 'text'|'strong'|'mention'|'inline', text }
- *                            | { type: 'link', text, href }] }
+ *   { type: 'para'|'quote', parts }
+ *   { type: 'heading', level, parts }
+ *   { type: 'list', ordered, items: [{ parts }] }
+ * parts are { type: 'text'|'strong'|'em'|'mention'|'inline', text }
+ *         or { type: 'link', text, href }
  * Every `text` is a raw string for text interpolation — never HTML.
  */
-export function parseBody(src) {
+const WIKI_OPEN_RE = /^\{\{wiki\}\}[ \t]*$/i
+const WIKI_CLOSE_RE = /^\{\{\/wiki\}\}[ \t]*$/i
+const WIKI_RE = new RegExp(
+  String.raw`\[([^\]\n]{1,200})\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(?<![\w*])\*([^*\n]+)\*(?!\*)|(?<![\w])_([^_\n]+)_(?![\w])|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)|` + `(${URL_SRC})|(${EMAIL_SRC})`,
+  'g',
+)
+
+function mdLink(label, href) {
+  const text = String(label || '').trim()
+  const raw = String(href || '').trim()
+  if (!text || !raw) return null
+  if (/^mailto:/i.test(raw)) {
+    const addr = raw.slice(7)
+    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(addr)) return null
+    return { type: 'link', text, href: 'mailto:' + addr }
+  }
+  try {
+    const u = new URL(raw)
+    if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
+    return { type: 'link', text, href: u.href }
+  } catch {
+    return null
+  }
+}
+
+/** Emphasis and markdown links, only inside a wiki region. */
+function wikiRich(text) {
+  return splitRuns(String(text), WIKI_RE, (m) => {
+    if (m[1] !== undefined) return mdLink(m[1], m[2])
+    if (m[3] !== undefined) return { type: 'strong', text: m[3] }
+    if (m[4] !== undefined) return { type: 'em', text: m[4] }
+    if (m[5] !== undefined) return { type: 'em', text: m[5] }
+    if (m[6] !== undefined) return { type: 'mention', text: '@' + m[6] }
+    return toLink(m[7], m[8])
+  })
+}
+
+function wikiParts(text) {
+  const parts = []
+  for (const t of tokenize(text)) {
+    if (t.type === 'inline') parts.push({ type: 'inline', text: t.text })
+    else if (t.type === 'code') parts.push({ type: 'text', text: t.text })
+    else parts.push(...wikiRich(t.text))
+  }
+  return parts.filter((p) => p.text !== '')
+}
+
+function fenceWidth(line) {
+  const m = /^(```+)/.exec(line)
+  return m ? m[1].length : 0
+}
+
+/** Plain runs and closed {{wiki}} regions. An unclosed opener stays plain. */
+export function wikiRegions(src) {
+  const lines = normalizeNewlines(src).split('\n')
+  const regions = []
+  let plain = []
+  let wiki = null
+  let opener = ''
+  let fence = 0
+  const pushPlain = () => {
+    if (!plain.length) return
+    regions.push({ type: 'plain', text: plain.join('\n') })
+    plain = []
+  }
+  for (const line of lines) {
+    if (wiki) {
+      if (fence) {
+        wiki.push(line)
+        if (line.startsWith('`'.repeat(fence))) fence = 0
+        continue
+      }
+      const width = fenceWidth(line)
+      if (width) {
+        fence = width
+        wiki.push(line)
+        continue
+      }
+      if (WIKI_CLOSE_RE.test(line)) {
+        regions.push({ type: 'wiki', text: wiki.join('\n') })
+        wiki = null
+        continue
+      }
+      wiki.push(line)
+      continue
+    }
+    if (WIKI_OPEN_RE.test(line)) {
+      pushPlain()
+      opener = line
+      wiki = []
+      continue
+    }
+    plain.push(line)
+  }
+  if (wiki) plain.push(opener, ...wiki)
+  pushPlain()
+  return regions
+}
+
+function wikiBlocks(src) {
+  const lines = normalizeNewlines(src).replace(/^\n+|\n+$/g, '').split('\n')
+  const blocks = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.trim() === '') { i += 1; continue }
+    const width = fenceWidth(line)
+    if (width) {
+      let lang = line.slice(width).trim()
+      if (!/^[A-Za-z0-9_+#.-]{1,24}$/.test(lang)) lang = ''
+      const body = []
+      i += 1
+      let closed = false
+      while (i < lines.length) {
+        if (lines[i].startsWith('`'.repeat(width))) { closed = true; i += 1; break }
+        body.push(lines[i])
+        i += 1
+      }
+      blocks.push({ type: 'code', text: body.join('\n'), lang, closed })
+      continue
+    }
+    const heading = /^(#{1,3})[ \t]+(\S.*)$/.exec(line)
+    if (heading) {
+      blocks.push({ type: 'heading', level: heading[1].length, parts: wikiParts(heading[2].trim()) })
+      i += 1
+      continue
+    }
+    const ul = /^[-*] /.test(line)
+    const ol = /^\d+\. /.test(line)
+    if (ul || ol) {
+      const items = []
+      while (i < lines.length && (ol ? /^\d+\. /.test(lines[i]) : /^[-*] /.test(lines[i]))) {
+        const item = lines[i].replace(ol ? /^\d+\. / : /^[-*] /, '')
+        items.push({ parts: wikiParts(item) })
+        i += 1
+      }
+      blocks.push({ type: 'list', ordered: ol, items })
+      continue
+    }
+    if (line.startsWith('>')) {
+      const quoted = []
+      while (i < lines.length && lines[i].startsWith('>')) {
+        quoted.push(lines[i].replace(/^>[ \t]?/, ''))
+        i += 1
+      }
+      blocks.push({ type: 'quote', parts: wikiParts(quoted.join('\n')) })
+      continue
+    }
+    const para = []
+    while (i < lines.length && lines[i].trim() !== '' && !fenceWidth(lines[i]) && !/^(#{1,3})[ \t]+\S/.test(lines[i]) && !/^[-*] /.test(lines[i]) && !/^\d+\. /.test(lines[i]) && !lines[i].startsWith('>')) {
+      para.push(lines[i])
+      i += 1
+    }
+    const parts = wikiParts(para.join('\n'))
+    if (parts.length) blocks.push({ type: 'para', parts })
+  }
+  return blocks
+}
+
+function plainBlocks(src) {
   const blocks = []
   let para = null
   for (const t of tokenize(src)) {
@@ -262,14 +428,34 @@ export function parseBody(src) {
     if (t.type === 'inline') para.parts.push({ type: 'inline', text: t.text })
     else para.parts.push(...richParts(t.text))
   }
-  // a paragraph that is only the newlines between two blocks is not a line
   return blocks
     .map((b) => (b.type === 'para' ? trimPara(b) : b))
     .filter((b) => b.type === 'code' || b.parts.length > 0)
 }
 
+export function parseBody(src) {
+  const blocks = []
+  for (const region of wikiRegions(src)) {
+    blocks.push(...(region.type === 'wiki' ? wikiBlocks(region.text) : plainBlocks(region.text)))
+  }
+  return blocks
+}
+
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function partsHtml(parts) {
+  return (parts || []).map((p) => {
+    if (p.type === 'inline') return `<code>${esc(p.text)}</code>`
+    if (p.type === 'strong') return `<strong>${esc(p.text)}</strong>`
+    if (p.type === 'em') return `<em>${esc(p.text)}</em>`
+    if (p.type === 'mention') return `<span class="mention">${esc(p.text)}</span>`
+    if (p.type === 'link') {
+      return `<a class="msg-link" href="${esc(p.href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(p.text)}</a>`
+    }
+    return esc(p.text).replace(/\n/g, '<br>')
+  }).join('')
 }
 
 /**
@@ -282,15 +468,13 @@ export function bodyToHtml(src) {
       const label = b.lang ? ` data-lang="${esc(b.lang)}"` : ''
       return `<pre${label}><code>${esc(b.text)}</code></pre>`
     }
-    return b.parts.map((p) => {
-      if (p.type === 'inline') return `<code>${esc(p.text)}</code>`
-      if (p.type === 'strong') return `<strong>${esc(p.text)}</strong>`
-      if (p.type === 'mention') return `<span class="mention">${esc(p.text)}</span>`
-      if (p.type === 'link') {
-        return `<a class="msg-link" href="${esc(p.href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(p.text)}</a>`
-      }
-      return esc(p.text).replace(/\n/g, '<br>')
-    }).join('')
+    if (b.type === 'heading') return `<h${b.level + 1}>${partsHtml(b.parts)}</h${b.level + 1}>`
+    if (b.type === 'list') {
+      const tag = b.ordered ? 'ol' : 'ul'
+      return `<${tag}>${b.items.map((item) => `<li>${partsHtml(item.parts)}</li>`).join('')}</${tag}>`
+    }
+    if (b.type === 'quote') return `<blockquote>${partsHtml(b.parts)}</blockquote>`
+    return partsHtml(b.parts)
   }).join('')
 }
 

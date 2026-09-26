@@ -133,7 +133,8 @@ describe('link parts', () => {
 })
 
 describe('MessageBody.vue renders a link part', () => {
-  const src = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
+  const src = readFileSync(join(WUI, 'src/components/MessageRuns.vue'), 'utf8')
+  const body = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
 
   it('an anchor with the part href, a new tab, and no opener', () => {
     assert.match(src, /<a\s[^>]*v-else-if="p\.type === 'link'"/)
@@ -151,6 +152,8 @@ describe('MessageBody.vue renders a link part', () => {
 
   it('no v-html', () => {
     assert.doesNotMatch(src, /v-html/)
+    assert.doesNotMatch(body, /v-html/)
+    assert.match(body, /MessageRuns/)
   })
 
   it('CLE-34987: link text is bidi-isolated', () => {

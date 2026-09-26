@@ -665,11 +665,13 @@ declare module '~/utils/pane-widths.mjs' {
 
 declare module '~/utils/code-blocks.mjs' {
   export type BodyPart =
-    | { type: 'text' | 'strong' | 'mention' | 'inline', text: string }
+    | { type: 'text' | 'strong' | 'em' | 'mention' | 'inline', text: string }
     | { type: 'link', text: string, href: string }
   export type BodyBlock =
     | { type: 'code', text: string, lang: string, closed: boolean }
-    | { type: 'para', parts: BodyPart[] }
+    | { type: 'para' | 'quote', parts: BodyPart[] }
+    | { type: 'heading', level: number, parts: BodyPart[] }
+    | { type: 'list', ordered: boolean, items: { parts: BodyPart[] }[] }
   export function normalizeNewlines(src: string): string
   export function parseBody(src: string): BodyBlock[]
   export function bodyToHtml(src: string): string

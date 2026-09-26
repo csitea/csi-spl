@@ -35,9 +35,15 @@ field, so that model would split every agent reply into its own thread. With
 | channel | purpose | retention |
 |---|---|---|
 | `lobby` | common room (Slack's `#general`); every human is implicitly a member, an agent only once a member adds it (§7.4) | 30 d |
-| `tasks` | assignments, milestones, hand-offs | 30 d |
 | `alerts` | system events, box connection notices | **7 d** |
 | `feedback` | any member tells the business owner(s) what to change: `@` offers every `biz_owner`, online or not (owner, 2026-09-25; roster `owner` flag, view-v1 §4.1) | 30 d |
+
+- **Reserved, not channels** (SPL-68, owner 2026-09-26: "the tasks channel
+  should be removed - issues should be used for it"): `issues` holds every
+  issue's discussion (specs/039 §Discussion space) - no `channels` row, never
+  listed, readable by every member; `tasks` was a default until rdb 0050
+  moved its messages (issue topics to `issues`, the rest to `lobby`) and
+  deleted it. Neither can be created (`CHECK`, like `general`).
 
   Retention = `hub.retention_alerts` for `alerts`, `hub.retention_channels`
   for every other channel and for DMs (cnf; `./limits.md`). Per-plan retention
@@ -53,7 +59,7 @@ field, so that model would split every agent reply into its own thread. With
 ## 2. Envelope fields
 
 ```json
-{ "from_box": "box-a", "to_box": "box-wui", "channel": "tasks",
+{ "from_box": "box-a", "to_box": "box-wui", "channel": "backend",
   "parent_task_id": "<uuid>", "msg": { "v": 1, "…": "…" }, "sig": "…" }
 ```
 
@@ -75,13 +81,13 @@ field, so that model would split every agent reply into its own thread. With
 `hello` and `announce` (role `box`) carry an optional `channels` list:
 
 ```json
-{ "type": "announce", "agents": ["CLE-07", "GRK-03"], "channels": ["tasks", "backend"] }
+{ "type": "announce", "agents": ["CLE-07", "GRK-03"], "channels": ["backend", "releases"] }
 ```
 
 - It applies to **every** agent of that frame's `agents` and **replaces** the
   box's previous subscription set (`channel_subscriptions`, one row per
   channel × agent). Unknown slugs are ignored (not an error).
-- The default channels (`lobby`, `tasks`, `alerts`) are skipped: an announce
+- The default channels (`lobby`, `alerts`, `feedback`) are skipped: an announce
   never subscribes an agent to one, whether the frame lists it or not (owner
   decision 2026-09-25, §7.4). A member picks their agents.
 - Box side: `SPOOL_CHANNELS` (comma list of slugs, optional) on the box.
@@ -269,7 +275,7 @@ of a tenant could read any thread of it by its `task_id`.
 
 | the message is | readable by |
 |---|---|
-| in a **default** channel (`#lobby`, `#tasks`, `#alerts`, `#feedback`) | every member of the tenant |
+| in a **default** channel (`#lobby`, `#alerts`, `#feedback`) or an issue's discussion (`issues`) | every member of the tenant |
 | in a **created** channel | the humans in `channel_humans` for it |
 | **untagged** (a DM) | the two ends of that message |
 
@@ -357,13 +363,13 @@ false and a human owner exists.
   human of the tenant reads it, and the member writes and the invite PATCH
   answer `409 channel_public`.
 - **Agents of a default channel are picked** (owner decision 2026-09-25:
-  "Pick agents per channel"). `lobby`, `tasks` and `alerts` start with no
-  agents. `POST` / `DELETE /v1/channels/{lobby,tasks,alerts}/agents…` work
+  "Pick agents per channel"). `lobby`, `alerts` and `feedback` start with no
+  agents. `POST` / `DELETE /v1/channels/{lobby,alerts,feedback}/agents…` work
   exactly as for a created channel; `created_by` is `hub`, so any signed-in
   member of the tenant may add or remove one. An announce never writes a
   row for a default channel (§3), so it can neither add an agent nor put
   back one a member removed. The fan-out (§4) follows those rows only: an
-  agent nobody added gets no `#lobby` / `#tasks` / `#alerts` / `#feedback` post. rdb 0036
+  agent nobody added gets no `#lobby` / `#alerts` / `#feedback` post. rdb 0036
   deleted the origin `announce` rows the default channels held before; the
   hub also ignores any such row it still finds. The WUI's Channel
   Properties > People lists the people read-only and gives the agents the

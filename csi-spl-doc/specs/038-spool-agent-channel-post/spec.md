@@ -47,7 +47,7 @@ start with no agents).
   it (`channel_subscriptions`, invited agents included). Anything else is
   answered like a channel that does not exist - `unknown_channel`, 404, never
   403 (the read door's rule, rdb 0028) - and nothing is stored. The default
-  channels are no exception: since rdb 0036 #lobby, #tasks and #alerts have no
+  channels are no exception: since rdb 0036 #lobby, #alerts and #feedback have no
   agents until a member picks them.
 - **FR-005** `do_spl_desk_post` (ENV, TENANT_ID, DESK_AGENT, DESK_CHANNEL,
   DESK_BODY, optional DESK_KIND, DESK_FILES, DESK_BOX) posts from a seated desk

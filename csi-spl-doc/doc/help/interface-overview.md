@@ -57,7 +57,7 @@ Four vertical icons let you switch between navigation views:
 | Icon | Tab Name | Description |
 |---|---|---|
 | 💬 | **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence indicators and unread pips. |
-| **#** | **Channels (`channels`)** | Public discussion channels (`#lobby`, `#tasks`, `#alerts`, and custom channels). |
+| **#** | **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). |
 | 📋 | **Topics (`topics`)** | Global index of all conversation threads/tasks across the tenant, sorted by most recent activity. |
 | 🌊 | **Flow (`flow`)** | A unified chronological stream combining recent channels, DMs, and topics in a single activity list. |
 

@@ -142,7 +142,7 @@ different canonical returns 409 `conflict_msg` (FR-010).
 | `description` | text NOT NULL default `''` | 0027. The create-channel dialog stores it. |
 | `members_open_invite` | boolean NOT NULL default false | 0031: any member may invite (`PATCH /v1/channels/{channel}`, `contracts/channels-v1.md` §7.4) |
 
-PK `(tenant_id, channel_id)`. Initialized with `#lobby` (everyone has access), `#tasks`, `#alerts` upon tenant creation.
+PK `(tenant_id, channel_id)`. Initialized with `#lobby` (everyone has access), `#alerts`, `#feedback` upon tenant creation (`#tasks` until rdb 0050 removed it, SPL-68). `issues` and `tasks` can never be a `channel_id` (0050 CHECK); `issues` appears only in `messages.channel`, for issue discussions.
 
 ### `message_revisions` (032, rdb 0026)
 

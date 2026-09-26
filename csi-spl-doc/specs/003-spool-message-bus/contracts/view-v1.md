@@ -168,7 +168,7 @@ exposed. It exists so any member can tag the owner(s) in `#feedback`
     "members": { "agents": 3, "boxes": 2, "posters": 4 } } ] }
 ```
 
-Every default channel (`lobby`, `tasks`, `alerts`), every created channel
+Every default channel (`lobby`, `alerts`, `feedback`), every created channel
 (`channels` table) and any channel seen in stored messages, sorted by slug.
 `channel` / `count` / `last_ts` keep their v0.4 meaning (`last_ts` is `null`
 for an empty channel). `description` is `""` for a default channel and for

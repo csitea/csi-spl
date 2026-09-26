@@ -22,7 +22,7 @@ billing refusal every write gets.
 ```json
 {"key":"SPL-12","number":12,"title":"…","description":"markdown","status":"in_progress",
  "priority":2,"level":3,"assignee":"CLE-07","labels":["bug"],"deadline":"2026-10-01T12:30:00Z",
- "parent":"SPL-3","task_id":"<uuid>","channel":"tasks","created_by":"HUM-10",
+ "parent":"SPL-3","task_id":"<uuid>","channel":"issues","created_by":"HUM-10",
  "created_at":"…","updated_by":"CLE-07","updated_at":"…","completed_at":"","canceled_at":""}
 ```
 
@@ -33,7 +33,10 @@ billing refusal every write gets.
   parent epic's key on an issue, `""` on an epic (`parent` is the same key)
 - unset `deadline`, `parent`, `completed_at`, `canceled_at` read `""`
 - `task_id` + `channel`: the discussion topic. Post a comment as an ordinary
-  browser `send` with this `task_id`, `channel` `tasks`, `is_parent` 0.
+  browser `send` with this `task_id`, `channel` `issues`, `is_parent` 0.
+  `issues` is a reserved channel id, not a channel (spec §Discussion space,
+  SPL-68): never listed or creatable, readable by every member of the
+  tenant. Send the `channel` the object carries; do not hard-code it.
 
 A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created_at":"…"}`.
 

@@ -44,9 +44,9 @@ Spool supports a robust search grammar combining free text keywords with structu
   ```text
   /search from:CLE-07 kind:reject
   ```
-- Find all file uploads in the `#tasks` channel:
+- Find all file uploads in the `#lobby` channel:
   ```text
-  /search in:tasks has:file
+  /search in:lobby has:file
   ```
 - Search for mentions of "Postgres migration" across all topics:
   ```text

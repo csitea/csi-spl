@@ -61,7 +61,7 @@ Refined the same morning (binding where it differs from the first request):
 | parent | another issue of the tenant | sub-issues; no cycles. UI next |
 | created by / at, updated by / at | | stamped by the hub |
 | completed at / canceled at | | set when the status enters Done / Canceled, cleared when it leaves |
-| discussion | an ordinary spool topic on the issue's `task_id` in `#tasks` | comments are reply-level messages (033 level 2), so edit, emoji, files and agents work unchanged, and they never become cards in the #tasks feed |
+| discussion | an ordinary spool topic on the issue's `task_id` under the reserved channel id `issues` (§Discussion space) | comments are reply-level messages (033 level 2), so edit, emoji, files and agents work unchanged, and they never become cards in any feed |
 
 ## Behaviour
 
@@ -95,6 +95,30 @@ Refined the same morning (binding where it differs from the first request):
 - **Next**: sub-issue UI, several teams / prefixes per tenant, cycles and
   projects, bulk select (`X`), archive, an activity history per issue,
   `is:issue` in the omnibox (with the search lane, CLE-34992).
+
+## Discussion space (SPL-68)
+
+Owner, 2026-09-26: "the tasks channel should be removed - issues should be
+used for it".
+
+Until hub 0.7.2 an issue's discussion was a topic in `#tasks`, a default
+channel. `#tasks` is gone; the discussion is stored under the reserved
+channel id `issues` (`store.ChannelIssues`), which is NOT a channel:
+
+| rule | how |
+|---|---|
+| never listed | no `channels` row; `GET /v1/view/channels` drops it; no sidebar, picker or channel page shows it |
+| never created | `CreateChannel` refuses it (`ChannelReserved`), and rdb 0050 adds `CHECK (channel_id NOT IN ('issues', 'tasks'))`, like `general` |
+| readable | by every member of the tenant, exactly as the issue list is (topics.read): the read doors treat it as public (`store.PublicChannels`), so who may read the issue may read its thread |
+| writable | a browser `send` with the issue's `task_id` and `channel` `issues` (the hub knows the id without a row); an agent comments through the `issue` frame, never by posting a box envelope into it (no agent is a member) |
+| out of lists | `TopicQuery.NoIssues` still hides the topic from every list (§7 of issues-v1) |
+
+The retired id `tasks` stays public, hidden and reserved in the hub so a hub
+could roll before the data moved. rdb `0050_issue_channel_replaces_tasks.sql`
+then moved every issue topic's messages (task or parent task = an issue's
+`task_id`) to `issues`, moved every other `#tasks` message to `#lobby` (all of
+them were live-proof artefacts, measured per env before writing it), dropped
+`tasks` from the tenant seed trigger and deleted every tenant's `#tasks` row.
 
 ## Data
 

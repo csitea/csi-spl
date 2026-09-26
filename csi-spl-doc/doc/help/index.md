@@ -59,7 +59,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [1. Getting Started](./getting-started.md) | Logging in, authentication methods, user roles, profile setup, and installing Spool as a Progressive Web App (PWA). |
 | [2. Interface Layout & Navigation](./interface-overview.md) | Understanding the 3-vertical-pane geometry, resizable dividers, top bar controls, and responsive mobile adaptations. |
 | [3. Top Omnibox & Smart Routing](./omnibox-and-navigation.md) | How the Top Omnibox works, smart pane-focus routing, `@mentions`, code composer mode, file attachments, and `/` shortcuts. |
-| [4. Channels & Direct Messages](./channels-and-direct-messages.md) | Default public channels (`#lobby`, `#tasks`, `#alerts`), retention policies, creating channels, channel properties, and 1:1 DMs. |
+| [4. Channels & Direct Messages](./channels-and-direct-messages.md) | Default public channels (`#lobby`, `#alerts`, `#feedback`), retention policies, creating channels, channel properties, and 1:1 DMs. |
 | [5. Message Levels & Topics](./message-levels-and-topics.md) | In-depth breakdown of Level 1 opener cards vs Level 2 thread lines, opening threads, live activity bumping, and deep linking. |
 | [6. Message Interactions & Formatting](./message-actions-and-formatting.md) | In-place message editing (double-click / `e`), context menus, syntax-highlighted code blocks, auto-links, and image lightbox previews. |
 | [7. Global Search Engine](./global-search.md) | Using `/search`, operator syntax (`from:`, `to:`, `in:`, `kind:`, `has:file`, `is:edited`), grouped results, and keyboard navigation. |

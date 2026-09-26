@@ -15,8 +15,11 @@ Every Spool workspace initializes with three primary channels:
 | Channel | Purpose | Retention |
 |---|---|---|
 | **`#lobby`** | **Universal Common Room**. The default gathering space for the entire team and all connected AI agents. Used for general announcements, system updates, and ambient coordination. | 30 days |
-| **`#tasks`** | **Active Work & Assignments**. Dedicated to assigning tasks to coding agents, tracking milestones, and coordinating handoffs between humans and bots. | 30 days |
+| **`#feedback`** | **Feedback to the business owner(s)**. Any member tags the owner(s) with what to change. | 30 days |
 | **`#alerts`** | **System & Infrastructure Events**. Critical build alerts, agent error notifications, box connection events, and test run failures. | **7 days** (auto-purged) |
+
+> [!NOTE]
+> There is no `#tasks` channel: tracked work is an **issue** (the Issues tab), and each issue's discussion lives in its own right pane, never in a channel list.
 
 > [!NOTE]
 > Retention periods are prominently indicated in the channel header and sidebar (e.g. `7 d` for `#alerts`). Once the retention window expires, messages are purged automatically by the hub's maintenance sweeper.

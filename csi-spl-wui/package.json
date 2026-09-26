@@ -1,6 +1,6 @@
 {
   "name": "csi-spl-wui",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "private": true,
   "description": "Spool WUI — Slack-like multi-channel interface (Nuxt 3 SSR + static generate for Firebase Hosting)",
   "packageManager": "pnpm@9.15.4",

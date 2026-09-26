@@ -7,7 +7,7 @@
 #   2. the script writes nothing: no statement starts with a write verb, every
 #      measured statement is an EXPLAIN of a PREPAREd read, and the session
 #      takes the TENANT scope (never the operator scope)
-#   3. MEASURE_JIT=both measures each statement under jit on AND off,
+#   3. MEASURE_JIT=both / MEASURE_BITMAPSCAN=both measure each statement both ways,
 #      MEASURE_ONLY narrows, MEASURE_PLANS adds one BUFFERS plan per statement
 #   4. the walk texts are the store's shape (WITH RECURSIVE, LIMIT 1 steps,
 #      the read door and the NoIssues probe)
@@ -40,7 +40,7 @@ in_orc() {
 # --- 1. bad arguments never reach the cloud ----------------------------------------
 ok_args=(TENANT_ID=t1 READER=HUM-10)
 for bad in "TENANT_ID=T1;drop" "READER=x'y" MEASURE_N=2 MEASURE_N=51 MEASURE_JIT=maybe MEASURE_ONLY=nonesuch \
-           MEASURE_PLAN_CACHE=sometimes MEASURE_TIMEOUT_MS=50; do
+           MEASURE_PLAN_CACHE=sometimes MEASURE_TIMEOUT_MS=50 MEASURE_BITMAPSCAN=maybe; do
   : >"$T/calls.log"
   SNIPPET=do_spl_db_hot_measure in_orc "${ok_args[@]}" "$bad" >"$T/o" 2>&1 && fail "$bad: ran" || pass "$bad: refused"
   grep -q FATAL "$T/o" && pass "$bad: the refusal is FATAL" || fail "$bad: refusal text: $(cat "$T/o")"
@@ -76,6 +76,11 @@ one=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_dm 0' in_orc 2>&1)
 grep -q '@@ walk_dm.jit_off' <<<"$one" && ! grep -qE '@@ (walk_all|thread|channels|issues|file_door)\.' <<<"$one" &&
   ! grep -q 'jit_on' <<<"$one" && pass "MEASURE_ONLY=walk_dm MEASURE_JIT=off narrows to one" || fail "narrowing: $one"
 grep -q "plan_cache_mode', 'auto'" <<<"$one" && pass "plan_cache_mode defaults to auto (as pgx sees it)" || fail "plan cache default"
+
+bm=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_all 0' in_orc MEASURE_BITMAPSCAN=both 2>&1)
+grep -q '@@ walk_all.jit_off$' <<<"$bm" && grep -q '@@ walk_all.jit_off.nobitmap$' <<<"$bm" &&
+  grep -q '^SET enable_bitmapscan = off;' <<<"$bm" && pass "MEASURE_BITMAPSCAN=both measures with and without bitmap scans" || fail "bitmap pair: $bm"
+grep -q 'nobitmap' <<<"$one" && fail "the default measures without bitmap scans" || pass "the default keeps bitmap scans on (the Postgres default)"
 
 # --- 4. the walk texts are the store's shape ------------------------------------------
 for shape in all dm; do

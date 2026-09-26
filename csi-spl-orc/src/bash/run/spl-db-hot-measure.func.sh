@@ -23,6 +23,7 @@
 # @param MEASURE_N (optional) - samples per statement, 3..50, default 10
 # @param MEASURE_JIT (optional) - both (default) | on | off
 # @param MEASURE_ONLY (optional) - a comma list of statement names; default all
+# @param MEASURE_BITMAPSCAN (optional) - both | on (default) | off; the walk's scope turns it off since SPL-984
 # @param MEASURE_PLAN_CACHE (optional) - auto (default, as pgx sees it) | force_custom_plan | force_generic_plan
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per statement
 # @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 10000
@@ -82,7 +83,9 @@ spl_db_hot_measure_sql() {
   local pc="${MEASURE_PLAN_CACHE:-auto}"
   [[ "$pc" =~ ^(auto|force_custom_plan|force_generic_plan)$ ]] ||
     { do_log "FATAL MEASURE_PLAN_CACHE must be auto, force_custom_plan or force_generic_plan, got: $pc" >&2; return 1; }
-  local -a jits
+  local -a jits bms
+  case "${MEASURE_BITMAPSCAN:-on}" in both) bms=(on off) ;; on|off) bms=("${MEASURE_BITMAPSCAN:-on}") ;;
+    *) do_log "FATAL MEASURE_BITMAPSCAN must be both, on or off, got: ${MEASURE_BITMAPSCAN}" >&2; return 1 ;; esac
   case "$jit" in both) jits=(on off) ;; on|off) jits=("$jit") ;; *) do_log "FATAL MEASURE_JIT must be both, on or off, got: $jit" >&2; return 1 ;; esac
   local name found=0 j i
   if [[ -n "$only" ]]; then
@@ -101,20 +104,26 @@ spl_db_hot_measure_sql() {
   echo "SELECT COALESCE((SELECT f->>'file_id' FROM messages m, jsonb_array_elements(m.files) f WHERE m.tenant_id = '$tenant' AND f ? 'file_id' ORDER BY m.received_at LIMIT 1), 'none') AS fid \\gset"
   echo "\\echo @@args tenant=:t reader=:r mine=:mine task=:task"
   spl_db_hot_measure_prepare
-  for j in "${jits[@]}"; do
-    echo "SET jit = $j;"
-    while IFS= read -r name; do
-      [[ -z "$only" || ",$only," == *",$name,"* ]] || continue
-      found=1
-      if [[ "$plans" == 1 ]]; then
-        echo "\\echo @@plan $name jit=$j"
-        echo "EXPLAIN (ANALYZE, BUFFERS) $(spl_db_hot_measure_exec "$name");"
-      fi
-      for ((i = 0; i < n; i++)); do
-        echo "\\echo @@ ${name}.jit_$j"
-        echo "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF) $(spl_db_hot_measure_exec "$name");"
-      done
-    done < <(spl_db_hot_measure_names)
+  local b tag
+  for b in "${bms[@]}"; do
+    for j in "${jits[@]}"; do
+      echo "SET enable_bitmapscan = $b;"
+      echo "SET jit = $j;"
+      tag="jit_$j"
+      [[ "$b" == off ]] && tag="$tag.nobitmap"
+      while IFS= read -r name; do
+        [[ -z "$only" || ",$only," == *",$name,"* ]] || continue
+        found=1
+        if [[ "$plans" == 1 ]]; then
+          echo "\\echo @@plan $name $tag"
+          echo "EXPLAIN (ANALYZE, BUFFERS) $(spl_db_hot_measure_exec "$name");"
+        fi
+        for ((i = 0; i < n; i++)); do
+          echo "\\echo @@ ${name}.$tag"
+          echo "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF) $(spl_db_hot_measure_exec "$name");"
+        done
+      done < <(spl_db_hot_measure_names)
+    done
   done
   ((found)) || { do_log "FATAL MEASURE_ONLY names no statement: $only" >&2; return 1; }
 }

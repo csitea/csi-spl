@@ -47,6 +47,7 @@ const PATHS = [
   // 022: the top bar on every shell page, and the search results view
   { path: '/search', wait: '.search-page' },
   { path: '/search?q=deploy', wait: '.search-page' },
+  { path: '/issues', wait: '[data-test=issues-page]' },
 ]
 
 // spec 021 FR-007: the same guard in every shipped locale (long strings,

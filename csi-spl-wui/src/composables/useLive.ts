@@ -43,6 +43,10 @@ const editedListeners = new Set<Listener>()
 const deletedListeners = new Set<Listener>()
 /** `message_reaction` frames: replace the emoji list on a row already held. */
 const reactionListeners = new Set<Listener>()
+/** issues-v1 §5: an issue was created or updated in this tenant. */
+const issueListeners = new Set<Listener>()
+/** issues-v1 §5: a label was added to the tenant catalogue. */
+const issueLabelListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -113,6 +117,12 @@ export function useLive() {
       onReaction: (m: Record<string, unknown>) => {
         for (const fn of reactionListeners) fn(m)
       },
+      onIssue: (f: Record<string, unknown>) => {
+        for (const fn of issueListeners) fn(f)
+      },
+      onIssueLabel: (f: Record<string, unknown>) => {
+        for (const fn of issueLabelListeners) fn(f)
+      },
     })
     live.connect()
     return live
@@ -168,5 +178,15 @@ export function useLive() {
     return () => reactionListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onDeleted, onReaction, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  function onIssue(fn: Listener) {
+    issueListeners.add(fn)
+    return () => issueListeners.delete(fn)
+  }
+
+  function onIssueLabel(fn: Listener) {
+    issueLabelListeners.add(fn)
+    return () => issueLabelListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onEdited, onDeleted, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

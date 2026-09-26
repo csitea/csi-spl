@@ -14,6 +14,10 @@ export const USERS_TAB = 'users'
  *  as USERS_TAB: it is a page, not a sidebar list. */
 export const EVENTS_TAB = 'events'
 
+/** Issues (GRK-3519): the third rail tab, directly after Channels. A page,
+ *  like the event log, so it is not one of the four sidebar lists. */
+export const ISSUES_TAB = 'issues'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
@@ -29,13 +33,14 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
   if (p === '/dm' || p.startsWith('/dm/')) return 'dm'
   if (p === '/channel' || p.startsWith('/channel/')) return 'channels'
   if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'topics'
+  if (p === '/issues') return ISSUES_TAB
   if (p === '/users') return USERS_TAB
   if (p === '/events') return EVENTS_TAB
   return null

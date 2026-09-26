@@ -42,6 +42,9 @@ export const FRAMES = {
   deleted: 'message_deleted',
   /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
   reaction: 'message_reaction',
+  /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
+  issue: 'issue',
+  issue_label: 'issue_label',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -129,6 +132,10 @@ export function createLiveClient({
   onDeleted = () => {},
   /** `message_reaction`: replace the emoji list on a row already held. */
   onReaction = () => {},
+  /** issues-v1 §5 `{type:"issue", op, issue}`. */
+  onIssue = () => {},
+  /** issues-v1 §5 `{type:"issue_label", label}`. */
+  onIssueLabel = () => {},
   onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -265,6 +272,12 @@ export function createLiveClient({
         }, f)
         return
       }
+      case FRAMES.issue:
+        onIssue(f)
+        return
+      case FRAMES.issue_label:
+        onIssueLabel(f)
+        return
       case FRAMES.ack: {
         const p = pending.get(f.msg_id)
         if (p) {

@@ -425,6 +425,18 @@
         </template>
         </div>
       </div>
+      <!-- GRK-3519: Issues, third rail tab. The list is the middle pane. -->
+      <div
+        v-show="tab === 'issues'"
+        id="sidebar-panel-issues"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-issues"
+        data-testid="sidebar-panel-issues"
+      >
+        <h2>{{ t('sidebar.issues') }}</h2>
+        <NuxtLink class="nav-row" data-testid="sidebar-issues-open" :to="localePath('/issues')">{{ t('issues.title') }}</NuxtLink>
+      </div>
       <!-- CLE-34990: the personal Event log; the list lives on /events -->
       <div
         v-show="tab === 'events'"
@@ -496,7 +508,7 @@ import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, 
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { EVENTS_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -505,12 +517,14 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { measureControlText, TENANT_ARROW_GAP_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'events' | 'users'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'users'
 /* Direct messages, channels, topics, flow — top to bottom. A matching
    route follows the page; search and settings keep the reader's choice. */
 const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
   { id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' },
   { id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' },
+  /* Owner 2026-09-26: Issues is the third tab, directly after Channels. */
+  { id: ISSUES_TAB, icon: 'issues', labelKey: 'sidebar.issues' },
   { id: 'topics', icon: 'list', labelKey: 'nav.topics' },
   { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
   /* CLE-34990: the personal Event log, directly after flow (owner, topic 4335f075). */
@@ -693,6 +707,7 @@ async function selectTab(next: SideTab) {
   if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
   if (next === USERS_TAB && tabForPath(route.path) !== USERS_TAB) await navigateTo(localePath('/users'))
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
+  if (next === ISSUES_TAB && tabForPath(route.path) !== ISSUES_TAB) await navigateTo(localePath('/issues'))
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
@@ -709,7 +724,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== USERS_TAB && id !== EVENTS_TAB) sidePane.setCurrent(id)
+  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB) sidePane.setCurrent(id)
   if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

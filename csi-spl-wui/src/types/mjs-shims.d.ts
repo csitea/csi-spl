@@ -139,6 +139,8 @@ declare module '~/utils/live-ws.mjs' {
     onDeleted?: (m: Record<string, unknown>, raw: unknown) => void
     /** `message_reaction`: replace the emoji list on a held row. */
     onReaction?: (m: Record<string, unknown>, raw: unknown) => void
+    onIssue?: (f: Record<string, unknown>) => void
+    onIssueLabel?: (f: Record<string, unknown>) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
@@ -164,7 +166,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const SIDE_TABS: readonly ['dm', 'channels', 'topics', 'flow']
   export const USERS_TAB: 'users'
   export const EVENTS_TAB: 'events'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | null
+  export const ISSUES_TAB: 'issues'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]

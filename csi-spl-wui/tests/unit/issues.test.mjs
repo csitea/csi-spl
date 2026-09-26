@@ -226,3 +226,27 @@ describe('the spool-client query copy agrees with issues.mjs (issues-v1 §4)', a
     assert.equal(new URL(urls[0]).search.slice(1), q4(filter, 'level'))
   })
 })
+
+describe('deadline picker: 24-hour, 07:00-22:00 (owner, topic 32a56460)', async () => {
+  const { deadlineTimes, joinLocal, splitLocal, DEADLINE_DEFAULT_TIME } = await import('../../src/utils/issues-view.mjs')
+  it('offers 07:00 .. 22:00 every 15 minutes, 24-hour, no AM/PM', () => {
+    const times = deadlineTimes()
+    assert.equal(times[0], '07:00')
+    assert.equal(times[times.length - 1], '22:00')
+    assert.equal(times.length, (22 - 7) * 4 + 1)
+    assert.ok(times.includes('13:45') && !times.includes('06:45') && !times.includes('22:15'))
+    assert.ok(times.every((t) => /^\d{2}:\d{2}$/.test(t)))
+  })
+  it('keeps a stored time outside the window instead of dropping it', () => {
+    const times = deadlineTimes('23:30')
+    assert.equal(times[times.length - 1], '23:30')
+    assert.equal(deadlineTimes('09:15').length, 61)
+  })
+  it('splits and joins the local value; a date alone gets the default time', () => {
+    assert.deepEqual(splitLocal('2026-10-01T15:30'), { date: '2026-10-01', time: '15:30' })
+    assert.deepEqual(splitLocal(''), { date: '', time: '' })
+    assert.equal(joinLocal('2026-10-01', '21:45'), '2026-10-01T21:45')
+    assert.equal(joinLocal('2026-10-01', ''), `2026-10-01T${DEADLINE_DEFAULT_TIME}`)
+    assert.equal(joinLocal('', '10:00'), '')
+  })
+})

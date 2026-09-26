@@ -79,12 +79,16 @@ try {
   await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 5000 })
   const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
   const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.type)
+  /* owner 2026-09-26: a 24-hour time, 07:00-22:00, no AM/PM */
+  const times = await p.$$eval('[data-test=issues-deadline-time] option', (els) => els.map((e) => e.textContent.trim()))
   const side = await p.evaluate(() => {
     const list = document.querySelector('[data-test=issues-list]').getBoundingClientRect()
     const pane = document.querySelector('[data-test=issues-detail]').getBoundingClientRect()
     return { paneRight: pane.left >= list.right - 2 }
   })
-  ok('4 the right pane shows the description and a calendar with time', body === 'Only in the detail' && deadlineType === 'datetime-local' && side.paneRight, { body, deadlineType, side })
+  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'date' &&
+    times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.paneRight,
+    { body, deadlineType, first: times[0], last: times[times.length - 1], n: times.length, side })
 
   await p.click('[data-test=issues-status]')
   await p.waitForSelector('[data-test=issues-menu-option][data-value="in_progress"]', { visible: true, timeout: 5000 })

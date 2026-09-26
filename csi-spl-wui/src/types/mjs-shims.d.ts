@@ -1151,4 +1151,11 @@ declare module '~/utils/issues-view.mjs' {
   export function loadIssuePane(store?: unknown): number
   export function saveIssuePane(width: number, store?: unknown): boolean
   export function epicProgress(e: { total?: number, done?: number, canceled?: number }): number
+  export const DEADLINE_FIRST_HOUR: number
+  export const DEADLINE_LAST_HOUR: number
+  export const DEADLINE_STEP_MIN: number
+  export const DEADLINE_DEFAULT_TIME: string
+  export function deadlineTimes(keep?: string): string[]
+  export function splitLocal(local: string): { date: string, time: string }
+  export function joinLocal(date: string, time?: string): string
 }

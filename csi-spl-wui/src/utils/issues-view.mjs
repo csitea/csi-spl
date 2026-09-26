@@ -157,3 +157,43 @@ export function epicProgress(e) {
   const open = (Number(e && e.total) || 0) - (Number(e && e.canceled) || 0)
   return open > 0 ? Math.round(((Number(e && e.done) || 0) * 100) / open) : 0
 }
+
+/* Owner, 2026-09-26 (topic 32a56460): "there should not be am and pm, the
+   clock should be 24 hours based, but start from 7 and end till 22". The
+   deadline is a date field plus a 24-hour time picker. */
+export const DEADLINE_FIRST_HOUR = 7
+export const DEADLINE_LAST_HOUR = 22
+export const DEADLINE_STEP_MIN = 15
+/** The time a deadline gets when only its date is picked. */
+export const DEADLINE_DEFAULT_TIME = '09:00'
+
+/**
+ * The picker's times, 'HH:MM' 24-hour, 07:00 .. 22:00 every 15 minutes.
+ * `keep` (the stored time, e.g. an agent's 23:30) is added in order when it
+ * is outside that set, so opening an issue never drops its time.
+ */
+export function deadlineTimes(keep = '') {
+  const out = []
+  for (let m = DEADLINE_FIRST_HOUR * 60; m <= DEADLINE_LAST_HOUR * 60; m += DEADLINE_STEP_MIN) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
+  }
+  if (/^\d{2}:\d{2}$/.test(keep) && !out.includes(keep)) {
+    out.push(keep)
+    out.sort()
+  }
+  return out
+}
+
+/** 'YYYY-MM-DDTHH:MM' (local) -> { date, time }; '' -> both ''. */
+export function splitLocal(local) {
+  const m = String(local || '').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
+  return m ? { date: m[1], time: m[2] } : { date: '', time: '' }
+}
+
+/** date + time -> 'YYYY-MM-DDTHH:MM' (local); no date -> '' (clears). */
+export function joinLocal(date, time) {
+  const d = String(date || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return ''
+  const t = /^\d{2}:\d{2}$/.test(String(time || '')) ? time : DEADLINE_DEFAULT_TIME
+  return `${d}T${t}`
+}

@@ -192,12 +192,19 @@ try {
     const pad = (n) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T15:30`
   })
+  /* owner 2026-09-26 (topic 32a56460): a date plus a 24-hour time, 07-22 */
   const dlType = await p.$eval('[data-test=issues-deadline]', (el) => el.type)
-  await p.$eval('[data-test=issues-deadline]', (el, v) => {
-    el.value = v
+  const times = await p.$$eval('[data-test=issues-deadline-time] option', (els) => els.map((e) => e.textContent.trim()))
+  step('4 the deadline is a date plus a 24-hour time from 07:00 to 22:00 (no AM/PM)', dlType === 'date' && times[0] === '07:00' &&
+    times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)), { type: dlType, first: times[0], last: times[times.length - 1], n: times.length })
+  const setField = (sel, v) => p.$eval(sel, (el, val) => {
+    el.value = val
     el.dispatchEvent(new Event('input', { bubbles: true }))
     el.dispatchEvent(new Event('change', { bubbles: true }))
-  }, local)
+  }, v)
+  await setField('[data-test=issues-deadline]', local.slice(0, 10))
+  await sleep(1500)
+  await setField('[data-test=issues-deadline-time]', local.slice(11))
   await sleep(1200)
   const row1 = await until(() => p.evaluate((k) => {
     const r = ((key) => {
@@ -219,7 +226,7 @@ try {
   }, 15000)
   step('4 the hub holds the same values; the deadline is the calendar+time value in UTC',
     hub.status === 'in_progress' && hub.priority === 1 && hub.level === 4 && hub.assignee === who && hub.deadline === wantUTC &&
-    hub.description === descr && dlType === 'datetime-local',
+    hub.description === descr && dlType === 'date',
     { status: hub.status, priority: hub.priority, level: hub.level, assignee: hub.assignee, deadline: hub.deadline, want: wantUTC, control: dlType })
   await shot(p, '02-edited-detail')
 
@@ -265,8 +272,10 @@ try {
     !!row2 && row2.status === 'in_review' && row2.priority === '1' && row2.level === '4', { row: row2 })
   await p.click(`[data-test=issues-row][data-key="${key}"]`)
   await p.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: 10000 })
-  const dlAfter = await p.$eval('[data-test=issues-deadline]', (el) => el.value)
-  step('7 the deadline control shows the same local date and time', dlAfter === local, { got: dlAfter, want: local })
+  const dlAfter = await p.evaluate(() => document.querySelector('[data-test=issues-deadline]').value + 'T' + document.querySelector('[data-test=issues-deadline-time]').value)
+  const rowWhen = await p.evaluate((k) => (document.querySelector(`[data-test=issues-row][data-key="${k}"] .issues-when`) || {}).textContent || '', key)
+  step('7 the deadline control shows the same local date and time; the list shows it 24-hour', dlAfter === local && rowWhen.includes('15:30') && !/am|pm/i.test(rowWhen),
+    { got: dlAfter, want: local, row: rowWhen })
   await sleep(1500)
   await shot(p, '04-after-reload')
 

@@ -41,8 +41,8 @@
           <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="l in labels" :key="l.id" :value="l.id">{{ l.name }}</option>
         </select>
-        <input v-model="fromF" type="datetime-local" data-test="issues-filter-from" :aria-label="t('issues.filter_from')">
-        <input v-model="untilF" type="datetime-local" data-test="issues-filter-until" :aria-label="t('issues.filter_until')">
+        <input v-model="fromF" type="date" data-test="issues-filter-from" :aria-label="t('issues.filter_from')">
+        <input v-model="untilF" type="date" data-test="issues-filter-until" :aria-label="t('issues.filter_until')">
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
@@ -171,15 +171,28 @@
         <button type="button" class="issues-prop" data-test="issues-labels" @click="openMenu('label', detailOrDraft(), $event)">
           <span>{{ activeLabels.length ? activeLabels.map(labelText).join(', ') : t('issues.field_labels') }}</span>
         </button>
-        <label class="issues-field">
+        <!-- owner 2026-09-26: a date plus a 24-hour time, 07:00-22:00 -->
+        <div class="issues-field">
           <span>{{ t('issues.field_deadline') }}</span>
-          <input
-            type="datetime-local"
-            data-test="issues-deadline"
-            :value="form.deadline"
-            @change="onDeadline"
-          >
-        </label>
+          <div class="issues-deadline">
+            <input
+              type="date"
+              data-test="issues-deadline"
+              :aria-label="t('issues.field_deadline')"
+              :value="splitLocal(form.deadline).date"
+              @change="onDeadlineDate"
+            >
+            <select
+              data-test="issues-deadline-time"
+              :aria-label="t('issues.field_deadline')"
+              :value="splitLocal(form.deadline).time || DEADLINE_DEFAULT_TIME"
+              :disabled="!splitLocal(form.deadline).date"
+              @change="onDeadlineTime"
+            >
+              <option v-for="tm in deadlineTimes(splitLocal(form.deadline).time)" :key="tm" :value="tm">{{ tm }}</option>
+            </select>
+          </div>
+        </div>
       </div>
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
       <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
@@ -267,7 +280,11 @@ import {
   applyIssueFrame,
   applyLabelFrame,
   clampIssuePane,
+  DEADLINE_DEFAULT_TIME,
+  deadlineTimes,
   deadlineToLocalInput,
+  joinLocal,
+  splitLocal,
   groupIssues,
   levelKey,
   loadIssuePane,
@@ -429,7 +446,7 @@ function when(rfc: string) {
   if (Number.isNaN(d.getTime())) return ''
   try {
     return new Intl.DateTimeFormat(String(locale.value || ''), {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', /* owner: no AM/PM */
     }).format(d)
   } catch {
     return deadlineToLocalInput(rfc).replace('T', ' ')
@@ -453,8 +470,9 @@ function serverFilter(): IssueFilter {
   if (levelF.value !== '') f.level = [Number(levelF.value)]
   if (assigneeF.value) f.assignee = [assigneeF.value]
   if (labelF.value) f.label = [labelF.value]
-  const after = localInputToDeadline(fromF.value)
-  const before = localInputToDeadline(untilF.value)
+  /* the filters are days: from its first minute, until its last */
+  const after = fromF.value ? localInputToDeadline(`${fromF.value}T00:00`) : ''
+  const before = untilF.value ? localInputToDeadline(`${untilF.value}T23:59:59`) : ''
   if (after) f.deadlineAfter = after
   if (before) f.deadlineBefore = before
   return f
@@ -706,13 +724,20 @@ function onBody(ev: Event) {
   if (!detail.value || value === detail.value.description) return
   void save(detail.value.key, { description: value })
 }
-function onDeadline(ev: Event) {
-  const value = (ev.target as HTMLInputElement).value
-  if (creating.value) { draft.deadlineLocal = value; return }
+function applyDeadline(local: string) {
+  if (creating.value) { draft.deadlineLocal = local; return }
   if (!detail.value) return
-  const deadline = localInputToDeadline(value)
+  const deadline = localInputToDeadline(local)
   if (deadline === null) return
   void save(detail.value.key, { deadline })
+}
+function onDeadlineDate(ev: Event) {
+  const date = (ev.target as HTMLInputElement).value
+  applyDeadline(joinLocal(date, splitLocal(form.value?.deadline || '').time))
+}
+function onDeadlineTime(ev: Event) {
+  const time = (ev.target as HTMLSelectElement).value
+  applyDeadline(joinLocal(splitLocal(form.value?.deadline || '').date, time))
 }
 async function applyMenu(value: string) {
   const kind = menu.value?.kind || ''
@@ -1147,6 +1172,8 @@ onUnmounted(() => {
 .issues-prop { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 4px 8px; }
 .issues-meta { margin: 0; font-size: 0.75rem; }
 .issues-talk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-deadline { display: flex; gap: 6px; flex-wrap: wrap; }
+.issues-deadline select { min-width: 5.5rem; }
 .issues-subs { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .issues-subs h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-sub { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; text-align: start; cursor: pointer; }

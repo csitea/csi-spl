@@ -18,6 +18,7 @@
 //
 //   BASE=https://<tenant>.<domain> API=https://api.<domain> EMAIL=<member>
 //     PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> [ISSUE=<key>] [READ_ONLY=1]
+//   (READ_ONLY=1 without ISSUE opens the first level-2 row)
 //     node tests/e2e/issues-subtask-live.proof.mjs
 //
 // Refuses to write unless the session's tenant AND the page host's tenant are
@@ -154,8 +155,18 @@ try {
     await nav(p, `${BASE}/issues?issue=${encodeURIComponent(key)}`)
     await p.waitForSelector('[data-test=issues-subtask-open]', { visible: true, timeout: 30000 })
     step('1 the issue opens', true, { key })
+  } else if (READ_ONLY) {
+    // nothing to write: open the first level-2 row the sheet shows
+    await nav(p, BASE + '/issues')
+    key = await until(() => p.evaluate(() => {
+      const row = document.querySelector('[data-test=issues-row][data-level="2"]')
+      return row ? row.getAttribute('data-key') : ''
+    }), 30000)
+    if (!key) throw new Error('no level-2 issue to open')
+    await nav(p, `${BASE}/issues?issue=${encodeURIComponent(key)}`)
+    await p.waitForSelector('[data-test=issues-subtask-open]', { visible: true, timeout: 30000 })
+    step('1 the first level-2 issue opens (read-only run)', true, { key })
   } else {
-    if (READ_ONLY) throw new Error('READ_ONLY needs ISSUE=<key>')
     await nav(p, BASE + '/issues')
     await p.waitForSelector('[data-test=issues-new]', { visible: true, timeout: 30000 })
     await p.click('[data-test=issues-new]')
@@ -185,6 +196,11 @@ try {
   await shot(p, '01-subtask-icon')
 
   const focused = await openDialog(p)
+  /* where focus actually is, for a FAIL to name its thief */
+  const activeAt = await p.evaluate(() => {
+    const a = document.activeElement
+    return a ? [a.tagName, a.getAttribute('data-test') || a.getAttribute('data-testid') || '', String(a.className || '').slice(0, 60)].join(' ') : ''
+  })
   const modal = await p.$eval('[data-testid=ui-dialog]', (el) => ({ role: el.getAttribute('role'), modal: el.getAttribute('aria-modal'),
     title: el.querySelector('.ui-dialog__title').textContent.trim(),
     fields: [...el.querySelectorAll('[data-test^=issues-subtask-]')].map((x) => x.getAttribute('data-test')) }))
@@ -200,7 +216,7 @@ try {
   const detailKept = Boolean(await p.$('[data-test=issues-detail]'))
   step('3 the icon opens a modal with focus on the title; Tab stays inside; Esc closes it and focus returns to the icon',
     focused && modal.role === 'dialog' && modal.modal === 'true' && trapped.every(Boolean) && escClosed && escBack && detailKept,
-    { focused, modal, trapped: trapped.filter(Boolean).length + '/' + trapped.length, escClosed, escBack, detailKept })
+    { focused, activeAt, modal, trapped: trapped.filter(Boolean).length + '/' + trapped.length, escClosed, escBack, detailKept })
 
   await openDialog(p)
   await p.mouse.click(4, 4)

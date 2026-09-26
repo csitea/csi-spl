@@ -315,7 +315,9 @@
           <span class="issues-key">{{ sub.key }}</span>
           <span class="issues-title">{{ sub.title }}</span>
         </button>
-        <LazyIssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
+        <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
+             already open, so UiDialog's open watch never runs (no focus, no trap) -->
+        <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
       </section>
       <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
         <!-- SPL-963: the discussion sits in the right pane and takes its titles / 5 rows / full -->

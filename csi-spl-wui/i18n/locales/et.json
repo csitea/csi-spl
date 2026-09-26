@@ -493,6 +493,11 @@
       "grip_more": "Lohista või vajuta Enter, et näha rohkem",
       "grip_less": "Lohista või vajuta Enter, et näha vähem",
       "grip_hint": "Lohista suuruse muutmiseks; üles- ja allanool astuvad, Enter lülitab"
+    },
+    "kind_set": {
+      "change": "Tüüp: {kind}. Muuda tüüpi",
+      "menu": "Sõnumi tüüp",
+      "failed": "Tüüpi ei muudetud"
     }
   },
   "topic": {

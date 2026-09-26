@@ -107,6 +107,8 @@ declare module '~/utils/spool-client.mjs' {
     deleteMessage(msgId: string): Promise<null>
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
+    /** SPL-952: set a sent message's kind (author, biz_owner or admin). */
+    setMessageKind(msgId: string, kind: string): Promise<import('./spool').SpoolMessage>
     fileUrl(fileId: string): string
     bindIssuesMock(factory: (me: string) => unknown): void
     listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>

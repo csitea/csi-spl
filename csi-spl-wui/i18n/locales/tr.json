@@ -493,6 +493,11 @@
       "grip_more": "Daha fazlasını göstermek için sürükleyin veya Enter tuşuna basın",
       "grip_less": "Daha azını göstermek için sürükleyin veya Enter tuşuna basın",
       "grip_hint": "Yeniden boyutlandırmak için sürükleyin; yukarı ve aşağı ok adım atar, Enter değiştirir"
+    },
+    "kind_set": {
+      "change": "Tür: {kind}. Türü değiştir",
+      "menu": "Mesaj türü",
+      "failed": "Tür değiştirilmedi"
     }
   },
   "topic": {

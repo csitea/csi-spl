@@ -493,6 +493,11 @@
       "grip_more": "Vedä tai paina Enter näyttääksesi lisää",
       "grip_less": "Vedä tai paina Enter näyttääksesi vähemmän",
       "grip_hint": "Vedä koon muuttamiseksi; nuoli ylös tai alas siirtää, Enter vaihtaa"
+    },
+    "kind_set": {
+      "change": "Tyyppi: {kind}. Vaihda tyyppi",
+      "menu": "Viestin tyyppi",
+      "failed": "Tyyppiä ei vaihdettu"
     }
   },
   "topic": {

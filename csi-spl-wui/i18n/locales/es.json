@@ -493,6 +493,11 @@
       "grip_more": "Arrastre o pulse Intro para ver más",
       "grip_less": "Arrastre o pulse Intro para ver menos",
       "grip_hint": "Arrastre para cambiar el tamaño; las flechas arriba y abajo avanzan, Intro alterna"
+    },
+    "kind_set": {
+      "change": "Tipo: {kind}. Cambiar el tipo",
+      "menu": "Tipo de mensaje",
+      "failed": "No se cambió el tipo"
     }
   },
   "topic": {

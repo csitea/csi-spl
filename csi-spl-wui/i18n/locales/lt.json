@@ -493,6 +493,11 @@
       "grip_more": "Tempkite arba paspauskite Enter, kad rodytumėte daugiau",
       "grip_less": "Tempkite arba paspauskite Enter, kad rodytumėte mažiau",
       "grip_hint": "Tempkite dydžiui keisti; rodyklės aukštyn ir žemyn žingsniuoja, Enter perjungia"
+    },
+    "kind_set": {
+      "change": "Tipas: {kind}. Keisti tipą",
+      "menu": "Žinutės tipas",
+      "failed": "Tipas nepakeistas"
     }
   },
   "topic": {

@@ -172,6 +172,11 @@ export function copyEditFields(src, out) {
   if (e.edited_at !== undefined) out.edited_at = e.edited_at
   if (e.edited_by !== undefined) out.edited_by = e.edited_by
   if (e.revision !== undefined) out.revision = e.revision
+  /* SPL-952: a kind set after sending is hub metadata beside the envelope,
+     omitted until someone changed it; it wins over env.msg.kind */
+  if (typeof e.kind === 'string' && e.kind) out.kind = e.kind
+  if (e.kind_set_by !== undefined) out.kind_set_by = e.kind_set_by
+  if (e.kind_set_at !== undefined) out.kind_set_at = e.kind_set_at
   return out
 }
 

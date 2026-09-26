@@ -493,6 +493,11 @@
       "grip_more": "Potiahnite alebo stlačte Enter, aby sa zobrazilo viac",
       "grip_less": "Potiahnite alebo stlačte Enter, aby sa zobrazilo menej",
       "grip_hint": "Potiahnite na zmenu veľkosti; šípky hore a dole posúvajú, Enter prepína"
+    },
+    "kind_set": {
+      "change": "Typ: {kind}. Zmeniť typ",
+      "menu": "Typ správy",
+      "failed": "Typ sa nezmenil"
     }
   },
   "topic": {

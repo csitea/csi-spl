@@ -493,6 +493,11 @@
       "grip_more": "Sleep of druk op Enter om meer te tonen",
       "grip_less": "Sleep of druk op Enter om minder te tonen",
       "grip_hint": "Sleep om de grootte te wijzigen; pijl omhoog of omlaag stapt, Enter wisselt"
+    },
+    "kind_set": {
+      "change": "Type: {kind}. Type wijzigen",
+      "menu": "Berichttype",
+      "failed": "Het type is niet gewijzigd"
     }
   },
   "topic": {

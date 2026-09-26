@@ -493,6 +493,11 @@
       "grip_more": "Trageți sau apăsați Enter ca să vedeți mai mult",
       "grip_less": "Trageți sau apăsați Enter ca să vedeți mai puțin",
       "grip_hint": "Trageți pentru redimensionare; săgețile sus și jos pășesc, Enter comută"
+    },
+    "kind_set": {
+      "change": "Tip: {kind}. Schimbă tipul",
+      "menu": "Tip de mesaj",
+      "failed": "Tipul nu a fost schimbat"
     }
   },
   "topic": {

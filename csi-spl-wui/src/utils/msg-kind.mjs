@@ -21,3 +21,18 @@ export const KIND_ICONS = {
 export function kindIcon(kind) {
   return KIND_ICONS[String(kind || '')] || ''
 }
+
+/** Roles the hub lets set ANY readable message's kind (hub message_kind.go). */
+export const KIND_SETTER_ROLES = ['biz_owner', 'admin']
+
+/**
+ * May this viewer set the message's kind? The hub's own rule (SPL-952): the
+ * author, or a biz_owner / admin. A row still in flight has no confirmed id.
+ * This only hides the picker; the hub re-checks every change.
+ */
+export function canSetKind(msg, viewerId, role) {
+  const m = msg || {}
+  if (!m.msg_id || m.pending) return false
+  if (viewerId && String(m.from || '') === String(viewerId)) return true
+  return KIND_SETTER_ROLES.includes(String(role || ''))
+}

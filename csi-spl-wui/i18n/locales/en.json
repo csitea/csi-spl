@@ -493,6 +493,11 @@
       "grip_more": "Drag or press Enter to show more",
       "grip_less": "Drag or press Enter to show less",
       "grip_hint": "Drag to resize; Arrow Up/Down step, Enter toggles"
+    },
+    "kind_set": {
+      "change": "Type: {kind}. Change the type",
+      "menu": "Message type",
+      "failed": "The type was not changed"
     }
   },
   "topic": {

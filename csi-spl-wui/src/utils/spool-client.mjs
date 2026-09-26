@@ -1017,6 +1017,31 @@ export function createSpoolClient({
      * way. The same call for an opening message and a reply — the hub does
      * not look at is_parent. Returns { msg_id, task_id, reactions }.
      */
+    /**
+     * SPL-952 — PATCH /v1/messages/{msg_id}/kind, body { kind }. The hub lets
+     * the author, a biz_owner or an admin set it (403 not_allowed otherwise)
+     * and answers the view element with the kind override beside the envelope.
+     */
+    async setMessageKind(msgId, kind) {
+      const id = String(msgId || '')
+      const k = String(kind || '')
+      if (!id || !k) throw Object.assign(new Error('kind required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        /* the lde mock member sets any kind, as a biz_owner would */
+        const row = state.messages.find((m) => m.msg_id === id)
+        if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+        row.kind = k
+        row.kind_set_by = state.me.id
+        row.kind_set_at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+        return { ...row }
+      }
+      const data = await live(`/v1/messages/${encodeURIComponent(id)}/kind`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: k }),
+      })
+      return normalizeViewMessage(data)
+    },
     async setReaction(msgId, emoji, op, current) {
       const id = String(msgId || '')
       const glyph = String(emoji || '')

@@ -493,6 +493,11 @@
       "grip_more": "Превуците или притисните Enter да видите више",
       "grip_less": "Превуците или притисните Enter да видите мање",
       "grip_hint": "Превуците за промену величине; стрелице горе и доле корачају, Enter пребацује"
+    },
+    "kind_set": {
+      "change": "Vrsta: {kind}. Promeni vrstu",
+      "menu": "Vrsta poruke",
+      "failed": "Vrsta nije promenjena"
     }
   },
   "topic": {

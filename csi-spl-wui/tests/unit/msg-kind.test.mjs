@@ -5,7 +5,9 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MSG_KINDS, kindIcon } from '../../src/utils/msg-kind.mjs'
+import { MSG_KINDS, KIND_SETTER_ROLES, canSetKind, kindIcon } from '../../src/utils/msg-kind.mjs'
+import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
+import { messageFromFrame } from '../../src/utils/live-ws.mjs'
 import { V1_KINDS, verbosityOf } from '../../src/utils/verbosity.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -40,11 +42,34 @@ describe('msg kinds (SPL-952)', () => {
       const d = JSON.parse(readFileSync(join(LOCALES, f), 'utf8'))
       for (const k of MSG_KINDS) assert.ok(d.feed.kind[k], `${f} feed.kind.${k}`)
       assert.equal(d.composer.kind_auto, undefined, `${f} the composer picker is gone`)
+      for (const k of ['change', 'menu', 'failed']) assert.ok(d.feed.kind_set[k], `${f} feed.kind_set.${k}`)
+      assert.ok(d.feed.kind_set.change.includes('{kind}'), `${f} feed.kind_set.change names the kind`)
     }
   })
 
   it('a blocker shows even at minimal verbosity; msg is normal', () => {
     assert.equal(verbosityOf('blocker'), 'minimal')
     assert.equal(verbosityOf('msg'), 'normal')
+  })
+
+  it('who may set a kind: the author, a biz_owner or an admin (the hub rule)', () => {
+    const m = { msg_id: 'm1', from: 'HUM-1' }
+    assert.equal(canSetKind(m, 'HUM-1', 'developer'), true)
+    assert.equal(canSetKind(m, 'HUM-2', 'developer'), false)
+    for (const r of KIND_SETTER_ROLES) assert.equal(canSetKind(m, 'HUM-2', r), true)
+    assert.equal(canSetKind({ ...m, pending: true }, 'HUM-1', 'admin'), false)
+    assert.equal(canSetKind({ from: 'HUM-1' }, 'HUM-1', 'admin'), false)
+    const hub = readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/message_kind.go'), 'utf8')
+    assert.match(hub, /kindSetterRoles = map\[string\]bool\{rbac\.BizOwner: true, rbac\.Admin: true\}/)
+  })
+
+  it('a kind set after sending wins over the envelope, on reload and live', () => {
+    const env = { from_box: 'box-a', to_box: 'box-wui', msg: { msg_id: 'm1', kind: 'note', body: 'x' } }
+    assert.equal(normalizeViewMessage({ env }).kind, 'note')
+    const set = normalizeViewMessage({ env, kind: 'blocker', kind_set_by: 'HUM-1', kind_set_at: '2026-09-26T12:00:00Z' })
+    assert.deepEqual([set.kind, set.kind_set_by], ['blocker', 'HUM-1'])
+    const f = messageFromFrame({ type: 'message_edited', msg_id: 'm1', env, kind: 'task' })
+    assert.equal(f.kind, 'task')
+    assert.equal(messageFromFrame({ type: 'message_edited', env }).kind, 'note')
   })
 })

@@ -493,6 +493,11 @@
       "grip_more": "Dra eller tryck på Enter för att visa mer",
       "grip_less": "Dra eller tryck på Enter för att visa mindre",
       "grip_hint": "Dra för att ändra storlek; uppåt- och nedåtpil stegar, Enter växlar"
+    },
+    "kind_set": {
+      "change": "Typ: {kind}. Ändra typ",
+      "menu": "Meddelandetyp",
+      "failed": "Typen ändrades inte"
     }
   },
   "topic": {

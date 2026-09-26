@@ -493,6 +493,11 @@
       "grip_more": "Przeciągnij lub naciśnij Enter, aby pokazać więcej",
       "grip_less": "Przeciągnij lub naciśnij Enter, aby pokazać mniej",
       "grip_hint": "Przeciągnij, aby zmienić rozmiar; strzałki góra i dół przesuwają, Enter przełącza"
+    },
+    "kind_set": {
+      "change": "Typ: {kind}. Zmień typ",
+      "menu": "Typ wiadomości",
+      "failed": "Typ nie został zmieniony"
     }
   },
   "topic": {

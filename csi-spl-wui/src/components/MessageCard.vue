@@ -42,7 +42,7 @@
           <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
-        <KindBadge :kind="String(msg.kind)" />
+        <KindBadge :kind="String(msg.kind)" :msg="msg" />
         <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="sinceMs == null ? formatIsoTs(at) : undefined">{{ time }}</span>
         <span
           v-if="edited"

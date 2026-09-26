@@ -493,6 +493,11 @@
       "grip_more": "Velciet vai nospiediet Enter, lai rādītu vairāk",
       "grip_less": "Velciet vai nospiediet Enter, lai rādītu mazāk",
       "grip_hint": "Velciet, lai mainītu izmēru; augšup un lejup bultiņas soļo, Enter pārslēdz"
+    },
+    "kind_set": {
+      "change": "Veids: {kind}. Mainīt veidu",
+      "menu": "Ziņas veids",
+      "failed": "Veids netika mainīts"
     }
   },
   "topic": {

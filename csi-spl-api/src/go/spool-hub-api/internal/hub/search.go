@@ -469,6 +469,9 @@ func (s *Server) handleSearchOperators(w http.ResponseWriter, _ *http.Request, _
 		if ops[i].Aliases == nil {
 			ops[i].Aliases = []string{}
 		}
+		if ops[i].Name == search.OpStatus {
+			ops[i].Doc = search.StatusDoc() // the store's current workflow, never a stale list
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"version": search.Version, "types": types, "operators": ops})
 }

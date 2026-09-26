@@ -170,7 +170,7 @@ var Operators = []Operator{
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
 	{Name: OpSmaller, Values: "size", Applies: []Type{TypeFile}, Example: "smaller:10K", Doc: "attachment smaller than (bytes, K, M, G)"},
-	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:wip", Doc: "issue status: eval, todo, wip, diss, qas, done (older names such as in_progress still work)"},
+	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:wip", Doc: "issue status: one of the workflow's names (older names such as in_progress still work)"},
 	{Name: OpPriority, Aliases: []string{"prio"}, Values: "priority", Applies: []Type{TypeIssue}, Example: "prio:1", Doc: "issue priority, a number (prio=1 works too)"},
 	{Name: OpAssignee, Values: "id", Applies: []Type{TypeIssue}, Example: "assignee:me", Doc: "issue assignee: a member or agent id, me, or none"},
 	{Name: OpLabel, Values: "text", Applies: []Type{TypeIssue}, Example: "label:bug", Doc: "issue label"},
@@ -683,6 +683,17 @@ func (q *Query) finish(root *Node) error {
 	}
 	q.Positive = positives(q.Root, false, nil)
 	return nil
+}
+
+// StatusDoc is the status: operator's doc with the workflow's CURRENT names,
+// read from IssueStatuses (which store fills), so the operators endpoint
+// never lists a stale set when the workflow grows (SPL-966: blocked, onhold).
+// Without a workflow wired it is the static row's doc.
+func StatusDoc() string {
+	if len(IssueStatuses) == 0 {
+		return opByName[OpStatus].Doc
+	}
+	return "issue status: " + strings.Join(IssueStatuses, ", ") + " (older names such as in_progress still work)"
 }
 
 // asYouType makes the query's last bare word a prefix when nothing follows it

@@ -2,12 +2,15 @@ package hub_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -105,5 +108,36 @@ func TestSearchIssues(t *testing.T) {
 	// 400 bad_query for a status outside the workflow
 	if code, _, _, raw := searchGet(t, e, ta, "status:open", "", "X-Test-Human", "HUM-3"); code != http.StatusBadRequest || raw["error"] != "bad_query" {
 		t.Fatalf("status:open: %d %v", code, raw)
+	}
+}
+
+// The status: row of the operators endpoint names the store's CURRENT
+// workflow (SPL-966 adds blocked and onhold), so it cannot go stale.
+// CONTROL: the static row in search.Operators does not list them.
+func TestSearchOperatorsStatusDocFollowsStore(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })
+	ta, _ := e.tenant()
+	code, _, b := viewGet(t, e, ta, "/v1/view/search/operators")
+	var ops struct {
+		Operators []struct{ Name, Doc string } `json:"operators"`
+	}
+	if code != http.StatusOK || json.Unmarshal(b, &ops) != nil {
+		t.Fatalf("operators: %d %s", code, b)
+	}
+	doc := ""
+	for _, o := range ops.Operators {
+		if o.Name == search.OpStatus {
+			doc = o.Doc
+		}
+	}
+	for _, s := range store.IssueStatuses {
+		if !strings.Contains(doc, s) {
+			t.Errorf("status: doc %q lacks %q", doc, s)
+		}
+	}
+	for _, o := range search.Operators {
+		if o.Name == search.OpStatus && strings.Contains(o.Doc, store.IssueStatuses[0]) {
+			t.Errorf("control: the static row should not list the workflow: %q", o.Doc)
+		}
 	}
 }

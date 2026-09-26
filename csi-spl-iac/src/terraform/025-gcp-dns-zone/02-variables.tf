@@ -66,14 +66,14 @@ variable "parent_zone_project" {
 variable "cloud_run_mapping_records" {
   type = list(object({
     name    = string       # relative to fqdn: "api", "dev.api", "t1"
-    type    = string       # A, AAAA or CNAME
-    rrdatas = list(string) # what the 032 domain mapping asks for
+    type    = string       # A, AAAA, CNAME or TXT
+    rrdatas = list(string) # what the 032 mapping / 019 custom domain asks for
   }))
-  description = "Records for the 032 Cloud Run domain mappings, written into zone_name (csi-rel 007-dns 05.03.api-dns-records.tf). Rendered from cnf: steps.025-gcp-dns-zone.cloud_run_mapping_records plus one ghs CNAME per env.dns.mapped_tenants entry. Empty = none."
+  description = "Records for the 032 Cloud Run domain mappings, written into zone_name (csi-rel 007-dns 05.03.api-dns-records.tf). Rendered from cnf: steps.025-gcp-dns-zone.cloud_run_mapping_records plus, per env.dns.mapped_tenants entry, the 019 Firebase custom-domain records A + TXT hosting-site (SPL-959). Empty = none."
   default     = []
 
   validation {
-    condition     = alltrue([for r in var.cloud_run_mapping_records : contains(["A", "AAAA", "CNAME"], r.type)])
-    error_message = "cloud_run_mapping_records type must be A, AAAA or CNAME."
+    condition     = alltrue([for r in var.cloud_run_mapping_records : contains(["A", "AAAA", "CNAME", "TXT"], r.type)])
+    error_message = "cloud_run_mapping_records type must be A, AAAA, CNAME or TXT."
   }
 }

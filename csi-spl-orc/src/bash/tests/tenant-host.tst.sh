@@ -37,6 +37,8 @@ mkdir -p "$FAKE/csi-spl-cnf/csi-spl/dev/tf" "$FAKE/csi-spl-orc"
 # the fixture list is pinned to [t1] whatever the live cnf maps today
 sed -E 's/^    mapped_tenants: \[.*\]$/    mapped_tenants: [t1]/' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" >"$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 grep -qx '    mapped_tenants: \[t1\]' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" || { echo "FAIL: cannot pin the fixture's mapped_tenants"; exit 1; }
+# the apex tenant is its own id here, so t1 stays an ordinary mapped tenant
+sed -i -E 's/^      wui_default_tenant: .*/      wui_default_tenant: "apex0"/' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{19,25}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
 ORIG="$T/dev.env.yaml.orig"; cp "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" "$ORIG"
 CNF="$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
@@ -198,6 +200,12 @@ reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc == 0 ]] && ! spl_has=$(yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" 2>/dev/null) && grep -q 'MARK t1 removed' "$T/mark.log" &&
   pass "deprovision: t1 out of cnf, only its own destroy admitted, marked removed" || fail "deprovision rc=$rc: $out"
+
+# --- 7b. the apex tenant maps nothing (SPL-959) -----------------------------------
+reset
+out=$(SNIPPET='do_spl_probe_wui_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }; do_spl_tenant_host_provision' in_orc TENANT_ID=apex0 DRY_RUN=0 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && grep -qx 'PROBE dev.example.test' "$T/mark.log" && grep -q 'MARK apex0 ready' "$T/mark.log" &&
+  pass "the apex tenant: no make call, cnf untouched, the apex probed, marked ready" || fail "apex tenant rc=$rc: $(cat "$STUB_LOG") $(cat "$T/mark.log") :: $out"
 
 # --- 8. do_spl_tenant_create chains the host (SPL-959) -------------------------
 chain() { SNIPPET='do_spl_tenant_host_provision() { echo "PROVISION $TENANT_ID DRY_RUN=$DRY_RUN" >>'"$T"'/mark.log; }; do_spl_cloud_cnf; spl_tenant_create_host newt' in_orc "$@" >/dev/null 2>&1; echo $?; }

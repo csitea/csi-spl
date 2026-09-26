@@ -16,6 +16,8 @@
 # @description   4. do_spl_wait_for_firebase_domain, then do_spl_probe_wui_host
 # @description      until it passes (edge propagation lags the cert)
 # @description   5. tenant_hosts.status = ready + detail (failed + why)
+# @description The apex tenant (steps.019 wui_default_tenant) maps nothing: its
+# @description host is https://<fqdn>; the run probes it and marks it ready.
 # @description Idempotent: a mapped tenant re-runs as a no-op plan, a cert
 # @description check and a probe. Terraform only through the make / tf-runner
 # @description path; every gcloud / terraform call runs as the env SA from its
@@ -40,6 +42,18 @@ do_spl_tenant_host_provision() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local host="$tenant.$SPL_FQDN" cnf
   cnf="$(spl_th_cnf_file)" || return 1
+  # The apex tenant (steps.019 wui_default_tenant, t1) IS https://<fqdn>: no
+  # cnf, no terraform. Probe the apex and record it (SPL-959).
+  if [[ "$tenant" == "$(yq -r '.env.steps."019-firebase-static-site".wui_default_tenant // ""' "$cnf")" ]]; then
+    if (( dry )); then
+      do_log "OK DRY_RUN $tenant is the apex tenant: would probe https://$SPL_FQDN and mark it ready (no host to map)"
+      return 0
+    fi
+    ( HOST="$SPL_FQDN" do_spl_probe_wui_host ) || { spl_th_mark_one "$tenant" failed "apex https://$SPL_FQDN WUI probe failed"; return 1; }
+    spl_th_mark_one "$tenant" ready "apex https://$SPL_FQDN (the apex tenant has no subdomain), WUI probe verified TLS $(date -u +%FT%TZ)"
+    do_log "OK $tenant is the apex tenant: https://$SPL_FQDN serves it"
+    return 0
+  fi
 
   if (( dry )); then
     if spl_th_cnf_has "$cnf" "$tenant"; then

@@ -299,7 +299,7 @@ pkill -f 'sleep 30' >/dev/null 2>&1 || true
 
 # --- 8. the post leg (specs/038) ----------------------------------------------------
 for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KIND=reject" "DESK_BODY=" \
-           "DESK_FILES=$T/no-such-file"; do
+           "DESK_FILES=$T/no-such-file" "DESK_TYPED_BY=CLE-01" "DESK_TYPED_BY=HUM-1;x"; do
   if SNIPPET=do_spl_desk_post in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_CHANNEL=ops DRY_RUN=0 "$bad" \
        >"$T/o" 2>&1; then
     fail "do_spl_desk_post refuses $bad: $(cat "$T/o")"
@@ -334,6 +334,13 @@ grep -qx -- "send --from CLE-00 --channel spool-hub-devel --kind note --body 0.5
 # no single recipient; the hub would route a to_box instead of the channel).
 ! grep -qE -- '--to(-box)? ' "$T/fake.log" && pass "CONTROL no --to / --to-box on a channel post" ||
   fail "a channel post named a recipient: $(cat "$T/fake.log")"
+: >"$T/fake.log"
+out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_CHANNEL=lobby DESK_BODY='hi' DESK_TYPED_BY=HUM-10 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --channel lobby --kind note --body hi --typed-by HUM-10" "$T/fake.log" &&
+  [[ "$out" == *'"typed_by": "HUM-10"'* ]] &&
+  pass "DESK_TYPED_BY rides as spool send --typed-by (specs/036) and is printed" ||
+  fail "typed post (rc=$rc): $out / $(cat "$T/fake.log")"
 out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
   DESK_CHANNEL=ops DESK_BODY='let me in' DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"not a member of #ops"* ]] && pass "a non-member refusal is named as one" ||

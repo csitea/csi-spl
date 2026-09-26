@@ -29,7 +29,9 @@ describe('rail ids', () => {
   })
   it('the hub (auth.RailTabs) and rdb 0063 hold the same list', () => {
     const go = read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go')
-    assert.match(go, /RailTabs = \[\]string\{"dm", "channels", "issues", "topics", "flow", "events"\}/)
+    /* SPL-983: the hub already admits archive (rdb 0064) before the rail draws it */
+    const hub = JSON.parse('[' + /RailTabs = \[\]string\{([^}]*)\}/.exec(go)[1] + ']')
+    assert.ok([JSON.stringify([...RAIL_IDS]), JSON.stringify([...RAIL_IDS, 'archive'])].includes(JSON.stringify(hub)), JSON.stringify(hub))
     const sql = read('../csi-spl-rdb/src/sql/postgres/spool-hub/0063_human_rail_order.sql')
     assert.match(sql, /ARRAY\['dm','channels','issues','topics','flow','events'\]/)
   })

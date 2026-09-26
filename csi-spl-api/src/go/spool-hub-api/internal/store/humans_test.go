@@ -304,7 +304,14 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetRailOrder(ctx, hum, []string{"dm", "dm", "issues", "topics", "flow", "events"}); err == nil {
 				t.Fatal("SetRailOrder accepted a duplicate")
 			}
-			rev := []string{"events", "flow", "topics", "issues", "channels", "dm"}
+			// SPL-983 (rdb 0064): the legacy six still store, and so do all seven
+			if err := h.SetRailOrder(ctx, hum, []string{"events", "flow", "topics", "issues", "channels", "dm"}); err != nil {
+				t.Fatal("legacy six", err)
+			}
+			if err := h.SetRailOrder(ctx, hum, []string{"archive", "flow", "topics", "issues", "channels", "dm"}); err == nil {
+				t.Fatal("SetRailOrder accepted six without events")
+			}
+			rev := []string{"archive", "events", "flow", "topics", "issues", "channels", "dm"}
 			if err := h.SetRailOrder(ctx, hum, rev); err != nil {
 				t.Fatal(err)
 			}

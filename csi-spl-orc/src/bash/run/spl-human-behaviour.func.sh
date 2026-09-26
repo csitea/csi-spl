@@ -2,8 +2,8 @@
 #------------------------------------------------------------------------------
 # @description Set one human's Settings -> Behaviour choices in a cloud env's
 # @description hub DB: "Text fields" humans.submit_key (rdb 0062, SPL-976)
-# @description and/or "Left panel order" humans.rail_order (rdb 0063,
-# @description SPL-979), through the Cloud SQL proxy as the env's project
+# @description and/or "Left panel order" humans.rail_order (rdb 0063, 0064,
+# @description SPL-979, SPL-983), through the Cloud SQL proxy as the env's project
 # @description service account. humans is hub-wide and outside row level
 # @description security (0014, 0017), so the statement has no tenant scope.
 # @description Values travel as psql variables (:'var'), never spliced into
@@ -14,12 +14,12 @@
 # @param HUMAN_ID - required: e.g. HUM-4
 # @param SUBMIT_KEY - enter (Enter sends, Shift+Enter adds a line) or
 # @param   ctrl-enter (Enter adds a line, Ctrl/Cmd+Enter sends). Lower-cased.
-# @param RAIL_ORDER - the six rail ids, comma separated, each once:
-# @param   dm,channels,issues,topics,flow,events in any order. Lower-cased.
+# @param RAIL_ORDER - the seven rail ids, comma separated, each once:
+# @param   dm,channels,issues,topics,flow,events,archive in any order. Lower-cased.
 # @param   At least one of SUBMIT_KEY and RAIL_ORDER is required.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 ./run -a do_spl_human_behaviour
-# @example ENV=dev HUMAN_ID=HUM-4 RAIL_ORDER=topics,dm,channels,issues,flow,events ./run -a do_spl_human_behaviour
+# @example ENV=dev HUMAN_ID=HUM-4 RAIL_ORDER=topics,dm,channels,issues,flow,events,archive ./run -a do_spl_human_behaviour
 #------------------------------------------------------------------------------
 do_spl_human_behaviour() {
   do_require_bin yq psql || return 1
@@ -27,8 +27,8 @@ do_spl_human_behaviour() {
   local human="${HUMAN_ID:-}" key="${SUBMIT_KEY:-}" rail="${RAIL_ORDER:-}" dry=1
   # rdb 0062 humans_submit_key_check, in that order. A new choice is a migration first.
   local keys='enter|ctrl-enter'
-  # rdb 0063 humans_rail_order_check: each of these once, in the default order.
-  local rail_ids='dm,channels,issues,topics,flow,events'
+  # rdb 0064 humans_rail_order_check: each of these once, in the default order.
+  local rail_ids='dm,channels,issues,topics,flow,events,archive'
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
   [[ -n "$key" || -n "$rail" ]] || { do_log "FATAL set SUBMIT_KEY (enter or ctrl-enter) and/or RAIL_ORDER ($rail_ids in any order)"; return 1; }
   key="${key,,}"
@@ -37,7 +37,7 @@ do_spl_human_behaviour() {
   fi
   rail="${rail,,}"
   if [[ -n "$rail" ]]; then
-    [[ "$rail" =~ ^[a-z]+(,[a-z]+){5}$ ]] \
+    [[ "$rail" =~ ^[a-z]+(,[a-z]+){6}$ ]] \
       && [[ "$(tr ',' '\n' <<<"$rail" | sort | paste -sd,)" == "$(tr ',' '\n' <<<"$rail_ids" | sort | paste -sd,)" ]] \
       || { do_log "FATAL RAIL_ORDER must hold each of $rail_ids exactly once, got: '${RAIL_ORDER:-}'"; return 1; }
   fi

@@ -102,14 +102,14 @@ refuse "DRY_RUN=2" HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=2
 in_orc 'do_spl_human_behaviour' ENV=stg HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. ENV=stg refused before any call" || fail "2. ENV=stg: rc=$rc $(cat "$T/out")"
 
-refuse "RAIL_ORDER missing a tab" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow DRY_RUN=0
-refuse "RAIL_ORDER with a duplicate" HUMAN_ID=HUM-4 RAIL_ORDER=dm,dm,issues,topics,flow,events DRY_RUN=0
-refuse "RAIL_ORDER with users" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow,users DRY_RUN=0
-refuse "injected RAIL_ORDER" HUMAN_ID=HUM-4 "RAIL_ORDER=dm,channels,issues,topics,flow,events'}; drop table humans" DRY_RUN=0
-python3 - "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0063_human_rail_order.sql" "$FUNC" <<'PY' && pass "0. the rail list is rdb 0063's CHECK, in that order" || fail "0. rail list drifted from 0063"
+refuse "RAIL_ORDER missing a tab" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow,events DRY_RUN=0
+refuse "RAIL_ORDER with a duplicate" HUMAN_ID=HUM-4 RAIL_ORDER=dm,dm,issues,topics,flow,events,archive DRY_RUN=0
+refuse "RAIL_ORDER with users" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow,events,users DRY_RUN=0
+refuse "injected RAIL_ORDER" HUMAN_ID=HUM-4 "RAIL_ORDER=dm,channels,issues,topics,flow,events,archive'}; drop table humans" DRY_RUN=0
+python3 - "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0064_human_rail_order_archive.sql" "$FUNC" <<'PY' && pass "0. the rail list is rdb 0064's CHECK, in that order" || fail "0. rail list drifted from 0064"
 import re,sys
 t=open(sys.argv[1]).read(); f=open(sys.argv[2]).read()
-ids=re.findall(r"'([a-z]+)'", re.search(r"<@ ARRAY\[([^\]]*)\]", t).group(1))
+ids=re.findall(r"'([a-z]+)'", re.findall(r"<@ ARRAY\[([^\]]*)\]", t)[-1])
 sys.exit(0 if "rail_ids='" + ",".join(ids) + "'" in f else 1)
 PY
 
@@ -138,16 +138,16 @@ in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0; 
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" "$T/stdin" && fail "4. the DSN password leaked" || pass "4. the DSN password is in neither output, argv nor SQL"
 
 # --- 4b. the rail order alone ------------------------------------------------
-in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=Topics,dm,channels,issues,flow,events DRY_RUN=0 STUB_PSQL_OUT='HUM-4 |  | topics,dm,channels,issues,flow,events'; rc=$?
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=Topics,dm,channels,issues,flow,events,archive DRY_RUN=0 STUB_PSQL_OUT='HUM-4 |  | topics,dm,channels,issues,flow,events,archive'; rc=$?
 [[ $rc -eq 0 ]] \
-  && grep -q '\[rail={topics,dm,channels,issues,flow,events}\]' "$T/calls.log" \
+  && grep -q '\[rail={topics,dm,channels,issues,flow,events,archive}\]' "$T/calls.log" \
   && grep -q '\[submit_key=\]' "$T/calls.log" \
   && ! grep -q 'topics,dm' "$T/stdin" \
-  && grep -q "OK HUM-4 now has rail_order=topics,dm,channels,issues,flow,events ($DEV_SA):" "$T/out" \
+  && grep -q "OK HUM-4 now has rail_order=topics,dm,channels,issues,flow,events,archive ($DEV_SA):" "$T/out" \
   && pass "4b. RAIL_ORDER alone: lower-cased array literal as -v, submit_key kept" \
   || fail "4b. rail: rc=$rc $(cat "$T/calls.log") $(cat "$T/out")"
-in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=flow,dm,channels,issues,topics,events SUBMIT_KEY=enter; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set submit_key=enter rail_order=flow,dm,channels,issues,topics,events of HUM-4' "$T/out" \
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=flow,dm,channels,issues,topics,events,archive SUBMIT_KEY=enter; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set submit_key=enter rail_order=flow,dm,channels,issues,topics,events,archive of HUM-4' "$T/out" \
   && pass "4b. both keys: one DRY_RUN plan, no cloud" || fail "4b. both dry: rc=$rc $(cat "$T/out")"
 
 # --- 5. zero rows -------------------------------------------------------------

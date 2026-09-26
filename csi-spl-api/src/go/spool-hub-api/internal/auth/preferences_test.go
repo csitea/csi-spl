@@ -409,7 +409,7 @@ func TestPreferencesRailOrder(t *testing.T) {
 	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["rail_order"] != nil {
 		t.Fatalf("session before: %s", got.raw)
 	}
-	want := `["events","flow","topics","issues","channels","dm"]`
+	want := `["archive","events","flow","topics","issues","channels","dm"]`
 	got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+want+`}`)
 	if got.code != http.StatusOK || len(got.body) != 1 {
 		t.Fatalf("put: %d %s", got.code, got.raw)
@@ -432,6 +432,8 @@ func TestPreferencesRailOrder(t *testing.T) {
 		`{"rail_order":["dm","dm","issues","topics","flow","events"]}`,
 		`{"rail_order":["dm","channels","issues","topics","flow","users"]}`,
 		`{"rail_order":["dm","channels","issues","topics","flow","events","events"]}`,
+		`{"rail_order":["dm","channels","issues","topics","flow","archive"]}`,
+		`{"rail_order":["dm","channels","issues","topics","flow","events","archive","archive"]}`,
 		`{"rail_order":"dm,channels"}`, `{"rail_order":[]}`, `{"rail_order":7}`,
 	} {
 		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_rail_order" {
@@ -442,6 +444,11 @@ func TestPreferencesRailOrder(t *testing.T) {
 		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != want {
 			t.Fatalf("a refused PUT changed the order: %s", got.raw)
 		}
+	}
+	// SPL-983: an order from before archive existed (a cached WUI) still stores
+	legacy := `["events","flow","topics","issues","channels","dm"]`
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy+`}`); got.code != http.StatusOK {
+		t.Fatalf("legacy six: %d %s", got.code, got.raw)
 	}
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusOK || got.body["rail_order"] != nil {
 		t.Fatalf("clear: %d %s", got.code, got.raw)

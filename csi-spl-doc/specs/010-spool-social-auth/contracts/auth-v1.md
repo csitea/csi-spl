@@ -123,7 +123,10 @@ operator sets it with `do_spl_human_behaviour`.
 `rail_order` (SPL-979, hub 0.9.4, spec 023 3.8) is Settings -> Behaviour
 "Left panel order": a JSON array holding each of `dm`, `channels`, `issues`,
 `topics`, `flow`, `events` exactly once, in the person's order, or `null` to
-go back to the default; anything else is `400 unsupported_rail_order`. The
+go back to the default. Since hub 0.9.5 (SPL-983) `archive` is a 7th id: an
+order holds all seven, or (stored or sent before Archive existed) the first
+six, which the WUI draws with `archive` appended. Anything else is
+`400 unsupported_rail_order`. The
 session and the native `POST /login` answer carry it (`null` when unset). The
 list is `auth.RailTabs` and `humans_rail_order_check` (rdb 0063); the same
 operator action sets it with `RAIL_ORDER=<ids,comma separated>`.
@@ -180,4 +183,4 @@ another tenant → `403 tenant_mismatch`; several tenants and none selected →
 with `permission`. `SessionForTenant(r, tenant)` (seam `5e8ecb1`) is the
 legacy helper.
 
-<!-- version: 0.5.4 · updated: 2026-09-26 · last-edit: 2026-09-26T19:40:00Z -->
+<!-- version: 0.5.5 · updated: 2026-09-26 · last-edit: 2026-09-26T20:20:00Z -->

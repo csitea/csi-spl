@@ -629,14 +629,24 @@ func IsSubmitKey(key string) bool {
 }
 
 // RailTabs are the reorderable left-rail entries (SPL-979) in their default
-// order: direct messages, channels, issues, topics, flow, event log (the
-// admin-only Users tab stays last and is not one of them). The DB check
-// humans_rail_order_check (rdb 0063) admits exactly their permutations.
-var RailTabs = []string{"dm", "channels", "issues", "topics", "flow", "events"}
+// order: direct messages, channels, issues, topics, flow, event log and, since
+// SPL-983, archive (the admin-only Users tab stays last and is not one of
+// them). The DB check humans_rail_order_check (rdb 0063, 0064) admits their
+// permutations and the legacy ones of the first six.
+var RailTabs = []string{"dm", "channels", "issues", "topics", "flow", "events", "archive"}
 
-// IsRailOrder reports whether order holds every RailTabs id exactly once.
+// legacyRailTabs is RailTabs before SPL-983 added archive: an order stored
+// then (or sent by a WUI still cached from then) holds exactly these six.
+var legacyRailTabs = RailTabs[:6]
+
+// IsRailOrder reports whether order holds every RailTabs id exactly once, or
+// every legacyRailTabs id exactly once (the WUI appends archive to it).
 func IsRailOrder(order []string) bool {
-	if len(order) != len(RailTabs) {
+	return isPermutation(order, RailTabs) || isPermutation(order, legacyRailTabs)
+}
+
+func isPermutation(order, of []string) bool {
+	if len(order) != len(of) {
 		return false
 	}
 	seen := map[string]bool{}
@@ -646,7 +656,7 @@ func IsRailOrder(order []string) bool {
 		}
 		seen[id] = true
 	}
-	for _, id := range RailTabs {
+	for _, id := range of {
 		if !seen[id] {
 			return false
 		}
@@ -661,7 +671,8 @@ func IsRailOrder(order []string) bool {
 // JSON string ValidDisplayName admits, and cannot be cleared (null is refused);
 // preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it;
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
-// rail_order (SPL-979) is an array holding every RailTabs id once, or null.
+// rail_order (SPL-979) is an array holding every RailTabs id once (or the
+// legacy six, SPL-983), or null.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`

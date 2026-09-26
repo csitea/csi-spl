@@ -78,6 +78,10 @@ func NormalizeChannel(id string) string {
 
 // Channel is one channels row.
 type Channel struct {
+	// DeletedAt / DeletedBy are set only on a soft-deleted row (rdb 0052),
+	// which no read of Channels returns: they are the Memory store's record.
+	DeletedAt time.Time
+	DeletedBy string
 	TenantID  string
 	ChannelID string
 	Name      string
@@ -171,6 +175,20 @@ type Channels interface {
 	// Invited agents are included. A default channel has only the agents a
 	// member invited: none until someone adds one.
 	ChannelMembers(ctx context.Context, tenantID, channelID string) (map[string][]string, error)
+	// DeleteChannel soft-deletes a created channel (rdb 0052, SPL-72): it
+	// stamps deleted_at/deleted_by and removes nothing. From then on the
+	// channel is absent to every read of this interface and of
+	// ChannelHumans - Channel and SetMembersOpenInvite answer ErrNotFound,
+	// ChannelKnown false, ChannelMembers / ChannelHumanMembers none,
+	// HumanChannels and ViewChannelStats omit it - while its slug stays
+	// taken (CreateChannel ErrConflict) so RestoreChannel cannot collide.
+	// ErrConflict on a default channel; ErrNotFound when absent or already
+	// deleted. Who may call it is the hub's rule, not the store's.
+	DeleteChannel(ctx context.Context, tenantID, channelID, by string, now time.Time) error
+	// RestoreChannel undoes DeleteChannel: members, agents and the messages
+	// still in retention come back as they were. ErrNotFound when the
+	// channel is not a deleted one.
+	RestoreChannel(ctx context.Context, tenantID, channelID string) error
 	// ViewChannelStats lists defaults, created and seen channels with counts,
 	// unread (per reads) and member stats. Read-only (FR-019).
 	ViewChannelStats(ctx context.Context, tenantID string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error)

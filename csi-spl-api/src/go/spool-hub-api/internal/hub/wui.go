@@ -729,7 +729,12 @@ func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Chann
 		"description": c.Description, "created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt)}
 	// rdb 0028: the sidebar event carries the channel's NAME and description,
 	// so it goes to its members only - a fresh channel means its creator.
-	members := s.channelMemberSet(ctx, tenant, c.ChannelID)
+	s.fanoutChannelFrame(ctx, tenant, s.channelMemberSet(ctx, tenant, c.ChannelID), frame)
+}
+
+// fanoutChannelFrame writes frame to every browser socket of tenant whose
+// member is in members; nil members (a default channel) is every socket.
+func (s *Server) fanoutChannelFrame(ctx context.Context, tenant string, members map[string]bool, frame map[string]any) {
 	s.mu.Lock()
 	var targets []*wuiConn
 	for w := range s.wui {

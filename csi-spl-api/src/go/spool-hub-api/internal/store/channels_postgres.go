@@ -42,7 +42,7 @@ func (s *Postgres) Channel(ctx context.Context, tenant, id string) (Channel, err
 	id = NormalizeChannel(id)
 	var c Channel
 	err := s.queryRowTenant(ctx, tenant, `SELECT channel_id, name, description, created_by, created_at, members_open_invite
-		FROM channels WHERE tenant_id = $1 AND channel_id = $2`,
+		FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
 		[]any{tenant, id}, &c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if IsDefaultChannel(id) {
@@ -63,7 +63,7 @@ func (s *Postgres) SetMembersOpenInvite(ctx context.Context, tenant, id string, 
 		return ErrConflict
 	}
 	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET members_open_invite = $3
-		WHERE tenant_id = $1 AND channel_id = $2`, tenant, id, open)
+		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`, tenant, id, open)
 	if err != nil {
 		return err
 	}
@@ -78,9 +78,50 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 		return true, nil
 	}
 	var ok bool
-	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2)`,
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL)`,
 		[]any{tenant, id}, &ok)
 	return ok, err
+}
+
+// DeleteChannel stamps the row (rdb 0052). A default channel is refused
+// before the statement; the 0052 CHECK refuses it again in the database.
+func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+	id = NormalizeChannel(id)
+	if IsDefaultChannel(id) {
+		return ErrConflict
+	}
+	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET deleted_at = $3, deleted_by = $4
+		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`, tenant, id, now, by)
+	var pe interface{ SQLState() string }
+	if errors.As(err, &pe) && pe.SQLState() == "23514" { // channels_delete_human_only
+		return ErrConflict
+	}
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) RestoreChannel(ctx context.Context, tenant, id string) error {
+	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET deleted_at = NULL, deleted_by = NULL
+		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NOT NULL`, tenant, NormalizeChannel(id))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// notDeleted is the predicate every membership read adds (rdb 0052): the
+// rows of a deleted channel stay for RestoreChannel and grant nothing.
+// $1 is the tenant; col names the channel id column of the outer row.
+func notDeleted(col string) string {
+	return `NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = ` + col + ` AND dc.deleted_at IS NOT NULL)`
 }
 
 // SetSubscriptions records one box announce against channel_subscriptions.
@@ -157,6 +198,7 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 	err := s.queryTenant(ctx, tenant, `SELECT box_id, agent_id FROM channel_subscriptions
 		WHERE tenant_id = $1 AND channel_id = $2 AND origin <> 'removed'
 		AND NOT (origin = 'announce' AND channel_id = ANY($3::text[]))
+		AND `+notDeleted("channel_subscriptions.channel_id")+`
 		ORDER BY box_id, agent_id`, []any{tenant, channel, DefaultChannels},
 		func(rows pgx.Rows) error {
 			var box, agent string
@@ -188,15 +230,21 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	for _, d := range DefaultChannels {
 		get(d)
 	}
+	deleted := map[string]bool{} // rdb 0052: dropped once every read is in
 	// One batch, one round trip (CLE-34985; it was a BEGIN .. COMMIT
 	// transaction of 5 + len(reads) round trips). Results come back in queue
 	// order, so the unread counts see the counts the stats read stored.
 	reqs := []tenantRead{
-		{`SELECT channel_id, name, description, created_by, created_at, members_open_invite FROM channels WHERE tenant_id = $1`,
+		{`SELECT channel_id, name, description, created_by, created_at, members_open_invite, deleted_at IS NOT NULL FROM channels WHERE tenant_id = $1`,
 			[]any{tenant}, func(r pgx.Rows) error {
 				var c Channel
-				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite); err != nil {
+				var gone bool
+				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite, &gone); err != nil {
 					return err
+				}
+				if gone {
+					deleted[c.ChannelID] = true
+					return nil
 				}
 				st := get(c.ChannelID)
 				st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
@@ -259,8 +307,8 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 		return nil, err
 	}
 	out := make([]ChannelStat, 0, len(by))
-	for _, st := range by {
-		if !ChannelHidden(st.ChannelID) { // issue discussions are not a channel
+	for id, st := range by {
+		if !ChannelHidden(id) && !deleted[id] { // issue discussions are not a channel; rdb 0052
 			out = append(out, *st)
 		}
 	}
@@ -273,7 +321,7 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 func (s *Postgres) ChannelHumanMembers(ctx context.Context, tenant, channel string) ([]string, error) {
 	var out []string
 	err := s.queryTenant(ctx, tenant, `SELECT human_id FROM channel_humans
-		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY human_id`, []any{tenant, NormalizeChannel(channel)},
+		WHERE tenant_id = $1 AND channel_id = $2 AND `+notDeleted("channel_humans.channel_id")+` ORDER BY human_id`, []any{tenant, NormalizeChannel(channel)},
 		func(rows pgx.Rows) error {
 			var h string
 			if err := rows.Scan(&h); err != nil {
@@ -288,7 +336,7 @@ func (s *Postgres) ChannelHumanMembers(ctx context.Context, tenant, channel stri
 func (s *Postgres) HumanChannels(ctx context.Context, tenant, human string) ([]string, error) {
 	var out []string
 	err := s.queryTenant(ctx, tenant, `SELECT channel_id FROM channel_humans
-		WHERE tenant_id = $1 AND human_id = $2 ORDER BY channel_id`, []any{tenant, human},
+		WHERE tenant_id = $1 AND human_id = $2 AND `+notDeleted("channel_humans.channel_id")+` ORDER BY channel_id`, []any{tenant, human},
 		func(rows pgx.Rows) error {
 			var c string
 			if err := rows.Scan(&c); err != nil {

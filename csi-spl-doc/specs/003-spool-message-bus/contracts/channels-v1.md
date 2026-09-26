@@ -212,6 +212,39 @@ permission control).
 
 `./view-v1.md` §4.3 (roots by default, `dm=true&peer=`) and §4.5 (`/children`).
 
+### 5.4 `DELETE /v1/channels/{channel}` (delete, SPL-72, rdb 0052)
+
+Owner, 2026-09-26: "channels should have the delete option in the right click
+menu , for the owners who have created them".
+
+- **Who**: the member who created the channel, only (`channels.created_by`,
+  a `HUM-*`; the same owner rule as `PATCH`). No role widens it: a
+  `biz_owner` or `admin` who did not create the channel is refused like any
+  other member. They keep `channels.manage` to remove members. A channel
+  created by `hub` or `wui` has no creator, so nobody may delete it.
+- **Refusals**, in door order: not a member `404 unknown_channel` (as a
+  missing channel, §7), a default channel (`lobby`, `tasks`, `alerts`,
+  `feedback`) `409 channel_public`, a member who is not the creator
+  `403 forbidden`. Success `204`.
+- **Soft delete.** The row gets `deleted_at` / `deleted_by`. Nothing is
+  removed: messages, `channel_humans` and `channel_subscriptions` stay, and
+  messages still expire on their own retention. Until it is restored, the
+  channel is absent everywhere: the list, search, topics, files, the member
+  and agent APIs (404), sends (`unknown_channel`) and agent delivery. The
+  slug stays taken (`POST` → `409 channel_exists`), so a restore cannot
+  collide with a newer channel of the same name. The database CHECK
+  `channels_delete_human_only` refuses a `deleted_at` on any row not
+  created by a `HUM-*`, which includes the four defaults.
+- **The way back**:
+  `ENV=<env> TENANT_ID=<t> CHANNEL=<id> DRY_RUN=0 ./run -a do_spl_channel_restore`
+  (csi-spl-orc). This clears the stamp, so the members, agents and in-retention
+  messages come back as they were. A member's sidebar shows the channel again
+  on its next load.
+- **Live**: before the delete the hub reads the members, then sends each of
+  their browser sockets `{"type":"channel_deleted","channel":"<id>"}`.
+  Non-members get nothing: the frame names a channel they must not learn
+  exists.
+
 ## 6. Presence (browser WS)
 
 `./wui-live-ws.md` §3.2: `{"type":"presence","peer":"CLE-07@box-a","status":"online|offline"}`

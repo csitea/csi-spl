@@ -19,6 +19,16 @@ type memChannels struct {
 	// removed is the same key for an agent a member took out. Announce
 	// must not put that agent back into that channel.
 	removed map[[4]string]struct{}
+	// deleted holds the rows DeleteChannel took out of rows (rdb 0052).
+	// humans, subs and invited keep their entries for RestoreChannel; every
+	// read skips them through gone().
+	deleted map[[2]string]Channel
+}
+
+// gone reports a soft-deleted channel of tenant. Caller holds Memory.mu.
+func (c *memChannels) gone(tenant, channel string) bool {
+	_, ok := c.deleted[[2]string{tenant, channel}]
+	return ok
 }
 
 func (c *memChannels) init() {
@@ -33,6 +43,9 @@ func (c *memChannels) init() {
 	}
 	if c.removed == nil {
 		c.removed = map[[4]string]struct{}{}
+	}
+	if c.deleted == nil {
+		c.deleted = map[[2]string]Channel{}
 	}
 }
 
@@ -58,7 +71,7 @@ func (s *Memory) CreateChannel(_ context.Context, c Channel) error {
 	}
 	s.ch.init()
 	k := [2]string{c.TenantID, c.ChannelID}
-	if _, ok := s.ch.rows[k]; ok || IsDefaultChannel(c.ChannelID) {
+	if _, ok := s.ch.rows[k]; ok || s.ch.gone(c.TenantID, c.ChannelID) || IsDefaultChannel(c.ChannelID) {
 		return ErrConflict
 	}
 	s.ch.rows[k] = c
@@ -106,6 +119,43 @@ func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error
 	s.ch.init()
 	_, ok := s.ch.rows[[2]string{tenant, id}]
 	return ok, nil
+}
+
+func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now time.Time) error {
+	id = NormalizeChannel(id)
+	if IsDefaultChannel(id) {
+		return ErrConflict
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	k := [2]string{tenant, id}
+	c, ok := s.ch.rows[k]
+	if !ok {
+		return ErrNotFound
+	}
+	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0052 CHECK
+		return ErrConflict
+	}
+	c.DeletedAt, c.DeletedBy = now, by
+	delete(s.ch.rows, k)
+	s.ch.deleted[k] = c
+	return nil
+}
+
+func (s *Memory) RestoreChannel(_ context.Context, tenant, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	k := [2]string{tenant, NormalizeChannel(id)}
+	c, ok := s.ch.deleted[k]
+	if !ok {
+		return ErrNotFound
+	}
+	c.DeletedAt, c.DeletedBy = time.Time{}, ""
+	delete(s.ch.deleted, k)
+	s.ch.rows[k] = c
+	return nil
 }
 
 // SetSubscriptions records one box announce.
@@ -170,6 +220,9 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 	defer s.mu.Unlock()
 	s.ch.init()
 	out := map[string][]string{}
+	if s.ch.gone(tenant, channel) {
+		return out, nil
+	}
 	for k, m := range s.ch.subs {
 		if k[0] != tenant {
 			continue
@@ -276,8 +329,8 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 		st.Boxes = len(boxes)
 	}
 	out := make([]ChannelStat, 0, len(by))
-	for _, st := range by {
-		if !ChannelHidden(st.ChannelID) { // issue discussions are not a channel
+	for id, st := range by {
+		if !ChannelHidden(id) && !s.ch.gone(tenant, id) { // issue discussions are not a channel; rdb 0052
 			out = append(out, *st)
 		}
 	}

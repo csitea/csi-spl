@@ -32,4 +32,16 @@
 - [ ] T034 (FR-021, FR-023) Align the group / type / operator names with `search-v1.md`: the code says `topics` / `topic:` since `57f8a670`, the contract says `threads` / `thread:`. Status: open, integrator/owner decision (asked in topic 582f7895). Either the contract moves to `topics` (with `thread` kept as an alias) or `internal/search/grammar.go` restores the `thread` aliases.
 - [ ] T035 (FR-001..FR-025) Signed-in prd run of `tests/e2e/top-bar-search.proof.mjs` on prd tenant `e2e` (T031 skipped prd signed-in only because prd t1 is a real tenant; 023 T042 already used `e2e`).
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->
+## Phase 5 — Smart omnibox (owner 2026-09-26, spec §8, §9)
+
+- [x] T040 (FR-040, FR-041, FR-043) `type:tenant` / `type:event` opt-in sections, `word*` prefix, thread alias (CLE-34973, 393c5a87). Check: `go test ./internal/search/ ./internal/hub/ ./internal/store/` + `hub-pg.tst.sh` (per its commit).
+- [x] T041 (FR-040, FR-042, FR-043, FR-044, FR-045) grammar 1.1: as-you-type last-word prefix, `search.Fold`, `kind:` / `channel:` / `person`, `name:` on topic titles, dates on events (1a4b38c6, 0.6.8). Check: `go test ./internal/search/` (`smart_test.go`: `TestFold`, `TestSmartGrammar`, `TestPrefixHighlight`).
+- [x] T042 (FR-044) rdb `0048_search_spool_search.sql` (5419867c); applied dev 2026-09-26 06:44:58Z, prd 06:45:23Z (`spool_schema_migrations`), checked as `spool_hub_rt`: `to_tsvector('spool_search','Café Straße')` = `'cafe':1 'strasse':2` on both.
+- [x] T043 (FR-044, FR-047) the store on `spool_search`, folded name matching, `topicCandidates` (f1ac8ffb, 0.6.9; dev + prd `/version` = f1ac8ffb at 06:57Z). Check: `store/search_fold_test.go` `TestSearchFold` on memory AND Postgres.
+- [x] T044 (FR-047) scale actions `do_spl_search_seed` / `do_spl_search_measure` / `do_spl_search_seed_purge` + `spl-search-seed.tst.sh` (747133c7); numbers in §9.
+- [x] T045 (FR-048) WUI help popover, tenant / event rows, 19 locales (9123919f, abbe819b; reviewed by CLE-34992: no blocking finding).
+- [x] T046 (FR-047) measured at 400k messages / 10k topics / 950 channels on dev, n=3 (§9); seed deleted 07:44Z. Finding: under FORCE RLS the GIN index is never used (`ts_match_vq` is not LEAKPROOF).
+- [ ] T047 (FR-047) the search ceiling: owner decision D-S1..D-S4 (§9). Open.
+- [ ] T048 (FR-040) `type:issue` (issues, spec 039): `status:` / `priority:` / `assignee:` / `label:`, opt-in; agreed with CLE-34993 07:10Z.
+
+<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T07:44:43Z -->

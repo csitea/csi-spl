@@ -3,6 +3,13 @@
 **Feature**: `specs/022-spool-wui-top-bar-search` · **Created**: 2026-09-19 · **Lane**: WUI-TOPBAR-SEARCH
 **Depends on**: the hub search contract `search-v1.md` (HUB-SEARCH-API lane — owns the grammar, the parser and the backend)
 
+> Owner, 2026-09-26 06:21Z, PRD #spool-hub-devel (topic `6a7a6c73`), verbatim: "in the omnibox we need to have
+> synthax for searching for every object which is in the ui to list the filtered objects , those are - tenants ,
+> channels , messges , topics , event logs etc. , so the normal search should be by content , but there should be
+> a synthax to be able to search by specific names as well ... Overall the omnibox should be really really smart ,
+> we need to improve the indexsing and searching capabliities of it once the data in the db starts grwoing and
+> take into the considerations the existing languages as well ..." — §8, §9 (CLE-34992, CLE-34973, GRK-3518).
+
 ## 1. Owner ask (verbatim, 2026-09-19)
 
 > "the whole WUI layout should be changed so that there will be a horizontal strip on the top which will stay
@@ -102,4 +109,72 @@ Omnibox (`utils/omnibox-size.mjs`), operators fetched only with a member session
 `operators-session.proof.mjs`), the `/search` view door (`tests/unit/search-door.test.mjs`, 010 FR-009), and the
 800px sidebar rail (`tests/e2e/top-bar-rail-live.proof.mjs`).
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->
+## 8. Smart omnibox: every UI object, content first, names by syntax (2026-09-26)
+
+Owner quote at the top of this file. One grammar, parsed in the hub (`internal/search`, `search.Version` 1.1); the
+WUI never parses a query (FR-011 unchanged).
+
+- **FR-040** Object kinds, `type:` (alias `kind:`): message, topic (alias thread), file, channel, user (alias
+  person), robot (alias agent), box, **tenant** (the reader's own memberships; a row switches workspace and reads
+  nothing of that tenant) and **event** (the reader's OWN event log, rdb 0045, the privacy of `/api/v1/auth/events`).
+- **FR-041** Plain words search CONTENT: message bodies, topic titles, file names, the names of channels, people,
+  agents and boxes. tenant and event are **opt-in** (`type:tenant`, `type:event`): with them in the default set,
+  `GET /v1/view/search?q=seed` cost 14 DB round trips against the budget of 9 (`TestRoundTripsPerRequest`, local
+  pg16, n=5; CLE-34973, 393c5a87).
+- **FR-042** Names by syntax: `name:<text>` matches only the object's NAME (a topic's title, a channel, tenant,
+  person, agent, box or file name, an event's code), never its content. `title:` stays for topics.
+- **FR-043** As you type: the query's last bare word is a prefix while nothing is typed after it (`deplo` finds
+  deploy, deployed; `deplo ` and `-deplo` do not). `word*` and `title:word*` force a prefix anywhere (393c5a87).
+  The user text reaches Postgres only as `plainto_tsquery`'s bind parameter; `:*` is appended to its OUTPUT.
+- **FR-044** Languages: one language-neutral match for all 19 locales. Case and accents fold (`cafe` = Café,
+  `strasse` = Straße, `resume` = résumé, `lodz` = Łódź, Greek tonos); a mark that is part of the letter stays
+  (й, Hangul). Postgres: rdb 0048 `spool_search` = the `simple` parser behind `unaccent`; Go: `search.Fold`
+  (memory store, highlights, name matching). No stemmer per language: a message has no language tag, and one
+  language's stemmer on another's text loses matches; FR-043's prefix covers inflection for every language.
+  CJK has no word breaks, so a CJK run matches by prefix only; `pg_trgm` is the follow-up if a locale needs
+  substring search, measured first.
+- **FR-045** Scopes: `in:` (alias `channel:`), `from:`, `to:`, `box:`, `topic:`, `is:`, `has:`, `ext:`,
+  `larger:`/`smaller:`, and `before:`/`after:`/`on:` (also on events). Space = AND, `OR`, `-`, `( )`.
+- **FR-046** The read door is unchanged: nothing the reader cannot open comes back (rdb 0028 channels, a DM's two
+  ends, own events, own tenants); content search stays in the tenant the reader is in.
+- **FR-047** Scale: the topic section finds candidate topics through the message index (`topicCandidates`)
+  before it aggregates, when the query has a top-level positive text / `title:` / `in:` term; §9 measures it.
+- **FR-048** WUI (GRK-3518): operator help popover and autocomplete from `GET /v1/view/search/operators`,
+  tenant rows switch workspace, event rows open `/events#<event_id>`, 19 locales (9123919f, abbe819b).
+
+## 9. Scale, measured (dev, 2026-09-26, CLE-34992)
+
+**Setup.** `do_spl_search_seed` put 400 000 messages / 10 000 topics / 950 channels into one throwaway dev
+tenant (`seed-search`), on the dev Cloud SQL `db-f1-micro` (the prd tier; no bigger tier, owner rule). The 1M
+target stopped at 400k: batches 1-3 took about 1 min each and batch 4 took 8+ min on the shared-core CPU. 400k is
+235x prd's whole message table (1 696 rows, 06:45Z). `do_spl_search_measure` then ran the store's SQL as the
+hub's runtime login (`spool_hub_rt`, tenant RLS scope, `jit` off, read-only session), n=3 per query, 60 s
+ceiling, trunk `f3e48bd1` + the measure fixes. `do_spl_search_seed_purge` deleted the seed at 07:44Z (0 rows,
+0 channels, 0 `seed-*` tenants left).
+
+| query (400k messages, one tenant) | before p50 / p95 | after p50 / p95 |
+|---|---|---|
+| topic section, a rare word (`term4242`, 8 rows) | 48.0 s / >60 s | **5.3 s / 7.0 s** (`topicCandidates`) |
+| topic section, a common word (`deploy`, ~10%) | 45.7 s / 53.5 s | 46.3 s / >60 s (no gain) |
+| message section, a rare word | 589 ms / 1 860 ms | — |
+| message section, a common word / `cafe` | 0.1 ms / 7.4 ms | — |
+
+**Finding (the ceiling).** The hub never uses the GIN index on `messages.search_tsv`, not since rdb 0020:
+`messages` has FORCE ROW LEVEL SECURITY and the tsvector match operator is not LEAKPROOF
+(`pg_proc`: `ts_match_vq` `proleakproof = f`), so Postgres will not use it as an index condition under the
+tenant policy. It scans the tenant's rows instead (EXPLAIN: `Index Scan Backward using messages_received ...
+Rows Removed by Filter: 344312`; the prefilter: `Parallel Seq Scan on messages k`). A common word is fast (the
+newest rows match at once); a rare word, and every topic query that must aggregate, costs a scan of the tenant.
+On `db-f1-micro` the 2 s search budget is reached somewhere below 400k messages in ONE tenant (30-day retention).
+Second, smaller: the store wraps every leaf in `COALESCE(..., false)` (for NOT), which also hides the match from
+the planner's row estimate (it planned 199 018 rows for 7).
+
+**Owner decisions (none taken here; each changes the tenant-isolation design, 017 FR-SEC-013/014):**
+- D-S1 a SECURITY DEFINER search function whose owner may bypass RLS, taking the tenant from the session scope
+  (one audited lift path, like `asOperator`);
+- D-S2 marking the tsvector operators LEAKPROOF (needs a real superuser, which Cloud SQL does not give);
+- D-S3 a per-tenant topic summary table kept by a trigger (title, channel, first/last, count), so the topic section
+  stops aggregating messages at all;
+- D-S4 accept the ceiling (prd is 1 696 messages today) and revisit when a tenant nears 100k.
+
+<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T07:44:43Z -->

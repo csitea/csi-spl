@@ -802,7 +802,7 @@
     "comment_placeholder": "Yorum",
     "comment_send": "Yorumla",
     "comment_empty": "Henüz yorum yok.",
-    "shortcuts": "C yeni. J ve K gezer. Enter açar. S durum. P öncelik. E düzey. A atanan. L etiket. Esc kapatır.",
+    "shortcuts": "C yeni. J ve K gezer. Enter açar. S durum. P öncelik. A atanan. L etiket. Esc kapatır.",
     "add_label": "Etiket ekle",
     "label_name": "Etiket adı",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Düşük"
     },
     "level": {
-      "0": "Düzey yok",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epik / Özellik",
+      "2": "İş",
+      "3": "Alt iş"
     },
     "all_issues": "Tüm işler",
     "kind_epic": "Epik",

@@ -15,10 +15,10 @@ import {
 const mk = (n, extra = {}) => normalizeIssue({ key: `SPL-${n}`, number: n, title: `t${n}`, ...extra })
 
 const list = [
-  mk(1, { priority: 2, level: 3, assignee: 'CLE-07', labels: ['bug'], deadline: '2026-10-01T12:30:00Z', updated_at: '2026-09-26T08:00:00Z' }),
+  mk(1, { priority: 2, level: 2, assignee: 'CLE-07', labels: ['bug'], deadline: '2026-10-01T12:30:00Z', updated_at: '2026-09-26T08:00:00Z' }),
   mk(2, { priority: 1, level: 1, assignee: 'HUM-3', status: 'todo', updated_at: '2026-09-26T09:00:00Z' }),
-  mk(3, { priority: 0, level: 5, updated_at: '2026-09-26T07:00:00Z' }),
-  mk(4, { priority: 4, status: 'done', deadline: '2026-09-01T00:00:00Z' }),
+  mk(3, { priority: 0, level: 3, updated_at: '2026-09-26T07:00:00Z' }),
+  mk(4, { priority: 4, level: 2, status: 'done', deadline: '2026-09-01T00:00:00Z' }),
 ]
 
 describe('sortIssues mirrors the hub (hub.SortIssues)', () => {
@@ -26,8 +26,8 @@ describe('sortIssues mirrors the hub (hub.SortIssues)', () => {
   it('priority: urgent first, no priority last', () => {
     assert.deepEqual(keys(sortIssues(list)), ['SPL-2', 'SPL-1', 'SPL-4', 'SPL-3'])
   })
-  it('level: largest first, ties by newest number', () => {
-    assert.deepEqual(keys(sortIssues(list, 'level')), ['SPL-3', 'SPL-1', 'SPL-2', 'SPL-4'])
+  it('level: the top of the tree first (rdb 0056), ties by newest number', () => {
+    assert.deepEqual(keys(sortIssues(list, 'level')), ['SPL-2', 'SPL-4', 'SPL-1', 'SPL-3'])
   })
   it('deadline: soonest first, none last', () => {
     assert.deepEqual(keys(sortIssues(list, 'deadline')), ['SPL-4', 'SPL-1', 'SPL-3', 'SPL-2'])
@@ -47,7 +47,7 @@ describe('matchIssue filters on every attribute', () => {
   it('status / priority / level / label', () => {
     assert.deepEqual(pick({ status: ['todo'] }), ['SPL-2'])
     assert.deepEqual(pick({ priority: [5] }), ['SPL-3']) // no priority reads as prio 5 (rdb 0054)
-    assert.deepEqual(pick({ level: [1, 3] }), ['SPL-1', 'SPL-2'])
+    assert.deepEqual(pick({ level: [1, 3] }), ['SPL-2', 'SPL-3'])
     assert.deepEqual(pick({ label: ['bug'] }), ['SPL-1'])
   })
   it('assignee me / none / an id', () => {
@@ -70,7 +70,7 @@ describe('groupIssues: one group per status, workflow order, counts', () => {
   })
   it('hideEmpty + filter + sort', () => {
     const g = groupIssues(list, { hideEmpty: true, sort: 'level', filter: { priority: [5, 2] } })
-    assert.deepEqual(g.map((x) => [x.status, x.issues.map((i) => i.key)]), [['eval', ['SPL-3', 'SPL-1']]])
+    assert.deepEqual(g.map((x) => [x.status, x.issues.map((i) => i.key)]), [['eval', ['SPL-1', 'SPL-3']]])
   })
   it('J / K walk the visible rows, collapsed groups skipped', () => {
     const order = visibleOrder(groupIssues(list), { todo: true })

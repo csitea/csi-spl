@@ -15,9 +15,10 @@ export const STATUS_LABEL = { eval: '01-eval', todo: '02-todo', wip: '03-wip', d
 export const statusLabel = (s) => STATUS_LABEL[s] || String(s || '')
 export const statusHintKey = (s) => `issues.status_hint.${s}`
 
-/** The owner's "level": Linear's t-shirt estimate. 0 none, 1 XS .. 5 XL. */
-export const ISSUE_LEVELS = [0, 1, 2, 3, 4, 5]
-export const LEVEL_SHORT = ['', 'XS', 'S', 'M', 'L', 'XL']
+/** Level is the row's place in the tree (rdb 0056, owner 2026-09-26, SPL-949):
+ *  1 epic / feature, 2 issue, 3 subtask. The hub derives it; nobody picks it. */
+export const ISSUE_LEVELS = [1, 2, 3]
+export const LEVEL_SHORT = ['', '1', '2', '3']
 
 /** Sort keys the hub answers (issues-v1 §4). priority is the default. */
 export const ISSUE_SORTS = ['priority', 'level', 'deadline', 'updated', 'created']
@@ -25,7 +26,7 @@ export const ISSUE_SORTS = ['priority', 'level', 'deadline', 'updated', 'created
 /** i18n keys: issues.status.<id>, issues.priority.<n>, issues.level.<n>. */
 export const statusKey = (s) => `issues.status.${s}`
 export const priorityKey = (p) => `issues.priority.${Number(p) || 0}`
-export const levelKey = (l) => `issues.level.${Number(l) || 0}`
+export const levelKey = (l) => `issues.level.${[1, 2, 3].includes(Number(l)) ? Number(l) : 2}`
 
 /**
  * The middle pane: one group per status in workflow order, each with its

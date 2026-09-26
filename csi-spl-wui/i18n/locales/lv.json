@@ -802,7 +802,7 @@
     "comment_placeholder": "Komentārs",
     "comment_send": "Komentēt",
     "comment_empty": "Komentāru vēl nav.",
-    "shortcuts": "C jauna. J un K pārvieto. Enter atver. S statuss. P prioritāte. E līmenis. A atbildīgais. L etiķete. Esc aizver.",
+    "shortcuts": "C jauna. J un K pārvieto. Enter atver. S statuss. P prioritāte. A atbildīgais. L etiķete. Esc aizver.",
     "add_label": "Pievienot etiķeti",
     "label_name": "Etiķetes nosaukums",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Zema"
     },
     "level": {
-      "0": "Nav līmeņa",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Episks / Funkcija",
+      "2": "Uzdevums",
+      "3": "Apakšuzdevums"
     },
     "all_issues": "Visi uzdevumi",
     "kind_epic": "Episks",

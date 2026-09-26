@@ -802,7 +802,7 @@
     "comment_placeholder": "Komentár",
     "comment_send": "Komentár",
     "comment_empty": "Zatiaľ žiadne komentáre.",
-    "shortcuts": "C nová. J a K posúvajú. Enter otvorí. S stav. P priorita. E úroveň. A riešiteľ. L štítok. Esc zavrie.",
+    "shortcuts": "C nová. J a K posúvajú. Enter otvorí. S stav. P priorita. A riešiteľ. L štítok. Esc zavrie.",
     "add_label": "Pridať štítok",
     "label_name": "Názov štítku",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Nízka"
     },
     "level": {
-      "0": "Bez úrovne",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epik / Funkcia",
+      "2": "Úloha",
+      "3": "Podúloha"
     },
     "all_issues": "Všetky úlohy",
     "kind_epic": "Epik",

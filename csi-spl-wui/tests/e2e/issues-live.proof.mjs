@@ -9,9 +9,9 @@
 //   1. Issues is the third rail tab (after Channels) and opens /issues
 //   2. create an issue in the UI (title + description) -> it gets a key
 //   3. the middle list shows key + title, never the description
-//   4. status 03-wip, prio 1, level L, assignee, deadline with
-//      time through the right-pane controls -> the row moves to the
-//      03-wip group, carries prio 1 / level 4; the hub answers the
+//   4. status 03-wip, prio 1, assignee, deadline with time through the
+//      right-pane controls -> the row moves to the 03-wip group, carries
+//      prio 1 and the tree's level 2 (SPL-949: read-only); the hub answers the
 //      same values (GET /v1/view/issues/{key}), deadline stored UTC
 //   5. a second tab sees a later change live, without a reload
 //   6. a comment lands in the issue's discussion
@@ -192,7 +192,9 @@ try {
   // 4. attributes from the right pane
   await pick(p, 'issues-status', 'wip')
   await pick(p, 'issues-priority', '1')
-  await pick(p, 'issues-level', '4')
+  /* SPL-949: level is the tree's, shown and never picked */
+  const lvl = await p.$eval('[data-test=issues-level]', (el) => ({ tag: el.tagName, level: el.getAttribute('data-level'), text: el.textContent.trim() }))
+  step('4 level is read-only and the tree\'s: an issue under an epic is 2', lvl.tag !== 'BUTTON' && lvl.level === '2' && /\b2$/.test(lvl.text), lvl)
   const who = await pick(p, 'issues-assignee', null)
   const local = await p.evaluate(() => {
     const d = new Date(Date.now() + 2 * 86400000)
@@ -220,9 +222,9 @@ try {
       const g = el.closest('.issues-group')
       return { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') }
     })(k)
-    return r && r.status === 'wip' && r.priority === '1' && r.level === '4' ? r : null
+    return r && r.status === 'wip' && r.priority === '1' && r.level === '2' ? r : null
   }, key))
-  step('4 the row moved to 03-wip with prio 1 and level L', !!row1, { row: row1 })
+  step('4 the row moved to 03-wip with prio 1 and level 2', !!row1, { row: row1 })
   const wantUTC = await p.evaluate((v) => new Date(v).toISOString().replace(/\.\d{3}Z$/, 'Z'), local)
   /* the deadline PATCH goes out on change and takes 1-3 s from this box:
      poll the hub for it rather than read once after a fixed wait */
@@ -232,7 +234,7 @@ try {
     return hub.deadline === wantUTC && hub.assignee === who
   }, 15000)
   step('4 the hub holds the same values; the deadline is the calendar+time value in UTC',
-    hub.status === 'wip' && hub.priority === 1 && hub.level === 4 && hub.assignee === who && hub.deadline === wantUTC &&
+    hub.status === 'wip' && hub.priority === 1 && hub.level === 2 && hub.assignee === who && hub.deadline === wantUTC &&
     hub.description === descr && dlType === 'date',
     { status: hub.status, priority: hub.priority, level: hub.level, assignee: hub.assignee, deadline: hub.deadline, want: wantUTC, control: dlType })
   await shot(p, '02-edited-detail')
@@ -275,8 +277,8 @@ try {
     const g = el && el.closest('.issues-group')
     return el ? { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') } : null
   }, key), 30000)
-  step('7 after a reload the row is still 07-qas, prio 1, level L',
-    !!row2 && row2.status === 'qas' && row2.priority === '1' && row2.level === '4', { row: row2 })
+  step('7 after a reload the row is still 07-qas, prio 1, level 2',
+    !!row2 && row2.status === 'qas' && row2.priority === '1' && row2.level === '2', { row: row2 })
   await p.click(`[data-test=issues-row][data-key="${key}"]`)
   await p.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: 10000 })
   const dlAfter = await p.evaluate(() => document.querySelector('[data-test=issues-deadline]').value + 'T' + document.querySelector('[data-test=issues-deadline-time]').value)
@@ -323,7 +325,8 @@ try {
     const el = document.querySelector(`[data-testid=sidebar-epic][data-key="${k}"]`)
     return el ? el.querySelector('.epic-row__kind').getAttribute('data-kind') : ''
   }, fkey), 20000)
-  step('10 a feature made in the UI is a level-1 row of the panel', !!fkey && frow === 'feature', { key: fkey, kind: frow })
+  const fhub = fkey ? await hubIssue(p, fkey) : {}
+  step('10 a feature made in the UI is a level-1 row of the panel (level 1)', !!fkey && frow === 'feature' && fhub.level === 1, { key: fkey, kind: frow, level: fhub.level })
   await p.click(`[data-testid=sidebar-epic][data-key="${fkey}"]`)
   await until(() => p.evaluate(() => new URL(location.href).searchParams.get('epic')), 15000)
   await sleep(1200)
@@ -338,7 +341,7 @@ try {
     return !document.querySelector('[data-test=issues-create]') && t && t.value === want && k ? k.textContent.trim() : ''
   }, ititle), 30000)
   const ihub = ikey ? await hubIssue(p, ikey) : {}
-  step('11 an issue filed with the feature selected lands under it (level 2)', ihub.kind === 'issue' && ihub.epic === fkey, { key: ikey, kind: ihub.kind, epic: ihub.epic })
+  step('11 an issue filed with the feature selected lands under it (level 2)', ihub.kind === 'issue' && ihub.epic === fkey && ihub.level === 2, { key: ikey, kind: ihub.kind, epic: ihub.epic, level: ihub.level })
   await p.waitForSelector('[data-test=issues-subtask-input]', { visible: true, timeout: 10000 })
   await p.type('[data-test=issues-subtask-input]', `Proof subtask ${run}`)
   await p.click('[data-test=issues-subtask-add]')
@@ -352,7 +355,7 @@ try {
     return el && el.textContent.trim() === '0/1' ? el.textContent.trim() : ''
   }, fkey), 15000)
   step('12 a subtask added in the right pane is level 3 under the issue; the panel counts the issue',
-    shub.kind === 'subtask' && shub.parent === ikey && shub.epic === fkey && count === '0/1', { key: skey, kind: shub.kind, parent: shub.parent, epic: shub.epic, count })
+    shub.kind === 'subtask' && shub.parent === ikey && shub.epic === fkey && shub.level === 3 && count === '0/1', { key: skey, kind: shub.kind, parent: shub.parent, epic: shub.epic, level: shub.level, count })
   await sleep(800)
   await shot(p, '05-epics-features-subtasks')
 } catch (e) {

@@ -802,7 +802,7 @@
     "comment_placeholder": "Comment",
     "comment_send": "Comment",
     "comment_empty": "No comments yet.",
-    "shortcuts": "C new issue. J and K move. Enter opens. S status. P priority. E level. A assignee. L label. Esc closes.",
+    "shortcuts": "C new issue. J and K move. Enter opens. S status. P priority. A assignee. L label. Esc closes.",
     "add_label": "Add label",
     "label_name": "Label name",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Low"
     },
     "level": {
-      "0": "No level",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epic / Feature",
+      "2": "Issue",
+      "3": "Subtask"
     },
     "all_issues": "All issues",
     "kind_epic": "Epic",

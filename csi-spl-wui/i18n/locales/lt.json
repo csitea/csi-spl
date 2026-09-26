@@ -802,7 +802,7 @@
     "comment_placeholder": "Komentaras",
     "comment_send": "Komentuoti",
     "comment_empty": "Komentarų dar nėra.",
-    "shortcuts": "C nauja. J ir K juda. Enter atidaro. S būsena. P prioritetas. E lygis. A atsakingas. L žyma. Esc uždaro.",
+    "shortcuts": "C nauja. J ir K juda. Enter atidaro. S būsena. P prioritetas. A atsakingas. L žyma. Esc uždaro.",
     "add_label": "Pridėti žymą",
     "label_name": "Žymos pavadinimas",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Žemas"
     },
     "level": {
-      "0": "Be lygio",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epikas / Funkcija",
+      "2": "Užduotis",
+      "3": "Použduotis"
     },
     "all_issues": "Visos užduotys",
     "kind_epic": "Epikas",

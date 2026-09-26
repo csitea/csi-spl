@@ -802,7 +802,7 @@
     "comment_placeholder": "Comentariu",
     "comment_send": "Comentează",
     "comment_empty": "Nu există încă comentarii.",
-    "shortcuts": "C nou. J și K mută. Enter deschide. S stare. P prioritate. E nivel. A responsabil. L etichetă. Esc închide.",
+    "shortcuts": "C nou. J și K mută. Enter deschide. S stare. P prioritate. A responsabil. L etichetă. Esc închide.",
     "add_label": "Adaugă etichetă",
     "label_name": "Numele etichetei",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Scăzută"
     },
     "level": {
-      "0": "Fără nivel",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epic / Funcționalitate",
+      "2": "Problemă",
+      "3": "Subsarcină"
     },
     "all_issues": "Toate problemele",
     "kind_epic": "Epic",

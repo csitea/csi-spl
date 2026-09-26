@@ -802,7 +802,7 @@
     "comment_placeholder": "Komentarz",
     "comment_send": "Komentarz",
     "comment_empty": "Nie ma jeszcze komentarzy.",
-    "shortcuts": "C nowe. J i K przesuwają. Enter otwiera. S status. P priorytet. E poziom. A przypisany. L etykieta. Esc zamyka.",
+    "shortcuts": "C nowe. J i K przesuwają. Enter otwiera. S status. P priorytet. A przypisany. L etykieta. Esc zamyka.",
     "add_label": "Dodaj etykietę",
     "label_name": "Nazwa etykiety",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Niski"
     },
     "level": {
-      "0": "Bez poziomu",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epik / Funkcja",
+      "2": "Zadanie",
+      "3": "Podzadanie"
     },
     "all_issues": "Wszystkie zadania",
     "kind_epic": "Epik",

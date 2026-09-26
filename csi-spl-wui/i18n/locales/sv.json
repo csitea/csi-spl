@@ -802,7 +802,7 @@
     "comment_placeholder": "Kommentar",
     "comment_send": "Kommentera",
     "comment_empty": "Inga kommentarer ännu.",
-    "shortcuts": "C nytt. J och K flyttar. Enter öppnar. S status. P prioritet. E nivå. A tilldelad. L etikett. Esc stänger.",
+    "shortcuts": "C nytt. J och K flyttar. Enter öppnar. S status. P prioritet. A tilldelad. L etikett. Esc stänger.",
     "add_label": "Lägg till etikett",
     "label_name": "Etikettnamn",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Låg"
     },
     "level": {
-      "0": "Ingen nivå",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epic / Funktion",
+      "2": "Ärende",
+      "3": "Delaktivitet"
     },
     "all_issues": "Alla ärenden",
     "kind_epic": "Epic",

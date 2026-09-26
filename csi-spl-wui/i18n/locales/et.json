@@ -802,7 +802,7 @@
     "comment_placeholder": "Kommentaar",
     "comment_send": "Kommenteeri",
     "comment_empty": "Kommentaare veel pole.",
-    "shortcuts": "C uus. J ja K liigutavad. Enter avab. S olek. P tähtsus. E tase. A vastutaja. L silt. Esc sulgeb.",
+    "shortcuts": "C uus. J ja K liigutavad. Enter avab. S olek. P tähtsus. A vastutaja. L silt. Esc sulgeb.",
     "add_label": "Lisa silt",
     "label_name": "Sildi nimi",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Madal"
     },
     "level": {
-      "0": "Taset pole",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Eepik / Funktsioon",
+      "2": "Ülesanne",
+      "3": "Alamülesanne"
     },
     "all_issues": "Kõik ülesanded",
     "kind_epic": "Eepik",

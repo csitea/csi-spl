@@ -802,7 +802,7 @@
     "comment_placeholder": "Opmerking",
     "comment_send": "Opmerking",
     "comment_empty": "Nog geen opmerkingen.",
-    "shortcuts": "C nieuw. J en K verplaatsen. Enter opent. S status. P prioriteit. E niveau. A toegewezen. L label. Esc sluit.",
+    "shortcuts": "C nieuw. J en K verplaatsen. Enter opent. S status. P prioriteit. A toegewezen. L label. Esc sluit.",
     "add_label": "Label toevoegen",
     "label_name": "Labelnaam",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Laag"
     },
     "level": {
-      "0": "Geen niveau",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Epic / Feature",
+      "2": "Issue",
+      "3": "Subtaak"
     },
     "all_issues": "Alle issues",
     "kind_epic": "Epic",

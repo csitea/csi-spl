@@ -66,7 +66,7 @@ const ms = (s) => {
 
 /**
  * The hub's order (hub.SortIssues): priority urgent first and none last;
- * level largest first; deadline soonest first and none last; updated /
+ * level top of the tree first (1 epic / feature, 2 issue, 3 subtask); deadline soonest first and none last; updated /
  * created newest first. Ties: the newest number first. Returns a new array.
  */
 export function sortIssues(list, by = 'priority') {
@@ -78,7 +78,7 @@ export function sortIssues(list, by = 'priority') {
         c = prioRank(x.priority) - prioRank(y.priority)
         break
       case 'level':
-        c = (Number(y.level) || 0) - (Number(x.level) || 0)
+        c = (Number(x.level) || 0) - (Number(y.level) || 0)
         break
       case 'deadline': {
         const a = ms(x.deadline)
@@ -164,7 +164,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   }
   const apply = (i, b, by) => {
     const out = { ...i }
-    for (const k of ['title', 'description', 'status', 'priority', 'level', 'assignee', 'labels', 'deadline']) {
+    for (const k of ['title', 'description', 'status', 'priority', 'assignee', 'labels', 'deadline']) {
       if (b[k] !== undefined && b[k] !== null) out[k] = k === 'labels' ? b[k].slice() : b[k]
     }
     if (b.epic !== undefined || b.parent !== undefined) out.parent = String(b.epic ?? b.parent ?? '')
@@ -206,12 +206,19 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     const e = find(b.epic)
     if (e && !isTopKind(e.kind)) throw mockErr(400, 'bad_epic')
   }
-  /* the stored row -> what the hub answers: kind subtask and the level-1 key */
+  /* the stored row -> what the hub answers: kind subtask, the level-1 key and
+     the tree's level (rdb 0056: 1 epic / feature, 2 issue, 3 subtask) */
   const view = (i) => {
-    if (isTopKind(i.kind)) return { ...i, epic: '' }
+    if (isTopKind(i.kind)) return { ...i, epic: '', level: 1 }
     const p = find(i.parent)
-    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent }
-    return { ...i, kind: 'issue', epic: i.parent }
+    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent, level: 3 }
+    return { ...i, kind: 'issue', epic: i.parent, level: 2 }
+  }
+  /* hub setLevel: a level in the body is only checked against the tree's */
+  const levelField = (b, i, create) => {
+    const lv = b ? b.level : undefined
+    if (lv === undefined || lv === null || (create && lv === 0)) return
+    if (!(lv >= 1 && lv <= 3) || lv !== view(i).level) throw mockErr(400, 'bad_issue')
   }
   const summaries = () => issues.filter((e) => isTopKind(e.kind)).map((e) => {
     const mine = issues.filter((i) => !isTopKind(i.kind) && i.parent === e.key)
@@ -242,6 +249,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
         task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
         created_by: me, created_at: at, updated_by: me, updated_at: at })
       check(i)
+      levelField(body, i, true)
       last++
       issues = [...issues, i]
       return { issue: view(i) }
@@ -252,6 +260,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       if (!i) throw mockErr(404, 'not_found')
       const next = normalizeIssue(apply(i, patch, me))
       check(next)
+      levelField(patch, next, false)
       issues = issues.map((x) => (x.key === i.key ? next : x))
       return { issue: view(next) }
     },

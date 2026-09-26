@@ -802,7 +802,7 @@
     "comment_placeholder": "Comentario",
     "comment_send": "Comentar",
     "comment_empty": "Todavía no hay comentarios.",
-    "shortcuts": "C nueva. J y K mueven. Enter abre. S estado. P prioridad. E nivel. A responsable. L etiqueta. Esc cierra.",
+    "shortcuts": "C nueva. J y K mueven. Enter abre. S estado. P prioridad. A responsable. L etiqueta. Esc cierra.",
     "add_label": "Añadir etiqueta",
     "label_name": "Nombre de la etiqueta",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Baja"
     },
     "level": {
-      "0": "Sin nivel",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Épica / Funcionalidad",
+      "2": "Incidencia",
+      "3": "Subtarea"
     },
     "all_issues": "Todas las incidencias",
     "kind_epic": "Épica",

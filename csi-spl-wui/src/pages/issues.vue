@@ -54,7 +54,7 @@
         </select>
         <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
           <option value="">{{ t('issues.filter_level') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)">{{ LEVEL_SHORT[n] || t(levelKey(n)) }}</option>
+          <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
         </select>
         <select v-model="assigneeF" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')">
           <option value="">{{ t('issues.filter_assignee') }}: {{ t('issues.filter_all') }}</option>
@@ -109,7 +109,7 @@
               <span class="issues-key">{{ issue.key }}</span>
               <span class="issues-title">{{ issue.title }}</span>
               <button v-if="!epicF && issue.epic" type="button" class="issues-pill issues-epic-tag" data-test="issues-row-epic" @click.stop="openMenu('epic', issue, $event)">{{ epicTitleOf(issue.epic) }}</button>
-              <button v-if="levelShort(issue.level)" type="button" class="issues-level" data-test="issues-row-level" @click.stop="openMenu('level', issue, $event)">{{ levelShort(issue.level) }}</button>
+              <span v-if="levelShort(issue.level)" class="issues-level" data-test="issues-row-level" :title="t(levelKey(issue.level))">{{ levelShort(issue.level) }}</span>
               <span v-if="issue.labels.length" class="issues-pills">
                 <button v-for="id in issue.labels" :key="id" type="button" class="issues-pill" data-test="issues-row-label" @click.stop="openMenu('label', issue, $event)">
                   <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
@@ -190,9 +190,10 @@
         <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
           <span>{{ t('issues.field_priority') }} {{ form.priority }}</span>
         </button>
-        <button type="button" class="issues-prop" data-test="issues-level" @click="openMenu('level', detailOrDraft(), $event)">
-          <span class="issues-level">{{ levelShort(form.level) || t('issues.level_none') }}</span>
-        </button>
+        <!-- SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it, nobody picks it -->
+        <span class="issues-prop issues-prop--fixed" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
+          {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
+        </span>
         <button type="button" class="issues-prop" data-test="issues-assignee" @click="openMenu('assign', detailOrDraft(), $event)">
           <SpoolAvatar v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" :size="20" />
           <HumanName v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" />
@@ -385,7 +386,7 @@ const pageEl = ref<HTMLElement | null>(null)
 const detailW = ref(ISSUE_PANE_DEFAULT)
 const detailRoom = ref(720)
 const draft = reactive({
-  title: '', description: '', status: 'todo', priority: PRIO_DEFAULT, level: 0,
+  title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
   assignee: '', labels: [] as string[], deadlineLocal: '',
   epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
 })
@@ -547,7 +548,7 @@ const form = computed(() => {
   if (creating.value) {
     return {
       key: '', title: draft.title, description: draft.description, status: draft.status,
-      priority: draft.priority, level: draft.level, deadline: draft.deadlineLocal,
+      priority: draft.priority, level: isTopKind(draft.kind) ? 1 : 2, deadline: draft.deadlineLocal,
       created_by: '', updated_by: '', task_id: '', epic: isTopKind(draft.kind) ? '' : draft.epic, kind: draft.kind as string,
     }
   }
@@ -642,7 +643,6 @@ function startCreate() {
   draft.description = ''
   draft.status = 'todo'
   draft.priority = PRIO_DEFAULT
-  draft.level = 0
   draft.assignee = ''
   draft.labels = []
   draft.deadlineLocal = ''
@@ -660,7 +660,7 @@ function detailOrDraft(): Issue {
     description: draft.description,
     status: draft.status,
     priority: draft.priority,
-    level: draft.level,
+    level: isTopKind(draft.kind) ? 1 : 2,
     assignee: draft.assignee,
     labels: draft.labels,
     epic: draft.epic,
@@ -673,7 +673,6 @@ const menuOptions = computed(() => {
   const hint = ''
   if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: statusLabel(s), hint: t(statusHintKey(s)) }))
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
-  if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)), hint }))
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
   if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
@@ -767,7 +766,6 @@ async function applyMenu(value: string) {
   if (creating.value) {
     if (kind === 'status') draft.status = value
     else if (kind === 'priority') draft.priority = Number(value)
-    else if (kind === 'level') draft.level = Number(value)
     else if (kind === 'assign') draft.assignee = value
     else if (kind === 'epic') draft.epic = value
     else if (kind === 'label') {
@@ -781,7 +779,6 @@ async function applyMenu(value: string) {
   const body: Record<string, unknown> = {}
   if (kind === 'status') body.status = value
   else if (kind === 'priority') body.priority = Number(value)
-  else if (kind === 'level') body.level = Number(value)
   else if (kind === 'assign') body.assignee = value
   else if (kind === 'epic') body.parent = value /* issues-v1: parent is the epic; an older hub knows only parent */
   else if (kind === 'label') {
@@ -816,7 +813,6 @@ async function createIssue() {
     description: draft.description,
     status: draft.status,
     priority: draft.priority,
-    level: draft.level,
   }
   if (draft.assignee) body.assignee = draft.assignee
   if (draft.labels.length) body.labels = draft.labels.slice()
@@ -934,7 +930,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (k === 'k' || key === 'ArrowUp') { move(-1); ev.preventDefault(); return }
   if (key === 'Enter') { const issue = flat.value.find((i) => i.key === cursorKey.value) || flat.value[0]; if (issue) choose(issue); ev.preventDefault(); return }
   if (k === 'c') { startCreate(); ev.preventDefault(); return }
-  const kind = { s: 'status', p: 'priority', e: 'level', a: 'assign', l: 'label' }[k]
+  const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
   const issue = creating.value ? detailOrDraft() : (detail.value || flat.value.find((i) => i.key === cursorKey.value) || flat.value[0])
   if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
 }
@@ -1267,6 +1263,7 @@ onUnmounted(() => {
 .issues-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
 .issues-props { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .issues-prop { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 4px 8px; }
+.issues-prop--fixed { cursor: default; display: inline-flex; align-items: center; gap: 4px; }
 .issues-meta { margin: 0; font-size: 0.75rem; }
 .issues-talk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .issues-deadline { display: flex; gap: 6px; flex-wrap: wrap; }

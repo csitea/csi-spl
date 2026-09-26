@@ -103,6 +103,11 @@ try {
     times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.paneRight,
     { body, deadlineType, first: times[0], last: times[times.length - 1], n: times.length, side })
 
+  /* SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask), shown and never picked */
+  const lvl = await p.$eval('[data-test=issues-level]', (el) => ({ tag: el.tagName, level: el.getAttribute('data-level') }))
+  const opts = await p.$$eval('[data-test=issues-filter-level] option', (els) => els.map((e) => e.value).filter(Boolean))
+  ok('4b level is read-only, 2 for an issue; the filter offers 1, 2, 3', lvl.tag !== 'BUTTON' && lvl.level === '2' && opts.join() === '1,2,3', { lvl, opts })
+
   await p.click('[data-test=issues-status]')
   await p.waitForSelector('[data-test=issues-menu-option][data-value="wip"]', { visible: true, timeout: 5000 })
   await p.hover('[data-test=issues-menu-option][data-value="diss"]')

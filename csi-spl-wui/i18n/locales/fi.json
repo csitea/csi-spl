@@ -802,7 +802,7 @@
     "comment_placeholder": "Kommentti",
     "comment_send": "Kommentoi",
     "comment_empty": "Ei vielä kommentteja.",
-    "shortcuts": "C uusi. J ja K siirtävät. Enter avaa. S tila. P tärkeys. E taso. A vastuuhenkilö. L merkki. Esc sulkee.",
+    "shortcuts": "C uusi. J ja K siirtävät. Enter avaa. S tila. P tärkeys. A vastuuhenkilö. L merkki. Esc sulkee.",
     "add_label": "Lisää merkki",
     "label_name": "Merkin nimi",
     "status": {
@@ -821,12 +821,9 @@
       "4": "Matala"
     },
     "level": {
-      "0": "Ei tasoa",
-      "1": "XS",
-      "2": "S",
-      "3": "M",
-      "4": "L",
-      "5": "XL"
+      "1": "Eepos / Ominaisuus",
+      "2": "Tiketti",
+      "3": "Alitehtävä"
     },
     "all_issues": "Kaikki tiketit",
     "kind_epic": "Eepos",

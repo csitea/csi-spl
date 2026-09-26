@@ -82,7 +82,7 @@ describe('issues strings in all 19 locales', () => {
     const enLeaves = leaves(en.issues)
     assert.equal(enLeaves['status.in_progress'], 'In Progress')
     assert.equal(enLeaves['priority.1'], 'Urgent')
-    assert.equal(enLeaves['level.1'], 'XS')
+    assert.equal(enLeaves['level.1'], 'Epic / Feature') // SPL-949: level is the tree's
     assert.equal(en.sidebar.issues, 'Issues')
     for (const f of files) {
       const data = JSON.parse(readFileSync(join(dir, f), 'utf8'))

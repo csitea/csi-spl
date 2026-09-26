@@ -95,6 +95,10 @@ try {
   ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="in_progress"] [data-key="SPL-1"]')))
 
   await p.click('[data-test=issues-row][data-key="SPL-2"]')
+  await p.waitForFunction(() => {
+    const el = document.querySelector('[data-test=issues-row][data-selected="true"]')
+    return el && el.getAttribute('data-key') === 'SPL-2' && new URL(location.href).searchParams.get('issue') === 'SPL-2'
+  }, { timeout: 5000 })
   const before = await p.$eval('[data-test=issues-row][data-selected="true"]', (el) => el.getAttribute('data-key'))
   await p.keyboard.press('KeyJ')
   await p.waitForFunction((prev) => {

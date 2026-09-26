@@ -393,7 +393,8 @@
     "users": "Utilizatori",
     "events": "Jurnal de evenimente",
     "issues": "Probleme",
-    "epics": "Epice și funcționalități"
+    "epics": "Epice și funcționalități",
+    "archive": "Arhivă"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -486,7 +487,9 @@
       "copy_link": "Copiază linkul",
       "delete": "Șterge",
       "merge_prev": "Unește cu mesajul anterior",
-      "merge_next": "Unește cu mesajul următor"
+      "merge_next": "Unește cu mesajul următor",
+      "archive": "Arhivează",
+      "unarchive": "Scoate din arhivă"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -515,6 +518,15 @@
       "change": "Tip: {kind}. Schimbă tipul",
       "menu": "Tip de mesaj",
       "failed": "Tipul nu a fost schimbat"
+    },
+    "topic_delete": {
+      "title": "Ștergi acest subiect?",
+      "body": "Mesajul de deschidere și tot ce este sub el sunt eliminate pentru toți. Acțiunea nu poate fi anulată.",
+      "count": "Răspunsuri șterse împreună cu el: {n}",
+      "confirm": "Șterge",
+      "busy": "Se șterge…",
+      "error": "Subiectul nu a fost șters. Încearcă din nou.",
+      "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Titlu",
     "comment_hint": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite",
     "comment_hint_enter": "Enter trimite, Shift+Enter adaugă un rând"
+  },
+  "archive": {
+    "title": "Arhivă",
+    "empty": "Nimic nu este arhivat.",
+    "hint": "Subiectele arhivate sunt ascunse în canale, mesaje directe și căutare. Scoate din arhivă aduce un subiect înapoi.",
+    "archived_at": "Arhivat {when}",
+    "load_failed": "Arhiva nu a putut fi încărcată.",
+    "error": "Subiectul nu a fost modificat. Încearcă din nou.",
+    "unarchive": "Scoate din arhivă",
+    "delete": "Șterge",
+    "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta."
   }
 }

@@ -393,7 +393,8 @@
     "users": "Používatelia",
     "events": "Denník udalostí",
     "issues": "Úlohy",
-    "epics": "Epiky a funkcie"
+    "epics": "Epiky a funkcie",
+    "archive": "Archív"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -486,7 +487,9 @@
       "copy_link": "Kopírovať odkaz",
       "delete": "Odstrániť",
       "merge_prev": "Zlúčiť s predchádzajúcou správou",
-      "merge_next": "Zlúčiť s nasledujúcou správou"
+      "merge_next": "Zlúčiť s nasledujúcou správou",
+      "archive": "Archivovať",
+      "unarchive": "Obnoviť z archívu"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -515,6 +518,15 @@
       "change": "Typ: {kind}. Zmeniť typ",
       "menu": "Typ správy",
       "failed": "Typ sa nezmenil"
+    },
+    "topic_delete": {
+      "title": "Odstrániť túto tému?",
+      "body": "Úvodná správa a všetko pod ňou sa odstráni pre všetkých. Nedá sa to vrátiť.",
+      "count": "Odpovede odstránené spolu s ňou: {n}",
+      "confirm": "Odstrániť",
+      "busy": "Odstraňuje sa…",
+      "error": "Téma sa neodstránila. Skúste to znova.",
+      "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Názov",
     "comment_hint": "Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle",
     "comment_hint_enter": "Enter odošle, Shift+Enter pridá riadok"
+  },
+  "archive": {
+    "title": "Archív",
+    "empty": "Archív je prázdny.",
+    "hint": "Archivované témy sú skryté v kanáloch, priamych správach a vo vyhľadávaní. Obnoviť z archívu tému vráti späť.",
+    "archived_at": "Archivované {when}",
+    "load_failed": "Archív sa nepodarilo načítať.",
+    "error": "Téma sa nezmenila. Skúste to znova.",
+    "unarchive": "Obnoviť z archívu",
+    "delete": "Odstrániť",
+    "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca."
   }
 }

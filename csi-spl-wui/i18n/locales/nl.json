@@ -393,7 +393,8 @@
     "users": "Gebruikers",
     "events": "Gebeurtenissenlogboek",
     "issues": "Kwesties",
-    "epics": "Epics en features"
+    "epics": "Epics en features",
+    "archive": "Archief"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -486,7 +487,9 @@
       "copy_link": "Link kopiëren",
       "delete": "Verwijderen",
       "merge_prev": "Samenvoegen met vorige bericht",
-      "merge_next": "Samenvoegen met volgende bericht"
+      "merge_next": "Samenvoegen met volgende bericht",
+      "archive": "Archiveren",
+      "unarchive": "Uit archief halen"
     },
     "emoji": {
       "add": "Emoji toevoegen",
@@ -515,6 +518,15 @@
       "change": "Type: {kind}. Type wijzigen",
       "menu": "Berichttype",
       "failed": "Het type is niet gewijzigd"
+    },
+    "topic_delete": {
+      "title": "Dit onderwerp verwijderen?",
+      "body": "Het openingsbericht en alles eronder worden voor iedereen verwijderd. Dit kan niet ongedaan worden gemaakt.",
+      "count": "Antwoorden die mee worden verwijderd: {n}",
+      "confirm": "Verwijderen",
+      "busy": "Verwijderen…",
+      "error": "Het onderwerp is niet verwijderd. Probeer het opnieuw.",
+      "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Titel",
     "comment_hint": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen",
     "comment_hint_enter": "Enter verstuurt, Shift+Enter voegt een regel toe"
+  },
+  "archive": {
+    "title": "Archief",
+    "empty": "Er is niets gearchiveerd.",
+    "hint": "Gearchiveerde onderwerpen zijn verborgen in kanalen, directe berichten en zoeken. Uit archief halen brengt een onderwerp terug.",
+    "archived_at": "Gearchiveerd {when}",
+    "load_failed": "Het archief kon niet worden geladen.",
+    "error": "Het onderwerp is niet gewijzigd. Probeer het opnieuw.",
+    "unarchive": "Uit archief halen",
+    "delete": "Verwijderen",
+    "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen."
   }
 }

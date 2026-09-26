@@ -393,7 +393,8 @@
     "users": "Kullanıcılar",
     "events": "Olay günlüğü",
     "issues": "Konular",
-    "epics": "Epikler ve özellikler"
+    "epics": "Epikler ve özellikler",
+    "archive": "Arşiv"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -486,7 +487,9 @@
       "copy_link": "Bağlantıyı kopyala",
       "delete": "Sil",
       "merge_prev": "Önceki mesajla birleştir",
-      "merge_next": "Sonraki mesajla birleştir"
+      "merge_next": "Sonraki mesajla birleştir",
+      "archive": "Arşivle",
+      "unarchive": "Arşivden çıkar"
     },
     "emoji": {
       "add": "Emoji ekle",
@@ -515,6 +518,15 @@
       "change": "Tür: {kind}. Türü değiştir",
       "menu": "Mesaj türü",
       "failed": "Tür değiştirilmedi"
+    },
+    "topic_delete": {
+      "title": "Bu konu silinsin mi?",
+      "body": "Açılış mesajı ve altındaki her şey herkes için kaldırılır. Bu geri alınamaz.",
+      "count": "Onunla birlikte silinen yanıtlar: {n}",
+      "confirm": "Sil",
+      "busy": "Siliniyor…",
+      "error": "Konu silinemedi. Tekrar deneyin.",
+      "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Başlık",
     "comment_hint": "yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter",
     "comment_hint_enter": "Enter gönderir, Shift+Enter satır ekler"
+  },
+  "archive": {
+    "title": "Arşiv",
+    "empty": "Arşivde bir şey yok.",
+    "hint": "Arşivlenen konular kanallarda, doğrudan mesajlarda ve aramada gizlenir. Arşivden çıkar konuyu geri getirir.",
+    "archived_at": "Arşivlendi {when}",
+    "load_failed": "Arşiv yüklenemedi.",
+    "error": "Konu değiştirilemedi. Tekrar deneyin.",
+    "unarchive": "Arşivden çıkar",
+    "delete": "Sil",
+    "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir."
   }
 }

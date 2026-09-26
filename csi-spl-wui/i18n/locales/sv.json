@@ -393,7 +393,8 @@
     "users": "Användare",
     "events": "Händelselogg",
     "issues": "Ärenden",
-    "epics": "Epics och funktioner"
+    "epics": "Epics och funktioner",
+    "archive": "Arkiv"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -486,7 +487,9 @@
       "copy_link": "Kopiera länk",
       "delete": "Ta bort",
       "merge_prev": "Slå ihop med föregående meddelande",
-      "merge_next": "Slå ihop med nästa meddelande"
+      "merge_next": "Slå ihop med nästa meddelande",
+      "archive": "Arkivera",
+      "unarchive": "Återställ från arkiv"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -515,6 +518,15 @@
       "change": "Typ: {kind}. Ändra typ",
       "menu": "Meddelandetyp",
       "failed": "Typen ändrades inte"
+    },
+    "topic_delete": {
+      "title": "Radera det här ämnet?",
+      "body": "Det inledande meddelandet och allt under det tas bort för alla. Det går inte att ångra.",
+      "count": "Svar som raderas med det: {n}",
+      "confirm": "Radera",
+      "busy": "Raderar…",
+      "error": "Ämnet raderades inte. Försök igen.",
+      "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Titel",
     "comment_hint": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka",
     "comment_hint_enter": "Enter skickar, Shift+Enter lägger till en rad"
+  },
+  "archive": {
+    "title": "Arkiv",
+    "empty": "Inget är arkiverat.",
+    "hint": "Arkiverade ämnen döljs i kanaler, direktmeddelanden och sökning. Återställ från arkiv tar tillbaka ett ämne.",
+    "archived_at": "Arkiverat {when}",
+    "load_failed": "Arkivet kunde inte läsas in.",
+    "error": "Ämnet ändrades inte. Försök igen.",
+    "unarchive": "Återställ från arkiv",
+    "delete": "Radera",
+    "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta."
   }
 }

@@ -393,7 +393,8 @@
     "users": "Naudotojai",
     "events": "Įvykių žurnalas",
     "issues": "Problemos",
-    "epics": "Epikai ir funkcijos"
+    "epics": "Epikai ir funkcijos",
+    "archive": "Archyvas"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -486,7 +487,9 @@
       "copy_link": "Kopijuoti nuorodą",
       "delete": "Ištrinti",
       "merge_prev": "Sujungti su ankstesne žinute",
-      "merge_next": "Sujungti su kita žinute"
+      "merge_next": "Sujungti su kita žinute",
+      "archive": "Archyvuoti",
+      "unarchive": "Grąžinti iš archyvo"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -515,6 +518,15 @@
       "change": "Tipas: {kind}. Keisti tipą",
       "menu": "Žinutės tipas",
       "failed": "Tipas nepakeistas"
+    },
+    "topic_delete": {
+      "title": "Ištrinti šią temą?",
+      "body": "Pradinė žinutė ir viskas po ja pašalinama visiems. To atšaukti negalima.",
+      "count": "Kartu ištrinami atsakymai: {n}",
+      "confirm": "Ištrinti",
+      "busy": "Trinama…",
+      "error": "Tema neištrinta. Bandykite dar kartą.",
+      "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Pavadinimas",
     "comment_hint": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti",
     "comment_hint_enter": "Enter siunčia, Shift+Enter prideda eilutę"
+  },
+  "archive": {
+    "title": "Archyvas",
+    "empty": "Archyve nieko nėra.",
+    "hint": "Archyvuotos temos paslėptos kanaluose, tiesioginėse žinutėse ir paieškoje. Grąžinti iš archyvo sugrąžina temą.",
+    "archived_at": "Archyvuota {when}",
+    "load_failed": "Nepavyko įkelti archyvo.",
+    "error": "Tema nepakeista. Bandykite dar kartą.",
+    "unarchive": "Grąžinti iš archyvo",
+    "delete": "Ištrinti",
+    "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius."
   }
 }

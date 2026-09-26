@@ -152,7 +152,7 @@ describe('every locale names the message actions', () => {
   it('translates edit and delete, and keeps the same keys', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
-    assert.deepEqual(Object.keys(en).sort(), ['copy_link', 'delete', 'edit', 'label', 'merge_next', 'merge_prev', 'open', 'open_parent'])
+    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'delete', 'edit', 'label', 'merge_next', 'merge_prev', 'open', 'open_parent', 'unarchive'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -165,6 +165,8 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.open_parent, en.open_parent, code)
       assert.notEqual(row.merge_prev, en.merge_prev, code)
       assert.notEqual(row.merge_next, en.merge_next, code)
+      assert.notEqual(row.archive, en.archive, code) // SPL-983
+      assert.notEqual(row.unarchive, en.unarchive, code)
     }
   })
 })

@@ -393,7 +393,8 @@
     "users": "Lietotāji",
     "events": "Notikumu žurnāls",
     "issues": "Problēmas",
-    "epics": "Episki un funkcijas"
+    "epics": "Episki un funkcijas",
+    "archive": "Arhīvs"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -486,7 +487,9 @@
       "copy_link": "Kopēt saiti",
       "delete": "Dzēst",
       "merge_prev": "Apvienot ar iepriekšējo ziņu",
-      "merge_next": "Apvienot ar nākamo ziņu"
+      "merge_next": "Apvienot ar nākamo ziņu",
+      "archive": "Arhivēt",
+      "unarchive": "Atjaunot no arhīva"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -515,6 +518,15 @@
       "change": "Veids: {kind}. Mainīt veidu",
       "menu": "Ziņas veids",
       "failed": "Veids netika mainīts"
+    },
+    "topic_delete": {
+      "title": "Dzēst šo tēmu?",
+      "body": "Sākuma ziņa un viss zem tās tiek noņemts visiem. To nevar atsaukt.",
+      "count": "Kopā ar to dzēstās atbildes: {n}",
+      "confirm": "Dzēst",
+      "busy": "Dzēš…",
+      "error": "Tēma netika dzēsta. Mēģiniet vēlreiz.",
+      "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Nosaukums",
     "comment_hint": "Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu",
     "comment_hint_enter": "Enter nosūta, Shift+Enter pievieno rindu"
+  },
+  "archive": {
+    "title": "Arhīvs",
+    "empty": "Arhīvā nav nekā.",
+    "hint": "Arhivētās tēmas ir paslēptas kanālos, tiešajās ziņās un meklēšanā. Atjaunot no arhīva atgriež tēmu.",
+    "archived_at": "Arhivēta {when}",
+    "load_failed": "Arhīvu neizdevās ielādēt.",
+    "error": "Tēma netika mainīta. Mēģiniet vēlreiz.",
+    "unarchive": "Atjaunot no arhīva",
+    "delete": "Dzēst",
+    "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators."
   }
 }

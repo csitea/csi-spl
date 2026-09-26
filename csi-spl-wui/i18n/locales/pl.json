@@ -393,7 +393,8 @@
     "users": "Użytkownicy",
     "events": "Dziennik zdarzeń",
     "issues": "Zgłoszenia",
-    "epics": "Epiki i funkcje"
+    "epics": "Epiki i funkcje",
+    "archive": "Archiwum"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -486,7 +487,9 @@
       "copy_link": "Kopiuj link",
       "delete": "Usuń",
       "merge_prev": "Scal z poprzednią wiadomością",
-      "merge_next": "Scal z następną wiadomością"
+      "merge_next": "Scal z następną wiadomością",
+      "archive": "Archiwizuj",
+      "unarchive": "Przywróć z archiwum"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -515,6 +518,15 @@
       "change": "Typ: {kind}. Zmień typ",
       "menu": "Typ wiadomości",
       "failed": "Typ nie został zmieniony"
+    },
+    "topic_delete": {
+      "title": "Usunąć ten temat?",
+      "body": "Wiadomość otwierająca i wszystko pod nią zostaną usunięte dla wszystkich. Tego nie można cofnąć.",
+      "count": "Odpowiedzi usuwane razem z nim: {n}",
+      "confirm": "Usuń",
+      "busy": "Usuwanie…",
+      "error": "Nie usunięto tematu. Spróbuj ponownie.",
+      "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Tytuł",
     "comment_hint": "Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła",
     "comment_hint_enter": "Enter wysyła, Shift+Enter dodaje wiersz"
+  },
+  "archive": {
+    "title": "Archiwum",
+    "empty": "Archiwum jest puste.",
+    "hint": "Zarchiwizowane tematy są ukryte w kanałach, wiadomościach bezpośrednich i wyszukiwaniu. Przywróć z archiwum przywraca temat.",
+    "archived_at": "Zarchiwizowano {when}",
+    "load_failed": "Nie udało się wczytać archiwum.",
+    "error": "Nie zmieniono tematu. Spróbuj ponownie.",
+    "unarchive": "Przywróć z archiwum",
+    "delete": "Usuń",
+    "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić."
   }
 }

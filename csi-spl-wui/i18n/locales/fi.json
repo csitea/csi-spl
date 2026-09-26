@@ -393,7 +393,8 @@
     "users": "Käyttäjät",
     "events": "Tapahtumaloki",
     "issues": "Asiat",
-    "epics": "Eepokset ja ominaisuudet"
+    "epics": "Eepokset ja ominaisuudet",
+    "archive": "Arkisto"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -486,7 +487,9 @@
       "copy_link": "Kopioi linkki",
       "delete": "Poista",
       "merge_prev": "Yhdistä edelliseen viestiin",
-      "merge_next": "Yhdistä seuraavaan viestiin"
+      "merge_next": "Yhdistä seuraavaan viestiin",
+      "archive": "Arkistoi",
+      "unarchive": "Palauta arkistosta"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -515,6 +518,15 @@
       "change": "Tyyppi: {kind}. Vaihda tyyppi",
       "menu": "Viestin tyyppi",
       "failed": "Tyyppiä ei vaihdettu"
+    },
+    "topic_delete": {
+      "title": "Poistetaanko tämä aihe?",
+      "body": "Avausviesti ja kaikki sen alla poistetaan kaikilta. Tätä ei voi perua.",
+      "count": "Sen mukana poistetaan vastauksia: {n}",
+      "confirm": "Poista",
+      "busy": "Poistetaan…",
+      "error": "Aihetta ei poistettu. Yritä uudelleen.",
+      "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Otsikko",
     "comment_hint": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää",
     "comment_hint_enter": "Enter lähettää, Shift+Enter lisää rivin"
+  },
+  "archive": {
+    "title": "Arkisto",
+    "empty": "Arkistossa ei ole mitään.",
+    "hint": "Arkistoidut aiheet eivät näy kanavissa, yksityisviesteissä eikä haussa. Palauta arkistosta tuo aiheen takaisin.",
+    "archived_at": "Arkistoitu {when}",
+    "load_failed": "Arkistoa ei voitu ladata.",
+    "error": "Aihetta ei muutettu. Yritä uudelleen.",
+    "unarchive": "Palauta arkistosta",
+    "delete": "Poista",
+    "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän."
   }
 }

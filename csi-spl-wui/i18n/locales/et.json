@@ -393,7 +393,8 @@
     "users": "Kasutajad",
     "events": "Sündmuste logi",
     "issues": "Probleemid",
-    "epics": "Eepikud ja funktsioonid"
+    "epics": "Eepikud ja funktsioonid",
+    "archive": "Arhiiv"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -486,7 +487,9 @@
       "copy_link": "Kopeeri link",
       "delete": "Kustuta",
       "merge_prev": "Ühenda eelmise sõnumiga",
-      "merge_next": "Ühenda järgmise sõnumiga"
+      "merge_next": "Ühenda järgmise sõnumiga",
+      "archive": "Arhiveeri",
+      "unarchive": "Taasta arhiivist"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -515,6 +518,15 @@
       "change": "Tüüp: {kind}. Muuda tüüpi",
       "menu": "Sõnumi tüüp",
       "failed": "Tüüpi ei muudetud"
+    },
+    "topic_delete": {
+      "title": "Kas kustutada see teema?",
+      "body": "Avasõnum ja kõik selle all eemaldatakse kõigi jaoks. Seda ei saa tagasi võtta.",
+      "count": "Koos sellega kustutatakse vastuseid: {n}",
+      "confirm": "Kustuta",
+      "busy": "Kustutamine…",
+      "error": "Teemat ei kustutatud. Proovi uuesti.",
+      "error_forbidden": "Seda saab teha ainult autor, omanik või administraator."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Pealkiri",
     "comment_hint": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab",
     "comment_hint_enter": "Enter saadab, Shift+Enter lisab rea"
+  },
+  "archive": {
+    "title": "Arhiiv",
+    "empty": "Arhiivis pole midagi.",
+    "hint": "Arhiveeritud teemad on kanalites, otsesõnumites ja otsingus peidetud. Taasta arhiivist toob teema tagasi.",
+    "archived_at": "Arhiveeritud {when}",
+    "load_failed": "Arhiivi ei saanud laadida.",
+    "error": "Teemat ei muudetud. Proovi uuesti.",
+    "unarchive": "Taasta arhiivist",
+    "delete": "Kustuta",
+    "error_forbidden": "Seda saab teha ainult autor, omanik või administraator."
   }
 }

@@ -393,7 +393,8 @@
     "users": "Usuarios",
     "events": "Registro de eventos",
     "issues": "Incidencias",
-    "epics": "Épicas y funcionalidades"
+    "epics": "Épicas y funcionalidades",
+    "archive": "Archivo"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -486,7 +487,9 @@
       "copy_link": "Copiar enlace",
       "delete": "Eliminar",
       "merge_prev": "Fusionar con el mensaje anterior",
-      "merge_next": "Fusionar con el mensaje siguiente"
+      "merge_next": "Fusionar con el mensaje siguiente",
+      "archive": "Archivar",
+      "unarchive": "Desarchivar"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -515,6 +518,15 @@
       "change": "Tipo: {kind}. Cambiar el tipo",
       "menu": "Tipo de mensaje",
       "failed": "No se cambió el tipo"
+    },
+    "topic_delete": {
+      "title": "¿Eliminar este tema?",
+      "body": "El mensaje inicial y todo lo que cuelga de él se eliminan para todos. No se puede deshacer.",
+      "count": "Respuestas eliminadas con él: {n}",
+      "confirm": "Eliminar",
+      "busy": "Eliminando…",
+      "error": "No se eliminó el tema. Inténtalo de nuevo.",
+      "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Título",
     "comment_hint": "Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar",
     "comment_hint_enter": "Enter envía, Shift+Enter añade una línea"
+  },
+  "archive": {
+    "title": "Archivo",
+    "empty": "No hay nada archivado.",
+    "hint": "Los temas archivados se ocultan en canales, mensajes directos y búsqueda. Desarchivar recupera un tema.",
+    "archived_at": "Archivado {when}",
+    "load_failed": "No se pudo cargar el archivo.",
+    "error": "No se cambió el tema. Inténtalo de nuevo.",
+    "unarchive": "Desarchivar",
+    "delete": "Eliminar",
+    "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo."
   }
 }

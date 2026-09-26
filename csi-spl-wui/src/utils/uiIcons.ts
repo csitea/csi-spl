@@ -173,6 +173,28 @@ export const UI_ICON_PATHS = {
     "M10 11v6",
     "M14 11v6",
   ],
+  // SPL-983 (spec 041): the owner asked for Gmail's archive glyph (Material
+  // Symbols "archive": a tray under a lid, an arrow going in). Stroke-drawn so
+  // it matches the rest of the set. Also the left-rail Archive entry.
+  archive: [
+    "M4 3h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+    "M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8",
+    "M12 11v6",
+    "m9 14 3 3 3-3",
+  ],
+  // Unarchive (Material "unarchive"): the same tray, the arrow going out.
+  unarchive: [
+    "M4 3h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+    "M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8",
+    "M12 17v-6",
+    "m9 14 3-3 3 3",
+  ],
+  // Delete a whole topic (Material "delete"): a plain can with its lid.
+  delete: [
+    "M4 6h16",
+    "M9 6V4h6v2",
+    "M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14",
+  ],
   // Attach control (SPL-953): lucide paperclip. The button shows only this glyph.
   paperclip: [
     "m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551",

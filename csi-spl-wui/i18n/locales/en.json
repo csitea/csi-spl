@@ -393,7 +393,8 @@
     "users": "Users",
     "events": "Event log",
     "issues": "Issues",
-    "epics": "Epics and features"
+    "epics": "Epics and features",
+    "archive": "Archive"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -486,7 +487,9 @@
       "copy_link": "Copy link",
       "delete": "Delete",
       "merge_prev": "Merge with previous message",
-      "merge_next": "Merge with next message"
+      "merge_next": "Merge with next message",
+      "archive": "Archive",
+      "unarchive": "Unarchive"
     },
     "emoji": {
       "add": "Add emoji",
@@ -515,6 +518,15 @@
       "change": "Type: {kind}. Change the type",
       "menu": "Message type",
       "failed": "The type was not changed"
+    },
+    "topic_delete": {
+      "title": "Delete this topic?",
+      "body": "The opening message and everything under it are removed for everyone. This cannot be undone.",
+      "count": "Replies deleted with it: {n}",
+      "confirm": "Delete",
+      "busy": "Deleting…",
+      "error": "Could not delete the topic. Try again.",
+      "error_forbidden": "Only the author, the owner or an admin may do this."
     }
   },
   "topic": {
@@ -907,5 +919,16 @@
     "col_title": "Title",
     "comment_hint": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send",
     "comment_hint_enter": "Enter sends, Shift+Enter adds a line"
+  },
+  "archive": {
+    "title": "Archive",
+    "empty": "Nothing is archived.",
+    "hint": "Archived topics are hidden from channels, direct messages and search. Unarchive brings one back.",
+    "archived_at": "Archived {when}",
+    "load_failed": "Could not load the archive.",
+    "error": "Could not change the topic. Try again.",
+    "unarchive": "Unarchive",
+    "delete": "Delete",
+    "error_forbidden": "Only the author, the owner or an admin may do this."
   }
 }

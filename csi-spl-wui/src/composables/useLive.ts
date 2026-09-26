@@ -41,6 +41,8 @@ const channelListeners = new Set<Listener>()
 const editedListeners = new Set<Listener>()
 /** `message_deleted` frames: drop a row the screen is showing. */
 const deletedListeners = new Set<Listener>()
+/** SPL-983 `topic_archived` / `topic_deleted` frames. */
+const topicListeners = new Set<Listener>()
 /** `message_reaction` frames: replace the emoji list on a row already held. */
 const reactionListeners = new Set<Listener>()
 /** issues-v1 §5: an issue was created or updated in this tenant. */
@@ -114,6 +116,9 @@ export function useLive() {
       onDeleted: (m: Record<string, unknown>) => {
         for (const fn of deletedListeners) fn(m)
       },
+      onTopic: (f: Record<string, unknown>) => {
+        for (const fn of topicListeners) fn(f)
+      },
       onReaction: (m: Record<string, unknown>) => {
         for (const fn of reactionListeners) fn(m)
       },
@@ -172,6 +177,10 @@ export function useLive() {
     deletedListeners.add(fn)
     return () => deletedListeners.delete(fn)
   }
+  function onTopic(fn: Listener) {
+    topicListeners.add(fn)
+    return () => topicListeners.delete(fn)
+  }
 
   function onReaction(fn: Listener) {
     reactionListeners.add(fn)
@@ -188,5 +197,5 @@ export function useLive() {
     return () => issueLabelListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onDeleted, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

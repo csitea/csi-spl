@@ -232,6 +232,7 @@
       :merge-prev="!!mergePrev"
       :merge-next="!!mergeNext"
       :parent="showParent"
+      :topic="showTopicActions"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -241,6 +242,15 @@
       @merge-prev="onMerge('previous')"
       @merge-next="onMerge('next')"
       @delete="onMenuDelete"
+      @archive="onMenuArchive"
+      @delete-topic="onMenuDeleteTopic"
+    />
+    <!-- SPL-983: mounted when Delete is picked on a topic card, not before -->
+    <LazyTopicDeleteDialog
+      v-if="topicDeleteOpen"
+      v-model:open="topicDeleteOpen"
+      :msg-id="String(msg.msg_id || '')"
+      @deleted="onTopicDeleted"
     />
     <EmojiPicker
       :open="pickerOpen"
@@ -272,6 +282,8 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
+import { useAccessStore } from '~/stores/access'
+import { mayChangeTopic, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
@@ -313,6 +325,8 @@ const props = defineProps<{
   currentTaskId?: string | null
   /** CLE-34989: titles / 5 rows / full. Omitted = show the whole card. */
   clipMode?: CardClipMode
+  /** SPL-983: a middle-pane card, where Archive / Delete (the topic) may be offered. */
+  topicMenu?: boolean
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -413,6 +427,35 @@ function onMenuEdit() {
 function onMenuDelete() {
   closeMenu()
   void remove()
+}
+
+/** SPL-983: archive the topic. The card leaves every feed here at once; the
+    hub's topic_archived frame tells the other tabs. */
+async function onMenuArchive() {
+  closeMenu()
+  const id = String(props.msg.msg_id || '')
+  if (!id || removing.value) return
+  removing.value = true
+  editError.value = ''
+  try {
+    await parentDeps.api.archiveTopic(id, true)
+    dropEverywhere(id)
+    emit('deleted', props.msg)
+  } catch (e) {
+    editError.value = topicErrorKey(e, 'archive')
+  } finally {
+    removing.value = false
+  }
+}
+
+function onMenuDeleteTopic() {
+  closeMenu()
+  topicDeleteOpen.value = true
+}
+
+function onTopicDeleted(out: { msg_ids: string[] }) {
+  for (const id of out.msg_ids) dropEverywhere(id)
+  emit('deleted', props.msg)
 }
 
 /**
@@ -567,7 +610,12 @@ const editEl = ref<HTMLTextAreaElement | null>(null)
 const rowEl = ref<HTMLElement | null>(null)
 const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
-const { canEdit, commit, removeMessage } = useMessageEdit()
+const { canEdit, commit, removeMessage, viewerId: editorId, dropEverywhere } = useMessageEdit()
+/* SPL-983 (specs/041 §3.3): the card's author, the tenant owner or an admin.
+   The hub re-checks; this only decides what the menu offers. */
+const access = useAccessStore()
+const showTopicActions = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
+const topicDeleteOpen = ref(false)
 const removing = ref(false)
 const localePath = useLocalePath()
 const route = useRoute()

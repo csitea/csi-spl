@@ -109,6 +109,14 @@ declare module '~/utils/spool-client.mjs' {
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     /** SPL-952: set a sent message's kind (author, biz_owner or admin). */
     setMessageKind(msgId: string, kind: string): Promise<import('./spool').SpoolMessage>
+    /** SPL-983 (specs/041): archive (true) or unarchive (false) a topic card. */
+    archiveTopic(msgId: string, archived?: boolean): Promise<{ msg_id: string, task_id: string, archived: boolean, archived_at?: string, archived_by?: string }>
+    /** SPL-983: the confirm dialog's reply count and what the caller may do. */
+    topicSize(msgId: string): Promise<{ msg_id: string, task_id: string, replies: number, task_ids: string[], can_delete: boolean, can_archive: boolean }>
+    /** SPL-983: delete a topic card and every child, one transaction. */
+    deleteTopic(msgId: string): Promise<{ msg_id: string, task_id: string, deleted: number, msg_ids: string[], task_ids: string[] }>
+    /** SPL-983: the archived cards this member may read, newest archived first. */
+    listArchived(opts?: { before?: string }): Promise<{ cards: import('~/utils/topic-archive.mjs').ArchivedCard[], next: string | null }>
     fileUrl(fileId: string): string
     bindIssuesMock(factory: (me: string) => unknown): void
     listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>
@@ -143,6 +151,8 @@ declare module '~/utils/live-ws.mjs' {
     onEdited?: (m: Record<string, unknown>, raw: unknown) => void
     /** `message_deleted`: drop a row. */
     onDeleted?: (m: Record<string, unknown>, raw: unknown) => void
+    /** SPL-983 `topic_archived` / `topic_deleted`. */
+    onTopic?: (f: Record<string, unknown>) => void
     /** `message_reaction`: replace the emoji list on a held row. */
     onReaction?: (m: Record<string, unknown>, raw: unknown) => void
     onIssue?: (f: Record<string, unknown>) => void
@@ -433,12 +443,33 @@ declare module '~/utils/typed-by.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean }): { id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean }): { id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
   export function joinBodies(older: unknown, newer: unknown): string
+}
+
+declare module '~/utils/topic-archive.mjs' {
+  export type ArchivedCard = {
+    message: import('./spool').SpoolMessage
+    msg_id: string
+    task_id: string
+    channel?: string | null
+    archived_at: string
+    archived_by: string
+    replies: number
+    can_delete: boolean
+  }
+  export const TOPIC_ADMIN_ROLES: readonly string[]
+  export function isTopicCard(msg: unknown): boolean
+  export function mayChangeTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
+  export function topicFrameDrops(frame: unknown): string[]
+  export function topicFrameTasks(frame: unknown, lobbyTaskId?: string): string[]
+  export function topicErrorKey(e: unknown, scope?: string): string
+  export function archivedRow(card: unknown): { msg_id: string, task_id: string, channel: string, from: string, from_box: string, title: string, archived_at: string, archived_by: string, replies: number, can_delete: boolean }
+  export function withoutCards<T>(rows: T[], ids: string[]): T[]
 }
 
 declare module '~/utils/place-popover.mjs' {

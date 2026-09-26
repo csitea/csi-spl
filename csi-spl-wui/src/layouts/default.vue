@@ -79,6 +79,7 @@ import { usePaneWidths } from '~/composables/usePaneWidths'
 import { CHANNEL, LIVE, NONE, closes, topicSection } from '~/utils/topic-pane.mjs'
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { topicFrameDrops, topicFrameTasks } from '~/utils/topic-archive.mjs'
 
 const topic = useTopicStore()
 const livePane = useLiveFeed('pane')
@@ -86,10 +87,19 @@ const livePane = useLiveFeed('pane')
 const live = useLive()
 const { dropEverywhere } = useMessageEdit()
 let offDeleted = () => {}
+let offTopic = () => {}
 onMounted(() => {
   offDeleted = live.onDeleted((m) => dropEverywhere(String(m.msg_id || '')))
+  /* SPL-983: an archived card leaves the feeds; a deleted topic takes every
+     row, and a pane open on one of its tasks has nothing left to show. */
+  offTopic = live.onTopic((f) => {
+    for (const id of topicFrameDrops(f)) dropEverywhere(id)
+    const gone = topicFrameTasks(f, live.lobbyTaskId.value)
+    if (livePane.taskId && gone.includes(String(livePane.taskId))) livePane.close()
+    if (topic.open && gone.includes(String(topic.parentTaskId || ''))) topic.close()
+  })
 })
-onUnmounted(() => offDeleted())
+onUnmounted(() => { offDeleted(); offTopic() })
 /* CLE-3429: the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)

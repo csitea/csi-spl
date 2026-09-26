@@ -43,6 +43,8 @@ const props = defineProps<{
   mergeNext?: boolean
   /** a thread line: offer Open parent section (CLE-34996) */
   parent?: boolean
+  /** SPL-983: a topic card the viewer may archive / delete */
+  topic?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -55,6 +57,8 @@ const emit = defineEmits<{
   'merge-prev': []
   'merge-next': []
   delete: []
+  archive: []
+  'delete-topic': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -65,6 +69,7 @@ const items = computed(() => msgMenuItems({
   mergePrev: props.mergePrev,
   mergeNext: props.mergeNext,
   parent: props.parent,
+  topic: props.topic,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -132,6 +137,8 @@ function choose(id: string) {
   else if (id === 'merge-prev') emit('merge-prev')
   else if (id === 'merge-next') emit('merge-next')
   else if (id === 'delete') emit('delete')
+  else if (id === 'archive') emit('archive')
+  else if (id === 'delete-topic') emit('delete-topic')
   emit('close')
 }
 </script>

@@ -1013,6 +1013,85 @@ export function createSpoolClient({
       return null
     },
     /**
+     * SPL-983, specs/041 topic-archive-v1 §2: archive (PUT) or unarchive
+     * (DELETE) a topic card. The hub lets the card's author, the tenant owner
+     * or an admin (403 not_allowed otherwise); a reply is 409 not_a_card.
+     * Returns { msg_id, task_id, archived, archived_at?, archived_by? }.
+     */
+    async archiveTopic(msgId, archived = true) {
+      const id = String(msgId || '')
+      if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        state.archived = state.archived || []
+        if (archived) {
+          const at = state.messages.findIndex((m) => m.msg_id === id)
+          if (at < 0) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+          const row = { ...state.messages[at], archived_at: new Date().toISOString(), archived_by: state.me.id }
+          state.messages.splice(at, 1)
+          state.archived.unshift(row)
+          return { msg_id: id, task_id: row.task_id, archived: true, archived_at: row.archived_at, archived_by: row.archived_by }
+        }
+        const at = state.archived.findIndex((m) => m.msg_id === id)
+        if (at >= 0) {
+          const [row] = state.archived.splice(at, 1)
+          state.messages.push({ ...row, archived_at: undefined, archived_by: undefined })
+        }
+        return { msg_id: id, task_id: '', archived: false }
+      }
+      return live(`/v1/messages/${encodeURIComponent(id)}/archive`, { method: archived ? 'PUT' : 'DELETE' })
+    },
+    /** topic-archive-v1 §3: { replies, task_ids, can_delete, ... } for the confirm dialog. */
+    async topicSize(msgId) {
+      const id = String(msgId || '')
+      if (mock) {
+        const all = [...state.messages, ...(state.archived || [])]
+        const row = all.find((m) => m.msg_id === id)
+        const replies = row ? all.filter((m) => m.msg_id !== id && (m.task_id === row.task_id || m.task_id === id)).length : 0
+        return { msg_id: id, task_id: row ? row.task_id : '', replies, task_ids: row ? [row.task_id] : [], can_delete: true, can_archive: true }
+      }
+      return live(`/v1/view/messages/${encodeURIComponent(id)}/topic`)
+    },
+    /**
+     * topic-archive-v1 §4: DELETE the card and every child, one transaction.
+     * Returns { deleted, msg_ids, task_ids }.
+     */
+    async deleteTopic(msgId) {
+      const id = String(msgId || '')
+      if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        const pool = [...state.messages, ...(state.archived || [])]
+        const row = pool.find((m) => m.msg_id === id)
+        if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+        const gone = (m) => m.msg_id === id || m.task_id === row.task_id || m.task_id === id
+        const ids = pool.filter(gone).map((m) => m.msg_id)
+        state.messages = state.messages.filter((m) => !gone(m))
+        state.archived = (state.archived || []).filter((m) => !gone(m))
+        return { msg_id: id, task_id: row.task_id, deleted: ids.length, msg_ids: ids, task_ids: [row.task_id, id] }
+      }
+      return live(`/v1/messages/${encodeURIComponent(id)}/topic`, { method: 'DELETE' })
+    },
+    /**
+     * topic-archive-v1 §5: the archived cards this member may read, newest
+     * archived first. { cards: [{ message, msg_id, task_id, channel,
+     * archived_at, archived_by, replies, can_delete }], next }.
+     */
+    async listArchived({ before } = {}) {
+      if (mock) {
+        return {
+          cards: (state.archived || []).map((m) => ({ message: m, msg_id: m.msg_id, task_id: m.task_id, channel: m.channel || null,
+            archived_at: m.archived_at, archived_by: m.archived_by, replies: 0, can_delete: true })),
+          next: null,
+        }
+      }
+      const q = before ? `?before=${encodeURIComponent(before)}` : ''
+      const body = await live(`/v1/view/archived${q}`)
+      const cards = Array.isArray(body && body.cards) ? body.cards : []
+      return {
+        cards: cards.map((c) => ({ ...c, message: normalizeViewMessage(c.message || {}) })),
+        next: (body && body.next) || null,
+      }
+    },
+    /**
      * PUT adds the viewer's emoji; DELETE removes it. Body is {emoji} either
      * way. The same call for an opening message and a reply — the hub does
      * not look at is_parent. Returns { msg_id, task_id, reactions }.

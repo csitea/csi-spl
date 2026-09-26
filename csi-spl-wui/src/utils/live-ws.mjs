@@ -42,6 +42,9 @@ export const FRAMES = {
   edited: 'message_edited',
   /* A message was deleted. Not a `message` frame: mergeById would keep the row. */
   deleted: 'message_deleted',
+  /* SPL-983 (specs/041 §3.4): a topic card archived / unarchived, or deleted with its children. */
+  topicArchived: 'topic_archived',
+  topicDeleted: 'topic_deleted',
   /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
   reaction: 'message_reaction',
   /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
@@ -132,6 +135,8 @@ export function createLiveClient({
   onEdited = () => {},
   /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
   onDeleted = () => {},
+  /** SPL-983 `topic_archived` / `topic_deleted`: the whole frame (utils/topic-archive.mjs). */
+  onTopic = () => {},
   /** `message_reaction`: replace the emoji list on a row already held. */
   onReaction = () => {},
   /** issues-v1 §5 `{type:"issue", op, issue}`. */
@@ -267,6 +272,10 @@ export function createLiveClient({
         onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
         return
       }
+      case FRAMES.topicArchived:
+      case FRAMES.topicDeleted:
+        onTopic(f)
+        return
       case FRAMES.reaction: {
         onReaction({
           msg_id: f.msg_id,

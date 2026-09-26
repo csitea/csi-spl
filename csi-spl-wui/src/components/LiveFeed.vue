@@ -34,6 +34,7 @@
         :merge-next="mergeTarget(m, 'next')"
         :current-task-id="currentTaskId"
         :clip-mode="clipModeFor()"
+        :topic-menu="openButton"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"

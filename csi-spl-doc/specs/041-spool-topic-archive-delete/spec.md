@@ -66,7 +66,7 @@ Two additions the same evening (relayed by CLE-001):
   existing retention door (`file_retention.go`, SweepFiles: unattached blobs older than
   24 h, avatars kept) deletes it. Nothing new is written for files.
 
-### 3.3 Who may (proposal, owner to confirm before Delete ships to prd)
+### 3.3 Who may (owner: "yes", 2026-09-26, topic 8f58f802)
 
 | who | Archive / Unarchive | Delete |
 |---|---|---|

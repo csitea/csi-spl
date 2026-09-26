@@ -14,8 +14,14 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * after Open: the channel or DM the thread lives in, the parent card
  * selected there and the thread kept open (utils/parent-section.mjs).
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean }} [opts]
- * @returns {{ id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]}
+ * A topic card the viewer may change (`topic`, SPL-983 / specs/041: its
+ * author, the tenant owner or an admin) ends with Archive and Delete, each
+ * with its Material glyph on the left. That Delete removes the card AND every
+ * child, so it replaces the one-message Delete: deleting the card alone would
+ * strand its replies.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean }} [opts]
+ * @returns {{ id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
@@ -28,7 +34,12 @@ export function msgMenuItems(opts = {}) {
   if (editable) items.push(edit)
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
-  if (editable) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
+  if (o.topic) {
+    items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
+    items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })
+  } else if (editable) {
+    items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
+  }
   return items
 }
 

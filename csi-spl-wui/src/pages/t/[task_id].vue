@@ -8,6 +8,7 @@
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
       <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
       <LiveFeed
+        clip
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"

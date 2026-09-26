@@ -103,7 +103,7 @@
         line; `rows` clips the body and its attachments at 5 text rows, or at
         30% of the window when a picture is on the card, and a grip under it
         drags it taller (the omnibox's grip, re-drawn here, not shared); `full`
-        and every host that passes no mode (the thread pane) show all of it.
+        and a host that passes no mode shows all of it.
       -->
       <p
         v-if="titleOnly"
@@ -283,7 +283,7 @@ const props = defineProps<{
   mergeNext?: SpoolMessage | null
   /** The task the list itself shows (#lobby), so a card's link names the right topic. */
   currentTaskId?: string | null
-  /** CLE-34989: the middle pane's height mode. Omitted = never clipped (the thread pane). */
+  /** CLE-34989: titles / 5 rows / full. Omitted = show the whole card. */
   clipMode?: CardClipMode
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()

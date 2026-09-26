@@ -99,8 +99,8 @@ const props = defineProps<{
       be displayed only on the middle pane and it should work so that it will
       open the topic". A thread pane never passes it. */
   openButton?: boolean
-  /** CLE-34989: a middle-pane feed of level-1 cards takes the pane's height
-      mode (titles / 5 rows / full). A thread pane never passes it. */
+  /** CLE-34989: titles / 5 rows / full. The middle pane and the thread
+      (is_parent 0) both pass it and read the same stored mode. */
   clip?: boolean
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()

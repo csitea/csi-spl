@@ -30,6 +30,7 @@
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
       <LiveFeed
+        clip
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"

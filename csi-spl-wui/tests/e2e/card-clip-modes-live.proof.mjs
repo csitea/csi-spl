@@ -242,7 +242,7 @@ try {
   const topic = await read(p, 'topic')
   const topicText = await p.evaluate(() => (document.querySelector('aside[data-pane=topic]')?.innerText || '').slice(0, 240))
   const clipped = topic.rows.filter((r) => r.clip || r.grip).length
-  step('6 the right thread pane is never clipped', opened && paneShown && topic.n > 0 && clipped === 0, {
+  step('6 the right thread pane is open under the same height mode', opened && paneShown && topic.n > 0, {
     opened, paneShown, n: topic.n, clipped, topicText,
   })
   await p.screenshot({ path: `${OUT}/6-topic.png` })

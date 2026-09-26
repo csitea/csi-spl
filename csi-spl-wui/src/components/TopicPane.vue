@@ -29,6 +29,7 @@
     <div class="pinned-root feed-body" data-test="topic-root">
       <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
       <LiveFeed
+        clip
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"

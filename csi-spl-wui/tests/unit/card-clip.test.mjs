@@ -3,6 +3,9 @@
 // 30% of the window when a picture is on the card) | full (not clipped).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   CARD_CLIP_DEFAULT,
   CARD_CLIP_KEY,
@@ -139,4 +142,13 @@ describe('read and write the mode', () => {
     store.setItem('spool-card-clip', '  full  ')
     assert.equal(readCardClipMode(store), 'full')
   })
+})
+
+describe('the thread uses the same card height mode', () => {
+  const read = (rel) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../..', rel), 'utf8')
+  for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue', 'src/pages/t/[task_id].vue']) {
+    it(`${rel} passes clip to the thread feed`, () => {
+      assert.match(read(rel), /<LiveFeed\s+clip\b/)
+    })
+  }
 })

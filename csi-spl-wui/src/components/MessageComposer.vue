@@ -171,6 +171,7 @@
           type="button"
           class="omnibox-resize"
           data-test="omnibox-resize"
+          tabindex="-1"
           :aria-label="t('composer.resize')"
           @pointerdown="startResize"
         />

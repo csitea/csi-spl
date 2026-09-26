@@ -257,8 +257,18 @@ spl_desk_sidecar() {
   # mismatch RESTARTS it rather than being accepted.
   if spl_desk_alive "$pidf"; then
     livepoke="$(spl_desk_sidecar_poke "$(cat "$pidf")")"
-    if [[ -n "$livepoke" && "$livepoke" != "$poke" ]]; then
-      do_log "INFO the live sidecar of $box runs SPOOL_POKE=$livepoke but this call asks for $poke; restarting it, because that flag is only read at exec"
+    # SPL-952: a sidecar still running a spool binary that has since been
+    # rebuilt validates with the OLD code. Measured on prd 2026-09-26: a 15 h
+    # old hub-run moved a DESK_KIND=blocker line to .hub/rejected/ because its
+    # binary predated the kind, while the rebuilt file on disk accepted it.
+    local stale=0
+    spl_desk_sidecar_stale "$(cat "$pidf")" && stale=1
+    if [[ "$stale" == 1 || ( -n "$livepoke" && "$livepoke" != "$poke" ) ]]; then
+      if [[ "$stale" == 1 ]]; then
+        do_log "INFO the live sidecar of $box runs a spool binary that has been rebuilt since it started; restarting it on the new one"
+      else
+        do_log "INFO the live sidecar of $box runs SPOOL_POKE=$livepoke but this call asks for $poke; restarting it, because that flag is only read at exec"
+      fi
       kill "$(cat "$pidf")" 2>/dev/null || true
       local w
       for ((w = 0; w < 75; w++)); do spl_desk_alive "$pidf" || break; sleep 0.2; done
@@ -284,6 +294,16 @@ spl_desk_sidecar() {
   fi
   flock -u 9; exec 9>&-
   [[ -n "$SPL_DESK_PID" ]]
+}
+
+# spl_desk_sidecar_stale <pid>: true when that process runs a binary whose file
+# has been replaced since it started. A rebuild writes a new file, so the
+# kernel shows the running image as "<path> (deleted)".
+spl_desk_sidecar_stale() {
+  local pid="$1" exe
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  exe="$(readlink "/proc/$pid/exe" 2>/dev/null)" || return 1
+  [[ "$exe" == *" (deleted)" ]]
 }
 
 # spl_desk_sidecar_poke <pid>: the SPOOL_POKE that process was started with, or

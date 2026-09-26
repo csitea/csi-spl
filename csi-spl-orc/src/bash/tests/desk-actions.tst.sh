@@ -126,6 +126,21 @@ for good in blocker msg; do
     pass "do_spl_desk_post accepts DESK_KIND=$good"
 done
 
+# SPL-952: a sidecar whose spool binary was rebuilt under it is stale.
+cp "$(command -v sleep)" "$T/fake-spool" && chmod +x "$T/fake-spool"
+"$T/fake-spool" 30 & stale_pid=$!
+cp "$(command -v sleep)" "$T/kept-spool" && chmod +x "$T/kept-spool"
+"$T/kept-spool" 30 & kept_pid=$!
+sleep 0.2
+SNIPPET="spl_desk_sidecar_stale $kept_pid" in_orc >/dev/null 2>&1 &&
+  fail "CONTROL a sidecar on an unchanged binary read as stale" || pass "CONTROL a sidecar on an unchanged binary is not stale"
+rm -f "$T/fake-spool"
+SNIPPET="spl_desk_sidecar_stale $stale_pid" in_orc >/dev/null 2>&1 &&
+  pass "a sidecar whose binary was replaced is stale" || fail "a sidecar whose binary was replaced was not seen as stale"
+SNIPPET="spl_desk_sidecar_stale not-a-pid" in_orc >/dev/null 2>&1 &&
+  fail "a non-pid read as stale" || pass "a non-pid is not stale"
+kill "$stale_pid" "$kept_pid" 2>/dev/null || true
+
 # --- 4. which message gets answered ------------------------------------------------
 U1=0f8fad5b-d9cb-469f-a165-70867728950e
 U2=1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d

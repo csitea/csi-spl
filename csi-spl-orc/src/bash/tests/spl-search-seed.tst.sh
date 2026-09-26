@@ -6,8 +6,8 @@
 #      action with valid knobs is accepted
 #   2. the seed SQL: one INSERT per batch, resumable, only the seed- tenant
 #   3. the purge SQL deletes only with DRY_RUN=0, guarded by LIKE 'seed-%'
-#   4. the measure SQL is READ ONLY + ROLLBACK, in the TENANT scope (never the
-#      operator scope), starts no statement with a write verb, pairs every
+#   4. the measure session is read-only (default_transaction_read_only), in the
+#      TENANT scope (never the operator scope), starts no statement with a write verb, pairs every
 #      topic query before/after, and refuses an unknown MEASURE_ONLY
 #   5. the summary turns Execution Time lines into p50 / p95 / max
 #------------------------------------------------------------------------------
@@ -78,9 +78,9 @@ grep -q "DELETE FROM tenants WHERE tenant_id = 'seed-search' AND tenant_id LIKE 
 
 # --- 4. the measure SQL ---------------------------------------------------------------
 m=$(SNIPPET='spl_search_measure_sql seed-search 3 "" 0' in_orc 2>&1)
-[[ "$(head -1 <<<"$m")" == "BEGIN TRANSACTION READ ONLY;" && "$(tail -1 <<<"$m")" == "ROLLBACK;" ]] &&
-  pass "measure is READ ONLY and rolled back" || fail "measure transaction: $(head -1 <<<"$m") / $(tail -1 <<<"$m")"
-grep -q "set_config('app.tenant_id', 'seed-search', true)" <<<"$m" && ! grep -q "rls_scope" <<<"$m" &&
+grep -q "PGOPTIONS='-c default_transaction_read_only=on'" "$PROJ_ROOT/src/bash/run/spl-search-measure.func.sh" &&
+  pass "the measure session is read-only (Postgres refuses writes)" || fail "measure session not read-only"
+grep -q "set_config('app.tenant_id', 'seed-search', false)" <<<"$m" && grep -q "set_config('statement_timeout', '5000', false)" <<<"$m" && ! grep -q "rls_scope" <<<"$m" &&
   pass "measure runs in the tenant scope, never the operator scope" || fail "measure scope"
 bad=0
 for verb in INSERT UPDATE DELETE TRUNCATE DROP ALTER CREATE GRANT COMMIT; do
@@ -100,7 +100,13 @@ grep -q "rc=1" <<<"$out" && pass "an unknown MEASURE_ONLY is refused" || fail "M
 # --- 5. the summary -------------------------------------------------------------------
 sum=$(printf '@@ q1\n Execution Time: 10.0 ms\n@@ q1\n Execution Time: 30.0 ms\n@@ q1\n Execution Time: 20.0 ms\n' |
   SNIPPET='spl_search_measure_summary' in_orc 2>&1)
-grep -qE "^q1 +3 +20\.0 +30\.0 +30\.0$" <<<"$sum" && pass "summary: n=3 p50 20.0 p95 30.0 max 30.0" || fail "summary: $sum"
+grep -qE "^q1 +3 +20\.0 +30\.0 +30\.0 +0$" <<<"$sum" && pass "summary: n=3 p50 20.0 p95 30.0 max 30.0" || fail "summary: $sum"
+sum=$(printf '@@ q2\n Execution Time: 10.0 ms\n@@ q2\nERROR:  canceling statement due to statement timeout\n@@ q2\n Execution Time: 20.0 ms\n' |
+  SNIPPET='spl_search_measure_summary' in_orc 2>&1)
+sum3=$(printf '@@ q3\n Execution Time: 10.0 ms\n@@plan q4\n Execution Time: 999.0 ms\n@@ q4\n Execution Time: 5.0 ms\n' |
+  SNIPPET='spl_search_measure_summary' in_orc 2>&1)
+grep -qE "^q3 +1 +10\.0 " <<<"$sum3" && grep -qE "^q4 +1 +5\.0 " <<<"$sum3" && pass "a plan run is not counted as a sample" || fail "plan attribution: $sum3"
+grep -qE "^q2 +3 +20\.0 +>timeout +>timeout +1$" <<<"$sum" && pass "a statement timeout counts as a sample" || fail "timeout summary: $sum"
 
 echo
 ((fails == 0)) && { echo "PASS: all spl-search-seed.tst.sh assertions"; exit 0; }

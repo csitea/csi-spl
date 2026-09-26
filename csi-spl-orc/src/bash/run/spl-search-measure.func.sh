@@ -2,8 +2,10 @@
 #------------------------------------------------------------------------------
 # @description READ-ONLY latency of the hub's search SQL on one tenant (specs/022
 # @description §9, CLE-34992): each query runs MEASURE_N times as EXPLAIN
-# @description (ANALYZE) inside a READ ONLY transaction that is rolled back,
-# @description under the TENANT row-level-security scope the hub uses, and the
+# @description (ANALYZE) in a session whose default_transaction_read_only is on
+# @description (Postgres refuses any write), under the TENANT row-level-security
+# @description scope the hub uses. Every statement stands alone, so a sample past
+# @description MEASURE_TIMEOUT_MS is counted as a timeout and the run goes on; and the
 # @description action prints p50 / p95 / max of Postgres' own Execution Time,
 # @description per query. The query shapes are the store's
 # @description (store/search_postgres.go, door off): the message section
@@ -16,6 +18,7 @@
 # @param MEASURE_N (optional) - samples per query, 3..50, default 15
 # @param MEASURE_ONLY (optional) - a comma list of query names; default all
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per query
+# @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 5000 (the hub's budget is 2000)
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
 # @example ENV=dev TENANT_ID=seed-search ./run -a do_spl_search_measure
 #------------------------------------------------------------------------------
@@ -24,6 +27,9 @@ do_spl_search_measure() {
   local tenant="${TENANT_ID:-}" n="${MEASURE_N:-15}"
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$n" =~ ^[0-9]{1,2}$ ]] && ((n >= 3 && n <= 50)) || { do_log "FATAL MEASURE_N must be 3..50, got: $n"; return 1; }
+  local to="${MEASURE_TIMEOUT_MS:-5000}"
+  [[ "$to" =~ ^[0-9]{3,5}$ ]] && ((to >= 100 && to <= 60000)) || { do_log "FATAL MEASURE_TIMEOUT_MS must be 100..60000, got: $to"; return 1; }
+  export MEASURE_TIMEOUT_MS="$to"
   spl_search_measure_sql "$tenant" "$n" "${MEASURE_ONLY:-}" "${MEASURE_PLANS:-0}" >/dev/null || return 1
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -61,8 +67,7 @@ spl_search_measure_topic_sql() {
 # spl_search_measure_sql <tenant> <n> <only> <plans>: the psql script.
 spl_search_measure_sql() {
   local tenant="$1" n="$2" only="$3" plans="$4" line name sql i found=0
-  echo "BEGIN TRANSACTION READ ONLY;"
-  echo "SELECT set_config('app.tenant_id', '$tenant', true), set_config('statement_timeout', '60000', true), set_config('jit', 'off', true);"
+  echo "SELECT set_config('app.tenant_id', '$tenant', false), set_config('statement_timeout', '${MEASURE_TIMEOUT_MS:-5000}', false), set_config('jit', 'off', false);"
   while IFS= read -r line; do
     name="${line%%|*}" sql="${line#*|}"
     [[ -z "$only" || ",$only," == *",$name,"* ]] || continue
@@ -74,35 +79,42 @@ spl_search_measure_sql() {
       echo "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF) $sql;"
     done
   done < <(spl_search_measure_queries)
-  echo "ROLLBACK;"
   ((found)) || { do_log "FATAL MEASURE_ONLY names no query: $only"; return 1; }
 }
 
-# spl_search_measure_summary reads the psql output: p50 / p95 / max per query.
+# spl_search_measure_summary reads the psql output: p50 / p95 / max per query;
+# a statement timeout is a sample too, printed as ">timeout" where it lands.
 spl_search_measure_summary() {
   python3 -c '
 import sys, re
 cur, t, order = None, {}, []
 for line in sys.stdin:
     s = line.strip()
+    if s.startswith("@@plan"):
+        cur = None  # a plan run is not a sample
+        continue
     if s.startswith("@@ "):
         cur = s[3:]
         if cur not in t: t[cur] = []; order.append(cur)
     m = re.search(r"Execution Time: ([0-9.]+) ms", s)
     if m and cur: t[cur].append(float(m.group(1)))
-print("%-26s %4s %9s %9s %9s" % ("query", "n", "p50 ms", "p95 ms", "max ms"))
+    if cur and "canceling statement due to statement timeout" in s: t[cur].append(float("inf"))
+print("%-26s %4s %9s %9s %9s %8s" % ("query", "n", "p50 ms", "p95 ms", "max ms", "timeouts"))
+f = lambda x: ">timeout" if x == float("inf") else "%.1f" % x
 for k in order:
     v = sorted(t[k]); n = len(v)
     if not n: continue
     p = lambda q: v[min(n - 1, int(round(q * (n - 1))))]
-    print("%-26s %4d %9.1f %9.1f %9.1f" % (k, n, p(0.5), p(0.95), v[-1]))
+    print("%-26s %4d %9s %9s %9s %8d" % (k, n, f(p(0.5)), f(p(0.95)), f(v[-1]), sum(1 for x in v if x == float("inf"))))
 '
 }
 
 _spl_search_measure_run() {
   local out
-  out="$(spl_search_measure_sql "$@" | spl_pg_env "$SPL_PROXY_DSN" psql -X -q -v ON_ERROR_STOP=1 -P pager=off -f - 2>&1)" ||
-    { printf '%s\n' "$out" | tail -5; do_log "FATAL the measurement failed"; return 1; }
+  # No ON_ERROR_STOP: a timed-out sample is a result, not the end of the run.
+  out="$(spl_search_measure_sql "$@" | PGOPTIONS='-c default_transaction_read_only=on' \
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -P pager=off -f - 2>&1)"
+  grep -q "Execution Time" <<<"$out" || { printf '%s\n' "$out" | tail -5; do_log "FATAL no sample was measured"; return 1; }
   [[ "${4:-0}" == 1 ]] && printf '%s\n' "$out" | awk '/^@@plan/{p=1} /^@@ /{p=0} p'
   printf '%s\n' "$out" | spl_search_measure_summary
 }

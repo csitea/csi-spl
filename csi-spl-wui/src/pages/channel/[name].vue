@@ -6,9 +6,6 @@
         <span class="muted feed-header__name">#{{ titleName }}</span>
         <CardClipControl />
       </div>
-      <!-- The channel description is stored, not shown here. The retention
-           note stays, one ellipsized line under the name. -->
-      <p class="muted feed-header__about">{{ headerSub }}</p>
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
@@ -24,7 +21,6 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
-import { retentionDays } from '~/utils/channel-feed.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
@@ -50,13 +46,6 @@ const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
   description: t('channels.feedback.description'),
 }, storedDescription.value))
 const titleName = computed(() => feedbackCopy.value ? feedbackCopy.value.name : name.value)
-const retention = computed(() => {
-  const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
-  return n ? t('sidebar.retention_days', { n }) : ''
-})
-const headerSub = computed(() => retention.value
-  ? t('pages.channel.subtitle_retention', { retention: retention.value })
-  : t('pages.channel.subtitle'))
 
 /* a live row carries the hub cursor, so the next read= counts from here */
 function markRead(n: string) {

@@ -180,25 +180,6 @@
         <!-- Send stays in the tab order. Attach is a pointer target only
              (tabindex=-1), the same as the resize grip. The file input is
              not a tab stop, and a disabled Send would leave the tab order. -->
-        <div v-if="!searchMode" class="composer-kinds" role="radiogroup" :aria-label="kindWord(sendKind)" data-testid="composer-kinds">
-          <button
-            v-for="k in COMPOSER_KINDS"
-            :key="k"
-            type="button"
-            tabindex="-1"
-            class="composer-kind"
-            :class="{ 'composer-kind--on': sendKind === k }"
-            :data-kind="k"
-            :data-testid="`composer-kind-${k}`"
-            :aria-pressed="sendKind === k ? 'true' : 'false'"
-            :title="kindWord(k)"
-            :aria-label="kindWord(k)"
-            @mousedown.prevent
-            @click="chooseKind(k)"
-          >
-            <UiIcon :name="kindIcon(k) as any" :size="16" />
-          </button>
-        </div>
         <button
           v-if="!searchMode"
           type="button"
@@ -250,8 +231,6 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { COMPOSER_KINDS, composerKind, setComposerKind } from '~/utils/composer-kind.mjs'
-import { kindIcon } from '~/utils/msg-kind.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
@@ -539,13 +518,6 @@ function leaveSearch() {
 defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
-const sendKind = ref(composerKind())
-function kindWord(k: string) {
-  return te('feed.kind.' + k) ? t('feed.kind.' + k) : k
-}
-function chooseKind(k: string) {
-  sendKind.value = setComposerKind(k)
-}
 const syntaxOpen = ref(false)
 const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
@@ -1052,22 +1024,6 @@ textarea.in-code {
   overflow-wrap: anywhere;
   min-width: 0;
 }
-.composer-kinds { display: inline-flex; align-items: center; gap: 2px; }
-.composer-kind {
-  cursor: pointer;
-  background: transparent;
-  color: var(--color-muted);
-  border: 0;
-  box-shadow: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-}
-.composer-kind--on[data-kind="note"] { color: var(--color-warn); }
-.composer-kind--on[data-kind="task"] { color: var(--color-accent); }
-.composer-kind--on[data-kind="blocker"] { color: var(--color-danger); }
-.composer-kind--on[data-kind="msg"] { color: var(--color-fg); }
 .attach {
   cursor: pointer;
   background: transparent;

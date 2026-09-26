@@ -42,11 +42,10 @@ describe('SPL-953 attach is the paperclip icon only', () => {
     const send = src.slice(src.lastIndexOf('<button', sendAt), src.indexOf('>', sendAt) + 1)
     assert.equal(/tabindex\s*=/.test(send), false, send)
     assert.equal(/\sdisabled\b|:disabled\b/.test(send), false, send)
-    // The kind menu is gone. The type is icon buttons before the paperclip,
-    // and those buttons are not a tab stop.
+    // Owner 2026-09-26 (topic 1a9a8a84): only Attach and Send in the top bar,
+    // no kind dropdown and no kind icon buttons.
     assert.equal(src.includes('<select'), false, 'no kind dropdown')
-    const kindAt = src.indexOf('data-testid="composer-kinds"')
-    assert.ok(kindAt > 0 && kindAt < at, 'kind icons sit before the paperclip')
+    assert.equal(src.includes('composer-kind'), false, 'no kind buttons')
   })
 
   it('uiIcons has the lucide paperclip stroke', () => {

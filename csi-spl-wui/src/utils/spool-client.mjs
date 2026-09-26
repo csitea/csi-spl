@@ -3,7 +3,6 @@ import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
 import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
-import { composerKind } from './composer-kind.mjs'
 import {
   channelReadQuery,
   channelsFromView,
@@ -901,7 +900,7 @@ export function createSpoolClient({
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
-      const kind = composerKind()
+      const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
         const row = {

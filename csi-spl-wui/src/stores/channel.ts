@@ -23,7 +23,6 @@ import {
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
-import { composerKind } from '~/utils/composer-kind.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -347,7 +346,7 @@ export const useChannelStore = defineStore('channel', () => {
     const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
     const frame: SendFrame = {
       task_id: parentTaskId || newId(),
-      kind: composerKind(),
+      kind: 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */,
       body: asDm ? text : parsed.body,
       files: await toFileRefs(files),
       to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),

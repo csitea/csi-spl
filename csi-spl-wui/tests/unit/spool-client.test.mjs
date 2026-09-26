@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSpoolClient, credentialsFor } from '../../src/utils/spool-client.mjs'
-import { setComposerKind } from '../../src/utils/composer-kind.mjs'
 
 describe('spool-client mock', () => {
   it('lists default channels and catch-up of 50', async () => {
@@ -14,15 +13,10 @@ describe('spool-client mock', () => {
     assert.equal(next, null)
   })
 
-  it('an @mention is a note by default; the composer kind task sends a task', async () => {
+  it('a person\'s post is a note, an @mention included, and appends it', async () => {
     const c = createSpoolClient({ mock: true })
-    setComposerKind('note')
-    const plain = await c.sendMessage({ channel: 'dev', text: '@GRK-03 look' })
-    assert.equal(plain.kind, 'note', 'a mention no longer changes the kind (c1aebac8)')
-    setComposerKind('task')
     const sent = await c.sendMessage({ channel: 'dev', text: '@GRK-03 ship it' })
-    setComposerKind('note')
-    assert.equal(sent.kind, 'task')
+    assert.equal(sent.kind, 'note', 'owner 2026-09-26: human posts are notes; the card badge re-types them')
     assert.equal(sent.to, 'GRK-03')
     assert.equal(sent.channel, 'dev')
     const { messages: feed } = await c.listMessages({ channel: 'dev' })
@@ -138,14 +132,12 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     const sender = async (f) => { frames.push(f); return { msg_id: 'm1', task_id: f.task_id, cursor: 'c1', received_at: 'r1' } }
     const { fn, calls } = stubFetch([])
     const c = createSpoolClient({ fetchFn: fn, mock: false, sender })
-    setComposerKind('task')
     const out = await c.sendMessage({ channel: 'tasks', text: '@GRK-03 ship it', parent_task_id: T1, from: 'HUM-1' })
-    setComposerKind('note')
     assert.equal(calls.length, 0)
     assert.equal(frames[0].channel, 'tasks')
     assert.equal(frames[0].parent_task_id, T1)
     assert.equal(frames[0].to, 'GRK-03')
-    assert.equal(frames[0].kind, 'task')
+    assert.equal(frames[0].kind, 'note')
     assert.equal(out.channel, 'tasks')
     assert.equal(out.cursor, 'c1')
     const dm = await c.sendMessage({ peer: 'CLE-07@box-a', text: 'hi', task_id: T2 })

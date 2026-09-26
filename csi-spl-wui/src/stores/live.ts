@@ -5,7 +5,6 @@ import { usePaneFocus } from '~/stores/pane-focus'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
-import { composerKind } from '~/utils/composer-kind.mjs'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -238,7 +237,7 @@ function setup(key: 'main' | 'pane') {
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
       const parsed = parseMention(body)
-      const kind = composerKind()
+      const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const to = parsed.to === '@channel' ? undefined : parsed.to
       const text = parsed.body
       if (isEmptySend(text, refs)) throw emptySendError()

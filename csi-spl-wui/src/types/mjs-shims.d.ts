@@ -365,6 +365,7 @@ declare module '~/utils/tenant-switcher.mjs' {
   export function tenantSwitchOptions(claims: unknown, configured?: unknown): { selected: string, canSwitch: boolean, options: { id: string, label: string }[] }
   export function tenantHint(box: { selected: string, canSwitch: boolean, options: { id: string, label: string }[] }, t: (key: string, params?: Record<string, string>) => string): string
   export const TENANT_ARROW_GAP_PX: 3
+  export const TENANT_TEXT_PAD_PX: 2
   export function tenantDrawnLabels(options: unknown, fallback: unknown): string[]
   export function widestLabelWidth(labels: unknown, measure: (label: string) => number): number
   export function tenantClosedWidthPx(widestTextPx: unknown, arrowPx: unknown, gapPx?: unknown): number

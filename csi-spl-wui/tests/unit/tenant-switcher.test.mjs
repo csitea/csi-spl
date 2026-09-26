@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption, measureControlText, TENANT_ARROW_GAP_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantNameArrowGapPx, tenantSwitchOptions, widestLabelWidth } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantNameArrowGapPx, tenantSwitchOptions, widestLabelWidth } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -336,8 +336,11 @@ describe('the closed drop box is the widest name, then 3px, then the arrow', () 
     const style = vue.slice(vue.indexOf('<style'))
     assert.match(vue, /tenantDrawnLabels\(tenantBox\.value\.options, t\('sidebar\.tenant'\)\)/)
     assert.match(vue, /widestLabelWidth\(labels, \(label\) => measureControlText\(sel, label\)\)/)
-    assert.match(vue, /gap: TENANT_ARROW_GAP_PX \+ 'px'/)
-    assert.match(vue, /width: text \+ 'px'/)
+    assert.match(vue, /gap: \(TENANT_ARROW_GAP_PX - TENANT_TEXT_PAD_PX\) \+ 'px'/)
+    /* SPL-980: 2px of the select's own background before and after the name, in the closed box and the open list */
+    assert.equal(TENANT_TEXT_PAD_PX, 2)
+    assert.match(vue, /width: \(text \+ 2 \* TENANT_TEXT_PAD_PX\) \+ 'px', paddingInline: TENANT_TEXT_PAD_PX \+ 'px'/)
+    assert.match(vue, /\.tenant-switcher__select option \{ padding-inline: 2px; \}/)
     assert.match(vue, /attributeFilter: \['data-font-size'\]/)
     assert.match(vue, /matchMedia\('\(max-width: 800px\)'\)/)
     assert.match(vue, /data-testid="tenant-switcher-arrow"/)

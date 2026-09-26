@@ -82,6 +82,12 @@ export function tenantHint(box, t) {
 /** Px between the end of the widest drawn name and the start of the arrow. */
 export const TENANT_ARROW_GAP_PX = 3
 
+/** SPL-980: px of the select's own background before and after the name
+ *  (the name no longer touches the box's edge). The select is this much
+ *  wider on each side, and the flex gap to the arrow is this much smaller,
+ *  so the arrow still sits TENANT_ARROW_GAP_PX after the name. */
+export const TENANT_TEXT_PAD_PX = 2
+
 /**
  * The strings the closed control actually draws. A blank option shows
  * `fallback` (the Tenant caption), the same substitution as the option text

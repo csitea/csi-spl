@@ -157,6 +157,7 @@ try {
       selLeft: box.selLeft, selRight: box.selRight, padStartPx: box.padStart, widestPx: box.widest,
       arrowLeft: box.arrowLeft, arrowRight: box.arrowRight, direction: box.direction,
     })
+    ok(tag + ' SPL-980 2px of the box before and after the name', box.padStart === 2 && Math.abs(parseFloat(box.styledWidth) - box.widest - 4) < 0.05, { padStart: box.padStart, styledWidth: box.styledWidth, widest: box.widest })
     ok(tag + ' the arrow sits 3px after the widest name', Number.isFinite(nameGap) && Math.abs(nameGap - 3) <= 0.5, { gap: nameGap, widest: box.widest, styledWidth: box.styledWidth })
     ok(tag + ' SPL-71 a drop box: a bordered box holds the name and the arrow',
       box.boxBorders?.length === 4 && box.boxBorders.every((w) => w >= 1) && box.boxBorderStyle === 'solid'

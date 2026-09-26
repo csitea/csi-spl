@@ -15,7 +15,7 @@
       <span
         class="tenant-switcher__field"
         data-testid="tenant-switcher-box"
-        :style="{ gap: TENANT_ARROW_GAP_PX + 'px' }"
+        :style="{ gap: (TENANT_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
         @mousedown="onTenantBoxPress"
       >
       <select
@@ -567,7 +567,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { canDeleteChannel, viewerHumanId } from '~/utils/spool-client.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { measureControlText, TENANT_ARROW_GAP_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
+import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'users'
@@ -647,7 +647,7 @@ const tenantTextPx = ref(0)
 const tenantSelectStyle = computed(() => {
   const text = tenantTextPx.value
   if (!(text > 0)) return undefined
-  return { width: text + 'px' }
+  return { width: (text + 2 * TENANT_TEXT_PAD_PX) + 'px', paddingInline: TENANT_TEXT_PAD_PX + 'px' }
 })
 /* The select is only as wide as the widest option in its own font. The arrow
    is the next flex item, TENANT_ARROW_GAP_PX after that edge, so a clamped
@@ -1355,6 +1355,8 @@ async function onCreate() {
   appearance: none;
   -webkit-appearance: none;
 }
+/* SPL-980: the open list's rows get the same 2px before and after the name */
+.tenant-switcher__select option { padding-inline: 2px; }
 .tenant-switcher__arrow {
   flex: 0 0 auto;
   width: 0.65em;

@@ -528,7 +528,9 @@
     "picker": "Izaberite temu",
     "light_violet": "Svetloljubičasta",
     "light_green": "Svetlozelena",
-    "light_yellow": "Svetložuta"
+    "light_yellow": "Svetložuta",
+    "light_orange": "Svetlonarandžasta",
+    "light_red": "Svetlocrvena"
   },
   "view_token": {
     "need_member": "Za teme ovog zakupca potrebna je prijava člana.",

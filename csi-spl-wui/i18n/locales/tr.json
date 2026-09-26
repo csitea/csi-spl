@@ -528,7 +528,9 @@
     "picker": "Bir tema seçin",
     "light_violet": "Açık mor",
     "light_green": "Açık yeşil",
-    "light_yellow": "Açık sarı"
+    "light_yellow": "Açık sarı",
+    "light_orange": "Açık turuncu",
+    "light_red": "Açık kırmızı"
   },
   "view_token": {
     "need_member": "Bu kiracının konuları için üye girişi gerekir.",

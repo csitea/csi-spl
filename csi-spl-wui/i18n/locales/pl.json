@@ -528,7 +528,9 @@
     "picker": "Wybierz motyw",
     "light_violet": "Jasny fiolet",
     "light_green": "Jasny zielony",
-    "light_yellow": "Jasny żółty"
+    "light_yellow": "Jasny żółty",
+    "light_orange": "Jasny pomarańczowy",
+    "light_red": "Jasny czerwony"
   },
   "view_token": {
     "need_member": "Tematy tej dzierżawy wymagają zalogowania członka.",

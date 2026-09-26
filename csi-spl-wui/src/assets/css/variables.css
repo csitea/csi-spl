@@ -247,6 +247,79 @@
   --color-btn-select-fg: #fffcf0;
 }
 
+/* SPL-956: a light orange theme. The accent is burnt orange (#a34b00),
+   not the yellow theme's brown and not the shop orange the token test
+   forbids. Text clears WCAG AA; the focus ring clears 3:1. */
+:root[data-theme="light-orange"] {
+  color-scheme: light;
+  --color-bg: #fbf3ea;
+  --color-bg-2: #f6e6d4;
+  --color-bg-3: #f0d8bc;
+  --color-sidebar: #f6e6d4;
+  --color-surface: #fffaf4;
+  --color-surface-hover: #f0dcc4;
+  --color-fg: #2a1608;
+  --color-heading: #2a1608;
+  --color-muted: #6b4a28;
+  --color-border: rgba(140, 70, 0, 0.18);
+  --color-border-strong: rgba(140, 70, 0, 0.34);
+  --color-accent: #a34b00;
+  --color-accent-2: #6a3fd0;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fffaf4;
+  --color-composer: #fffaf4;
+  --color-glow: rgba(163, 75, 0, 0.28);
+  --focus-ring: #b35a00;
+  --focus-3d: 0 4px 10px rgba(140, 70, 0, 0.28);
+  --color-selected: #e8cba8;
+  --color-accent-pressed: #7d3900;
+  --color-btn-grey-top: #faf7f3;
+  --color-btn-grey-bottom: #c9bbaa;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #918674;
+  --color-btn-select: #6a3200;
+  --color-btn-select-fg: #fffaf4;
+}
+
+/* SPL-956: a reddish light theme. The accent is rose (#9a3d58), not the
+   blocker red (--color-danger #b3261e, SPL-952), so a red badge stays
+   distinguishable. Every text pair clears WCAG AA; the focus ring clears
+   3:1 on every surface. Measured in tests/unit/theme-contrast.test.mjs. */
+:root[data-theme="light-red"] {
+  color-scheme: light;
+  --color-bg: #fbeeee;
+  --color-bg-2: #f6e0e0;
+  --color-bg-3: #f0d2d2;
+  --color-sidebar: #f6e0e0;
+  --color-surface: #fff8f8;
+  --color-surface-hover: #f3d4d4;
+  --color-fg: #2a1012;
+  --color-heading: #2a1012;
+  --color-muted: #6a3840;
+  --color-border: rgba(120, 30, 50, 0.16);
+  --color-border-strong: rgba(120, 30, 50, 0.32);
+  --color-accent: #9a3d58;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fff8f8;
+  --color-composer: #fff8f8;
+  --color-glow: rgba(154, 61, 88, 0.28);
+  --focus-ring: #a84b66;
+  --focus-3d: 0 4px 10px rgba(120, 30, 50, 0.28);
+  --color-selected: #e4b4b8;
+  --color-accent-pressed: #7c3048;
+  --color-btn-grey-top: #faf6f7;
+  --color-btn-grey-bottom: #cbb8bc;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #948086;
+  --color-btn-select: #5c2434;
+  --color-btn-select-fg: #fff8f8;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --color-bg: #060912;

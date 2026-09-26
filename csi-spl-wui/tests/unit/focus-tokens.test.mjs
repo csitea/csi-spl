@@ -68,7 +68,7 @@ function contrast(a, b) {
 }
 
 /* every theme the picker offers (CLE-34994: five) */
-const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red']
 
 /* the flat line the light theme used before this lane */
 const OLD_LIGHT_LINE = '#0a97c4'

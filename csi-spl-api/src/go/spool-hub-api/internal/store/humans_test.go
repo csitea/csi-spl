@@ -265,11 +265,13 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetPreferredTheme(ctx, hum, "navy"); err == nil {
 				t.Fatal("SetPreferredTheme accepted navy")
 			}
-			if err := h.SetPreferredTheme(ctx, hum, "light"); err != nil {
-				t.Fatal(err)
-			}
-			if got, err := h.PreferredTheme(ctx, hum); err != nil || got != "light" {
-				t.Fatalf("theme %q %v", got, err)
+			for _, id := range []string{"light", "light-orange", "light-red"} {
+				if err := h.SetPreferredTheme(ctx, hum, id); err != nil {
+					t.Fatal(id, err)
+				}
+				if got, err := h.PreferredTheme(ctx, hum); err != nil || got != id {
+					t.Fatalf("theme %s got %q %v", id, got, err)
+				}
 			}
 			if err := h.SetPreferredTheme(ctx, hum, ""); err != nil {
 				t.Fatal(err)

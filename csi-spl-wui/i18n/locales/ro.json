@@ -528,7 +528,9 @@
     "picker": "Alegeți o temă",
     "light_violet": "Violet deschis",
     "light_green": "Verde deschis",
-    "light_yellow": "Galben deschis"
+    "light_yellow": "Galben deschis",
+    "light_orange": "Portocaliu deschis",
+    "light_red": "Roșu deschis"
   },
   "view_token": {
     "need_member": "Temele acestui chiriaș necesită autentificarea unui membru.",

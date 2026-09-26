@@ -28,7 +28,7 @@ describe('theme tokens', () => {
     const names = (b) => [...b.matchAll(/\s(--[a-z0-9-]+):/g)].map((m) => m[1]).sort()
     const light = names(blockOf(':root[data-theme="light"]'))
     assert.ok(light.length >= 25, `light palette has ${light.length} tokens`)
-    for (const id of ['light-violet', 'light-green', 'light-yellow']) {
+    for (const id of ['light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red']) {
       const b = blockOf(`:root[data-theme="${id}"]`)
       assert.deepEqual(names(b), light, `${id} token set`)
       assert.match(b, /color-scheme: light;/)

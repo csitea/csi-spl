@@ -61,7 +61,7 @@ in_orc() {
 }
 
 FUNC="$PROJ_ROOT/src/bash/run/spl-human-theme.func.sh"
-SQL0017="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0057_human_preferred_theme.sql"
+SQL0017="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0059_human_preferred_theme_warm.sql"
 bash -n "$FUNC" && pass "0. action parses" || fail "0. action syntax"
 want=$(python3 -c '
 import re,sys
@@ -70,8 +70,8 @@ m=re.search(r"preferred_theme IN\s*\(([^)]*)\)", t)
 codes=re.findall(r"'\''([a-z-]+)'\''", m.group(1))
 print("|".join(codes))
 ' "$SQL0017")
-grep -q "themes='$want'" "$FUNC" && pass "0. the theme list is rdb 0057's CHECK, in that order" \
-  || fail "0. theme list drifted from 0057 (want $want)"
+grep -q "themes='$want'" "$FUNC" && pass "0. the theme list is rdb 0059's CHECK, in that order" \
+  || fail "0. theme list drifted from 0059 (want $want)"
 
 # --- 1. DRY_RUN ----------------------------------------------------------------
 in_orc 'do_spl_human_theme' HUMAN_ID=HUM-4 THEME=LIGHT; rc=$?

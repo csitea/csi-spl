@@ -528,7 +528,9 @@
     "picker": "בחרו ערכת נושא",
     "light_violet": "סגול בהיר",
     "light_green": "ירוק בהיר",
-    "light_yellow": "צהוב בהיר"
+    "light_yellow": "צהוב בהיר",
+    "light_orange": "כתום בהיר",
+    "light_red": "אדום בהיר"
   },
   "view_token": {
     "need_member": "הנושאים של טננט זה דורשים התחברות כחבר.",

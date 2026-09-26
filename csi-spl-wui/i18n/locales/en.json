@@ -528,7 +528,9 @@
     "picker": "Choose a theme",
     "light_violet": "Light violet",
     "light_green": "Light green",
-    "light_yellow": "Light yellow"
+    "light_yellow": "Light yellow",
+    "light_orange": "Light orange",
+    "light_red": "Light red"
   },
   "view_token": {
     "need_member": "This tenant's topics need a member sign-in.",

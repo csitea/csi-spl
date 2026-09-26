@@ -9,8 +9,9 @@
 # @description DRY_RUN=1 (default): print the change, call no cloud.
 # @param ENV - required: dev or prd
 # @param HUMAN_ID - required: e.g. HUM-4
-# @param THEME - required: dark, light, light-violet, light-green, or
-# @param   light-yellow. light is the light-blue palette. Compared lower-cased.
+# @param THEME - required: dark, light, light-violet, light-green,
+# @param   light-yellow, light-orange, or light-red. light is the light-blue
+# @param   palette. Compared lower-cased.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 THEME=light DRY_RUN=0 ./run -a do_spl_human_theme
 #------------------------------------------------------------------------------
@@ -19,10 +20,10 @@ do_spl_human_theme() {
   do_spl_cloud_cnf || return 1
   local human="${HUMAN_ID:-}" theme="${THEME:-}" dry=1
   # rdb 0057 humans_preferred_theme_check, in that order. A new theme is a migration first.
-  local themes='dark|light|light-violet|light-green|light-yellow'
+  local themes='dark|light|light-violet|light-green|light-yellow|light-orange|light-red'
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
   theme="${theme,,}"
-  [[ "$theme" =~ ^($themes)$ ]] || { do_log "FATAL THEME must be one of the palette themes (dark, light, light-violet, light-green, light-yellow). light is the light-blue palette ($themes), got: '${THEME:-}'"; return 1; }
+  [[ "$theme" =~ ^($themes)$ ]] || { do_log "FATAL THEME must be one of the palette themes (dark, light, light-violet, light-green, light-yellow, light-orange, light-red). light is the light-blue palette ($themes), got: '${THEME:-}'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     do_log "OK DRY_RUN would set preferred_theme of $human to $theme on $SPL_SQL_CONN. Re-run with DRY_RUN=0."

@@ -528,7 +528,9 @@
     "picker": "Valitse teema",
     "light_violet": "Vaalea violetti",
     "light_green": "Vaalea vihreä",
-    "light_yellow": "Vaalea keltainen"
+    "light_yellow": "Vaalea keltainen",
+    "light_orange": "Vaalea oranssi",
+    "light_red": "Vaalea punainen"
   },
   "view_token": {
     "need_member": "Tämän tenantin aiheet vaativat jäsenkirjautumisen.",

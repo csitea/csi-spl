@@ -528,7 +528,9 @@
     "picker": "Pasirinkite temą",
     "light_violet": "Šviesi violetinė",
     "light_green": "Šviesi žalia",
-    "light_yellow": "Šviesi geltona"
+    "light_yellow": "Šviesi geltona",
+    "light_orange": "Šviesi oranžinė",
+    "light_red": "Šviesi raudona"
   },
   "view_token": {
     "need_member": "Šio nuomininko temoms reikia nario prisijungimo.",

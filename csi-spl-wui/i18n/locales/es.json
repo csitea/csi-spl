@@ -528,7 +528,9 @@
     "picker": "Elige un tema",
     "light_violet": "Violeta claro",
     "light_green": "Verde claro",
-    "light_yellow": "Amarillo claro"
+    "light_yellow": "Amarillo claro",
+    "light_orange": "Naranja claro",
+    "light_red": "Rojo claro"
   },
   "view_token": {
     "need_member": "Los temas de este inquilino requieren que un miembro inicie sesión.",

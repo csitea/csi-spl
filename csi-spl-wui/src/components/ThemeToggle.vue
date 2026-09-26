@@ -192,6 +192,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer))
 .theme-picker__swatch--light-violet { background: linear-gradient(135deg, #f1ecfb 50%, #6a3fd0 50%); }
 .theme-picker__swatch--light-green { background: linear-gradient(135deg, #eaf5ee 50%, #16733f 50%); }
 .theme-picker__swatch--light-yellow { background: linear-gradient(135deg, #fbf6e3 50%, #855400 50%); }
+.theme-picker__swatch--light-orange { background: linear-gradient(135deg, #fbf3ea 50%, #a34b00 50%); }
+.theme-picker__swatch--light-red { background: linear-gradient(135deg, #fbeeee 50%, #9a3d58 50%); }
 .theme-picker__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .theme-picker__check { color: var(--color-accent); flex-shrink: 0; }
 </style>

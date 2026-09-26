@@ -528,7 +528,9 @@
     "picker": "Vali teema",
     "light_violet": "Hele violett",
     "light_green": "Hele roheline",
-    "light_yellow": "Hele kollane"
+    "light_yellow": "Hele kollane",
+    "light_orange": "Hele oranž",
+    "light_red": "Hele punane"
   },
   "view_token": {
     "need_member": "Selle rentniku teemade nägemiseks on vaja liikmena sisse logida.",

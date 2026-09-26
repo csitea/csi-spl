@@ -42,7 +42,7 @@ const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); conso
 const xscroll = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red']
 const nonce = 'md' + Date.now().toString(36)
 const wide = Array.from({ length: 12 }, (_, i) => `column-${i}-wide-header`)
 const body = [

@@ -186,7 +186,7 @@ func checkLocale(loc string) error {
 }
 
 // palette themes, in picker order. 'light' is the light-blue one.
-var themeIDs = []string{"dark", "light", "light-violet", "light-green", "light-yellow"}
+var themeIDs = []string{"dark", "light", "light-violet", "light-green", "light-yellow", "light-orange", "light-red"}
 
 func checkTheme(theme string) error {
 	if theme == "" {

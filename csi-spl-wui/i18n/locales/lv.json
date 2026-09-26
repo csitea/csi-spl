@@ -528,7 +528,9 @@
     "picker": "Izvēlieties motīvu",
     "light_violet": "Gaiši violets",
     "light_green": "Gaiši zaļš",
-    "light_yellow": "Gaiši dzeltens"
+    "light_yellow": "Gaiši dzeltens",
+    "light_orange": "Gaiši oranžs",
+    "light_red": "Gaiši sarkans"
   },
   "view_token": {
     "need_member": "Šī nomnieka tēmām nepieciešama dalībnieka pieteikšanās.",

@@ -528,7 +528,9 @@
     "picker": "Välj ett tema",
     "light_violet": "Ljusviolett",
     "light_green": "Ljusgrönt",
-    "light_yellow": "Ljusgult"
+    "light_yellow": "Ljusgult",
+    "light_orange": "Ljusorange",
+    "light_red": "Ljusröd"
   },
   "view_token": {
     "need_member": "Den här tenantens ämnen kräver inloggning som medlem.",

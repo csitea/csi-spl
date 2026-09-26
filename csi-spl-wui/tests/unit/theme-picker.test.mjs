@@ -30,12 +30,14 @@ const NAMES = {
   'light-violet': 'theme.light_violet',
   'light-green': 'theme.light_green',
   'light-yellow': 'theme.light_yellow',
+  'light-orange': 'theme.light_orange',
+  'light-red': 'theme.light_red',
 }
 
 describe('palette options', () => {
-  it('lists dark, light, light-violet, light-green, light-yellow', () => {
-    assert.deepEqual(THEME_IDS, ['dark', 'light', 'light-violet', 'light-green', 'light-yellow'])
-    assert.equal(THEMES.length, 5)
+  it('lists the seven palette themes, dark first', () => {
+    assert.deepEqual(THEME_IDS, ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red'])
+    assert.equal(THEMES.length, 7)
     assert.equal(THEME_DEFAULT, 'dark')
     assert.equal(THEME_KEY, 'spool-theme')
   })
@@ -54,6 +56,8 @@ describe('palette options', () => {
     assert.equal(en.light_violet, 'Light violet')
     assert.equal(en.light_green, 'Light green')
     assert.equal(en.light_yellow, 'Light yellow')
+    assert.equal(en.light_orange, 'Light orange')
+    assert.equal(en.light_red, 'Light red')
   })
 
   it('each swatch background is that theme\'s --color-bg', () => {

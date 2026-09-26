@@ -528,7 +528,9 @@
     "picker": "Vyberte motív",
     "light_violet": "Svetlofialový",
     "light_green": "Svetlozelený",
-    "light_yellow": "Svetložltý"
+    "light_yellow": "Svetložltý",
+    "light_orange": "Svetlooranžový",
+    "light_red": "Svetločervený"
   },
   "view_token": {
     "need_member": "Témy tohto nájomníka vyžadujú prihlásenie člena.",

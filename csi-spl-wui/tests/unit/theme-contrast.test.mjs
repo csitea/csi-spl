@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const VARS = readFileSync(join(WUI, 'src/assets/css/variables.css'), 'utf8')
 /* the picker's themes, in THEMES order (src/utils/theme.mjs) */
-const THEME_IDS = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+const THEME_IDS = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red']
 
 function block(selector) {
   const i = VARS.indexOf(selector + ' {')

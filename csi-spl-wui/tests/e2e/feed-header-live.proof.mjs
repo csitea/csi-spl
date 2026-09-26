@@ -188,7 +188,7 @@ try {
   }
 
   if (EXPECT === 'new') {
-    const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+    const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red']
     for (const theme of THEMES) {
       for (const size of [1, 2, 3, 4, 5]) {
         for (const w of [390, 1440]) {

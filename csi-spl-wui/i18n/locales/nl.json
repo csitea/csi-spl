@@ -528,7 +528,9 @@
     "picker": "Kies een thema",
     "light_violet": "Lichtviolet",
     "light_green": "Lichtgroen",
-    "light_yellow": "Lichtgeel"
+    "light_yellow": "Lichtgeel",
+    "light_orange": "Lichtoranje",
+    "light_red": "Lichtrood"
   },
   "view_token": {
     "need_member": "Voor de onderwerpen van deze tenant moet een lid inloggen.",

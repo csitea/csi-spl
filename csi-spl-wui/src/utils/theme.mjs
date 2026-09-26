@@ -8,7 +8,7 @@ import { storageGet, storageSet } from './prefs.mjs'
 export const THEME_KEY = 'spool-theme'
 export const THEME_DEFAULT = 'dark'
 
-/** @typedef {'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow'} SpoolTheme */
+/** @typedef {'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow' | 'light-orange' | 'light-red'} SpoolTheme */
 
 /** CLE-34994: the palette picker's options, dark to light, in menu order.
  *  `swatch` is the theme's own --color-bg / --color-accent pair, so each
@@ -19,6 +19,8 @@ export const THEMES = [
   { id: 'light-violet', labelKey: 'theme.light_violet', swatch: ['#f1ecfb', '#6a3fd0'] },
   { id: 'light-green', labelKey: 'theme.light_green', swatch: ['#eaf5ee', '#16733f'] },
   { id: 'light-yellow', labelKey: 'theme.light_yellow', swatch: ['#fbf6e3', '#855400'] },
+  { id: 'light-orange', labelKey: 'theme.light_orange', swatch: ['#fbf3ea', '#a34b00'] },
+  { id: 'light-red', labelKey: 'theme.light_red', swatch: ['#fbeeee', '#9a3d58'] },
 ]
 
 export const THEME_IDS = THEMES.map((t) => t.id)

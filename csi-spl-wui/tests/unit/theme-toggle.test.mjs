@@ -23,13 +23,13 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('theme persist + mapping', () => {
-  it('five themes, dark to light, dark the default', () => {
-    assert.deepEqual(THEME_IDS, ['dark', 'light', 'light-violet', 'light-green', 'light-yellow'])
+  it('seven themes, dark first, dark the default', () => {
+    assert.deepEqual(THEME_IDS, ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 'light-orange', 'light-red'])
     assert.equal(THEME_DEFAULT, 'dark')
     assert.equal(THEME_KEY, 'spool-theme')
   })
 
-  it('parseTheme accepts only the five ids and defaults to dark', () => {
+  it('parseTheme accepts only the palette ids and defaults to dark', () => {
     for (const id of THEME_IDS) assert.equal(parseTheme(id), id)
     assert.equal(parseTheme(''), 'dark')
     assert.equal(parseTheme(null), 'dark')
@@ -43,6 +43,8 @@ describe('theme persist + mapping', () => {
     assert.equal(labelKeyForTheme('light-violet'), 'theme.light_violet')
     assert.equal(labelKeyForTheme('light-green'), 'theme.light_green')
     assert.equal(labelKeyForTheme('light-yellow'), 'theme.light_yellow')
+    assert.equal(labelKeyForTheme('light-orange'), 'theme.light_orange')
+    assert.equal(labelKeyForTheme('light-red'), 'theme.light_red')
     assert.equal(labelKeyForTheme('junk'), 'theme.dark')
     assert.equal(themeIndex('light-green'), 3)
     assert.equal(themeIndex('junk'), 0)

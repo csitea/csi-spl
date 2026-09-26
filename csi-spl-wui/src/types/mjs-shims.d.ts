@@ -892,7 +892,7 @@ declare module '~/utils/tenant-users.mjs' {
 }
 
 declare module '~/utils/theme.mjs' {
-  export type SpoolTheme = 'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow'
+  export type SpoolTheme = 'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow' | 'light-orange' | 'light-red'
   export type SpoolThemeOption = { id: SpoolTheme, labelKey: string, swatch: [string, string] }
   export const THEME_KEY: 'spool-theme'
   export const THEME_DEFAULT: 'dark'

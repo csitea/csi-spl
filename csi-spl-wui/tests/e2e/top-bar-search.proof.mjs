@@ -75,7 +75,7 @@ try {
   })
   step('top bar spans the page with the Omnibox + corner, shell below, no inline page Omnibox',
     !!layout && layout.top === 0 && layout.width >= 1270 && layout.omnibox && layout.corner && layout.shellBelow && layout.inlineOmnibox === 0, layout || {})
-  // a page taller than the viewport (a long settings page, say): the document scrolls, the bar does not
+  // a tall child must not scroll the window; the lists scroll inside themselves
   await p.evaluate(() => {
     const d = document.createElement('div')
     d.id = 'proof-tall'
@@ -85,7 +85,7 @@ try {
   })
   await sleep(200)
   const stuck = await p.evaluate(() => ({ top: document.querySelector('[data-test=top-bar]').getBoundingClientRect().top, scrollY: window.scrollY }))
-  step('the bar stays on top while the page scrolls', stuck.top === 0 && stuck.scrollY > 0, stuck)
+  step('the window does not scroll and the bar stays put', stuck.top === 0 && stuck.scrollY === 0, stuck)
   await p.evaluate(() => { document.getElementById('proof-tall')?.remove(); window.scrollTo(0, 0) })
   await p.screenshot({ path: `${OUT}/01-top-bar-desktop.png` })
 

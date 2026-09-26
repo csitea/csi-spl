@@ -44,6 +44,10 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   align-items: stretch;
   justify-content: flex-start;
   padding: 0;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .login-bar {
   position: sticky;
@@ -85,13 +89,18 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
 .login-body {
   position: relative;
   z-index: 1;
-  flex: 1;
-  display: grid;
-  place-items: center;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
   padding: 24px;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   box-sizing: border-box;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* The bar stays a solid strip. The picture shows in the field around the card. */
 .login-wallpaper {

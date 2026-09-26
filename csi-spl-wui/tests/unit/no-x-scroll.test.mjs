@@ -15,6 +15,9 @@ describe('no document x-scroll', () => {
     const css = readFileSync(basePath, 'utf8')
     for (const marker of [
       'overflow-x: clip',
+      'overflow: hidden',
+      'overscroll-behavior: none',
+      '100dvh',
       'max-width: 100%',
       'Document horizontal scroll on mobile is FORBIDDEN',
       '#__nuxt',
@@ -34,5 +37,9 @@ describe('no document x-scroll', () => {
     const layout = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
     assert.equal(layout.includes('max-width:100%'), true)
     assert.equal(layout.includes('min-width:0'), true)
+    assert.equal(layout.includes('overflow: hidden'), true)
+    const login = readFileSync(join(WUI, 'src/layouts/login.vue'), 'utf8')
+    assert.equal(login.includes('overflow-y: auto'), true, 'login body scrolls inside the locked window')
+    assert.equal(login.includes('min-height: 0'), true)
   })
 })

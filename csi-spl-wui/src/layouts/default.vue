@@ -125,10 +125,10 @@ const {
 .layout {
   max-width: 100%;
   min-width: 0;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: clip;
+  overflow: hidden;
 }
 </style>

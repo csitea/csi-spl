@@ -171,6 +171,7 @@ html.pane-dragging * {
 }
 .sidebar-foot {
   margin-top: auto;
+  flex-shrink: 0;
   min-width: 0;
 }
 .sidebar h2 {
@@ -574,11 +575,14 @@ html.pane-dragging * {
   padding: 2px 8px;
 }
 .login {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
   max-width: 100%;
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: auto;
   background: var(--color-bg);
   color: var(--color-fg);
 }
@@ -694,7 +698,7 @@ html.pane-dragging * {
   min-width: 0;
   flex-shrink: 0;
 }
-.live-pane .feed-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.live-pane .feed-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;

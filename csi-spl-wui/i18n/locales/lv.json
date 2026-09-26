@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Tiešā ziņa no {from}",
     "title_mention": "{from} jūs pieminēja",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Skaņa ieslēgta",
+    "chime_off": "Skaņa izslēgta"
   },
   "verbosity": {
     "label": "Tēmas detalizācija",

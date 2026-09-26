@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "DM från {from}",
     "title_mention": "{from} nämnde dig",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Ljud på",
+    "chime_off": "Ljud av"
   },
   "verbosity": {
     "label": "Detaljnivå i ämnet",

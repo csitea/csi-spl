@@ -161,7 +161,12 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     assert.match(vue, /@media \(max-width: 800px\)/)
     assert.match(vue, /:aria-label="alertsLabel"/)
     assert.match(vue, /'bell' : 'bell-off'/)
-    assert.match(vue, /name="music"/)
+    // owner 2026-09-26: the note is struck through when the chime is off, like the bell
+    assert.match(vue, /notes\.chime \? 'music' : 'music-off'/)
+    assert.match(src('src/utils/uiIcons.ts'), /"music-off": \[/)
+    assert.match(vue, /notify\.chime_on/)
+    assert.match(vue, /notify\.chime_off/)
+    assert.match(vue, /:aria-pressed="notes\.chime"/)
     assert.match(vue, /:aria-pressed="notes\.chime"/)
     const rail = vue.slice(vue.indexOf('@media (max-width: 800px)'))
     /* owner 2026-09-26: icons at every width, so there is no text to hide */

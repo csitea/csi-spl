@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Direktna poruka od {from}",
     "title_mention": "{from} vas je pomenuo/la",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Звук укључен",
+    "chime_off": "Звук искључен"
   },
   "verbosity": {
     "label": "Detaljnost teme",

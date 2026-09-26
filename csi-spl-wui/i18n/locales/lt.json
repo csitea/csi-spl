@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "DM nuo {from}",
     "title_mention": "{from} jus paminėjo",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Garsas įjungtas",
+    "chime_off": "Garsas išjungtas"
   },
   "verbosity": {
     "label": "Temos detalumas",

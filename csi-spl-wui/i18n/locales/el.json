@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "DM από {from}",
     "title_mention": "Ο/Η {from} σάς ανέφερε",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Ήχος ενεργός",
+    "chime_off": "Ήχος ανενεργός"
   },
   "verbosity": {
     "label": "Λεπτομέρεια θέματος",

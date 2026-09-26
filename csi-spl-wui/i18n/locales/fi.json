@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Yksityisviesti: {from}",
     "title_mention": "{from} mainitsi sinut",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Äänimerkki päällä",
+    "chime_off": "Äänimerkki pois"
   },
   "verbosity": {
     "label": "Aiheen yksityiskohtaisuus",

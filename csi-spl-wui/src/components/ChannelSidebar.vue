@@ -500,11 +500,13 @@
           <span class="health-dot" :class="health" />
         </div>
         <NotificationCenter />
+        <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
+             ship?" is answerable from the page instead of from build.json.
+             Owner, 2026-09-26: on the same row, right of the dot, bell and
+             note; one line, the hash ellipsized first, the full text on hover. -->
+        <p id="app-version" class="version-stamp" :title="versionTitle || versionText || undefined" data-test="app-version"><span class="vs-ver">{{ versionLabel }}</span><span v-if="commitLabel" class="vs-sha">{{ commitLabel }}</span></p>
       </div>
       <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
-      <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
-           ship?" is answerable from the page instead of from build.json -->
-      <p id="app-version" class="version-stamp" :title="versionTitle || undefined" data-test="app-version">{{ versionText }}</p>
     </div>
     </div>
     </div>
@@ -537,7 +539,7 @@ import { useLive } from '~/composables/useLive'
 import HumanName from '~/components/HumanName.vue'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
-import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
+import { buildStampText, buildStampTitle, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
@@ -1014,6 +1016,9 @@ const build = ref(null)
 onMounted(async () => { build.value = await readBuildStamp() })
 const versionText = computed(() => buildStampText(version.value, build.value))
 const versionTitle = computed(() => buildStampTitle(build.value))
+/* owner, 2026-09-26: the version smaller, the commit smaller still, a tight gap */
+const versionLabel = computed(() => String(version.value || '').trim())
+const commitLabel = computed(() => shortCommit((build.value as { commit?: string } | null)?.commit))
 
 /* SPL-72, channels-v1 §5.4: Delete channel. Offered to its creator only; the
    hub refuses anyone else (403, or 404 to a non-member) whatever this shows. */
@@ -1327,6 +1332,19 @@ async function onCreate() {
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
+.foot-row .version-stamp {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* em, so the font-size setting still scales both; the muted colour of
+   .version-stamp keeps them readable on every theme */
+.foot-row .vs-ver { font-size: 0.9em; }
+.foot-row .vs-sha { font-size: 0.78em; margin-inline-start: 0.3em; opacity: 0.85; }
 @media (max-width: 800px) {
   .foot-row { flex-direction: column; padding: 6px 4px; }
 }

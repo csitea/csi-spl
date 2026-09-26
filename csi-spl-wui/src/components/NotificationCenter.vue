@@ -19,11 +19,11 @@
       data-testid="notify-chime"
       :class="{ on: notes.chime }"
       :aria-pressed="notes.chime"
-      :aria-label="t('notify.chime')"
-      :title="t('notify.chime')"
+      :aria-label="chimeLabel"
+      :title="chimeLabel"
       @click="notes.chime = !notes.chime"
     >
-      <UiIcon class="notify-glyph" name="music" :size="18" />
+      <UiIcon class="notify-glyph" :name="notes.chime ? 'music' : 'music-off'" :size="18" />
     </button>
   </div>
 </template>
@@ -34,6 +34,7 @@ import { useNotificationStore } from '~/stores/notification'
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
 const alertsWanted = computed(() => notes.alertsEnabled)
+const chimeLabel = computed(() => (notes.chime ? t('notify.chime_on') : t('notify.chime_off')))
 const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 </script>
 

@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Особисте повідомлення від {from}",
     "title_mention": "{from} згадав(-ла) вас",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Звук увімкнено",
+    "chime_off": "Звук вимкнено"
   },
   "verbosity": {
     "label": "Детальність теми",

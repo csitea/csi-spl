@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Лично съобщение от {from}",
     "title_mention": "{from} ви спомена",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Звукът е включен",
+    "chime_off": "Звукът е изключен"
   },
   "verbosity": {
     "label": "Подробност на темата",

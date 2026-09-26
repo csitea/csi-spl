@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Priama správa od {from}",
     "title_mention": "{from} vás spomenul(a)",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Zvuk zapnutý",
+    "chime_off": "Zvuk vypnutý"
   },
   "verbosity": {
     "label": "Podrobnosť témy",

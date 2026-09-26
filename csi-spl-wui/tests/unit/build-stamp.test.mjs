@@ -51,5 +51,15 @@ describe('build stamp (CLE-3433)', () => {
     assert.match(s, /from '~\/utils\/build-stamp\.mjs'/)
     assert.match(s, /onMounted\(async \(\) => \{ build\.value = await readBuildStamp\(\) \}\)/)
     assert.match(s, /data-test="app-version"/)
+    // owner 2026-09-26: the stamp sits IN the icon row, right of the note, one line
+    const row = s.slice(s.indexOf('<div class="foot-row">'), s.indexOf('</div>', s.indexOf('data-test="app-version"')))
+    assert.ok(row.indexOf('<NotificationCenter />') >= 0 && row.indexOf('<NotificationCenter />') < row.indexOf('data-test="app-version"'), 'version must follow the bell/note in .foot-row')
+    assert.match(s, /\.foot-row \.version-stamp \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
+    // owner 2026-09-26: version smaller, commit smaller still (em), no '·' gap
+    assert.match(s, /class="vs-ver"/)
+    assert.match(s, /class="vs-sha"/)
+    const ver = Number((s.match(/\.foot-row \.vs-ver \{ font-size: ([0-9.]+)em/) || [])[1])
+    const sha = Number((s.match(/\.foot-row \.vs-sha \{ font-size: ([0-9.]+)em/) || [])[1])
+    assert.ok(ver > 0 && ver < 1 && sha > 0 && sha < ver, `version ${ver}em > commit ${sha}em`)
   })
 })

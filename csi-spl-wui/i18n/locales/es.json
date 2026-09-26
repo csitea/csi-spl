@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "Mensaje directo de {from}",
     "title_mention": "{from} te ha mencionado",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Sonido activado",
+    "chime_off": "Sonido desactivado"
   },
   "verbosity": {
     "label": "Nivel de detalle del tema",

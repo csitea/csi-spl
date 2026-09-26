@@ -517,7 +517,9 @@
     "title_alerts": "#alerts · {from}",
     "title_dm": "DM kasutajalt {from}",
     "title_mention": "{from} mainis sind",
-    "title_other": "{from}"
+    "title_other": "{from}",
+    "chime_on": "Heli sees",
+    "chime_off": "Heli väljas"
   },
   "verbosity": {
     "label": "Teema detailsus",

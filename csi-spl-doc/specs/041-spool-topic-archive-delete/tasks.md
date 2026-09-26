@@ -24,9 +24,17 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       the CI e2e set replayed on a mock generate 12/12, initial JS 155.9 KB gzip (budget 160)
 - [x] T008 WUI: `/archive` page (list, open, Unarchive, Delete, live updates). The commit adding this
       line; the rail entry is CLE-35017's (SPL-979), sent this page's sha
-- [ ] T009 hub roll dev + prd (`/version`), WUI deploy dev + prd (`build.json`)
+- [x] T009 hub 0.9.6: `/version` on dev.api and api both read commit `26d8f0ed` (run 36270605506 green).
+      WUI: `build.json` on dev and the apex both read `52426fd3` (run 36271652337; `a9fd49c9` first, run
+      36271304720). Re-probe of / and /login on both apexes for 3 min after the WUI deploy: 44/44 = 200.
+      `52426fd3` fixed a live defect: a fresh /archive load read before the session door was armed (401)
 - [x] T010 owner confirmed §3.3 ("yes", topic 8f58f802, relayed by CLE-001 2026-09-26 20:14Z)
-- [ ] T011 live proof: prd `e2e` + dev test tenant, archive -> hidden -> unarchive; delete with a
-      DB count before / after
+- [x] T011 live proof `tests/e2e/topic-archive-live.proof.mjs`, n=1 per env, WUI `52426fd3` / hub `26d8f0ed`:
+      dev t1 (the m3-e2e test member, rows the proof itself created) 12/12 PASS; prd `e2e` tenant
+      (https://e2e.spool-hub.ai, guard: claim AND page host = e2e) 12/12 PASS. Card + 3 replies + a
+      thread on reply 1: menu ends Archive, Delete; archive -> gone from the feed, the list and search
+      read, present in /archive with 4 replies; unarchive -> back; the dialog names 4 replies; delete ->
+      `do_spl_db_query` count of the topic's rows (by id and structural) 5 -> 0 on dev and on prd.
+      A first dev run's interrupted topic was removed with PHASE=clean (deleted 5)
 
-<!-- version: 0.1.0 · updated: 2026-09-26 -->
+<!-- version: 0.2.0 · updated: 2026-09-27 -->

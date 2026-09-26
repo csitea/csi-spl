@@ -18,9 +18,10 @@
 // PHASE=b:
 //   6. the card's Delete opens the dialog, which names 4 replies; confirm ->
 //      the card leaves the feed and the hub answers 404 for the topic
+// PHASE=clean IDS=<ids.json>: delete an interrupted run's topic (archived or not)
 //
 //   BASE=https://dev.<domain> (prd: https://<tenant>.<domain>) API=https://dev.api.<domain>
-//   EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> PHASE=a|b
+//   EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> PHASE=a|b|clean
 //   [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/topic-archive-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -123,11 +124,22 @@ async function signIn(browser) {
   return p
 }
 
+/* A read the box's docker network churn killed (TypeError: Failed to fetch,
+   measured on the first dev run) is retried; an HTTP answer never is. */
 const hub = (p, method, path) => p.evaluate(async (api, m, pth) => {
-  const r = await fetch(api + pth, { method: m, credentials: 'include' })
-  let body = null
-  try { body = await r.json() } catch { /* 204 */ }
-  return { status: r.status, body }
+  let last
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(api + pth, { method: m, credentials: 'include' })
+      let body = null
+      try { body = await r.json() } catch { /* 204 */ }
+      return { status: r.status, body }
+    } catch (e) {
+      last = e
+      await new Promise((res) => setTimeout(res, 2000))
+    }
+  }
+  return { status: 0, body: { error: String(last) } }
 }, API, method, path)
 
 /** Sends frames over a fresh browser socket (the page's cookies): the WUI's own wire. */
@@ -238,6 +250,11 @@ try {
     step('6 confirm: the card leaves the feed; the hub has neither the card nor its topic', gone && after.status === 404 && topic.status === 404,
       { gone, card: after.status, topic: topic.status })
     await shot(p, '06-deleted')
+  } else if (PHASE === 'clean') {
+    // an interrupted run's topic (IDS=<its ids.json>): delete it through the hub
+    const ids = JSON.parse(readFileSync(process.env.IDS || `${OUT}/ids.json`, 'utf8'))
+    const del = await hub(p, 'DELETE', `/v1/messages/${ids.card}/topic`)
+    step('clean: the proof topic is deleted', del.status === 200 || del.status === 404, { status: del.status, deleted: del.body?.deleted })
   }
 } catch (e) {
   step('run', false, { error: String(e).slice(0, 400) })

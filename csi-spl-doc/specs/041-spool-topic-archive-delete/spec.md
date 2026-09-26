@@ -1,6 +1,6 @@
 # Feature Specification: Archive and Delete a Topic
 
-**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Partial (see `tasks.md`)
+**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T011)
 **Created**: 2026-09-26 · **Lane**: TOPIC-ARCHIVE (hub + DB + browser) · **Issue**: SPL-983 (epic 51, spec 033)
 **Authority**: this file for the rule; `contracts/topic-archive-v1.md` for the wire; `tasks.md` for what is built and where.
 
@@ -109,15 +109,15 @@ transaction, after the set is walked in the same transaction (§2).
 
 | id | requirement | status |
 |---|---|---|
-| FR-TA-001 | rdb 0065: `messages.archived_at timestamptz NULL`, `archived_by text NULL`, partial index on archived rows; applied dev + prd before any hub reads it | Planned |
-| FR-TA-002 | `PUT /v1/messages/{msg_id}/archive` archives a card, `DELETE …/archive` unarchives; §3.3 gate; `409 not_a_card`, `409 issue_topic` | Planned |
-| FR-TA-003 | archived topics are absent from `/v1/view/topics` lists, the lobby task read and search; the topic's own read still answers | Planned |
-| FR-TA-004 | `GET /v1/view/archived` lists the archived cards the caller may read, newest archived first, each with its reply count and whether the caller may delete | Planned |
-| FR-TA-005 | `GET /v1/view/messages/{msg_id}/topic` answers the topic size (replies) for the confirm dialog | Planned |
-| FR-TA-006 | `DELETE /v1/messages/{msg_id}/topic` deletes card + children in one transaction; answers the ids removed | Planned (Delete ships to prd only after the owner confirms §3.3) |
-| FR-TA-007 | live frames `topic_archived` / `topic_deleted` (§3.4) | Planned |
-| FR-TA-008 | WUI: a card's menu shows Archive and Delete (Archive icon left of the label) to those §3.3 allows; Delete opens a confirm dialog naming the reply count | Planned |
-| FR-TA-009 | WUI: `/archive` view and the left-rail Archive entry (rail entry: CLE-35017, SPL-979) | Planned |
+| FR-TA-001 | rdb 0065: `messages.archived_at timestamptz NULL`, `archived_by text NULL`, partial index on archived rows; applied dev + prd before any hub reads it | Implemented — `tasks.md` |
+| FR-TA-002 | `PUT /v1/messages/{msg_id}/archive` archives a card, `DELETE …/archive` unarchives; §3.3 gate; `409 not_a_card`, `409 issue_topic` | Implemented — `tasks.md` |
+| FR-TA-003 | archived topics are absent from `/v1/view/topics` lists, the lobby task read and search; the topic's own read still answers | Implemented — `tasks.md` |
+| FR-TA-004 | `GET /v1/view/archived` lists the archived cards the caller may read, newest archived first, each with its reply count and whether the caller may delete | Implemented — `tasks.md` |
+| FR-TA-005 | `GET /v1/view/messages/{msg_id}/topic` answers the topic size (replies) for the confirm dialog | Implemented — `tasks.md` |
+| FR-TA-006 | `DELETE /v1/messages/{msg_id}/topic` deletes card + children in one transaction; answers the ids removed | Implemented — `tasks.md` |
+| FR-TA-007 | live frames `topic_archived` / `topic_deleted` (§3.4) | Implemented — `tasks.md` |
+| FR-TA-008 | WUI: a card's menu shows Archive and Delete (Archive icon left of the label) to those §3.3 allows; Delete opens a confirm dialog naming the reply count | Implemented — `tasks.md` |
+| FR-TA-009 | WUI: `/archive` view and the left-rail Archive entry (rail entry: CLE-35017, SPL-979) | Implemented — `tasks.md` |
 | FR-TA-010 | every new string in all 19 locales | Implemented — `7325032b` |
 
 ## 6. Success criteria

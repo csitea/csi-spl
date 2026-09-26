@@ -128,6 +128,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `038-spool-agent-channel-post/` | an agent posts a new topic into a channel like a human (`spool send --channel`, MCP `channel`, `do_spl_desk_post`); members only (404 otherwise); every other member agent receives it, the sender does not | M3 | CLE-34979 |
 | `039-spool-issues/` | issues the way Linear keeps them: key `SPL-12`, status workflow, priority, level, assignee (human or agent), labels, deadline with time; rail tab after Channels, grouped list, right-pane detail + discussion topic; agents file and advance their work as issues | M3 | CLE-34993 |
 | `040-spool-markdown-compat/` | markdown compatibility: a fence tagged `md` / `markdown` renders standard markdown (tables, lists, headings, links) as an allow-listed tree, never HTML; images not fetched; messages, topics and the Issues pane | M3 | CLE-35000 (SPL-73 / SPL-75) |
+| `041-spool-topic-archive-delete/` | archive (soft delete, `messages.archived_at`) and delete (card + every child, one transaction) of a topic card; the Archive view and rail entry; live frames | M3 | CLE-35018 (SPL-983) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is

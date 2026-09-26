@@ -13,6 +13,7 @@ type memHuman struct {
 	avatar      string // file_id
 	locale      string // preferred_locale (rdb 0017)
 	theme       string // preferred_theme (rdb 0057); light is the light-blue palette
+	submitKey   string // submit_key (rdb 0062, SPL-976); "" = never picked
 	diagnostics bool   // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
@@ -285,6 +286,32 @@ func (s *Memory) PreferredTheme(_ context.Context, humanID string) (string, erro
 		return "", ErrNotFound
 	}
 	return hm.theme, nil
+}
+
+func (s *Memory) SetSubmitKey(_ context.Context, humanID, key string) error {
+	if err := checkSubmitKey(key); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.submitKey = key
+	return nil
+}
+
+func (s *Memory) SubmitKey(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.submitKey, nil
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {

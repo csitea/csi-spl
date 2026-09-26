@@ -25,6 +25,7 @@ type fakePrefs struct {
 	reg   *recReg
 	loc   map[string]string
 	theme map[string]string
+	key   map[string]string // SPL-976 submit_key, nil until first set
 	diag  map[string]bool   // CLE-34963 "Debug pane", nil until first set
 	name  map[string]string // CLE-34968 display name, nil until first set
 	fail  error             // non-nil: DiagnosticsEnabled answers it
@@ -79,6 +80,28 @@ func (p *fakePrefs) SetPreferredTheme(_ context.Context, hum, theme string) erro
 		p.theme = map[string]string{}
 	}
 	p.theme[hum] = theme
+	return nil
+}
+
+func (p *fakePrefs) SubmitKey(_ context.Context, hum string) (string, error) {
+	if !p.known(hum) {
+		return "", auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.key[hum], nil
+}
+
+func (p *fakePrefs) SetSubmitKey(_ context.Context, hum, key string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.key == nil {
+		p.key = map[string]string{}
+	}
+	p.key[hum] = key
 	return nil
 }
 
@@ -303,6 +326,65 @@ func TestPreferencesTheme(t *testing.T) {
 	if got := r.call(t, nil, http.MethodPut, "preferences", `{"preferred_theme":"light"}`); got.code != http.StatusUnauthorized {
 		t.Fatalf("no session: %d %s", got.code, got.raw)
 	}
+}
+
+// SPL-976: Settings -> Behaviour "Text fields" is kept on the account like
+// the theme, answered by the session and the native login, and only the two
+// ids are admitted.
+func TestPreferencesSubmitKey(t *testing.T) {
+	r, prefs := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["submit_key"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	}
+	for _, id := range auth.SubmitKeys {
+		got := r.call(t, c, http.MethodPut, "preferences", jsonBody(map[string]string{"submit_key": id}))
+		if got.code != http.StatusOK || got.body["submit_key"] != id || len(got.body) != 1 {
+			t.Fatalf("put %s: %d %s", id, got.code, got.raw)
+		}
+		if got = r.call(t, c, http.MethodGet, "session", ""); got.body["submit_key"] != id {
+			t.Fatalf("session after %s: %s", id, got.raw)
+		}
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK ||
+		got.body["submit_key"] != "ctrl-enter" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"submit_key":null}`); got.code != http.StatusOK || got.body["submit_key"] != nil {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["submit_key"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+	if err := prefs.SetSubmitKey(context.Background(), firstHum(prefs), "enter"); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{`{"submit_key":"ctrl"}`, `{"submit_key":"Enter"}`, `{"submit_key":""}`,
+		`{"submit_key":true}`, `{"submit_key":"ctrl-enter","preferred_theme":"navy"}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"submit_key":"cmd-enter"}`); got.body["error"] != "unsupported_submit_key" {
+		t.Errorf("error token: %s", got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["submit_key"] != "enter" {
+		t.Fatalf("a refused PUT stored a key: %s", got.raw)
+	}
+	if got := r.call(t, nil, http.MethodPut, "preferences", `{"submit_key":"enter"}`); got.code != http.StatusUnauthorized {
+		t.Fatalf("no session: %d %s", got.code, got.raw)
+	}
+}
+
+// firstHum is the one HUM-* the rig registered.
+func firstHum(p *fakePrefs) string {
+	p.reg.mu.Lock()
+	defer p.reg.mu.Unlock()
+	for _, h := range p.reg.ids {
+		return h
+	}
+	return ""
 }
 
 func TestPreferencesRejectsBadInput(t *testing.T) {

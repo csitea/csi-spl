@@ -279,6 +279,24 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if got, _ := h.PreferredTheme(ctx, hum); got != "" {
 				t.Fatalf("cleared theme %q", got)
 			}
+			// SPL-976 submit_key (rdb 0062)
+			if got, err := h.SubmitKey(ctx, hum); err != nil || got != "" {
+				t.Fatalf("unset submit key %q %v", got, err)
+			}
+			if err := h.SetSubmitKey(ctx, hum, "shift-enter"); err == nil {
+				t.Fatal("SetSubmitKey accepted shift-enter")
+			}
+			for _, id := range []string{"ctrl-enter", "enter", ""} {
+				if err := h.SetSubmitKey(ctx, hum, id); err != nil {
+					t.Fatal(id, err)
+				}
+				if got, err := h.SubmitKey(ctx, hum); err != nil || got != id {
+					t.Fatalf("submit key %q got %q %v", id, got, err)
+				}
+			}
+			if err := h.SetSubmitKey(ctx, "HUM-999999999", "enter"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human submit key: %v", err)
+			}
 		})
 	}
 }

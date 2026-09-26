@@ -225,6 +225,25 @@ func (a AuthHooks) SetPreferredTheme(ctx context.Context, humanID, theme string)
 	return err
 }
 
+// SubmitKey is the human's Behaviour "Text fields" choice (SPL-976); an
+// unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SubmitKey(ctx context.Context, humanID string) (string, error) {
+	key, err := a.H.SubmitKey(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return key, err
+}
+
+// SetSubmitKey stores it ("" clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetSubmitKey(ctx context.Context, humanID, key string) error {
+	err := a.H.SetSubmitKey(ctx, humanID, key)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

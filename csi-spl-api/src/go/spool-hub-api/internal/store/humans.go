@@ -141,6 +141,12 @@ type Humans interface {
 	SetPreferredTheme(ctx context.Context, humanID, theme string) error
 	// PreferredTheme returns the human's theme, "" when none, or ErrNotFound.
 	PreferredTheme(ctx context.Context, humanID string) (string, error)
+	// SetSubmitKey records how Enter behaves in the human's text fields
+	// (rdb 0062, SPL-976), one of auth.SubmitKeys, or "" to clear it.
+	// Unknown human = ErrNotFound.
+	SetSubmitKey(ctx context.Context, humanID, key string) error
+	// SubmitKey returns it, "" when none, or ErrNotFound.
+	SubmitKey(ctx context.Context, humanID string) (string, error)
 	// IdentityLocale returns the picked locale of the human the (provider,
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
@@ -192,6 +198,15 @@ func checkTheme(theme string) error {
 		return nil
 	}
 	return errors.New("theme must be one of the palette themes")
+}
+
+// checkSubmitKey admits "" (never picked) or one of auth.SubmitKeys, the list
+// humans_submit_key_check (rdb 0062) agrees on.
+func checkSubmitKey(key string) error {
+	if key == "" || auth.IsSubmitKey(key) {
+		return nil
+	}
+	return errors.New("submit key must be enter or ctrl-enter")
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

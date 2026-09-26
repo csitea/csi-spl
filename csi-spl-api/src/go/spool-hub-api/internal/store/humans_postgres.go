@@ -292,6 +292,29 @@ func (s *Postgres) PreferredTheme(ctx context.Context, humanID string) (string, 
 	return theme, err
 }
 
+func (s *Postgres) SetSubmitKey(ctx context.Context, humanID, key string) error {
+	if err := checkSubmitKey(key); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET submit_key = NULLIF($2, '') WHERE human_id = $1`, humanID, key)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) SubmitKey(ctx context.Context, humanID string) (string, error) {
+	var key string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(submit_key, '') FROM humans WHERE human_id = $1`, humanID).Scan(&key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return key, err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)

@@ -87,6 +87,12 @@ type Preferences interface {
 	// SetPreferredTheme stores theme ("" clears it), already admitted by
 	// IsTheme. Unknown human = ErrNoHuman.
 	SetPreferredTheme(ctx context.Context, humanID, theme string) error
+	// SubmitKey is how Enter behaves in the human's text fields (SPL-976),
+	// one of SubmitKeys, "" when never picked. Unknown human = ErrNoHuman.
+	SubmitKey(ctx context.Context, humanID string) (string, error)
+	// SetSubmitKey stores it ("" clears), already admitted by IsSubmitKey.
+	// Unknown human = ErrNoHuman.
+	SetSubmitKey(ctx context.Context, humanID, key string) error
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -339,6 +345,9 @@ type sessionResp struct {
 	// PreferredTheme is the colour theme, null when unset. 'light' is the
 	// light-blue palette. Read on every session call, like the locale.
 	PreferredTheme *string `json:"preferred_theme"`
+	// SubmitKey is Settings -> Behaviour "Text fields" (SPL-976), null when
+	// unset (the WUI then applies its default, spec 023 3.7).
+	SubmitKey *string `json:"submit_key"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -369,6 +378,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 			out.PreferredLocale = &loc
 		}
 		out.PreferredTheme = h.preferredTheme(r.Context(), s)
+		out.SubmitKey = h.submitKey(r.Context(), s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -392,6 +402,24 @@ func (h *Handler) preferredTheme(ctx context.Context, s Session) *string {
 		return nil
 	}
 	return &theme
+}
+
+// submitKey is the session human's stored Behaviour "Text fields" choice
+// (SPL-976), nil when unset, with no human or store, or when the read fails.
+// Like preferredTheme it rides GET /session and the native POST /login answer.
+func (h *Handler) submitKey(ctx context.Context, s Session) *string {
+	if s.HumanID == "" || h.prefs == nil {
+		return nil
+	}
+	key, err := h.prefs.SubmitKey(ctx, s.HumanID)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("auth submit_key lookup")
+		return nil
+	}
+	if key == "" {
+		return nil
+	}
+	return &key
 }
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
@@ -559,17 +587,35 @@ func IsTheme(theme string) bool {
 	return false
 }
 
+// SubmitKeys are the Behaviour "Text fields" choices (SPL-976, spec 023
+// 3.7): 'enter' = Enter sends, Shift+Enter adds a line;
+// 'ctrl-enter' = Enter adds a line, Ctrl/Cmd+Enter sends. The DB check
+// humans_submit_key_check (rdb 0062) admits the same list.
+var SubmitKeys = []string{"enter", "ctrl-enter"}
+
+// IsSubmitKey reports whether key is one of SubmitKeys, exactly.
+func IsSubmitKey(key string) bool {
+	for _, id := range SubmitKeys {
+		if key == id {
+			return true
+		}
+	}
+	return false
+}
+
 // preferencesReq is PUT preferences' body. Each key is optional, but at
 // least one must be present: preferred_locale is one of the 19
 // i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
 // (CLE-34963) is a JSON boolean, nothing else; display_name (CLE-34968) is a
 // JSON string ValidDisplayName admits, and cannot be cleared (null is refused);
-// preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it.
+// preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it;
+// submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
 	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
 	DisplayName        json.RawMessage `json:"display_name"`
+	SubmitKey          json.RawMessage `json:"submit_key"`
 }
 
 // putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
@@ -592,9 +638,10 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
 	rawName := strings.TrimSpace(string(req.DisplayName))
 	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
-	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" {
+	rawKey := strings.TrimSpace(string(req.SubmitKey))
+	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name or preferred_theme (a theme id or null) is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null) or submit_key (enter, ctrl-enter or null) is required")
 		return
 	}
 	loc := ""
@@ -632,6 +679,14 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(req.PreferredTheme, &theme) != nil || !IsTheme(theme) {
 			writeErr(w, http.StatusBadRequest, "unsupported_theme",
 				"preferred_theme must be one of "+strings.Join(ThemeIDs, ","))
+			return
+		}
+	}
+	key := ""
+	if rawKey != "" && rawKey != "null" {
+		if json.Unmarshal(req.SubmitKey, &key) != nil || !IsSubmitKey(key) {
+			writeErr(w, http.StatusBadRequest, "unsupported_submit_key",
+				"submit_key must be one of "+strings.Join(SubmitKeys, ","))
 			return
 		}
 	}
@@ -677,6 +732,16 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		out["preferred_theme"] = nil
 		if theme != "" {
 			out["preferred_theme"] = theme
+		}
+	}
+	if rawKey != "" {
+		if !h.storePref(w, h.prefs.SetSubmitKey(r.Context(), s.HumanID, key)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Str("submit_key", key).Msg("auth.preferences_set")
+		out["submit_key"] = nil
+		if key != "" {
+			out["submit_key"] = key
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

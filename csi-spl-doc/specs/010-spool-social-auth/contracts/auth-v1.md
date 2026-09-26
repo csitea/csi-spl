@@ -113,6 +113,13 @@ answer lacked it, so a password sign-in never applied a stored theme); the WUI a
 the person's own choice back here, so an operator default
 (`do_spl_human_theme`) and the person's pick are one field. The list is
 `auth.ThemeIDs` in the hub and `humans_preferred_theme_check` in the DB.
+`submit_key` (SPL-976, hub 0.9.3, spec 023 3.7) is Settings -> Behaviour
+"Text fields": `enter` (Enter sends, Shift+Enter adds a line) or `ctrl-enter`
+(Enter adds a line, Ctrl/Cmd+Enter sends), exactly, or `null` to clear
+(the WUI then applies its default, spec 023 3.7); anything else is `400 unsupported_submit_key`.
+The session and the native `POST /login` answer carry it (`null` when unset).
+The list is `auth.SubmitKeys` and `humans_submit_key_check` (rdb 0062); an
+operator sets it with `do_spl_human_behaviour`.
 The whole body is validated before anything is stored, and the `200` answer
 echoes exactly the keys that were stored. `401` without a session, `409
 no_human` for a session with no registered human, `503` when the store is not
@@ -166,4 +173,4 @@ another tenant → `403 tenant_mismatch`; several tenants and none selected →
 with `permission`. `SessionForTenant(r, tenant)` (seam `5e8ecb1`) is the
 legacy helper.
 
-<!-- version: 0.5.2 · updated: 2026-09-26 · last-edit: 2026-09-26T14:00:00Z -->
+<!-- version: 0.5.3 · updated: 2026-09-26 · last-edit: 2026-09-26T19:10:00Z -->

@@ -399,6 +399,8 @@ type loginResp struct {
 	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
 	// PreferredTheme as GET /session answers it (CLE-34994), null when unset.
 	PreferredTheme *string `json:"preferred_theme"`
+	// SubmitKey as GET /session answers it (SPL-976), null when unset.
+	SubmitKey *string `json:"submit_key"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -488,7 +490,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
 	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
-		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess)})
+		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
+		SubmitKey: n.h.submitKey(ctx, sess)})
 }
 
 type emailReq struct {

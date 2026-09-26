@@ -330,12 +330,21 @@
           <LazyCardClipControl pane="thread" />
         </div>
         <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
-        <article v-for="c in comments" :key="c.msg_id" class="issues-comment" :class="listClipClass(clipMode)" data-test="issues-comment" :data-clip-mode="clipMode">
-          <HumanName :id="c.from" :box="c.from_box" />
-          <time v-if="c.ts" class="muted" :datetime="c.ts">{{ when(c.ts) }}</time>
-          <p v-if="clipMode === 'titles'" class="issues-comment__body issues-comment__title" data-test="issues-comment-title" :title="cardTitle(c.body)">{{ cardTitle(c.body) }}</p>
-          <MessageBody v-else class="issues-comment__body" :body="c.body" />
-        </article>
+        <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
+             other one: the same header, the emoji 5px after the time, reactions,
+             the row menu, and the thread's titles / 5 rows / full clip -->
+        <MessageCard
+          v-for="c in comments"
+          :key="c.msg_id"
+          class="issues-comment"
+          data-test="issues-comment"
+          :data-clip-mode="clipMode"
+          :msg="c"
+          :clip-mode="clipMode"
+          @edited="onCommentEdited"
+          @deleted="onCommentDeleted"
+          @reacted="onCommentReacted"
+        />
         <label class="issues-field">
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
           <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
@@ -386,13 +395,16 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
+import { withoutMsg } from '~/utils/feed.mjs'
+import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
-import { cardTitle, listClipClass } from '~/utils/card-clip.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -419,7 +431,9 @@ import {
   stepKey,
 } from '~/utils/issues-view.mjs'
 
-type Note = { msg_id: string, from: string, from_box: string, body: string, ts: string }
+/* an issue comment is the whole message row (MessageCard reads kind, to,
+   reactions, edited_at ...), with the fields the page reads made safe */
+type Note = SpoolMessage
 
 const STATUS_ICON: Record<string, string> = {
   eval: 'status-backlog',
@@ -983,6 +997,16 @@ async function createIssue() {
   }
 }
 
+/* the page's own copy of the comments; the card already told the stores */
+function onCommentEdited(row: SpoolMessage) {
+  comments.value = applyEdit(comments.value, row) as Note[]
+}
+function onCommentDeleted(row: { msg_id?: string }) {
+  comments.value = withoutMsg(comments.value, String(row?.msg_id || '')) as Note[]
+}
+function onCommentReacted(update: ReactionUpdate) {
+  comments.value = patchReactions(comments.value, update) as Note[]
+}
 function asNotes(rows: unknown): Note[] {
   if (!Array.isArray(rows)) return []
   const out: Note[] = []
@@ -992,6 +1016,7 @@ function asNotes(rows: unknown): Note[] {
     const id = String(m.msg_id || '')
     if (!id) continue
     out.push({
+      ...(m as unknown as SpoolMessage),
       msg_id: id,
       from: String(m.from || ''),
       from_box: String(m.from_box || ''),
@@ -1129,6 +1154,9 @@ let offIssue = () => {}
 let offLabel = () => {}
 let offMsg = () => {}
 let offBack = () => {}
+let offCommentEdit = () => {}
+let offCommentDelete = () => {}
+let offCommentReact = () => {}
 let detailObserver: ResizeObserver | null = null
 /* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it */
 function onDocPointer(ev: Event) {
@@ -1165,6 +1193,9 @@ onMounted(() => {
     if (note && !comments.value.some((c) => c.msg_id === note.msg_id)) comments.value = [...comments.value, note]
   })
   offBack = live.onReconnected(() => { void load() })
+  offCommentEdit = live.onEdited((m) => onCommentEdited(m as unknown as SpoolMessage))
+  offCommentDelete = live.onDeleted((m) => onCommentDeleted(m as { msg_id?: string }))
+  offCommentReact = live.onReaction((m) => onCommentReacted(m as unknown as ReactionUpdate))
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKey)
@@ -1174,6 +1205,9 @@ onUnmounted(() => {
   offLabel()
   offMsg()
   offBack()
+  offCommentEdit()
+  offCommentDelete()
+  offCommentReact()
   const sock = live.ensure()
   if (followed && sock) sock.unsubscribe(followed)
 })
@@ -1555,10 +1589,7 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
-.issues-comment__title { margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.list-clip--rows .issues-comment__body { max-height: calc(5 * 1.45em); overflow: hidden; }
 .issues-comment { min-width: 0; }
-.issues-comment__body { margin-top: 2px; min-width: 0; }
 .issues-error { color: var(--color-danger); margin: 0; }
 .issues-menu {
   position: fixed;

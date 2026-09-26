@@ -94,11 +94,8 @@ describe('right pane lists (the thread mode)', () => {
   it('issue discussion: the control by the heading; titles is one line, 5 rows is capped, full is whole', () => {
     const t = template('src/pages/issues.vue')
     assert.match(t, /<div class="issues-talk__h">\s*<h3>[\s\S]*?<LazyCardClipControl pane="thread" \/>\s*<\/div>/)
-    assert.match(t, /class="issues-comment" :class="listClipClass\(clipMode\)"/)
-    assert.match(t, /v-if="clipMode === 'titles'"[^>]*>\{\{ cardTitle\(c\.body\) \}\}<\/p>\s*<MessageBody v-else class="issues-comment__body"/)
+    // SPL-982: a comment is a MessageCard, which clips itself (titles / 5 rows / full)
+    assert.match(t, /<MessageCard[\s\S]*?class="issues-comment"[\s\S]*?:clip-mode="clipMode"[\s\S]*?\/>/)
     assert.match(script('src/pages/issues.vue'), /const \{ mode: clipMode \} = useCardClip\('thread'\)/)
-    const css = read('src/pages/issues.vue')
-    assert.match(css, /\.issues-comment__title \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
-    assert.match(css, /\.list-clip--rows \.issues-comment__body \{ max-height: calc\(5 \* 1\.45em\); overflow: hidden; \}/)
   })
 })

@@ -195,7 +195,8 @@ describe('the component', () => {
 
   it('the issue pane renders comments and the description through MessageBody', () => {
     const issues = read('src/pages/issues.vue')
-    assert.match(issues, /<MessageBody (v-else )?class="issues-comment__body" :body="c\.body" \/>/)
+    // SPL-982: a comment is a MessageCard, whose body is MessageBody
+    assert.match(issues, /<MessageCard[\s\S]*?class="issues-comment"[\s\S]*?:msg="c"/)
     // SPL-975: the whole description renders as markdown, fenced or not
     assert.match(issues, /<IssueDescription\b/)
     assert.match(read('src/components/IssueDescription.vue'), /<MessageBody v-if="text\.trim\(\)" :body="text" markdown \/>/)

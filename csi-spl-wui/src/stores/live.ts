@@ -228,7 +228,7 @@ function setup(key: 'main' | 'pane') {
    * dropped was lost on the Topics page with the box already empty. A
    * closed socket is resent once with the same frame, as channel.sendLive does.
    */
-  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null, isParent?: number } = {}) {
+  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null, isParent?: number, pokeChannel?: string } = {}) {
     if (!taskId.value) throw new Error(i18n.t('feed.error.send_failed'))
     let msgId = ''
     sending.value = true
@@ -257,7 +257,7 @@ function setup(key: 'main' | 'pane') {
         const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
         /* SPL-985 (spec 042 §3): the mention poke. This send names only a
            task, so where it lives (K4) is read from the topic's other rows. */
-        const at = channel !== undefined ? { channel } : topicWhere(messages.value.filter((m) => m.msg_id !== msgId), task)
+        const at = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : topicWhere(messages.value.filter((m) => m.msg_id !== msgId), task)
         void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {

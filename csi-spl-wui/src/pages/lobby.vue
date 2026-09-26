@@ -229,6 +229,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     if (sent) store.admit([sent as SpoolMessage])
     return
   }
-  await store.send(text, files || [], { isParent: parentBit() })
+  /* SPL-985 K4: the lobby room is the lobby, whatever its older rows carry */
+  await store.send(text, files || [], { isParent: parentBit(), pokeChannel: '' })
 }
 </script>

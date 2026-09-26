@@ -166,6 +166,7 @@ describe('the box follows the line, not the open pane', () => {
     assert.match(s, /topicId !== here/)
     assert.match(s, /channel\.send\(text, topicId, files, channelId, parentBit\(\)\)/)
     assert.match(s, /channelId \|\| 'lobby'/)
-    assert.match(s, /store\.send\(text, files \|\| \[\], \{ isParent: parentBit\(\) \}\)/)
+    /* SPL-985: the room send also names the lobby for the mention poke (K4) */
+    assert.match(s, /store\.send\(text, files \|\| \[\], \{ isParent: parentBit\(\), pokeChannel: '' \}\)/)
   })
 })

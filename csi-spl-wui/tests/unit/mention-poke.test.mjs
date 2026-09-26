@@ -86,6 +86,9 @@ describe('topicWhere (K4 for a task-only send)', () => {
   it('the lobby: no channel, to @channel', () => {
     assert.deepEqual(topicWhere([{ task_id: 't', from: 'HUM-1', to: '@channel' }], 't'), { channel: '' })
   })
+  it('the lobby: old rows without a channel and new rows tagged lobby are one place', () => {
+    assert.deepEqual(topicWhere([{ task_id: 't', to: '@channel' }, { task_id: 't', channel: 'lobby', to: '@channel' }], 't'), { channel: '' })
+  })
   it('two channels or no rows: unknown', () => {
     assert.equal(topicWhere([{ task_id: 't', channel: 'a' }, { task_id: 't', channel: 'b' }], 't'), null)
     assert.equal(topicWhere([], 't'), null)
@@ -109,6 +112,7 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
     assert.ok(s.indexOf('void poke(') > s.indexOf('await sendWithResend(() => client.send(frame))'))
     assert.match(s, /topicWhere\(/)
     assert.match(s, /\{ unknown: true, taskId: task \}/)
+    assert.match(src('src/pages/lobby.vue'), /pokeChannel: ''/)
   })
   it('an edit pokes only what it added', () => {
     const s = src('src/components/MessageCard.vue')

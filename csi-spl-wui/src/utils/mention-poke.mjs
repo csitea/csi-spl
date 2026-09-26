@@ -111,7 +111,9 @@ export function topicWhere(rows, taskId) {
   if (!mine.length) return null
   const dm = mine.find((m) => !m.channel && m.to && m.to !== '@channel')
   if (dm) return { ends: [String(dm.from || ''), String(dm.to || '')] }
-  const channels = new Set(mine.map((m) => String(m.channel || '')))
+  /* a channel-less broadcast row is a lobby row (older rows carry no channel) */
+  const channels = new Set(mine.map((m) => String(m.channel || '') || 'lobby'))
   if (channels.size !== 1) return null
-  return { channel: [...channels][0] }
+  const only = [...channels][0]
+  return { channel: only === 'lobby' ? '' : only }
 }

@@ -134,6 +134,8 @@ const listHas = (p) => until(() => p.evaluate((id) => {
 }, agentId), 10000)
 const ctrlEnter = async (p) => { await p.keyboard.down('Control'); await p.keyboard.press('Enter'); await p.keyboard.up('Control') }
 const val = (p, sel) => p.$eval(sel, (el) => el.value)
+/* a refused (K4) or failed (K6) poke is a snackbar line: none may show here */
+const snack = (p) => p.evaluate(() => [...document.querySelectorAll('[data-test=error-snackbar-item]')].map((e) => e.textContent.trim().slice(0, 160)))
 
 const puppeteer = await loadPuppeteer()
 const browser = await puppeteer.launch({
@@ -157,7 +159,9 @@ try {
   step('1a omnibox: @ opens the list with the agent; Enter picks and does not send', omniList && omniText.endsWith(`@${AGENT} `), { omniList, omniText })
   await ctrlEnter(p)
   const sent1 = await until(() => val(p, OMNI).then((v) => v === ''), 10000)
-  step('1b Ctrl+Enter sends the line', sent1, {})
+  await sleep(3000)
+  const snack1 = await snack(p)
+  step('1b Ctrl+Enter sends the line; no poke warning', sent1 && snack1.length === 0, { snack1 })
 
   // 2 a new issue, the mention in its description
   await nav(p, BASE + '/issues')
@@ -201,7 +205,9 @@ try {
   step('3a comment: @ opens the list; Enter picks and does not send', comList && comText.endsWith(`@${AGENT} `), { comList, comText })
   await ctrlEnter(p)
   const sent3 = await until(() => val(p, '[data-test=issues-comment-input]').then((v) => v === ''), 10000)
-  step('3b Ctrl+Enter sends the comment', sent3, {})
+  await sleep(3000)
+  const snack3 = await snack(p)
+  step('3b Ctrl+Enter sends the comment; no poke warning', sent3 && snack3.length === 0, { snack3 })
 
   // 4 an edit that keeps the mention: no new poke
   await p.click('[data-test=issues-detail-rendered]')

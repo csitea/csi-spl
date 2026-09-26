@@ -46,6 +46,7 @@ describe('Issues rail tab', () => {
     assert.match(src, /type="date"[\s\S]*data-test="issues-deadline"/)
     assert.match(src, /data-test="issues-deadline-time"/)
     assert.equal(/type="datetime-local"/.test(src), false)
+    assert.equal(src.includes('issues-search'), false)
     assert.match(src, /HumanName/)
     assert.match(src, /groupIssues\(/)
     assert.match(src, /api\.listIssues\(/)

@@ -11,7 +11,6 @@
       </header>
       <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
       <div class="issues-filters" data-test="issues-filters">
-        <input v-model="textF" class="issues-search" type="search" data-test="issues-search" :placeholder="t('issues.search')" :aria-label="t('issues.search')">
         <select v-model="sortF" data-test="issues-sort" :aria-label="t('issues.sort')">
           <option value="priority">{{ t('issues.sort_priority') }}</option>
           <option value="level">{{ t('issues.sort_level') }}</option>
@@ -323,7 +322,6 @@ const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
-const textF = ref('')
 const sortF = ref('priority')
 const statusF = ref('')
 const priorityF = ref('')
@@ -487,13 +485,7 @@ const assigneeOptions = computed(() => {
   }
   return out
 })
-const groups = computed(() => {
-  const q = textF.value.trim().toLowerCase()
-  const rows = q
-    ? issues.value.filter((i) => `${i.key} ${i.title}`.toLowerCase().includes(q))
-    : issues.value
-  return groupIssues(rows, { sort: sortF.value, filter: serverFilter(), me: meId(), hideEmpty: false })
-})
+const groups = computed(() => groupIssues(issues.value, { sort: sortF.value, filter: serverFilter(), me: meId(), hideEmpty: false }))
 const flat = computed(() => visibleOrder(groups.value, Object.fromEntries(
   ISSUE_STATUSES.map((s) => [s, isCollapsed(s)]),
 )))
@@ -554,7 +546,6 @@ async function load() {
 }
 
 function clearFilters() {
-  textF.value = ''
   sortF.value = 'priority'
   statusF.value = ''
   priorityF.value = ''
@@ -1021,8 +1012,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 .issues-filters select,
-.issues-filters input,
-.issues-search {
+.issues-filters input {
   max-width: 100%;
   min-width: 0;
   background: var(--color-bg-2);

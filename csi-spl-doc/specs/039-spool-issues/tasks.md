@@ -110,4 +110,16 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       2 x907; off_tree 0 on every row (before: levels 0..4, 965 of 975 prd rows
       off the tree). Signed-in proof issues-live.proof.mjs, n=1 per env: dev
       t1 19/19, prd e2e 19/19 (level read-only 2, feature 1, subtask 3)
+- [x] T014 SPL-966 (owner 2026-09-26): statuses 05-blocked (blocked) and
+      06-onhold (onhold) in every tenant, between 03-diss and 07-qas. rdb 0061
+      (one CHECK, rows unchanged) applied on dev and prd at 16:24Z / 16:29Z
+      after hub 0.8.8 (`e162bb78`, served inside 0.8.9 `73dc5691`); WUI
+      `80aeb7dc` (red no-entry / grey pause glyphs, hover texts in 19 locales).
+      Probe after the WUI deploy, 16:32:33-16:36:01Z, 72 requests: / and /login
+      on spool-hub.ai and dev.spool-hub.ai 200 every time. Proof n=1, prd e2e
+      at https://e2e.spool-hub.ai: 23/23 (8b: the row shows 05-blocked then
+      06-onhold, the hub holds each). Incident: two earlier runs from the apex
+      wrote SPL-967..970 into prd t1 (tenant hosts: the apex is t1's host);
+      the proof now refuses to write unless claim t and the page host are
+      TENANT (`6c080b57`)
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { SEARCH_OPERATORS, ensureSearchOperators, mergeSearchPage, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
+import { SEARCH_OPERATORS, ensureSearchOperators, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
@@ -72,7 +72,10 @@ export const useSearchStore = defineStore('search', () => {
       const api = useSpoolApi()
       const cursor = String(g.next || '')
       const page = await withSessionRetry(api, () => api.search({ q: q.value, cursor }))
-      if (mine === seq && result.value) result.value = mergeSearchPage(result.value, page)
+      if (mine === seq && result.value) {
+        const { mergeSearchPage } = await import('~/utils/search-results.mjs') // off the first paint (027 budget)
+        result.value = mergeSearchPage(result.value, page)
+      }
     } catch (e) {
       if (mine === seq) error.value = toError(e)
     } finally {

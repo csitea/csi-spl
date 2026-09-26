@@ -3,17 +3,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  SEARCH_GROUPS,
   SEARCH_OPERATORS,
   applyCompletion,
   completeOperators,
-  flattenGroups,
-  highlightSegments,
-  mergeSearchPage,
-  mockSearch,
-  moveIndex,
-  normalizeOperators,
-  normalizeSearchResponse,
   omniboxMode,
   omniboxTextLeavingSearch,
   operatorTokenAt,
@@ -23,9 +15,19 @@ import {
   ensureSearchOperators,
   OP_PICKER_CAP,
   operatorHelpRows,
-  searchTarget,
   shouldLoadOperators,
 } from '../../src/utils/search.mjs'
+import {
+  SEARCH_GROUPS,
+  flattenGroups,
+  highlightSegments,
+  mergeSearchPage,
+  mockSearch,
+  moveIndex,
+  normalizeOperators,
+  normalizeSearchResponse,
+  searchTarget,
+} from '../../src/utils/search-results.mjs'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -567,5 +569,29 @@ describe('shouldLoadOperators (signed-out gate)', () => {
     assert.match(bar, /immediate: true/)
     assert.doesNotMatch(bar, /onMounted\([\s\S]*loadOperators/)
     assert.match(bar, /void search\.loadOperators\(\)/)
+  })
+})
+
+// CLE-555 item 20 (027 perf budget): the result half of search stays off the
+// first paint. Only the lazy /search page imports search-results.mjs
+// statically; everything else must use import(). CONTROL: the scan finds the
+// page's own static import, so an empty match cannot pass for "none".
+describe('search-results.mjs stays out of the initial bundle', () => {
+  const STATIC = /^\s*import\s[^;]*?from\s+['"](?:~\/utils\/|\.\/|\.\.\/utils\/)search-results\.mjs['"]/m
+  const walk = (dir) => readdirSync(join(WUI, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(join(dir, e.name)) : /\.(vue|ts|mjs)$/.test(e.name) ? [join(dir, e.name)] : [])
+  const files = walk('src')
+  it('CONTROL: pages/search.vue imports it statically', () => {
+    assert.ok(files.includes(join('src', 'pages', 'search.vue')))
+    assert.match(readFileSync(join(WUI, 'src/pages/search.vue'), 'utf8'), STATIC)
+  })
+  it('no other source file imports it statically', () => {
+    const bad = files.filter((f) => f !== join('src', 'pages', 'search.vue') && STATIC.test(readFileSync(join(WUI, f), 'utf8')))
+    assert.deepEqual(bad, [])
+  })
+  it('the first-paint callers load it with import()', () => {
+    for (const f of ['src/utils/spool-client.mjs', 'src/stores/search.ts']) {
+      assert.match(readFileSync(join(WUI, f), 'utf8'), /await import\(['"](?:~\/utils\/|\.\/)search-results\.mjs['"]\)/, f)
+    }
   })
 })

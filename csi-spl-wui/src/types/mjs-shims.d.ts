@@ -804,14 +804,11 @@ declare module '~/utils/search.mjs' {
     groups: SearchGroup[]
     warnings: { token: string, pos: number, detail: string }[]
   }
-  export const SEARCH_GROUPS: SearchGroupType[]
   export const SEARCH_OPERATORS: SearchOperator[]
   export const OP_PICKER_CAP: number
-  export function normalizeOperators(data: unknown): SearchOperator[]
   export function ensureSearchOperators(catalogue?: SearchOperator[]): SearchOperator[]
   export function operatorHelpRows(catalogue?: SearchOperator[]): { op: string, example: string, values: string[], hintKey: string }[]
   export function shouldLoadOperators(o?: { mock?: boolean, sessionState?: string }): boolean
-  export function rowAt(row: unknown): string
   export function omniboxMode(text: string): 'search' | 'send'
   export function omniboxTextLeavingSearch(text: string): string
   export function searchQueryOf(text: string): string
@@ -820,6 +817,14 @@ declare module '~/utils/search.mjs' {
   export function operatorTokenAt(text: string, caret?: number): { token: string, start: number, end: number } | null
   export function completeOperators(token: string, catalogue?: SearchOperator[], roster?: { id: string, label?: string }[]): { insert: string, label: string }[]
   export function applyCompletion(text: string, tok: { start: number, end: number }, insert: string): { text: string, cursor: number }
+}
+
+
+declare module '~/utils/search-results.mjs' {
+  import type { SearchGroup, SearchGroupType, SearchOperator, SearchResult, SearchRow } from '~/utils/search.mjs'
+  export const SEARCH_GROUPS: SearchGroupType[]
+  export function normalizeOperators(data: unknown): SearchOperator[]
+  export function rowAt(row: unknown): string
   export function highlightSegments(text: string, highlights: unknown): { text: string, mark: boolean }[]
   export function normalizeSearchResponse(data: unknown): SearchResult
   export function mergeSearchPage(cur: SearchResult, page: SearchResult): SearchResult
@@ -828,7 +833,6 @@ declare module '~/utils/search.mjs' {
   export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | { tenant: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
 }
-
 
 declare module '~/utils/slash-focus.mjs' {
   export const MOBILE_MAX: number

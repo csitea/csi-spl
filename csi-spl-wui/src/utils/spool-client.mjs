@@ -12,7 +12,7 @@ import {
   topicMessages,
   topicsFromMessages,
 } from './view-api.mjs'
-import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
+import { SEARCH_OPERATORS, searchApiQuery } from './search.mjs'
 /* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
    Issues code stays off the initial script; tests/unit/issues.test.mjs
    checks the two agree). */
@@ -865,12 +865,15 @@ export function createSpoolClient({
      * parses the grammar). → normalizeSearchResponse. Mock: the lde matcher.
      */
     async search({ q = '', cursor = '', limit = 0, sort = '' } = {}) {
+      // The result half loads on the first search, never on the first paint (027 budget).
+      const { mockSearch, normalizeSearchResponse } = await import('./search-results.mjs')
       if (mock) return normalizeSearchResponse(mockSearch(state.messages, q))
       return normalizeSearchResponse(await live(`/v1/view/search?${searchApiQuery({ q, cursor, limit, sort })}`))
     },
     /** search-v1 §6 grammar-as-data → the autocomplete catalogue. */
     async searchOperators() {
       if (mock) return SEARCH_OPERATORS
+      const { normalizeOperators } = await import('./search-results.mjs')
       return normalizeOperators(await live('/v1/view/search/operators'))
     },
     async listRoster() {

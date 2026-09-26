@@ -26,7 +26,7 @@ import {
   topicCards,
 } from '../../src/utils/channel-feed.mjs'
 import { activityOf, newestActivityFirst } from '../../src/utils/feed.mjs'
-import { normalizeSearchResponse, rowAt } from '../../src/utils/search.mjs'
+import { normalizeSearchResponse, rowAt } from '../../src/utils/search-results.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')

@@ -96,3 +96,28 @@ describe('i18n: the "last 30 · tenant-scoped" note is gone from every locale', 
     }
   })
 })
+
+/* Owner 2026-09-26 (prd topic b8cbfbe1): the thread pane's header is one row -
+   the X first, then the title on one line with an ellipsis (full title on
+   hover), then the replies' height control (SPL-945). */
+describe('the thread pane header: X, then the title on one line, then the control', () => {
+  for (const p of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
+    it(p, () => {
+      const t = template(p)
+      const head = t.slice(t.indexOf('<header>'), t.indexOf('</header>'))
+      const x = head.indexOf('<UiIcon name="x"')
+      const title = head.indexOf('class="topic-heading__title"')
+      const ctl = head.indexOf('<LazyCardClipControl pane="thread" />')
+      assert.ok(x > 0 && title > x && ctl > title, `order X ${x} < title ${title} < control ${ctl}`)
+      assert.match(head, /class="topic-heading__title"[^>]*:title="heading"/)
+      assert.doesNotMatch(head, /flex-wrap:wrap/)
+    })
+  }
+
+  it('the title never wraps: nowrap + ellipsis, and the header row does not wrap', () => {
+    const css = read('src/assets/css/main.css')
+    assert.match(css, /\.topic header \{[^}]*flex-wrap: nowrap;/)
+    assert.match(css, /\.topic-heading__title \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
+    assert.doesNotMatch(css, /\.topic-heading__title \{[^}]*overflow-wrap: anywhere/)
+  })
+})

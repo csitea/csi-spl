@@ -10,23 +10,23 @@
     :aria-label="heading"
     @click="onTopicPaneClick"
   >
+    <!-- Owner 2026-09-26 (prd topic b8cbfbe1): one row - the X first, then the
+         title on one line, cut with an ellipsis (full title on hover). SPL-945:
+         the replies' height control at the right edge; lazy, so the shell's
+         initial chunk does not grow. -->
     <header>
-      <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true">{{ heading }}</strong>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
-        <!-- SPL-945: the replies' height, the same three modes as the middle
-             pane; lazy, so the shell's initial chunk does not grow -->
-        <LazyCardClipControl pane="thread" />
-        <button
-          class="icon-btn"
-          type="button"
-          data-test="live-topic-close"
-          :aria-label="t('common.close')"
-          :title="t('common.close')"
-          @click="close()"
-        >
-          <UiIcon name="x" :size="18" />
-        </button>
-      </div>
+      <button
+        class="icon-btn"
+        type="button"
+        data-test="live-topic-close"
+        :aria-label="t('common.close')"
+        :title="t('common.close')"
+        @click="close()"
+      >
+        <UiIcon name="x" :size="18" />
+      </button>
+      <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
+      <LazyCardClipControl pane="thread" />
     </header>
     <BornTopics />
     <div class="pinned-root feed-body" data-test="topic-root">

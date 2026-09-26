@@ -534,22 +534,28 @@ html.pane-dragging * {
   flex-shrink: 0;
   overflow: clip;
 }
+/* Owner 2026-09-26 (prd topic b8cbfbe1): the thread header is ONE row -
+   Close first, then the title on one line cut with an ellipsis (the full
+   title is its hover), then the replies' height control (SPL-945). */
 .topic header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   flex-shrink: 0;
   padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
   min-width: 0;
 }
+.topic header > .icon-btn { flex-shrink: 0; }
 .topic-heading__title {
-  display: inline-block;
+  display: block;
+  flex: 1 1 auto;
   max-width: 100%;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: var(--radius-sm);
   padding: 2px 8px;
 }

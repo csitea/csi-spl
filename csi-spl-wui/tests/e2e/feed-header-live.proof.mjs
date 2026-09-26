@@ -90,7 +90,9 @@ const MEASURE = () => {
   const hr = h2 && h2.getBoundingClientRect()
   const opts = ctl ? [...ctl.querySelectorAll('label')].map((l) => ({
     title: l.getAttribute('title') || '',
-    text: (l.innerText || '').trim(),
+    /* the words a sighted reader sees; the .sr-only name is not drawn */
+    text: [...l.childNodes].filter((n) => !(n.classList && n.classList.contains('sr-only')))
+      .map((n) => n.textContent || '').join('').trim(),
     icon: !!l.querySelector('svg'),
   })) : []
   const pad = parseFloat(getComputedStyle(head).paddingRight) || 0

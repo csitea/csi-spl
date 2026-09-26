@@ -146,6 +146,9 @@ describe('pane-widths keyboard and pointer', () => {
     assert.equal(pointerDelta('sidebar', 260, 100, 140), 300)
     assert.equal(pointerDelta('topic', 380, 100, 140), 340)
     assert.equal(pointerDelta('topic', 380, 100, 60), 420)
+    assert.equal(pointerDelta('issue', 380, 100, 60), 420)
+    assert.equal(applySeparatorKey('issue', 'ArrowLeft', 380, 280, 720), 380 + STEP)
+    assert.equal(applySeparatorKey('issue', 'ArrowRight', 380, 280, 720), 380 - STEP)
   })
 
   it('resetPane returns the CSS default for that pane', () => {
@@ -173,6 +176,12 @@ describe('pane-widths persist', () => {
     assert.deepEqual(loadPaneWidths(bad), { sidebar: SIDEBAR_DEFAULT, topic: TOPIC_DEFAULT })
     const partial = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 'nope', topic: 410 }) })
     assert.deepEqual(loadPaneWidths(partial), { sidebar: SIDEBAR_DEFAULT, topic: 410 })
+  })
+
+  it('keeps the issue detail width when the sidebar is saved again', () => {
+    const store = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 260, topic: 380, issues: 440 }) })
+    assert.equal(savePaneWidths({ sidebar: 300, topic: 400 }, store), true)
+    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { sidebar: 300, topic: 400, issues: 440 })
   })
 
   it('PANE_WIDTHS_KEY is the FR-003 allow-list name spool.pane-widths', () => {

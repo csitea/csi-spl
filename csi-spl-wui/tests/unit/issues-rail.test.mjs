@@ -53,6 +53,8 @@ describe('Issues rail tab', () => {
     assert.match(src, /route\.query\.issue/)
     assert.match(src, /history\.replaceState/)
     assert.match(src, /api\.getIssue\(/)
+    assert.match(src, /pane="issue"/)
+    assert.match(src, /saveIssuePane/)
   })
 })
 

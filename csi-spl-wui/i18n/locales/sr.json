@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Promeni veličinu bočne trake kanala",
     "resize_topic": "Promeni veličinu okna teme",
+    "resize_issue": "Promeni veličinu panela detalja",
     "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje.",
     "msgs": "Поруке"
   },

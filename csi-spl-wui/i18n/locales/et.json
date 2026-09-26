@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Muuda kanalite külgriba suurust",
     "resize_topic": "Muuda teemapaneeli suurust",
+    "resize_issue": "Muuda üksikasjade paneeli suurust",
     "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab.",
     "msgs": "Sõnumid"
   },

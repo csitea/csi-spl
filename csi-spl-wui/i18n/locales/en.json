@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Resize channel sidebar",
     "resize_topic": "Resize topic pane",
+    "resize_issue": "Resize issue detail",
     "resize_hint": "Drag to resize. Double-click to reset.",
     "msgs": "Msgs"
   },

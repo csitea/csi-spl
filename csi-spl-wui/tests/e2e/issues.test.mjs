@@ -112,6 +112,32 @@ try {
   await p.screenshot({ path: `${SHOTS}/desktop.png` })
   const wide = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
   ok('7 no horizontal scroll at 1400', wide.sw <= wide.cw + 1, wide)
+
+  async function dragHandle(selector, dx) {
+    const box = await p.$eval(selector, (el) => {
+      const b = el.getBoundingClientRect()
+      return { x: b.x + b.width / 2, y: b.y + Math.min(220, b.height / 2) }
+    })
+    await p.mouse.move(box.x, box.y)
+    await p.mouse.down()
+    await p.mouse.move(box.x + dx, box.y, { steps: 10 })
+    await p.mouse.up()
+  }
+  const side0 = await p.evaluate(() => getComputedStyle(document.querySelector('.spool-shell')).getPropertyValue('--sidebar-w'))
+  await dragHandle('[data-testid=pane-divider-sidebar]', 64)
+  const side1 = await p.evaluate(() => getComputedStyle(document.querySelector('.spool-shell')).getPropertyValue('--sidebar-w'))
+  ok('10 the sidebar divider resizes beside the issue list', parseFloat(side1) >= parseFloat(side0) + 40, { side0, side1 })
+  await p.waitForSelector('[data-testid=pane-divider-issue]', { timeout: 5000 })
+  const d0 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
+  await dragHandle('[data-testid=pane-divider-issue]', -72)
+  const d1 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
+  ok('11 the issue detail divider widens the detail', d1 >= d0 + 40, { d0, d1 })
+  await p.click('[data-testid=pane-divider-issue]')
+  await p.keyboard.press('ArrowRight')
+  const d2 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
+  ok('12 the issue detail divider answers the keyboard', d2 <= d1 - 8, { d1, d2 })
+  const stored = await p.evaluate(() => localStorage.getItem('spool.pane-widths'))
+  ok('13 the issue detail width is stored with the other pane widths', Boolean(stored && stored.includes('"issues"')), stored)
   await p.setViewport({ width: 390, height: 844, isMobile: true })
   await p.waitForSelector('[data-test=issues-page]', { timeout: 5000 })
   const narrow = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))

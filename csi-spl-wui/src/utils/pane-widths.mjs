@@ -124,11 +124,16 @@ export function topicRange(ctx = {}) {
 
 /**
  * WAI-ARIA APG window splitter: arrows move the separator.
- * Sidebar grows to the right; topic (right pane) grows to the left.
+ * Sidebar grows to the right. A right-hand pane (topic, issue detail)
+ * grows to the left.
  */
+function separatorGrowsLeft(pane) {
+  return pane === 'topic' || pane === 'issue'
+}
+
 export function applySeparatorKey(pane, key, current, min, max) {
-  const dir = pane === 'topic' ? -1 : 1
-  const n = num(current, pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
+  const dir = separatorGrowsLeft(pane) ? -1 : 1
+  const n = num(current, separatorGrowsLeft(pane) ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
   if (key === 'ArrowLeft') return clamp(Math.round(n - dir * STEP), min, max)
   if (key === 'ArrowRight') return clamp(Math.round(n + dir * STEP), min, max)
   if (key === 'Home') return dir === 1 ? min : max
@@ -138,8 +143,8 @@ export function applySeparatorKey(pane, key, current, min, max) {
 
 export function pointerDelta(pane, startWidth, startX, clientX) {
   const dx = num(clientX, 0) - num(startX, 0)
-  const start = num(startWidth, pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
-  return pane === 'topic' ? start - dx : start + dx
+  const start = num(startWidth, separatorGrowsLeft(pane) ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
+  return separatorGrowsLeft(pane) ? start - dx : start + dx
 }
 
 export function loadPaneWidths(store) {
@@ -154,9 +159,12 @@ export function loadPaneWidths(store) {
 }
 
 export function savePaneWidths(widths, store) {
+  const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
+  const prev = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
   const sidebar = Math.round(num(widths && widths.sidebar, SIDEBAR_DEFAULT))
   const topic = Math.round(num(widths && widths.topic, TOPIC_DEFAULT))
-  return storageSetJson(PANE_WIDTHS_KEY, { sidebar, topic }, store)
+  // Keep keys this helper does not own (the issue detail width).
+  return storageSetJson(PANE_WIDTHS_KEY, { ...prev, sidebar, topic }, store)
 }
 
 export function resetPane(pane) {

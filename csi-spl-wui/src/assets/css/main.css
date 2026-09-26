@@ -693,6 +693,7 @@ html.pane-dragging * {
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);
   }
   .pane-divider[data-pane="topic"] { display: none; }
+  .pane-divider[data-pane="issue"] { display: none; }
 }
 
 /* CLE-3402 user control + spec 021 language switcher: since 022 they sit at

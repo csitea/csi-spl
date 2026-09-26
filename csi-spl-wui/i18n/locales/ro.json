@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Redimensionează bara laterală a canalelor",
     "resize_topic": "Redimensionează panoul temei",
+    "resize_issue": "Redimensionează panoul detaliilor",
     "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare.",
     "msgs": "Mesaje"
   },

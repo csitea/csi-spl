@@ -9,7 +9,7 @@
     :aria-valuenow="Math.round(value)"
     :aria-valuemin="Math.round(min)"
     :aria-valuemax="Math.round(max)"
-    :aria-label="pane === 'sidebar' ? t('pane.resize_sidebar') : t('pane.resize_topic')"
+    :aria-label="pane === 'sidebar' ? t('pane.resize_sidebar') : pane === 'issue' ? t('pane.resize_issue') : t('pane.resize_topic')"
     :title="t('pane.resize_hint')"
     tabindex="0"
     @pointerdown="onDown"
@@ -25,7 +25,7 @@
 import { applySeparatorKey, pointerDelta } from '~/utils/pane-widths.mjs'
 
 const props = defineProps<{
-  pane: 'sidebar' | 'topic'
+  pane: 'sidebar' | 'topic' | 'issue'
   value: number
   min: number
   max: number

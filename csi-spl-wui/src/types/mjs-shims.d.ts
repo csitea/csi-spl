@@ -646,14 +646,14 @@ declare module '~/utils/pane-widths.mjs' {
     viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): { min: number, max: number }
   export function applySeparatorKey(
-    pane: 'sidebar' | 'topic',
+    pane: 'sidebar' | 'topic' | 'issue',
     key: string,
     current: number,
     min: number,
     max: number,
   ): number
   export function pointerDelta(
-    pane: 'sidebar' | 'topic',
+    pane: 'sidebar' | 'topic' | 'issue',
     startWidth: number,
     startX: number,
     clientX: number,
@@ -1098,6 +1098,12 @@ declare module '~/utils/issues-view.mjs' {
   export function deadlineToLocalInput(iso: string, offsetMin?: number): string
   export function localInputToDeadline(value: string, offsetMin?: number): string | null
   export function isOverdue(issue: import('~/utils/issues.mjs').Issue, now?: number): boolean
+  export const ISSUE_PANE_DEFAULT: number
+  export const ISSUE_PANE_MIN: number
+  export const ISSUE_PANE_MAX: number
+  export function clampIssuePane(width: unknown, ceiling?: number): number
+  export function loadIssuePane(store?: unknown): number
+  export function saveIssuePane(width: number, store?: unknown): boolean
 }
 
 declare module '~/utils/markdown.mjs' {

@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Keisti kanalų šoninės juostos dydį",
     "resize_topic": "Keisti temos skydelio dydį",
+    "resize_issue": "Keisti užduoties išsamios informacijos skydelio dydį",
     "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte.",
     "msgs": "Žinutės"
   },

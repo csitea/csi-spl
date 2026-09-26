@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Mainīt kanālu sānjoslas izmēru",
     "resize_topic": "Mainīt tēmas paneļa izmēru",
+    "resize_issue": "Mainīt detaļu paneļa izmēru",
     "resize_hint": "Velciet, lai mainītu izmēru. Veiciet dubultklikšķi, lai atiestatītu.",
     "msgs": "Ziņas"
   },

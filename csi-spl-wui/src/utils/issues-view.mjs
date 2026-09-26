@@ -4,6 +4,8 @@
  * the query string).
  */
 import { ISSUE_STATUSES, matchIssue, normalizeIssue, normalizeLabel, sortIssues } from './issues.mjs'
+import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { PANE_WIDTHS_KEY } from './pane-widths.mjs'
 
 /** 0 no priority, 1 urgent, 2 high, 3 medium, 4 low (Linear's scale). */
 export const ISSUE_PRIORITIES = [0, 1, 2, 3, 4]
@@ -111,6 +113,32 @@ export function localInputToDeadline(value, offsetMin) {
   const asUTC = Date.UTC(y, mo - 1, d, h, mi, s || 0)
   const off = offsetMin === undefined ? -new Date(asUTC).getTimezoneOffset() : offsetMin
   return new Date(asUTC - off * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/** Issue detail width, stored beside the other pane widths. */
+export const ISSUE_PANE_DEFAULT = 380
+export const ISSUE_PANE_MIN = 280
+export const ISSUE_PANE_MAX = 720
+
+export function clampIssuePane(width, ceiling = ISSUE_PANE_MAX) {
+  const cap = Number(ceiling)
+  const hi = Math.max(ISSUE_PANE_MIN, Math.min(ISSUE_PANE_MAX, Number.isFinite(cap) ? cap : ISSUE_PANE_MAX))
+  const n = Number(width)
+  const v = Number.isFinite(n) ? Math.round(n) : ISSUE_PANE_DEFAULT
+  return Math.min(hi, Math.max(ISSUE_PANE_MIN, v))
+}
+
+export function loadIssuePane(store) {
+  const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ISSUE_PANE_DEFAULT
+  return clampIssuePane(raw.issues)
+}
+
+export function saveIssuePane(width, store) {
+  const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
+  const prev = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const issues = clampIssuePane(width)
+  return storageSetJson(PANE_WIDTHS_KEY, { ...prev, issues }, store)
 }
 
 /** Overdue: a deadline in the past on an issue that is not done / canceled. */

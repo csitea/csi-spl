@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Kanal kenar çubuğunu yeniden boyutlandır",
     "resize_topic": "Konu panelini yeniden boyutlandır",
+    "resize_issue": "Sorun ayrıntısı panelini yeniden boyutlandır",
     "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın.",
     "msgs": "Mesajlar"
   },

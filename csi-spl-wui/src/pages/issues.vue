@@ -3,7 +3,7 @@
      Deadline is a calendar with a time, stored UTC. The hub contract is
      issues-v1 (CLE-34993): GET /v1/view/issues, POST /v1/issues, PATCH. -->
 <template>
-  <div class="issues-page" data-test="issues-page">
+  <div ref="pageEl" class="issues-page" data-test="issues-page" :style="detailStyle">
     <div class="issues-list" data-test="issues-list">
       <header class="feed-header issues-head">
         <h2>{{ t('issues.title') }}</h2>
@@ -97,6 +97,15 @@
         </section>
       </div>
     </div>
+    <PaneDivider
+      v-if="form"
+      pane="issue"
+      :value="detailShown"
+      :min="ISSUE_PANE_MIN"
+      :max="detailRoom"
+      @input="setDetailW"
+      @reset="resetDetailW"
+    />
     <aside v-if="form" class="issues-detail" data-test="issues-detail" :aria-label="t('issues.title')">
       <header class="issues-detail__h">
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
@@ -210,15 +219,20 @@ import { shownPerson } from '~/utils/channel-feed.mjs'
 import { ISSUE_STATUSES, createMockIssues, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
+  ISSUE_PANE_DEFAULT,
+  ISSUE_PANE_MIN,
   ISSUE_PRIORITIES,
   LEVEL_SHORT,
   applyIssueFrame,
   applyLabelFrame,
+  clampIssuePane,
   deadlineToLocalInput,
   groupIssues,
   levelKey,
+  loadIssuePane,
   localInputToDeadline,
   priorityKey,
+  saveIssuePane,
   statusKey,
   stepKey,
   visibleOrder,
@@ -286,6 +300,9 @@ const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
+const pageEl = ref<HTMLElement | null>(null)
+const detailW = ref(ISSUE_PANE_DEFAULT)
+const detailRoom = ref(720)
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: 0, level: 0,
   assignee: '', labels: [] as string[], deadlineLocal: '',
@@ -371,6 +388,20 @@ const flat = computed(() => visibleOrder(groups.value, Object.fromEntries(
 )))
 const activeAssignee = computed(() => creating.value ? draft.assignee : (detail.value?.assignee || ''))
 const activeLabels = computed(() => creating.value ? draft.labels : (detail.value?.labels || []))
+const detailShown = computed(() => clampIssuePane(detailW.value, detailRoom.value))
+const detailStyle = computed(() => ({ '--issues-detail-w': `${detailShown.value}px` }))
+function measureDetailRoom() {
+  const page = pageEl.value?.clientWidth || 0
+  const room = (page > 0 ? page : 900) - 360 - 6
+  detailRoom.value = Math.max(ISSUE_PANE_MIN, Math.min(720, Math.round(room)))
+}
+function setDetailW(n: number) {
+  detailW.value = clampIssuePane(n, detailRoom.value)
+  saveIssuePane(detailW.value)
+}
+function resetDetailW() {
+  setDetailW(ISSUE_PANE_DEFAULT)
+}
 const form = computed(() => {
   if (creating.value) {
     return {
@@ -771,10 +802,17 @@ let offIssue = () => {}
 let offLabel = () => {}
 let offMsg = () => {}
 let offBack = () => {}
+let detailObserver: ResizeObserver | null = null
 onMounted(() => {
   useTopicStore().close()
   useLiveFeed('pane').close()
+  detailW.value = loadIssuePane()
+  measureDetailRoom()
   document.addEventListener('keydown', onDocKey)
+  if (typeof ResizeObserver !== 'undefined' && pageEl.value) {
+    detailObserver = new ResizeObserver(() => measureDetailRoom())
+    detailObserver.observe(pageEl.value)
+  }
   offIssue = live.onIssue((f) => { issues.value = applyIssueFrame(issues.value, f) })
   offLabel = live.onIssueLabel((f) => { labels.value = applyLabelFrame(labels.value, f) })
   offMsg = live.onMessage((m) => {
@@ -787,6 +825,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKey)
+  detailObserver?.disconnect()
   offIssue()
   offLabel()
   offMsg()
@@ -935,8 +974,8 @@ onUnmounted(() => {
 .issues-st--done { color: var(--color-ok); }
 .issues-st--canceled, .issues-st--backlog { color: var(--color-muted); }
 .issues-detail {
-  flex: 0 0 380px;
-  width: min(380px, 100%);
+  flex: 0 0 var(--issues-detail-w, 380px);
+  width: var(--issues-detail-w, 380px);
   max-width: 100%;
   min-width: 0;
   min-height: 0;

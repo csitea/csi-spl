@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Redimensionar la barra de canales",
     "resize_topic": "Redimensionar el panel del tema",
+    "resize_issue": "Redimensionar el panel del asunto",
     "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer.",
     "msgs": "Mensajes"
   },

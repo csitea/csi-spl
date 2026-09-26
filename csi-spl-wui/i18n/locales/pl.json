@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Zmień rozmiar paska kanałów",
     "resize_topic": "Zmień rozmiar panelu tematu",
+    "resize_issue": "Zmień rozmiar panelu zgłoszenia",
     "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić.",
     "msgs": "Wiadomości"
   },

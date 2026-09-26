@@ -5,9 +5,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } from '../../src/utils/issues.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
-  applyIssueFrame, applyLabelFrame, deadlineToLocalInput, groupIssues, isOverdue,
-  localInputToDeadline, stepKey, visibleOrder,
+  applyIssueFrame, applyLabelFrame, clampIssuePane, deadlineToLocalInput, groupIssues, isOverdue,
+  loadIssuePane, localInputToDeadline, saveIssuePane, stepKey, visibleOrder,
 } from '../../src/utils/issues-view.mjs'
 
 const mk = (n, extra = {}) => normalizeIssue({ key: `SPL-${n}`, number: n, title: `t${n}`, ...extra })
@@ -124,5 +125,24 @@ describe('issueQuery is the hub query (issues-v1 §4)', () => {
     assert.equal(issueQuery({}, 'priority'), '')
     assert.equal(issueQuery({ status: ['todo', 'in_progress'], assignee: ['me'], deadlineBefore: '2026-10-01T00:00:00Z' }, 'level'),
       'status=todo%2Cin_progress&assignee=me&deadline_before=2026-10-01T00%3A00%3A00Z&sort=level')
+  })
+})
+
+describe('issue detail pane width', () => {
+  it('clamps to the detail range', () => {
+    assert.equal(clampIssuePane(100), 280)
+    assert.equal(clampIssuePane(900), 720)
+    assert.equal(clampIssuePane(450, 500), 450)
+    assert.equal(clampIssuePane('nope'), 380)
+  })
+
+  it('stores the detail width beside sidebar and topic', () => {
+    const store = memoryStore({ 'spool.pane-widths': JSON.stringify({ sidebar: 300, topic: 400 }) })
+    assert.equal(saveIssuePane(500, store), true)
+    assert.equal(loadIssuePane(store), 500)
+    const saved = JSON.parse(store.getItem('spool.pane-widths'))
+    assert.equal(saved.sidebar, 300)
+    assert.equal(saved.topic, 400)
+    assert.equal(saved.issues, 500)
   })
 })

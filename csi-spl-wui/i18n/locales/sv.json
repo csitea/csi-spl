@@ -525,6 +525,7 @@
   "pane": {
     "resize_sidebar": "Ändra storlek på kanalsidofältet",
     "resize_topic": "Ändra storlek på ämnespanelen",
+    "resize_issue": "Ändra storlek på ärendepanelen",
     "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa.",
     "msgs": "Meddelanden"
   },

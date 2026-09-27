@@ -98,11 +98,12 @@ function where(p, text) {
   }, text)
 }
 
-async function send(p, text) {
+/* `prefix` (a leading @mention) is typed but not looked up: the stored body drops it */
+async function send(p, text, prefix = '') {
   const ta = 'form.composer.omnibox--global textarea'
   await p.waitForSelector(ta, { timeout: 30000 })
   await p.focus(ta)
-  await p.type(ta, text)
+  await p.type(ta, prefix + text)
   await p.click('form.composer.omnibox--global [data-testid=send]')
   for (let i = 0; i < 20; i++) {
     await sleep(500)
@@ -197,7 +198,7 @@ try {
   const N2 = `${tag} N2 explicit new topic`
   /* the test member itself by default: no agent is poked */
   const MENTION = process.env.MENTION || '@HUM-1'
-  const tb = await send(p, `${MENTION} ${N2}`)
+  const tb = await send(p, N2, `${MENTION} `)
   res.lines.N2 = tb
   await p.screenshot({ path: join(OUT, 'topic-send-target-1440-2b.png') })
   ok('1440px 2b `@someone` first with the topic open: a new topic, drawn ONCE (middle card, nothing in the right pane)',

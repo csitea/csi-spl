@@ -1,1 +1,1 @@
-SPOOL-HUB.AI üzerindeki spool hub kiracısı {{.TenantID}} için davet
+{{.SiteHost}} üzerindeki spool hub kiracısı {{.TenantID}} için davet

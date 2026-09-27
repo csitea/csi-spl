@@ -1,4 +1,4 @@
-Поканени сте да се присъедините към наемателя {{.TenantID}} в spool hub на SPOOL-HUB.AI като {{if eq .Role "owner"}}собственик{{else}}член{{end}}.
+Поканени сте да се присъедините към наемателя {{.TenantID}} в spool hub на {{.SiteHost}} като {{if eq .Role "owner"}}собственик{{else}}член{{end}}.
 
 Влезте тук:
 {{.SignInURL}}

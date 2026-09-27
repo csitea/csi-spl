@@ -1,1 +1,1 @@
-Zaproszenie do dzierżawy spool hub {{.TenantID}} na SPOOL-HUB.AI
+Zaproszenie do dzierżawy spool hub {{.TenantID}} na {{.SiteHost}}

@@ -1,4 +1,4 @@
-Έχετε προσκληθεί να συμμετάσχετε στον μισθωτή {{.TenantID}} του spool hub στο SPOOL-HUB.AI ως {{if eq .Role "owner"}}κάτοχος{{else}}μέλος{{end}}.
+Έχετε προσκληθεί να συμμετάσχετε στον μισθωτή {{.TenantID}} του spool hub στο {{.SiteHost}} ως {{if eq .Role "owner"}}κάτοχος{{else}}μέλος{{end}}.
 
 Συνδεθείτε εδώ:
 {{.SignInURL}}

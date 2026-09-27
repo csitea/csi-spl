@@ -1,4 +1,4 @@
-Вас пригласили присоединиться к арендатору {{.TenantID}} в spool hub на SPOOL-HUB.AI в роли {{if eq .Role "owner"}}владельца{{else}}участника{{end}}.
+Вас пригласили присоединиться к арендатору {{.TenantID}} в spool hub на {{.SiteHost}} в роли {{if eq .Role "owner"}}владельца{{else}}участника{{end}}.
 
 Войдите здесь:
 {{.SignInURL}}

@@ -1,4 +1,4 @@
-Zaproszono Cię do dołączenia do dzierżawy spool hub {{.TenantID}} na SPOOL-HUB.AI jako {{if eq .Role "owner"}}właściciel{{else}}członek{{end}}.
+Zaproszono Cię do dołączenia do dzierżawy spool hub {{.TenantID}} na {{.SiteHost}} jako {{if eq .Role "owner"}}właściciel{{else}}członek{{end}}.
 
 Zaloguj się tutaj:
 {{.SignInURL}}

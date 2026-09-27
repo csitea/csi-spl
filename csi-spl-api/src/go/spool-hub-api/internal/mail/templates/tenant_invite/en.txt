@@ -1,4 +1,4 @@
-You have been invited to join the spool hub tenant {{.TenantID}} on SPOOL-HUB.AI as {{if eq .Role "owner"}}an owner{{else}}a member{{end}}.
+You have been invited to join the spool hub tenant {{.TenantID}} on {{.SiteHost}} as {{if eq .Role "owner"}}an owner{{else}}a member{{end}}.
 
 Sign in here:
 {{.SignInURL}}

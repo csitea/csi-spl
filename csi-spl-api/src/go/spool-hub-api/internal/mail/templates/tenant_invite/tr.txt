@@ -1,4 +1,4 @@
-SPOOL-HUB.AI üzerindeki spool hub kiracısı {{.TenantID}} içine {{if eq .Role "owner"}}sahip{{else}}üye{{end}} olarak katılmaya davet edildiniz.
+{{.SiteHost}} üzerindeki spool hub kiracısı {{.TenantID}} içine {{if eq .Role "owner"}}sahip{{else}}üye{{end}} olarak katılmaya davet edildiniz.
 
 Buradan giriş yapın:
 {{.SignInURL}}

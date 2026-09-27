@@ -1,1 +1,1 @@
-Pozivnica za spool hub zakupca {{.TenantID}} na SPOOL-HUB.AI
+Pozivnica za spool hub zakupca {{.TenantID}} na {{.SiteHost}}

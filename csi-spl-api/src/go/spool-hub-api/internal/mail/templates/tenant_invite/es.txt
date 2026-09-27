@@ -1,4 +1,4 @@
-Te han invitado a unirte al inquilino de spool hub {{.TenantID}} en SPOOL-HUB.AI como {{if eq .Role "owner"}}propietario{{else}}miembro{{end}}.
+Te han invitado a unirte al inquilino de spool hub {{.TenantID}} en {{.SiteHost}} como {{if eq .Role "owner"}}propietario{{else}}miembro{{end}}.
 
 Inicia sesión aquí:
 {{.SignInURL}}

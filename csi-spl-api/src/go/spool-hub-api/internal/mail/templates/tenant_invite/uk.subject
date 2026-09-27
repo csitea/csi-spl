@@ -1,1 +1,1 @@
-Запрошення до орендаря {{.TenantID}} у spool hub на SPOOL-HUB.AI
+Запрошення до орендаря {{.TenantID}} у spool hub на {{.SiteHost}}

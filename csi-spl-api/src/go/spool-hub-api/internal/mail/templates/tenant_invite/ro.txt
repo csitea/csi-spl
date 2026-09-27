@@ -1,4 +1,4 @@
-Ați fost invitat să vă alăturați chiriașului spool hub {{.TenantID}} pe SPOOL-HUB.AI ca {{if eq .Role "owner"}}proprietar{{else}}membru{{end}}.
+Ați fost invitat să vă alăturați chiriașului spool hub {{.TenantID}} pe {{.SiteHost}} ca {{if eq .Role "owner"}}proprietar{{else}}membru{{end}}.
 
 Autentificați-vă aici:
 {{.SignInURL}}

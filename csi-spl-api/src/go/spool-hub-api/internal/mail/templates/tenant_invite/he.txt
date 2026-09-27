@@ -1,4 +1,4 @@
-הוזמנתם להצטרף לדייר {{.TenantID}} ב-spool hub באתר SPOOL-HUB.AI בתפקיד {{if eq .Role "owner"}}בעלים{{else}}חבר/ה{{end}}.
+הוזמנתם להצטרף לדייר {{.TenantID}} ב-spool hub באתר {{.SiteHost}} בתפקיד {{if eq .Role "owner"}}בעלים{{else}}חבר/ה{{end}}.
 
 התחברו כאן:
 {{.SignInURL}}

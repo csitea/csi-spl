@@ -1,1 +1,1 @@
-Inbjudan till spool hub-tenanten {{.TenantID}} på SPOOL-HUB.AI
+Inbjudan till spool hub-tenanten {{.TenantID}} på {{.SiteHost}}

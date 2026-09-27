@@ -1,4 +1,4 @@
-Boli ste pozvaní pripojiť sa k nájomníkovi {{.TenantID}} v spool hub na SPOOL-HUB.AI ako {{if eq .Role "owner"}}vlastník{{else}}člen{{end}}.
+Boli ste pozvaní pripojiť sa k nájomníkovi {{.TenantID}} v spool hub na {{.SiteHost}} ako {{if eq .Role "owner"}}vlastník{{else}}člen{{end}}.
 
 Prihláste sa tu:
 {{.SignInURL}}

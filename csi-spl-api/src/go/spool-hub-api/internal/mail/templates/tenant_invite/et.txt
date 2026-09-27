@@ -1,4 +1,4 @@
-Sind on kutsutud liituma spool hubi rentnikuga {{.TenantID}} saidil SPOOL-HUB.AI {{if eq .Role "owner"}}omanikuna{{else}}liikmena{{end}}.
+Sind on kutsutud liituma spool hubi rentnikuga {{.TenantID}} saidil {{.SiteHost}} {{if eq .Role "owner"}}omanikuna{{else}}liikmena{{end}}.
 
 Logi sisse siin:
 {{.SignInURL}}

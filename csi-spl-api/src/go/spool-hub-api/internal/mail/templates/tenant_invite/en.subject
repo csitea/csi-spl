@@ -1,1 +1,1 @@
-Invitation to the spool hub tenant {{.TenantID}} on SPOOL-HUB.AI
+Invitation to the spool hub tenant {{.TenantID}} on {{.SiteHost}}

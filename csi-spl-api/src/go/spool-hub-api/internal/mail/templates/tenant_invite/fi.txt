@@ -1,4 +1,4 @@
-Sinut on kutsuttu spool hubin vuokraajaan {{.TenantID}} palvelussa SPOOL-HUB.AI {{if eq .Role "owner"}}omistajaksi{{else}}jäseneksi{{end}}.
+Sinut on kutsuttu spool hubin vuokraajaan {{.TenantID}} palvelussa {{.SiteHost}} {{if eq .Role "owner"}}omistajaksi{{else}}jäseneksi{{end}}.
 
 Kirjaudu tästä:
 {{.SignInURL}}

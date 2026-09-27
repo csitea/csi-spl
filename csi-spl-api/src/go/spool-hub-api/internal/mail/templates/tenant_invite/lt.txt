@@ -1,4 +1,4 @@
-Esate pakviesti prisijungti prie spool hub nuomininko {{.TenantID}} svetainėje SPOOL-HUB.AI kaip {{if eq .Role "owner"}}savininkas{{else}}narys{{end}}.
+Esate pakviesti prisijungti prie spool hub nuomininko {{.TenantID}} svetainėje {{.SiteHost}} kaip {{if eq .Role "owner"}}savininkas{{else}}narys{{end}}.
 
 Prisijunkite čia:
 {{.SignInURL}}

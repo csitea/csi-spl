@@ -1,4 +1,4 @@
-Je bent uitgenodigd om lid te worden van spool hub-tenant {{.TenantID}} op SPOOL-HUB.AI als {{if eq .Role "owner"}}eigenaar{{else}}lid{{end}}.
+Je bent uitgenodigd om lid te worden van spool hub-tenant {{.TenantID}} op {{.SiteHost}} als {{if eq .Role "owner"}}eigenaar{{else}}lid{{end}}.
 
 Meld je hier aan:
 {{.SignInURL}}

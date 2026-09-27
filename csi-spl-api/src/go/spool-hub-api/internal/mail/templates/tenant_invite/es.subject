@@ -1,1 +1,1 @@
-Invitación al inquilino de spool hub {{.TenantID}} en SPOOL-HUB.AI
+Invitación al inquilino de spool hub {{.TenantID}} en {{.SiteHost}}

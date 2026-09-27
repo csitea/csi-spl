@@ -1,1 +1,1 @@
-Kvietimas į spool hub nuomininką {{.TenantID}} svetainėje SPOOL-HUB.AI
+Kvietimas į spool hub nuomininką {{.TenantID}} svetainėje {{.SiteHost}}

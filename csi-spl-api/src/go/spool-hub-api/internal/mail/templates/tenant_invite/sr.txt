@@ -1,4 +1,4 @@
-Pozvani ste da se pridružite spool hub zakupcu {{.TenantID}} na SPOOL-HUB.AI kao {{if eq .Role "owner"}}vlasnik{{else}}član{{end}}.
+Pozvani ste da se pridružite spool hub zakupcu {{.TenantID}} na {{.SiteHost}} kao {{if eq .Role "owner"}}vlasnik{{else}}član{{end}}.
 
 Prijavite se ovde:
 {{.SignInURL}}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"net/url"
 	"strings"
 	"text/template"
 	"time"
@@ -60,6 +61,9 @@ type TemplateData struct {
 	// Providers is the worded provider list of TemplateFederatedSignIn
 	// ("Google", "Google and Microsoft"), never raw slugs.
 	Providers string
+	// SiteHost names the hub the invite is for: the upper-cased host of
+	// SignInURL (the operator's own domain), never a baked-in one.
+	SiteHost string
 }
 
 // providerNames words a provider slug for a mail. An unknown slug is title-cased
@@ -182,7 +186,17 @@ type InviteData struct {
 // in UTC ("2006-01-02 15:04 UTC") in every locale.
 func TenantInvite(to, locale string, d InviteData) (Message, error) {
 	return build(TemplateTenantInvite, to, locale, TemplateData{TenantID: d.TenantID, Role: d.Role,
-		Email: d.Email, SignInURL: d.SignInURL, ExpiresAt: d.ExpiresAt.UTC().Format("2006-01-02 15:04") + " UTC"})
+		Email: d.Email, SignInURL: d.SignInURL, SiteHost: siteHost(d.SignInURL),
+		ExpiresAt: d.ExpiresAt.UTC().Format("2006-01-02 15:04") + " UTC"})
+}
+
+// siteHost is the upper-cased host of a URL, "" when it has none.
+func siteHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return strings.ToUpper(u.Hostname())
 }
 
 // FederatedSignIn renders CLE-3451 defect 1's mail: this address has no

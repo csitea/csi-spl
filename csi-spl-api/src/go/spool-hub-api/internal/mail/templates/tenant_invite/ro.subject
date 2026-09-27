@@ -1,1 +1,1 @@
-Invitație la chiriașul spool hub {{.TenantID}} pe SPOOL-HUB.AI
+Invitație la chiriașul spool hub {{.TenantID}} pe {{.SiteHost}}

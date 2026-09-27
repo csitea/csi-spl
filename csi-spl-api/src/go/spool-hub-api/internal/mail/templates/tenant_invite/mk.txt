@@ -1,4 +1,4 @@
-Поканети сте да се приклучите кон закупецот {{.TenantID}} во spool hub на SPOOL-HUB.AI како {{if eq .Role "owner"}}сопственик{{else}}член{{end}}.
+Поканети сте да се приклучите кон закупецот {{.TenantID}} во spool hub на {{.SiteHost}} како {{if eq .Role "owner"}}сопственик{{else}}член{{end}}.
 
 Најавете се тука:
 {{.SignInURL}}

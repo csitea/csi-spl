@@ -1,4 +1,4 @@
-Jūs esat uzaicināts pievienoties spool hub īrniekam {{.TenantID}} vietnē SPOOL-HUB.AI kā {{if eq .Role "owner"}}īpašnieks{{else}}dalībnieks{{end}}.
+Jūs esat uzaicināts pievienoties spool hub īrniekam {{.TenantID}} vietnē {{.SiteHost}} kā {{if eq .Role "owner"}}īpašnieks{{else}}dalībnieks{{end}}.
 
 Piesakieties šeit:
 {{.SignInURL}}

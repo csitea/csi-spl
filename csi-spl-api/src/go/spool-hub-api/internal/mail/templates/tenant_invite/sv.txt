@@ -1,4 +1,4 @@
-Du har bjudits in till spool hub-tenanten {{.TenantID}} på SPOOL-HUB.AI som {{if eq .Role "owner"}}ägare{{else}}medlem{{end}}.
+Du har bjudits in till spool hub-tenanten {{.TenantID}} på {{.SiteHost}} som {{if eq .Role "owner"}}ägare{{else}}medlem{{end}}.
 
 Logga in här:
 {{.SignInURL}}

@@ -1,1 +1,1 @@
-Покана за наемателя {{.TenantID}} в spool hub на SPOOL-HUB.AI
+Покана за наемателя {{.TenantID}} в spool hub на {{.SiteHost}}

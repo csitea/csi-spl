@@ -1,4 +1,4 @@
-Вас запрошено приєднатися до орендаря {{.TenantID}} у spool hub на SPOOL-HUB.AI у ролі {{if eq .Role "owner"}}власника{{else}}учасника{{end}}.
+Вас запрошено приєднатися до орендаря {{.TenantID}} у spool hub на {{.SiteHost}} у ролі {{if eq .Role "owner"}}власника{{else}}учасника{{end}}.
 
 Увійдіть тут:
 {{.SignInURL}}

@@ -228,6 +228,10 @@ type Session struct {
 	tokenExp  time.Time
 	recvErrs  []error
 	delivered int
+	// backfilled counts the inbox files a back-fill run wrote, per
+	// (channel, agent), until its backfill_end rings the pane (backfill.go).
+	// Touched by the read loop only.
+	backfilled map[[2]string]int
 
 	replies  chan wire.Frame
 	queueEnd chan int
@@ -280,6 +284,9 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	payload, _ := wire.HelloPayload(box, ch.Nonce, ts)
 	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: ch.Nonce, Role: role, Sig: sign.Sign(priv, payload),
 		MsgVersions: msg.Supported}
+	if role == wire.RoleBox {
+		hello.Features = []string{wire.FeatureBackfill} // SPL-987: backfill.go
+	}
 	if role == wire.RoleBox {
 		agents, err := c.scanAgents()
 		if err != nil {
@@ -407,12 +414,20 @@ func (s *Session) readLoop() {
 		}
 		switch f.Type {
 		case wire.TRecv:
-			if err := s.receive(context.Background(), f.Env, f.Agents); err != nil {
+			var err error
+			if f.Backfill != "" {
+				err = s.receiveBackfill(context.Background(), f.Env, f.Agents, f.Backfill)
+			} else {
+				err = s.receive(context.Background(), f.Env, f.Agents)
+			}
+			if err != nil {
 				s.c.Log.Warn().Err(err).Msg("recv frame refused")
 				s.mu.Lock()
 				s.recvErrs = append(s.recvErrs, err)
 				s.mu.Unlock()
 			}
+		case wire.TBackfillEnd:
+			s.backfillEnd(f)
 		case wire.TRoster:
 			s.c.saveRoster(f.Roster)
 		case wire.TQueueEnd:

@@ -244,8 +244,14 @@ type Hub struct {
 	QueueMaxPerBox    int           `env:"SPOOL_HUB_QUEUE_MAX_PER_BOX" envDefault:"1000"`
 	RetentionAlerts   time.Duration `env:"SPOOL_HUB_RETENTION_ALERTS" envDefault:"168h"`
 	RetentionChannels time.Duration `env:"SPOOL_HUB_RETENTION_CHANNELS" envDefault:"720h"`
-	HelloSkew         time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
-	UploadTokenTTL    time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`
+	// SPL-987: an agent newly added to a channel is back-filled with the
+	// channel's topics active in the last BackfillWindow, newest BackfillMax
+	// messages at most. 0 max = no back-fill.
+	BackfillWindow time.Duration `env:"SPOOL_HUB_BACKFILL_WINDOW" envDefault:"168h"`
+	BackfillMax    int           `env:"SPOOL_HUB_BACKFILL_MAX" envDefault:"200"`
+
+	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
+	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`
 	// Quota fields: 0 = unlimited (tests / internal). Production values live in cnf.
 	QuotaMessagesPerMonth int           `env:"SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH" envDefault:"0"`
 	QuotaPins             int           `env:"SPOOL_HUB_QUOTA_PINS" envDefault:"0"`

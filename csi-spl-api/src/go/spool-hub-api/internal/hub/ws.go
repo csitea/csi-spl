@@ -40,7 +40,11 @@ type session struct {
 	// msgVersions: the inner versions this box's reader accepts (hello
 	// msg_versions, specs/020); a pre-020 box sends none and gets v:1 only.
 	msgVersions []int
-	upload      tokenSlot // CLE-34986: one live upload token per socket
+	// features: what the box client's hello said it understands beyond the
+	// base protocol (SPL-987 FeatureBackfill); fixed after hello.
+	features []string
+
+	upload tokenSlot // CLE-34986: one live upload token per socket
 	// agents is this box's seated roster, sorted: what onSend checks a
 	// sender against. It is read from the welcome's roster at hello and
 	// replaced by a stored announce, both on this session's read goroutine,
@@ -222,7 +226,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		return nil, false
 	}
 	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
-		msgVersions: f.MsgVersions, welcomed: make(chan struct{})}
+		msgVersions: f.MsgVersions, features: f.Features, welcomed: make(chan struct{})}
 	if f.Role == wire.RoleBox {
 		agents, err := s.seatRoster(ctx, t.ID, f.BoxID, f.Agents, now)
 		if err != nil {
@@ -254,6 +258,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		s.broadcastRoster(ctx, t.ID, x)
 		s.presence(ctx, t.ID, f.BoxID, f.Agents, "online")
 		s.drain(ctx, x)
+		s.backfillBox(ctx, t.ID, f.BoxID) // SPL-987: seats owed a back-fill
 	}
 	return x, true
 }

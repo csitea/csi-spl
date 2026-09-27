@@ -33,3 +33,14 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       channel. Only the channel's owner may add it (asked 2026-09-25 17:53Z).
 - [x] T006 `do_spl_channel_agent_add` (FR-006). `c55edaa3`;
       `csi-spl-orc/src/bash/tests/channel-agent-add.tst.sh` (12 PASS)
+
+## SPL-987 back-fill (FR-020..FR-026)
+
+- [x] T010 rdb 0066 `channel_subscriptions.backfilled_at` + pending index
+- [x] T011 hub back-fill (store Backfills, hub/backfill.go, invite + hello +
+      sweeper triggers, hello `features`), box client quiet delivery + one
+      summary poke (hubclient/backfill.go), `backfill_test.go`
+- [ ] T012 apply 0066 on dev and prd (`do_spl_db_bootstrap`)
+- [x] T013 members endpoint `online` / `seated`
+- [ ] T014 WUI Properties -> Agents shows online / seated
+- [ ] T015 roll hub + WUI, live e2e proof (3 posts, invite, inbox 3 + 1 poke)

@@ -42,7 +42,16 @@ const (
 	// removes one. Request and reply pair on MsgID, the edited message's id.
 	TEdit   = "edit"
 	TDelete = "delete"
+	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
+	// Topics topics of channel Backfill were sent for Agents, the newest by
+	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
+	// FeatureBackfill.
+	TBackfillEnd = "backfill_end"
 )
+
+// FeatureBackfill is the hello feature of a box client that takes back-fill
+// recv frames and backfill_end (SPL-987).
+const FeatureBackfill = "backfill"
 
 // Hello roles (http-v1.md §2.2).
 const (
@@ -92,6 +101,12 @@ type Frame struct {
 	// i.e. every pre-020 box, and the hub then never pushes it a v:2.
 	MsgVersions []int `json:"msg_versions,omitempty"`
 
+	// hello (SPL-987): what this box's client understands beyond the base
+	// protocol. Not signed; absent = none, and the hub then sends it no frame
+	// that needs one. FeatureBackfill = recv frames carrying Backfill, and
+	// the backfill_end frame.
+	Features []string `json:"features,omitempty"`
+
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`
@@ -113,9 +128,18 @@ type Frame struct {
 	ToBox    string `json:"to_box,omitempty"`
 	Delivery string `json:"delivery,omitempty"`
 
-	// tail / tail_end / queue_end
+	// tail / tail_end / queue_end / backfill_end
 	Follow bool `json:"follow,omitempty"`
 	Count  int  `json:"count,omitempty"`
+
+	// recv / backfill_end (SPL-987, specs/038 FR-020..): the channel whose
+	// earlier posts a newly seated agent is being back-filled with. On recv
+	// it marks the frame as a back-fill copy for exactly Agents (msg.to is
+	// NOT added, and no per-message poke runs); backfill_end then closes the
+	// run with Count messages in Topics topics, the newest From.
+	Backfill string `json:"backfill,omitempty"`
+	Topics   int    `json:"topics,omitempty"`
+	From     string `json:"from,omitempty"`
 
 	// issue (specs/039 §6): IssueOp create | update | get | list | label |
 	// comment, As the acting agent (one this box announced), IssueRef the

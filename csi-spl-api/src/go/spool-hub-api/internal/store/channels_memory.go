@@ -23,6 +23,9 @@ type memChannels struct {
 	// humans, subs and invited keep their entries for RestoreChannel; every
 	// read skips them through gone().
 	deleted map[[2]string]Channel
+	// backfilled is the rdb 0066 stamp per invited seat (backfill_memory.go).
+	// It survives a remove and a re-invite, as the column does.
+	backfilled map[[4]string]time.Time
 }
 
 // gone reports a soft-deleted channel of tenant. Caller holds Memory.mu.
@@ -46,6 +49,9 @@ func (c *memChannels) init() {
 	}
 	if c.deleted == nil {
 		c.deleted = map[[2]string]Channel{}
+	}
+	if c.backfilled == nil {
+		c.backfilled = map[[4]string]time.Time{}
 	}
 }
 

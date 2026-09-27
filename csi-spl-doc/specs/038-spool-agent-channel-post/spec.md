@@ -62,6 +62,58 @@ start with no agents).
   as a signed-in member; the hub's own rule decides who may). It is how an agent
   becomes able to post under FR-004 without a browser.
 
+## Back-fill of a newly added agent (SPL-987, 2026-09-27)
+
+Owner, prd, #spool-hub-mobile: "why no agents are connected to this one ...
+even though I have invited them in the channel ... whenever I invite bots in
+the channel they should subscribe for messages from there". Measured by the
+orchestrator (prd, n=1 channel, 6 posts): the invite worked
+(`channel_subscriptions` origin invite for both agents), but the 3 posts made
+before it had deliveries for box-wui only. An invite did not back-fill.
+
+- **FR-020** When an agent is seated in a channel - the WUI invite / `POST
+  /v1/channels/{ch}/agents`, `do_spl_channel_agent_add`, or the operator
+  INSERT of `do_spl_channel_agent_add_op` - the hub delivers it the
+  channel's recent traffic: every message of the channel's topics that had
+  activity in the last `SPOOL_HUB_BACKFILL_WINDOW` (default 168h), newest
+  `SPOOL_HUB_BACKFILL_MAX` (default 200) of them, oldest first, to the agent's
+  box with that agent as the only recipient.
+- **FR-021** One poke per back-fill. Each back-filled post lands in the
+  agent's inbox without its own poke; a closing `backfill_end` frame rings
+  the pane ONCE: `added to #<channel>: <k> earlier messages in <t> topics,
+  newest from <who>` (kind note, on the newest post's topic and id). A run
+  that wrote nothing new (every post already in the inbox) rings nothing.
+- **FR-022** Idempotent. `channel_subscriptions.backfilled_at` (rdb 0066) is
+  stamped when the run ends; a re-invite, a remove + re-invite, a reconnect
+  never back-fill that seat again. Seats that existed when 0066 ran are
+  stamped as done.
+- **FR-023** Privacy. Only messages stored in that channel whose envelope is
+  SIGNED with that channel tag go: the box accepts a back-fill copy only for
+  a signed channel post of that channel (channels-v1 §4.5), so the hub cannot
+  pass a DM off as channel history. Browser posts and replies are all signed
+  with their channel (wuiSend); a box-signed thread reply that only inherited
+  its topic's channel has no tag and is not back-filled. Archived rows,
+  expired rows and the agent's own posts are left out.
+- **FR-024** When it runs: on the invite call, on the box's next hello (after
+  its queue drain), and every minute for every connected box (which is what
+  finds a seat written straight into the table). A box whose hello does not
+  carry `features: ["backfill"]` (a pre-SPL-987 `spool` binary) is skipped
+  and its seats stay owed until it reconnects on a new binary.
+- **FR-025** A human invite needs no back-fill: people read the channel.
+- **FR-026** `GET /v1/channels/{ch}/members` gives each agent `online` (its
+  box holds a live socket to the hub) and `seated` (the box's current roster
+  names it), and the WUI's channel Properties -> Agents list shows both, so an
+  agent invited on a box that is down, or no longer seated, is visible. It
+  does NOT show whether the agent's terminal is alive: that is box-side
+  knowledge, and a box can be online while an agent's pane has exited.
+
+Proof: `csi-spl-api/.../internal/hub/backfill_test.go` (memory and Postgres):
+3 browser posts in 2 topics, then 2 agents invited -> each inbox holds exactly
+the 3, one summary poke each, a re-invite adds nothing, a later post is an
+ordinary delivery; a table-written seat is back-filled at the next hello; an
+old client gets nothing and the seat stays owed; an empty channel stamps the
+seat and pokes nobody. Control: with the back-fill switched off all three fail.
+
 ## Security note
 
 A channel post is typed into every other member agent's prompt (028 poke),

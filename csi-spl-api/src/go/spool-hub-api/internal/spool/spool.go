@@ -99,6 +99,17 @@ func (s *Store) Deliver(m *msg.Message) (bool, error) {
 // message (specs/003 channels-v1 §4) lands with its v:1 object unchanged in
 // every addressed local agent's inbox, whatever its `to` says.
 func (s *Store) DeliverTo(m *msg.Message, id string) (bool, error) {
+	return s.deliverTo(m, id, true)
+}
+
+// DeliverQuiet is DeliverTo without the terminal leg: a channel back-fill
+// (SPL-987) writes each earlier post into the new member's inbox and then
+// rings the pane ONCE with a summary, instead of once per post.
+func (s *Store) DeliverQuiet(m *msg.Message, id string) (bool, error) {
+	return s.deliverTo(m, id, false)
+}
+
+func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 	if !msg.ValidID(id) {
 		return false, fmt.Errorf("to must be a valid agent id")
 	}
@@ -108,11 +119,16 @@ func (s *Store) DeliverTo(m *msg.Message, id string) (bool, error) {
 			return false, nil
 		}
 	}
-	return s.writeBox(m, id, "inbox")
+	return s.writeBoxRing(m, id, "inbox", ring)
 }
 
 // writeBox writes m as <id>/<box>/<filename>.
 func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
+	return s.writeBoxRing(m, id, box, true)
+}
+
+// writeBoxRing is writeBox; ring=false skips the inbox's terminal leg.
+func (s *Store) writeBoxRing(m *msg.Message, id, box string, ring bool) (bool, error) {
 	blob, err := msg.Marshal(m)
 	if err != nil {
 		return false, err
@@ -137,7 +153,7 @@ func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
 	// Hooking it here is also what gives FR-003 for free: a redelivery that
 	// DeliverTo already short-circuited never reaches this line, so a
 	// reconnecting sidecar does not ring an old message a second time.
-	if box == "inbox" {
+	if box == "inbox" && ring {
 		// Deliver, not Run: a long-running box daemon installs a per-recipient
 		// queue (notify.Start) so the terminal leg does not hold up the read
 		// loop behind it; every other caller is short-lived and still runs it

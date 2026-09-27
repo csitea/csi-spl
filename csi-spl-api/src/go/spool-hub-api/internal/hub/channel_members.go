@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -163,14 +164,40 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 		"channel": ch, "default": store.ChannelPublic(ch), "members": ms,
 		"members_open_invite": row.MembersOpenInvite,
 		"created_by":          row.CreatedBy,
-		"agents":              channelAgentList(agents),
+		"agents":              s.withAgentState(r.Context(), t.ID, channelAgentList(agents)),
 	})
 }
 
 // channelAgent is one subscribed agent on GET /v1/channels/{channel}/members.
+//
+// SPL-987: the Properties dialog shows whether an invited agent can hear the
+// channel at all. Online = its box holds a live role=box socket to this hub
+// (posts reach the box now, not on its next hello). Seated = the box's
+// current roster still names the agent (its spool dir exists on the box).
+// Neither says the agent's terminal is running: that is the box's knowledge,
+// and a box can be online with a pane that has exited.
 type channelAgent struct {
-	ID  string `json:"id"`
-	Box string `json:"box"`
+	ID     string `json:"id"`
+	Box    string `json:"box"`
+	Online bool   `json:"online"`
+	Seated bool   `json:"seated"`
+}
+
+// withAgentState fills Online and Seated. A roster read error leaves Seated
+// false rather than failing the list.
+func (s *Server) withAgentState(ctx context.Context, tenant string, list []channelAgent) []channelAgent {
+	if len(list) == 0 {
+		return list
+	}
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("roster for channel agents")
+	}
+	for i := range list {
+		list[i].Online = s.boxSession(tenant, list[i].Box) != nil
+		list[i].Seated = contains(roster[list[i].Box], list[i].ID)
+	}
+	return list
 }
 
 // channelAgentList flattens box → agent ids. box-wui is the browser, and a
@@ -326,6 +353,9 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", body.ID).
 		Str("box", body.Box).Str("by", hum).Msg("channel agent invited")
+	// SPL-987: the channel's earlier posts, once, on the box's live session.
+	// Off the request: the answer does not wait for up to BackfillMax frames.
+	go s.backfillBox(context.WithoutCancel(r.Context()), t.ID, body.Box)
 	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "id": body.ID, "box": body.Box})
 }
 

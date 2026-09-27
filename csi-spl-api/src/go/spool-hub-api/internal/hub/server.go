@@ -45,6 +45,12 @@ type Options struct {
 	UploadTokenTTL    time.Duration
 	QueueTTL          time.Duration
 	QueueMaxPerBox    int
+	// SPL-987 back-fill of a newly seated channel agent (backfill.go):
+	// topics active within BackfillWindow, newest BackfillMax messages.
+	// 0 window = the 168h default; BackfillMax 0 = no back-fill.
+	BackfillWindow time.Duration
+	BackfillMax    int
+
 	RetentionAlerts   time.Duration
 	RetentionChannels time.Duration
 	AllowTextOnly     bool // hub.allow_text_only_when_file_missing (OQ-11)
@@ -138,6 +144,8 @@ type Server struct {
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
+
+	backfilling sync.Map // backfill.go: [4]string seat -> in flight
 }
 
 type uploadToken struct {
@@ -338,10 +346,14 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	defer t.Stop()
 	ft := time.NewTicker(fileSweepEvery)
 	defer ft.Stop()
+	bt := time.NewTicker(backfillEvery)
+	defer bt.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-bt.C:
+			s.backfillLive(ctx)
 		case <-ft.C:
 			r, err := s.SweepFiles(ctx, s.o.Now())
 			if err != nil {

@@ -70,48 +70,59 @@ func (s *Postgres) ApplyEdit(ctx context.Context, tenant, msgID string, e Edit) 
 	}
 	rev := 0
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		// FOR UPDATE serialises two concurrent edits of one message: without
-		// it both would read the same MAX(revision) and one INSERT would lose
-		// the primary key race instead of queueing behind the other.
-		var body, fromID string
-		var receivedAt time.Time
-		err := tx.QueryRow(ctx, `SELECT body, from_id, received_at FROM messages
-			WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tenant, msgID).Scan(&body, &fromID, &receivedAt)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-		// Revision 1 is the body as first sent. Captured here, in the same
-		// transaction that replaces it, so no edit can ever lose it — not on a
-		// crash between the two writes, because there is no between.
-		if _, err := tx.Exec(ctx, `INSERT INTO message_revisions (tenant_id, msg_id, revision, body, edited_by, edited_at)
-			SELECT $1, $2, 1, $3, $4, $5
-			WHERE NOT EXISTS (SELECT 1 FROM message_revisions WHERE tenant_id = $1 AND msg_id = $2)`,
-			tenant, msgID, body, fromID, receivedAt); err != nil {
-			return err
-		}
-		if err := tx.QueryRow(ctx, `INSERT INTO message_revisions (tenant_id, msg_id, revision, body, edited_by, edited_at)
-			SELECT $1, $2, COALESCE(MAX(revision), 0) + 1, $3, $4, $5
-			FROM message_revisions WHERE tenant_id = $1 AND msg_id = $2
-			RETURNING revision`, tenant, msgID, e.Body, e.EditedBy, e.EditedAt).Scan(&rev); err != nil {
-			return err
-		}
-		// Two existing mechanisms ride on this UPDATE, and both do the right
-		// thing without being asked: messages.search_tsv is a STORED GENERATED
-		// column over body (rdb 0020), so search follows the edit; and the
-		// period counters trigger on UPDATE OF tenant_id, received_at only
-		// (rdb 0023), neither of which an edit touches, so an edit does not
-		// spend quota — it is not a new message.
-		// env_sig follows a re-signed envelope, so the column never names a
-		// sig the stored env no longer carries; "" leaves it as it was.
-		_, err = tx.Exec(ctx, `UPDATE messages SET body = $3, msg = $4, env = $5, edited_at = $6, edited_by = $7,
-			env_sig = COALESCE(NULLIF($8, ''), env_sig)
-			WHERE tenant_id = $1 AND msg_id = $2`,
-			tenant, msgID, e.Body, string(e.Msg), e.Env, e.EditedAt, e.EditedBy, e.EnvSig)
+		var err error
+		rev, err = applyEditTx(ctx, tx, tenant, msgID, e)
 		return err
 	})
+	if err != nil {
+		return 0, err
+	}
+	return rev, nil
+}
+
+// applyEditTx is ApplyEdit inside tx (MergeMessages shares it).
+func applyEditTx(ctx context.Context, tx pgx.Tx, tenant, msgID string, e Edit) (int, error) {
+	rev := 0
+	// FOR UPDATE serialises two concurrent edits of one message: without
+	// it both would read the same MAX(revision) and one INSERT would lose
+	// the primary key race instead of queueing behind the other.
+	var body, fromID string
+	var receivedAt time.Time
+	err := tx.QueryRow(ctx, `SELECT body, from_id, received_at FROM messages
+		WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tenant, msgID).Scan(&body, &fromID, &receivedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	// Revision 1 is the body as first sent. Captured here, in the same
+	// transaction that replaces it, so no edit can ever lose it — not on a
+	// crash between the two writes, because there is no between.
+	if _, err := tx.Exec(ctx, `INSERT INTO message_revisions (tenant_id, msg_id, revision, body, edited_by, edited_at)
+		SELECT $1, $2, 1, $3, $4, $5
+		WHERE NOT EXISTS (SELECT 1 FROM message_revisions WHERE tenant_id = $1 AND msg_id = $2)`,
+		tenant, msgID, body, fromID, receivedAt); err != nil {
+		return 0, err
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO message_revisions (tenant_id, msg_id, revision, body, edited_by, edited_at)
+		SELECT $1, $2, COALESCE(MAX(revision), 0) + 1, $3, $4, $5
+		FROM message_revisions WHERE tenant_id = $1 AND msg_id = $2
+		RETURNING revision`, tenant, msgID, e.Body, e.EditedBy, e.EditedAt).Scan(&rev); err != nil {
+		return 0, err
+	}
+	// Two existing mechanisms ride on this UPDATE, and both do the right
+	// thing without being asked: messages.search_tsv is a STORED GENERATED
+	// column over body (rdb 0020), so search follows the edit; and the
+	// period counters trigger on UPDATE OF tenant_id, received_at only
+	// (rdb 0023), neither of which an edit touches, so an edit does not
+	// spend quota — it is not a new message.
+	// env_sig follows a re-signed envelope, so the column never names a
+	// sig the stored env no longer carries; "" leaves it as it was.
+	_, err = tx.Exec(ctx, `UPDATE messages SET body = $3, msg = $4, env = $5, edited_at = $6, edited_by = $7,
+		env_sig = COALESCE(NULLIF($8, ''), env_sig)
+		WHERE tenant_id = $1 AND msg_id = $2`,
+		tenant, msgID, e.Body, string(e.Msg), e.Env, e.EditedAt, e.EditedBy, e.EnvSig)
 	if err != nil {
 		return 0, err
 	}

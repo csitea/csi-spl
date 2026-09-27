@@ -100,6 +100,12 @@ type MessageEdits interface {
 	// DeleteMessage removes one message. Deliveries and the revision register
 	// go with it. ErrNotFound when that tenant has no such row.
 	DeleteMessage(ctx context.Context, tenantID, msgID string) error
+
+	// MergeMessages applies e to keepID (as ApplyEdit) and deletes dropID (as
+	// DeleteMessage) in ONE transaction, and returns keepID's new revision
+	// (CLE-35064, message_merge.go). ErrNotFound when either row is gone,
+	// ErrMergeHasReplies when dropID has a thread of its own.
+	MergeMessages(ctx context.Context, tenantID, keepID, dropID string, e Edit) (int, error)
 }
 
 // ---- Memory driver -----------------------------------------------------------
@@ -133,11 +139,17 @@ func (s *Memory) GetEditable(_ context.Context, tenant, msgID string, now time.T
 func (s *Memory) ApplyEdit(_ context.Context, tenant, msgID string, e Edit) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	k := [2]string{tenant, msgID}
-	m, ok := s.messages[k]
-	if !ok {
+	if _, ok := s.messages[[2]string{tenant, msgID}]; !ok {
 		return 0, ErrNotFound
 	}
+	return s.applyEditLocked(tenant, msgID, e), nil
+}
+
+// applyEditLocked is ApplyEdit on a row the caller holds s.mu for and has
+// seen exist (MergeMessages shares it).
+func (s *Memory) applyEditLocked(tenant, msgID string, e Edit) int {
+	k := [2]string{tenant, msgID}
+	m := s.messages[k]
 	if s.revisions == nil {
 		s.revisions = map[[2]string][]MessageRevision{}
 	}
@@ -153,7 +165,7 @@ func (s *Memory) ApplyEdit(_ context.Context, tenant, msgID string, e Edit) (int
 		m.EnvSig = e.EnvSig
 	}
 	m.EditedAt, m.EditedBy = e.EditedAt, e.EditedBy
-	return rev, nil
+	return rev
 }
 
 func (s *Memory) MessageRevisions(_ context.Context, tenant, msgID string) ([]MessageRevision, error) {
@@ -165,10 +177,16 @@ func (s *Memory) MessageRevisions(_ context.Context, tenant, msgID string) ([]Me
 func (s *Memory) DeleteMessage(_ context.Context, tenant, msgID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	k := [2]string{tenant, msgID}
-	if _, ok := s.messages[k]; !ok {
+	if _, ok := s.messages[[2]string{tenant, msgID}]; !ok {
 		return ErrNotFound
 	}
+	s.deleteMessageLocked(tenant, msgID)
+	return nil
+}
+
+// deleteMessageLocked is DeleteMessage on a row the caller holds s.mu for.
+func (s *Memory) deleteMessageLocked(tenant, msgID string) {
+	k := [2]string{tenant, msgID}
 	delete(s.messages, k)
 	delete(s.revisions, k)
 	delete(s.kindChanges, k)
@@ -178,5 +196,4 @@ func (s *Memory) DeleteMessage(_ context.Context, tenant, msgID string) error {
 			delete(s.deliveries, dk)
 		}
 	}
-	return nil
 }

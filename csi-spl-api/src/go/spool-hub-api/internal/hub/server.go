@@ -248,6 +248,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}", s.handleDeleteMessage)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
+	mux.HandleFunc("POST /v1/messages/{msg_id}/merge", s.handleMergeMessage) // CLE-35064
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/merge", s.mergePreflight)
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/kind", s.kindPreflight)
 	mux.HandleFunc("PUT /v1/messages/{msg_id}/reactions", s.handlePutReaction)

@@ -98,6 +98,10 @@ function close() {
   emit('update:open', false)
 }
 
+/* SPL-994: on a phone an open dialog is the top level - browser Back / the
+   Android gesture closes it, and the page and level under it stay put */
+useMobileStack().overlay(() => props.open, close)
+
 function onBackdrop() {
   close()
 }

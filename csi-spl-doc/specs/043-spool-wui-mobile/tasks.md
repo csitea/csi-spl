@@ -55,7 +55,7 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T052 [lead] `tests/e2e/mobile-audit-live.proof.mjs` in the tree (the audit used for §3 and the scoreboard)
 - [x] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440 (0: 08:3xZ, 1: 08:5xZ, 2: 09:3xZ posted), 3: 10:0xZ posted
 - [ ] T054 [lead] A1-A3 green on prd e2e and dev t1 -> the epic's result post
-- [ ] T055 [M1 area, unowned since M1 closed] a UiDialog open on a phone is a stack step: browser Back closes the dialog, not the page under it (found by M5, 2026-09-27)
+- [ ] T055 [SPL-994, CLE-35029] a UiDialog open on a phone is a stack step: browser Back closes the dialog, not the page under it (found by M5, 2026-09-27). Done in code: `useMobileStack().overlay(open, close)` - UiDialog, avatar + search sheets, issues sheets; e2e `mobile-overlay.test.mjs` (360/390/820 + 1440). Pending: M3 sheets, deploy dev+prd
 
 ## 5. Test widths
 

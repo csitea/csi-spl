@@ -1422,4 +1422,9 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileTagState(state: unknown, level: MobileLevel, below?: number): Record<string, unknown>
   export function mobileHistoryStep(tagged: MobileLevel | null, next: MobileLevel): 'tag' | 'push' | 'none'
   export function isMobileBackSwipe(g: { x0: number, y0: number, x1: number, y1: number, width: number, rtl?: boolean }): boolean
+  export const MOBILE_OVERLAY_KEY: 'splOverlay'
+  export function mobileOverlayOf(state: unknown): number | null
+  export function mobileOverlayState(state: unknown, id: number | null): Record<string, unknown>
+  export function mobileOverlayPop(open: number[], state: unknown, lastPos: number | null):
+    | { kind: 'none' } | { kind: 'close', keep: number } | { kind: 'leave' } | { kind: 'dead', back: boolean }
 }

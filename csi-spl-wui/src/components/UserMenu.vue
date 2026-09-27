@@ -273,6 +273,8 @@ watch(narrow, () => {
   if (open.value) close(false)
 })
 watch(() => route.fullPath, () => { if (open.value) close(false) })
+/* SPL-994: the phone's avatar sheet is the top level while open - Back closes it */
+useMobileStack().overlay(open, () => close(false))
 watch(signedIn, (v) => { if (!v) close(false) })
 </script>
 

@@ -285,6 +285,7 @@ jobs:
           pnpm run test:e2e:console-errors
           pnpm run test:e2e:topic-pane
           pnpm run test:e2e:mobile-stack
+          pnpm run test:e2e:mobile-overlay
           pnpm run test:e2e:msg-edit
           pnpm run test:e2e:dm-remove
           pnpm run test:e2e:display-name

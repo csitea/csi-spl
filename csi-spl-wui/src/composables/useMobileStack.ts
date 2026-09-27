@@ -7,6 +7,9 @@ import {
   mobileHistoryStep,
   mobileInitialLevel,
   mobileLevelOf,
+  mobileOverlayOf,
+  mobileOverlayPop,
+  mobileOverlayState,
   mobileTagState,
   mobileTaggedLevel,
   type MobileLevel,
@@ -46,6 +49,10 @@ import {
  *   stack.rightPanel(() => detailOpen.value, closeDetail)
  *                               // a page's own right panel (not a topic store)
  *                               // counts as level 3; Back calls closeDetail
+ *   stack.overlay(() => sheetOpen.value, closeSheet)
+ *                               // SPL-994: a dialog / bottom sheet is the TOP
+ *                               // level while open; Back calls closeSheet and
+ *                               // the level under it stays where it was
  * A route navigation (NuxtLink, router.push) needs NO call: leaving level 1 by
  * a link is noticed in router.afterEach. Opening a topic needs no call either:
  * level 3 follows the topic stores. Only layouts/default.vue calls install().
@@ -89,12 +96,163 @@ function rightPanel(open: MaybeRefOrGetter<boolean>, close: () => void) {
   return off
 }
 
+/*
+ * SPL-994 — overlays. A dialog or a bottom sheet is the TOP level while it is
+ * open: opening it pushes a history entry (a copy of the one under it, tagged
+ * with the overlay's id), and Back - browser, Android gesture, the chevron,
+ * the swipe - comes down onto the entry under it. A popstate listener in the
+ * CAPTURE phase sees that first (at the target, capture listeners run before
+ * vue-router's and the level's own), closes the overlay and stops the event:
+ * the route and the level never move. Closing by the overlay's own X, backdrop
+ * or Escape steps back over its entry the same way, so history never drifts.
+ * The router may have replaced the overlay's entry meanwhile (a filter sheet
+ * writing its query): the entry under it is rewritten with that URL and state,
+ * so the router's idea of "current" and the address bar agree.
+ * A router.push while an overlay has an entry first steps back over the
+ * overlay entries (closing them), then pushes: the new page lands on top of
+ * the page, not on top of a sheet. Every history move runs through one queue,
+ * because history.back() is asynchronous and a pushState issued before it
+ * lands would be the entry it removes.
+ */
+type Overlay = { id: number, open: () => boolean, close: () => void, state: Record<string, unknown> | null, url: string }
+const overlays: Overlay[] = []
+let overlaySeq = 0
+let queue: Promise<void> = Promise.resolve()
+let queued = 0
+let popWaiter: (() => void) | null = null
+let skipPops = 0
+let lastPos: number | null = null
+
+function enqueue(op: () => void | Promise<void>): Promise<void> {
+  queued++
+  queue = queue.then(op).catch(() => {}).finally(() => { queued-- })
+  return queue
+}
+
+function statePosition(): number | null {
+  const s = window.history.state as { position?: unknown } | null
+  return s && typeof s.position === 'number' ? s.position : null
+}
+
+/** history.go(-n), resolved when its popstate has been handled (or after a timeout). */
+function stepBack(n: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      if (popWaiter === done) popWaiter = null
+      resolve()
+    }
+    const timer = setTimeout(done, 1000)
+    popWaiter = done
+    window.history.go(-n)
+  })
+}
+
+function wake() {
+  popWaiter?.()
+}
+
+/** the top overlay's entry changed under us (the router replaced it, a level tag) */
+function snapTop() {
+  const top = overlays[overlays.length - 1]
+  if (top && mobileOverlayOf(window.history.state) === top.id) {
+    top.state = window.history.state as Record<string, unknown>
+    top.url = window.location.href
+  }
+}
+
+function onPopCapture(e: PopStateEvent) {
+  if (skipPops > 0) {
+    skipPops--
+    e.stopImmediatePropagation()
+    wake()
+    return
+  }
+  const step = mobileOverlayPop(overlays.map((o) => o.id), e.state, lastPos)
+  if (step.kind === 'none') return
+  if (step.kind === 'dead') {
+    if (step.back) {
+      /* the router follows onto it; then one more step down */
+      setTimeout(() => window.history.back(), 0)
+      return
+    }
+    e.stopImmediatePropagation()
+    skipPops++
+    window.history.back()
+    return
+  }
+  if (step.kind === 'leave') {
+    const gone = overlays.splice(0)
+    for (const o of gone.reverse()) if (o.open()) o.close()
+    wake()
+    return
+  }
+  e.stopImmediatePropagation()
+  const top = overlays[overlays.length - 1]
+  const gone = overlays.splice(step.keep)
+  const under = overlays[step.keep - 1]
+  const state = mobileOverlayState(top.state, under ? under.id : null)
+  window.history.replaceState(state, '', top.url)
+  if (under) {
+    under.state = state
+    under.url = top.url
+  }
+  for (const o of gone.reverse()) if (o.open()) o.close()
+  wake()
+  /* an overlay under it that closed while this one was open: step over its entry too */
+  if (under && !under.open()) void enqueue(() => (overlays[overlays.length - 1] === under ? stepBack(1) : undefined))
+}
+
+function overlayOpened(o: Overlay) {
+  void enqueue(() => {
+    if (!installed || !isMobile.value || !o.open() || overlays.includes(o)) return
+    const state = mobileOverlayState(window.history.state, o.id)
+    window.history.pushState(state, '')
+    o.state = state
+    o.url = window.location.href
+    overlays.push(o)
+  })
+}
+
+function overlayClosed(o: Overlay) {
+  void enqueue(async () => {
+    const i = overlays.indexOf(o)
+    if (i < 0) return
+    /* one under another open overlay: its entry goes when the one above goes */
+    if (i < overlays.length - 1) return
+    if (mobileOverlayOf(window.history.state) === o.id) await stepBack(1)
+    else overlays.splice(i, 1)
+  })
+}
+
+/**
+ * A dialog or bottom sheet: while `open` is true (and the viewport is a
+ * phone's) it is the top level, and Back calls `close` instead of popping the
+ * panel under it. Closing it any other way steps back over its history entry.
+ * Unregisters itself when the calling component's scope ends.
+ */
+function overlay(open: MaybeRefOrGetter<boolean>, close: () => void) {
+  if (!import.meta.client) return () => {}
+  const o: Overlay = { id: ++overlaySeq, open: () => toValue(open), close, state: null, url: '' }
+  const stop = watch(o.open, (v) => { if (v) overlayOpened(o); else overlayClosed(o) }, { immediate: true, flush: 'sync' })
+  const off = () => {
+    stop()
+    o.open = () => false
+    overlayClosed(o)
+  }
+  if (getCurrentScope()) onScopeDispose(off)
+  return off
+}
+
 function push(lv: 2 | 3) {
   if (lv >= 2) home.value = false
 }
 
 function pop() {
-  if (!isMobile.value || level.value === 1) return
+  if (!isMobile.value) return
+  /* SPL-994: the top overlay first */
+  if (overlays.length) return void enqueue(() => (overlays.length ? stepBack(1) : undefined))
+  if (level.value === 1) return
   if (mobileHasBelow(window.history.state)) return void window.history.back()
   /* a deep link: nothing of ours below, so step down in place */
   applyLevel((level.value - 1) as MobileLevel)
@@ -134,12 +292,29 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   mq.addEventListener('change', (e) => { isMobile.value = e.matches })
 
   /* the entry the app was loaded on */
+  /* SPL-994: before vue-router's popstate listener (capture runs first at the target) */
+  window.addEventListener('popstate', onPopCapture, { capture: true })
+  /* the overlay's entry can be rewritten by anyone (vue-router, a page writing
+     ?sort= with replaceState): keep its URL + state, which Back restores */
+  const replaceState = window.history.replaceState.bind(window.history)
+  window.history.replaceState = (data: unknown, unused: string, url?: string | URL | null) => {
+    replaceState(data, unused, url)
+    snapTop()
+  }
+  lastPos = statePosition()
+  const routerPush = router.push.bind(router)
+  router.push = ((to) => {
+    if (!overlays.length && !queued) return routerPush(to)
+    return enqueue(() => (overlays.length ? stepBack(overlays.length) : undefined)).then(() => routerPush(to))
+  }) as typeof router.push
+
   const first = mobileTaggedLevel(window.history.state) ?? mobileInitialLevel(route.path, route.query as Record<string, unknown>)
   home.value = first === 1
   tag(first)
 
   /* a route navigation: a fresh entry is a push from the level we were on */
   router.afterEach((_to, _from, failure) => {
+    lastPos = statePosition()
     if (failure) {
       /* a tap on the link to the page already behind level 1 */
       if (isNavigationFailure(failure, NavigationFailureType.duplicated) && isMobile.value) push(2)
@@ -156,6 +331,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
 
   /* browser Back / Forward, and pop() -> history.back() */
   window.addEventListener('popstate', (e) => {
+    lastPos = statePosition()
     const tagged = mobileTaggedLevel(e.state)
     if (tagged !== null) applyLevel(tagged)
   })
@@ -163,10 +339,21 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   /* the level moved without a popstate: record it so Back comes down again */
   watch(level, (next) => {
     if (!isMobile.value) return
-    const tagged = mobileTaggedLevel(window.history.state)
-    const step = mobileHistoryStep(tagged, next)
-    if (step === 'tag') tag(next)
-    else if (step === 'push') window.history.pushState(mobileTagState(window.history.state, next, tagged ?? 1), '')
+    const record = () => {
+      const tagged = mobileTaggedLevel(window.history.state)
+      const step = mobileHistoryStep(tagged, next)
+      if (step === 'tag') tag(next)
+      else if (step === 'push') {
+        window.history.pushState(mobileTagState(mobileOverlayState(window.history.state, null), next, tagged ?? 1), '')
+      }
+    }
+    /* SPL-994: a level pushed from inside an overlay (a menu opening a
+       thread) lands after the overlay's entry is gone, not on top of it */
+    if (!overlays.length && !queued) return record()
+    void enqueue(async () => {
+      if (overlays.length) await stepBack(overlays.length)
+      if (level.value === next) record()
+    })
   }, { flush: 'post' })
 }
 
@@ -180,6 +367,7 @@ export function useMobileStack() {
     pop,
     home: toHome,
     rightPanel,
+    overlay,
     /** bind on the shell: @touchstart.passive / @touchend.passive */
     swipe: { onTouchStart, onTouchEnd },
     install,

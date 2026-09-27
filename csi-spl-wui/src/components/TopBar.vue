@@ -193,6 +193,8 @@ function expand() {
 function onDismiss() {
   expanded.value = false
 }
+/* SPL-994: the phone's search sheet is the top level while open - Back closes it */
+useMobileStack().overlay(expanded, onDismiss)
 
 /* a /search navigates: the sheet has done its job, the results show */
 watch(() => route.fullPath, () => { if (expanded.value) onDismiss() })

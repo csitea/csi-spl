@@ -115,3 +115,56 @@ export function isMobileBackSwipe(g) {
   if (start > g.width * MOBILE_SWIPE_EDGE_RATIO) return false
   return dx >= MOBILE_SWIPE_MIN_DX && dy <= MOBILE_SWIPE_MAX_DY && dx > dy * 1.5
 }
+
+/*
+ * SPL-994: an overlay (a dialog, a bottom sheet) is the TOP level while it is
+ * open. Opening one pushes a history entry that copies the entry under it and
+ * adds MOBILE_OVERLAY_KEY = the overlay's id; Back (browser, gesture, chevron,
+ * swipe) comes down onto the entry under it, and the shell closes the overlay
+ * there without letting the router or the level see that popstate. The value
+ * is null (not absent) once the overlay is gone: vue-router merges its own
+ * cached copy of the state under history.state, so a deleted key comes back.
+ */
+export const MOBILE_OVERLAY_KEY = 'splOverlay'
+
+/** The overlay id a history entry was pushed for, or null. */
+export function mobileOverlayOf(state) {
+  const v = state && typeof state === 'object' ? state[MOBILE_OVERLAY_KEY] : null
+  return typeof v === 'number' && v > 0 ? v : null
+}
+
+/** history.state with the overlay tag set to `id` (null = no overlay). */
+export function mobileOverlayState(state, id) {
+  const base = state && typeof state === 'object' ? { ...state } : {}
+  base[MOBILE_OVERLAY_KEY] = id || null
+  return base
+}
+
+/**
+ * A popstate arrived while overlays may be open. What does the shell do?
+ *   { kind: 'none' }            - not about overlays: the router and the level handle it
+ *   { kind: 'close', keep: n }  - Back landed on the entry of the n-th overlay (or under
+ *                                 all of them, n = 0): close the ones above it and
+ *                                 swallow the event (the page and the level stay put)
+ *   { kind: 'leave' }           - Back went past every overlay entry (history.go(-k)):
+ *                                 close them all, let the router navigate
+ *   { kind: 'dead', back }      - the entry is of an overlay that is gone (Forward onto
+ *                                 it, or one left behind): step past it. `back` = we
+ *                                 came DOWN onto it, so the router must follow first.
+ * @param {number[]} open the overlay ids with an entry, bottom -> top
+ * @param {unknown} state the popstate's state
+ * @param {number|null} lastPos history position (vue-router's state.position) we were on
+ * @returns {{ kind: 'none' } | { kind: 'close', keep: number } | { kind: 'leave' } | { kind: 'dead', back: boolean }}
+ */
+export function mobileOverlayPop(open, state, lastPos) {
+  const id = mobileOverlayOf(state)
+  const pos = state && typeof state === 'object' && typeof state.position === 'number' ? state.position : null
+  const down = pos !== null && lastPos !== null && pos < lastPos
+  if (id !== null && !open.includes(id)) return { kind: 'dead', back: down }
+  if (open.length === 0) return { kind: 'none' }
+  if (id !== null) {
+    const keep = open.indexOf(id) + 1
+    return keep === open.length ? { kind: 'none' } : { kind: 'close', keep }
+  }
+  return down ? { kind: 'leave' } : { kind: 'close', keep: 0 }
+}

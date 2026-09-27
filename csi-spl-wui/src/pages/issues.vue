@@ -884,6 +884,10 @@ const phone = computed(() => stack.isMobile.value)
 const filtersOpen = ref(false)
 const sortOpen = ref(false)
 stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
+/* SPL-994: each sheet is the top level while open - Back closes it first */
+stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value = false })
+stack.overlay(() => phone.value && sortOpen.value, () => { sortOpen.value = false })
+stack.overlay(() => phone.value && Boolean(menu.value), () => { menu.value = null })
 const filtersActive = computed(() => Boolean(statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
 const sortChoices = computed(() => [
   { value: ':', label: t('issues_mobile.sort_default') },

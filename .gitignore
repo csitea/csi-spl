@@ -23,6 +23,8 @@ crash.log
 **/*.p12
 .env
 .env.*
+# the standalone stack's documented template (placeholders only)
+!.env.example
 
 # python / editor noise
 .venv/

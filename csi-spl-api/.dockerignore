@@ -1,0 +1,3 @@
+src/bash
+**/*_test.go
+**/testdata

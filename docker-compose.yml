@@ -1,0 +1,139 @@
+# spool, standalone: Postgres 16 + the hub + the WUI on one machine, with
+# one command and no cloud account:
+#
+#   docker compose up --build        then open http://localhost:8080
+#
+# Sign up on the login page: the first person to sign in becomes the owner of
+# the tenant this stack seeds (SPOOL_TENANT). Every value below has a local
+# default; copy .env.example to .env to change one (your own domain, ports,
+# passwords, mail). Nothing here reaches any hosted service.
+#
+#   pg        Postgres 16; its first boot creates the schema owner login
+#   hub-init  one shot: migrations, the hub's DML-only runtime login, the
+#             session key and the first tenant (safe to re-run)
+#   hub       `spool serve` as the runtime login (row level security binds it)
+#   web       Caddy: the generated WUI and a same-origin proxy to the hub; with
+#             SPOOL_SITE_ADDRESS set to a domain it also does TLS for it
+name: spool
+
+x-db: &db
+  SPOOL_DB_NAME: ${SPOOL_DB_NAME:-spool_hub}
+  SPOOL_OWNER_ROLE: ${SPOOL_DB_OWNER:-spool_hub}
+  SPOOL_OWNER_PASSWORD: ${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}
+
+services:
+  pg:
+    image: postgres:16-alpine
+    environment:
+      <<: *db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SPOOL_DB_SUPERUSER_PASSWORD:-spool-local-superuser}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./csi-spl-api/src/docker/pg-init.sh:/docker-entrypoint-initdb.d/10-spool-owner.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d $${SPOOL_DB_NAME}"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    restart: unless-stopped
+
+  hub-init:
+    build: &hub-build
+      context: ./csi-spl-api
+      dockerfile: src/docker/hub.Dockerfile
+      additional_contexts:
+        rdb: ./csi-spl-rdb
+    image: spool-hub:local
+    command: ["init"]
+    environment:
+      SPOOL_OWNER_DSN: postgres://${SPOOL_DB_OWNER:-spool_hub}:${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
+      SPOOL_RUNTIME_ROLE: ${SPOOL_DB_RUNTIME:-spool_hub_rt}
+      SPOOL_RUNTIME_PASSWORD: ${SPOOL_DB_RUNTIME_PASSWORD:-spool-local-runtime}
+      SPOOL_TENANT: ${SPOOL_TENANT:-main}
+    volumes:
+      - hub-state:/var/lib/spool/state
+    depends_on:
+      pg:
+        condition: service_healthy
+    restart: "no"
+
+  hub:
+    build: *hub-build
+    image: spool-hub:local
+    command: ["serve"]
+    environment:
+      SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
+      SPOOL_HUB_DB_DSN: postgres://${SPOOL_DB_RUNTIME:-spool_hub_rt}:${SPOOL_DB_RUNTIME_PASSWORD:-spool-local-runtime}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
+      SPOOL_HUB_FILES_DIR: /var/lib/spool/files
+      # a tenant host is <tenant>.<domain>; the browser uses the one public
+      # URL and the hub takes the tenant from the signed-in session
+      SPOOL_HUB_TENANT_HOST_PATTERN: "{tenant}.${SPOOL_DOMAIN:-localhost}"
+      SPOOL_HUB_VIEW_DOOR: session
+      SPOOL_HUB_VIEW_CORS_ORIGINS: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_HUB_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
+      SPOOL_HUB_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}
+      SPOOL_HUB_LOG_FORMAT: ${SPOOL_LOG_FORMAT:-console}
+      SPOOL_HUB_LOG_LEVEL: ${SPOOL_LOG_LEVEL:-info}
+      # Caddy (web) is the one proxy in front of the hub
+      SPOOL_HUB_TRUSTED_PROXY_HOPS: "1"
+      SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS: "1"
+      # browser sign-in: email + password on this hub, no identity provider
+      # A new account confirms its email before it joins a tenant. Local
+      # default: the sign-up form shows the confirmation link itself
+      # (SPOOL_AUTH_DEBUG_LINKS, refused unless SPOOL_HUB_ENV is lde/dev); on a
+      # real domain set it to false and give the hub an SMTP relay below.
+      SPOOL_HUB_AUTH_NATIVE_ENABLED: "true"
+      SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS: ${SPOOL_AUTH_DEBUG_LINKS:-true}
+      SPOOL_HUB_AUTH_APP_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_HUB_AUTH_COOKIE_SECURE: ${SPOOL_COOKIE_SECURE:-false}
+      # the first person to sign in to the empty tenant becomes its owner
+      SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "true"
+      SPOOL_HUB_MAIL_TRANSPORT: ${SPOOL_MAIL_TRANSPORT:-log}
+      SPOOL_HUB_MAIL_SMTP_HOST: ${SPOOL_MAIL_SMTP_HOST:-}
+      SPOOL_HUB_MAIL_SMTP_PORT: ${SPOOL_MAIL_SMTP_PORT:-587}
+      SPOOL_HUB_MAIL_SMTP_USER: ${SPOOL_MAIL_SMTP_USER:-}
+      SPOOL_HUB_MAIL_SMTP_PASSWORD: ${SPOOL_MAIL_SMTP_PASSWORD:-}
+      SPOOL_HUB_MAIL_FROM: ${SPOOL_MAIL_FROM:-}
+    volumes:
+      - hub-state:/var/lib/spool/state:ro
+      - hub-files:/var/lib/spool/files
+    depends_on:
+      hub-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./csi-spl-wui
+      dockerfile: src/docker/wui.Dockerfile
+      args:
+        SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+        SPOOL_TENANT: ${SPOOL_TENANT:-main}
+        SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
+        SPOOL_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}
+    image: spool-web:local
+    environment:
+      SPOOL_SITE_ADDRESS: ${SPOOL_SITE_ADDRESS:-:80}
+    ports:
+      - "${SPOOL_BIND:-127.0.0.1}:${SPOOL_HTTP_PORT:-8080}:80"
+      - "${SPOOL_BIND:-127.0.0.1}:${SPOOL_HTTPS_PORT:-8443}:443"
+    volumes:
+      - web-data:/data
+    depends_on:
+      hub:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pg-data: {}
+  hub-state: {}
+  hub-files: {}
+  web-data: {}

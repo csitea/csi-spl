@@ -100,3 +100,93 @@ export function withoutCards(rows, ids) {
   const gone = new Set((ids || []).map(String))
   return (Array.isArray(rows) ? rows : []).filter((r) => !gone.has(String(r && r.msg_id)))
 }
+
+/*
+ * SPL-986 (specs/041 §3.5): the same Archive / Delete on a topic ROW of a
+ * list (the left-rail Topics section, Flow, the Topics home). A row is a task,
+ * not a message; the hub acts on the card. The row's card is found lazily,
+ * when its menu opens, and the hub is asked (GET /v1/view/messages/{id}/topic)
+ * before anything is offered, so a row never offers what the hub refuses.
+ */
+
+/**
+ * The msg ids that may be this row's card, in the order to ask the hub:
+ * the task's first message (a channel / DM / sub-task opener), then the task
+ * id itself (a lobby card's message-rooted thread: task_id = the card's
+ * msg_id). The lobby task itself is never a topic (spec §2): no candidates.
+ * @param {string} taskId
+ * @param {{ msg_id?: string } | null | undefined} first the task's oldest readable message
+ * @param {string} [lobbyTaskId]
+ * @returns {string[]}
+ */
+export function rowCardCandidates(taskId, first, lobbyTaskId = '') {
+  const task = String(taskId || '')
+  if (!task || task === String(lobbyTaskId || '')) return []
+  const out = []
+  const firstId = first && typeof first === 'object' ? String(first.msg_id || '') : ''
+  if (firstId) out.push(firstId)
+  if (!out.includes(task)) out.push(task)
+  return out
+}
+
+/**
+ * Whether the hub's topic answer (topic-archive-v1 §3) for `msgId` is THIS
+ * row's topic: the card opens the row's task, or it is a lobby card whose
+ * thread is the row. A thread on a line of some other topic is part of that
+ * topic, whose own row carries the menu, so it gets none here.
+ * @param {{ msg_id?: string, task_id?: string } | null | undefined} size
+ * @param {string} taskId the row
+ * @param {string} msgId the candidate asked
+ * @param {string} [lobbyTaskId]
+ */
+export function isRowTopic(size, taskId, msgId, lobbyTaskId = '') {
+  const s = size && typeof size === 'object' ? size : {}
+  const task = String(taskId || '')
+  const cardTask = String(s.task_id || '')
+  if (!task || !cardTask) return false
+  if (cardTask === task) return true
+  const lobby = String(lobbyTaskId || '')
+  return Boolean(lobby) && cardTask === lobby && String(msgId || '') === task
+}
+
+/**
+ * The menu state of a row once the hub answered: which of Archive / Delete
+ * to offer. `size` null = no card for this row (nothing offered).
+ * @param {{ msg_id?: string, replies?: number, can_archive?: boolean, can_delete?: boolean } | null} size
+ * @param {string} msgId
+ */
+export function rowTopicState(size, msgId) {
+  if (!size || typeof size !== 'object') return { state: 'none', msgId: '', canArchive: false, canDelete: false, replies: 0 }
+  return {
+    state: 'ready',
+    msgId: String(size.msg_id || msgId || ''),
+    canArchive: size.can_archive === true,
+    canDelete: size.can_delete === true,
+    replies: Math.max(0, Number(size.replies) || 0),
+  }
+}
+
+/**
+ * The topic-list rows (task ids) a live frame removes: an archived card's
+ * task and its message-rooted thread, every task a delete named. The lobby
+ * task is never removed (a lobby card is one row of it).
+ */
+export function topicFrameRows(frame, lobbyTaskId = '') {
+  const f = frame && typeof frame === 'object' ? frame : {}
+  const lobby = String(lobbyTaskId || '')
+  let ids = []
+  if (f.type === 'topic_deleted') ids = [f.task_id, f.msg_id, ...(Array.isArray(f.task_ids) ? f.task_ids : [])]
+  else if (f.type === 'topic_archived' && f.archived === true) ids = [f.task_id, f.msg_id]
+  const out = []
+  for (const raw of ids) {
+    const id = String(raw || '')
+    if (id && id !== lobby && !out.includes(id)) out.push(id)
+  }
+  return out
+}
+
+/** `rows` (topic-list rows) without the tasks named. */
+export function withoutTopics(rows, taskIds) {
+  const gone = new Set((taskIds || []).map(String))
+  return (Array.isArray(rows) ? rows : []).filter((r) => !gone.has(String(r && r.task_id)))
+}

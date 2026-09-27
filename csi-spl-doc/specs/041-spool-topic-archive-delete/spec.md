@@ -1,6 +1,6 @@
 # Feature Specification: Archive and Delete a Topic
 
-**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T011)
+**Feature ID**: `041-spool-topic-archive-delete` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T011); §3.5 (SPL-986) `tasks.md` T012–T016
 **Created**: 2026-09-26 · **Lane**: TOPIC-ARCHIVE (hub + DB + browser) · **Issue**: SPL-983 (epic 51, spec 033)
 **Authority**: this file for the rule; `contracts/topic-archive-v1.md` for the wire; `tasks.md` for what is built and where.
 
@@ -88,6 +88,43 @@ Open browser sockets that were shown the card get one frame (same audience rule 
 - `topic_deleted` `{msg_id, task_id, channel?, msg_ids: [...], task_ids: [...]}` — every
   feed and an open topic pane drop those rows; a pane showing one of `task_ids` closes.
 
+### 3.5 The same menu on every topic list (SPL-986)
+
+The owner, prd t1 topic `8f58f802`, 2026-09-27:
+
+> the same interface should work in the topic's section and not only in the channels or
+> direct msgs
+
+A topic ROW is a task, not a message, so the row first finds its card, then offers the
+card menu's own Archive (Gmail icon) and Delete (the same confirm, naming the reply
+count). Nothing new on the hub: the row uses the §3.3 rule through the hub's own answer.
+
+- **Which card.** When the row's menu opens (right-click, or its ⋯ button), the browser
+  reads the task's first readable message and asks `GET /v1/view/messages/{id}/topic`
+  (contract §3) for it, then for the task id itself. The row is that card's topic when
+  the card opens the row's task, or when it is a lobby card whose message-rooted thread
+  IS the row. A thread on a line of some other topic is part of that topic, and its row
+  gets no Archive / Delete (that topic's own row has them). The lobby task never does.
+- **What is offered** is the hub's `can_archive` / `can_delete` for the caller, never a
+  guess from the screen; a member who may not sees Open and Copy link only.
+- **After**: the row leaves the Topics list, the Flow list and the Topics home at once,
+  a right pane on a deleted task closes, and the `topic_archived` / `topic_deleted`
+  frames do the same in every other tab.
+
+Every place a topic is listed:
+
+| where | Archive / Delete | why |
+|---|---|---|
+| left rail **Topics** section | yes (right-click, ⋯) | the request |
+| left rail **Flow**, its topic rows | yes (right-click, ⋯) | the same row, the same menu |
+| the Topics home (`/`, the middle list) | yes (right-click, ⋯) | the same list, drawn in the middle |
+| new Omnibox topics in the right pane (`BornTopics`) | yes (the card menu) | they are cards |
+| channel / DM / lobby cards | yes | SPL-983 |
+| search results (`/search`, the topics group) | no — read-only by design | a result list of the query; an archived topic leaves search anyway, and the hit opens the topic, whose card has the menu |
+| the event log (`/events`) | no — read-only by design | it lists events (a record), not topics |
+| an issue's discussion topic (`/issues`) | no — refused by design | `409 issue_topic` (§3.2): an issue keeps its own lifecycle |
+| `/archive` | Unarchive + Delete | §3.1, unchanged |
+
 ## 4. Every table that references a message
 
 Measured on trunk `7325032b`: `grep -n 'REFERENCES messages' csi-spl-rdb/src/sql/postgres/spool-hub/*.sql` -> 4.
@@ -119,6 +156,9 @@ transaction, after the set is walked in the same transaction (§2).
 | FR-TA-008 | WUI: a card's menu shows Archive and Delete (Archive icon left of the label) to those §3.3 allows; Delete opens a confirm dialog naming the reply count | Implemented — `tasks.md` |
 | FR-TA-009 | WUI: `/archive` view and the left-rail Archive entry (rail entry: CLE-35017, SPL-979) | Implemented — `tasks.md` |
 | FR-TA-010 | every new string in all 19 locales | Implemented — `7325032b` |
+| FR-TA-011 | WUI: a topic row of the left-rail Topics section, of Flow and of the Topics home offers the card menu's Archive and Delete by right-click and by its ⋯ button, once the hub's `GET …/topic` said the caller may (§3.5) | Implemented — `tasks.md` T012 |
+| FR-TA-012 | WUI: an archived / deleted topic leaves those lists at once and on the `topic_archived` / `topic_deleted` frames | Implemented — `tasks.md` T012 |
+| FR-TA-013 | no new strings, no hub change: the entries, words, icons, dialog and endpoints are SPL-983's | Implemented — `tasks.md` T012 |
 
 ## 6. Success criteria
 
@@ -129,4 +169,4 @@ transaction, after the set is walked in the same transaction (§2).
   archive -> hidden -> unarchive; delete -> the card and N children gone, measured with a
   DB count before and after (`do_spl_db_query`).
 
-<!-- version: 0.1.0 · updated: 2026-09-26 · last-edit: 2026-09-26T20:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-27 · last-edit: 2026-09-26T20:20:00Z -->

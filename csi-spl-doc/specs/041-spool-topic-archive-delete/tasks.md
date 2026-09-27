@@ -37,4 +37,19 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       `do_spl_db_query` count of the topic's rows (by id and structural) 5 -> 0 on dev and on prd.
       A first dev run's interrupted topic was removed with PHASE=clean (deleted 5)
 
-<!-- version: 0.2.0 · updated: 2026-09-27 -->
+
+## SPL-986: the same menu on the topic lists (spec §3.5)
+
+- [x] T012 WUI: `composables/useTopicRowActions.ts` (find the row's card, ask the hub, archive, the
+      delete dialog), `utils/topic-archive.mjs` rowCardCandidates / isRowTopic / rowTopicState /
+      topicFrameRows / withoutTopics, `utils/sidebar-row-menu.mjs` topicArchive / topicDelete,
+      `SidebarRowMenu` Archive / Delete; wired on the rail Topics and Flow topic rows
+      (`ChannelSidebar.vue`), the Topics home (`pages/index.vue`) and BornTopics (the card menu);
+      `viewer.dropTopics` + the frame hook in `layouts/default.vue`. No hub change, no new string.
+      `tests/unit/topic-row-archive.test.mjs` 12/12; unit 136/136 files, typecheck, the CI e2e set
+      on a mock generate 7/7, initial JS 156 KB gzip (budget 160)
+- [ ] T013 WUI deploy: `build.json` on dev and the apex carry the commit; / and /login re-probed 3 min
+- [ ] T014 live proof from the Topics section, dev t1 test member + prd `e2e`, DB counts before / after
+- [ ] T015 report on SPL-986 and in topic 8f58f802
+
+<!-- version: 0.3.0 · updated: 2026-09-27 -->

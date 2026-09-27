@@ -5,6 +5,7 @@
       :key="String(m.msg_id || '')"
       :msg="m"
       clickable
+      topic-menu
       :clip-mode="clipMode"
       @open-topic="open"
     />

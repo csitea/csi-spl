@@ -32,6 +32,7 @@
         ref="panel"
         class="sidebar-row-menu__panel"
         data-testid="sidebar-row-menu-panel"
+        :data-topic-state="topicState || undefined"
         @keydown="onMenuKey"
       >
         <ul role="menu" class="sidebar-row-menu__items" :aria-label="buttonLabel">
@@ -72,6 +73,11 @@ const props = defineProps<{
   channel?: boolean
   properties?: boolean
   deletable?: boolean
+  /** SPL-986: a topic row the hub said the viewer may archive / delete */
+  topicArchive?: boolean
+  topicDelete?: boolean
+  /** SPL-986: '' | 'loading' | 'ready' | 'none' - the row's card lookup, for tests */
+  topicState?: string
 }>()
 
 const emit = defineEmits<{
@@ -86,6 +92,8 @@ const emit = defineEmits<{
   pin: []
   properties: []
   delete: []
+  archive: []
+  deleteTopic: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -105,6 +113,8 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   channel: props.channel,
   properties: props.properties,
   deletable: props.deletable,
+  topicArchive: props.topicArchive,
+  topicDelete: props.topicDelete,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -149,6 +159,13 @@ watch(() => props.open, (v) => {
     document.removeEventListener('pointerdown', onDocPointer, true)
     focused.value = -1
   }
+})
+/* A topic row's Archive / Delete arrive after the hub answered (SPL-986):
+   keep the grown panel inside the viewport. */
+watch(() => items.value.length, async () => {
+  if (!props.open) return
+  await nextTick()
+  place()
 })
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer, true))
 
@@ -222,6 +239,10 @@ function choose(id: string) {
     emit('properties')
   } else if (id === 'delete') {
     emit('delete')
+  } else if (id === 'archive') {
+    emit('archive')
+  } else if (id === 'delete-topic') {
+    emit('deleteTopic')
   } else {
     emit('open')
   }

@@ -310,6 +310,13 @@
       :name="deleteTarget.name"
       @deleted="onChannelDeleted"
     />
+    <!-- SPL-986: a topic row's Delete, the card's own confirm (specs/041 §3.5) -->
+    <LazyTopicDeleteDialog
+      v-if="topicDeleteOpen && topicDeleteMsgId"
+      v-model:open="topicDeleteOpen"
+      :msg-id="topicDeleteMsgId"
+      @deleted="onTopicRowDeleted"
+    />
       </div>
       <div
         v-show="tab === 'topics'"
@@ -330,6 +337,7 @@
           :class="{ 'nav-row--pinned': topicOrder.includes(row.task_id), 'nav-row--drag': dragging('topics', row.task_id), 'nav-row--drop': dropping('topics', row.task_id, topicIndex), 'nav-row--drop-after': droppingAfter('topics', topicIndex, topicRows.length) }"
           @pointerdown="rowPointerDown($event, 'topics', row.task_id)"
           @click.capture="swallowDragClick"
+          @contextmenu.prevent="openTopicMenu('th:' + row.task_id, row.task_id)"
         >
         <a
           class="nav-item"
@@ -348,9 +356,14 @@
           :href="localePath('/t/' + row.task_id)"
           :unread="false"
           :open="rowMenu === 'th:' + row.task_id"
-          @toggle="toggleRowMenu('th:' + row.task_id)"
+          :topic-archive="topicRowState(row.task_id)?.canArchive"
+          :topic-delete="topicRowState(row.task_id)?.canDelete"
+          :topic-state="topicRowState(row.task_id)?.state || ''"
+          @toggle="toggleTopicMenu('th:' + row.task_id, row.task_id)"
           @close="closeRowMenu()"
           @open="pane.open(row.task_id)"
+          @archive="archiveTopicRow(row.task_id)"
+          @delete-topic="askDeleteTopic(row.task_id)"
         />
         </div>
         </div>
@@ -436,7 +449,7 @@
             @mark-read="notes.markRead('dm:' + row.label)"
           />
           </div>
-          <div v-else class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
+          <div v-else class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openTopicMenu('flow:th:' + row.id, row.id)">
           <a
             class="nav-item"
             :class="{ active: topicOpen === row.id }"
@@ -454,9 +467,14 @@
             :href="localePath('/t/' + row.id)"
             :unread="false"
             :open="rowMenu === 'flow:th:' + row.id"
-            @toggle="toggleRowMenu('flow:th:' + row.id)"
+            :topic-archive="topicRowState(row.id)?.canArchive"
+            :topic-delete="topicRowState(row.id)?.canDelete"
+            :topic-state="topicRowState(row.id)?.state || ''"
+            @toggle="toggleTopicMenu('flow:th:' + row.id, row.id)"
             @close="closeRowMenu()"
             @open="pane.open(row.id)"
+            @archive="archiveTopicRow(row.id)"
+            @delete-topic="askDeleteTopic(row.id)"
           />
           </div>
         </template>
@@ -584,6 +602,7 @@ import { useDragReorder } from '~/composables/useDragReorder'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/spool-client.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
@@ -624,6 +643,25 @@ function toggleRowMenu(id: string) {
 }
 function closeRowMenu() { rowMenu.value = '' }
 function openChannelMenu(id: string) { rowMenu.value = id }
+/* SPL-986: a topic row's menu also offers Archive / Delete once the hub said
+   the viewer may (composables/useTopicRowActions.ts). */
+const {
+  stateOf: topicRowState,
+  resolve: resolveTopicRow,
+  archive: archiveTopicRow,
+  deleteOpen: topicDeleteOpen,
+  deleteMsgId: topicDeleteMsgId,
+  askDelete: askDeleteTopic,
+  onDeleted: onTopicRowDeleted,
+} = useTopicRowActions()
+function openTopicMenu(key: string, taskId: string) {
+  rowMenu.value = key
+  void resolveTopicRow(taskId)
+}
+function toggleTopicMenu(key: string, taskId: string) {
+  toggleRowMenu(key)
+  if (rowMenu.value === key) void resolveTopicRow(taskId)
+}
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
 const route = useRoute()

@@ -15,9 +15,15 @@
       <p v-else-if="!viewer.loading && !viewer.error && viewer.topics.length === 0" class="muted">
         {{ tr('pages.index.empty') }}
       </p>
-      <a
+      <!-- SPL-986: each row has the rail's row menu, with the card's Archive /
+           Delete once the hub said the viewer may (specs/041 §3.5) -->
+      <div
         v-for="t in viewer.topics"
         :key="t.task_id"
+        class="topic-row-wrap"
+        @contextmenu.prevent="openTopicMenu(t.task_id)"
+      >
+      <a
         class="topic-row"
         :class="{ selected: openedTopicId === t.task_id }"
         :aria-current="openedTopicId === t.task_id ? 'true' : undefined"
@@ -34,6 +40,27 @@
         <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
       </a>
+      <SidebarRowMenu
+        :menu-id="'home:' + t.task_id"
+        :name="topicRowTitle(t.subject) || t.task_id"
+        :href="localePath('/t/' + t.task_id)"
+        :open="rowMenu === t.task_id"
+        :topic-archive="topicRowState(t.task_id)?.canArchive"
+        :topic-delete="topicRowState(t.task_id)?.canDelete"
+        :topic-state="topicRowState(t.task_id)?.state || ''"
+        @toggle="rowMenu === t.task_id ? (rowMenu = '') : openTopicMenu(t.task_id)"
+        @close="rowMenu = ''"
+        @open="pane.open(t.task_id)"
+        @archive="archiveTopicRow(t.task_id)"
+        @delete-topic="askDeleteTopic(t.task_id)"
+      />
+      </div>
+      <LazyTopicDeleteDialog
+        v-if="topicDeleteOpen && topicDeleteMsgId"
+        v-model:open="topicDeleteOpen"
+        :msg-id="topicDeleteMsgId"
+        @deleted="onTopicRowDeleted"
+      />
       <button v-if="viewer.next" class="btn ghost" type="button" @click="viewer.loadMore()">{{ tr('pages.index.older') }}</button>
     </div>
   </div>
@@ -41,6 +68,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { namedLine } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
@@ -173,4 +201,25 @@ watch(() => api.mock || String(session.state) === 'in', (ready) => {
 onUnmounted(() => viewer.unfollow())
 /* owner, 2026-09-26: participants by their chosen names; ids in the hover */
 const people = useHumanNames()
+/* SPL-986: Archive / Delete on a topic row (composables/useTopicRowActions.ts) */
+const rowMenu = ref('')
+const {
+  stateOf: topicRowState,
+  resolve: resolveTopicRow,
+  archive: archiveTopicRow,
+  deleteOpen: topicDeleteOpen,
+  deleteMsgId: topicDeleteMsgId,
+  askDelete: askDeleteTopic,
+  onDeleted: onTopicRowDeleted,
+} = useTopicRowActions()
+function openTopicMenu(taskId: string) {
+  rowMenu.value = taskId
+  void resolveTopicRow(taskId)
+}
 </script>
+
+<style scoped>
+.topic-row-wrap { position: relative; min-width: 0; }
+/* the row menu button sits over the row's end */
+.topic-row-wrap > .topic-row { padding-inline-end: 40px; }
+</style>

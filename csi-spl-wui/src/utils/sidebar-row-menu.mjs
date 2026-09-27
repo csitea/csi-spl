@@ -8,9 +8,12 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
  * membership) is only there when an admin (or the tenant owner) is signed in.
  *
  * @param {boolean} unread
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean }} [opts]
+ * A topic row (SPL-986, specs/041 §3.5) ends with the card menu's own
+ * Archive then Delete, each only once the hub said the viewer may.
+ *
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -47,6 +50,9 @@ export function rowMenuItems(unread, opts = {}) {
     items.push({ id: 'hide', icon: 'x', labelKey: 'sidebar.row_menu.hide' })
     if (o.admin) items.push({ id: 'remove', icon: 'trash', labelKey: 'sidebar.row_menu.remove' })
   }
+  /* the same entries, icons and words as a card's menu (utils/msg-menu.mjs) */
+  if (o.topicArchive) items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
+  if (o.topicDelete) items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })
   return items
 }
 

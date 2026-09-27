@@ -471,6 +471,12 @@ declare module '~/utils/topic-archive.mjs' {
   export function topicErrorKey(e: unknown, scope?: string): string
   export function archivedRow(card: unknown): { msg_id: string, task_id: string, channel: string, from: string, from_box: string, title: string, archived_at: string, archived_by: string, replies: number, can_delete: boolean }
   export function withoutCards<T>(rows: T[], ids: string[]): T[]
+  export type RowTopicState = { state: 'none' | 'ready', msgId: string, canArchive: boolean, canDelete: boolean, replies: number }
+  export function rowCardCandidates(taskId: string, first: { msg_id?: string } | null | undefined, lobbyTaskId?: string): string[]
+  export function isRowTopic(size: unknown, taskId: string, msgId: string, lobbyTaskId?: string): boolean
+  export function rowTopicState(size: unknown, msgId: string): RowTopicState
+  export function topicFrameRows(frame: unknown, lobbyTaskId?: string): string[]
+  export function withoutTopics<T>(rows: T[], taskIds: string[]): T[]
 }
 
 declare module '~/utils/place-popover.mjs' {

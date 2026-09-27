@@ -79,7 +79,8 @@ import { usePaneWidths } from '~/composables/usePaneWidths'
 import { CHANNEL, LIVE, NONE, closes, topicSection } from '~/utils/topic-pane.mjs'
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { topicFrameDrops, topicFrameTasks } from '~/utils/topic-archive.mjs'
+import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
+import { useViewerStore } from '~/stores/viewer'
 
 const topic = useTopicStore()
 const livePane = useLiveFeed('pane')
@@ -94,6 +95,8 @@ onMounted(() => {
      row, and a pane open on one of its tasks has nothing left to show. */
   offTopic = live.onTopic((f) => {
     for (const id of topicFrameDrops(f)) dropEverywhere(id)
+    /* SPL-986: and its row leaves the Topics / Flow lists */
+    useViewerStore().dropTopics(topicFrameRows(f, live.lobbyTaskId.value))
     const gone = topicFrameTasks(f, live.lobbyTaskId.value)
     if (livePane.taskId && gone.includes(String(livePane.taskId))) livePane.close()
     if (topic.open && gone.includes(String(topic.parentTaskId || ''))) topic.close()

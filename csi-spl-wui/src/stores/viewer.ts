@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
+import { withoutTopics } from '~/utils/topic-archive.mjs'
 import { useLive } from '~/composables/useLive'
 import type { SpoolMessage, TopicRow } from '~/types/spool'
 
@@ -107,6 +108,12 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
+  /** SPL-986: an archived or deleted topic leaves the list (specs/041 §3.5). */
+  function dropTopics(taskIds: string[]) {
+    if (!taskIds.length) return
+    topics.value = withoutTopics(topics.value, taskIds)
+  }
+
   async function openTopic(id: string) {
     if (taskId.value !== id) messages.value = []
     taskId.value = id
@@ -136,5 +143,5 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
-  return { topics, next, taskId, messages, loading, error, needsToken, doorDetail, loadTopics, loadMore, openTopic, refreshTopic, follow, unfollow, catchUp }
+  return { topics, next, taskId, messages, loading, error, needsToken, doorDetail, loadTopics, loadMore, dropTopics, openTopic, refreshTopic, follow, unfollow, catchUp }
 })

@@ -131,6 +131,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `041-spool-topic-archive-delete/` | archive (soft delete, `messages.archived_at`) and delete (card + every child, one transaction) of a topic card; the Archive view and rail entry; live frames | M3 | CLE-35018 (SPL-983) |
 | `042-spool-mention-poke/` | the omnibox @ picker in every text field (one composable) and a DM "needs you" poke to each mentioned person or agent, access-checked | M3 | CLE-35020 (SPL-985) |
 | `043-spool-wui-mobile/` | the WUI at <= 820 px as the owner's one-panel stack (sections -> list -> item, Back = one level up), bottom composer, 44 px targets, no hover-only controls; desktop unchanged; five lanes with a file-ownership map | M3 | CLE-35022 lead (SPL-988, lanes SPL-989..993) |
+| `044-spool-open-source/` | open-sourcing csi-spl in 4 stages (split + sanitise, stranger test, launch, community): a gated one-time export into a NEW public repo (no history rewrite), the owner decisions, the go-public checklist | M3 | CLE-35047 (SPL-67, epic SPL-61) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is

@@ -5,8 +5,8 @@
      membership, and choosing one switches the session's tenant.
      CLE-34991: one slim row, a glyph instead of a visible caption; the
      caption is the select's name and hovering explains what a tenant is.
-     The closed select is as wide as the widest option, then 3px, then
-     the arrow, measured in the select's own font.
+     The closed select is as wide as the widest option, then about one
+     letter (7px, owner topic 72773b61), then the arrow, measured in the select's own font.
      SPL-71: a drop box, not a dropdown menu - the name and the arrow sit
      in one bordered box, and pressing anywhere in it opens the list.
      Rows come in the hub's order (tenants.sort_order, rdb 0051).
@@ -18,7 +18,7 @@
       <span
         class="tenant-switcher__field"
         data-testid="tenant-switcher-box"
-        :style="{ gap: (TENANT_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
+        :style="{ gap: (TENANT_DESKTOP_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
         @mousedown="onTenantBoxPress"
       >
       <select
@@ -54,7 +54,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useTenantSwitch } from '~/composables/useTenantSwitch'
-import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
+import { measureControlText, TENANT_DESKTOP_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
@@ -70,7 +70,7 @@ const tenantSelectStyle = computed(() => {
   return { width: (text + 2 * TENANT_TEXT_PAD_PX) + 'px', paddingInline: TENANT_TEXT_PAD_PX + 'px' }
 })
 /* The select is only as wide as the widest option in its own font. The arrow
-   is the next flex item, TENANT_ARROW_GAP_PX after that edge, so a clamped
+   is the next flex item, TENANT_DESKTOP_ARROW_GAP_PX after that edge, so a clamped
    bar cannot slide the arrow back over the name. Re-measured when the list,
    the font-size setting (html data-font-size), or the viewport changes. */
 function applyTenantSelectWidth() {

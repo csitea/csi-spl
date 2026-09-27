@@ -16,7 +16,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { applyViewport, setPageViewport, isViewportHarnessError, CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { tenantNameArrowGapPx } from '../../src/utils/tenant-switcher.mjs'
+import { TENANT_DESKTOP_ARROW_GAP_PX, tenantNameArrowGapPx } from '../../src/utils/tenant-switcher.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const VIEWPORTS = [
@@ -168,7 +168,7 @@ try {
       arrowLeft: box.arrowLeft, arrowRight: box.arrowRight, direction: box.direction,
     })
     ok(tag + ' SPL-980 2px of the box before and after the name', box.padStart === 2 && Math.abs(parseFloat(box.styledWidth) - box.widest - 4) < 0.05, { padStart: box.padStart, styledWidth: box.styledWidth, widest: box.widest })
-    ok(tag + ' the arrow sits 3px after the widest name', Number.isFinite(nameGap) && Math.abs(nameGap - 3) <= 0.5, { gap: nameGap, widest: box.widest, styledWidth: box.styledWidth })
+    ok(tag + ' the arrow sits one letter (' + TENANT_DESKTOP_ARROW_GAP_PX + 'px) after the widest name', Number.isFinite(nameGap) && Math.abs(nameGap - TENANT_DESKTOP_ARROW_GAP_PX) <= 0.5, { gap: nameGap, widest: box.widest, styledWidth: box.styledWidth })
     ok(tag + ' SPL-71 a drop box: a bordered box holds the name and the arrow',
       box.boxBorders?.length === 4 && box.boxBorders.every((w) => w >= 1) && box.boxBorderStyle === 'solid'
         && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(box.boxBorderColor) && box.nameAndArrowInBox === true,

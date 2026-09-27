@@ -82,6 +82,12 @@ export function tenantHint(box, t) {
 /** Px between the end of the widest drawn name and the start of the arrow. */
 export const TENANT_ARROW_GAP_PX = 3
 
+/** The top-bar drop box (TenantDropBox, above 820 px). Owner 2026-09-27,
+ *  topic 72773b61: "one letter amount of empty space" after the longest
+ *  name, "the whole control 4 px wider" - so 4px more than the 3px gap,
+ *  7px, about one letter at the box's 0.875rem. */
+export const TENANT_DESKTOP_ARROW_GAP_PX = TENANT_ARROW_GAP_PX + 4
+
 /** SPL-980: px of the select's own background before and after the name
  *  (the name no longer touches the box's edge). The select is this much
  *  wider on each side, and the flex gap to the arrow is this much smaller,

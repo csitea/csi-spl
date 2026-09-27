@@ -12,7 +12,7 @@
 import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { TENANT_ARROW_GAP_PX, tenantNameArrowGapPx } from '../../src/utils/tenant-switcher.mjs'
+import { TENANT_DESKTOP_ARROW_GAP_PX as TENANT_ARROW_GAP_PX, tenantNameArrowGapPx } from '../../src/utils/tenant-switcher.mjs'
 
 async function loadPuppeteer() {
   const require = createRequire(import.meta.url)

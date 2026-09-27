@@ -107,11 +107,14 @@ async function toLevel(p, lv) {
   await p.waitForSelector('.spool-shell', { timeout: 60000 })
   await sleep(2000)
   if (lv === '3') {
+    /* the card's own "N >>" control opens its thread (a tap on the header
+       can hit the kind badge and open its sheet instead) */
     const c = await p.evaluate(() => {
-      const el = [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].find((e) => e.getBoundingClientRect().height > 30)
-      const b = el && (el.querySelector('.msg-body') || el)
-      const r = b && b.getBoundingClientRect()
-      return r ? { x: Math.round(r.left + Math.min(40, r.width / 2)), y: Math.round(r.top + Math.min(10, r.height / 2)) } : null
+      const b = [...document.querySelectorAll('.spool-main article.msg[data-msg-id] [data-test=topic-replies]')].find((e) => e.getClientRects().length > 0)
+      if (!b) return null
+      b.scrollIntoView({ block: 'center' })
+      const r = b.getBoundingClientRect()
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
     })
     if (c) await p.touchscreen.tap(c.x, c.y)
     await sleep(1500)

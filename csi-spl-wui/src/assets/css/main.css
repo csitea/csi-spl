@@ -636,6 +636,13 @@ html.pane-dragging * {
  * applies, so the desktop 3-pane layout is unchanged.
  */
 @media (max-width: 820px) {
+  /* M2 (viewport-fit=cover): the bar grows by the notch, and everything that
+     sits under it reads this token; 0 on a device without one */
+  :root { --top-bar-h: calc(58px + env(safe-area-inset-top, 0px)); }
+  .spool-shell {
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   .spool-shell > .pane-divider,
   .pane-divider[data-pane="sidebar"] { display: none; }
   .spool-shell > .sidebar,

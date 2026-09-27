@@ -2,7 +2,8 @@
 //
 // It sits above the Direct messages icon, holds exactly one option, takes
 // keyboard focus, and choosing that option does not navigate. Checked at
-// 1280x800 and at phone width (390x844), where the sidebar is the 72px rail.
+// 1280x800 and at phone width (390x844), where the sidebar is the phone's
+// level-1 screen (SPL-989): the app's front door `/` opens there, /lobby is level 2.
 // CLE-34991: one slim row with no visible caption; hovering it shows the
 // explanation (the wrapper's title), which names the tenant.
 // SPL-71: a drop box - the name and the arrow sit inside one bordered box,
@@ -133,7 +134,7 @@ try {
     const tag = vp.name
     try {
       await setPageViewport(p, vp)
-      await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.goto(server.base + (vp.width <= 820 ? '/' : '/lobby'), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await applyViewport(p, vp)
       await p.waitForSelector('[data-testid=tenant-switcher-select]', { timeout: NAV_TIMEOUT })
       await p.waitForSelector('[data-testid=sidebar-tab-dm]', { timeout: NAV_TIMEOUT })
@@ -151,7 +152,8 @@ try {
     ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0, box)
     ok(tag + ' fits the sidebar without page scroll', box.selectWidth > 8 && box.selectWidth <= box.sidebarWidth + 1 && box.docOverflow <= 1, box)
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
-    ok(tag + ' no visible caption, one slim row', box.captionText === '' && box.wrapHeight > 0 && box.wrapHeight <= 28 && box.ariaLabel.length > 0, box)
+    /* SPL-989: on a phone the row is a 44 px touch target (level-1 header) */
+    ok(tag + ' no visible caption, one slim row', box.captionText === '' && box.wrapHeight > 0 && box.wrapHeight <= (vp.width <= 820 ? 52 : 28) && box.ariaLabel.length > 0, box)
     ok(tag + ' hovering explains the tenant, naming it', box.hint.length > 40 && !box.hint.includes('sidebar.') && (!box.label || box.hint.includes(box.label)), box)
     const nameGap = tenantNameArrowGapPx({
       selLeft: box.selLeft, selRight: box.selRight, padStartPx: box.padStart, widestPx: box.widest,

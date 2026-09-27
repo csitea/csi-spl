@@ -112,6 +112,22 @@ func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[str
 	return fallbackBox{}, "", false
 }
 
+// fallbackOff reports whether channel opted out of the fallback (rdb 0068,
+// FR-039: proof and test channels that have no agent on purpose). A DM
+// never does; a read error keeps the fallback on.
+func (s *Server) fallbackOff(ctx context.Context, tenant, channel string) bool {
+	fb, ok := s.o.Store.(store.Fallbacks)
+	if channel == "" || !ok {
+		return false
+	}
+	off, err := fb.ChannelNoFallback(ctx, tenant, channel)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("channel", channel).Msg("channel no_fallback")
+		return false
+	}
+	return off
+}
+
 // fallbackWhere is the frame's Fallback value: where the post was made.
 func fallbackWhere(channel, to string) string {
 	if channel != "" {
@@ -137,6 +153,9 @@ func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire
 	log := s.o.Log.With().Str("tenant", tenant).Str("msg_id", m.MsgID).Str("channel", channel).Logger()
 	if env.Sig == "" {
 		log.Warn().Msg("fallback_unsigned: no agent box can take an unsigned post; it stays browser-only (FR-038)")
+		return
+	}
+	if s.fallbackOff(ctx, tenant, channel) { // FR-039: a proof / test channel opted out
 		return
 	}
 	roster, err := s.o.Store.Roster(ctx, tenant)
@@ -198,6 +217,7 @@ type channelFallback struct {
 	ID     string                `json:"id"`
 	Box    string                `json:"box"`
 	Active bool                  `json:"active"`
+	Off    bool                  `json:"off"` // the channel opted out (FR-039)
 	Recent channelFallbackRecent `json:"recent"`
 }
 
@@ -213,7 +233,10 @@ func (s *Server) fallbackInfo(ctx context.Context, tenant, channel string, agent
 	if !s.o.Fallback {
 		return nil
 	}
-	out := &channelFallback{Active: true}
+	out := &channelFallback{Active: true, Off: s.fallbackOff(ctx, tenant, channel)}
+	if out.Off {
+		out.Active = false
+	}
 	for _, a := range agents {
 		if a.Online && a.Seated {
 			out.Active = false

@@ -310,3 +310,35 @@ func TestFallbackPokeLine(t *testing.T) {
 		t.Fatalf("poke line: %q", got)
 	}
 }
+
+// FR-039 (CLE-001, after go-live): a proof / test channel that opted out
+// keeps the old behaviour - the unheard post reaches nobody - while a
+// channel that did not opt out still falls back.
+func TestFallbackChannelOptOut(t *testing.T) {
+	r := newFallbackRig(t, true, "live-proof", "people")
+	ctx := context.Background()
+	fb := r.e.st.(store.Fallbacks)
+	if err := fb.SetTenantResponders(ctx, r.tid, []string{"CLE-001"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fb.SetChannelNoFallback(ctx, r.tid, "live-proof", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := fb.SetChannelNoFallback(ctx, r.tid, "no-such-channel", true); err != store.ErrNotFound {
+		t.Fatalf("unknown channel: %v, want ErrNotFound", err)
+	}
+	threadFrame(t, r.ws, "3b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e", "1a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d", "live-proof", 1, "proof run")
+	time.Sleep(300 * time.Millisecond)
+	if n := len(inbox(t, r.desk, "CLE-001")); n != 0 || len(r.pokes()) != 0 {
+		t.Fatalf("opted-out channel fell back: inbox %d pokes %v", n, r.pokes())
+	}
+	if f := fallbackOf(t, r, "live-proof"); f["off"] != true || f["active"] != false {
+		t.Fatalf("members fallback of an opted-out channel: %v", f)
+	}
+	m2 := "4c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+	threadFrame(t, r.ws, m2, "2a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d", "people", 1, "hello?")
+	eventually(t, "people still falls back", func() bool { return strings.Join(inboxIDs(t, r.desk, "CLE-001"), ",") == m2 })
+	if f := fallbackOf(t, r, "people"); f["off"] != false {
+		t.Fatalf("members fallback of a normal channel: %v", f)
+	}
+}

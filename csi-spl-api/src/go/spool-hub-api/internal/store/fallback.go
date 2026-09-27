@@ -47,6 +47,12 @@ type Fallbacks interface {
 	// ChannelFallbacks summarises the channel's fallback deliveries at or
 	// after since ("" channel = the DMs).
 	ChannelFallbacks(ctx context.Context, tenantID, channelID string, since time.Time) (FallbackSummary, error)
+	// ChannelNoFallback reports whether the channel opted out (rdb 0068,
+	// FR-039); an unknown channel reads false.
+	ChannelNoFallback(ctx context.Context, tenantID, channelID string) (bool, error)
+	// SetChannelNoFallback sets the opt-out. ErrNotFound when the channel
+	// does not exist.
+	SetChannelNoFallback(ctx context.Context, tenantID, channelID string, off bool) error
 }
 
 var (

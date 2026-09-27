@@ -61,3 +61,25 @@ func (s *Postgres) ChannelFallbacks(ctx context.Context, tenant, channel string,
 		})
 	return out, err
 }
+
+func (s *Postgres) ChannelNoFallback(ctx context.Context, tenant, channel string) (bool, error) {
+	var off bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT no_fallback FROM channels WHERE tenant_id = $1 AND channel_id = $2`,
+		[]any{tenant, NormalizeChannel(channel)}, &off)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return off, err
+}
+
+func (s *Postgres) SetChannelNoFallback(ctx context.Context, tenant, channel string, off bool) error {
+	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET no_fallback = $3 WHERE tenant_id = $1 AND channel_id = $2`,
+		tenant, NormalizeChannel(channel), off)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

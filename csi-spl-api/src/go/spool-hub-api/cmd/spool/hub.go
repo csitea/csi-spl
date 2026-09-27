@@ -74,8 +74,11 @@ func cmdServe() int {
 	if hc.WUITenantHosts {
 		originTenant = hub.NewOriginTenant(hc.TenantHostPattern, hc.WUIApexTenant)
 	}
+	// CLE-35061: attachment reads served from memory after the first; the
+	// hub is one instance of 512 MiB (hub.cloud_run), ~80 MiB in use.
+	cached := blob.NewCached(bs, 64<<20, 4<<20, 10*time.Minute)
 	opts := hub.Options{
-		Store: st, Blob: bs, Log: log, TenantHostPattern: hc.TenantHostPattern,
+		Store: st, Blob: cached, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,

@@ -39,6 +39,12 @@ export function useTopicRoute(opts: {
      a thread open landed on /search with no q) */
   watch(() => topic.target, (t) => {
     if (router.currentRoute.value.path !== route.path) return
+    /* 022 §10 (CLE-35063): Back / Forward. The address bar already shows the
+       entry popped to while vue-router has not committed it yet, and the
+       mobile stack's popstate listener closes the topic in that gap. A write
+       here would cancel the Back (the channel reached from a search result
+       came back as the channel, and the search entry was lost). */
+    if (import.meta.client && !samePath(window.location.pathname, route.path)) return
     const query = queryWithTopic(route.query, t)
     if (sameQuery(query, route.query)) return
     void router.replace({ query })
@@ -52,6 +58,11 @@ export function useTopicRoute(opts: {
   }
 
   return { openRow }
+}
+
+function samePath(a: string, b: string) {
+  const d = (p: string) => { try { return decodeURIComponent(p) } catch { return p } }
+  return d(a).replace(/\/+$/, '') === d(b).replace(/\/+$/, '')
 }
 
 /**

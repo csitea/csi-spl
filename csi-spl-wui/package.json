@@ -40,6 +40,7 @@
     "test:e2e:display-name": "node tests/e2e/display-name.test.mjs",
     "test:e2e:typed-by": "node tests/e2e/typed-by.test.mjs",
     "test:e2e:open-parent": "node tests/e2e/open-parent-section.test.mjs",
+    "test:e2e:search-original": "node tests/e2e/search-original.test.mjs",
     "test:e2e:top-bar-mobile": "node tests/e2e/top-bar-mobile.test.mjs",
     "test:e2e:top-bar-tenant": "node tests/e2e/top-bar-tenant.test.mjs",
     "test:e2e:mobile-messages": "node tests/e2e/mobile-messages.test.mjs",

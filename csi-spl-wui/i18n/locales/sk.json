@@ -697,7 +697,13 @@
       "larger": "Väčšie ako veľkosť",
       "smaller": "Menšie ako veľkosť"
     },
-    "slash_shortcut": "Stlačte /, aby ste zameriali omnibox. Escape vráti zameranie tam, kde bolo."
+    "slash_shortcut": "Stlačte /, aby ste zameriali omnibox. Escape vráti zameranie tam, kde bolo.",
+    "menu": {
+      "label": "Ponuka výsledku",
+      "original": "Otvoriť originál",
+      "here": "Zobraziť tu",
+      "copy_link": "Kopírovať odkaz"
+    }
   },
   "role": {
     "biz_owner": "Obchodný vlastník",

@@ -212,6 +212,10 @@ the planner's row estimate (it planned 199 018 rows for 7).
 - **FR-052** At the original, the hit is scrolled to and marked: the thread pane moves the `#<msg_id>` line to
   its top and focuses it (the existing hash rule of `LiveFeed`), and the line carries the `search-focus` flash.
 - **FR-053** Back returns to `/search?q=` with the query and the results (the original is a `router.push`).
+- **FR-053a** Found while building FR-053 (n=3: nuxi dev and the generated mock bundle, trunk 12bbb66b): Back from any page with
+  `?topic=` open cancelled itself - the mobile stack's popstate listener closes the topic before vue-router commits
+  the popped entry, the page's pane -> URL watcher then wrote its query, and vue-router reverted the Back. The watcher
+  now skips while `location.pathname` differs from its page (`useTopicRoute.ts`).
 - **FR-054** No grammar, hub or rdb change. The menu is lazy (mounted on open), so the initial chunk
   (027 ceiling) does not grow.
 

@@ -697,7 +697,13 @@
       "larger": "Larger than a size",
       "smaller": "Smaller than a size"
     },
-    "slash_shortcut": "Press / to focus the omnibox. Escape returns to where you were."
+    "slash_shortcut": "Press / to focus the omnibox. Escape returns to where you were.",
+    "menu": {
+      "label": "Result menu",
+      "original": "Open original",
+      "here": "Show here",
+      "copy_link": "Copy link"
+    }
   },
   "role": {
     "biz_owner": "Business owner",

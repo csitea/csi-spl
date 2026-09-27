@@ -697,7 +697,13 @@
       "larger": "Mayor que un tamaño",
       "smaller": "Menor que un tamaño"
     },
-    "slash_shortcut": "Pulse / para enfocar el omnibox. Escape devuelve el foco a donde estaba."
+    "slash_shortcut": "Pulse / para enfocar el omnibox. Escape devuelve el foco a donde estaba.",
+    "menu": {
+      "label": "Menú del resultado",
+      "original": "Abrir original",
+      "here": "Mostrar aquí",
+      "copy_link": "Copiar enlace"
+    }
   },
   "role": {
     "biz_owner": "Propietario de negocio",

@@ -989,6 +989,16 @@ declare module '~/utils/search-results.mjs' {
   export function moveIndex(i: number, n: number, key: string): number
   export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | { tenant: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
+  /** 022 §10 (CLE-35063): the right menu of a row and its original */
+  export function isPlacedRow(row: unknown): boolean
+  export function searchRowMenuItems(row: unknown): { id: 'original' | 'here' | 'copy', icon: import('~/utils/uiIcons').UiIconName, labelKey: string }[]
+  export function topicPageOf(row: unknown): string
+  export function originalHref(row: unknown, opts?: { self?: string, pathFor?: (path: string) => string }): string
+}
+
+declare module '~/utils/search-original.mjs' {
+  export function openOriginal(row: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, fallback: string }): Promise<boolean>
+  export function markHit(msgId: string, opts?: { tries?: number, every?: number, hold?: number }): void
 }
 
 declare module '~/utils/slash-focus.mjs' {

@@ -697,7 +697,13 @@
       "larger": "גדול מגודל",
       "smaller": "קטן מגודל"
     },
-    "slash_shortcut": "לחצו / כדי למקד את ה-omnibox. Escape מחזיר את המיקוד למקום הקודם."
+    "slash_shortcut": "לחצו / כדי למקד את ה-omnibox. Escape מחזיר את המיקוד למקום הקודם.",
+    "menu": {
+      "label": "תפריט תוצאה",
+      "original": "פתח את המקור",
+      "here": "הצג כאן",
+      "copy_link": "העתק קישור"
+    }
   },
   "role": {
     "biz_owner": "בעל העסק",

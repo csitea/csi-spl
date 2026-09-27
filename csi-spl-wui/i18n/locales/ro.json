@@ -697,7 +697,13 @@
       "larger": "Mai mare decât o mărime",
       "smaller": "Mai mic decât o mărime"
     },
-    "slash_shortcut": "Apăsați / pentru a focaliza omnibox-ul. Escape readuce focusul unde era."
+    "slash_shortcut": "Apăsați / pentru a focaliza omnibox-ul. Escape readuce focusul unde era.",
+    "menu": {
+      "label": "Meniul rezultatului",
+      "original": "Deschide originalul",
+      "here": "Arată aici",
+      "copy_link": "Copiază linkul"
+    }
   },
   "role": {
     "biz_owner": "Proprietar de business",

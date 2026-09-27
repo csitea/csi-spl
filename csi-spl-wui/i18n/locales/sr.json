@@ -697,7 +697,13 @@
       "larger": "Veće od veličine",
       "smaller": "Manje od veličine"
     },
-    "slash_shortcut": "Притисните / да фокусирате omnibox. Escape враћа фокус тамо где је био."
+    "slash_shortcut": "Притисните / да фокусирате omnibox. Escape враћа фокус тамо где је био.",
+    "menu": {
+      "label": "Мени резултата",
+      "original": "Отвори оригинал",
+      "here": "Прикажи овде",
+      "copy_link": "Копирај везу"
+    }
   },
   "role": {
     "biz_owner": "Пословни власник",

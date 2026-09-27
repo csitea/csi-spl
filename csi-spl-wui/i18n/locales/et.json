@@ -697,7 +697,13 @@
       "larger": "Suurem kui maht",
       "smaller": "Väiksem kui maht"
     },
-    "slash_shortcut": "Vajuta /, et fokuseerida omnibox. Escape viib fookuse tagasi."
+    "slash_shortcut": "Vajuta /, et fokuseerida omnibox. Escape viib fookuse tagasi.",
+    "menu": {
+      "label": "Tulemuse menüü",
+      "original": "Ava algne",
+      "here": "Näita siin",
+      "copy_link": "Kopeeri link"
+    }
   },
   "role": {
     "biz_owner": "Äriomanik",

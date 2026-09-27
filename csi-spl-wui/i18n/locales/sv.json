@@ -697,7 +697,13 @@
       "larger": "Större än en storlek",
       "smaller": "Mindre än en storlek"
     },
-    "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var."
+    "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var.",
+    "menu": {
+      "label": "Resultatmeny",
+      "original": "Öppna original",
+      "here": "Visa här",
+      "copy_link": "Kopiera länk"
+    }
   },
   "role": {
     "biz_owner": "Affärsägare",

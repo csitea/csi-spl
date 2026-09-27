@@ -697,7 +697,13 @@
       "larger": "Większy niż rozmiar",
       "smaller": "Mniejszy niż rozmiar"
     },
-    "slash_shortcut": "Naciśnij /, aby ustawić focus na omnibox. Escape przywraca focus tam, gdzie był."
+    "slash_shortcut": "Naciśnij /, aby ustawić focus na omnibox. Escape przywraca focus tam, gdzie był.",
+    "menu": {
+      "label": "Menu wyniku",
+      "original": "Otwórz oryginał",
+      "here": "Pokaż tutaj",
+      "copy_link": "Kopiuj link"
+    }
   },
   "role": {
     "biz_owner": "Właściciel biznesowy",

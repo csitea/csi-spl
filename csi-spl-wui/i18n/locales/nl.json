@@ -697,7 +697,13 @@
       "larger": "Groter dan een grootte",
       "smaller": "Kleiner dan een grootte"
     },
-    "slash_shortcut": "Druk op / om de omnibox te focussen. Escape zet de focus terug waar die was."
+    "slash_shortcut": "Druk op / om de omnibox te focussen. Escape zet de focus terug waar die was.",
+    "menu": {
+      "label": "Resultaatmenu",
+      "original": "Origineel openen",
+      "here": "Hier tonen",
+      "copy_link": "Link kopiëren"
+    }
   },
   "role": {
     "biz_owner": "Bedrijfseigenaar",

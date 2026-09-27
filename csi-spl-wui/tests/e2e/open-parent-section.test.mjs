@@ -53,7 +53,10 @@ try {
   await p.goto(server.base + '/search?q=Applying', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const hit = `[data-test=search-results] .search-row[data-type=messages]`
   await p.waitForSelector(hit, { visible: true, timeout: NAV_TIMEOUT })
-  await p.click(hit)
+  /* 022 §10: a click opens the ORIGINAL; the right-pane preview is the row menu's Show here */
+  await p.click(hit, { button: 'right' })
+  await p.waitForSelector('[data-testid=search-row-menu-here]', { visible: true, timeout: 5000 })
+  await p.click('[data-testid=search-row-menu-here]')
   const line = `aside.live-pane [data-msg-id="${REPLY}"]`
   await p.waitForSelector(line, { visible: true, timeout: 10000 })
   ok('1 a thread hit opens its thread on the right', true)

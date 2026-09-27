@@ -697,7 +697,13 @@
       "larger": "Suurempi kuin koko",
       "smaller": "Pienempi kuin koko"
     },
-    "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan."
+    "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan.",
+    "menu": {
+      "label": "Tuloksen valikko",
+      "original": "Avaa alkuperäinen",
+      "here": "Näytä tässä",
+      "copy_link": "Kopioi linkki"
+    }
   },
   "role": {
     "biz_owner": "Liiketoiminnan omistaja",

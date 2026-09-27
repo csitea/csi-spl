@@ -10,7 +10,8 @@
  * response, page it, and resolve a row's target; plus the lde mock matcher.
  */
 
-import { SEARCH_OPERATORS } from './search.mjs'
+import { SEARCH_OPERATORS, searchPath } from './search.mjs'
+import { parentSection, parentSectionHref } from './parent-section.mjs'
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
  *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
@@ -251,6 +252,79 @@ export function searchTarget(row) {
     default:
       return null
   }
+}
+
+/**
+ * 022 §10 (CLE-35063): a hit that was POSTED somewhere - a message, a topic,
+ * a file. Its original is the DM or channel it lives in, not the row's own
+ * page, and it also has a preview in the search page's right pane.
+ */
+export function isPlacedRow(row) {
+  const t = row && row.type
+  return t === 'messages' || t === 'topics' || t === 'files'
+}
+
+/**
+ * FR-050: the right menu of a search row. Open original first (it is also
+ * the click, FR-051), Show here for a posted hit, Copy link when the original
+ * has an address.
+ *
+ * @param {unknown} row
+ * @returns {{ id: 'original' | 'here' | 'copy', icon: string, labelKey: string }[]}
+ */
+export function searchRowMenuItems(row) {
+  const r = row && typeof row === 'object' ? row : {}
+  if (!searchTarget(r)) return []
+  const items = [{ id: 'original', icon: 'open', labelKey: 'search.menu.original' }]
+  if (isPlacedRow(r)) items.push({ id: 'here', icon: 'messages', labelKey: 'search.menu.here' })
+  if (!('tenant' in searchTarget(r))) items.push({ id: 'copy', icon: 'copy', labelKey: 'search.menu.copy_link' })
+  return items
+}
+
+/**
+ * The topic page of a posted hit, the fallback original when the row cannot
+ * name its DM or channel (a DM topic carries no peer; a file sent by the
+ * reader names only the reader). The message id is the hash.
+ */
+export function topicPageOf(row) {
+  const r = row && typeof row === 'object' ? row : {}
+  const task = String(r.parent_task_id || r.task_id || '')
+  if (!task) return ''
+  const id = r.type === 'topics' ? '' : String(r.msg_id || '')
+  return '/t/' + encodeURIComponent(task) + (id ? '#' + id : '')
+}
+
+/**
+ * FR-051: the address of a row's original, as Copy link gives it. A posted
+ * hit: its channel or DM with ?topic= and #<msg_id> (utils/parent-section.mjs,
+ * the Open parent section rule), else its topic page. An issue discussion
+ * copies the topic page (the Issues tab alone would not name the issue).
+ * Any other row: its FR-023 page. A tenant row has no address ('').
+ *
+ * @param {unknown} row
+ * @param {{ self?: string, pathFor?: (path: string) => string }} [opts]
+ */
+export function originalHref(row, opts = {}) {
+  const o = opts && typeof opts === 'object' ? opts : {}
+  const pathFor = typeof o.pathFor === 'function' ? o.pathFor : (p) => p
+  const r = row && typeof row === 'object' ? row : {}
+  if (isPlacedRow(r)) {
+    const msg = r.type === 'topics' ? { ...r, msg_id: '' } : r
+    const section = parentSection(msg, { self: String(o.self || '') })
+    if (section && section.kind !== 'issue') return parentSectionHref(section, pathFor)
+    const page = topicPageOf(r)
+    if (!page) return ''
+    const [path, hash] = page.split('#')
+    return String(pathFor(path) || path) + (hash ? '#' + hash : '')
+  }
+  const to = searchTarget(r)
+  if (!to || 'tenant' in to) return ''
+  if ('path' in to) {
+    const [path, hash] = to.path.split('#')
+    return String(pathFor(path) || path) + (hash ? '#' + hash : '')
+  }
+  if ('search' in to) return String(pathFor(searchPath(to.search)))
+  return ''
 }
 
 /**

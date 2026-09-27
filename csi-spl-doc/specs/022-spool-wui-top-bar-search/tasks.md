@@ -47,8 +47,8 @@
 ## Phase 6 — Search refactor: Open original (owner 2026-09-27, spec §10)
 
 - [x] T050 (§10.1) review of the shipped flow, screenshots posted in prd t1 topic `58397faf`.
-- [ ] T051 (FR-050, FR-051, FR-053, FR-054) `searchRowMenuItems` / `originalTarget` in `utils/search-results.mjs`, `SearchRowMenu.vue`, row button + right-click + long press, default click = Open original. Check: `node --test tests/unit/search-original.test.mjs`.
-- [ ] T052 (FR-052) the hit marked at the original. Check: `tests/e2e/search-original-live.proof.mjs` on dev t1 (desktop + phone).
+- [x] T051 (FR-050, FR-051, FR-053, FR-054) `searchRowMenuItems` / `originalTarget` in `utils/search-results.mjs`, `SearchRowMenu.vue`, row button + right-click + long press, default click = Open original. Check: `node --test tests/unit/search-original.test.mjs` -> pass 12; `tests/e2e/search-original.test.mjs` (mock, generated bundle, in 10 ci) -> 11/11.
+- [x] T052 (FR-052, FR-053) the hit marked at the original (`utils/search-original.mjs` markHit); Back from the original lands on the results again: the pane -> URL watcher of `useTopicRoute` no longer writes while the address bar already shows the popped entry (the mobile stack's popstate closed the topic before vue-router committed, and that write cancelled the Back and lost the search entry). Check: `tests/e2e/search-original-live.proof.mjs` on dev t1 (desktop + phone).
 - [ ] T053 live on dev AND prd (by commit, `/build.json`).
 
 <!-- version: 1.3.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:40:00Z -->

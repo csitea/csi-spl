@@ -697,7 +697,13 @@
       "larger": "Lielāks par izmēru",
       "smaller": "Mazāks par izmēru"
     },
-    "slash_shortcut": "Nospiediet /, lai fokusētu omnibox. Escape atgriež fokusu tur, kur tas bija."
+    "slash_shortcut": "Nospiediet /, lai fokusētu omnibox. Escape atgriež fokusu tur, kur tas bija.",
+    "menu": {
+      "label": "Rezultāta izvēlne",
+      "original": "Atvērt oriģinālu",
+      "here": "Rādīt šeit",
+      "copy_link": "Kopēt saiti"
+    }
   },
   "role": {
     "biz_owner": "Biznesa īpašnieks",

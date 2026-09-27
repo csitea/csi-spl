@@ -79,8 +79,13 @@
             :data-type="row.type"
             :data-key="row.key"
             :data-ts="rowAt(row) || undefined"
-            @click="open(row)"
+            @click="onRowClick(row)"
             @mousemove="active = indexOf(row)"
+            @contextmenu="onRowContextMenu($event, row)"
+            @pointerdown="pressDown($event, row)"
+            @pointermove="longPress.move"
+            @pointerup="longPress.up"
+            @pointercancel="longPress.cancel"
           >
             <div class="search-row__head">
               <template v-if="row.type === 'robots' || row.type === 'users'">
@@ -101,6 +106,22 @@
                 <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
               </span>
               <span class="search-row__meta muted">{{ meta(row) }}</span>
+              <!-- 022 §10 FR-050: the row's right menu, also on right-click and a long press -->
+              <button
+                v-if="menuItems(row).length"
+                type="button"
+                tabindex="-1"
+                class="icon-btn search-row__menu-btn"
+                data-testid="search-row-menu-btn"
+                aria-haspopup="menu"
+                :aria-expanded="menu.row && menu.row.key === row.key ? 'true' : 'false'"
+                :aria-label="t('search.menu.label')"
+                :title="t('search.menu.label')"
+                @click.stop="openMenuFromButton($event, row)"
+                @contextmenu.stop.prevent="openMenuFromButton($event, row)"
+              >
+                <UiIcon name="menu" :size="16" />
+              </button>
             </div>
             <p v-if="row.type === 'messages'" class="search-row__snippet" :class="listClipClass(clipMode)" data-test="search-msg-snippet" :data-clip-mode="clipMode">
               <!-- SPL-1009: a member in the snippet reads their name -->
@@ -121,6 +142,17 @@
         </section>
       </div>
     </div>
+    <!-- mounted on open only: the menu is not in the initial JS (specs/027) -->
+    <LazySearchRowMenu
+      v-if="menu.row"
+      :open="!!menu.row"
+      :x="menu.x"
+      :y="menu.y"
+      :items="menuItems(menu.row)"
+      @close="closeMenu"
+      @escape="listEl?.focus({ preventScroll: true })"
+      @choose="onMenuChoose"
+    />
   </div>
 </template>
 
@@ -128,12 +160,13 @@
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
+import { useLive } from '~/composables/useLive'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { operatorHelpRows, searchPath, type SearchRow } from '~/utils/search.mjs'
-import { flattenGroups, highlightSegments, moveIndex, rowAt, searchTarget } from '~/utils/search-results.mjs'
+import { flattenGroups, highlightSegments, isPlacedRow, moveIndex, originalHref, rowAt, searchRowMenuItems, searchTarget, topicPageOf } from '~/utils/search-results.mjs'
 import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { namedText, shownPerson } from '~/utils/channel-feed.mjs'
@@ -141,6 +174,10 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
 import { useCardClip } from '~/composables/useCardClip'
 import { listClipClass } from '~/utils/card-clip.mjs'
+import { createLongPress } from '~/utils/touch-ui.mjs'
+import { useCopyText } from '~/composables/useCopyText'
+import { useAccessStore } from '~/stores/access'
+import { useRosterStore } from '~/stores/roster'
 
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -155,6 +192,12 @@ const pane = useLiveFeed('pane')
 const topic = useTopicStore()
 const people = useHumanNames()
 const listEl = ref<HTMLElement | null>(null)
+const access = useAccessStore()
+const roster = useRosterStore()
+const liveIdentity = useLive().identity
+/** the reader: the DM end that is not the peer (utils/parent-section.mjs) */
+const viewerId = computed(() => String(access.me?.humanId || liveIdentity.value || roster.me?.id || ''))
+const { copy: copyText } = useCopyText()
 
 /* CLE-3427: the topic a hit opens is in the URL too, so a search result the
    reader wants to show someone is one link, not "search this, then click the
@@ -299,14 +342,85 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault()
     const row = rows.value[active.value]
     if (row) open(row)
+    return
+  }
+  /* FR-050: the keyboard's own menu key (or Shift+F10) opens the row's menu */
+  if ((ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey)) && active.value >= 0) {
+    ev.preventDefault()
+    const row = rows.value[active.value]
+    const el = document.getElementById(rowId(active.value))
+    if (!row || !el) return
+    const r = el.getBoundingClientRect()
+    openMenuAt(row, r.left + 16, r.top + 24)
   }
 }
 
-/** FR-023: message / file → its topic in the right pane at that message */
+/* 022 §10 FR-050: the right menu of a row - right-click, the row button, a
+   long press on a phone (the bottom sheet), or the menu key. */
+const menu = reactive<{ row: SearchRow | null, x: number, y: number }>({ row: null, x: 0, y: 0 })
+function menuItems(row: SearchRow | null) { return row ? searchRowMenuItems(row) : [] }
+function openMenuAt(row: SearchRow, x: number, y: number) {
+  if (!menuItems(row).length) return
+  active.value = indexOf(row)
+  menu.row = row
+  menu.x = x
+  menu.y = y
+}
+function closeMenu() { menu.row = null }
+function onRowContextMenu(ev: MouseEvent, row: SearchRow) {
+  if (!menuItems(row).length) return
+  ev.preventDefault()
+  openMenuAt(row, ev.clientX, ev.clientY)
+}
+function openMenuFromButton(ev: MouseEvent, row: SearchRow) {
+  const btn = ev.currentTarget
+  if (menu.row && menu.row.key === row.key) return closeMenu()
+  if (!(btn instanceof HTMLElement)) return
+  const r = btn.getBoundingClientRect()
+  openMenuAt(row, r.left, r.bottom + 4)
+}
+let pressRow: SearchRow | null = null
+const longPress = createLongPress({
+  onPress: (x, y) => {
+    if (!pressRow) return
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    openMenuAt(pressRow, x, y)
+  },
+})
+onBeforeUnmount(() => longPress.cancel())
+function pressDown(ev: PointerEvent, row: SearchRow) {
+  pressRow = row
+  longPress.down(ev)
+}
+function onRowClick(row: SearchRow) {
+  /* the finger that long-pressed lifts with a click: that click is the menu's */
+  if (longPress.takeClick()) return
+  void open(row)
+}
+async function onMenuChoose(id: string) {
+  const row = menu.row
+  closeMenu()
+  if (!row) return
+  if (id === 'original') return void open(row)
+  if (id === 'here') return void showHere(row)
+  if (id === 'copy') {
+    const href = originalHref(row, { self: viewerId.value, pathFor: localePath })
+    if (href) await copyText(new URL(href, window.location.origin).href)
+  }
+}
+
+/** 022 §10 FR-051: a click, Enter or a tap opens the row's ORIGINAL - a
+    message, topic or file in the DM / channel it was posted in, scrolled to
+    and marked (utils/search-original.mjs); every other row its FR-023 page. */
 async function open(row: SearchRow) {
   active.value = indexOf(row)
   const to = searchTarget(row)
   if (!to) return
+  if (isPlacedRow(row)) {
+    const m = await import('~/utils/search-original.mjs')
+    if (await m.openOriginal(row, { api, router, localePath, self: viewerId.value, fallback: topicPageOf(row) })) return
+  }
+  if ('topic' in to) return showHere(row)
   if ('tenant' in to) {
     if (api.mock) return
     if (row.current) return void router.push(localePath('/'))
@@ -320,6 +434,14 @@ async function open(row: SearchRow) {
   }
   if ('path' in to) return void router.push(localePath(to.path))
   if ('search' in to) return void router.push(localePath(searchPath(to.search)))
+}
+
+/** FR-050 Show here (the FR-023 preview): message / file → its topic in the
+    right pane of this page at that message; topic → that topic. */
+async function showHere(row: SearchRow) {
+  active.value = indexOf(row)
+  const to = searchTarget(row)
+  if (!to || !('topic' in to)) return
   topic.setTarget({ taskId: to.topic, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
   await pane.open(to.topic)
   if (to.focus) focusMessage(to.focus)
@@ -374,6 +496,13 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 .search-row__who { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .search-row__text { min-width: 0; overflow-wrap: anywhere; }
 .search-row__meta { font-size: 0.75rem; min-width: 0; overflow-wrap: anywhere; }
+/* 022 §10 FR-050: the row's menu button, at the end of the head line; seen on
+   hover, keyboard focus and the active row (always on a phone, below) */
+.search-row__menu-btn { margin-inline-start: auto; flex: none; opacity: 0; }
+.search-row:hover .search-row__menu-btn,
+.search-row.active .search-row__menu-btn,
+.search-row__menu-btn[aria-expanded='true'],
+.search-row__menu-btn:focus-visible { opacity: 1; }
 .search-row__snippet { margin: 4px 0 0; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
 .search-row__snippet.list-clip--titles { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
@@ -396,6 +525,8 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
    the clip control (one line, ellipsis), and the example links are 44 px
    touch targets. */
 @media (max-width: 820px) {
+  .search-row__menu-btn { opacity: 1; min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .search-row { -webkit-touch-callout: none; }
   .search-query { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .search-help a { display: block; min-height: var(--tap, 44px); padding-block: 10px; box-sizing: border-box; }
 }

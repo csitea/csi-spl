@@ -697,7 +697,13 @@
       "larger": "Didesnis už dydį",
       "smaller": "Mažesnis už dydį"
     },
-    "slash_shortcut": "Spauskite /, kad sufokusuotumėte omnibox. Escape grąžina fokusą ten, kur buvo."
+    "slash_shortcut": "Spauskite /, kad sufokusuotumėte omnibox. Escape grąžina fokusą ten, kur buvo.",
+    "menu": {
+      "label": "Rezultato meniu",
+      "original": "Atverti originalą",
+      "here": "Rodyti čia",
+      "copy_link": "Kopijuoti nuorodą"
+    }
   },
   "role": {
     "biz_owner": "Verslo savininkas",

@@ -697,7 +697,13 @@
       "larger": "Bir boyuttan büyük",
       "smaller": "Bir boyuttan küçük"
     },
-    "slash_shortcut": "Omnibox'a geçmek için / tuşuna basın. Escape odağı önceki yere verir."
+    "slash_shortcut": "Omnibox'a geçmek için / tuşuna basın. Escape odağı önceki yere verir.",
+    "menu": {
+      "label": "Sonuç menüsü",
+      "original": "Orijinali aç",
+      "here": "Burada göster",
+      "copy_link": "Bağlantıyı kopyala"
+    }
   },
   "role": {
     "biz_owner": "İşletme sahibi",

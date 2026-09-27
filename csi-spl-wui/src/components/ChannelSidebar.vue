@@ -597,6 +597,7 @@ import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, 
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
@@ -667,9 +668,13 @@ function toggleTopicMenu(key: string, taskId: string) {
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
 const route = useRoute()
+const mobileStack = useMobileStack()
 watch(() => route.path, (path) => {
   rowMenu.value = ''
   if (holdFlow.value) return
+  /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
+     keeps the section the reader left from, whatever page sits behind */
+  if (mobileStack.isMobile.value && mobileStack.level.value === 1) return
   const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })

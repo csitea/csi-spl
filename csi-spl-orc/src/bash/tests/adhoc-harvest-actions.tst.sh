@@ -213,6 +213,22 @@ in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS=none DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q '\[agents=\]' "$T/calls.log" && pass "2d. AGENTS=none clears the list" \
   || fail "2d. none: rc=$rc $(cat "$T/calls.log")"
 
+# --- 2e. channel fallback opt-out (rdb 0068, SPL-997 FR-039) -------------------
+in_orc 'do_spl_channel_fallback' TENANT_ID=t1 CHANNEL=live-proof NO_FALLBACK=1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would switch the fallback responder off for #live-proof in t1' "$T/out" \
+  && pass "2e. channel-fallback DRY_RUN: no cloud call" || fail "2e. dry: rc=$rc $(cat "$T/out")"
+for bad in "CHANNEL=" "CHANNEL=Live" "CHANNEL=a;b" "NO_FALLBACK=" "NO_FALLBACK=yes" "TENANT_ID=T_1"; do
+  in_orc 'do_spl_channel_fallback' TENANT_ID=t1 CHANNEL=live-proof NO_FALLBACK=1 "$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2e. $bad is refused before any call" || fail "2e. bad '$bad': rc=$rc"
+done
+in_orc 'do_spl_channel_fallback' TENANT_ID=t1 CHANNEL=live-proof NO_FALLBACK=1 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "no_fallback = (:'off' = '1')" "$T/stdin" && ! grep -q 'live-proof' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
+  && grep -q '\[ch=live-proof\]' "$T/calls.log" && grep -q '\[off=1\]' "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2e. channel-fallback DRY_RUN=0: values are psql variables, tenant RLS, as $DEV_SA" \
+  || fail "2e. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"
+
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
   in_orc 'do_spl_db_query' SQL="$q"; rc=$?

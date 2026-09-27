@@ -175,6 +175,14 @@ see FR-038); e2e (test tenant) 90 of 120. All tenants: 134 of 423 (31.7%).
   or a poster whose role lacks agents.command) cannot be taken by any box, so
   no fallback is possible; the hub logs `fallback_unsigned` for it instead of
   staying silent.
+- **FR-039** Per-channel opt-out (CLE-001, 2026-09-27, after go-live: proof
+  runs posting into #live-proof poked the responder every time). A channel
+  with `channels.no_fallback` (rdb 0068) keeps the pre-SPL-997 behaviour: an
+  unheard post there reaches no agent. People's channels keep the fallback
+  (default false). Set with `do_spl_channel_fallback ENV=<env> TENANT_ID=<t>
+  CHANNEL=<ch> NO_FALLBACK=1|0`; no test user id is hard-coded anywhere. The
+  members answer's `fallback.off` says so, and Properties shows "off for this
+  channel".
 
 Proof: `internal/hub/fallback_test.go` (memory and Postgres): a channel with no
 agent member, a human post -> the responder's inbox holds it with one fallback

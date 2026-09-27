@@ -1379,3 +1379,22 @@ declare module '~/utils/tab-title.mjs' {
   export function tenantTabName(claims: unknown, pageTenant: string, apexTenant: string): string
   export function tabTitle(pageTitle: string | undefined | null, tabName: string): string
 }
+
+declare module '~/utils/mobile-stack.mjs' {
+  export type MobileLevel = 1 | 2 | 3
+  export const MOBILE_STACK_MAX_PX: number
+  export const MOBILE_STACK_QUERY: string
+  export const MOBILE_LEVEL_KEY: string
+  export const MOBILE_BELOW_KEY: string
+  export const MOBILE_SWIPE_MIN_DX: number
+  export const MOBILE_SWIPE_MAX_DY: number
+  export const MOBILE_SWIPE_EDGE_RATIO: number
+  export function mobileLevelOf(s: { home: boolean, topicOpen: boolean }): MobileLevel
+  export function isMobileFrontDoor(path: string): boolean
+  export function mobileInitialLevel(path: string, query: Record<string, unknown> | null | undefined): MobileLevel
+  export function mobileTaggedLevel(state: unknown): MobileLevel | null
+  export function mobileHasBelow(state: unknown): boolean
+  export function mobileTagState(state: unknown, level: MobileLevel, below?: number): Record<string, unknown>
+  export function mobileHistoryStep(tagged: MobileLevel | null, next: MobileLevel): 'tag' | 'push' | 'none'
+  export function isMobileBackSwipe(g: { x0: number, y0: number, x1: number, y1: number, width: number, rtl?: boolean }): boolean
+}

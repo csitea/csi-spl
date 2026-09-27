@@ -17,6 +17,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html { font-size: var(--font-root); }
 
 /*
+ * SPL-989: the phone / small-tablet breakpoint. At <= 820 px the shell shows
+ * ONE panel (composables/useMobileStack.ts); 821 px and up is the desktop
+ * 3-pane layout, unchanged. A media query cannot read a custom property, so
+ * every mobile rule writes the literal `@media (max-width: 820px)`; this token
+ * is the number's one documented home (utils/mobile-stack.mjs
+ * MOBILE_STACK_MAX_PX says the same for script). Touch targets: var(--tap).
+ */
+:root { --mobile-max: 820px; }
+
+/*
  * Document horizontal scroll on mobile is FORBIDDEN (portrait and landscape).
  * The donor WUI's `base.css` guard: `overflow-x: clip` on html and body.
  * Nested regions may use overflow-x: auto only when max-width: 100% of

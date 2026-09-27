@@ -310,6 +310,7 @@ onUnmounted(() => {
    inputs are >= 16 px, so iOS does not zoom the page on focus. */
 @media (max-width: 820px) {
   .ui-dialog__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .ui-dialog__foot :deep(.btn) { min-height: var(--tap, 44px); }
   .ui-dialog__body :deep(input),
   .ui-dialog__body :deep(textarea),
   .ui-dialog__body :deep(select) { font-size: max(16px, 1rem); }

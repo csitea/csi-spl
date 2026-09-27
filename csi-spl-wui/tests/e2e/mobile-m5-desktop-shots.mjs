@@ -23,6 +23,8 @@ const PAGES = [
   ['login', '/login', '.login-card'],
   ['reset', '/reset-password?token=' + 'a'.repeat(64), '.login-card'],
   ['dialog', '/channel/lobby', '[data-testid=create-channel]', '[data-testid=create-channel]'],
+  ['users-pane', '/users', '[data-test=users-row]', '[data-test=users-row]'],
+  ['search', '/search?q=deploy', '[data-test=search-page]'],
 ]
 
 // One signed-in owner, the auth routes only (the display-name test's hub).
@@ -81,7 +83,7 @@ try {
     await p.waitForSelector(wait, { timeout: 30000 }).catch(() => null)
     if (click) {
       await p.click(click).catch(() => null)
-      await p.waitForSelector('[data-testid=ui-dialog]', { timeout: 5000 }).catch(() => null)
+      await p.waitForSelector('[data-testid=ui-dialog], [data-test=users-pane]', { timeout: 5000 }).catch(() => null)
     }
     await new Promise((r) => setTimeout(r, 800))
     await p.screenshot({ path: `${DIR}/${name}.png` })

@@ -8,11 +8,12 @@
 <template>
   <div
     class="users-page"
-    :class="'users-page--pane-' + USER_PANE_SIDE"
+    :class="['users-page--pane-' + USER_PANE_SIDE, { 'users-page--pane-open': paneOpen && dir }]"
     data-test="users-page"
   >
     <div class="feed-col users-col">
       <header class="feed-header">
+        <MobileBack />
         <h2>{{ t('users.title') }}</h2>
         <span class="users-spacer" />
         <button
@@ -101,6 +102,7 @@ import SpoolAvatar from '~/components/SpoolAvatar.vue'
 import UserEditPane from '~/components/UserEditPane.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { roleLabelKey } from '~/utils/access.mjs'
 import { USER_PANE_SIDE, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
 import type { UserRow } from '~/utils/tenant-users.mjs'
@@ -153,6 +155,10 @@ function closePane() {
   creating.value = false
   selectedKey.value = ''
 }
+/* SPL-993: on a phone the edit pane is level 3, full width over the list;
+   Back (chevron, swipe, browser) closes it */
+const stack = useMobileStack()
+stack.rightPanel(() => stack.isMobile.value && paneOpen.value && Boolean(dir.value), closePane)
 /** After a write: reload, then keep the pane on `key` when that row still exists. */
 async function reload(key: string) {
   await load()
@@ -242,4 +248,11 @@ watch(() => session.state, (st) => {
 }
 .users-empty { margin: var(--spacing-xs) 20px; }
 .users-load-error { margin: var(--spacing-md) 20px; color: var(--color-danger); }
+/* SPL-993: phones and small tablets show ONE of the two: the list, or the
+   open edit pane full width (useMobileStack level 3). */
+@media (max-width: 820px) {
+  .users-page--pane-open > .users-col { display: none; }
+  .users-page--pane-open > .users-pane { flex: 1 1 auto; width: 100%; border-inline: 0; }
+  .users-row { min-height: var(--tap, 44px); }
+}
 </style>

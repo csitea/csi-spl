@@ -24,6 +24,10 @@
 //             the viewport cut to 400 px (the keyboard open, as
 //             interactive-widget=resizes-content does): the field is in
 //             view, the submit button can be scrolled to, inputs >= 16 px.
+//   users    - at <= 820 px a tap on a Users row opens the edit pane ALONE,
+//             full width (level 3, list hidden, the X replaced by MobileBack),
+//             and browser Back returns to the list. 1440: pane beside list.
+//   search   - /search and /search?q= never scroll sideways at 360 px.
 //
 // CONTROL: every width asserts the OPPOSITE state at the other widths (a
 // full-screen dialog at 1440 fails, a card at 360 fails), so a selector that
@@ -323,6 +327,50 @@ async function checkPages(browser, base, vp) {
   }
 }
 
+async function checkUsers(browser, base, vp) {
+  const p = await page(browser, vp)
+  const tag = `users@${vp.w}`
+  try {
+    for (const q of ['/search', '/search?q=deploy']) {
+      await p.goto(base + q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.waitForSelector('[data-test=search-page]', { timeout: NAV_TIMEOUT }).catch(() => null)
+      await sleep(300)
+      const x = await noXScroll(p)
+      ok(`${tag} ${q}: no horizontal page scroll`, x.ok, x)
+    }
+    await p.goto(base + '/users', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
+    await sleep(300)
+    await p.click('[data-test=users-row]')
+    await p.waitForSelector('[data-test=users-pane]', { visible: true, timeout: 10000 })
+    await sleep(300)
+    const m = await p.evaluate(() => {
+      const pane = document.querySelector('[data-test=users-pane]').getBoundingClientRect()
+      const col = document.querySelector('.users-col')
+      const r = col.getBoundingClientRect()
+      const close = document.querySelector('[data-test=users-pane-close]')
+      return { paneW: Math.round(pane.width), vw: window.innerWidth, listShown: getComputedStyle(col).display !== 'none' && r.width > 0,
+        closeShown: close ? getComputedStyle(close).display !== 'none' : false }
+    })
+    if (vp.mobile) {
+      ok(`${tag} a tap opens the pane alone, full width`, !m.listShown && m.paneW >= m.vw - 2, m)
+      ok(`${tag} MobileBack in the pane, no X`, !m.closeShown && await shown(p, '[data-test=users-pane] [data-testid=mobile-back]'), m)
+      const x = await noXScroll(p)
+      ok(`${tag} pane: no horizontal page scroll`, x.ok, x)
+      await p.goBack().catch(() => null)
+      await sleep(500)
+      const back = await p.evaluate(() => ({ pane: Boolean(document.querySelector('[data-test=users-pane]')), path: location.pathname }))
+      ok(`${tag} browser Back closes the pane, back on the list`, !back.pane && back.path.endsWith('/users') && await shown(p, '.users-col'), back)
+    } else {
+      ok(`${tag} CONTROL: desktop keeps the pane beside the list, with its X`, m.listShown && m.paneW < m.vw / 2 && m.closeShown, m)
+    }
+  } catch (e) {
+    ok(`${tag} ran`, false, String(e.message || e))
+  } finally {
+    await p.close()
+  }
+}
+
 async function checkKeyboard(browser, base, vp) {
   if (!vp.phone) return
   signedOut = true
@@ -377,6 +425,7 @@ try {
     await checkRailTouch(browser, server.base, vp)
     await checkPages(browser, server.base, vp)
     await checkKeyboard(browser, server.base, vp)
+    await checkUsers(browser, server.base, vp)
   }
 } finally {
   await browser.close()

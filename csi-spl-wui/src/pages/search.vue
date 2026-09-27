@@ -6,6 +6,7 @@
 <template>
   <div class="feed-col search-page" data-test="search-page">
     <header class="feed-header">
+      <MobileBack />
       <h2>{{ t('search.title') }}</h2>
       <code v-if="query" class="search-query" dir="ltr">{{ query }}</code>
       <!-- SPL-963: a message hit takes the middle pane's titles / 5 rows / full -->
@@ -390,4 +391,11 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 }
 .search-bad-q code { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .search-more { margin-top: 4px; }
+/* SPL-993: phones. The query in the header gives up width to the title and
+   the clip control (one line, ellipsis), and the example links are 44 px
+   touch targets. */
+@media (max-width: 820px) {
+  .search-query { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-help a { display: block; min-height: var(--tap, 44px); padding-block: 10px; box-sizing: border-box; }
+}
 </style>

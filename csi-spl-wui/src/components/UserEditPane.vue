@@ -12,10 +12,11 @@
     :aria-label="title"
   >
     <header class="users-pane__head">
+      <MobileBack />
       <h2 class="users-pane__title">{{ title }}</h2>
       <button
         type="button"
-        class="icon-btn"
+        class="icon-btn users-pane__close"
         data-test="users-pane-close"
         :title="t('common.close')"
         :aria-label="t('common.close')"
@@ -340,4 +341,17 @@ function destroy() {
 .users-note { margin: 0; }
 .users-notice { margin: 0; color: var(--color-ok); overflow-wrap: anywhere; }
 .users-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
+/* SPL-993: on a phone the pane is level 3 and MobileBack closes it, so the
+   X goes; 44 px targets, 16 px fields (no iOS zoom), facts stacked. */
+@media (max-width: 820px) {
+  .users-pane__close { display: none; }
+  .users-pane__body :deep(.icon-btn) { width: var(--tap, 44px); height: var(--tap, 44px); }
+  .users-pane__body :deep(.btn) { min-height: var(--tap, 44px); }
+  .users-field input,
+  .users-field select { font-size: max(16px, 1rem); min-height: var(--tap, 44px); }
+}
+@media (max-width: 480px) {
+  .users-facts { grid-template-columns: minmax(0, 1fr); }
+  .users-facts dd + dt { margin-top: 8px; }
+}
 </style>

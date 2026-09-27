@@ -755,4 +755,22 @@ async function onToggle(ev: Event) {
   color: var(--color-danger);
   overflow-wrap: anywhere;
 }
+/* SPL-993: touch screens - every control is a 44 px target (the dialog is
+   full screen at <= 600 px, UiDialog), options too; on a phone the add
+   button takes its own full-width line under the picker. */
+@media (max-width: 820px) {
+  .invite-add__input,
+  .invite-add__chevron,
+  .invite-add > .btn,
+  .invite-add__option { min-height: var(--tap, 44px); }
+  .invite-add__chevron { min-width: var(--tap, 44px); }
+  .member-rows li { min-height: var(--tap, 44px); }
+  .member-rows .icon-btn,
+  .channel-properties__head .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
+}
+@media (max-width: 600px) {
+  .invite-add { flex-wrap: wrap; }
+  .invite-add__combo { flex-basis: 100%; }
+  .invite-add > .btn { flex: 1 1 100%; }
+}
 </style>

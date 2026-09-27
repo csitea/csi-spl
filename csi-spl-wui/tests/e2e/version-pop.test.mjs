@@ -16,6 +16,11 @@
 //   - the sha stays selectable (user-select: text)
 //   - a click / tap anywhere outside the card closes it (owner, topic 82b9c309)
 //
+// SPL-1023 (owner, topic 82b9c309: "does not close when one clicks
+// elsewhere"): a press on the sha keeps it open; a real click / tap outside
+// it (on the feed where there is one) closes it; Esc closes it; at 390 px
+// Back closes it and leaves the URL and the level as they were.
+//
 // Run:
 //   node tests/e2e/version-pop.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 node tests/e2e/version-pop.test.mjs
@@ -145,6 +150,68 @@ async function run(browser, base, width, touch) {
   await sleep(900)
   const outside = await measure(p)
   check(`${tag}: a ${touch ? 'tap' : 'click'} outside closes it`, outside?.shown === false, { shown: outside?.shown, at: away })
+
+  /* SPL-1023: inside keeps it, outside / Esc / Back close it */
+  const press = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y) }
+  const state = () => p.evaluate(() => {
+    const w = document.querySelector('[data-test=app-version-wrap]')
+    const c = document.querySelector('[data-test=app-version-card]')
+    return { expanded: w?.getAttribute('aria-expanded'), shown: c ? getComputedStyle(c).visibility === 'visible' : false }
+  })
+  const openIt = async () => {
+    await p.evaluate(() => document.querySelector('[data-test=app-version-wrap]').click())
+    await sleep(300)
+  }
+  await openIt()
+  const sha = await p.evaluate(() => { const r = document.querySelector('[data-test=app-version-card] .vs-pop__sha').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })
+  await press(sha.x, sha.y)
+  await sleep(700)
+  const inside = await state()
+  check(`${tag}: a press on the sha keeps it open`, inside.shown && inside.expanded === 'true', inside)
+  /* a plain spot outside the card: the feed when there is one, never a control */
+  const spot = await p.evaluate(() => {
+    const w = document.querySelector('[data-test=app-version-wrap]')
+    const plain = (x, y) => {
+      const e = document.elementFromPoint(x, y)
+      return e && !w.contains(e) && !e.closest('a,button,input,select,textarea,label,summary,[role=button],[role=tab],[role=option],[tabindex],[contenteditable=true],[data-test=top-bar]') ? e : null
+    }
+    const main = document.querySelector('main')
+    const areas = [main?.getBoundingClientRect(), { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }].filter((r) => r && r.right - r.left > 40)
+    for (const r of areas) {
+      for (let y = r.top + 20; y < r.bottom - 20; y += 23) {
+        for (let x = r.left + 20; x < r.right - 20; x += 31) {
+          const e = plain(x, y)
+          if (e) return { x, y, in: e.closest('main') ? 'main' : e.className || e.tagName }
+        }
+      }
+    }
+    return null
+  })
+  if (!spot) check(`${tag}: a plain spot outside the pop-up exists`, false)
+  else {
+    const url0 = p.url()
+    await press(spot.x, spot.y)
+    await sleep(900)
+    const out = await state()
+    check(`${tag}: a ${touch ? 'tap' : 'click'} outside (${spot.in}) closes it`, !out.shown && out.expanded === 'false' && p.url() === url0, { ...out, spot })
+  }
+  await openIt()
+  const reopened = await state()
+  await p.keyboard.press('Escape')
+  await sleep(900)
+  const esc = await state()
+  check(`${tag}: Esc closes it`, reopened.shown && !esc.shown && esc.expanded === 'false', { reopened, esc })
+  if (width === 390) {
+    const level = () => p.evaluate(() => ({ url: location.pathname + location.search, rail: Boolean(document.querySelector('[data-testid=sidebar-tab-dm]')?.getBoundingClientRect().width) }))
+    const before = await level()
+    await openIt()
+    const opened = await state()
+    await p.goBack()
+    await sleep(900)
+    const back = await state()
+    const afterBack = await level()
+    check(`${tag}: Back closes it, the URL and the level stay`, opened.shown && !back.shown && back.expanded === 'false' && afterBack.url === before.url && afterBack.rail === before.rail, { opened, back, before, afterBack })
+  }
   await ctx.close()
 }
 

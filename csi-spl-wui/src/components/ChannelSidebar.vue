@@ -1020,6 +1020,8 @@ function closeVsPop() {
   if (wrap && active instanceof HTMLElement && wrap.contains(active)) active.blur()
 }
 function toggleVsPop(ev: Event) {
+  /* SPL-1023: a press inside the card (select the hash, copy) keeps it */
+  if (ev.target instanceof Element && ev.target.closest('.vs-pop')) return
   if (vsOpen.value) return closeVsPop()
   placeVsPop(ev)
   vsOpen.value = true
@@ -1029,14 +1031,27 @@ function onVsOutside(ev: Event) {
   if (wrap && ev.target instanceof Node && wrap.contains(ev.target)) return
   closeVsPop()
 }
+/* SPL-1023: Esc closes it wherever the focus is */
+function onVsEsc(ev: KeyboardEvent) {
+  if (ev.key === 'Escape') closeVsPop()
+}
 watch(vsOpen, (open) => {
   if (typeof document === 'undefined') return
-  if (open) document.addEventListener('pointerdown', onVsOutside, true)
-  else document.removeEventListener('pointerdown', onVsOutside, true)
+  if (open) {
+    document.addEventListener('pointerdown', onVsOutside, true)
+    document.addEventListener('keydown', onVsEsc)
+  } else {
+    document.removeEventListener('pointerdown', onVsOutside, true)
+    document.removeEventListener('keydown', onVsEsc)
+  }
 })
 onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') document.removeEventListener('pointerdown', onVsOutside, true)
+  if (typeof document === 'undefined') return
+  document.removeEventListener('pointerdown', onVsOutside, true)
+  document.removeEventListener('keydown', onVsEsc)
 })
+/* SPL-1023: on a phone Back closes it first (SPL-994); a small card, so the dock stays */
+mobileStack.overlay(vsOpen, closeVsPop, { keepsDock: true })
 /* SPL-999: the sidebar clips (overflow: clip, 260 px), so the card is
    position: fixed: placed directly above the version, from the footer
    row's left edge, each time it opens, and pulled back so its right edge
@@ -1339,12 +1354,20 @@ async function onCreate() {
   opacity: 0;
   transition: opacity 0.15s ease 0.4s, visibility 0s linear 0.55s;
 }
-.foot-row .vs-wrap:hover .vs-pop,
 .foot-row .vs-wrap:focus-within .vs-pop,
 .foot-row .vs-wrap.is-open .vs-pop {
   visibility: visible;
   opacity: 1;
   transition-delay: 0s;
+}
+/* SPL-1023: hover opens it only where there is a real hover - a tap leaves
+   :hover stuck on a touch screen, and the card would never close */
+@media (hover: hover) {
+  .foot-row .vs-wrap:hover .vs-pop {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+  }
 }
 .foot-row .vs-pop__row { display: flex; align-items: center; gap: 6px; }
 /* one line while it fits; on a narrow phone two even halves, never cut */

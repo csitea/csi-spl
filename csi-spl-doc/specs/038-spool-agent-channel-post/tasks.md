@@ -56,3 +56,18 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       on the rebuilt binary by the reconcile cron (12:00 / 12:02 EEST); the
       prd csi-rel / leiden / csitea desk sidecars still run the pre-SPL-987
       binary, so seats on them stay owed until those restart (FR-024).
+
+## SPL-997 fallback responder (FR-030..FR-038)
+
+- [x] T020 measure the before number (prd, 7 days to 2026-09-27 10:16Z):
+      t1 30/289, csi-rel 14/14 (all unsigned), e2e 90/120; all 134/423 human
+      posts reached no agent box
+- [ ] T021 rdb 0067 `tenants.responders` + `fallback_deliveries` (RLS)
+- [ ] T022 hub fallback (hub/fallback.go, wuiSend hook, members `fallback`),
+      box client `fallback` frame + one poke, `fallback_test.go`
+- [ ] T023 `do_spl_tenant_responders` + test
+- [ ] T024 WUI Properties -> Agents "fallback responder" line
+- [ ] T025 apply 0067 on dev and prd; roll hub + WUI; t1 responders = CLE-001
+- [ ] T026 live e2e in prd e2e (`do_spl_fallback_probe`): post -> fallback
+      inbox within seconds; control with a member online -> no fallback;
+      measurement re-run after

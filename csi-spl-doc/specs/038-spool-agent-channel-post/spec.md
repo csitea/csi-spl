@@ -114,6 +114,75 @@ ordinary delivery; a table-written seat is back-filled at the next hello; an
 old client gets nothing and the seat stays owed; an empty channel stamps the
 seat and pokes nobody. Control: with the back-fill switched off all three fail.
 
+## No human post goes unheard: the fallback responder (SPL-997, 2026-09-27)
+
+Owner, prd t1 #spool-hub-devel, topic 1451c158, answering the SPL-987 report
+("the 3 posts you made before the invite never reached them"): "change the
+source code to prevent this type of situation from happening ... as long as
+there is even 1 agent online ... it should get informed and react".
+
+Measured before (prd, last 7 days to 2026-09-27 10:16Z, `do_spl_db_query`,
+n = every browser post by a HUM-* that is not a DM to another human):
+t1 30 of 289 (10.4%) reached no agent box (deliveries to box-wui only);
+csi-rel 14 of 14 (100%, every one unsigned: no box can take an unsigned post,
+see FR-038); e2e (test tenant) 90 of 120. All tenants: 134 of 423 (31.7%).
+
+- **FR-030** Which posts. A browser post by a signed-in human (HUM-*) that the
+  hub stored NEW (not a resend) and SIGNED with the box-wui key: a new topic
+  or a reply in a channel (#lobby included), or a DM to an agent. A DM to
+  another human, an agent's own post and an unsigned post are never passed
+  on.
+- **FR-031** Heard or not. The post is heard when at least one agent it
+  routes to is ONLINE in the FR-026 sense - its box holds a live socket to
+  the hub AND the box's roster names it: the channel's member agents (any box
+  but box-wui) and, for a DM or an @agent dispatch, `msg.to` on its box.
+  Heard = nothing more happens.
+- **FR-032** Unheard -> ONE fallback agent. The hub picks exactly one agent,
+  never a broadcast: (1) the first agent of the tenant's responder list
+  (`tenants.responders`, rdb 0067, an ordered list of agent ids) that is
+  online and seated; (2) else any online seated agent of the tenant, the box
+  with the longest-running socket first, then agent id. A candidate on a box
+  whose hello does not carry `features: ["fallback"]` (an older `spool`
+  binary) is skipped, as FR-024 skips it for the back-fill.
+- **FR-033** The delivery. The post goes to that agent alone as a recv frame
+  flagged `fallback: "<where>"` (`#<channel>`, or `DM to <agent>`). The box
+  accepts it only for an envelope signed by box-wui (the one signer of a human
+  post) and only for an agent it hosts; it writes the post into that agent's
+  inbox without the ordinary poke and rings ONE line instead:
+  `unanswered post in #<channel> (no member agent online): <excerpt>` (for a
+  DM: `unanswered post in DM to <agent> (agent offline): <excerpt>`), from the
+  post's author, on the post's topic, so a reply lands in the right thread.
+  The agent answers, or routes it (for the orchestrator: claim and route,
+  like any owner post). The fallback agent is NOT seated in the channel.
+- **FR-034** Recorded. A deliveries row (to_box = the fallback box, sent), so
+  the SPL-997 measurement counts the post as heard, and one
+  `fallback_deliveries` row (rdb 0067: tenant, msg, channel, box, agent,
+  delivered_at; RLS 0021 form). A write to a socket that fails leaves the
+  deliveries row queued; it expires by TTL.
+- **FR-035** Visible. `GET /v1/channels/{ch}/members` carries `fallback`: the
+  agent a post would go to now (`id`, `box`; empty when no agent of the
+  tenant is online), `active` (no member agent online now, so posts DO go to
+  it), and `recent` (the fallback deliveries of this channel in the last
+  7 days: `count`, and the newest one's `id` and `at`). The WUI's Properties ->
+  Agents list shows it as a "fallback responder" line.
+- **FR-036** The setting. `do_spl_tenant_responders ENV=<env> TENANT_ID=<t>
+  AGENTS="CLE-001 ..."` (`none` clears) writes the list; dry run unless
+  `DRY_RUN=0`. t1's list is `CLE-001` on dev and prd.
+- **FR-037** Unchanged: the FR-020 back-fill still hands a member agent the
+  history when it comes online later; a heard post is delivered exactly as
+  before.
+- **FR-038** Not covered: an UNSIGNED post (a tenant without the box-wui pin,
+  or a poster whose role lacks agents.command) cannot be taken by any box, so
+  no fallback is possible; the hub logs `fallback_unsigned` for it instead of
+  staying silent.
+
+Proof: `internal/hub/fallback_test.go` (memory and Postgres): a channel with no
+agent member, a human post -> the responder's inbox holds it with one fallback
+poke; the control with a member agent online -> no fallback; the responder
+offline -> the next online agent; an old client is skipped; a DM to an offline
+agent falls back; a DM to another human does not. Live: `do_spl_fallback_probe`
+in prd e2e (post + control), and the measurement re-run after.
+
 ## Security note
 
 A channel post is typed into every other member agent's prompt (028 poke),

@@ -36,6 +36,7 @@ on:
       - 'csi-spl-wui/**'
       - 'csi-spl-cnf/csi-spl/*.env.json'   # site id, fqdn, project, tenant
       - 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh'
+      - 'csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh'
       - '.github/workflows/30_wui-build-deploy.yml'
   workflow_dispatch:
     inputs:
@@ -149,7 +150,9 @@ jobs:
     needs: plan
     if: needs.plan.outputs.any == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 min for the build + deploy, plus up to 30 min waiting for the hub
+    # (CLE-35057 guard, below)
+    timeout-minutes: 50
     # One firebase deploy per site at a time; never killed mid-flight.
     concurrency:
       group: deploy-wui-${{ matrix.environment }}-${{ github.ref }}
@@ -193,6 +196,8 @@ jobs:
           # SPL-959: tenant hosts <tenant>.<fqdn> (the apex is wui_default_tenant)
           print("tenant_hosts=" + ("1" if s19.get("wui_tenant_hosts") else "0"))
           PY
+          # CLE-35057: the hub bakes the repo .version into GET /version
+          echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v4
@@ -256,6 +261,17 @@ jobs:
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ vars[format('GCP_FIREBASE_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      # CLE-35057 (prd 2026-09-27): this job used to put a roll's WUI live
+      # 4-6 min before its hub (the hub runs a longer suite and deploys only
+      # on an image-tag bump), and for good when the hub job failed. Wait for
+      # THIS env's hub to report >= the repo .version; refuse after 30 min.
+      - name: Wait for the hub this WUI needs (hub /version >= .version)
+        env:
+          HUB_URL: https://${{ steps.cfg.outputs.api_fqdn }}
+          WANT_VERSION: ${{ steps.cfg.outputs.want_version }}
+          TIMEOUT_S: '1800'
+        run: bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh
 
       - name: firebase deploy --only hosting
         working-directory: csi-spl-wui

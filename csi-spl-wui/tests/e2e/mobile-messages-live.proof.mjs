@@ -8,7 +8,7 @@
 //   2 a long press on a card opens the message menu as a bottom sheet with
 //     44 px items and Reply first; the topic did not open
 //   3 a tap on the dimmed page closes it
-//   4 the kind badge (26x18 drawn) is hit across a 40 px square (its ::before)
+//   4 every in-view kind badge (26x18 drawn) is hit across a 42 px square (its ::before)
 // and writes OUT/mobile-messages-<w>.png (+ -sheet.png) and OUT/results.json.
 //
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir>
@@ -92,16 +92,21 @@ try {
     await p.screenshot({ path: join(OUT, `mobile-messages-${w}.png`) })
     /* the kind badge draws 26x18; its 44 px hit area is a ::before - probe it */
     const kind = await p.evaluate(() => {
-      const b = [...document.querySelectorAll('[data-testid=kind-badge-btn]')].find((el) => { const r = el.getBoundingClientRect(); return r.top > 120 && r.bottom < innerHeight - 120 })
-      if (!b) return null
-      const r = b.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      const pts = [[-20, -20], [20, -20], [-20, 20], [20, 20], [0, -20], [0, 20], [-20, 0], [20, 0]]
-      return { box: [Math.round(r.width), Math.round(r.height)], hits: pts.map(([dx, dy]) => Boolean(document.elementFromPoint(cx + dx, cy + dy)?.closest('[data-testid=kind-badge-btn]'))) }
+      /* every in-view badge (a sheet or the dock may cover the fold) */
+      const all = [...document.querySelectorAll('[data-testid=kind-badge-btn]')].filter((el) => { const r = el.getBoundingClientRect(); return r.top > 130 && r.bottom < innerHeight - 130 })
+      if (!all.length) return null
+      const pts = [[-21, -21], [21, -21], [-21, 21], [21, 21], [0, -21], [0, 21], [-21, 0], [21, 0]]
+      const out = all.map((b) => {
+        const r = b.getBoundingClientRect()
+        const cx = r.left + r.width / 2
+        const cy = r.top + r.height / 2
+        return pts.filter(([dx, dy]) => !document.elementFromPoint(cx + dx, cy + dy)?.closest('[data-testid=kind-badge-btn]'))
+          .map(([dx, dy]) => { const el = document.elementFromPoint(cx + dx, cy + dy); return `${dx},${dy}:${el ? el.tagName.toLowerCase() + '.' + String(el.className || '').split(' ')[0] : 'none'}` })
+      })
+      return { badges: all.length, missed: out.reduce((a, l) => a + l.length, 0), by: [...new Set(out.flat())].slice(0, 8) }
     })
-    ok(`${w}px 4 the kind badge answers a finger across a 40 px square around it`,
-      Boolean(kind && kind.hits.every(Boolean)), kind)
+    ok(`${w}px 4 every in-view kind badge answers a finger across a 42 px square`,
+      Boolean(kind && kind.missed === 0), kind)
 
     const card = await p.evaluate(() => {
       const row = [...document.querySelectorAll('article.msg[data-msg-id]')]

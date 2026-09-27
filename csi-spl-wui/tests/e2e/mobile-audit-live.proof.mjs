@@ -114,7 +114,13 @@ const MEASURE = () => {
     })
   }
   /* elementFromPoint sees only the viewport: a small box below the fold is counted apart, never as a pass */
-  const inView = (el) => { const b = el.getBoundingClientRect(); return b.top >= 22 && b.bottom <= innerHeight - 22 && b.left >= 22 && b.right <= vw - 22 }
+  /* ... and so is one whose centre sits under an overlay (the docked composer): it is unreachable until scrolled */
+  const inView = (el) => {
+    const b = el.getBoundingClientRect()
+    if (!(b.top >= 22 && b.bottom <= innerHeight - 22 && b.left >= 22 && b.right <= vw - 22)) return false
+    const t = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
+    return !!t && (t === el || el.contains(t) || t.contains(el))
+  }
   const under = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
   const unprobed = under.filter((el) => !inView(el))
   const small = under.filter((el) => inView(el) && !hits44(el))

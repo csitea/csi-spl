@@ -2,7 +2,7 @@
 // opens the search sheet and the avatar sheet and closes them; it never
 // sends, saves a preference, or changes a tenant).
 //
-//   BASE=https://e2e.spool-hub.ai TENANT=e2e EMAIL=<member> PW_FILE=<0600 file> \
+//   BASE=https://e2e.<domain> TENANT=e2e EMAIL=<member> PW_FILE=<0600 file> \
 //   OUT=<dir> node tests/e2e/top-bar-mobile-live.proof.mjs
 //
 // One native sign-in (the login budget is 10 per email per 15 min), then at

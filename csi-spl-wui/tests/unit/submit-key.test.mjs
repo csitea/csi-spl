@@ -26,6 +26,16 @@ describe('submit key ids', () => {
     const go = read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go')
     assert.match(go, /SubmitKeys = \[\]string\{"enter", "ctrl-enter"\}/)
   })
+  it('the default is Enter sends (owner 2026-09-27), the same as the hub default', () => {
+    assert.equal(DEFAULT_SUBMIT_KEY, 'enter')
+    const go = read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go')
+    assert.match(go, new RegExp(`const DefaultSubmitKey = "${DEFAULT_SUBMIT_KEY}"`))
+  })
+  it('never picked (null) = Enter sends; an explicit ctrl-enter is kept', () => {
+    assert.equal(submitKeyAction(key('Enter'), { mode: null }), 'submit')
+    assert.equal(submitKeyAction(key('Enter', { shiftKey: true }), { mode: null }), 'newline')
+    assert.equal(submitKeyAction(key('Enter'), { mode: 'ctrl-enter' }), 'newline')
+  })
   it('the default is one of them; anything else parses to it', () => {
     assert.ok(SUBMIT_KEYS.includes(DEFAULT_SUBMIT_KEY))
     for (const id of SUBMIT_KEYS) assert.equal(parseSubmitKey(id), id)

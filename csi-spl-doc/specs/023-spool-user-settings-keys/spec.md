@@ -213,12 +213,16 @@ renders once, in the parent, for every section.
 
   In both modes a bare Enter inside an open ``` block adds a line, and an
   IME composition never sends.
-- **Default (never picked) = `ctrl-enter`** (`DEFAULT_SUBMIT_KEY` in
-  `utils/submit-key.mjs`, one line). That is how the composer has worked since
-  the owner's order of 2026-09-23 (`b184c152`), so nobody's composer changes
-  when this ships. The issue comment box answered Enter until now (SPL-973);
-  it follows the setting like every other field. Asked the owner in topic
-  a4bc52dc whether *Enter sends* should be the default instead.
+- **Default (never picked) = `enter`** since 2026-09-27 (owner, topic
+  a4bc52dc: "change the default to the 'normal' one ... but keep the
+  behaviour of the already set settings, aka mine as they are").
+  `DEFAULT_SUBMIT_KEY` in `utils/submit-key.mjs` and `auth.DefaultSubmitKey`
+  on the hub agree (unit-tested). NULL still means never picked; the hub never
+  writes the default into a row. Measured before the flip: every row on dev
+  (12) and prd (10) was NULL, the owner's too (a click on the already-checked
+  radio stores nothing), so the owner's rows (prd HUM-10, dev HUM-9, HUM-17)
+  were pinned to `ctrl-enter` with `do_spl_human_behaviour` first. Until then
+  the default was `ctrl-enter` (the composer's rule of 2026-09-23, `b184c152`).
 - **Kept on the account**, like the theme (3.6): `humans.submit_key` (rdb
   0062), `PUT /api/v1/auth/preferences` `submit_key` (auth-v1), answered by
   `GET /session` and the native `POST /login`; hub 0.9.3 (`af883284`). An

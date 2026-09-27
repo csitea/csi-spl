@@ -15,11 +15,12 @@
 export const SUBMIT_KEYS = Object.freeze(['enter', 'ctrl-enter'])
 
 /*
- * The mode of a person who never picked one. 'ctrl-enter' is how the message
- * composer has worked since the owner's order of 2026-09-23, so nobody's
- * composer changes when the setting ships. Flipping it is this one line.
+ * The mode of a person who never picked one (humans.submit_key NULL):
+ * Enter sends, the chat default (owner, 2026-09-27, topic a4bc52dc). The hub
+ * names the same default (auth.DefaultSubmitKey). A person who picked a mode
+ * keeps it; the owner's rows were pinned to 'ctrl-enter' before the flip.
  */
-export const DEFAULT_SUBMIT_KEY = 'ctrl-enter'
+export const DEFAULT_SUBMIT_KEY = 'enter'
 
 /** One of SUBMIT_KEYS exactly, else the default. */
 export function parseSubmitKey(raw) {

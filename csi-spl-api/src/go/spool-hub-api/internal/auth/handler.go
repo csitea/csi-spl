@@ -618,6 +618,13 @@ func IsTheme(theme string) bool {
 // humans_submit_key_check (rdb 0062) admits the same list.
 var SubmitKeys = []string{"enter", "ctrl-enter"}
 
+// DefaultSubmitKey is the mode of a human who never picked one (submit_key
+// NULL, answered as null): Enter sends (owner, 2026-09-27). The WUI applies
+// it (DEFAULT_SUBMIT_KEY in utils/submit-key.mjs, pinned equal by
+// tests/unit/submit-key.test.mjs); the hub never writes it into a row, so
+// "never picked" stays NULL and a later default flip reaches only them.
+const DefaultSubmitKey = "enter"
+
 // IsSubmitKey reports whether key is one of SubmitKeys, exactly.
 func IsSubmitKey(key string) bool {
 	for _, id := range SubmitKeys {

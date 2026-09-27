@@ -23,12 +23,12 @@ previous section is all ticked.
 
 ## 2. Stage 1 -> Stage 2 (strangers succeeded)
 
-- [ ] 3 or more outsiders completed T041 unaided; every blocking finding fixed and re-exported
+- [ ] Tonight: the clean-container stranger test (SPL-1014) passed; later: 3 or more outsiders completed T041 unaided; every blocking finding fixed and re-exported
 - [ ] `asOperator` review done, SPL-35 closed (T026)
 - [ ] DB tier / search cost review done (T042)
 - [ ] CLA or DCO chosen (D3) and the bot configured, still off
 - [ ] Contribution policy (D9) in CONTRIBUTING; branch protection: maintainers-only merge, required review
-- [ ] Prompt allow-list (FR-OS-017, T034) live on the hub: a probe from a non-listed identity is refused
+- [ ] SECURITY.md states that the per-agent prompt allow-list (FR-OS-017, SPL-1018) is not built yet (D10: first Stage 3 item)
 
 ## 3. Stage 2: the flip (the owner only)
 

@@ -141,6 +141,7 @@ agent (no bridge exists, FR-OS-015).
 | # | decision | source |
 |---|---|---|
 | **D0** | **Self-hosted only, fully parameterised.** Outsiders run their own hub on their own domain and their own cloud project; our hub, tenants and agents are never offered to them. Every host, domain, project and identity value is a parameter (env/cnf); the product code carries no csitea or `spool-hub.ai` default; the local stack (T001) and the self-hosting guide (SPL-66) take the domain as input. This is the isolation baseline for FR-OS-015/017 | owner, topic `a67ea8b5`, 2026-09-27 ~17:34Z: "yes strangers can build their own hub with their OWN dns - eveyrhing is parametrized" |
+| **D11** | **Yes: flip the NEW repo public tonight** once `checklist.md` §1 is green, on the tonight track (§4.1). The §4.1 defaults hold unless the owner overrides them: D2 AGPL-3.0 for everything, D3 no outside PR merged before a CLA/DCO, D4 all hub code public, D5 the real identity, D6 curated docs only, D7 TRADEMARK.md, D10 the allow-list after the flip. If any §1 item is red, the repo stays private and the owner gets the failing list | owner, topic `a67ea8b5`, 17:40:55Z: "yes", 53 s after the D11 blocker (17:40:02Z) with no post between |
 
 ### 6.2 Open
 
@@ -155,27 +156,26 @@ agent (no bridge exists, FR-OS-015).
 | **D7** | Trademark: reserve "Spool" / "Spool Hub" and the logo in `TRADEMARK.md` | yes |
 | **D8** | Source of truth after Stage 2: the public repo, with ops pinning it by ref | yes (§5) |
 | **D9** | Contribution policy (owner: "we will not accept pull requests lightly"): maintainers-only merges, every outside PR reviewed by a maintainer, fork code never on our runners, CLA/DCO (D3), no automatic action on outside issues | adopt as written; it replaces the "agents triage outside issues" idea of the first draft of Stage 3 |
-| **D10** | The per-agent prompt allow-list (FR-OS-017, owner: "only people and agents having public keys of other agents can prompt them"): a precondition of which stage | **Stage 2 (the public launch), hub-enforced** - CLE-35048's measured BLOCKER (message `bc3d20b7`, 17:36Z) supersedes its 17:34Z answer: ~4-6 days, not a Stage-0 blocker, but the launch waits for it. CLE-001 proposed the same stage |
-| **D11** | Is the owner's 17:31Z message ("if I wake up at 06:00 ... and the repo is open source. I will b a happy person") the go to flip the NEW repo public overnight, once `checklist.md` §1 is green, with the §4.1 defaults? | the flip is the one irreversible step; the synthesis asks it as a blocker. Without an explicit yes the export stays on the PRIVATE target |
+| **D10** | The per-agent prompt allow-list (FR-OS-017, owner: "only people and agents having public keys of other agents can prompt them"): a precondition of which stage | **Not a launch gate tonight; the first Stage 3 item.** CLE-35048 revised its Stage-2 answer after D11 (topic `a67ea8b5`, ~17:41Z): ~4-6 agent-days cannot land by 06:00, and under D0 no outside text reaches an agent. Ship with the limitation stated in SECURITY.md, no self-hosted PR workflow, the export gate green |
 
 ## 7. Functional requirements
 
 | FR | requirement | severity | status | issue |
 |---|---|---|---|---|
-| FR-OS-001 | An export action builds the public tree from an **allow-list** of paths, never a deny-list | must | Planned | NEW (export) |
+| FR-OS-001 | An export action builds the public tree from an **allow-list** of paths, never a deny-list | must | Planned | SPL-1011 |
 | FR-OS-002 | The export fails closed unless gitleaks, the hygiene sweep and the NEW classes are clean on the exported tree: other-org names, `iam.gserviceaccount.com`, `gcp_org_id`, fleet ids `(CLE\|HUM\|AGY\|GRK)-[0-9]+`, `/opt/`, the owner's name and e-mail | must | Planned | SPL-63 (narrowed: secrets were measured absent) |
-| FR-OS-003 | The exported tree carries no cnf values: domain, project ids, SA e-mails, org id, OAuth client ids and Stripe keys come from the operator's env file; `example.env.yaml` documents each | must (owner: "strangers can build their own hub with their OWN dns - everything is parametrized") | Planned | SPL-66 + NEW (params) |
+| FR-OS-003 | The exported tree carries no cnf values: domain, project ids, SA e-mails, org id, OAuth client ids and Stripe keys come from the operator's env file; `example.env.yaml` documents each | must (owner: "strangers can build their own hub with their OWN dns - everything is parametrized") | Planned | SPL-66, SPL-1012 |
 | FR-OS-004 | The public repo's first commit is one snapshot; the private history is never pushed to it | must | Planned | SPL-61 |
 | FR-OS-005 | No workflow of the public repo runs on a self-hosted runner; PR jobs run on `ubuntu-latest` with `permissions: contents: read`, no secrets, fork approval required | must | Planned | SPL-64 |
 | FR-OS-006 | LICENSE per D2; SPDX identifiers in every manifest (`go.mod` package doc, `package.json` `license`); third-party notices incl. the icon set | must | Partial (AGPL-3.0 LICENSE `8423a14`) | SPL-62 |
 | FR-OS-007 | A README a stranger can follow; CONTRIBUTING; SECURITY.md with a private reporting channel; CODE_OF_CONDUCT; issue and PR templates | must | Planned | SPL-65 |
 | FR-OS-008 | A one-command local stack at the public root (Postgres + hub + WUI) with no internal action | must | Planned | SPL-66 |
-| FR-OS-009 | TRADEMARK.md per D7; an asset licence for the wallpapers and the logo | should | Planned | NEW (trademark) |
-| FR-OS-010 | A security review of the `asOperator` allow-list; close the 017 parent SPL-35 | should | Planned | NEW (review) |
-| FR-OS-011 | After Stage 2 ops pins the public repo by ref; the export is retired (D8) | should | Planned | NEW (export) |
-| FR-OS-012 | GitHub issues and PRs of the public repo reach the fleet in `#spool-hub-devel` | nice | Planned | NEW (bridge), after FR-OS-015 |
-| FR-OS-013 | The relay contract (the bucket semantics the hub relies on) is published as a doc | should | Planned | NEW (contract) |
-| FR-OS-014 | DB tier and search cost reviewed before public launch (f1-micro, 25 connections; search cannot use its index under RLS) | should | Planned | NEW (capacity) |
-| FR-OS-015 | Untrusted-input rule: public text (issues, PR bodies, comments) never reaches a credentialed agent as an instruction; it is framed as data, like the desk's non-owner framing, and no agent acts on it without an owner-originated task | must | Planned | NEW (untrusted input) |
-| FR-OS-017 | Per-agent prompt allow-list, enforced by the HUB: a DM, an @mention or a task reaches an agent only from a principal on its list. Principals are a member id (proven by the session; humans hold no key) or a box id (proven by the pin signature the box already carries, spec 004); everything else is refused. ~4-6 agent-days (CLE-35048, `bc3d20b7`) | must, Stage 2 gate (D10); after the flip on the tonight track (§4.1) | Planned | NEW (prompt allow-list), after the owner answers |
-| FR-OS-016 | The client licence split per D2: a client binary/module that does not import hub, store or billing code, enforced by an import test | must if D2 = split | Planned | NEW (licence split) |
+| FR-OS-009 | TRADEMARK.md per D7; an asset licence for the wallpapers and the logo | should | Planned | SPL-1016 |
+| FR-OS-010 | A security review of the `asOperator` allow-list; close the 017 parent SPL-35 | should | Planned | SPL-1019 |
+| FR-OS-011 | After Stage 2 ops pins the public repo by ref; the export is retired (D8) | should | Planned | SPL-1011 |
+| FR-OS-012 | GitHub issues and PRs of the public repo reach the fleet in `#spool-hub-devel` | nice | Planned | Stage 3, not filed (owner: no agent access for outsiders) |
+| FR-OS-013 | The relay contract (the bucket semantics the hub relies on) is published as a doc | should | Planned | SPL-1021 |
+| FR-OS-014 | DB tier and search cost reviewed before public launch (f1-micro, 25 connections; search cannot use its index under RLS) | should | Planned | SPL-1020 |
+| FR-OS-015 | Untrusted-input rule: public text (issues, PR bodies, comments) never reaches a credentialed agent as an instruction; it is framed as data, like the desk's non-owner framing, and no agent acts on it without an owner-originated task | must | Planned | SPL-1017 |
+| FR-OS-017 | Per-agent prompt allow-list, enforced by the HUB: a DM, an @mention or a task reaches an agent only from a principal on its list. Principals are a member id (proven by the session; humans hold no key) or a box id (proven by the pin signature the box already carries, spec 004); everything else is refused. ~4-6 agent-days (CLE-35048, `bc3d20b7`). Until it lands, SECURITY.md states the limitation | must, first Stage 3 item (D10) | Planned | SPL-1018 |
+| FR-OS-016 | The client licence split per D2: a client binary/module that does not import hub, store or billing code, enforced by an import test | must if D2 = split | Planned | SPL-1022 |

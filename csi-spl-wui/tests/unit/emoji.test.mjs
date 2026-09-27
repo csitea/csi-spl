@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyReactions, normalizeReactions, reactionChips, reactionOp, validEmoji, EMOJI_CHOICES } from '../../src/utils/emoji.mjs'
+import { applyReactions, canonicalEmoji, normalizeReactions, reactionChips, reactionOp, validEmoji, EMOJI_CHOICES } from '../../src/utils/emoji.mjs'
 import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { mergeById } from '../../src/utils/feed.mjs'
 
@@ -21,8 +21,40 @@ describe('emoji reactions', () => {
     assert.equal(validEmoji('hello'), false)
     assert.equal(validEmoji('👍👍'), false)
     assert.equal(new Set(EMOJI_CHOICES).size, EMOJI_CHOICES.length)
-    assert.equal(EMOJI_CHOICES.length, 39)
+    assert.equal(EMOJI_CHOICES.length, 48)
     assert.equal(validEmoji('🥳'), true)
+    assert.equal(validEmoji('🤯'), true)
+  })
+
+  /* SPL-1002 (owner, topic 9c10b31f): "the angry emoji is displayed twice"
+     and "2 empty emoji places" */
+  it('offers every glyph once, even across U+FE0F spellings, in full rows', () => {
+    const bare = EMOJI_CHOICES.map((e) => e.replace(/\uFE0F/g, ''))
+    assert.equal(new Set(bare).size, EMOJI_CHOICES.length, 'a glyph is listed twice')
+    for (const e of EMOJI_CHOICES) assert.equal(canonicalEmoji(e), e)
+    for (const cols of [8, 6, 12, 16]) assert.equal(EMOJI_CHOICES.length % cols, 0, `${cols} columns leave a hole`)
+  })
+
+  it('maps the other spelling of a glyph onto the picker spelling', () => {
+    assert.equal(canonicalEmoji('\u2764'), '\u2764\uFE0F')
+    assert.equal(canonicalEmoji('👍\uFE0F'), '👍')
+    assert.equal(canonicalEmoji('😠'), '')
+    assert.equal(canonicalEmoji('hello'), '')
+    assert.equal(canonicalEmoji(''), '')
+  })
+
+  it('is the same list as the hub allow-list (internal/hub/emoji.go)', () => {
+    const go = readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/emoji.go'), 'utf8')
+    const block = go.match(/var emojiChoices = \[\]string\{([\s\S]*?)\n\}/)
+    assert.ok(block, 'emojiChoices not found in emoji.go')
+    const hub = [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    assert.deepEqual(hub, EMOJI_CHOICES)
+  })
+
+  it('the picker is one grid: no Recent row that shows glyphs a second time', () => {
+    const picker = readFileSync(join(WUI, 'src/components/EmojiPicker.vue'), 'utf8')
+    assert.equal((picker.match(/class="emoji-picker__grid"/g) || []).length, 1)
+    assert.doesNotMatch(picker, /emoji-recent|readRecent/)
   })
 
   it('groups actors and marks the viewer, for either is_parent', () => {

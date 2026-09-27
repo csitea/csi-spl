@@ -581,12 +581,11 @@ declare module '~/utils/msg-edit.mjs' {
 declare module '~/utils/emoji.mjs' {
   export const EMOJI_CHOICES: string[]
   export function validEmoji(s: string): boolean
+  export function canonicalEmoji(s: string): string
   export function normalizeReactions(list: unknown): { emoji: string, actors: string[] }[]
   export function reactionChips(list: unknown, me?: string): { emoji: string, count: number, showCount: boolean, actors: string[], mine: boolean }[]
   export function reactionOp(list: unknown, emoji: string, me?: string): 'add' | 'remove'
   export function applyReactions<T>(list: T[], update: unknown): T[]
-  export function readRecent(storage?: Storage | null): string[]
-  export function rememberEmoji(emoji: string, storage?: Storage | null): string[]
 }
 
 declare module '~/utils/feed.mjs' {

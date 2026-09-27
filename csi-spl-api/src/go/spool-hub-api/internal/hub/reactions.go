@@ -136,7 +136,8 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 	})
 }
 
-// reactionEmoji reads {emoji} and refuses anything the picker does not offer.
+// reactionEmoji reads {emoji}, refuses anything the picker does not offer and
+// returns the picker's own spelling of it (canonicalEmoji).
 // false means the response is already written.
 func reactionEmoji(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var body reactionRequest
@@ -146,11 +147,12 @@ func reactionEmoji(w http.ResponseWriter, r *http.Request) (string, bool) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {emoji}")
 		return "", false
 	}
-	if !validEmoji(body.Emoji) {
+	emoji := canonicalEmoji(body.Emoji)
+	if emoji == "" {
 		writeErr(w, http.StatusBadRequest, "bad_emoji", "emoji must be one offered glyph")
 		return "", false
 	}
-	return body.Emoji, true
+	return emoji, true
 }
 
 // fanoutReaction tells every browser socket that was shown this message,

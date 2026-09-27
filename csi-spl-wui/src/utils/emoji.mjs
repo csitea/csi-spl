@@ -1,21 +1,42 @@
 /**
  * Emoji on a message. The same list and the same chips for an opening
  * message (is_parent 1) and a reply (is_parent 0). The hub accepts only
- * these glyphs (internal/hub/emoji.go emojiChoices) — keep the two lists
- * the same.
+ * these glyphs (internal/hub/emoji.go emojiChoices); emoji_test.go and
+ * tests/unit/emoji.test.mjs fail when the two lists differ.
  */
 
-/** Eight across. Thirty-nine glyphs. */
+/**
+ * Eight across, six full rows: 48 glyphs, each once (SPL-1002, owner: "the
+ * angry emoji is displayed twice ... 2 empty emoji places"). 48 also divides
+ * by the 6, 12 and 16 columns of the phone sheet, so no grid ends in a hole.
+ * No variation selector (U+FE0F) except where the glyph needs it to draw as
+ * an emoji (the heart); canonicalEmoji maps the other spelling onto it.
+ */
 export const EMOJI_CHOICES = [
-  '😀', '😁', '😂', '🙂', '😉', '😊', '😍', '😎',
-  '🤔', '😐', '😢', '😭', '😡', '🙄', '😴', '🤗',
-  '👍', '👎', '👏', '🙏', '👋', '💪', '👀', '🔥',
-  '❤️', '🎉', '✅', '❌', '⭐', '💯', '🚀', '💡',
-  '🤣', '😅', '😇', '😜', '😱', '🤯', '🥳',
+  '😀', '😁', '😂', '🤣', '😆', '😅', '🙂', '😉',
+  '😊', '😇', '😍', '😎', '😜', '🥳', '🤗', '🤔',
+  '😐', '😕', '😬', '🙄', '😴', '😢', '😭', '😱',
+  '😡', '🤯', '👍', '👎', '👏', '🙌', '🙏', '👋',
+  '💪', '👌', '🤝', '👀', '🔥', '❤️', '🎉', '✨',
+  '✅', '❌', '⭐', '💯', '🚀', '💡', '🎯', '🐛',
 ]
 
 const CHOICE = new Set(EMOJI_CHOICES)
-const RECENT_KEY = 'spool.emoji-recent'
+const VS16 = '\uFE0F'
+
+/**
+ * The one spelling the picker (and the hub) uses for a glyph: a choice
+ * written with or without U+FE0F maps onto the listed form. '' when it is
+ * not a choice at all.
+ */
+export function canonicalEmoji(s) {
+  const raw = String(s || '')
+  if (CHOICE.has(raw)) return raw
+  const bare = raw.split(VS16).join('')
+  if (CHOICE.has(bare)) return bare
+  if (CHOICE.has(bare + VS16)) return bare + VS16
+  return ''
+}
 
 /** One glyph the picker offers. */
 export function validEmoji(s) {
@@ -85,26 +106,4 @@ export function applyReactions(list, update) {
     return { ...m, reactions }
   })
   return hit ? next : list
-}
-
-export function readRecent(storage) {
-  const bag = storage || (typeof localStorage !== 'undefined' ? localStorage : null)
-  if (!bag) return []
-  try {
-    const raw = JSON.parse(bag.getItem(RECENT_KEY) || '[]')
-    if (!Array.isArray(raw)) return []
-    return raw.filter((e) => validEmoji(e)).slice(0, 8)
-  } catch {
-    return []
-  }
-}
-
-export function rememberEmoji(emoji, storage) {
-  if (!validEmoji(emoji)) return readRecent(storage)
-  const bag = storage || (typeof localStorage !== 'undefined' ? localStorage : null)
-  const next = [emoji, ...readRecent(bag).filter((e) => e !== emoji)].slice(0, 8)
-  if (bag) {
-    try { bag.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* private mode */ }
-  }
-  return next
 }

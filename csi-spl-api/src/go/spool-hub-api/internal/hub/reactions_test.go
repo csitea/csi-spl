@@ -151,6 +151,23 @@ func TestReactionOnOpeningAndReply(t *testing.T) {
 	readType(t, author, "message_reaction")
 	readType(t, other, "message_reaction")
 
+	// SPL-1002: the bare heart and the picker's heart are one chip, stored
+	// in the picker's spelling.
+	if code, out = putReaction(t, e, tid, id2, "HUM-1", "\u2764"); code != http.StatusOK {
+		t.Fatalf("bare heart: %d %v", code, out)
+	}
+	if code, out = putReaction(t, e, tid, id2, "HUM-2", "\u2764\uFE0F"); code != http.StatusOK {
+		t.Fatalf("picker heart: %d %v", code, out)
+	}
+	if got := reactionActors(t, out, "\u2764\uFE0F"); len(got) != 2 || reactionActors(t, out, "\u2764") != nil {
+		t.Fatalf("two spellings of the heart must be one chip: %v", out["reactions"])
+	}
+	if code, out = delReaction(t, e, tid, id2, "HUM-1", "\u2764"); code != http.StatusOK || len(reactionActors(t, out, "\u2764\uFE0F")) != 1 {
+		t.Fatalf("remove bare heart: %d %v", code, out)
+	}
+	readType(t, author, "message_reaction")
+	readType(t, other, "message_reaction")
+
 	// A glyph the picker does not offer is refused, and so is a missing message.
 	if code, out = putReaction(t, e, tid, id2, "HUM-1", "hello"); code != http.StatusBadRequest || out["error"] != "bad_emoji" {
 		t.Fatalf("bad emoji: %d %v", code, out)

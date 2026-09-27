@@ -1,6 +1,8 @@
 <!-- The glyph grid for adding an emoji to a message. Same panel for an
      opening message and a reply. Escape and a click outside close it.
-     SPL-991: at <= 820 px it is a bottom sheet with 44 px glyphs. -->
+     SPL-991: at <= 820 px it is a bottom sheet with 44 px glyphs.
+     SPL-1002: one grid, every glyph once and in a fixed place (the old
+     Recent row showed the glyphs a second time), and every row full. -->
 <template>
   <Teleport to="body">
     <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
@@ -15,18 +17,6 @@
       @keydown="onKey"
       @contextmenu.prevent
     >
-      <p v-if="recent.length" class="emoji-picker__label">{{ t('feed.emoji.recent') }}</p>
-      <div v-if="recent.length" class="emoji-picker__grid" data-testid="emoji-recent">
-        <button
-          v-for="emoji in recent"
-          :key="'r-' + emoji"
-          type="button"
-          class="emoji-picker__glyph"
-          :data-emoji="emoji"
-          :aria-label="emoji"
-          @click.stop="choose(emoji)"
-        >{{ emoji }}</button>
-      </div>
       <div class="emoji-picker__grid" data-testid="emoji-grid">
         <button
           v-for="emoji in choices"
@@ -43,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { EMOJI_CHOICES, readRecent, rememberEmoji } from '~/utils/emoji.mjs'
+import { EMOJI_CHOICES } from '~/utils/emoji.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 
@@ -52,7 +42,6 @@ const emit = defineEmits<{ close: [], choose: [emoji: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
-const recent = ref<string[]>([])
 const choices = EMOJI_CHOICES
 const sheet = usePhone()
 /* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
@@ -77,7 +66,6 @@ function onDocPointer(e: PointerEvent) {
 
 watch(() => props.open, async (v) => {
   if (v) {
-    recent.value = readRecent()
     document.addEventListener('pointerdown', onDocPointer, true)
     await place()
     if (!props.open || sheet.value) return
@@ -100,7 +88,8 @@ function onKey(e: KeyboardEvent) {
   const n = items.length
   if (!n) return
   const i = items.findIndex((el) => el === document.activeElement)
-  const cols = 8
+  const grid = root.value?.querySelector('.emoji-picker__grid')
+  const cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 8 : 8
   let next = i < 0 ? 0 : i
   if (e.key === 'ArrowRight') next = (next + 1) % n
   else if (e.key === 'ArrowLeft') next = (next - 1 + n) % n
@@ -114,7 +103,6 @@ function onKey(e: KeyboardEvent) {
 }
 
 function choose(emoji: string) {
-  recent.value = rememberEmoji(emoji)
   emit('choose', emoji)
   emit('close')
 }
@@ -135,11 +123,6 @@ function choose(emoji: string) {
   border-radius: var(--radius-md);
   box-shadow: 0 12px 32px rgb(0 0 0 / .35);
   padding: 6px;
-}
-.emoji-picker__label {
-  margin: 2px 6px 0;
-  color: var(--color-muted);
-  font-size: 0.75rem;
 }
 .emoji-picker__grid {
   display: grid;
@@ -162,7 +145,11 @@ function choose(emoji: string) {
   cursor: pointer;
   padding: 0;
 }
-.touch-sheet .emoji-picker__grid { grid-template-columns: repeat(auto-fill, minmax(var(--tap), 1fr)); }
+/* SPL-1002: 6, 12 or 16 columns, each a divisor of the 48 glyphs, so the
+   last row is full; every column stays >= the 44 px tap target */
+.touch-sheet .emoji-picker__grid { grid-template-columns: repeat(6, minmax(var(--tap), 1fr)); }
+@media (min-width: 600px) { .touch-sheet .emoji-picker__grid { grid-template-columns: repeat(12, minmax(var(--tap), 1fr)); } }
+@media (min-width: 760px) { .touch-sheet .emoji-picker__grid { grid-template-columns: repeat(16, minmax(var(--tap), 1fr)); } }
 .touch-sheet .emoji-picker__glyph { min-height: var(--tap); font-size: 1.5rem; }
 .emoji-picker__glyph:hover,
 .emoji-picker__glyph:focus-visible {

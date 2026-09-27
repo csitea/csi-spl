@@ -115,5 +115,13 @@ How to apply:
 - **Spool posts are markdown, no fence needed** (owner, 2026-09-26, SPL-975):
   the one rule is `csi-spl-doc/doc/help/how-to-post.md`; point to it, never
   restate it.
+- **Never roll the version by hand** (owner, 2026-09-27: "we should have been
+  at 1.3 by now"). Every hub (20) and WUI (30) deploy mints its commit's
+  version with `do_release_version`: a `v<X.Y.Z>` git tag, one odometer step
+  past the highest tag, claimed by pushing it (the remote is the lock). The hub
+  image tag, `/version` and the WUI footer + `build.json` all show it.
+  `.version` = cnf `hub.image.tag` is only the FLOOR: raise it (all 9 files,
+  still 0-9 digits) only for a deliberate jump such as 2.0.0. What is live:
+  `git ls-remote --tags origin 'v*'`.
 - Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
   explicit pathspecs.

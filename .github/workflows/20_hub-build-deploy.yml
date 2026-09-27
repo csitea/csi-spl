@@ -4,22 +4,21 @@
 # deploy, WIF auth, deploy-job-level concurrency), adapted to the ONE deploy
 # contract csi-spl already has:
 #
-#   TERRAFORM OWNS THE IMAGE. 030-cloud-run-hub runs var.image = cnf
-#   env.hub.image.ref = <region>-docker.pkg.dev/<project>/<028 repo>/
-#   <hub.image.name>:<hub.image.tag>, and 028's tags are IMMUTABLE. A deploy
-#   is a new hub.image.tag in <env>.env.yaml.
+#   THE VERSION IS MINTED PER DEPLOY (2026-09-27, the owner: "so many
+#   updates and the version is 1.0.1"). The deploy job asks
+#   do_release_version for this commit's release version: the v<X.Y.Z> tag
+#   it already carries, else one odometer step past the highest tag, claimed
+#   by pushing the tag (the remote is the lock, so parallel lanes cannot
+#   collide). That version is the image tag (028 tags stay IMMUTABLE: one
+#   tag, one commit) and the version baked into the binary. cnf
+#   hub.image.tag and .version are only the FLOOR a human raises for a
+#   deliberate jump. 030 creates the service with the floor and then ignores
+#   the image (lifecycle ignore_changes), so an apply never rolls it back.
 #
-# So this workflow deploys EXACTLY the reference cnf names at this commit and
-# nothing else: it builds + pushes that tag when the registry does not hold it
-# yet (via csi-spl-orc do_build_push_hub_image, the same action an operator
-# runs), then rolls the existing 030 service to it. Because the image it sets
-# is the one terraform already wants, a later 030 plan shows no drift. It
-# never pushes a per-sha tag and never creates, resizes or re-permissions
-# anything: a missing registry or service FAILS the run ("apply 028 / 030
-# first"), it does not provision one.
-#
-# A commit that changes the hub code without bumping hub.image.tag still runs
-# the tests, then deploys nothing new (the tag exists) and says so.
+# So every hub-input commit on trunk ships, with a new version, and nobody
+# rolls anything by hand. The workflow never creates, resizes or
+# re-permissions anything: a missing registry or service FAILS the run
+# ("apply 028 / 030 first"), it does not provision one.
 #
 # GCP auth, per env (owner direction 2026-09-19, csi-rel style):
 #   key -- PRIMARY. The project SA key secret GCP_KEY_CSI_SPL_<ENV>, published
@@ -168,6 +167,9 @@ jobs:
     concurrency:
       group: deploy-hub-${{ matrix.environment }}-${{ github.ref }}
       cancel-in-progress: false
+    permissions:
+      contents: write   # push the v<X.Y.Z> release tag (do_release_version)
+      id-token: write   # google-github-actions/auth via WIF
     strategy:
       fail-fast: false
       matrix:
@@ -204,36 +206,49 @@ jobs:
           grep -q '^service_name=.\+' "$RUNNER_TEMP/cfg.env" \
             || { echo "::error::cnf env.hub.service_name is empty for $ENV"; exit 1; }
 
-      # Forward-only guard. A push run (or "all") deploys only what trunk head
-      # would deploy: if master has moved on AND names a different hub image,
-      # this older run stands down -- the newer run carries the newer tag, and
-      # rolling back to ours would undo it. A dispatch naming one env is an
-      # operator action (including a deliberate rollback) and is not guarded.
+      # Forward-only guard. A push run (or "all") stands down when trunk has
+      # moved on AND a later commit changed a hub input (the `paths` above):
+      # that commit has its own run, which deploys the newer code with a newer
+      # version, and rolling back to ours would undo it. A dispatch naming one
+      # env is an operator action (including a deliberate rollback, which
+      # reuses the commit's own version tag) and is not guarded.
       - name: Forward-only guard
         id: guard
         env:
           GUARD_EVENT: ${{ needs.prepare-deploy.outputs.guard_event }}
-          OURS: ${{ steps.cfg.outputs.image_ref }}
         run: |
           set -euo pipefail
           ok=true
           if [[ "$GUARD_EVENT" == push ]]; then
             git fetch -q origin master
             tip="$(git rev-parse origin/master)"
-            if [[ "$tip" != "$GITHUB_SHA" ]]; then
-              t="$(mktemp -d)"
-              git archive "$tip" csi-spl-cnf csi-spl-iac/lib csi-spl-orc/lib | tar -x -C "$t"
-              theirs="$(APP_PATH="$t" PROJ_PATH="$t/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
-                set -euo pipefail; do_log() { echo "$*" >&2; }
-                source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
-                do_spl_cloud_cnf; echo "$SPL_IMAGE_REF"')"
-              if [[ "$theirs" != "$OURS" ]]; then
-                ok=false
-                echo "::warning::trunk head ${tip:0:8} names $theirs, this run ($GITHUB_SHA) names $OURS -- standing down; the newer run deploys."
-              fi
+            if [[ "$tip" != "$GITHUB_SHA" ]] && ! git diff --quiet "$GITHUB_SHA" "$tip" -- \
+                 csi-spl-api csi-spl-rdb csi-spl-cnf csi-spl-iac csi-spl-orc .version \
+                 .github/workflows/20_hub-build-deploy.yml .github/workflows/22_deploy-verify.yml; then
+              ok=false
+              echo "::warning::trunk head ${tip:0:8} changed hub inputs after $GITHUB_SHA -- standing down; its own run deploys the newer hub."
             fi
           fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      # This commit's release version (do_release_version): the image tag and
+      # the version the binary reports. dev and prd, and the WUI deploy of the
+      # same commit, all get the same one.
+      - name: Mint the release version (do_release_version)
+        id: ver
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          CNF_REF: ${{ steps.cfg.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version
+          v="$(sed -n 's/^version=//p' "$GITHUB_OUTPUT" | tail -1)"
+          [[ "$v" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] || { echo "::error::no release version minted"; exit 1; }
+          echo "image_ref=${CNF_REF%:*}:$v" >> "$GITHUB_OUTPUT"
+          # every later ./run action (build + push, do_check_hub_deploy) ships
+          # and checks this tag instead of the cnf floor
+          echo "SPL_HUB_IMAGE_TAG=$v" >> "$GITHUB_ENV"
+          echo "release version $v -> ${CNF_REF%:*}:$v"
 
       # The identity every later gcloud call pins (--account via GCP_ACCOUNT):
       # the key path runs as the project SA gcp-002 created, the WIF path as
@@ -271,13 +286,13 @@ jobs:
         id: img
         if: steps.guard.outputs.ok == 'true'
         env:
-          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          IMAGE_REF: ${{ steps.ver.outputs.image_ref }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
           set -uo pipefail
           if out="$(gcloud artifacts docker images describe "$IMAGE_REF" --project "$GCP_PROJECT" --format='value(image_summary.digest)' 2>&1)"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$IMAGE_REF is already in the registry ($out); tags are immutable, so nothing is built. To ship new hub code, bump hub.image.tag in csi-spl-cnf/csi-spl/$ENV.env.yaml."
+            echo "::notice::$IMAGE_REF is already in the registry ($out): this commit's version was built before (a re-run, the other env, or a rollback), so nothing is rebuilt."
           elif grep -qiE 'not.?found|NOT_FOUND' <<<"$out"; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
           else
@@ -300,11 +315,11 @@ jobs:
           ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
           DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_build_push_hub_image
 
-      - name: Roll the 030 service to the cnf image
+      - name: Roll the 030 service to the minted image
         id: deploy
         if: steps.guard.outputs.ok == 'true'
         env:
-          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          IMAGE_REF: ${{ steps.ver.outputs.image_ref }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
           GCP_REGION: ${{ steps.cfg.outputs.gcp_region }}
           SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
@@ -330,7 +345,7 @@ jobs:
       # internal-and-cloud-load-balancing), so a runner cannot probe /healthz.
       # Verify through the control plane instead: the template runs the cnf
       # image and the latest revision is the ready one serving traffic.
-      - name: Verify the service runs the cnf image and is Ready (do_check_hub_deploy)
+      - name: Verify the service runs the minted image and is Ready (do_check_hub_deploy)
         if: steps.guard.outputs.ok == 'true'
         # The same read-only action an operator and 00_deploy-lag-watch run:
         # template image == cnf hub.image.ref, the Ready condition (by type)
@@ -347,7 +362,7 @@ jobs:
           done
           case "$rc" in
             0) ;;
-            3) echo "::error::$ENV runs a different image than cnf hub.image.ref"; exit 1 ;;
+            3) echo "::error::$ENV runs a different image than the minted $SPL_HUB_IMAGE_TAG"; exit 1 ;;
             4) echo "::error::$ENV service or its latest revision is not Ready"; exit 1 ;;
             *) echo "::error::cannot read the $ENV service state (rc $rc)"; exit 1 ;;
           esac
@@ -358,7 +373,8 @@ jobs:
           OK: ${{ steps.guard.outputs.ok }}
           EXISTS: ${{ steps.img.outputs.exists }}
           ROLLED: ${{ steps.deploy.outputs.rolled }}
-          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          IMAGE_REF: ${{ steps.ver.outputs.image_ref || steps.cfg.outputs.image_ref }}
+          VERSION: ${{ steps.ver.outputs.version }}
           SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
@@ -369,7 +385,8 @@ jobs:
             echo "|---|---|"
             echo "| **GCP project** | \`$GCP_PROJECT\` |"
             echo "| **Service** | \`$SERVICE_NAME\` |"
-            echo "| **Image (cnf hub.image.ref)** | \`$IMAGE_REF\` |"
+            echo "| **Release version** | \`${VERSION:-n/a}\` |"
+            echo "| **Image** | \`$IMAGE_REF\` |"
             echo "| **Forward guard** | ${OK:-n/a} |"
             echo "| **Image already existed** | ${EXISTS:-n/a} |"
             echo "| **Service rolled** | ${ROLLED:-n/a} |"

@@ -12,7 +12,9 @@ spl_export_go_path
 MOD="$HERE/../go/spool-hub-api"
 OUT="${1:-$MOD/bin/spool}"
 
-VERSION="$(cat "$HERE/../../../.version" 2>/dev/null || echo 0.1.0-dev)"
+# The release version is minted by CI at deploy time (do_release_version) and
+# handed in as SPOOL_BUILD_VERSION; .version (the floor) is the local default.
+VERSION="${SPOOL_BUILD_VERSION:-$(cat "$HERE/../../../.version" 2>/dev/null || echo 0.1.0-dev)}"
 # GET /version reports commit + built_at (003 T037); overridable for reproducible builds.
 COMMIT="${SPOOL_BUILD_COMMIT:-$(git -C "$HERE" rev-parse HEAD 2>/dev/null || echo unknown)}"
 BUILT_AT="${SPOOL_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"

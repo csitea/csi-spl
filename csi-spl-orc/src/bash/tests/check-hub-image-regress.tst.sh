@@ -3,7 +3,9 @@
 # Purpose: do_check_hub_image_regress is the 030 pre-apply precondition.
 #   1. cnf image == live image                       -> rc 0 current
 #   2. cnf tag NEWER than live (a roll)              -> rc 0 forward
-#   3. cnf tag OLDER than live (a stale checkout)    -> rc 3 regress
+#   3. cnf tag OLDER than live, 030 ignores the image -> rc 0 ahead (the
+#      release version is minted per deploy, so live leads the cnf floor)
+#   3b. cnf tag OLDER than live, 030 still sets it   -> rc 3 regress
 #      CONTROL: this is the 2026-09-21 foot-gun -- an artificially stale cnf
 #      tag makes the precondition red, and `make do-provision` then refuses.
 #   4. a different repository (no version order)     -> rc 3 diverged
@@ -69,9 +71,15 @@ fixture "$T/otherepo.json" "europe-north1-docker.pkg.dev/other/other/spool-hub:$
 : >"$T/calls.log"
 check "cnf image == live image"                       0 current  FIXTURE="$T/same.json"
 check "cnf NEWER than live: a roll, allowed"          0 forward  FIXTURE="$T/older.json"
-check "CONTROL stale tree: cnf OLDER than live"       3 regress  FIXTURE="$T/newer.json"
+# A tree whose 030 ignores the image: the minted live tag is ahead by design.
+check "minted tag ahead of the floor, 030 ignores it"  0 ahead    FIXTURE="$T/newer.json"
+# CONTROL: the same live tag against a 030 WITHOUT the ignore line (a tree
+# from before minting) is still the 2026-09-21 foot-gun and still refused.
+tf030="$APP_ROOT/csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf"
+grep -v 'template\[0\]\.containers\[0\]\.image' "$tf030" >"$T/stale-030.tf"
+check "CONTROL stale tree: cnf OLDER than live"       3 regress  FIXTURE="$T/newer.json" SPL_TF030_FILE="$T/stale-030.tf"
 check "different repository does not version-compare" 3 diverged FIXTURE="$T/otherepo.json"
-check "ALLOW_IMAGE_REGRESS=1 permits the rollback"    0 regress  FIXTURE="$T/newer.json" ALLOW_IMAGE_REGRESS=1
+check "ALLOW_IMAGE_REGRESS=1 permits the rollback"    0 regress  FIXTURE="$T/newer.json" ALLOW_IMAGE_REGRESS=1 SPL_TF030_FILE="$T/stale-030.tf"
 check "describe fails -> cannot tell"                 1 ""       FIXTURE=
 
 # CONTROL on the wiring: the do-provision target must call this action for 030

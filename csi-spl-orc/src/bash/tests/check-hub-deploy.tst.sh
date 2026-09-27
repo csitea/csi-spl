@@ -4,6 +4,8 @@
 #          and compares it with cnf env.hub.image.ref -- and only reads.
 #   1. current   (image == cnf ref, Ready, latest revision ready) -> rc 0
 #   2. lagging   (another image)                                  -> rc 3
+#      minted versions: a tag at/above the cnf floor is current; with
+#      SPL_HUB_IMAGE_TAG (the deploy job) only exactly that tag is
 #   3. unhealthy (Ready False / latest revision not the ready one) -> rc 4,
 #      Ready read by condition TYPE, not by position
 #   4. describe fails (no service / no access)                     -> rc 1
@@ -83,6 +85,20 @@ check "lagging: service runs another image"               3 lagging FIXTURE="$T/
 check "unhealthy: Ready=False (read by type, not index)"  4 unhealthy FIXTURE="$T/notready.json"
 check "unhealthy: latest created revision is not ready"   4 unhealthy FIXTURE="$T/rollout.json"
 check "describe fails -> cannot tell"                     1 "" FIXTURE=
+
+# The release version is minted per deploy; cnf hub.image.tag is the floor.
+floor="${ref##*:}"
+IFS=. read -r fa fb fc <<<"$floor"
+ahead="$fa.$fb.$(( fc < 9 ? fc + 1 : fc ))"; [[ "$ahead" != "$floor" ]] || ahead="$fa.$(( fb < 9 ? fb + 1 : fb )).0"
+behind="0.0.0"
+fixture "$T/ahead.json" "${ref%:*}:$ahead" True r-4 r-4
+fixture "$T/behind.json" "${ref%:*}:$behind" True r-4 r-4
+fixture "$T/otherrepo.json" "example.com/other/spool-hub:$ahead" True r-4 r-4
+check "current: a minted tag ABOVE the floor ($ahead > $floor), no SPL_HUB_IMAGE_TAG" 0 current FIXTURE="$T/ahead.json"
+check "lagging: a tag BELOW the floor ($behind < $floor)"                            3 lagging FIXTURE="$T/behind.json"
+check "lagging: a later tag in ANOTHER repository"                                   3 lagging FIXTURE="$T/otherrepo.json"
+check "current: SPL_HUB_IMAGE_TAG=$ahead and the service runs exactly it"            0 current FIXTURE="$T/ahead.json" SPL_HUB_IMAGE_TAG="$ahead"
+check "lagging: SPL_HUB_IMAGE_TAG=$ahead but the service still runs the floor"       3 lagging FIXTURE="$T/current.json" SPL_HUB_IMAGE_TAG="$ahead"
 
 out=$(in_orc GCP_ACCOUNT= HOME="$T/nosa_home" FIXTURE="$T/current.json" 2>&1); rc=$?
 owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT"/*-cnf/*/all.env.yaml)

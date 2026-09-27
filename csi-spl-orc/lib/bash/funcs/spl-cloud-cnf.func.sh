@@ -69,6 +69,16 @@ do_spl_cloud_cnf() {
   SPL_REGION="${vals[1]}"
   SPL_FQDN="${vals[2]}"
   SPL_IMAGE_REF="${vals[3]}"
+  # cnf hub.image.tag is the FLOOR (= .version); the tag a deploy ships is the
+  # release version CI mints for its commit (do_release_version), handed in as
+  # SPL_HUB_IMAGE_TAG. SPL_IMAGE_CNF_REF keeps the cnf reference for readers
+  # that compare against the floor (do_check_hub_deploy, the regress check).
+  SPL_IMAGE_CNF_REF="$SPL_IMAGE_REF"
+  if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then
+    [[ "$SPL_HUB_IMAGE_TAG" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] ||
+      { do_log "FATAL SPL_HUB_IMAGE_TAG must be an odometer version (d.d.d), got: '$SPL_HUB_IMAGE_TAG'"; return 1; }
+    SPL_IMAGE_REF="${SPL_IMAGE_REF%:*}:$SPL_HUB_IMAGE_TAG"
+  fi
   SPL_IMAGE_SQL_SRC="$APP_PATH/${vals[4]}"
   SPL_MIGRATIONS_DIR="${vals[5]}"
   SPL_SQL_INSTANCE="${vals[6]}"
@@ -91,7 +101,7 @@ do_spl_cloud_cnf() {
   [[ "$SPL_DB_USER" != "$SPL_DB_OWNER_USER" && "$SPL_DSN_SECRET" != "$SPL_OWNER_DSN_SECRET" ]] ||
     { do_log "FATAL cnf hub.db_user / db_owner_user (and their secrets) must differ (017 T029)"; return 1; }
   [[ "$SPL_PROJECT" == "$SPL_ORG_APP-$ENV" ]] || { do_log "FATAL cnf gcp_project=$SPL_PROJECT, the convention says $SPL_ORG_APP-$ENV; refusing"; return 1; }
-  export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_IMAGE_SQL_SRC \
+  export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_IMAGE_CNF_REF SPL_IMAGE_SQL_SRC \
     SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME SPL_DB_USER SPL_DSN_SECRET SPL_SQL_CONN SPL_REGISTRY_HOST \
     SPL_SQL_PROXY_IMAGE SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_DB_ROLES_SQL
 }

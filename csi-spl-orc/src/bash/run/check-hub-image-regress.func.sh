@@ -19,13 +19,18 @@
 # @description Prints ONE verdict line, `<env> <verdict> ...`, and exits:
 # @description   0 current  - cnf names exactly the live image
 # @description   0 forward  - cnf names a NEWER tag: a roll, allowed
-# @description   3 regress  - cnf names an OLDER tag: refused (stale tree)
+# @description   0 ahead    - cnf names an OLDER tag, and this tree's 030
+# @description                ignores the image (the pipeline mints the tag
+# @description                per deploy): an apply cannot move it
+# @description   3 regress  - cnf names an OLDER tag and this tree's 030 would
+# @description                still set the image: refused (stale tree)
 # @description   3 diverged - tags do not compare (repository change): refused
 # @description   1          - cannot tell (no service, no access, bad cnf)
 # @description Read-only: describe only, no update, no create, no IAM.
 # @param ENV - required: dev or prd
 # @param ALLOW_IMAGE_REGRESS (optional) - 1 permits a deliberate rollback; the
 # @param   verdict is still printed, so the intent stays visible in the log
+# @param SPL_TF030_FILE (optional) - the 030 service .tf to read the lifecycle from (tests)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key
 # @param   (do_gcp_account; never the owner account)
 # @example ENV=dev ./run -a do_check_hub_image_regress
@@ -69,6 +74,14 @@ do_check_hub_image_regress() {
     return 0
   fi
 
+  # The release version is minted per deploy, so live is AHEAD of the cnf
+  # floor by design. A tree whose 030 ignores the image (lifecycle
+  # ignore_changes) cannot roll it back; an older tree without that line can.
+  local tf="${SPL_TF030_FILE:-$APP_PATH/$SPL_ORG_APP-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf}"
+  if grep -Eq '^[[:space:]]*template\[0\]\.containers\[0\]\.image,?[[:space:]]*$' "$tf" 2>/dev/null; then
+    echo "$ENV ahead service=$svc live=$live_tag cnf=$cnf_tag (the pipeline minted $live_tag; this tree's 030 ignores the image, so an apply leaves it alone)"
+    return 0
+  fi
   echo "$ENV regress service=$svc live=$live_tag cnf=$cnf_tag (an apply would roll the hub BACK: this tree is behind the one that deployed $live_tag)"
   [[ "${ALLOW_IMAGE_REGRESS:-}" == 1 ]] && return 0
   return 3

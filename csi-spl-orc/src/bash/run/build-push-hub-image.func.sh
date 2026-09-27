@@ -17,6 +17,7 @@
 # @description hub.image.tag in <env>.env.yaml (re-render, then 030 plan + apply).
 # @param ENV - required: dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that pushes (artifactregistry.writer)
+# @param SPL_HUB_IMAGE_TAG (optional) - the release version CI minted (do_release_version): the image tag AND the version baked into the binary; unset = cnf hub.image.tag / .version
 # @param DRY_RUN (optional) - 1 (default): build only. 0: build + push.
 # @example ENV=dev ./run -a do_build_push_hub_image
 # @example ENV=dev DRY_RUN=0 ./run -a do_build_push_hub_image
@@ -44,7 +45,7 @@ do_build_push_hub_image() {
   fi
 
   rm -rf "$ctx" && mkdir -p "$ctx/sql" || return 1
-  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 bash "$build" "$ctx/spool" >/dev/null || { do_log "FATAL static spool build failed"; return 1; }
+  SPOOL_BUILD_VERSION="${SPOOL_BUILD_VERSION:-${SPL_HUB_IMAGE_TAG:-}}" CGO_ENABLED=0 GOOS=linux GOARCH=amd64 bash "$build" "$ctx/spool" >/dev/null || { do_log "FATAL static spool build failed"; return 1; }
   cp -p "$SPL_IMAGE_SQL_SRC"/*.sql "$ctx/sql/" || { do_log "FATAL no .sql in $SPL_IMAGE_SQL_SRC"; return 1; }
   docker build -q --platform linux/amd64 \
     --build-arg "MIGRATIONS_DIR=$SPL_MIGRATIONS_DIR" \

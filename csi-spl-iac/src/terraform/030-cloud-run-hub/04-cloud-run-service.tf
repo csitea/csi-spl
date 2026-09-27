@@ -130,12 +130,16 @@ resource "google_cloud_run_v2_service" "hub" {
   ]
 
   lifecycle {
-    # The image is terraform's (var.image = cnf hub.image.ref, an immutable
-    # 028 tag): a deploy is a new tag, re-render, plan + apply. Only the
-    # client stamps gcloud/console leave behind are ignored.
+    # The image is set at CREATE time (var.image = cnf hub.image.ref, the
+    # floor) and then belongs to the 20 pipeline: every deploy rolls the
+    # service to the release version CI mints for its commit
+    # (do_release_version), which is ahead of cnf by design. Terraform must
+    # therefore never roll it back to the floor. Also ignored: the client
+    # stamps gcloud/console leave behind.
     ignore_changes = [
       client,
       client_version,
+      template[0].containers[0].image,
     ]
   }
 }

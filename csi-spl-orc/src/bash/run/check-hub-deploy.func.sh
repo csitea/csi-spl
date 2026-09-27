@@ -6,8 +6,14 @@
 # @description workflow deploy), and is that revision the ready one?
 # @description
 # @description Prints ONE verdict line, `<env> <verdict> ...`, and exits:
-# @description   0 current   - template image == cnf ref, Ready, latest revision ready
-# @description   3 lagging   - the service runs a different image than cnf names
+# @description   0 current   - template image == the expected image, Ready, latest revision ready
+# @description   3 lagging   - the service runs a different image than expected
+# @description The expected image: with SPL_HUB_IMAGE_TAG (the deploy job, which
+# @description knows the release version it minted) exactly that tag. Without
+# @description it (the 00 watch, an operator) the version is minted per deploy
+# @description and cnf hub.image.tag is only the FLOOR, so any tag in the cnf
+# @description repository at or above the floor is current; commit-level lag is
+# @description do_check_deploy_lag's question, not this one.
 # @description   4 unhealthy - the image matches but the service / revision is not ready
 # @description   1           - cannot tell (no service, no access, bad cnf)
 # @description A green workflow run is not proof of a deploy (a skipped deploy
@@ -15,6 +21,7 @@
 # @description create, no IAM. Spec 008 FR-P09.
 # @param ENV - required: dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that reads (run.viewer is enough)
+# @param SPL_HUB_IMAGE_TAG (optional) - require exactly this release version (do_release_version)
 # @example ENV=dev ./run -a do_check_hub_deploy
 #------------------------------------------------------------------------------
 do_check_hub_deploy() {
@@ -41,8 +48,16 @@ do_check_hub_deploy() {
   created="$(yq -p json -r '.status.latestCreatedRevisionName // ""' <<<"$json")"
   latest="$(yq -p json -r '.status.latestReadyRevisionName // ""' <<<"$json")"
 
-  if [[ "$image" != "$SPL_IMAGE_REF" ]]; then
-    echo "$ENV lagging service=$svc live=$image cnf=$SPL_IMAGE_REF"
+  local live_tag="${image##*:}" floor="${SPL_IMAGE_CNF_REF##*:}" ok=0
+  if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then
+    [[ "$image" == "$SPL_IMAGE_REF" ]] && ok=1
+  elif [[ "${image%:*}" == "${SPL_IMAGE_CNF_REF%:*}" ]] && spl_version_valid "$live_tag" &&
+       ! spl_version_gt "$floor" "$live_tag"; then
+    ok=1
+  fi
+  if ((!ok)); then
+    if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then echo "$ENV lagging service=$svc live=$image expected=$SPL_IMAGE_REF (minted)"
+    else echo "$ENV lagging service=$svc live=$image expected=$SPL_IMAGE_CNF_REF (the floor) or a later minted tag"; fi
     return 3
   fi
   if [[ "$ready" != True || -z "$created" || "$created" != "$latest" ]]; then

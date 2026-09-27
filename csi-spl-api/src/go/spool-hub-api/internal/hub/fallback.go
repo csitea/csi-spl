@@ -140,6 +140,14 @@ func fallbackWhere(channel, to string) string {
 // it was meant for is online (FR-030..FR-034). channel is the post's stored
 // channel ("" = a DM). Called once, after the post's own deliveries exist.
 func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message) {
+	s.fallbackPost(ctx, tenant, channel, env, m, false)
+}
+
+// fallbackPost is fallback; swept = the relay's sweep of a post another hub
+// process stored (relay.go, SPL-1004). A swept post is CLAIMED before its
+// frame is written, so two processes that both hold boxes of the tenant hand
+// it out once.
+func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept bool) {
 	if !s.o.Fallback || env.FromBox != WUIBox || !strings.HasPrefix(m.From, "HUM-") {
 		return
 	}
@@ -190,24 +198,34 @@ func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire
 		return
 	}
 	where := fallbackWhere(channel, m.To)
+	now := s.o.Now()
+	rec := store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID, Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}
+	fb, hasFB := s.o.Store.(store.Fallbacks)
+	if swept && hasFB {
+		switch won, err := fb.ClaimFallback(ctx, rec); {
+		case err != nil:
+			log.Error().Err(err).Msg("fallback claim")
+			return
+		case !won: // another hub process took it
+			return
+		}
+	}
 	f := wire.Frame{Type: wire.TRecv, Env: canon, Agents: []string{agent}, Fallback: where}
 	if err := b.x.write(ctx, f); err != nil {
 		log.Warn().Err(err).Str("box", b.box).Str("agent", agent).Msg("fallback write failed")
 		return
 	}
-	now := s.o.Now()
 	if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, b.box, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err == nil {
 		s.o.Store.ClaimSent(ctx, tenant, m.MsgID, b.box, now) //nolint:errcheck
 	} else {
 		log.Error().Err(err).Str("box", b.box).Msg("fallback delivery row")
 	}
-	if fb, ok := s.o.Store.(store.Fallbacks); ok {
-		if err := fb.RecordFallback(ctx, store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID,
-			Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}); err != nil {
+	if hasFB && !swept {
+		if err := fb.RecordFallback(ctx, rec); err != nil {
 			log.Error().Err(err).Msg("fallback record")
 		}
 	}
-	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).Msg("fallback delivered")
+	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).Bool("swept", swept).Msg("fallback delivered")
 }
 
 // channelFallback is the members answer's `fallback` (FR-035): who a post

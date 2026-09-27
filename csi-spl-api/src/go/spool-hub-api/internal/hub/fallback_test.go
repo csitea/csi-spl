@@ -27,7 +27,13 @@ import (
 // fallbackEnv is backfillEnv's rig (browser posts signed by box-wui, no
 // back-fill) with the fallback responder on or off.
 func fallbackEnv(t *testing.T, key ed25519.PrivateKey, on bool) *env {
-	return newEnv(t, func(o *hub.Options) {
+	return newEnv(t, func(o *hub.Options) { fallbackOpts(o, key, on) })
+}
+
+// fallbackOpts is fallbackEnv's option set (relay_test builds a second hub
+// process with it).
+func fallbackOpts(o *hub.Options, key ed25519.PrivateKey, on bool) {
+	{
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
@@ -40,7 +46,7 @@ func fallbackEnv(t *testing.T, key ed25519.PrivateKey, on bool) *env {
 			return "", errors.New("no session")
 		}
 		o.Fallback = on
-	})
+	}
 }
 
 // fallbackRig is one tenant with box-wui pinned, a human who is a member of

@@ -252,6 +252,11 @@ type Hub struct {
 	// SPL-997: a human post no agent could hear goes to ONE online fallback
 	// agent of the tenant (hub/fallback.go). false = off.
 	Fallback bool `env:"SPOOL_HUB_FALLBACK" envDefault:"true"`
+	// SPL-1004: every QueueRelay each hub process delivers the queued rows of
+	// the box sockets it holds, and sweeps their tenants for unheard posts
+	// (hub/relay.go): a post stored by another process or revision reaches
+	// its agents within a tick, not at the box's next hello. 0 = off.
+	QueueRelay time.Duration `env:"SPOOL_HUB_QUEUE_RELAY" envDefault:"5s"`
 
 	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`

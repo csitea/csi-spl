@@ -220,6 +220,7 @@ func cmdServe() int {
 		return fail(err)
 	}
 	go srv.RunSweeper(ctx, 10*time.Minute)
+	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
 	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,

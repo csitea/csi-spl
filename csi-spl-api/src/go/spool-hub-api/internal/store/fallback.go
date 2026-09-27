@@ -44,6 +44,18 @@ type Fallbacks interface {
 	// RecordFallback stores one fallback delivery; a second record of the
 	// same (tenant, msg) is a no-op.
 	RecordFallback(ctx context.Context, d FallbackDelivery) error
+	// ClaimFallback records d only when the post has no fallback yet, and
+	// reports whether this call wrote it: the claim that keeps two hub
+	// processes from both handing one post out (SPL-1004).
+	ClaimFallback(ctx context.Context, d FallbackDelivery) (bool, error)
+	// UnheardPosts lists signed browser posts by a person (from_box box-wui,
+	// from HUM-*) received in [since, until) that no agent box was sent and
+	// no fallback took, oldest first, at most limit (SPL-1004). Only posts
+	// that can fall back: a channel post in a channel that did not opt out,
+	// or a DM to an agent. The hub that
+	// holds a tenant's boxes sweeps them: the process a post was stored on
+	// may hold none of them.
+	UnheardPosts(ctx context.Context, tenantID string, since, until time.Time, limit int) ([]Queued, error)
 	// ChannelFallbacks summarises the channel's fallback deliveries at or
 	// after since ("" channel = the DMs).
 	ChannelFallbacks(ctx context.Context, tenantID, channelID string, since time.Time) (FallbackSummary, error)

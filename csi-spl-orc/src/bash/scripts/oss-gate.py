@@ -6,7 +6,7 @@ to the report: class, path, line, label. The label names the RULE that fired,
 never the text it matched -- the report is a distribution channel too, so a
 secret or a banned literal must not travel in it.
 
-  oss-gate.py scan    --dir D --rules R --assets A --report OUT
+  oss-gate.py scan    --dir D --rules R --assets A --report OUT [--cnf-vars J]
   oss-gate.py deps    --report OUT [--node-modules NM] [--go-list F]
   oss-gate.py summary --report OUT --classes c1,c2,...
 
@@ -65,7 +65,11 @@ def read(path):
         return fh.read()
 
 
-def load_rules(path):
+def load_rules(path, cnf_vars=None):
+    """class<TAB>label<TAB>regex; {{cnf:<yq path>}} in a regex is replaced by the
+    escaped cnf value (resolved by the caller), so an estate literal lives only
+    in csi-spl-cnf and never in this file."""
+    vals = json.loads(read(cnf_vars)) if cnf_vars else {}
     rules = []
     with open(path, encoding="utf-8") as fh:
         for n, line in enumerate(fh, 1):
@@ -76,6 +80,10 @@ def load_rules(path):
             if len(parts) != 3:
                 sys.exit(f"FATAL {path}:{n}: want class<TAB>label<TAB>regex")
             cls, label, rx = parts
+            for tok in re.findall(r"\{\{cnf:[^}]+\}\}", rx):
+                if not vals.get(tok):
+                    sys.exit(f"FATAL {path}:{n}: {tok} has no cnf value")
+                rx = rx.replace(tok, re.escape(vals[tok]))
             rules.append((cls, label, re.compile(rx)))
     if not rules:
         sys.exit(f"FATAL {path}: no rules -- the literal classes would prove nothing")
@@ -94,7 +102,7 @@ def row(out, cls, path, line, label):
 
 
 def scan(a):
-    rules = load_rules(a.rules)
+    rules = load_rules(a.rules, a.cnf_vars)
     assets = load_globs(a.assets)
     with open(a.report, "a", encoding="utf-8") as out:
         for d, dirs, files in os.walk(a.dir):
@@ -278,6 +286,7 @@ def main():
     s.add_argument("--dir", required=True)
     s.add_argument("--rules", required=True)
     s.add_argument("--assets")
+    s.add_argument("--cnf-vars")
     s.add_argument("--report", required=True)
     d = sp.add_parser("deps")
     d.add_argument("--report", required=True)

@@ -13,7 +13,8 @@
 #          - refusals (exit 2): non-empty OUT_DIR, OUT_DIR inside the repo, a
 #            missing required entry, an unsafe entry, a CI gitleaks pin that
 #            drifted from the gate's, a skipped dependency class
-#          - the real allow-list names no private dir (T004, static)
+#          - the real allow-list names no private dir (T004, static); the
+#            real rules file holds no cnf value, its {{cnf:...}} tokens resolve
 #          Needs gitleaks 8.30.1: GITLEAKS_BIN, the user cache, or a download.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -53,13 +54,15 @@ git -C "$R" init -q && git -C "$R" add -A \
   && git -C "$R" -c user.name=t -c user.email=t@example.com commit -qm init || { echo "FAIL: fixture repo"; exit 1; }
 printf '%s\n' prod LICENSE THIRD-PARTY-NOTICES.md '?not-yet.md' >"$tmp/allow.txt"
 printf 'private-host\ta private test host\t(?i)example-private\\.test\n' >"$tmp/rules.tsv"
+printf 'private-host\tthe cnf domain\t(?i){{cnf:.env.dns.BASE_DOMAIN}}\n' >>"$tmp/rules.tsv"
+printf 'env:\n  dns:\n    BASE_DOMAIN: cnf-domain.test\n' >"$tmp/cnf.yaml"
 : >"$tmp/assets.txt"
 mkdir -p "$tmp/nm/.pnpm/good@1.0.0/node_modules/good" "$tmp/nm/.pnpm/@s+scoped@2.0.0/node_modules/@s/scoped"
 echo '{"name":"good","version":"1.0.0","license":"MIT"}' >"$tmp/nm/.pnpm/good@1.0.0/node_modules/good/package.json"
 echo '{"name":"@s/scoped","version":"2.0.0","license":"(BSD-3-Clause OR GPL-2.0)"}' >"$tmp/nm/.pnpm/@s+scoped@2.0.0/node_modules/@s/scoped/package.json"
 
 export APP_PATH="$R" PROJ_PATH="$PROJ_ROOT" OSS_ALLOW_LIST="$tmp/allow.txt" \
-  OSS_GATE_RULES="$tmp/rules.tsv" OSS_GATE_ASSETS="$tmp/assets.txt" OSS_GATE_NODE_MODULES="$tmp/nm"
+  OSS_GATE_RULES="$tmp/rules.tsv" OSS_GATE_CNF="$tmp/cnf.yaml" OSS_GATE_ASSETS="$tmp/assets.txt" OSS_GATE_NODE_MODULES="$tmp/nm"
 n=0
 # commit <path> <content> - change the fixture repo and commit (the export reads a ref)
 commit() {
@@ -111,6 +114,13 @@ check "$rc" 1 "CONTROL banned literal -> the gate fails"
 grep -qP '^private-host\tprod/url\.txt\t1\ta private test host$' "$rep" && ok "literal row names file:line + rule label" || no "no literal row"
 grep -qF "example-private" "$rep" && no "the literal reached the report" || ok "the literal is not in the report"
 git -C "$R" rm -q prod/url.txt && git -C "$R" -c user.name=t -c user.email=t@example.com commit -qm rm
+commit prod/host.txt "mail from noreply@cnf-domain.test"
+run_export
+check "$rc" 1 "CONTROL a value named by a {{cnf:...}} rule -> the gate fails"
+grep -qP '^private-host\tprod/host\.txt\t1\tthe cnf domain$' "$rep" && ok "the cnf-token rule names file:line" || no "no cnf-token row"
+printf 'env: {}\n' >"$tmp/cnf-empty.yaml"
+OSS_GATE_CNF="$tmp/cnf-empty.yaml" run_export; check "$rc" 2 "a {{cnf:...}} key with no value is never a pass"
+git -C "$R" rm -q prod/host.txt && git -C "$R" -c user.name=t -c user.email=t@example.com commit -qm rm
 
 # ---- 5. controls: forbidden file, image, licence, dependency -----------------
 commit prod/sub/CLAUDE.md "x"
@@ -164,12 +174,27 @@ real="$PROJ_ROOT/cnf/oss/export-allow-list.txt"
 bad=$(grep -vE '^\s*(#|$)' "$real" | sed 's/^?//' | grep -E '^(csi-spl-(cnf|iac|orc|doc|dat|utl)|\.github/?$|\.github/workflows/?$|CLAUDE\.md|AGENTS\.md|GEMINI\.md|README\.md)(/|$)')
 [[ -z "$bad" ]] && ok "the real allow-list names no private path" || no "the real allow-list names: $bad"
 [[ $(grep -vcE '^\s*(#|$)' "$PROJ_ROOT/cnf/oss/banned-literals.tsv") -ge 10 ]] && ok "the real rules file carries its classes" || no "the real rules file is thin"
-OSS_GATE_RULES="$PROJ_ROOT/cnf/oss/banned-literals.tsv" python3 - "$PROJ_ROOT/cnf/oss/banned-literals.tsv" <<'EOF' && ok "every real rule compiles" || no "a real rule does not compile"
+python3 - "$PROJ_ROOT/cnf/oss/banned-literals.tsv" <<'EOF' && ok "every real rule compiles" || no "a real rule does not compile"
 import re, sys
 for l in open(sys.argv[1]):
     if l.strip() and not l.startswith('#'):
-        c, lab, rx = l.rstrip('\n').split('\t'); re.compile(rx)
+        c, lab, rx = l.rstrip('\n').split('\t'); re.compile(re.sub(r"\{\{cnf:[^}]+\}\}", "x", rx))
 EOF
+# the estate values stay in cnf only (the iac domain-single-source and
+# gcloud-account-pinned gates): the real rules name them by {{cnf:...}}
+cnf_real="$REPO_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+if [[ -f "$cnf_real" ]]; then
+  leak=0
+  for k in .env.dns.BASE_DOMAIN .env.gcp.gcp_org_id; do
+    v=$(yq -r "$k // \"\"" "$cnf_real"); [[ -n "$v" ]] && grep -qF -- "$v" "$PROJ_ROOT/cnf/oss/banned-literals.tsv" && leak=1
+  done
+  (( leak == 0 )) && ok "the real rules file holds no cnf value" || no "the real rules file hard-codes a cnf value"
+  if oss_gate_cnf_vars "$PROJ_ROOT/cnf/oss/banned-literals.tsv" "$cnf_real" "$tmp/vars.json" && [[ $(jq length "$tmp/vars.json") -ge 2 ]]; then
+    ok "every real {{cnf:...}} token resolves"
+  else
+    no "a real {{cnf:...}} token does not resolve"
+  fi
+fi
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

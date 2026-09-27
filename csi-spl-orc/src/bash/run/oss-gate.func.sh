@@ -33,6 +33,8 @@
 # @param DIR - required: the exported tree (not a git checkout)
 # @param OSS_GATE_REPORT (optional) - default: <DIR>.oss-gate-report.tsv (beside DIR, never in it)
 # @param OSS_GATE_RULES (optional) - default: csi-spl-orc/cnf/oss/banned-literals.tsv
+# @param OSS_GATE_CNF (optional) - default: csi-spl-cnf/csi-spl/all.env.yaml, resolves
+# @param   the {{cnf:<yq path>}} tokens of the rules file (the estate literals live in cnf only)
 # @param OSS_GATE_ASSETS (optional) - default: csi-spl-orc/cnf/oss/licensed-assets.txt
 # @param OSS_GATE_NODE_MODULES (optional) - the WUI node_modules to read npm
 # @param   licences from; default <DIR>/csi-spl-wui/node_modules, else the
@@ -116,6 +118,20 @@ oss_gate_hygiene() {
   fi
 }
 
+# oss_gate_cnf_vars <rules> <cnf yaml> <out> - JSON {"{{cnf:<path>}}": value}
+# for every token in <rules>; non-zero when one has no value (never a pass).
+oss_gate_cnf_vars() {
+  local rules="$1" cnf="$2" out="$3" tok path val json='{}'
+  while IFS= read -r tok; do
+    [[ -n "$tok" ]] || continue
+    path="${tok#\{\{cnf:}"; path="${path%\}\}}"
+    val=$(yq -r "$path // \"\"" "$cnf" 2>/dev/null)
+    [[ -n "$val" && "$val" != null ]] || { echo "$tok has no value in $cnf" >&2; return 1; }
+    json=$(jq -c --arg k "$tok" --arg v "$val" '. + {($k): $v}' <<<"$json")
+  done < <(grep -v '^#' "$rules" | grep -oE '\{\{cnf:[^}]+\}\}' | sort -u)
+  printf '%s\n' "$json" >"$out"
+}
+
 # oss_gate_go_list <dir> <out> - "module version dir" for every non-main
 # module compiled by every Go module in <dir>, from the local module cache.
 oss_gate_go_list() {
@@ -147,6 +163,7 @@ do_oss_gate() {
   local wf_q="$APP_PATH/.github/workflows/10_ci-quality.yml"
   local wf_s="$APP_PATH/.github/workflows/15_sec-deps-secrets.yml"
   local py="$orc/src/bash/scripts/oss-gate.py" cfg="$APP_PATH/.gitleaks.toml"
+  local cnf="${OSS_GATE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   local unmeasured=() golist ci_ver nm
   [[ "$report" != "$dir"/* ]] || { do_log "FATAL OSS_GATE_REPORT must not be inside DIR (it would ship)"; return 2; }
   [[ -f "$rules" ]] || { do_log "FATAL no literal rules at $rules"; return 2; }
@@ -163,7 +180,13 @@ do_oss_gate() {
 
   oss_gate_secrets "$dir" "$cfg" "$report" || unmeasured+=(secret)
   oss_gate_hygiene "$dir" "$wf_q" "$report" || unmeasured+=(hygiene)
-  python3 "$py" scan --dir "$dir" --rules "$rules" --assets "$assets" --report "$report" || unmeasured+=(literals)
+  local cnfvars; cnfvars=$(mktemp)
+  if oss_gate_cnf_vars "$rules" "$cnf" "$cnfvars"; then
+    python3 "$py" scan --dir "$dir" --rules "$rules" --assets "$assets" --cnf-vars "$cnfvars" --report "$report" || unmeasured+=(literals)
+  else
+    unmeasured+=(literals:cnf)
+  fi
+  rm -f "$cnfvars"
 
   if [[ "${OSS_GATE_SKIP_DEPS:-0}" == 1 ]]; then
     unmeasured+=(dep-licence:SKIPPED)

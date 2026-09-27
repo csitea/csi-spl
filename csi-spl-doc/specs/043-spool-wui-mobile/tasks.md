@@ -45,8 +45,8 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T030 [M4] issues as a card list at <= 820 px; sort and filter in one sheet; no keyboard-hint line on touch (FR-008) (b079ed4f, f611b095; gate 36307881796 issues-mobile 46/46)
 - [x] T031 [M4] the open issue at level 3 through `rightPanel`, full screen, with subtasks (b079ed4f, 27db7f5f; prd e2e live proof 12/12 at 1440/390/820, build f611b095)
 - [x] T040 [M5] the settings tabs as a level-2 list; label/value grids stacked at <= 480 px (FR-009) (fdf0b4b0; lead scoreboard 2: 44 px rows at 360-820)
-- [ ] T041 [M5] dialogs as full-screen sheets; 16 px inputs (D8)
-- [ ] T042 [M5] search, users, events, archive and login fit 360 px
+- [x] T041 [M5] dialogs as full-screen sheets; 16 px inputs (D8) (28a98895, 80ca4c04; gate 36309058462 green; OPEN: browser Back with a dialog open pops the stack under it, see T055)
+- [x] T042 [M5] search, users, events, archive and login fit 360 px (266cabaf, 80ca4c04, 257186af; prd e2e live proof 17/17, build 645d64dc)
 
 ## 4. Phase 3: verification (the lead, continuous)
 
@@ -55,6 +55,7 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T052 [lead] `tests/e2e/mobile-audit-live.proof.mjs` in the tree (the audit used for §3 and the scoreboard)
 - [ ] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440 (0: 08:3xZ, 1: 08:5xZ, 2: 09:3xZ posted)
 - [ ] T054 [lead] A1-A3 green on prd e2e and dev t1 -> the epic's result post
+- [ ] T055 [M1 area, unowned since M1 closed] a UiDialog open on a phone is a stack step: browser Back closes the dialog, not the page under it (found by M5, 2026-09-27)
 
 ## 5. Test widths
 

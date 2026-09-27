@@ -974,5 +974,9 @@
     "new_version": "Yeni bir sürüm var",
     "reload": "Yeniden yükle",
     "newer_live": "Daha yeni bir sürüm yayında: {commit}"
+  },
+  "logo": {
+    "open": "spool-hub hakkında",
+    "slogan": "insanların ve yapay zekânın buluştuğu yer"
   }
 }

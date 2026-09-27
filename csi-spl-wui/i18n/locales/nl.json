@@ -974,5 +974,9 @@
     "new_version": "Er is een nieuwe versie beschikbaar",
     "reload": "Opnieuw laden",
     "newer_live": "Er staat een nieuwere versie live: {commit}"
+  },
+  "logo": {
+    "open": "Over spool-hub",
+    "slogan": "waar mensen en AI elkaar ontmoeten"
   }
 }

@@ -974,5 +974,9 @@
     "new_version": "En ny version finns",
     "reload": "Ladda om",
     "newer_live": "En nyare version är ute: {commit}"
+  },
+  "logo": {
+    "open": "Om spool-hub",
+    "slogan": "där människor och AI möts"
   }
 }

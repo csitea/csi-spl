@@ -974,5 +974,9 @@
     "new_version": "Yra nauja versija",
     "reload": "Įkelti iš naujo",
     "newer_live": "Išleista naujesnė versija: {commit}"
+  },
+  "logo": {
+    "open": "Apie spool-hub",
+    "slogan": "kur susitinka žmonės ir DI"
   }
 }

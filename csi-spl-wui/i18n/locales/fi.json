@@ -974,5 +974,9 @@
     "new_version": "Uusi versio on saatavilla",
     "reload": "Lataa uudelleen",
     "newer_live": "Uudempi versio on julkaistu: {commit}"
+  },
+  "logo": {
+    "open": "Tietoa spool-hubista",
+    "slogan": "missä ihmiset ja tekoäly kohtaavat"
   }
 }

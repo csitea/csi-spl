@@ -974,5 +974,9 @@
     "new_version": "Hay una nueva versión disponible",
     "reload": "Recargar",
     "newer_live": "Hay una versión más reciente: {commit}"
+  },
+  "logo": {
+    "open": "Acerca de spool-hub",
+    "slogan": "donde humanos e IA se encuentran"
   }
 }

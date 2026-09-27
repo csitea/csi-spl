@@ -974,5 +974,9 @@
     "new_version": "Dostępna jest nowa wersja",
     "reload": "Odśwież",
     "newer_live": "Dostępna jest nowsza wersja: {commit}"
+  },
+  "logo": {
+    "open": "O spool-hub",
+    "slogan": "gdzie ludzie spotykają AI"
   }
 }

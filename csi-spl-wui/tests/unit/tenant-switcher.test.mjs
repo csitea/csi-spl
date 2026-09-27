@@ -169,7 +169,7 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     assert.ok(box > 0 && rail > box)
     const start = topBar.slice(topBar.indexOf('class="top-bar__start"'), topBar.indexOf('<TopBarTenant'))
     assert.ok(start.indexOf('<TenantDropBox />') > 0 && start.indexOf('<ThemeToggle />') > start.indexOf('<TenantDropBox />'), 'drop box, then the theme icon')
-    /* owner 2026-09-27 (topic 38ba1dae): the logo just before the drop box, as the home link */
+    /* owner 2026-09-27 (topic 38ba1dae): the logo just before the drop box; a click opens LogoDialog */
     const logo = start.indexOf('data-test="top-bar-logo"')
     assert.ok(logo > 0 && logo < start.indexOf('<TenantDropBox />'), 'logo, then the drop box')
     assert.match(start, /<img src="\/logo\.webp"/)

@@ -18,11 +18,13 @@
     <div class="top-bar__start" data-test="top-bar-start">
       <!-- owner 2026-09-27: the spool-hub brand text is gone (topic d5504c2b).
            The logo (topic 38ba1dae: the owner's own image, a human and an
-           AI in one glowing net) comes first and is the home link the text
-           was; then the tenant drop box, just before the theme icon. -->
-      <NuxtLink class="top-bar__logo" data-test="top-bar-logo" :to="localePath('/')" :aria-label="t('search.home')">
+           AI in one glowing net) comes first, small; a click opens it at its
+           true size in a centred dialog with the slogan (LogoDialog). Then
+           the tenant drop box, just before the theme icon. -->
+      <button type="button" class="top-bar__logo" data-test="top-bar-logo" :aria-label="t('logo.open')" :title="t('logo.open')" @click="logoOpen = true">
         <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
-      </NuxtLink>
+      </button>
+      <LazyLogoDialog v-if="logoOpen" v-model:open="logoOpen" />
       <TenantDropBox />
       <ThemeToggle />
     </div>
@@ -87,6 +89,8 @@ const localePath = useLocalePath()
 const router = useRouter()
 const route = useRoute()
 const omnibox = useOmniboxStore()
+/* topic 38ba1dae: the logo's true-size dialog, mounted only once asked for */
+const logoOpen = ref(false)
 const search = useSearchStore()
 const session = useSessionStore()
 const api = useSpoolApi()
@@ -228,6 +232,10 @@ onUnmounted(() => {
 .top-bar__logo {
   display: inline-flex;
   flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
   border-radius: var(--radius-sm);
 }
 .top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }

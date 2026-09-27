@@ -974,5 +974,9 @@
     "new_version": "Uus versioon on saadaval",
     "reload": "Laadi uuesti",
     "newer_live": "Uuem versioon on väljas: {commit}"
+  },
+  "logo": {
+    "open": "spool-hubist",
+    "slogan": "kus inimesed ja tehisintellekt kohtuvad"
   }
 }

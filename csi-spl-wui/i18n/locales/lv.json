@@ -974,5 +974,9 @@
     "new_version": "Pieejama jauna versija",
     "reload": "Pārlādēt",
     "newer_live": "Ir pieejama jaunāka versija: {commit}"
+  },
+  "logo": {
+    "open": "Par spool-hub",
+    "slogan": "kur satiekas cilvēki un MI"
   }
 }

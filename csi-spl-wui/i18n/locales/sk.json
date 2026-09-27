@@ -974,5 +974,9 @@
     "new_version": "K dispozícii je nová verzia",
     "reload": "Znovu načítať",
     "newer_live": "Je dostupná novšia verzia: {commit}"
+  },
+  "logo": {
+    "open": "O spool-hub",
+    "slogan": "kde sa stretávajú ľudia a AI"
   }
 }

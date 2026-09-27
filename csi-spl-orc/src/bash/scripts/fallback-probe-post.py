@@ -4,7 +4,10 @@ new topic into a channel over the browser socket (/v1/wui/ws), exactly as
 the web UI does, so the hub signs it with box-wui and runs its fallback rule.
 
 Env: PROBE_API (https://<api host>), PROBE_TENANT, PROBE_EMAIL,
-PROBE_PW_FILE, PROBE_CHANNEL, PROBE_BODY. Prints one JSON line
+PROBE_PW_FILE, PROBE_CHANNEL, PROBE_BODY. Optional (SPL-1004 reply probe):
+PROBE_TO (msg.to, e.g. a person), PROBE_TASK (post into this topic),
+PROBE_PARENT=0 (a reply: is_parent 0 and NO channel tag, as the reply pane
+sends it). Prints one JSON line
 {"msg_id", "task_id", "sent_at"}; exit 0 = acked, 1 = refused, 2 = could not
 sign in. The password and the cookie are never printed.
 """
@@ -42,9 +45,15 @@ def main():
         if not wel or wel.get("type") != "welcome":
             print(json.dumps({"step": "welcome", "frame": wel}))
             return 1
-        task = str(uuid.uuid4())
+        task = os.environ.get("PROBE_TASK") or str(uuid.uuid4())
+        parent = 0 if os.environ.get("PROBE_PARENT") == "0" else 1
+        frame = {"type": "send", "task_id": task, "kind": "note", "body": body, "is_parent": parent}
+        if parent:
+            frame["channel"] = ch
+        if os.environ.get("PROBE_TO"):
+            frame["to"] = os.environ["PROBE_TO"]
         sent_at = time.time()
-        ws.send({"type": "send", "task_id": task, "channel": ch, "kind": "note", "body": body, "is_parent": 1})
+        ws.send(frame)
         ack = ws.wait(lambda f: f.get("type") in ("ack", "error"))
         if not ack or ack.get("type") != "ack":
             print(json.dumps({"step": "send", "frame": ack}))

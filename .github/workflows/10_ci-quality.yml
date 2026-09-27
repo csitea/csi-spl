@@ -169,7 +169,9 @@ jobs:
   wui-e2e:
     name: "wui: browser e2e (mock, generated)"
     runs-on: [self-hosted, spool-ci]
-    timeout-minutes: 10
+    # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
+    # run 36313405989 was killed at 10m with every suite passing so far.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: csi-spl-wui

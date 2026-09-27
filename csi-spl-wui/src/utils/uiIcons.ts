@@ -189,6 +189,13 @@ export const UI_ICON_PATHS = {
     "M12 17v-6",
     "m9 14 3-3 3 3",
   ],
+  // SPL-1024 (spec 045): Move to channel / topic (lucide folder-input): a
+  // folder with an arrow going in.
+  move: [
+    "M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1",
+    "M2 13h10",
+    "m9 16 3-3-3-3",
+  ],
   // Delete a whole topic (Material "delete"): a plain can with its lid.
   delete: [
     "M4 6h16",

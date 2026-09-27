@@ -52,6 +52,10 @@ const props = defineProps<{
   topic?: boolean
   /** SPL-991: the viewer may re-type this message (the sheet's Kind item) */
   kind?: boolean
+  /** SPL-1024: a card the viewer may move to another channel */
+  moveChannel?: boolean
+  /** SPL-1024: a reply the viewer may move to another topic */
+  moveTopic?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -70,6 +74,8 @@ const emit = defineEmits<{
   react: []
   'copy-text': []
   kind: []
+  'move-channel': []
+  'move-topic': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -87,6 +93,8 @@ const items = computed(() => msgMenuItems({
   mergeNext: props.mergeNext,
   parent: props.parent,
   topic: props.topic,
+  moveChannel: props.moveChannel,
+  moveTopic: props.moveTopic,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -166,6 +174,8 @@ function choose(id: string) {
   else if (id === 'react') emit('react')
   else if (id === 'copy-text') emit('copy-text')
   else if (id === 'kind') emit('kind')
+  else if (id === 'move-channel') emit('move-channel')
+  else if (id === 'move-topic') emit('move-topic')
   emit('close')
 }
 </script>

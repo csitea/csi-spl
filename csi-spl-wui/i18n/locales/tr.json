@@ -513,7 +513,9 @@
       "unarchive": "Arşivden çıkar",
       "reply": "Yanıtla",
       "copy_text": "Metni kopyala",
-      "kind": "Türü değiştir"
+      "kind": "Türü değiştir",
+      "move_channel": "Kanala taşı…",
+      "move_topic": "Konuya taşı…"
     },
     "emoji": {
       "add": "Emoji ekle",
@@ -559,6 +561,32 @@
       "title": "Bu mesaj silinsin mi?",
       "body": "Herkes için kaldırılır. Bu geri alınamaz.",
       "confirm": "Sil"
+    },
+    "move": {
+      "channel_title": "Bu konuyu bir kanala taşı",
+      "topic_title": "Bu mesajı bir konuya taşı",
+      "filter": "Filtrele",
+      "no_channels": "Yazabileceğin başka kanal yok.",
+      "no_topics": "Eşleşen konu yok.",
+      "done_channel": "#{channel} kanalına taşındı",
+      "done_topic": "“{title}” konusuna taşındı",
+      "done_topic_plain": "Konuya taşındı",
+      "undo": "Geri al",
+      "undone": "Taşıma geri alındı",
+      "from_channel": "#{channel} kanalından taşındı",
+      "from_topic": "“{title}” konusundan taşındı",
+      "from_topic_unknown": "başka bir konudan taşındı",
+      "error": "Taşınamadı. Tekrar deneyin.",
+      "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici taşıyabilir.",
+      "error_lobby": "Lobi bir konu alamaz veya veremez.",
+      "error_not_in_channel": "Doğrudan mesaj bir kanala taşınamaz.",
+      "error_issue_topic": "Bir sorunun tartışması sorunla birlikte kalır.",
+      "error_same_place": "Zaten orada.",
+      "error_is_card": "Bu bir konunun ilk mesajı: bunun yerine konunun tamamını bir kanala taşıyın.",
+      "error_not_a_card": "Hedef bir konu değil.",
+      "error_cycle": "Bir mesaj kendi dizisine taşınamaz.",
+      "error_unknown_channel": "Bu kanal size açık değil.",
+      "error_not_found": "Bu konu artık yok."
     }
   },
   "topic": {

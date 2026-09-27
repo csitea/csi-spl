@@ -78,6 +78,10 @@
     <ClientOnly>
       <ErrorSnackbar />
     </ClientOnly>
+    <!-- SPL-1024: "Moved to ... · Undo"; its chunk loads on the first move only -->
+    <ClientOnly>
+      <LazyMoveUndoToast v-if="move.toast.value" />
+    </ClientOnly>
     <ClientOnly>
       <DebugPanel />
     </ClientOnly>
@@ -102,6 +106,7 @@ import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
+import { useMove } from '~/composables/useMove'
 
 const topic = useTopicStore()
 /* topic c6994436: the bottom dock under the middle pane is on */
@@ -133,6 +138,8 @@ const livePane = useLiveFeed('pane')
 /* A delete from another tab drops the row from every store this shell holds. */
 const live = useLive()
 const { dropEverywhere } = useMessageEdit()
+/* SPL-1024: another tab's topic_moved / message_moved frame moves the rows here too */
+const move = useMove()
 let offDeleted = () => {}
 let offTopic = () => {}
 /* SPL-996: a focusin chooses a pane only right after the reader's own
@@ -151,6 +158,7 @@ onMounted(() => {
     const gone = topicFrameTasks(f, live.lobbyTaskId.value)
     if (livePane.taskId && gone.includes(String(livePane.taskId))) livePane.close()
     if (topic.open && gone.includes(String(topic.parentTaskId || ''))) topic.close()
+    move.dispatch(f)
   })
 })
 onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keydown', noteKey, true) })

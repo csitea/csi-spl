@@ -513,7 +513,9 @@
       "unarchive": "Återställ från arkiv",
       "reply": "Svara",
       "copy_text": "Kopiera text",
-      "kind": "Ändra typ"
+      "kind": "Ändra typ",
+      "move_channel": "Flytta till kanal…",
+      "move_topic": "Flytta till ämne…"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -559,6 +561,32 @@
       "title": "Ta bort det här meddelandet?",
       "body": "Det tas bort för alla. Det kan inte ångras.",
       "confirm": "Ta bort"
+    },
+    "move": {
+      "channel_title": "Flytta det här ämnet till en kanal",
+      "topic_title": "Flytta det här meddelandet till ett ämne",
+      "filter": "Filtrera",
+      "no_channels": "Ingen annan kanal där du kan skriva.",
+      "no_topics": "Inget ämne matchar.",
+      "done_channel": "Flyttad till #{channel}",
+      "done_topic": "Flyttad till ”{title}”",
+      "done_topic_plain": "Flyttad till ämnet",
+      "undo": "Ångra",
+      "undone": "Flytten ångrad",
+      "from_channel": "flyttad från #{channel}",
+      "from_topic": "flyttad från ”{title}”",
+      "from_topic_unknown": "flyttad från ett annat ämne",
+      "error": "Det gick inte att flytta. Försök igen.",
+      "error_forbidden": "Bara författaren, ägaren eller en administratör får flytta detta.",
+      "error_lobby": "Lobbyn kan inte ta emot eller lämna ifrån sig ett ämne.",
+      "error_not_in_channel": "Ett direktmeddelande kan inte flyttas till en kanal.",
+      "error_issue_topic": "Ett ärendes diskussion stannar hos ärendet.",
+      "error_same_place": "Det är redan där.",
+      "error_is_card": "Det här är ett ämnes första meddelande: flytta hela ämnet till en kanal i stället.",
+      "error_not_a_card": "Målet är inte ett ämne.",
+      "error_cycle": "Ett meddelande kan inte flyttas in i sin egen tråd.",
+      "error_unknown_channel": "Den kanalen är inte öppen för dig.",
+      "error_not_found": "Det ämnet finns inte längre."
     }
   },
   "topic": {

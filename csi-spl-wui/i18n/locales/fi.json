@@ -513,7 +513,9 @@
       "unarchive": "Palauta arkistosta",
       "reply": "Vastaa",
       "copy_text": "Kopioi teksti",
-      "kind": "Vaihda tyyppi"
+      "kind": "Vaihda tyyppi",
+      "move_channel": "Siirrä kanavalle…",
+      "move_topic": "Siirrä aiheeseen…"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -559,6 +561,32 @@
       "title": "Poistetaanko tämä viesti?",
       "body": "Se poistetaan kaikilta. Tätä ei voi perua.",
       "confirm": "Poista"
+    },
+    "move": {
+      "channel_title": "Siirrä tämä aihe kanavalle",
+      "topic_title": "Siirrä tämä viesti aiheeseen",
+      "filter": "Suodata",
+      "no_channels": "Ei muuta kanavaa, jolle voit kirjoittaa.",
+      "no_topics": "Yksikään aihe ei vastaa.",
+      "done_channel": "Siirretty kanavalle #{channel}",
+      "done_topic": "Siirretty aiheeseen ”{title}”",
+      "done_topic_plain": "Siirretty aiheeseen",
+      "undo": "Kumoa",
+      "undone": "Siirto kumottu",
+      "from_channel": "siirretty kanavalta #{channel}",
+      "from_topic": "siirretty aiheesta ”{title}”",
+      "from_topic_unknown": "siirretty toisesta aiheesta",
+      "error": "Siirto epäonnistui. Yritä uudelleen.",
+      "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi siirtää tämän.",
+      "error_lobby": "Aula ei voi ottaa eikä antaa aihetta.",
+      "error_not_in_channel": "Yksityisviestiä ei voi siirtää kanavalle.",
+      "error_issue_topic": "Tiketin keskustelu pysyy tiketissä.",
+      "error_same_place": "Se on jo siellä.",
+      "error_is_card": "Tämä on aiheen ensimmäinen viesti: siirrä koko aihe kanavalle.",
+      "error_not_a_card": "Kohde ei ole aihe.",
+      "error_cycle": "Viestiä ei voi siirtää sen omaan ketjuun.",
+      "error_unknown_channel": "Tämä kanava ei ole sinulle avoin.",
+      "error_not_found": "Aihetta ei enää ole."
     }
   },
   "topic": {

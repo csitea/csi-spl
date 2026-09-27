@@ -53,6 +53,14 @@ export interface SpoolMessage {
    * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.
    */
   reactions?: MessageReaction[]
+  /**
+   * SPL-1024 move-v1 §5: present only while the row is not where its envelope
+   * says (moved to another channel / topic). `moved_from_*` name its home.
+   */
+  moved_at?: string
+  moved_by?: string
+  moved_from_channel?: string
+  moved_from_task?: string
 }
 
 /** One emoji and the members who added it. */

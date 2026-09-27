@@ -53,6 +53,7 @@
         @edited="onEdited"
         @deleted="onDeleted"
         @reacted="onReacted"
+        :move-ctx="moveCtx"
       />
     </div>
     <BornTopics v-if="newestLast" />
@@ -73,6 +74,7 @@ import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useViewPrefs } from '~/composables/useViewPrefs'
+import { useMove } from '~/composables/useMove'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
@@ -114,6 +116,26 @@ const heading = computed(() => {
   const text = topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
   return text ? t('topic.list_title', { text }) : t('topic.title')
 })
+
+/*
+ * SPL-1024: a reply of a channel topic may be moved to another topic (drag
+ * it onto a middle card, or its menu's Move to topic…). A DM pane offers
+ * nothing. This pane reads its rows into a ref of its own, so a move is
+ * applied here too: a reply that left the open topic goes, a topic that
+ * gained one is read again.
+ */
+const moveCtx = computed(() => (channel.active && !channel.peer
+  ? { channel: channel.active, opener: String(topic.target?.rootMsgId || ''), topic: String(topic.parentTaskId || '') }
+  : null))
+const offMoved = useMove().onMoved((f, m) => {
+  const id = String(topic.parentTaskId || '')
+  let rows = m.applyMoveRows(liveRows.value, f) as SpoolMessage[]
+  const gone = m.moveLeavesTask(f, id)
+  if (gone.length) rows = rows.filter((r) => !gone.includes(String(r.msg_id || '')))
+  if (rows !== liveRows.value) liveRows.value = rows
+  if (m.moveJoinsTask(f, id)) void catchUp()
+})
+onUnmounted(() => offMoved())
 
 /** 013 US7 FR-015: after a reconnect, re-read the topic and merge it by msg_id. */
 async function catchUp() {

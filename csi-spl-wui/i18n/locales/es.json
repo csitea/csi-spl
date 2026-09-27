@@ -513,7 +513,9 @@
       "unarchive": "Desarchivar",
       "reply": "Responder",
       "copy_text": "Copiar texto",
-      "kind": "Cambiar tipo"
+      "kind": "Cambiar tipo",
+      "move_channel": "Mover a un canal…",
+      "move_topic": "Mover a un tema…"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -559,6 +561,32 @@
       "title": "¿Eliminar este mensaje?",
       "body": "Se elimina para todos. No se puede deshacer.",
       "confirm": "Eliminar"
+    },
+    "move": {
+      "channel_title": "Mover este tema a un canal",
+      "topic_title": "Mover este mensaje a un tema",
+      "filter": "Filtrar",
+      "no_channels": "No hay otro canal en el que puedas publicar.",
+      "no_topics": "Ningún tema coincide.",
+      "done_channel": "Movido a #{channel}",
+      "done_topic": "Movido a «{title}»",
+      "done_topic_plain": "Movido al tema",
+      "undo": "Deshacer",
+      "undone": "Movimiento deshecho",
+      "from_channel": "movido desde #{channel}",
+      "from_topic": "movido desde «{title}»",
+      "from_topic_unknown": "movido desde otro tema",
+      "error": "No se pudo mover. Inténtalo de nuevo.",
+      "error_forbidden": "Solo el autor, el propietario o un administrador puede moverlo.",
+      "error_lobby": "El lobby no puede recibir ni ceder un tema.",
+      "error_not_in_channel": "Un mensaje directo no se puede mover a un canal.",
+      "error_issue_topic": "La discusión de una incidencia se queda con su incidencia.",
+      "error_same_place": "Ya está ahí.",
+      "error_is_card": "Es el primer mensaje de un tema: mueve el tema entero a un canal.",
+      "error_not_a_card": "El destino no es un tema.",
+      "error_cycle": "Un mensaje no puede moverse a su propio hilo.",
+      "error_unknown_channel": "Ese canal no está abierto para ti.",
+      "error_not_found": "Ese tema ya no existe."
     }
   },
   "topic": {

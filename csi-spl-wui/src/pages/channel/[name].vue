@@ -23,6 +23,7 @@ import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -69,6 +70,7 @@ watch([name, () => session.state], async ([n, st]) => {
   await channel.selectChannel(n)
   markRead(n)
   if (name.value !== n) return
+  if (await redirectMoved(n)) return
   topicFeedReady.value = true
   releaseStaleTopic()
 }, { immediate: true })
@@ -76,6 +78,37 @@ watch([name, () => session.state], async ([n, st]) => {
 onMounted(() => {
   events.start()
 })
+
+/*
+ * SPL-1024 (specs/045 §3.1): a link to the OLD channel of a moved topic
+ * (/channel/<old>?topic=<task>, ?thread=, ?in=) is sent on to the channel the
+ * topic is in now, the query kept - a redirect, not an empty pane. Asked only
+ * when this channel's feed does not hold the task, so an ordinary deep link
+ * costs no extra read.
+ */
+const router = useRouter()
+const localePath = useLocalePath()
+async function redirectMoved(n: string): Promise<boolean> {
+  const q = route.query
+  if (!q.topic && !q.thread && !q.in) return false
+  const { movedChannelFor, queryTasks } = await import('~/utils/move-apply.mjs')
+  const tasks = queryTasks(q)
+  if (tasks.some((id) => channel.messages.some((m) => m.task_id === id || m.msg_id === id))) return false
+  for (const id of tasks) {
+    let rows: SpoolMessage[] = []
+    try {
+      rows = (await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 1 }))).messages || []
+    } catch {
+      return false
+    }
+    if (!rows.length) continue
+    const to = movedChannelFor(rows, n)
+    if (!to || name.value !== n) return false
+    await router.replace({ path: localePath('/channel/' + to), query: route.query })
+    return true
+  }
+  return false
+}
 
 /* An open right pane takes the line. `in: <title>` still names a topic.
    A closed pane starts a new middle card. */

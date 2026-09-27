@@ -513,7 +513,9 @@
       "unarchive": "Grąžinti iš archyvo",
       "reply": "Atsakyti",
       "copy_text": "Kopijuoti tekstą",
-      "kind": "Keisti tipą"
+      "kind": "Keisti tipą",
+      "move_channel": "Perkelti į kanalą…",
+      "move_topic": "Perkelti į temą…"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -559,6 +561,32 @@
       "title": "Ištrinti šią žinutę?",
       "body": "Ji pašalinama visiems. To negalima atšaukti.",
       "confirm": "Ištrinti"
+    },
+    "move": {
+      "channel_title": "Perkelti šią temą į kanalą",
+      "topic_title": "Perkelti šią žinutę į temą",
+      "filter": "Filtras",
+      "no_channels": "Nėra kito kanalo, kuriame galite rašyti.",
+      "no_topics": "Nėra tinkamų temų.",
+      "done_channel": "Perkelta į #{channel}",
+      "done_topic": "Perkelta į „{title}“",
+      "done_topic_plain": "Perkelta į temą",
+      "undo": "Atšaukti",
+      "undone": "Perkėlimas atšauktas",
+      "from_channel": "perkelta iš #{channel}",
+      "from_topic": "perkelta iš „{title}“",
+      "from_topic_unknown": "perkelta iš kitos temos",
+      "error": "Nepavyko perkelti. Bandykite dar kartą.",
+      "error_forbidden": "Perkelti gali tik autorius, savininkas arba administratorius.",
+      "error_lobby": "Fojė negali priimti ar atiduoti temos.",
+      "error_not_in_channel": "Asmeninės žinutės negalima perkelti į kanalą.",
+      "error_issue_topic": "Problemos aptarimas lieka prie problemos.",
+      "error_same_place": "Jau yra ten.",
+      "error_is_card": "Tai pirmoji temos žinutė: perkelkite visą temą į kanalą.",
+      "error_not_a_card": "Tikslas nėra tema.",
+      "error_cycle": "Žinutės negalima perkelti į jos pačios giją.",
+      "error_unknown_channel": "Šis kanalas jums neatviras.",
+      "error_not_found": "Šios temos nebėra."
     }
   },
   "topic": {

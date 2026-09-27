@@ -513,7 +513,9 @@
       "unarchive": "Scoate din arhivă",
       "reply": "Răspunde",
       "copy_text": "Copiază textul",
-      "kind": "Schimbă tipul"
+      "kind": "Schimbă tipul",
+      "move_channel": "Mută în canal…",
+      "move_topic": "Mută în subiect…"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -559,6 +561,32 @@
       "title": "Ștergeți acest mesaj?",
       "body": "Este eliminat pentru toată lumea. Acțiunea nu poate fi anulată.",
       "confirm": "Șterge"
+    },
+    "move": {
+      "channel_title": "Mută acest subiect într-un canal",
+      "topic_title": "Mută acest mesaj într-un subiect",
+      "filter": "Filtrează",
+      "no_channels": "Nu există alt canal în care poți posta.",
+      "no_topics": "Niciun subiect nu se potrivește.",
+      "done_channel": "Mutat în #{channel}",
+      "done_topic": "Mutat în „{title}”",
+      "done_topic_plain": "Mutat în subiect",
+      "undo": "Anulează",
+      "undone": "Mutarea a fost anulată",
+      "from_channel": "mutat din #{channel}",
+      "from_topic": "mutat din „{title}”",
+      "from_topic_unknown": "mutat din alt subiect",
+      "error": "Nu s-a putut muta. Încearcă din nou.",
+      "error_forbidden": "Doar autorul, proprietarul sau un administrator poate muta asta.",
+      "error_lobby": "Holul nu poate primi sau ceda un subiect.",
+      "error_not_in_channel": "Un mesaj direct nu poate fi mutat într-un canal.",
+      "error_issue_topic": "Discuția unei probleme rămâne la problemă.",
+      "error_same_place": "Este deja acolo.",
+      "error_is_card": "Acesta este primul mesaj al unui subiect: mută tot subiectul într-un canal.",
+      "error_not_a_card": "Ținta nu este un subiect.",
+      "error_cycle": "Un mesaj nu poate fi mutat în propriul fir.",
+      "error_unknown_channel": "Acel canal nu îți este deschis.",
+      "error_not_found": "Acel subiect nu mai există."
     }
   },
   "topic": {

@@ -52,6 +52,7 @@
         :since-ms="sinceMs"
         @clear-search="pane.setSearch('')"
         @edited="onEdited"
+        :move-ctx="moveCtx"
       />
     </div>
     <BornTopics v-if="newestLast" />
@@ -118,6 +119,10 @@ const { applyEverywhere } = useMessageEdit()
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
+
+/* SPL-1024: a reply here may be moved to another topic when it names its
+   channel (a lobby thread never: utils/move.mjs) */
+const moveCtx = computed(() => ({ channel: '', opener: String(target.value?.rootMsgId || ''), topic: String(pane.taskId || '') }))
 
 function close() {
   pane.close()

@@ -513,7 +513,9 @@
       "unarchive": "הוצאה מהארכיון",
       "reply": "השב",
       "copy_text": "העתק טקסט",
-      "kind": "שנה סוג"
+      "kind": "שנה סוג",
+      "move_channel": "העברה לערוץ…",
+      "move_topic": "העברה לנושא…"
     },
     "emoji": {
       "add": "הוסף אימוג'י",
@@ -559,6 +561,32 @@
       "title": "למחוק את ההודעה הזו?",
       "body": "היא תוסר לכולם. אי אפשר לבטל זאת.",
       "confirm": "מחיקה"
+    },
+    "move": {
+      "channel_title": "העברת הנושא לערוץ",
+      "topic_title": "העברת ההודעה לנושא",
+      "filter": "סינון",
+      "no_channels": "אין ערוץ אחר שבו אפשר לכתוב.",
+      "no_topics": "אין נושא מתאים.",
+      "done_channel": "הועבר אל #{channel}",
+      "done_topic": "הועבר אל „{title}”",
+      "done_topic_plain": "הועבר לנושא",
+      "undo": "ביטול",
+      "undone": "ההעברה בוטלה",
+      "from_channel": "הועבר מ־#{channel}",
+      "from_topic": "הועבר מ„{title}”",
+      "from_topic_unknown": "הועבר מנושא אחר",
+      "error": "ההעברה נכשלה. נסו שוב.",
+      "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים להעביר את זה.",
+      "error_lobby": "הלובי אינו יכול לקבל או למסור נושא.",
+      "error_not_in_channel": "אי אפשר להעביר הודעה ישירה לערוץ.",
+      "error_issue_topic": "הדיון בתקלה נשאר עם התקלה.",
+      "error_same_place": "זה כבר שם.",
+      "error_is_card": "זו ההודעה הראשונה של נושא: העבירו את הנושא כולו לערוץ.",
+      "error_not_a_card": "היעד אינו נושא.",
+      "error_cycle": "אי אפשר להעביר הודעה לשרשור של עצמה.",
+      "error_unknown_channel": "הערוץ הזה אינו פתוח עבורך.",
+      "error_not_found": "הנושא הזה כבר לא קיים."
     }
   },
   "topic": {

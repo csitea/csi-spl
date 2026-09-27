@@ -1146,6 +1146,49 @@ export function createSpoolClient({
       return live(`/v1/messages/${encodeURIComponent(id)}/topic`, { method: 'DELETE' })
     },
     /**
+     * SPL-1024 move-v1 §2: POST /v1/messages/{msg_id}/move {to_channel} moves
+     * a topic's card and every row under it to another channel. The answer
+     * carries `undo` ({ to_channel }). Refusals keep the hub token (409
+     * lobby / same_place / not_in_channel / issue_topic / not_a_card, 404
+     * unknown_channel, 403 not_allowed).
+     */
+    async moveTopic(msgId, toChannel) {
+      const id = String(msgId || '')
+      const to = String(toChannel || '').trim().replace(/^#/, '').toLowerCase()
+      if (!id || !to) throw Object.assign(new Error('msg_id and channel required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockMove(state, id, { to_channel: to })
+      return live(`/v1/messages/${encodeURIComponent(id)}/move`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to_channel: to }),
+      })
+    },
+    /**
+     * move-v1 §3: {to_task} moves a reply (and its own thread) into another
+     * topic. The answer carries `undo` ({ to_task: <home task> }).
+     */
+    async moveMessage(msgId, toTask) {
+      const id = String(msgId || '')
+      const to = String(toTask || '')
+      if (!id || !to) throw Object.assign(new Error('msg_id and task required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockMove(state, id, { to_task: to })
+      return live(`/v1/messages/${encodeURIComponent(id)}/move`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to_task: to }),
+      })
+    },
+    /** move-v1 §4: { msg_id, task_id, channel, is_card, can_move, moved_from_channel?, moved_from_task? }. */
+    async moveInfo(msgId) {
+      const id = String(msgId || '')
+      if (mock) {
+        const row = state.messages.find((m) => m.msg_id === id)
+        if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+        return { msg_id: id, task_id: row.task_id, channel: row.channel || null, is_card: row.is_parent !== 0, can_move: row.from === state.me.id }
+      }
+      return live(`/v1/view/messages/${encodeURIComponent(id)}/move`)
+    },
+    /**
      * topic-archive-v1 §5: the archived cards this member may read, newest
      * archived first. { cards: [{ message, msg_id, task_id, channel,
      * archived_at, archived_by, replies, can_delete }], next }.

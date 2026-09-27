@@ -513,7 +513,9 @@
       "unarchive": "Przywróć z archiwum",
       "reply": "Odpowiedz",
       "copy_text": "Kopiuj tekst",
-      "kind": "Zmień rodzaj"
+      "kind": "Zmień rodzaj",
+      "move_channel": "Przenieś do kanału…",
+      "move_topic": "Przenieś do tematu…"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -559,6 +561,32 @@
       "title": "Usunąć tę wiadomość?",
       "body": "Zostanie usunięta dla wszystkich. Tego nie można cofnąć.",
       "confirm": "Usuń"
+    },
+    "move": {
+      "channel_title": "Przenieś ten temat do kanału",
+      "topic_title": "Przenieś tę wiadomość do tematu",
+      "filter": "Filtruj",
+      "no_channels": "Brak innego kanału, w którym możesz pisać.",
+      "no_topics": "Brak pasujących tematów.",
+      "done_channel": "Przeniesiono do #{channel}",
+      "done_topic": "Przeniesiono do „{title}”",
+      "done_topic_plain": "Przeniesiono do tematu",
+      "undo": "Cofnij",
+      "undone": "Przeniesienie cofnięte",
+      "from_channel": "przeniesiono z #{channel}",
+      "from_topic": "przeniesiono z „{title}”",
+      "from_topic_unknown": "przeniesiono z innego tematu",
+      "error": "Nie udało się przenieść. Spróbuj ponownie.",
+      "error_forbidden": "Tylko autor, właściciel lub administrator może to przenieść.",
+      "error_lobby": "Lobby nie może przyjąć ani oddać tematu.",
+      "error_not_in_channel": "Wiadomości bezpośredniej nie można przenieść do kanału.",
+      "error_issue_topic": "Dyskusja zgłoszenia zostaje przy zgłoszeniu.",
+      "error_same_place": "To już tam jest.",
+      "error_is_card": "To pierwsza wiadomość tematu: przenieś cały temat do kanału.",
+      "error_not_a_card": "Cel nie jest tematem.",
+      "error_cycle": "Wiadomości nie można przenieść do jej własnego wątku.",
+      "error_unknown_channel": "Ten kanał nie jest dla ciebie otwarty.",
+      "error_not_found": "Ten temat już nie istnieje."
     }
   },
   "topic": {

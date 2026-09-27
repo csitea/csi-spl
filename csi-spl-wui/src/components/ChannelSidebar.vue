@@ -159,8 +159,13 @@
       :key="c.channel_id"
       class="nav-row"
       :data-order="c.channel_id"
-      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length) }"
+      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length), 'nav-row--move-target': moveTarget(c.channel_id), 'nav-row--move-over': moveOver === c.channel_id }"
+      :data-move-target="moveTarget(c.channel_id) ? 'true' : undefined"
       @pointerdown="rowPointerDown($event, 'channels', c.channel_id)"
+      @dragenter="onMoveOver($event, c.channel_id)"
+      @dragover="onMoveOver($event, c.channel_id)"
+      @dragleave="onMoveLeave($event, c.channel_id)"
+      @drop="onMoveDrop($event, c.channel_id)"
       @contextmenu.prevent="openChannelMenu('ch:' + c.channel_id)"
       @click.capture="swallowDragClick"
     >
@@ -342,7 +347,7 @@
         <div class="sidebar-scroll">
         <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
-          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
+          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length), 'nav-row--move-target': moveTarget(row.id), 'nav-row--move-over': moveOver === row.id }" :data-move-target="moveTarget(row.id) ? 'true' : undefined" @dragenter="onMoveOver($event, row.id)" @dragover="onMoveOver($event, row.id)" @dragleave="onMoveLeave($event, row.id)" @drop="onMoveDrop($event, row.id)" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.active === row.id }"
@@ -587,6 +592,8 @@ import { ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } 
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
+import { useMove } from '~/composables/useMove'
+import { MOVE_MIME, decodeMoveDrag, hasMoveType, isChannelDropTarget } from '~/utils/move.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -972,6 +979,36 @@ function swallowDragClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
 }
+
+/* SPL-1024 (specs/045 §3.1): a topic card dragged from the middle list drops
+   on a channel row. Only the channels it may go to light up (listed for the
+   viewer, not the one it is in, not the lobby, not `issues`); any other row
+   refuses the drop. HTML5 drag events, so the pointer reorder above never
+   sees it: a browser drag cancels the pointer stream. */
+const mover = useMove()
+const moveOver = ref('')
+function moveTarget(id: string) {
+  return isChannelDropTarget(mover.drag.value, id, channel.channels)
+}
+function onMoveOver(ev: DragEvent, id: string) {
+  if (!moveTarget(id) || !hasMoveType(ev.dataTransfer?.types)) return
+  ev.preventDefault()
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+  moveOver.value = id
+}
+function onMoveLeave(ev: DragEvent, id: string) {
+  const to = ev.relatedTarget
+  if (to instanceof Node && ev.currentTarget instanceof HTMLElement && ev.currentTarget.contains(to)) return
+  if (moveOver.value === id) moveOver.value = ''
+}
+function onMoveDrop(ev: DragEvent, id: string) {
+  if (!moveTarget(id)) return
+  ev.preventDefault()
+  moveOver.value = ''
+  const d = decodeMoveDrag(ev.dataTransfer?.getData(MOVE_MIME) || '') || mover.drag.value
+  if (!d || d.kind !== 'topic') return
+  void mover.run({ kind: 'topic', msgId: d.msgId, toChannel: id })
+}
 onMounted(() => {
   /* the route middleware has usually probed already; a second probe on every
      page load was one more session read for nothing (CLE-34984) */
@@ -1329,6 +1366,9 @@ async function onCreate() {
 .nav-row--drag .nav-item { cursor: grabbing; }
 .nav-row--drop { box-shadow: inset 0 2px 0 var(--color-accent); }
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
+/* SPL-1024: a channel a dragged topic may move to; filled under the pointer */
+.nav-row--move-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; border-radius: var(--radius-sm); }
+.nav-row--move-over { background: var(--color-selected); outline-style: solid; }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
 .foot-row .vs-wrap { flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }

@@ -513,7 +513,9 @@
       "unarchive": "Atjaunot no arhīva",
       "reply": "Atbildēt",
       "copy_text": "Kopēt tekstu",
-      "kind": "Mainīt veidu"
+      "kind": "Mainīt veidu",
+      "move_channel": "Pārvietot uz kanālu…",
+      "move_topic": "Pārvietot uz tēmu…"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -559,6 +561,32 @@
       "title": "Dzēst šo ziņu?",
       "body": "Tā tiek noņemta visiem. To nevar atsaukt.",
       "confirm": "Dzēst"
+    },
+    "move": {
+      "channel_title": "Pārvietot šo tēmu uz kanālu",
+      "topic_title": "Pārvietot šo ziņu uz tēmu",
+      "filter": "Filtrs",
+      "no_channels": "Nav cita kanāla, kurā varat rakstīt.",
+      "no_topics": "Neviena tēma neatbilst.",
+      "done_channel": "Pārvietots uz #{channel}",
+      "done_topic": "Pārvietots uz “{title}”",
+      "done_topic_plain": "Pārvietots uz tēmu",
+      "undo": "Atsaukt",
+      "undone": "Pārvietošana atsaukta",
+      "from_channel": "pārvietots no #{channel}",
+      "from_topic": "pārvietots no “{title}”",
+      "from_topic_unknown": "pārvietots no citas tēmas",
+      "error": "Neizdevās pārvietot. Mēģiniet vēlreiz.",
+      "error_forbidden": "Pārvietot var tikai autors, īpašnieks vai administrators.",
+      "error_lobby": "Vestibils nevar pieņemt vai atdot tēmu.",
+      "error_not_in_channel": "Tiešo ziņu nevar pārvietot uz kanālu.",
+      "error_issue_topic": "Problēmas apspriešana paliek pie problēmas.",
+      "error_same_place": "Tas jau ir tur.",
+      "error_is_card": "Šī ir tēmas pirmā ziņa: pārvietojiet visu tēmu uz kanālu.",
+      "error_not_a_card": "Mērķis nav tēma.",
+      "error_cycle": "Ziņu nevar pārvietot uz tās pašas pavedienu.",
+      "error_unknown_channel": "Šis kanāls jums nav atvērts.",
+      "error_not_found": "Šīs tēmas vairs nav."
     }
   },
   "topic": {

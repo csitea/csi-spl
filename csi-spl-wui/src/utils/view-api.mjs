@@ -177,6 +177,25 @@ export function copyEditFields(src, out) {
   if (typeof e.kind === 'string' && e.kind) out.kind = e.kind
   if (e.kind_set_by !== undefined) out.kind_set_by = e.kind_set_by
   if (e.kind_set_at !== undefined) out.kind_set_at = e.kind_set_at
+  copyMoveFields(e, out)
+  return out
+}
+
+/**
+ * SPL-1024 move-v1 §5: a moved row carries where it IS beside the envelope
+ * (the signed envelope keeps where it was sent). Present only while the row
+ * is not at home; each wins over env.channel / env.msg.task_id /
+ * env.parent_task_id. `parent_task_id: ""` means none.
+ */
+export function copyMoveFields(src, out) {
+  const e = src || {}
+  if (typeof e.moved_at === 'string' && e.moved_at) out.moved_at = e.moved_at
+  if (typeof e.moved_by === 'string' && e.moved_by) out.moved_by = e.moved_by
+  if (typeof e.moved_from_channel === 'string' && e.moved_from_channel) out.moved_from_channel = e.moved_from_channel
+  if (typeof e.moved_from_task === 'string' && e.moved_from_task) out.moved_from_task = e.moved_from_task
+  if (typeof e.channel === 'string' && e.channel) out.channel = e.channel
+  if (typeof e.task_id === 'string' && e.task_id) out.task_id = e.task_id
+  if (typeof e.parent_task_id === 'string') out.parent_task_id = e.parent_task_id || null
   return out
 }
 

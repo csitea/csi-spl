@@ -513,7 +513,9 @@
       "unarchive": "Unarchive",
       "reply": "Reply",
       "copy_text": "Copy text",
-      "kind": "Change kind"
+      "kind": "Change kind",
+      "move_channel": "Move to channel…",
+      "move_topic": "Move to topic…"
     },
     "emoji": {
       "add": "Add emoji",
@@ -559,6 +561,32 @@
       "title": "Delete this message?",
       "body": "It is removed for everyone. This cannot be undone.",
       "confirm": "Delete"
+    },
+    "move": {
+      "channel_title": "Move this topic to a channel",
+      "topic_title": "Move this message to a topic",
+      "filter": "Filter",
+      "no_channels": "No other channel you can post in.",
+      "no_topics": "No topic matches.",
+      "done_channel": "Moved to #{channel}",
+      "done_topic": "Moved to “{title}”",
+      "done_topic_plain": "Moved to the topic",
+      "undo": "Undo",
+      "undone": "Move undone",
+      "from_channel": "moved from #{channel}",
+      "from_topic": "moved from “{title}”",
+      "from_topic_unknown": "moved from another topic",
+      "error": "Could not move it. Try again.",
+      "error_forbidden": "Only the author, the owner or an admin may move this.",
+      "error_lobby": "The lobby cannot take or give a topic.",
+      "error_not_in_channel": "A direct message cannot be moved to a channel.",
+      "error_issue_topic": "An issue's discussion stays with its issue.",
+      "error_same_place": "It is already there.",
+      "error_is_card": "This is a topic's first message: move the whole topic to a channel instead.",
+      "error_not_a_card": "The target is not a topic.",
+      "error_cycle": "A message cannot move into its own thread.",
+      "error_unknown_channel": "That channel is not open to you.",
+      "error_not_found": "That topic is not there any more."
     }
   },
   "topic": {

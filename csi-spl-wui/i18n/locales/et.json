@@ -513,7 +513,9 @@
       "unarchive": "Taasta arhiivist",
       "reply": "Vasta",
       "copy_text": "Kopeeri tekst",
-      "kind": "Muuda liiki"
+      "kind": "Muuda liiki",
+      "move_channel": "Teisalda kanalisse…",
+      "move_topic": "Teisalda teemasse…"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -559,6 +561,32 @@
       "title": "Kas kustutada see sõnum?",
       "body": "See eemaldatakse kõigilt. Seda ei saa tagasi võtta.",
       "confirm": "Kustuta"
+    },
+    "move": {
+      "channel_title": "Teisalda see teema kanalisse",
+      "topic_title": "Teisalda see sõnum teemasse",
+      "filter": "Filter",
+      "no_channels": "Pole teist kanalit, kuhu saaksid postitada.",
+      "no_topics": "Ükski teema ei sobi.",
+      "done_channel": "Teisaldatud kanalisse #{channel}",
+      "done_topic": "Teisaldatud teemasse „{title}“",
+      "done_topic_plain": "Teisaldatud teemasse",
+      "undo": "Võta tagasi",
+      "undone": "Teisaldamine võeti tagasi",
+      "from_channel": "teisaldatud kanalist #{channel}",
+      "from_topic": "teisaldatud teemast „{title}“",
+      "from_topic_unknown": "teisaldatud teisest teemast",
+      "error": "Teisaldamine ebaõnnestus. Proovi uuesti.",
+      "error_forbidden": "Seda saab teisaldada ainult autor, omanik või administraator.",
+      "error_lobby": "Fuajee ei saa teemat vastu võtta ega ära anda.",
+      "error_not_in_channel": "Otsesõnumit ei saa kanalisse teisaldada.",
+      "error_issue_topic": "Probleemi arutelu jääb probleemi juurde.",
+      "error_same_place": "See on juba seal.",
+      "error_is_card": "See on teema esimene sõnum: teisalda kogu teema kanalisse.",
+      "error_not_a_card": "Sihtkoht ei ole teema.",
+      "error_cycle": "Sõnumit ei saa teisaldada tema enda lõime.",
+      "error_unknown_channel": "See kanal ei ole sulle avatud.",
+      "error_not_found": "Seda teemat enam ei ole."
     }
   },
   "topic": {

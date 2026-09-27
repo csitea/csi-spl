@@ -513,7 +513,9 @@
       "unarchive": "Obnoviť z archívu",
       "reply": "Odpovedať",
       "copy_text": "Kopírovať text",
-      "kind": "Zmeniť druh"
+      "kind": "Zmeniť druh",
+      "move_channel": "Presunúť do kanála…",
+      "move_topic": "Presunúť do témy…"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -559,6 +561,32 @@
       "title": "Odstrániť túto správu?",
       "body": "Odstráni sa pre všetkých. Nedá sa to vrátiť späť.",
       "confirm": "Odstrániť"
+    },
+    "move": {
+      "channel_title": "Presunúť túto tému do kanála",
+      "topic_title": "Presunúť túto správu do témy",
+      "filter": "Filter",
+      "no_channels": "Nie je iný kanál, do ktorého môžete písať.",
+      "no_topics": "Žiadna téma nevyhovuje.",
+      "done_channel": "Presunuté do #{channel}",
+      "done_topic": "Presunuté do „{title}“",
+      "done_topic_plain": "Presunuté do témy",
+      "undo": "Späť",
+      "undone": "Presun bol vrátený",
+      "from_channel": "presunuté z #{channel}",
+      "from_topic": "presunuté z „{title}“",
+      "from_topic_unknown": "presunuté z inej témy",
+      "error": "Presun sa nepodaril. Skúste to znova.",
+      "error_forbidden": "Presunúť to môže iba autor, vlastník alebo správca.",
+      "error_lobby": "Lobby nemôže prijať ani odovzdať tému.",
+      "error_not_in_channel": "Priamu správu nemožno presunúť do kanála.",
+      "error_issue_topic": "Diskusia k úlohe zostáva pri úlohe.",
+      "error_same_place": "Už to tam je.",
+      "error_is_card": "Toto je prvá správa témy: presuňte celú tému do kanála.",
+      "error_not_a_card": "Cieľ nie je téma.",
+      "error_cycle": "Správu nemožno presunúť do jej vlastného vlákna.",
+      "error_unknown_channel": "Tento kanál vám nie je otvorený.",
+      "error_not_found": "Táto téma už neexistuje."
     }
   },
   "topic": {

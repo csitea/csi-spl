@@ -122,6 +122,12 @@ declare module '~/utils/spool-client.mjs' {
     deleteTopic(msgId: string): Promise<{ msg_id: string, task_id: string, deleted: number, msg_ids: string[], task_ids: string[] }>
     /** SPL-983: the archived cards this member may read, newest archived first. */
     listArchived(opts?: { before?: string }): Promise<{ cards: import('~/utils/topic-archive.mjs').ArchivedCard[], next: string | null }>
+    /** SPL-1024 move-v1 §2: move a topic's card (and every row under it) to another channel. */
+    moveTopic(msgId: string, toChannel: string): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
+    /** SPL-1024 move-v1 §3: move a reply (and its own thread) to another topic. */
+    moveMessage(msgId: string, toTask: string): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
+    /** SPL-1024 move-v1 §4: what the caller may do with the row. */
+    moveInfo(msgId: string): Promise<{ msg_id: string, task_id: string, channel: string | null, is_card: boolean, can_move: boolean, moved_from_channel?: string, moved_from_task?: string }>
     fileUrl(fileId: string): string
     bindIssuesMock(factory: (me: string) => unknown): void
     listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>
@@ -446,6 +452,7 @@ declare module '~/utils/view-api.mjs' {
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
   export function normalizeViewMessage(el: unknown): import('./spool').SpoolMessage
   export function copyEditFields<T extends Record<string, unknown>>(src: unknown, out: T): T
+  export function copyMoveFields<T extends Record<string, unknown>>(src: unknown, out: T): T
 }
 
 declare module '~/utils/pane-focus.mjs' {
@@ -487,13 +494,52 @@ declare module '~/utils/touch-ui.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
   export function mergeableSource(rows: unknown[], msg: unknown, lobbyTaskId?: string): boolean
   export function joinBodies(older: unknown, newer: unknown): string
+}
+
+declare module '~/utils/move.mjs' {
+  export type MoveDrag = { kind: 'topic' | 'message', msgId: string, taskId: string, topicTask: string, channel: string }
+  export type MeLike = { role?: string | null, tenantOwner?: boolean } | null
+  export const MOVE_MIME: string
+  export const MOVE_BLOCKED_CHANNELS: readonly string[]
+  export function moveChan(v: unknown): string
+  export function moveBlocked(channel: unknown): boolean
+  export function isMovableTopic(msg: unknown, lobbyTaskId?: string): boolean
+  export function mayMoveTopic(msg: unknown, viewerId: string, me: MeLike, lobbyTaskId?: string): boolean
+  export function mayMoveMessage(msg: unknown, viewerId: string, me: MeLike, opts?: { openerId?: string, lobbyTaskId?: string, channel?: string | null }): boolean
+  export function isChannelDropTarget(drag: MoveDrag | null, channelId: string, listed?: unknown[] | null): boolean
+  export function isCardDropTarget(drag: MoveDrag | null, card: unknown, lobbyTaskId?: string): boolean
+  export function encodeMoveDrag(drag: MoveDrag): string
+  export function decodeMoveDrag(text: string): MoveDrag | null
+  export function hasMoveType(types: ArrayLike<string> | null | undefined): boolean
+  export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
+}
+
+declare module '~/utils/move-apply.mjs' {
+  export type MoveDrag = import('~/utils/move.mjs').MoveDrag
+  export type MoveFrame = { type: 'topic_moved' | 'message_moved', msg_id: string, task_id: string, from_task: string, channel: string, from_channel: string, moved: boolean, moved_by: string, moved_at: string, msg_ids: string[] }
+  export type MoveAnswer = { kind: 'topic' | 'message', msg_id: string, task_id: string, from_task?: string, channel: string, from_channel: string, moved: boolean, moved_by: string, moved_at: string, received_at?: string, msg_ids: string[], undo: { to_channel?: string, to_task?: string } }
+  export function moveChannelTargets(channels: unknown, current?: string | null): { channel_id: string, name: string }[]
+  export function moveFrame(frame: unknown): MoveFrame | null
+  export function moveFrameFromAnswer(answer: unknown): MoveFrame | null
+  export function applyMoveRows<T>(rows: T[], frame: unknown): T[]
+  export function moveLeavesTask(frame: unknown, taskId: string | null | undefined): string[]
+  export function moveJoinsTask(frame: unknown, taskId: string | null | undefined): boolean
+  export function moveErrorKey(e: unknown): string
+  export function queryTasks(query: unknown): string[]
+  export function movedChannelFor(rows: unknown, current: string | null | undefined): string
+  export function moveTopicChoices(topics: unknown, opts?: { channels?: unknown[], exclude?: string[], query?: string, lobbyTaskId?: string }): { task_id: string, channel: string, title: string, last_ts: string }[]
+  export function applyMoveToStores(frame: unknown, stores: { channel?: unknown, main?: unknown, pane?: unknown, viewer?: unknown, topic?: unknown, getTopic?: (id: string) => Promise<{ messages?: unknown[] }> }): MoveFrame | null
+}
+
+declare module '~/utils/move-mock.mjs' {
+  export function mockMove(state: unknown, id: string, body: { to_channel?: string, to_task?: string }): import('~/utils/move-apply.mjs').MoveAnswer
 }
 
 declare module '~/utils/topic-archive.mjs' {

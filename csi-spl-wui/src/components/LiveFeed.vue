@@ -49,6 +49,7 @@
         :current-task-id="currentTaskId"
         :clip-mode="clipModeFor()"
         :topic-menu="openButton"
+        :move-ctx="moveCtx"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -132,6 +133,8 @@ const props = defineProps<{
       a thread that has no replies yet. */
   clip?: boolean
   clipPane?: CardClipPane
+  /** SPL-1024: a thread whose rows may be moved to another topic (the right pane). */
+  moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 

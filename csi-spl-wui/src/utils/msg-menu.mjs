@@ -20,14 +20,20 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * child, so it replaces the one-message Delete: deleting the card alone would
  * strand its replies.
  *
+ * SPL-1024 (specs/045): a card the viewer may move (`moveChannel`: its
+ * author, the tenant owner or an admin, a channel topic) gets Move to
+ * channel…, a reply they may move (`moveTopic`) Move to topic…, right before
+ * the Archive / Delete block. It is the keyboard and touch way to do what the
+ * drag does.
+ *
  * On a phone (`touch`, SPL-991) the menu is the long-press bottom sheet, the
  * only way to reach what a desktop row shows on hover: it starts with Reply
  * and Add emoji (the row's smile button is hidden on a phone), and adds Copy text, and Kind when the viewer may re-type the message
  * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
  * unchanged.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
@@ -48,6 +54,8 @@ export function msgMenuItems(opts = {}) {
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
+  if (o.moveChannel) items.push({ id: 'move-channel', icon: 'move', labelKey: 'feed.msg_menu.move_channel' })
+  if (o.moveTopic) items.push({ id: 'move-topic', icon: 'move', labelKey: 'feed.msg_menu.move_topic' })
   if (o.topic) {
     items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
     items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })

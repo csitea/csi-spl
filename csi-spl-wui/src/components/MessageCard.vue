@@ -2,7 +2,7 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--clickable': clickable }"
+    :class="{ selected, 'msg--clickable': clickable, 'msg--move-target': dropTarget, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
@@ -13,11 +13,20 @@
     :aria-setsize="setsize || undefined"
     :aria-label="t('feed.card_aria', { who: whoOf(author), kind: kindLabel(String(msg.kind || 'note')) })"
     :aria-describedby="clickable ? 'feed-open-hint' : undefined"
+    :draggable="dragOn ? 'true' : undefined"
+    :data-movable="canMoveTopic || canMoveMsg ? 'true' : undefined"
+    :data-move-target="dropTarget ? 'true' : undefined"
     @click="onClick"
     @dblclick="onDblClick"
     @keydown="onKey"
     @contextmenu="onContextMenu"
-    @pointerdown="longPress.down"
+    @pointerdown="onRowPointerDown"
+    @dragstart="onDragStart"
+    @dragend="onDragEnd"
+    @dragenter="onDragOver"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
     @pointermove="longPress.move"
     @pointerup="longPress.up"
     @pointercancel="longPress.cancel"
@@ -55,6 +64,15 @@
           data-test="msg-edited"
           :title="t('feed.edit.marker_title', { at: String(msg.edited_at) })"
         >{{ t('feed.edit.marker') }}</span>
+        <!-- SPL-1024: a card moved to this channel names its home channel, a
+             moved reply the topic it came from -->
+        <span
+          v-if="movedText"
+          class="msg-moved"
+          data-testid="msg-moved"
+          :data-moved-from="movedFrom"
+          :title="movedText"
+        >{{ movedText }}</span>
         <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
@@ -257,6 +275,8 @@
       :parent="showParent"
       :topic="showTopicActions"
       :kind="kindSettable"
+      :move-channel="canMoveTopic"
+      :move-topic="canMoveMsg"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -272,6 +292,17 @@
       @react="onMenuReact"
       @copy-text="copyBody"
       @kind="onMenuKind"
+      @move-channel="openMovePicker('channel')"
+      @move-topic="openMovePicker('topic')"
+    />
+    <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
+    <LazyMovePickerDialog
+      v-if="movePicker"
+      :open="Boolean(movePicker)"
+      :mode="movePicker"
+      :msg="msg"
+      :topic-task="moveCtx?.topic || ''"
+      @update:open="(v: boolean) => { if (!v) movePicker = '' }"
     />
     <!-- SPL-983: mounted when Delete is picked on a topic card, not before -->
     <LazyTopicDeleteDialog
@@ -319,6 +350,10 @@ import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
 import { mayChangeTopic, topicErrorKey } from '~/utils/topic-archive.mjs'
+import { MOVE_MIME, decodeMoveDrag, encodeMoveDrag, hasMoveType, isCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
+import { useMove } from '~/composables/useMove'
+import { useLive } from '~/composables/useLive'
+import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
@@ -364,6 +399,11 @@ const props = defineProps<{
   clipMode?: CardClipMode
   /** SPL-983: a middle-pane card, where Archive / Delete (the topic) may be offered. */
   topicMenu?: boolean
+  /** SPL-1024: a thread row of an open topic, which may be moved to another
+      topic (dragged onto a middle card, or Move to topic…). `channel` is the
+      pane's channel for a row that names none, `opener` the card the pane
+      was opened on (never movable), `topic` the pane's task. */
+  moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -712,6 +752,99 @@ const access = useAccessStore()
 const showTopicActions = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
 const topicDeleteOpen = ref(false)
 const msgDeleteOpen = ref(false)
+
+/*
+ * SPL-1024 (specs/045) — move by drag. A middle card the viewer may move
+ * (author / tenant owner / admin, a channel topic) drags onto a left-rail
+ * channel; a thread row they may move drags onto another middle card. HTML5
+ * drag with our own type (utils/move.mjs MOVE_MIME), desktop pointer only:
+ * a finger has the menu's Move to … entries. The row is draggable only from
+ * a press OUTSIDE its text, so selecting a line to copy still works.
+ */
+const move = useMove()
+const lobbyTask = useLive().lobbyTaskId
+const canMoveTopic = computed(() => Boolean(props.topicMenu) && mayMoveTopic(props.msg, editorId.value, access.me, lobbyTask.value))
+const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && mayMoveMessage(props.msg, editorId.value, access.me, {
+  openerId: props.moveCtx?.opener || '',
+  lobbyTaskId: lobbyTask.value,
+  channel: props.moveCtx?.channel || '',
+}))
+const dragOn = ref(false)
+const dragging = ref(false)
+const dropOver = ref(false)
+const dropTarget = computed(() => Boolean(props.topicMenu) && isCardDropTarget(move.drag.value, props.msg, lobbyTask.value))
+const movePicker = ref<'' | 'channel' | 'topic'>('')
+const MOVE_NO_DRAG = '.card-body, .msg-title, textarea, input, select, [contenteditable="true"]'
+
+function onRowPointerDown(ev: PointerEvent) {
+  longPress.down(ev)
+  const el = ev.target as HTMLElement | null
+  dragOn.value = (canMoveTopic.value || canMoveMsg.value) && !editing.value && !mobile.value
+    && ev.pointerType !== 'touch' && !(el && el.closest && el.closest(MOVE_NO_DRAG))
+}
+
+function onDragStart(ev: DragEvent) {
+  if (!dragOn.value || !ev.dataTransfer || ev.target !== rowEl.value) return
+  const m = props.msg
+  const d: MoveDrag = canMoveTopic.value
+    ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || '') }
+    : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
+  ev.dataTransfer.setData(MOVE_MIME, encodeMoveDrag(d))
+  ev.dataTransfer.effectAllowed = 'move'
+  closeMenu()
+  pickerOpen.value = false
+  move.drag.value = d
+  dragging.value = true
+}
+
+function onDragEnd() {
+  dragging.value = false
+  dragOn.value = false
+  move.drag.value = null
+}
+
+function onDragOver(ev: DragEvent) {
+  if (!dropTarget.value || !hasMoveType(ev.dataTransfer?.types)) return
+  ev.preventDefault()
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+  dropOver.value = true
+}
+
+function onDragLeave(ev: DragEvent) {
+  const to = ev.relatedTarget as Node | null
+  if (to && rowEl.value?.contains(to)) return
+  dropOver.value = false
+}
+
+function onDrop(ev: DragEvent) {
+  if (!dropTarget.value) return
+  ev.preventDefault()
+  dropOver.value = false
+  const d = decodeMoveDrag(ev.dataTransfer?.getData(MOVE_MIME) || '') || move.drag.value
+  if (!d || d.kind !== 'message') return
+  void move.run({ kind: 'message', msgId: d.msgId, toTask: String(props.msg.task_id || '') }, title.value)
+}
+
+function openMovePicker(mode: 'channel' | 'topic') {
+  closeMenu()
+  movePicker.value = mode
+}
+
+/* "moved from #x" on a card, "moved from <topic>" on a reply */
+const channelStore = useChannelStore()
+const movedInfo = computed(() => movedNote(props.msg))
+const movedFrom = computed(() => {
+  const n = movedInfo.value
+  return n ? (n.kind === 'channel' ? n.channel : n.task) : undefined
+})
+const movedText = computed(() => {
+  const n = movedInfo.value
+  if (!n) return ''
+  if (n.kind === 'channel') return t('feed.move.from_channel', { channel: n.channel })
+  const home = channelStore.messages.find((r) => String(r.task_id || '') === n.task && r.is_parent !== 0)
+  const name = home ? cardTitle(String(home.body || '')) : ''
+  return name ? t('feed.move.from_topic', { title: name.length > 48 ? `${name.slice(0, 47)}…` : name }) : t('feed.move.from_topic_unknown')
+})
 const removing = ref(false)
 const localePath = useLocalePath()
 const route = useRoute()
@@ -1092,6 +1225,22 @@ async function save() {
 /* "(edited)" follows them; the spacer then pushes Open topic, the replies
    link and the menu to the right */
 .msg-meta > .msg-edited { order: 2; }
+/* SPL-1024: "moved from ..." sits beside "(edited)", muted and small */
+.msg-meta > .msg-moved {
+  order: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+/* SPL-1024: while a reply is dragged, the cards it may land on are outlined;
+   the one under the pointer is filled. The dragged row fades. */
+.msg--move-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; }
+.msg--move-over { background: var(--color-selected); outline-style: solid; }
+.msg--dragging { opacity: 0.5; }
 .msg-meta-spacer { order: 2; flex: 1 1 0; min-width: 0; }
 .msg-actions [data-test="open-topic"] { order: 3; }
 .msg-actions .replies { order: 4; margin-top: 0; align-self: center; white-space: nowrap; }

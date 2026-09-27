@@ -40,6 +40,7 @@
     </div>
     <div class="sidebar-body">
       <div
+        v-if="tab === 'dm' || tabsWarm"
         v-show="tab === 'dm'"
         id="sidebar-panel-dm"
         class="sidebar-panel"
@@ -121,6 +122,7 @@
     </div>
       </div>
       <div
+        v-if="tab === 'channels' || tabsWarm"
         v-show="tab === 'channels'"
         id="sidebar-panel-channels"
         class="sidebar-panel"
@@ -277,6 +279,7 @@
     />
       </div>
       <div
+        v-if="tab === 'topics' || tabsWarm"
         v-show="tab === 'topics'"
         id="sidebar-panel-topics"
         class="sidebar-panel"
@@ -327,6 +330,7 @@
         </div>
       </div>
       <div
+        v-if="tab === 'flow' || tabsWarm"
         v-show="tab === 'flow'"
         id="sidebar-panel-flow"
         class="sidebar-panel"
@@ -440,6 +444,7 @@
       </div>
       <!-- GRK-3519: Issues, third rail tab. The list is the middle pane. -->
       <div
+        v-if="tab === 'issues' || tabsWarm"
         v-show="tab === 'issues' && issueEpics.length"
         id="sidebar-panel-issues"
         class="sidebar-panel"
@@ -454,6 +459,7 @@
       </div>
       <!-- CLE-34990: the personal Event log; the list lives on /events -->
       <div
+        v-if="tab === 'events' || tabsWarm"
         v-show="tab === 'events'"
         id="sidebar-panel-events"
         class="sidebar-panel"
@@ -467,7 +473,7 @@
       <!-- CLE-34969: the admin's Users (members.invite only); the list and
            the edit form live on /users -->
       <div
-        v-if="usersVisible"
+        v-if="usersVisible && (tab === 'users' || tabsWarm)"
         v-show="tab === 'users'"
         id="sidebar-panel-users"
         class="sidebar-panel"
@@ -607,6 +613,18 @@ const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
   .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: item.labelKey })))
 const tab = ref<SideTab>('dm')
+/* CLE-35062: the first render builds the open rail tab only. The other tabs
+   (a v-show each) were built with it and hidden: on / the flow tab alone was
+   915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page. They
+   are built once the browser is first idle (at most 1.5 s later), and are
+   kept from then on, so a tab switch and a script that clicks a row in a
+   hidden tab see the same DOM as before. */
+const tabsWarm = ref(false)
+onMounted(() => {
+  const warm = () => { tabsWarm.value = true }
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(warm, { timeout: 1500 })
+  else window.setTimeout(warm, 200)
+})
 /* The topics list names each row from the opening of its first message. */
 function topicRowTitle(subject: string, fallback: string) {
   const text = topicOpening(subject)

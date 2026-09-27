@@ -13,47 +13,47 @@ const U = '0b8a6a52-6c1e-4f5e-9d1e-2c7b7f5e8a11'
 describe('tenant-host', () => {
   it('pageTenant: apex = apex tenant, one label = that tenant', () => {
     assert.equal(pageTenant('app.example', PRD, 't1'), 't1')
-    assert.equal(pageTenant('leiden.app.example', PRD, 't1'), 'leiden')
-    assert.equal(pageTenant('LEIDEN.app.example', PRD, 't1'), 'leiden')
-    assert.equal(pageTenant('leiden.dev.app.example', DEV, 't1'), 'leiden')
+    assert.equal(pageTenant('northwind.app.example', PRD, 't1'), 'northwind')
+    assert.equal(pageTenant('NORTHWIND.app.example', PRD, 't1'), 'northwind')
+    assert.equal(pageTenant('northwind.dev.app.example', DEV, 't1'), 'northwind')
     assert.equal(pageTenant('dev.app.example', DEV, 't1'), 't1')
   })
   it('pageTenant CONTROLS: other env, reserved, nested, foreign, lde', () => {
     assert.equal(pageTenant('dev.app.example', PRD, 't1'), '') // reserved label
     assert.equal(pageTenant('api.app.example', PRD, 't1'), '')
-    assert.equal(pageTenant('leiden.dev.app.example', PRD, 't1'), '') // two labels
-    assert.equal(pageTenant('leiden.app.example', DEV, 't1'), '') // prd host seen by dev
+    assert.equal(pageTenant('northwind.dev.app.example', PRD, 't1'), '') // two labels
+    assert.equal(pageTenant('northwind.app.example', DEV, 't1'), '') // prd host seen by dev
     assert.equal(pageTenant('evilapp.example', PRD, 't1'), '')
     assert.equal(pageTenant('localhost', PRD, 't1'), '')
-    assert.equal(pageTenant('leiden.app.example', '', 't1'), '')
-    assert.equal(pageTenant('leiden.app.example', 'http://app.example', 't1'), '')
+    assert.equal(pageTenant('northwind.app.example', '', 't1'), '')
+    assert.equal(pageTenant('northwind.app.example', 'http://app.example', 't1'), '')
   })
   it('tenantUrl: same path on the tenant host, the apex tenant on the apex', () => {
-    assert.equal(tenantUrl('leiden', PRD, 't1', '/issues?issue=SPL-3'), 'https://leiden.app.example/issues?issue=SPL-3')
+    assert.equal(tenantUrl('northwind', PRD, 't1', '/issues?issue=SPL-3'), 'https://northwind.app.example/issues?issue=SPL-3')
     assert.equal(tenantUrl('t1', PRD, 't1', '/issues'), 'https://app.example/issues')
     assert.equal(tenantUrl('csitea', DEV, 't1', '/'), 'https://csitea.dev.app.example/')
-    assert.equal(tenantUrl('leiden', PRD, 't1', '//evil.example/x'), 'https://leiden.app.example/')
+    assert.equal(tenantUrl('northwind', PRD, 't1', '//evil.example/x'), 'https://northwind.app.example/')
     assert.equal(tenantUrl('api', PRD, 't1', '/'), '')
     assert.equal(tenantOrigin('Bad Tenant', PRD, 't1'), '')
     assert.equal(siteHostOf('https://app.example:8443'), '')
   })
   it('isTenantHostOf: same env hosts only', () => {
     assert.ok(isTenantHostOf('https://app.example/x', PRD))
-    assert.ok(isTenantHostOf('https://leiden.app.example/issues', PRD))
+    assert.ok(isTenantHostOf('https://northwind.app.example/issues', PRD))
     assert.ok(!isTenantHostOf('https://api.app.example/', PRD))
     assert.ok(!isTenantHostOf('https://dev.app.example/', PRD))
-    assert.ok(!isTenantHostOf('https://leiden.dev.app.example/', PRD))
-    assert.ok(!isTenantHostOf('http://leiden.app.example/', PRD))
-    assert.ok(!isTenantHostOf('https://leiden.app.example:444/', PRD))
+    assert.ok(!isTenantHostOf('https://northwind.dev.app.example/', PRD))
+    assert.ok(!isTenantHostOf('http://northwind.app.example/', PRD))
+    assert.ok(!isTenantHostOf('https://northwind.app.example:444/', PRD))
     assert.ok(!isTenantHostOf('https://app.example/', DEV))
-    assert.ok(isTenantHostOf('https://leiden.dev.app.example/', DEV))
+    assert.ok(isTenantHostOf('https://northwind.dev.app.example/', DEV))
   })
   it('tenantParamHop: apex + ?tenant=<t> goes to t, keeping the rest', () => {
-    assert.equal(tenantParamHop(PRD + '/issues?tenant=leiden&issue=SPL-3#x', PRD, 't1'), 'https://leiden.app.example/issues?issue=SPL-3#x')
+    assert.equal(tenantParamHop(PRD + '/issues?tenant=northwind&issue=SPL-3#x', PRD, 't1'), 'https://northwind.app.example/issues?issue=SPL-3#x')
     assert.equal(tenantParamHop(PRD + '/?tenant=t1', PRD, 't1'), '')
     assert.equal(tenantParamHop(PRD + '/?tenant=api', PRD, 't1'), '')
     assert.equal(tenantParamHop(PRD + '/issues', PRD, 't1'), '')
-    assert.equal(tenantParamHop('https://leiden.app.example/?tenant=csitea', PRD, 't1'), '') // only the apex hops
+    assert.equal(tenantParamHop('https://northwind.app.example/?tenant=csitea', PRD, 't1'), '') // only the apex hops
   })
   it('oldLinkId: topic, thread, in, /t/<uuid>', () => {
     assert.equal(oldLinkId(`/channel/general?topic=${U}`), U)
@@ -67,11 +67,11 @@ describe('tenant-host', () => {
   it('homeTenant: last used, else first; a member stays', () => {
     const claims = { tenants: [
       { tenant_id: 'csitea' },
-      { tenant_id: 'leiden', last_active_at: '2026-09-25T10:00:00Z' },
-      { tenant_id: 'luka', last_active_at: '2026-09-24T10:00:00Z' },
+      { tenant_id: 'northwind', last_active_at: '2026-09-25T10:00:00Z' },
+      { tenant_id: 'globex', last_active_at: '2026-09-24T10:00:00Z' },
     ] }
-    assert.equal(homeTenant(claims, 't1'), 'leiden')
-    assert.equal(homeTenant(claims, 'leiden'), '')
+    assert.equal(homeTenant(claims, 't1'), 'northwind')
+    assert.equal(homeTenant(claims, 'northwind'), '')
     assert.equal(homeTenant({ tenants: [{ tenant_id: 'csitea' }] }, 't1'), 'csitea')
     assert.equal(homeTenant({ tenants: [] }, 't1'), '')
     assert.equal(homeTenant(null, 't1'), '')

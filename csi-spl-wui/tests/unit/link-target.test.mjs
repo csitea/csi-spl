@@ -203,21 +203,21 @@ describe('both live components use the helper', () => {
 // SPL-959: a tenant host of the SAME env is internal (same tab; another host
 // is a full load); the api host and the other env stay external.
 describe('tenant hosts (SPL-959)', () => {
-  const LEIDEN = 'https://leiden.app.example'
+  const NORTHWIND = 'https://northwind.app.example'
   it('same-env tenant hosts are internal, from the apex and from a tenant host', () => {
-    assert.equal(classifyHref(LEIDEN + '/issues?issue=SPL-3', PRD, PRD).internal, true)
-    assert.equal(classifyHref(PRD + '/issues', LEIDEN, PRD).internal, true)
-    assert.equal(linkOpen(LEIDEN + '/issues', PRD, PRD).target, undefined)
+    assert.equal(classifyHref(NORTHWIND + '/issues?issue=SPL-3', PRD, PRD).internal, true)
+    assert.equal(classifyHref(PRD + '/issues', NORTHWIND, PRD).internal, true)
+    assert.equal(linkOpen(NORTHWIND + '/issues', PRD, PRD).target, undefined)
   })
   it('a cross-host internal link is left to the browser (full navigation, same tab)', () => {
-    assert.equal(sameTabPath(LEIDEN + '/issues', PAGE), null)
+    assert.equal(sameTabPath(NORTHWIND + '/issues', PAGE), null)
   })
   it('CONTROLS: api host, other env, nested label, http, and tenant hosts off', () => {
-    for (const href of ['https://api.app.example/x', DEV_LINK, 'https://leiden.dev.app.example/x', 'http://leiden.app.example/x']) {
+    for (const href of ['https://api.app.example/x', DEV_LINK, 'https://northwind.dev.app.example/x', 'http://northwind.app.example/x']) {
       assert.equal(classifyHref(href, PRD, PRD).internal, false, href)
     }
-    assert.equal(classifyHref(LEIDEN + '/x', PRD, '').internal, false)
-    assert.equal(classifyHref(LEIDEN + '/x', PRD).internal, false) // setLinkSite never called
-    assert.equal(classifyHref(LEIDEN + '/x', DEV, DEV).internal, false) // a prd tenant seen from dev
+    assert.equal(classifyHref(NORTHWIND + '/x', PRD, '').internal, false)
+    assert.equal(classifyHref(NORTHWIND + '/x', PRD).internal, false) // setLinkSite never called
+    assert.equal(classifyHref(NORTHWIND + '/x', DEV, DEV).internal, false) // a prd tenant seen from dev
   })
 })

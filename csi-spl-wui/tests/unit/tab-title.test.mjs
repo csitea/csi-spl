@@ -12,28 +12,28 @@ const claims = (active, tenants) => ({ active_tenant: active, tenants })
 const ALL = [
   { tenant_id: 't1', display_name: 'spool-hub' },
   { tenant_id: 'csi-rel', display_name: 'relishbg' },
-  { tenant_id: 'leiden', display_name: 'leiden' },
-  { tenant_id: 'luka' },
+  { tenant_id: 'northwind', display_name: 'northwind' },
+  { tenant_id: 'globex' },
 ]
 
 describe('tab title', () => {
   it('the display name, not the slug: relishbg.spool-hub', () => {
     assert.equal(tenantTabName(claims('csi-rel', ALL), 'csi-rel', 't1'), 'relishbg.spool-hub')
-    assert.equal(tenantTabName(claims('leiden', ALL), 'leiden', 't1'), 'leiden.spool-hub')
+    assert.equal(tenantTabName(claims('northwind', ALL), 'northwind', 't1'), 'northwind.spool-hub')
   })
   it('the apex tenant is plain spool-hub (never spool-hub.spool-hub)', () => {
     assert.equal(tenantTabName(claims('t1', ALL), 't1', 't1'), 'spool-hub')
     assert.equal(tenantTabName(claims('t1', [{ tenant_id: 't1', display_name: 'csitea' }]), 't1', 't1'), 'spool-hub')
   })
   it('no display name: the id; signed out on a tenant host: the host tenant', () => {
-    assert.equal(tenantTabName(claims('luka', ALL), 'luka', 't1'), 'luka.spool-hub')
-    assert.equal(tenantTabName(null, 'leiden', 't1'), 'leiden.spool-hub')
+    assert.equal(tenantTabName(claims('globex', ALL), 'globex', 't1'), 'globex.spool-hub')
+    assert.equal(tenantTabName(null, 'northwind', 't1'), 'northwind.spool-hub')
     assert.equal(tenantTabName(null, '', 't1'), 'spool-hub')
   })
   it('a page title stays in front', () => {
     assert.equal(tabTitle('Search: x', 'relishbg.spool-hub'), 'Search: x · relishbg.spool-hub')
     assert.equal(tabTitle('', 'relishbg.spool-hub'), 'relishbg.spool-hub')
-    assert.equal(tabTitle('spool-hub', 'leiden.spool-hub'), 'leiden.spool-hub') // the static default title
+    assert.equal(tabTitle('spool-hub', 'northwind.spool-hub'), 'northwind.spool-hub') // the static default title
   })
   it('app.vue sets the title template from these helpers', () => {
     const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')

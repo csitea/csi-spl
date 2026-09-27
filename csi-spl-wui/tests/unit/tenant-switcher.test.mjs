@@ -110,19 +110,19 @@ describe('tenantSwitchOptions (specs/026 §6)', () => {
   })
 
   it('SPL-71: rows keep the hub order (tenants.sort_order), never re-sorted by id or name', () => {
-    // the owner's order, 2026-09-26: csitea, relishbg, pawspoon, orange, luka
+    // the owner's order, 2026-09-26: csitea, relishbg, pawspoon, orange, globex
     const hub = [
       { tenant_id: 't1', display_name: 'csitea' },
       { tenant_id: 'csi-rel', display_name: 'relishbg' },
-      { tenant_id: 'pas-psf', display_name: 'pawspoon' },
-      { tenant_id: 'ora-cam', display_name: 'orange' },
-      { tenant_id: 'luka', display_name: 'luka' },
+      { tenant_id: 'umbrella', display_name: 'pawspoon' },
+      { tenant_id: 'initech', display_name: 'orange' },
+      { tenant_id: 'globex', display_name: 'globex' },
     ]
-    const box = tenantSwitchOptions({ active_tenant: 'ora-cam', tenants: hub })
-    assert.deepEqual(box.options.map((o) => o.label), ['csitea', 'relishbg', 'pawspoon', 'orange', 'luka'])
-    assert.equal(box.selected, 'ora-cam')
+    const box = tenantSwitchOptions({ active_tenant: 'initech', tenants: hub })
+    assert.deepEqual(box.options.map((o) => o.label), ['csitea', 'relishbg', 'pawspoon', 'orange', 'globex'])
+    assert.equal(box.selected, 'initech')
     const none = tenantSwitchOptions({ tenants: hub })
-    assert.deepEqual(none.options.map((o) => o.id), ['', 't1', 'csi-rel', 'pas-psf', 'ora-cam', 'luka'])
+    assert.deepEqual(none.options.map((o) => o.id), ['', 't1', 'csi-rel', 'umbrella', 'initech', 'globex'])
   })
 
   it('several memberships and none active (or a stale one): a blank first row, nothing chosen for the human', () => {

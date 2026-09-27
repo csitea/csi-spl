@@ -279,9 +279,9 @@ func (s *Server) Handler() http.Handler {
 	// carries the CORS headers the WUI needs to read it.
 	inner := s.edge.Wrap(mux)
 	if s.o.Auth != nil {
-		return s.middleware(s.authCORS(inner))
+		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
-	return s.middleware(inner)
+	return s.middleware(compressJSON(inner))
 }
 
 // Shutdown closes every live socket with 1001 (graceful drain); the caller

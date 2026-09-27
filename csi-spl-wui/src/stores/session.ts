@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } from '~/utils/card-clip.mjs'
+import { takeEarlySession } from '~/utils/early-session.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -65,7 +66,9 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function probeOnce() {
-    const out = await auth.session()
+    /* CLE-35062: the first probe of the page was started before the plugins
+       ran (plugins/0.boot-early); take its answer instead of asking again */
+    const out = await (takeEarlySession() || auth.session())
     // 'unknown' keeps what we had (auth-v1 §4: the csi-rel 052 incident case)
     if (out.state === 'unknown') {
       if (state.value === 'loading') state.value = 'unknown'

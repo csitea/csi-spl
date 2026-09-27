@@ -53,14 +53,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
        dev). Fetch them alongside the probe; a signed-out visitor who is
        redirected just leaves them in the cache. */
     void preloadRouteComponents(to.fullPath).catch(() => {})
-    /* CLE-35062: the same for the product frame. The default layout and the
-       top bar's language switcher (async, to keep headlessui out of the
-       initial chunks, but on every product screen) were only discovered when
-       the frame rendered after the probe: three serial chunk waves between the
-       session answer and the page's first read, ~950 ms on slow 4G (prd e2e,
-       n=5). Import them now; the render then finds them in the module map. */
-    void import('~/layouts/default.vue').catch(() => {})
-    void import('~/components/LanguageSwitcher.vue').catch(() => {})
+    /* CLE-35062: the frame's own chunks are started even earlier, by
+       plugins/0.boot-early, before the i18n plugin awaits its catalogue */
     try {
       await session.probe()
     } finally {

@@ -48,8 +48,19 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       `viewer.dropTopics` + the frame hook in `layouts/default.vue`. No hub change, no new string.
       `tests/unit/topic-row-archive.test.mjs` 12/12; unit 136/136 files, typecheck, the CI e2e set
       on a mock generate 7/7, initial JS 156 KB gzip (budget 160)
-- [ ] T013 WUI deploy: `build.json` on dev and the apex carry the commit; / and /login re-probed 3 min
-- [ ] T014 live proof from the Topics section, dev t1 test member + prd `e2e`, DB counts before / after
-- [ ] T015 report on SPL-986 and in topic 8f58f802
+- [x] T013 WUI deploy: `build.json` on dev, the apex and e2e read `27bce361` (run 36305133139), then
+      `50e2406a` (run 36305212089, the proof script only). Quality gate green on `50e2406a` (run 36305211980);
+      the gate on `27bce361` was red once in `orc: spl-db-compact.tst.sh` ("ALLOW_PRD=1 still refused"),
+      a test this change does not touch, green locally and on the next run. Re-probe of / and /login on
+      both apexes for 3 min after the deploy: 72/72 = 200
+- [x] T014 live proof `tests/e2e/topic-archive-live.proof.mjs` PHASE=rail-a / rail-b, n=1 per env, WUI
+      `27bce361`, hub 0.9.7: dev t1 (the m3-e2e test member, rows the proof created) 10/10 PASS; prd `e2e`
+      (https://e2e.spool-hub.ai, claim AND page host = e2e) 10/10 PASS. Card + 3 replies + a thread on
+      reply 1: right-click on its Topics-section row -> menu ends Archive, Delete (icons left); archive ->
+      gone from the Topics section, the Topics home and the hub list, in /archive with 4 replies;
+      unarchive -> back in the Topics section; the row's button -> Delete -> dialog names 4 replies ->
+      confirm -> row gone, hub 404. `do_spl_db_query` (by id / structural / archived): 5 / 5 / 0 -> 0 / 0 / 0
+      on dev and on prd
+- [x] T015 report on SPL-986 and in topic 8f58f802
 
 <!-- version: 0.3.0 · updated: 2026-09-27 -->

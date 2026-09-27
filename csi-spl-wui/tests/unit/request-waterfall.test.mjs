@@ -262,7 +262,8 @@ describe('attached pictures: one verified download per file per page (sharedPrev
 describe('lobby: the room task and the #lobby topics are read in parallel', () => {
   it('listMessages starts before store.open resolves, admitted after it', () => {
     const s = src('src/pages/lobby.vue')
-    assert.match(s, /const topics = withSessionRetry\(api, \(\) => api\.listMessages\(\{ channel: 'lobby', limit: 50 \}\)\)\n[\s\S]*?void store\.open\(id\)\.then\(\(\) => loadLobbyTopics\(topics\)\)/)
+    // CLE-35062: on a load that landed on /lobby both reads were started even earlier, at session 'in' (utils/lobby-warm)
+    assert.match(s, /const topics = warm \? warm\.topics : withSessionRetry\(api, \(\) => api\.listMessages\(\{ channel: 'lobby', limit: 50 \}\)\)\n[\s\S]*?void store\.open\(id, [^\n]*\)\n\s*\.then\(\(\) => loadLobbyTopics\(topics\)\)/)
     assert.doesNotMatch(s, /store\.open\(id\)\.then\(\(\) => loadLobbyTopics\(\)\)/)
   })
 })

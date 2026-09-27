@@ -124,8 +124,10 @@ function setup(key: 'main' | 'pane') {
   let offReconnect: (() => void) | null = null
   let offEdited: (() => void) | null = null
   let offReaction: (() => void) | null = null
-  /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
-  async function open(id: string, opts: { all?: boolean } = {}) {
+  /** `all`: also page to the oldest row (a pinned root needs it); the pane always does.
+      `first`: that same newest window, already asked for (CLE-35062, utils/lobby-warm);
+      a failed one is asked again here. */
+  async function open(id: string, opts: { all?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
     if (!id) return
     /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
     if (key === 'pane') usePaneFocus().openedTopic()
@@ -154,7 +156,8 @@ function setup(key: 'main' | 'pane') {
     loading.value = true
     try {
       // 013: newest window first; older windows on Load more (loadOlder)
-      const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
+      const read = () => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
+      const data = opts.first ? await opts.first.catch(read) : await read()
       merge(data.messages)
       olderCursor.value = data.next
       if (opts.all || key === 'pane') await loadAll()

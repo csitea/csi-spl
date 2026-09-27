@@ -103,7 +103,7 @@ describe('lobby.vue gates the socket (W5)', () => {
 
   it('store.open sits behind the same gate (it also ensure()s)', () => {
     const t = s()
-    assert.match(t, /shouldOpenHubSocket\(st\)\) \{[\s\S]*store\.open\(id\)/)
+    assert.match(t, /shouldOpenHubSocket\(st\)\) \{[\s\S]*store\.open\(id[,)]/)
     assert.doesNotMatch(t, /watch\(lobbyId, \(id\) => \{ if \(id\) void store\.open/)
   })
 })

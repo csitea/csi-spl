@@ -53,6 +53,7 @@ import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { lobbyFrames, takeLobbyWarm } from '~/utils/lobby-warm.mjs'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()
@@ -190,9 +191,15 @@ watch([lobbyId, () => session.state], ([id, st]) => {
    task answered, and every lobby row comes from them: first message ~560 ms
    later on dev (CLE-34984). */
 function openLobby(id: string) {
-  const topics = withSessionRetry(api, () => api.listMessages({ channel: 'lobby', limit: 50 }))
+  /* CLE-35062: on a load that landed here, both reads were started when the
+     session said 'in' (plugins/lobby-warm); take them, and admit the live
+     frames that arrived meanwhile once the reads are in. */
+  const warm = takeLobbyWarm(id)
+  const topics = warm ? warm.topics : withSessionRetry(api, () => api.listMessages({ channel: 'lobby', limit: 50 }))
   topics.catch(() => { /* handled below */ })
-  void store.open(id).then(() => loadLobbyTopics(topics))
+  void store.open(id, warm ? { first: warm.room } : {})
+    .then(() => loadLobbyTopics(topics))
+    .then(() => { if (warm) store.admit(lobbyFrames(warm, id) as unknown as SpoolMessage[]) })
 }
 async function loadLobbyTopics(pending: ReturnType<typeof api.listMessages>) {
   try {

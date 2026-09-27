@@ -45,4 +45,14 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
 - [x] T013 members endpoint `online` / `seated`
 - [x] T014 WUI Properties -> Agents shows online / seated (chip per row,
       19 locales, tests/unit/channel-properties.test.mjs)
-- [ ] T015 roll hub + WUI, live e2e proof (3 posts, invite, inbox 3 + 1 poke)
+- [x] T015 roll hub + WUI, live e2e proof (3 posts, invite, inbox 3 + 1 poke).
+      Hub 0.9.8 = 8514554b on dev and prd (run 36307389746, ROLLED true on
+      both); WUI build.json ea67bc8b on dev and prd (run 36307367903).
+      `do_spl_backfill_probe` (20e32990), n=1 per env, both PASS:
+      dev t1 #bf-probe-20260927085931 and prd e2e #bf-probe-20260927090004:
+      PRB-9872 inbox_new 3 (every posted msg_id present), pokes 1, line
+      "added to #<ch>: 3 earlier messages in 3 topics, newest from PRB-9871";
+      the re-invite added nothing. Desk sidecars: dev t1 and prd t1 restarted
+      on the rebuilt binary by the reconcile cron (12:00 / 12:02 EEST); the
+      prd csi-rel / leiden / csitea desk sidecars still run the pre-SPL-987
+      binary, so seats on them stay owed until those restart (FR-024).

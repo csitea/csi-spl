@@ -59,6 +59,7 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T056 [CLE-35030, SPL-995] at <= 820 px the tenant switcher sits in the one-row top bar, directly before the search icon (owner, topic 6576fead, 2026-09-27 10:09Z: "on mobile the tenan swihcher should be i nthe top bar next to the search"); desktop unchanged (eb88d913; lead verifier tenant-in-top-bar ok at 360-820, dev + prd, n=1)
 - [ ] T057 [owner via CLE-001] the card's emoji button (msg-emoji-btn) is visible on phones again, 44 px, beside the menu (D3 amended; owner, topic e0b12a2c)
 - [ ] T058 [same lane as T057] at <= 820 px the card avatar sits 4 px from the left edge, and the freed width goes to the header so the emoji icon fits (owner, topic e0b12a2c: "the avatar could be 4px on the left on mobile ... and get some space for the icon")
+- [ ] T059 [same lane as T057] at <= 820 px a card's time reads MM-DD HH:MM (no year); desktop keeps YYYY-MM-DD (SPL-962). Owner, topic e0b12a2c: "no need to siplay the full 2026 of the year it could be just the month and the date", then topic 2354df15: "but this on mobile only". The iso-dates checks get a <= 820 exception for the card time
 
 ## 5. Test widths
 

@@ -241,31 +241,27 @@ export function formatMsgListTs(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/**
- * SPL-1000 (owner, 2026-09-27, topic e0b12a2c, "on mobile only"): a phone's
- * card header drops the year of THIS year - `09-27 13:43` - to make room for
- * the Add-emoji icon. A time from another year keeps it, so an old message
- * stays unambiguous. `text` is what formatMsgListTs / formatTopicTs printed.
- * @param {string} text
- * @param {unknown} ts
- * @param {number} [nowMs]
- */
-export function dropThisYear(text, ts, nowMs = Date.now()) {
-  const s = String(text || '')
-  const d = new Date(/** @type {any} */ (ts))
-  if (Number.isNaN(d.getTime())) return s
-  const y = String(new Date(nowMs).getFullYear())
-  return s.startsWith(y + '-') && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(5) : s
+/** The viewer's own wall clock of `d`: `{ day: 'yyyy-mm-dd', hm: 'HH:MM' }`. */
+function wallClock(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return { day: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hm: `${p(d.getHours())}:${p(d.getMinutes())}` }
 }
 
 /**
  * SPL-1007 (owner, 2026-09-27, topic 70c82b54, on mobile): a message from
- * today shows only its time - `13:43`; any other day keeps dropThisYear's
- * form (`09-26 23:59`, `2025-12-31 23:59`). "Today" is read in the frame the
- * text was printed in: the list prints the viewer's local date
- * (formatMsgListTs), the topic pane's clock prints UTC (formatTopicTs): the
- * frame is the one whose `yyyy-mm-dd HH:MM` of `ts` the text starts with, and
- * the date is dropped only when it is today in that same frame.
+ * today shows only its time - `13:43`; another day this year `09-26 23:59`,
+ * another year `2025-12-31 23:59` (SPL-1000).
+ *
+ * CLE-35065 (owner, prd t1 topic 95adf832, 2026-09-28 00:3x EEST): "today"
+ * is the VIEWER's local calendar day, on every phone surface. The first cut
+ * read "today" in the frame the text was printed in, and the topic pane's
+ * clock prints UTC, so between local midnight and UTC midnight a viewer east
+ * of Greenwich read a UTC hour, and west of it a date on today's lines. A
+ * phone now prints the viewer's own wall clock from `ts` itself, and "only
+ * the hours": the topic pane's ` sent 7s` tail and its seconds are dropped
+ * too, so the header keeps to one line. `text` (what formatMsgListTs /
+ * formatTopicTs printed) passes through when it is not a time. The hover
+ * keeps the whole value.
  * @param {string} text
  * @param {unknown} ts
  * @param {number} [nowMs]
@@ -273,16 +269,11 @@ export function dropThisYear(text, ts, nowMs = Date.now()) {
 export function phoneCardTime(text, ts, nowMs = Date.now()) {
   const s = String(text || '')
   const d = new Date(/** @type {any} */ (ts))
-  if (Number.isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2} /.test(s)) return dropThisYear(s, ts, nowMs)
-  const now = new Date(nowMs)
-  const p = (n) => String(n).padStart(2, '0')
-  const localDay = (x) => `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`
-  const utcDay = (x) => x.toISOString().slice(0, 10)
-  /* the frame is the one whose `yyyy-mm-dd HH:MM` of ts the text starts with */
-  const head = s.slice(0, 16)
-  const today = (head === formatMsgListTs(d.toISOString()) && localDay(d) === localDay(now))
-    || (head === formatAbsTs(d.toISOString()).slice(0, 16) && utcDay(d) === utcDay(now))
-  return today ? s.slice(11) : dropThisYear(s, ts, nowMs)
+  if (Number.isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)) return s
+  const at = wallClock(d)
+  const now = wallClock(new Date(nowMs))
+  if (at.day === now.day) return at.hm
+  return (at.day.slice(0, 4) === now.day.slice(0, 4) ? at.day.slice(5) : at.day) + ' ' + at.hm
 }
 
 /** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */

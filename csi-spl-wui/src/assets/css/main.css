@@ -674,6 +674,12 @@ html.pane-dragging * {
   .spool-shell .feed-body {
     padding-bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));
   }
+  /* CLE-35065 (owner, prd t1 topics 95adf832 + fd1e5be4): "the avatar could
+     be 5 px more to the left, the whole row", "the text content of the cards
+     must not be more than 6 px from the left edge of the screen, and likewise
+     no more than 6 px from the right" - a card list keeps 2 px each side (was
+     20, the pinned topic root 16) and the card its 4 px (MessageCard) */
+  .feed-body, .feed-body.pinned-root { padding-inline: 2px; }
   /* SPL-1005: the dock is on level 1 too - the whole sidebar (its footer
      row, the version and health included) ends above it */
   .spool-shell > .sidebar {

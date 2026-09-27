@@ -36,7 +36,7 @@
         <div class="msg-meta">
           <span class="msg-author" :title="topicPeople(t.participants).title || undefined">{{ topicPeople(t.participants).text || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
-          <span class="msg-time">{{ formatTs(t.last_ts, locale) }}</span>
+          <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
         </div>
         <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
@@ -77,7 +77,8 @@ import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { useLiveFeed } from '~/stores/live'
-import { formatTs } from '~/utils/channel-feed.mjs'
+import { formatMsgListTs, formatTs, phoneCardTime } from '~/utils/channel-feed.mjs'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { bumpTopic } from '~/utils/topic-list.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSettledQuery } from '~/composables/useSettledQuery'
@@ -99,6 +100,11 @@ const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
+/* CLE-35065: a phone prints the row's time on the viewer's own clock, only
+   HH:MM when it is from today (phoneCardTime, as on every card); desktop
+   keeps the UTC HH:MM */
+const mobile = useMobileStack().isMobile
+const rowTime = (ts: string) => (mobile.value ? phoneCardTime(formatMsgListTs(ts), ts) : formatTs(ts, locale.value))
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
 function topicRowTitle(subject: string) {

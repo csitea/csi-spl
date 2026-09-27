@@ -23,7 +23,7 @@
     @pointercancel="longPress.cancel"
   >
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
-    <div>
+    <div class="msg-main">
       <!--
         CLE-3446 — the owner's settled row format, 2026-09-22: per message,
         sender -> recipient, and the arrow flips per row because BOTH ends are
@@ -1205,17 +1205,25 @@ async function save() {
    LAST in this sheet on purpose: it overrides same-specificity rules above
    (.card-grip, .msg-reaction, .msg-meta > .msg-reactions) by order. */
 @media (max-width: 820px) {
+  /* CLE-35065 (owner, topics 95adf832 + fd1e5be4): the card's text at most
+     6 px from either screen edge, "the max amount of the screen area must be
+     used". The header row keeps the avatar column; everything under it (the
+     body, the files, the clip, the grip, the edit box) spans the whole card,
+     so the text starts under the avatar: 2 px list inset + 4 px card inset. */
   .msg {
     grid-template-columns: 32px minmax(0, 1fr);
-    gap: 8px;
-    /* SPL-1000 (owner): the avatar 4px from the left edge, the room goes to the header */
-    padding: 8px 8px 8px 4px;
+    gap: 0 8px;
+    /* SPL-1000 (owner): the avatar 4px from the card's left edge */
+    padding: 8px 4px;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
   }
   .msg textarea { -webkit-user-select: text; user-select: text; }
   .msg > .avatar { width: 32px; height: 32px; }
+  .msg-main { display: contents; }
+  .msg-main > * { grid-column: 1 / -1; min-width: 0; }
+  .msg-main > .msg-meta { grid-column: 2; }
   .msg-meta { flex-wrap: wrap; gap: 4px; }
   /* SPL-1000: the header is ONE line at 360 px with Add emoji in it. The row
      wraps (the reactions take their own line below), and a flex item wraps at
@@ -1252,10 +1260,10 @@ async function save() {
   .msg-reactions--phone { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; line-height: 1; }
   .msg-reactions--phone .msg-reaction { min-height: 22px; min-width: 0; padding: 0 5px; gap: 2px; font-size: 0.5rem; }
   .msg-reactions--phone .msg-reaction__n { font-size: 0.5rem; }
-  /* its 44 px target reaches 8 px into the card's right padding, and the
+  /* its 44 px target reaches the card's 4 px right padding, and the
      arrow gives back its side bearing: a sender -> recipient header fits one
      line at 360 px (SPL-1000) */
-  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -8px; }
+  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -4px; }
   .msg-to-arrow { margin-inline: -2px; }
   .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
   .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }

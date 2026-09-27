@@ -20,6 +20,19 @@
 //      the card leaves the feed and the hub answers 404 for the topic
 // PHASE=clean IDS=<ids.json>: delete an interrupted run's topic (archived or not)
 //
+// SPL-986 (spec 041 §3.5): the same menu on a ROW of the left-rail Topics
+// section. The same topic shape as PHASE=a, created the same way.
+// PHASE=rail-a:
+//   R2. create the topic (card + 3 replies + a thread on reply 1)
+//   R3. the Topics section: a right-click on the topic's row opens its menu,
+//       which (after the hub's answer) ends with Archive then Delete, icon left
+//   R4. Archive -> the row leaves the Topics section and the Topics home; the
+//       hub list leaves it out; GET /v1/view/archived has it with 4 replies
+//   R5. /archive: Unarchive -> the row is back in the Topics section
+// PHASE=rail-b:
+//   R6. the row's ⋯ button -> Delete -> the dialog names 4 replies; confirm ->
+//       the row leaves the Topics section and the hub answers 404 for the topic
+//
 //   BASE=https://dev.<domain> (prd: https://<tenant>.<domain>) API=https://dev.api.<domain>
 //   EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> PHASE=a|b|clean
 //   [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/topic-archive-live.proof.mjs
@@ -175,6 +188,36 @@ async function openMenu(p, id) {
   await p.waitForSelector('[data-testid=msg-menu]', { visible: true, timeout: 5000 })
 }
 
+/* SPL-986: the rail's Topics section and one row of it */
+const railRow = (task) => `#sidebar-panel-topics .nav-row[data-order="${task}"]`
+async function openTopicsSection(p, task) {
+  await nav(p, BASE + '/')
+  await p.waitForSelector('[data-testid=sidebar-tab-topics]', { visible: true, timeout: 30000 })
+  await p.click('[data-testid=sidebar-tab-topics]')
+  return p.waitForSelector(railRow(task), { visible: true, timeout: 30000 }).then(() => true, () => false)
+}
+async function railMenuItems(p, task) {
+  const panel = `[data-testid=sidebar-row-menu-panel][id="sidebar-row-menu-th-${task}"]`
+  await p.waitForSelector(`${panel}[data-topic-state="ready"], ${panel}[data-topic-state="none"]`, { visible: true, timeout: 20000 })
+  return p.$$eval(`${panel} [role=menuitem]`, (els) => els.map((e) => ({
+    id: e.getAttribute('data-testid'), icon: !!e.querySelector('svg'), first: e.firstElementChild && e.firstElementChild.tagName.toLowerCase(),
+  })))
+}
+async function makeTopic(p, label) {
+  const T = randomUUID()
+  const card = randomUUID()
+  const replies = [randomUUID(), randomUUID(), randomUUID()]
+  const thread = randomUUID()
+  const tag = `${label} proof ${Date.now().toString(36)}`
+  const acks = await sendAll(p, [
+    { msg_id: card, task_id: T, channel: 'lobby', body: `${tag}: the card`, is_parent: 1 },
+    ...replies.map((id, i) => ({ msg_id: id, task_id: T, channel: 'lobby', body: `${tag}: reply ${i + 1}`, is_parent: 0 })),
+    { msg_id: thread, task_id: replies[0], parent_task_id: T, channel: 'lobby', body: `${tag}: a thread on reply 1`, is_parent: 0 },
+  ])
+  const all = [card, ...replies, thread]
+  return { T, card, replies, thread, all, acked: all.every((id) => acks[id]), n: Object.keys(acks).length }
+}
+
 const puppeteer = await loadPuppeteer()
 const browser = await puppeteer.launch({
   executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
@@ -250,6 +293,58 @@ try {
     step('6 confirm: the card leaves the feed; the hub has neither the card nor its topic', gone && after.status === 404 && topic.status === 404,
       { gone, card: after.status, topic: topic.status })
     await shot(p, '06-deleted')
+  } else if (PHASE === 'rail-a') {
+    const tp = await makeTopic(p, 'SPL-986')
+    step('R2 the card, three replies and a thread on reply 1 are stored (acked)', tp.acked, { acks: tp.n })
+    writeFileSync(`${OUT}/ids.json`, JSON.stringify({ task: tp.T, card: tp.card, children: [...tp.replies, tp.thread], all: tp.all }, null, 2))
+
+    const shown = await openTopicsSection(p, tp.T)
+    step('R3 the topic is a row of the left-rail Topics section', shown)
+    const row = await p.$(railRow(tp.T))
+    const box = await row.boundingBox()
+    await p.mouse.click(box.x + 30, box.y + box.height / 2, { button: 'right' })
+    const items = await railMenuItems(p, tp.T)
+    const ids = items.map((i) => i.id)
+    step('R3 right-click on the row: its menu ends with Archive then Delete, the icon left of each label',
+      JSON.stringify(ids.slice(-2)) === JSON.stringify(['sidebar-row-menu-archive', 'sidebar-row-menu-delete-topic']) &&
+      items.slice(-2).every((i) => i.icon && i.first === 'svg'), { ids })
+    await shot(p, 'R03-rail-menu')
+
+    await p.click(`#sidebar-row-menu-th-${tp.T} [data-testid=sidebar-row-menu-archive]`)
+    const gone = await until(() => p.$(railRow(tp.T)).then((h) => !h), 10000)
+    const home = await p.$(`.feed-col a.topic-row[data-key="${tp.T}"]`).then((h) => !h)
+    const list = await hub(p, 'GET', '/v1/view/topics?limit=100')
+    const listed = (list.body?.topics || []).some((t) => t.task_id === tp.T)
+    const arch = await hub(p, 'GET', '/v1/view/archived')
+    const card = (arch.body?.cards || []).find((c) => c.msg_id === tp.card)
+    step('R4 Archive: the row leaves the Topics section and the Topics home, the hub list leaves it out, the Archive read has it with 4 replies',
+      gone && home && !listed && !!card && card.replies === 4, { gone, home_gone: home, listed, archived: !!card, replies: card && card.replies })
+    await shot(p, 'R04-archived')
+
+    await nav(p, BASE + '/archive')
+    const onPage = await p.waitForSelector(`[data-test=archive-row][data-msg-id="${tp.card}"]`, { visible: true, timeout: 20000 }).then(() => true, () => false)
+    if (onPage) await p.click(`[data-test=archive-row][data-msg-id="${tp.card}"] [data-test=archive-unarchive]`)
+    const left = onPage && await until(() => p.$(`[data-test=archive-row][data-msg-id="${tp.card}"]`).then((h) => !h), 10000)
+    const back = await openTopicsSection(p, tp.T)
+    step('R5 /archive Unarchive: the row is back in the Topics section', !!left && back, { on_page: onPage, left, back })
+  } else if (PHASE === 'rail-b') {
+    const ids = JSON.parse(readFileSync(`${OUT}/ids.json`, 'utf8'))
+    const shown = await openTopicsSection(p, ids.task)
+    await p.click(`#sidebar-panel-topics [data-testid=sidebar-row-menu][data-menu-id="th:${ids.task}"]`)
+    const items = await railMenuItems(p, ids.task)
+    step('R6 the row\'s button opens the same menu, Delete last', shown && items.at(-1)?.id === 'sidebar-row-menu-delete-topic', { ids: items.map((i) => i.id) })
+    await p.click(`#sidebar-row-menu-th-${ids.task} [data-testid=sidebar-row-menu-delete-topic]`)
+    await p.waitForSelector('[data-testid=topic-delete-count][data-replies="4"]', { visible: true, timeout: 15000 }).catch(() => {})
+    const count = await p.$eval('[data-testid=topic-delete-count]', (e) => ({ n: e.getAttribute('data-replies'), text: e.textContent.trim() })).catch(() => null)
+    step('R6 Delete opens the dialog, which names the 4 replies first', !!count && count.n === '4', count || {})
+    await shot(p, 'R06-dialog')
+    await p.click('[data-testid=topic-delete-confirm]')
+    const gone = await until(() => p.$(railRow(ids.task)).then((h) => !h), 15000)
+    const after = await hub(p, 'GET', `/v1/view/messages/${ids.card}/topic`)
+    const topic = await hub(p, 'GET', `/v1/view/topics/${ids.task}`)
+    step('R6 confirm: the row leaves the Topics section; the hub has neither the card nor its topic', gone && after.status === 404 && topic.status === 404,
+      { gone, card: after.status, topic: topic.status })
+    await shot(p, 'R06-deleted')
   } else if (PHASE === 'clean') {
     // an interrupted run's topic (IDS=<its ids.json>): delete it through the hub
     const ids = JSON.parse(readFileSync(process.env.IDS || `${OUT}/ids.json`, 'utf8'))

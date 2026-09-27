@@ -12,6 +12,7 @@ import {
   canEditOpenInvite,
   channelAgentCandidates,
   channelAgentRows,
+  channelAgentState,
   channelInviteCandidates,
   defaultChannelRows,
   filterAgentsContains,
@@ -108,6 +109,23 @@ describe('People offers humans, Agents offers boxes', () => {
     ])
     assert.equal(rows.some((r) => r.id === 'HUM-1'), false)
     assert.deepEqual(channelAgentRows(undefined), [])
+  })
+
+  it('SPL-987: each agent row carries its online / seated state from the hub', () => {
+    const rows = channelAgentRows([
+      { id: 'CLE-07', box: 'box-desk', online: true, seated: true },
+      { id: 'AGY-02', box: 'box-desk', online: true, seated: false },
+      { id: 'GRK-03', box: 'box-a', online: false, seated: true },
+      { id: 'CLE-08', box: 'box-a' },
+    ])
+    assert.deepEqual(rows, [
+      { id: 'AGY-02', box: 'box-desk', state: 'unseated' },
+      { id: 'CLE-07', box: 'box-desk', state: 'online' },
+      { id: 'CLE-08', box: 'box-a' },
+      { id: 'GRK-03', box: 'box-a', state: 'offline' },
+    ])
+    assert.equal(channelAgentState({ online: false, seated: false }), 'unseated')
+    assert.equal(channelAgentState(null), '')
   })
 
   it('an announced agent who is not already in the channel can be invited', () => {

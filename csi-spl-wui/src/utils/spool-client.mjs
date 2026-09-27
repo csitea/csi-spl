@@ -257,6 +257,22 @@ export function canDeleteChannel({ selfId, row } = {}) {
   return canEditOpenInvite({ selfId, createdBy: r.created_by })
 }
 
+/**
+ * SPL-987: whether a channel agent can hear the channel, from the hub's
+ * members answer. 'unseated' = its box no longer lists it (seated false);
+ * 'online' / 'offline' = its box does, with / without a live socket to the
+ * hub. '' = the hub did not say (an older hub, or a row added in this dialog).
+ * Neither state says the agent's terminal is running - the hub cannot see it.
+ */
+export function channelAgentState(raw) {
+  if (!raw || typeof raw !== 'object') return ''
+  if (raw.seated === false) return 'unseated'
+  if (raw.online === true) return 'online'
+  if (raw.online === false) return 'offline'
+  if (raw.state === 'online' || raw.state === 'offline' || raw.state === 'unseated') return raw.state
+  return ''
+}
+
 /** Agents that receive the channel. People and the browser box are not agents. */
 export function channelAgentRows(agents) {
   const rows = []
@@ -268,7 +284,8 @@ export function channelAgentRows(agents) {
     const key = id + '\0' + box
     if (seen.has(key)) continue
     seen.add(key)
-    rows.push({ id, box })
+    const state = channelAgentState(raw)
+    rows.push(state ? { id, box, state } : { id, box })
   }
   rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
   return rows
@@ -298,7 +315,12 @@ export function aboutChannelDescription(row) {
 function parseMemberList(data, channel) {
   const members = Array.isArray(data && data.members) ? data.members.map((id) => String(id)) : []
   const agents = Array.isArray(data && data.agents)
-    ? data.agents.map((a) => ({ id: String((a && a.id) || ''), box: String((a && a.box) || '') })).filter((a) => a.id)
+    ? data.agents.map((a) => {
+      const row = { id: String((a && a.id) || ''), box: String((a && a.box) || '') }
+      if (a && typeof a.online === 'boolean') row.online = a.online
+      if (a && typeof a.seated === 'boolean') row.seated = a.seated
+      return row
+    }).filter((a) => a.id)
     : []
   return {
     channel: String((data && data.channel) || channel || ''),

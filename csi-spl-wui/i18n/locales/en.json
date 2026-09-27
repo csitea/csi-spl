@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "online",
+      "agent_offline": "box offline",
+      "agent_unseated": "not seated",
+      "agent_online_hint": "Its box is connected: channel posts reach this agent now.",
+      "agent_offline_hint": "Its box is not connected: channel posts wait until it reconnects.",
+      "agent_unseated_hint": "Its box no longer lists this agent: channel posts do not reach it.",
       "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it."
     }
   },

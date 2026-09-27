@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "tiešsaistē",
+      "agent_offline": "kaste bezsaistē",
+      "agent_unseated": "nav reģistrēts",
+      "agent_online_hint": "Tā kaste ir savienota: kanāla ziņas šo aģentu sasniedz uzreiz.",
+      "agent_offline_hint": "Tā kaste nav savienota: kanāla ziņas gaida, līdz tā atkal savienosies.",
+      "agent_unseated_hint": "Tā kaste vairs nenorāda šo aģentu: kanāla ziņas to nesasniedz.",
       "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno."
     }
   },

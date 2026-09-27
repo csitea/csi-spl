@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "prisijungęs",
+      "agent_offline": "dėžė atsijungusi",
+      "agent_unseated": "neužregistruotas",
+      "agent_online_hint": "Jo dėžė prijungta: kanalo įrašai šį agentą pasiekia iškart.",
+      "agent_offline_hint": "Jo dėžė neprijungta: kanalo įrašai laukia, kol ji vėl prisijungs.",
+      "agent_unseated_hint": "Jo dėžė nebeturi šio agento: kanalo įrašai jo nepasiekia.",
       "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
     }
   },

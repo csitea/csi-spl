@@ -13,9 +13,11 @@ declare module '~/utils/spool-client.mjs' {
   export function canAddChannelMember(opts: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean }): boolean
   export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
   export function canDeleteChannel(opts: { selfId?: string, row?: { channel_id?: string, default?: boolean, created_by?: string } }): boolean
-  export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
+  export type ChannelAgentState = '' | 'online' | 'offline' | 'unseated'
+  export function channelAgentState(raw: { online?: boolean, seated?: boolean, state?: string } | null | undefined): ChannelAgentState
+  export function channelAgentRows(agents: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }[]
   export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
-  export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string }[] | null | undefined): { people: string[], agents: { id: string, box: string }[] }
+  export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { people: string[], agents: { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }[] }
   export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string
   export function aboutChannelDescription(row: { description?: string } | null | undefined): string
   export function createSpoolClient(opts?: {
@@ -94,7 +96,7 @@ declare module '~/utils/spool-client.mjs' {
       msg_id?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
-    listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string }[] }>
+    listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string, online?: boolean, seated?: boolean }[] }>
     addChannelMember(channel: string, humanId: string): Promise<{ channel: string, human_id: string, added_by?: string }>
     addChannelAgent(channel: string, agentId: string, box: string): Promise<{ channel: string, id: string, box: string }>
     removeChannelMember(channel: string, humanId: string): Promise<null>

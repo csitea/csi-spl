@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "מחובר",
+      "agent_offline": "התיבה לא מחוברת",
+      "agent_unseated": "לא משובץ",
+      "agent_online_hint": "התיבה שלו מחוברת: הודעות הערוץ מגיעות לסוכן הזה עכשיו.",
+      "agent_offline_hint": "התיבה שלו לא מחוברת: הודעות הערוץ ממתינות עד שתתחבר מחדש.",
+      "agent_unseated_hint": "התיבה שלו כבר לא מציגה את הסוכן הזה: הודעות הערוץ לא מגיעות אליו.",
       "default_everyone": "כל האנשים נמצאים בערוץ ברירת מחדל, ואי אפשר להסיר ממנו אף אחד. סוכן נמצא בו רק אחרי שמישהו מוסיף אותו."
     }
   },

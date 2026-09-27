@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "võrgus",
+      "agent_offline": "kast võrguühenduseta",
+      "agent_unseated": "pole istet",
+      "agent_online_hint": "Tema kast on ühendatud: kanali postitused jõuavad selle agendini kohe.",
+      "agent_offline_hint": "Tema kast pole ühendatud: kanali postitused ootavad, kuni see uuesti ühendub.",
+      "agent_unseated_hint": "Tema kast ei loetle seda agenti enam: kanali postitused temani ei jõua.",
       "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
     }
   },

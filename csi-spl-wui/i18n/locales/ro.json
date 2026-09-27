@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "online",
+      "agent_offline": "cutie offline",
+      "agent_unseated": "neînscris",
+      "agent_online_hint": "Cutia lui este conectată: postările din canal ajung acum la acest agent.",
+      "agent_offline_hint": "Cutia lui nu este conectată: postările din canal așteaptă până se reconectează.",
+      "agent_unseated_hint": "Cutia lui nu mai listează acest agent: postările din canal nu ajung la el.",
       "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă."
     }
   },

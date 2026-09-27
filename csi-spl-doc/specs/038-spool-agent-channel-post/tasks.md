@@ -40,7 +40,9 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
 - [x] T011 hub back-fill (store Backfills, hub/backfill.go, invite + hello +
       sweeper triggers, hello `features`), box client quiet delivery + one
       summary poke (hubclient/backfill.go), `backfill_test.go`
-- [ ] T012 apply 0066 on dev and prd (`do_spl_db_bootstrap`)
+- [x] T012 apply 0066 on dev and prd (`do_spl_db_bootstrap`, 2026-09-27: applied
+      on both; prd 22 seats, 0 pending after the stamp)
 - [x] T013 members endpoint `online` / `seated`
-- [ ] T014 WUI Properties -> Agents shows online / seated
+- [x] T014 WUI Properties -> Agents shows online / seated (chip per row,
+      19 locales, tests/unit/channel-properties.test.mjs)
 - [ ] T015 roll hub + WUI, live e2e proof (3 posts, invite, inbox 3 + 1 poke)

@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "online",
+      "agent_offline": "box offline",
+      "agent_unseated": "niet geplaatst",
+      "agent_online_hint": "Zijn box is verbonden: kanaalberichten bereiken deze agent nu.",
+      "agent_offline_hint": "Zijn box is niet verbonden: kanaalberichten wachten tot hij opnieuw verbindt.",
+      "agent_unseated_hint": "Zijn box vermeldt deze agent niet meer: kanaalberichten bereiken hem niet.",
       "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt."
     }
   },

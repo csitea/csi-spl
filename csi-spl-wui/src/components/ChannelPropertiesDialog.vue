@@ -202,6 +202,13 @@
               <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
               <span class="member-rows__name">{{ row.id }}</span>
               <span class="muted">{{ row.box }}</span>
+              <span
+                v-if="row.state"
+                class="agent-state"
+                :class="'agent-state--' + row.state"
+                :title="t('channels.properties.agent_' + row.state + '_hint')"
+                :data-testid="'channel-agent-state-' + row.id"
+              >{{ t('channels.properties.agent_' + row.state) }}</span>
               <button
                 type="button"
                 class="icon-btn"
@@ -231,6 +238,13 @@
             <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
             <span class="member-rows__name">{{ row.id }}</span>
             <span class="muted">{{ row.box }}</span>
+            <span
+              v-if="row.state"
+              class="agent-state"
+              :class="'agent-state--' + row.state"
+              :title="t('channels.properties.agent_' + row.state + '_hint')"
+              :data-testid="'channel-agent-state-' + row.id"
+            >{{ t('channels.properties.agent_' + row.state) }}</span>
           </li>
         </ul>
       </div>
@@ -323,7 +337,7 @@ const localMembers = ref<string[]>([])
 const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
 const createdByLive = ref('')
-const agents = ref<{ id: string, box: string }[]>([])
+const agents = ref<{ id: string, box: string, online?: boolean, seated?: boolean, state?: string }[]>([])
 const chosenPerson = ref<string | null>(null)
 const personQuery = ref('')
 const chosenAgent = ref<{ id: string, box: string, key: string } | null>(null)
@@ -405,7 +419,7 @@ watch(() => props.open, async (isOpen) => {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
       withSessionRetry(api, () => api.listRoster()),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string }[] }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[] }, unknown]
     if (my !== ticket) return
     const bag = rosterOf(ros) || {}
     rosterBag.value = bag
@@ -511,6 +525,18 @@ async function removeAgent(row: { id: string, box: string }) {
   }
 }
 
+// SPL-987: a picked agent's online / seated state is the hub's to say; read
+// the list again so the new row shows it (a failure keeps the row as it is).
+async function refreshAgentState() {
+  try {
+    const mem = await withSessionRetry(api, () => api.listChannelMembers(props.channelId))
+    const fresh = Array.isArray(mem.agents) ? mem.agents : []
+    agents.value = agents.value.map((a) => fresh.find((f) => f.id === a.id && f.box === a.box) || a)
+  } catch {
+    // the row stays without a state
+  }
+}
+
 async function pickAgent(row: { id: string, box: string }) {
   if (busy.value || !canAdd.value) return
   busy.value = true
@@ -520,6 +546,7 @@ async function pickAgent(row: { id: string, box: string }) {
     if (!agents.value.some((a) => a.id === row.id && a.box === row.box)) {
       agents.value = [...agents.value, { id: row.id, box: row.box }]
     }
+    void refreshAgentState()
   } catch (e) {
     error.value = inviteErrorToken(e)
   } finally {
@@ -625,6 +652,18 @@ async function onToggle(ev: Event) {
 }
 .member-rows__name { min-width: 0; overflow-wrap: anywhere; }
 .member-rows .icon-btn { margin-inline-start: auto; }
+/* SPL-987: can this agent hear the channel (hub view: box socket + roster). */
+.agent-state {
+  padding: 0 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.agent-state--online { color: var(--color-ok); }
+.agent-state--offline { color: var(--color-warn); }
+.agent-state--unseated { color: var(--color-danger); }
 .channel-properties__head .icon-btn:disabled {
   opacity: 0.4;
   cursor: default;

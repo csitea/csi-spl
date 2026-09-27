@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "çevrimiçi",
+      "agent_offline": "kutu çevrimdışı",
+      "agent_unseated": "yerleşik değil",
+      "agent_online_hint": "Kutusu bağlı: kanal gönderileri bu ajana hemen ulaşır.",
+      "agent_offline_hint": "Kutusu bağlı değil: kanal gönderileri yeniden bağlanana kadar bekler.",
+      "agent_unseated_hint": "Kutusu artık bu ajanı listelemiyor: kanal gönderileri ona ulaşmaz.",
       "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
     }
   },

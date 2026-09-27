@@ -729,6 +729,12 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
+      "agent_online": "online",
+      "agent_offline": "skrzynka offline",
+      "agent_unseated": "nieosadzony",
+      "agent_online_hint": "Jego skrzynka jest połączona: posty kanału docierają do tego agenta od razu.",
+      "agent_offline_hint": "Jego skrzynka nie jest połączona: posty kanału czekają, aż połączy się ponownie.",
+      "agent_unseated_hint": "Jego skrzynka nie wymienia już tego agenta: posty kanału do niego nie docierają.",
       "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda."
     }
   },

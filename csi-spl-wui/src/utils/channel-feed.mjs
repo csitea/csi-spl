@@ -213,6 +213,33 @@ export function dropThisYear(text, ts, nowMs = Date.now()) {
   return s.startsWith(y + '-') && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(5) : s
 }
 
+/**
+ * SPL-1007 (owner, 2026-09-27, topic 70c82b54, on mobile): a message from
+ * today shows only its time - `13:43`; any other day keeps dropThisYear's
+ * form (`09-26 23:59`, `2025-12-31 23:59`). "Today" is read in the frame the
+ * text was printed in: the list prints the viewer's local date
+ * (formatMsgListTs), the topic pane's clock prints UTC (formatTopicTs): the
+ * frame is the one whose `yyyy-mm-dd HH:MM` of `ts` the text starts with, and
+ * the date is dropped only when it is today in that same frame.
+ * @param {string} text
+ * @param {unknown} ts
+ * @param {number} [nowMs]
+ */
+export function phoneCardTime(text, ts, nowMs = Date.now()) {
+  const s = String(text || '')
+  const d = new Date(/** @type {any} */ (ts))
+  if (Number.isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2} /.test(s)) return dropThisYear(s, ts, nowMs)
+  const now = new Date(nowMs)
+  const p = (n) => String(n).padStart(2, '0')
+  const localDay = (x) => `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`
+  const utcDay = (x) => x.toISOString().slice(0, 10)
+  /* the frame is the one whose `yyyy-mm-dd HH:MM` of ts the text starts with */
+  const head = s.slice(0, 16)
+  const today = (head === formatMsgListTs(d.toISOString()) && localDay(d) === localDay(now))
+    || (head === formatAbsTs(d.toISOString()).slice(0, 16) && utcDay(d) === utcDay(now))
+  return today ? s.slice(11) : dropThisYear(s, ts, nowMs)
+}
+
 /** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */
 export function formatAbsTs(ts) {
   const d = new Date(ts)

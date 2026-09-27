@@ -20,6 +20,8 @@
 //       the row's menu button is still 32 px
 //    11-14 SPL-994: Back closes the top sheet first (emoji, menu, row menu),
 //       and a backdrop close leaves no history entry behind
+//    19-20 SPL-1007: a reaction chip is a half-size pill 3 px after the smile,
+//       inside the one 44 px Add-emoji target, and a tap on it opens the sheet
 //
 // Run:
 //   pnpm run test:e2e:mobile-messages
@@ -135,6 +137,39 @@ function cardFacts(page) {
   })
 }
 
+/** SPL-1007: the first chip on a card, against the smile it follows. */
+function chipFacts(page, id) {
+  return page.evaluate((id) => {
+    const row = document.querySelector(`article.msg[data-msg-id="${id}"]`)
+    const chip = row && row.querySelector('[data-testid=msg-reaction]')
+    if (!chip) return null
+    const btn = row.querySelector('[data-testid=msg-emoji-btn]')
+    const g = btn.querySelector('svg').getBoundingClientRect()
+    const c = chip.getBoundingClientRect()
+    const b = btn.getBoundingClientRect()
+    const t = row.querySelector('.msg-time').getBoundingClientRect()
+    const cx = b.x + b.width / 2
+    const cy = b.y + b.height / 2
+    const meta = row.querySelector('.msg-meta')
+    const items = [...meta.children].flatMap((el) => (getComputedStyle(el).display === 'contents' ? [...el.children] : [el]))
+    const mids = items.filter((el) => el.getClientRects().length).map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
+    return {
+      inBtn: btn.contains(chip),
+      pill: { w: Math.round(c.width), h: Math.round(c.height) },
+      font: parseFloat(getComputedStyle(chip).fontSize),
+      gap: Math.round((c.left - g.right) * 10) / 10,
+      sameLine: Math.abs((c.top + c.height / 2) - (g.top + g.height / 2)) <= 2,
+      timeGap: Math.round((g.left - t.right) * 10) / 10,
+      btn: { w: Math.round(b.width), h: Math.round(b.height) },
+      hit44: [[-21, -21], [21, -21], [-21, 21], [21, 21]].every(([dx, dy]) => { const h = document.elementFromPoint(cx + dx, cy + dy); return !!h && btn.contains(h) }),
+      hitBy: [[-21, -21], [21, -21], [-21, 21], [21, 21]].map(([dx, dy]) => { const h = document.elementFromPoint(cx + dx, cy + dy); return h && !btn.contains(h) ? `${dx},${dy}:${h.tagName}.${String(h.className).split(' ')[0]}` : '' }).filter(Boolean),
+      headerRows: 1 + mids.filter((m, i) => i > 0 && m - mids[0] > 12).length,
+      scrollW: document.scrollingElement.scrollWidth,
+      vw: window.innerWidth,
+    }
+  }, id)
+}
+
 function sheetFacts(page, sel) {
   return page.evaluate((s) => {
     const el = document.querySelector(s)
@@ -191,7 +226,7 @@ async function phone(browser, width, height) {
   ok(`${tag} 15 Add emoji visible in the header, 44 px, ~5 px after the time; header one line; avatar 4 px in; time without this year`,
     Boolean(card && card.emojiBtn && card.emojiBtn.shown && card.emojiBtn.w >= TAP && card.emojiBtn.h >= TAP
       && card.emojiGap != null && Math.abs(card.emojiGap - 5) <= 2 && card.headerRows === 1 && card.avatarLeft === 4
-      && /^\d{2}-\d{2} \d{2}:\d{2}/.test(card.time) && card.timeTitle.length > card.time.length), card)
+      && /^(\d{2}-\d{2} )?\d{2}:\d{2}/.test(card.time) && card.timeTitle.length > card.time.length), card)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}.png`) })
   if (!card) return p.close()
   /* 16 SPL-1000: a tap on the header's Add emoji opens the picker as a sheet; Back closes it */
@@ -206,6 +241,29 @@ async function phone(browser, width, height) {
   }
   const hsGone = await sheetFacts(p, '[data-testid=emoji-picker]')
   ok(`${tag} 17 Back closes that sheet, the page stays`, hsGone === null, hsGone)
+
+  /* 19-20 SPL-1007 (owner, topic 70c82b54): a reaction chip is half size (a
+     22 px pill, 0.5rem glyph) 3 px after the smile, on its line, INSIDE the
+     Add-emoji button - one 44 px target (its 44 px square answers a finger)
+     that opens the emoji sheet; the header stays one line */
+  await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-emoji-btn]`).catch(() => {})
+  await sleep(350)
+  await p.tap('[data-testid=emoji-picker] .emoji-picker__glyph').catch(() => {})
+  await sleep(600)
+  const chip = await chipFacts(p, card.id)
+  ok(`${tag} 19 a reaction chip: 22 px pill, 0.5rem glyph, 3 px after the smile on its line, inside Add emoji (44 px square), header one line`,
+    Boolean(chip && chip.inBtn && chip.pill.h === 22 && chip.font <= 10 && Math.abs(chip.gap - 3) <= 1 && chip.sameLine
+      && chip.btn.w >= TAP && chip.btn.h >= TAP && chip.hit44 && chip.headerRows === 1 && chip.scrollW <= chip.vw
+      && Math.abs(chip.timeGap - 5) <= 2), chip)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}-chip.png`) })
+  await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-reaction]`).catch(() => {})
+  await sleep(350)
+  const cs = await sheetFacts(p, '[data-testid=emoji-picker]')
+  ok(`${tag} 20 a tap on the chips opens the emoji sheet`, Boolean(cs && cs.sheet), cs)
+  if (cs) {
+    await p.goBack().catch(() => {})
+    await sleep(700)
+  }
 
   const url0 = p.url()
   /* 7 CONTROL first: a short tap is not a long press */

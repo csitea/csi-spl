@@ -17,7 +17,8 @@ describe('titles view is one line (SPL-943)', () => {
   })
 
   it('reactions, the emoji error, and the open icon are not part of a titles card', () => {
-    assert.match(vue, /v-if="chips\.length && !titleOnly"/)
+    assert.match(vue, /v-if="chips\.length && !titleOnly && !mobile"/)
+    assert.match(vue, /const phoneChips = computed\(\(\) => mobile\.value && chips\.value\.length > 0 && !titleOnly\.value\)/)
     assert.match(vue, /v-if="reactError && !titleOnly"/)
     assert.match(vue, /v-if="topicLink && !titleOnly"/)
     assert.match(vue, /const titleOnly = computed\(\(\) => props\.clipMode === 'titles' && !editing\.value\)/)

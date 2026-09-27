@@ -87,17 +87,36 @@
           >
             <UiIcon name="menu" :size="16" />
           </button>
+          <!-- SPL-1007 (owner, topic 70c82b54): on a phone the chips are half
+               size, 3px after this glyph, INSIDE this button - one 44 px
+               target that opens the emoji sheet (a pick there adds or
+               removes), since two 44 px targets cannot sit 3px apart -->
           <button
             type="button"
             class="icon-btn"
+            :class="{ 'msg-emoji-btn--chips': phoneChips }"
             data-testid="msg-emoji-btn"
-            :aria-label="t('feed.emoji.add')"
+            :aria-label="phoneChips ? emojiBtnName : t('feed.emoji.add')"
             :title="t('feed.emoji.add')"
             :aria-expanded="pickerOpen ? 'true' : 'false'"
             :disabled="!msg.msg_id || !!msg.pending"
             @click.stop="openPickerFromButton"
           >
             <UiIcon name="smile" :size="16" />
+            <span v-if="phoneChips" class="msg-reactions msg-reactions--phone" data-testid="msg-reactions" aria-hidden="true">
+              <span
+                v-for="chip in chips"
+                :key="chip.emoji"
+                class="msg-reaction"
+                data-testid="msg-reaction"
+                :data-emoji="chip.emoji"
+                :data-count="chip.count"
+                :data-mine="chip.mine ? 'true' : undefined"
+              >
+                <span>{{ chip.emoji }}</span>
+                <span v-if="chip.showCount" class="msg-reaction__n">{{ chip.count }}</span>
+              </span>
+            </span>
           </button>
           <button
             v-if="topicLink && !titleOnly"
@@ -114,7 +133,7 @@
         <!-- SPL-982 (owner, topic 8296eeec): the reactions sit in the header,
              3px after the Add-emoji icon; one chip per emoji, its count from 2
              people on, and its tooltip names who reacted -->
-        <span v-if="chips.length && !titleOnly" class="msg-reactions" data-testid="msg-reactions">
+        <span v-if="chips.length && !titleOnly && !mobile" class="msg-reactions" data-testid="msg-reactions">
           <button
             v-for="chip in chips"
             :key="chip.emoji"
@@ -278,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { dmPeerOf, dropThisYear, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
@@ -376,10 +395,11 @@ const fullTime = computed(() => (
     ? formatTopicTs(at.value, props.sinceMs)
     : formatMsgListTs(at.value)
 ))
-/* SPL-1000 (owner, "on mobile only"): a phone drops this year's `2026-`; the
-   hover keeps the whole value. Desktop prints fullTime unchanged. */
+/* SPL-1000 (owner, "on mobile only"): a phone drops this year's `2026-`;
+   SPL-1007: and today's date too, so a message from today shows only its
+   time. The hover keeps the whole value. Desktop prints fullTime unchanged. */
 const mobile = useMobileStack().isMobile
-const time = computed(() => (mobile.value ? dropThisYear(fullTime.value, at.value) : fullTime.value))
+const time = computed(() => (mobile.value ? phoneCardTime(fullTime.value, at.value) : fullTime.value))
 const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : undefined)))
 /* SPL-981: a direct message shows only its sender; channel rows keep sender -> recipient */
 const recipient = computed(() => headerRecipientOf(props.msg))
@@ -714,6 +734,11 @@ const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
 function chipWho(actors: string[]) {
   return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
 }
+/* SPL-1007: a phone draws the chips inside Add emoji; its name reads them out */
+const phoneChips = computed(() => mobile.value && chips.value.length > 0 && !titleOnly.value)
+const emojiBtnName = computed(() => [t('feed.emoji.add'), ...chips.value.map((c) => (c.mine
+  ? t('feed.emoji.mine', { emoji: c.emoji })
+  : t('feed.emoji.chip', { emoji: c.emoji, n: c.count })))].join(', '))
 
 function openPickerFromButton(ev: MouseEvent) {
   const btn = ev.currentTarget
@@ -1209,6 +1234,22 @@ async function save() {
     width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap);
     margin-block: -6px; margin-inline-start: -13px; flex: 0 0 auto;
   }
+  /* SPL-1007 (owner, topic 70c82b54, "twice as small", "right next to the
+     set emoji icon"): the chips are drawn inside Add emoji - a 22 px pill
+     (half the old 44) with a 0.5rem glyph (half the old 1rem), 3px after the
+     smile on the header line. The button stays one >= 44 px target: its
+     start padding keeps the smile 5 px after the time, and it takes the
+     room the names give up (basis 0, up to its own width), its chips
+     wrapping inside it when the line is short */
+  .msg-actions .icon-btn.msg-emoji-btn--chips {
+    width: auto; min-width: min-content; flex: 1 0 0; max-width: max-content;
+    justify-content: flex-start; gap: 3px; padding-inline: 14px 4px;
+    /* its 44 px square reaches 6 px under the header: above the body text */
+    position: relative; z-index: 1;
+  }
+  .msg-reactions--phone { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; line-height: 1; }
+  .msg-reactions--phone .msg-reaction { min-height: 22px; min-width: 0; padding: 0 5px; gap: 2px; font-size: 0.5rem; }
+  .msg-reactions--phone .msg-reaction__n { font-size: 0.5rem; }
   /* its 44 px target reaches 8 px into the card's right padding, and the
      arrow gives back its side bearing: a sender -> recipient header fits one
      line at 360 px (SPL-1000) */

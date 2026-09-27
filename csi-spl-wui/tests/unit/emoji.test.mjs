@@ -127,7 +127,8 @@ describe('emoji reactions', () => {
     assert.match(card, /<EmojiPicker/)
     const at = card.indexOf('data-testid="msg-emoji-btn"')
     const start = card.lastIndexOf('<button', at)
-    const btn = card.slice(start, card.indexOf('</button>', at))
+    /* the button tag itself (SPL-1007: a phone draws the chips inside it) */
+    const btn = card.slice(start, card.indexOf('>', at))
     assert.equal(/v-if|is_parent/.test(btn), false)
     const live = readFileSync(join(WUI, 'src/components/LiveFeed.vue'), 'utf8')
     const born = readFileSync(join(WUI, 'src/components/BornTopics.vue'), 'utf8')

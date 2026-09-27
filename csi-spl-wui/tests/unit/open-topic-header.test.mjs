@@ -22,8 +22,10 @@ function templateOf(src) {
 describe('open topic is left of replies (SPL-948)', () => {
   const tpl = templateOf(vue)
   const actionsAt = tpl.indexOf('class="msg-actions"')
-  const actions = tpl.slice(actionsAt, tpl.indexOf('</span>', actionsAt))
-  const outside = tpl.slice(0, actionsAt) + tpl.slice(tpl.indexOf('</span>', actionsAt))
+  /* the actions' own closing tag, at their indent (SPL-1007: Add emoji holds spans on a phone) */
+  const actionsEnd = tpl.indexOf('\n        </span>', actionsAt)
+  const actions = tpl.slice(actionsAt, actionsEnd)
+  const outside = tpl.slice(0, actionsAt) + tpl.slice(actionsEnd)
 
   it('header paint order is open-topic, then topic-replies', () => {
     const open = actions.indexOf('data-test="open-topic"')

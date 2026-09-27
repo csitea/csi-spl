@@ -20,6 +20,7 @@
         data-testid="tenant-switcher-box"
         :style="{ gap: (TENANT_DESKTOP_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
         @mousedown="onTenantBoxPress"
+        @click="onTenantBoxClick"
       >
       <select
         ref="tenantSelectEl"
@@ -109,14 +110,28 @@ onBeforeUnmount(() => {
 })
 /* SPL-71: the arrow and the box's padding are part of the drop box, so a
    press there opens the list as a press on the name does. */
-function onTenantBoxPress(ev: MouseEvent) {
-  const sel = tenantSelectEl.value
-  if (!sel || ev.button !== 0 || ev.target === sel || sel.contains(ev.target as Node)) return
-  ev.preventDefault()
+function openTenantList(sel: HTMLSelectElement) {
   sel.focus()
   try {
     (sel as HTMLSelectElement & { showPicker?: () => void }).showPicker?.()
   } catch { /* no picker without a user gesture: focus is enough */ }
+}
+/* SPL-980: where the page draws the list (base-select) it is a popover, and
+   the release of a press that opened it counts as a press outside it - the
+   list would flash shut. There the box opens it on click, after the release. */
+function pageDrawsList(sel: HTMLSelectElement) {
+  return getComputedStyle(sel).appearance === 'base-select'
+}
+function onTenantBoxPress(ev: MouseEvent) {
+  const sel = tenantSelectEl.value
+  if (!sel || ev.button !== 0 || ev.target === sel || sel.contains(ev.target as Node)) return
+  ev.preventDefault()
+  if (!pageDrawsList(sel)) openTenantList(sel)
+}
+function onTenantBoxClick(ev: MouseEvent) {
+  const sel = tenantSelectEl.value
+  if (!sel || ev.button !== 0 || ev.target === sel || sel.contains(ev.target as Node)) return
+  if (pageDrawsList(sel)) openTenantList(sel)
 }
 /* specs/026 §6: a member of several tenants switches here (useTenantSwitch,
    shared with the phone top bar's sheet, SPL-995). */
@@ -219,6 +234,57 @@ async function onTenantChange(ev: Event) {
   pointer-events: none;
   fill: currentColor;
   color: var(--color-fg);
+}
+/* SPL-980 (owner 2026-09-27, topic 72773b61): the OPEN list keeps 2 px
+   between every entry - the selected one too - and the list's border. The
+   native popup ignores padding (the selected row touched both borders), so
+   where the browser has a styleable select (appearance: base-select) the
+   page draws the list itself: 2 px of the list around the rows, each row
+   4 px before and after its name. Elsewhere the native popup stays. */
+@supports (appearance: base-select) {
+  .tenant-switcher__select,
+  .tenant-switcher__select::picker(select) {
+    appearance: base-select;
+  }
+  .tenant-switcher__select {
+    display: inline-flex;
+    align-items: center;
+    /* the styleable select's own 24 px minimum would widen a short name's box */
+    min-inline-size: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .tenant-switcher__select::picker-icon { display: none; }
+  .tenant-switcher__select::picker(select) {
+    box-sizing: border-box;
+    margin-block: 4px;
+    padding: 2px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-2);
+    color: var(--color-fg);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+  .tenant-switcher__select option {
+    display: flex;
+    align-items: center;
+    min-block-size: 26px;
+    padding-block: 2px;
+    padding-inline: 4px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-fg);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .tenant-switcher__select option::checkmark { display: none; }
+  .tenant-switcher__select option:hover,
+  .tenant-switcher__select option:focus-visible { background: var(--color-surface-hover); }
+  .tenant-switcher__select option:checked {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
 }
 /* SPL-995: on a phone the switcher is TopBarTenant - never shown twice */
 @media (max-width: 820px) {

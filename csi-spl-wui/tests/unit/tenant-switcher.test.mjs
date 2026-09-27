@@ -236,12 +236,28 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     /* owner 2026-09-27: 4 px wider than the 6px-a-side box - 2px more on each side */
     assert.match(rule, /padding:\s*0 8px/)
     assert.match(rule, /box-sizing:\s*border-box/)
-    const fn = vue.slice(vue.indexOf('function onTenantBoxPress'))
-    const body = fn.slice(0, fn.indexOf('\n}'))
-    assert.match(body, /ev\.target === sel/)
-    assert.match(body, /sel\.focus\(\)/)
-    assert.match(body, /showPicker/)
-    assert.doesNotMatch(body, /switchTenant|fetch\(/)
+    const fnOf = (name) => { const f = vue.slice(vue.indexOf('function ' + name)); return f.slice(0, f.indexOf('\n}')) }
+    const open = fnOf('openTenantList')
+    assert.match(open, /sel\.focus\(\)/)
+    assert.match(open, /showPicker/)
+    /* SPL-980: the native popup opens on the press; a page-drawn list (base-select)
+       on the click, or the release of the press would shut it again */
+    assert.match(field, /@click="onTenantBoxClick"/)
+    const press = fnOf('onTenantBoxPress')
+    const click = fnOf('onTenantBoxClick')
+    for (const body of [press, click]) {
+      assert.match(body, /ev\.target === sel/)
+      assert.doesNotMatch(body, /switchTenant|fetch\(/)
+    }
+    assert.match(press, /if \(!pageDrawsList\(sel\)\) openTenantList\(sel\)/)
+    assert.match(click, /if \(pageDrawsList\(sel\)\) openTenantList\(sel\)/)
+    /* SPL-980: the open list keeps 2 px between every row and its border */
+    const drawn = style.slice(style.indexOf('@supports (appearance: base-select)'))
+    assert.ok(drawn.length > 0, 'a page-drawn list where the browser can')
+    assert.match(drawn, /appearance:\s*base-select/)
+    assert.match(drawn, /::picker\(select\)\s*\{[^}]*padding:\s*2px/)
+    assert.match(drawn, /option\s*\{[^}]*padding-inline:\s*4px/)
+    assert.match(drawn, /min-inline-size:\s*0/)
     assert.match(src('src/utils/uiIcons.ts'), /building:\s*\[/)
   })
 

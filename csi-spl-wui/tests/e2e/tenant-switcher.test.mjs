@@ -176,7 +176,13 @@ try {
     if (box.arrowCenter) {
       await p.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() })
       await p.mouse.click(box.arrowCenter.x, box.arrowCenter.y)
-      const focusedByArrow = await p.evaluate(() => document.activeElement?.getAttribute('data-testid') || '')
+      /* SPL-980: where the page draws the list (base-select) the focus goes to
+         the selected entry inside the open list - still inside the select */
+      const focusedByArrow = await p.evaluate(() => {
+        const sel = document.querySelector('[data-testid=tenant-switcher-select]')
+        const a = document.activeElement
+        return a && sel && (a === sel || sel.contains(a)) && (getComputedStyle(sel).appearance !== 'base-select' || sel.matches(':open')) ? 'tenant-switcher-select' : (a?.getAttribute('data-testid') || '')
+      })
       await p.keyboard.press('Escape')
       ok(tag + ' SPL-71 a press on the arrow opens the drop box (focuses the select)', focusedByArrow === 'tenant-switcher-select', { focusedByArrow })
     } else {

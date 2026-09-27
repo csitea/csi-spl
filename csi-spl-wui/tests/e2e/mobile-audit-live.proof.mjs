@@ -94,9 +94,13 @@ const MEASURE = () => {
   }
   const inMsgText = (el) => !!el.closest('.msg-body, .markdown-block, .topic-subject')
   const inter = [...document.querySelectorAll('a[href], button, input, select, textarea, [role=button], [role=tab], [role=menuitem]')].filter(vis)
-  const small = inter.filter((el) => { const b = el.getBoundingClientRect(); return (b.width < 44 || b.height < 44) && !inMsgText(el) })
+  /* a radio / checkbox hidden behind its own visible label (CardClipControl) is not hover-only */
+  const labelled = (el) => el.matches('input[type=radio], input[type=checkbox]') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)))
+  const ghost = inter.filter((el) => Number(getComputedStyle(el).opacity) === 0 && !labelled(el))
+  /* the hit area of a labelled radio is its label */
+  const hit = (el) => (labelled(el) ? (el.closest('label') || document.querySelector(`label[for="${el.id}"]`)) : el).getBoundingClientRect()
+  const small = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
   const tiny = small.filter((el) => { const b = el.getBoundingClientRect(); return b.width < 24 || b.height < 24 })
-  const ghost = inter.filter((el) => Number(getComputedStyle(el).opacity) === 0)
   const shell = document.querySelector('.spool-shell')
   const panes = {
     sidebar: document.querySelector('.sidebar'),
@@ -233,7 +237,9 @@ try {
       }
       if (mobile) {
         const big = (s) => s && s[0] >= 44 && s[1] >= 44
-        score(key, 'msg-actions', !!(big(W.flows.menuBtn) && big(W.flows.emojiBtn) && W.flows.emoji?.open && W.flows.emoji?.inView),
+        /* D3: on a phone the emoji button may move into the long-press sheet (8378bab3); absent = ok, present = 44 px and a picker in view */
+        const emojiOk = !W.flows.emojiBtn || (big(W.flows.emojiBtn) && W.flows.emoji?.open && W.flows.emoji?.inView)
+        score(key, 'msg-actions', !!(big(W.flows.menuBtn) && emojiOk),
           `menu ${W.flows.menuBtn} emoji ${W.flows.emojiBtn} picker ${JSON.stringify(W.flows.emoji || null)}`)
       }
     } catch (e) { W.flows.error = String(e).slice(0, 200) }

@@ -252,9 +252,16 @@ renders once, in the parent, for every section.
 > and they should be able to adjust it from there as well"
 
 - **Seven tabs**, `utils/rail-order.mjs` `RAIL_TABS` (id, icon, label):
-  `dm`, `channels`, `issues`, `topics`, `flow`, `events` and, since SPL-983
-  (owner, topic 8f58f802), `archive` (the Archive page, `/archive`, CLE-35018).
-  That is also the **default order**. The admin-only Users tab is not one of
+  `channels`, `dm`, `issues`, `topics`, `flow`, `archive` (SPL-983, owner,
+  topic 8f58f802; the Archive page, `/archive`, CLE-35018) and `events`.
+  That is also the **default order** for a person who never reordered
+  (rail_order NULL): since 2026-09-27 Channels comes first (owner, topic
+  116646c8: "channels, direct messages, issues, topics, flow and archive";
+  the Event log, not named, goes last). Before that it was `dm`, `channels`,
+  `issues`, `topics`, `flow`, `events`, `archive`.
+  A stored order is kept as it is (measured then: prd HUM-10 and HUM-5
+  explicit, everyone else NULL; dev all NULL). Hub `auth.RailTabs` lists the
+  same order (unit test); rdb 0064's CHECK is order-free. The admin-only Users tab is not one of
   them and always stays last. An order stored before Archive existed (six ids)
   is drawn with Archive appended (`parseRailOrder`); the hub and rdb 0064
   admit both the legacy six and all seven (hub 0.9.5, `86cf0ff2`).

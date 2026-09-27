@@ -76,7 +76,7 @@ describe('the strip is icons, in that order', () => {
   it('the rail lists the four tabs in order, icons only', () => {
     /* SPL-979: the default order and icons live in utils/rail-order.mjs */
     const tabs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/utils/rail-order.mjs'), 'utf8')
-    const ids = ["'dm'", "'channels'", "'topics'", "'flow'"]
+    const ids = ["'channels'", "'dm'", "'topics'", "'flow'"]
     let at = 0
     for (const id of ids) {
       const i = tabs.indexOf(`id: ${id}`, at)

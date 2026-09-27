@@ -27,7 +27,7 @@ do_spl_human_behaviour() {
   local human="${HUMAN_ID:-}" key="${SUBMIT_KEY:-}" rail="${RAIL_ORDER:-}" dry=1
   # rdb 0062 humans_submit_key_check, in that order. A new choice is a migration first.
   local keys='enter|ctrl-enter'
-  # rdb 0064 humans_rail_order_check: each of these once, in the default order.
+  # rdb 0064 humans_rail_order_check: each of these once (its list; the WUI default is RAIL_TABS).
   local rail_ids='dm,channels,issues,topics,flow,events,archive'
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
   [[ -n "$key" || -n "$rail" ]] || { do_log "FATAL set SUBMIT_KEY (enter or ctrl-enter) and/or RAIL_ORDER ($rail_ids in any order)"; return 1; }

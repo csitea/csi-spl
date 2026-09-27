@@ -18,14 +18,15 @@ describe('Event log rail tab', () => {
     assert.equal(tabForPath('/fi/events'), 'events')
   })
 
-  it('sits directly after flow in the rail, with its own icon and label', () => {
-    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS */
+  it('is the last tab by default, after flow and archive, with its own icon and label', () => {
+    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
+       owner 2026-09-27 (topic 116646c8) left it out of the order: last */
     const tabs = read('src/utils/rail-order.mjs')
     const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
+    const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
     const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
-    assert.ok(flow > 0 && events > flow, 'events entry follows flow')
-    const between = tabs.slice(flow, events)
-    assert.equal(/\{ id: '/.test(between.slice(1)), false, 'nothing between flow and events')
+    assert.ok(flow > 0 && archive > flow && events > archive, 'events entry follows archive')
+    assert.equal(/\{ id: '/.test(tabs.slice(events + 1)), false, 'nothing after events')
     const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
   })

@@ -36,7 +36,7 @@ const TENANT = process.env.TENANT || 't1'
 const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 mkdirSync(OUT, { recursive: true })
 
-const DEFAULT = ['dm', 'channels', 'issues', 'topics', 'flow', 'events', 'archive']
+const DEFAULT = ['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events']
 const puppeteer = await loadPuppeteer()
 const res = { base: BASE, at: new Date().toISOString(), steps: [] }
 let failed = 0
@@ -106,7 +106,7 @@ try {
 
   // ── mouse drag: Event log to the top ─────────────────────────────────
   const from = await centre(p, '[data-testid=sidebar-tab-events]')
-  const to = await centre(p, '[data-testid=sidebar-tab-dm]')
+  const to = await centre(p, '[data-testid=sidebar-tab-channels]')
   const urlBefore = p.url()
   await p.mouse.move(from.x, from.y)
   await p.mouse.down()
@@ -114,7 +114,7 @@ try {
   await sleep(150)
   const mid = await railOf(p)
   await p.mouse.up()
-  const wantMouse = ['events', 'dm', 'channels', 'issues', 'topics', 'flow', 'archive']
+  const wantMouse = ['events', 'channels', 'dm', 'issues', 'topics', 'flow', 'archive']
   await sleep(400)
   step('mouse drag: the icons follow the pointer while dragging', same(mid, wantMouse), { mid })
   step('mouse drag: the rail keeps the new order at once', same(await railOf(p), wantMouse), { rail: await railOf(p) })
@@ -137,7 +137,7 @@ try {
   await p.focus('[data-test=rail-order-down-events]')
   await p.keyboard.press('Enter')
   await sleep(900)
-  const wantDown = ['dm', 'events', 'channels', 'issues', 'topics', 'flow', 'archive']
+  const wantDown = ['channels', 'events', 'dm', 'issues', 'topics', 'flow', 'archive']
   step('settings: the keyboard moves Event log down one', same(await listOf(), wantDown), { list: await listOf() })
   step('settings: that is stored', await waitClaim(p, wantDown))
   step('settings: the rail on this page redrew at once', same(await railOf(p), wantDown), { rail: await railOf(p) })
@@ -154,13 +154,13 @@ try {
 
   // ── touch drag on that phone: Topics to the top ──────────────────────
   const tf = await centre(q, '[data-testid=sidebar-tab-topics]')
-  const tt = await centre(q, '[data-testid=sidebar-tab-dm]')
+  const tt = await centre(q, '[data-testid=sidebar-tab-channels]')
   await q.touchscreen.touchStart(tf.x, tf.y)
   for (let i = 1; i <= 12; i++) await q.touchscreen.touchMove(tf.x, tf.y + ((tt.y - tt.h / 2 - 2) - tf.y) * i / 12)
   await sleep(150)
   await q.touchscreen.touchEnd()
   await sleep(500)
-  const wantTouch = ['topics', 'dm', 'events', 'channels', 'issues', 'flow', 'archive']
+  const wantTouch = ['topics', 'channels', 'events', 'dm', 'issues', 'flow', 'archive']
   step('touch drag: the rail reorders on a phone', same(await railOf(q), wantTouch), { rail: await railOf(q) })
   step('touch drag: stored on the account', await waitClaim(q, wantTouch))
   await q.screenshot({ path: `${OUT}/03-phone-after-touch-drag.png` })

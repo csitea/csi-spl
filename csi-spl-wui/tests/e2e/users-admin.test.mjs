@@ -74,7 +74,7 @@ try {
   // after the flow icon"), then Archive (SPL-983, the default order), then
   // Users, which is never reorderable and always last (SPL-979)
   const rail = await p.$$eval('.sidebar-rail [role=tab]', (els) => els.map((e) => e.getAttribute('data-testid')))
-  ok('1 the rail shows Users last, after Flow, the Event log and Archive', rail.at(-1) === 'sidebar-tab-users' && rail.indexOf('sidebar-tab-flow') === rail.length - 4 && rail.indexOf('sidebar-tab-events') === rail.length - 3 && rail.indexOf('sidebar-tab-archive') === rail.length - 2, rail)
+  ok('1 the rail shows Users last, after Flow, Archive and the Event log', rail.at(-1) === 'sidebar-tab-users' && rail.indexOf('sidebar-tab-flow') === rail.length - 4 && rail.indexOf('sidebar-tab-archive') === rail.length - 3 && rail.indexOf('sidebar-tab-events') === rail.length - 2, rail)
   await p.click('[data-testid=sidebar-tab-users]')
   await p.waitForSelector('[data-test=users-page] [data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 Users opens /users', new URL(p.url()).pathname.endsWith('/users'), p.url())

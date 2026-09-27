@@ -636,15 +636,15 @@ func IsSubmitKey(key string) bool {
 }
 
 // RailTabs are the reorderable left-rail entries (SPL-979) in their default
-// order: direct messages, channels, issues, topics, flow, event log and, since
-// SPL-983, archive (the admin-only Users tab stays last and is not one of
+// order: channels, direct messages, issues, topics, flow, archive (SPL-983)
+// and the event log last (owner 2026-09-27, topic 116646c8) (the admin-only Users tab stays last and is not one of
 // them). The DB check humans_rail_order_check (rdb 0063, 0064) admits their
 // permutations and the legacy ones of the first six.
-var RailTabs = []string{"dm", "channels", "issues", "topics", "flow", "events", "archive"}
+var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events"}
 
 // legacyRailTabs is RailTabs before SPL-983 added archive: an order stored
 // then (or sent by a WUI still cached from then) holds exactly these six.
-var legacyRailTabs = RailTabs[:6]
+var legacyRailTabs = []string{"channels", "dm", "issues", "topics", "flow", "events"}
 
 // IsRailOrder reports whether order holds every RailTabs id exactly once, or
 // every legacyRailTabs id exactly once (the WUI appends archive to it).

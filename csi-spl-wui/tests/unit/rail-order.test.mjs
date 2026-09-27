@@ -23,9 +23,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('rail ids', () => {
-  it('seven tabs: the rail before SPL-979, then Archive (SPL-983)', () => {
-    assert.deepEqual([...RAIL_IDS], ['dm', 'channels', 'issues', 'topics', 'flow', 'events', 'archive'])
-    assert.deepEqual(RAIL_TABS.map((t) => t.icon), ['messages', 'hash', 'issues', 'list', 'waves', 'history', 'archive'])
+  it('seven tabs in the new-member order (owner 2026-09-27): Channels first, the Event log last', () => {
+    assert.deepEqual([...RAIL_IDS], ['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events'])
+    assert.deepEqual(RAIL_TABS.map((t) => t.icon), ['hash', 'messages', 'issues', 'list', 'waves', 'archive', 'history'])
   })
   it('the hub (auth.RailTabs) and rdb 0064 hold the same list', () => {
     const go = read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go')
@@ -43,17 +43,20 @@ describe('rail ids', () => {
     for (const none of [null, [], 'dm', ['users']]) assert.deepEqual(parseRailOrder(none), [...RAIL_IDS])
     /* SPL-983: an order stored before Archive keeps its place, Archive appended */
     assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'archive'])
-    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'events', 'archive'])
+    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'archive', 'events'])
+    /* a stored order is kept exactly, whatever the default is (owner 2026-09-27) */
+    const owners = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'archive']
+    assert.deepEqual(parseRailOrder(owners), owners)
   })
 })
 
 describe('moves', () => {
   it('moveTo / moveBy clamp at both ends and never lose a tab', () => {
-    assert.deepEqual(moveTo(RAIL_IDS, 'events', 0), ['events', 'dm', 'channels', 'issues', 'topics', 'flow', 'archive'])
-    assert.deepEqual(moveTo(RAIL_IDS, 'dm', 99), ['channels', 'issues', 'topics', 'flow', 'events', 'archive', 'dm'])
-    assert.deepEqual(moveBy(RAIL_IDS, 'dm', -1), [...RAIL_IDS])
-    assert.deepEqual(moveBy(RAIL_IDS, 'issues', -1), ['dm', 'issues', 'channels', 'topics', 'flow', 'events', 'archive'])
-    assert.deepEqual(moveBy(RAIL_IDS, 'archive', 1), [...RAIL_IDS])
+    assert.deepEqual(moveTo(RAIL_IDS, 'events', 0), ['events', 'channels', 'dm', 'issues', 'topics', 'flow', 'archive'])
+    assert.deepEqual(moveTo(RAIL_IDS, 'channels', 99), ['dm', 'issues', 'topics', 'flow', 'archive', 'events', 'channels'])
+    assert.deepEqual(moveBy(RAIL_IDS, 'channels', -1), [...RAIL_IDS])
+    assert.deepEqual(moveBy(RAIL_IDS, 'issues', -1), ['channels', 'issues', 'dm', 'topics', 'flow', 'archive', 'events'])
+    assert.deepEqual(moveBy(RAIL_IDS, 'events', 1), [...RAIL_IDS])
     assert.ok(isRailOrder(moveBy(RAIL_IDS, 'flow', 1)))
     assert.deepEqual(moveTo(RAIL_IDS, 'users', 0), [...RAIL_IDS])
   })

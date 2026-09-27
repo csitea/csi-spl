@@ -19,15 +19,17 @@ describe('Issues rail tab', () => {
     assert.equal(tabForPath('/channel/lobby'), 'channels')
   })
 
-  it('sits directly after channels in the rail, before topics', () => {
-    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS */
+  it('is the third tab, after channels and direct messages, before topics', () => {
+    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
+       owner 2026-09-27: channels, direct messages, issues, topics, ... */
     const tabs = read('src/utils/rail-order.mjs')
     const src = read('src/components/ChannelSidebar.vue')
     const channels = tabs.indexOf("{ id: 'channels', icon: 'hash'")
+    const dm = tabs.indexOf("{ id: 'dm', icon: 'messages'")
     const issues = tabs.indexOf("{ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }")
     const topics = tabs.indexOf("{ id: 'topics', icon: 'list'")
-    assert.ok(channels > 0 && issues > channels && topics > issues)
-    const between = tabs.slice(channels, issues)
+    assert.ok(channels > 0 && dm > channels && issues > dm && topics > issues)
+    const between = tabs.slice(dm, issues)
     assert.equal(/\{ id:/.test(between.slice(between.indexOf('\n'))), false)
     assert.match(src, /navigateTo\(localePath\('\/issues'\)\)/)
     assert.equal(src.includes('sidebar-issues-open'), false)
@@ -35,9 +37,11 @@ describe('Issues rail tab', () => {
     assert.match(src, /LazyIssueEpicsPanel/)
     assert.match(src, /sidebar--rail/)
     const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
+    const archive = tabs.indexOf("{ id: 'archive', icon: 'archive'")
     const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
-    assert.ok(events > flow)
-    assert.equal(/\{ id:/.test(tabs.slice(flow, events).slice(1)), false)
+    /* owner 2026-09-27: flow, archive, then the Event log last */
+    assert.ok(archive > flow && events > archive)
+    assert.equal(/\{ id:/.test(tabs.slice(archive, events).slice(1)), false)
   })
 
   it('the description is only in the right pane, and the list uses the shared helpers', () => {

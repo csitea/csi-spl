@@ -11,16 +11,21 @@
 
 /** The six tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS = Object.freeze([
-  Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' }),
+  /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,
+     Direct messages, Issues, Topics, Flow, Archive; the Event log, which the
+     owner did not name, goes last. A stored order (humans.rail_order) is kept
+     as it is; only never-reordered people follow this one. */
   Object.freeze({ id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' }),
-  /* Owner 2026-09-26: Issues is the third tab, directly after Channels. */
+  Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' }),
+  /* Owner 2026-09-26: Issues is the third tab. */
   Object.freeze({ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }),
   Object.freeze({ id: 'topics', icon: 'list', labelKey: 'nav.topics' }),
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
-  /* CLE-34990: the personal Event log, directly after flow (owner, topic 4335f075). */
-  Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
-  /* SPL-983: Archive (owner, topic 8f58f802), last by default; the page is CLE-35018's. */
+  /* SPL-983: Archive (owner, topic 8f58f802); the page is CLE-35018's. */
   Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
+  /* CLE-34990: the personal Event log (owner, topic 4335f075); last by default
+     since 2026-09-27 (topic 116646c8 left it out of the named order). */
+  Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
 ])
 
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))

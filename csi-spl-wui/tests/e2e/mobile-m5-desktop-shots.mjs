@@ -16,6 +16,7 @@ if (!DIR) { console.error('SHOTS_DIR must be set'); process.exit(2) }
 const W = Number(process.env.SHOT_W || 1440)
 const H = Number(process.env.SHOT_H || 900)
 const PAGES = [
+  ['settings-list', '/settings', '[data-test=settings-nav]'],
   ['settings-profile', '/settings/profile', '[data-test=settings]'],
   ['settings-behaviour', '/settings/behaviour', '[data-test=rail-order-setting]'],
   ['archive', '/archive', '[data-test=archive-page]'],

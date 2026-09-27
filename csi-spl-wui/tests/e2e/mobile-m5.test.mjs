@@ -13,6 +13,8 @@
 //             chevron, browser Back) returns to the list. <= 480 px: the
 //             profile facts stack label over value. 1440: /settings still
 //             redirects to /settings/profile with the nav beside it.
+//             Every button, link and select in every section is >= 44 px,
+//             and a checkbox / radio has a label (or row) >= 44 px tall.
 //   rail     - Settings -> Behaviour -> Left panel order reorders by TOUCH:
 //             a finger drag on a row's grip (CDP touch events, not a mouse)
 //             moves the row and PUTs the new rail_order once; grip and
@@ -236,6 +238,29 @@ async function checkSettings(browser, base, vp) {
     await p.click('[data-testid=mobile-back]').catch(() => null)
     await sleep(400)
     ok(`${tag} the Back chevron returns to the list`, /\/settings\/?$/.test(new URL(p.url()).pathname) && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
+
+    // every section: touch targets
+    const small = []
+    for (const id of ['profile', 'language', 'appearance', 'behaviour', 'notifications', 'security', 'keys']) {
+      await p.goto(base + '/settings/' + id, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.waitForSelector('[data-test=settings-content]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
+      await sleep(300)
+      small.push(...await p.evaluate((sec) => {
+        const out = []
+        const box = (e) => e.getBoundingClientRect()
+        for (const e of document.querySelectorAll('[data-test=settings-content] :is(a[href],button,select)')) {
+          const r = box(e)
+          if (r.width > 0 && (r.width < 44 || r.height < 44)) out.push(`${sec}: ${e.tagName} ${Math.round(r.width)}x${Math.round(r.height)} ${(e.textContent || '').trim().slice(0, 16)}`)
+        }
+        for (const e of document.querySelectorAll('[data-test=settings-content] input:is([type=checkbox],[type=radio])')) {
+          const host = e.closest('label') || (e.id && document.querySelector(`label[for="${e.id}"]`)) || e.parentElement
+          const r = box(host)
+          if (box(e).width > 0 && r.height < 44) out.push(`${sec}: ${e.type} target ${Math.round(r.width)}x${Math.round(r.height)}`)
+        }
+        return out
+      }, id))
+    }
+    ok(`${tag} every settings control is a >= 44 px touch target`, small.length === 0, small)
 
     // a deep link: no list entry below it in history, Back still lands on the list
     await p.goto(base + '/settings/behaviour', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

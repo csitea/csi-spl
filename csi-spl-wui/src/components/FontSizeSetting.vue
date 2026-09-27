@@ -130,4 +130,9 @@ function levelLabel(n: number) {
 .font-size__glyph--3 { font-size: 18px; }
 .font-size__glyph--4 { font-size: 20px; }
 .font-size__glyph--5 { font-size: 22px; }
+/* SPL-993: 44 px targets on a touch screen */
+@media (max-width: 820px) {
+  .font-size__level { min-width: var(--tap, 44px); }
+  .font-size .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
+}
 </style>

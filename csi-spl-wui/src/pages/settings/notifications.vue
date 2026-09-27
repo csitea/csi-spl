@@ -44,4 +44,9 @@ const alertsWanted = computed(() => notes.alertsEnabled)
   min-height: var(--tap, 44px);
 }
 .settings__row .btn { display: inline-flex; align-items: center; gap: 6px; }
+/* SPL-993: on a touch screen the whole row is the checkbox's target. */
+@media (max-width: 820px) {
+  .settings__row label { flex: 1 1 auto; align-self: stretch; display: flex; align-items: center; }
+  .settings__row input[type='checkbox'] { width: 22px; height: 22px; }
+}
 </style>

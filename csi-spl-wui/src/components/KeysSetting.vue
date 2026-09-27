@@ -282,4 +282,8 @@ onMounted(async () => {
 .keys__history code { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
 .keys__state { font-size: 0.75rem; padding: 1px 6px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); }
 .keys__state--active { color: var(--color-accent); border-color: var(--color-accent); }
+/* SPL-993: 44 px targets on a touch screen */
+@media (max-width: 820px) {
+  .keys__file { min-height: var(--tap, 44px); }
+}
 </style>

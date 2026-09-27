@@ -133,4 +133,8 @@ onMounted(() => { if (session.state === 'loading') void session.probe() })
 .lang-setting__status--error {
   color: var(--color-error);
 }
+/* SPL-993: the combobox arrow is a 44 px target on a touch screen */
+@media (max-width: 820px) {
+  .lang-setting :deep(.locale-cbx__button) { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+}
 </style>

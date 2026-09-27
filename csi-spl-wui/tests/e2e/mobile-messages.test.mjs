@@ -13,6 +13,7 @@
 //     5 a tap on the dimmed page closes the sheet and opens nothing
 //     6 Add emoji in the sheet opens the emoji picker as a sheet, 44 px glyphs
 //     7 CONTROL: a short tap is not a long press (no sheet)
+//    10 a left-panel row's menu (level 1) is a 44 px button opening a sheet
 //   desktop (1440x900, mouse):
 //     8 the composer is in the top bar, not docked; --composer-dock-h is 0
 //     9 a right-click menu is the old popover: no sheet class, no Reply, and
@@ -197,6 +198,30 @@ async function phone(browser, width, height) {
   const e = await sheetFacts(p, '[data-testid=emoji-picker]')
   ok(`${tag} 6 Add emoji opens the picker as a sheet with 44 px glyphs`,
     Boolean(e && e.sheet && Math.abs(e.bottom - e.vh) <= 1 && e.minItem >= TAP), e)
+  /* 10: the left panel (level 1) - a row's menu is a bottom sheet too */
+  await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await sleep(400)
+  const row = await p.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-testid="sidebar-row-menu"]')]
+      .find((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.top > 0 && r.bottom < window.innerHeight })
+    if (!b) return null
+    const r = b.getBoundingClientRect()
+    return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+  })
+  if (row) {
+    await p.touchscreen.tap(row.x, row.y)
+    await sleep(350)
+  }
+  const side = await p.evaluate(() => {
+    const el = [...document.querySelectorAll('[data-testid="sidebar-row-menu-panel"]')].find((n) => getComputedStyle(n).display !== 'none')
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const items = [...el.querySelectorAll('[role=menuitem]')].map((b) => Math.round(b.getBoundingClientRect().height))
+    return { sheet: el.classList.contains('touch-sheet'), inBody: el.parentElement === document.body, width: Math.round(r.width), bottom: Math.round(r.bottom), vw: window.innerWidth, vh: window.innerHeight, minItem: items.length ? Math.min(...items) : 0 }
+  })
+  ok(`${tag} 10 a left-panel row menu: 44 px button, opens a bottom sheet with 44 px items`,
+    Boolean(row && row.w >= TAP && row.h >= TAP && side && side.sheet && side.inBody && side.width === side.vw
+      && Math.abs(side.bottom - side.vh) <= 1 && side.minItem >= TAP), { row, side })
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }

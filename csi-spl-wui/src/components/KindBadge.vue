@@ -112,4 +112,18 @@ async function setKind(kind: string) {
 }
 .kind-btn.kind-blocker { background: var(--color-danger); }
 .kind-btn:hover:not(:disabled) { filter: brightness(1.15); }
+/* SPL-991 phone: the badge keeps its look; an invisible 44 px hit area
+   around it takes the finger */
+@media (max-width: 820px) {
+  .kind-btn { position: relative; }
+  .kind-btn::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--tap);
+    height: var(--tap);
+    transform: translate(-50%, -50%);
+  }
+}
 </style>

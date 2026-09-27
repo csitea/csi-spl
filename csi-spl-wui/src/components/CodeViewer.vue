@@ -116,6 +116,10 @@ const copied = computed(() => copiedId.value === 'full')
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
+/* SPL-991 phone: wrap / numbers / copy are 44 px targets */
+@media (max-width: 820px) {
+  .code-viewer__toggle { min-height: var(--tap); padding-inline: 12px; font-size: 0.875rem; }
+}
 .code-viewer__code {
   flex: 1 1 auto;
   padding: 8px 12px 16px;

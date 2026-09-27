@@ -2,7 +2,9 @@
      Three horizontal lines, which become an X while the menu is open.
      Click or Enter on the focused button toggles it. A click outside,
      Escape, or the X closes it. The panel is position:fixed and kept inside the viewport,
-     so it cannot scroll the page. -->
+     so it cannot scroll the page.
+     SPL-991: at <= 820 px the panel is a bottom sheet over a dimmed page,
+     moved to <body> so no row's stacking context can sit on top of it. -->
 <template>
   <div
     ref="root"
@@ -26,11 +28,14 @@
     >
       <UiIcon :name="open ? 'x' : 'menu'" :size="16" />
     </button>
+    <Teleport to="body" :disabled="!sheet">
+      <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
       <div
         v-show="open"
         :id="panelId"
         ref="panel"
         class="sidebar-row-menu__panel"
+        :class="{ 'touch-sheet': sheet }"
         data-testid="sidebar-row-menu-panel"
         :data-topic-state="topicState || undefined"
         @keydown="onMenuKey"
@@ -51,6 +56,7 @@
           </li>
         </ul>
       </div>
+    </Teleport>
   </div>
 </template>
 
@@ -58,6 +64,7 @@
 import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{
   menuId: string
@@ -101,6 +108,7 @@ const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const focused = ref(-1)
+const sheet = usePhone()
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
 const buttonLabel = computed(() => (props.open ? t('common.close') : t('sidebar.row_menu.label', { name: props.name })))
@@ -125,7 +133,7 @@ function itemEls(): HTMLElement[] {
 function place() {
   const el = panel.value
   const btn = trigger.value
-  if (!el || !btn) return
+  if (!el || !btn || sheet.value) return
   const r = btn.getBoundingClientRect()
   applyPopover(el, {
     left: r.left,
@@ -141,6 +149,8 @@ async function focusItem(i: number) {
   focused.value = i
   await nextTick()
   place()
+  /* a finger follows no focus ring: the sheet does not move the focus */
+  if (sheet.value) return
   focusWithoutScroll(itemEls()[i])
 }
 
@@ -148,6 +158,7 @@ function onDocPointer(e: PointerEvent) {
   const target = e.target
   if (!(target instanceof Node)) return
   if (root.value?.contains(target) || panel.value?.contains(target)) return
+  if (target instanceof Element && target.closest('.touch-sheet-backdrop')) return
   emit('close')
 }
 
@@ -302,6 +313,9 @@ function choose(id: string) {
   min-height: 36px;
 }
 .sidebar-row-menu__item .ui-icon { flex: 0 0 auto; }
+@media (max-width: 820px) {
+  .sidebar-row-menu__btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
+}
 .sidebar-row-menu__item:hover,
 .sidebar-row-menu__item:focus-visible {
   background: var(--color-surface-hover);

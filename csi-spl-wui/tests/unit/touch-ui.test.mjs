@@ -162,3 +162,17 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
     assert.match(card, /new CustomEvent\(COMPOSER_FOCUS_EVENT\)/)
   })
 })
+
+describe('the phone card rules win (MessageCard.vue)', () => {
+  it('the <= 820 px block is the last rule block, so same-specificity rules above cannot undo it', () => {
+    const vue = readFileSync(join(WUI, 'src/components/MessageCard.vue'), 'utf8')
+    const css = vue.slice(vue.lastIndexOf('<style'))
+    const at = css.indexOf('@media (max-width: 820px)')
+    assert.ok(at > 0)
+    const after = css.slice(at)
+    for (const sel of ['.card-grip {', '.msg-reaction {', '.msg-meta > .msg-reactions {']) {
+      assert.ok(after.includes(sel), sel + ' is overridden inside the phone block')
+      assert.ok(css.lastIndexOf(sel) >= at, sel + ' has no later desktop rule')
+    }
+  })
+})

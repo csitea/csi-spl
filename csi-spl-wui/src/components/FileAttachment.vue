@@ -216,4 +216,11 @@ async function onDownload() {
   max-height: 100%;
   object-fit: contain;
 }
+/* SPL-991 phone: the download button and the title-row file glyph are
+   44 px targets; a picture preview never overflows the full-width card */
+@media (max-width: 820px) {
+  .file-card .btn { min-height: var(--tap); }
+  .file-icon { min-width: var(--tap); min-height: var(--tap); justify-content: center; margin-block: -12px; }
+  .file-preview img { max-width: 100%; }
+}
 </style>

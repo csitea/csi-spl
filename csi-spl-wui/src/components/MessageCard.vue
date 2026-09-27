@@ -1043,36 +1043,6 @@ async function save() {
 .msg-meta { align-items: center; flex-wrap: nowrap; }
 .msg-meta > :deep(.msg-author) { flex: 0 1 auto; min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-meta > .msg-time { flex: 0 0 auto; }
-/* SPL-991 phone (<= 820 px): the card is full width and the header is one
-   line - the names give way first (ellipsis) and the reactions take their own
-   wrapping row under it, so nothing ever widens the page. The smile and the
-   Open-topic icons leave the row (the long-press sheet has Add emoji and
-   Open, and a tap on the card opens it); the ⋯ stays as the visible way to
-   the sheet. Every control left is a 44 px target. A long press must not
-   select text or pop the iOS callout: Copy text is in the sheet. */
-@media (max-width: 820px) {
-  .msg {
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 8px;
-    padding: 8px;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-  }
-  .msg textarea { -webkit-user-select: text; user-select: text; }
-  .msg > .avatar { width: 32px; height: 32px; }
-  .msg-meta { flex-wrap: wrap; row-gap: 4px; gap: 6px; }
-  .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; }
-  .msg-meta > .msg-via-terminal { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
-  .msg-actions [data-test="open-topic"] { display: none; }
-  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; }
-  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
-  .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
-  .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
-  .card-grip { height: var(--tap); margin-top: -16px; }
-  .card-grip::after { margin-top: 20px; }
-}
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; }
@@ -1182,5 +1152,37 @@ async function save() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* SPL-991 phone (<= 820 px): the card is full width and the header is one
+   line - the names give way first (ellipsis) and the reactions take their own
+   wrapping row under it, so nothing ever widens the page. The smile and the
+   Open-topic icons leave the row (the long-press sheet has Add emoji and
+   Open, and a tap on the card opens it); the ⋯ stays as the visible way to
+   the sheet. Every control left is a 44 px target. A long press must not
+   select text or pop the iOS callout: Copy text is in the sheet.
+   LAST in this sheet on purpose: it overrides same-specificity rules above
+   (.card-grip, .msg-reaction, .msg-meta > .msg-reactions) by order. */
+@media (max-width: 820px) {
+  .msg {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .msg textarea { -webkit-user-select: text; user-select: text; }
+  .msg > .avatar { width: 32px; height: 32px; }
+  .msg-meta { flex-wrap: wrap; row-gap: 4px; gap: 6px; }
+  .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; }
+  .msg-meta > .msg-via-terminal { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
+  .msg-actions [data-test="open-topic"] { display: none; }
+  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; }
+  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
+  .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
+  .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
+  .card-grip { height: var(--tap); margin-top: -16px; }
+  .card-grip::after { margin-top: 20px; }
 }
 </style>

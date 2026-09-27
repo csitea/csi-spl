@@ -157,4 +157,18 @@ const copied = computed(() => copiedId.value === 'block')
 .code-expand span { overflow-wrap: anywhere; min-width: 0; }
 .code-expand:hover,
 .code-expand:focus-visible { background: var(--color-surface-hover); }
+/* SPL-991 phone: Open and Copy are 44 px targets, drawn with their border
+   (a finger never hovers to reveal it); the head keeps its height by
+   letting the bigger boxes overlap its padding */
+@media (max-width: 820px) {
+  .code-icon {
+    min-width: var(--tap);
+    min-height: var(--tap);
+    margin-block: -8px;
+    color: var(--color-fg);
+    border-color: var(--color-border);
+  }
+  .code-head { padding-block: 8px 4px; }
+  .code-expand { min-height: var(--tap); font-size: 0.875rem; }
+}
 </style>

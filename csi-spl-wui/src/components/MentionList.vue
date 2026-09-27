@@ -3,7 +3,10 @@
      `placement`: 'below' (default) and 'above' float over the page; 'inline'
      takes room in the flow (the omnibox, which moves it with its own rules).
      Rows swallow their mousedown, so the field keeps the focus and its blur
-     (which closes the list, or saves an issue description) does not fire. -->
+     (which closes the list, or saves an issue description) does not fire.
+     SPL-991: on a phone the floating list is a bottom sheet right above the
+     on-screen keyboard (`--kb-inset`), full width, 44 px rows; the field
+     keeps the focus, so the keyboard stays up. -->
 <template>
   <ul
     v-if="picker.open"
@@ -104,6 +107,21 @@ function setList(el: unknown) {
 }
 /* CLE-3427: the highlighted suggestion is a SELECTED list row - darker fill,
    one 3px marker bar in the shared ring colour. */
+@media (max-width: 820px) {
+  .mention-list--below,
+  .mention-list--above {
+    position: fixed;
+    top: auto;
+    bottom: var(--kb-inset, 0px);
+    inset-inline: 0;
+    z-index: var(--z-overlay);
+    margin: 0;
+    max-height: min(40dvh, calc((100dvh - var(--kb-inset, 0px)) * 0.5));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .mention-item { font-size: 1rem; }
+}
 .mention-item.active {
   background: var(--color-selected);
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);

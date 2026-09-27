@@ -8,14 +8,23 @@
     class="touch-sheet-backdrop"
     data-testid="sheet-backdrop"
     aria-hidden="true"
-    @pointerdown.stop.prevent
-    @click.stop.prevent="$emit('close')"
+    @pointerdown.stop.prevent="armed = true"
+    @click.stop.prevent="onClick"
     @contextmenu.prevent
   />
 </template>
 
 <script setup lang="ts">
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+/* Only a tap that STARTED on the backdrop closes. The finger that long-pressed
+   a card lifts over the backdrop that just appeared, and the browser sends
+   that lift's click here - measured: the sheet opened, then closed on lift. */
+const armed = ref(false)
+function onClick() {
+  if (!armed.value) return
+  armed.value = false
+  emit('close')
+}
 </script>
 
 <style>
@@ -26,8 +35,9 @@ defineEmits<{ close: [] }>()
   background: rgb(0 0 0 / .45);
   touch-action: none;
 }
-/* doubled class: beats each panel's own scoped popover rule (0,2,0) */
-.touch-sheet.touch-sheet {
+/* :root + doubled class (0,3,0): beats each panel's own scoped popover rule
+   (.msg-menu[data-v] = 0,2,0) whatever order the chunks load in */
+:root .touch-sheet.touch-sheet {
   position: fixed;
   top: auto;
   left: 0;
@@ -48,7 +58,7 @@ defineEmits<{ close: [] }>()
   animation: touch-sheet-up .18s ease-out;
 }
 /* the grab handle: says "this is a sheet" */
-.touch-sheet.touch-sheet::before {
+:root .touch-sheet.touch-sheet::before {
   content: "";
   display: block;
   width: 36px;
@@ -57,8 +67,8 @@ defineEmits<{ close: [] }>()
   border-radius: var(--radius-pill);
   background: var(--color-border-strong, var(--color-border));
 }
-.touch-sheet [role="menuitem"],
-.touch-sheet [role="menuitemradio"] {
+:root .touch-sheet.touch-sheet [role="menuitem"],
+:root .touch-sheet.touch-sheet [role="menuitemradio"] {
   min-height: var(--tap);
   font-size: 1rem;
 }
@@ -67,6 +77,6 @@ defineEmits<{ close: [] }>()
   to { transform: none; opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .touch-sheet.touch-sheet { animation: none; }
+  :root .touch-sheet.touch-sheet { animation: none; }
 }
 </style>

@@ -29,7 +29,7 @@ function fakeTimers() {
 describe('the phone line', () => {
   it('is SPL-989\'s one 820 px breakpoint, and the CSS says the same', () => {
     assert.equal(MOBILE_STACK_QUERY, '(max-width: 820px)')
-    for (const f of ['MessageCard.vue']) {
+    for (const f of ['MessageCard.vue', 'MessageComposer.vue', 'MentionList.vue']) {
       const src = readFileSync(join(WUI, 'src/components', f), 'utf8')
       assert.match(src, /@media \(max-width: 820px\)/, f)
     }
@@ -130,5 +130,35 @@ describe('createLongPress', () => {
     lp.down(touch())
     lp.up()
     assert.equal(lp.takeClick(), false)
+  })
+})
+
+describe('the phone composer dock (MessageComposer.vue)', () => {
+  const vue = readFileSync(join(WUI, 'src/components/MessageComposer.vue'), 'utf8')
+  it('docks only the global composer, on a phone, at level 2/3, with a send target, unless TopBar says dock=false', () => {
+    assert.match(vue, /const docked = computed\(\(\) => Boolean\(props\.global\) && props\.dock && phone\.value\s*&& !props\.sendBlocked && stack\.level\.value >= 2\)/)
+  })
+  it('dock defaults to true (Vue reads an absent boolean prop as false)', () => {
+    assert.match(vue, /\}>\(\), \{ dock: true \}\)/)
+  })
+  it('sits above the keyboard and publishes its height for the panes and the top bar', () => {
+    assert.match(vue, /bottom: var\(--kb-inset, 0px\);/)
+    assert.match(vue, /setProperty\('--composer-dock-h'/)
+    assert.match(vue, /const kbInset = useKeyboardInset\(\)/)
+  })
+  it('keeps iOS from zooming, and every control is a 44 px target', () => {
+    assert.match(vue, /\.composer--dock\.composer--dock textarea \{\s*font-size: max\(16px, 1rem\);/)
+    assert.match(vue, /width: var\(--tap\);\s*height: var\(--tap\);/)
+  })
+  it('honours the submit-key setting on the on-screen keyboard too', () => {
+    assert.match(vue, /:enterkeyhint="docked \? \(submitMode === 'enter' \? 'send' : 'enter'\) : undefined"/)
+  })
+  it('offers the camera next to the native picker', () => {
+    assert.match(vue, /accept="image\/\*"\s*capture="environment"/)
+  })
+  it('the sheet Reply focuses it', () => {
+    assert.match(vue, /window\.addEventListener\(COMPOSER_FOCUS_EVENT, onFocusRequest\)/)
+    const card = readFileSync(join(WUI, 'src/components/MessageCard.vue'), 'utf8')
+    assert.match(card, /new CustomEvent\(COMPOSER_FOCUS_EVENT\)/)
   })
 })

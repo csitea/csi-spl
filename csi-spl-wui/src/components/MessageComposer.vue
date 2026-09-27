@@ -1,5 +1,13 @@
 <template>
-  <form class="composer" :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode }" @submit.prevent="onSend">
+  <!-- SPL-991: docked on a phone, the form stays in TopBar's omnibox slot,
+       which turns `display: contents` for it (TopBar keys on .composer--dock) -->
+  <form
+    ref="formEl"
+    class="composer"
+    :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode, 'composer--dock': docked }"
+    :data-docked="docked ? 'true' : undefined"
+    @submit.prevent="onSend"
+  >
     <div class="composer-box">
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
@@ -100,6 +108,7 @@
           :aria-describedby="global ? `${hintId} ${slashHintId}` : hintId"
           autocomplete="off"
           spellcheck="true"
+          :enterkeyhint="docked ? (submitMode === 'enter' ? 'send' : 'enter') : undefined"
           @keydown="onKeydown"
           @input="syncMention"
           @click="syncMention"
@@ -181,6 +190,31 @@
           @change="onFiles"
           @cancel="onPickCancel"
         >
+        <!-- SPL-991: a phone can attach a photo straight from the camera; the
+             paperclip's native picker still offers files, gallery and camera -->
+        <button
+          v-if="docked && !searchMode"
+          type="button"
+          tabindex="-1"
+          class="attach"
+          data-testid="attach-camera"
+          @mousedown.prevent
+          @click="openCamera"
+          :aria-label="t('composer.camera')"
+          :title="t('composer.camera')"
+        ><UiIcon name="camera" :size="20" /></button>
+        <input
+          v-if="docked && !searchMode"
+          ref="cameraEl"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          tabindex="-1"
+          data-testid="attach-camera-input"
+          @change="onFiles"
+          @cancel="onPickCancel"
+        >
         <!-- SPL-977: one GO icon sends, or runs the /search; its tooltip is
              drawn on top of everything, under the button (the bar is at the
              window's top edge, so there is no room above it) -->
@@ -219,6 +253,9 @@ import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMentionPicker } from '~/composables/useMentionPicker'
+import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
+import { useMobileStack } from '~/composables/useMobileStack'
+import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -230,7 +267,14 @@ import {
   topicChoices,
 } from '~/utils/topic-in.mjs'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
+  /**
+   * SPL-991: on a phone (<= 820 px, level 2/3 of useMobileStack, a send
+   * target on the page) the one composer docks at the bottom, above the
+   * on-screen keyboard. TopBar passes false while its search sheet is open.
+   * Default true (withDefaults: an absent boolean prop would read false).
+   */
+  dock?: boolean
   placeholder?: string
   parentTaskId?: string
   busy?: boolean
@@ -246,7 +290,7 @@ const props = defineProps<{
   sendBlocked?: boolean
   /** 022: the operator catalogue (search-v1 §6) */
   operators?: SearchOperator[]
-}>()
+}>(), { dock: true })
 const emit = defineEmits<{
   send: [text: string, parentTaskId?: string, files?: File[], channelId?: string]
   search: [q: string]
@@ -272,6 +316,56 @@ const channelFeed = useChannelStore()
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+
+/*
+ * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone
+ * it leaves the bar and pins itself to the bottom edge, `--kb-inset` above it
+ * (useKeyboardInset: the visualViewport keyboard height, iOS Safari and
+ * Android Chrome), full width, 44 px Attach / Camera / Send. Its height goes
+ * to `--composer-dock-h` on <html> (0 when not docked), so the panes pad
+ * their last card clear of it (M1) and TopBar lifts its send error over it
+ * (M2). Level 1 (the section chooser) has nothing to send to: no dock.
+ */
+const formEl = ref<HTMLFormElement | null>(null)
+const cameraEl = ref<HTMLInputElement | null>(null)
+const phone = usePhone()
+const stack = useMobileStack()
+const kbInset = useKeyboardInset()
+const docked = computed(() => Boolean(props.global) && props.dock && phone.value
+  && !props.sendBlocked && stack.level.value >= 2)
+let dockObserver: ResizeObserver | null = null
+function setDockHeight(px: number) {
+  if (typeof document === 'undefined') return
+  document.documentElement.style.setProperty('--composer-dock-h', `${Math.max(0, Math.round(px))}px`)
+}
+function watchDock(on: boolean) {
+  dockObserver?.disconnect()
+  dockObserver = null
+  const el = formEl.value
+  if (!on || !el) {
+    setDockHeight(0)
+    return
+  }
+  setDockHeight(el.getBoundingClientRect().height)
+  if (typeof ResizeObserver !== 'undefined') {
+    dockObserver = new ResizeObserver(() => setDockHeight(el.getBoundingClientRect().height))
+    dockObserver.observe(el)
+  }
+}
+watch(docked, (on) => { void nextTick(() => watchDock(on)) })
+/* the sheet's Reply (MessageCard) puts the caret here */
+function onFocusRequest() {
+  inputEl.value?.focus()
+}
+onMounted(() => {
+  watchDock(docked.value)
+  window.addEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest)
+})
+onBeforeUnmount(() => {
+  dockObserver?.disconnect()
+  if (props.global) setDockHeight(0)
+  window.removeEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest)
+})
 /* A drag on the grip. Null until the reader sets one, then typing does not
    snap the box back. Kept across a collapse so the next focus can reopen it. */
 const userHeight = ref<number | null>(null)
@@ -286,6 +380,8 @@ const contentUntilFocus = ref(false)
 /* A fit queued by the send that clears the text must not reopen the box. */
 let fitSerial = 0
 function omniboxMax() {
+  /* docked: 40% of what the keyboard leaves, so the page stays in view */
+  if (docked.value) return Math.max(36, Math.floor((window.innerHeight - kbInset.value) * 0.4))
   return Math.max(36, Math.floor(window.innerHeight - 58 - 8))
 }
 function collapseGlobalBox(park: boolean) {
@@ -499,7 +595,7 @@ defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: Enter follows Settings -> Behaviour -> "Text fields" */
-const { keyAction } = useSubmitKey()
+const { keyAction, mode: submitMode } = useSubmitKey()
 const syntaxOpen = ref(false)
 const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
@@ -810,6 +906,14 @@ function openFiles() {
   fileEl.value?.click()
 }
 
+function openCamera() {
+  pickLost.value = false
+  clearPickWait()
+  awaitingPick = true
+  window.addEventListener('focus', onWindowFocusAfterPick)
+  cameraEl.value?.click()
+}
+
 function onPickCancel() {
   clearPickWait()
   pickLost.value = true
@@ -1104,4 +1208,68 @@ textarea.in-code {
 }
 .search-syntax__op code { font-family: var(--font-mono); }
 .search-syntax__op span { min-width: 0; overflow-wrap: anywhere; }
+/*
+ * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
+ * main.css's `.composer.omnibox--global ...` rules without !important.
+ * 16px text at least: iOS Safari zooms the page into any smaller field on
+ * focus; above that it follows the font-size setting (rem).
+ * The pickers (@ list, `in:` titles, /search operators) open UPWARD over
+ * the page as a full-width sheet, with the keyboard still below the box.
+ */
+@media (max-width: 820px) {
+  .composer.composer--dock.composer--dock {
+    position: fixed;
+    inset-inline: 0;
+    bottom: var(--kb-inset, 0px);
+    z-index: calc(var(--z-sticky, 40) + 10);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-sidebar);
+    border-top: 1px solid var(--color-border);
+  }
+  .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
+  .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
+  .composer--dock.composer--dock textarea {
+    font-size: max(16px, 1rem);
+    min-height: calc(var(--tap) - 2px);
+    padding: 10px 0;
+    padding-inline-end: 28px;
+  }
+  /* one line of hint: the long key wording must not wrap under the box */
+  .composer--dock.composer--dock textarea::placeholder {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .composer--dock.composer--dock .omnibox-resize,
+  .composer--dock.composer--dock .composer-go__tip { display: none; }
+  .composer--dock.composer--dock .composer-row { align-self: flex-end; gap: 2px; }
+  .composer--dock.composer--dock .composer-row button,
+  .composer--dock.composer--dock .composer-row .composer-go {
+    width: var(--tap);
+    height: var(--tap);
+    min-width: var(--tap);
+    min-height: var(--tap);
+    padding: 0;
+    margin: 0;
+  }
+  .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
+  .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
+  .composer--dock.composer--dock .mention-list {
+    position: absolute;
+    top: auto;
+    bottom: 100%;
+    inset-inline: 0;
+    margin: 0 0 6px;
+    max-height: min(40vh, calc((100dvh - var(--kb-inset, 0px)) * 0.45));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .composer--dock.composer--dock .search-syntax {
+    top: auto;
+    bottom: calc(100% + 4px);
+  }
+}
 </style>

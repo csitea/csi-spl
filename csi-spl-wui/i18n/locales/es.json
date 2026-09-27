@@ -415,7 +415,8 @@
     "send_failed_closed": "No enviado: se cortó la conexión. Tu texto sigue aquí.",
     "send_failed_timeout": "No enviado: el hub no respondió a tiempo. Tu texto sigue aquí.",
     "send_retry": "Reintentar",
-    "send_failed_empty": "No hay nada que enviar: una mención por sí sola no es un mensaje. Añade texto o adjunta un archivo."
+    "send_failed_empty": "No hay nada que enviar: una mención por sí sola no es un mensaje. Añade texto o adjunta un archivo.",
+    "camera": "Hacer una foto"
   },
   "feed": {
     "unknown_author": "desconocido",
@@ -489,7 +490,10 @@
       "merge_prev": "Fusionar con el mensaje anterior",
       "merge_next": "Fusionar con el mensaje siguiente",
       "archive": "Archivar",
-      "unarchive": "Desarchivar"
+      "unarchive": "Desarchivar",
+      "reply": "Responder",
+      "copy_text": "Copiar texto",
+      "kind": "Cambiar tipo"
     },
     "emoji": {
       "add": "Añadir emoji",

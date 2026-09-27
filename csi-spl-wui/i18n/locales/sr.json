@@ -415,7 +415,8 @@
     "send_failed_closed": "Nije poslato — veza je prekinuta. Vaš tekst je i dalje tu.",
     "send_failed_timeout": "Nije poslato — hub nije odgovorio na vreme. Vaš tekst je i dalje tu.",
     "send_retry": "Pokušajte ponovo",
-    "send_failed_empty": "Nema šta da se pošalje — samo pominjanje nije poruka. Dodajte tekst ili priložite datoteku."
+    "send_failed_empty": "Nema šta da se pošalje — samo pominjanje nije poruka. Dodajte tekst ili priložite datoteku.",
+    "camera": "Фотографиши"
   },
   "feed": {
     "unknown_author": "nepoznato",
@@ -489,7 +490,10 @@
       "merge_prev": "Споји са претходном поруком",
       "merge_next": "Споји са следећом поруком",
       "archive": "Архивирај",
-      "unarchive": "Врати из архиве"
+      "unarchive": "Врати из архиве",
+      "reply": "Одговори",
+      "copy_text": "Копирај текст",
+      "kind": "Промени врсту"
     },
     "emoji": {
       "add": "Додај емоџи",

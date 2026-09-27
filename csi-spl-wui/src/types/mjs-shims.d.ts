@@ -443,8 +443,31 @@ declare module '~/utils/typed-by.mjs' {
   export function typedByAuthor(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): { id: string, box: string, via: string, viaBox: string }
 }
 
+declare module '~/utils/touch-ui.mjs' {
+  export const LONG_PRESS_MS: number
+  export const LONG_PRESS_SLOP_PX: number
+  export const KEYBOARD_MIN_PX: number
+  export const COMPOSER_FOCUS_EVENT: string
+  export function keyboardInset(innerHeight: number, vv: { height?: number, offsetTop?: number } | null | undefined): number
+  export function isTouchPointer(pointerType: string | undefined): boolean
+  export function createLongPress(opts: {
+    onPress: (x: number, y: number) => void
+    delay?: number
+    slop?: number
+    setTimer?: (fn: () => void, ms: number) => unknown
+    clearTimer?: (id: unknown) => void
+  }): {
+    down(ev: { pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }): void
+    move(ev: { clientX: number, clientY: number }): void
+    up(): void
+    cancel(): void
+    takeClick(): boolean
+    readonly pending: boolean
+  }
+}
+
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean }): { id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string

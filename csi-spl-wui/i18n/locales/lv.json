@@ -415,7 +415,8 @@
     "send_failed_closed": "Nav nosūtīts — savienojums pārtrūka. Jūsu teksts ir saglabāts.",
     "send_failed_timeout": "Nav nosūtīts — hub neatbildēja laikus. Jūsu teksts ir saglabāts.",
     "send_retry": "Mēģināt vēlreiz",
-    "send_failed_empty": "Nav ko sūtīt — tikai pieminējums nav ziņa. Pievienojiet tekstu vai pievienojiet failu."
+    "send_failed_empty": "Nav ko sūtīt — tikai pieminējums nav ziņa. Pievienojiet tekstu vai pievienojiet failu.",
+    "camera": "Uzņemt foto"
   },
   "feed": {
     "unknown_author": "nezināms",
@@ -489,7 +490,10 @@
       "merge_prev": "Apvienot ar iepriekšējo ziņu",
       "merge_next": "Apvienot ar nākamo ziņu",
       "archive": "Arhivēt",
-      "unarchive": "Atjaunot no arhīva"
+      "unarchive": "Atjaunot no arhīva",
+      "reply": "Atbildēt",
+      "copy_text": "Kopēt tekstu",
+      "kind": "Mainīt veidu"
     },
     "emoji": {
       "add": "Pievienot emoji",

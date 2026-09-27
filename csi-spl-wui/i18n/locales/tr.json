@@ -415,7 +415,8 @@
     "send_failed_closed": "Gönderilmedi — bağlantı koptu. Metniniz hâlâ burada.",
     "send_failed_timeout": "Gönderilmedi — hub zamanında yanıt vermedi. Metniniz hâlâ burada.",
     "send_retry": "Tekrar dene",
-    "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin."
+    "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin.",
+    "camera": "Fotoğraf çek"
   },
   "feed": {
     "unknown_author": "bilinmiyor",
@@ -489,7 +490,10 @@
       "merge_prev": "Önceki mesajla birleştir",
       "merge_next": "Sonraki mesajla birleştir",
       "archive": "Arşivle",
-      "unarchive": "Arşivden çıkar"
+      "unarchive": "Arşivden çıkar",
+      "reply": "Yanıtla",
+      "copy_text": "Metni kopyala",
+      "kind": "Türü değiştir"
     },
     "emoji": {
       "add": "Emoji ekle",

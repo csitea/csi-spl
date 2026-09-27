@@ -17,6 +17,10 @@
     @dblclick="onDblClick"
     @keydown="onKey"
     @contextmenu="onContextMenu"
+    @pointerdown="longPress.down"
+    @pointermove="longPress.move"
+    @pointerup="longPress.up"
+    @pointercancel="longPress.cancel"
   >
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div>
@@ -233,6 +237,7 @@
       :merge-next="!!mergeNext"
       :parent="showParent"
       :topic="showTopicActions"
+      :kind="kindSettable"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -244,6 +249,10 @@
       @delete="onMenuDelete"
       @archive="onMenuArchive"
       @delete-topic="onMenuDeleteTopic"
+      @reply="onMenuReply"
+      @react="onMenuReact"
+      @copy-text="copyBody"
+      @kind="onMenuKind"
     />
     <!-- SPL-983: mounted when Delete is picked on a topic card, not before -->
     <LazyTopicDeleteDialog
@@ -290,6 +299,8 @@ import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { typedByAuthor } from '~/utils/typed-by.mjs'
+import { canSetKind } from '~/utils/msg-kind.mjs'
+import { COMPOSER_FOCUS_EVENT, createLongPress } from '~/utils/touch-ui.mjs'
 import {
   CARD_GRIP_STEP_ROWS,
   cardClipPx,
@@ -383,6 +394,12 @@ function selecting() {
 }
 
 function onClick(ev: MouseEvent) {
+  /* SPL-991: the finger that long-pressed lifts with a click; it opened the
+     menu and must not also open the topic */
+  if (longPress.takeClick()) {
+    ev.preventDefault()
+    return
+  }
   const el = ev.target as HTMLElement | null
   if (el && el.closest && el.closest(INTERACTIVE)) return
   if (selecting()) return
@@ -527,12 +544,21 @@ function linkPath() {
 async function copyMessageLink() {
   const path = linkPath()
   if (!path || typeof window === 'undefined') return
-  const url = new URL(path, window.location.origin).href
+  await copyString(new URL(path, window.location.origin).href)
+}
+
+/* SPL-991: a phone cannot select text inside a long-pressable card */
+async function copyBody() {
+  const body = String(props.msg.body || '')
+  if (body) await copyString(body)
+}
+
+async function copyString(value: string) {
   try {
-    await navigator.clipboard.writeText(url)
+    await navigator.clipboard.writeText(value)
   } catch {
     const ta = document.createElement('textarea')
-    ta.value = url
+    ta.value = value
     ta.setAttribute('readonly', '')
     ta.style.position = 'fixed'
     ta.style.left = '0'
@@ -545,6 +571,44 @@ async function copyMessageLink() {
     document.execCommand('copy')
     ta.remove()
   }
+}
+
+/*
+ * SPL-991 — a phone has no hover and no right-click: a long press opens this
+ * card's menu as a bottom sheet (utils/touch-ui.mjs holds the timing rule).
+ * Android also fires `contextmenu` on a long press; both open the same menu.
+ */
+const longPress = createLongPress({
+  onPress: (x, y) => {
+    if (editing.value) return
+    pickerOpen.value = false
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    openMenuAt(x, y)
+  },
+})
+onBeforeUnmount(() => longPress.cancel())
+
+/* Reply: a topic card opens its topic (the third panel); a thread line is
+   already in it. Either way the caret goes to the docked composer. */
+function onMenuReply() {
+  closeMenu()
+  if (props.clickable) openReplies()
+  if (typeof window !== 'undefined') {
+    void nextTick(() => window.dispatchEvent(new CustomEvent(COMPOSER_FOCUS_EVENT)))
+  }
+}
+
+function onMenuReact() {
+  closeMenu()
+  pickerAt.value = { x: 0, y: 0 }
+  pickerOpen.value = true
+}
+
+/* Kind: the badge's own picker (KindBadge -> KindPicker), a sheet on a phone */
+const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
+function onMenuKind() {
+  closeMenu()
+  void nextTick(() => rowEl.value?.querySelector<HTMLElement>('[data-testid="kind-badge-btn"]')?.click())
 }
 
 /** A double-click on a row opens the same editor as `e`: a thread line on
@@ -979,9 +1043,35 @@ async function save() {
 .msg-meta { align-items: center; flex-wrap: nowrap; }
 .msg-meta > :deep(.msg-author) { flex: 0 1 auto; min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-meta > .msg-time { flex: 0 0 auto; }
-/* a phone keeps the old wrap: the header may take two lines, never the page */
-@media (max-width: 30rem) {
-  .msg-meta { flex-wrap: wrap; }
+/* SPL-991 phone (<= 820 px): the card is full width and the header is one
+   line - the names give way first (ellipsis) and the reactions take their own
+   wrapping row under it, so nothing ever widens the page. The smile and the
+   Open-topic icons leave the row (the long-press sheet has Add emoji and
+   Open, and a tap on the card opens it); the ⋯ stays as the visible way to
+   the sheet. Every control left is a 44 px target. A long press must not
+   select text or pop the iOS callout: Copy text is in the sheet. */
+@media (max-width: 820px) {
+  .msg {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .msg textarea { -webkit-user-select: text; user-select: text; }
+  .msg > .avatar { width: 32px; height: 32px; }
+  .msg-meta { flex-wrap: wrap; row-gap: 4px; gap: 6px; }
+  .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; }
+  .msg-meta > .msg-via-terminal { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
+  .msg-actions [data-test="open-topic"] { display: none; }
+  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; }
+  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
+  .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
+  .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
+  .card-grip { height: var(--tap); margin-top: -16px; }
+  .card-grip::after { margin-top: 20px; }
 }
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }

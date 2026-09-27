@@ -37,9 +37,11 @@ describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon'
   })
   it('paints emoji, chips, (edited), spacer, then the right-hand controls', () => {
     assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 1; margin-inline-start: -13px; flex: 0 1 auto; align-self: center; \}/)
-    // one header line (a narrow pane keeps the chips beside the emoji); a phone may wrap
+    // one header line (a narrow pane keeps the chips beside the emoji); SPL-991: on a
+    // phone the names ellipsize and only the chips take their own wrapping row
     assert.match(vue, /\.msg-meta \{ align-items: center; flex-wrap: nowrap; \}/)
-    assert.match(vue, /@media \(max-width: 30rem\) \{\s*\.msg-meta \{ flex-wrap: wrap; \}/)
+    assert.match(vue, /@media \(max-width: 820px\) \{[\s\S]*?\.msg-meta \{ flex-wrap: wrap;/)
+    assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 10; flex: 1 0 100%; margin-inline-start: 0; \}/)
     assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; \}/)
     assert.match(vue, /\.msg-reactions \{\s*display: inline-flex;\s*flex-wrap: wrap;/)
   })

@@ -415,7 +415,8 @@
     "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",
     "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
     "send_retry": "Spróbuj ponownie",
-    "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik."
+    "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik.",
+    "camera": "Zrób zdjęcie"
   },
   "feed": {
     "unknown_author": "nieznany",
@@ -489,7 +490,10 @@
       "merge_prev": "Scal z poprzednią wiadomością",
       "merge_next": "Scal z następną wiadomością",
       "archive": "Archiwizuj",
-      "unarchive": "Przywróć z archiwum"
+      "unarchive": "Przywróć z archiwum",
+      "reply": "Odpowiedz",
+      "copy_text": "Kopiuj tekst",
+      "kind": "Zmień rodzaj"
     },
     "emoji": {
       "add": "Dodaj emoji",

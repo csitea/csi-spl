@@ -415,7 +415,8 @@
     "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",
     "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
     "send_retry": "Bandyti dar kartą",
-    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą."
+    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
+    "camera": "Fotografuoti"
   },
   "feed": {
     "unknown_author": "nežinomas",
@@ -489,7 +490,10 @@
       "merge_prev": "Sujungti su ankstesne žinute",
       "merge_next": "Sujungti su kita žinute",
       "archive": "Archyvuoti",
-      "unarchive": "Grąžinti iš archyvo"
+      "unarchive": "Grąžinti iš archyvo",
+      "reply": "Atsakyti",
+      "copy_text": "Kopijuoti tekstą",
+      "kind": "Keisti tipą"
     },
     "emoji": {
       "add": "Pridėti emoji",

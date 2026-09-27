@@ -415,7 +415,8 @@
     "send_failed_closed": "Netrimis — conexiunea s-a întrerupt. Textul tău este încă aici.",
     "send_failed_timeout": "Netrimis — hubul nu a răspuns la timp. Textul tău este încă aici.",
     "send_retry": "Încearcă din nou",
-    "send_failed_empty": "Nu este nimic de trimis — o mențiune singură nu este un mesaj. Adaugă text sau atașează un fișier."
+    "send_failed_empty": "Nu este nimic de trimis — o mențiune singură nu este un mesaj. Adaugă text sau atașează un fișier.",
+    "camera": "Fă o fotografie"
   },
   "feed": {
     "unknown_author": "necunoscut",
@@ -489,7 +490,10 @@
       "merge_prev": "Unește cu mesajul anterior",
       "merge_next": "Unește cu mesajul următor",
       "archive": "Arhivează",
-      "unarchive": "Scoate din arhivă"
+      "unarchive": "Scoate din arhivă",
+      "reply": "Răspunde",
+      "copy_text": "Copiază textul",
+      "kind": "Schimbă tipul"
     },
     "emoji": {
       "add": "Adaugă emoji",

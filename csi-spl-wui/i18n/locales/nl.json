@@ -415,7 +415,8 @@
     "send_failed_closed": "Niet verzonden — de verbinding viel weg. Je tekst staat er nog.",
     "send_failed_timeout": "Niet verzonden — de hub antwoordde niet op tijd. Je tekst staat er nog.",
     "send_retry": "Opnieuw proberen",
-    "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij."
+    "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij.",
+    "camera": "Foto maken"
   },
   "feed": {
     "unknown_author": "onbekend",
@@ -489,7 +490,10 @@
       "merge_prev": "Samenvoegen met vorige bericht",
       "merge_next": "Samenvoegen met volgende bericht",
       "archive": "Archiveren",
-      "unarchive": "Uit archief halen"
+      "unarchive": "Uit archief halen",
+      "reply": "Beantwoorden",
+      "copy_text": "Tekst kopiëren",
+      "kind": "Soort wijzigen"
     },
     "emoji": {
       "add": "Emoji toevoegen",

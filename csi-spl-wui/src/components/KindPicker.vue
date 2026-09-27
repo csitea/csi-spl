@@ -1,12 +1,15 @@
 <!-- SPL-952: the menu that sets a message's kind, opened from its badge. The
      same panel behaviour as EmojiPicker: teleported, placed inside the
-     viewport, Escape and a click outside close it, arrows move the focus. -->
+     viewport, Escape and a click outside close it, arrows move the focus.
+     SPL-991: at <= 820 px it is a bottom sheet, as the message menu is. -->
 <template>
   <Teleport to="body">
+    <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
     <div
       v-if="open"
       ref="root"
       class="kind-picker"
+      :class="{ 'touch-sheet': sheet }"
       data-testid="kind-picker"
       role="menu"
       :aria-label="t('feed.kind_set.menu')"
@@ -33,12 +36,14 @@
 <script setup lang="ts">
 import { MSG_KINDS } from '~/utils/msg-kind.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{ open: boolean, x: number, y: number, current: string }>()
 const emit = defineEmits<{ close: [], choose: [kind: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
+const sheet = usePhone()
 
 function items(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('.kind-picker__item') ?? [])]
@@ -46,13 +51,14 @@ function items(): HTMLElement[] {
 
 async function place() {
   await nextTick()
+  if (sheet.value) return
   applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
   const target = e.target
   if (!(target instanceof Node) || root.value?.contains(target)) return
-  if (target instanceof Element && target.closest('[data-testid="kind-badge-btn"]')) return
+  if (target instanceof Element && target.closest('[data-testid="kind-badge-btn"], .touch-sheet-backdrop')) return
   emit('close')
 }
 
@@ -60,7 +66,7 @@ watch(() => props.open, async (v) => {
   if (v) {
     document.addEventListener('pointerdown', onDocPointer, true)
     await place()
-    if (!props.open) return
+    if (!props.open || sheet.value) return
     await nextTick()
     const list = items()
     focusWithoutScroll(list.find((el) => el.dataset.kind === props.current) || list[0])

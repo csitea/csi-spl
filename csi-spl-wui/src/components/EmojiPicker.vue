@@ -1,11 +1,14 @@
 <!-- The glyph grid for adding an emoji to a message. Same panel for an
-     opening message and a reply. Escape and a click outside close it. -->
+     opening message and a reply. Escape and a click outside close it.
+     SPL-991: at <= 820 px it is a bottom sheet with 44 px glyphs. -->
 <template>
   <Teleport to="body">
+    <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
     <div
       v-if="open"
       ref="root"
       class="emoji-picker"
+      :class="{ 'touch-sheet': sheet }"
       data-testid="emoji-picker"
       role="dialog"
       :aria-label="t('feed.emoji.picker')"
@@ -42,6 +45,7 @@
 <script setup lang="ts">
 import { EMOJI_CHOICES, readRecent, rememberEmoji } from '~/utils/emoji.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{ open: boolean, x: number, y: number }>()
 const emit = defineEmits<{ close: [], choose: [emoji: string] }>()
@@ -50,6 +54,7 @@ const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const recent = ref<string[]>([])
 const choices = EMOJI_CHOICES
+const sheet = usePhone()
 
 function glyphs(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('.emoji-picker__glyph') ?? [])]
@@ -57,13 +62,14 @@ function glyphs(): HTMLElement[] {
 
 async function place() {
   await nextTick()
+  if (sheet.value) return
   applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
   const target = e.target
   if (!(target instanceof Node) || root.value?.contains(target)) return
-  if (target instanceof Element && target.closest('[data-testid="msg-emoji-btn"]')) return
+  if (target instanceof Element && target.closest('[data-testid="msg-emoji-btn"], .touch-sheet-backdrop')) return
   emit('close')
 }
 
@@ -72,7 +78,7 @@ watch(() => props.open, async (v) => {
     recent.value = readRecent()
     document.addEventListener('pointerdown', onDocPointer, true)
     await place()
-    if (!props.open) return
+    if (!props.open || sheet.value) return
     await nextTick()
     focusWithoutScroll(glyphs()[0])
   } else {
@@ -154,6 +160,8 @@ function choose(emoji: string) {
   cursor: pointer;
   padding: 0;
 }
+.touch-sheet .emoji-picker__grid { grid-template-columns: repeat(auto-fill, minmax(var(--tap), 1fr)); }
+.touch-sheet .emoji-picker__glyph { min-height: var(--tap); font-size: 1.5rem; }
 .emoji-picker__glyph:hover,
 .emoji-picker__glyph:focus-visible {
   background: var(--color-surface-hover);

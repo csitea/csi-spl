@@ -415,7 +415,8 @@
     "send_failed_closed": "Ei lähetetty — yhteys katkesi. Tekstisi on yhä tallessa.",
     "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
     "send_retry": "Yritä uudelleen",
-    "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto."
+    "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto.",
+    "camera": "Ota kuva"
   },
   "feed": {
     "unknown_author": "tuntematon",
@@ -489,7 +490,10 @@
       "merge_prev": "Yhdistä edelliseen viestiin",
       "merge_next": "Yhdistä seuraavaan viestiin",
       "archive": "Arkistoi",
-      "unarchive": "Palauta arkistosta"
+      "unarchive": "Palauta arkistosta",
+      "reply": "Vastaa",
+      "copy_text": "Kopioi teksti",
+      "kind": "Vaihda tyyppi"
     },
     "emoji": {
       "add": "Lisää emoji",

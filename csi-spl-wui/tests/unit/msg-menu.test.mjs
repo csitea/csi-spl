@@ -29,6 +29,14 @@ describe('msgMenuItems', () => {
     assert.deepEqual(msgMenuItems().map((i) => i.id), ['open', 'copy'])
   })
 
+  it('SPL-991: the phone sheet starts with Reply and Add emoji, adds Copy text and (when allowed) Kind; the desktop menu is unchanged', () => {
+    assert.deepEqual(msgMenuItems({ editable: true, touch: true, kind: true }).map((i) => i.id), ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'kind', 'delete'])
+    assert.deepEqual(msgMenuItems({ touch: true }).map((i) => i.id), ['reply', 'react', 'open', 'copy-text', 'copy'])
+    assert.deepEqual(msgMenuItems({ editable: true, kind: true }).map((i) => i.id), ['open', 'copy', 'edit', 'delete'])
+    const topic = msgMenuItems({ editable: true, touch: true, topic: true }).map((i) => i.id)
+    assert.deepEqual(topic.slice(-2), ['archive', 'delete-topic'])
+  })
+
   it('names each action from the catalogue', () => {
     for (const item of msgMenuItems({ editable: true })) {
       assert.match(item.labelKey, /^feed\.msg_menu\./)
@@ -152,7 +160,7 @@ describe('every locale names the message actions', () => {
   it('translates edit and delete, and keeps the same keys', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
-    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'delete', 'edit', 'label', 'merge_next', 'merge_prev', 'open', 'open_parent', 'unarchive'])
+    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'kind', 'label', 'merge_next', 'merge_prev', 'open', 'open_parent', 'reply', 'unarchive'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -167,6 +175,9 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.merge_next, en.merge_next, code)
       assert.notEqual(row.archive, en.archive, code) // SPL-983
       assert.notEqual(row.unarchive, en.unarchive, code)
+      assert.notEqual(row.reply, en.reply, code) // SPL-991
+      assert.notEqual(row.copy_text, en.copy_text, code)
+      assert.notEqual(row.kind, en.kind, code)
     }
   })
 })

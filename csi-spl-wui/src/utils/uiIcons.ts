@@ -199,6 +199,17 @@ export const UI_ICON_PATHS = {
   paperclip: [
     "m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551",
   ],
+  // SPL-991 phone composer: take a photo (lucide camera).
+  camera: [
+    "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z",
+    "M12 10a3 3 0 1 1 0 6 3 3 0 1 1 0-6z",
+  ],
+  // SPL-991 long-press sheet: Reply (lucide reply) and Kind (lucide tag).
+  reply: ["M20 18v-2a4 4 0 0 0-4-4H4", "m9 17-5-5 5-5"],
+  tag: [
+    "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z",
+    { d: "M7.5 6.4a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+  ],
   // Attachment of no known type (lucide file).
   "file": [
     "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",

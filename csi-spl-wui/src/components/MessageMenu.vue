@@ -1,11 +1,15 @@
 <!-- Right-click menu on a message. Same panel as a channel row: icon plus
-     the action name, Escape and a click outside close it, arrows move. -->
+     the action name, Escape and a click outside close it, arrows move.
+     SPL-991: at <= 820 px it is a bottom sheet (long-press or the ⋯ button),
+     over a dimmed page a tap on which closes it. -->
 <template>
   <Teleport to="body">
+    <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
     <div
       v-if="open"
       ref="root"
       class="msg-menu"
+      :class="{ 'touch-sheet': sheet }"
       data-testid="msg-menu"
       @keydown="onMenuKey"
       @contextmenu.prevent
@@ -33,6 +37,7 @@
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{
   open: boolean
@@ -45,6 +50,8 @@ const props = defineProps<{
   parent?: boolean
   /** SPL-983: a topic card the viewer may archive / delete */
   topic?: boolean
+  /** SPL-991: the viewer may re-type this message (the sheet's Kind item) */
+  kind?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -59,12 +66,20 @@ const emit = defineEmits<{
   delete: []
   archive: []
   'delete-topic': []
+  reply: []
+  react: []
+  'copy-text': []
+  kind: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const focused = ref(-1)
+/* SPL-991: a phone gets the sheet; the desktop popover is untouched */
+const sheet = usePhone()
 const items = computed(() => msgMenuItems({
+  touch: sheet.value,
+  kind: props.kind,
   editable: props.editable,
   mergePrev: props.mergePrev,
   mergeNext: props.mergeNext,
@@ -84,12 +99,15 @@ async function focusItem(i: number) {
 
 async function place() {
   await nextTick()
+  if (sheet.value) return
   applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
   const target = e.target
   if (!(target instanceof Node) || root.value?.contains(target)) return
+  /* the backdrop closes on its click, so the tap reaches nothing under it */
+  if (target instanceof Element && target.closest('.touch-sheet-backdrop')) return
   emit('close')
 }
 
@@ -97,6 +115,9 @@ async function onOpen() {
   document.addEventListener('pointerdown', onDocPointer, true)
   await place()
   if (!props.open) return
+  /* a finger has no focus ring to follow: the sheet does not steal focus
+     (that would also drop the on-screen keyboard mid-sentence) */
+  if (sheet.value) return
   await focusItem(0)
 }
 
@@ -139,6 +160,10 @@ function choose(id: string) {
   else if (id === 'delete') emit('delete')
   else if (id === 'archive') emit('archive')
   else if (id === 'delete-topic') emit('delete-topic')
+  else if (id === 'reply') emit('reply')
+  else if (id === 'react') emit('react')
+  else if (id === 'copy-text') emit('copy-text')
+  else if (id === 'kind') emit('kind')
   emit('close')
 }
 </script>

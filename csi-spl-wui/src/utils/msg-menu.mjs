@@ -20,18 +20,32 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * child, so it replaces the one-message Delete: deleting the card alone would
  * strand its replies.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean }} [opts]
- * @returns {{ id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
+ * On a phone (`touch`, SPL-991) the menu is the long-press bottom sheet, the
+ * only way to reach what a desktop row shows on hover: it starts with Reply
+ * and Add emoji (the row's smile button is hidden on a phone), and adds Copy text, and Kind when the viewer may re-type the message
+ * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
+ * unchanged.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const editable = Boolean(o.editable)
+  const touch = Boolean(o.touch)
   const copy = { id: 'copy', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' }
   const edit = { id: 'edit', icon: 'pencil', labelKey: 'feed.msg_menu.edit' }
-  const items = [{ id: 'open', icon: 'open', labelKey: 'feed.msg_menu.open' }]
+  const items = []
+  if (touch) {
+    items.push({ id: 'reply', icon: 'reply', labelKey: 'feed.msg_menu.reply' })
+    items.push({ id: 'react', icon: 'smile', labelKey: 'feed.emoji.add' })
+  }
+  items.push({ id: 'open', icon: 'open', labelKey: 'feed.msg_menu.open' })
   if (o.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'feed.msg_menu.open_parent' })
+  if (touch) items.push({ id: 'copy-text', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' })
   items.push(copy)
   if (editable) items.push(edit)
+  if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
   if (o.topic) {

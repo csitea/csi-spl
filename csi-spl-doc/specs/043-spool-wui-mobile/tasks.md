@@ -39,9 +39,9 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T011 [M2] search as a full-screen sheet; the avatar menu as a bottom sheet (language, theme, notifications, settings, sign out) (300cfa42; prd e2e live proof 11/11, 3ff536ff + 917b5f8e)
 - [x] T012 [M2] `viewport-fit=cover`, `interactive-widget=resizes-content`, safe-area padding (D7) (83e8e055; gate 36308770570 green, live dev + prd build 257186af)
 - [x] T020 [M3] the bottom-docked composer above the keyboard on levels 2 and 3 (FR-007, D4) (5e5ac6ab; lead scoreboard 2, build ac63273c: docked at the viewport bottom at 360-820, dev + prd)
-- [ ] T021 [M3] 44 px message menu and emoji buttons; a long-press opens the actions sheet (D3)
-- [ ] T022 [M3] a one-row card header at 360 px; the code copy button 44 px, no hover
-- [ ] T023 [M3] the emoji picker opens and fits at 360 px; the @ list opens upward
+- [x] T021 [M3] 44 px message menu and emoji buttons; a long-press opens the actions sheet (D3) (8378bab3, b36728f6, 7cb5b545; lead scoreboard 3: menu 44 px, kind badge 44 px hit area at 360-820)
+- [x] T022 [M3] a one-row card header at 360 px; the code copy button 44 px, no hover (8378bab3, b3de013e, b36728f6)
+- [x] T023 [M3] the emoji picker opens and fits at 360 px; the @ list opens upward (8378bab3, 5e5ac6ab: emoji and @ lists as bottom sheets; gate 36310286311 green)
 - [x] T030 [M4] issues as a card list at <= 820 px; sort and filter in one sheet; no keyboard-hint line on touch (FR-008) (b079ed4f, f611b095; gate 36307881796 issues-mobile 46/46)
 - [x] T031 [M4] the open issue at level 3 through `rightPanel`, full screen, with subtasks (b079ed4f, 27db7f5f; prd e2e live proof 12/12 at 1440/390/820, build f611b095)
 - [x] T040 [M5] the settings tabs as a level-2 list; label/value grids stacked at <= 480 px (FR-009) (fdf0b4b0; lead scoreboard 2: 44 px rows at 360-820)
@@ -53,7 +53,7 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T050 [lead] analysis at 5 widths on prd e2e; posted `a657ea12`; AGY-3501 compared
 - [x] T051 [lead] this spec + the file map
 - [x] T052 [lead] `tests/e2e/mobile-audit-live.proof.mjs` in the tree (the audit used for §3 and the scoreboard)
-- [ ] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440 (0: 08:3xZ, 1: 08:5xZ, 2: 09:3xZ posted)
+- [x] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440 (0: 08:3xZ, 1: 08:5xZ, 2: 09:3xZ posted), 3: 10:0xZ posted
 - [ ] T054 [lead] A1-A3 green on prd e2e and dev t1 -> the epic's result post
 - [ ] T055 [M1 area, unowned since M1 closed] a UiDialog open on a phone is a stack step: browser Back closes the dialog, not the page under it (found by M5, 2026-09-27)
 

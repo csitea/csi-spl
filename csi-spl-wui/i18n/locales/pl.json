@@ -969,5 +969,10 @@
     "sort": "Sortuj",
     "sort_default": "Zaktualizowane, najnowsze najpierw",
     "epics_all": "Wszystkie"
+  },
+  "build": {
+    "new_version": "Dostępna jest nowa wersja",
+    "reload": "Odśwież",
+    "newer_live": "Dostępna jest nowsza wersja: {commit}"
   }
 }

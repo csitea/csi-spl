@@ -969,5 +969,10 @@
     "sort": "Sortare",
     "sort_default": "Actualizate, cele mai noi primele",
     "epics_all": "Toate"
+  },
+  "build": {
+    "new_version": "Este disponibilă o versiune nouă",
+    "reload": "Reîncarcă",
+    "newer_live": "O versiune mai nouă este activă: {commit}"
   }
 }

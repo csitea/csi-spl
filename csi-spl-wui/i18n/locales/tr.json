@@ -969,5 +969,10 @@
     "sort": "Sırala",
     "sort_default": "Güncellenen, en yeni önce",
     "epics_all": "Tümü"
+  },
+  "build": {
+    "new_version": "Yeni bir sürüm var",
+    "reload": "Yeniden yükle",
+    "newer_live": "Daha yeni bir sürüm yayında: {commit}"
   }
 }

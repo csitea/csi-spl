@@ -969,5 +969,10 @@
     "sort": "Kārtot",
     "sort_default": "Atjaunināts, jaunākie vispirms",
     "epics_all": "Visi"
+  },
+  "build": {
+    "new_version": "Pieejama jauna versija",
+    "reload": "Pārlādēt",
+    "newer_live": "Ir pieejama jaunāka versija: {commit}"
   }
 }

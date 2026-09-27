@@ -298,6 +298,7 @@ jobs:
           pnpm run test:e2e:topic-send-target
           pnpm run test:e2e:thread-dock-target
           pnpm run test:e2e:delete-confirm
+          pnpm run test:e2e:build-watch
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.

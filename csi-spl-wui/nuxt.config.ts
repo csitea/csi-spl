@@ -233,6 +233,12 @@ export default defineNuxtConfig({
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,
       appVersion: wuiAppVersion(),
+      // SPL-1006: the commit this bundle was built from, so an open tab can
+      // tell that /build.json names a newer deploy (plugins/build-watch).
+      // GITHUB_SHA is set in every Actions step; empty in lde = watch off.
+      buildCommit: (process.env.NUXT_PUBLIC_BUILD_COMMIT || process.env.GITHUB_SHA || "").trim(),
+      buildRun: (process.env.NUXT_PUBLIC_BUILD_RUN || process.env.GITHUB_RUN_ID || "").trim(),
+      buildAt: process.env.NUXT_PUBLIC_BUILD_COMMIT || process.env.GITHUB_SHA ? new Date().toISOString().replace(/\.\d+Z$/, "Z") : "",
       // Named env of this build (dev / prd); empty or lde = not deployed.
       envName: process.env.NUXT_PUBLIC_ENV_NAME || "",
       // Name of the locale preference cookie (see LOCALE_COOKIE).

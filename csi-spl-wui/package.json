@@ -44,6 +44,7 @@
     "test:e2e:emoji-picker": "node tests/e2e/emoji-picker.test.mjs",
     "test:e2e:topic-send-target": "node tests/e2e/topic-send-target.test.mjs",
     "test:e2e:thread-dock-target": "node tests/e2e/thread-dock-target.test.mjs",
+    "test:e2e:build-watch": "node tests/e2e/build-watch.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

@@ -969,5 +969,10 @@
     "sort": "Zoradiť",
     "sort_default": "Aktualizované, najnovšie prvé",
     "epics_all": "Všetky"
+  },
+  "build": {
+    "new_version": "K dispozícii je nová verzia",
+    "reload": "Znovu načítať",
+    "newer_live": "Je dostupná novšia verzia: {commit}"
   }
 }

@@ -23,7 +23,11 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
-const SHA = '0123456789abcdef0123456789abcdef01234567'
+/* SPL-1006: the pop-up shows the commit the tab RUNS when the bundle bakes
+   one in (window.__BUILD__, CI: GITHUB_SHA); build.json is served with that
+   same commit so no newer build is live. lde bakes none: then this one. */
+const FALLBACK_SHA = '0123456789abcdef0123456789abcdef01234567'
+let SHA = FALLBACK_SHA
 const TAP = 44
 const results = []
 function check(name, pass, ev) {
@@ -98,6 +102,12 @@ async function run(browser, base, width, touch) {
   // on a phone the sidebar is level 1 at / (SPL-989); /lobby is level 2
   await p.goto(`${base}${touch ? '/' : '/lobby'}`, { waitUntil: 'load' })
   await p.waitForSelector('[data-test=top-bar]')
+  const baked = await p.evaluate(() => (window.__BUILD__ && window.__BUILD__.commit) || '')
+  if (baked && baked !== SHA) {
+    SHA = baked
+    await p.reload({ waitUntil: 'load' })
+    await p.waitForSelector('[data-test=top-bar]')
+  }
   if (!(await signIn(p))) throw new Error('no session store')
   await p.waitForSelector('[data-test=app-version-card]', { timeout: 15000 })
   await sleep(400)

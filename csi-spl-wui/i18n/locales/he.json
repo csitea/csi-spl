@@ -969,5 +969,10 @@
     "sort": "מיון",
     "sort_default": "עודכן, החדשים תחילה",
     "epics_all": "הכול"
+  },
+  "build": {
+    "new_version": "גרסה חדשה זמינה",
+    "reload": "טעינה מחדש",
+    "newer_live": "גרסה חדשה יותר פעילה: {commit}"
   }
 }

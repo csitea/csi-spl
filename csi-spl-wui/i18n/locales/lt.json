@@ -969,5 +969,10 @@
     "sort": "Rikiuoti",
     "sort_default": "Atnaujinta, naujausi pirmi",
     "epics_all": "Visi"
+  },
+  "build": {
+    "new_version": "Yra nauja versija",
+    "reload": "Įkelti iš naujo",
+    "newer_live": "Išleista naujesnė versija: {commit}"
   }
 }

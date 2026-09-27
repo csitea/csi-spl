@@ -3,6 +3,8 @@
     <NuxtPage />
   </NuxtLayout>
   <LazyTenantNotMember v-if="tenantNotMember.tenant" />
+  <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
+  <BuildUpdateBar />
 </template>
 
 <script setup lang="ts">

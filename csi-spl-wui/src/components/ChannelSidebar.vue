@@ -571,6 +571,11 @@
               </button>
             </span>
             <span v-if="buildMeta" class="vs-pop__meta">{{ buildMeta }}</span>
+            <!-- SPL-1006: this tab runs buildCommit; say when a newer one is live -->
+            <span v-if="newerLive" class="vs-pop__newer" data-test="app-version-newer">
+              <span>{{ t('build.newer_live', { commit: newerLive }) }}</span>
+              <button type="button" class="vs-pop__reload" data-test="app-version-reload" @click.stop="reloadForBuild(buildWatch.live)">{{ t('build.reload') }}</button>
+            </span>
           </span>
         </span>
       </div>
@@ -610,7 +615,9 @@ import { useLive } from '~/composables/useLive'
 import HumanName from '~/components/HumanName.vue'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
-import { buildStampText, readBuildStamp } from '~/utils/build-stamp.mjs'
+import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
+import { isNewer } from '~/utils/build-watch.mjs'
+import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
@@ -1103,10 +1110,17 @@ const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
 /* the deployed stamp, read once, client only; null in lde and on any failure */
 const build = ref(null)
 onMounted(async () => { build.value = await readBuildStamp() })
-const versionText = computed(() => buildStampText(version.value, build.value))
+/* SPL-1006: the commit THIS tab runs (baked in at build time) wins over the
+   deployed stamp, which is only the fallback where none is baked (lde) */
+const buildWatch = useBuildWatch()
+const running = computed(() => buildWatch.value.running
+  ? { commit: buildWatch.value.running, built_at: String(config.public.buildAt || ''), run: String(config.public.buildRun || '') }
+  : build.value)
+const newerLive = computed(() => (isNewer(buildWatch.value.running, buildWatch.value.live) ? shortCommit(buildWatch.value.live) : ''))
+const versionText = computed(() => buildStampText(version.value, running.value))
 /* owner, 2026-09-26: the version smaller, the commit smaller still, a tight gap */
 const versionLabel = computed(() => String(version.value || '').trim())
-const buildCommit = computed(() => String((build.value as { commit?: string } | null)?.commit || '').trim())
+const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
 /* the card also opens by a tap (touch has no hover) and closes on Esc */
 const vsOpen = ref(false)
 /* SPL-999: the sidebar clips (overflow: clip, 260 px), so the card is
@@ -1129,7 +1143,7 @@ const { copied: vsCopiedId, copy: copyText } = useCopyText()
 const vsCopied = computed(() => vsCopiedId.value === 'commit')
 function copyCommit() { void copyText(buildCommit.value, 'commit') }
 const buildMeta = computed(() => {
-  const b = build.value as { built_at?: string, run?: string } | null
+  const b = running.value as { built_at?: string, run?: string } | null
   if (!b) return ''
   return [b.built_at || '', b.run ? `run ${b.run}` : ''].filter(Boolean).join(' · ')
 })
@@ -1510,6 +1524,10 @@ async function onCreate() {
   .foot-row .vs-pop__copy { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }
 .foot-row .vs-pop__meta { color: var(--color-muted); overflow-wrap: anywhere; }
+/* SPL-1006: a newer build is live than the one this tab runs */
+.foot-row .vs-pop__newer { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: var(--color-warn); overflow-wrap: anywhere; }
+.foot-row .vs-pop__reload { font: inherit; color: var(--color-accent); background: none; border: 0; padding: 0.25rem 0; text-decoration: underline; cursor: pointer; }
+@media (pointer: coarse) { .foot-row .vs-pop__reload { min-height: 44px; } }
 /* em, so the font-size setting still scales both; the muted colour of
    .version-stamp keeps them readable on every theme */
 .foot-row .vs-ver { font-size: 0.9em; }

@@ -969,5 +969,10 @@
     "sort": "Sorteren",
     "sort_default": "Bijgewerkt, nieuwste eerst",
     "epics_all": "Alle"
+  },
+  "build": {
+    "new_version": "Er is een nieuwe versie beschikbaar",
+    "reload": "Opnieuw laden",
+    "newer_live": "Er staat een nieuwere versie live: {commit}"
   }
 }

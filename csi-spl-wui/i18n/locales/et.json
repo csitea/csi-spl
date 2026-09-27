@@ -969,5 +969,10 @@
     "sort": "Sordi",
     "sort_default": "Muudetud, uusimad eespool",
     "epics_all": "Kõik"
+  },
+  "build": {
+    "new_version": "Uus versioon on saadaval",
+    "reload": "Laadi uuesti",
+    "newer_live": "Uuem versioon on väljas: {commit}"
   }
 }

@@ -969,5 +969,10 @@
     "sort": "Järjestä",
     "sort_default": "Päivitetty, uusin ensin",
     "epics_all": "Kaikki"
+  },
+  "build": {
+    "new_version": "Uusi versio on saatavilla",
+    "reload": "Lataa uudelleen",
+    "newer_live": "Uudempi versio on julkaistu: {commit}"
   }
 }

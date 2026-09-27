@@ -969,5 +969,10 @@
     "sort": "Sortera",
     "sort_default": "Uppdaterade, nyaste först",
     "epics_all": "Alla"
+  },
+  "build": {
+    "new_version": "En ny version finns",
+    "reload": "Ladda om",
+    "newer_live": "En nyare version är ute: {commit}"
   }
 }

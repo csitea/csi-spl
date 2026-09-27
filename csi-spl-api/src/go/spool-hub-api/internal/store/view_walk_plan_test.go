@@ -23,6 +23,7 @@ func TestPgScopeTenantNoJITPlannerSettings(t *testing.T) {
 		`set_config('app.tenant_id', $1, true)`,
 		`set_config('jit', 'off', true)`,
 		`set_config('enable_bitmapscan', 'off', true)`,
+		`set_config('plan_cache_mode', 'force_custom_plan', true)`,
 	} {
 		if !strings.Contains(pgScopeTenantNoJIT, want) {
 			t.Errorf("pgScopeTenantNoJIT lacks %s: %s", want, pgScopeTenantNoJIT)
@@ -100,4 +101,67 @@ func TestViewTopicsWalkPlanShape(t *testing.T) {
 			t.Fatalf("%s: ViewTopics %d rows (%v), walk %d", qc.name, len(rows), err, len(got))
 		}
 	}
+}
+
+// plansOnOneConn runs the walk for q under scope runs times on ONE pooled
+// connection (pgx prepares it there once, as in the hub) and returns that
+// prepared statement's generic and custom plans in those runs.
+func plansOnOneConn(t *testing.T, pg *Postgres, scope, tenant string, q TopicQuery, runs int) (generic, custom int64) {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := pg.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	sql, args := viewTopicsSQL(tenant, q)
+	counts := func() (g, c int64) { // cumulative per connection; none before the first run
+		err := conn.QueryRow(ctx, `SELECT generic_plans, custom_plans FROM pg_prepared_statements
+			WHERE statement = $1`, sql).Scan(&g, &c)
+		if err != nil && err != pgx.ErrNoRows {
+			t.Fatal(err)
+		}
+		return g, c
+	}
+	g0, c0 := counts()
+	for i := 0; i < runs; i++ {
+		b := &pgx.Batch{}
+		b.Queue(scope, tenant)
+		b.Queue(sql, args...)
+		br := conn.SendBatch(ctx, b)
+		if _, err := br.Exec(); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := br.Query()
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows.Close()
+		if err := br.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g1, c1 := counts()
+	return g1 - g0, c1 - c0
+}
+
+// TestViewTopicsWalkNeverGenericPlan (CLE-35061): after five runs of a
+// prepared statement Postgres may switch to a generic plan, built without the
+// tenant, the time or the reader's channels; for the walk that plan was 2.5x
+// slower on prd t1 (71 vs 27 ms). The scope forces a custom plan every run.
+func TestViewTopicsWalkNeverGenericPlan(t *testing.T) {
+	pg := pgOnly(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	tn := newTenant(t, pg)
+	seedTopics(t, pg, tn, 2000, 150, now, 0.37)
+	q := TopicQuery{Roots: true, NoIssues: true, Reader: "HUM-1", ReaderChannels: []string{"c1", "c2"}, Limit: 51, Now: now}
+	const runs = 8
+	generic, custom := plansOnOneConn(t, pg, pgScopeTenantNoJIT, tn, q, runs)
+	if generic != 0 || custom != runs {
+		t.Errorf("pgScopeTenantNoJIT: %d generic / %d custom plans in %d runs, want 0 / %d", generic, custom, runs, runs)
+	}
+	// CONTROL: the same walk without the setting (the plan choice is the
+	// planner's, so this is logged, not asserted).
+	g, c := plansOnOneConn(t, pg, preSPL984Scope, tn, q, runs)
+	t.Logf("CONTROL without plan_cache_mode: %d generic / %d custom plans in %d runs", g, c, runs)
 }

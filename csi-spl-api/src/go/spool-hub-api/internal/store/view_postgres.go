@@ -101,8 +101,15 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 // page. Without bitmap scans each step is an ordered index scan that stops
 // at its first passing row (lab: 1 977 -> 21.5 ms at 11.7k messages). Local
 // to this batch's implicit transaction: no other statement sees it.
+//
+// And a custom plan on every run (CLE-35061): pgx prepares the walk once per
+// pooled connection, and after five runs Postgres may keep a GENERIC plan,
+// built without the tenant, the time or the reader's channels. prd t1
+// 2026-09-27 (do_spl_db_hot_measure, n=15, execution only): generic 71 ms
+// p50, custom 27 ms (plus ~4 ms planning). plan_cache_mode is read at every
+// Bind, so a transaction-local setting sent first in the batch applies.
 const pgScopeTenantNoJIT = `SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true),
-	set_config('enable_bitmapscan', 'off', true)`
+	set_config('enable_bitmapscan', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true)`
 
 // queryTenantNoJIT is queryTenant (one round trip, rls.go) with JIT off.
 func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, args []any, each func(pgx.Rows) error) error {
@@ -207,6 +214,10 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	walk += archivedTopicHideSQL("l", tn, c.arg(q.Lobby)) // specs/041
 	lim := c.arg(pgLimit(q.Limit))
 	order := " ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1"
+	// The topic's first message (subject, channel, parent) is ONE ordered
+	// row, f, not (array_agg(m.msg ...))[1] in a: that read and copied every
+	// body of the topic to keep one (CLE-35061, prd t1 2026-09-27, custom
+	// plan, n=15: 27 -> 13 ms a page).
 	sql := `WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE ` + walk + order + `)
 			UNION ALL
@@ -217,18 +228,21 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 			) s
 			WHERE w.n < ` + lim + `
 		)
-		SELECT w.task_id::text, a.channel, a.parent, a.first_at, w.received_at, a.n, a.kinds, a.parties, a.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
 		FROM w CROSS JOIN LATERAL (
-			SELECT (array_agg(COALESCE(m.channel, '') ORDER BY m.received_at, m.msg_id::text))[1] AS channel,
-				(array_agg(COALESCE(m.parent_task_id::text, '') ORDER BY m.received_at, m.msg_id::text))[1] AS parent,
-				min(m.received_at) AS first_at, count(*)::int AS n,
+			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
 				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties,
-				(array_agg(m.msg ORDER BY m.received_at, m.msg_id::text))[1] AS first_msg
+					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
 			FROM messages m
 			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
-		) a
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, m.msg AS first_msg
+			FROM messages m
+			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
 	return sql, c.args
 }

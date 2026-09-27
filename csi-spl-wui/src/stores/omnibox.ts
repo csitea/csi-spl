@@ -11,6 +11,12 @@ export interface OmniboxTarget {
   placeholder: () => string
   send: (text: string, files: File[], topicId?: string, channelId?: string) => Promise<unknown> | unknown
   busy?: () => boolean
+  /**
+   * SPL-1003: where the next post goes, for the phone dock's hint - `reply`
+   * true while it will go into the open thread (is_parent 0), else a new
+   * topic in `target` (the page's own name: '#channel', the peer, ...).
+   */
+  dock?: () => { reply: boolean, target: string }
 }
 
 export const useOmniboxStore = defineStore('omnibox', () => {

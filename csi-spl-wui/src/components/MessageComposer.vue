@@ -8,6 +8,18 @@
     :data-docked="docked ? 'true' : undefined"
     @submit.prevent="onSend"
   >
+    <!-- SPL-1003: docked on a phone, the box says where the post goes before
+         it is sent: into the open thread, or a new topic in this feed -->
+    <p
+      v-if="docked && !searchMode && dockHint"
+      class="composer-target"
+      data-test="dock-target"
+      :data-mode="dockHint.mode"
+      aria-live="polite"
+    >
+      <UiIcon :name="dockHint.mode === 'thread' ? 'reply' : 'plus'" :size="14" />
+      <span>{{ dockHint.mode === 'thread' ? t('composer.target_thread') : t('composer.target_new', { target: dockHint.target }) }}</span>
+    </p>
     <div class="composer-box">
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
@@ -257,6 +269,7 @@ import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
+import { dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
@@ -290,6 +303,8 @@ const props = withDefaults(defineProps<{
   sendBlocked?: boolean
   /** 022: the operator catalogue (search-v1 §6) */
   operators?: SearchOperator[]
+  /** SPL-1003: the page's send target for the dock's hint (omnibox target `dock()`) */
+  dockTarget?: { reply: boolean, target: string } | null
 }>(), { dock: true })
 const emit = defineEmits<{
   send: [text: string, parentTaskId?: string, files?: File[], channelId?: string]
@@ -333,6 +348,8 @@ const stack = useMobileStack()
 const kbInset = useKeyboardInset()
 const docked = computed(() => Boolean(props.global) && props.dock && phone.value
   && !props.sendBlocked && stack.level.value >= 2)
+/* SPL-1003: where the next post goes, shown above the docked box */
+const dockHint = computed(() => dockTargetHint(props.dockTarget, text.value))
 let dockObserver: ResizeObserver | null = null
 function setDockHeight(px: number) {
   if (typeof document === 'undefined') return
@@ -1231,6 +1248,22 @@ textarea.in-code {
     border-top: 1px solid var(--color-border);
   }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
+  /* SPL-1003: one short line over the box - the open thread takes the post
+     (text colour, accent icon), or it starts a new topic (muted) */
+  .composer--dock.composer--dock .composer-target {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    margin: 0 0 4px;
+    padding-inline: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    color: var(--color-muted);
+  }
+  .composer--dock.composer--dock .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .composer--dock.composer--dock .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
+  .composer--dock.composer--dock .composer-target[data-mode=thread] svg { color: var(--color-accent); flex: none; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);

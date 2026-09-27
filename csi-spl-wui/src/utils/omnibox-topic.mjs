@@ -90,3 +90,22 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
   if (replyTaskId) return 0
   return paneVisible ? 0 : 1
 }
+
+/**
+ * SPL-1003 (owner, prd t1 #spool-hub-mobile, 2026-09-27): on a phone the
+ * docked composer says where the post goes BEFORE it is sent - the open
+ * thread (a reply, is_parent 0) or a new topic in the page's feed. The
+ * owner's 12:10Z line was typed in an open thread and stored as a new topic
+ * (is_parent 1) with nothing on screen to tell him.
+ * `dock` is the page's omnibox target `dock()`; `text` the line as typed:
+ * a line that opens with `@someone` is the explicit new topic (SPL-996 B)
+ * even while a thread is open, so the hint follows it.
+ * @param {{ reply?: boolean, target?: string } | null | undefined} dock
+ * @param {unknown} [text]
+ * @returns {{ mode: 'thread' | 'new', target: string } | null}
+ */
+export function dockTargetHint(dock, text = '') {
+  if (!dock) return null
+  const reply = Boolean(dock.reply) && !startsNewTopic(text)
+  return { mode: reply ? 'thread' : 'new', target: String(dock.target || '') }
+}

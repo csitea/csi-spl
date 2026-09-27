@@ -99,13 +99,17 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: Boolean(target) }))
   topic.noteBorn(topic.open || Boolean(side.taskId), target, sent as SpoolMessage)
 }
-useOmniboxTarget({
-  placeholder: () => (omniboxReplyTaskId({
+function replyTarget() {
+  return omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: '',
     paneVisible: true,
-  }) ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
+  })
+}
+useOmniboxTarget({
+  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
+  dock: () => ({ reply: Boolean(replyTarget()), target: shortId.value }),
   send: onSend,
   busy: () => store.sending,
 })

@@ -419,7 +419,9 @@
     "send_failed_timeout": "Gönderilmedi — hub zamanında yanıt vermedi. Metniniz hâlâ burada.",
     "send_retry": "Tekrar dene",
     "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin.",
-    "camera": "Fotoğraf çek"
+    "camera": "Fotoğraf çek",
+    "target_thread": "Açık konuya yanıt",
+    "target_new": "{target} içinde yeni konu"
   },
   "feed": {
     "unknown_author": "bilinmiyor",

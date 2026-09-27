@@ -419,7 +419,9 @@
     "send_failed_timeout": "Saatmata — hub ei vastanud õigeks ajaks. Sinu tekst on alles.",
     "send_retry": "Proovi uuesti",
     "send_failed_empty": "Pole midagi saata — pelgalt mainimine ei ole sõnum. Lisa teksti või manusta fail.",
-    "camera": "Tee foto"
+    "camera": "Tee foto",
+    "target_thread": "Vastus avatud lõimes",
+    "target_new": "Uus teema: {target}"
   },
   "feed": {
     "unknown_author": "tundmatu",

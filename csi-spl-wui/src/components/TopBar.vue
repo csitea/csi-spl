@@ -34,6 +34,7 @@
         :placeholder="placeholder"
         :busy="busy"
         :send-blocked="!omnibox.target"
+        :dock-target="dockTarget"
         :operators="search.operators"
         @send="onSend"
         @search="onSearch"
@@ -147,6 +148,8 @@ function onDocKey(ev: KeyboardEvent) {
 }
 
 const placeholder = computed(() => omnibox.target ? omnibox.target.placeholder() : t('search.placeholder_no_target'))
+/* SPL-1003: the page's answer to "where does the next post go" (the dock's hint) */
+const dockTarget = computed(() => (omnibox.target && omnibox.target.dock ? omnibox.target.dock() : null))
 const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omnibox.target.busy()))
 
 /* CLE-3433. This handler used to be `await target.send(...)` with no catch.

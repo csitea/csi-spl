@@ -130,6 +130,7 @@ function lobbyReplyId() {
 
 useOmniboxTarget({
   placeholder: () => (lobbyReplyId() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#lobby' })),
+  dock: () => ({ reply: Boolean(lobbyReplyId()), target: '#lobby' }),
   send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),
   busy: () => store.sending,
 })

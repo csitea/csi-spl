@@ -419,7 +419,9 @@
     "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
     "send_retry": "Yritä uudelleen",
     "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto.",
-    "camera": "Ota kuva"
+    "camera": "Ota kuva",
+    "target_thread": "Vastaat avoimeen ketjuun",
+    "target_new": "Uusi aihe: {target}"
   },
   "feed": {
     "unknown_author": "tuntematon",

@@ -43,6 +43,7 @@
     "test:e2e:mobile-messages": "node tests/e2e/mobile-messages.test.mjs",
     "test:e2e:emoji-picker": "node tests/e2e/emoji-picker.test.mjs",
     "test:e2e:topic-send-target": "node tests/e2e/topic-send-target.test.mjs",
+    "test:e2e:thread-dock-target": "node tests/e2e/thread-dock-target.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

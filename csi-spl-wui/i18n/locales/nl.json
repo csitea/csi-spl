@@ -419,7 +419,9 @@
     "send_failed_timeout": "Niet verzonden — de hub antwoordde niet op tijd. Je tekst staat er nog.",
     "send_retry": "Opnieuw proberen",
     "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij.",
-    "camera": "Foto maken"
+    "camera": "Foto maken",
+    "target_thread": "Antwoord in de open thread",
+    "target_new": "Nieuw onderwerp in {target}"
   },
   "feed": {
     "unknown_author": "onbekend",

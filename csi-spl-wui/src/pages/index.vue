@@ -180,14 +180,18 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
   /* SPL-996: that row is the new topic's one place; no second card in the right pane */
 }
-useOmniboxTarget({
-  placeholder: () => (omniboxReplyTaskId({
+function replyTarget() {
+  return omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: pane.taskId || '',
     namedTopicId: '',
     paneVisible: paneOpen(),
     lastPane: paneFocus.last,
-  }) ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
+  })
+}
+useOmniboxTarget({
+  placeholder: () => (replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
+  dock: () => ({ reply: Boolean(replyTarget()), target: tr('nav.topics') }),
   send: onSend,
 })
 

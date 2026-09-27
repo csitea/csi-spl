@@ -419,7 +419,9 @@
     "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
     "send_retry": "Spróbuj ponownie",
     "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik.",
-    "camera": "Zrób zdjęcie"
+    "camera": "Zrób zdjęcie",
+    "target_thread": "Odpowiedź w otwartym wątku",
+    "target_new": "Nowy temat w {target}"
   },
   "feed": {
     "unknown_author": "nieznany",

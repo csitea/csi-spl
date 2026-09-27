@@ -62,12 +62,30 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
 - [x] T020 measure the before number (prd, 7 days to 2026-09-27 10:16Z):
       t1 30/289, csi-rel 14/14 (all unsigned), e2e 90/120; all 134/423 human
       posts reached no agent box
-- [ ] T021 rdb 0067 `tenants.responders` + `fallback_deliveries` (RLS)
-- [ ] T022 hub fallback (hub/fallback.go, wuiSend hook, members `fallback`),
-      box client `fallback` frame + one poke, `fallback_test.go`
-- [ ] T023 `do_spl_tenant_responders` + test
-- [ ] T024 WUI Properties -> Agents "fallback responder" line
-- [ ] T025 apply 0067 on dev and prd; roll hub + WUI; t1 responders = CLE-001
-- [ ] T026 live e2e in prd e2e (`do_spl_fallback_probe`): post -> fallback
-      inbox within seconds; control with a member online -> no fallback;
-      measurement re-run after
+- [x] T021 rdb 0067 `tenants.responders` + `fallback_deliveries` (RLS 0021
+      form, crosstenant seed), applied on dev and prd 2026-09-27
+      (`do_spl_db_bootstrap`: "applied 0067_tenant_fallback_responders.sql")
+- [x] T022 hub fallback (`hub/fallback.go`, wuiSend hook, members `fallback`),
+      box client `fallback` frame + one poke (`hubclient/fallback.go`),
+      `fallback_test.go` 6 tests, memory + Postgres; control = feature off
+      reaches nobody. `688aedea`
+- [x] T023 `do_spl_tenant_responders` + adhoc-harvest-actions.tst.sh 2d.
+      `72af55d9`
+- [x] T024 WUI Properties -> Agents "fallback responder" line (both agent
+      lists, 19 locales, channel-properties.test.mjs). `14c4fab8`
+- [x] T025 roll hub + WUI 0.9.9 (`9f8c8cc6`): hub /version on
+      dev.api.spool-hub.ai and api.spool-hub.ai = 0.9.9 / 9f8c8cc6 (run
+      36313246355, success); WUI build.json on dev and prd = 953f2a4d, which
+      contains 14c4fab8 (run 36313768039). t1 responders = CLE-001 on dev and
+      prd. The t1 box-desk sidecars (dev pid started 13:50, prd 13:47 EEST)
+      run binaries built from 953f2a4d / 56864629, both containing 688aedea,
+      so their hello says `fallback`.
+- [x] T026 live e2e, prd e2e, n=1 (`do_spl_fallback_probe`, `42c3788e`):
+      #fb-probe-20260927104957 (no agent) -> PRB-9973 (the tenant's
+      responder) got msg 8091ef8b in 0.22 s with one poke "unanswered post in
+      #fb-probe-20260927104957 (no member agent online): SPL-997 fallback
+      probe: ..."; control #fb-ctrl-20260927104957 with PRB-9974 seated and
+      online -> PRB-9974 got b4c32d8e, no fallback (DB: fallback_deliveries 1
+      row for the post, deliveries box-fbprobe sent; 0 rows for the control).
+      After (prd, human posts since the roll at 10:50Z): 2 posts, 0 reached
+      no agent box (1 of them via the fallback); before: 134/423 in 7 days.

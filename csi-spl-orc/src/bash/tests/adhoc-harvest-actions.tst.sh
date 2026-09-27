@@ -192,6 +192,27 @@ in_orc 'do_spl_tenant_sort_order' TENANT_ID=t1 SORT_ORDER=5 DRY_RUN=0; rc=$?
   && pass "2c. sort-order DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
   || fail "2c. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
 
+# --- 2d. tenant fallback responders (rdb 0067, SPL-997) -----------------------
+in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="CLE-001 GRK-3"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the fallback responders of t1 to CLE-001 GRK-3' "$T/out" \
+  && pass "2d. responders DRY_RUN: no cloud call" || fail "2d. dry: rc=$rc $(cat "$T/out")"
+for bad in '' 'cle-001' 'CLE-001;drop' 'HUM-4' 'CLE-001 CLE-001' "$(printf 'AB-%s ' {1..21})" 'AB-1 $(id)'; do
+  in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2d. AGENTS='${bad:0:24}' is refused before any call" || fail "2d. bad agents '$bad': rc=$rc"
+done
+in_orc 'do_spl_tenant_responders' TENANT_ID=T_1 AGENTS=CLE-001 DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2d. a bad tenant slug is refused before any call" || fail "2d. bad slug: rc=$rc"
+in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="CLE-001 GRK-3" DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "string_to_array(NULLIF(:'agents', ''), ' ')" "$T/stdin" && ! grep -q 'CLE-001' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
+  && grep -q '\[agents=CLE-001 GRK-3\]' "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2d. responders DRY_RUN=0: the list is a psql variable, tenant RLS, as $DEV_SA" \
+  || fail "2d. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"
+in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS=none DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q '\[agents=\]' "$T/calls.log" && pass "2d. AGENTS=none clears the list" \
+  || fail "2d. none: rc=$rc $(cat "$T/calls.log")"
+
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
   in_orc 'do_spl_db_query' SQL="$q"; rc=$?

@@ -130,6 +130,22 @@ func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
 	return 0
 }
 
+// followMoved is specs/045 §3.7 for a BOX reply: a channel tag on a task
+// whose rows were moved is the old channel of an agent that has not seen the
+// move, and the reply follows its topic. A browser reply needs no probe (it
+// is stored in its topic's channel already, wuiChannel), nor does a new
+// topic (no rows to have moved). The probe reads only moved rows
+// (messages_moved); a lookup error keeps the tag.
+func (s *Server) followMoved(ctx context.Context, tenant, taskID, channel string) string {
+	if channel == "" || (s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID) {
+		return channel
+	}
+	if moved, ok, err := s.o.Store.MovedTaskChannel(ctx, tenant, taskID); err == nil && ok && moved != "" {
+		return moved
+	}
+	return channel
+}
+
 // storedChannel is the messages.channel of an envelope.
 func (s *Server) storedChannel(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) string {
 	return s.channelOf(ctx, tenant, env.Channel, m.TaskID)

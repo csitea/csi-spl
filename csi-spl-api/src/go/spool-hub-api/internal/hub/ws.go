@@ -712,6 +712,9 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		return c, err
 	}
 	channel := s.storedChannel(ctx, tenant, env, m)
+	if isParent == 0 && env.FromBox != WUIBox {
+		channel = s.followMoved(ctx, tenant, m.TaskID, channel)
+	}
 	filesJSON, _ := json.Marshal(m.Files)
 	if m.Files == nil {
 		filesJSON = []byte(`[]`)

@@ -135,6 +135,9 @@ type Message struct {
 	// = not archived. Only TopicArchive.SetArchived writes them.
 	ArchivedAt time.Time
 	ArchivedBy string
+	// SPL-1024 (rdb 0069): where the row was moved from; zero = at home.
+	// Only Moves.MoveTopic / MoveMessage write it.
+	Move MoveMark
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).
@@ -238,6 +241,9 @@ type Store interface {
 
 	// Archive / delete a topic card (specs/041, rdb 0065).
 	TopicArchive
+
+	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
+	Moves
 
 	// Emoji reactions on a stored message (rdb 0037). The message may be
 	// is_parent 0 or 1; the reaction does not care which.

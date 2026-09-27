@@ -60,6 +60,8 @@ type EditableMessage struct {
 	// / "" = the kind is the one the message was sent with.
 	KindSetAt time.Time
 	KindSetBy string
+	// Move is the row's move mark (SPL-1024, rdb 0069); zero = at home.
+	Move MoveMark
 }
 
 // Edited reports whether the message carries an edit marker.
@@ -122,7 +124,7 @@ func (s *Memory) GetEditable(_ context.Context, tenant, msgID string, now time.T
 		FromBox: m.FromBox, FromID: m.FromID, ToBox: m.ToBox, ToID: m.ToID, Kind: m.Kind,
 		Body: m.Body, Msg: m.Msg, Env: m.Env, EnvSig: m.EnvSig, TS: m.TS, ReceivedAt: m.ReceivedAt,
 		EditedAt: m.EditedAt, EditedBy: m.EditedBy, Deliveries: []ViewDelivery{},
-		KindSetAt: m.KindSetAt, KindSetBy: m.KindSetBy,
+		KindSetAt: m.KindSetAt, KindSetBy: m.KindSetBy, Move: viewMove(m),
 	}
 	if revs := s.revisions[[2]string{tenant, msgID}]; len(revs) > 0 {
 		out.Revision = revs[len(revs)-1].Revision

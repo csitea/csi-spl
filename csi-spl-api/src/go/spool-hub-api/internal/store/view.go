@@ -111,6 +111,9 @@ type ViewMsg struct {
 	Kind      string
 	KindSetAt time.Time
 	KindSetBy string
+	// SPL-1024 (rdb 0069): a moved row's mark and its place now; zero while
+	// the row is at home, and the view then carries no override.
+	Move MoveMark
 }
 
 // ViewDelivery is a deliveries row as the viewer sees it (never changed).
@@ -246,7 +249,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 			continue
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy}
+			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Move: viewMove(m)}
 		if !m.KindSetAt.IsZero() {
 			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
 		}

@@ -258,6 +258,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/topic", s.handleDeleteTopic)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
+	mux.HandleFunc("POST /v1/messages/{msg_id}/move", s.handleMove) // specs/045
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/move", s.movePreflight)
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)

@@ -46,7 +46,8 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate)               // SPL-959 old links
 	mux.HandleFunc("GET /v1/view/archived", s.viewHandler(s.handleViewArchived)) // specs/041
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
-	s.routeSearch(mux) // search-v1.md
+	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045
+	s.routeSearch(mux)                                                      // search-v1.md
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)
@@ -622,6 +623,16 @@ type viewMsg struct {
 	Kind      string `json:"kind,omitempty"`
 	KindSetAt string `json:"kind_set_at,omitempty"`
 	KindSetBy string `json:"kind_set_by,omitempty"`
+	// SPL-1024 (rdb 0069, move-v1 §5): a moved row's place now and its home.
+	// All omitted while the row is at home; the envelope then carries the
+	// truth. Channel / TaskID / ParentTaskID win over the envelope's.
+	Channel          *string `json:"channel,omitempty"`
+	TaskID           string  `json:"task_id,omitempty"`
+	ParentTaskID     *string `json:"parent_task_id,omitempty"`
+	MovedAt          string  `json:"moved_at,omitempty"`
+	MovedBy          string  `json:"moved_by,omitempty"`
+	MovedFromChannel *string `json:"moved_from_channel,omitempty"`
+	MovedFromTask    string  `json:"moved_from_task,omitempty"`
 }
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -741,6 +752,11 @@ func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []v
 		}
 		if !m.KindSetAt.IsZero() {
 			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, rfc(m.KindSetAt), m.KindSetBy
+		}
+		if mv := m.Move; mv.Moved() {
+			ch, parent, home := mv.Channel, mv.ParentTaskID, mv.FromChannel
+			v.Channel, v.TaskID, v.ParentTaskID = &ch, mv.TaskID, &parent
+			v.MovedAt, v.MovedBy, v.MovedFromChannel, v.MovedFromTask = rfc(mv.At), mv.By, &home, mv.FromTask
 		}
 		for _, d := range m.Deliveries {
 			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})

@@ -63,7 +63,7 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 	err := s.queryTenant(ctx, tenant, `SELECT t.task_id::text, m.msg_id::text, m.received_at, m.env, m.edited_at, m.edited_by,
 			CASE WHEN m.edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 				FROM message_revisions r WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0) END,
-			m.is_parent, m.typed_by, m.kind, m.kind_set_at, m.kind_set_by
+			m.is_parent, m.typed_by, m.kind, m.kind_set_at, m.kind_set_by, `+moveCols("m")+`
 		FROM unnest($2::uuid[]) WITH ORDINALITY AS t(task_id, n)
 		CROSS JOIN LATERAL (
 			SELECT * FROM messages m
@@ -74,13 +74,14 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 		func(rows pgx.Rows) error {
 			var task string
 			v := ViewMsg{Deliveries: []ViewDelivery{}}
-			var editedBy, typedBy, kindSetBy *string
-			var editedAt, kindSetAt *time.Time
+			var editedBy, typedBy, kindSetBy, mvBy, mvCh, mvTask, ch, mTask, parent *string
+			var editedAt, kindSetAt, mvAt *time.Time
 			var kind string
 			if err := rows.Scan(&task, &v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy,
-				&kind, &kindSetAt, &kindSetBy); err != nil {
+				&kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &mTask, &parent); err != nil {
 				return err
 			}
+			scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, mTask, parent)
 			v.TypedBy, v.EditedBy = deref(typedBy), deref(editedBy)
 			if kindSetAt != nil { // SPL-952: an override only once someone changed it
 				v.Kind, v.KindSetAt, v.KindSetBy = kind, *kindSetAt, deref(kindSetBy)

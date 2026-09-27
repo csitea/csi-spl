@@ -119,9 +119,11 @@ try {
     const bar = await rect(p, '[data-test=top-bar]')
     const box = await rect(p, '[data-testid=top-bar-tenant-box]')
     const search = await rect(p, '[data-test=top-bar-search-toggle]')
+    const logo = await rect(p, '[data-test=top-bar-logo]')
     const strip = await rect(p, '[data-testid=tenant-switcher]')
     const rail = await rect(p, '[data-testid=sidebar-tab-dm]')
-    step(`${w}: the tenant box is first in the bar, >= 44 px`, box?.shown && box.w >= 44 && box.h >= 44 && box.b <= bar.b && box.x <= 16, { bar, box, search })
+    /* SPL-1025: [logo] [tenant ▾] ... [avatar] */
+    step(`${w}: the logo leads the bar, then the tenant box, both >= 44 px`, logo?.shown && logo.x <= 16 && logo.w >= 44 && box?.shown && box.w >= 44 && box.h >= 44 && box.b <= bar.b && box.x >= logo.r && box.x - logo.r <= 8, { bar, logo, box, search })
     step(`${w}: level 1 on screen, the strip does not show the switcher (not twice)`, rail?.shown && !strip?.shown, { rail, strip })
     const n = await p.$$eval('[data-testid=top-bar-tenant-box], [data-testid=tenant-switcher]', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length)
     step(`${w}: exactly one switcher visible`, n === 1, { n })

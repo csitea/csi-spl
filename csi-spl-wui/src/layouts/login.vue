@@ -19,7 +19,25 @@
     <!-- spec 021: the language switcher lives in the frame's header, the
          same end of the bar the app shell uses. -->
     <header class="login-bar" data-test="login-bar">
-      <span class="login-bar__title" data-test="login-bar-title">{{ title }}</span>
+      <!-- SPL-1025 (owner, topic f8950b7f): the logo in place of the SPOOL-HUB
+           text, as in the app's top bar (a click opens it at true size); a
+           non-prd build still names its env beside it. Signed in, the tenant
+           drop box follows: the desktop box above 820 px, the phone box
+           (bottom sheet) below. -->
+      <div class="login-bar__start">
+        <span class="login-bar__title" data-test="login-bar-title">
+          <button type="button" class="login-bar__logo" data-test="login-bar-logo" :aria-label="t('logo.open')" :title="title" @click="logoOpen = true">
+            <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
+          </button>
+          <span v-if="envTag" class="login-bar__env" data-test="login-bar-env">{{ envTag }}</span>
+          <span class="sr-only">{{ title }}</span>
+        </span>
+        <LazyLogoDialog v-if="logoOpen" v-model:open="logoOpen" />
+        <div v-if="tenantShown" class="login-bar__tenant" data-test="login-bar-tenant">
+          <TenantDropBox />
+          <TopBarTenant class="login-bar__tenant-phone" />
+        </div>
+      </div>
       <LanguageSwitcher />
     </header>
     <div class="login-body">
@@ -33,9 +51,24 @@
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import { loginBarTitle } from '~/utils/login-title.mjs'
 import { useKeyboardInset } from '~/composables/useTouchUi'
+import { useSessionStore } from '~/stores/session'
+import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
+/* Async: only a signed-in visitor sees them, so the sign-in page's first
+   download stays as it was. */
+const TenantDropBox = defineAsyncComponent(() => import('@/components/TenantDropBox.vue'))
+const TopBarTenant = defineAsyncComponent(() => import('@/components/TopBarTenant.vue'))
 
+const { t } = useI18n({ useScope: 'global' })
 const config = useRuntimeConfig()
 const title = loginBarTitle(config.public.envName, import.meta.dev)
+/* spool-dev -> dev beside the logo; prd (spool-hub) shows the logo alone */
+const envTag = title === 'spool-hub' ? '' : title.replace(/^spool-/, '')
+const logoOpen = ref(false)
+/* SPL-1025: signed in with a tenant named -> the tenant box; else the title */
+const session = useSessionStore()
+const tenantShown = computed(() => session.state === 'in' && fixedTenantOption(session.claims).id.length > 0)
+/* the error page renders outside the route middleware that probes */
+onMounted(() => { if (session.state === 'loading') void session.probe() })
 
 /* SPL-993: with the on-screen keyboard open the form still fits. The body
    pads by the keyboard (--kb-inset, iOS does not resize the layout), and the
@@ -77,7 +110,31 @@ watch(kb, async () => {
   box-sizing: border-box;
   flex-shrink: 0;
 }
+.login-bar__start { display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; }
+.login-bar__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.login-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
+.login-bar__env { margin-inline-start: 6px; }
+.login-bar__tenant { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+/* SPL-995 split: the phone box only at <= 820 px (TenantDropBox hides itself
+   there). Two classes: the box's own display rule loads later (async chunk). */
+.login-bar__tenant .login-bar__tenant-phone { display: none; }
+@media (max-width: 820px) {
+  .login-bar__tenant .login-bar__tenant-phone { display: flex; flex: 0 1 auto; min-width: var(--tap, 44px); max-width: min(20rem, 100%); }
+  .login-bar__logo { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+}
 .login-bar__title {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
   font-size: 0.9375rem;
   font-weight: 700;

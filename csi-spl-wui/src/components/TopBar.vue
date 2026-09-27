@@ -344,8 +344,13 @@ onUnmounted(() => {
     padding-top: calc(var(--top-bar-inset-top) + env(safe-area-inset-top, 0px));
     padding-inline: calc(4px + env(safe-area-inset-left, 0px)) calc(8px + env(safe-area-inset-right, 0px));
   }
-  .top-bar__start,
   .top-bar__lang { display: none; }
+  /* SPL-1025 (owner, topic f8950b7f): [logo] [tenant ▾] ... [avatar]. Of the
+     start group only the logo stays - the same 28 px image in a 44 px target;
+     the desktop drop box hides itself here and the theme is in the avatar menu */
+  .top-bar__start { flex: 0 0 auto; gap: 0; }
+  .top-bar__start > .theme-picker { display: none; }
+  .top-bar__logo { align-items: center; justify-content: center; min-width: var(--tap); min-height: var(--tap); }
   /* SPL-995: [tenant ▾] ... [avatar]; the box hugs the name and shrinks to
      an ellipsis before anything else moves */
   .top-bar__tenant {

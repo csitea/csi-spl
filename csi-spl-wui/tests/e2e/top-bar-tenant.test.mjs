@@ -83,13 +83,16 @@ async function phone(p, base, width) {
   await open(p, base, width, 800, true, '/')
   const m = await probe(p, [
     '[data-test=top-bar]', '[data-testid=top-bar-tenant-box]', '[data-testid=top-bar-tenant-name]',
-    '[data-test=top-bar-search-toggle]', '[data-test=user-menu-trigger]', '[data-testid=tenant-switcher]',
+    '[data-test=top-bar-search-toggle]', '[data-test=user-menu-trigger]', '[data-testid=tenant-switcher]', '[data-test=top-bar-logo]',
   ])
   const bar = m['[data-test=top-bar]']
   const box = m['[data-testid=top-bar-tenant-box]']
   const search = m['[data-test=top-bar-search-toggle]']
   check(`${tag}: the tenant box is in the bar, >= ${TAP} px`, box?.shown && box.w >= TAP && box.h >= TAP && box.y >= bar.y && box.b <= bar.b, { box, bar })
-  check(`${tag}: first in the row, at the start edge`, box && box.x <= 16, { box, search })
+  /* SPL-1025 (owner, topic f8950b7f): [logo] [tenant ▾] ... [avatar] */
+  const logo = m['[data-test=top-bar-logo]']
+  check(`${tag}: the logo leads the row at the start edge, a ${TAP} px target`, logo?.shown && logo.x <= 16 && logo.w >= TAP && logo.h >= TAP && logo.b <= bar.b, { logo })
+  check(`${tag}: the tenant box right after the logo`, box && logo && box.x >= logo.r && box.x - logo.r <= 8, { box, logo, search })
   check(`${tag}: the sidebar strip does not show it (not twice)`, !m['[data-testid=tenant-switcher]']?.shown, m['[data-testid=tenant-switcher]'])
   const ell = await p.evaluate(() => {
     const el = document.querySelector('[data-testid=top-bar-tenant-name]')

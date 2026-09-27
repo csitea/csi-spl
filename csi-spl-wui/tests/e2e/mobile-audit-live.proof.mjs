@@ -283,7 +283,7 @@ try {
         })
         W.flows.tenantTop = tb
         /* SPL-995 "E" (02d3f404): the tenant LEADS the bar; the search icon left the bar (GO floats mid-right). If an icon is back, the box stays before it */
-        score(key, 'tenant-in-top-bar', !!(tb.box && tb.box.h >= 44 && tb.box.x <= 8 && (!tb.search || tb.box.x + tb.box.w <= tb.search.x + 1) && tb.sidebarCopies === 0),
+        score(key, 'tenant-in-top-bar', !!(tb.box && tb.box.h >= 44 && tb.box.x <= 8 + 44 + 8 && (!tb.search || tb.box.x + tb.box.w <= tb.search.x + 1) && tb.sidebarCopies === 0),
           `box ${JSON.stringify(tb.box)} search ${JSON.stringify(tb.search)} sidebar copies ${tb.sidebarCopies}`)
       } catch (e) { W.flows.tenantTop = { error: String(e).slice(0, 200) } }
     }

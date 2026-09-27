@@ -97,7 +97,8 @@ try {
         go?.shown && go.w >= 44 && go.h >= 44 && g.round === '50%' && g.label === g.title && !!g.title
           && w - go.r <= 16 && Math.abs(go.y + go.h / 2 - g.vh / 2) <= 2 && go.b < g.dockTop && go.y > bar.b,
         { go, g })
-      step(`${w} L${level}: the bar is [tenant] ... [avatar]`, tenant?.shown && tenant.x <= 16 && avatar?.shown && w - avatar.r <= 16 && avatar.b <= bar.b, { tenant, avatar })
+      /* SPL-1025: [logo] [tenant] ... [avatar] - the tenant right after the 44 px logo */
+      step(`${w} L${level}: the bar is [logo] [tenant] ... [avatar]`, tenant?.shown && tenant.x <= 16 + 44 + 8 && avatar?.shown && w - avatar.r <= 16 && avatar.b <= bar.b, { tenant, avatar })
       await p.screenshot({ path: `${OUT}/go-${w}-L${level}.png` })
     }
     /* level 2: tap -> sheet with focus; Back closes it; /search opens results */

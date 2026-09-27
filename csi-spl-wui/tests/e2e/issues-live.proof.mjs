@@ -178,7 +178,8 @@ try {
 
   // 1. the rail
   const rail = await p.$$eval('[role=tab][data-testid^=sidebar-tab-]', (els) => els.map((e) => e.getAttribute('data-testid')))
-  step('1 Issues is the third rail tab, after Channels', rail[1] === 'sidebar-tab-channels' && rail[2] === 'sidebar-tab-issues', { rail })
+  /* SPL-979: the test account never reordered, so it has the new-member order */
+  step('1 Issues is the third rail tab, after Channels and DMs', rail[0] === 'sidebar-tab-channels' && rail[1] === 'sidebar-tab-dm' && rail[2] === 'sidebar-tab-issues', { rail })
   await p.click('[data-testid=sidebar-tab-issues]')
   const page = await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: 30000 }).then(() => true, () => false)
   /* owner 2026-09-26: statuses 01-eval .. 09-done (topic f2c32da2), no title

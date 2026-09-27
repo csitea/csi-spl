@@ -119,7 +119,17 @@ const MEASURE = () => {
     const b = el.getBoundingClientRect()
     if (!(b.top >= 22 && b.bottom <= innerHeight - 22 && b.left >= 22 && b.right <= vw - 22)) return false
     const t = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
-    return !!t && (t === el || el.contains(t) || t.contains(el))
+    if (!(t && (t === el || el.contains(t) || t.contains(el)))) return false
+    /* a 44 px corner that lands on a fixed/sticky overlay (the dock) is unreachable at this scroll, not a miss */
+    const cx = b.x + b.width / 2; const cy = b.y + b.height / 2
+    return [[-21, -21], [21, -21], [-21, 21], [21, 21]].every(([dx, dy]) => {
+      for (let n = document.elementFromPoint(cx + dx, cy + dy); n && n !== document.body; n = n.parentElement) {
+        if (n === el) return true
+        const pos = getComputedStyle(n).position
+        if (pos === 'fixed' || pos === 'sticky') return false
+      }
+      return true
+    })
   }
   const under = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
   const unprobed = under.filter((el) => !inView(el))

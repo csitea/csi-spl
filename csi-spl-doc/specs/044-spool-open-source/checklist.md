@@ -11,7 +11,7 @@ previous section is all ticked.
 - [ ] `do_oss_gate` exit 0 on that tree, and its negative control exit 1 (T003)
 - [ ] gitleaks 8.30.1 on the exported tree: 0 leaks
 - [ ] Fleet ids scrubbed from product code (T027)
-- [ ] Exported tree: `grep -rE 'iam\.gserviceaccount\.com|gcp_org_id|(CLE|HUM|AGY|GRK)-[0-9]+|/opt/'` -> 0
+- [ ] Exported tree: `grep -rP 'iam\.gserviceaccount\.com|gcp_org_id|\b(CLE|HUM|AGY|GRK)-[0-9]{3,}\b|/opt/(?!spool/)'` -> 0 (1-2 digit ids are the product's id format, allowed)
 - [ ] Exported tree: no other-org names, no personal names, no owner e-mail (the hygiene sweep + FR-OS-002 classes)
 - [ ] Exported tree: no cnf values, no rendered tfvars, no CLAUDE.md / AGENTS.md / GEMINI.md, no specs (D6)
 - [ ] LICENSE per D2; `package.json` `license`; SPDX in the Go module; THIRD-PARTY-NOTICES

@@ -51,6 +51,7 @@
         v-if="sendError"
         class="top-bar__send-error"
         :message="t(sendError.key)"
+        :error="sendError.err"
         source="omnibox-send"
         test-id="omnibox-send-error"
       >

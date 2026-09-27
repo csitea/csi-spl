@@ -78,6 +78,35 @@ func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) 
 	return c
 }
 
+// wuiChannel is the channel a BROWSER send is stored in: the channel of the
+// topic the line goes into when that topic already has a root in one, else
+// channelOf. The frame's tag is the page the reader had on screen, and a
+// reply into an open topic is not a post into that page (CLE-35057, prd
+// 2026-09-27: reply a28f0111 into topic 58397faf, rooted in
+// #spool-hub-devel, was stored under #spool-hub-ops because the page was
+// #spool-hub-ops - the owner's "it went into the wrong channel"). A topic
+// with no root yet, or a DM topic, keeps the tag. A lookup error keeps
+// channelOf's answer rather than failing the send.
+//
+// Only a REPLY (is_parent 0) looks the topic up: a new topic opens a fresh
+// task with no root to inherit from, so its send keeps the round-trip budget
+// (TestRoundTripsPerRequest), and an untagged reply makes the one lookup
+// channelOf would have made anyway.
+func (s *Server) wuiChannel(ctx context.Context, tenant, channel, taskID string, isParent int) string {
+	if isParent != 0 {
+		return s.channelOf(ctx, tenant, channel, taskID)
+	}
+	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
+		return s.tagChannel(channel, taskID)
+	}
+	if c != "" {
+		return c
+	}
+	return s.tagChannel(channel, taskID)
+}
+
 // boxLevel is the is_parent a box send is stored with. A box frame carries
 // no level, so every agent line used to be stored as 1 - an agent's answer in
 // a channel thread then sat in the channel feed as a new post, while the

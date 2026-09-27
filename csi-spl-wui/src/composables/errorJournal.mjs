@@ -406,8 +406,13 @@ export function buildErrorRecord(input) {
   // The API's stable error envelope: { error: { code, message } }. `code` is a
   // enumerated identifier (error.email_taken, …) — that is the useful half.
   const envelope = err && err.data && typeof err.data === 'object' ? err.data.error : null
+  // CLE-35057: a hub socket refusal has no envelope; its reason is the
+  // rejection's `token` (unknown_channel, forbidden, …). Without it the
+  // owner's ERR-CLIENT-20260927-204316-6D9A read "did not reach the hub" in
+  // the event log, with the reason nowhere.
+  const token = err && typeof err.token === 'string' ? err.token : ''
   const code = redactText(
-    input.code ?? (envelope && typeof envelope === 'object' ? envelope.code : ''),
+    input.code ?? (envelope && typeof envelope === 'object' ? envelope.code : token),
     120,
   )
   const message = redactText(

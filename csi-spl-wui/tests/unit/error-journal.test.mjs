@@ -62,6 +62,30 @@ describe('errorJournal: redaction happens at capture', () => {
   })
 })
 
+describe('errorJournal: a hub socket refusal keeps its reason (CLE-35057)', () => {
+  // live-ws rejects an error frame as Error(detail) + { token, status }
+  const refusal = Object.assign(new Error('no channel development in this tenant'), { token: 'unknown_channel', status: 404 })
+
+  it('records the refusal token as the code, and its status', () => {
+    const rec = buildErrorRecord({ source: 'omnibox-send', message: 'Not sent', error: refusal })
+    assert.equal(rec.code, 'unknown_channel')
+    assert.equal(rec.status, 404)
+    assert.equal(rec.message, 'Not sent')
+  })
+
+  it('CONTROL: without the rejection the reason is lost (what prd recorded on 2026-09-27)', () => {
+    const rec = buildErrorRecord({ source: 'omnibox-send', message: 'Not sent' })
+    assert.equal(rec.code, '')
+    assert.equal(rec.status, 0)
+  })
+
+  it('the top-bar send notice hands its rejection to ErrorNotice', () => {
+    const src = read('src/components/TopBar.vue')
+    assert.match(src, /source="omnibox-send"/)
+    assert.match(src, /:error="sendError\.err"/)
+  })
+})
+
 describe('errorJournal: reference ids', () => {
   it('mints ERR-CLIENT-YYYYMMDD-HHMMSS-XXXX in UTC', () => {
     const id = newClientErrorId(new Date('2026-09-19T08:05:07Z'))

@@ -474,6 +474,13 @@ func uiParent(v *int) (int, bool) {
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	fail := func(tok string, status int, detail string) {
+		// CLE-35057: a refusal used to leave no line in the hub log, and the
+		// WUI shows every refusal as "did not reach the hub" - so the owner's
+		// ERR-CLIENT-20260927-204316-6D9A could not be joined to a reason on
+		// either side. One line per refusal: the token names the check.
+		s.o.Log.Info().Str("tenant", c.tenant).Str("member", c.member).Str("msg_id", f.MsgID).
+			Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", tok).Int("status", status).
+			Str("detail", detail).Msg("wui send refused")
 		c.write(ctx, wuiErr{"error", tok, status, detail, f.MsgID}) //nolint:errcheck
 	}
 	task, ok := s.lobbyAlias(f.TaskID)
@@ -547,7 +554,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(tok, status, detail)
 		return
 	}
-	channel := s.channelOf(ctx, c.tenant, f.Channel, task)
+	channel := s.wuiChannel(ctx, c.tenant, f.Channel, task, isParent)
 	// rdb 0028: posting into a channel you are not in would both leak the
 	// post to its members and place you in a conversation you cannot read
 	// back. Same unknown_channel token as a channel that does not exist.

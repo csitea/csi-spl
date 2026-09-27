@@ -59,9 +59,16 @@ func TestThreadReplyInheritsTopicChannel(t *testing.T) {
 		}
 	}
 
-	// An explicit tag still wins over the topic's channel.
-	if got := stored(post(cases[0].task, "feedback", "L2 tagged", 0)); got != "feedback" {
-		t.Errorf("tagged reply channel %q, want feedback", got)
+	// CLE-35057: a reply TAGGED with another channel (the page the reader had
+	// on screen) is still stored in its topic's channel. This asserted the
+	// opposite until prd 2026-09-27, when the owner's reply into a
+	// #spool-hub-devel topic was stored under #spool-hub-ops.
+	if got := stored(post(cases[0].task, "feedback", "L2 tagged", 0)); got != "lobby" {
+		t.Errorf("tagged reply channel %q, want lobby (the topic's channel)", got)
+	}
+	// A DM topic has no channel to inherit: the tag still decides.
+	if got := stored(post(cases[2].task, "feedback", "L2 dm tagged", 0)); got != "feedback" {
+		t.Errorf("tagged reply in a DM topic: channel %q, want feedback", got)
 	}
 
 	// A box agent's untagged reply under the lobby topic inherits it too.

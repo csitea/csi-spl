@@ -15,6 +15,6 @@ gcp-org	GCP org id key	gcp_org_id
 gcp-org	GCP org id value	\b1080340024101\b
 gcp-billing	billing account id	\b[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}\b|billingAccounts/
 tenant-data	hosted tenant slug	(?i)\b(leiden|luka|ora-cam|pas-psf)\b
+# 1-2 digit ids (HUM-1, CLE-07) are the product's own id format: allowed (spec 044 FR-OS-002, e6e85f93)
 fleet-id	fleet id cited as provenance (3+ digits)	\b(CLE|HUM|AGY|GRK)-[0-9]{3,}\b
-fleet-id-short	short agent or human id (1-2 digits; the product's own id format in fixtures)	\b(CLE|HUM|AGY|GRK)-[0-9]{1,2}\b
 box-path	box path under /opt (the hub image's /opt/spool excepted)	/opt/(?!spool/)

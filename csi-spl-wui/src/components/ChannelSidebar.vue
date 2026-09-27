@@ -497,6 +497,7 @@
              version is painted. Hover or click opens the commit, and it stays
              while the pointer is on it so the hash can be copied. -->
         <span
+          ref="vsWrapEl"
           class="vs-wrap"
           :class="{ 'is-open': vsOpen }"
           tabindex="0"
@@ -506,8 +507,8 @@
           :style="vsPlace"
           @mouseenter="placeVsPop"
           @focusin="placeVsPop"
-          @click="placeVsPop(); vsOpen = !vsOpen"
-          @keydown.esc.stop="vsOpen = false; ($event.currentTarget as HTMLElement).blur()"
+          @click="toggleVsPop"
+          @keydown.esc.stop="closeVsPop"
         >
           <p id="app-version" class="version-stamp" data-test="app-version"><span class="vs-ver">{{ versionLabel }}</span></p>
           <span v-if="buildCommit" class="vs-pop" role="tooltip" data-test="app-version-card">
@@ -1008,6 +1009,34 @@ const versionLabel = computed(() => String(version.value || '').trim())
 const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
 /* the card also opens by a tap (touch has no hover) and closes on Esc */
 const vsOpen = ref(false)
+/* owner 2026-09-27 (topic 82b9c309): a click or tap anywhere outside the
+   card closes it. Closing also drops the focus, since :focus-within would
+   otherwise keep the card painted after vsOpen is false. */
+const vsWrapEl = ref<HTMLElement | null>(null)
+function closeVsPop() {
+  vsOpen.value = false
+  const wrap = vsWrapEl.value
+  const active = typeof document !== 'undefined' ? document.activeElement : null
+  if (wrap && active instanceof HTMLElement && wrap.contains(active)) active.blur()
+}
+function toggleVsPop(ev: Event) {
+  if (vsOpen.value) return closeVsPop()
+  placeVsPop(ev)
+  vsOpen.value = true
+}
+function onVsOutside(ev: Event) {
+  const wrap = vsWrapEl.value
+  if (wrap && ev.target instanceof Node && wrap.contains(ev.target)) return
+  closeVsPop()
+}
+watch(vsOpen, (open) => {
+  if (typeof document === 'undefined') return
+  if (open) document.addEventListener('pointerdown', onVsOutside, true)
+  else document.removeEventListener('pointerdown', onVsOutside, true)
+})
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') document.removeEventListener('pointerdown', onVsOutside, true)
+})
 /* SPL-999: the sidebar clips (overflow: clip, 260 px), so the card is
    position: fixed: placed directly above the version, from the footer
    row's left edge, each time it opens, and pulled back so its right edge

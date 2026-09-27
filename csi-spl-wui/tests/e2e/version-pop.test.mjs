@@ -14,6 +14,7 @@
 //   - the copy button is the code blocks' copy icon, >= 44 px on phones,
 //     copies the full sha, then shows the check icon and "Copied"
 //   - the sha stays selectable (user-select: text)
+//   - a click / tap anywhere outside the card closes it (owner, topic 82b9c309)
 //
 // Run:
 //   node tests/e2e/version-pop.test.mjs
@@ -133,6 +134,17 @@ async function run(browser, base, width, touch) {
   const after = await measure(p)
   check(`${tag}: then the check icon and "Copied"`, after?.btn.icon === 'check' && /copied/i.test(after.btn.text), after?.btn)
   check(`${tag}: the pop-up stays open after the copy`, after?.shown === true)
+  // owner 2026-09-27 (topic 82b9c309): a click / tap anywhere outside closes it
+  // the middle of the top bar: outside the card, and nothing there navigates
+  const away = await p.evaluate(() => {
+    const r = document.querySelector('[data-test=top-bar]').getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+  })
+  if (touch) await p.touchscreen.tap(away.x, away.y)
+  else await p.mouse.click(away.x, away.y)
+  await sleep(900)
+  const outside = await measure(p)
+  check(`${tag}: a ${touch ? 'tap' : 'click'} outside closes it`, outside?.shown === false, { shown: outside?.shown, at: away })
   await ctx.close()
 }
 

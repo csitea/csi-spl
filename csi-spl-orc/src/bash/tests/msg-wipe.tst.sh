@@ -13,7 +13,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
 T="$(mktemp -d)"; fails=0
-cleanup() { [[ -n "${PG_CTR:-}" ]] && docker rm -f "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"; }
+cleanup() { [[ -n "${PG_CTR:-}" ]] && docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"; }
 trap cleanup EXIT
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; fails=$((fails + 1)); }

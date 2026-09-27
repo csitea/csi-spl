@@ -22,7 +22,7 @@ PG_CTR="" HUB_PID="" HUB2_PID=""
 cleanup() {
   [[ -n "$HUB_PID" ]] && kill "$HUB_PID" 2>/dev/null
   [[ -n "$HUB2_PID" ]] && kill "$HUB2_PID" 2>/dev/null
-  [[ -n "$PG_CTR" ]] && docker rm -f "$PG_CTR" >/dev/null 2>&1
+  [[ -n "$PG_CTR" ]] && docker rm -fv "$PG_CTR" >/dev/null 2>&1
   rm -rf "$T"
 }
 trap cleanup EXIT

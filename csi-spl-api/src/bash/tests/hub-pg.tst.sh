@@ -28,7 +28,7 @@ HUB_PID=""
 cleanup() {
   [ -n "$HUB_PID" ] && kill "$HUB_PID" 2>/dev/null || true
   [ -x "${PG_BIN:-/nonexistent}/pg_ctl" ] && "$PG_BIN/pg_ctl" -D "$PGDATA" -m immediate stop >/dev/null 2>&1 || true
-  [ -n "$PG_CTR" ] && docker rm -f "$PG_CTR" >/dev/null 2>&1 || true
+  [ -n "$PG_CTR" ] && docker rm -fv "$PG_CTR" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT

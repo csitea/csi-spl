@@ -23,7 +23,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 T=$(mktemp -d); PG_CTR=""
-trap '[ -n "$PG_CTR" ] && docker rm -f "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
+trap '[ -n "$PG_CTR" ] && docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }

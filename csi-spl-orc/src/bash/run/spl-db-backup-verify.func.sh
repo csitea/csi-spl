@@ -77,7 +77,7 @@ spl_db_backup_restore_counts() {
   docker run -d --rm --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
     "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the restore check"; return 1; }
   # shellcheck disable=SC2064
-  trap "docker rm -f '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN
+  trap "docker rm -fv '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN
   # READINESS OVER TCP, NOT THE UNIX SOCKET. The postgres image runs a
   # TEMPORARY server during initdb that listens on the unix socket only, so
   # `pg_isready -U postgres` answers YES while the real server has not started

@@ -18,7 +18,7 @@ BUCKET="${SPOOL_HUB_FILES_BUCKET:-csi-spl-test-files}"
 
 CTR=""
 cleanup() {
-  [ -n "$CTR" ] && docker rm -f "$CTR" >/dev/null 2>&1 || true
+  [ -n "$CTR" ] && docker rm -fv "$CTR" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 

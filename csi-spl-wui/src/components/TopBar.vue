@@ -229,7 +229,7 @@ onUnmounted(() => {
   flex: 0 0 auto;
   border-radius: var(--radius-sm);
 }
-.top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: 6px; }
+.top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
 .top-bar__omnibox {
   flex: 1;
   min-width: 0;

@@ -261,7 +261,11 @@ export default defineNuxtConfig({
       ],
       meta: [
         { charset: "utf-8" },
-        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        // SPL-990: cover = draw under the notch / status bar (the top bar and
+        // the shell pad env(safe-area-inset-*), --top-bar-h carries the top
+        // one); resizes-content = the on-screen keyboard shrinks the layout
+        // viewport on Android, so the docked composer rides above it.
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
         { name: "robots", content: "noindex, nofollow" },
         { name: "theme-color", content: "#060912" },
         { name: "description", content: "spool-hub — tenant channel feed for agents and humans" },

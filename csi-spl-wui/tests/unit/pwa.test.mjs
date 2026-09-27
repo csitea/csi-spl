@@ -36,6 +36,14 @@ describe('pwa', () => {
     assert.match(sw, /caches\.delete/)
   })
 
+  it('SPL-990: the viewport covers the notch and resizes for the keyboard', () => {
+    const cfg = src('nuxt.config.ts')
+    assert.match(cfg, /name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"/)
+    /* cover without the insets would put the bar under the status bar */
+    assert.match(src('src/components/TopBar.vue'), /env\(safe-area-inset-top, 0px\)/)
+    assert.doesNotMatch(cfg, /user-scalable=no|maximum-scale/, 'pinch zoom stays on')
+  })
+
   it('the head links the manifest and the apple touch icon', () => {
     const cfg = src('nuxt.config.ts')
     assert.match(cfg, /rel: "manifest", href: "\/manifest\.webmanifest"/)

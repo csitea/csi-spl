@@ -326,9 +326,12 @@ onUnmounted(() => {
    MessageComposer `dock`), without one it is hidden; the search icon opens
    it as a full-screen sheet with the composer and its GO at the top. */
 @media (max-width: 820px) {
+  /* viewport-fit=cover: the bar reaches under the status bar / notch. The
+     insets are 0 without a notch; M1's --top-bar-h carries the top one. */
   .top-bar {
     gap: 4px;
-    padding-inline: 4px 8px;
+    padding-top: calc(var(--top-bar-inset-top) + env(safe-area-inset-top, 0px));
+    padding-inline: calc(4px + env(safe-area-inset-left, 0px)) calc(8px + env(safe-area-inset-right, 0px));
   }
   .top-bar__start,
   .top-bar__lang { display: none; }

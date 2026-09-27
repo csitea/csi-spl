@@ -48,7 +48,7 @@
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" :msg="msg" />
-        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="sinceMs == null ? formatIsoTs(at) : undefined">{{ time }}</span>
+        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
         <span
           v-if="edited"
           class="msg-edited"
@@ -272,7 +272,8 @@
 </template>
 
 <script setup lang="ts">
-import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, dropThisYear, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
@@ -364,11 +365,16 @@ const at = computed(() => activityOf(props.msg))
  * The message list prints `yyyy-mm-dd HH:MM`: no T, no seconds, no Z.
  * The thread pane keeps its own clock (`sinceMs`).
  */
-const time = computed(() => (
+const fullTime = computed(() => (
   props.sinceMs != null
     ? formatTopicTs(at.value, props.sinceMs)
     : formatMsgListTs(at.value)
 ))
+/* SPL-1000 (owner, "on mobile only"): a phone drops this year's `2026-`; the
+   hover keeps the whole value. Desktop prints fullTime unchanged. */
+const mobile = useMobileStack().isMobile
+const time = computed(() => (mobile.value ? dropThisYear(fullTime.value, at.value) : fullTime.value))
+const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : undefined)))
 /* SPL-981: a direct message shows only its sender; channel rows keep sender -> recipient */
 const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
@@ -1166,24 +1172,39 @@ async function save() {
   .msg {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 8px;
-    padding: 8px;
+    /* SPL-1000 (owner): the avatar 4px from the left edge, the room goes to the header */
+    padding: 8px 8px 8px 4px;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
   }
   .msg textarea { -webkit-user-select: text; user-select: text; }
   .msg > .avatar { width: 32px; height: 32px; }
-  .msg-meta { flex-wrap: wrap; row-gap: 4px; gap: 6px; }
-  .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; }
+  .msg-meta { flex-wrap: wrap; gap: 4px; }
+  /* SPL-1000: the header is ONE line at 360 px with Add emoji in it. The row
+     wraps (the reactions take their own line below), and a flex item wraps at
+     its basis before it shrinks - so every name-like item has basis 0 and a
+     small floor: the names give way first, with an ellipsis */
+  .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; min-width: 1em; }
   /* the name takes the free space first (up to its own width); an auto
      margin then takes what is left, so the menu still sits at the right edge
      on either header line (a grow below 1 would hand out only that fraction
      of the free space and strand the menu mid-row) */
   .msg-meta-spacer { flex: 0 0 0; margin-inline-start: auto; }
-  .msg-meta > .msg-via-terminal { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
+  .msg-meta > .msg-via-terminal { flex: 1 1 0; max-width: max-content; min-width: 1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msg-actions [data-test="open-topic"] { display: none; }
-  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; }
+  /* SPL-1000 (owner, SPL-982 rule on every card): Add emoji stays in the
+     header on a phone too - a 44 px target whose 16 px glyph sits 5 px after
+     the time (4px row gap + 14px padding - 13px). Long-press keeps it too. */
+  .msg-actions .icon-btn[data-testid="msg-emoji-btn"] {
+    width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap);
+    margin-block: -6px; margin-inline-start: -13px; flex: 0 0 auto;
+  }
+  /* its 44 px target reaches 8 px into the card's right padding, and the
+     arrow gives back its side bearing: a sender -> recipient header fits one
+     line at 360 px (SPL-1000) */
+  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -8px; }
+  .msg-to-arrow { margin-inline: -2px; }
   .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
   .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
   .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }

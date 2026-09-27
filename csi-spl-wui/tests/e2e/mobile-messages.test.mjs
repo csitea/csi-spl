@@ -111,6 +111,24 @@ function cardFacts(page) {
       menuBtn: size('[data-testid=msg-menu-btn]'),
       menuRight: Math.round(r.right - (row.querySelector('[data-testid=msg-menu-btn]')?.getBoundingClientRect().right ?? 0)),
       emojiBtn: size('[data-testid=msg-emoji-btn]'),
+      /* SPL-1000: the header items (reactions have their own row on a phone) share one line */
+      /* the most header lines on any card in the list (sender -> recipient
+         and "via terminal" rows are the long ones) */
+      headerRows: Math.max(0, ...[...document.querySelectorAll('article.msg[data-msg-id] > div > .msg-meta')].map((meta) => {
+        /* .msg-actions is display:contents - its buttons are header items too */
+        const items = [...meta.children].flatMap((el) => (getComputedStyle(el).display === 'contents' ? [...el.children] : [el]))
+        const mids = items.filter((el) => !el.classList.contains('msg-reactions') && el.getClientRects().length)
+          .map((el) => { const b = el.getBoundingClientRect(); return b.top + b.height / 2 })
+        return mids.length ? 1 + mids.filter((m, i) => i > 0 && m - mids[0] > 12).length : 0
+      })),
+      avatarLeft: Math.round((row.querySelector(':scope > .avatar')?.getBoundingClientRect().left ?? -1) - r.left),
+      time: row.querySelector('.msg-time')?.textContent.trim() || '',
+      timeTitle: row.querySelector('.msg-time')?.getAttribute('title') || '',
+      emojiGap: (() => {
+        const t = row.querySelector('.msg-time')?.getBoundingClientRect()
+        const g = row.querySelector('[data-testid=msg-emoji-btn] svg')?.getBoundingClientRect()
+        return t && g ? Math.round(g.left - t.right) : null
+      })(),
       scrollW: document.scrollingElement.scrollWidth,
       vw: window.innerWidth,
     }
@@ -163,12 +181,31 @@ async function phone(browser, width, height) {
       && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
 
   const card = await cardFacts(p)
-  ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, smile icon off the row, no sideways scroll`,
+  ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, no sideways scroll`,
     Boolean(card && card.menuBtn && card.menuBtn.w >= TAP && card.menuBtn.h >= TAP
-      && card.emojiBtn && !card.emojiBtn.shown && card.scrollW <= card.vw
-      && card.menuRight >= 0 && card.menuRight <= 24), card)
+      && card.scrollW <= card.vw && card.menuRight >= 0 && card.menuRight <= 24), card)
+  /* SPL-1000 (owner, topic e0b12a2c): Add emoji stays in the header on a
+     phone (SPL-982), a 44 px target 5 px after the time; the header is one
+     line; the avatar sits 4 px from the card's left edge; this year's date
+     drops its year (hover keeps the whole value) */
+  ok(`${tag} 15 Add emoji visible in the header, 44 px, ~5 px after the time; header one line; avatar 4 px in; time without this year`,
+    Boolean(card && card.emojiBtn && card.emojiBtn.shown && card.emojiBtn.w >= TAP && card.emojiBtn.h >= TAP
+      && card.emojiGap != null && Math.abs(card.emojiGap - 5) <= 2 && card.headerRows === 1 && card.avatarLeft === 4
+      && /^\d{2}-\d{2} \d{2}:\d{2}/.test(card.time) && card.timeTitle.length > card.time.length), card)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}.png`) })
   if (!card) return p.close()
+  /* 16 SPL-1000: a tap on the header's Add emoji opens the picker as a sheet; Back closes it */
+  await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-emoji-btn]`).catch(() => {})
+  await sleep(350)
+  const hs = await sheetFacts(p, '[data-testid=emoji-picker]')
+  ok(`${tag} 16 the header's Add emoji opens the picker as a bottom sheet (44 px glyphs)`,
+    Boolean(hs && hs.sheet && Math.abs(hs.bottom - hs.vh) <= 1 && hs.minItem >= TAP), hs)
+  if (hs) {
+    await p.goBack().catch(() => {})
+    await sleep(700)
+  }
+  const hsGone = await sheetFacts(p, '[data-testid=emoji-picker]')
+  ok(`${tag} 17 Back closes that sheet, the page stays`, hsGone === null, hsGone)
 
   const url0 = p.url()
   /* 7 CONTROL first: a short tap is not a long press */
@@ -270,6 +307,7 @@ async function desktop(browser) {
   ok('1440px 8 composer stays in the top bar (not docked, --composer-dock-h 0)',
     Boolean(c && !c.docked && c.bottom < 120 && (c.dockVar === '0px' || c.dockVar === '')), c)
   const card = await cardFacts(p)
+  ok('1440px 18 the desktop time keeps its year (SPL-1000 is phones only)', Boolean(card && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(card.time)), card && card.time)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'mobile-messages-1440.png') })
   await p.mouse.click(card.x, card.y, { button: 'right' })
   await sleep(300)

@@ -334,7 +334,8 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
       assert.equal(got.includes('T') || got.includes('Z'), false)
     }
     const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
-    assert.match(vue, /:title="sinceMs == null \? formatIsoTs\(at\) : undefined"/)
+    assert.match(vue, /:title="timeTitle"/)
+    assert.match(vue, /const timeTitle = computed\(\(\) => \(props\.sinceMs == null \? formatIsoTs\(at\.value\)/)
     assert.match(vue, /:data-ts="at \|\| undefined"/)
     assert.match(vue, /formatMsgListTs\(at\.value/)
   })

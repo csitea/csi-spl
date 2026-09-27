@@ -196,6 +196,23 @@ export function formatMsgListTs(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+/**
+ * SPL-1000 (owner, 2026-09-27, topic e0b12a2c, "on mobile only"): a phone's
+ * card header drops the year of THIS year - `09-27 13:43` - to make room for
+ * the Add-emoji icon. A time from another year keeps it, so an old message
+ * stays unambiguous. `text` is what formatMsgListTs / formatTopicTs printed.
+ * @param {string} text
+ * @param {unknown} ts
+ * @param {number} [nowMs]
+ */
+export function dropThisYear(text, ts, nowMs = Date.now()) {
+  const s = String(text || '')
+  const d = new Date(/** @type {any} */ (ts))
+  if (Number.isNaN(d.getTime())) return s
+  const y = String(new Date(nowMs).getFullYear())
+  return s.startsWith(y + '-') && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(5) : s
+}
+
 /** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */
 export function formatAbsTs(ts) {
   const d = new Date(ts)

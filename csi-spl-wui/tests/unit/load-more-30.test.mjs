@@ -20,7 +20,9 @@ function msg(n) {
 describe('the page is 30 rows', () => {
   it('both feed stores page by 30', () => {
     assert.match(read('src/stores/channel.ts'), /export const WINDOW = 30\n/)
-    assert.match(read('src/stores/live.ts'), /export const WINDOW = 30\n/)
+    // CLE-35062: the live store's page size lives in utils/feed-window.mjs (so a plugin can read it without the store)
+    assert.match(read('src/utils/feed-window.mjs'), /export const WINDOW = 30\n/)
+    assert.match(read('src/stores/live.ts'), /import \{ WINDOW \} from '~\/utils\/feed-window\.mjs'\nexport \{ WINDOW \}\n/)
   })
 
   it('the channel store asks the hub for 30 on the first read and on every Load more', () => {

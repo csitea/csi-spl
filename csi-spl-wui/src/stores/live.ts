@@ -12,8 +12,8 @@ import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
-/** One page of a feed: the first paint and every Load more. */
-export const WINDOW = 30
+import { WINDOW } from '~/utils/feed-window.mjs'
+export { WINDOW }
 /* loadAll reaches back ~1000 rows whatever the page size. Every other turn
    only reveals rows already held, so a turn is half a hub read. */
 const MAX_ALL_ROWS = 1000

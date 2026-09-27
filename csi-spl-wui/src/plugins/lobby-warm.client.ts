@@ -5,7 +5,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { WINDOW } from '~/stores/live'
+import { WINDOW } from '~/utils/feed-window.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { isLobbyPath, startLobbyWarm } from '~/utils/lobby-warm.mjs'
 

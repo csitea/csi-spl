@@ -1,0 +1,6 @@
+# do_oss_export scrub (spec 044 SPL-1013): rewrites applied to the EXPORTED copy
+# only, for text the private repo must keep byte-identical - an applied
+# migration is sha256-pinned by spool migrate, and a fresh public repo starts
+# with its own migration shas. Format: path<TAB>label<TAB>python regex
+# (whole file, DOTALL)<TAB>replacement. The gate then proves the result.
+csi-spl-rdb/src/sql/postgres/spool-hub/0051_tenants_sort_order.sql	owner quote naming hosted tenants	owner 2026-09-26: "the drop down entries should be .*?fifth"\)	owner 2026-09-26: a fixed order of the hosted\n-- tenants)

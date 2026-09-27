@@ -8,6 +8,7 @@ secret or a banned literal must not travel in it.
 
   oss-gate.py scan    --dir D --rules R --assets A --report OUT [--cnf-vars J]
   oss-gate.py deps    --report OUT [--node-modules NM] [--go-list F]
+  oss-gate.py scrub   --dir D --rules S      (export copy only; 3 = a stale rule)
   oss-gate.py summary --report OUT --classes c1,c2,...
 
 Exit: scan/deps 0 when they ran (hits or not), 2 when a class could not be
@@ -263,6 +264,37 @@ def deps(a):
     return 0
 
 
+def scrub(a):
+    """Rewrite ONLY the exported copy: path<TAB>label<TAB>regex<TAB>replacement.
+    For text the private repo must keep byte-identical (an applied migration is
+    sha256-pinned by spool migrate). The regex runs over the whole file with
+    DOTALL. A rule that no longer matches is named, never silently kept."""
+    rc = 0
+    with open(a.rules, encoding="utf-8") as fh:
+        for n, line in enumerate(fh, 1):
+            line = line.rstrip("\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) != 4:
+                sys.exit(f"FATAL {a.rules}:{n}: want path<TAB>label<TAB>regex<TAB>replacement")
+            path, label, rx, repl = parts
+            target = os.path.join(a.dir, path)
+            if os.path.isabs(path) or ".." in path.split("/") or not os.path.isfile(target):
+                print(f"scrub: SKIPPED {path} ({label}): not in the export")
+                continue
+            body = read(target)
+            new, k = re.subn(rx, repl, body, flags=re.DOTALL)
+            if k == 0:
+                print(f"scrub: STALE {path} ({label}): the rule no longer matches")
+                rc = 3
+                continue
+            with open(target, "w", encoding="utf-8") as out:
+                out.write(new)
+            print(f"scrub: {path} ({label}): {k} replacement(s)")
+    return rc
+
+
 def summary(a):
     counts = {c: 0 for c in a.classes.split(",") if c}
     total = 0
@@ -292,11 +324,14 @@ def main():
     d.add_argument("--report", required=True)
     d.add_argument("--node-modules")
     d.add_argument("--go-list")
+    c = sp.add_parser("scrub")
+    c.add_argument("--dir", required=True)
+    c.add_argument("--rules", required=True)
     m = sp.add_parser("summary")
     m.add_argument("--report", required=True)
     m.add_argument("--classes", default="")
     a = ap.parse_args()
-    return {"scan": scan, "deps": deps, "summary": summary}[a.cmd](a)
+    return {"scan": scan, "deps": deps, "scrub": scrub, "summary": summary}[a.cmd](a)
 
 
 if __name__ == "__main__":

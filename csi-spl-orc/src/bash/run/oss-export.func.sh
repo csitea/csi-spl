@@ -14,6 +14,8 @@
 # @param OUT_DIR - required: a new or empty dir OUTSIDE this checkout
 # @param OSS_REF (optional) - default HEAD; e.g. origin/master
 # @param OSS_ALLOW_LIST (optional) - default csi-spl-orc/cnf/oss/export-allow-list.txt
+# @param OSS_EXPORT_SCRUB (optional) - default csi-spl-orc/cnf/oss/export-scrub.tsv:
+# @param   rewrites applied to the exported copy only (applied migrations)
 # @param OSS_GATE (optional) - 1 (default) runs do_oss_gate DIR=OUT_DIR; 0 = export only
 # @example OUT_DIR=/var/tmp/oss/spool OSS_REF=origin/master ./run -a do_oss_export
 #------------------------------------------------------------------------------
@@ -60,6 +62,15 @@ do_oss_export() {
   git -C "$repo" archive --format=tar "$sha" -- "${arr[@]}" | tar -xf - -C "$out" \
     || { do_log "FATAL git archive of $sha failed"; return 2; }
   do_log "INFO exported $(find "$out" -type f | wc -l) file(s) of ${#arr[@]} allow-list path(s) at $sha into $out (no history)"
+  # Text the private repo must keep byte-identical (an applied migration is
+  # sha256-pinned) is rewritten in the EXPORTED copy only; the gate below
+  # then proves the result. A stale rule is reported, and the gate still runs.
+  local scrub="${OSS_EXPORT_SCRUB:-${PROJ_PATH:-$APP_PATH/csi-spl-orc}/cnf/oss/export-scrub.tsv}" src=0
+  if [[ -f "$scrub" ]]; then
+    python3 "${PROJ_PATH:-$APP_PATH/csi-spl-orc}/src/bash/scripts/oss-gate.py" scrub --dir "$out" --rules "$scrub" || src=$?
+    (( src == 0 || src == 3 )) || { do_log "FATAL the export scrub failed (rc=$src)"; return 2; }
+    (( src == 3 )) && do_log "WARN a scrub rule in $scrub no longer matches - update or drop it"
+  fi
   [[ "${OSS_GATE:-1}" == 0 ]] && { do_log "INFO OSS_GATE=0: the gate was NOT run - this tree is unproven"; return 0; }
   DIR="$out" do_oss_gate
 }

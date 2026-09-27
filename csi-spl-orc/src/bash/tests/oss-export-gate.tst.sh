@@ -10,6 +10,8 @@
 #            allowed dir (forbidden-file), an unlicensed image, a missing
 #            LICENSE, a dependency under a non-free licence
 #          - the report names file:line and never the planted value
+#          - the export-side scrub rewrites the exported copy only; a stale
+#            rule is named and never hides a hit
 #          - refusals (exit 2): non-empty OUT_DIR, OUT_DIR inside the repo, a
 #            missing required entry, an unsafe entry, a CI gitleaks pin that
 #            drifted from the gate's, a skipped dependency class
@@ -57,12 +59,13 @@ printf 'private-host\ta private test host\t(?i)example-private\\.test\n' >"$tmp/
 printf 'private-host\tthe cnf domain\t(?i){{cnf:.env.dns.BASE_DOMAIN}}\n' >>"$tmp/rules.tsv"
 printf 'env:\n  dns:\n    BASE_DOMAIN: cnf-domain.test\n' >"$tmp/cnf.yaml"
 : >"$tmp/assets.txt"
+: >"$tmp/scrub.tsv"
 mkdir -p "$tmp/nm/.pnpm/good@1.0.0/node_modules/good" "$tmp/nm/.pnpm/@s+scoped@2.0.0/node_modules/@s/scoped"
 echo '{"name":"good","version":"1.0.0","license":"MIT"}' >"$tmp/nm/.pnpm/good@1.0.0/node_modules/good/package.json"
 echo '{"name":"@s/scoped","version":"2.0.0","license":"(BSD-3-Clause OR GPL-2.0)"}' >"$tmp/nm/.pnpm/@s+scoped@2.0.0/node_modules/@s/scoped/package.json"
 
 export APP_PATH="$R" PROJ_PATH="$PROJ_ROOT" OSS_ALLOW_LIST="$tmp/allow.txt" \
-  OSS_GATE_RULES="$tmp/rules.tsv" OSS_GATE_CNF="$tmp/cnf.yaml" OSS_GATE_ASSETS="$tmp/assets.txt" OSS_GATE_NODE_MODULES="$tmp/nm"
+  OSS_GATE_RULES="$tmp/rules.tsv" OSS_GATE_CNF="$tmp/cnf.yaml" OSS_EXPORT_SCRUB="$tmp/scrub.tsv" OSS_GATE_ASSETS="$tmp/assets.txt" OSS_GATE_NODE_MODULES="$tmp/nm"
 n=0
 # commit <path> <content> - change the fixture repo and commit (the export reads a ref)
 commit() {
@@ -121,6 +124,24 @@ grep -qP '^private-host\tprod/host\.txt\t1\tthe cnf domain$' "$rep" && ok "the c
 printf 'env: {}\n' >"$tmp/cnf-empty.yaml"
 OSS_GATE_CNF="$tmp/cnf-empty.yaml" run_export; check "$rc" 2 "a {{cnf:...}} key with no value is never a pass"
 git -C "$R" rm -q prod/host.txt && git -C "$R" -c user.name=t -c user.email=t@example.com commit -qm rm
+
+# ---- 4b. export-side scrub: the export changes, the repo file does not -----
+commit prod/0001_init.sql $'-- owner: "order: example-private.test first"\nSELECT 1;'
+before=$(sha256sum "$R/prod/0001_init.sql")
+run_export
+check "$rc" 1 "CONTROL the unscrubbed quote -> the gate fails"
+printf 'prod/0001_init.sql\tquoted host\towner: ".*?"\towner: a quote\n' >"$tmp/scrub.tsv"
+run_export
+check "$rc" 0 "the scrubbed export passes the gate"
+grep -q '^-- owner: a quote$' "$out/prod/0001_init.sql" && grep -q '^SELECT 1;$' "$out/prod/0001_init.sql" \
+  && ok "the export copy is rewritten, the rest kept" || no "the export copy was not rewritten"
+[[ "$(sha256sum "$R/prod/0001_init.sql")" == "$before" ]] && ok "the private file stays byte-identical" || no "the private file changed"
+printf 'prod/0001_init.sql\tgone\tno-such-text\tx\n' >"$tmp/scrub.tsv"
+run_export
+grep -q "STALE prod/0001_init.sql" "$tmp/stdout$n" && ok "a stale scrub rule is named" || no "a stale scrub rule went silent"
+check "$rc" 1 "a stale scrub rule never hides the hit (the gate still fails)"
+: >"$tmp/scrub.tsv"
+git -C "$R" rm -q prod/0001_init.sql && git -C "$R" -c user.name=t -c user.email=t@example.com commit -qm rm
 
 # ---- 5. controls: forbidden file, image, licence, dependency -----------------
 commit prod/sub/CLAUDE.md "x"

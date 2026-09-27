@@ -1,4 +1,4 @@
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import {
   MOBILE_STACK_QUERY,
@@ -43,6 +43,9 @@ import {
  *                               // (a tap on the row for the page already behind)
  *   stack.pop()                 // Back one level (the chevron's click handler)
  *   stack.home()                // straight to level 1 (a "sections" button)
+ *   stack.rightPanel(() => detailOpen.value, closeDetail)
+ *                               // a page's own right panel (not a topic store)
+ *                               // counts as level 3; Back calls closeDetail
  * A route navigation (NuxtLink, router.push) needs NO call: leaving level 1 by
  * a link is noticed in router.afterEach. Opening a topic needs no call either:
  * level 3 follows the topic stores. Only layouts/default.vue calls install().
@@ -54,7 +57,11 @@ import {
 const isMobile = ref(false)
 const home = ref(true)
 const topicOpen = ref(false)
-const level = computed<MobileLevel>(() => mobileLevelOf({ home: home.value, topicOpen: topicOpen.value }))
+/* pages with a right panel that is not a topic store (the issue detail, ...) */
+type RightPanel = { open: MaybeRefOrGetter<boolean>, close: () => void }
+const panels = shallowRef<RightPanel[]>([])
+const rightOpen = computed(() => topicOpen.value || panels.value.some((p) => toValue(p.open)))
+const level = computed<MobileLevel>(() => mobileLevelOf({ home: home.value, topicOpen: rightOpen.value }))
 let closeTopic: () => void = () => {}
 let installed = false
 
@@ -65,7 +72,21 @@ function tag(lv: MobileLevel, below?: number) {
 /** Show `lv` without touching history (a popstate already moved it). */
 function applyLevel(lv: MobileLevel) {
   if (lv < 3 && topicOpen.value) closeTopic()
+  if (lv < 3) for (const p of panels.value) if (toValue(p.open)) p.close()
   home.value = lv === 1
+}
+
+/**
+ * A page whose own right panel is level 3 (the issue detail): while `open`
+ * is true the stack is at 3, and Back (chevron, swipe, browser) calls
+ * `close`. Unregisters itself when the calling component's scope ends.
+ */
+function rightPanel(open: MaybeRefOrGetter<boolean>, close: () => void) {
+  const entry: RightPanel = { open, close }
+  panels.value = [...panels.value, entry]
+  const off = () => { panels.value = panels.value.filter((p) => p !== entry) }
+  if (getCurrentScope()) onScopeDispose(off)
+  return off
 }
 
 function push(lv: 2 | 3) {
@@ -156,6 +177,7 @@ export function useMobileStack() {
     push,
     pop,
     home: toHome,
+    rightPanel,
     /** bind on the shell: @touchstart.passive / @touchend.passive */
     swipe: { onTouchStart, onTouchEnd },
     install,

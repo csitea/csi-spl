@@ -1197,7 +1197,7 @@ async function onCreate() {
   creating.value = true
   createError.value = ''
   try {
-    const row = await channel.createChannel(name, newDescription.value.trim())
+    const row = await channel.createChannel(name, descMp.encode(newDescription.value).trim())
     /* close first: the dialog restores focus to the + it was opened from, and
        the watcher clears the form, so a failed create keeps what was typed */
     createOpen.value = false

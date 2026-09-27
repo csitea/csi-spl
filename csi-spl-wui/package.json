@@ -46,6 +46,7 @@
     "test:e2e:topic-send-target": "node tests/e2e/topic-send-target.test.mjs",
     "test:e2e:thread-dock-target": "node tests/e2e/thread-dock-target.test.mjs",
     "test:e2e:build-watch": "node tests/e2e/build-watch.test.mjs",
+    "test:e2e:names-not-ids": "node tests/e2e/names-not-ids.test.mjs",
     "test:e2e:mobile-go-dock": "node tests/e2e/mobile-go-dock.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },

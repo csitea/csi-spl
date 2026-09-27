@@ -971,7 +971,9 @@ onMounted(() => {
 function startEdit() {
   if (!canEdit(props.msg)) return
   editError.value = ''
-  edit.value = beginEdit(props.msg)
+  const began = beginEdit(props.msg)
+  /* SPL-1009: the box shows mentioned people by name; save() stores their tags */
+  edit.value = began && withDraft(began, editMp.decode(began.draft))
   if (!edit.value) return
   nextTick(() => {
     const el = editEl.value
@@ -1016,7 +1018,7 @@ function onEditKey(ev: KeyboardEvent) {
 async function save() {
   const state = edit.value
   if (!state) return
-  const { action, body, error } = commitEdit(state)
+  const { action, body, error } = commitEdit(withDraft(state, editMp.encode(state.draft)))
   if (action === 'unchanged') {
     editError.value = ''
     closeEdit()

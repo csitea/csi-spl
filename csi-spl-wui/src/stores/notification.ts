@@ -22,7 +22,7 @@ import {
   saveCursors,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
-import { peopleLabels } from '~/utils/channel-feed.mjs'
+import { namedText, peopleLabels } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 type Ctx = {
@@ -63,7 +63,8 @@ export const useNotificationStore = defineStore('notification', () => {
   function copyFor(m: Msg, reason: string) {
     // a human sender by their chosen name (owner, 2026-09-26)
     const c = notifyCopyKey({ ...m, from: m.from ? peopleLabels([String(m.from)], humanNames.names.value) : m.from }, reason)
-    return { title: i18n.t(c.titleKey, c.params), body: c.body }
+    /* SPL-1009: a member in the body reads their name, as in the feed */
+    return { title: i18n.t(c.titleKey, c.params), body: namedText(c.body, humanNames.names.value) }
   }
 
   if (import.meta.client) {

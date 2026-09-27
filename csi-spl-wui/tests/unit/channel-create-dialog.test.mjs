@@ -80,7 +80,7 @@ describe('the dialog collects a title AND a description', () => {
   })
 
   it('passes the description to the store, and clears the form only on close', () => {
-    assert.match(sidebar, /channel\.createChannel\(name, newDescription\.value\.trim\(\)\)/)
+    assert.match(sidebar, /channel\.createChannel\(name, descMp\.encode\(newDescription\.value\)\.trim\(\)\)/)
     assert.match(sidebar, /watch\(createOpen, \(open\) => \{/)
     assert.match(src('src/stores/channel.ts'), /async function createChannel\(name: string, description = ''\)/)
   })

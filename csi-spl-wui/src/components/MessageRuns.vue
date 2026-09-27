@@ -14,12 +14,15 @@
       @dblclick.stop
       @keydown.enter.stop
     >{{ p.text }}</a>
-    <template v-else>{{ p.text }}</template>
+    <template v-else>
+      <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
+      <template v-for="(r, k) in namedRuns(p.text, people.names.value)" :key="k"><span v-if="r.title" class="person-name" :title="r.title">{{ r.text }}</span><template v-else>{{ r.text }}</template></template>
+    </template>
   </template>
 </template>
 
 <script setup lang="ts">
-import { mentionDisplay } from '~/utils/channel-feed.mjs'
+import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 

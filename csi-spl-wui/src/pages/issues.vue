@@ -1287,7 +1287,7 @@ async function loadComments(issue: Issue | null) {
 }
 async function sendComment() {
   const issue = detail.value
-  const text = commentText.value.trim()
+  const text = commentMp.encode(commentText.value).trim()
   if (!issue || !issue.task_id || !text) return
   busy.value = true
   saveError.value = ''

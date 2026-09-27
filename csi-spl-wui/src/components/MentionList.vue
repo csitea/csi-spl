@@ -34,6 +34,8 @@
         <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
         <span class="dot" :class="{ on: p.online }" />
         <HumanName class="mention-label" :id="p.id" :box="p.box" />
+        <!-- SPL-1009: two members chose one name - the id tells them apart -->
+        <span v-if="p.sameName" class="muted mention-id" data-id-suffix data-testid="mention-id-suffix">{{ p.id }}</span>
         <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
       </button>
     </li>
@@ -132,5 +134,9 @@ function setList(el: unknown) {
 .mention-label {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.mention-id {
+  flex: none;
+  font-size: 0.75rem;
 }
 </style>

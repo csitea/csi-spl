@@ -71,6 +71,51 @@ export function mentionDisplay(text, names) {
   return { text: '@' + label, title: raw }
 }
 
+/* SPL-1009: a member id written as plain text ("HUM-10 needs you in ...", an
+   agent's "asked by HUM-10") - not part of a longer token or an @tag. */
+const BARE_MEMBER_RE = /(^|[^\w@-])(HUM-\d+)(?![\w@-])/g
+
+/**
+ * Plain message text as runs: each member id of a member who chose a name
+ * reads that name, the id kept as its title. An agent, a nameless member and
+ * an unknown id stay as written. `[{ text }]` when nothing changes.
+ *
+ * @param {string} text
+ * @param {Record<string, string> | null | undefined} names
+ * @returns {{ text: string, title?: string }[]}
+ */
+export function namedRuns(text, names) {
+  const s = String(text || '')
+  const out = []
+  let last = 0
+  for (const m of s.matchAll(BARE_MEMBER_RE)) {
+    const id = m[2]
+    const label = personLabel(id, undefined, names)
+    if (label === id) continue
+    const at = m.index + m[1].length
+    if (at > last) out.push({ text: s.slice(last, at) })
+    out.push({ text: label, title: id })
+    last = at + id.length
+  }
+  if (last < s.length || !out.length) out.push({ text: s.slice(last) })
+  return out
+}
+
+/**
+ * A text for a place that shows plain strings (a browser notification, a
+ * search snippet): `@HUM-n` and bare `HUM-n` of a named member read the name.
+ *
+ * @param {string} text
+ * @param {Record<string, string> | null | undefined} names
+ */
+export function namedText(text, names) {
+  const s = String(text || '').replace(/(^|[^\w@-])@(HUM-\d+)(?:@box-wui)?(?![\w@-])/g, (m, pre, id) => {
+    const label = personLabel(id, undefined, names)
+    return label === id ? m : `${pre}@${label}`
+  })
+  return namedRuns(s, names).map((r) => r.text).join('')
+}
+
 /**
  * A list of peers ("HUM-10", "CLE-7@box-a") as people read it: each human by
  * their chosen name, everyone else unchanged, joined with ', '.

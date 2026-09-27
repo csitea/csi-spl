@@ -602,7 +602,7 @@ function focusInput() {
    FAILED can put the text back - otherwise the only copy of what the human
    wrote is gone, which is exactly how the owner lost a message. */
 function restore(body: string, files?: File[]) {
-  text.value = body
+  text.value = mp.decode(body)
   if (files && files.length) picked.value = [...files]
   focusInput()
 }
@@ -861,7 +861,8 @@ function onSend() {
       return
     }
   }
-  let body = closeOpenFence(text.value).trim()
+  /* SPL-1009: the field shows picked people by name; the message stores their tags */
+  let body = closeOpenFence(mp.encode(text.value)).trim()
   let topicId = props.parentTaskId
   let channelId: string | undefined
   if ((props.global || props.omnibox) && body) {

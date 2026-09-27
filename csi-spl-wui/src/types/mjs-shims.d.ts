@@ -218,6 +218,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function displayName(id: string, box?: string): string
   export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function mentionDisplay(text: string, names: Record<string, string> | null | undefined): { text: string, title: string }
+  export function namedRuns(text: string, names: Record<string, string> | null | undefined): { text: string, title?: string }[]
+  export function namedText(text: string, names: Record<string, string> | null | undefined): string
   export function peopleLabels(peers: readonly string[] | null | undefined, names: Record<string, string> | null | undefined): string
   export function shownPerson(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function personTitle(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
@@ -277,6 +279,9 @@ declare module '~/utils/mock-data.mjs' {
 }
 
 declare module '~/utils/mention-autocomplete.mjs' {
+  export function mentionFieldName(id: string, names: Record<string, string> | null | undefined): string
+  export function encodeMentions(text: string, picks: Record<string, string> | null | undefined): string
+  export function decodeMentions(text: string, names: Record<string, string> | null | undefined): { text: string, picks: Record<string, string> }
   export function isAgentId(id: string): boolean
   export function activeMentionQuery(text: string, cursor?: number): string | null
   export function filterRosterMentions(

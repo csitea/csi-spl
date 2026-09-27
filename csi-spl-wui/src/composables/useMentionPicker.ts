@@ -10,13 +10,18 @@
 //     @keydown="mp.onKeydown($event) || onSubmitKey($event, save)" />
 // While the list is open, Enter and Tab pick and the key never reaches the
 // field's submit handler (SPL-976 useSubmitKey), whatever the setting says.
+//
+// SPL-1009: a pick writes the person's NAME into the field (`@Ann Lee`); the
+// text is stored with the tag (`@HUM-3@box-wui`). So every field stores
+// `mp.encode(text)`, and a field pre-filled from a stored text shows
+// `mp.decode(stored)`.
 import type { Ref } from 'vue'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
-import { activeMentionQuery, insertMention, mentionCandidates } from '~/utils/mention-autocomplete.mjs'
+import { activeMentionQuery, decodeMentions, encodeMentions, insertMention, mentionCandidates, mentionFieldName } from '~/utils/mention-autocomplete.mjs'
 
-export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, owner?: boolean }
+export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, owner?: boolean, sameName?: boolean }
 
 export function useMentionPicker(opts: {
   text: Ref<string>
@@ -33,6 +38,8 @@ export function useMentionPicker(opts: {
   const activeIdx = ref(0)
   const listEl = ref<HTMLUListElement | null>(null)
   const listId = useId()
+  /** name -> tag of every person this field shows by name (encode() puts the tag back) */
+  const picks = ref<Record<string, string>>({})
 
   const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
   const candidates = computed<MentionRow[]>(() => {
@@ -45,7 +52,10 @@ export function useMentionPicker(opts: {
       query: query.value,
       ownersFirst: inFeedback.value,
       isOnline: (id: string) => roster.isOnline(id, 'box-wui'),
-    })
+    }).map((row: MentionRow) => (
+      /* two members with one name: the row shows the id as a muted suffix */
+      /^HUM-\d+$/.test(row.id) && people.names.value[row.id] && !mentionFieldName(row.id, people.names.value) ? { ...row, sameName: true } : row
+    ))
   })
   const open = computed(() => query.value !== null && candidates.value.length > 0)
 
@@ -82,7 +92,10 @@ export function useMentionPicker(opts: {
   }
 
   function pick(row: MentionRow) {
-    const next = insertMention(opts.text.value, caret(), row.label || row.id)
+    const tag = row.label || row.id
+    const name = mentionFieldName(row.id, people.names.value)
+    if (name) picks.value = { ...picks.value, [name]: tag }
+    const next = insertMention(opts.text.value, caret(), name || tag)
     opts.text.value = next.text
     query.value = null
     opts.onPick?.(next.text)
@@ -126,7 +139,19 @@ export function useMentionPicker(opts: {
     return false
   }
 
-  return reactive({ query, open, candidates, activeIdx, listEl, listId, sync, close, pick, onKeydown })
+  /** The field text as it is stored: every picked name is its tag again. */
+  function encode(text: string): string {
+    return encodeMentions(text, picks.value)
+  }
+
+  /** A stored text as the field shows it: members by name (the tags are kept for encode). */
+  function decode(text: string): string {
+    const d = decodeMentions(text, people.names.value)
+    picks.value = { ...picks.value, ...d.picks }
+    return d.text
+  }
+
+  return reactive({ query, open, candidates, activeIdx, listEl, listId, sync, close, pick, onKeydown, encode, decode })
 }
 
 export type MentionPicker = ReturnType<typeof useMentionPicker>

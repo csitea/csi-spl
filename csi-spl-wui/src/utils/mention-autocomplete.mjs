@@ -114,3 +114,78 @@ export function mentionCandidates({ peers = [], names = null, owners = [], selfI
   people.sort((a, b) => String(names[a.id] || a.id).localeCompare(String(names[b.id] || b.id)))
   return ownersFirst ? [...ownerRows, ...agents, ...people] : [...agents, ...people, ...ownerRows]
 }
+
+/* SPL-1009 (owner, 2026-09-27: "but still the humans are presented with
+   IDs"): a field shows a picked person by the name they chose; what is STORED
+   stays the tag (`@HUM-11@box-wui`), so a rename breaks no link and every
+   reader (notify, poke, the renderer) keeps parsing ids. */
+
+// bidi controls must not reorder the field around a name (CLE-34987)
+const BIDI = /[؜‎‏‪-‮⁦-⁩]/g
+const NAME_END = '(?![\\p{L}\\p{N}_-])'
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function cleanName(names, id) {
+  const has = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id)
+  return has ? String(names[id] || '').replace(BIDI, '').replace(/\s+/g, ' ').trim() : ''
+}
+
+/**
+ * The name a member is written with in a field, or '' when the tag has to
+ * stay: not a member (an agent keeps its id), no name chosen, a name another
+ * member of the tenant also chose (the tag is what tells them apart), or a
+ * name that would read as a tag itself.
+ *
+ * @param {string} id
+ * @param {Record<string, string> | null | undefined} names
+ */
+export function mentionFieldName(id, names) {
+  const who = String(id || '').split('@')[0]
+  if (!/^HUM-\d+$/.test(who)) return ''
+  const name = cleanName(names, who)
+  if (!name || name.includes('@') || isAgentId(name)) return ''
+  const key = name.toLocaleLowerCase()
+  for (const other of Object.keys(names)) {
+    if (other !== who && cleanName(names, other).toLocaleLowerCase() === key) return ''
+  }
+  return name
+}
+
+/**
+ * The field text as stored: each `@<name>` a pick (or decodeMentions) wrote
+ * becomes its tag again. Longest name first, so "Ann Lee" wins over "Ann".
+ * Only names in `picks` change; an @word the person typed by hand is text.
+ *
+ * @param {string} text
+ * @param {Record<string, string> | null | undefined} picks name -> tag (no '@')
+ */
+export function encodeMentions(text, picks) {
+  let s = String(text || '')
+  const labels = Object.keys(picks && typeof picks === 'object' ? picks : {}).filter(Boolean).sort((a, b) => b.length - a.length)
+  for (const label of labels) {
+    const re = new RegExp(`(^|\\s)@${escapeRe(label)}${NAME_END}`, 'gu')
+    s = s.replace(re, (_m, pre) => `${pre}@${picks[label]}`)
+  }
+  return s
+}
+
+/**
+ * A stored text made readable for editing: each `@HUM-n` / `@HUM-n@box-wui`
+ * of a member with a name of their own reads `@<name>`. `picks` is what
+ * encodeMentions needs to store it back unchanged.
+ *
+ * @param {string} text
+ * @param {Record<string, string> | null | undefined} names
+ * @returns {{ text: string, picks: Record<string, string> }}
+ */
+export function decodeMentions(text, names) {
+  const picks = {}
+  const out = String(text || '').replace(/(^|\s)@(HUM-\d+(?:@box-wui)?)(?![A-Za-z0-9@_.-])/g, (m, pre, tag) => {
+    const name = mentionFieldName(tag, names)
+    if (!name) return m
+    if (picks[name] && picks[name] !== tag) return m
+    picks[name] = tag
+    return `${pre}@${name}`
+  })
+  return { text: out, picks }
+}

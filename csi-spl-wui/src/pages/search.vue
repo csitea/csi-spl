@@ -103,7 +103,8 @@
               <span class="search-row__meta muted">{{ meta(row) }}</span>
             </div>
             <p v-if="row.type === 'messages'" class="search-row__snippet" :class="listClipClass(clipMode)" data-test="search-msg-snippet" :data-clip-mode="clipMode">
-              <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
+              <!-- SPL-1009: a member in the snippet reads their name -->
+              <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ namedText(s.text, people.names.value) }}</mark><template v-else>{{ namedText(s.text, people.names.value) }}</template></template>
             </p>
             <p v-else-if="eventDetail(row)" class="search-row__snippet">{{ eventDetail(row) }}</p>
           </div>
@@ -135,7 +136,7 @@ import { operatorHelpRows, searchPath, type SearchRow } from '~/utils/search.mjs
 import { flattenGroups, highlightSegments, moveIndex, rowAt, searchTarget } from '~/utils/search-results.mjs'
 import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { shownPerson } from '~/utils/channel-feed.mjs'
+import { namedText, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
 import { useCardClip } from '~/composables/useCardClip'

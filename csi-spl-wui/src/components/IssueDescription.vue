@@ -21,7 +21,7 @@
         :aria-labelledby="labelId"
         :aria-invalid="error ? 'true' : undefined"
         :placeholder="t('issues.description_empty')"
-        @input="emit('draft', draft); mp.sync()"
+        @input="emit('draft', mp.encode(draft)); mp.sync()"
         @click="mp.sync"
         @keyup="mp.sync"
         @keydown="mp.onKeydown($event) || onSubmitKey($event, submit)"
@@ -66,14 +66,15 @@ const editing = ref(props.keepOpen === true)
 const draft = ref('')
 const error = ref(false)
 const area = ref<HTMLTextAreaElement | null>(null)
-const mp = useMentionPicker({ text: draft, el: area, onPick: (v) => emit('draft', v) })
+/* SPL-1009: the box shows mentioned people by name; what is saved and reported carries their tags */
+const mp = useMentionPicker({ text: draft, el: area, onPick: (v) => emit('draft', mp.encode(v)) })
 let saving = false
 let pressed = false
 
 function onPress() { pressed = true }
 function onRelease() { pressed = false }
 onMounted(() => {
-  if (editing.value) draft.value = props.text
+  if (editing.value) draft.value = mp.decode(props.text)
   document.addEventListener('pointerdown', onPress, true)
   document.addEventListener('pointerup', onRelease, true)
   document.addEventListener('pointercancel', onRelease, true)
@@ -93,7 +94,7 @@ function close() {
 
 async function edit() {
   if (editing.value) return
-  draft.value = props.text
+  draft.value = mp.decode(props.text)
   error.value = false
   editing.value = true
   await nextTick()
@@ -111,7 +112,7 @@ function onViewClick(ev: MouseEvent) {
 
 async function commit() {
   if (!editing.value || saving) return
-  const value = draft.value
+  const value = mp.encode(draft.value)
   if (value === props.text) { error.value = false; close(); return }
   saving = true
   let ok = false

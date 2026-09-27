@@ -105,7 +105,7 @@ function errorKey(e: { status?: number, token?: string }) {
 }
 
 async function submit() {
-  const text = title.value.trim()
+  const text = mp.encode(title.value).trim()
   if (!text || !props.parentKey || busy.value) return
   busy.value = true
   error.value = ''

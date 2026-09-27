@@ -32,6 +32,10 @@
 #      reads MUTED, not ok - the state two owner DMs sat unread in on
 #      2026-09-22 while every check said healthy - and the mute is per AGENT,
 #      because SPOOL_POKE belongs to the one sidecar the whole box shares
+#  11. do_spl_desk_down (SPL-1004): a DESK_AGENT run refuses while OTHER
+#      agents share the live sidecar, names them and stops nothing; the
+#      last agent on the box, and DESK_ALL=1, still stop it. CONTROL: the
+#      fake sidecar reads as alive to spl_desk_alive before the runs
 #   6. spl_desk_detach leaves the caller's descriptors alone: a daemon started
 #      inside a command substitution must not hold it open. That regression hung
 #      `./run` after every step of do_spl_desk_up had passed (2026-09-21)
@@ -487,6 +491,38 @@ out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" FAKE_REFU
   DESK_BODY=x DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"only the box that sent a message can edit it"* ]] && pass "a not_author refusal is named as another box's message" ||
   fail "not_author refusal (rc=$rc): $out"
+
+# --- 11. desk_down never takes the other seated agents offline (SPL-1004) ----------
+# 2026-09-27 11:47Z: an agent closing its lane ran DESK_AGENT=<itself>
+# do_spl_desk_down in csi-rel; the one shared sidecar stopped, every other
+# csi-rel agent went offline and a person's post waited 35 min.
+DD="$T/state/dev/desk/t1/box-desk"
+fake_sidecar() {
+  mkdir -p "$DD/spool/.hub"
+  bash -c 'sleep 60; :' hub-run </dev/null >/dev/null 2>&1 & echo $! >"$DD/spool/.hub/hub-run.pid"
+}
+fake_sidecar
+for a in CLE-1 CLE-2; do mkdir -p "$DD/spool/$a"; done
+SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&
+  pass "CONTROL the fake sidecar reads as alive" || fail "CONTROL the fake sidecar does not read as alive"
+out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DESK_AGENT=CLE-1 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *FATAL*CLE-2* && "$out" != *CLE-1\ CLE-2* ]] &&
+  SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&
+  pass "desk_down for one agent refuses while CLE-2 shares the sidecar, names it, stops nothing" ||
+  fail "desk_down with a co-seated agent (rc=$rc): $out"
+out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DESK_AGENT=CLE-1 DESK_ALL=1 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"was_running": true'* ]] &&
+  ! SNIPPET="spl_desk_alive '$DD/spool/.hub/hub-run.pid'" in_orc >/dev/null 2>&1 &&
+  pass "DESK_ALL=1 stops the shared sidecar" || fail "DESK_ALL=1 (rc=$rc): $out"
+find "$DD/spool" -mindepth 1 -maxdepth 1 -type d ! -name CLE-1 ! -name .hub -exec rm -rf {} +; fake_sidecar
+out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DESK_AGENT=CLE-1 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"was_running": true'* ]] &&
+  pass "the last agent on the box still stops its sidecar" || fail "last agent (rc=$rc): $out"
+fake_sidecar
+out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"was_running": true'* ]] &&
+  pass "no DESK_AGENT stops the box as before" || fail "no DESK_AGENT (rc=$rc): $out"
+kill "$(cat "$DD/spool/.hub/hub-run.pid")" 2>/dev/null || true
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

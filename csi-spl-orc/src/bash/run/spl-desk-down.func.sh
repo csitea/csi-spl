@@ -6,6 +6,12 @@
 # @description the pane. The box stays pinned and the inbox stays on disk: this
 # @description is the reverse of the sidecar, not of the pin (revoke the pin
 # @description with `spool hub-pin --box <box> --revoke --root-key <root key>`).
+# @description ONE sidecar serves every agent seated on the box. So a DESK_AGENT
+# @description run refuses while OTHER agents are seated on that live sidecar,
+# @description and names them: an agent closing its own lane took every csi-rel
+# @description agent offline for 40 min that way (SPL-1004, 2026-09-27 11:47Z).
+# @description An agent that is done just leaves the desk up; DESK_ALL=1 stops
+# @description the box for everyone on purpose.
 # @description Prints one JSON line (box, agent, the pid it stopped, whether a
 # @description sidecar was running at all). Idempotent: a desk that is already
 # @description down is OK, not an error.
@@ -13,10 +19,24 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_AGENT (optional) - recorded in the output; the sidecar serves the whole box
+# @param DESK_AGENT (optional) - the agent asking; refused while other agents share the sidecar
+# @param DESK_ALL (optional) - 1 = stop the sidecar although other agents are seated on it
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 ./run -a do_spl_desk_down
+# @example ENV=prd TENANT_ID=csi-rel DESK_ALL=1 DRY_RUN=0 ./run -a do_spl_desk_down
 #------------------------------------------------------------------------------
+# spl_desk_seated <state dir>: the agent ids seated on the desk box, one per
+# line - the agent directories under its spool root, which is what the one
+# sidecar announces.
+spl_desk_seated() {
+  local a
+  for a in "$1"/spool/*/; do
+    a="${a%/}"; a="${a##*/}"
+    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ ]] && echo "$a"
+  done
+  return 0
+}
+
 do_spl_desk_down() {
   do_require_bin python3 || return 1
   do_spl_cloud_cnf || return 1
@@ -30,6 +50,14 @@ do_spl_desk_down() {
   local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then was=1; pid="$(cat "$pidf")"; fi
+  if (( was )) && [[ -n "$agent" && "${DESK_ALL:-0}" != 1 ]]; then
+    local others
+    others="$(spl_desk_seated "$d" | grep -vx -- "$agent" | tr '\n' ' ')"
+    if [[ -n "${others// /}" ]]; then
+      do_log "FATAL the sidecar of $box in $tenant (pid $pid) also serves: ${others% }. Stopping it takes them ALL offline and nothing restarts it (SPL-1004). Leave the desk up when $agent is done; DESK_ALL=1 stops it for everyone"
+      return 1
+    fi
+  fi
   if (( dry )); then
     if (( was )); then do_log "INFO DRY_RUN would: stop the hub-run sidecar of $box (pid $pid)"
     else do_log "INFO DRY_RUN nothing to stop: no live hub-run sidecar for $box in $tenant ($d)"; fi

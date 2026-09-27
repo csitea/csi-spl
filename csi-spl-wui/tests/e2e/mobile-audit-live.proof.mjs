@@ -103,7 +103,10 @@ const MEASURE = () => {
     main: document.querySelector('.spool-main'),
     detail: document.querySelector('[data-test=topic-section], .live-pane, .topic, .issues-detail'),
   }
-  const onScreen = Object.entries(panes).filter(([, el]) => shown(el)).map(([k]) => k)
+  let onScreen = Object.entries(panes).filter(([, el]) => shown(el)).map(([k]) => k)
+  /* a full-width panel on top (the level-3 detail over a kept-mounted main, b8c264de) is the one panel seen */
+  const cover = ['detail', 'main'].find((k) => onScreen.includes(k) && panes[k].getBoundingClientRect().width >= vw - 1 && getComputedStyle(panes[k]).position !== 'static')
+  if (cover) onScreen = [cover]
   const tas = [...document.querySelectorAll('textarea')].filter(vis).map((t) => ({ ph: (t.placeholder || '').slice(0, 24), ...box(t) }))
   return {
     vw, vh: innerHeight, url: location.pathname + location.search,

@@ -175,11 +175,17 @@ describe('the drop box sits above the direct-messages icon', () => {
     const fn = vue.slice(vue.indexOf('async function onTenantChange'))
     const body = fn.slice(0, fn.indexOf('\n}'))
     assert.match(body, /HTMLSelectElement/)
-    // the guard (single row, mock, busy, same tenant) returns before the call
-    const guard = body.indexOf('!box.canSwitch || api.mock')
-    const callAt = body.indexOf('authClient.switchTenant(want)')
-    assert.ok(guard > 0 && callAt > guard, 'guard before the switch call')
+    // SPL-995: the switch is useTenantSwitch, shared with the phone top bar
+    assert.match(body, /tenantSwitch\.switchTo\(el\.value\)/)
     assert.doesNotMatch(body, /fetch\(/)
+    const sw = src('src/composables/useTenantSwitch.ts')
+    const swBody = sw.slice(sw.indexOf('async function switchTo'))
+    // the guard (single row, mock, busy, same tenant) returns before the call
+    const guard = swBody.indexOf('!b.canSwitch || api.mock')
+    const callAt = swBody.indexOf('authClient.switchTenant(want)')
+    assert.ok(guard > 0 && callAt > guard, 'guard before the switch call')
+    assert.doesNotMatch(swBody, /fetch\(/)
+    assert.match(sw, /tenantSwitchOptions\(session\.claims, api\.tenant\)/)
     assert.equal(src('src/utils/tenant-switcher.mjs').includes("'t1'"), false)
     assert.equal(vue.includes('t1'), false)
   })

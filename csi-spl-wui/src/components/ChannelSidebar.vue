@@ -609,6 +609,7 @@ import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/spool-client.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { useTenantSwitch } from '~/composables/useTenantSwitch'
 import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -766,37 +767,15 @@ function onTenantBoxPress(ev: MouseEvent) {
     (sel as HTMLSelectElement & { showPicker?: () => void }).showPicker?.()
   } catch { /* no picker without a user gesture: focus is enough */ }
 }
-const authClient = useAuthClient()
-const switching = ref(false)
-const switchFailed = ref(false)
-/* specs/026 §6: a member of several tenants switches here. The hub re-issues
-   the session cookie; a full load then reads every feed of the new tenant
-   (no store keeps the old tenant's rows). A refusal keeps the old tenant. */
+/* specs/026 §6: a member of several tenants switches here (useTenantSwitch,
+   shared with the phone top bar's sheet, SPL-995). */
+const tenantSwitch = useTenantSwitch()
+const switching = tenantSwitch.switching
+const switchFailed = tenantSwitch.failed
 async function onTenantChange(ev: Event) {
   const el = ev.target
   if (!(el instanceof HTMLSelectElement)) return
-  const want = el.value
-  const box = tenantBox.value
-  if (!box.canSwitch || api.mock || switching.value || !want || want === box.selected) {
-    el.value = box.selected
-    return
-  }
-  switching.value = true
-  switchFailed.value = false
-  /* SPL-959: with tenant hosts on, a tenant IS its host: go there, same path. */
-  const hostUrl = await tenantHostUrl(want, window.location.pathname)
-  if (hostUrl) {
-    window.location.assign(hostUrl)
-    return
-  }
-  const out = await authClient.switchTenant(want)
-  if (out.ok) {
-    window.location.assign(localePath('/'))
-    return
-  }
-  switching.value = false
-  switchFailed.value = true
-  el.value = box.selected
+  if (!(await tenantSwitch.switchTo(el.value))) el.value = tenantBox.value.selected
 }
 const localePath = useLocalePath()
 /* No "All issues" row. With no epic rows the panel is empty, so the
@@ -1433,11 +1412,11 @@ async function onCreate() {
   fill: currentColor;
   color: var(--color-fg);
 }
-/* SPL-989: the phone's level-1 header row, a 44 px target */
+/* SPL-995: on a phone the switcher is in the top bar (TopBarTenant), not
+   in the level-1 strip - never shown twice */
 @media (max-width: 820px) {
-  .tenant-switcher { min-height: var(--tap); }
-  /* the whole bordered box opens the list (SPL-71), so the box is the target */
-  .tenant-switcher__field { min-height: var(--tap); min-width: var(--tap); }
+  .tenant-switcher,
+  .tenant-switcher__error { display: none; }
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }

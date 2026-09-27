@@ -4,7 +4,8 @@
      language switcher + the user menu (the former .app-corner, CLE-3402 /
      spec 021). On a phone the Omnibox folds into a search icon.
      SPL-990 (<= 820 px, the mobile revamp): ONE compact row - the tenant
-     name, the search icon, the avatar menu (Back is M1's MobileBack in each
+     switcher (SPL-995: a drop box opening a bottom sheet, next to the
+     search icon), the search icon, the avatar menu (Back is M1's MobileBack in each
      pane header). The icon opens a full-screen search/command sheet with the
      composer (and its GO) at the top; the theme, language and notification
      controls live in the avatar menu's bottom sheet. Above 820 px nothing
@@ -15,7 +16,8 @@
       <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
       <ThemeToggle />
     </div>
-    <span class="top-bar__tenant" data-test="top-bar-tenant" :title="tenantName">{{ tenantName }}</span>
+    <!-- SPL-995: the tenant switcher, directly before the search icon -->
+    <TopBarTenant class="top-bar__tenant" />
     <div
       class="top-bar__omnibox"
       data-test="top-bar-omnibox"
@@ -95,7 +97,7 @@ import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey } from '~/utils/send-failure.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
-import { tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
+import TopBarTenant from '~/components/TopBarTenant.vue'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -109,13 +111,6 @@ const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const expanded = ref(false)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
-
-/* SPL-990: the phone row names the tenant (switching stays in the rail) */
-const tenantName = computed(() => {
-  const box = tenantSwitchOptions(session.claims, api.tenant)
-  const row = box.options.find((o: { id: string, label: string }) => o.id === box.selected)
-  return (row && row.label) || box.selected || ''
-})
 
 function onDocKey(ev: KeyboardEvent) {
   const root = document.querySelector('[data-test=top-bar-omnibox]')
@@ -337,17 +332,14 @@ onUnmounted(() => {
   }
   .top-bar__start,
   .top-bar__lang { display: none; }
+  /* SPL-995: [tenant ▾] [search] [avatar] at the end of the row; the box
+     hugs the name and shrinks to an ellipsis before anything else moves */
   .top-bar__tenant {
-    display: block;
-    flex: 1 1 auto;
-    min-width: 0;
-    padding-inline: 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--color-fg);
+    display: flex;
+    flex: 0 1 auto;
+    min-width: var(--tap);
+    max-width: min(20rem, 100%);
+    margin-inline-start: auto;
   }
   .top-bar__omnibox { display: none; }
   /* display:contents, never none, while M3's composer is docked: a

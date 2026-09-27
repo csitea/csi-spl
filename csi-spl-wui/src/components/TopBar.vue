@@ -2,18 +2,32 @@
      MessageComposer, so the ``` code-block composer works in it; plain text
      goes to the page's send target, `/search <q>` opens /search?q=) | the
      language switcher + the user menu (the former .app-corner, CLE-3402 /
-     spec 021). On a phone the Omnibox folds into a search icon. -->
+     spec 021). On a phone the Omnibox folds into a search icon.
+     SPL-990 (<= 820 px, the mobile revamp): ONE compact row - the tenant
+     name, the search icon, the avatar menu (Back is M1's MobileBack in each
+     pane header). The icon opens a full-screen search/command sheet with the
+     composer (and its GO) at the top; the theme, language and notification
+     controls live in the avatar menu's bottom sheet. Above 820 px nothing
+     here renders differently. -->
 <template>
   <header class="top-bar" data-test="top-bar" :class="{ 'top-bar--open': expanded }">
     <div class="top-bar__start" data-test="top-bar-start">
       <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
       <ThemeToggle />
     </div>
-    <div class="top-bar__omnibox" data-test="top-bar-omnibox">
+    <span class="top-bar__tenant" data-test="top-bar-tenant" :title="tenantName">{{ tenantName }}</span>
+    <div
+      class="top-bar__omnibox"
+      data-test="top-bar-omnibox"
+      :role="expanded ? 'dialog' : undefined"
+      :aria-modal="expanded ? 'true' : undefined"
+      :aria-label="expanded ? t('search.open_omnibox') : undefined"
+    >
       <MessageComposer
         ref="composer"
         omnibox
         global
+        :dock="!expanded"
         :placeholder="placeholder"
         :busy="busy"
         :send-blocked="!omnibox.target"
@@ -62,7 +76,7 @@
       <UiIcon name="search" :size="20" />
     </button>
     <div class="top-bar__end app-corner" data-test="app-corner">
-      <LanguageSwitcher />
+      <div class="top-bar__lang"><LanguageSwitcher /></div>
       <UserMenu />
     </div>
   </header>
@@ -81,6 +95,7 @@ import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey } from '~/utils/send-failure.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
+import { tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -94,6 +109,13 @@ const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const expanded = ref(false)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
+
+/* SPL-990: the phone row names the tenant (switching stays in the rail) */
+const tenantName = computed(() => {
+  const box = tenantSwitchOptions(session.claims, api.tenant)
+  const row = box.options.find((o: { id: string, label: string }) => o.id === box.selected)
+  return (row && row.label) || box.selected || ''
+})
 
 function onDocKey(ev: KeyboardEvent) {
   const root = document.querySelector('[data-test=top-bar-omnibox]')
@@ -171,6 +193,9 @@ function expand() {
 function onDismiss() {
   expanded.value = false
 }
+
+/* a /search navigates: the sheet has done its job, the results show */
+watch(() => route.fullPath, () => { if (expanded.value) onDismiss() })
 
 /* a deep link /search?q=… shows its query in the Omnibox, ready to refine */
 const onSearchPage = computed(() => /\/search$/.test(route.path))
@@ -291,35 +316,88 @@ onUnmounted(() => {
   flex-shrink: 0;
   min-width: 0;
 }
-/* FR-003: phone — the Omnibox folds into the icon; opened, it covers the bar */
-@media (max-width: 640px) {
+/* SPL-990: phone-only parts; above 820 px they take no space at all */
+.top-bar__tenant { display: none; }
+.top-bar__lang { display: contents; }
+
+/* SPL-990 (was FR-003 at 640 px): phones and small tablets. One compact
+   row: tenant | search | avatar. The Omnibox is no longer in
+   the row: with a send target the composer docks at the bottom (M3,
+   MessageComposer `dock`), without one it is hidden; the search icon opens
+   it as a full-screen sheet with the composer and its GO at the top. */
+@media (max-width: 820px) {
+  .top-bar {
+    gap: 4px;
+    padding-inline: 4px 8px;
+  }
+  .top-bar__start,
+  .top-bar__lang { display: none; }
+  .top-bar__tenant {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-fg);
+  }
   .top-bar__omnibox { display: none; }
-  .top-bar__search-toggle { display: inline-grid; place-items: center; }
+  /* display:contents, never none, while M3's composer is docked: a
+     display:none ancestor would hide the fixed bottom dock too. Keyed on the
+     composer's own class, so a page without a send target keeps it hidden. */
+  .top-bar__omnibox:has(> .composer--dock) { display: contents; }
+  .top-bar__send-error {
+    position: fixed;
+    inset-inline: 8px;
+    bottom: calc(var(--kb-inset, 0px) + var(--composer-dock-h, 0px) + 8px);
+    margin: 0;
+  }
+  .top-bar__search-toggle {
+    display: inline-grid;
+    place-items: center;
+    margin-inline-start: 0;
+    border: 0;
+  }
   .top-bar--open .top-bar__omnibox {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: flex-start;
+    align-content: flex-start;
     gap: 6px;
-    position: absolute;
-    z-index: 2;
-    inset-inline: 0;
-    top: 0;
+    position: fixed;
+    z-index: var(--z-overlay, 1000);
+    inset: 0;
+    /* the desktop slot is align-self:center, which would also centre this
+       fixed box inside its insets at content height */
+    align-self: stretch;
+    justify-self: stretch;
     height: auto;
     max-height: none;
-    max-width: 100%;
-    padding: 4px 8px;
-    background: var(--color-sidebar);
-    border-bottom: 1px solid var(--color-border);
+    max-width: none;
+    margin: 0;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-bg);
     box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+  /* close on its own row at the top end, the composer full width under it */
+  .top-bar--open .top-bar__omnibox > .composer { flex: 1 0 100%; min-width: 0; }
   .top-bar--open .top-bar__send-error {
-    position: absolute;
-    top: 100%;
-    inset-inline: 0;
+    position: static;
+    flex: 1 0 100%;
   }
-  .top-bar--open .top-bar__omnibox > :first-child { flex: 1; min-width: 0; }
   .top-bar--open .top-bar__close {
+    order: -1;
+    margin-inline-start: auto;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     min-width: var(--tap);
     min-height: var(--tap);
     width: var(--tap);

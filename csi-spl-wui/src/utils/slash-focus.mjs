@@ -12,7 +12,8 @@
  * returns focus to the previous element; pickers and the ``` composer
  * keep their own Escape.
  */
-export const MOBILE_MAX = 640
+/* SPL-990: the Omnibox folds at 820 px now, with the mobile layout */
+export const MOBILE_MAX = 820
 
 const NON_TEXT_INPUT = new Set([
   'button', 'checkbox', 'radio', 'file', 'reset', 'submit', 'image', 'hidden', 'range', 'color',

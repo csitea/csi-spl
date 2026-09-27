@@ -155,10 +155,14 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
      measured on the deployed dev build 28ec27b as 40x234px at every viewport
      from 390 to 768. Pin the rail form, and pin that the control is hidden
      from NOBODY: a phone is where push matters most, so it keeps an
-     accessible name rather than being display:none'd like the labels. */
-  it('CLE-3433: in the collapsed rail the alerts control is an icon, and keeps its name', () => {
+     accessible name rather than being display:none'd like the labels.
+     SPL-990: at <= 820 px the rail is gone (full-width level 1) and the
+     controls move to the avatar bottom sheet; the rail copy hides, the menu
+     copy is never hidden. */
+  it('CLE-3433 / SPL-990: on a phone the alerts control is an icon in the avatar sheet, and keeps its name', () => {
     const vue = src('src/components/NotificationCenter.vue')
-    assert.match(vue, /@media \(max-width: 800px\)/)
+    assert.match(vue, /@media \(max-width: 820px\)/)
+    assert.match(src('src/components/UserMenu.vue'), /<NotificationCenter placement="menu" \/>/)
     assert.match(vue, /:aria-label="alertsLabel"/)
     assert.match(vue, /'bell' : 'bell-off'/)
     // owner 2026-09-26: the note is struck through when the chime is off, like the bell
@@ -171,12 +175,13 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     assert.match(vue, /notify\.chime_off/)
     assert.match(vue, /:aria-pressed="notes\.chime"/)
     assert.match(vue, /:aria-pressed="notes\.chime"/)
-    const rail = vue.slice(vue.indexOf('@media (max-width: 800px)'))
+    const rail = vue.slice(vue.indexOf('@media (max-width: 820px)'))
     /* owner 2026-09-26: icons at every width, so there is no text to hide */
     assert.doesNotMatch(vue, /class="notify-text"/)
     assert.match(vue, /\.notify-glyph \{ display: block; \}/)
-    /* the control itself is never removed */
-    assert.doesNotMatch(rail, /\.notify-box \{[^}]*display:\s*none/)
+    /* the control itself is never removed: only the rail copy steps aside */
+    assert.match(rail, /\.notify-box--rail \{ display: none; \}/)
+    assert.doesNotMatch(rail, /\.notify-box(--menu)? \{[^}]*display:\s*none/)
     assert.doesNotMatch(rail, /\.notify-alerts \{[^}]*display:\s*none/)
     assert.match(src('src/utils/uiIcons.ts'), /\n  bell: \[/)
   })

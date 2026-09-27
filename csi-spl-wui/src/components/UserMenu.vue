@@ -7,7 +7,10 @@
      opens a dropdown: who they are, Settings, Sign out. Signed out → the sign-in entry.
      WAI-ARIA menu button: Enter/Space (click) and ArrowDown open on the first item,
      ArrowUp on the last; arrows wrap, Home/End jump, Escape closes and returns
-     focus to the button, Tab or a click outside closes. -->
+     focus to the button, Tab or a click outside closes.
+     SPL-990 (<= 820 px): the panel is a bottom sheet over a scrim, and it
+     carries what the phone top bar has no room for - language, theme and the
+     notification toggles (the rail's copy hides itself there). -->
 <template>
   <div ref="root" class="user-menu" data-test="user-menu">
     <template v-if="signedIn">
@@ -32,11 +35,19 @@
         </span>
       </button>
       <div
+        v-if="open"
+        class="user-menu__scrim"
+        data-test="user-menu-scrim"
+        aria-hidden="true"
+        @click="close(true)"
+      />
+      <div
         v-show="open"
         :id="menuId"
         class="user-menu__panel"
         data-test="user-menu-panel"
       >
+        <span class="user-menu__grip" aria-hidden="true" />
         <div class="user-menu__who" data-test="user-menu-who">
           <span class="user-menu__avatar user-menu__avatar--lg" :class="'user-menu__avatar--' + (ownPic ? 'member' : mode)" aria-hidden="true">
             <img v-if="ownPic" class="spool-avatar" data-test="user-menu-picture" :src="ownPic" :width="40" :height="40" :style="{ width: '40px', height: '40px' }" alt="" draggable="false" @error="ownPic = ''">
@@ -49,6 +60,22 @@
             <span v-if="me.secondary" class="user-menu__secondary" data-test="user-menu-secondary">{{ me.secondary }}</span>
             <span v-if="access.roleKey" class="user-menu__secondary" data-test="user-menu-role">{{ t('user_menu.role', { role: t(access.roleKey) }) }}</span>
           </span>
+        </div>
+        <!-- mounted while open, SHOWN only <= 820 px (CSS), so the phone
+             never depends on script to reach these controls -->
+        <div v-if="open" class="user-menu__prefs" data-test="user-menu-prefs">
+          <div class="user-menu__pref" data-test="user-menu-language">
+            <span class="user-menu__pref-label">{{ t('nav.lang_label') }}</span>
+            <LanguageSwitcher />
+          </div>
+          <div class="user-menu__pref" data-test="user-menu-theme">
+            <span class="user-menu__pref-label">{{ t('settings.theme') }}</span>
+            <ThemeToggle align="end" />
+          </div>
+          <div class="user-menu__pref" data-test="user-menu-notify">
+            <span class="user-menu__pref-label">{{ t('settings.notifications') }}</span>
+            <NotificationCenter placement="menu" />
+          </div>
         </div>
         <ul role="menu" class="user-menu__items" :aria-label="buttonLabel" @keydown="onMenuKey">
           <li role="none">
@@ -99,12 +126,18 @@
 </template>
 
 <script setup lang="ts">
+import ThemeToggle from '@/components/ThemeToggle.vue'
+/* SPL-990: only a phone's sheet mounts these two; async keeps them out of
+   the first paint */
+const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
+const NotificationCenter = defineAsyncComponent(() => import('@/components/NotificationCenter.vue'))
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const session = useSessionStore()
 const access = useAccessStore()
@@ -145,7 +178,14 @@ function items(): HTMLElement[] {
   return [item0.value?.$el, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
+/* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
+   media query is read too, for a shell that has not installed the stack. */
+const narrow = useMobileStack().isMobile
+const phone = () => narrow.value || window.matchMedia('(max-width: 820px)').matches
+
 function placePanel() {
+  // the bottom sheet is placed by CSS, not next to the button
+  if (phone()) return
   const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
   const btn = trigger.value
   if (!panel || !btn) return
@@ -219,8 +259,19 @@ function onDocPointer(e: PointerEvent) {
   if (open.value && root.value && !root.value.contains(e.target as Node)) close(false)
 }
 
-onMounted(() => document.addEventListener('pointerdown', onDocPointer))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer))
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocPointer)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocPointer)
+})
+/* a rotation across the line: the popover styles of one layout must not
+   stick to the other */
+watch(narrow, () => {
+  const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
+  if (panel) panel.removeAttribute('style')
+  if (open.value) close(false)
+})
 watch(() => route.fullPath, () => { if (open.value) close(false) })
 watch(signedIn, (v) => { if (!v) close(false) })
 </script>
@@ -333,5 +384,65 @@ watch(signedIn, (v) => { if (!v) close(false) })
 .user-menu__item:hover, .user-menu__item:focus { background: var(--color-surface-hover); }
 @media (max-width: 640px) {
   .user-menu__signin-label { display: none; }
+}
+.user-menu__grip, .user-menu__prefs { display: none; }
+/* SPL-990: the bottom sheet. !important beats a leftover inline popover
+   style from a desktop open before a rotation (the watch clears it too). */
+@media (max-width: 820px) {
+  .user-menu__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay, 1000);
+    background: rgb(0 0 0 / .45);
+  }
+  .user-menu__panel {
+    position: fixed !important;
+    inset-inline: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 85dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
+    border-bottom: 0;
+    padding: 6px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+    z-index: calc(var(--z-overlay, 1000) + 1);
+  }
+  .user-menu__grip {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 2px auto 6px;
+    border-radius: var(--radius-pill, 999px);
+    background: var(--color-border-strong);
+  }
+  .user-menu__prefs {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .user-menu__pref {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: var(--tap, 44px);
+    padding: 2px 14px;
+    min-width: 0;
+  }
+  .user-menu__pref-label {
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .user-menu__item { min-height: 48px; }
+  /* async child: its root does not carry this scope id, hence :deep */
+  .user-menu__pref :deep(.lang-switcher) { flex: 0 1 14rem; min-width: 0; }
+  .user-menu__pref :deep(.lang-switcher__combobox) { width: 100%; }
+  .user-menu__pref-label { flex: 0 0 auto; }
 }
 </style>

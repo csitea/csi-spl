@@ -88,11 +88,12 @@ describe('isOpenModal / isMobileViewport', () => {
     assert.equal(isOpenModal(closed), false)
     assert.equal(isOpenModal(null), false)
   })
-  it('phones are ≤ 640px, matching the Omnibox fold', () => {
-    assert.equal(MOBILE_MAX, 640)
+  it('phones are ≤ 820px, matching the Omnibox fold (SPL-990)', () => {
+    assert.equal(MOBILE_MAX, 820)
     assert.equal(isMobileViewport(390), true)
-    assert.equal(isMobileViewport(640), true)
-    assert.equal(isMobileViewport(641), false)
+    assert.equal(isMobileViewport(820), true)
+    assert.equal(isMobileViewport(821), false)
+    assert.match(read('src/components/TopBar.vue'), /@media \(max-width: 820px\)/)
     assert.equal(isMobileViewport(1280), false)
     assert.equal(isMobileViewport(undefined), false)
   })

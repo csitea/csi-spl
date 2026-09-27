@@ -33,6 +33,7 @@
     "test:e2e:display-name": "node tests/e2e/display-name.test.mjs",
     "test:e2e:typed-by": "node tests/e2e/typed-by.test.mjs",
     "test:e2e:open-parent": "node tests/e2e/open-parent-section.test.mjs",
+    "test:e2e:top-bar-mobile": "node tests/e2e/top-bar-mobile.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

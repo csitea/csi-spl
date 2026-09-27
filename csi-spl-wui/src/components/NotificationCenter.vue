@@ -1,7 +1,7 @@
 <template>
   <!-- owner, 2026-09-26: icons only, one row; the words are the hover text
        (title) and the screen-reader name (aria-label). -->
-  <div class="notify-box">
+  <div class="notify-box" :class="'notify-box--' + placement" :data-testid="'notify-box-' + placement">
     <button
       class="icon-btn notify-alerts"
       type="button"
@@ -31,6 +31,9 @@
 <script setup lang="ts">
 import { useNotificationStore } from '~/stores/notification'
 
+/* SPL-990: 'rail' is the sidebar's copy (desktop); 'menu' is the one in the
+   phone avatar sheet. At <= 820 px the rail copy steps aside for it. */
+withDefaults(defineProps<{ placement?: 'rail' | 'menu' }>(), { placement: 'rail' })
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
 const alertsWanted = computed(() => notes.alertsEnabled)
@@ -59,11 +62,12 @@ const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') :
 .notify-chime:not(.on) { opacity: 1; color: var(--color-fg); }
 .notify-glyph { display: block; }
 
-/* CLE-3433 - the collapsed rail (<= 800px). The controls were text buttons
-   that wrapped into a column of single letters at 40px wide; they are icons
-   now at every width, so the rail only stacks them. Neither is removed: a
-   phone is where push matters most, and both keep their accessible name. */
-@media (max-width: 800px) {
-  .notify-box { flex-direction: column; }
+/* SPL-990: at <= 820 px there is no collapsed rail any more (M1's level 1
+   is full width) and the bell + chime live in the avatar sheet, so the
+   rail's copy steps aside. Neither control is removed: both keep their
+   accessible name in the menu copy. */
+@media (max-width: 820px) {
+  .notify-box--rail { display: none; }
+  .notify-alerts, .notify-chime { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }
 </style>

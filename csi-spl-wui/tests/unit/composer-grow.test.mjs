@@ -112,7 +112,9 @@ describe('composer growth (CLE-3437)', () => {
     assert.match(child, /min-height:\s*0/)
     const phone = vue.slice(vue.indexOf('.top-bar--open .top-bar__omnibox {'))
     const phoneBody = phone.slice(0, phone.indexOf('}'))
-    assert.match(phoneBody, /position:\s*absolute/)
+    // SPL-990: on a phone the opened Omnibox is a full-screen sheet
+    assert.match(phoneBody, /position:\s*fixed/)
+    assert.match(phoneBody, /inset:\s*0/)
     assert.match(phoneBody, /max-height:\s*none/)
     assert.match(phoneBody, /flex-direction:\s*row/)
     const box = read('src/components/MessageComposer.vue')

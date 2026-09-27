@@ -391,4 +391,10 @@ async function onSelect(loc: LocaleEntry | null) {
   white-space: nowrap;
   border: 0;
 }
+/* SPL-990: phones (the avatar sheet, the sign-in frame): a 44 px target */
+@media (max-width: 820px) {
+  .lang-switcher__input,
+  .lang-switcher__button { min-height: var(--tap, 44px); }
+  .lang-switcher__button { min-width: var(--tap, 44px); }
+}
 </style>

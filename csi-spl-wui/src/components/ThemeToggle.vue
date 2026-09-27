@@ -223,4 +223,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer))
 .theme-picker__swatch--light-red { background: linear-gradient(135deg, #fbeeee 50%, #9a3d58 50%); }
 .theme-picker__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .theme-picker__check { color: var(--color-accent); flex-shrink: 0; }
+/* SPL-990: phones (the avatar sheet, Settings): a 44 px target */
+@media (max-width: 820px) {
+  .theme-toggle { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+}
 </style>

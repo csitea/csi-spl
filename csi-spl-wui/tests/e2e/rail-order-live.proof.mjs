@@ -147,7 +147,8 @@ try {
   const q = await (await browser.createBrowserContext()).newPage()
   await q.setViewport({ width: 390, height: 844, hasTouch: true, isMobile: true })
   await signIn(q)
-  await q.goto(`${BASE}/lobby`, { waitUntil: 'networkidle2' })
+  /* phones: / is the sidebar level with the rail (SPL-989); /lobby is level 2 */
+  await q.goto(`${BASE}/`, { waitUntil: 'networkidle2' })
   await q.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: 15000 })
   await sleep(1000)
   step('another device: the same order after sign-in', same(await railOf(q), wantDown), { rail: await railOf(q) })

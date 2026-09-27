@@ -110,16 +110,16 @@ describe('tenantSwitchOptions (specs/026 §6)', () => {
   })
 
   it('SPL-71: rows keep the hub order (tenants.sort_order), never re-sorted by id or name', () => {
-    // the owner's order, 2026-09-26: csitea, relishbg, pawspoon, orange, globex
+    // a hub order: csitea, hooli, stark, wayne, globex
     const hub = [
       { tenant_id: 't1', display_name: 'csitea' },
-      { tenant_id: 'csi-rel', display_name: 'relishbg' },
-      { tenant_id: 'umbrella', display_name: 'pawspoon' },
-      { tenant_id: 'initech', display_name: 'orange' },
+      { tenant_id: 'csi-rel', display_name: 'hooli' },
+      { tenant_id: 'umbrella', display_name: 'stark' },
+      { tenant_id: 'initech', display_name: 'wayne' },
       { tenant_id: 'globex', display_name: 'globex' },
     ]
     const box = tenantSwitchOptions({ active_tenant: 'initech', tenants: hub })
-    assert.deepEqual(box.options.map((o) => o.label), ['csitea', 'relishbg', 'pawspoon', 'orange', 'globex'])
+    assert.deepEqual(box.options.map((o) => o.label), ['csitea', 'hooli', 'stark', 'wayne', 'globex'])
     assert.equal(box.selected, 'initech')
     const none = tenantSwitchOptions({ tenants: hub })
     assert.deepEqual(none.options.map((o) => o.id), ['', 't1', 'csi-rel', 'umbrella', 'initech', 'globex'])

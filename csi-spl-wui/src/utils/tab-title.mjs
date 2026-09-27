@@ -2,9 +2,9 @@
  * The browser tab's title (owner, topic d1f76e76, 2026-09-26): "the text on
  * the chrome tabs for each tab should be <tenant-name>.spool-hub". The name
  * is the tenant's DISPLAY name, the one in the tenant drop box
- * (fixedTenantOption), e.g. "relishbg.spool-hub". The apex tenant (t1, whose
+ * (fixedTenantOption), e.g. "hooli.spool-hub". The apex tenant (t1, whose
  * display name is itself "spool-hub") is plain "spool-hub". A page title, when
- * a page sets one, stays in front: "Search: x · relishbg.spool-hub".
+ * a page sets one, stays in front: "Search: x · hooli.spool-hub".
  */
 import { fixedTenantOption } from './tenant-switcher.mjs'
 

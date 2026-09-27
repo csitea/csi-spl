@@ -44,4 +44,11 @@
 - [ ] T047 (FR-047) the search ceiling: owner decision D-S1..D-S4 (§9). Open.
 - [x] T048 (FR-040) `type:issue` (aliases issues, ticket(s); grammar 1.2, hub 0.7.1): `status:` / `priority:` / `assignee:` (me, none) / `label:`, the store's closed sets (no copy), an issue-only operator implies `type:issue`; opt-in otherwise. Check: `search/issue_test.go`, `store/search_issue_test.go`, `hub/search_issue_test.go` (incl. CONTROLS: other tenant, plain query, `assignee:me` as another reader).
 
-<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T07:44:43Z -->
+## Phase 6 — Search refactor: Open original (owner 2026-09-27, spec §10)
+
+- [x] T050 (§10.1) review of the shipped flow, screenshots posted in prd t1 topic `58397faf`.
+- [ ] T051 (FR-050, FR-051, FR-053, FR-054) `searchRowMenuItems` / `originalTarget` in `utils/search-results.mjs`, `SearchRowMenu.vue`, row button + right-click + long press, default click = Open original. Check: `node --test tests/unit/search-original.test.mjs`.
+- [ ] T052 (FR-052) the hit marked at the original. Check: `tests/e2e/search-original-live.proof.mjs` on dev t1 (desktop + phone).
+- [ ] T053 live on dev AND prd (by commit, `/build.json`).
+
+<!-- version: 1.3.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:40:00Z -->

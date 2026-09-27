@@ -177,4 +177,42 @@ the planner's row estimate (it planned 199 018 rows for 7).
   stops aggregating messages at all;
 - D-S4 accept the ceiling (prd is 1 696 messages today) and revisit when a tenant nears 100k.
 
-<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T07:44:43Z -->
+## 10. Search refactor: Open original (owner 2026-09-27, CLE-35063)
+
+> Owner, prd t1, topic `e615e3fd`: "the whole search use case must be refactored ..."; topic `58397faf`:
+> "basically once a search listing is received and one clicks on it, the search listing's right menu should
+> have the option 'open original', which will open the direct message or the channel etc."
+
+### 10.1 Review of the flow as shipped (dev t1, WUI 1.1.1 `9eccd0ad`, 1440x900 and 390x844, n=1)
+
+| # | step | what happens today | verdict |
+|---|---|---|---|
+| R1 | `/search deploy` in the Omnibox | `/search?q=deploy`, grouped sections, highlights from offsets | works |
+| R2 | right-click a result | the browser's own menu; a search row has no menu and no row button | **missing** |
+| R3 | click / Enter on a message hit | the hit's TOPIC opens in the right pane of the search page (`?topic=`); the pane opens at its top and the hit is focused with `preventScroll`, so a hit further down is not on screen | **awkward**: FR-023 "scrolled to the message" is not what the reader sees |
+| R4 | reaching the DM / channel the hit lives in | only by a second step: right-click the line inside the right pane, then "Open parent section" (CLE-34996) | **missing on the row** |
+| R5 | phone (<= 820 px, dock since SPL-1005) | a tap replaces the list with the topic pane (level 3); the hit is not scrolled to; there is no long-press sheet on a row | **awkward** |
+| R6 | topic / file hits | the same preview as R3; a topic row carries no `from`/`to`, so its DM peer is unknown to the WUI | fallback needed |
+| R7 | grammar, backend (`spool_search`, rdb 0048, counts of SPL-1008) | not changed by this section | keep |
+
+### 10.2 Requirements
+
+- **FR-050** Every search result row has a **right menu**: right-click, a row button (the ≡ of a sidebar row,
+  shown on hover / focus / the active row, always on a phone) and, on a phone, a long press, which opens it as
+  the bottom sheet (SPL-991). Items, in order: **Open original**, **Show here** (message, topic and file rows
+  only: today's right-pane preview), **Copy link** (the original's address).
+- **FR-051** **Open original is the default**: click, Enter on the active row and a tap all do it.
+  - message / file → the place it was posted: `/channel/<id>` or `/dm/<peer>` with `?topic=` (and `?in=`) and
+    `#<msg_id>`, the parent card revealed in the middle and the thread open on the right (the same
+    `parentSection` / `openParentSection` as "Open parent section", one implementation); a message in the issue
+    channel → `/issues?issue=<key>`.
+  - topic → its channel with `?topic=`; a topic whose place the row cannot name (a DM topic: no peer on the
+    row) → the topic page `/t/<task_id>`.
+  - every other row type: its FR-023 target, unchanged (a user or robot IS its DM, a channel IS its channel).
+- **FR-052** At the original, the hit is scrolled to and marked: the thread pane moves the `#<msg_id>` line to
+  its top and focuses it (the existing hash rule of `LiveFeed`), and the line carries the `search-focus` flash.
+- **FR-053** Back returns to `/search?q=` with the query and the results (the original is a `router.push`).
+- **FR-054** No grammar, hub or rdb change. The menu is lazy (mounted on open), so the initial chunk
+  (027 ceiling) does not grow.
+
+<!-- version: 1.3.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:40:00Z -->

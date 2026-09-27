@@ -307,8 +307,8 @@ try {
       }
       if (mobile) {
         const big = (s) => s && s[0] >= 44 && s[1] >= 44
-        /* D3: on a phone the emoji button may move into the long-press sheet (8378bab3); absent = ok, present = 44 px and a picker in view */
-        const emojiOk = !W.flows.emojiBtn || (big(W.flows.emojiBtn) && W.flows.emoji?.open && W.flows.emoji?.inView)
+        /* D3 as amended by the owner (e0b12a2c, 2026-09-27): the emoji button stays visible on phones, 44 px, and its picker opens in view */
+        const emojiOk = !!(big(W.flows.emojiBtn) && W.flows.emoji?.open && W.flows.emoji?.inView)
         score(key, 'msg-actions', !!(big(W.flows.menuBtn) && emojiOk),
           `menu ${W.flows.menuBtn} emoji ${W.flows.emojiBtn} picker ${JSON.stringify(W.flows.emoji || null)}`)
       }

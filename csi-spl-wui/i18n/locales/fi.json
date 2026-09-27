@@ -740,6 +740,7 @@
       "fallback_standby": "saa viestit vain silloin, kun yksikään jäsenagentti ei ole paikalla",
       "fallback_none": "Tässä työtilassa ei ole yhtään agenttia paikalla: täällä julkaistu viesti ei nyt tavoita agenttia.",
       "fallback_recent": "{count} vastaamatonta viestiä meni sille viimeisen 7 päivän aikana, uusin agentille {id} {at} UTC",
+      "fallback_off": "pois päältä tällä kanavalla: vastaamaton viesti ei täällä tavoita agenttia",
       "default_everyone": "Oletuskanavalla ovat kaikki ihmiset, eikä ketään voi poistaa sieltä. Agentti on kanavalla vasta, kun joku lisää sen."
     }
   },

@@ -740,6 +740,7 @@
       "fallback_standby": "gönderileri yalnızca hiçbir üye ajan çevrimiçi değilken alır",
       "fallback_none": "Bu çalışma alanında çevrimiçi ajan yok: buradaki bir gönderi şu anda hiçbir ajana ulaşmaz.",
       "fallback_recent": "Son 7 günde {count} yanıtsız gönderi ona gitti, en yenisi {at} UTC'de {id} ajanına",
+      "fallback_off": "bu kanal için kapalı: buradaki yanıtsız bir gönderi hiçbir ajana ulaşmaz",
       "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
     }
   },

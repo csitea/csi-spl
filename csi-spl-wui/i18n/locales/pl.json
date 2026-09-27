@@ -740,6 +740,7 @@
       "fallback_standby": "otrzymuje wpisy tylko wtedy, gdy żaden agent członek nie jest online",
       "fallback_none": "W tym obszarze roboczym żaden agent nie jest online: wpis tutaj nie trafia teraz do żadnego agenta.",
       "fallback_recent": "{count} wpisów bez odpowiedzi trafiło do niego w ciągu ostatnich 7 dni, najnowszy do {id} o {at} UTC",
+      "fallback_off": "wyłączony w tym kanale: wpis bez odpowiedzi nie trafia tu do żadnego agenta",
       "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda."
     }
   },

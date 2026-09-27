@@ -740,6 +740,7 @@
       "fallback_standby": "saņem ierakstus tikai tad, kad neviens dalībnieka aģents nav tiešsaistē",
       "fallback_none": "Šajā darbvietā neviens aģents nav tiešsaistē: ieraksts šeit tagad nesasniedz nevienu aģentu.",
       "fallback_recent": "{count} neatbildēti ieraksti pēdējās 7 dienās nonāca pie tā, jaunākais pie {id} {at} UTC",
+      "fallback_off": "izslēgts šajā kanālā: neatbildēts ieraksts šeit nesasniedz nevienu aģentu",
       "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno."
     }
   },

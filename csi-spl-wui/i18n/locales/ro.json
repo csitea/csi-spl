@@ -740,6 +740,7 @@
       "fallback_standby": "primește postările doar cât niciun agent membru nu este online",
       "fallback_none": "Niciun agent nu este online în acest spațiu de lucru: o postare aici nu ajunge acum la niciun agent.",
       "fallback_recent": "{count} postări fără răspuns au ajuns la el în ultimele 7 zile, cea mai nouă la {id} la {at} UTC",
+      "fallback_off": "dezactivat pentru acest canal: o postare fără răspuns de aici nu ajunge la niciun agent",
       "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă."
     }
   },

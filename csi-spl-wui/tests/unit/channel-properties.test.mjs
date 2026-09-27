@@ -358,16 +358,22 @@ describe('SPL-997: the fallback responder line (spec 038 FR-035)', () => {
   it('names the agent a post goes to when no member agent is online', () => {
     assert.deepEqual(channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: true,
       recent: { count: 3, id: 'CLE-001', at: '2026-09-27T10:40:12Z' } }),
-    { id: 'CLE-001', box: 'box-desk', active: true, recent: { count: 3, id: 'CLE-001', at: '2026-09-27 10:40' } })
+    { id: 'CLE-001', box: 'box-desk', active: true, off: false, recent: { count: 3, id: 'CLE-001', at: '2026-09-27 10:40' } })
     assert.deepEqual(channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: false, recent: { count: 0 } }),
-      { id: 'CLE-001', box: 'box-desk', active: false, recent: { count: 0, id: '', at: '' } })
+      { id: 'CLE-001', box: 'box-desk', active: false, off: false, recent: { count: 0, id: '', at: '' } })
   })
   it('an empty id is "no agent online"; an older hub says nothing', () => {
     assert.deepEqual(channelFallbackLine({ id: '', box: '', active: true, recent: { count: 0 } }),
-      { id: '', box: '', active: true, recent: { count: 0, id: '', at: '' } })
+      { id: '', box: '', active: true, off: false, recent: { count: 0, id: '', at: '' } })
     assert.equal(channelFallbackLine(undefined), null)
     assert.equal(channelFallbackLine(null), null)
     assert.equal(channelFallbackLine({ id: 'HUM-4', box: 'box-wui' }).id, '')
+  })
+  it('a channel that opted out (FR-039) is off and never active', () => {
+    const l = channelFallbackLine({ id: 'CLE-001', box: 'box-desk', active: true, off: true, recent: { count: 0 } })
+    assert.equal(l.off, true)
+    assert.equal(l.active, false)
+    assert.match(src('src/components/ChannelPropertiesDialog.vue'), /data-testid="channel-fallback-off"/)
   })
   it('both agent lists render the line, and every locale has its strings', () => {
     const vue = src('src/components/ChannelPropertiesDialog.vue')
@@ -377,7 +383,7 @@ describe('SPL-997: the fallback responder line (spec 038 FR-035)', () => {
     const dir = join(WUI, 'i18n/locales')
     for (const f of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
       const p = JSON.parse(readFileSync(join(dir, f), 'utf8')).channels.properties
-      for (const k of ['fallback_label', 'fallback_active', 'fallback_standby', 'fallback_none', 'fallback_recent']) {
+      for (const k of ['fallback_label', 'fallback_active', 'fallback_standby', 'fallback_none', 'fallback_recent', 'fallback_off']) {
         assert.equal(typeof p[k], 'string', f + ' ' + k)
       }
       for (const v of ['{count}', '{id}', '{at}']) assert.ok(p.fallback_recent.includes(v), f + ' fallback_recent ' + v)

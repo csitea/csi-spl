@@ -740,6 +740,7 @@
       "fallback_standby": "gauna įrašus tik tada, kai nė vienas nario agentas neprisijungęs",
       "fallback_none": "Šioje darbo erdvėje neprisijungęs nė vienas agentas: įrašas čia dabar nepasiekia jokio agento.",
       "fallback_recent": "{count} neatsakytų įrašų nuėjo jam per paskutines 7 dienas, naujausias agentui {id} {at} UTC",
+      "fallback_off": "išjungtas šiame kanale: neatsakytas įrašas čia nepasiekia jokio agento",
       "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
     }
   },

@@ -223,12 +223,13 @@
           </ul>
           <p v-if="fallback" class="fallback-line muted" data-testid="channel-fallback">
             <span class="fallback-line__label">{{ t('channels.properties.fallback_label') }}:</span>
-            <template v-if="fallback.id">
+            <span v-if="fallback.off" data-testid="channel-fallback-off">{{ t('channels.properties.fallback_off') }}</span>
+            <template v-else-if="fallback.id">
               <span class="member-rows__name" data-testid="channel-fallback-id">{{ fallback.id }}</span>
               <span>{{ fallback.box }}</span>
               <span :data-testid="'channel-fallback-' + (fallback.active ? 'active' : 'standby')">{{ t(fallback.active ? 'channels.properties.fallback_active' : 'channels.properties.fallback_standby') }}</span>
             </template>
-            <span v-else data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
+            <span v-else-if="!fallback.off" data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
             <span v-if="fallback.recent.count" data-testid="channel-fallback-recent">{{ t('channels.properties.fallback_recent', { count: fallback.recent.count, id: fallback.recent.id, at: fallback.recent.at }) }}</span>
           </p>
           <p v-if="!canAdd && !isDefault" class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
@@ -259,12 +260,13 @@
         </ul>
         <p v-if="fallback" class="fallback-line muted" data-testid="channel-fallback-ro">
           <span class="fallback-line__label">{{ t('channels.properties.fallback_label') }}:</span>
-          <template v-if="fallback.id">
+          <span v-if="fallback.off" data-testid="channel-fallback-off">{{ t('channels.properties.fallback_off') }}</span>
+            <template v-else-if="fallback.id">
             <span class="member-rows__name" data-testid="channel-fallback-id">{{ fallback.id }}</span>
             <span>{{ fallback.box }}</span>
             <span :data-testid="'channel-fallback-' + (fallback.active ? 'active' : 'standby')">{{ t(fallback.active ? 'channels.properties.fallback_active' : 'channels.properties.fallback_standby') }}</span>
           </template>
-          <span v-else data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
+          <span v-else-if="!fallback.off" data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
           <span v-if="fallback.recent.count" data-testid="channel-fallback-recent">{{ t('channels.properties.fallback_recent', { count: fallback.recent.count, id: fallback.recent.id, at: fallback.recent.at }) }}</span>
         </p>
       </div>

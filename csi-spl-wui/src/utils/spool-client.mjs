@@ -280,6 +280,8 @@ export function channelAgentState(raw) {
  * so a post here reaches no agent now. active = no member agent is online, so
  * posts go to the fallback now. recent = the channel's fallback deliveries of
  * the last 7 days (count, newest agent, newest instant as YYYY-MM-DD HH:MM UTC).
+ * off = the channel opted out (FR-039, a proof / test channel): nobody gets
+ * its unheard posts.
  */
 export function channelFallbackLine(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -291,7 +293,7 @@ export function channelFallbackLine(raw) {
   const at = count && typeof rec.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(rec.at)
     ? rec.at.slice(0, 10) + ' ' + rec.at.slice(11, 16)
     : ''
-  return { id, box, active: raw.active === true, recent: { count, id: count ? String(rec.id || '') : '', at } }
+  return { id, box, active: raw.active === true && raw.off !== true, off: raw.off === true, recent: { count, id: count ? String(rec.id || '') : '', at } }
 }
 
 /** Agents that receive the channel. People and the browser box are not agents. */

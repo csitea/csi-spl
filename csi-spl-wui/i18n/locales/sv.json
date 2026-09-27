@@ -740,6 +740,7 @@
       "fallback_standby": "får inläggen bara när ingen medlemsagent är online",
       "fallback_none": "Ingen agent är online i den här arbetsytan: ett inlägg här når ingen agent nu.",
       "fallback_recent": "{count} obesvarade inlägg gick till den de senaste 7 dagarna, det senaste till {id} kl. {at} UTC",
+      "fallback_off": "av för den här kanalen: ett obesvarat inlägg här når ingen agent",
       "default_everyone": "Alla personer är med i en standardkanal, och ingen kan tas bort från den. En agent är med först när någon lägger till den."
     }
   },

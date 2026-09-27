@@ -740,6 +740,7 @@
       "fallback_standby": "gets the posts only while no member agent is online",
       "fallback_none": "No agent is online in this workspace: a post here reaches no agent now.",
       "fallback_recent": "{count} unanswered posts went to it in the last 7 days, the newest to {id} at {at} UTC",
+      "fallback_off": "off for this channel: an unanswered post here reaches no agent",
       "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it."
     }
   },

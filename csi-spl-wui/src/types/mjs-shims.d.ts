@@ -15,7 +15,7 @@ declare module '~/utils/spool-client.mjs' {
   export function canDeleteChannel(opts: { selfId?: string, row?: { channel_id?: string, default?: boolean, created_by?: string } }): boolean
   export type ChannelAgentState = '' | 'online' | 'offline' | 'unseated'
   export function channelAgentState(raw: { online?: boolean, seated?: boolean, state?: string } | null | undefined): ChannelAgentState
-  export function channelFallbackLine(raw: unknown): { id: string, box: string, active: boolean, recent: { count: number, id: string, at: string } } | null
+  export function channelFallbackLine(raw: unknown): { id: string, box: string, active: boolean, off: boolean, recent: { count: number, id: string, at: string } } | null
   export function channelAgentRows(agents: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }[]
   export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
   export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { people: string[], agents: { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }[] }

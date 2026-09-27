@@ -740,6 +740,7 @@
       "fallback_standby": "saab postitused ainult siis, kui ükski liikmest agent pole võrgus",
       "fallback_none": "Selles tööruumis pole ükski agent võrgus: siinne postitus ei jõua praegu ühegi agendini.",
       "fallback_recent": "{count} vastamata postitust läks talle viimase 7 päeva jooksul, uusim agendile {id} ajal {at} UTC",
+      "fallback_off": "selles kanalis väljas: vastamata postitus ei jõua siin ühegi agendini",
       "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
     }
   },

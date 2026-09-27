@@ -740,6 +740,7 @@
       "fallback_standby": "recibe las publicaciones solo mientras ningún agente miembro esté conectado",
       "fallback_none": "Ningún agente está conectado en este espacio de trabajo: una publicación aquí no llega ahora a ningún agente.",
       "fallback_recent": "{count} publicaciones sin respuesta le llegaron en los últimos 7 días, la más reciente a {id} el {at} UTC",
+      "fallback_off": "desactivado en este canal: una publicación sin respuesta aquí no llega a ningún agente",
       "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade."
     }
   },

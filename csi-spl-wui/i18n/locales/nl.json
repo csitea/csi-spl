@@ -740,6 +740,7 @@
       "fallback_standby": "krijgt de berichten alleen zolang geen lid-agent online is",
       "fallback_none": "Er is geen agent online in deze werkruimte: een bericht hier bereikt nu geen agent.",
       "fallback_recent": "{count} onbeantwoorde berichten gingen er de afgelopen 7 dagen naartoe, het nieuwste naar {id} om {at} UTC",
+      "fallback_off": "uit voor dit kanaal: een onbeantwoord bericht hier bereikt geen agent",
       "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt."
     }
   },

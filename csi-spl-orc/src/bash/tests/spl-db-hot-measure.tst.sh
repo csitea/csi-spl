@@ -10,7 +10,8 @@
 #   3. MEASURE_JIT=both / MEASURE_BITMAPSCAN=both measure each statement both ways,
 #      MEASURE_ONLY narrows, MEASURE_PLANS adds one BUFFERS plan per statement
 #   4. the walk texts are the store's shape (WITH RECURSIVE, LIMIT 1 steps,
-#      the read door and the NoIssues probe)
+#      the read door and the NoIssues probe, the first message as one row);
+#      the defaults are the walk scope's settings (bitmap off, custom plans)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -71,16 +72,17 @@ for name in walk_all walk_dm thread channels issues file_door; do
 done
 pass "MEASURE_JIT=both measures every statement under jit on and off"
 [[ $(grep -c '^\\echo @@ walk_all.jit_on' <<<"$sql") == 3 ]] && pass "MEASURE_N=3 gives 3 samples" || fail "sample count"
-[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 12 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
+[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 14 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
 one=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_dm 0' in_orc 2>&1)
 grep -q '@@ walk_dm.jit_off' <<<"$one" && ! grep -qE '@@ (walk_all|thread|channels|issues|file_door)\.' <<<"$one" &&
   ! grep -q 'jit_on' <<<"$one" && pass "MEASURE_ONLY=walk_dm MEASURE_JIT=off narrows to one" || fail "narrowing: $one"
-grep -q "plan_cache_mode', 'auto'" <<<"$one" && pass "plan_cache_mode defaults to auto (as pgx sees it)" || fail "plan cache default"
+grep -q "plan_cache_mode', 'force_custom_plan'" <<<"$one" && pass "plan_cache_mode defaults to force_custom_plan (the walk's scope, CLE-35061)" || fail "plan cache default"
 
 bm=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_all 0' in_orc MEASURE_BITMAPSCAN=both 2>&1)
 grep -q '@@ walk_all.jit_off$' <<<"$bm" && grep -q '@@ walk_all.jit_off.nobitmap$' <<<"$bm" &&
   grep -q '^SET enable_bitmapscan = off;' <<<"$bm" && pass "MEASURE_BITMAPSCAN=both measures with and without bitmap scans" || fail "bitmap pair: $bm"
-grep -q 'nobitmap' <<<"$one" && fail "the default measures without bitmap scans" || pass "the default keeps bitmap scans on (the Postgres default)"
+grep -q '^SET enable_bitmapscan = off;' <<<"$one" && grep -q '@@ walk_dm.jit_off.nobitmap$' <<<"$one" &&
+  pass "the default measures without bitmap scans (the walk's scope, SPL-984)" || fail "bitmap default: $one"
 
 # --- 4. the walk texts are the store's shape ------------------------------------------
 for shape in all dm; do
@@ -90,6 +92,14 @@ for shape in all dm; do
   grep -q 'FROM issues i WHERE i.tenant_id = \$1 AND i.task_id = l.task_id LIMIT 1) IS NULL' <<<"$w" || fail "walk_$shape lacks NoIssues"
 done
 pass "both walk texts carry the recursive LIMIT-1 steps and the NoIssues probe"
+# CLE-35061: the store reads a topic's first message as ONE row; walk_all_pre keeps the old aggregate as the control
+for shape in all dm; do
+  w=$(SNIPPET="spl_db_hot_measure_walk $shape" in_orc 2>&1)
+  grep -q 'array_agg(m.msg' <<<"$w" && fail "walk_$shape still aggregates every message body"
+  grep -q 'LEFT JOIN LATERAL ( SELECT COALESCE(m.channel' <<<"$w" || fail "walk_$shape lacks the first-row lateral"
+done
+grep -q 'array_agg(m.msg' <<<"$(SNIPPET='spl_db_hot_measure_walk all_pre' in_orc 2>&1)" &&
+  pass "walk_all/walk_dm read the first message as one row; walk_all_pre is the old aggregate" || fail "walk_all_pre is not the old aggregate"
 grep -q 'l.channel IS NULL' <<<"$(SNIPPET='spl_db_hot_measure_walk dm' in_orc 2>&1)" && pass "walk_dm is the DM walk" || fail "walk_dm lacks channel IS NULL"
 
 (( fails == 0 )) && echo "OK spl-db-hot-measure: all checks passed" || { echo "FAIL spl-db-hot-measure: $fails check(s)"; exit 1; }

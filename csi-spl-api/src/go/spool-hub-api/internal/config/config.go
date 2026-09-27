@@ -1,6 +1,6 @@
 // Package config loads the spool's runtime configuration from the environment,
 // failing fast on a malformed value and resolving documented defaults. It
-// follows the pas-psf pattern (caarlos0/env), scoped to the on-box spool.
+// uses caarlos0/env struct tags, scoped to the on-box spool.
 package config
 
 import (

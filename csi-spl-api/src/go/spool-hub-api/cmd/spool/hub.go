@@ -40,7 +40,7 @@ import (
 )
 
 // cmdServe runs the hub until SIGINT/SIGTERM, then drains: sockets get 1001,
-// in-flight HTTP finishes within SPOOL_HUB_GRACEFUL_SHUTDOWN (pas-psf
+// in-flight HTTP finishes within SPOOL_HUB_GRACEFUL_SHUTDOWN (a
 // runUntilShutdown pattern).
 func cmdServe() int {
 	hc, err := config.LoadHub()

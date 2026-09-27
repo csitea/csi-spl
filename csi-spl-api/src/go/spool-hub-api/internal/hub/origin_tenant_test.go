@@ -23,17 +23,17 @@ import (
 func TestOriginTenantOf(t *testing.T) {
 	ot := hub.NewOriginTenant("{tenant}.spool.test", "t1")
 	for _, c := range []struct{ origin, want string }{
-		{"https://leiden.spool.test", "leiden"},
-		{"https://LEIDEN.spool.test", "leiden"},
-		{"https://spool.test", "t1"},        // the apex is the apex tenant
-		{"https://dev.spool.test", ""},      // the other env's WUI: a reserved label
-		{"https://api.spool.test", ""},      // the hub itself: reserved
-		{"https://x.leiden.spool.test", ""}, // a dot is no tenant id
-		{"https://leiden.dev.spool.test", ""},
-		{"http://leiden.spool.test", ""}, // https only
-		{"https://leiden.spool.test:8443", ""},
-		{"https://leiden.spool.test/path", ""},
-		{"https://leiden.spool.test.evil.test", ""},
+		{"https://acme.spool.test", "acme"},
+		{"https://ACME.spool.test", "acme"},
+		{"https://spool.test", "t1"},      // the apex is the apex tenant
+		{"https://dev.spool.test", ""},    // the other env's WUI: a reserved label
+		{"https://api.spool.test", ""},    // the hub itself: reserved
+		{"https://x.acme.spool.test", ""}, // a dot is no tenant id
+		{"https://acme.dev.spool.test", ""},
+		{"http://acme.spool.test", ""}, // https only
+		{"https://acme.spool.test:8443", ""},
+		{"https://acme.spool.test/path", ""},
+		{"https://acme.spool.test.evil.test", ""},
 		{"https://evilspool.test", ""},
 		{"null", ""},
 		{"", ""},
@@ -43,15 +43,15 @@ func TestOriginTenantOf(t *testing.T) {
 		}
 	}
 	// the apex is an exact CORS entry, never the pattern half
-	if ot.TenantHost("https://spool.test") || !ot.TenantHost("https://leiden.spool.test") || ot.TenantHost("https://dev.spool.test") {
+	if ot.TenantHost("https://spool.test") || !ot.TenantHost("https://acme.spool.test") || ot.TenantHost("https://dev.spool.test") {
 		t.Fatal("TenantHost")
 	}
 	dev := hub.NewOriginTenant("{tenant}.dev.spool.test", "")
-	if dev.Of("https://leiden.spool.test") != "" || dev.Of("https://leiden.dev.spool.test") != "leiden" || dev.Of("https://dev.spool.test") != "" {
+	if dev.Of("https://acme.spool.test") != "" || dev.Of("https://acme.dev.spool.test") != "acme" || dev.Of("https://dev.spool.test") != "" {
 		t.Fatal("dev pattern must not match prd hosts")
 	}
 	var off *hub.OriginTenant // tenant hosts off
-	if off.Of("https://leiden.spool.test") != "" || off.TenantHost("https://leiden.spool.test") {
+	if off.Of("https://acme.spool.test") != "" || off.TenantHost("https://acme.spool.test") {
 		t.Fatal("nil resolver must answer nothing")
 	}
 	if hub.NewOriginTenant("hub.test", "") != nil {

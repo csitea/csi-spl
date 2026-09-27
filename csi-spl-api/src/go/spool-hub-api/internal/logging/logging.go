@@ -1,6 +1,6 @@
-// Package logging builds the spool's structured logger (zerolog), following the
-// pas-psf convention: RFC3339 timestamps, a service tag, level from config, and
-// human console output for the CLI or JSON when deployed.
+// Package logging builds the spool's structured logger (zerolog): RFC3339
+// timestamps, a service tag, level from config, and human console output
+// for the CLI or JSON when deployed.
 package logging
 
 import (

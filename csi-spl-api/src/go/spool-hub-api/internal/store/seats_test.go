@@ -162,8 +162,8 @@ func TestSeatsBotCap(t *testing.T) {
 func TestSeatsBuyStamp(t *testing.T) {
 	ctx := context.Background()
 	at := time.Date(2026, 9, 17, 17, 43, 59, 0, time.FixedZone("x", 3*3600))
-	id, err := MintProjectID("csi", "spl", "dev", at)
-	if err != nil || id != "csi-spl-dev-202609171443" {
+	id, err := MintProjectID("abc", "xyz", "dev", at)
+	if err != nil || id != "abc-xyz-dev-202609171443" {
 		t.Fatalf("mint uses the UTC minute: %q %v", id, err)
 	}
 	if len(id) != 24 || len(id) > ProjectIDMaxLen {

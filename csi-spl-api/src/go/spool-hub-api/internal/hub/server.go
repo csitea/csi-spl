@@ -471,7 +471,7 @@ func (s *Server) quota() billing.Quota {
 	}
 }
 
-// ---- middleware: recover, request id, access log (pas-psf pattern) ----------
+// ---- middleware: recover, request id, access log ----------------------------
 
 type statusWriter struct {
 	http.ResponseWriter

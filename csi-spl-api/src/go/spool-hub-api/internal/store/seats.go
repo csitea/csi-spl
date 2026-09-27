@@ -108,7 +108,7 @@ func overBotCap(capBots, tenantBots int, old, next []string) bool {
 
 // MintProjectID is the dedicated SKU's GCP project id (009 T005, FR-003):
 // {org}-{app}-{env}-{YYYYMMDDHHmm} from the buy time's UTC minute, e.g.
-// csi-spl-dev-202609171743. org and app are 3-letter codes; env is the hub
+// abc-xyz-dev-202609171743. org and app are 3-letter codes; env is the hub
 // env (dev, prd).
 func MintProjectID(org, app, env string, at time.Time) (string, error) {
 	if !envRe.MatchString(env) {

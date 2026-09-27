@@ -1,6 +1,5 @@
 // Package testkit provides shared fixtures for the spool's tests: a throwaway
-// $SPOOL_ROOT/keys/pins triple and a box keygen+pin helper. Modeled on the
-// pas-psf-api internal/testkit convention. It imports only config and sign, so
+// $SPOOL_ROOT/keys/pins triple and a box keygen+pin helper. It imports only config and sign, so
 // it never creates an import cycle with the packages under test.
 package testkit
 

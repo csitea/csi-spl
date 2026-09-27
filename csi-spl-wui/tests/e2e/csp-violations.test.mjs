@@ -10,7 +10,7 @@
 // Run:
 //   pnpm test:e2e:csp          serve .output/public locally with the headers of
 //                              the Hosting render (render-wui-firebase-json.sh)
-//   BASE_URL=https://csi-spl-dev-site.web.app pnpm test:e2e:csp   the deployed site
+//   BASE_URL=https://<site>.web.app pnpm test:e2e:csp   the deployed site
 //
 // Env:
 //   BASE_URL        audit this origin instead of serving the bundle locally

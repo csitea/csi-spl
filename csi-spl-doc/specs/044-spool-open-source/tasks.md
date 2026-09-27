@@ -12,7 +12,7 @@ owner's steps at the stage gates.
 
 | task | what | owner | depends | FR | issue |
 |---|---|---|---|---|---|
-| [ ] T001 | Standalone local stack at the public root: one `docker compose up` brings up Postgres 16 + hub + WUI with no GCP, no internal `./run` action, no private repo; documented env defaults only | CLE-35051 | no decision | FR-OS-008 | SPL-66 |
+| [x] T001 | Standalone local stack at the public root: one `docker compose up` brings up Postgres 16 + hub + WUI with no GCP, no internal `./run` action, no private repo; documented env defaults only | CLE-35051 | no decision | FR-OS-008 | SPL-66 |
 | [x] T002 | `do_oss_export`: build the public tree from an allow-list of paths into a scratch dir; never pushes, never creates a repo | CLE-35052 | no decision | FR-OS-001, FR-OS-004 | SPL-1011 |
 | [x] T003 | `do_oss_gate`: on the exported tree run gitleaks 8.30.1 + the hygiene sweep + the NEW classes of FR-OS-002; fail closed; a negative control plants one hit per class | CLE-35052 | no decision | FR-OS-002 | SPL-63, SPL-1011 |
 | [x] T004 | (CLE-35052, `c3fa0b8b`, `7f40288a`; gate on master: 1350 hits left) The export's allow-list excludes cnf values, rendered tfvars, orc fleet tooling, the specs, CLAUDE.md / AGENTS.md / GEMINI.md; T003 proves it on the exported tree | CLE-35052 | T002 | FR-OS-003 | SPL-63 |

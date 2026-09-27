@@ -258,13 +258,25 @@ export function bytesToDataUri(bytes, type) {
  * credentials (017 FR-SEC-002: /v1/files needs the member session;
  * /api/v1/auth/avatar the session cookie) and only an image by its magic
  * bytes is shown. One fetch per URL for the page's lifetime.
+ *
+ * `missStore` (a Storage) also remembers a 404 across reloads, for ONE url:
+ * the own-picture route answers 404 to a member with no stored picture on
+ * every page load (124 times for one member in 6 h on prd, CLE-35062). Its
+ * URL carries the session's iat, so the next sign-in asks again. Only a 404
+ * is remembered; a network error or a 5xx is asked again next time.
  */
-export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch } = {}) {
+export const AVATAR_MISS_KEY = 'spool.avatar.miss'
+export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, missStore = null } = {}) {
   if (!url) return Promise.resolve('')
   if (avatarImages.has(url)) return avatarImages.get(url)
+  const readMiss = () => { try { return missStore ? missStore.getItem(AVATAR_MISS_KEY) : null } catch { return null } }
+  if (readMiss() === url) return Promise.resolve('')
   const promise = (async () => {
     try {
       const res = await fetchFn(url, { credentials })
+      if (res && res.status === 404 && missStore) {
+        try { missStore.setItem(AVATAR_MISS_KEY, url) } catch { /* storage full or blocked */ }
+      }
       if (!res || !res.ok) return ''
       const bytes = new Uint8Array(await res.arrayBuffer())
       const type = avatarImageMime(bytes)

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
   avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
-  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
+  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, AVATAR_MISS_KEY, loadAvatarFiles, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
@@ -182,6 +182,35 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     assert.equal(calls[1][1].credentials, 'include')
     for (const tail of ['404', 'html', 'boom']) assert.equal(await loadAvatarImageUrl(`http://t1.test/${tail}`, o), '', tail)
     assert.equal(await loadAvatarImageUrl('', o), '')
+    resetAvatarFiles()
+  })
+
+  it('CLE-35062: a 404 is remembered for that one url across reloads; other failures are asked again', async () => {
+    resetAvatarFiles()
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])
+    const calls = []
+    const fetchFn = async (url) => {
+      calls.push(url)
+      if (url.endsWith('at=1')) return { ok: false, status: 404 }
+      if (url.endsWith('at=5')) return { ok: false, status: 503 }
+      return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array(PNG).buffer }
+    }
+    const mem = new Map()
+    const missStore = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) }
+    const u = 'http://api.test/api/v1/auth/avatar?at=1'
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn, missStore }), '')
+    assert.equal(mem.get(AVATAR_MISS_KEY), u)
+    resetAvatarFiles() // a reload: the in-page cache is gone, the store is not
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn, missStore }), '')
+    assert.equal(calls.length, 1, 'the remembered 404 is not asked again')
+    // a new sign-in is a new url: asked again
+    const u2 = 'http://api.test/api/v1/auth/avatar?at=2'
+    assert.notEqual(await loadAvatarImageUrl(u2, { fetchFn, missStore }), '')
+    assert.equal(calls.length, 2)
+    // a 5xx is not remembered
+    const u5 = 'http://api.test/api/v1/auth/avatar?at=5'
+    assert.equal(await loadAvatarImageUrl(u5, { fetchFn, missStore }), '')
+    assert.equal(mem.get(AVATAR_MISS_KEY), u)
     resetAvatarFiles()
   })
 

@@ -694,9 +694,11 @@ declare module '~/utils/avatar.mjs' {
   }): Promise<Record<string, string>>
   export function avatarImageMime(bytes: ArrayBuffer | Uint8Array): string
   export function bytesToDataUri(bytes: ArrayBuffer | Uint8Array, type: string): string
+  export const AVATAR_MISS_KEY: string
   export function loadAvatarImageUrl(url: string, o?: {
     credentials?: RequestCredentials
     fetchFn?: typeof fetch
+    missStore?: Pick<Storage, 'getItem' | 'setItem'> | null
   }): Promise<string>
   export function resetAvatarFiles(): void
   export function forgetRosterRead(): void

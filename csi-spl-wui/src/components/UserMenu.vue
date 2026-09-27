@@ -159,7 +159,10 @@ const ownPic = ref('')
 const ownPicUrl = computed(() => (signedIn.value ? ownAvatarUrl(authBase, session.claims) : ''))
 watch(ownPicUrl, async (url) => {
   ownPic.value = ''
-  const got = await loadAvatarImageUrl(url, { credentials: 'include' })
+  /* CLE-35062: a member with no stored picture got a 404 on every load */
+  let missStore: Storage | null = null
+  try { missStore = window.localStorage } catch { /* blocked */ }
+  const got = await loadAvatarImageUrl(url, { credentials: 'include', missStore })
   if (url === ownPicUrl.value) ownPic.value = got
 }, { immediate: true })
 const buttonLabel = computed(() => {

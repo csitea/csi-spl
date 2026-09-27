@@ -55,6 +55,8 @@ const root = ref<HTMLElement | null>(null)
 const recent = ref<string[]>([])
 const choices = EMOJI_CHOICES
 const sheet = usePhone()
+/* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
+useMobileStack().overlay(() => props.open, () => emit('close'))
 
 function glyphs(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('.emoji-picker__glyph') ?? [])]

@@ -44,6 +44,8 @@ const emit = defineEmits<{ close: [], choose: [kind: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const sheet = usePhone()
+/* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
+useMobileStack().overlay(() => props.open, () => emit('close'))
 
 function items(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('.kind-picker__item') ?? [])]

@@ -77,6 +77,8 @@ const root = ref<HTMLElement | null>(null)
 const focused = ref(-1)
 /* SPL-991: a phone gets the sheet; the desktop popover is untouched */
 const sheet = usePhone()
+/* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
+useMobileStack().overlay(() => props.open, () => emit('close'))
 const items = computed(() => msgMenuItems({
   touch: sheet.value,
   kind: props.kind,

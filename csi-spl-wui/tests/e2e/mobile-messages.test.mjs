@@ -18,6 +18,8 @@
 //     8 the composer is in the top bar, not docked; --composer-dock-h is 0
 //     9 a right-click menu is the old popover: no sheet class, no Reply, and
 //       the row's menu button is still 32 px
+//    11-14 SPL-994: Back closes the top sheet first (emoji, menu, row menu),
+//       and a backdrop close leaves no history entry behind
 //
 // Run:
 //   pnpm run test:e2e:mobile-messages
@@ -196,6 +198,9 @@ async function phone(browser, width, height) {
   const closed = await sheetFacts(p, '[data-testid=msg-menu]')
   ok(`${tag} 5 a tap on the backdrop closes the sheet and opens nothing`,
     closed === null && p.url() === url0, { closed, url: p.url() })
+  /* SPL-994: closing it that way stepped back over its history entry */
+  const drift = await p.evaluate(() => history.state && history.state.splOverlay)
+  ok(`${tag} 11 the backdrop close leaves no overlay entry in history (SPL-994)`, !drift, drift)
 
   await longPress(p, again.x, again.y)
   await p.tap('[data-testid=msg-menu-react]').catch(() => {})
@@ -203,6 +208,20 @@ async function phone(browser, width, height) {
   const e = await sheetFacts(p, '[data-testid=emoji-picker]')
   ok(`${tag} 6 Add emoji opens the picker as a sheet with 44 px glyphs`,
     Boolean(e && e.sheet && Math.abs(e.bottom - e.vh) <= 1 && e.minItem >= TAP), e)
+  /* SPL-994: browser Back closes the emoji sheet (the menu is gone already), page and level stay */
+  const lv0 = await p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
+  await p.goBack().catch(() => {})
+  await sleep(700)
+  const eb = await sheetFacts(p, '[data-testid=emoji-picker]')
+  const mb = await sheetFacts(p, '[data-testid=msg-menu]')
+  const lv1 = await p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
+  ok(`${tag} 12 Back closes the emoji sheet, no menu comes back, URL and level unchanged (SPL-994)`,
+    eb === null && mb === null && p.url() === url0 && lv1 === lv0, { eb, mb, url: p.url(), lv0, lv1 })
+  await longPress(p, again.x, again.y)
+  await p.goBack().catch(() => {})
+  await sleep(700)
+  const mBack = await sheetFacts(p, '[data-testid=msg-menu]')
+  ok(`${tag} 13 Back closes the long-press menu, URL unchanged (SPL-994)`, mBack === null && p.url() === url0, { mBack, url: p.url() })
   /* 10: the left panel (level 1) - a row's menu is a bottom sheet too */
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await sleep(400)
@@ -227,6 +246,16 @@ async function phone(browser, width, height) {
   ok(`${tag} 10 a left-panel row menu: 44 px button, opens a bottom sheet with 44 px items`,
     Boolean(row && row.w >= TAP && row.h >= TAP && side && side.sheet && side.inBody && side.width === side.vw
       && Math.abs(side.bottom - side.vh) <= 1 && side.minItem >= TAP), { row, side })
+  if (side) {
+    await p.goBack().catch(() => {})
+    await sleep(700)
+    const after = await p.evaluate(() => ({
+      open: [...document.querySelectorAll('[data-testid="sidebar-row-menu-panel"]')].some((n) => getComputedStyle(n).display !== 'none'),
+      level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'),
+      path: location.pathname,
+    }))
+    ok(`${tag} 14 Back closes the row-menu sheet, level 1 stays (SPL-994)`, !after.open && after.level === '1' && after.path === '/', after)
+  }
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }

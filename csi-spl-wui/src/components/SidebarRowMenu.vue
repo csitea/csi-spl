@@ -109,6 +109,8 @@ const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const focused = ref(-1)
 const sheet = usePhone()
+/* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
+useMobileStack().overlay(() => props.open, () => emit('close'))
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
 const buttonLabel = computed(() => (props.open ? t('common.close') : t('sidebar.row_menu.label', { name: props.name })))

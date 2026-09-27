@@ -138,6 +138,12 @@ check "$rc" 1 "CONTROL a non-free dependency -> the gate fails"
 grep -qP '^dep-licence\tnpm:bad@3\.0\.0\t0\tSSPL-1\.0$' "$rep" && ok "dep row names the package + licence" || no "no dep row"
 [[ $(count dep-licence) == 1 ]] && ok "an OR expression with one allowed licence passes" || no "the OR expression was counted"
 rm -rf "$tmp/nm/.pnpm/bad@3.0.0"
+commit .github/workflows/50_public.yml $'# never on self-hosted runners (a comment is no hit)\njobs:\n  t:\n    runs-on: [self-hosted, x]'
+echo .github/workflows/50_public.yml >>"$tmp/allow.txt"
+run_export
+check "$rc" 1 "CONTROL an exported workflow on a self-hosted runner -> the gate fails"
+grep -qP '^ci-runner\t\.github/workflows/50_public\.yml\t4\t' "$rep" && ok "ci-runner row names file:line" || no "no ci-runner row"
+sed -i '/50_public.yml/d' "$tmp/allow.txt"
 
 # ---- 6. refusals (exit 2) ----------------------------------------------------
 mkdir -p "$tmp/full" && touch "$tmp/full/x"
@@ -155,7 +161,7 @@ OSS_GATE_NODE_MODULES="$tmp/none" run_export; check "$rc" 2 "an unreadable npm s
 
 # ---- 7. the real allow-list names no private path (T004) ---------------------
 real="$PROJ_ROOT/cnf/oss/export-allow-list.txt"
-bad=$(grep -vE '^\s*(#|$)' "$real" | sed 's/^?//' | grep -E '^(csi-spl-(cnf|iac|orc|doc|dat|utl)|\.github|CLAUDE\.md|AGENTS\.md|GEMINI\.md|README\.md)(/|$)')
+bad=$(grep -vE '^\s*(#|$)' "$real" | sed 's/^?//' | grep -E '^(csi-spl-(cnf|iac|orc|doc|dat|utl)|\.github/?$|\.github/workflows/?$|CLAUDE\.md|AGENTS\.md|GEMINI\.md|README\.md)(/|$)')
 [[ -z "$bad" ]] && ok "the real allow-list names no private path" || no "the real allow-list names: $bad"
 [[ $(grep -vcE '^\s*(#|$)' "$PROJ_ROOT/cnf/oss/banned-literals.tsv") -ge 10 ]] && ok "the real rules file carries its classes" || no "the real rules file is thin"
 OSS_GATE_RULES="$PROJ_ROOT/cnf/oss/banned-literals.tsv" python3 - "$PROJ_ROOT/cnf/oss/banned-literals.tsv" <<'EOF' && ok "every real rule compiles" || no "a real rule does not compile"

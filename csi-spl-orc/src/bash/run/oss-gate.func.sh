@@ -18,6 +18,8 @@
 # @description   licence           AGPL-3.0 root LICENSE, notices file, a
 # @description                     license field per package.json, an SPDX id
 # @description                     per Go module root
+# @description   ci-runner         an exported workflow naming a self-hosted
+# @description                     runner (FR-OS-005)
 # @description   dep-licence       every Go module the build compiles and every
 # @description                     npm package of the WUI lockfile install,
 # @description                     against the AGPL-3.0-compatible list
@@ -190,7 +192,7 @@ do_oss_gate() {
   fi
 
   local classes rc=0
-  classes="secret,hygiene,forbidden-file,image-unlicensed,licence,dep-licence,$(grep -v '^#' "$rules" | cut -f1 | grep . | sort -u | paste -sd,)"
+  classes="secret,hygiene,forbidden-file,image-unlicensed,licence,ci-runner,dep-licence,$(grep -v '^#' "$rules" | cut -f1 | grep . | sort -u | paste -sd,)"
   python3 "$py" summary --report "$report" --classes "$classes" || rc=1
   if (( ${#unmeasured[@]} )); then
     do_log "FATAL not measured: ${unmeasured[*]} - this gate proved nothing for them (report $report)"

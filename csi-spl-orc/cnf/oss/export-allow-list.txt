@@ -5,13 +5,15 @@
 # entry without '?' fails the export.
 # NOT listed, on purpose: csi-spl-cnf (values), csi-spl-iac (estate + tfvars),
 # csi-spl-orc (fleet tooling, this file), csi-spl-doc (specs; curated docs wait
-# for D6), csi-spl-dat, csi-spl-utl, .github (public CI is T024), CLAUDE.md,
+# for D6), csi-spl-dat, csi-spl-utl, the rest of .github (T024), CLAUDE.md,
 # the root README (internal; the public one is T022).
 csi-spl-api
 csi-spl-wui
 csi-spl-rdb
 LICENSE
 # T001 standalone stack (CLE-35051): builds from api/rdb/wui only
+# its CI (GitHub-hosted, contents: read, no secret); never the whole .github
+.github/workflows/50_oss-standalone.yml
 docker-compose.yml
 .env.example
 ?example.env.yaml

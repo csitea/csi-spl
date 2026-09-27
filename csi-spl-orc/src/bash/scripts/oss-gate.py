@@ -118,7 +118,24 @@ def scan(a):
                         if rx.search(text):
                             row(out, cls, rel, n, label)
         licence(a.dir, out)
+        ci_runner(a.dir, out)
     return 0
+
+
+def ci_runner(root, out):
+    """FR-OS-005: no workflow of the public repo runs on a self-hosted runner."""
+    wf = os.path.join(root, ".github", "workflows")
+    if not os.path.isdir(wf):
+        return
+    for f in sorted(os.listdir(wf)):
+        p = os.path.join(wf, f)
+        if not os.path.isfile(p):
+            continue
+        with open(p, encoding="utf-8", errors="replace") as fh:
+            for n, text in enumerate(fh, 1):
+                code = text.split("#", 1)[0]
+                if re.search(r"runs-on\s*:.*self-hosted|^\s*-\s*['\"]?self-hosted", code):
+                    row(out, "ci-runner", os.path.relpath(p, root), n, "self-hosted runner in a public workflow")
 
 
 def licence(root, out):

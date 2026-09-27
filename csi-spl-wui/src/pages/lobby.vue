@@ -6,7 +6,9 @@
       :status-text="t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value ? people.label(live.identity.value) : '…' })"
     />
     <div class="feed-body">
-      <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
+      <!-- SPL-989: not before the hub's welcome - a direct load used to flash
+           "No lobby configured" for 2-4 s while the socket came up -->
+      <p v-if="!lobbyId && (api.mock || live.welcomed.value)" class="muted" data-testid="lobby-none">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
       <!-- Pane 2 is the topic starter only. Later messages of the lobby task are replies and stay in pane 3. -->

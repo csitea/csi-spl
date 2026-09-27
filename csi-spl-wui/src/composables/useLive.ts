@@ -54,6 +54,8 @@ const identity = ref('')
 const uploadToken = ref('')
 const uploadTokenExpiresAt = ref('')
 const lobbyFromHub = ref('')
+/* the hub's welcome frame arrived: only then does an empty lobby id mean "none" */
+const welcomed = ref(false)
 
 /**
  * One hub WUI socket per tab (003 wui-live-ws.md) on the TENANT host.
@@ -105,6 +107,7 @@ export function useLive() {
         if (typeof w.upload_token === 'string') uploadToken.value = w.upload_token
         if (typeof w.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = w.upload_token_expires_at
         if (typeof w.lobby_task_id === 'string') lobbyFromHub.value = w.lobby_task_id
+        welcomed.value = true
         if (typeof w.as === 'string' && w.as) identity.value = w.as
       },
       onMessage: (m: Record<string, unknown>) => {
@@ -197,5 +200,5 @@ export function useLive() {
     return () => issueLabelListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId, welcomed }
 }

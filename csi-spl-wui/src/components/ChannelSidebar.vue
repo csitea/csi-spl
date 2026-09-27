@@ -1436,7 +1436,8 @@ async function onCreate() {
 /* SPL-989: the phone's level-1 header row, a 44 px target */
 @media (max-width: 820px) {
   .tenant-switcher { min-height: var(--tap); }
-  .tenant-switcher__field { min-height: calc(var(--tap) - 8px); }
+  /* the whole bordered box opens the list (SPL-71), so the box is the target */
+  .tenant-switcher__field { min-height: var(--tap); min-width: var(--tap); }
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }

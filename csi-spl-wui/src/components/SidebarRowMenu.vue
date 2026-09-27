@@ -4,7 +4,12 @@
      Escape, or the X closes it. The panel is position:fixed and kept inside the viewport,
      so it cannot scroll the page.
      SPL-991: at <= 820 px the panel is a bottom sheet over a dimmed page,
-     moved to <body> so no row's stacking context can sit on top of it. -->
+     moved to <body> so no row's stacking context can sit on top of it.
+     CLE-35062: the panel exists only while open (v-if, not v-show). Every row
+     of every rail tab has one of these, and the closed panels - an item list
+     with an icon per item - were 60 % of the whole page's DOM (3 172 of 5 304
+     nodes on /lobby, 5 422 of 8 550 on /, prd e2e). focusItem() waits a tick
+     before it places and focuses, so the panel is there by then. -->
 <template>
   <div
     ref="root"
@@ -20,7 +25,7 @@
       :data-open="open ? 'true' : 'false'"
       aria-haspopup="menu"
       :aria-expanded="open ? 'true' : 'false'"
-      :aria-controls="panelId"
+      :aria-controls="open ? panelId : undefined"
       :aria-label="buttonLabel"
       :title="buttonLabel"
       @click.stop="emit('toggle')"
@@ -31,7 +36,7 @@
     <Teleport to="body" :disabled="!sheet">
       <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
       <div
-        v-show="open"
+        v-if="open"
         :id="panelId"
         ref="panel"
         class="sidebar-row-menu__panel"

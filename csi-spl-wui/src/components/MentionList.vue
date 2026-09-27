@@ -47,7 +47,8 @@ import type { MentionPicker } from '~/composables/useMentionPicker'
 const props = defineProps<{ picker: MentionPicker, placement?: 'below' | 'above' | 'inline' }>()
 const { t } = useI18n({ useScope: 'global' })
 /* SPL-994: on a phone the @ list is a sheet, the top level while open - Back closes it first */
-useMobileStack().overlay(() => props.picker.open, () => props.picker.close())
+/* SPL-1005: the dock's own picker - the dock stays on screen under it */
+useMobileStack().overlay(() => props.picker.open, () => props.picker.close(), { keepsDock: true })
 
 function setList(el: unknown) {
   props.picker.listEl = el instanceof HTMLUListElement ? el : null

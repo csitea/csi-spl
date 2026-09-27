@@ -2,35 +2,29 @@
      MessageComposer, so the ``` code-block composer works in it; plain text
      goes to the page's send target, `/search <q>` opens /search?q=) | the
      language switcher + the user menu (the former .app-corner, CLE-3402 /
-     spec 021). On a phone the Omnibox folds into a search icon.
+     spec 021).
      SPL-990 (<= 820 px, the mobile revamp): ONE compact row - the tenant
      switcher (SPL-995: a drop box opening a bottom sheet) ... the avatar
-     menu (Back is M1's MobileBack in each pane header). The owner's E
-     (topic e0b12a2c): the omnibox leaves the row; a round GO button floats at
-     the middle of the right edge on every level and opens the full-screen
-     search/command sheet with the composer (and its GO) at the top; the theme, language and notification
+     menu (Back is M1's MobileBack in each pane header). The omnibox leaves
+     the row: SPL-1005 (owner, topic 9b58a27b) retired E's floating GO at the
+     middle of the right edge and its full-screen sheet - the composer is
+     docked at the bottom on EVERY phone level, its bottom-right Send is the
+     GO, and `/search` is typed there. The theme, language and notification
      controls live in the avatar menu's bottom sheet. Above 820 px nothing
      here renders differently. -->
 <template>
-  <header class="top-bar" data-test="top-bar" :class="{ 'top-bar--open': expanded }">
+  <header class="top-bar" data-test="top-bar">
     <div class="top-bar__start" data-test="top-bar-start">
       <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
       <ThemeToggle />
     </div>
     <!-- SPL-995: the tenant switcher, first in the phone row -->
     <TopBarTenant class="top-bar__tenant" />
-    <div
-      class="top-bar__omnibox"
-      data-test="top-bar-omnibox"
-      :role="expanded ? 'dialog' : undefined"
-      :aria-modal="expanded ? 'true' : undefined"
-      :aria-label="expanded ? t('search.open_omnibox') : undefined"
-    >
+    <div class="top-bar__omnibox" data-test="top-bar-omnibox">
       <MessageComposer
         ref="composer"
         omnibox
         global
-        :dock="!expanded"
         :placeholder="placeholder"
         :busy="busy"
         :send-blocked="!omnibox.target"
@@ -38,7 +32,6 @@
         :operators="search.operators"
         @send="onSend"
         @search="onSearch"
-        @dismiss="onDismiss"
         @results="omnibox.focusResults++"
       />
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
@@ -57,33 +50,7 @@
           </button>
         </template>
       </ErrorNotice>
-      <button
-        type="button"
-        class="icon-btn top-bar__close"
-        data-test="top-bar-search-close"
-        :aria-label="t('common.close')"
-        :title="t('common.close')"
-        @click="onDismiss"
-      >
-        <UiIcon name="x" :size="18" />
-      </button>
     </div>
-    <!-- body-level on purpose: inside this sticky header (a z 40 stacking
-         context) the floating GO would paint over the pages' own sheets and
-         scrims (z 38/39, the Issues filters). Mounted on the client only. -->
-    <Teleport v-if="mounted" to="body">
-    <button
-      type="button"
-      class="top-bar__search-toggle"
-      data-test="top-bar-search-toggle"
-      :aria-label="t('composer.go')"
-      :title="t('composer.go')"
-      :aria-expanded="expanded ? 'true' : 'false'"
-      @click="expand"
-    >
-      <UiIcon name="go" :size="22" />
-    </button>
-    </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
       <div class="top-bar__lang"><LanguageSwitcher /></div>
       <UserMenu />
@@ -115,10 +82,8 @@ const search = useSearchStore()
 const session = useSessionStore()
 const api = useSpoolApi()
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
-const expanded = ref(false)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
-const mounted = ref(false)
 
 function onDocKey(ev: KeyboardEvent) {
   const root = document.querySelector('[data-test=top-bar-omnibox]')
@@ -190,19 +155,6 @@ function onSearch(q: string) {
   void router.push(localePath(searchPath(q)))
 }
 
-function expand() {
-  expanded.value = true
-  nextTick(() => composer.value?.focus())
-}
-
-function onDismiss() {
-  expanded.value = false
-}
-/* SPL-994: the phone's search sheet is the top level while open - Back closes it */
-useMobileStack().overlay(expanded, onDismiss)
-
-/* a /search navigates: the sheet has done its job, the results show */
-watch(() => route.fullPath, () => { if (expanded.value) onDismiss() })
 
 /* a deep link /search?q=… shows its query in the Omnibox, ready to refine */
 const onSearchPage = computed(() => /\/search$/.test(route.path))
@@ -224,7 +176,6 @@ watch(() => session.state, (st) => {
 }, { immediate: true })
 
 onMounted(() => {
-  mounted.value = true
   showQuery()
   document.addEventListener('keydown', onDocKey, true)
 })
@@ -304,19 +255,6 @@ onUnmounted(() => {
   z-index: 60;
   flex: 0 0 auto;
 }
-.top-bar__close { display: none; }
-.top-bar__search-toggle {
-  display: none;
-  min-width: var(--tap);
-  min-height: var(--tap);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-fg);
-  cursor: pointer;
-  margin-inline-start: auto;
-  flex-shrink: 0;
-}
 .top-bar__end {
   display: flex;
   align-items: center;
@@ -355,79 +293,13 @@ onUnmounted(() => {
   .top-bar__omnibox { display: none; }
   /* display:contents, never none, while M3's composer is docked: a
      display:none ancestor would hide the fixed bottom dock too. Keyed on the
-     composer's own class, so a page without a send target keeps it hidden. */
+     composer's own class (SPL-1005: the composer docks on every phone level). */
   .top-bar__omnibox:has(> .composer--dock) { display: contents; }
   .top-bar__send-error {
     position: fixed;
     inset-inline: 8px;
     bottom: calc(var(--kb-inset, 0px) + var(--composer-dock-h, 0px) + 8px);
     margin: 0;
-  }
-  /* the owner's E: a round GO button at the vertical middle of the right
-     edge (of what the keyboard leaves), above the content on every level,
-     clear of the bottom dock and the Issues + (bottom corner) */
-  .top-bar__search-toggle {
-    display: inline-grid;
-    place-items: center;
-    position: fixed;
-    /* above the content, under every page sheet and scrim (38+) */
-    z-index: 37;
-    inset-inline-end: calc(8px + env(safe-area-inset-right, 0px));
-    top: calc((100dvh - var(--kb-inset, 0px)) / 2);
-    transform: translateY(-50%);
-    width: 52px;
-    height: 52px;
-    margin: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--color-accent);
-    color: var(--color-on-accent);
-    box-shadow: 0 4px 14px rgb(0 0 0 / .35);
-  }
-  /* the open search sheet covers the page: the button would float over it */
-  .top-bar__search-toggle[aria-expanded=true] { display: none; }
-  .top-bar--open .top-bar__omnibox {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    align-content: flex-start;
-    gap: 6px;
-    position: fixed;
-    z-index: var(--z-overlay, 1000);
-    inset: 0;
-    /* the desktop slot is align-self:center, which would also centre this
-       fixed box inside its insets at content height */
-    align-self: stretch;
-    justify-self: stretch;
-    height: auto;
-    max-height: none;
-    max-width: none;
-    margin: 0;
-    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
-    background: var(--color-bg);
-    box-sizing: border-box;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-  /* close on its own row at the top end, the composer full width under it */
-  .top-bar--open .top-bar__omnibox > .composer { flex: 1 0 100%; min-width: 0; }
-  .top-bar--open .top-bar__send-error {
-    position: static;
-    flex: 1 0 100%;
-  }
-  .top-bar--open .top-bar__close {
-    order: -1;
-    margin-inline-start: auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    min-width: var(--tap);
-    min-height: var(--tap);
-    width: var(--tap);
-    height: var(--tap);
-    border: 1px solid var(--color-border);
   }
 }
 </style>

@@ -32,8 +32,13 @@ export function useTopicRoute(opts: {
     void opts.open(want, (opts.rowFor && opts.rowFor(want.rootMsgId)) || null)
   }, { immediate: true })
 
-  /* pane -> URL */
+  /* pane -> URL. Only while this page IS the current route: during a
+     navigation Nuxt keeps the old page mounted until the new one is ready,
+     and the new page closing the topic would otherwise make the OLD page
+     write its own query onto the NEW path (SPL-1005: `/search x` typed with
+     a thread open landed on /search with no q) */
   watch(() => topic.target, (t) => {
+    if (router.currentRoute.value.path !== route.path) return
     const query = queryWithTopic(route.query, t)
     if (sameQuery(query, route.query)) return
     void router.replace({ query })

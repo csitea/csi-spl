@@ -671,8 +671,13 @@ html.pane-dragging * {
   }
   /* M3's bottom composer dock and the on-screen keyboard must not cover the
      last row of a scrolling pane */
-  .spool-shell .feed-body,
-  .spool-shell .sidebar-scroll {
+  .spool-shell .feed-body {
+    padding-bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));
+  }
+  /* SPL-1005: the dock is on level 1 too - the whole sidebar (its footer
+     row, the version and health included) ends above it */
+  .spool-shell > .sidebar {
+    box-sizing: border-box;
     padding-bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));
   }
   .mobile-back { min-width: var(--tap); min-height: var(--tap); flex-shrink: 0; }

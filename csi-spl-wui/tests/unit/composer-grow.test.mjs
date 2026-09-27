@@ -110,13 +110,10 @@ describe('composer growth (CLE-3437)', () => {
     assert.match(child, /flex:\s*1 1 auto/)
     assert.match(child, /flex-shrink:\s*0/)
     assert.match(child, /min-height:\s*0/)
-    const phone = vue.slice(vue.indexOf('.top-bar--open .top-bar__omnibox {'))
-    const phoneBody = phone.slice(0, phone.indexOf('}'))
-    // SPL-990: on a phone the opened Omnibox is a full-screen sheet
-    assert.match(phoneBody, /position:\s*fixed/)
-    assert.match(phoneBody, /inset:\s*0/)
-    assert.match(phoneBody, /max-height:\s*none/)
-    assert.match(phoneBody, /flex-direction:\s*row/)
+    // SPL-1005: the phone's full-screen search sheet is gone - the omnibox
+    // is the docked composer on every level (display:contents on the slot)
+    assert.equal(vue.includes('.top-bar--open'), false)
+    assert.match(vue, /\.top-bar__omnibox:has\(> \.composer--dock\) \{ display: contents; \}/)
     const box = read('src/components/MessageComposer.vue')
     assert.match(box, /function fitGlobalBox\(\)/)
     assert.match(box, /if \(!el \|\| !props\.global\) return/)

@@ -52,7 +52,6 @@ const state = (p) => p.evaluate(() => {
     hist: history.length,
     dialog: vis('[data-testid=ui-dialog]'),
     menu: vis('[data-test=user-menu-panel]'),
-    search: document.querySelector('[data-test=top-bar]')?.classList.contains('top-bar--open') || false,
     filters: vis('[data-test=issues-filter-sheet]'),
   }
 })
@@ -160,17 +159,8 @@ try {
     s = await state(page)
     ok(`${at} ... so the next Back pops 2 -> 1 (no drift)`, s.level === '1', s)
 
-    /* the search sheet */
-    await click(page, '#sidebar-panel-channels .nav-item')
-    await sleep(1200)
-    const q0 = await state(page)
-    await click(page, '[data-test=top-bar-search-toggle]')
-    await sleep(600)
-    s = await state(page)
-    ok(`${at} the search sheet opens`, s.search, s)
-    await back(page)
-    s = await state(page)
-    ok(`${at} Back closes the search sheet, level and URL unchanged`, !s.search && s.level === q0.level && s.path === q0.path, s)
+    /* SPL-1005: the search sheet (and the floating GO that opened it) is
+       gone - `/search` is typed in the docked composer on every level */
 
     /* M4: the issues filter sheet, and a filter written while it is open survives Back */
     await page.goto(`${srv.base}/issues`, { waitUntil: 'networkidle2' })

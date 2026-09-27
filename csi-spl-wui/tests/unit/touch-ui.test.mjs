@@ -135,8 +135,8 @@ describe('createLongPress', () => {
 
 describe('the phone composer dock (MessageComposer.vue)', () => {
   const vue = readFileSync(join(WUI, 'src/components/MessageComposer.vue'), 'utf8')
-  it('docks only the global composer, on a phone, at level 2/3, with a send target, unless TopBar says dock=false', () => {
-    assert.match(vue, /const docked = computed\(\(\) => Boolean\(props\.global\) && props\.dock && phone\.value\s*&& !props\.sendBlocked && stack\.level\.value >= 2\)/)
+  it('docks only the global composer, on a phone, on EVERY level and page (SPL-1005), unless dock=false', () => {
+    assert.match(vue, /const docked = computed\(\(\) => Boolean\(props\.global\) && props\.dock && phone\.value\)/)
   })
   it('dock defaults to true (Vue reads an absent boolean prop as false)', () => {
     assert.match(vue, /\}>\(\), \{ dock: true \}\)/)

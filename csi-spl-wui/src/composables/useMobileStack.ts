@@ -117,6 +117,12 @@ function rightPanel(open: MaybeRefOrGetter<boolean>, close: () => void) {
 type Overlay = { id: number, open: () => boolean, close: () => void, state: Record<string, unknown> | null, url: string }
 const overlays: Overlay[] = []
 let overlaySeq = 0
+/* SPL-1005: the open-state of every overlay that the bottom composer dock
+   must yield to - a page sheet (the Issues filters, a dialog, a menu) is
+   modal over it. The dock's own pickers (the @ list) opt out. Reactive, so
+   `sheetOpen` follows each overlay's own `open`. */
+const dockSheets = shallowRef<Array<() => boolean>>([])
+const sheetOpen = computed(() => dockSheets.value.some((g) => g()))
 let queue: Promise<void> = Promise.resolve()
 let queued = 0
 let popWaiter: (() => void) | null = null
@@ -231,13 +237,16 @@ function overlayClosed(o: Overlay) {
  * panel under it. Closing it any other way steps back over its history entry.
  * Unregisters itself when the calling component's scope ends.
  */
-function overlay(open: MaybeRefOrGetter<boolean>, close: () => void) {
+function overlay(open: MaybeRefOrGetter<boolean>, close: () => void, opts: { keepsDock?: boolean } = {}) {
   if (!import.meta.client) return () => {}
   const o: Overlay = { id: ++overlaySeq, open: () => toValue(open), close, state: null, url: '' }
   const stop = watch(o.open, (v) => { if (v) overlayOpened(o); else overlayClosed(o) }, { immediate: true, flush: 'sync' })
+  const covers = () => toValue(open)
+  if (!opts.keepsDock) dockSheets.value = [...dockSheets.value, covers]
   const off = () => {
     stop()
     o.open = () => false
+    dockSheets.value = dockSheets.value.filter((g) => g !== covers)
     overlayClosed(o)
   }
   if (getCurrentScope()) onScopeDispose(off)
@@ -368,6 +377,8 @@ export function useMobileStack() {
     home: toHome,
     rightPanel,
     overlay,
+    /** SPL-1005: a page sheet / dialog / menu is open - the composer dock yields */
+    sheetOpen,
     /** bind on the shell: @touchstart.passive / @touchend.passive */
     swipe: { onTouchStart, onTouchEnd },
     install,

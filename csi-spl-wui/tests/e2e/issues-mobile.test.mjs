@@ -192,7 +192,12 @@ try {
           fields: card ? ['issues-card-key', 'issues-card-title', 'issues-card-status', 'issues-card-priority', 'issues-card-assignee'].filter((t) => card.querySelector(`[data-test=${t}]`)) : [],
           key: card?.querySelector('[data-test=issues-card-key]')?.textContent.trim(),
           fabFixed: getComputedStyle(fab).position === 'fixed',
-          fabBottomRight: window.innerWidth - fr.right < 40 && window.innerHeight - fr.bottom < 40,
+          /* SPL-1005: the composer dock is on this page too - the + sits just above it */
+          fabBottomRight: (() => {
+            const dock = document.querySelector('.composer--dock')
+            const floor = dock ? dock.getBoundingClientRect().top : window.innerHeight
+            return window.innerWidth - fr.right < 40 && floor - fr.bottom >= 0 && floor - fr.bottom < 40
+          })(),
           fab: [Math.round(fr.width), Math.round(fr.height)],
           filterSheetOpen: !!document.querySelector('[data-test=issues-filter-sheet]'),
           shortcuts: !!document.querySelector('[data-test=issues-shortcuts]'),

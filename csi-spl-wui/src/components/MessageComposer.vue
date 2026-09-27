@@ -6,6 +6,7 @@
     class="composer"
     :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode, 'composer--dock': docked }"
     :data-docked="docked ? 'true' : undefined"
+    :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     @submit.prevent="onSend"
   >
     <!-- SPL-1003: docked on a phone, the box says where the post goes before
@@ -282,9 +283,8 @@ import {
 
 const props = withDefaults(defineProps<{
   /**
-   * SPL-991: on a phone (<= 820 px, level 2/3 of useMobileStack, a send
-   * target on the page) the one composer docks at the bottom, above the
-   * on-screen keyboard. TopBar passes false while its search sheet is open.
+   * SPL-991: on a phone (<= 820 px) the one composer docks at the bottom,
+   * above the on-screen keyboard - on every level since SPL-1005.
    * Default true (withDefaults: an absent boolean prop would read false).
    */
   dock?: boolean
@@ -339,15 +339,18 @@ const inputEl = ref<HTMLTextAreaElement | null>(null)
  * Android Chrome), full width, 44 px Attach / Camera / Send. Its height goes
  * to `--composer-dock-h` on <html> (0 when not docked), so the panes pad
  * their last card clear of it (M1) and TopBar lifts its send error over it
- * (M2). Level 1 (the section chooser) has nothing to send to: no dock.
+ * (M2). SPL-1005: every level, the section chooser included.
  */
 const formEl = ref<HTMLFormElement | null>(null)
 const cameraEl = ref<HTMLInputElement | null>(null)
 const phone = usePhone()
-const stack = useMobileStack()
 const kbInset = useKeyboardInset()
-const docked = computed(() => Boolean(props.global) && props.dock && phone.value
-  && !props.sendBlocked && stack.level.value >= 2)
+const stack = useMobileStack()
+/* SPL-1005 (owner, topic 9b58a27b): the floating GO is gone, so the dock is
+   the phone's only omnibox - it shows on EVERY level, the section chooser
+   and pages with no send target included (there `/search` still works and
+   plain text says it cannot be sent) */
+const docked = computed(() => Boolean(props.global) && props.dock && phone.value)
 /* SPL-1003: where the next post goes, shown above the docked box */
 const dockHint = computed(() => dockTargetHint(props.dockTarget, text.value))
 let dockObserver: ResizeObserver | null = null
@@ -1247,6 +1250,11 @@ textarea.in-code {
     background: var(--color-sidebar);
     border-top: 1px solid var(--color-border);
   }
+  /* SPL-1005: on every page now - a page sheet, dialog or menu is modal over
+     it. The dock sits in the top bar's stacking context (z 40), above the
+     pages' own sheets (z 38/39), so it steps out of sight while one is open
+     (its height stays, so nothing under it moves) */
+  .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
   /* SPL-1003: one short line over the box - the open thread takes the post
      (text colour, accent icon), or it starts a new topic (muted) */
@@ -1310,6 +1318,17 @@ textarea.in-code {
     padding: 0;
     margin: 0;
   }
+  /* SPL-1005: the bottom-right Send IS the GO - the retired floating
+     button's look: a round accent button with the go (play) icon */
+  .composer--dock.composer--dock .composer-row .composer-go {
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    box-shadow: 0 2px 8px rgb(0 0 0 / .3);
+  }
+  .composer--dock.composer--dock .composer-row .composer-go[aria-disabled=true],
+  .composer--dock.composer--dock .composer-row .composer-go:disabled { opacity: .55; }
   .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
   .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
   .composer--dock.composer--dock .mention-list {

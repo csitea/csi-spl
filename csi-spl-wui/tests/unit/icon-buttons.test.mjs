@@ -33,13 +33,11 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     const live = read('src/components/LiveTopicPane.vue')
     const topic = read('src/components/TopicPane.vue')
     const card = read('src/components/MessageCard.vue')
-    const bar = read('src/components/TopBar.vue')
     const composer = read('src/components/MessageComposer.vue')
 
     for (const [name, src] of [
       ['LiveTopicPane', live],
       ['TopicPane', topic],
-      ['TopBar', bar],
     ]) {
       assert.match(src, /:aria-label="t\('common\.close'\)"/, name)
       assert.match(src, /:title="t\('common\.close'\)"/, name)

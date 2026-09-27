@@ -1888,7 +1888,8 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   .issues-fab {
     position: fixed;
     inset-inline-end: 16px;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    /* SPL-1005: the composer dock is on every phone page now - stay above it */
+    bottom: calc(16px + max(var(--composer-dock-h, 0px), env(safe-area-inset-bottom, 0px)));
     z-index: 15;
     width: 56px;
     height: 56px;

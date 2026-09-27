@@ -180,6 +180,18 @@ if [[ -n "$TF" && -x "$TF" ]]; then
   # (measured 2026-09-17: validate failed once in 3 runs during another
   # operator's apply, and passed alone).
   tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test-$$"
+  # The end-of-run rm below never runs for a killed run (job timeout, Ctrl-C),
+  # and each one left ~230 MB: 52 GB of test-<pid> dirs filled / on 2026-09-27.
+  # So: an EXIT trap (INT/TERM turned into an exit so it fires), and a sweep of
+  # caches whose run is gone, for the SIGKILL that no trap sees. Liveness is
+  # /proc/<pid>, not kill -0, which fails on another user's live pid.
+  for d in "${tf_cache%/*}"/test-*; do
+    pid=${d##*/test-}
+    [[ -d "$d" && "$pid" =~ ^[0-9]+$ && ! -d "/proc/$pid" ]] && rm -rf "$d"
+  done
+  tmp=""
+  trap 'rm -rf "$tf_cache" ${tmp:+"$tmp" "$tmp.init.log" "$tmp.validate.log"}' EXIT
+  trap 'exit 130' INT TERM
   mkdir -p "$tf_cache"
   # init downloads providers, and that download fails now and then (gate run
   # 36169958635: 019 and 020 failed with csi-spl-iac unchanged since the

@@ -171,7 +171,9 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
-    timeout-minutes: 20
+    # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
+    # cancelled at 20m right after names-not-ids 9/9, before the bundle budget.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: csi-spl-wui

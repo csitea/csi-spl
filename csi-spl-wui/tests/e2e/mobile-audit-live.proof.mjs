@@ -242,7 +242,8 @@ try {
         await tap(p, '[data-testid=sidebar-tab-channels]')
         const row = chan ? `.sidebar a[href$="${chan}"]` : '.sidebar a[href*="/channel/"]'
         W.walk.push({ step: 'channel row', tapped: await tap(p, row), level: await levelOf(p), url: await p.evaluate(() => location.pathname) })
-        await sleep(2000)
+        /* the feed renders after the route: wait for a topic control (a fixed 2 s missed it at 390, n=1 of 2) */
+        await p.waitForSelector('.spool-main [data-test=open-topic], .spool-main [data-test=topic-replies]', { visible: true, timeout: 10000 }).catch(() => {})
         W.walk.push({ step: 'open topic', tapped: await tap(p, '.spool-main [data-test=open-topic], .spool-main [data-test=topic-replies]'), level: await levelOf(p) })
         await p.screenshot({ path: `${OUT}/${key}_walk_topic.png` })
         await p.goBack().catch(() => {}); await sleep(2000)
@@ -266,6 +267,24 @@ try {
         score(key, 'dialog-back', opened && before.dialog && !after.dialog && after.url === before.url && after.level === before.level,
           `opened=${opened} dialog ${before.dialog}->${after.dialog} url ${before.url}->${after.url} level ${before.level}->${after.level}`)
       } catch (e) { W.flows.dialogBack = { error: String(e).slice(0, 200) } }
+    }
+
+    /* T056 / SPL-995 (owner, topic 6576fead): on a phone the tenant switcher sits in the top bar, before the search icon */
+    if (mobile) {
+      try {
+        await nav(p, BASE + '/lobby')
+        const tb = await p.evaluate(() => {
+          const bar = document.querySelector('[data-test=top-bar]')
+          const box = bar?.querySelector('[data-testid=top-bar-tenant-box]')
+          const search = bar?.querySelector('[data-test=top-bar-search-toggle]')
+          const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return b.width ? { x: Math.round(b.x), w: Math.round(b.width), h: Math.round(b.height) } : null }
+          const side = [...document.querySelectorAll('.sidebar [data-testid=tenant-switcher-box]')].filter((e) => e.getBoundingClientRect().width > 0).length
+          return { box: r(box), search: r(search), sidebarCopies: side }
+        })
+        W.flows.tenantTop = tb
+        score(key, 'tenant-in-top-bar', !!(tb.box && tb.search && tb.box.h >= 44 && tb.box.x + tb.box.w <= tb.search.x + 1 && tb.sidebarCopies === 0),
+          `box ${JSON.stringify(tb.box)} search ${JSON.stringify(tb.search)} sidebar copies ${tb.sidebarCopies}`)
+      } catch (e) { W.flows.tenantTop = { error: String(e).slice(0, 200) } }
     }
 
     /* message actions on /lobby */

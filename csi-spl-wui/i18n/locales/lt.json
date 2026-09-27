@@ -495,7 +495,8 @@
       "failed_not_author": "Redaguoti šią žinutę gali tik jos autorius.",
       "failed_not_editable": "Ši žinutė išsiųsta iš box ir jos redaguoti negalima.",
       "failed_not_found": "Tokios žinutės nebėra.",
-      "failed_too_large": "Per ilga, kad būtų išsaugota. Pridėkite ją kaip failą."
+      "failed_too_large": "Per ilga, kad būtų išsaugota. Pridėkite ją kaip failą.",
+      "failed_merge": "Šios žinutės negalima sujungti: ji pradeda temą arba turi savo atsakymų."
     },
     "msg_menu": {
       "label": "Žinutės meniu",

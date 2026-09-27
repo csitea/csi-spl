@@ -495,7 +495,8 @@
       "failed_not_author": "Doar autorul poate edita acest mesaj.",
       "failed_not_editable": "Acest mesaj a fost trimis dintr-un box și nu poate fi editat.",
       "failed_not_found": "Acel mesaj nu mai există.",
-      "failed_too_large": "Prea lung pentru a fi salvat. Atașează-l ca fișier."
+      "failed_too_large": "Prea lung pentru a fi salvat. Atașează-l ca fișier.",
+      "failed_merge": "Acest mesaj nu poate fi unit: deschide un subiect sau are propriile răspunsuri."
     },
     "msg_menu": {
       "label": "Meniu mesaj",

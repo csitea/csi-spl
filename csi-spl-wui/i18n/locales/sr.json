@@ -495,7 +495,8 @@
       "failed_not_author": "Samo autor može da izmeni ovu poruku.",
       "failed_not_editable": "Ova poruka je poslata iz box-a i ne može da se izmeni.",
       "failed_not_found": "Te poruke više nema.",
-      "failed_too_large": "Predugačka za čuvanje. Priložite je kao datoteku."
+      "failed_too_large": "Predugačka za čuvanje. Priložite je kao datoteku.",
+      "failed_merge": "Ова порука не може да се споји: она отвара тему или има своје одговоре."
     },
     "msg_menu": {
       "label": "Мени поруке",

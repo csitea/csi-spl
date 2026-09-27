@@ -86,7 +86,8 @@ import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { threadNeighbor } from '~/utils/msg-menu.mjs'
+import { mergeableSource, threadNeighbor } from '~/utils/msg-menu.mjs'
+import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
@@ -166,10 +167,14 @@ const announce = computed(() => {
    server will 403 is a defect. The predicate lives in utils/msg-edit.mjs. */
 const { canEdit } = useMessageEdit()
 
+const liveConn = useLive()
+
 /** The neighbor in this thread the viewer can both edit and, by deleting this row, fold into. */
 function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
   const other = threadNeighbor(props.rows, m, which) as SpoolMessage | null
   if (!other || !canEdit(m) || !canEdit(other)) return null
+  /* CLE-35064: a topic's card is never merged away (hub 409 is_card) */
+  if (!mergeableSource(props.rows, m, liveConn.lobbyTaskId.value)) return null
   return other
 }
 

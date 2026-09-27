@@ -114,5 +114,18 @@ export function useMessageEdit() {
     dropEverywhere(id)
   }
 
-  return { viewer, viewerId, canEdit, commit, applyEverywhere, dropEverywhere, removeMessage }
+  /**
+   * CLE-35064: fold `srcId` into `keepId` with ONE hub call (the kept row
+   * gets both bodies, the source is deleted, in one transaction), then show
+   * both halves in every store at once. Rejects with the hub token and
+   * changes nothing on screen.
+   */
+  async function mergeInto(srcId: string, keepId: string): Promise<SpoolMessage> {
+    const row = await api.mergeMessage(String(srcId || ''), String(keepId || ''))
+    applyEverywhere(row)
+    dropEverywhere(String(srcId || ''))
+    return row
+  }
+
+  return { viewer, viewerId, canEdit, commit, applyEverywhere, dropEverywhere, removeMessage, mergeInto }
 }

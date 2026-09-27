@@ -495,7 +495,8 @@
       "failed_not_author": "Šo ziņu var rediģēt tikai tās autors.",
       "failed_not_editable": "Šī ziņa nosūtīta no box, un to nevar rediģēt.",
       "failed_not_found": "Šādas ziņas vairs nav.",
-      "failed_too_large": "Pārāk gara, lai saglabātu. Pievienojiet to kā failu."
+      "failed_too_large": "Pārāk gara, lai saglabātu. Pievienojiet to kā failu.",
+      "failed_merge": "Šo ziņu nevar apvienot: tā sāk tēmu vai tai ir savas atbildes."
     },
     "msg_menu": {
       "label": "Ziņas izvēlne",

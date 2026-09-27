@@ -321,7 +321,7 @@ import { useAccessStore } from '~/stores/access'
 import { mayChangeTopic, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
-import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
+import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { typedByAuthor } from '~/utils/typed-by.mjs'
@@ -511,15 +511,15 @@ function onTopicDeleted(out: { msg_ids: string[] }) {
 
 /**
  * Fold this message into the neighbor. The neighbor keeps both bodies, older
- * first, and only then is this row removed — a failed edit leaves both rows.
+ * first, and this row is deleted. CLE-35064: that is ONE hub request and one
+ * transaction (POST /v1/messages/{id}/merge). It used to be an edit and then
+ * a delete, and on prd the delete never went out, so the source stayed. A
+ * refusal leaves both rows as they were.
  */
 async function onMerge(which: 'previous' | 'next') {
   const other = which === 'previous' ? props.mergePrev : props.mergeNext
   if (!other || removing.value || editing.value) return
   if (!canEdit(props.msg) || !canEdit(other)) return
-  const older = which === 'previous' ? String(other.body || '') : String(props.msg.body || '')
-  const newer = which === 'previous' ? String(props.msg.body || '') : String(other.body || '')
-  const body = joinBodies(older, newer)
   const keepId = String(other.msg_id || '')
   const dropId = String(props.msg.msg_id || '')
   if (!keepId || !dropId || keepId === dropId) return
@@ -527,11 +527,8 @@ async function onMerge(which: 'previous' | 'next') {
   removing.value = true
   editError.value = ''
   try {
-    if (body !== String(other.body || '')) {
-      const row = await commit(keepId, body)
-      emit('edited', row)
-    }
-    await removeMessage(dropId)
+    const row = await mergeInto(dropId, keepId)
+    emit('edited', row)
     emit('deleted', props.msg)
   } catch (e) {
     removing.value = false
@@ -708,7 +705,7 @@ const editEl = ref<HTMLTextAreaElement | null>(null)
 const rowEl = ref<HTMLElement | null>(null)
 const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
-const { canEdit, commit, removeMessage, viewerId: editorId, dropEverywhere } = useMessageEdit()
+const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere } = useMessageEdit()
 /* SPL-983 (specs/041 §3.3): the card's author, the tenant owner or an admin.
    The hub re-checks; this only decides what the menu offers. */
 const access = useAccessStore()

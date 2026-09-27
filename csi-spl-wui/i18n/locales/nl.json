@@ -495,7 +495,8 @@
       "failed_not_author": "Alleen de auteur kan dit bericht bewerken.",
       "failed_not_editable": "Dit bericht is vanuit een box verstuurd en kan niet worden bewerkt.",
       "failed_not_found": "Dat bericht bestaat niet meer.",
-      "failed_too_large": "Te lang om op te slaan. Voeg het als bestand toe."
+      "failed_too_large": "Te lang om op te slaan. Voeg het als bestand toe.",
+      "failed_merge": "Dit bericht kan niet worden samengevoegd: het opent een onderwerp of heeft eigen antwoorden."
     },
     "msg_menu": {
       "label": "Berichtmenu",

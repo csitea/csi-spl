@@ -495,7 +495,8 @@
       "failed_not_author": "Vain viestin kirjoittaja voi muokata sitä.",
       "failed_not_editable": "Tämä viesti lähetettiin box'ista, eikä sitä voi muokata.",
       "failed_not_found": "Viestiä ei enää ole.",
-      "failed_too_large": "Liian pitkä tallennettavaksi. Liitä se tiedostona."
+      "failed_too_large": "Liian pitkä tallennettavaksi. Liitä se tiedostona.",
+      "failed_merge": "Tätä viestiä ei voi yhdistää: se aloittaa aiheen tai sillä on omia vastauksia."
     },
     "msg_menu": {
       "label": "Viestin valikko",

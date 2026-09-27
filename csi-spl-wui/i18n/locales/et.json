@@ -495,7 +495,8 @@
       "failed_not_author": "Sõnumit saab muuta ainult selle autor.",
       "failed_not_editable": "See sõnum saadeti box'ist ja seda ei saa muuta.",
       "failed_not_found": "Seda sõnumit enam ei ole.",
-      "failed_too_large": "Liiga pikk, et salvestada. Lisa see failina."
+      "failed_too_large": "Liiga pikk, et salvestada. Lisa see failina.",
+      "failed_merge": "Seda sõnumit ei saa ühendada: see avab teema või sellel on oma vastused."
     },
     "msg_menu": {
       "label": "Sõnumi menüü",

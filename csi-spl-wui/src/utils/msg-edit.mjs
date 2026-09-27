@@ -303,6 +303,12 @@ export function editFailureKey(err) {
     case 'not_editable': return 'feed.edit.failed_not_editable'
     case 'not_found': return 'feed.edit.failed_not_found'
     case 'too_large': return 'feed.edit.failed_too_large'
+    /* CLE-35064 merge refusals: the reader cannot fix these by retrying */
+    case 'not_allowed': return 'feed.edit.failed_not_author'
+    case 'is_card':
+    case 'has_replies':
+    case 'not_same_thread':
+    case 'not_same_author': return 'feed.edit.failed_merge'
     default: return sendFailureKey(err)
   }
 }

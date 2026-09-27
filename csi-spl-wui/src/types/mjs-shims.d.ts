@@ -108,6 +108,8 @@ declare module '~/utils/spool-client.mjs' {
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     deleteMessage(msgId: string): Promise<null>
+    /** CLE-35064: fold msgId into intoId (one hub transaction); resolves with the kept row. */
+    mergeMessage(msgId: string, intoId: string): Promise<import('./spool').SpoolMessage & { merged_from: string }>
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     /** SPL-952: set a sent message's kind (author, biz_owner or admin). */
@@ -490,6 +492,7 @@ declare module '~/utils/msg-menu.mjs' {
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
+  export function mergeableSource(rows: unknown[], msg: unknown, lobbyTaskId?: string): boolean
   export function joinBodies(older: unknown, newer: unknown): string
 }
 

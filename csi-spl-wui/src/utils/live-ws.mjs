@@ -42,6 +42,10 @@ export const FRAMES = {
   edited: 'message_edited',
   /* A message was deleted. Not a `message` frame: mergeById would keep the row. */
   deleted: 'message_deleted',
+  /* CLE-35064: one message folded into its neighbor — the kept row's edit
+     plus `merged_from`, the row that is gone. Handled as the two frames it
+     replaces, so every store that applies an edit or a delete applies it. */
+  merged: 'message_merged',
   /* SPL-983 (specs/041 §3.4): a topic card archived / unarchived, or deleted with its children. */
   topicArchived: 'topic_archived',
   topicDeleted: 'topic_deleted',
@@ -270,6 +274,13 @@ export function createLiveClient({
       }
       case FRAMES.deleted: {
         onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
+        return
+      }
+      case FRAMES.merged: {
+        const m = messageFromFrame(f)
+        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
+        onEdited(m, f)
+        if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
         return
       }
       case FRAMES.topicArchived:

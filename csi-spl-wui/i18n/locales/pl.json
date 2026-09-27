@@ -495,7 +495,8 @@
       "failed_not_author": "Tylko autor może edytować tę wiadomość.",
       "failed_not_editable": "Ta wiadomość została wysłana z box i nie można jej edytować.",
       "failed_not_found": "Tej wiadomości już nie ma.",
-      "failed_too_large": "Zbyt długa, aby ją zapisać. Dołącz ją jako plik."
+      "failed_too_large": "Zbyt długa, aby ją zapisać. Dołącz ją jako plik.",
+      "failed_merge": "Tej wiadomości nie można scalić: otwiera temat lub ma własne odpowiedzi."
     },
     "msg_menu": {
       "label": "Menu wiadomości",

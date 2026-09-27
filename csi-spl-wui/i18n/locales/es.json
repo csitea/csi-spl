@@ -495,7 +495,8 @@
       "failed_not_author": "Solo el autor puede editar este mensaje.",
       "failed_not_editable": "Este mensaje se envió desde un box y no se puede editar.",
       "failed_not_found": "Ese mensaje ya no existe.",
-      "failed_too_large": "Demasiado largo para guardarlo. Adjúntalo como archivo."
+      "failed_too_large": "Demasiado largo para guardarlo. Adjúntalo como archivo.",
+      "failed_merge": "Este mensaje no se puede fusionar: abre un tema o tiene respuestas propias."
     },
     "msg_menu": {
       "label": "Menú del mensaje",

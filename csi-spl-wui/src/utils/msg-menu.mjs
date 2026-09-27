@@ -94,6 +94,26 @@ export function threadNeighbor(rows, msg, which) {
 }
 
 /**
+ * CLE-35064: may `msg` be merged AWAY (deleted into a neighbor)? Not when it
+ * opens its topic: a task's first row with is_parent 1 is the topic's card,
+ * and the hub refuses it (409 is_card) rather than leave a topic with no
+ * card. Lobby rows are each their own card and stay mergeable. A row whose
+ * older neighbor is not loaded reads as the first one, so the item is then
+ * hidden, never offered and refused.
+ *
+ * @param {unknown[]} rows
+ * @param {unknown} msg
+ * @param {string} [lobbyTaskId]
+ */
+export function mergeableSource(rows, msg, lobbyTaskId = '') {
+  const m = msg && typeof msg === 'object' ? msg : null
+  if (!m) return false
+  const task = threadKey(m)
+  if (m.is_parent === 0 || (task && task === String(lobbyTaskId || ''))) return true
+  return threadNeighbor(rows, m, 'previous') !== null
+}
+
+/**
  * Both bodies, older first, as one message. A blank line keeps the two
  * parts apart. Empty sides contribute nothing.
  *

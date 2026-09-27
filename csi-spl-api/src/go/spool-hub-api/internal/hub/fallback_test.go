@@ -137,12 +137,13 @@ func TestFallbackChannelWithNoAgentReachesResponder(t *testing.T) {
 	if n := len(inbox(t, r.desk, "CLE-35")); n != 0 {
 		t.Fatalf("CLE-35 is not the responder, reads %d", n)
 	}
-	if st, _ := r.e.st.DeliveryState(ctx, r.tid, m1, "box-desk"); st != store.StateSent {
-		t.Fatalf("box-desk delivery state %q, want sent", st)
-	}
-	if n := fallbackCount(t, r, "mobile"); n != 1 {
-		t.Fatalf("fallback records %d, want 1", n)
-	}
+	// The hub writes the frame first and records it after, so the inbox can
+	// be ahead of the store (CI Postgres, 2026-09-27): wait for the records.
+	eventually(t, "box-desk delivery sent", func() bool {
+		st, _ := r.e.st.DeliveryState(ctx, r.tid, m1, "box-desk")
+		return st == store.StateSent
+	})
+	eventually(t, "one fallback record", func() bool { return fallbackCount(t, r, "mobile") == 1 })
 	fb := fallbackOf(t, r, "mobile")
 	rec, _ := fb["recent"].(map[string]any)
 	if fb["id"] != "CLE-001" || fb["box"] != "box-desk" || fb["active"] != true || rec["count"] != float64(1) || rec["id"] != "CLE-001" {
@@ -286,9 +287,7 @@ func TestFallbackDMToOfflineAgent(t *testing.T) {
 	if p := r.pokes()[0]; !strings.HasSuffix(p, "| unanswered post in DM to CLE-77 (agent offline): please look at the build") {
 		t.Fatalf("poke: %q", p)
 	}
-	if n := fallbackCount(t, r, ""); n != 1 {
-		t.Fatalf("DM fallback records %d, want 1", n)
-	}
+	eventually(t, "one DM fallback record", func() bool { return fallbackCount(t, r, "") == 1 })
 
 	// A DM to a person is between people.
 	dmFrame(t, r.ws, "8e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b", "9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b",

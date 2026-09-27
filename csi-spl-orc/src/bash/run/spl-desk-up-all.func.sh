@@ -54,6 +54,11 @@
 # @param   redeploy ~45 min earlier. Reads the roster like do_spl_desk_check
 # @param   (DESK_ROSTER_JSON / PROBE_EMAIL / PROBE_PW_FILE); a roster read that
 # @param   fails is logged as a WARN and repairs nothing
+# @param DESK_SEATED_ONLY (optional) - 1 = seat only the live agents ALREADY
+# @param   seated on this desk (an agent dir under its spool root), never a new
+# @param   one. What do_spl_desk_up_tenants runs for a tenant other than the
+# @param   box's main one: its desk holds agents someone chose for it, and this
+# @param   brings its sidecar back after it died (SPL-1004), default 0
 # @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_desk_up_all
@@ -81,11 +86,17 @@ do_spl_desk_up_all() {
   fi
   do_log "INFO live agent windows: ${live[*]}"
 
-  local a skip=" ${DESK_SKIP:-} " mute=" ${DESK_MUTE:-} "
+  local a skip=" ${DESK_SKIP:-} " mute=" ${DESK_MUTE:-} " only="${DESK_SEATED_ONLY:-0}"
+  [[ "$only" == 0 || "$only" == 1 ]] || { do_log "FATAL DESK_SEATED_ONLY must be 0 or 1, got: '$only'"; return 1; }
   for a in "${live[@]}"; do
     [[ "$skip" == *" $a "* ]] && { do_log "INFO skipping $a (DESK_SKIP)"; continue; }
+    [[ "$only" == 1 && ! -d "$d/spool/$a" ]] && continue
     seat+=("$a")
   done
+  if [[ "$only" == 1 && ${#seat[@]} -eq 0 ]]; then
+    do_log "OK no live agent is seated on $box in $tenant: its sidecar has nobody to serve (DESK_SEATED_ONLY)"
+    return 0
+  fi
 
   local -a dead=()
   mapfile -t dead < <(spl_desk_dead_agents "$d" "${live[@]}")
@@ -117,6 +128,8 @@ do_spl_desk_up_all() {
   for a in "${seat[@]}"; do
     apoke="$poke"
     [[ "$mute" == *" $a "* ]] && apoke=0
+    # A seated-only pass never un-mutes: the seat was chosen by hand.
+    [[ "$only" == 1 && -e "$d/spool/$a/.no-poke" ]] && apoke=0
     if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$apoke" \
        DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up; then
       seated+=("$a")

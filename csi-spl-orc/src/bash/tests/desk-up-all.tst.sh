@@ -23,6 +23,11 @@
 #      a second install, removed cleanly, and a worktree source REFUSED - a
 #      crontab line into a worktree keeps looking installed after the worktree
 #      is removed and silently runs nothing
+#   9. SPL-1004: DESK_SEATED_ONLY re-seats only the live agents already
+#      seated on a tenant's desk (CONTROL: without it every live agent is
+#      seated) and keeps a hand mute; do_spl_desk_up_tenants runs that for
+#      every OTHER tenant desk on the box and skips DESK_SKIP_TENANTS, and
+#      the cron script calls it
 # No real crontab, no real tmux, no cloud call: crontab and tmux are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -349,6 +354,36 @@ out=$(SNIPPET=do_spl_desk_up_all in_orc TENANT_ID=t1 STUB_TMUX_WINDOWS="$T/windo
 [[ "$out" == *"DRY_RUN would: ask the hub whether"* ]] && pass "the dry run names the hub-side check" || fail "dry run: $out"
 out=$(SNIPPET=do_spl_desk_up_all in_orc TENANT_ID=t1 DESK_HUB_CHECK=2 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"DESK_HUB_CHECK must be 0 or 1"* ]] && pass "a bad DESK_HUB_CHECK is refused" || fail "DESK_HUB_CHECK=2: $out"
+
+# --- 9. the other tenants' desks get the tick too (SPL-1004) ------------------------
+# prd 2026-09-27: the csi-rel sidecar stopped at 11:47:54Z and stayed down until
+# a new agent was seated at 12:28:12Z - the cron reconciled t1 only.
+C="$T/state/dev/desk/csi-x/box-desk"
+mkdir -p "$C/spool"/{CLE-3444,CLE-999,.hub}
+touch "$C/spool/CLE-3444/.no-poke"
+UPSTUB='do_spl_desk_up() { echo "CALL up $TENANT_ID $DESK_AGENT poke=$DESK_POKE"; }
+        spl_desk_wait_roster() { return 0; }'
+out=$(SNIPPET="$UPSTUB; do_spl_desk_up_all" in_orc TENANT_ID=csi-x DESK_SEATED_ONLY=1 DESK_RETIRE=0 DESK_HUB_CHECK=0 \
+  DRY_RUN=0 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1)
+[[ "$(grep -c '^CALL up' <<<"$out")" == 1 && "$out" == *"CALL up csi-x CLE-3444 poke=0"* ]] &&
+  pass "DESK_SEATED_ONLY seats only the live agent already on the desk, and keeps its hand mute" ||
+  fail "seated-only: $out"
+out=$(SNIPPET="$UPSTUB; do_spl_desk_up_all" in_orc TENANT_ID=csi-x DESK_RETIRE=0 DESK_HUB_CHECK=0 \
+  DRY_RUN=0 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1)
+[[ "$out" == *"CALL up csi-x CLE-00 "* && "$out" == *"CALL up csi-x GRK-12 "* ]] &&
+  pass "CONTROL without DESK_SEATED_ONLY every live agent is seated" || fail "CONTROL all live: $out"
+[[ -d "$C/spool/CLE-999" ]] && pass "DESK_RETIRE=0 left the customer desk's dirs" || fail "a customer dir was retired"
+TSTUB='do_spl_desk_up_all() { echo "CALL all $TENANT_ID only=$DESK_SEATED_ONLY retire=$DESK_RETIRE hub=$DESK_HUB_CHECK dry=$DRY_RUN"; }'
+mkdir -p "$T/state/dev/desk/lone/other-box/spool"
+out=$(SNIPPET="$TSTUB; do_spl_desk_up_tenants" in_orc DESK_SKIP_TENANTS=t1 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"CALL all csi-x only=1 retire=0 hub=0 dry=0"* && "$out" != *"CALL all t1 "* && "$out" != *"CALL all lone "* ]] &&
+  pass "do_spl_desk_up_tenants reconciles the other tenant desks, seated-only, and skips t1 and a tenant with no such box" ||
+  fail "up_tenants (rc=$rc): $out"
+out=$(SNIPPET="$TSTUB; do_spl_desk_up_tenants" in_orc 2>&1)
+[[ "$out" == *"CALL all t1 "*"dry=1"* && "$out" == *"CALL all csi-x "*"dry=1"* ]] &&
+  pass "CONTROL with no skip list every tenant desk is reconciled, and a dry run stays dry" || fail "CONTROL up_tenants: $out"
+grep -q 'do_spl_desk_up_tenants' "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" &&
+  pass "the cron tick calls do_spl_desk_up_tenants" || fail "the cron tick does not call do_spl_desk_up_tenants"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-up-all.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

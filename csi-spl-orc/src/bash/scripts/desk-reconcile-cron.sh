@@ -164,6 +164,19 @@ say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
 rc=$?
 say "INFO do_spl_desk_up_all exit $rc"
 
+# SPL-1004 (owner answer "a", 2026-09-27): the desks of the OTHER tenants on
+# this box get the same tick. Only their already-seated live agents: a
+# customer desk holds agents someone chose for it. Before this, a customer
+# sidecar that died stayed dead - csi-rel on prd from 11:47:54Z to 12:28:12Z.
+# DESK_ALL_TENANTS=0 turns it off without touching the main reconcile.
+if [ "${DESK_ALL_TENANTS:-1}" != 0 ]; then
+  ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DESK_SKIP_TENANTS="$TENANT" DESK_MUTE="${DESK_MUTE:-}" DRY_RUN=0 \
+      ./run -a do_spl_desk_up_tenants )
+  trc=$?
+  say "INFO do_spl_desk_up_tenants exit $trc"
+  [ "$rc" = 0 ] && [ "$trc" != 0 ] && rc=1
+fi
+
 # SPL-961: the seated bots welcome a person admitted since the last tick, in
 # #lobby of EVERY tenant with a desk on this box (not only $TENANT: the other
 # tenants' desks have no tick of their own). Its ledger makes a repeated tick a

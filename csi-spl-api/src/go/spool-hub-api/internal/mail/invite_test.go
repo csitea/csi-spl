@@ -46,9 +46,11 @@ func TestTenantInviteEveryLocale(t *testing.T) {
 
 // Spec 044 FR-OS-003 (self-hosted, fully parameterised): the invitation names
 // the hub by the host of the sign-in URL it was given - the operator's own
-// domain - in subject and body, in every locale; no hosted domain is baked in.
+// domain - in subject and body, in every locale. Every upper-case host the
+// mail names is that one, so no hosted domain is baked into a template.
 func TestTenantInviteNamesTheOperatorsHost(t *testing.T) {
-	baked := regexp.MustCompile(`(?i)spool-hub\.ai`)
+	hostish := regexp.MustCompile(`\b[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,}\b`)
+	named := func(m Message) []string { return hostish.FindAllString(m.Subject+"\n"+m.TextBody, -1) }
 	for _, loc := range i18n.Supported {
 		m, err := TenantInvite("invitee@example.com", loc, inviteData)
 		if err != nil {
@@ -57,15 +59,21 @@ func TestTenantInviteNamesTheOperatorsHost(t *testing.T) {
 		if !strings.Contains(m.Subject, "EXAMPLE.COM") || !strings.Contains(m.TextBody, "EXAMPLE.COM") {
 			t.Errorf("%s: subject %q / body do not name the sign-in host", loc, m.Subject)
 		}
-		if baked.MatchString(m.Subject + m.TextBody) {
-			t.Errorf("%s: a baked-in hosted domain", loc)
+		for _, h := range named(m) {
+			if h != "EXAMPLE.COM" {
+				t.Errorf("%s: names a host that is not the sign-in host: %q", loc, h)
+			}
 		}
 	}
-	// CONTROL: another sign-in host changes the name, so it is not a literal
+	// CONTROLS: another sign-in host changes the name, so it is not a
+	// literal; and a baked-in host would be caught by the scan above
 	d := inviteData
 	d.SignInURL = "https://chat.example.org/login?tenant=t1"
 	if m, _ := TenantInvite("invitee@example.com", "en", d); !strings.Contains(m.Subject, "CHAT.EXAMPLE.ORG") {
 		t.Fatalf("control: subject %q ignores the sign-in host", m.Subject)
+	}
+	if got := named(Message{Subject: "Invitation on HOSTED.EXAMPLE"}); len(got) != 1 {
+		t.Fatalf("control: the host scan missed a baked host: %v", got)
 	}
 }
 

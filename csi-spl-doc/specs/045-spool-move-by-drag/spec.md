@@ -144,11 +144,14 @@ A feed drops the rows that left it and re-reads a list the rows joined; an open 
 A reply sent from a tab that still shows the old channel, or from an agent whose delivery named the
 old channel, carries the old channel tag. The hub stores it in the topic's CURRENT channel when the task
 has moved rows (the partial index `messages_moved` keeps the extra lookup to one probe of a tiny
-index). The envelope keeps its tag, as every moved row does.
+index). The envelope keeps its tag, as every moved row does. A browser reply is signed with the
+current channel. An agent's reply keeps its own signed tag, and the box fan-out goes by what the signed
+envelope claims (channels-v1 §4.5), so the old channel's member agents get it: stored and shown in the
+new channel, delivered as the agent addressed it.
 
 ## 4. Data (rdb `0069`)
 
-`messages` gets four nullable columns and one partial index; nothing is backfilled.
+`messages` gets five nullable columns and one partial index; nothing is backfilled.
 
 | column | set by | meaning |
 |---|---|---|
@@ -156,6 +159,7 @@ index). The envelope keeps its tag, as every moved row does.
 | `moved_by text` | idem | the mover's v:1 id |
 | `moved_from_channel text` | the first move of a row | its home channel |
 | `moved_from_task uuid` | the first message move of a row | its home task (3.2 rows only) |
+| `moved_from_parent uuid` | idem | its home `parent_task_id`, restored when it moves back home |
 
 `messages_moved ON messages (tenant_id, task_id) WHERE moved_at IS NOT NULL` — only moved rows, used by
 3.7. The runtime role already has `UPDATE` on `messages` (the archive and kind paths use it).
@@ -164,7 +168,7 @@ index). The envelope keeps its tag, as every moved row does.
 
 | id | requirement | status |
 |---|---|---|
-| FR-MV-001 | rdb 0069: the four columns and `messages_moved`; applied dev + prd before any hub reads them | Planned |
+| FR-MV-001 | rdb 0069: the five columns and `messages_moved`; applied dev + prd before any hub reads them | Planned |
 | FR-MV-002 | `POST /v1/messages/{msg_id}/move` `{to_channel}` moves a topic (3.1) in ONE transaction; §3.4 gate; the 3.1 refusals | Planned |
 | FR-MV-003 | `POST /v1/messages/{msg_id}/move` `{to_task}` moves a reply and its thread (3.2) in ONE transaction; §3.4 gate; the 3.2 refusals; the order rule | Planned |
 | FR-MV-004 | a move back home clears the stamp (3.3); the answer carries `undo` | Planned |
@@ -189,4 +193,4 @@ index). The envelope keeps its tag, as every moved row does.
 - **SC-MV-3**: live proof in the prd `e2e` tenant and the dev test tenant only, with a DB count of the
   rows per channel / task before and after, and screenshots posted in both owner topics.
 
-<!-- version: 0.1.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-27 · last-edit: 2026-09-27T21:40:00Z -->

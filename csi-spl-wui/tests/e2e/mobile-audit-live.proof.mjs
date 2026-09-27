@@ -164,7 +164,11 @@ try {
 
   /* a channel and a DM to visit, found at desktop width */
   await tap(p, '[data-testid=sidebar-tab-channels]')
-  const chan = await p.evaluate(() => [...document.querySelectorAll('a[href*="/channel/"]')].map((a) => a.getAttribute('href'))[0] || null)
+  /* #lobby first: a fresh probe channel sorts first and has no topic to open (the walk needs one) */
+  const chan = await p.evaluate(() => {
+    const hrefs = [...document.querySelectorAll('a[href*="/channel/"]')].map((a) => a.getAttribute('href'))
+    return hrefs.find((h) => /\/channel\/lobby$/.test(h)) || hrefs[0] || null
+  })
   await tap(p, '[data-testid=sidebar-tab-dm]')
   const dm = await p.evaluate(() => [...document.querySelectorAll('a[href*="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
   const routes = ['/', '/lobby', chan, dm, '/issues', '/search?q=spool', '/settings/profile', '/events', '/archive'].filter(Boolean)

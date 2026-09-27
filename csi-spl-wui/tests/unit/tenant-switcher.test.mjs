@@ -155,15 +155,26 @@ describe('tenantHint (CLE-34991, the hover explanation)', () => {
   })
 })
 
-describe('the drop box sits above the direct-messages icon', () => {
-  const vue = src('src/components/ChannelSidebar.vue')
+describe('the drop box sits in the top bar where the brand text was', () => {
+  /* owner 2026-09-27 (topic d5504c2b): the spool-hub brand text is gone and the
+     tenant drop box takes its place, just before the theme palette icon; the
+     sidebar no longer carries it */
+  const vue = src('src/components/TenantDropBox.vue')
+  const topBar = src('src/components/TopBar.vue')
   const css = src('src/assets/css/main.css')
 
   it('one select, wired to the session; only a real switch calls the hub', () => {
     const box = vue.indexOf('data-testid="tenant-switcher"')
-    const rail = vue.indexOf('class="sidebar-rail"')
-    const heading = vue.indexOf('data-testid="sidebar-help-dm"')
-    assert.ok(box > 0 && rail > box && heading > rail)
+    const rail = vue.indexOf('</template>')
+    assert.ok(box > 0 && rail > box)
+    const start = topBar.slice(topBar.indexOf('class="top-bar__start"'), topBar.indexOf('<TopBarTenant'))
+    assert.ok(start.indexOf('<TenantDropBox />') > 0 && start.indexOf('<ThemeToggle />') > start.indexOf('<TenantDropBox />'), 'drop box, then the theme icon')
+    /* owner 2026-09-27 (topic 38ba1dae): the logo just before the drop box, as the home link */
+    const logo = start.indexOf('data-test="top-bar-logo"')
+    assert.ok(logo > 0 && logo < start.indexOf('<TenantDropBox />'), 'logo, then the drop box')
+    assert.match(start, /<img src="\/logo\.svg"/)
+    assert.doesNotMatch(topBar, /top-bar__brand|>spool-hub</)
+    assert.doesNotMatch(src('src/components/ChannelSidebar.vue'), /tenant-switcher|TENANT_TEXT_PAD_PX/)
     assert.equal(vue.split('<option').length - 1, 1)
     assert.match(vue, /tenantSwitchOptions\(session\.claims, api\.tenant\)/)
     // CLE-555 red on e443566: with no session and no configured tenant (the CI
@@ -191,7 +202,7 @@ describe('the drop box sits above the direct-messages icon', () => {
   })
 
   it('CLE-34991: one slim row - no visible caption, the caption names the select, hover explains', () => {
-    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"') - 60, vue.indexOf('class="sidebar-rail"'))
+    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"') - 60, vue.indexOf('</template>'))
     assert.doesNotMatch(box, /tenant-switcher__label/)
     assert.doesNotMatch(box, /<label/)
     assert.match(box, /<UiIcon name="building"/)
@@ -206,11 +217,13 @@ describe('the drop box sits above the direct-messages icon', () => {
     assert.match(rule, /align-items:\s*center/)
     assert.doesNotMatch(rule, /flex-direction:\s*column|border:/)
     const sel = style.slice(style.indexOf('.tenant-switcher__select {'), style.indexOf('}', style.indexOf('.tenant-switcher__select {')))
-    assert.match(sel, /(^|[^-])height:\s*22px/)
+    assert.match(sel, /(^|[^-])height:\s*26px/)
+    /* owner 2026-09-27: the tenant text a bit bigger than the sidebar's 0.75rem */
+    assert.match(rule, /font-size:\s*0\.875rem/)
   })
 
   it('SPL-71: a drop box - name and arrow in one bordered box; a press anywhere in it opens the list', () => {
-    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"'), vue.indexOf('class="sidebar-rail"'))
+    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"'), vue.indexOf('</template>'))
     const field = box.slice(box.indexOf('class="tenant-switcher__field"'))
     assert.match(field, /data-testid="tenant-switcher-box"/)
     assert.match(field, /@mousedown="onTenantBoxPress"/)
@@ -219,7 +232,9 @@ describe('the drop box sits above the direct-messages icon', () => {
     const rule = style.slice(style.indexOf('.tenant-switcher__field {'), style.indexOf('}', style.indexOf('.tenant-switcher__field {')))
     assert.match(rule, /border:\s*1px solid var\(--color-border-strong\)/)
     assert.match(rule, /background:\s*var\(--color-bg\)/)
-    assert.match(rule, /(^|[^-])height:\s*24px/)
+    assert.match(rule, /(^|[^-])height:\s*28px/)
+    /* owner 2026-09-27: 4 px wider than the 6px-a-side box - 2px more on each side */
+    assert.match(rule, /padding:\s*0 8px/)
     assert.match(rule, /box-sizing:\s*border-box/)
     const fn = vue.slice(vue.indexOf('function onTenantBoxPress'))
     const body = fn.slice(0, fn.indexOf('\n}'))
@@ -337,16 +352,22 @@ describe('the closed drop box is the widest name, then 3px, then the arrow', () 
     assert.equal(Number.isNaN(measureControlText({}, 'Aa')), true)
   })
 
-  it('the sidebar measures every option in the select font and recomputes on the font setting', () => {
-    const vue = src('src/components/ChannelSidebar.vue')
+  it('the drop box measures every option in the select font and recomputes on the font setting', () => {
+    const vue = src('src/components/TenantDropBox.vue')
     const style = vue.slice(vue.indexOf('<style'))
     assert.match(vue, /tenantDrawnLabels\(tenantBox\.value\.options, t\('sidebar\.tenant'\)\)/)
     assert.match(vue, /widestLabelWidth\(labels, \(label\) => measureControlText\(sel, label\)\)/)
     assert.match(vue, /gap: \(TENANT_ARROW_GAP_PX - TENANT_TEXT_PAD_PX\) \+ 'px'/)
-    /* SPL-980: 2px of the select's own background before and after the name, in the closed box and the open list */
+    /* SPL-980: 2px of the select's own background before and after the name in the closed box */
     assert.equal(TENANT_TEXT_PAD_PX, 2)
     assert.match(vue, /width: \(text \+ 2 \* TENANT_TEXT_PAD_PX\) \+ 'px', paddingInline: TENANT_TEXT_PAD_PX \+ 'px'/)
-    assert.match(vue, /\.tenant-switcher__select option \{ padding-inline: 2px; \}/)
+    /* owner 2026-09-27: 2px more before and after every item of the open list,
+       and the rows carry the theme's colours (the darkest theme's light text
+       was drawn on the browser's white popup) */
+    const opt = style.slice(style.indexOf('.tenant-switcher__select option {'), style.indexOf('}', style.indexOf('.tenant-switcher__select option {')))
+    assert.match(opt, /padding-inline:\s*4px/)
+    assert.match(opt, /background-color:\s*var\(--color-bg-2\)/)
+    assert.match(opt, /(^|[^-])color:\s*var\(--color-fg\)/)
     assert.match(vue, /attributeFilter: \['data-font-size'\]/)
     assert.match(vue, /matchMedia\('\(max-width: 820px\)'\)/)
     assert.match(vue, /data-testid="tenant-switcher-arrow"/)

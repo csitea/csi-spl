@@ -1,4 +1,5 @@
-<!-- 022 FR-001..003: the persistent top strip. Brand | the Omnibox (the one
+<!-- 022 FR-001..003: the persistent top strip. Tenant drop box + theme
+     (owner 2026-09-27: no brand text) | the Omnibox (the one
      MessageComposer, so the ``` code-block composer works in it; plain text
      goes to the page's send target, `/search <q>` opens /search?q=) | the
      language switcher + the user menu (the former .app-corner, CLE-3402 /
@@ -15,7 +16,13 @@
 <template>
   <header class="top-bar" data-test="top-bar">
     <div class="top-bar__start" data-test="top-bar-start">
-      <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
+      <!-- owner 2026-09-27: the spool-hub brand text is gone (topic d5504c2b).
+           The logo (topic 38ba1dae) comes first and is the home link the text
+           was; then the tenant drop box, just before the theme icon. -->
+      <NuxtLink class="top-bar__logo" data-test="top-bar-logo" :to="localePath('/')" :aria-label="t('search.home')">
+        <img src="/logo.svg" alt="" width="28" height="28" decoding="async">
+      </NuxtLink>
+      <TenantDropBox />
       <ThemeToggle />
     </div>
     <!-- SPL-995: the tenant switcher, first in the phone row -->
@@ -72,6 +79,7 @@ import { sendFailureKey } from '~/utils/send-failure.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 import TopBarTenant from '~/components/TopBarTenant.vue'
+import TenantDropBox from '~/components/TenantDropBox.vue'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -216,14 +224,12 @@ onUnmounted(() => {
   flex-shrink: 0;
   min-width: 0;
 }
-.top-bar__brand {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-  flex-shrink: 0;
+.top-bar__logo {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
 }
+.top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: 6px; }
 .top-bar__omnibox {
   flex: 1;
   min-width: 0;

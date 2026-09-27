@@ -69,7 +69,7 @@ try {
   await p.evaluate(() => {
     const a = document.activeElement
     if (a && a !== document.body && typeof a.blur === 'function') a.blur()
-    const brand = document.querySelector('.top-bar__brand')
+    const brand = document.querySelector('[data-test=theme-picker]')
     if (brand) brand.focus()
   })
   await sleep(100)
@@ -112,11 +112,11 @@ try {
   const literal = await p.$eval(OMNI, (t) => t.value)
   step('/ inside the composer inserts a literal slash', literal.includes('/'), { literal })
 
-  // restore: focus the brand, press /, Escape returns to the brand
+  // restore: focus the theme button (the brand text is gone, owner 2026-09-27), press /, Escape returns to it
   await p.evaluate(() => {
     const ta = document.querySelector('[data-test=top-bar-omnibox] textarea')
     if (ta) ta.blur()
-    const brand = document.querySelector('.top-bar__brand')
+    const brand = document.querySelector('[data-test=theme-picker]')
     if (brand) brand.focus()
   })
   await sleep(50)
@@ -128,7 +128,7 @@ try {
   const restored = await p.evaluate(() => {
     const a = document.activeElement
     return {
-      isBrand: !!(a && a.classList && a.classList.contains('top-bar__brand')),
+      isBrand: !!(a && a.matches && a.matches('[data-test=theme-picker]')),
       tag: a && a.tagName,
       className: a && a.className,
     }
@@ -189,7 +189,7 @@ try {
   await p.evaluate(() => {
     const ta = document.querySelector('[data-test=top-bar-omnibox] textarea')
     if (ta) ta.blur()
-    const brand = document.querySelector('.top-bar__brand')
+    const brand = document.querySelector('[data-test=theme-picker]')
     if (brand) brand.focus()
   })
   await p.keyboard.down('Control')

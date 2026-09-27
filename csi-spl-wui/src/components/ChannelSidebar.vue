@@ -1,49 +1,5 @@
 <template>
   <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly }">
-    <!-- Tenant drop box, above the direct-messages icon (specs/026 §6). One
-         membership: one row, choosing it changes nothing. Several: every
-         membership, and choosing one switches the session's tenant.
-         CLE-34991: one slim row, a glyph instead of a visible caption; the
-         caption is the select's name and hovering explains what a tenant is.
-         The closed select is as wide as the widest option, then 3px, then
-         the arrow, measured in the select's own font.
-         SPL-71: a drop box, not a dropdown menu - the name and the arrow sit
-         in one bordered box, and pressing anywhere in it opens the list.
-         Rows come in the hub's order (tenants.sort_order, rdb 0051). -->
-    <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
-      <span class="tenant-switcher__icon"><UiIcon name="building" :size="14" /></span>
-      <span
-        class="tenant-switcher__field"
-        data-testid="tenant-switcher-box"
-        :style="{ gap: (TENANT_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
-        @mousedown="onTenantBoxPress"
-      >
-      <select
-        ref="tenantSelectEl"
-        class="tenant-switcher__select"
-        data-testid="tenant-switcher-select"
-        :value="tenantBox.selected"
-        :aria-label="t('sidebar.tenant')"
-        aria-describedby="tenant-switcher-hint"
-        :aria-busy="switching ? 'true' : undefined"
-        :style="tenantSelectStyle"
-        @change="onTenantChange"
-      >
-        <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label || t('sidebar.tenant') }}</option>
-      </select>
-      <svg
-        class="tenant-switcher__arrow"
-        data-testid="tenant-switcher-arrow"
-        viewBox="0 0 8 6"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path d="M0 0 H8 L4 6 Z" />
-      </svg>
-      </span>
-      <span id="tenant-switcher-hint" class="sr-only" data-testid="tenant-switcher-hint">{{ tenantHintText }}</span>
-    </div>
-    <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
@@ -631,8 +587,6 @@ import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/spool-client.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { useTenantSwitch } from '~/composables/useTenantSwitch'
-import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users'
@@ -730,75 +684,6 @@ const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: the description's submit key creates the channel, as the button does */
 const { onKeydown: onSubmitKey } = useSubmitKey()
-const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
-const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
-const tenantSelectEl = ref<HTMLSelectElement | null>(null)
-const tenantSwitcherEl = ref<HTMLElement | null>(null)
-const tenantTextPx = ref(0)
-const tenantSelectStyle = computed(() => {
-  const text = tenantTextPx.value
-  if (!(text > 0)) return undefined
-  return { width: (text + 2 * TENANT_TEXT_PAD_PX) + 'px', paddingInline: TENANT_TEXT_PAD_PX + 'px' }
-})
-/* The select is only as wide as the widest option in its own font. The arrow
-   is the next flex item, TENANT_ARROW_GAP_PX after that edge, so a clamped
-   rail cannot slide the arrow back over the name. Re-measured when the list,
-   the font-size setting (html data-font-size), or the rail font changes. */
-function applyTenantSelectWidth() {
-  const sel = tenantSelectEl.value
-  if (!sel) return
-  const labels = tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant'))
-  const text = widestLabelWidth(labels, (label) => measureControlText(sel, label))
-  if (labels.some((label) => label.length > 0) && !(text > 0)) return
-  if (Math.abs(tenantTextPx.value - text) > 0.01) tenantTextPx.value = text
-}
-watch(
-  () => tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant')).join('\n'),
-  async () => {
-    await nextTick()
-    applyTenantSelectWidth()
-  },
-)
-let tenantWidthMq: MediaQueryList | null = null
-let tenantFontObs: MutationObserver | null = null
-function onTenantWidthViewport() { applyTenantSelectWidth() }
-onMounted(() => {
-  applyTenantSelectWidth()
-  const doc = tenantSwitcherEl.value?.ownerDocument
-  const view = doc?.defaultView
-  if (doc?.documentElement && typeof MutationObserver === 'function') {
-    tenantFontObs = new MutationObserver(() => applyTenantSelectWidth())
-    tenantFontObs.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
-  }
-  if (!view) return
-  tenantWidthMq = view.matchMedia('(max-width: 820px)')
-  tenantWidthMq.addEventListener('change', onTenantWidthViewport)
-})
-onBeforeUnmount(() => {
-  tenantFontObs?.disconnect()
-  tenantWidthMq?.removeEventListener('change', onTenantWidthViewport)
-})
-/* SPL-71: the arrow and the box's padding are part of the drop box, so a
-   press there opens the list as a press on the name does. */
-function onTenantBoxPress(ev: MouseEvent) {
-  const sel = tenantSelectEl.value
-  if (!sel || ev.button !== 0 || ev.target === sel || sel.contains(ev.target as Node)) return
-  ev.preventDefault()
-  sel.focus()
-  try {
-    (sel as HTMLSelectElement & { showPicker?: () => void }).showPicker?.()
-  } catch { /* no picker without a user gesture: focus is enough */ }
-}
-/* specs/026 §6: a member of several tenants switches here (useTenantSwitch,
-   shared with the phone top bar's sheet, SPL-995). */
-const tenantSwitch = useTenantSwitch()
-const switching = tenantSwitch.switching
-const switchFailed = tenantSwitch.failed
-async function onTenantChange(ev: Event) {
-  const el = ev.target
-  if (!(el instanceof HTMLSelectElement)) return
-  if (!(await tenantSwitch.switchTo(el.value))) el.value = tenantBox.value.selected
-}
 const localePath = useLocalePath()
 /* No "All issues" row. With no epic rows the panel is empty, so the
    sidebar keeps the icon rail and the issue list takes the width. */
@@ -1382,82 +1267,6 @@ async function onCreate() {
 .nav-row--drag .nav-item { cursor: grabbing; }
 .nav-row--drop { box-shadow: inset 0 2px 0 var(--color-accent); }
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
-/* Compact drop box (CLE-34991): one slim row, a glyph and the box, no
-   caption. The select's width is the widest option in its own font, plus
-   3px, plus the arrow (set from script, not a fixed px width). max-width
-   keeps the row inside the sidebar. SPL-71: the name and the arrow sit in
-   one bordered box (__field), a drop box rather than a dropdown menu. */
-.tenant-switcher {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  align-self: flex-start;
-  width: max-content;
-  max-width: calc(100% - 12px);
-  min-width: 0;
-  box-sizing: border-box;
-  margin: 4px 6px 0;
-  padding: 0 4px;
-  border-radius: var(--radius-sm);
-  color: var(--color-muted);
-  font-size: 0.75rem;
-}
-.tenant-switcher:hover { background: var(--color-surface); color: var(--color-fg); }
-.tenant-switcher__icon { flex: 0 0 auto; display: inline-flex; }
-.tenant-switcher__field {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  min-width: 0;
-  box-sizing: border-box;
-  height: 24px;
-  padding: 0 6px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
-  cursor: pointer;
-}
-.tenant-switcher__error {
-  margin: 0.125rem 0.5rem 0;
-  font-size: 0.6875rem;
-  color: var(--color-danger);
-}
-.tenant-switcher__select {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  min-height: 22px;
-  height: 22px;
-  cursor: pointer;
-  padding: 0;
-  background: transparent;
-  color: var(--color-fg);
-  border: 0;
-  border-radius: var(--radius-sm);
-  font: inherit;
-  line-height: 1.2;
-  text-align: start;
-  appearance: none;
-  -webkit-appearance: none;
-}
-/* SPL-980: the open list's rows get the same 2px before and after the name */
-.tenant-switcher__select option { padding-inline: 2px; }
-.tenant-switcher__arrow {
-  flex: 0 0 auto;
-  width: 0.65em;
-  height: 0.5em;
-  display: block;
-  pointer-events: none;
-  fill: currentColor;
-  color: var(--color-fg);
-}
-/* SPL-995: on a phone the switcher is in the top bar (TopBarTenant), not
-   in the level-1 strip - never shown twice */
-@media (max-width: 820px) {
-  .tenant-switcher,
-  .tenant-switcher__error { display: none; }
-}
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
 .foot-row .vs-wrap { flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }

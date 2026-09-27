@@ -81,7 +81,7 @@ async function phone(p, base, width) {
   await open(p, base, width, 800, true)
   const bar = await probe(p, [
     '[data-test=top-bar]', '[data-test=top-bar-tenant]', '[data-test=top-bar-search-toggle]',
-    '.composer--dock [data-testid=send]', '[data-test=user-menu-trigger]', '.top-bar__brand', '[data-test=theme-picker]', '[data-test=lang-switcher]',
+    '.composer--dock [data-testid=send]', '[data-test=user-menu-trigger]', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]',
     '[data-testid=notify-box-rail]',
   ])
   const row = bar['[data-test=top-bar]']
@@ -101,7 +101,7 @@ async function phone(p, base, width) {
       const b = document.querySelector('.composer--dock [data-testid=send]')
       return getComputedStyle(b).borderRadius === '50%' && b.querySelector('svg')?.getAttribute('data-icon') === 'go'
     }), { go, view })
-  for (const s of ['.top-bar__brand', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
+  for (const s of ['[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} is out of the row`, !bar[s]?.shown, bar[s])
   }
   check(`${tag}: no horizontal scroll`, await noXScroll(p))
@@ -149,11 +149,11 @@ async function desktop(p, base) {
   const tag = '1440px'
   await open(p, base, 1440, 900, false)
   const bar = await probe(p, [
-    '[data-test=top-bar]', '[data-test=top-bar-omnibox] textarea', '.top-bar__brand', '[data-test=theme-picker]', '[data-test=lang-switcher]',
+    '[data-test=top-bar]', '[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]',
     '[data-test=top-bar-search-toggle]', '[data-test=top-bar-tenant]', '[data-testid=notify-box-rail]',
   ])
   check(`${tag}: bar height unchanged (58)`, bar['[data-test=top-bar]']?.h === 58, bar['[data-test=top-bar]'])
-  for (const s of ['[data-test=top-bar-omnibox] textarea', '.top-bar__brand', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
+  for (const s of ['[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} in place`, bar[s]?.shown === true, bar[s])
   }
   for (const s of ['[data-test=top-bar-search-toggle]', '[data-test=top-bar-tenant]']) {

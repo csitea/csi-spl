@@ -51,13 +51,11 @@ async function readBox(p) {
   return p.evaluate(() => {
     const sel = document.querySelector('[data-testid=tenant-switcher-select]')
     const dm = document.querySelector('[data-testid=sidebar-tab-dm]')
-    const heading = document.querySelector('[data-testid=sidebar-help-dm]')
+    const theme = document.querySelector('[data-test=theme-picker]')
     if (!(sel instanceof HTMLSelectElement) || !(dm instanceof HTMLElement)) {
       return { missing: true }
     }
     const er = sel.getBoundingClientRect()
-    const dr = dm.getBoundingClientRect()
-    const hr = heading instanceof HTMLElement ? heading.getBoundingClientRect() : null
     const sidebar = document.querySelector('.sidebar')
     const sw = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0
     const wrap = document.querySelector('[data-testid=tenant-switcher]')
@@ -101,8 +99,18 @@ async function readBox(p) {
       disabled: sel.disabled,
       tabIndex: sel.tabIndex,
       focused: document.activeElement === sel,
-      aboveIcon: er.height > 0 && dr.height > 0 && er.bottom <= dr.top + 1,
-      aboveHeading: !hr || hr.height < 1 || er.bottom <= hr.top + 1,
+      /* owner 2026-09-27 (topic d5504c2b): in the top bar where the brand
+         text was, just before the theme palette icon; no brand text */
+      inTopBar: !!sel.closest('[data-test=top-bar] .top-bar__start'),
+      beforeTheme: !!(theme && er.right <= theme.getBoundingClientRect().left + 1),
+      brandGone: !document.querySelector('.top-bar__brand'),
+      logoBefore: (() => {
+        const img = document.querySelector('[data-test=top-bar-logo] img')
+        if (!(img instanceof HTMLImageElement)) return false
+        const r = img.getBoundingClientRect()
+        return img.complete && img.naturalWidth > 0 && r.width >= 24 && r.right <= er.left
+      })(),
+      notInSidebar: !sel.closest('.sidebar'),
       selectWidth: er.width,
       selectHeight: er.height,
       sidebarWidth: sw,
@@ -146,10 +154,11 @@ try {
       continue
     }
     const box = await readBox(p)
-    ok(tag + ' one option above the direct-messages icon', box.aboveIcon === true && box.options?.length === 1 && box.options[0].text.length > 0, box)
-    ok(tag + ' above the direct-messages heading when that heading is shown', box.aboveHeading === true, box)
+    ok(tag + ' one option, in the top bar just before the theme icon', box.inTopBar === true && box.beforeTheme === true && box.options?.length === 1 && box.options[0].text.length > 0, box)
+    ok(tag + ' the brand text is gone and the sidebar carries no second switcher', box.brandGone === true && box.notInSidebar === true, box)
+    ok(tag + ' the logo loads and sits just before the drop box', box.logoBefore === true, box)
     ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0, box)
-    ok(tag + ' fits the sidebar without page scroll', box.selectWidth > 8 && box.selectWidth <= box.sidebarWidth + 1 && box.docOverflow <= 1, box)
+    ok(tag + ' fits the bar without page scroll', box.selectWidth > 8 && box.docOverflow <= 1, box)
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
     /* SPL-989: on a phone the row is a 44 px touch target (level-1 header) */
     ok(tag + ' no visible caption, one slim row', box.captionText === '' && box.wrapHeight > 0 && box.wrapHeight <= (vp.width <= 820 ? 52 : 28) && box.ariaLabel.length > 0, box)

@@ -125,16 +125,17 @@ describe('theme picker wiring', () => {
     }
   })
 
-  it('TopBar places the picker immediately right of the spool-hub brand', () => {
+  it('TopBar places the picker immediately right of the tenant drop box (the brand text is gone)', () => {
     const src = read('src/components/TopBar.vue')
-    const brand = src.indexOf('top-bar__brand')
+    const box = src.indexOf('<TenantDropBox')
     const toggle = src.indexOf('<ThemeToggle')
-    assert.ok(brand > 0 && toggle > brand, 'ThemeToggle after brand')
-    const between = src.slice(brand, toggle)
+    assert.ok(box > 0 && toggle > box, 'ThemeToggle after the tenant drop box')
+    const between = src.slice(box, toggle)
     assert.equal(between.includes('top-bar__omnibox'), false)
-    assert.match(between, />spool-hub<\/NuxtLink>/)
+    assert.doesNotMatch(src, /top-bar__brand|>spool-hub<\/NuxtLink>/)
     assert.match(src, /top-bar__start/)
   })
+
 
   it('ChannelSidebar no longer hosts a second theme control', () => {
     const src = read('src/components/ChannelSidebar.vue')

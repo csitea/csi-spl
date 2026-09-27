@@ -72,6 +72,7 @@ async function goto(p, url) {
 
 function readTheme() {
   const brand = document.querySelector('.top-bar__brand')
+  const tenant = document.querySelector('[data-testid=tenant-switcher]')
   const btn = document.querySelector('[data-test=theme-picker]')
   const list = document.querySelector('[data-test=theme-picker-list]')
   let stored = null
@@ -83,6 +84,7 @@ function readTheme() {
     stored,
     bg,
     brand: brand ? brand.textContent.trim() : '',
+    tenantBeforePicker: !!(tenant && btn && tenant.getBoundingClientRect().right <= btn.getBoundingClientRect().left + 1),
     expanded: btn ? btn.getAttribute('aria-expanded') : null,
     label: btn ? btn.getAttribute('aria-label') : null,
     popup: btn ? btn.getAttribute('aria-haspopup') : null,
@@ -116,7 +118,7 @@ try {
 
   await p.waitForSelector('[data-test=theme-picker]', { timeout: 20000 })
   const opened = await p.evaluate(readTheme)
-  step('brand is spool-hub and the palette button is closed', opened.brand === 'spool-hub' && opened.expanded === 'false' && opened.popup === 'listbox' && opened.xscroll <= 0, opened)
+  step('no brand text, the tenant drop box before the palette button, and the button is closed', opened.brand === '' && opened.tenantBeforePicker && opened.expanded === 'false' && opened.popup === 'listbox' && opened.xscroll <= 0, opened)
 
   for (const theme of EXPECT) {
     await p.click('[data-test=theme-picker]')

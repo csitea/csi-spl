@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Dzēst šo tēmu?",
+      "title_one": "Dzēst tēmu un tās atbildi?",
+      "title_n": "Dzēst tēmu un tās {n} atbildes?",
       "body": "Sākuma ziņa un viss zem tās tiek noņemts visiem. To nevar atsaukt.",
-      "count": "Kopā ar to dzēstās atbildes: {n}",
       "confirm": "Dzēst",
       "busy": "Dzēš…",
       "error": "Tēma netika dzēsta. Mēģiniet vēlreiz.",
-      "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators."
+      "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators.",
+      "archive_hint": "Arhivēšana to tikai paslēpj, un to var atsaukt.",
+      "archive": "Arhivēt tā vietā"
+    },
+    "msg_delete": {
+      "title": "Dzēst šo ziņu?",
+      "body": "Tā tiek noņemta visiem. To nevar atsaukt.",
+      "confirm": "Dzēst"
     }
   },
   "topic": {

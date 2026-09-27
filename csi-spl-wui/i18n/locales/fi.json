@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Poistetaanko tämä aihe?",
+      "title_one": "Poistetaanko aihe ja sen vastaus?",
+      "title_n": "Poistetaanko aihe ja sen {n} vastausta?",
       "body": "Avausviesti ja kaikki sen alla poistetaan kaikilta. Tätä ei voi perua.",
-      "count": "Sen mukana poistetaan vastauksia: {n}",
       "confirm": "Poista",
       "busy": "Poistetaan…",
       "error": "Aihetta ei poistettu. Yritä uudelleen.",
-      "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän."
+      "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän.",
+      "archive_hint": "Arkistointi vain piilottaa sen, ja sen voi perua.",
+      "archive": "Arkistoi sen sijaan"
+    },
+    "msg_delete": {
+      "title": "Poistetaanko tämä viesti?",
+      "body": "Se poistetaan kaikilta. Tätä ei voi perua.",
+      "confirm": "Poista"
     }
   },
   "topic": {

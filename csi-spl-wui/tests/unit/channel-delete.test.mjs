@@ -104,7 +104,7 @@ describe('ChannelSidebar wiring', () => {
     assert.doesNotMatch(vue, /@delete="[^"]*channel\.deleteChannel/)
     assert.doesNotMatch(vue, /channel\.deleteChannel\(/)
     const dlg = src('src/components/ChannelDeleteDialog.vue')
-    assert.match(dlg, /data-testid="delete-channel-confirm"[\s\S]*?@click="confirm"/)
+    assert.match(dlg, /<UiConfirm[\s\S]*?testid="delete-channel"[\s\S]*?@confirm="confirm"/)
     assert.match(dlg, /await channel\.deleteChannel\(id\)/)
   })
   it('the confirm stays off the initial script: only the Lazy form is used', () => {

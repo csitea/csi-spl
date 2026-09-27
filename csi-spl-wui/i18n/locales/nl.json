@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Dit onderwerp verwijderen?",
+      "title_one": "Dit onderwerp en het antwoord verwijderen?",
+      "title_n": "Dit onderwerp en de {n} antwoorden verwijderen?",
       "body": "Het openingsbericht en alles eronder worden voor iedereen verwijderd. Dit kan niet ongedaan worden gemaakt.",
-      "count": "Antwoorden die mee worden verwijderd: {n}",
       "confirm": "Verwijderen",
       "busy": "Verwijderen…",
       "error": "Het onderwerp is niet verwijderd. Probeer het opnieuw.",
-      "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen."
+      "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen.",
+      "archive_hint": "Archiveren verbergt het alleen en kan ongedaan worden gemaakt.",
+      "archive": "Liever archiveren"
+    },
+    "msg_delete": {
+      "title": "Dit bericht verwijderen?",
+      "body": "Het wordt voor iedereen verwijderd. Dit kan niet ongedaan worden gemaakt.",
+      "confirm": "Verwijderen"
     }
   },
   "topic": {

@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Kas kustutada see teema?",
+      "title_one": "Kas kustutada teema ja selle vastus?",
+      "title_n": "Kas kustutada teema ja selle {n} vastust?",
       "body": "Avasõnum ja kõik selle all eemaldatakse kõigi jaoks. Seda ei saa tagasi võtta.",
-      "count": "Koos sellega kustutatakse vastuseid: {n}",
       "confirm": "Kustuta",
       "busy": "Kustutamine…",
       "error": "Teemat ei kustutatud. Proovi uuesti.",
-      "error_forbidden": "Seda saab teha ainult autor, omanik või administraator."
+      "error_forbidden": "Seda saab teha ainult autor, omanik või administraator.",
+      "archive_hint": "Arhiveerimine ainult peidab selle ja seda saab tagasi võtta.",
+      "archive": "Arhiveeri hoopis"
+    },
+    "msg_delete": {
+      "title": "Kas kustutada see sõnum?",
+      "body": "See eemaldatakse kõigilt. Seda ei saa tagasi võtta.",
+      "confirm": "Kustuta"
     }
   },
   "topic": {

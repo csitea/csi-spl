@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Usunąć ten temat?",
+      "title_one": "Usunąć temat i jego odpowiedź?",
+      "title_n": "Usunąć temat i jego odpowiedzi ({n})?",
       "body": "Wiadomość otwierająca i wszystko pod nią zostaną usunięte dla wszystkich. Tego nie można cofnąć.",
-      "count": "Odpowiedzi usuwane razem z nim: {n}",
       "confirm": "Usuń",
       "busy": "Usuwanie…",
       "error": "Nie usunięto tematu. Spróbuj ponownie.",
-      "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić."
+      "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić.",
+      "archive_hint": "Archiwizacja tylko go ukrywa i można ją cofnąć.",
+      "archive": "Zarchiwizuj zamiast tego"
+    },
+    "msg_delete": {
+      "title": "Usunąć tę wiadomość?",
+      "body": "Zostanie usunięta dla wszystkich. Tego nie można cofnąć.",
+      "confirm": "Usuń"
     }
   },
   "topic": {

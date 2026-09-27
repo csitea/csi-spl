@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Ištrinti šią temą?",
+      "title_one": "Ištrinti temą ir jos atsakymą?",
+      "title_n": "Ištrinti temą ir jos atsakymus ({n})?",
       "body": "Pradinė žinutė ir viskas po ja pašalinama visiems. To atšaukti negalima.",
-      "count": "Kartu ištrinami atsakymai: {n}",
       "confirm": "Ištrinti",
       "busy": "Trinama…",
       "error": "Tema neištrinta. Bandykite dar kartą.",
-      "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius."
+      "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius.",
+      "archive_hint": "Archyvavimas ją tik paslepia ir gali būti atšauktas.",
+      "archive": "Archyvuoti vietoj to"
+    },
+    "msg_delete": {
+      "title": "Ištrinti šią žinutę?",
+      "body": "Ji pašalinama visiems. To negalima atšaukti.",
+      "confirm": "Ištrinti"
     }
   },
   "topic": {

@@ -79,8 +79,8 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog. */
-    size?: 'md' | 'lg' | 'xl'
+    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001). */
+    size?: 'sm' | 'md' | 'lg' | 'xl'
   }>(),
   { size: 'lg' },
 )
@@ -92,7 +92,10 @@ const panelEl = ref<HTMLElement | null>(null)
 const mounted = ref(false)
 let returnFocusTo: HTMLElement | null = null
 
-onMounted(() => { mounted.value = true })
+onMounted(() => {
+  mounted.value = true
+  if (props.open) void onOpenChange(true)
+})
 
 function close() {
   emit('update:open', false)
@@ -142,34 +145,40 @@ function onKeydown(ev: KeyboardEvent) {
   }
 }
 
-watch(
-  () => props.open,
-  async (isOpen) => {
-    if (!import.meta.client) return
-    if (isOpen) {
-      returnFocusTo = document.activeElement as HTMLElement | null
-      // the page must not scroll behind an open dialog (no-x-scroll invariant
-      // included: the body keeps its width, only its scrolling stops)
-      document.documentElement.style.overflow = 'hidden'
-      await nextTick()
-      const items = focusables()
-      /* Opening a dialog puts focus where the person is meant to WORK. Without
-         a nominated target that is items[0], which is the header's Close
-         button - fine for a viewer, wrong for a form, where it means the first
-         keystroke goes nowhere. Content marks its own field with
-         `data-autofocus`; anything without one keeps the old behaviour. */
-      const first = items.find((el) => el.hasAttribute('data-autofocus')) ?? items[0]
-      ;(first ?? panelEl.value)?.focus()
-    } else {
-      document.documentElement.style.overflow = ''
-      returnFocusTo?.focus?.()
-      returnFocusTo = null
-    }
-  },
-)
+/* SPL-1001: also on MOUNT when it is already open. Every Lazy<X> confirm is
+   mounted by the v-if that opens it, so `open` never CHANGES under a watch
+   that is not immediate: no focus (Cancel), no Escape, no scroll lock. */
+async function onOpenChange(isOpen: boolean) {
+  if (!import.meta.client) return
+  if (isOpen) {
+    returnFocusTo = document.activeElement as HTMLElement | null
+    // the page must not scroll behind an open dialog (no-x-scroll invariant
+    // included: the body keeps its width, only its scrolling stops)
+    document.documentElement.style.overflow = 'hidden'
+    await nextTick()
+    const items = focusables()
+    /* Opening a dialog puts focus where the person is meant to WORK. Without
+       a nominated target that is items[0], which is the header's Close
+       button - fine for a viewer, wrong for a form, where it means the first
+       keystroke goes nowhere. Content marks its own field with
+       `data-autofocus`; anything without one keeps the old behaviour. */
+    const first = items.find((el) => el.hasAttribute('data-autofocus')) ?? items[0]
+    ;(first ?? panelEl.value)?.focus()
+  } else {
+    document.documentElement.style.overflow = ''
+    returnFocusTo?.focus?.()
+    returnFocusTo = null
+  }
+}
+
+watch(() => props.open, (isOpen) => { void onOpenChange(isOpen) })
 
 onUnmounted(() => {
-  if (import.meta.client) document.documentElement.style.overflow = ''
+  if (!import.meta.client) return
+  document.documentElement.style.overflow = ''
+  /* a Lazy<X> dialog is unmounted by the same v-if that closes it */
+  returnFocusTo?.focus?.()
+  returnFocusTo = null
 })
 </script>
 
@@ -199,6 +208,20 @@ onUnmounted(() => {
   overflow: hidden;
 }
 .ui-dialog.md { max-width: 560px; }
+/* SPL-1001: a confirm is one surface with the same 24 px inset round the
+   title, the sentence and the buttons - no header strip, no footer rule. */
+.ui-dialog.sm { max-width: 480px; }
+.ui-dialog.sm .ui-dialog__head {
+  padding: 16px 12px 8px 24px;
+  border-bottom: 0;
+  background: transparent;
+}
+.ui-dialog.sm .ui-dialog__title { font-size: 1.0625rem; line-height: 1.4; }
+.ui-dialog.sm .ui-dialog__foot {
+  padding: 16px 24px 24px;
+  border-top: 0;
+  background: transparent;
+}
 .ui-dialog.lg { max-width: 1100px; height: 100%; }
 .ui-dialog.xl { width: 90vw; max-width: 90vw; height: 90vh; max-height: 90vh; }
 .ui-dialog:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
@@ -272,6 +295,7 @@ onUnmounted(() => {
 @media (max-width: 600px) {
   .ui-dialog-backdrop { padding: 0; }
   .ui-dialog,
+  .ui-dialog.sm,
   .ui-dialog.md,
   .ui-dialog.lg,
   .ui-dialog.xl {
@@ -309,6 +333,14 @@ onUnmounted(() => {
     font-size: 1rem;
   }
   .ui-dialog__foot { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  /* a confirm on a phone is the same full screen: the top bar returns */
+  .ui-dialog.sm .ui-dialog__head {
+    padding: max(6px, env(safe-area-inset-top)) 8px 6px 4px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-2);
+  }
+  .ui-dialog.sm .ui-dialog__title { font-size: 1rem; }
+  .ui-dialog.sm .ui-dialog__foot { padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
 }
 /* Phones and small tablets are touch screens: the X is a 44 px target and
    inputs are >= 16 px, so iOS does not zoom the page on focus. */

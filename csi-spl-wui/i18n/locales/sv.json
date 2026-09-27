@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Radera det här ämnet?",
+      "title_one": "Ta bort ämnet och dess svar?",
+      "title_n": "Ta bort ämnet och dess {n} svar?",
       "body": "Det inledande meddelandet och allt under det tas bort för alla. Det går inte att ångra.",
-      "count": "Svar som raderas med det: {n}",
       "confirm": "Radera",
       "busy": "Raderar…",
       "error": "Ämnet raderades inte. Försök igen.",
-      "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta."
+      "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta.",
+      "archive_hint": "Arkivering döljer det i stället och kan ångras.",
+      "archive": "Arkivera i stället"
+    },
+    "msg_delete": {
+      "title": "Ta bort det här meddelandet?",
+      "body": "Det tas bort för alla. Det kan inte ångras.",
+      "confirm": "Ta bort"
     }
   },
   "topic": {

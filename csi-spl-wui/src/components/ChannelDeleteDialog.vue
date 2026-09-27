@@ -1,23 +1,21 @@
-<!-- SPL-72, channels-v1 §5.4: the confirm behind "Delete channel". Loaded
-     lazily (LazyChannelDeleteDialog) so it stays off the initial script: it
-     is needed only after its creator picks the item. -->
+<!-- SPL-72, channels-v1 §5.4: the confirm behind "Delete channel"; its layout
+     is UiConfirm's (SPL-1001). Loaded lazily (LazyChannelDeleteDialog) so it
+     stays off the initial script: it is needed only after its creator picks
+     the item. -->
 <template>
-  <UiDialog :open="open" :title="t('sidebar.delete_channel.title', { name })" size="md" @update:open="emit('update:open', $event)">
-    <p class="delete-channel__body" data-testid="delete-channel-body">{{ t('sidebar.delete_channel.body', { name }) }}</p>
-    <p v-if="error" class="delete-channel__error" role="alert" data-testid="delete-channel-error">{{ error }}</p>
-    <template #footer>
-      <div class="delete-channel__actions">
-        <button type="button" class="btn ghost" data-autofocus :disabled="busy" data-testid="delete-channel-cancel" @click="emit('update:open', false)">{{ t('common.cancel') }}</button>
-        <button
-          type="button"
-          class="btn ghost delete-channel__confirm"
-          data-testid="delete-channel-confirm"
-          :disabled="busy"
-          @click="confirm"
-        >{{ busy ? t('sidebar.delete_channel.busy') : t('sidebar.delete_channel.confirm') }}</button>
-      </div>
-    </template>
-  </UiDialog>
+  <UiConfirm
+    :open="open"
+    :title="t('sidebar.delete_channel.title', { name })"
+    testid="delete-channel"
+    :confirm-label="t('sidebar.delete_channel.confirm')"
+    :busy-label="t('sidebar.delete_channel.busy')"
+    :busy="busy"
+    :error="error"
+    @update:open="emit('update:open', $event)"
+    @confirm="confirm"
+  >
+    <p>{{ t('sidebar.delete_channel.body', { name }) }}</p>
+  </UiConfirm>
 </template>
 
 <script setup lang="ts">
@@ -59,12 +57,3 @@ async function confirm() {
 }
 </script>
 
-<style scoped>
-.delete-channel__body { margin: 0; overflow-wrap: anywhere; }
-.delete-channel__error { margin: 0.5rem 0 0; color: var(--color-danger); overflow-wrap: anywhere; }
-.delete-channel__actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.delete-channel__confirm {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
-</style>

@@ -261,6 +261,12 @@
       :msg-id="String(msg.msg_id || '')"
       @deleted="onTopicDeleted"
     />
+    <!-- SPL-1001: the menu's Delete asks first; mounted only when picked -->
+    <LazyMessageDeleteDialog
+      v-if="msgDeleteOpen"
+      v-model:open="msgDeleteOpen"
+      @confirm="remove"
+    />
     <EmojiPicker
       :open="pickerOpen"
       :x="pickerAt.x"
@@ -447,9 +453,11 @@ function onMenuEdit() {
   startEdit()
 }
 
+/* SPL-1001: the menu's Delete confirms first (Delete / Backspace on a
+   focused thread row is the keyboard shortcut and stays immediate). */
 function onMenuDelete() {
   closeMenu()
-  void remove()
+  msgDeleteOpen.value = true
 }
 
 /** SPL-983: archive the topic. The card leaves every feed here at once; the
@@ -686,6 +694,7 @@ const { canEdit, commit, removeMessage, viewerId: editorId, dropEverywhere } = u
 const access = useAccessStore()
 const showTopicActions = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
 const topicDeleteOpen = ref(false)
+const msgDeleteOpen = ref(false)
 const removing = ref(false)
 const localePath = useLocalePath()
 const route = useRoute()

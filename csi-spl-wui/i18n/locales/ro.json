@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Ștergi acest subiect?",
+      "title_one": "Ștergeți subiectul și răspunsul lui?",
+      "title_n": "Ștergeți subiectul și răspunsurile lui ({n})?",
       "body": "Mesajul de deschidere și tot ce este sub el sunt eliminate pentru toți. Acțiunea nu poate fi anulată.",
-      "count": "Răspunsuri șterse împreună cu el: {n}",
       "confirm": "Șterge",
       "busy": "Se șterge…",
       "error": "Subiectul nu a fost șters. Încearcă din nou.",
-      "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta."
+      "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta.",
+      "archive_hint": "Arhivarea doar îl ascunde și poate fi anulată.",
+      "archive": "Arhivează în schimb"
+    },
+    "msg_delete": {
+      "title": "Ștergeți acest mesaj?",
+      "body": "Este eliminat pentru toată lumea. Acțiunea nu poate fi anulată.",
+      "confirm": "Șterge"
     }
   },
   "topic": {

@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "¿Eliminar este tema?",
+      "title_one": "¿Eliminar el tema y su respuesta?",
+      "title_n": "¿Eliminar el tema y sus {n} respuestas?",
       "body": "El mensaje inicial y todo lo que cuelga de él se eliminan para todos. No se puede deshacer.",
-      "count": "Respuestas eliminadas con él: {n}",
       "confirm": "Eliminar",
       "busy": "Eliminando…",
       "error": "No se eliminó el tema. Inténtalo de nuevo.",
-      "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo."
+      "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo.",
+      "archive_hint": "Archivar solo lo oculta y se puede deshacer.",
+      "archive": "Archivar en su lugar"
+    },
+    "msg_delete": {
+      "title": "¿Eliminar este mensaje?",
+      "body": "Se elimina para todos. No se puede deshacer.",
+      "confirm": "Eliminar"
     }
   },
   "topic": {

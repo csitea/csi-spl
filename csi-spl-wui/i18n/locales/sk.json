@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Odstrániť túto tému?",
+      "title_one": "Odstrániť tému a jej odpoveď?",
+      "title_n": "Odstrániť tému a jej odpovede ({n})?",
       "body": "Úvodná správa a všetko pod ňou sa odstráni pre všetkých. Nedá sa to vrátiť.",
-      "count": "Odpovede odstránené spolu s ňou: {n}",
       "confirm": "Odstrániť",
       "busy": "Odstraňuje sa…",
       "error": "Téma sa neodstránila. Skúste to znova.",
-      "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca."
+      "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca.",
+      "archive_hint": "Archivácia ju iba skryje a dá sa vrátiť späť.",
+      "archive": "Archivovať namiesto toho"
+    },
+    "msg_delete": {
+      "title": "Odstrániť túto správu?",
+      "body": "Odstráni sa pre všetkých. Nedá sa to vrátiť späť.",
+      "confirm": "Odstrániť"
     }
   },
   "topic": {

@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Bu konu silinsin mi?",
+      "title_one": "Konu ve yanıtı silinsin mi?",
+      "title_n": "Konu ve {n} yanıtı silinsin mi?",
       "body": "Açılış mesajı ve altındaki her şey herkes için kaldırılır. Bu geri alınamaz.",
-      "count": "Onunla birlikte silinen yanıtlar: {n}",
       "confirm": "Sil",
       "busy": "Siliniyor…",
       "error": "Konu silinemedi. Tekrar deneyin.",
-      "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir."
+      "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir.",
+      "archive_hint": "Arşivlemek yalnızca gizler ve geri alınabilir.",
+      "archive": "Bunun yerine arşivle"
+    },
+    "msg_delete": {
+      "title": "Bu mesaj silinsin mi?",
+      "body": "Herkes için kaldırılır. Bu geri alınamaz.",
+      "confirm": "Sil"
     }
   },
   "topic": {

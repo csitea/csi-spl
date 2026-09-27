@@ -528,12 +528,20 @@
     },
     "topic_delete": {
       "title": "Delete this topic?",
+      "title_one": "Delete this topic and its reply?",
+      "title_n": "Delete this topic and its {n} replies?",
       "body": "The opening message and everything under it are removed for everyone. This cannot be undone.",
-      "count": "Replies deleted with it: {n}",
       "confirm": "Delete",
       "busy": "Deleting…",
       "error": "Could not delete the topic. Try again.",
-      "error_forbidden": "Only the author, the owner or an admin may do this."
+      "error_forbidden": "Only the author, the owner or an admin may do this.",
+      "archive_hint": "Archive hides it instead and can be undone.",
+      "archive": "Archive instead"
+    },
+    "msg_delete": {
+      "title": "Delete this message?",
+      "body": "It is removed for everyone. This cannot be undone.",
+      "confirm": "Delete"
     }
   },
   "topic": {

@@ -9,7 +9,9 @@ import {
   channelFollow,
   channelView,
   dmFollow,
+  dropFromTotals,
   mergePage,
+  mergeTopicTotals,
   channelSlug,
   dmActivity,
   feedRow,
@@ -80,6 +82,8 @@ export const useChannelStore = defineStore('channel', () => {
   const lastLive = ref<FeedMessage | null>(null)
   /** view-v1 §4.3 cursor for the next older topic page; null = none left. */
   const olderCursor = ref<string | null>(null)
+  /* SPL-1008: the hub's { count, last_ts } per topic, from every page read (topicReplies) */
+  const totals = ref<Record<string, { count: number, last_ts: string }>>({})
   const loadingOlder = ref(false)
   const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
@@ -189,6 +193,7 @@ export const useChannelStore = defineStore('channel', () => {
       const seen = new Set(messages.value.map((m) => m.msg_id))
       const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
       if (add.length) messages.value = [...messages.value, ...add]
+      totals.value = mergeTopicTotals(totals.value, page.totals)
       olderCursor.value = page.next || null
       visible.value += WINDOW
       follow()
@@ -231,6 +236,7 @@ export const useChannelStore = defineStore('channel', () => {
         limit: WINDOW,
       }))
       messages.value = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      totals.value = page.totals || {}
       olderCursor.value = page.next || null
       follow()
     } catch (e) {
@@ -251,6 +257,7 @@ export const useChannelStore = defineStore('channel', () => {
       const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50 }))
       if (where.channel !== active.value || where.peer !== peer.value) return
       messages.value = mergePage(messages.value, (page.messages || []).map(feedRow) as unknown as FeedMessage[])
+      totals.value = mergeTopicTotals(totals.value, page.totals)
       follow()
     } catch (e) {
       error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed')
@@ -275,7 +282,9 @@ export const useChannelStore = defineStore('channel', () => {
   /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
   function drop(msgId: string) {
     const id = String(msgId || '')
-    if (!id || !messages.value.some((m) => m.msg_id === id)) return
+    const gone = messages.value.find((m) => m.msg_id === id)
+    if (!id || !gone) return
+    totals.value = dropFromTotals(totals.value, gone)
     messages.value = withoutMsg(messages.value, id) as FeedMessage[]
   }
 
@@ -418,7 +427,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   function repliesFor(taskId: string) {
-    return topicReplies(messages.value, taskId)
+    return topicReplies(messages.value, taskId, totals.value[taskId])
   }
 
   return {

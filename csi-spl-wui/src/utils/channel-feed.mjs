@@ -375,12 +375,65 @@ export function rootsByTask(messages) {
   return out
 }
 
-/** Replies of one topic: child tasks (parent_task_id) plus in-topic messages (same task_id). */
-export function topicReplies(messages, taskId) {
+/** Epoch ms of a message's hub time (received_at), else its own ts; NaN when neither parses. */
+function msgAt(m) {
+  return Date.parse(String((m && (m.received_at || m.ts)) || ''))
+}
+
+/**
+ * Replies of one topic: child tasks (parent_task_id) plus in-topic messages
+ * (same task_id). `total` is the hub's §4.3 row for the topic as last read
+ * ({ count, last_ts }, listMessages `totals`): SPL-1008, the flat page keeps
+ * only the newest lines of a 20-topic window, so an older topic holds its
+ * opener and a few late replies, and counting what is held undercounts it
+ * (prd t1: 2 shown, 6 stored). With a total the count is the hub's replies
+ * plus the held lines that came after that read (live frames, own sends),
+ * never below what is held.
+ */
+export function topicReplies(messages, taskId, total) {
   if (!taskId) return 0
-  const same = (messages || []).filter((m) => m.task_id === taskId && !m.topic_row).length
-  const row = (messages || []).find((m) => m.topic_row && m.task_id === taskId)
-  return replyCount(messages || [], taskId) + (row ? Number(row.count) || 0 : Math.max(0, same - 1))
+  const list = messages || []
+  const row = list.find((m) => m.topic_row && m.task_id === taskId)
+  const children = replyCount(list, taskId)
+  if (row) return children + (Number(row.count) || 0)
+  const same = list.filter((m) => m.task_id === taskId && !m.topic_row)
+  const held = Math.max(0, same.length - 1)
+  const n = Number(total && total.count) || 0
+  if (n <= 0) return children + held
+  const at = Date.parse(String(total.last_ts || ''))
+  const later = Number.isFinite(at) ? same.filter((m) => m.pending || msgAt(m) > at).length : 0
+  return children + Math.max(held, n - 1 + later)
+}
+
+/**
+ * The hub's per-topic totals from a listMessages page (`page.totals`) merged
+ * into those already held (SPL-1008). Per topic the read with the later
+ * last_ts wins: a count and its last_ts are one snapshot, so either pair is
+ * consistent for topicReplies; the later one leans on fewer held lines.
+ *
+ * @param {Record<string, { count: number, last_ts: string }> | null | undefined} held
+ * @param {Record<string, { count: number, last_ts: string }> | null | undefined} incoming
+ */
+export function mergeTopicTotals(held, incoming) {
+  const out = { ...(held || {}) }
+  for (const [id, t] of Object.entries(incoming || {})) {
+    if (!id || !t) continue
+    const was = out[id]
+    if (was && Date.parse(String(was.last_ts || '')) > Date.parse(String(t.last_ts || ''))) continue
+    out[id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
+  }
+  return out
+}
+
+/**
+ * A held message left the feed (deleted): the topic total that counted it
+ * (the message is not newer than the total's read) loses one (SPL-1008).
+ */
+export function dropFromTotals(totals, msg) {
+  const m = msg || {}
+  const t = totals && m.task_id ? totals[m.task_id] : null
+  if (!t || m.pending || msgAt(m) > Date.parse(String(t.last_ts || ''))) return totals
+  return { ...totals, [m.task_id]: { ...t, count: Math.max(0, (Number(t.count) || 0) - 1) } }
 }
 
 /** Does a live message belong to the open channel or DM? */

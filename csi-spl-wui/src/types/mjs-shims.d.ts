@@ -83,7 +83,7 @@ declare module '~/utils/spool-client.mjs' {
       since?: string
       topics?: number
       before?: string
-    }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null }>
+    }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null, totals?: Record<string, { count: number, last_ts: string }> }>
     listRoster(): Promise<unknown>
     sendMessage(opts: {
       channel?: string | null
@@ -249,7 +249,10 @@ declare module '~/utils/channel-feed.mjs' {
   export function mergePage<T>(rows: T[], incoming: T[]): T[]
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
-  export function topicReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
+  export type TopicTotal = { count: number, last_ts: string }
+  export function topicReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string, total?: TopicTotal | null): number
+  export function mergeTopicTotals(held: Record<string, TopicTotal> | null | undefined, incoming: Record<string, TopicTotal> | null | undefined): Record<string, TopicTotal>
+  export function dropFromTotals<T extends Record<string, TopicTotal>>(totals: T, msg: unknown): T
   export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }
   export function rowsForRightPane<T>(topicRows: T[], held: T[], topicId: string): T[]
   export function topicCards<T extends { task_id?: string }>(messages: T[]): T[]

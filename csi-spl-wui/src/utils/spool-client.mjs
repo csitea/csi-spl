@@ -903,7 +903,11 @@ export function createSpoolClient({
         opener.add(m)
       }
       const cut = out.length - limit
-      return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null }
+      /* SPL-1008: the cut drops an older topic's middle replies, so the card
+         count comes from the hub's row (topicReplies), not from held lines. */
+      const totals = {}
+      for (const t of list.topics) if (t.task_id) totals[t.task_id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
+      return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals }
     },
     /**
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub

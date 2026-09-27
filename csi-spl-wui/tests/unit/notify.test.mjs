@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -13,6 +14,9 @@ import {
   notifyCopyKey,
   loadChime,
   saveChime,
+  notificationOptions,
+  isSoundPrefKey,
+  ALERTS_KEY,
   previewUnread,
   CHIME_KEY,
   shouldPing,
@@ -111,6 +115,30 @@ describe('notify escalation', () => {
     assert.equal(previewUnread(100), '99+')
   })
 
+  /* SPL-998: with the bell on and the note off, every alert still beeped -
+     a browser Notification plays the OS alert sound unless it is silent. */
+  it('SPL-998: the note is the one sound switch - an alert is silent while it is off', () => {
+    assert.deepEqual(notificationOptions('hi', false), { body: 'hi', silent: true })
+    assert.deepEqual(notificationOptions('hi', true), { body: 'hi', silent: false })
+    assert.equal(notificationOptions(undefined, false).body, '')
+    assert.equal(isSoundPrefKey(CHIME_KEY), true)
+    assert.equal(isSoundPrefKey(ALERTS_KEY), true)
+    assert.equal(isSoundPrefKey(null), true, 'localStorage.clear() in another tab')
+    assert.equal(isSoundPrefKey('spool-theme'), false)
+  })
+
+  it('SPL-998: every sound path in src reads the note', () => {
+    const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    const calls = store.match(/new Notification\([^)]*\)/g) || []
+    assert.ok(calls.length >= 1)
+    for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value\)/)
+    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,80}new AudioContext/)
+    assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
+    /* nothing else in src makes a sound: add it to this list AND gate it on the note */
+    const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
+    assert.deepEqual(hits, ['src/stores/notification.ts'])
+  })
+
   it('NotificationCenter and the notification store do not import mock-data', () => {
     const center = readFileSync(join(WUI, 'src/components/NotificationCenter.vue'), 'utf8')
     const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
@@ -168,9 +196,16 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     // owner 2026-09-26: the note is struck through when the chime is off, like the bell
     assert.match(vue, /notes\.chime \? 'music' : 'music-off'/)
     assert.match(src('src/utils/uiIcons.ts'), /"music-off": \[/)
+    /* SPL-998 owner: the note's strike has "the same width and color as on
+       the bell" - so it IS the bell-off slash path, drawn by the same rule */
     const icons = src('src/utils/uiIcons.ts')
-    const off = icons.slice(icons.indexOf('"music-off"'), icons.indexOf('"music-off"') + 400)
-    assert.match(off, /fill: true/, 'the chime strike is a filled slash, not a hairline')
+    const glyph = (n) => icons.slice(icons.indexOf(`${n}: [`) + n.length + 3, icons.indexOf('],', icons.indexOf(`${n}: [`)))
+      .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'))
+    const bell = glyph('"bell-off"'), note = glyph('"music-off"'), music = glyph('music')
+    assert.match(bell.at(-1), /^"M2 2 22 22",$/, 'the bell slash is a plain stroke')
+    assert.equal(note.at(-1), bell.at(-1), 'the note strike is the bell strike')
+    assert.deepEqual(note.slice(0, -1), music)
+    assert.doesNotMatch(vue, /\.notify-chime:not\(\.on\)/, 'no chime-only off colour: it matches the bell off')
     assert.match(vue, /notify\.chime_on/)
     assert.match(vue, /notify\.chime_off/)
     assert.match(vue, /:aria-pressed="notes\.chime"/)

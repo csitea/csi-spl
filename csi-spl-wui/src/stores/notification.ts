@@ -5,6 +5,8 @@ import {
   notifyCopyKey,
   loadChime,
   saveChime,
+  notificationOptions,
+  isSoundPrefKey,
   loadAlerts,
   saveAlerts,
   alertsActive,
@@ -68,6 +70,10 @@ export const useNotificationStore = defineStore('notification', () => {
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
     chime.value = loadChime()
     alertsEnabled.value = loadAlerts()
+    /* SPL-998: a second tab kept the switch it loaded and went on beeping */
+    window.addEventListener('storage', (e) => {
+      if (isSoundPrefKey(e.key)) hydrate()
+    })
   }
 
   function hydrate() {
@@ -114,7 +120,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     if (alertsOn.value && typeof Notification !== 'undefined') {
       try {
-        new Notification(title, { body })
+        new Notification(title, notificationOptions(body, chime.value))
       } catch {
         /* ignore */
       }

@@ -131,6 +131,19 @@ export function saveChime(on, store) {
   return storageSet(CHIME_KEY, on ? '1' : '0', store)
 }
 
+/* SPL-998: the note is the ONE switch for sound. A browser Notification plays
+   the operating system's own alert sound unless it is `silent`, so with the
+   bell on and the note off every alert still beeped. Every alert the WUI
+   raises takes its options from here. */
+export function notificationOptions(body, chime) {
+  return { body: String(body || ''), silent: !chime }
+}
+
+/** SPL-998: another tab flipped the note or the bell (a `storage` event; null = cleared). */
+export function isSoundPrefKey(key) {
+  return key === CHIME_KEY || key === ALERTS_KEY || key === null
+}
+
 /* owner, 2026-09-26: the bell is an ON/OFF switch, not just the browser's
    permission. ALERTS_KEY holds the reader's choice; default ON, so a browser
    that had already granted permission keeps alerting as before. */

@@ -58,8 +58,8 @@ const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') :
   opacity: 0.6;
 }
 .notify-alerts.on, .notify-chime.on { opacity: 1; color: var(--color-accent); }
-/* off keeps the same ink as the bell, at full strength, so the slash reads */
-.notify-chime:not(.on) { opacity: 1; color: var(--color-fg); }
+/* SPL-998: off is drawn exactly like the bell when off (the owner: "the same
+   width and color as on the bell"), so there is no chime-only off rule */
 .notify-glyph { display: block; }
 
 /* SPL-990: at <= 820 px there is no collapsed rail any more (M1's level 1

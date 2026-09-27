@@ -1,0 +1,29 @@
+<!-- CLE-35062: what 200.html paints before the app mounts. Every route that is
+     not prerendered (/lobby, /t/<id>, /channel/<x>, /dm/<x>) is served as the
+     200.html SPA fallback, whose body used to be an empty #__nuxt: nothing
+     painted until the JS, the locale catalogue and the session probe were all
+     done (cold FCP ~1.8 s on the box link, ~6 s on slow 4G, prd e2e n=5).
+     This is the app frame's outline - the top bar, the sidebar above 820 px,
+     a few card placeholders - in the theme's colours, so the first paint is
+     the shape of the page instead of a blank screen and nothing jumps when
+     the app replaces it. Nuxt renders it inside #__nuxt and drops it on mount.
+     CSP: one <style> block (the Hosting render hashes it) and classes only;
+     a style="" attribute is never allowed. -->
+<div class="spl-boot" aria-busy="true">
+  <div class="spl-boot__bar"><span class="spl-boot__brand">spool-hub</span></div>
+  <div class="spl-boot__body">
+    <div class="spl-boot__side"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="spl-boot__main"><b></b><b></b><b></b><b></b></div>
+  </div>
+</div>
+<style>
+.spl-boot{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--color-bg,#060912);color:var(--color-muted,#93a6c4);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.spl-boot__bar{flex:none;height:var(--top-bar-h,58px);display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--color-border,rgba(130,200,255,.16));background:var(--color-bg-2,#0a1424)}
+.spl-boot__brand{font-weight:600;letter-spacing:.02em}
+.spl-boot__body{flex:1;display:flex;min-height:0}
+.spl-boot__side{flex:none;width:240px;padding:16px 12px;background:var(--color-sidebar,#070b14);border-right:1px solid var(--color-border,rgba(130,200,255,.16))}
+.spl-boot__side i{display:block;height:12px;margin:0 0 14px;border-radius:6px;background:var(--color-surface,#0e1c33)}
+.spl-boot__main{flex:1;padding:16px;min-width:0}
+.spl-boot__main b{display:block;height:72px;margin:0 0 12px;border-radius:var(--radius-md,12px);background:var(--color-surface,#0e1c33);opacity:.7}
+@media (max-width:820px){.spl-boot__side{display:none}}
+</style>

@@ -57,6 +57,47 @@ function hubCspSources(base: string): string[] {
 const authBase = (process.env.NUXT_PUBLIC_AUTH_BASE || "").replace(/\/+$/, "")
 const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(authBase)])].join(" ")
 
+// ── The lobby task id, from cnf ───────────────────────────────────────────
+// wui-live-ws.md §LOBBY_TASK_ID: defined ONCE, in cnf (env.hub.env.
+// SPOOL_HUB_LOBBY_TASK_ID); the hub publishes it in `welcome`. The deployed
+// build shipped `lobbyTaskId: ""` (CLE-35062), so /lobby could not read a row
+// before the socket was up and had said welcome (session -> socket -> welcome
+// -> read). So the build reads the same cnf file the deploy job reads, for the
+// env it builds (NUXT_PUBLIC_ENV_NAME); NUXT_PUBLIC_LOBBY_TASK_ID still
+// overrides, and welcome still wins at runtime.
+function cnfLobbyTaskId(): string {
+  const fromEnv = (process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "").trim()
+  if (fromEnv) return fromEnv
+  const env = (process.env.NUXT_PUBLIC_ENV_NAME || "").trim()
+  if (!/^[a-z0-9-]+$/.test(env)) return ""
+  try {
+    const cnf = JSON.parse(readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "..", "csi-spl-cnf", "csi-spl", `${env}.env.json`),
+      "utf8",
+    ))
+    const id = String(cnf?.env?.hub?.env?.SPOOL_HUB_LOBBY_TASK_ID || "").trim()
+    return /^[0-9a-f-]{36}$/i.test(id) ? id : ""
+  } catch {
+    return ""
+  }
+}
+
+// ── Preconnect to the hub ─────────────────────────────────────────────────
+// Every screen's first read is a credentialed cross-origin call to the API
+// host, and it only starts once the app code has run. A preconnect in the
+// document opens that connection (DNS + TCP + TLS, three round trips) while
+// the JS downloads. `use-credentials` matches the fetches' credentials mode,
+// so the warmed connection is the one they use. Absolute https bases only
+// (lde's `{tenant}` template and same-origin "" have nothing to warm).
+function preconnectLinks(bases: string[]) {
+  const origins = new Set<string>()
+  for (const b of bases) {
+    const m = /^(https:\/\/[^/{}]+)/i.exec(b)
+    if (m) origins.add(m[1].toLowerCase())
+  }
+  return [...origins].map((href) => ({ rel: "preconnect", href, crossorigin: "use-credentials" as const }))
+}
+
 // ── Content-Security-Policy ───────────────────────────────────────────────
 // These strings apply only when Nitro is the runtime (lde / preview). The WUI
 // ships via `nuxt generate` to Firebase Hosting, so in every deployed env the
@@ -182,6 +223,18 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-09-18",
   devtools: { enabled: isDev },
   ssr: true,
+  // CLE-35062: the painted app-frame outline 200.html shows until the app
+  // mounts (every non-prerendered route boots from 200.html); see the file.
+  spaLoadingTemplate: "spa-loading-template.html",
+
+  experimental: {
+    // CLE-35062: no page uses useAsyncData/useFetch, so every prerendered
+    // route's _payload.json is `data: {}` - yet a client-side move to one
+    // (/, /login, /channel/general) waited for that fetch before the page's
+    // own read started: one more round trip per click (~150-300 ms on 4G).
+    // Off = the (empty) payload is inlined in the prerendered document.
+    payloadExtraction: false,
+  },
 
   typescript: {
     strict: true,
@@ -228,7 +281,7 @@ export default defineNuxtConfig({
       tenantHosts: process.env.NUXT_PUBLIC_TENANT_HOSTS || "0",
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
-      lobbyTaskId: process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "",
+      lobbyTaskId: cnfLobbyTaskId(),
       useMock: process.env.NUXT_PUBLIC_USE_MOCK === undefined
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,
@@ -283,6 +336,7 @@ export default defineNuxtConfig({
         { name: "apple-mobile-web-app-status-bar-style", content: "black" },
       ],
       link: [
+        ...preconnectLinks([apiBase, authBase]),
         { rel: "icon", type: "image/png", sizes: "64x64", href: "/icons/favicon-64.png" },
         { rel: "manifest", href: "/manifest.webmanifest" },
         { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },

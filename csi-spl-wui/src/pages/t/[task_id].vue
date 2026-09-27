@@ -43,7 +43,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 
 const route = useRoute()
 const store = useLiveFeed('main')
@@ -89,6 +89,8 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     selectedTaskId: taskId.value,
     namedTopicId: topicId || '',
     paneVisible: true,
+    /* SPL-996 B: `@someone` first is the explicit new topic */
+    newTopic: startsNewTopic(text),
   })
   if (target && target === taskId.value && store.taskId) {
     await store.send(text, files || [], { isParent: isParentFlag({ paneVisible: true }) })

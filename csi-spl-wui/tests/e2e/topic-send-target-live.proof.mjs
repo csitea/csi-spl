@@ -7,8 +7,12 @@
 //   1 (1440) open L1's topic, then the APP focuses a middle card (a #hash, an
 //     edit close - not the reader), send -> is_parent 0 on L1's task, drawn in
 //     the right pane only, no born card anywhere
-//   2 (1440) the reader clicks the middle list (owner rule 2026-09-25), send ->
-//     a new topic, drawn ONCE: a middle card, nothing in the right pane
+//   2 (1440) the reader clicks the middle list, send -> still is_parent 0 into
+//     L1's topic (owner answer B, 2026-09-27: the open topic takes the line
+//     until it is closed)
+//   2b (1440) topic still open, a line that starts with `@someone` (the
+//     explicit new topic) -> a new topic, drawn ONCE: a middle card, nothing
+//     in the right pane
 //   3 (390, 820, touch) tap L1's card (level 3), send from the docked composer
 //     -> is_parent 0 on L1's task, not a middle card
 //   4 reload: the replies are still not middle cards, L1's card still reads L1
@@ -17,7 +21,7 @@
 // Screenshots OUT/topic-send-target-<w>-<step>.png.
 //
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> CHANNEL=<id>
-//     [TENANT=e2e] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
+//     [TENANT=e2e] [MENTION=@<the test member's id>] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
 //     node tests/e2e/topic-send-target-live.proof.mjs
 //
 // On prd run it only at the e2e tenant's host, never the apex (t1's host,
@@ -182,12 +186,22 @@ try {
   await p.mouse.click(spot.x, spot.y)
   await sleep(300)
   const s2 = await state(p)
-  const N2 = `${tag} N2 new topic after a middle click`
-  const w2 = await send(p, N2)
-  res.lines.N2 = w2
+  const R2 = `${tag} R2 reply after a middle click`
+  const w2 = await send(p, R2)
+  res.lines.R2 = w2
   await p.screenshot({ path: join(OUT, 'topic-send-target-1440-2.png') })
-  ok('1440px 2 the reader clicked the middle: a new topic, drawn ONCE (middle card, nothing in the right pane)',
-    w2.is_parent === 1 && w2.task_id !== w0.task_id && w2.middle === 1 && w2.right === 0 && w2.born === 0, { s2, w2 })
+  ok('1440px 2 the reader clicked the middle: still is_parent 0 into the open topic (B), right pane only',
+    w2.is_parent === 0 && w2.task_id === w0.task_id && w2.middle === 0 && w2.right === 1 && w2.born === 0, { s2, w2 })
+
+  /* 2b: the explicit new topic - the stored body drops the leading @mention */
+  const N2 = `${tag} N2 explicit new topic`
+  /* the test member itself by default: no agent is poked */
+  const MENTION = process.env.MENTION || '@HUM-1'
+  const tb = await send(p, `${MENTION} ${N2}`)
+  res.lines.N2 = tb
+  await p.screenshot({ path: join(OUT, 'topic-send-target-1440-2b.png') })
+  ok('1440px 2b `@someone` first with the topic open: a new topic, drawn ONCE (middle card, nothing in the right pane)',
+    tb.is_parent === 1 && tb.task_id !== w0.task_id && tb.middle === 1 && tb.right === 0 && tb.born === 0, tb)
 
   /* 3: phones - tap L1's card, send from the dock */
   for (const [w, h] of [[390, 844], [820, 1180]]) {

@@ -16,7 +16,7 @@ import { channelView as channelViewOf, mergeLive, rowFromAck, rowsForRightPane }
 import { pendingRow } from '../../src/utils/feed.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
 import { bumpTopic } from '../../src/utils/topic-list.mjs'
-import { isParentFlag, omniboxReplyTaskId } from '../../src/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 import { KEY_NAV_MS, eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, paneTakesLine } from '../../src/utils/pane-focus.mjs'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -182,15 +182,25 @@ describe('the last selected pane decides the level', () => {
     assert.equal(isParentFlag({ paneVisible }), 0)
     assert.equal(omniboxReplyTaskId({ tab: 'dm', selectedTaskId: T, paneVisible, lastPane: 'right' }), T)
   })
+  /* SPL-996, owner answer B (topic e0b12a2c, 2026-09-27) replaced test-02:
+     a click in the middle no longer makes the next line a new topic */
   for (const tab of ['channels', 'dm', 'topics', 'flow']) {
-    it(`test-02 on ${tab}: pane still open but the middle selected last -> a new level-1 topic`, () => {
+    it(`SPL-996 B on ${tab}: pane open, the middle clicked last -> still level 2 into the open topic`, () => {
       const paneVisible = paneTakesLine({ paneOpen: true, lastPane: 'middle' })
-      assert.equal(paneVisible, false)
-      assert.equal(isParentFlag({ paneVisible, lastPane: 'middle' }), 1)
-      assert.equal(isParentFlag({ paneVisible: true, lastPane: 'middle' }), 1)
-      assert.equal(omniboxReplyTaskId({ tab, selectedTaskId: T, paneVisible, lastPane: 'middle' }), '')
+      assert.equal(paneVisible, true)
+      assert.equal(isParentFlag({ paneVisible, lastPane: 'middle' }), 0)
+      assert.equal(omniboxReplyTaskId({ tab, selectedTaskId: T, paneVisible, lastPane: 'middle' }), T)
     })
   }
+  it('SPL-996 B: `@someone` first is the explicit new topic, pane open or not', () => {
+    assert.equal(startsNewTopic('@CLE-001 please look'), true)
+    assert.equal(startsNewTopic('  @HUM-10 hi'), true)
+    assert.equal(startsNewTopic('ask @CLE-001 later'), false)
+    assert.equal(startsNewTopic('@ alone'), false)
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: true }), '')
+    assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@CLE-001 x') }), 1)
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, namedTopicId: U, paneVisible: true, newTopic: true }), U)
+  })
   it('`in: <title>` still names the topic when the middle was selected last', () => {
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, namedTopicId: U, lastPane: 'middle' }), U)
   })
@@ -290,6 +300,7 @@ describe('SPL-996: a post made while a topic is open goes into it', () => {
     assert.match(read('pages/dm/[peer].vue'), /replyTaskId: topicId \|\| ''/)
     assert.match(read('pages/index.vue'), /replyTaskId: target \}\)\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\(topicId\)/)
+    assert.match(read('pages/lobby.vue'), /parentBit\('', fresh\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\(replyHere\)/)
   })
 })

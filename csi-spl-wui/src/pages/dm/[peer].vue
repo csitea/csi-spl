@@ -22,7 +22,7 @@ import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
-import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
@@ -97,15 +97,18 @@ function openTaskId() {
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
+  /* SPL-996 B: the open topic takes the line; `@someone` first starts a new one */
+  const fresh = startsNewTopic(text)
   const reply = omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: openTaskId(),
     namedTopicId: topicId || '',
     paneVisible: paneOpen(),
     lastPane: paneFocus.last,
+    newTopic: fresh,
   })
   if (reply) topicId = reply
-  const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen(), replyTaskId: topicId || '' }))
+  const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() && !fresh, replyTaskId: topicId || '' }))
   if (sent && sent.is_parent === 0 && livePane.taskId && (sent.task_id === livePane.taskId || sent.parent_task_id === livePane.taskId)) {
     livePane.admit([sent as SpoolMessage])
   }

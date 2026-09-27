@@ -86,7 +86,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
@@ -155,23 +155,26 @@ function paneOpen() {
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
+  /* SPL-996 B: the open topic takes the line; `@someone` first starts a new one */
+  const fresh = startsNewTopic(text)
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: pane.taskId || '',
     namedTopicId: topicId || '',
     paneVisible: paneOpen(),
     lastPane: paneFocus.last,
+    newTopic: fresh,
   })
   if (target && pane.taskId && target === pane.taskId) {
     const before = pane.messages.length
-    await pane.send(text, files || [], { isParent: isParentFlag({ paneVisible: paneOpen(), replyTaskId: target }) })
+    await pane.send(text, files || [], { isParent: isParentFlag({ paneVisible: paneOpen() && !fresh, replyTaskId: target }) })
     const last = pane.messages[pane.messages.length - 1]
     if (last && pane.messages.length > before) {
       viewer.topics = bumpTopic(viewer.topics, last as unknown as Record<string, unknown>) as typeof viewer.topics
     }
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen(), replyTaskId: target }))
+  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() && !fresh, replyTaskId: target }))
   /* A send with no topic is a new topic of this one message, so the row
      has to appear here itself. The socket echo does not count a second time. */
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics

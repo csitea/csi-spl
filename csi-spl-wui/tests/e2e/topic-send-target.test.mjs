@@ -9,9 +9,12 @@
 //     1 open a topic, send -> is_parent 0 into it; shown in the topic, not as a middle card
 //     2 open a topic, the APP focuses a middle card (a #hash, an edit close)
 //       -> still a reply. CONTROL: before SPL-996 this became a new topic.
-//     3 open a topic, the reader CLICKS the middle list (owner rule
-//       2026-09-25) -> a new topic, drawn once: a middle card, no copy in
-//       the right pane. CONTROL: before SPL-996 it was also a born card there.
+//     3 open a topic, the reader CLICKS the middle list -> still a reply into
+//       the open topic (owner answer B, 2026-09-27, replaced the 09-25 "last
+//       clicked pane decides" rule). CONTROL: before B this became a new topic.
+//     4 open a topic, the line starts with `@someone` (the explicit new
+//       topic) -> a new topic, drawn once: a middle card, no copy in the
+//       right pane. CONTROL: before SPL-996 it was also a born card there.
 //   phone (360x740, 820x1180, touch): tap a card (level 3), send from the
 //     docked composer -> is_parent 0 into the open topic, not a middle card.
 //
@@ -117,7 +120,7 @@ async function open(browser, vp) {
 
 const isReplyInto = (r, task) => Boolean(r && task && r.is_parent === 0 && (r.task_id === task || r.parent_task_id === task))
 
-async function desktopCase(browser, n, name, between, expectReply) {
+async function desktopCase(browser, n, name, between, expectReply, prefix = '') {
   const { p, errors } = await open(browser, { width: 1440, height: 900 })
   const card = await firstCard(p)
   await p.mouse.click(card.x, card.y)
@@ -126,7 +129,8 @@ async function desktopCase(browser, n, name, between, expectReply) {
   await between(p, card)
   const before = await state(p)
   const text = `spl996 desktop case ${n} ${Date.now()}`
-  await send(p, text)
+  /* the stored body drops a leading @mention (it becomes the recipient) */
+  await send(p, prefix + text)
   const r = await sentRow(p, text)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `topic-send-target-1440-${n}.png`) })
   if (expectReply) {
@@ -175,15 +179,17 @@ try {
     }, card.id)
     await sleep(200)
   }, true)
-  await desktopCase(browser, 3, 'topic open, the reader clicks the middle list', async (p) => {
+  await desktopCase(browser, 3, 'topic open, the reader clicks the middle list, then posts', async (p) => {
+    /* a real click in the middle that opens nothing: the feed's header row */
     const spot = await p.evaluate(() => {
       const h = document.querySelector('.spool-main .feed-header') || document.querySelector('.spool-main')
       const r = h.getBoundingClientRect()
-      return { x: Math.round(r.left + r.width - 40), y: Math.round(r.top + r.height / 2) }
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
     })
     await p.mouse.click(spot.x, spot.y)
-    await sleep(200)
-  }, false)
+    await sleep(300)
+  }, true)
+  await desktopCase(browser, 4, 'topic open, the line starts with @someone (explicit new topic)', async () => {}, false, '@CLE-07 ')
   await phoneCase(browser, 360, 740)
   await phoneCase(browser, 820, 1180)
 } finally {

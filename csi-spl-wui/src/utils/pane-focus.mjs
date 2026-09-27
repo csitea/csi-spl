@@ -1,15 +1,12 @@
 /**
  * Which pane the reader selected last: the middle list or the right topic
- * pane. Owner, 2026-09-25: "whenever the last selected pane was the middle
- * pane ... typing on the omnibox and hitting enter should have created an
- * is_topic=1 msg, not a thread msg with is_topic=0".
+ * pane (owner rule 2026-09-25).
  *
- * So an open right pane is not enough to make a send level 2. The right pane
- * takes the line only while it is the pane the reader was last in: opening a
- * topic (replies, a row click, Enter on a card) puts the reader there, and so
- * does a click or focus inside it. A click or focus in the middle moves them
- * back, and the next send starts a new topic. The sidebar, the top bar and a
- * pane divider leave the choice where it was.
+ * SPL-996, owner answer B (topic e0b12a2c, 2026-09-27) retired that rule for
+ * the Omnibox: an open topic takes every line until it is closed, whatever
+ * was clicked last (paneTakesLine ignores lastPane). The store still records
+ * the reader's pane - opening a topic, a click or a keyboard move into a pane
+ * - but nothing routes a send on it any more.
  */
 
 export const MIDDLE = 'middle'
@@ -81,11 +78,12 @@ export function onScrollbar(ev) {
 }
 
 /**
- * Does the open right pane take the next Omnibox line? Only when it is open
- * and the middle was not the pane selected last. Unknown ('') counts as the
- * pane: a topic opened from a `?topic=` URL is the newest thing on screen.
+ * Does the open right pane take the next Omnibox line? Whenever it is open
+ * (SPL-996 B). `lastPane` is accepted for the old callers and ignored.
  * @param {{ paneOpen?: boolean, lastPane?: string }} [opts]
  */
-export function paneTakesLine({ paneOpen = false, lastPane = '' } = {}) {
-  return Boolean(paneOpen) && lastPane !== MIDDLE
+export function paneTakesLine({ paneOpen = false } = {}) {
+  /* SPL-996, owner answer B (2026-09-27): the open pane takes every line
+     until it is closed; the pane clicked last no longer decides */
+  return Boolean(paneOpen)
 }

@@ -45,18 +45,19 @@ export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
 }
 
 /**
- * `in: <title>` replies into that topic. An open right pane does too while it
- * is the pane the reader selected last (utils/pane-focus.mjs): that is the
- * pane a replies click shows, and the left tab stays where it was. Topics
- * with a selected row replies there when the pane is not what decided.
- * `lastPane: 'middle'` means the reader went back to the middle list: the
- * line starts a new topic whatever is open or selected.
- * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean, lastPane?: string }} [opts]
+ * SPL-996, owner answer B (topic e0b12a2c, 2026-09-27) - replaces the 09-25
+ * "the pane you clicked last decides" rule: a post goes into the OPEN topic
+ * until the reader closes it (X, or Back on a phone). A click on a middle
+ * card no longer changes the target; `lastPane` is accepted and ignored.
+ * A new topic is explicit: the pane closed, a line that starts with
+ * `@someone` (`newTopic`, see startsNewTopic), or `in:` naming another topic.
+ * Topics with a selected row replies there as before.
+ * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean, lastPane?: string, newTopic?: boolean }} [opts]
  */
-export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false, lastPane = '' } = {}) {
+export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false, newTopic = false } = {}) {
   const named = String(namedTopicId || '')
   if (named) return named
-  if (lastPane === 'middle') return ''
+  if (newTopic) return ''
   const selected = String(selectedTaskId || '')
   if (paneVisible && selected) return selected
   if (tab === 'topics' && selected) return selected
@@ -64,18 +65,28 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
 }
 
 /**
+ * SPL-996 B: a line that opens with `@someone` is the explicit "new topic",
+ * even while a topic is open. An `@` later in the line is a mention inside
+ * the reply.
+ * @param {unknown} text
+ */
+export function startsNewTopic(text) {
+  return /^\s*@[A-Za-z0-9_][\w.@-]*/.test(String(text || ''))
+}
+
+/**
  * messages.is_parent for a browser send.
- * 0 while the right topic pane is open and was selected last (the replies
- * click). That message stays in the pane. 1 when the pane is closed, or the
- * reader went back to the middle: the send is a new middle card.
+ * 0 while the right topic pane takes the line (open, SPL-996 B): that message
+ * stays in the pane. 1 when the pane is closed or the line is an explicit new
+ * topic (the caller passes paneVisible false): the send is a new middle card.
  * SPL-996: a send that goes INTO an existing topic (`replyTaskId`, e.g. an
  * `in: <title>` with the pane closed) is always 0. It used to go out as 1
  * under the old task id, so that topic had two openings and the reply was
  * drawn as a middle card as well as a line of the thread.
- * @param {{ paneVisible?: boolean, lastPane?: string, replyTaskId?: string }} [opts]
+ * @param {{ paneVisible?: boolean, lastPane?: string, replyTaskId?: string }} [opts]  lastPane is ignored
  * @returns {0 | 1}
  */
-export function isParentFlag({ paneVisible = false, lastPane = '', replyTaskId = '' } = {}) {
+export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
   if (replyTaskId) return 0
-  return paneVisible && lastPane !== 'middle' ? 0 : 1
+  return paneVisible ? 0 : 1
 }

@@ -43,7 +43,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
       assert.match(s, /omniboxReplyTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\), replyTaskId: topicId \|\| '' \}\)\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) && !fresh, replyTaskId: topicId \|\| '' \}\)\)/)
     })
   }
 

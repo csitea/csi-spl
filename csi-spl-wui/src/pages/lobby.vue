@@ -44,7 +44,7 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { isParentFlag, omniboxReplyTaskId, sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useSidePane } from '~/composables/useSidePane'
@@ -205,12 +205,14 @@ async function loadLobbyTopics(pending: ReturnType<typeof api.listMessages>) {
 /* The right pane is closed and the line names no topic: one new topic,
    this message only. An open pane, or `in:` naming the lobby task, still
    posts into the room. `in:` naming some other topic replies there. */
-function parentBit(replyTaskId = '') {
-  return isParentFlag({ paneVisible: lobbyPaneOpen(), replyTaskId })
+function parentBit(replyTaskId = '', fresh = false) {
+  return isParentFlag({ paneVisible: lobbyPaneOpen() && !fresh, replyTaskId })
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const here = String(store.taskId || '')
+  /* SPL-996 B: the open topic takes the line; `@someone` first starts a new one */
+  const fresh = startsNewTopic(text)
   if (topicId && topicId !== here) {
     await channel.send(text, topicId, files, channelId, parentBit(topicId))
     return
@@ -221,13 +223,14 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     namedTopicId: '',
     paneVisible: lobbyPaneOpen(),
     lastPane: paneFocus.last,
+    newTopic: fresh,
   })
   if (replyHere && pane.taskId && replyHere === pane.taskId) {
     await pane.send(text, files || [], { isParent: parentBit(replyHere) })
     return
   }
-  if (sendsNewTopic({ paneOpen: lobbyPaneOpen(), namedTopicId: topicId || '' })) {
-    const sent = await channel.send(text, undefined, files, channelId || 'lobby', parentBit())
+  if (sendsNewTopic({ paneOpen: lobbyPaneOpen() && !fresh, namedTopicId: topicId || '' })) {
+    const sent = await channel.send(text, undefined, files, channelId || 'lobby', parentBit('', fresh))
     if (sent) store.admit([sent as SpoolMessage])
     return
   }

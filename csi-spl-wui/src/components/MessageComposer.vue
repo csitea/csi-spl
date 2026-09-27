@@ -1234,10 +1234,31 @@ textarea.in-code {
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);
-    min-height: calc(var(--tap) - 2px);
+    min-height: var(--tap);
     padding: 10px 0;
-    padding-inline-end: 28px;
+    padding-inline-end: var(--tap);
   }
+  /* the syntax "?" is a 44 px target in the field's end corner (22 px drawn) */
+  .composer--dock.composer--dock .search-syntax-btn {
+    top: 0;
+    inset-inline-end: 0;
+    width: var(--tap);
+    height: var(--tap);
+    border: 0;
+    background: transparent;
+  }
+  .composer--dock.composer--dock .search-syntax-btn::before {
+    content: "?";
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+  }
+  .composer--dock.composer--dock .search-syntax-btn { font-size: 0; }
+  .composer--dock.composer--dock .search-syntax-btn::before { font-size: 0.875rem; }
   /* one line of hint: the long key wording must not wrap under the box */
   .composer--dock.composer--dock textarea::placeholder {
     white-space: nowrap;

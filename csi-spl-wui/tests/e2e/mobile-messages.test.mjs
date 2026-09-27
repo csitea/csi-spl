@@ -81,6 +81,8 @@ function composerFacts(page) {
       send: box('[data-testid=send]'),
       attach: box('[data-testid=attach]'),
       camera: box('[data-testid=attach-camera]'),
+      syntax: box('[data-test=search-syntax-help]'),
+      field: box('textarea'),
       font: ta ? parseFloat(getComputedStyle(ta).fontSize) : 0,
       dockVar: getComputedStyle(document.documentElement).getPropertyValue('--composer-dock-h').trim(),
     }
@@ -155,7 +157,8 @@ async function phone(browser, width, height) {
   ok(`${tag} 1 composer docked at the bottom, full width, 44 px controls, 16 px text`,
     Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - c.vh) <= 1
       && c.send && c.send.w >= TAP && c.send.h >= TAP && c.attach && c.attach.h >= TAP
-      && c.camera && c.camera.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
+      && c.camera && c.camera.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
+      && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
 
   const card = await cardFacts(p)
   ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, smile icon off the row, no sideways scroll`,

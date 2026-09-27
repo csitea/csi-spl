@@ -113,7 +113,11 @@ const MEASURE = () => {
       return !!t && (t === el || el.contains(t))
     })
   }
-  const small = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) && !hits44(el) })
+  /* elementFromPoint sees only the viewport: a small box below the fold is counted apart, never as a pass */
+  const inView = (el) => { const b = el.getBoundingClientRect(); return b.top >= 22 && b.bottom <= innerHeight - 22 && b.left >= 22 && b.right <= vw - 22 }
+  const under = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
+  const unprobed = under.filter((el) => !inView(el))
+  const small = under.filter((el) => inView(el) && !hits44(el))
   const tiny = small.filter((el) => { const b = el.getBoundingClientRect(); return b.width < 24 || b.height < 24 })
   const shell = document.querySelector('.spool-shell')
   const panes = {
@@ -131,7 +135,7 @@ const MEASURE = () => {
     level: shell?.dataset.mobileLevel || null,
     onScreen, panes: Object.fromEntries(Object.entries(panes).map(([k, el]) => [k, box(el)])),
     xScroll: document.documentElement.scrollWidth > vw + 1 || document.body.scrollWidth > vw + 1,
-    interactive: inter.length, under44: small.length, under24: tiny.length,
+    interactive: inter.length, under44: small.length, under24: tiny.length, unprobed: unprobed.length,
     under44Sample: small.slice(0, 12).map(label),
     ghost: ghost.length, ghostSample: ghost.slice(0, 6).map(label),
     textareas: tas,
@@ -233,6 +237,19 @@ try {
       } catch (e) { W.walk.push({ error: String(e).slice(0, 200) }) }
       const lv = W.walk.map((s) => s.level ?? '-').join('>')
       score(key, 'walk-1-2-3-2-1', lv === '1>2>3>2>1', lv)
+
+      /* T055 / SPL-994: Back with a dialog open closes the dialog and stays on the page (the new-channel form; nothing is saved) */
+      try {
+        await nav(p, BASE + '/')
+        await tap(p, '[data-testid=sidebar-tab-channels]')
+        const opened = await tap(p, '[data-testid=create-channel]')
+        const before = await p.evaluate(() => ({ url: location.pathname + location.search, level: document.querySelector('.spool-shell')?.dataset.mobileLevel || null, dialog: !!document.querySelector('[role=dialog]') }))
+        await p.goBack().catch(() => {}); await sleep(2000)
+        const after = await p.evaluate(() => ({ url: location.pathname + location.search, level: document.querySelector('.spool-shell')?.dataset.mobileLevel || null, dialog: !!document.querySelector('[role=dialog]') }))
+        W.flows.dialogBack = { opened, before, after }
+        score(key, 'dialog-back', opened && before.dialog && !after.dialog && after.url === before.url && after.level === before.level,
+          `opened=${opened} dialog ${before.dialog}->${after.dialog} url ${before.url}->${after.url} level ${before.level}->${after.level}`)
+      } catch (e) { W.flows.dialogBack = { error: String(e).slice(0, 200) } }
     }
 
     /* message actions on /lobby */

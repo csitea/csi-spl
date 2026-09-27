@@ -56,6 +56,7 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440 (0: 08:3xZ, 1: 08:5xZ, 2: 09:3xZ posted), 3: 10:0xZ posted
 - [ ] T054 [lead] A1-A3 green on prd e2e and dev t1 -> the epic's result post
 - [ ] T055 [SPL-994, CLE-35029] a UiDialog open on a phone is a stack step: browser Back closes the dialog, not the page under it (found by M5, 2026-09-27). Done in code: `useMobileStack().overlay(open, close)` - UiDialog, avatar + search sheets, issues sheets; e2e `mobile-overlay.test.mjs` (360/390/820 + 1440). Pending: M3 sheets, deploy dev+prd
+- [ ] T056 [CLE-35030, SPL-995] at <= 820 px the tenant switcher sits in the one-row top bar, directly before the search icon (owner, topic 6576fead, 2026-09-27 10:09Z: "on mobile the tenan swihcher should be i nthe top bar next to the search"); desktop unchanged
 
 ## 5. Test widths
 

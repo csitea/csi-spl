@@ -6,6 +6,7 @@
 //            TTI (last long task end, or first message if later), TBT, JS/CSS
 //            bytes on the wire, request count, websocket connect time.
 //   warm     the same URL reloaded with the cache kept.
+//   home     / with the HTTP cache cleared: FCP and the first topic row.
 //   list     client-side route to / until the first topic row shows.
 //   open     click the first topic row until the topic pane shows a message.
 //   send     Ctrl+Enter in /lobby until the row shows (optimistic) and until it
@@ -218,6 +219,14 @@ async function round(p, cdp, rec, prof, i, out) {
   t0 = await routerPush(p, '/search?q=' + encodeURIComponent(Q))
   t1 = await whenSel(p, '[data-test=search-results], [data-test=search-empty], [data-test=search-bad-query]')
   s.search = { ms: t1 < 0 ? -1 : Math.round(t1 - t0), ...netSummary(rec.take()) }
+  // cold / (the topic list is where a signed-in visit lands)
+  await cdp.send('Network.clearBrowserCache')
+  rec.take()
+  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 })
+  const firstRow = await whenSel(p, 'a.topic-row')
+  await sleep(prof.net ? 4000 : 2500)
+  const hv = await vitals(p)
+  s.home = { firstRow: Math.round(firstRow), ...hv, ...netSummary(rec.take()) }
   return s
 }
 
@@ -293,6 +302,7 @@ const METRICS = [
   ['cold requests', (s) => s.cold?.requests], ['cold api requests', (s) => s.cold?.by?.api?.n], ['cold preflights', (s) => s.cold?.preflights],
   ['ws connect', (s) => s.cold?.wsConnectMs], ['ws open after nav', (s) => s.cold?.wsOpenAtMs],
   ['warm FCP', (s) => s.warm?.fcp], ['warm first msg', (s) => s.warm?.firstMsg], ['warm KB', (s) => s.warm?.kb], ['warm requests', (s) => s.warm?.requests],
+  ['cold / FCP', (s) => s.home?.fcp], ['cold / first topic row', (s) => s.home?.firstRow], ['cold / TBT', (s) => s.home?.tbt],
   ['topic list', (s) => s.list?.ms], ['open topic', (s) => s.open?.ms],
   ['send shown', (s) => s.send?.shownMs], ['send confirmed', (s) => s.send?.confirmedMs], ['search', (s) => s.search?.ms],
 ]
@@ -304,7 +314,7 @@ for (const [name, samples] of Object.entries(res.profiles)) {
     summary[name][label] = { p50: pct(xs, 0.5), p95: pct(xs, 0.95), n: xs.filter((x) => typeof x === 'number' && x >= 0).length }
   }
   const routes = {}
-  for (const s of samples) for (const ph of ['cold', 'warm', 'list', 'open', 'send', 'search']) for (const a of s[ph]?.api || []) (routes[a.route] ??= []).push(a.ms)
+  for (const s of samples) for (const ph of ['cold', 'warm', 'home', 'list', 'open', 'send', 'search']) for (const a of s[ph]?.api || []) (routes[a.route] ??= []).push(a.ms)
   summary[name].api = Object.fromEntries(Object.entries(routes).sort().map(([r, xs]) => [r, { p50: pct(xs, 0.5), p95: pct(xs, 0.95), n: xs.length }]))
 }
 res.summary = summary

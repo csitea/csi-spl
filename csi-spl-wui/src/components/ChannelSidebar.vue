@@ -547,14 +547,28 @@
           data-test="app-version-wrap"
           :aria-label="versionText || undefined"
           :aria-expanded="vsOpen"
-          @click="vsOpen = !vsOpen"
+          :style="vsPlace"
+          @mouseenter="placeVsPop"
+          @focusin="placeVsPop"
+          @click="placeVsPop(); vsOpen = !vsOpen"
           @keydown.esc.stop="vsOpen = false; ($event.currentTarget as HTMLElement).blur()"
         >
           <p id="app-version" class="version-stamp" data-test="app-version"><span class="vs-ver">{{ versionLabel }}</span></p>
           <span v-if="buildCommit" class="vs-pop" role="tooltip" data-test="app-version-card">
             <span class="vs-pop__row">
               <span class="vs-pop__sha">{{ buildCommit }}</span>
-              <button type="button" class="vs-pop__copy" data-test="app-version-copy" @click.stop="copyCommit">{{ vsCopied ? t('code.copied') : t('code.copy') }}</button>
+              <!-- SPL-999: the code blocks' copy icon; "Copied" shows beside the check -->
+              <button
+                type="button"
+                class="vs-pop__copy"
+                data-test="app-version-copy"
+                :title="vsCopied ? t('code.copied') : t('code.copy')"
+                :aria-label="vsCopied ? t('code.copied') : t('code.copy')"
+                @click.stop="copyCommit"
+              >
+                <UiIcon :name="vsCopied ? 'check' : 'copy'" :size="15" />
+                <span v-if="vsCopied" class="vs-pop__copied" aria-live="polite">{{ t('code.copied') }}</span>
+              </button>
             </span>
             <span v-if="buildMeta" class="vs-pop__meta">{{ buildMeta }}</span>
           </span>
@@ -576,6 +590,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { useCopyText } from '~/composables/useCopyText'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
@@ -1094,14 +1109,25 @@ const versionLabel = computed(() => String(version.value || '').trim())
 const buildCommit = computed(() => String((build.value as { commit?: string } | null)?.commit || '').trim())
 /* the card also opens by a tap (touch has no hover) and closes on Esc */
 const vsOpen = ref(false)
-const vsCopied = ref(false)
-async function copyCommit() {
-  try {
-    await navigator.clipboard.writeText(buildCommit.value)
-    vsCopied.value = true
-    setTimeout(() => { vsCopied.value = false }, 1500)
-  } catch { /* the text stays selectable by hand */ }
+/* SPL-999: the sidebar clips (overflow: clip, 260 px), so the card is
+   position: fixed: placed directly above the version, from the footer
+   row's left edge, each time it opens, and pulled back so its right edge
+   stays 8 px inside the screen */
+const vsPlace = ref<Record<string, string>>({})
+function placeVsPop(ev?: Event) {
+  const wrap = (ev?.currentTarget as HTMLElement | null) || document.querySelector<HTMLElement>('[data-test=app-version-wrap]')
+  const row = wrap?.closest('.foot-row')
+  if (!wrap || !row) return
+  const r = row.getBoundingClientRect()
+  const card = wrap.querySelector<HTMLElement>('.vs-pop')
+  const w = card ? card.offsetWidth : 0
+  const left = Math.max(8, Math.min(r.left + 8, window.innerWidth - 8 - w))
+  vsPlace.value = { '--vs-left': `${Math.round(left)}px`, '--vs-bottom': `${Math.round(window.innerHeight - wrap.getBoundingClientRect().top)}px` }
 }
+/* SPL-999: the code blocks' copy (with its insecure-origin fallback) */
+const { copied: vsCopiedId, copy: copyText } = useCopyText()
+const vsCopied = computed(() => vsCopiedId.value === 'commit')
+function copyCommit() { void copyText(buildCommit.value, 'commit') }
 const buildMeta = computed(() => {
   const b = build.value as { built_at?: string, run?: string } | null
   if (!b) return ''
@@ -1420,7 +1446,7 @@ async function onCreate() {
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
-.foot-row .vs-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
+.foot-row .vs-wrap { flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
 .foot-row .version-stamp {
   flex: 1 1 auto;
   min-width: 0;
@@ -1435,15 +1461,19 @@ async function onCreate() {
    shown on hover / keyboard focus, hidden only 0.6 s after the pointer
    leaves both - long enough to move onto it and select the sha */
 .foot-row .vs-pop {
-  position: absolute;
-  bottom: 100%;
-  inset-inline-start: auto;
-  inset-inline-end: 0;
+  /* SPL-999 (owner: "a bit bigger to fit the whole hash"): as wide as the
+     hash + the copy button, never past the screen: fixed (the sidebar
+     clips), just above the footer row, capped at the viewport minus 16 px */
+  position: fixed;
+  bottom: var(--vs-bottom, 48px);
+  left: var(--vs-left, 8px);
   z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-width: min(360px, 90vw);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   padding: 6px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1465,11 +1495,19 @@ async function onCreate() {
   transition-delay: 0s;
 }
 .foot-row .vs-pop__row { display: flex; align-items: center; gap: 6px; }
-.foot-row .vs-pop__sha { white-space: nowrap; }
+/* one line while it fits; on a narrow phone two even halves, never cut */
+.foot-row .vs-pop__sha { min-width: 0; overflow-wrap: anywhere; word-break: break-all; text-wrap: balance; }
 .foot-row .vs-pop__copy {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none;
+  min-width: 28px; min-height: 28px; padding: 0 4px;
   font: inherit; font-family: var(--font-sans, inherit); font-size: 0.7rem;
-  padding: 1px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-  background: transparent; color: inherit; cursor: pointer;
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-muted); cursor: pointer;
+}
+.foot-row .vs-pop__copy:hover,
+.foot-row .vs-pop__copy:focus-visible { color: var(--color-fg); border-color: var(--color-border); }
+@media (max-width: 820px) {
+  .foot-row .vs-pop__copy { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }
 .foot-row .vs-pop__meta { color: var(--color-muted); overflow-wrap: anywhere; }
 /* em, so the font-size setting still scales both; the muted colour of

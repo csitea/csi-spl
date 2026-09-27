@@ -63,7 +63,11 @@ describe('build stamp (CLE-3433)', () => {
     assert.doesNotMatch(s, /data-test="app-version"[^>]*:title=/)
     assert.match(s, /data-test="app-version-card"/)
     assert.match(s, /data-test="app-version-copy"/)
-    assert.match(s, /navigator\.clipboard\.writeText\(buildCommit\.value\)/)
+    // SPL-999: the code blocks' copy (icon + insecure-origin fallback), and
+    // a fixed card sized to the whole hash, since the 260 px sidebar clips
+    assert.match(s, /copyText\(buildCommit\.value, 'commit'\)/)
+    assert.match(s, /<UiIcon :name="vsCopied \? 'check' : 'copy'"/)
+    assert.match(s, /\.foot-row \.vs-pop \{[^}]*position: fixed;[^}]*width: max-content;[^}]*max-width: calc\(100vw - 16px\);/)
     assert.match(s, /@keydown\.esc\.stop=/)
     assert.match(s, /\.vs-wrap:focus-within \.vs-pop/)
     assert.match(s, /\.vs-wrap\.is-open \.vs-pop/)

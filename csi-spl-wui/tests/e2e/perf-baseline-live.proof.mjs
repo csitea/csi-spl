@@ -18,7 +18,7 @@
 //
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=e2e] [N=5] [PROFILES=d1440,d1440-4g,m390-4g] [Q=perf] [SEND=1] [WATERFALL=0] \
-//     [LOCAL_MAP=127.0.0.1:8443] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/perf-baseline-live.proof.mjs
+//     [LOCAL_MAP=127.0.0.1:8443] [USER_DATA_DIR=<dir>] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/perf-baseline-live.proof.mjs
 //
 // LOCAL_MAP A/Bs an undeployed bundle: Chrome resolves the BASE host to that
 // address, where tests/e2e/lib/serve-hosting-h2.mjs serves the bundle. The page
@@ -225,11 +225,13 @@ const puppeteer = await loadPuppeteer()
 const LOCAL_MAP = process.env.LOCAL_MAP || ''
 const chromeArgs = ['--no-sandbox']
 if (LOCAL_MAP) chromeArgs.push(`--host-resolver-rules=MAP ${new URL(BASE).hostname} ${LOCAL_MAP}`, '--ignore-certificate-errors')
-const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: chromeArgs })
+// USER_DATA_DIR keeps the session between runs: the hub allows 10 native
+// sign-ins per email per 15 min, and an A/B of two bundles is several runs.
+const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: chromeArgs, ...(process.env.USER_DATA_DIR ? { userDataDir: process.env.USER_DATA_DIR } : {}) })
 let failed = false
 try {
   res.build = LOCAL_MAP ? { local: LOCAL_MAP } : await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => ({}))
-  const ctx = await browser.createBrowserContext()
+  const ctx = process.env.USER_DATA_DIR ? browser.defaultBrowserContext() : await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.evaluateOnNewDocument(() => {
     window.__perfLong = []
@@ -239,12 +241,18 @@ try {
     } catch { /* unsupported */ }
   })
   await p.setViewport({ width: 1440, height: 900 })
-  await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 })
-  await p.type('[data-test=native-auth-email]', email)
-  await p.type('[data-test=native-auth-password]', pw)
-  await p.click('[data-test=native-auth-submit]')
-  if (!(await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).catch(() => null))) throw new Error('sign-in failed at ' + p.url())
+  await p.goto(BASE + '/lobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
+  const already = await p.waitForSelector('[data-test=user-menu-trigger], [data-test=native-auth-email]', { timeout: 45000 })
+    .then((h) => h.evaluate((e) => e.matches('[data-test=user-menu-trigger]'))).catch(() => false)
+  res.signIn = already ? 'kept' : 'native'
+  if (!already) {
+    await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 })
+    await p.type('[data-test=native-auth-email]', email)
+    await p.type('[data-test=native-auth-password]', pw)
+    await p.click('[data-test=native-auth-submit]')
+    if (!(await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).catch(() => null))) throw new Error('sign-in failed at ' + p.url())
+  }
   await sleep(1500)
   const claimT = await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia.state.value.session?.claims?.t || '')
   const hostT = new URL(BASE).hostname.split('.')[0]
@@ -281,6 +289,7 @@ const METRICS = [
   ['cold TTFB', (s) => s.cold?.ttfb], ['cold FCP', (s) => s.cold?.fcp], ['cold LCP', (s) => s.cold?.lcp],
   ['cold first msg', (s) => s.cold?.firstMsg], ['cold TTI', (s) => s.cold?.tti], ['cold TBT', (s) => s.cold?.tbt],
   ['cold JS KB', (s) => s.cold?.by?.js?.kb], ['cold CSS KB', (s) => s.cold?.by?.css?.kb], ['cold total KB', (s) => s.cold?.kb],
+  ['cold API KB', (s) => s.cold?.by?.api?.kb], ['list API KB', (s) => s.list?.by?.api?.kb], ['open API KB', (s) => s.open?.by?.api?.kb],
   ['cold requests', (s) => s.cold?.requests], ['cold api requests', (s) => s.cold?.by?.api?.n], ['cold preflights', (s) => s.cold?.preflights],
   ['ws connect', (s) => s.cold?.wsConnectMs], ['ws open after nav', (s) => s.cold?.wsOpenAtMs],
   ['warm FCP', (s) => s.warm?.fcp], ['warm first msg', (s) => s.warm?.firstMsg], ['warm KB', (s) => s.warm?.kb], ['warm requests', (s) => s.warm?.requests],

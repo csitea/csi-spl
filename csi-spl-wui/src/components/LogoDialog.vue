@@ -38,10 +38,15 @@ const { t } = useI18n()
 .logo-dialog__img {
   display: block;
   max-width: 100%;
+  /* leave room for the dialog title and the slogan, so the slogan is never
+     pushed to (or past) the dialog's bottom edge */
+  max-height: calc(100dvh - 12rem);
+  width: auto;
   height: auto;
   border-radius: var(--radius-md);
 }
 .logo-dialog__slogan {
+  margin-block-end: 8px;
   font-size: 1.25rem;
   text-align: center;
   color: var(--color-fg);

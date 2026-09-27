@@ -25,7 +25,9 @@
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: a TEST tenant slug (prd e2e); t1 is refused
-# @param PROBE_BOX (optional) - the probe box id, default box-fbprobe
+# @param PROBE_BOX (optional) - the probe box id, default box-fbp-<utc stamp>:
+# @param   one per run, since each run mints a new key and the hub refuses to
+# @param   re-pin a box id to another key (pin_conflict)
 # @param PROBE_RESPONDER (optional) - default PRB-9973
 # @param PROBE_MEMBER (optional) - the control's member agent, default PRB-9974
 # @param ROOT_KEY (optional) - the tenant root private key file (0600), default
@@ -41,7 +43,9 @@ do_spl_fallback_probe() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-fbprobe}" wait="${PROBE_WAIT_SECS:-30}"
+  local stamp
+  stamp="$(date -u +%Y%m%d%H%M%S)"
+  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-fbp-$stamp}" wait="${PROBE_WAIT_SECS:-30}"
   local resp="${PROBE_RESPONDER:-PRB-9973}" member="${PROBE_MEMBER:-PRB-9974}"
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$tenant" != t1 ]] || { do_log "FATAL TENANT_ID=t1 is a real tenant: its responder list is not the probe's to change (use e2e)"; return 1; }
@@ -53,10 +57,9 @@ do_spl_fallback_probe() {
     [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ && "${a%%-*}" != HUM ]] || { do_log "FATAL '$a' is not an agent id"; return 1; }
   done
   [[ "$resp" != "$member" ]] || { do_log "FATAL PROBE_RESPONDER and PROBE_MEMBER must differ"; return 1; }
-  local api stamp
+  local api
   api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
-  stamp="$(date -u +%Y%m%d%H%M%S)"
   if (( dry )); then
     do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api announcing $resp and $member, with a logger notifier"
     do_log "INFO DRY_RUN would: set $tenant's responders to $resp, post into #fb-probe-$stamp (no agent), then #fb-ctrl-$stamp ($member seated)"

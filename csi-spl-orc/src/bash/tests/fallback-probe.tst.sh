@@ -39,7 +39,7 @@ in_orc() {
 out=$(SNIPPET=do_spl_fallback_probe in_orc TENANT_ID=e2e 2>&1); rc=$?
 [[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was sent" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "dry run: no call" \
   || fail "dry run: rc=$rc calls=$(cat "$T/calls.log") out=$out"
-grep -q "pin box-fbprobe under e2e .* announcing PRB-9973 and PRB-9974" <<<"$out" &&
+grep -q "pin box-fbp-[0-9]\{14\} under e2e .* announcing PRB-9973 and PRB-9974" <<<"$out" &&
   grep -q "set e2e's responders to PRB-9973, post into #fb-probe-[0-9]* (no agent), then #fb-ctrl-[0-9]* (PRB-9974 seated)" <<<"$out" &&
   pass "dry run names the box, both agents and both channels" || fail "dry run text: $out"
 

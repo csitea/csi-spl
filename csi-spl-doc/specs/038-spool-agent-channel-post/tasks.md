@@ -89,3 +89,21 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       row for the post, deliveries box-fbprobe sent; 0 rows for the control).
       After (prd, human posts since the roll at 10:50Z): 2 posts, 0 reached
       no agent box (1 of them via the fallback); before: 134/423 in 7 days.
+- [x] T027 FR-039 per-channel opt-out (CLE-001 after go-live: proof posts in
+      dev t1 #live-proof poked the responder). rdb 0068 `channels.no_fallback`
+      applied dev + prd; hub `2e414626` (TestFallbackChannelOptOut, memory +
+      Postgres); `do_spl_channel_fallback` `38613ef5`; WUI "off for this
+      channel" `c6f5e2a2`. Set off on dev t1 #live-proof, #agent-post-proof,
+      #bf-probe-20260927085931, #spl72-proof-0926093818 (prd t1 has no
+      proof channel). Not proven live: needs an online e2e agent AND the flag;
+      the hub test is the proof.
+- [x] T028 re-roll to 1.0.0 (`a0480eb9`; 0.9.10 / 0.9.11 broke the odometer
+      gate hub-version-digits). Test race fixed `404f32d7` (the hub records a
+      fallback after writing the frame; the test now waits for the rows).
+      Gate 36316714165 on a0480eb9 = success; hub /version dev + prd = 1.0.0 /
+      a0480eb9; WUI build.json dev + prd = a0480eb9. Probe re-run on 1.0.0,
+      prd e2e: PASS, 0.17 s, control no fallback (probe box id is now per run:
+      a fixed id hit pin_conflict on the second run).
+      After (prd, human posts since the roll at 10:50Z, to 12:00Z): t1 7 posts,
+      0 reached no agent box (3 via the fallback); csi-rel 3, 0; e2e 7, 5 -
+      made while no e2e agent was online, which the rule does not cover.

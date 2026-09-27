@@ -34,6 +34,28 @@ export function tenantUrl(tenant, siteUrl, apexTenant, path = '/') {
   return origin + (p.startsWith('/') && !p.startsWith('//') ? p : '/')
 }
 
+/* Pages that name something only ONE tenant has: a channel, a DM peer, a topic. */
+const TENANT_SCOPED = new Set(['channel', 'dm', 't'])
+const LOCALE_SEG_RE = /^[a-z]{2}(?:-[a-z]{2,4})?$/i
+
+/**
+ * The path a tenant switch carries to the other tenant's host (CLE-35057).
+ * A page that means the same in every tenant (/lobby, /issues, /settings/...)
+ * is kept; /channel/<x>, /dm/<x> and /t/<id> name something of the OLD tenant
+ * and go to that locale's home instead. Measured on prd 2026-09-27: the owner
+ * switched from csi-rel's /channel/development to bnc-cpt, landed on
+ * /channel/development there - a channel bnc-cpt does not have - and every
+ * send was refused (unknown_channel) as "did not reach the hub".
+ */
+export function switchPath(path) {
+  const p = String(path || '/')
+  if (!p.startsWith('/') || p.startsWith('//')) return '/'
+  const segs = p.split(/[?#]/)[0].split('/').filter(Boolean)
+  if (segs.length && TENANT_SCOPED.has(segs[0])) return '/'
+  if (segs.length > 1 && LOCALE_SEG_RE.test(segs[0]) && TENANT_SCOPED.has(segs[1])) return '/' + segs[0]
+  return p
+}
+
 /**
  * The hop on arrival at the apex with ?tenant=<t> (t valid, not the apex
  * tenant): the same path on t's host, without the tenant param. Sign-in

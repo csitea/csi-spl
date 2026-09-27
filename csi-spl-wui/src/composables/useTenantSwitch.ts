@@ -7,6 +7,7 @@
 import { tenantHint, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 import { useSessionStore } from '~/stores/session'
 import { tenantHostUrl } from '~/composables/useSpoolApi'
+import { switchPath } from '~/utils/tenant-host.mjs'
 import { useAuthClient } from '~/composables/useAuthClient'
 
 export function useTenantSwitch() {
@@ -31,8 +32,10 @@ export function useTenantSwitch() {
     if (!b.canSwitch || api.mock || switching.value || !want || want === b.selected) return false
     switching.value = true
     failed.value = false
-    /* SPL-959: with tenant hosts on, a tenant IS its host: go there, same path. */
-    const hostUrl = await tenantHostUrl(want, window.location.pathname)
+    /* SPL-959: with tenant hosts on, a tenant IS its host: go there, same
+       path - unless the path names the old tenant's channel, DM or topic
+       (CLE-35057: switchPath sends those to the home page). */
+    const hostUrl = await tenantHostUrl(want, switchPath(window.location.pathname))
     if (hostUrl) {
       window.location.assign(hostUrl)
       return true

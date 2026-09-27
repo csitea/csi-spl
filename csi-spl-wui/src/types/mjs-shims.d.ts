@@ -1387,6 +1387,7 @@ declare module '~/utils/tenant-host.mjs' {
   export function pageTenant(hostname: string, siteUrl: string, apexTenant: string): string
   export function tenantOrigin(tenant: string, siteUrl: string, apexTenant: string): string
   export function tenantUrl(tenant: string, siteUrl: string, apexTenant: string, path?: string): string
+  export function switchPath(path: string): string
   export function isTenantHostOf(url: string, siteUrl: string): boolean
   export function tenantParamHop(href: string, siteUrl: string, apexTenant: string): string
   export function oldLinkId(href: string): string

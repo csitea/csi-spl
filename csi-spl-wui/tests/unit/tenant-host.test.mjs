@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  homeTenant, isTenantHostOf, oldLinkId, pageTenant, siteHostOf, tenantOrigin, tenantParamHop, tenantUrl,
+  homeTenant, isTenantHostOf, oldLinkId, pageTenant, siteHostOf, switchPath, tenantOrigin, tenantParamHop, tenantUrl,
 } from '../../src/utils/tenant-host.mjs'
 
 const PRD = 'https://app.example'
@@ -75,5 +75,34 @@ describe('tenant-host', () => {
     assert.equal(homeTenant({ tenants: [{ tenant_id: 'csitea' }] }, 't1'), 'csitea')
     assert.equal(homeTenant({ tenants: [] }, 't1'), '')
     assert.equal(homeTenant(null, 't1'), '')
+  })
+})
+
+// CLE-35057: a tenant switch must not carry the old tenant's channel / DM /
+// topic to the new tenant's host - every send there was refused.
+describe('switchPath', () => {
+  it('drops a channel, DM or topic page to the home page, keeping the locale', () => {
+    assert.equal(switchPath('/channel/development'), '/')
+    assert.equal(switchPath('/dm/HUM-3'), '/')
+    assert.equal(switchPath('/t/' + U), '/')
+    assert.equal(switchPath('/bg/channel/development'), '/bg')
+    assert.equal(switchPath('/pt-br/t/' + U), '/pt-br')
+  })
+  it('keeps a page every tenant has', () => {
+    assert.equal(switchPath('/lobby'), '/lobby')
+    assert.equal(switchPath('/issues'), '/issues')
+    assert.equal(switchPath('/bg/settings/behaviour'), '/bg/settings/behaviour')
+    assert.equal(switchPath('/'), '/')
+    assert.equal(switchPath('/bg'), '/bg')
+  })
+  it('refuses odd input', () => {
+    assert.equal(switchPath(''), '/')
+    assert.equal(switchPath('//evil.example/x'), '/')
+    assert.equal(switchPath('channel/x'), '/')
+  })
+  it('the tenant switch uses it (CONTROL: it used the raw pathname)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('../../src/composables/useTenantSwitch.ts', import.meta.url), 'utf8')
+    assert.match(src, /tenantHostUrl\(want, switchPath\(window\.location\.pathname\)\)/)
   })
 })

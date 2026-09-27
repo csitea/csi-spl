@@ -203,6 +203,12 @@ try {
         !list.table && list.cards === 2 && list.fields.length === 5 && list.key === 'SPL-2' && !list.shortcuts, list)
       ok(`4 ${w}: + is a floating action button bottom right, >= 44 px`, list.fabFixed && list.fabBottomRight && list.fab[0] >= 44 && list.fab[1] >= 44, list)
       ok(`5 ${w}: epics are a chip strip (All + the one epic), the filter sheet starts closed`, list.chips === 2 && !list.filterSheetOpen, list)
+      /* CONTROL-able: a chip keeps its full 44 px even when the list is long (prd e2e, 23 cards, clipped the strip) */
+      const strip = await p.evaluate(() => {
+        const nav = document.querySelector('[data-test=issues-epic-chips]')
+        return { shrink: getComputedStyle(nav).flexShrink, h: Math.round(nav.getBoundingClientRect().height) }
+      })
+      ok(`5a ${w}: the chip strip never shrinks under the list`, strip.shrink === '0' && strip.h >= 44, strip)
       const small = await smallTargets(p, '[data-test=issues-page]')
       ok(`6 ${w}: every control on the list is >= 44 px`, small.length === 0, small)
       ok(`7 ${w}: no horizontal page scroll on the list`, (await xScroll(p)) <= 0, await xScroll(p))

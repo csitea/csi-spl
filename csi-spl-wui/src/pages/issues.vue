@@ -1890,13 +1890,16 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
     height: 56px;
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
   }
-  .issues-mbar { display: flex; gap: 8px; padding: 0 12px 8px; min-width: 0; }
+  .issues-mbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 0 12px 8px; min-width: 0; }
   .issues-mbar__btn { min-height: var(--tap, 44px); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
   .issues-mbar__sort { flex: 1 1 auto; justify-content: flex-start; }
   .issues-mbar__sortlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .issues-mbar__dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-accent); }
   /* the strip scrolls inside itself; the page never scrolls sideways */
+  /* flex: none - a scrolling row in the list's column would otherwise shrink
+     under a long card list and the cards would cover the chips */
   .issues-chips {
+    flex: 0 0 auto;
     display: flex;
     gap: 8px;
     padding: 0 12px 8px;

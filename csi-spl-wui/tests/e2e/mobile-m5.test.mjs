@@ -13,6 +13,10 @@
 //             chevron, browser Back) returns to the list. <= 480 px: the
 //             profile facts stack label over value. 1440: /settings still
 //             redirects to /settings/profile with the nav beside it.
+//   rail     - Settings -> Behaviour -> Left panel order reorders by TOUCH:
+//             a finger drag on a row's grip (CDP touch events, not a mouse)
+//             moves the row and PUTs the new rail_order once; grip and
+//             up / down are >= 44 px targets at <= 820 px.
 //
 // CONTROL: every width asserts the OPPOSITE state at the other widths (a
 // full-screen dialog at 1440 fails, a card at 360 fails), so a selector that
@@ -58,6 +62,7 @@ async function launch() {
 }
 
 // One signed-in owner: the hub's auth routes only (display-name.test.mjs).
+const puts = []
 const json = (status, body) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
 function answer(req) {
   const u = new URL(req.url())
@@ -71,6 +76,12 @@ function answer(req) {
     })
   }
   if (path === 'providers') return json(200, { providers: [], native: true })
+  if (path === 'preferences' && req.method() === 'PUT') {
+    let body = {}
+    try { body = JSON.parse(req.postData() || '{}') } catch { /* counted as {} */ }
+    puts.push(body)
+    return json(200, body)
+  }
   if (path === 'events') {
     return json(200, {
       events: [
@@ -226,12 +237,54 @@ async function checkSettings(browser, base, vp) {
   }
 }
 
+async function checkRailTouch(browser, base, vp) {
+  const p = await page(browser, vp)
+  const tag = `rail@${vp.w}`
+  try {
+    await p.goto(base + '/settings/behaviour', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=rail-order-list] li', { visible: true, timeout: NAV_TIMEOUT })
+    await sleep(300)
+    const ids = () => p.$$eval('[data-test=rail-order-list] li', (ls) => ls.map((l) => l.dataset.reorderId))
+    const before = await ids()
+    const g = await p.$$eval('[data-test=rail-order-list] li', (ls) => ls.map((l) => {
+      const grip = l.querySelector('.rail-order__grip').getBoundingClientRect()
+      const up = l.querySelector('.icon-btn').getBoundingClientRect()
+      const r = l.getBoundingClientRect()
+      return { gx: grip.left + grip.width / 2, gy: grip.top + grip.height / 2, gw: grip.width, gh: grip.height, uw: up.width, uh: up.height, cy: r.top + r.height / 2 }
+    }))
+    if (vp.mobile) ok(`${tag} grip and up / down are >= 44 px`, g.every((x) => x.gw >= 44 && x.gh >= 44 && x.uw >= 44 && x.uh >= 44), g[0])
+    else ok(`${tag} CONTROL: desktop keeps the 32 px grip and buttons`, g[0].gw === 32 && g[0].uw === 32, g[0])
+    if (!vp.mobile) return
+    const n0 = puts.length
+    await p.touchscreen.touchStart(g[0].gx, g[0].gy)
+    const steps = 12
+    for (let i = 1; i <= steps; i++) {
+      await p.touchscreen.touchMove(g[0].gx, g[0].gy + ((g[2].cy + 4 - g[0].gy) * i) / steps)
+      await sleep(16)
+    }
+    await p.touchscreen.touchEnd()
+    await sleep(500)
+    const after = await ids()
+    const moved = before[0]
+    ok(`${tag} a finger drag moves the first row to the third place`, after.indexOf(moved) === 2 && after.length === before.length, { before, after })
+    const put = puts.slice(n0)
+    ok(`${tag} the new order is PUT once`, put.length === 1 && JSON.stringify(put[0]?.rail_order) === JSON.stringify(after), { put })
+    const x = await noXScroll(p)
+    ok(`${tag} no horizontal page scroll`, x.ok, x)
+  } catch (e) {
+    ok(`${tag} ran`, false, String(e.message || e))
+  } finally {
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
   for (const vp of WIDTHS) {
     await checkDialog(browser, server.base, vp)
     await checkSettings(browser, server.base, vp)
+    await checkRailTouch(browser, server.base, vp)
   }
 } finally {
   await browser.close()

@@ -166,4 +166,11 @@ onMounted(() => { if (session.state === 'loading') void session.probe() })
   overflow-wrap: anywhere;
 }
 .rail-order__actions { display: flex; }
+/* SPL-993: on a touch screen the grip and the up / down buttons are 44 px
+   targets (the rail itself does not drag on a phone - spec 043 D6 - so this
+   list is where a phone reorders). */
+@media (max-width: 820px) {
+  .rail-order__grip { min-width: var(--tap, 44px); }
+  .rail-order__row .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
+}
 </style>

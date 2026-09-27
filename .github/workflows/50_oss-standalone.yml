@@ -24,9 +24,11 @@ on:
 permissions:
   contents: read
 
+# one group per commit: a ref-wide group with cancel-in-progress let every
+# later push to the busy trunk cancel the run before it finished (9acb0635)
 concurrency:
-  group: oss-standalone-${{ github.ref }}
-  cancel-in-progress: true
+  group: oss-standalone-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   standalone:

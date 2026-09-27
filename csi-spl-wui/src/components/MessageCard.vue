@@ -1175,6 +1175,11 @@ async function save() {
   .msg > .avatar { width: 32px; height: 32px; }
   .msg-meta { flex-wrap: wrap; row-gap: 4px; gap: 6px; }
   .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; }
+  /* the name takes the free space first (up to its own width); an auto
+     margin then takes what is left, so the menu still sits at the right edge
+     on either header line (a grow below 1 would hand out only that fraction
+     of the free space and strand the menu mid-row) */
+  .msg-meta-spacer { flex: 0 0 0; margin-inline-start: auto; }
   .msg-meta > .msg-via-terminal { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
   .msg-actions [data-test="open-topic"] { display: none; }

@@ -105,6 +105,7 @@ function cardFacts(page) {
       x: Math.round(r.left + r.width / 2),
       y: Math.round(r.top + Math.min(r.height / 2, 60)),
       menuBtn: size('[data-testid=msg-menu-btn]'),
+      menuRight: Math.round(r.right - (row.querySelector('[data-testid=msg-menu-btn]')?.getBoundingClientRect().right ?? 0)),
       emojiBtn: size('[data-testid=msg-emoji-btn]'),
       scrollW: document.scrollingElement.scrollWidth,
       vw: window.innerWidth,
@@ -157,9 +158,10 @@ async function phone(browser, width, height) {
       && c.camera && c.camera.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
 
   const card = await cardFacts(p)
-  ok(`${tag} 2 card header controls >= 44 px, smile icon off the row, no sideways scroll`,
+  ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, smile icon off the row, no sideways scroll`,
     Boolean(card && card.menuBtn && card.menuBtn.w >= TAP && card.menuBtn.h >= TAP
-      && card.emojiBtn && !card.emojiBtn.shown && card.scrollW <= card.vw), card)
+      && card.emojiBtn && !card.emojiBtn.shown && card.scrollW <= card.vw
+      && card.menuRight >= 0 && card.menuRight <= 24), card)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}.png`) })
   if (!card) return p.close()
 

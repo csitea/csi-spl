@@ -105,7 +105,15 @@ const MEASURE = () => {
     const wrap = box && el.closest(box)
     return (wrap || (labelled(el) ? (el.closest('label') || document.querySelector(`label[for="${el.id}"]`)) : el)).getBoundingClientRect()
   }
-  const small = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
+  /* a hit area grown by a pseudo-element (b36728f6: kind badge ::before) is not in the box: probe the 44 px square's corners */
+  const hits44 = (el) => {
+    const b = el.getBoundingClientRect(); const cx = b.x + b.width / 2; const cy = b.y + b.height / 2
+    return [[-21, -21], [21, -21], [-21, 21], [21, 21]].every(([dx, dy]) => {
+      const t = document.elementFromPoint(cx + dx, cy + dy)
+      return !!t && (t === el || el.contains(t))
+    })
+  }
+  const small = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) && !hits44(el) })
   const tiny = small.filter((el) => { const b = el.getBoundingClientRect(); return b.width < 24 || b.height < 24 })
   const shell = document.querySelector('.spool-shell')
   const panes = {

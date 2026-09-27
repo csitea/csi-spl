@@ -10,7 +10,7 @@
 // one line (at <= 390 at most two), inside the screen, with the copy icon.
 //
 // Run (prd: the e2e tenant host only - the apex is t1's host):
-//   BASE=https://e2e.spool-hub.ai TENANT=e2e EMAIL=... PW_FILE=... OUT=<dir> \
+//   BASE=https://e2e.<domain> TENANT=e2e EMAIL=... PW_FILE=... OUT=<dir> \
 //     node tests/e2e/chime-version-live.proof.mjs
 import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'

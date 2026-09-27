@@ -420,4 +420,39 @@ feed a human reads (view API + `message_edited`). A box that resends the ORIGINA
 after an edit gets `conflict_msg` (the stored envelope differs), which is the correct
 answer for a stale resend.
 
-<!-- version: 0.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T17:15:00Z -->
+## 11. Merge a message into its neighbor — `POST /v1/messages/{msg_id}/merge` (CLE-35064)
+
+Owner, prd t1 topic 04130ea2: "once the content is merged, the actual source of the merged
+content, the source card, should self-delete". The browser used to merge with a §1 PATCH and
+then a DELETE; on prd the DELETE never went out (Cloud Run request log, 2026-09-27: `PATCH
+845e637d` 200 at 20:48:59Z, then only a manual delete 9 s later). A merge is now ONE request.
+
+Request: `{"into": "<msg_id>"}`. `{msg_id}` is the **source** (the row that goes away),
+`into` the message that keeps the text. No body text is sent: the hub joins the two bodies,
+older first (received_at, then msg_id), with one blank line between — the WUI's `joinBodies`.
+
+One store transaction (`MergeMessages`): both rows locked in msg_id order, the §7 register
+written for `into` exactly as an edit writes it (revision 1 captured, a revision appended,
+box-wui re-sign per §4 rule 7), and the source row deleted with its cascades. Both or neither.
+
+`200`: the §2 element of the kept row plus `"merged_from": "<source msg_id>"`.
+
+Frame: ONE `message_merged` — the §3 `message_edited` payload of the kept row plus
+`merged_from` — to every browser socket shown either row. The browser applies it as that edit
+plus a `message_deleted` of `merged_from`.
+
+Who: the same member / billing / `notes.send` checks as §4, then: both rows have ONE author and
+the caller is that author, the tenant owner or an admin (specs/041 `mayChangeTopic`); both rows
+are browser-authored (`from_box = box-wui`); both are in one thread (`task_id`).
+
+Refusals: `400 bad_json` (no `into`, or `into` = `{msg_id}`); `404 not_found` (either row, or
+the read door); `409 not_same_thread`; `409 not_same_author`; `403 not_allowed`;
+`409 not_editable`; `409 is_card` (the source opens its topic — a non-lobby task's first
+`is_parent 1` row); `409 has_replies` (the source has a thread of its own: moving that thread
+is specs/045's message move, not a merge); `413 too_large` (the joined body is over 64 KiB).
+
+Not done: an undo. The kept row's register holds its old body, but the source row, its
+deliveries and its reactions are deleted, so an undo would be a re-send with a new time, not a
+restore.
+
+<!-- version: 0.4.0 · updated: 2026-09-28 · last-edit: 2026-09-28T00:00:00Z -->

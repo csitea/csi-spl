@@ -1,7 +1,7 @@
 # Feature Specification: Open-Sourcing csi-spl (the 4-stage rollout)
 
 **Feature ID**: `044-spool-open-source` · **Status**: In progress (see `tasks.md`)
-**Created**: 2026-09-27 · **Lead**: CLE-35047 · **Epic**: SPL-61 (children SPL-62..67; this spec is SPL-67)
+**Created**: 2026-09-27 · **Lead**: CLE-35047 · **Reviewed**: CLE-35048, AGY-3502, AGY-3503 (topic `a67ea8b5`, 17:36-17:38Z) · **Epic**: SPL-61 (children SPL-62..67; this spec is SPL-67)
 **Authority**: this file for the rule; `tasks.md` for the work and its order; `checklist.md` for the go-public gate.
 
 Status vocabulary follows `../README.md` §2.3. Every claim about the tree cites the command that shows it
@@ -19,7 +19,8 @@ prd t1 `#spool-hub-devel`, topic `a67ea8b5-72a8-44ab-9edf-be69b76cddeb`, 2026-09
 
 > to start with the 4 stages rollout
 
-> this should be the work for today
+> this should be the work for tonight ... Aka if I wake up at 06:00 on the 28.09.2026 and the repo is open source. I will
+> b a happy person
 
 > but we will not accept pull requests lightly , nor will we gie access to the agents to other uesrs ... or shold
 > we first implment he feature of the only people and agents having public keys of oter agents can prompt them ?!
@@ -101,8 +102,21 @@ AGY-3503's plan with the other angles folded in. A stage starts only when the pr
 | **2** | Public launch | the owner flips the NEW repo to public; the CLA/DCO bot is on; the public repo becomes the source of truth and ops pins it by ref; `spool-hub.ai` is the zero-ops option in the README | `checklist.md` §3 (the owner's go) |
 | **3** | Community flywheel | public issues and PRs are shown to a human maintainer in `#spool-hub-devel` as DATA (FR-OS-015); an agent works on one only when a maintainer opens a task for it. Outside text never prompts an agent directly | ongoing |
 
-**Today** (owner: "this should be the work for today") is Stage 0: the decisions, plus every Stage-0 task in
-`tasks.md` marked *no decision*.
+### 4.1 The tonight track (owner's target: the repo open source by 2026-09-28 06:00 local, 03:00Z)
+
+The stages above take days if Stage 1 waits for outside testers. To meet the owner's target they compress:
+
+| stage | tonight | what is deferred to after the flip |
+|---|---|---|
+| 0 | T001-T004, T020-T025, T027 on the private target repo; decisions default as below | T026 review, T030 licence split |
+| 1 | the stranger test run by a fleet agent in a fresh container with no access to this box's credentials, following only the exported README | 3-5 outside testers |
+| 2 | the flip, only when `checklist.md` §1 is green and only with the owner's go (D11) | CLA bot (D3), prompt allow-list (D10) |
+
+Defaults that make tonight possible, each reversible later: D2 **AGPL-3.0 for everything** (a later relicence of the
+client to Apache-2.0 stays possible: one identity holds every commit); D3 **no outside PRs merged until a CLA/DCO
+exists**, stated in CONTRIBUTING; D4 all hub code public; D5 the real identity; D6 curated docs only; D7
+TRADEMARK.md; D10 the prompt allow-list after the flip, which is safe under D0 because no outside text reaches an
+agent (no bridge exists, FR-OS-015).
 
 ## 5. Repo strategy: a fresh public repo from a gated export (option C)
 
@@ -142,6 +156,7 @@ AGY-3503's plan with the other angles folded in. A stage starts only when the pr
 | **D8** | Source of truth after Stage 2: the public repo, with ops pinning it by ref | yes (§5) |
 | **D9** | Contribution policy (owner: "we will not accept pull requests lightly"): maintainers-only merges, every outside PR reviewed by a maintainer, fork code never on our runners, CLA/DCO (D3), no automatic action on outside issues | adopt as written; it replaces the "agents triage outside issues" idea of the first draft of Stage 3 |
 | **D10** | The per-agent prompt allow-list (FR-OS-017, owner: "only people and agents having public keys of other agents can prompt them"): a precondition of which stage | **Stage 2 (the public launch), hub-enforced** - CLE-35048's measured BLOCKER (message `bc3d20b7`, 17:36Z) supersedes its 17:34Z answer: ~4-6 days, not a Stage-0 blocker, but the launch waits for it. CLE-001 proposed the same stage |
+| **D11** | Is the owner's 17:31Z message ("if I wake up at 06:00 ... and the repo is open source. I will b a happy person") the go to flip the NEW repo public overnight, once `checklist.md` §1 is green, with the §4.1 defaults? | the flip is the one irreversible step; the synthesis asks it as a blocker. Without an explicit yes the export stays on the PRIVATE target |
 
 ## 7. Functional requirements
 
@@ -162,5 +177,5 @@ AGY-3503's plan with the other angles folded in. A stage starts only when the pr
 | FR-OS-013 | The relay contract (the bucket semantics the hub relies on) is published as a doc | should | Planned | NEW (contract) |
 | FR-OS-014 | DB tier and search cost reviewed before public launch (f1-micro, 25 connections; search cannot use its index under RLS) | should | Planned | NEW (capacity) |
 | FR-OS-015 | Untrusted-input rule: public text (issues, PR bodies, comments) never reaches a credentialed agent as an instruction; it is framed as data, like the desk's non-owner framing, and no agent acts on it without an owner-originated task | must | Planned | NEW (untrusted input) |
-| FR-OS-017 | Per-agent prompt allow-list: the HUB accepts a DM, an @mention or a task to an agent only from a human or agent on that agent's allow-list, proven by a signature with a pinned key (builds on the spec 004 pins and box keys); everything else is refused. ~4-6 days (CLE-35048, `bc3d20b7`) | must, Stage 2 gate (D10) | Planned | NEW (prompt allow-list), after the owner answers |
+| FR-OS-017 | Per-agent prompt allow-list, enforced by the HUB: a DM, an @mention or a task reaches an agent only from a principal on its list. Principals are a member id (proven by the session; humans hold no key) or a box id (proven by the pin signature the box already carries, spec 004); everything else is refused. ~4-6 agent-days (CLE-35048, `bc3d20b7`) | must, Stage 2 gate (D10); after the flip on the tonight track (§4.1) | Planned | NEW (prompt allow-list), after the owner answers |
 | FR-OS-016 | The client licence split per D2: a client binary/module that does not import hub, store or billing code, enforced by an import test | must if D2 = split | Planned | NEW (licence split) |

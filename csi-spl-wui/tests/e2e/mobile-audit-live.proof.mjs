@@ -98,7 +98,13 @@ const MEASURE = () => {
   const labelled = (el) => el.matches('input[type=radio], input[type=checkbox]') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)))
   const ghost = inter.filter((el) => Number(getComputedStyle(el).opacity) === 0 && !labelled(el))
   /* the hit area of a labelled radio is its label */
-  const hit = (el) => (labelled(el) ? (el.closest('label') || document.querySelector(`label[for="${el.id}"]`)) : el).getBoundingClientRect()
+  /* controls whose tap target is a wrapping box (SPL-71: the whole tenant box opens the list) */
+  const HIT_BOX = { 'tenant-switcher-select': '[data-testid=tenant-switcher-box]' }
+  const hit = (el) => {
+    const box = HIT_BOX[el.getAttribute('data-testid')]
+    const wrap = box && el.closest(box)
+    return (wrap || (labelled(el) ? (el.closest('label') || document.querySelector(`label[for="${el.id}"]`)) : el)).getBoundingClientRect()
+  }
   const small = inter.filter((el) => { const b = hit(el); return (b.width < 43.5 || b.height < 43.5) && !inMsgText(el) })
   const tiny = small.filter((el) => { const b = el.getBoundingClientRect(); return b.width < 24 || b.height < 24 })
   const shell = document.querySelector('.spool-shell')

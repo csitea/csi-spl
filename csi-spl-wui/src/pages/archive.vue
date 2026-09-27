@@ -175,4 +175,14 @@ onUnmounted(() => offTopic())
 .archive-row__actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .archive-row__btn { display: inline-flex; align-items: center; gap: 6px; }
 .archive-row__btn--danger { color: var(--color-danger); border-color: var(--color-danger); }
+/* SPL-993: touch screens get 44 px buttons; a phone gives the row's actions
+   their own full-width line under the title. */
+@media (max-width: 820px) {
+  .archive-row__btn { min-height: var(--tap, 44px); }
+}
+@media (max-width: 600px) {
+  .archive-row__open { flex-basis: 100%; }
+  .archive-row__actions { flex-basis: 100%; }
+  .archive-row__btn { flex: 1 1 0; justify-content: center; }
+}
 </style>

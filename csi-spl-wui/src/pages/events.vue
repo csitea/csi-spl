@@ -38,12 +38,12 @@
           </thead>
           <tbody>
             <tr v-for="r in rows" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id }">
-              <td dir="ltr">{{ whenOf(r) }}</td>
-              <td><code dir="ltr">{{ r.error_id }}</code></td>
-              <td dir="ltr">{{ r.source }}</td>
-              <td dir="ltr">{{ r.status ? String(r.status) : '' }}</td>
-              <td>{{ r.message }}</td>
-              <td><code dir="ltr">{{ r.route }}</code></td>
+              <td dir="ltr" :data-label="t('events.col_when')">{{ whenOf(r) }}</td>
+              <td :data-label="t('events.col_id')"><code dir="ltr">{{ r.error_id }}</code></td>
+              <td dir="ltr" :data-label="t('events.col_source')">{{ r.source }}</td>
+              <td dir="ltr" :data-label="t('events.col_status')">{{ r.status ? String(r.status) : '' }}</td>
+              <td :data-label="t('events.col_message')">{{ r.message }}</td>
+              <td :data-label="t('events.col_route')"><code dir="ltr">{{ r.route }}</code></td>
             </tr>
           </tbody>
         </table>
@@ -219,4 +219,44 @@ watch(() => route.hash, () => revealEvent())
   font-size: 0.8125rem;
 }
 .events-table-wrap .btn { margin-top: 0.75rem; }
+/* SPL-993: on a phone each event is a card - its label beside each value,
+   the column headers (still in the DOM for readers) visually hidden - so six
+   columns never squeeze into one letter per line or widen the page. */
+@media (max-width: 600px) {
+  .events-table,
+  .events-table tbody,
+  .events-table tr,
+  .events-table td { display: block; }
+  .events-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .events-table tr {
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .events-table td {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    border-bottom: 0;
+  }
+  .events-table td::before {
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .events-table-wrap { overflow-x: visible; }
+  .events-table-wrap .btn { min-height: var(--tap, 44px); }
+}
 </style>

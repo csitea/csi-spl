@@ -32,9 +32,20 @@
 /* Async (CLE-34984): keeps @headlessui/vue out of the first download (TopBar.vue). */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import { loginBarTitle } from '~/utils/login-title.mjs'
+import { useKeyboardInset } from '~/composables/useTouchUi'
 
 const config = useRuntimeConfig()
 const title = loginBarTitle(config.public.envName, import.meta.dev)
+
+/* SPL-993: with the on-screen keyboard open the form still fits. The body
+   pads by the keyboard (--kb-inset, iOS does not resize the layout), and the
+   field being typed in is kept in view whenever the keyboard moves. */
+const kb = import.meta.client ? useKeyboardInset() : ref(0)
+watch(kb, async () => {
+  await nextTick()
+  const el = document.activeElement as HTMLElement | null
+  if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest('.login-body')) el.scrollIntoView({ block: 'nearest' })
+})
 </script>
 
 <style scoped>
@@ -101,6 +112,18 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+/* SPL-993: phones. A narrower frame around the card, the keyboard's height
+   added below it, and 16 px fields so iOS does not zoom on focus. */
+@media (max-width: 820px) {
+  .login-body { padding-bottom: calc(24px + var(--kb-inset, 0px)); }
+  .login-body :deep(input),
+  .login-body :deep(textarea),
+  .login-body :deep(select) { font-size: max(16px, 1rem); }
+}
+@media (max-width: 600px) {
+  .login-body { padding: 12px 12px calc(12px + var(--kb-inset, 0px)); }
+  .login-body :deep(.login-card) { padding: 20px 16px; }
 }
 /* The bar stays a solid strip. The picture shows in the field around the card. */
 .login-wallpaper {

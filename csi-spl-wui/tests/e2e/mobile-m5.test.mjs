@@ -17,6 +17,13 @@
 //             a finger drag on a row's grip (CDP touch events, not a mouse)
 //             moves the row and PUTs the new rail_order once; grip and
 //             up / down are >= 44 px targets at <= 820 px.
+//   pages    - /events at <= 600 px: one card per event, its label beside each
+//             value (no 6-column squeeze); /archive, /events, /login and
+//             /reset-password never scroll sideways at 360 px.
+//   keyboard - /login and /reset-password at 360 px with a field focused and
+//             the viewport cut to 400 px (the keyboard open, as
+//             interactive-widget=resizes-content does): the field is in
+//             view, the submit button can be scrolled to, inputs >= 16 px.
 //
 // CONTROL: every width asserts the OPPOSITE state at the other widths (a
 // full-screen dialog at 1440 fails, a card at 360 fails), so a selector that
@@ -64,10 +71,12 @@ async function launch() {
 // One signed-in owner: the hub's auth routes only (display-name.test.mjs).
 const puts = []
 const json = (status, body) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
+let signedOut = false
 function answer(req) {
   const u = new URL(req.url())
   if (!u.pathname.startsWith('/api/v1/auth/')) return null
   const path = u.pathname.slice('/api/v1/auth/'.length)
+  if (path === 'session' && signedOut) return json(401, { error: 'unauthenticated' })
   if (path === 'session' && req.method() === 'GET') {
     return json(200, {
       v: 1, p: 'password', sub: 'person@example.com', email: 'person.with.a.long.address@example.com', name: 'FirstName LastName',
@@ -278,6 +287,87 @@ async function checkRailTouch(browser, base, vp) {
   }
 }
 
+async function checkPages(browser, base, vp) {
+  const p = await page(browser, vp)
+  const tag = `pages@${vp.w}`
+  try {
+    for (const [path, wait] of [['/archive', '[data-test=archive-page]'], ['/events', '[data-test=events-table]']]) {
+      await p.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.waitForSelector(wait, { timeout: NAV_TIMEOUT }).catch(() => null)
+      await sleep(300)
+      const x = await noXScroll(p)
+      ok(`${tag} ${path}: no horizontal page scroll`, x.ok, x)
+      if (path === '/events') {
+        const m = await p.evaluate(() => {
+          const tds = [...document.querySelectorAll('[data-test=events-row]:first-child td')]
+          const tr = document.querySelector('[data-test=events-row]')?.getBoundingClientRect()
+          const w = document.querySelector('.events-table-wrap')
+          return {
+            cells: tds.map((td) => { const r = td.getBoundingClientRect(); return { x: Math.round(r.left), w: Math.round(r.width), label: getComputedStyle(td, '::before').content } }),
+            trW: tr ? Math.round(tr.width) : 0,
+            wrapScroll: w ? w.scrollWidth - w.clientWidth : -1,
+          }
+        })
+        if (vp.w <= 600) {
+          const same = m.cells.length === 6 && m.cells.every((c) => c.x === m.cells[0].x && c.w === m.cells[0].w)
+          ok(`${tag} /events: one card per event, every value on its own line with its label`, same && m.cells.every((c) => c.label && c.label !== 'none') && m.wrapScroll <= 0, m)
+        } else {
+          ok(`${tag} CONTROL: /events stays a table above 600 px`, m.cells.length === 6 && new Set(m.cells.map((c) => c.x)).size === 6, m)
+        }
+      }
+    }
+  } catch (e) {
+    ok(`${tag} ran`, false, String(e.message || e))
+  } finally {
+    await p.close()
+  }
+}
+
+async function checkKeyboard(browser, base, vp) {
+  if (!vp.phone) return
+  signedOut = true
+  const p = await page(browser, vp)
+  const tag = `keyboard@${vp.w}`
+  try {
+    for (const [path, field, submit] of [
+      ['/login', '[data-test=native-auth-email]', '[data-test=native-auth-submit]'],
+      ['/reset-password?token=' + 'a'.repeat(64), '[data-test=reset-password-new]', '[data-test=reset-password-submit]'],
+    ]) {
+      await p.setViewport({ width: vp.w, height: vp.h, isMobile: true, hasTouch: true })
+      await p.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.waitForSelector(field, { visible: true, timeout: NAV_TIMEOUT })
+      let x = await noXScroll(p)
+      ok(`${tag} ${path.split('?')[0]}: no horizontal page scroll`, x.ok, x)
+      await p.focus(field)
+      await p.setViewport({ width: vp.w, height: 400, isMobile: true, hasTouch: true })
+      await sleep(500)
+      const m = await p.evaluate((f, sb) => {
+        const el = document.querySelector(f)
+        const r = el.getBoundingClientRect()
+        const bar = document.querySelector('[data-test=login-bar]').getBoundingClientRect()
+        const body = document.querySelector('.login-body')
+        body.scrollTop = body.scrollHeight
+        const b = document.querySelector(sb).getBoundingClientRect()
+        return {
+          focused: document.activeElement === el,
+          fieldTop: Math.round(r.top), fieldBottom: Math.round(r.bottom), barBottom: Math.round(bar.bottom), vh: window.innerHeight,
+          submitBottom: Math.round(b.bottom), px: parseFloat(getComputedStyle(el).fontSize),
+        }
+      }, field, submit)
+      ok(`${tag} ${path.split('?')[0]}: the focused field is in view under the bar`, m.focused && m.fieldTop >= m.barBottom - 1 && m.fieldBottom <= m.vh, m)
+      ok(`${tag} ${path.split('?')[0]}: the submit button scrolls into view`, m.submitBottom <= m.vh && m.submitBottom > m.barBottom, m)
+      ok(`${tag} ${path.split('?')[0]}: inputs >= 16 px (no iOS zoom)`, m.px >= 16, { px: m.px })
+      x = await noXScroll(p)
+      ok(`${tag} ${path.split('?')[0]}: keyboard open, no horizontal page scroll`, x.ok, x)
+    }
+  } catch (e) {
+    ok(`${tag} ran`, false, String(e.message || e))
+  } finally {
+    signedOut = false
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -285,6 +375,8 @@ try {
     await checkDialog(browser, server.base, vp)
     await checkSettings(browser, server.base, vp)
     await checkRailTouch(browser, server.base, vp)
+    await checkPages(browser, server.base, vp)
+    await checkKeyboard(browser, server.base, vp)
   }
 } finally {
   await browser.close()

@@ -1,0 +1,23 @@
+# do_oss_export allow-list (spec 044 FR-OS-001, T002/T004). ONLY these paths
+# leave the private repo; there is no deny-list. One path per line, relative to
+# the repo root. A leading '?' marks an entry that may not exist yet (the files
+# other Stage-0 tasks add: T001 compose, T022 docs, T023 notices); a missing
+# entry without '?' fails the export.
+# NOT listed, on purpose: csi-spl-cnf (values), csi-spl-iac (estate + tfvars),
+# csi-spl-orc (fleet tooling, this file), csi-spl-doc (specs; curated docs wait
+# for D6), csi-spl-dat, csi-spl-utl, .github (public CI is T024), CLAUDE.md,
+# the root README (internal; the public one is T022).
+csi-spl-api
+csi-spl-wui
+csi-spl-rdb
+LICENSE
+?docker-compose.yaml
+?compose.yaml
+?.env.example
+?example.env.yaml
+?THIRD-PARTY-NOTICES.md
+?LICENSE-ASSETS.md
+?SECURITY.md
+?CONTRIBUTING.md
+?CODE_OF_CONDUCT.md
+?TRADEMARK.md

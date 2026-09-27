@@ -1,0 +1,4 @@
+# Images the exported tree may carry (do_oss_gate class image-unlicensed): one
+# glob per line, relative to the exported root. Add a glob ONLY when the asset's
+# licence is written down in the exported tree (LICENSE-ASSETS.md, T031 after
+# D7). Empty = every image is a hit.

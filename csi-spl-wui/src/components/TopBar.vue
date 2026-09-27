@@ -17,10 +17,11 @@
   <header class="top-bar" data-test="top-bar">
     <div class="top-bar__start" data-test="top-bar-start">
       <!-- owner 2026-09-27: the spool-hub brand text is gone (topic d5504c2b).
-           The logo (topic 38ba1dae) comes first and is the home link the text
+           The logo (topic 38ba1dae: the owner's own image, a human and an
+           AI in one glowing net) comes first and is the home link the text
            was; then the tenant drop box, just before the theme icon. -->
       <NuxtLink class="top-bar__logo" data-test="top-bar-logo" :to="localePath('/')" :aria-label="t('search.home')">
-        <img src="/logo.svg" alt="" width="28" height="28" decoding="async">
+        <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
       </NuxtLink>
       <TenantDropBox />
       <ThemeToggle />

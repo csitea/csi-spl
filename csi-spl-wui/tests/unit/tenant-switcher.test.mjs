@@ -172,7 +172,7 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     /* owner 2026-09-27 (topic 38ba1dae): the logo just before the drop box, as the home link */
     const logo = start.indexOf('data-test="top-bar-logo"')
     assert.ok(logo > 0 && logo < start.indexOf('<TenantDropBox />'), 'logo, then the drop box')
-    assert.match(start, /<img src="\/logo\.svg"/)
+    assert.match(start, /<img src="\/logo\.webp"/)
     assert.doesNotMatch(topBar, /top-bar__brand|>spool-hub</)
     assert.doesNotMatch(src('src/components/ChannelSidebar.vue'), /tenant-switcher|TENANT_TEXT_PAD_PX/)
     assert.equal(vue.split('<option').length - 1, 1)

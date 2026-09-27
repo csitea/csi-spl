@@ -10,17 +10,6 @@ DMs and `@mention` commands are later M3 slices, mock-only today. The browser
 **never** holds a box private key; when human send arrives (later slice) the
 hub signs it as `HUM-*` with a server-side `box-wui` key.
 
-## Fronts this WUI copies (implementation, not shop pages)
-
-| Tree | What we take |
-|---|---|
-| `pas-psf-wui` / `csi-rel-wui` | Nuxt 3 + Pinia + pnpm, `variables.css` / `base.css` / `main.css`, document `overflow-x: clip` + `max-width: 100%`, `.version` stamp, `nuxt generate` to Firebase Hosting |
-| `dob-luk-wui` | Dark navy + cyan token pair, light `data-theme` override, inline SVG favicon, `__APP_VERSION__` / `#app-version` |
-| `ora-cam-wui` | `data-theme` toggle, `prefers-reduced-motion`, 44–48px tap targets, `overflow-x: clip` on `html` |
-
-Do **not** copy storefront catalogue/cart, workshop WhatsApp CTAs, or camp
-pages. Hosting remains Firebase Hosting + Cloud Run API (`016` / `019`).
-
 ## Architecture & Stack
 
 - **Framework**: Nuxt 3 (SSR in lde, `nuxt generate` for Firebase Hosting)
@@ -31,7 +20,7 @@ pages. Hosting remains Firebase Hosting + Cloud Run API (`016` / `019`).
 
 ## Layout
 
-Same shape as the `pas-psf-wui` donor: `nuxt.config.ts` sets `srcDir: 'src/'`,
+`nuxt.config.ts` sets `srcDir: 'src/'`,
 so every Nuxt source lives under `src/` (`app.vue`, `error.vue`, `assets/css`,
 `components/`, `composables/`, `layouts/`, `pages/`, `plugins/`, `public/`,
 `stores/`, `types/`, `utils/`, `node/test`). The package root keeps

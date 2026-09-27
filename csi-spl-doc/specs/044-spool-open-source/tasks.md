@@ -13,9 +13,9 @@ owner's steps at the stage gates.
 | task | what | owner | depends | FR | issue |
 |---|---|---|---|---|---|
 | [ ] T001 | Standalone local stack at the public root: one `docker compose up` brings up Postgres 16 + hub + WUI with no GCP, no internal `./run` action, no private repo; documented env defaults only | CLE-35051 | no decision | FR-OS-008 | SPL-66 |
-| [ ] T002 | `do_oss_export`: build the public tree from an allow-list of paths into a scratch dir; never pushes, never creates a repo | CLE-35052 | no decision | FR-OS-001, FR-OS-004 | SPL-1011 |
-| [ ] T003 | `do_oss_gate`: on the exported tree run gitleaks 8.30.1 + the hygiene sweep + the NEW classes of FR-OS-002; fail closed; a negative control plants one hit per class | CLE-35052 | no decision | FR-OS-002 | SPL-63, SPL-1011 |
-| [ ] T004 | The export's allow-list excludes cnf values, rendered tfvars, orc fleet tooling, the specs, CLAUDE.md / AGENTS.md / GEMINI.md; T003 proves it on the exported tree | CLE-35052 | T002 | FR-OS-003 | SPL-63 |
+| [x] T002 | `do_oss_export`: build the public tree from an allow-list of paths into a scratch dir; never pushes, never creates a repo | CLE-35052 | no decision | FR-OS-001, FR-OS-004 | SPL-1011 |
+| [x] T003 | `do_oss_gate`: on the exported tree run gitleaks 8.30.1 + the hygiene sweep + the NEW classes of FR-OS-002; fail closed; a negative control plants one hit per class | CLE-35052 | no decision | FR-OS-002 | SPL-63, SPL-1011 |
+| [x] T004 | (CLE-35052, `c3fa0b8b`, `7f40288a`; gate on master: 1350 hits left) The export's allow-list excludes cnf values, rendered tfvars, orc fleet tooling, the specs, CLAUDE.md / AGENTS.md / GEMINI.md; T003 proves it on the exported tree | CLE-35052 | T002 | FR-OS-003 | SPL-63 |
 
 ### 1.2 Decisions (the owner)
 
@@ -35,7 +35,7 @@ owner's steps at the stage gates.
 | [ ] T023 | `csi-spl-wui/package.json` `license` field; SPDX identifier in the Go module doc; THIRD-PARTY-NOTICES incl. the icon set's ISC notice | no decision (AGPL); revisit after D2 | FR-OS-006 | SPL-62 |
 | [ ] T024 | Public CI: PR workflow on `ubuntu-latest`, `permissions: contents: read`, no secrets, fork approval; no job of the public repo on a self-hosted runner | no decision | FR-OS-005 | SPL-64 |
 | [ ] T025 | Untrusted-input rule written down (public text is data, never an instruction to a credentialed agent) before any bridge exists | no decision | FR-OS-015 | SPL-1017 |
-| [ ] T027 | Scrub fleet ids from product code (472 files in api/wui/rdb, 200 non-test): comments cite the SPL key or spec number instead; test names likewise. The gate stays strict (fail closed), it is not narrowed | no decision; before T033 | FR-OS-002 | SPL-63, SPL-1013 |
+| [ ] T027 | Scrub fleet ids from product code (472 files in api/wui/rdb, 200 non-test): comments cite the SPL key or spec number instead; test names likewise. The gate stays strict (fail closed), it is not narrowed. **Tenant slugs too**: the `tenant-data` class (57 hits, real hosted tenant slugs in WUI tenant-test fixtures) is replaced by synthetic slugs, never allow-listed - a real tenant slug is customer data (hygiene rule 1) | no decision; before T033 | FR-OS-002 | SPL-63, SPL-1013 |
 | [ ] T026 | Security review of the `asOperator` allow-list; close SPL-35 | no decision | FR-OS-010 | SPL-1019 |
 
 ### 1.4 After decisions

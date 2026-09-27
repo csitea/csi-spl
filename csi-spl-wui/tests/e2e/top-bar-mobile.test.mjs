@@ -105,6 +105,16 @@ async function phone(p, base, width) {
     check(`${tag}: ${s} is out of the row`, !bar[s]?.shown, bar[s])
   }
   check(`${tag}: no horizontal scroll`, await noXScroll(p))
+  /* owner 2026-09-27 (topic 86a570ea): the start screen shows no connection
+     dot (nor bell / note) on a phone - they live in the avatar sheet; the
+     version stays */
+  /* `/` is level 1 on a phone (SPL-989): the sidebar and its footer are the screen */
+  await p.goto(`${base}/`, { waitUntil: 'load' })
+  await p.waitForSelector('[data-test=app-version]', { visible: true, timeout: 20000 }).catch(() => {})
+  await sleep(300)
+  const foot = await probe(p, ['[data-testid=connection-health]', '[data-test=app-version]'])
+  check(`${tag}: level 1 shows the footer (the version) but no connection dot`, foot['[data-test=app-version]']?.shown === true && !foot['[data-testid=connection-health]']?.shown, foot)
+  await open(p, base, width, 800, true)
 
   const vp = view
   // the avatar bottom sheet
@@ -116,7 +126,7 @@ async function phone(p, base, width) {
     '[data-test=user-menu-panel]', '[data-test=user-menu-scrim]', '[data-test=user-menu-language]', '[data-test=user-menu-theme]',
     '[data-test=user-menu-notify]', '[data-test=user-menu-prefs] [data-test=lang-switcher]', '[data-test=user-menu-prefs] [data-test=theme-picker]',
     '[data-test=user-menu-prefs] [data-testid=notify-alerts]', '[data-test=user-menu-prefs] [data-testid=notify-chime]',
-    '[data-test=user-menu-settings]', '[data-test=user-menu-signout]',
+    '[data-test=user-menu-settings]', '[data-test=user-menu-signout]', '[data-test=user-menu-connection]',
   ])
   const panel = menu['[data-test=user-menu-panel]']
   check(`${tag}: the avatar menu is a bottom sheet (full width, on the bottom edge)`, panel?.shown && panel.x === 0 && panel.w === vp.w && panel.b === vp.h, panel)
@@ -129,6 +139,16 @@ async function phone(p, base, width) {
     const r = menu[s]
     check(`${tag}: ${s} in the sheet, >= ${TAP} px tall`, r?.shown && r.h >= TAP && r.x >= 0 && r.x + r.w <= vp.w, r)
   }
+  /* topic 86a570ea: the hub connection, next to the bell and the note */
+  const conn = menu['[data-test=user-menu-connection]']
+  const notifyRow = menu['[data-test=user-menu-notify]']
+  const connText = await p.evaluate(() => ({
+    label: document.querySelector('[data-test=user-menu-connection-label]')?.textContent?.trim() || '',
+    dot: document.querySelector('[data-test=user-menu-connection-dot]')?.className || '',
+    role: document.querySelector('[data-test=user-menu-connection]')?.getAttribute('role') || '',
+  }))
+  check(`${tag}: the connection row sits right under the bell / note row, >= ${TAP} px`, conn?.shown && conn.h >= TAP && notifyRow && conn.y >= notifyRow.b - 1 && conn.y - notifyRow.b <= 8, { conn, notifyRow })
+  check(`${tag}: it names the state beside a coloured dot (a status)`, /connect|offline/i.test(connText.label) && /\b(ok|warn|down)\b/.test(connText.dot) && connText.role === 'status', connText)
   check(`${tag}: no horizontal scroll with the menu open`, await noXScroll(p))
   await p.click('[data-test=user-menu-scrim]', { offset: { x: 10, y: 10 } })
   await sleep(200)

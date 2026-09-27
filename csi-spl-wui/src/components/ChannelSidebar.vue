@@ -1371,6 +1371,11 @@ async function onCreate() {
 .nav-row--move-over { background: var(--color-selected); outline-style: solid; }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
+/* owner 2026-09-27 (topic 86a570ea): on phones the connection is in the
+   avatar sheet with the bell and the note - not on the start screen */
+@media (max-width: 820px) {
+  .foot-row .health { display: none; }
+}
 .foot-row .vs-wrap { flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
 .foot-row .version-stamp {
   flex: 1 1 auto;

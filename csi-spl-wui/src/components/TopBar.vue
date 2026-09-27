@@ -14,7 +14,7 @@
      controls live in the avatar menu's bottom sheet. Above 820 px nothing
      here renders differently. -->
 <template>
-  <header class="top-bar" data-test="top-bar">
+  <header class="top-bar" :class="{ 'top-bar--bottom': atBottom }" data-test="top-bar">
     <div class="top-bar__start" data-test="top-bar-start">
       <!-- owner 2026-09-27: the spool-hub brand text is gone (topic d5504c2b).
            The logo (topic 38ba1dae: the owner's own image, a human and an
@@ -30,7 +30,22 @@
     </div>
     <!-- SPL-995: the tenant switcher, first in the phone row -->
     <TopBarTenant class="top-bar__tenant" />
-    <div class="top-bar__omnibox" data-test="top-bar-omnibox">
+    <!-- topic c6994436 (lane B): Settings -> Behaviour "at the bottom" moves
+         this same box, not a copy, into the dock under the middle pane
+         (layouts/default.vue). A Teleport keeps the draft, the picked files
+         and the send error across the move. `defer`: the dock renders after
+         this bar. The bar keeps one button that puts `/search ` in it. -->
+    <button
+      v-if="atBottom"
+      type="button"
+      class="top-bar__search icon-btn"
+      data-test="top-bar-search"
+      :aria-label="t('search.title')"
+      :title="t('search.title')"
+      @click="openSearch"
+    ><UiIcon name="search" :size="18" /></button>
+    <Teleport :to="dockSelector" :disabled="!atBottom" defer>
+    <div class="top-bar__omnibox" :class="{ 'top-bar__omnibox--bottom': atBottom }" data-test="top-bar-omnibox" :data-position="atBottom ? 'bottom' : undefined">
       <MessageComposer
         ref="composer"
         omnibox
@@ -39,10 +54,12 @@
         :busy="busy"
         :send-blocked="!omnibox.target"
         :dock-target="dockTarget"
+        :bottom="atBottom"
         :operators="search.operators"
         @send="onSend"
         @search="onSearch"
         @results="omnibox.focusResults++"
+        @ready="onComposerReady"
       />
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
       <!-- CLE-3433: a send that did not land says so HERE, next to the box
@@ -62,6 +79,7 @@
         </template>
       </ErrorNotice>
     </div>
+    </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
       <div class="top-bar__lang"><LanguageSwitcher /></div>
       <UserMenu />
@@ -84,6 +102,8 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 import TopBarTenant from '~/components/TopBarTenant.vue'
 import TenantDropBox from '~/components/TenantDropBox.vue'
+import { useOmniboxDock } from '~/composables/useOmniboxDock'
+import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -98,6 +118,14 @@ const api = useSpoolApi()
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
+/* topic c6994436: the Omnibox's place (Settings -> Behaviour), never on a phone */
+const atBottom = useOmniboxDock()
+const dockSelector = `#${DOCK_ID}`
+/* the bar's search button: the box is at the bottom now, `/search ` goes in it */
+function openSearch() {
+  composer.value?.setText('/search ')
+  composer.value?.focus()
+}
 
 function onDocKey(ev: KeyboardEvent) {
   const root = document.querySelector('[data-test=top-bar-omnibox]')
@@ -172,11 +200,18 @@ function onSearch(q: string) {
 
 /* a deep link /search?q=… shows its query in the Omnibox, ready to refine */
 const onSearchPage = computed(() => /\/search$/.test(route.path))
-function showQuery() {
+function showQuery(box: { setText: (s: string) => void } | null = composer.value) {
   const q = route.query.q
-  if (onSearchPage.value && typeof q === 'string' && q) composer.value?.setText(`/search ${q}`)
+  if (onSearchPage.value && typeof q === 'string' && q) box?.setText(`/search ${q}`)
 }
-watch(() => [onSearchPage.value, route.query.q], showQuery, { flush: 'post' })
+watch(() => [onSearchPage.value, route.query.q], () => showQuery(), { flush: 'post' })
+/* topic c6994436: the Teleport is `defer`red (Vue 3.5 defers it even while
+   disabled), so the composer mounts AFTER this bar's onMounted - and a
+   re-render can mount it a second time before `composer` points at the new
+   one. A deep link's query goes to the box that says it is ready. */
+function onComposerReady(box: { setText: (s: string) => void }) {
+  showQuery(box)
+}
 /* SPL-13: leaving /search takes its query out of the Omnibox. Left there, the
    `/search …` line kept search mode on every page, and search mode has no
    Attach and no Send - the owner read that as "the attach button is gone". */
@@ -278,6 +313,20 @@ onUnmounted(() => {
   flex-shrink: 0;
   min-width: 0;
 }
+/* topic c6994436: the box moved to the bottom dock - the bar keeps its
+   height (every offset under it stays), the end group keeps its corner */
+.top-bar--bottom .top-bar__end { margin-inline-start: auto; }
+.top-bar__search { flex: 0 0 auto; }
+/* In the dock (teleported under the middle pane): no one-line slot, full
+   pane width, and the send error sits ABOVE the box, next to the feed */
+.top-bar__omnibox--bottom {
+  flex: none;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  align-self: stretch;
+}
+.top-bar__omnibox--bottom .top-bar__send-error { order: -1; margin: 0 0 4px; }
 /* SPL-990: phone-only parts; above 820 px they take no space at all */
 .top-bar__tenant { display: none; }
 .top-bar__lang { display: contents; }

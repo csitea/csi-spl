@@ -1872,7 +1872,8 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
     position: fixed;
     inset-inline-end: 0;
     top: var(--top-bar-h);
-    bottom: 0;
+    /* topic c6994436: ends above the bottom Omnibox dock (0 when off) */
+    bottom: var(--omnibox-dock-h, 0px);
     width: min(380px, 100%);
     z-index: 20;
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);

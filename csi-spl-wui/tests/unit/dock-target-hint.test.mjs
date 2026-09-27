@@ -43,9 +43,9 @@ describe('the phone dock names its target (SPL-1003)', () => {
     }
   })
 
-  it('the hint shows only on the docked (phone) composer, so desktop is unchanged', () => {
+  it('the hint shows only on a docked composer - the phone dock, or the bottom dock (topic c6994436) - so the default desktop is unchanged', () => {
     const c = src('src/components/MessageComposer.vue')
-    assert.match(c, /v-if="docked && !searchMode && dockHint"/)
+    assert.match(c, /v-if="\(docked \|\| bottom\) && !searchMode && dockHint"/)
     assert.match(src('src/components/TopBar.vue'), /:dock-target="dockTarget"/)
   })
 })

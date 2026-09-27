@@ -21,6 +21,9 @@ export function paneOfTarget(el) {
   const e = /** @type {{ closest?: (s: string) => unknown } | null} */ (el)
   if (!e || typeof e.closest !== 'function') return ''
   if (e.closest('.pane-divider')) return ''
+  /* topic c6994436: the bottom Omnibox dock sits INSIDE .spool-main, but
+     typing there is not choosing the middle pane (the top bar never was) */
+  if (e.closest('.omnibox-dock')) return ''
   if (e.closest('aside.live-pane')) return RIGHT
   if (e.closest('.spool-main')) return MIDDLE
   return ''

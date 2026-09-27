@@ -37,6 +37,18 @@
         />
         <main class="spool-main">
           <slot />
+          <!-- topic c6994436 (lane B): the bottom Omnibox dock - under the
+               MIDDLE pane only. TopBar teleports its one composer here when
+               Settings -> Behaviour says "at the bottom" (never on a phone).
+               Always in the tree, so the Teleport has a target to move to;
+               it takes no room while empty. -->
+          <div
+            :id="DOCK_ID"
+            ref="dockEl"
+            class="omnibox-dock"
+            data-test="omnibox-dock"
+            :data-on="dockOn ? 'true' : undefined"
+          />
         </main>
         <PaneDivider
           v-if="topicPaneOpen && showTopicDivider"
@@ -88,8 +100,35 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useOmniboxDock } from '~/composables/useOmniboxDock'
+import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 
 const topic = useTopicStore()
+/* topic c6994436: the bottom dock under the middle pane is on */
+const dockOn = useOmniboxDock()
+/* its height, for the panes that overlay the middle one (main.css). A ref,
+   not onMounted: <ClientOnly> renders the shell after this layout mounts. */
+const dockEl = ref<HTMLElement | null>(null)
+let dockObserver: ResizeObserver | null = null
+function dockHeight() {
+  const el = dockEl.value
+  const px = dockOn.value && el ? Math.round(el.getBoundingClientRect().height) : 0
+  document.documentElement.style.setProperty('--omnibox-dock-h', `${px}px`)
+}
+watch(dockEl, (el) => {
+  dockObserver?.disconnect()
+  dockObserver = null
+  if (el && typeof ResizeObserver !== 'undefined') {
+    dockObserver = new ResizeObserver(dockHeight)
+    dockObserver.observe(el)
+  }
+  dockHeight()
+})
+watch(dockOn, () => { void nextTick(dockHeight) })
+onUnmounted(() => {
+  dockObserver?.disconnect()
+  document.documentElement.style.removeProperty('--omnibox-dock-h')
+})
 const livePane = useLiveFeed('pane')
 /* A delete from another tab drops the row from every store this shell holds. */
 const live = useLive()

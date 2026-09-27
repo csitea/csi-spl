@@ -4,15 +4,16 @@
   <form
     ref="formEl"
     class="composer"
-    :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode, 'composer--dock': docked }"
+    :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode, 'composer--dock': docked, 'omnibox--bottom': bottom && !docked }"
     :data-docked="docked ? 'true' : undefined"
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     @submit.prevent="onSend"
   >
     <!-- SPL-1003: docked on a phone, the box says where the post goes before
-         it is sent: into the open thread, or a new topic in this feed -->
+         it is sent: into the open thread, or a new topic in this feed.
+         Topic c6994436: the same line over the bottom dock on a desktop -->
     <p
-      v-if="docked && !searchMode && dockHint"
+      v-if="(docked || bottom) && !searchMode && dockHint"
       class="composer-target"
       data-test="dock-target"
       :data-mode="dockHint.mode"
@@ -271,6 +272,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
@@ -305,12 +307,20 @@ const props = withDefaults(defineProps<{
   operators?: SearchOperator[]
   /** SPL-1003: the page's send target for the dock's hint (omnibox target `dock()`) */
   dockTarget?: { reply: boolean, target: string } | null
+  /**
+   * Topic c6994436 (lane B): TopBar moved this box into the bottom dock under
+   * the middle pane (> 820 px, Settings -> Behaviour). The pickers, the GO
+   * tip and the send error open UPWARD, the grip drags the top edge.
+   */
+  bottom?: boolean
 }>(), { dock: true })
 const emit = defineEmits<{
   send: [text: string, parentTaskId?: string, files?: File[], channelId?: string]
   search: [q: string]
   dismiss: []
   results: []
+  /** mounted: TopBar's deferred Teleport mounts this after the bar (c6994436) */
+  ready: [box: { setText: (s: string) => void }]
 }>()
 const picked = ref<File[]>([])
 /* a picked picture shows a thumbnail before it is sent (a data: URL: the
@@ -378,6 +388,7 @@ function onFocusRequest() {
   inputEl.value?.focus()
 }
 onMounted(() => {
+  emit('ready', { setText })
   watchDock(docked.value)
   window.addEventListener(COMPOSER_FOCUS_EVENT, onFocusRequest)
 })
@@ -402,7 +413,8 @@ let fitSerial = 0
 function omniboxMax() {
   /* docked: 40% of what the keyboard leaves, so the page stays in view */
   if (docked.value) return Math.max(36, Math.floor((window.innerHeight - kbInset.value) * 0.4))
-  return Math.max(36, Math.floor(window.innerHeight - 58 - 8))
+  /* topic c6994436: in the bottom dock the box pushes the feed up, not over */
+  return omniboxMaxHeight({ innerHeight: window.innerHeight - kbInset.value, bottom: Boolean(props.bottom) })
 }
 function collapseGlobalBox(park: boolean) {
   const el = inputEl.value
@@ -472,7 +484,7 @@ function startResize(ev: PointerEvent) {
   const startY = ev.clientY
   const startH = el.getBoundingClientRect().height
   const move = (e: PointerEvent) => {
-    const next = Math.min(omniboxMax(), Math.max(36, Math.round(startH + (e.clientY - startY))))
+    const next = resizeHeight({ startH, startY, y: e.clientY, bottom: Boolean(props.bottom) && !docked.value, max: omniboxMax() })
     userHeight.value = next
     el.style.height = `${next}px`
   }
@@ -590,6 +602,10 @@ function setText(s: string) {
   nextTick(() => {
     const el = inputEl.value
     if (!el) return
+    /* c6994436: set while TopBar's deferred Teleport is still mounting this
+       box, the text never reaches the field (measured: text set, field
+       empty) - the field follows the text here */
+    if (el.value !== s) el.value = s
     caretAt.value = s.length
     el.setSelectionRange(s.length, s.length)
   })
@@ -1229,6 +1245,45 @@ textarea.in-code {
 }
 .search-syntax__op code { font-family: var(--font-mono); }
 .search-syntax__op span { min-width: 0; overflow-wrap: anywhere; }
+/*
+ * Topic c6994436 (lane B) — the bottom dock above 820 px (see `bottom`).
+ * The box sits at the foot of the middle pane, so everything that dropped
+ * DOWN from the top bar opens UP over the feed: the @ list, the `in:`
+ * titles, the /search operators and syntax help, and the GO tooltip. The
+ * grip's lane moves to the field's top edge (resizeHeight: drag up = taller).
+ */
+.omnibox--bottom.omnibox--global .mention-list {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 4px;
+  box-shadow: 0 -8px 24px rgb(0 0 0 / .25);
+}
+.omnibox--bottom .search-syntax {
+  top: auto;
+  bottom: calc(100% + 4px);
+  box-shadow: 0 -8px 24px rgb(0 0 0 / .25);
+}
+.omnibox--bottom .composer-go__tip {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.omnibox--bottom.omnibox--global .omnibox-field { padding: 10px 8px 0; }
+.omnibox--bottom.omnibox--global .omnibox-resize { top: 1px; bottom: auto; }
+.omnibox--bottom.omnibox--global .search-syntax-btn { top: 16px; }
+.omnibox--bottom .composer-target {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 0 4px;
+  padding-inline: 4px;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--color-muted);
+}
+.omnibox--bottom .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.omnibox--bottom .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
+.omnibox--bottom .composer-target[data-mode=thread] svg { color: var(--color-accent); flex: none; }
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.

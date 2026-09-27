@@ -28,7 +28,7 @@ Shared contracts, published by their owners and never re-implemented:
 
 - [x] T001 [M1] `useMobileStack` + `utils/mobile-stack.mjs` + unit tests (`f35dca1c`)
 - [x] T002 [M1] `rightPanel(open, close)` for level 3 without a topic store (`558f3e03`)
-- [ ] T003 [M1] `data-mobile-level` on `.spool-shell`; one panel visible per level at <= 820 px (FR-001)
+- [x] T003 [M1] `data-mobile-level` on `.spool-shell`; one panel visible per level at <= 820 px (FR-001) (b8c264de; lead scoreboard 1: one panel at 360-820 on dev + prd)
 - [ ] T004 [M1] level 1: the 44 px icon+label section strip on top, the full-width list with names (FR-002, D1)
 - [ ] T005 [M1] a back arrow in FeedHeader / TopicPane / LiveTopicPane; a right swipe from the edge; the slide (FR-003, N4)
 - [ ] T006 [M1] CardClipControl always visible, 44 px (FR-006)
@@ -42,8 +42,8 @@ Shared contracts, published by their owners and never re-implemented:
 - [ ] T021 [M3] 44 px message menu and emoji buttons; a long-press opens the actions sheet (D3)
 - [ ] T022 [M3] a one-row card header at 360 px; the code copy button 44 px, no hover
 - [ ] T023 [M3] the emoji picker opens and fits at 360 px; the @ list opens upward
-- [ ] T030 [M4] issues as a card list at <= 820 px; sort and filter in one sheet; no keyboard-hint line on touch (FR-008)
-- [ ] T031 [M4] the open issue at level 3 through `rightPanel`, full screen, with subtasks
+- [x] T030 [M4] issues as a card list at <= 820 px; sort and filter in one sheet; no keyboard-hint line on touch (FR-008) (b079ed4f, f611b095; gate 36307881796 issues-mobile 46/46)
+- [x] T031 [M4] the open issue at level 3 through `rightPanel`, full screen, with subtasks (b079ed4f, 27db7f5f; prd e2e live proof 12/12 at 1440/390/820, build f611b095)
 - [ ] T040 [M5] the settings tabs as a level-2 list; label/value grids stacked at <= 480 px (FR-009)
 - [ ] T041 [M5] dialogs as full-screen sheets; 16 px inputs (D8)
 - [ ] T042 [M5] search, users, events, archive and login fit 360 px

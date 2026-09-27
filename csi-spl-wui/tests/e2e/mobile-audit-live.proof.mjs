@@ -1,0 +1,245 @@
+// Spec 043 (SPL-988) — the lead's mobile audit, signed in, against a deployed
+// WUI + hub. READ-ONLY: it taps rail tabs, opens a topic, the message menu,
+// the emoji picker and the search toggle, then closes them. It never types
+// into a composer and never sends or saves.
+//
+// Per width (default 360x780,390x844,430x932,768x1024,820x1180 with touch
+// emulation, plus 1440x900 desktop) it measures, on each route:
+//   - panels on screen (sidebar / main / topic-or-issue detail) and the
+//     shell's data-mobile-level (spec 043 N1, FR-001)
+//   - page x-scroll (FR-010), controls under 44 px and under 24 px (FR-005),
+//     controls at opacity 0 = hover-only (FR-006), textareas and where they sit
+//     (FR-007: a composer near the bottom)
+// and walks the owner's stack once (A2): / -> a channel -> a topic -> Back ->
+// Back, reading the level after every step.
+// It prints one SCORE line per width x area and writes OUT/results.json plus
+// a screenshot per step.
+//
+//   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir>
+//     [TENANT=e2e] [WIDTHS=360x780,...] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
+//     node tests/e2e/mobile-audit-live.proof.mjs
+//
+// On prd run it only at the e2e tenant's host e2e.<domain>, never the apex (t1). The
+// password is read from PW_FILE and never printed. Exit 0 = it ran; the
+// verdicts are in the SCORE lines (this is a measurement, not a gate).
+import { createRequire } from 'node:module'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
+
+async function loadPuppeteer() {
+  const require = createRequire(import.meta.url)
+  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
+    try {
+      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
+      const mod = await import(href)
+      return mod.default ?? mod
+    } catch { /* try next */ }
+  }
+  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
+}
+
+const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
+const BASE = need('BASE').replace(/\/+$/, '')
+const OUT = need('OUT')
+const email = need('EMAIL')
+const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
+const TENANT = process.env.TENANT || 't1'
+const WIDTHS = (process.env.WIDTHS || '360x780,390x844,430x932,768x1024,820x1180,1440x900')
+  .split(',').map((s) => s.split('x').map(Number))
+const MOBILE_MAX = 820
+/* the prd apex is t1's host (SPL-959): one label = the apex, refused */
+if (new URL(BASE).hostname.split('.').length === 2 && TENANT !== 't1') { console.error('FATAL the apex is the t1 host: use https://<tenant>.<domain>'); process.exit(2) }
+mkdirSync(OUT, { recursive: true })
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, widths: {}, score: [], console: [] }
+const score = (w, area, ok, detail) => {
+  const line = `SCORE ${w} ${area} ${ok ? 'ok' : 'BROKEN'} ${detail}`
+  res.score.push(line)
+  console.log(line)
+}
+
+/** goto that retries what the box's docker network churn killed. */
+async function nav(p, url) {
+  let last
+  for (let i = 0; i < 4; i++) {
+    try {
+      await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      await p.waitForSelector('.sidebar', { timeout: 45000 })
+      await sleep(3000)
+      return
+    } catch (e) {
+      last = e
+      if (!/ERR_NETWORK_CHANGED|Timeout|ERR_INTERNET_DISCONNECTED/.test(String(e))) throw e
+      await sleep(3000)
+    }
+  }
+  throw last
+}
+
+/* One reading of the page. Passed as the pageFunction (the deployed CSP has no unsafe-eval). */
+const MEASURE = () => {
+  const vw = innerWidth
+  const box = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) } }
+  const shown = (el) => {
+    if (!el) return false
+    const b = el.getBoundingClientRect(); const cs = getComputedStyle(el)
+    return b.width > 40 && b.height > 40 && b.right > 1 && b.left < vw - 1 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0
+  }
+  const vis = (el) => { const b = el.getBoundingClientRect(); const cs = getComputedStyle(el); return b.width > 0 && b.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' }
+  const label = (el) => {
+    const b = el.getBoundingClientRect()
+    const n = el.getAttribute('data-testid') || el.getAttribute('data-test') || el.getAttribute('aria-label') || el.textContent.trim().slice(0, 24) || String(el.className).slice(0, 30)
+    return `${n} ${Math.round(b.width)}x${Math.round(b.height)}`
+  }
+  const inMsgText = (el) => !!el.closest('.msg-body, .markdown-block, .topic-subject')
+  const inter = [...document.querySelectorAll('a[href], button, input, select, textarea, [role=button], [role=tab], [role=menuitem]')].filter(vis)
+  const small = inter.filter((el) => { const b = el.getBoundingClientRect(); return (b.width < 44 || b.height < 44) && !inMsgText(el) })
+  const tiny = small.filter((el) => { const b = el.getBoundingClientRect(); return b.width < 24 || b.height < 24 })
+  const ghost = inter.filter((el) => Number(getComputedStyle(el).opacity) === 0)
+  const shell = document.querySelector('.spool-shell')
+  const panes = {
+    sidebar: document.querySelector('.sidebar'),
+    main: document.querySelector('.spool-main'),
+    detail: document.querySelector('[data-test=topic-section], .live-pane, .topic, .issues-detail'),
+  }
+  const onScreen = Object.entries(panes).filter(([, el]) => shown(el)).map(([k]) => k)
+  const tas = [...document.querySelectorAll('textarea')].filter(vis).map((t) => ({ ph: (t.placeholder || '').slice(0, 24), ...box(t) }))
+  return {
+    vw, vh: innerHeight, url: location.pathname + location.search,
+    level: shell?.dataset.mobileLevel || null,
+    onScreen, panes: Object.fromEntries(Object.entries(panes).map(([k, el]) => [k, box(el)])),
+    xScroll: document.documentElement.scrollWidth > vw + 1 || document.body.scrollWidth > vw + 1,
+    interactive: inter.length, under44: small.length, under24: tiny.length,
+    under44Sample: small.slice(0, 12).map(label),
+    ghost: ghost.length, ghostSample: ghost.slice(0, 6).map(label),
+    textareas: tas,
+    composerLow: tas.some((t) => t.y + t.h > innerHeight * 0.6),
+  }
+}
+
+const levelOf = (p) => p.evaluate(() => document.querySelector('.spool-shell')?.dataset.mobileLevel || null)
+
+async function tap(p, sel) {
+  const h = await p.$(sel)
+  if (!h || !(await h.boundingBox())) return false
+  await h.tap().catch(() => h.click())
+  await sleep(1500)
+  return true
+}
+
+const puppeteer = await loadPuppeteer()
+const browser = await puppeteer.launch({
+  executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
+  headless: true,
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+})
+let code = 0
+try {
+  const p = await browser.newPage()
+  p.on('pageerror', (e) => res.console.push('pageerror: ' + String(e).slice(0, 200)))
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await p.waitForSelector('[data-test=native-auth-email]', { timeout: 60000 })
+  await p.type('[data-test=native-auth-email]', email)
+  await p.type('[data-test=native-auth-password]', pw)
+  await p.click('[data-test=native-auth-submit]')
+  await p.waitForFunction(() => !location.pathname.includes('/login') && document.querySelector('.sidebar'), { timeout: 60000 })
+  await sleep(3000)
+  res.build = await p.evaluate(() => fetch('/build.json').then((r) => r.json()).catch(() => null))
+  console.log('build', JSON.stringify(res.build))
+
+  /* a channel and a DM to visit, found at desktop width */
+  await tap(p, '[data-testid=sidebar-tab-channels]')
+  const chan = await p.evaluate(() => [...document.querySelectorAll('a[href*="/channel/"]')].map((a) => a.getAttribute('href'))[0] || null)
+  await tap(p, '[data-testid=sidebar-tab-dm]')
+  const dm = await p.evaluate(() => [...document.querySelectorAll('a[href*="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
+  const routes = ['/', '/lobby', chan, dm, '/issues', '/search?q=spool', '/settings/profile', '/events', '/archive'].filter(Boolean)
+
+  for (const [w, h] of WIDTHS) {
+    const key = `${w}x${h}`
+    const mobile = w <= MOBILE_MAX
+    const W = res.widths[key] = { routes: {}, walk: [], flows: {} }
+    await p.emulate({
+      viewport: { width: w, height: h, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: mobile ? 2 : 1 },
+      userAgent: mobile
+        ? 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36'
+        : 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+    })
+    for (const rt of routes) {
+      try {
+        await nav(p, BASE + rt)
+        W.routes[rt] = await p.evaluate(MEASURE)
+        await p.screenshot({ path: `${OUT}/${key}${rt.replace(/[^a-z0-9]+/gi, '_')}.png` })
+      } catch (e) { W.routes[rt] = { error: String(e).slice(0, 200) } }
+    }
+    const R = Object.entries(W.routes).filter(([, m]) => !m.error)
+    const multi = R.filter(([, m]) => m.onScreen.length !== 1).map(([rt, m]) => `${rt}=${m.onScreen.join('+')}`)
+    const xs = R.filter(([, m]) => m.xScroll).map(([rt]) => rt)
+    const ghosts = R.reduce((n, [, m]) => n + m.ghost, 0)
+    const small = R.map(([rt, m]) => `${rt}:${m.under44}/${m.interactive}`)
+    if (mobile) {
+      score(key, 'one-panel', multi.length === 0, multi.length ? multi.join(' ') : 'every route')
+      score(key, 'hover-only', ghosts === 0, `${ghosts} controls at opacity 0`)
+      score(key, 'tap>=44', R.every(([, m]) => m.under44 === 0), small.slice(0, 5).join(' '))
+      const chat = R.filter(([rt]) => rt === '/lobby' || rt === chan || rt === dm)
+      score(key, 'composer-bottom', chat.length > 0 && chat.every(([, m]) => m.composerLow), chat.map(([rt, m]) => `${rt}:${m.textareas.length ? m.textareas.map((t) => t.y).join('/') : 'none'}`).join(' '))
+    } else {
+      score(key, 'desktop-3pane', R.filter(([rt]) => rt === '/lobby').every(([, m]) => m.onScreen.includes('sidebar') && m.onScreen.includes('main')), 'sidebar+main on /lobby')
+    }
+    score(key, 'no-x-scroll', xs.length === 0, xs.length ? xs.join(' ') : 'every route')
+
+    /* A2: / -> a channel -> a topic -> Back -> Back */
+    if (mobile) {
+      try {
+        await nav(p, BASE + '/')
+        W.walk.push({ step: 'front door', level: await levelOf(p) })
+        await tap(p, '[data-testid=sidebar-tab-channels]')
+        const row = chan ? `.sidebar a[href$="${chan}"]` : '.sidebar a[href*="/channel/"]'
+        W.walk.push({ step: 'channel row', tapped: await tap(p, row), level: await levelOf(p), url: await p.evaluate(() => location.pathname) })
+        await sleep(2000)
+        W.walk.push({ step: 'open topic', tapped: await tap(p, '.spool-main [data-test=open-topic], .spool-main [data-test=topic-replies]'), level: await levelOf(p) })
+        await p.screenshot({ path: `${OUT}/${key}_walk_topic.png` })
+        await p.goBack().catch(() => {}); await sleep(2000)
+        W.walk.push({ step: 'back', level: await levelOf(p), url: await p.evaluate(() => location.pathname) })
+        await p.goBack().catch(() => {}); await sleep(2000)
+        W.walk.push({ step: 'back', level: await levelOf(p), url: await p.evaluate(() => location.pathname) })
+        await p.screenshot({ path: `${OUT}/${key}_walk_home.png` })
+      } catch (e) { W.walk.push({ error: String(e).slice(0, 200) }) }
+      const lv = W.walk.map((s) => s.level ?? '-').join('>')
+      score(key, 'walk-1-2-3-2-1', lv === '1>2>3>2>1', lv)
+    }
+
+    /* message actions on /lobby */
+    try {
+      await nav(p, BASE + '/lobby')
+      const mb = await p.$('.spool-main [data-testid=msg-menu-btn]')
+      const eb = await p.$('.spool-main [data-testid=msg-emoji-btn]')
+      const size = async (hd) => { const b = hd && await hd.boundingBox(); return b ? [Math.round(b.width), Math.round(b.height)] : null }
+      W.flows.menuBtn = await size(mb)
+      W.flows.emojiBtn = await size(eb)
+      if (eb && W.flows.emojiBtn) {
+        await eb.tap().catch(() => eb.click()); await sleep(1200)
+        W.flows.emoji = await p.evaluate(() => {
+          const m = document.querySelector('.emoji-picker')
+          if (!m) return { open: false }
+          const b = m.getBoundingClientRect()
+          return { open: true, rect: [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)], inView: b.left >= 0 && b.right <= innerWidth + 1 && b.bottom <= innerHeight + 1 }
+        })
+        await p.keyboard.press('Escape'); await sleep(300)
+      }
+      if (mobile) {
+        const big = (s) => s && s[0] >= 44 && s[1] >= 44
+        score(key, 'msg-actions', !!(big(W.flows.menuBtn) && big(W.flows.emojiBtn) && W.flows.emoji?.open && W.flows.emoji?.inView),
+          `menu ${W.flows.menuBtn} emoji ${W.flows.emojiBtn} picker ${JSON.stringify(W.flows.emoji || null)}`)
+      }
+    } catch (e) { W.flows.error = String(e).slice(0, 200) }
+  }
+} catch (e) {
+  code = 1
+  console.error('FAIL', String(e).slice(0, 300))
+} finally {
+  writeFileSync(`${OUT}/results.json`, JSON.stringify(res, null, 1))
+  await browser.close()
+}
+process.exit(code)

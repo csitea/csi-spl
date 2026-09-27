@@ -52,7 +52,7 @@ Shared contracts, published by their owners and never re-implemented:
 
 - [x] T050 [lead] analysis at 5 widths on prd e2e; posted `a657ea12`; AGY-3501 compared
 - [x] T051 [lead] this spec + the file map
-- [ ] T052 [lead] `tests/e2e/mobile-audit-live.proof.mjs` in the tree (the audit used for §3 and the scoreboard)
+- [x] T052 [lead] `tests/e2e/mobile-audit-live.proof.mjs` in the tree (the audit used for §3 and the scoreboard)
 - [ ] T053 [lead] a scoreboard every 20-30 min: area x width, ok / broken, owning lane; dev and prd e2e, + 1440
 - [ ] T054 [lead] A1-A3 green on prd e2e and dev t1 -> the epic's result post
 

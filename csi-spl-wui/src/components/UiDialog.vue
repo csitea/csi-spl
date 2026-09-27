@@ -38,6 +38,18 @@
         @keydown="onKeydown"
       >
         <header class="ui-dialog__head">
+          <!-- SPL-993: on a phone the dialog is a full screen with a top bar,
+               and Back (start edge) closes it; the X is the desktop's. -->
+          <button
+            type="button"
+            class="ui-dialog__back"
+            data-testid="ui-dialog-back"
+            :title="t('common.close')"
+            :aria-label="t('common.close')"
+            @click="close"
+          >
+            <UiIcon name="chevron-left" :size="22" />
+          </button>
           <h2 :id="titleId" class="ui-dialog__title">{{ title }}</h2>
           <div class="ui-dialog__tools"><slot name="tools" /></div>
           <button
@@ -247,5 +259,59 @@ onUnmounted(() => {
 @media (max-width: 640px) {
   .ui-dialog-backdrop { padding: 8px; }
   .ui-dialog { height: 100%; max-height: 100%; border-radius: var(--radius-md); }
+}
+/* SPL-993: the back chevron exists only on a phone. */
+.ui-dialog__back { display: none; }
+/* SPL-993 (epic SPL-988): at <= 600 px every dialog, whatever its size, is a
+   full screen: a top bar (Back + title + the content's tools), the body
+   scrolling under it, the footer above the home indicator. */
+@media (max-width: 600px) {
+  .ui-dialog-backdrop { padding: 0; }
+  .ui-dialog,
+  .ui-dialog.md,
+  .ui-dialog.lg,
+  .ui-dialog.xl {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border: 0;
+    box-shadow: none;
+  }
+  .ui-dialog__head {
+    gap: 4px;
+    min-height: 56px;
+    padding: max(6px, env(safe-area-inset-top)) 8px 6px 4px;
+  }
+  .ui-dialog__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    min-width: var(--tap, 44px);
+    min-height: var(--tap, 44px);
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    cursor: pointer;
+  }
+  .ui-dialog__back:focus-visible { border-color: var(--color-border); }
+  .ui-dialog__back:dir(rtl) .ui-icon { transform: scaleX(-1); }
+  .ui-dialog__close { display: none; }
+  .ui-dialog__title {
+    flex: 1 1 0;
+    font-size: 1rem;
+  }
+  .ui-dialog__foot { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+/* Phones and small tablets are touch screens: the X is a 44 px target and
+   inputs are >= 16 px, so iOS does not zoom the page on focus. */
+@media (max-width: 820px) {
+  .ui-dialog__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .ui-dialog__body :deep(input),
+  .ui-dialog__body :deep(textarea),
+  .ui-dialog__body :deep(select) { font-size: max(16px, 1rem); }
 }
 </style>

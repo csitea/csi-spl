@@ -307,7 +307,6 @@ export const UI_ICON_PATHS = {
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.
   "chevron-left": ["m15 18-6-6 6-6"],
   grip: [{ d: "M9 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }],
-  "chevron-left": ["m15 18-6-6 6-6"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

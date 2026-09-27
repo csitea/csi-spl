@@ -99,6 +99,14 @@ async function phone(p, base, width) {
   })
   check(`${tag}: a long name ends in an ellipsis`, ell?.clipped === true && ell.overflow === 'ellipsis', ell)
   check(`${tag}: SPL-980 2px before and after the name`, ell?.pad?.[0] === '2px' && ell?.pad?.[1] === '2px', ell)
+  /* owner 2026-09-27 (topic 72773b61): the control 4 px wider, all of it between the name and the arrow (4px -> 8px) */
+  const gap = await p.evaluate(() => {
+    const name = document.querySelector('[data-testid=top-bar-tenant-name]')
+    const arrow = document.querySelector('[data-testid=top-bar-tenant-box] .tb-tenant__arrow')
+    if (!name || !arrow) return null
+    return arrow.getBoundingClientRect().left - (name.getBoundingClientRect().right - parseFloat(getComputedStyle(name).paddingInlineEnd))
+  })
+  check(`${tag}: the arrow sits 8px after the name (SPL-980, +4 px)`, gap !== null && Math.abs(gap - 8) <= 0.5, { gap })
   check(`${tag}: no horizontal scroll`, await noXScroll(p))
 
   await p.click('[data-testid=top-bar-tenant-box]')

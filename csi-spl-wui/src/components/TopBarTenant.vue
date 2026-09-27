@@ -117,7 +117,9 @@ useMobileStack().overlay(open, () => close(false))
   font-weight: 700;
   cursor: pointer;
 }
-/* SPL-980: 2px before and after the name, then the arrow 3px after it */
+/* SPL-980: 2px before and after the name, then the arrow after it. Owner
+   2026-09-27 (topic 72773b61): the whole control 4 px wider, the extra space
+   between the name and the arrow - 2 + 1 + 5 = 8px (was 4px) */
 .tb-tenant__name {
   min-width: 0;
   padding-inline: 2px;
@@ -129,7 +131,7 @@ useMobileStack().overlay(open, () => close(false))
   flex: 0 0 auto;
   width: 0.65em;
   height: 0.5em;
-  margin-inline-start: 1px;
+  margin-inline-start: 5px;
   fill: currentColor;
 }
 .tb-tenant__scrim {

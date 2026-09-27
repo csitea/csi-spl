@@ -221,6 +221,16 @@
               </button>
             </li>
           </ul>
+          <p v-if="fallback" class="fallback-line muted" data-testid="channel-fallback">
+            <span class="fallback-line__label">{{ t('channels.properties.fallback_label') }}:</span>
+            <template v-if="fallback.id">
+              <span class="member-rows__name" data-testid="channel-fallback-id">{{ fallback.id }}</span>
+              <span>{{ fallback.box }}</span>
+              <span :data-testid="'channel-fallback-' + (fallback.active ? 'active' : 'standby')">{{ t(fallback.active ? 'channels.properties.fallback_active' : 'channels.properties.fallback_standby') }}</span>
+            </template>
+            <span v-else data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
+            <span v-if="fallback.recent.count" data-testid="channel-fallback-recent">{{ t('channels.properties.fallback_recent', { count: fallback.recent.count, id: fallback.recent.id, at: fallback.recent.at }) }}</span>
+          </p>
           <p v-if="!canAdd && !isDefault" class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
         </template>
       </div>
@@ -247,6 +257,16 @@
             >{{ t('channels.properties.agent_' + row.state) }}</span>
           </li>
         </ul>
+        <p v-if="fallback" class="fallback-line muted" data-testid="channel-fallback-ro">
+          <span class="fallback-line__label">{{ t('channels.properties.fallback_label') }}:</span>
+          <template v-if="fallback.id">
+            <span class="member-rows__name" data-testid="channel-fallback-id">{{ fallback.id }}</span>
+            <span>{{ fallback.box }}</span>
+            <span :data-testid="'channel-fallback-' + (fallback.active ? 'active' : 'standby')">{{ t(fallback.active ? 'channels.properties.fallback_active' : 'channels.properties.fallback_standby') }}</span>
+          </template>
+          <span v-else data-testid="channel-fallback-none">{{ t('channels.properties.fallback_none') }}</span>
+          <span v-if="fallback.recent.count" data-testid="channel-fallback-recent">{{ t('channels.properties.fallback_recent', { count: fallback.recent.count, id: fallback.recent.id, at: fallback.recent.at }) }}</span>
+        </p>
       </div>
 
       <div
@@ -285,6 +305,7 @@ import {
   canEditOpenInvite,
   channelAgentCandidates,
   channelAgentRows,
+  channelFallbackLine,
   channelInviteCandidates,
   defaultChannelRows,
   filterAgentsContains,
@@ -383,6 +404,8 @@ const canAdd = computed(() => canAddChannelMember({
 const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
 const peopleChoices = computed(() => filterPeopleContains(candidates.value, personQuery.value, people.names.value))
 const agentRows = computed(() => channelAgentRows(agents.value))
+// SPL-997: who gets a post here when no member agent is online (FR-035).
+const fallback = ref<ReturnType<typeof channelFallbackLine>>(null)
 const agentCandidates = computed(() => channelAgentCandidates(rosterBag.value, agentRows.value))
 const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, agentQuery.value).map((row) => ({
   ...row,
@@ -411,6 +434,7 @@ watch(() => props.open, async (isOpen) => {
   rosterBag.value = {}
   createdByLive.value = ''
   agents.value = []
+  fallback.value = null
   chosenPerson.value = null
   personQuery.value = ''
   chosenAgent.value = null
@@ -419,8 +443,9 @@ watch(() => props.open, async (isOpen) => {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
       withSessionRetry(api, () => api.listRoster()),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[] }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
     if (my !== ticket) return
+    fallback.value = channelFallbackLine(mem.fallback)
     const bag = rosterOf(ros) || {}
     rosterBag.value = bag
     if (mem.default) {
@@ -532,6 +557,7 @@ async function refreshAgentState() {
     const mem = await withSessionRetry(api, () => api.listChannelMembers(props.channelId))
     const fresh = Array.isArray(mem.agents) ? mem.agents : []
     agents.value = agents.value.map((a) => fresh.find((f) => f.id === a.id && f.box === a.box) || a)
+    fallback.value = channelFallbackLine((mem as { fallback?: unknown }).fallback)
   } catch {
     // the row stays without a state
   }
@@ -664,6 +690,15 @@ async function onToggle(ev: Event) {
 .agent-state--online { color: var(--color-ok); }
 .agent-state--offline { color: var(--color-warn); }
 .agent-state--unseated { color: var(--color-danger); }
+/* SPL-997: the fallback responder line under the agent list. */
+.fallback-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+  margin-top: 0.5rem;
+}
+.fallback-line__label { font-weight: 600; }
 .channel-properties__head .icon-btn:disabled {
   opacity: 0.4;
   cursor: default;

@@ -735,6 +735,11 @@
       "agent_online_hint": "Jeho box je pripojený: príspevky kanála sa k tomuto agentovi dostanú hneď.",
       "agent_offline_hint": "Jeho box nie je pripojený: príspevky kanála čakajú, kým sa znova pripojí.",
       "agent_unseated_hint": "Jeho box už tohto agenta neuvádza: príspevky kanála sa k nemu nedostanú.",
+      "fallback_label": "Záložný odpovedajúci",
+      "fallback_active": "dostáva príspevky teraz: žiadny agent člen nie je online",
+      "fallback_standby": "dostáva príspevky iba vtedy, keď žiadny agent člen nie je online",
+      "fallback_none": "V tomto pracovnom priestore nie je online žiadny agent: príspevok tu teraz nedosiahne žiadneho agenta.",
+      "fallback_recent": "{count} príspevkov bez odpovede k nemu prišlo za posledných 7 dní, najnovší k {id} o {at} UTC",
       "default_everyone": "V predvolenom kanáli sú všetci ľudia a nikoho z neho nemožno odstrániť. Agent je v ňom, až keď ho niekto pridá."
     }
   },

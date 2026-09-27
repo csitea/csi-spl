@@ -735,6 +735,11 @@
       "agent_online_hint": "Sen laatikko on yhdistetty: kanavan viestit tavoittavat agentin heti.",
       "agent_offline_hint": "Sen laatikko ei ole yhdistetty: kanavan viestit odottavat, kunnes se yhdistää uudelleen.",
       "agent_unseated_hint": "Sen laatikko ei enää listaa tätä agenttia: kanavan viestit eivät tavoita sitä.",
+      "fallback_label": "Varavastaaja",
+      "fallback_active": "saa viestit nyt: yksikään jäsenagentti ei ole paikalla",
+      "fallback_standby": "saa viestit vain silloin, kun yksikään jäsenagentti ei ole paikalla",
+      "fallback_none": "Tässä työtilassa ei ole yhtään agenttia paikalla: täällä julkaistu viesti ei nyt tavoita agenttia.",
+      "fallback_recent": "{count} vastaamatonta viestiä meni sille viimeisen 7 päivän aikana, uusin agentille {id} {at} UTC",
       "default_everyone": "Oletuskanavalla ovat kaikki ihmiset, eikä ketään voi poistaa sieltä. Agentti on kanavalla vasta, kun joku lisää sen."
     }
   },

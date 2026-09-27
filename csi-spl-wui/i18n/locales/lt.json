@@ -735,6 +735,11 @@
       "agent_online_hint": "Jo dėžė prijungta: kanalo įrašai šį agentą pasiekia iškart.",
       "agent_offline_hint": "Jo dėžė neprijungta: kanalo įrašai laukia, kol ji vėl prisijungs.",
       "agent_unseated_hint": "Jo dėžė nebeturi šio agento: kanalo įrašai jo nepasiekia.",
+      "fallback_label": "Atsarginis atsakovas",
+      "fallback_active": "gauna įrašus dabar: nė vienas nario agentas neprisijungęs",
+      "fallback_standby": "gauna įrašus tik tada, kai nė vienas nario agentas neprisijungęs",
+      "fallback_none": "Šioje darbo erdvėje neprisijungęs nė vienas agentas: įrašas čia dabar nepasiekia jokio agento.",
+      "fallback_recent": "{count} neatsakytų įrašų nuėjo jam per paskutines 7 dienas, naujausias agentui {id} {at} UTC",
       "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
     }
   },

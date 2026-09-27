@@ -735,6 +735,11 @@
       "agent_online_hint": "Kutusu bağlı: kanal gönderileri bu ajana hemen ulaşır.",
       "agent_offline_hint": "Kutusu bağlı değil: kanal gönderileri yeniden bağlanana kadar bekler.",
       "agent_unseated_hint": "Kutusu artık bu ajanı listelemiyor: kanal gönderileri ona ulaşmaz.",
+      "fallback_label": "Yedek yanıtlayıcı",
+      "fallback_active": "gönderileri şimdi alıyor: hiçbir üye ajan çevrimiçi değil",
+      "fallback_standby": "gönderileri yalnızca hiçbir üye ajan çevrimiçi değilken alır",
+      "fallback_none": "Bu çalışma alanında çevrimiçi ajan yok: buradaki bir gönderi şu anda hiçbir ajana ulaşmaz.",
+      "fallback_recent": "Son 7 günde {count} yanıtsız gönderi ona gitti, en yenisi {at} UTC'de {id} ajanına",
       "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
     }
   },

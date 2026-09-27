@@ -273,6 +273,27 @@ export function channelAgentState(raw) {
   return ''
 }
 
+/**
+ * SPL-997 (spec 038 FR-035): the "fallback responder" line of a channel, from
+ * the hub's members answer `fallback`. null = the hub did not say (an older
+ * hub, or the fallback is off). id '' = no agent of the workspace is online,
+ * so a post here reaches no agent now. active = no member agent is online, so
+ * posts go to the fallback now. recent = the channel's fallback deliveries of
+ * the last 7 days (count, newest agent, newest instant as YYYY-MM-DD HH:MM UTC).
+ */
+export function channelFallbackLine(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const rawId = String(raw.id || '')
+  const id = /^[A-Z]{2,4}-[0-9]+$/.test(rawId) && !rawId.startsWith('HUM-') ? rawId : ''
+  const box = id ? String(raw.box || '') : ''
+  const rec = raw.recent && typeof raw.recent === 'object' ? raw.recent : {}
+  const count = Number.isInteger(rec.count) && rec.count > 0 ? rec.count : 0
+  const at = count && typeof rec.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(rec.at)
+    ? rec.at.slice(0, 10) + ' ' + rec.at.slice(11, 16)
+    : ''
+  return { id, box, active: raw.active === true, recent: { count, id: count ? String(rec.id || '') : '', at } }
+}
+
 /** Agents that receive the channel. People and the browser box are not agents. */
 export function channelAgentRows(agents) {
   const rows = []

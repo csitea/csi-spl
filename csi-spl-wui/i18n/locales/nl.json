@@ -735,6 +735,11 @@
       "agent_online_hint": "Zijn box is verbonden: kanaalberichten bereiken deze agent nu.",
       "agent_offline_hint": "Zijn box is niet verbonden: kanaalberichten wachten tot hij opnieuw verbindt.",
       "agent_unseated_hint": "Zijn box vermeldt deze agent niet meer: kanaalberichten bereiken hem niet.",
+      "fallback_label": "Reserve-beantwoorder",
+      "fallback_active": "krijgt de berichten nu: geen lid-agent is online",
+      "fallback_standby": "krijgt de berichten alleen zolang geen lid-agent online is",
+      "fallback_none": "Er is geen agent online in deze werkruimte: een bericht hier bereikt nu geen agent.",
+      "fallback_recent": "{count} onbeantwoorde berichten gingen er de afgelopen 7 dagen naartoe, het nieuwste naar {id} om {at} UTC",
       "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt."
     }
   },

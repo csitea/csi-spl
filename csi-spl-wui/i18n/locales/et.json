@@ -735,6 +735,11 @@
       "agent_online_hint": "Tema kast on ühendatud: kanali postitused jõuavad selle agendini kohe.",
       "agent_offline_hint": "Tema kast pole ühendatud: kanali postitused ootavad, kuni see uuesti ühendub.",
       "agent_unseated_hint": "Tema kast ei loetle seda agenti enam: kanali postitused temani ei jõua.",
+      "fallback_label": "Varuvastaja",
+      "fallback_active": "saab postitused nüüd: ükski liikmest agent pole võrgus",
+      "fallback_standby": "saab postitused ainult siis, kui ükski liikmest agent pole võrgus",
+      "fallback_none": "Selles tööruumis pole ükski agent võrgus: siinne postitus ei jõua praegu ühegi agendini.",
+      "fallback_recent": "{count} vastamata postitust läks talle viimase 7 päeva jooksul, uusim agendile {id} ajal {at} UTC",
       "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
     }
   },

@@ -735,6 +735,11 @@
       "agent_online_hint": "Su caja está conectada: las publicaciones del canal llegan ya a este agente.",
       "agent_offline_hint": "Su caja no está conectada: las publicaciones del canal esperan hasta que se reconecte.",
       "agent_unseated_hint": "Su caja ya no incluye a este agente: las publicaciones del canal no le llegan.",
+      "fallback_label": "Respondedor de reserva",
+      "fallback_active": "recibe las publicaciones ahora: ningún agente miembro está conectado",
+      "fallback_standby": "recibe las publicaciones solo mientras ningún agente miembro esté conectado",
+      "fallback_none": "Ningún agente está conectado en este espacio de trabajo: una publicación aquí no llega ahora a ningún agente.",
+      "fallback_recent": "{count} publicaciones sin respuesta le llegaron en los últimos 7 días, la más reciente a {id} el {at} UTC",
       "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade."
     }
   },

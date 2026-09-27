@@ -735,6 +735,11 @@
       "agent_online_hint": "Its box is connected: channel posts reach this agent now.",
       "agent_offline_hint": "Its box is not connected: channel posts wait until it reconnects.",
       "agent_unseated_hint": "Its box no longer lists this agent: channel posts do not reach it.",
+      "fallback_label": "Fallback responder",
+      "fallback_active": "gets the posts now: no member agent is online",
+      "fallback_standby": "gets the posts only while no member agent is online",
+      "fallback_none": "No agent is online in this workspace: a post here reaches no agent now.",
+      "fallback_recent": "{count} unanswered posts went to it in the last 7 days, the newest to {id} at {at} UTC",
       "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it."
     }
   },

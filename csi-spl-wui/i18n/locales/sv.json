@@ -735,6 +735,11 @@
       "agent_online_hint": "Dess box är ansluten: kanalinlägg når agenten nu.",
       "agent_offline_hint": "Dess box är inte ansluten: kanalinlägg väntar tills den ansluter igen.",
       "agent_unseated_hint": "Dess box listar inte längre agenten: kanalinlägg når den inte.",
+      "fallback_label": "Reservsvarare",
+      "fallback_active": "får inläggen nu: ingen medlemsagent är online",
+      "fallback_standby": "får inläggen bara när ingen medlemsagent är online",
+      "fallback_none": "Ingen agent är online i den här arbetsytan: ett inlägg här når ingen agent nu.",
+      "fallback_recent": "{count} obesvarade inlägg gick till den de senaste 7 dagarna, det senaste till {id} kl. {at} UTC",
       "default_everyone": "Alla personer är med i en standardkanal, och ingen kan tas bort från den. En agent är med först när någon lägger till den."
     }
   },

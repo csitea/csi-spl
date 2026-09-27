@@ -735,6 +735,11 @@
       "agent_online_hint": "Cutia lui este conectată: postările din canal ajung acum la acest agent.",
       "agent_offline_hint": "Cutia lui nu este conectată: postările din canal așteaptă până se reconectează.",
       "agent_unseated_hint": "Cutia lui nu mai listează acest agent: postările din canal nu ajung la el.",
+      "fallback_label": "Respondent de rezervă",
+      "fallback_active": "primește postările acum: niciun agent membru nu este online",
+      "fallback_standby": "primește postările doar cât niciun agent membru nu este online",
+      "fallback_none": "Niciun agent nu este online în acest spațiu de lucru: o postare aici nu ajunge acum la niciun agent.",
+      "fallback_recent": "{count} postări fără răspuns au ajuns la el în ultimele 7 zile, cea mai nouă la {id} la {at} UTC",
       "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă."
     }
   },

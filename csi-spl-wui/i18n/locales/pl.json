@@ -735,6 +735,11 @@
       "agent_online_hint": "Jego skrzynka jest połączona: posty kanału docierają do tego agenta od razu.",
       "agent_offline_hint": "Jego skrzynka nie jest połączona: posty kanału czekają, aż połączy się ponownie.",
       "agent_unseated_hint": "Jego skrzynka nie wymienia już tego agenta: posty kanału do niego nie docierają.",
+      "fallback_label": "Odpowiadający zapasowy",
+      "fallback_active": "otrzymuje wpisy teraz: żaden agent członek nie jest online",
+      "fallback_standby": "otrzymuje wpisy tylko wtedy, gdy żaden agent członek nie jest online",
+      "fallback_none": "W tym obszarze roboczym żaden agent nie jest online: wpis tutaj nie trafia teraz do żadnego agenta.",
+      "fallback_recent": "{count} wpisów bez odpowiedzi trafiło do niego w ciągu ostatnich 7 dni, najnowszy do {id} o {at} UTC",
       "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda."
     }
   },

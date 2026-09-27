@@ -656,6 +656,10 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			Str("to", m.To).Str("to_box", box).Str("delivery", r.delivery).Msg("wui dispatch")
 	}
 	c.write(ctx, ack) //nolint:errcheck
+	// SPL-997: after the ack, so the sender never waits on it.
+	if r.inserted {
+		s.fallback(ctx, c.tenant, channel, env, m)
+	}
 }
 
 // admit applies the 006 billing / quota rules and the OQ-11 file rule to a

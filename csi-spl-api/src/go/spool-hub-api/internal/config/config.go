@@ -249,6 +249,9 @@ type Hub struct {
 	// messages at most. 0 max = no back-fill.
 	BackfillWindow time.Duration `env:"SPOOL_HUB_BACKFILL_WINDOW" envDefault:"168h"`
 	BackfillMax    int           `env:"SPOOL_HUB_BACKFILL_MAX" envDefault:"200"`
+	// SPL-997: a human post no agent could hear goes to ONE online fallback
+	// agent of the tenant (hub/fallback.go). false = off.
+	Fallback bool `env:"SPOOL_HUB_FALLBACK" envDefault:"true"`
 
 	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`

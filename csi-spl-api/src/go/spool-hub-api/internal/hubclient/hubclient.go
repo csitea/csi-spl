@@ -285,7 +285,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: ch.Nonce, Role: role, Sig: sign.Sign(priv, payload),
 		MsgVersions: msg.Supported}
 	if role == wire.RoleBox {
-		hello.Features = []string{wire.FeatureBackfill} // SPL-987: backfill.go
+		hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback} // SPL-987 backfill.go, SPL-997 fallback.go
 	}
 	if role == wire.RoleBox {
 		agents, err := c.scanAgents()
@@ -415,9 +415,12 @@ func (s *Session) readLoop() {
 		switch f.Type {
 		case wire.TRecv:
 			var err error
-			if f.Backfill != "" {
+			switch {
+			case f.Backfill != "":
 				err = s.receiveBackfill(context.Background(), f.Env, f.Agents, f.Backfill)
-			} else {
+			case f.Fallback != "":
+				err = s.receiveFallback(context.Background(), f.Env, f.Agents, f.Fallback)
+			default:
 				err = s.receive(context.Background(), f.Env, f.Agents)
 			}
 			if err != nil {

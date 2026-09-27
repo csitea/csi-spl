@@ -79,6 +79,7 @@ func cmdServe() int {
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,
+		Fallback:      hc.Fallback,
 		AllowTextOnly: hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,

@@ -160,12 +160,17 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusInternalServerError, "internal", "members unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	list := s.withAgentState(r.Context(), t.ID, channelAgentList(agents))
+	out := map[string]any{
 		"channel": ch, "default": store.ChannelPublic(ch), "members": ms,
 		"members_open_invite": row.MembersOpenInvite,
 		"created_by":          row.CreatedBy,
-		"agents":              s.withAgentState(r.Context(), t.ID, channelAgentList(agents)),
-	})
+		"agents":              list,
+	}
+	if fb := s.fallbackInfo(r.Context(), t.ID, ch, list); fb != nil { // SPL-997, FR-035
+		out["fallback"] = fb
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // channelAgent is one subscribed agent on GET /v1/channels/{channel}/members.

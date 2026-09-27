@@ -43,6 +43,9 @@ type session struct {
 	// features: what the box client's hello said it understands beyond the
 	// base protocol (SPL-987 FeatureBackfill); fixed after hello.
 	features []string
+	// since: when this socket said hello; the fallback responder prefers the
+	// longest-online box (SPL-997).
+	since time.Time
 
 	upload tokenSlot // CLE-34986: one live upload token per socket
 	// agents is this box's seated roster, sorted: what onSend checks a
@@ -226,7 +229,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		return nil, false
 	}
 	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
-		msgVersions: f.MsgVersions, features: f.Features, welcomed: make(chan struct{})}
+		msgVersions: f.MsgVersions, features: f.Features, since: now, welcomed: make(chan struct{})}
 	if f.Role == wire.RoleBox {
 		agents, err := s.seatRoster(ctx, t.ID, f.BoxID, f.Agents, now)
 		if err != nil {

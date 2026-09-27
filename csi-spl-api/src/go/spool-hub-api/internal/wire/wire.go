@@ -53,6 +53,10 @@ const (
 // recv frames and backfill_end (SPL-987).
 const FeatureBackfill = "backfill"
 
+// FeatureFallback is the hello feature of a box client that takes recv
+// frames carrying Fallback (SPL-997, specs/038 FR-033).
+const FeatureFallback = "fallback"
+
 // Hello roles (http-v1.md §2.2).
 const (
 	RoleBox = "box" // the session socket: recv frames, roster, last hello wins
@@ -140,6 +144,14 @@ type Frame struct {
 	Backfill string `json:"backfill,omitempty"`
 	Topics   int    `json:"topics,omitempty"`
 	From     string `json:"from,omitempty"`
+
+	// recv (SPL-997, specs/038 FR-033): a human post that no agent it was
+	// meant for could hear, handed to ONE fallback agent (Agents). The value
+	// says where it was posted: "#<channel>" or "DM to <agent>". msg.to is
+	// NOT added, and the box rings one "unanswered post in ..." poke instead
+	// of the ordinary one. Sent only to a box whose hello carried
+	// FeatureFallback.
+	Fallback string `json:"fallback,omitempty"`
 
 	// issue (specs/039 §6): IssueOp create | update | get | list | label |
 	// comment, As the acting agent (one this box announced), IssueRef the

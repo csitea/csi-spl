@@ -50,6 +50,10 @@ type Options struct {
 	// 0 window = the 168h default; BackfillMax 0 = no back-fill.
 	BackfillWindow time.Duration
 	BackfillMax    int
+	// SPL-997: a human post that no agent it was meant for could hear goes to
+	// ONE online fallback agent of the tenant (fallback.go). Zero = off, so a
+	// rig that does not ask for it sees no extra frame.
+	Fallback bool
 
 	RetentionAlerts   time.Duration
 	RetentionChannels time.Duration

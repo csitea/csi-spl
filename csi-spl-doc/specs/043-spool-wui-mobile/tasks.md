@@ -35,9 +35,9 @@ Shared contracts, published by their owners and never re-implemented:
 
 ## 3. Phase 2: the lanes in parallel
 
-- [ ] T010 [M2] the one-row top bar (back, tenant, search, avatar) at <= 820 px (D5)
-- [ ] T011 [M2] search as a full-screen sheet; the avatar menu as a bottom sheet (language, theme, notifications, settings, sign out)
-- [ ] T012 [M2] `viewport-fit=cover`, `interactive-widget=resizes-content`, safe-area padding (D7)
+- [x] T010 [M2] the one-row top bar (back, tenant, search, avatar) at <= 820 px (D5) (300cfa42; Back is M1's MobileBack in each pane header, not a top-bar button)
+- [x] T011 [M2] search as a full-screen sheet; the avatar menu as a bottom sheet (language, theme, notifications, settings, sign out) (300cfa42; prd e2e live proof 11/11, 3ff536ff + 917b5f8e)
+- [x] T012 [M2] `viewport-fit=cover`, `interactive-widget=resizes-content`, safe-area padding (D7) (83e8e055; gate 36308770570 green, live dev + prd build 257186af)
 - [ ] T020 [M3] the bottom-docked composer above the keyboard on levels 2 and 3 (FR-007, D4)
 - [ ] T021 [M3] 44 px message menu and emoji buttons; a long-press opens the actions sheet (D3)
 - [ ] T022 [M3] a one-row card header at 360 px; the code copy button 44 px, no hover

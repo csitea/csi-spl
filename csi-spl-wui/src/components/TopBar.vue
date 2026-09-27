@@ -4,10 +4,11 @@
      language switcher + the user menu (the former .app-corner, CLE-3402 /
      spec 021). On a phone the Omnibox folds into a search icon.
      SPL-990 (<= 820 px, the mobile revamp): ONE compact row - the tenant
-     switcher (SPL-995: a drop box opening a bottom sheet, next to the
-     search icon), the search icon, the avatar menu (Back is M1's MobileBack in each
-     pane header). The icon opens a full-screen search/command sheet with the
-     composer (and its GO) at the top; the theme, language and notification
+     switcher (SPL-995: a drop box opening a bottom sheet) ... the avatar
+     menu (Back is M1's MobileBack in each pane header). The owner's E
+     (topic e0b12a2c): the omnibox leaves the row; a round GO button floats at
+     the middle of the right edge on every level and opens the full-screen
+     search/command sheet with the composer (and its GO) at the top; the theme, language and notification
      controls live in the avatar menu's bottom sheet. Above 820 px nothing
      here renders differently. -->
 <template>
@@ -16,7 +17,7 @@
       <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
       <ThemeToggle />
     </div>
-    <!-- SPL-995: the tenant switcher, directly before the search icon -->
+    <!-- SPL-995: the tenant switcher, first in the phone row -->
     <TopBarTenant class="top-bar__tenant" />
     <div
       class="top-bar__omnibox"
@@ -66,17 +67,22 @@
         <UiIcon name="x" :size="18" />
       </button>
     </div>
+    <!-- body-level on purpose: inside this sticky header (a z 40 stacking
+         context) the floating GO would paint over the pages' own sheets and
+         scrims (z 38/39, the Issues filters). Mounted on the client only. -->
+    <Teleport v-if="mounted" to="body">
     <button
       type="button"
       class="top-bar__search-toggle"
       data-test="top-bar-search-toggle"
-      :aria-label="t('search.open_omnibox')"
-      :title="t('search.open_omnibox')"
+      :aria-label="t('composer.go')"
+      :title="t('composer.go')"
       :aria-expanded="expanded ? 'true' : 'false'"
       @click="expand"
     >
-      <UiIcon name="search" :size="20" />
+      <UiIcon name="go" :size="22" />
     </button>
+    </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
       <div class="top-bar__lang"><LanguageSwitcher /></div>
       <UserMenu />
@@ -111,6 +117,7 @@ const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const expanded = ref(false)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
+const mounted = ref(false)
 
 function onDocKey(ev: KeyboardEvent) {
   const root = document.querySelector('[data-test=top-bar-omnibox]')
@@ -214,6 +221,7 @@ watch(() => session.state, (st) => {
 }, { immediate: true })
 
 onMounted(() => {
+  mounted.value = true
   showQuery()
   document.addEventListener('keydown', onDocKey, true)
 })
@@ -332,15 +340,15 @@ onUnmounted(() => {
   }
   .top-bar__start,
   .top-bar__lang { display: none; }
-  /* SPL-995: [tenant ▾] [search] [avatar] at the end of the row; the box
-     hugs the name and shrinks to an ellipsis before anything else moves */
+  /* SPL-995: [tenant ▾] ... [avatar]; the box hugs the name and shrinks to
+     an ellipsis before anything else moves */
   .top-bar__tenant {
     display: flex;
     flex: 0 1 auto;
     min-width: var(--tap);
     max-width: min(20rem, 100%);
-    margin-inline-start: auto;
   }
+  .top-bar__end { margin-inline-start: auto; }
   .top-bar__omnibox { display: none; }
   /* display:contents, never none, while M3's composer is docked: a
      display:none ancestor would hide the fixed bottom dock too. Keyed on the
@@ -352,12 +360,29 @@ onUnmounted(() => {
     bottom: calc(var(--kb-inset, 0px) + var(--composer-dock-h, 0px) + 8px);
     margin: 0;
   }
+  /* the owner's E: a round GO button at the vertical middle of the right
+     edge (of what the keyboard leaves), above the content on every level,
+     clear of the bottom dock and the Issues + (bottom corner) */
   .top-bar__search-toggle {
     display: inline-grid;
     place-items: center;
-    margin-inline-start: 0;
+    position: fixed;
+    /* above the content, under every page sheet and scrim (38+) */
+    z-index: 37;
+    inset-inline-end: calc(8px + env(safe-area-inset-right, 0px));
+    top: calc((100dvh - var(--kb-inset, 0px)) / 2);
+    transform: translateY(-50%);
+    width: 52px;
+    height: 52px;
+    margin: 0;
     border: 0;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    box-shadow: 0 4px 14px rgb(0 0 0 / .35);
   }
+  /* the open search sheet covers the page: the button would float over it */
+  .top-bar__search-toggle[aria-expanded=true] { display: none; }
   .top-bar--open .top-bar__omnibox {
     display: flex;
     flex-direction: row;

@@ -1,7 +1,9 @@
 // SPL-990 (epic SPL-988, lane M2): the top bar on phones and small tablets.
 //
-// At 360 and 820 px (touch emulated) the bar is ONE row of the tenant name, the search icon and the avatar; the logo, the theme picker
-// and the language switcher are out of the row. The search icon opens a
+// At 360 and 820 px (touch emulated) the bar is ONE row of the tenant switcher and the avatar; the logo, the theme picker
+// and the language switcher are out of the row. The owner's E (topic
+// e0b12a2c): a round GO button floats at the vertical middle of the right
+// edge, clear of the bottom dock and the Issues +; it opens a
 // full-screen sheet whose composer and GO are on screen, and its close button
 // shuts it. The avatar opens a bottom sheet that carries language, theme and
 // the notification toggles (the rail's copy is hidden). Every control named
@@ -89,8 +91,21 @@ async function phone(p, base, width) {
   for (const s of ['[data-test=top-bar-search-toggle]', '[data-test=user-menu-trigger]']) {
     const r = bar[s]
     check(`${tag}: ${s} shown, >= ${TAP} px`, r?.shown && r.w >= TAP && r.h >= TAP, r)
-    check(`${tag}: ${s} inside the bar`, r && r.y >= 0 && r.b <= row.b, r)
   }
+  const av = bar['[data-test=user-menu-trigger]']
+  check(`${tag}: the avatar inside the bar`, av && av.y >= 0 && av.b <= row.b, av)
+  const fab = bar['[data-test=top-bar-search-toggle]']
+  const view = await p.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  const dockTop = await p.evaluate(() => {
+    const d = document.querySelector('.composer--dock')
+    return d ? Math.round(d.getBoundingClientRect().top) : window.innerHeight
+  })
+  check(`${tag}: GO floats at the middle of the right edge, round, labelled`, fab && fab.x + fab.w <= view.w && view.w - (fab.x + fab.w) <= 16
+    && Math.abs(fab.y + fab.h / 2 - view.h / 2) <= 2 && fab.b < dockTop && fab.y > row.b
+    && await p.evaluate(() => {
+      const b = document.querySelector('[data-test=top-bar-search-toggle]')
+      return getComputedStyle(b).borderRadius === '50%' && b.getAttribute('aria-label') === b.title && b.title.length > 0
+    }), { fab, view, dockTop })
   for (const s of ['.top-bar__brand', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} is out of the row`, !bar[s]?.shown, bar[s])
   }
@@ -143,6 +158,17 @@ async function phone(p, base, width) {
   await sleep(200)
   const gone = await probe(p, ['[data-test=user-menu-panel]'])
   check(`${tag}: a tap on the scrim closes the sheet`, !gone['[data-test=user-menu-panel]']?.shown, gone)
+
+  // the owner's E: GO -> the sheet -> `/search x` -> the results
+  await p.click('[data-test=top-bar-search-toggle]')
+  await sleep(300)
+  await p.keyboard.type('/search hello')
+  await p.keyboard.press('Enter')
+  await p.waitForFunction(() => /\/search/.test(location.pathname), { timeout: 10000 }).catch(() => {})
+  await sleep(400)
+  const q = await p.evaluate(() => ({ path: location.pathname, q: new URLSearchParams(location.search).get('q') }))
+  const after = await probe(p, ['[data-test=top-bar-search-close]'])
+  check(`${tag}: GO -> /search hello opens the results, the sheet closes`, /\/search$/.test(q.path) && q.q === 'hello' && !after['[data-test=top-bar-search-close]']?.shown, { q, after })
 }
 
 async function desktop(p, base) {
@@ -172,7 +198,7 @@ const browser = await launch()
 let code = 0
 try {
   const p = await browser.newPage()
-  for (const w of [360, 820]) await phone(p, server.base, w)
+  for (const w of [360, 390, 820]) await phone(p, server.base, w)
   await desktop(p, server.base)
 } catch (e) {
   console.error(e)

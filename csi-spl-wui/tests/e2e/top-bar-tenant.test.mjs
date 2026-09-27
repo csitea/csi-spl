@@ -1,7 +1,7 @@
 // SPL-995 (epic SPL-988): the tenant switcher in the phone top bar.
 //
 // At 360, 390 and 820 px (touch emulated) the switcher is a bordered drop box
-// in the top bar, directly before the search icon, a >= 44 px target; the
+// first in the top bar (the owner's E: [tenant ▾] ... [avatar]), a >= 44 px target; the
 // level-1 section strip no longer shows it (never twice). A long tenant name
 // ends in an ellipsis inside the box. A press opens a bottom sheet (full
 // width, on the bottom edge, over a scrim) listing every tenant; the scrim
@@ -89,7 +89,7 @@ async function phone(p, base, width) {
   const box = m['[data-testid=top-bar-tenant-box]']
   const search = m['[data-test=top-bar-search-toggle]']
   check(`${tag}: the tenant box is in the bar, >= ${TAP} px`, box?.shown && box.w >= TAP && box.h >= TAP && box.y >= bar.y && box.b <= bar.b, { box, bar })
-  check(`${tag}: directly before the search icon`, box && search && box.r <= search.x + 1 && search.x - box.r <= 8, { box, search })
+  check(`${tag}: first in the row, at the start edge`, box && box.x <= 16, { box, search })
   check(`${tag}: the sidebar strip does not show it (not twice)`, !m['[data-testid=tenant-switcher]']?.shown, m['[data-testid=tenant-switcher]'])
   const ell = await p.evaluate(() => {
     const el = document.querySelector('[data-testid=top-bar-tenant-name]')

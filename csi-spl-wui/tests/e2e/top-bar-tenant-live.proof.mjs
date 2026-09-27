@@ -1,7 +1,7 @@
 // SPL-995 live proof: the tenant switcher in the phone top bar on a deployed
 // WUI. One native sign-in (the login budget is 10 per email per 15 min), then
-// at 390 and 820 px with touch emulated: the drop box sits in the bar right
-// before the search icon (>= 44 px), the level-1 strip does not show it (not
+// at 390 and 820 px with touch emulated: the drop box sits first in the bar
+// (>= 44 px; the owner's E, [tenant ▾] ... [avatar]), the level-1 strip does not show it (not
 // twice), and a press opens the bottom sheet listing the account's tenants.
 // At 1440 px the sidebar's drop box is the switcher and the bar has none.
 //
@@ -121,8 +121,7 @@ try {
     const search = await rect(p, '[data-test=top-bar-search-toggle]')
     const strip = await rect(p, '[data-testid=tenant-switcher]')
     const rail = await rect(p, '[data-testid=sidebar-tab-dm]')
-    step(`${w}: the tenant box is in the bar, >= 44 px, right before search`, box?.shown && box.w >= 44 && box.h >= 44 && box.b <= bar.b
-      && search?.shown && box.r <= search.x + 1 && search.x - box.r <= 8, { bar, box, search })
+    step(`${w}: the tenant box is first in the bar, >= 44 px`, box?.shown && box.w >= 44 && box.h >= 44 && box.b <= bar.b && box.x <= 16, { bar, box, search })
     step(`${w}: level 1 on screen, the strip does not show the switcher (not twice)`, rail?.shown && !strip?.shown, { rail, strip })
     const n = await p.$$eval('[data-testid=top-bar-tenant-box], [data-testid=tenant-switcher]', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length)
     step(`${w}: exactly one switcher visible`, n === 1, { n })

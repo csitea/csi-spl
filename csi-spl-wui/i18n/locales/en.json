@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Not told, they cannot read this: {ids}",
     "poke_failed": "Could not tell {ids}. Your text is saved."
+  },
+  "issues_mobile": {
+    "filters": "Filters",
+    "sort": "Sort",
+    "sort_default": "Updated, newest first",
+    "epics_all": "All"
   }
 }

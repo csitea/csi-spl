@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Bildirilmedi, bunu okuyamıyorlar: {ids}",
     "poke_failed": "{ids} bilgilendirilemedi. Metniniz kaydedildi."
+  },
+  "issues_mobile": {
+    "filters": "Filtreler",
+    "sort": "Sırala",
+    "sort_default": "Güncellenen, en yeni önce",
+    "epics_all": "Tümü"
   }
 }

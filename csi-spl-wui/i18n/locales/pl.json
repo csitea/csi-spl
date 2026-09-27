@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Nie powiadomiono, nie mają dostępu do tego: {ids}",
     "poke_failed": "Nie udało się powiadomić: {ids}. Twój tekst jest zapisany."
+  },
+  "issues_mobile": {
+    "filters": "Filtry",
+    "sort": "Sortuj",
+    "sort_default": "Zaktualizowane, najnowsze najpierw",
+    "epics_all": "Wszystkie"
   }
 }

@@ -19,6 +19,7 @@
     "test:e2e:page-scroll": "node tests/e2e/page-never-scrolls.test.mjs",
     "test:e2e:omnibox-attach": "node tests/e2e/omnibox-attach.test.mjs",
     "test:e2e:issues": "node tests/e2e/issues.test.mjs",
+    "test:e2e:issues-mobile": "node tests/e2e/issues-mobile.test.mjs",
     "test:e2e:users": "node tests/e2e/users-admin.test.mjs",
     "test:e2e:no-x-scroll": "node tests/e2e/no-x-scroll.test.mjs",
     "test:e2e:tenant-switcher": "node tests/e2e/tenant-switcher.test.mjs",

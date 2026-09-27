@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Nav paziņots, viņi to nevar lasīt: {ids}",
     "poke_failed": "Neizdevās paziņot: {ids}. Jūsu teksts ir saglabāts."
+  },
+  "issues_mobile": {
+    "filters": "Filtri",
+    "sort": "Kārtot",
+    "sort_default": "Atjaunināts, jaunākie vispirms",
+    "epics_all": "Visi"
   }
 }

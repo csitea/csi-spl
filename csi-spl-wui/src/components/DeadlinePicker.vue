@@ -270,4 +270,12 @@ onBeforeUnmount(() => {
 .dlp__time { display: flex; align-items: center; gap: 8px; }
 .dlp__time select { min-width: 5.5rem; }
 .dlp__foot { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+/* SPL-992 (epic SPL-988): on a phone every control is a >= 44 px touch target */
+@media (max-width: 820px) {
+  .dlp__text { min-height: var(--tap, 44px); font-size: 1rem; }
+  .dlp__open, .dlp__nav { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .dlp__pop { width: min(340px, calc(100vw - 16px)); }
+  .dlp__day { min-height: 40px; font-size: 0.9375rem; }
+  .dlp__time select, .dlp__foot .btn { min-height: var(--tap, 44px); }
+}
 </style>

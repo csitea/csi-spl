@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "No avisados, no pueden leer esto: {ids}",
     "poke_failed": "No se pudo avisar a {ids}. Tu texto está guardado."
+  },
+  "issues_mobile": {
+    "filters": "Filtros",
+    "sort": "Ordenar",
+    "sort_default": "Actualizados, más recientes primero",
+    "epics_all": "Todos"
   }
 }

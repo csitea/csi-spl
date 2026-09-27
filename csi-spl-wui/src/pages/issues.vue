@@ -6,25 +6,55 @@
   <div ref="pageEl" class="issues-page" data-test="issues-page" :style="detailStyle">
     <div class="issues-list" data-test="issues-list">
       <header class="feed-header issues-head">
+        <!-- SPL-992: on a phone the list is level 2; Back goes to the sections (level 1) -->
+        <MobileBack class="issues-mback" data-test="issues-back" />
         <h2 data-test="issues-heading">{{ epicTitle || t('issues.title') }}</h2>
-        <!-- SPL-978: "just a button with + the google way": a round accent button, the plus only -->
-        <button type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate">
+        <!-- SPL-978: "just a button with + the google way": a round accent button, the plus only.
+             SPL-992: on a phone it floats bottom right (CSS), and hides while an issue is open -->
+        <button v-show="!(phone && form)" type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate">
           <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
       </header>
-      <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
+      <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
+      <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
+           menu) and the epics as a chip strip in place of the sheet's header rows -->
+      <template v-if="phone">
+        <div class="issues-mbar" data-test="issues-mbar">
+          <button type="button" class="btn ghost issues-mbar__btn" data-test="issues-filters-open" :data-active="filtersActive ? 'true' : 'false'" aria-haspopup="dialog" @click="filtersOpen = true">
+            <span>{{ t('issues_mobile.filters') }}</span><i v-if="filtersActive" class="issues-mbar__dot" aria-hidden="true" />
+          </button>
+          <button type="button" class="btn ghost issues-mbar__btn issues-mbar__sort" data-test="issues-sort-open" aria-haspopup="listbox" @click="sortOpen = true">
+            <span class="issues-mbar__sortlabel">{{ t('issues_mobile.sort') }}: {{ sortShown }}</span>
+          </button>
+        </div>
+        <nav v-if="epics.length" class="issues-chips" data-test="issues-epic-chips" :aria-label="t('sidebar.epics')">
+          <button type="button" class="issues-chip" data-test="issues-epic-chip" data-key="" :aria-pressed="epicF ? 'false' : 'true'" @click="pickEpic('')">{{ t('issues_mobile.epics_all') }}</button>
+          <button
+            v-for="e in epics"
+            :key="e.key"
+            type="button"
+            class="issues-chip"
+            data-test="issues-epic-chip"
+            :data-key="e.key"
+            :aria-pressed="epicF === e.key ? 'true' : 'false'"
+            :title="`${e.key} ${e.title}`"
+            @click="pickEpic(e.key)"
+          >{{ e.title }}</button>
+        </nav>
+        <p v-if="saveError && !form" class="issues-error issues-merror" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
+      </template>
       <!-- owner, topic e00da93b: "it should look like a gsheet with columns and a
            table". The list is a table: row 1 the column names, row 2 each
            column's filter (sticky, like a sheet's filter row), then one issue
            per row in the same columns. A header click sorts by that column
            (▲, ▼, then back to Updated newest first). On a phone the table
            scrolls sideways inside its pane. -->
-      <div class="issues-tools" data-test="issues-tools">
+      <div v-if="!phone" class="issues-tools" data-test="issues-tools">
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
         <p v-if="saveError && !form" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
-        <table class="issues-table" data-test="issues-table">
+        <table v-if="!phone" class="issues-table" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
             <tr class="issues-names">
               <th
@@ -196,10 +226,137 @@
               </tr>
           </tbody>
         </table>
+        <!-- SPL-992: the phone's list - one card per issue, a tap opens it full screen -->
+        <ul v-else class="issues-cards" data-test="issues-cards">
+          <li v-if="(loading && !issues.length) || loadError || !rowCount" class="issues-note">
+            <p v-if="loading && !issues.length" class="muted" data-test="issues-loading">{{ t('issues.loading') }}</p>
+            <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
+            <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
+          </li>
+          <li v-for="issue in (rowCount ? flat : [])" :key="issue.key">
+            <button
+              type="button"
+              class="issues-card"
+              data-test="issues-card"
+              :data-key="issue.key"
+              :data-priority="issue.priority"
+              :data-selected="cursorKey === issue.key ? 'true' : 'false'"
+              @click="choose(issue)"
+            >
+              <span class="issues-card__top">
+                <span class="issues-key" data-test="issues-card-key">{{ issue.key }}</span>
+                <span class="issues-card__status" data-test="issues-card-status" :data-status="issue.status">
+                  <IssueGlyph :name="statusIcon(issue.status)" :size="14" :class="'issues-st issues-st--' + issue.status" />
+                  <span class="issues-status-code">{{ statusLabel(issue.status) }}</span>
+                </span>
+                <span class="issues-prio" :class="'issues-prio--' + issue.priority" data-test="issues-card-priority" :aria-label="t('issues.field_priority')">{{ issue.priority }}</span>
+                <time v-if="issue.deadline" class="issues-when issues-card__due" data-test="issues-card-deadline" :datetime="issue.deadline">{{ when(issue.deadline) }}</time>
+              </span>
+              <span class="issues-card__title" data-test="issues-card-title">{{ issue.title }}</span>
+              <span class="issues-card__meta">
+                <span class="issues-card__who" data-test="issues-card-assignee" :data-assignee="issue.assignee">
+                  <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
+                  <HumanName v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" />
+                  <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
+                </span>
+                <span v-if="!epicF && issue.epic" class="issues-pill issues-epic-tag">{{ epicTitleOf(issue.epic) }}</span>
+                <span v-for="id in issue.labels" :key="id" class="issues-pill"><i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
+    <!-- SPL-992: the filter row of the sheet, as a bottom sheet on a phone -->
+    <template v-if="phone && (filtersOpen || sortOpen)">
+      <div class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="filtersOpen = false; sortOpen = false" />
+      <section v-if="filtersOpen" class="issues-sheet" role="dialog" aria-modal="false" :aria-label="t('issues_mobile.filters')" data-test="issues-filter-sheet">
+        <header class="issues-sheet__h">
+          <h3>{{ t('issues_mobile.filters') }}</h3>
+          <button type="button" class="icon-btn issues-sheet__x" data-test="issues-filter-sheet-close" :aria-label="t('common.close')" @click="filtersOpen = false">
+            <UiIcon name="x" :size="20" />
+          </button>
+        </header>
+        <!-- the status filter keeps its hints (topic e00da93b): one tappable row per status -->
+        <div class="issues-sheet__f" role="radiogroup" :aria-label="t('issues.filter_status')" data-test="issues-filter-status-m">
+          <span>{{ t('issues.filter_status') }}</span>
+          <div class="issues-sheet__st">
+            <button type="button" role="radio" class="issues-chip" data-test="issues-filter-status-m-opt" data-value="" :aria-checked="statusF ? 'false' : 'true'" @click="statusF = ''">{{ t('issues.filter_all') }}</button>
+            <button
+              v-for="st in ISSUE_STATUSES"
+              :key="'ms' + st"
+              type="button"
+              role="radio"
+              class="issues-chip"
+              data-test="issues-filter-status-m-opt"
+              :data-value="st"
+              :aria-checked="statusF === st ? 'true' : 'false'"
+              :title="t(statusHintKey(st))"
+              @click="statusF = st"
+            >{{ statusLabel(st) }}</button>
+          </div>
+        </div>
+        <label class="issues-sheet__f">
+          <span>{{ t('issues.filter_priority') }}</span>
+          <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
+            <option value="">{{ t('issues.filter_all') }}</option>
+            <option v-for="n in ISSUE_PRIORITIES" :key="'mp' + n" :value="String(n)">{{ n }}</option>
+          </select>
+        </label>
+        <label class="issues-sheet__f">
+          <span>{{ t('issues.filter_level') }}</span>
+          <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
+            <option value="">{{ t('issues.filter_all') }}</option>
+            <option v-for="n in ISSUE_LEVELS" :key="'ml' + n" :value="String(n)">{{ n }} - {{ t(levelKey(n)) }}</option>
+          </select>
+        </label>
+        <label class="issues-sheet__f">
+          <span>{{ t('issues.filter_assignee') }}</span>
+          <select v-model="assigneeF" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')">
+            <option value="">{{ t('issues.filter_all') }}</option>
+            <option value="me">{{ t('issues.filter_me') }}</option>
+            <option value="none">{{ t('issues.filter_unassigned') }}</option>
+            <option v-for="p in assigneeOptions" :key="'ma' + p.id" :value="p.id">{{ p.label }}</option>
+          </select>
+        </label>
+        <label class="issues-sheet__f">
+          <span>{{ t('issues.filter_label') }}</span>
+          <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
+            <option value="">{{ t('issues.filter_all') }}</option>
+            <option v-for="l in labels" :key="'mlb' + l.id" :value="l.id">{{ l.name }}</option>
+          </select>
+        </label>
+        <div class="issues-sheet__f" role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
+          <span>{{ t('issues.field_deadline') }}</span>
+          <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
+        </div>
+        <div class="issues-sheet__foot">
+          <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
+          <button type="button" class="btn" data-test="issues-filter-sheet-done" @click="filtersOpen = false">{{ t('picker.done') }}</button>
+        </div>
+      </section>
+      <section v-if="sortOpen" class="issues-sheet" role="listbox" :aria-label="t('issues_mobile.sort')" data-test="issues-sort-sheet">
+        <header class="issues-sheet__h">
+          <h3>{{ t('issues_mobile.sort') }}</h3>
+          <button type="button" class="icon-btn issues-sheet__x" :aria-label="t('common.close')" @click="sortOpen = false">
+            <UiIcon name="x" :size="20" />
+          </button>
+        </header>
+        <button
+          v-for="o in sortChoices"
+          :key="o.value"
+          type="button"
+          role="option"
+          class="issues-menu__opt"
+          data-test="issues-sort-opt"
+          :data-value="o.value"
+          :aria-selected="o.value === sortValue ? 'true' : 'false'"
+          @click="pickSort(o.value)"
+        >{{ o.label }}</button>
+      </section>
+    </template>
     <PaneDivider
-      v-if="form"
+      v-if="form && !phone"
       pane="issue"
       :value="detailShown"
       :min="ISSUE_PANE_MIN"
@@ -209,8 +366,10 @@
     />
     <aside v-if="form" class="issues-detail" data-test="issues-detail" :aria-label="t('issues.title')">
       <header class="issues-detail__h">
+        <!-- SPL-992: level 3 on a phone - Back goes to the list, like browser Back and a swipe right -->
+        <MobileBack class="issues-mback" data-test="issues-detail-back" />
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
-        <button type="button" class="icon-btn" data-test="issues-detail-close" :aria-label="t('common.close')" @click="closeDetail">
+        <button v-if="!phone" type="button" class="icon-btn" data-test="issues-detail-close" :aria-label="t('common.close')" @click="closeDetail">
           <UiIcon name="x" :size="18" />
         </button>
       </header>
@@ -252,14 +411,22 @@
           </span>
         </button>
         <!-- owner, topic e0f6f074 (SPL-972): a select box, like the sheet's prio cells -->
-        <label class="issues-prop issues-prop--select">
+        <!-- SPL-992: on a phone prio and level are buttons that open a bottom sheet -->
+        <button v-if="phone" type="button" class="issues-prop" data-test="issues-priority-btn" :data-priority="form.priority" @click="openMenu('priority', detailOrDraft(), $event)">
+          <span>{{ t('issues.field_priority') }}</span> <span class="issues-prio" :class="'issues-prio--' + form.priority">{{ form.priority }}</span>
+        </button>
+        <label v-else class="issues-prop issues-prop--select">
           <span>{{ t('issues.field_priority') }}</span>
           <select class="issues-cell-select" data-test="issues-priority" :aria-label="t('issues.field_priority')" :value="String(form.priority)" @keydown.stop @change="onDetailPriority">
             <option v-for="n in ISSUE_PRIORITIES" :key="'dp' + n" :value="String(n)">{{ n }}</option>
           </select>
         </label>
+        <!-- SPL-992: the sheet's level move (SPL-972), for a phone that has no sheet -->
+        <button v-if="phone && !creating" type="button" class="issues-prop" data-test="issues-level-btn" :data-level="form.level" @click="openMenu('level', detailOrDraft(), $event)">
+          {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
+        </button>
         <!-- SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it, nobody picks it -->
-        <span class="issues-prop issues-prop--fixed" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
+        <span v-else class="issues-prop issues-prop--fixed" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
           {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
         </span>
         <button type="button" class="issues-prop" data-test="issues-assignee" @click="openMenu('assign', detailOrDraft(), $event)">
@@ -369,7 +536,18 @@
         </label>
       </section>
     </aside>
-    <div v-if="menu" class="issues-menu" :class="{ 'issues-menu--status': menu.kind === 'status' }" role="listbox" data-test="issues-menu" :style="menuStyle" @click.stop>
+    <!-- SPL-992: on a phone every picker is a bottom sheet over a scrim -->
+    <div v-if="menu && phone" class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="menu = null" />
+    <div
+      v-if="menu"
+      class="issues-menu"
+      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-sheet': phone }"
+      role="listbox"
+      data-test="issues-menu"
+      :data-kind="menu.kind"
+      :style="phone ? undefined : menuStyle"
+      @click.stop
+    >
       <button
         v-for="(opt, i) in menuOptions"
         :key="opt.value"
@@ -416,6 +594,7 @@ import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -465,6 +644,7 @@ const { t } = useI18n({ useScope: 'global' })
 const { onKeydown: onSubmitKey, hintFor: sk } = useSubmitKey()
 const { mode: clipMode } = useCardClip('thread')
 const route = useRoute()
+const router = useRouter()
 const session = useSessionStore()
 const roster = useRosterStore()
 const people = useHumanNames()
@@ -697,6 +877,37 @@ const form = computed(() => {
   }
 })
 
+/* SPL-992 (epic SPL-988): at <= 820 px the page is the phone's level 2 and
+   the open issue its level 3 - M1's useMobileStack owns levels and history */
+const stack = useMobileStack()
+const phone = computed(() => stack.isMobile.value)
+const filtersOpen = ref(false)
+const sortOpen = ref(false)
+stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
+const filtersActive = computed(() => Boolean(statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
+const sortChoices = computed(() => [
+  { value: ':', label: t('issues_mobile.sort_default') },
+  ...sheetColumns.value.flatMap((c) => [
+    { value: `${c.col}:asc`, label: `${c.name} ▲` },
+    { value: `${c.col}:desc`, label: `${c.name} ▼` },
+  ]),
+])
+const sortValue = computed(() => `${sheetSort.value.col}:${sheetSort.value.dir}`)
+const sortShown = computed(() => sortChoices.value.find((o) => o.value === sortValue.value)?.label || '')
+function pickSort(value: string) {
+  const [sort = '', dir = ''] = value.split(':')
+  sheetSort.value = sortFromQuery({ sort, dir })
+  sortOpen.value = false
+}
+/* an epic chip is the side panel's epic row: ?epic= on the same entry */
+function pickEpic(key: string) {
+  const query: Record<string, string> = {}
+  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
+  if (key) query.epic = key
+  else delete query.epic
+  void router.replace({ query })
+}
+
 async function load() {
   if (!api.mock && session.state !== 'in') {
     issues.value = []
@@ -807,6 +1018,7 @@ const menuOptions = computed(() => {
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
   if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
+  if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: `${n} ${t(levelKey(n))}`, hint }))
   /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
   if (kind === 'move-epic') return epics.value.filter((e) => e.key !== menu.value?.key).map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
   if (kind === 'move-parent') return levelTwoParents(menu.value?.key || '').map((i) => ({ value: i.key, label: `${i.key} ${i.title}`, hint }))
@@ -931,6 +1143,9 @@ function onRowLevel(issue: Issue, ev: Event) {
   const sel = ev.target as HTMLSelectElement
   const want = Number(sel.value)
   sel.value = String(issue.level)
+  moveLevel(issue, want, ev)
+}
+function moveLevel(issue: Issue, want: number, ev?: Event) {
   if (!want || want === issue.level) return
   if (want === 1) { void save(issue.key, { kind: 'feature' }); return }
   if (want === 2 && issue.level === 3 && issue.epic) { void save(issue.key, { parent: issue.epic }); return }
@@ -953,6 +1168,9 @@ async function applyMenu(value: string) {
   /* the row the menu was opened on, not whichever issue the detail shows */
   const issue = issues.value.find((i) => i.key === menu.value?.key) || detail.value
   if (!issue || !issue.key) return
+  /* SPL-992: the phone's level sheet moves like the sheet's level box; a move
+     that needs a parent opens the next sheet */
+  if (kind === 'level') { menu.value = null; moveLevel(issue, Number(value)); return }
   const body: Record<string, unknown> = {}
   if (kind === 'status') body.status = value
   else if (kind === 'priority') body.priority = Number(value)
@@ -1098,6 +1316,7 @@ function onDocKey(ev: KeyboardEvent) {
   const typing = typingTarget(ev.target)
   const menuOpen = Boolean(menu.value)
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return
+  if (key === 'Escape' && (filtersOpen.value || sortOpen.value)) { ev.preventDefault(); filtersOpen.value = false; sortOpen.value = false; return }
   if (key === 'Escape' && (menuOpen || statusOpen.value)) { ev.preventDefault(); menu.value = null; statusOpen.value = false; return }
   if (key === 'Escape' && typing) { (ev.target as HTMLElement).blur(); ev.preventDefault(); return }
   if (key === 'Escape') {
@@ -1654,5 +1873,147 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
     z-index: 20;
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);
   }
+}
+/* SPL-992 (epic SPL-988): phones and small tablets. The page is level 2 of
+   M1's stack: a card list, Filters / Sort / epic chips on top, the + floating
+   bottom right; an open issue is level 3, full screen; every picker is a
+   bottom sheet. Targets are >= 44 px (--tap). Nothing here reaches > 820 px. */
+@media (max-width: 820px) {
+  .issues-head { min-height: var(--tap, 44px); }
+  .issues-mback { flex: 0 0 auto; min-width: var(--tap, 44px); min-height: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; }
+  .issues-fab {
+    position: fixed;
+    inset-inline-end: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 15;
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
+  }
+  .issues-mbar { display: flex; gap: 8px; padding: 0 12px 8px; min-width: 0; }
+  .issues-mbar__btn { min-height: var(--tap, 44px); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  .issues-mbar__sort { flex: 1 1 auto; justify-content: flex-start; }
+  .issues-mbar__sortlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .issues-mbar__dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-accent); }
+  /* the strip scrolls inside itself; the page never scrolls sideways */
+  .issues-chips {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px 8px;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .issues-chip {
+    flex: 0 0 auto;
+    max-width: 14rem;
+    min-height: var(--tap, 44px);
+    padding: 0 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .issues-sheet__st { display: flex; flex-wrap: wrap; gap: 8px; }
+  .issues-chip[aria-pressed="true"], .issues-chip[aria-checked="true"] { background: var(--color-selected); border-color: var(--color-accent); }
+  .issues-merror { padding: 0 12px 8px; }
+  .issues-cards { list-style: none; margin: 0; padding: 0 0 88px; min-width: 0; }
+  .issues-cards .issues-note { padding: 8px 12px; }
+  .issues-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--tap, 44px);
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .issues-card[data-selected="true"] { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
+  .issues-card__top, .issues-card__meta { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; font-size: 0.8125rem; }
+  .issues-card__status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; }
+  .issues-card__due { margin-inline-start: auto; }
+  .issues-card__title { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .issues-card__who { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 60%; overflow: hidden; white-space: nowrap; }
+  .issues-card .issues-prio { padding: 0 4px; }
+  /* level 3: the issue, full screen under the top bar */
+  .issues-detail {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--top-bar-h, 0px);
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    z-index: 20;
+    box-shadow: none;
+    border-inline-start: 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .issues-detail__h { justify-content: flex-start; }
+  .issues-detail__title { min-height: var(--tap, 44px); }
+  .issues-prop, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }
+  .issues-sub-add { min-width: var(--tap, 44px); }
+  /* the sheets: filters, sort and every picker */
+  .issues-scrim { position: fixed; inset: 0; z-index: 38; background: rgb(0 0 0 / .4); }
+  .issues-sheet,
+  .issues-menu.issues-sheet {
+    position: fixed;
+    inset-inline: 0;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    z-index: 39;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 75vh;
+    max-height: 75dvh;
+    overflow: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-bottom: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / .3);
+  }
+  .issues-menu.issues-sheet { gap: 0; }
+  .issues-sheet__h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .issues-sheet__h h3 { margin: 0; font-size: 1rem; }
+  .issues-sheet__x { min-width: var(--tap, 44px); min-height: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; }
+  .issues-sheet__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
+  .issues-sheet__f select {
+    min-height: var(--tap, 44px);
+    width: 100%;
+    background: var(--color-bg-2);
+    color: var(--color-fg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 1rem;
+  }
+  .issues-sheet__foot { display: flex; justify-content: flex-end; gap: 8px; }
+  .issues-sheet__foot .btn { min-height: var(--tap, 44px); }
+  .issues-sheet .issues-menu__opt { min-height: var(--tap, 44px); display: flex; align-items: center; gap: 8px; }
+  .issues-sheet .issues-status-tip { display: inline; position: static; transform: none; border: 0; box-shadow: none; padding: 0; background: none; color: var(--color-muted); white-space: normal; }
+  .issues-menu__add input, .issues-menu__add .btn { min-height: var(--tap, 44px); }
+  .issues-talk textarea { font-size: 1rem; }
 }
 </style>

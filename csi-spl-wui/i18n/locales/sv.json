@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Inte meddelade, de kan inte läsa detta: {ids}",
     "poke_failed": "Kunde inte meddela {ids}. Din text är sparad."
+  },
+  "issues_mobile": {
+    "filters": "Filter",
+    "sort": "Sortera",
+    "sort_default": "Uppdaterade, nyaste först",
+    "epics_all": "Alla"
   }
 }

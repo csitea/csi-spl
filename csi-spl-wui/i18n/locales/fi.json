@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Ei ilmoitettu, he eivät voi lukea tätä: {ids}",
     "poke_failed": "Ilmoitus ei mennyt perille: {ids}. Tekstisi on tallennettu."
+  },
+  "issues_mobile": {
+    "filters": "Suodattimet",
+    "sort": "Järjestä",
+    "sort_default": "Päivitetty, uusin ensin",
+    "epics_all": "Kaikki"
   }
 }

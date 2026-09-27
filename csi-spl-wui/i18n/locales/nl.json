@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Niet ingelicht, zij kunnen dit niet lezen: {ids}",
     "poke_failed": "Kon {ids} niet inlichten. Je tekst is opgeslagen."
+  },
+  "issues_mobile": {
+    "filters": "Filters",
+    "sort": "Sorteren",
+    "sort_default": "Bijgewerkt, nieuwste eerst",
+    "epics_all": "Alle"
   }
 }

@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Neupovedomení, nemôžu to čítať: {ids}",
     "poke_failed": "Nepodarilo sa upovedomiť: {ids}. Váš text je uložený."
+  },
+  "issues_mobile": {
+    "filters": "Filtre",
+    "sort": "Zoradiť",
+    "sort_default": "Aktualizované, najnovšie prvé",
+    "epics_all": "Všetky"
   }
 }

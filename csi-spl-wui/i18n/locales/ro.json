@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Nu au fost anunțați, nu pot citi asta: {ids}",
     "poke_failed": "Nu am putut anunța: {ids}. Textul tău este salvat."
+  },
+  "issues_mobile": {
+    "filters": "Filtre",
+    "sort": "Sortare",
+    "sort_default": "Actualizate, cele mai noi primele",
+    "epics_all": "Toate"
   }
 }

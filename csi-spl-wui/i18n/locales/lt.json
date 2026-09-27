@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Nepranešta, jie negali to skaityti: {ids}",
     "poke_failed": "Nepavyko pranešti: {ids}. Jūsų tekstas išsaugotas."
+  },
+  "issues_mobile": {
+    "filters": "Filtrai",
+    "sort": "Rikiuoti",
+    "sort_default": "Atnaujinta, naujausi pirmi",
+    "epics_all": "Visi"
   }
 }

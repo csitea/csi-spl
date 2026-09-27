@@ -941,5 +941,11 @@
   "mention": {
     "not_told": "Ei teavitatud, nad ei saa seda lugeda: {ids}",
     "poke_failed": "Ei õnnestunud teavitada: {ids}. Sinu tekst on salvestatud."
+  },
+  "issues_mobile": {
+    "filters": "Filtrid",
+    "sort": "Sordi",
+    "sort_default": "Muudetud, uusimad eespool",
+    "epics_all": "Kõik"
   }
 }

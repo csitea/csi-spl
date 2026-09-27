@@ -158,6 +158,25 @@ try {
         await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 })
       }
       ok(`2b ${w}: the FAB opens the new-issue form full screen, Create makes it, Back returns to the list`, true, '')
+
+      /* level 1: Back from the list shows the Issues section's epics; a tap on one opens its list */
+      await p.click('[data-test=issues-back]')
+      await p.waitForSelector('[data-testid=sidebar-epic]', { visible: true, timeout: 5000 }).catch(() => {})
+      const l1 = await p.evaluate(() => {
+        const row = document.querySelector('[data-testid=sidebar-epic]')
+        const r = row?.getBoundingClientRect()
+        const title = row?.querySelector('.epic-row__title')?.getBoundingClientRect()
+        return { level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'), h: r ? Math.round(r.height) : 0, titleW: title ? Math.round(title.width) : 0 }
+      })
+      ok(`2c ${w}: Back from the list is level 1, the epic rows show their titles and are >= 44 px`, l1.level === '1' && l1.h >= 44 && l1.titleW > 40, l1)
+      await p.click('[data-testid=sidebar-epic][data-key="SPL-1"]')
+      await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: 5000 }).catch(() => {})
+      const l2 = await p.evaluate(() => ({
+        level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'),
+        epic: new URL(location.href).searchParams.get('epic'),
+        chip: document.querySelector('[data-test=issues-epic-chip][aria-pressed=true]')?.getAttribute('data-key'),
+      }))
+      ok(`2d ${w}: a tap on an epic opens its card list (level 2, ?epic=, its chip on)`, l2.level === '2' && l2.epic === 'SPL-1' && l2.chip === 'SPL-1', l2)
       const seen = await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
       if (!seen) {
         ok(`3- ${w}: the card list shows`, false, await p.evaluate(() => ({ iw: innerWidth, mq: matchMedia('(max-width: 820px)').matches, table: !!document.querySelector('[data-test=issues-table]'), ul: document.querySelector('[data-test=issues-cards]')?.outerHTML.slice(0, 300) })))

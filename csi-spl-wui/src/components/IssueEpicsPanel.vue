@@ -51,4 +51,9 @@ function epicPct(e: EpicRow) {
 .epic-row--closed { opacity: 0.6; }
 .epic-row__kind { display: inline-block; width: 0.5rem; height: 0.5rem; margin-inline-end: 6px; border-radius: var(--radius-pill); background: #8b5cf6; vertical-align: middle; }
 .epic-row__kind[data-kind="feature"] { background: #14b8a6; }
+/* SPL-992 (epic SPL-988): on a phone this panel is level 1, full width - a
+   row is a 44 px touch target, and a tap opens the epic's list (level 2) */
+@media (max-width: 820px) {
+  .epic-row { min-height: var(--tap, 44px); align-content: center; }
+}
 </style>

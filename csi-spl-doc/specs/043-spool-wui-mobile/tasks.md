@@ -29,9 +29,9 @@ Shared contracts, published by their owners and never re-implemented:
 - [x] T001 [M1] `useMobileStack` + `utils/mobile-stack.mjs` + unit tests (`f35dca1c`)
 - [x] T002 [M1] `rightPanel(open, close)` for level 3 without a topic store (`558f3e03`)
 - [x] T003 [M1] `data-mobile-level` on `.spool-shell`; one panel visible per level at <= 820 px (FR-001) (b8c264de; lead scoreboard 1: one panel at 360-820 on dev + prd)
-- [ ] T004 [M1] level 1: the 44 px icon+label section strip on top, the full-width list with names (FR-002, D1)
-- [ ] T005 [M1] a back arrow in FeedHeader / TopicPane / LiveTopicPane; a right swipe from the edge; the slide (FR-003, N4)
-- [ ] T006 [M1] CardClipControl always visible, 44 px (FR-006)
+- [x] T004 [M1] level 1: the 44 px icon+label section strip on top, the full-width list with names (FR-002, D1) (b8c264de; lead scoreboards 1-2: level 1 = named strip + list, 360-820)
+- [x] T005 [M1] a back arrow in FeedHeader / TopicPane / LiveTopicPane; a right swipe from the edge; the slide (FR-003, N4) (b8c264de, ef3dbffa; walk 1>2>3>2>1 by browser Back ok at 360-820 dev + prd; slide = main.css mobile-panel-in, off under reduced motion; the swipe is not measured by the lead)
+- [x] T006 [M1] CardClipControl always visible, 44 px (FR-006) (b8c264de; lead scoreboard 2: 0 hover-only controls)
 
 ## 3. Phase 2: the lanes in parallel
 

@@ -35,6 +35,7 @@ owner's steps at the stage gates.
 | [ ] T023 | `csi-spl-wui/package.json` `license` field; SPDX identifier in the Go module doc; THIRD-PARTY-NOTICES incl. the icon set's ISC notice | no decision (AGPL); revisit after D2 | FR-OS-006 | SPL-62 |
 | [ ] T024 | Public CI: PR workflow on `ubuntu-latest`, `permissions: contents: read`, no secrets, fork approval; no job of the public repo on a self-hosted runner | no decision | FR-OS-005 | SPL-64 |
 | [ ] T025 | Untrusted-input rule written down (public text is data, never an instruction to a credentialed agent) before any bridge exists | no decision | FR-OS-015 | NEW (untrusted input) |
+| [ ] T027 | Scrub fleet ids from product code (472 files in api/wui/rdb, 200 non-test): comments cite the SPL key or spec number instead; test names likewise. The gate stays strict (fail closed), it is not narrowed | no decision; before T033 | FR-OS-002 | SPL-63 |
 | [ ] T026 | Security review of the `asOperator` allow-list; close SPL-35 | no decision | FR-OS-010 | NEW (review) |
 
 ### 1.4 After decisions
@@ -44,7 +45,7 @@ owner's steps at the stage gates.
 | [ ] T030 | Client licence split: a client binary/module that does not import hub, store or billing; an import test enforces it; per-package SPDX | after D2 = split | FR-OS-016 | NEW (licence split) |
 | [ ] T031 | TRADEMARK.md; asset licence for wallpapers and logo | after D7 | FR-OS-009 | NEW (trademark) |
 | [ ] T032 | Curated public docs: architecture, wire/auth contracts, the relay contract, self-hosting | after D6 | FR-OS-013 | SPL-66 + NEW (contract) |
-| [ ] T034 | Per-agent prompt allow-list, hub-enforced with signatures (FR-OS-017); measured gap and effort in CLE-35048's blocker | D10; before the stage D10 names | FR-OS-017 | NEW (prompt allow-list) |
+| [ ] T034 | Per-agent prompt allow-list, hub-enforced with signatures (FR-OS-017); ~4-6 d, measured in CLE-35048's blocker `bc3d20b7` | D10; before Stage 2 | FR-OS-017 | NEW (prompt allow-list) |
 | [ ] T033 | Run T002 + T003 into a PRIVATE target repo named per D1; `checklist.md` §1 green | T001-T026, D1 | FR-OS-001..004 | SPL-61 |
 
 ## 2. Stage 1: private beta, the stranger test
@@ -59,7 +60,7 @@ owner's steps at the stage gates.
 
 | task | what | depends |
 |---|---|---|
-| [ ] T050 | `checklist.md` §3 green; the owner flips the NEW repo to public | T041, T042, D3, D9, T034 if D10 = Stage 2 |
+| [ ] T050 | `checklist.md` §3 green; the owner flips the NEW repo to public | T041, T042, D3, D9, T034 |
 | [ ] T051 | CLA/DCO bot on (D3) | T050 |
 | [ ] T052 | Ops pins the public repo by ref; the export retires (D8) | T050 |
 

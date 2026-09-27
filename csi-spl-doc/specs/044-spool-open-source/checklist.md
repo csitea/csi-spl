@@ -10,6 +10,7 @@ previous section is all ticked.
 - [ ] `do_oss_export` produced the tree from an allow-list (T002); the list is in the repo
 - [ ] `do_oss_gate` exit 0 on that tree, and its negative control exit 1 (T003)
 - [ ] gitleaks 8.30.1 on the exported tree: 0 leaks
+- [ ] Fleet ids scrubbed from product code (T027)
 - [ ] Exported tree: `grep -rE 'iam\.gserviceaccount\.com|gcp_org_id|(CLE|HUM|AGY|GRK)-[0-9]+|/opt/'` -> 0
 - [ ] Exported tree: no other-org names, no personal names, no owner e-mail (the hygiene sweep + FR-OS-002 classes)
 - [ ] Exported tree: no cnf values, no rendered tfvars, no CLAUDE.md / AGENTS.md / GEMINI.md, no specs (D6)
@@ -27,7 +28,7 @@ previous section is all ticked.
 - [ ] DB tier / search cost review done (T042)
 - [ ] CLA or DCO chosen (D3) and the bot configured, still off
 - [ ] Contribution policy (D9) in CONTRIBUTING; branch protection: maintainers-only merge, required review
-- [ ] Prompt allow-list (FR-OS-017) live, if D10 names Stage 2: a probe from a non-listed identity is refused
+- [ ] Prompt allow-list (FR-OS-017, T034) live on the hub: a probe from a non-listed identity is refused
 
 ## 3. Stage 2: the flip (the owner only)
 

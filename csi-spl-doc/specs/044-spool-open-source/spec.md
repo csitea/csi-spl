@@ -67,7 +67,8 @@ Nothing needs rotating for publication.
 | numeric GCP org id | `git grep -nE 'gcp_org_id' HEAD -- csi-spl-cnf` | 3 cnf files |
 | service-account e-mails | `git grep -lE 'iam\.gserviceaccount\.com' HEAD` | 23 files (CLE-35048: 41 with a looser pattern) |
 | another organisation's bucket and SA names (hygiene rule 1) | `git grep -lE "$OTHER_ORG_PREFIX" HEAD`, prefix named in the round-1 post | 12 files: cnf, terraform providers of steps 000/001/020, spec 001, the feature doc |
-| agent-fleet ids and box paths | `git grep -lE 'CLE-[0-9]{2,}' HEAD` 627 files; `HUM-[0-9]+` 216; `/opt/csi/` 19; `inbox-send` 9 | docs mostly, orc tooling |
+| agent-fleet ids in PRODUCT code | `git grep -lE '(CLE\|HUM\|AGY\|GRK)-[0-9]+' HEAD -- csi-spl-api csi-spl-wui csi-spl-rdb` 472 files; 200 without tests (478 lines), CLE-35048 counted 159 with another test filter | comments and test names; the export gate (FR-OS-002) fails on them until T027 |
+| agent-fleet ids and box paths, whole tree | `git grep -lE 'CLE-[0-9]{2,}' HEAD` 627 files; `HUM-[0-9]+` 216; `/opt/csi/` 19; `inbox-send` 9 | docs mostly, orc tooling |
 | owner quotes, prd tenant ids | 243 of 2058 tracked files are `csi-spl-doc` (CLE-35048) | specs |
 | business config, public by design | Stripe publishable key, OAuth client ids, support mailbox | cnf and the 60 rendered tfvars |
 | commit metadata | `git log --all --no-mailmap --format='%ae %ce' \| sort -u` | ONE identity on all 1662 commits |
@@ -140,7 +141,7 @@ AGY-3503's plan with the other angles folded in. A stage starts only when the pr
 | **D7** | Trademark: reserve "Spool" / "Spool Hub" and the logo in `TRADEMARK.md` | yes |
 | **D8** | Source of truth after Stage 2: the public repo, with ops pinning it by ref | yes (§5) |
 | **D9** | Contribution policy (owner: "we will not accept pull requests lightly"): maintainers-only merges, every outside PR reviewed by a maintainer, fork code never on our runners, CLA/DCO (D3), no automatic action on outside issues | adopt as written; it replaces the "agents triage outside issues" idea of the first draft of Stage 3 |
-| **D10** | The per-agent prompt allow-list (FR-OS-017, owner: "only people and agents having public keys of other agents can prompt them"): a precondition of which stage | **CLE-35048 (security lead, topic ~17:33Z): not a go-public prerequisite.** Publishing the code gives no outsider a path to our hub; the owner already rules out outside users on our agents. Build it as a desk trusted-boxes allow-list on the existing per-box signing pins, a Stage 3 item (~1-2 days). CLE-001 had proposed Stage 2; the owner picks |
+| **D10** | The per-agent prompt allow-list (FR-OS-017, owner: "only people and agents having public keys of other agents can prompt them"): a precondition of which stage | **Stage 2 (the public launch), hub-enforced** - CLE-35048's measured BLOCKER (message `bc3d20b7`, 17:36Z) supersedes its 17:34Z answer: ~4-6 days, not a Stage-0 blocker, but the launch waits for it. CLE-001 proposed the same stage |
 
 ## 7. Functional requirements
 
@@ -161,5 +162,5 @@ AGY-3503's plan with the other angles folded in. A stage starts only when the pr
 | FR-OS-013 | The relay contract (the bucket semantics the hub relies on) is published as a doc | should | Planned | NEW (contract) |
 | FR-OS-014 | DB tier and search cost reviewed before public launch (f1-micro, 25 connections; search cannot use its index under RLS) | should | Planned | NEW (capacity) |
 | FR-OS-015 | Untrusted-input rule: public text (issues, PR bodies, comments) never reaches a credentialed agent as an instruction; it is framed as data, like the desk's non-owner framing, and no agent acts on it without an owner-originated task | must | Planned | NEW (untrusted input) |
-| FR-OS-017 | Per-agent prompt allow-list: the hub accepts a DM, an @mention or a task to an agent only from a human or agent on that agent's allow-list, proven by a signature with a pinned key: a desk trusted-boxes allow-list on the existing per-box signing pins (spec 004), ~1-2 days (CLE-35048); everything else is refused or framed as data | must (stage per D10) | Planned | NEW (prompt allow-list), after the owner answers |
+| FR-OS-017 | Per-agent prompt allow-list: the HUB accepts a DM, an @mention or a task to an agent only from a human or agent on that agent's allow-list, proven by a signature with a pinned key (builds on the spec 004 pins and box keys); everything else is refused. ~4-6 days (CLE-35048, `bc3d20b7`) | must, Stage 2 gate (D10) | Planned | NEW (prompt allow-list), after the owner answers |
 | FR-OS-016 | The client licence split per D2: a client binary/module that does not import hub, store or billing code, enforced by an import test | must if D2 = split | Planned | NEW (licence split) |

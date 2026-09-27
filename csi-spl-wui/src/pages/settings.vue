@@ -2,17 +2,21 @@
      dropdown's Settings entry. A left nav of sections, the selected section on
      the right; each section is its own child route (pages/settings/*.vue), so
      /settings/keys and /fi/settings/keys deep-link. /settings itself redirects
-     to /settings/profile. Below 720px the nav becomes a wrapping row above the
-     content. A settled signed-out session never reaches this screen:
-     the shared redirect replaces it with /login. -->
+     to /settings/profile. A settled signed-out session never reaches this
+     screen: the shared redirect replaces it with /login.
+     SPL-993 (epic SPL-988): at <= 820 px /settings is the LIST of sections
+     (the mobile stack's level 2) and a section opens full width on its own
+     (level 3, registered with useMobileStack.rightPanel), so Back - the top
+     bar's chevron, a right swipe or the browser - returns to the list. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
-      <h2 id="settings-h">{{ t('settings.title') }}</h2>
+      <MobileBack />
+      <h2 id="settings-h">{{ heading }}</h2>
     </header>
     <div class="feed-body settings-page" data-test="settings">
       <p v-if="session.state === 'loading'" class="muted">{{ t('common.loading') }}</p>
-      <div v-else-if="signedIn" class="settings-layout">
+      <div v-else-if="signedIn" class="settings-layout" :class="{ 'settings-layout--list': !active }">
         <nav class="settings-nav" :aria-label="t('settings.nav_label')" data-test="settings-nav">
           <ul>
             <li v-for="s in SETTINGS_SECTIONS" :key="s.id">
@@ -22,7 +26,7 @@
                 :class="{ 'settings-nav__link--active': active === s.id }"
                 :aria-current="active === s.id ? 'page' : undefined"
                 :data-test="'settings-nav-' + s.id"
-              >{{ t(s.label) }}</NuxtLink>
+              >{{ t(s.label) }}<UiIcon v-if="stack.isMobile.value" name="chevron-left" :size="18" class="settings-nav__chev" /></NuxtLink>
             </li>
           </ul>
         </nav>
@@ -36,6 +40,7 @@
 
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { SETTINGS_SECTIONS, settingsSectionOf } from '~/utils/settings-nav.mjs'
 
 const session = useSessionStore()
@@ -44,6 +49,36 @@ const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const active = computed(() => settingsSectionOf(route.path))
+const stack = useMobileStack()
+/* on a phone the open section names the page; the desktop keeps "Settings" */
+const heading = computed(() => {
+  const s = stack.isMobile.value && SETTINGS_SECTIONS.find((x) => x.id === active.value)
+  return s ? t(s.label) : t('settings.title')
+})
+/* a section open on a phone is level 3; Back from a deep link, which has
+   no list entry below it in history, replaces the section with the list.
+   It reads the ROUTER's route: that one has moved when router.afterEach
+   tags the new history entry, the page's useRoute() only later - and a
+   level that rises after the tag is pushed as an extra entry, so browser
+   Back would stay on the section. */
+const router = useRouter()
+stack.rightPanel(
+  () => stack.isMobile.value && settingsSectionOf(router.currentRoute.value.path) !== '',
+  /* close runs inside a popstate whose (same-URL) navigation the router is
+     still finishing, and that navigation swallows a replace started now:
+     replace once it has finished (or after 250 ms when no popstate came) */
+  () => {
+    let done = false
+    const go = () => {
+      if (done) return
+      done = true
+      off()
+      void navigateTo(localePath('/settings'), { replace: true })
+    }
+    const off = router.afterEach(() => { setTimeout(go, 0) })
+    setTimeout(go, 250)
+  },
+)
 </script>
 
 <style scoped>
@@ -75,10 +110,25 @@ const active = computed(() => settingsSectionOf(route.path))
   font-weight: 600;
 }
 .settings-content { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
-@media (max-width: 720px) {
+/* SPL-993: phones and small tablets. /settings is the list, full width, one
+   44 px row per section; an open section hides the list. */
+@media (max-width: 820px) {
   .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .settings-nav ul { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-  .settings-nav__link { border-inline-start: 0; border-bottom: 2px solid transparent; border-radius: var(--radius-sm); padding: 6px 8px; }
-  .settings-nav__link--active { border-bottom-color: var(--focus-ring); background: none; }
+  .settings-layout:not(.settings-layout--list) .settings-nav { display: none; }
+  .settings-layout--list .settings-content { display: none; }
+  .settings-nav ul { gap: 4px; }
+  .settings-nav__link {
+    justify-content: space-between;
+    gap: 8px;
+    min-height: var(--tap, 44px);
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-2);
+  }
+  .settings-nav__chev { flex: none; color: var(--color-muted); transform: scaleX(-1); }
+  .settings-nav__chev:dir(rtl) { transform: none; }
+  .settings-content :deep(input),
+  .settings-content :deep(textarea),
+  .settings-content :deep(select) { font-size: max(16px, 1rem); }
 }
 </style>

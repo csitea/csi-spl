@@ -248,6 +248,11 @@ onMounted(async () => {
 .keys__hint { font-size: 0.8125rem; margin: 0; }
 .keys__active, .keys__upload, .keys__private { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .keys__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; min-width: 0; }
+/* SPL-993: stacked label over value on a phone */
+@media (max-width: 480px) {
+  .keys__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .keys__facts dd + dt { margin-top: 8px; }
+}
 .keys__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .keys__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .keys__pub, .keys__facts code { overflow-wrap: anywhere; word-break: break-all; }

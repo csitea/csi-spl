@@ -82,4 +82,10 @@ const initials = computed(() => userInitials(session.claims))
 .settings__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .settings__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .settings__hint { font-size: 0.8125rem; margin: 10px 0 0; }
+/* SPL-993: a phone stacks each label over its value, so a long e-mail keeps
+   the full width instead of breaking every few characters. */
+@media (max-width: 480px) {
+  .settings__facts { grid-template-columns: minmax(0, 1fr); gap: 0; flex-basis: 100%; }
+  .settings__facts dd + dt { margin-top: 8px; }
+}
 </style>

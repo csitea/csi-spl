@@ -6,6 +6,7 @@
 <template>
   <div class="feed-col" data-test="events-page">
     <header class="feed-header">
+      <MobileBack />
       <h2>{{ t('events.title') }}</h2>
       <span class="events-spacer" />
       <button

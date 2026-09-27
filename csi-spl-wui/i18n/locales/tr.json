@@ -8,6 +8,9 @@
     "copy_failed": "Kopyalama başarısız",
     "cancel": "İptal"
   },
+  "mobile": {
+    "back": "Geri"
+  },
   "nav": {
     "topics": "Konular",
     "lobby": "Lobi",

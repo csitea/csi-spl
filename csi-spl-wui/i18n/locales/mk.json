@@ -8,6 +8,9 @@
     "copy_failed": "Копирањето не успеа",
     "cancel": "Откажи"
   },
+  "mobile": {
+    "back": "Назад"
+  },
   "nav": {
     "topics": "Теми",
     "lobby": "Лоби",

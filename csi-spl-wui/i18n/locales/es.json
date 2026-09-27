@@ -8,6 +8,9 @@
     "copy_failed": "No se pudo copiar",
     "cancel": "Cancelar"
   },
+  "mobile": {
+    "back": "Atrás"
+  },
   "nav": {
     "topics": "Temas",
     "lobby": "Vestíbulo",

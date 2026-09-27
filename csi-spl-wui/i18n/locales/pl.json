@@ -8,6 +8,9 @@
     "copy_failed": "Kopiowanie nie powiodło się",
     "cancel": "Anuluj"
   },
+  "mobile": {
+    "back": "Wstecz"
+  },
   "nav": {
     "topics": "Tematy",
     "lobby": "Lobby",

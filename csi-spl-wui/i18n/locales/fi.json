@@ -8,6 +8,9 @@
     "copy_failed": "Kopiointi epäonnistui",
     "cancel": "Peruuta"
   },
+  "mobile": {
+    "back": "Takaisin"
+  },
   "nav": {
     "topics": "Aiheet",
     "lobby": "Aula",

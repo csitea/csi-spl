@@ -49,10 +49,11 @@ describe('the + control next to the Channels heading', () => {
     assert.match(sidebar, /:title="t\('sidebar\.new_channel_label'\)"/)
   })
 
-  it('survives the 72px rail: the heading text hides, the + does not', () => {
+  it('SPL-989: no 72px rail any more - a phone shows the full-width list, heading and + included', () => {
     const css = src('src/assets/css/main.css')
-    assert.match(css, /\.sidebar h2, \.nav-item span\.label, \.version-stamp \{ display: none; \}/)
-    assert.match(css, /\.sidebar-head \{ justify-content: center;/)
+    assert.doesNotMatch(css, /\.sidebar h2, \.nav-item span\.label, \.version-stamp \{ display: none; \}/)
+    assert.doesNotMatch(css, /\.create-channel[^{]*\{[^}]*display:\s*none/)
+    assert.match(css, /\.spool-shell\[data-mobile-level="1"\] > \.sidebar/)
   })
 
   it('the plus glyph is a path-only lucide stroke, like every other UiIcon', () => {

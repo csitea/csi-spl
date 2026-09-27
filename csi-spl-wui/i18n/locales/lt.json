@@ -8,6 +8,9 @@
     "copy_failed": "Nepavyko nukopijuoti",
     "cancel": "Atšaukti"
   },
+  "mobile": {
+    "back": "Atgal"
+  },
   "nav": {
     "topics": "Temos",
     "lobby": "Fojė",

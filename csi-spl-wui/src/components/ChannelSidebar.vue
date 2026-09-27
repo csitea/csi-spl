@@ -77,6 +77,8 @@
         @keydown="onTabKey"
       >
         <UiIcon :name="item.icon" :size="20" />
+        <!-- SPL-989: the phone's level-1 strip names each section; hidden above 820 px -->
+        <span class="sidebar-tab__label" aria-hidden="true">{{ t(item.labelKey) }}</span>
         <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
     </div>
@@ -741,7 +743,7 @@ onMounted(() => {
     tenantFontObs.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
   }
   if (!view) return
-  tenantWidthMq = view.matchMedia('(max-width: 800px)')
+  tenantWidthMq = view.matchMedia('(max-width: 820px)')
   tenantWidthMq.addEventListener('change', onTenantWidthViewport)
 })
 onBeforeUnmount(() => {
@@ -1240,11 +1242,6 @@ async function onCreate() {
 /* shrinks last, after the id: which row is yours matters more than the tail
    of a long label, and the 72px rail hides both (main.css max-width 800) */
 .self-row__you { font-size: 12px; flex-shrink: 0; }
-/* the 72px rail keeps avatar + dot and drops every word (main.css does the
-   same to .label there); a bare "(you)" beside an avatar says nothing */
-@media (max-width: 800px) {
-  .self-row__you { display: none; }
-}
 /* the heading row: title on the left, the one + on the right */
 .sidebar-head {
   display: flex;
@@ -1361,9 +1358,6 @@ async function onCreate() {
 .nav-row--drag .nav-item { cursor: grabbing; }
 .nav-row--drop { box-shadow: inset 0 2px 0 var(--color-accent); }
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
-@media (max-width: 800px) {
-  .nav-row > .nav-item { padding-inline-end: 28px; }
-}
 /* Compact drop box (CLE-34991): one slim row, a glyph and the box, no
    caption. The select's width is the widest option in its own font, plus
    3px, plus the arrow (set from script, not a fixed px width). max-width
@@ -1434,14 +1428,10 @@ async function onCreate() {
   fill: currentColor;
   color: var(--color-fg);
 }
-@media (max-width: 800px) {
-  .tenant-switcher {
-    max-width: calc(100% - 8px);
-    margin: 4px 4px 0;
-    padding: 0 2px;
-    font-size: 0.6875rem;
-  }
-  .tenant-switcher__icon { display: none; }
+/* SPL-989: the phone's level-1 header row, a 44 px target */
+@media (max-width: 820px) {
+  .tenant-switcher { min-height: var(--tap); }
+  .tenant-switcher__field { min-height: calc(var(--tap) - 8px); }
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
@@ -1501,8 +1491,45 @@ async function onCreate() {
    .version-stamp keeps them readable on every theme */
 .foot-row .vs-ver { font-size: 0.9em; }
 
-@media (max-width: 800px) {
-  .foot-row { flex-direction: column; padding: 6px 4px; }
-  .foot-row .vs-wrap { display: none; }
+/* SPL-989: level 1 on a phone - the icon rail becomes a strip of named
+   sections across the top (44 px+ targets, scrolls sideways inside itself),
+   the chosen section's list takes the full width below it. */
+.sidebar-tab__label { display: none; }
+@media (max-width: 820px) {
+  .sidebar-main { flex-direction: column; }
+  .sidebar-rail {
+    flex-direction: row;
+    width: 100%;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .sidebar-tab {
+    flex: 1 0 auto;
+    width: auto;
+    min-width: 60px;
+    min-height: 52px;
+    aspect-ratio: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 6px;
+    line-height: 1.15;
+    container-type: normal;
+  }
+  .sidebar-tab :deep(svg) { width: 22px; height: 22px; }
+  .sidebar-tab[aria-selected="true"] { background: var(--color-surface-hover); }
+  .sidebar-tab__label { display: block; font-size: 0.6875rem; white-space: nowrap; }
+  /* a sideways drag scrolls the strip; a long press still reorders */
+  .sidebar-tab--movable { touch-action: pan-x; }
+  .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
+  .sidebar-body { padding-top: 4px; }
+  .nav-row > .nav-item { min-height: 48px; }
 }
 </style>

@@ -8,6 +8,9 @@
     "copy_failed": "Neizdevās nokopēt",
     "cancel": "Atcelt"
   },
+  "mobile": {
+    "back": "Atpakaļ"
+  },
   "nav": {
     "topics": "Tēmas",
     "lobby": "Vestibils",

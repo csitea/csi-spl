@@ -6,7 +6,9 @@
      the live socket. Vertical pane dividers are pointer+keyboard resizers.
      022: the persistent top bar (Omnibox, language switcher, user menu) sits
      above the 3-pane shell, which fills the rest of the viewport.
-     CLE-3429: exactly ONE topic section at a time (1..1) — see below. -->
+     CLE-3429: exactly ONE topic section at a time (1..1) — see below.
+     SPL-989: at <= 820 px ONE panel of the three shows (useMobileStack);
+     data-mobile-level is what main.css reads, above 820 px nothing does. -->
 <template>
   <div class="layout">
     <ClientOnly>
@@ -16,8 +18,12 @@
         class="spool-shell"
         style="max-width:100%;min-width:0"
         :style="shellStyle"
+        :data-mobile-level="stack.level.value"
+        :data-mobile-topic="topicPaneOpen ? '1' : undefined"
         @pointerdown.capture="paneFocus.noteEvent"
         @focusin="paneFocus.noteEvent"
+        @touchstart.passive="stack.swipe.onTouchStart"
+        @touchend.passive="stack.swipe.onTouchEnd"
       >
         <ChannelSidebar />
         <PaneDivider
@@ -81,6 +87,7 @@ import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const topic = useTopicStore()
 const livePane = useLiveFeed('pane')
@@ -106,6 +113,14 @@ onUnmounted(() => { offDeleted(); offTopic() })
 /* CLE-3429: the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)
+
+/* SPL-989: the phone stack. Level 3 follows either topic store; Back from it
+   closes whichever is open, exactly as the pane's own Close does. */
+const stack = useMobileStack()
+stack.install({
+  topicOpen: topicPaneOpen,
+  closeTopic: () => { livePane.close(); topic.close() },
+})
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so
    the section the reader opened LAST is the one they see. Without this a stale

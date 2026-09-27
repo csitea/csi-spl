@@ -1,6 +1,7 @@
 <template>
   <div class="feed-col">
     <header class="feed-header">
+      <MobileBack />
       <h2>{{ tr('nav.topics') }}</h2>
       <span class="muted">{{ tr('pages.index.subtitle') }}</span>
     </header>

@@ -7,6 +7,7 @@
      here (the description lives in channel Properties). -->
 <template>
   <header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
+    <MobileBack />
     <span
       v-if="status"
       class="dot"

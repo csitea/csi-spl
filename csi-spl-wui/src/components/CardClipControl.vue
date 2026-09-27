@@ -89,4 +89,9 @@ const name = `card-clip-${useId()}`
   outline: var(--focus-ring-w) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+/* SPL-989: not hover-only (the radio is drawn by its always-visible label);
+   on a phone each segment is a 44 px target */
+@media (max-width: 820px) {
+  .card-clip-ctl__opt { min-width: var(--tap); min-height: var(--tap); justify-content: center; padding: 4px 10px; }
+}
 </style>

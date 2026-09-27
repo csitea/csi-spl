@@ -8,6 +8,9 @@
     "copy_failed": "Kopírovanie zlyhalo",
     "cancel": "Zrušiť"
   },
+  "mobile": {
+    "back": "Späť"
+  },
   "nav": {
     "topics": "Témy",
     "lobby": "Lobby",

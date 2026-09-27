@@ -145,8 +145,10 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
       if (isNavigationFailure(failure, NavigationFailureType.duplicated) && isMobile.value) push(2)
       return
     }
-    const tagged = mobileTaggedLevel(window.history.state)
-    if (tagged !== null) return void applyLevel(tagged)
+    /* an entry we tagged already: a replace (?topic= written) or a popstate,
+       which the popstate listener has applied. Re-applying here would race a
+       topic that opened before its entry was pushed, and close it. */
+    if (mobileTaggedLevel(window.history.state) !== null) return
     const below = level.value
     home.value = false
     tag(level.value, below)

@@ -1,6 +1,7 @@
 <template>
   <div class="feed-col">
     <header class="feed-header">
+      <MobileBack />
       <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <!-- SPL-963: the thread's control, as in the right pane -->
@@ -41,6 +42,7 @@ import { newestFirst } from '~/utils/feed.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { useSidePane } from '~/composables/useSidePane'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 
 const route = useRoute()
@@ -58,6 +60,8 @@ const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
 const topic = useTopicStore()
 const sidePane = useSidePane()
+/* SPL-989: a topic deep link is the phone's level 3; Back steps to the Topics list (level 2) */
+useMobileStack().rightPanel(() => true, () => { void navigateTo(localePath('/'), { replace: true }) })
 const sinceMs = useNowTick(() => Boolean(taskId.value))
 const messages = computed(() => newestFirst(store.newestFirst))
 

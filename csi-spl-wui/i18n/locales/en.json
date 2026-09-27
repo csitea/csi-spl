@@ -8,6 +8,9 @@
     "copy_failed": "Copy failed",
     "cancel": "Cancel"
   },
+  "mobile": {
+    "back": "Back"
+  },
   "nav": {
     "topics": "Topics",
     "lobby": "Lobby",

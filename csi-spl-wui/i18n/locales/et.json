@@ -8,6 +8,9 @@
     "copy_failed": "Kopeerimine ebaõnnestus",
     "cancel": "Loobu"
   },
+  "mobile": {
+    "back": "Tagasi"
+  },
   "nav": {
     "topics": "Teemad",
     "lobby": "Fuajee",

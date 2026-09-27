@@ -15,8 +15,10 @@
          the replies' height control at the right edge; lazy, so the shell's
          initial chunk does not grow. -->
     <header>
+      <!-- SPL-989: on a phone the chevron is Back (level 3 -> 2); the X hides -->
+      <MobileBack />
       <button
-        class="icon-btn"
+        class="icon-btn topic-close"
         type="button"
         data-test="topic-pane-close"
         :aria-label="t('common.close')"

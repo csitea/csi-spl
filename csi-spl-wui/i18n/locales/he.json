@@ -8,6 +8,9 @@
     "copy_failed": "ההעתקה נכשלה",
     "cancel": "ביטול"
   },
+  "mobile": {
+    "back": "חזרה"
+  },
   "nav": {
     "topics": "נושאים",
     "lobby": "לובי",

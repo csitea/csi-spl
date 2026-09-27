@@ -8,6 +8,9 @@
     "copy_failed": "Kopiëren mislukt",
     "cancel": "Annuleren"
   },
+  "mobile": {
+    "back": "Terug"
+  },
   "nav": {
     "topics": "Onderwerpen",
     "lobby": "Lobby",

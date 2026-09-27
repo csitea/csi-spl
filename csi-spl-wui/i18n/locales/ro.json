@@ -8,6 +8,9 @@
     "copy_failed": "Copierea a eșuat",
     "cancel": "Anulează"
   },
+  "mobile": {
+    "back": "Înapoi"
+  },
   "nav": {
     "topics": "Teme",
     "lobby": "Hol",

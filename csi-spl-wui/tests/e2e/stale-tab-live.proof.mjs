@@ -15,7 +15,7 @@
 // silently. It only needs the signed-out /login page: the same bundle runs.
 //
 // Run (waits for the next deploy, up to WAIT_MIN minutes):
-//   BASE_URL=https://e2e.spool-hub.ai node tests/e2e/stale-tab-live.proof.mjs
+//   BASE_URL=https://e2e.<domain> node tests/e2e/stale-tab-live.proof.mjs
 //   BASE_URL=... WAIT_MIN=40 SETTLE_S=330 OUT=/path/result.json node tests/e2e/stale-tab-live.proof.mjs
 import { createRequire } from 'node:module'
 import { writeFileSync } from 'node:fs'

@@ -32,13 +32,18 @@ function reload() { reloadForBuild(state.value.live) }
 .build-bar {
   position: fixed;
   top: calc(var(--top-bar-h) + 0.5rem);
-  left: 50%;
-  transform: translateX(-50%);
+  /* centred by auto margins, not left:50% + translate: that caps the
+     shrink-to-fit width at half the screen and wraps the text on phones */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: fit-content;
   z-index: var(--z-banner);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   max-width: calc(100vw - 2rem);
+  box-sizing: border-box;
   padding: 0.375rem 0.375rem 0.375rem 0.875rem;
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-sm);

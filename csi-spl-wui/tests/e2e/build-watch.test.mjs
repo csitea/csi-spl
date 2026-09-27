@@ -164,6 +164,8 @@ async function run(browser, base, width, touch) {
   if (s.bar) {
     check(`${tag}: the bar sits inside the viewport`, s.bar.x >= 0 && s.bar.r <= s.vw && s.bar.y >= 0 && s.bar.b <= s.vh, { bar: s.bar, vw: s.vw })
     check(`${tag}: no x-scroll`, !s.xscroll)
+    // en fits one line down to 360 px (left:50% + translate wrapped it into 3 at 390)
+    check(`${tag}: the bar is one line (<= 72 px with a 44 px touch button)`, s.bar.h <= 72, s.bar)
     if (touch) check(`${tag}: Reload >= ${TAP} px`, s.btn && s.btn.h >= TAP, s.btn)
   }
   if (!touch) {

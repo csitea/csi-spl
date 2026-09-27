@@ -68,9 +68,14 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
  * 0 while the right topic pane is open and was selected last (the replies
  * click). That message stays in the pane. 1 when the pane is closed, or the
  * reader went back to the middle: the send is a new middle card.
- * @param {{ paneVisible?: boolean, lastPane?: string }} [opts]
+ * SPL-996: a send that goes INTO an existing topic (`replyTaskId`, e.g. an
+ * `in: <title>` with the pane closed) is always 0. It used to go out as 1
+ * under the old task id, so that topic had two openings and the reply was
+ * drawn as a middle card as well as a line of the thread.
+ * @param {{ paneVisible?: boolean, lastPane?: string, replyTaskId?: string }} [opts]
  * @returns {0 | 1}
  */
-export function isParentFlag({ paneVisible = false, lastPane = '' } = {}) {
+export function isParentFlag({ paneVisible = false, lastPane = '', replyTaskId = '' } = {}) {
+  if (replyTaskId) return 0
   return paneVisible && lastPane !== 'middle' ? 0 : 1
 }

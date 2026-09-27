@@ -219,7 +219,7 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
-      - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit, dm-remove, display-name, typed-by, mobile-messages)
+      - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit, dm-remove, display-name, typed-by, mobile-messages, topic-send-target)
         env:
           CI: "1"
         run: |
@@ -293,6 +293,7 @@ jobs:
           pnpm run test:e2e:top-bar-mobile
           pnpm run test:e2e:top-bar-tenant
           pnpm run test:e2e:mobile-messages
+          pnpm run test:e2e:topic-send-target
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.

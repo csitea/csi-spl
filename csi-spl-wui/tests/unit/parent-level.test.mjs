@@ -17,7 +17,7 @@ import { pendingRow } from '../../src/utils/feed.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
 import { bumpTopic } from '../../src/utils/topic-list.mjs'
 import { isParentFlag, omniboxReplyTaskId } from '../../src/utils/omnibox-topic.mjs'
-import { paneOfTarget, paneTakesLine } from '../../src/utils/pane-focus.mjs'
+import { KEY_NAV_MS, eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, paneTakesLine } from '../../src/utils/pane-focus.mjs'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -240,5 +240,56 @@ describe('#lobby follows its channel live', () => {
   })
   it('a level-2 frame admitted that way is still not a middle card', () => {
     assert.deepEqual(channelView([L1, { ...L2, channel: 'lobby' }]).map((r) => r.msg_id), ['l1'])
+  })
+})
+
+/* SPL-996 (prd t1 #spool-hub-mobile, 2026-09-27, n=4): follow-ups typed while
+   a topic was open became new topics. Only the reader's own move picks the
+   middle, and a send into an existing topic is never an opening. */
+describe('SPL-996: a post made while a topic is open goes into it', () => {
+  it('a reply target is always is_parent 0, pane open or closed', () => {
+    assert.equal(isParentFlag({ paneVisible: false, replyTaskId: T }), 0)
+    assert.equal(isParentFlag({ paneVisible: false, lastPane: 'middle', replyTaskId: T }), 0)
+    assert.equal(isParentFlag({ paneVisible: false, replyTaskId: '' }), 1)
+  })
+  it('a pointerdown chooses, unless it is on a scrollbar', () => {
+    assert.equal(eventChoosesPane({ type: 'pointerdown' }), true)
+    assert.equal(eventChoosesPane({ type: 'pointerdown', onScrollbar: true }), false)
+  })
+  it('a focusin the app made is not a choice; one right after a nav key is', () => {
+    assert.equal(eventChoosesPane({ type: 'focusin', keyNavAt: 0, now: 5000 }), false)
+    assert.equal(eventChoosesPane({ type: 'focusin', keyNavAt: 5000, now: 5000 + KEY_NAV_MS + 1 }), false)
+    assert.equal(eventChoosesPane({ type: 'focusin', keyNavAt: 5000, now: 5020 }), true)
+    assert.equal(eventChoosesPane({ type: 'scroll' }), false)
+  })
+  it('typing and Enter in the composer are not navigation; Tab and arrows on a row are', () => {
+    const field = { closest: (s) => (s.includes('textarea') ? {} : null) }
+    const row = { closest: () => null }
+    assert.equal(isKeyNav({ key: 'Enter', target: field }), false)
+    assert.equal(isKeyNav({ key: 'a', target: field }), false)
+    assert.equal(isKeyNav({ key: 'ArrowDown', target: field }), false)
+    assert.equal(isKeyNav({ key: 'Tab', target: field }), true)
+    assert.equal(isKeyNav({ key: 'ArrowDown', target: row }), true)
+    assert.equal(isKeyNav({ key: 'Escape', target: row }), false)
+  })
+  it('the scrollbar is past the client box of a scrolling element', () => {
+    const el = { clientWidth: 300, clientHeight: 500, scrollWidth: 300, scrollHeight: 2000 }
+    assert.equal(onScrollbar({ target: el, offsetX: 305, offsetY: 10 }), true)
+    assert.equal(onScrollbar({ target: el, offsetX: 120, offsetY: 10 }), false)
+    assert.equal(onScrollbar({ target: { ...el, scrollHeight: 500 }, offsetX: 305, offsetY: 10 }), false)
+    assert.equal(onScrollbar({ target: null }), false)
+  })
+  const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
+  const read = (p) => readFileSync(join(SRC, p), 'utf8')
+  it('the shell records navigation keys, and the store gates pointerdown / focusin', () => {
+    assert.match(read('layouts/default.vue'), /document\.addEventListener\('keydown', noteKey, true\)/)
+    assert.match(read('stores/pane-focus.ts'), /if \(chooses\) set\(paneOfTarget\(ev\.target\)\)/)
+  })
+  it('every page passes the reply target to isParentFlag', () => {
+    assert.match(read('pages/channel/[name].vue'), /replyTaskId: topicId \|\| ''/)
+    assert.match(read('pages/dm/[peer].vue'), /replyTaskId: topicId \|\| ''/)
+    assert.match(read('pages/index.vue'), /replyTaskId: target \}\)\)/)
+    assert.match(read('pages/lobby.vue'), /parentBit\(topicId\)/)
+    assert.match(read('pages/lobby.vue'), /parentBit\(replyHere\)/)
   })
 })

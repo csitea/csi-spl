@@ -76,7 +76,6 @@ import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
-import type { SpoolMessage } from '~/types/spool'
 import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
 import { bumpTopic } from '~/utils/topic-list.mjs'
@@ -165,18 +164,18 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   })
   if (target && pane.taskId && target === pane.taskId) {
     const before = pane.messages.length
-    await pane.send(text, files || [], { isParent: isParentFlag({ paneVisible: paneOpen() }) })
+    await pane.send(text, files || [], { isParent: isParentFlag({ paneVisible: paneOpen(), replyTaskId: target }) })
     const last = pane.messages[pane.messages.length - 1]
     if (last && pane.messages.length > before) {
       viewer.topics = bumpTopic(viewer.topics, last as unknown as Record<string, unknown>) as typeof viewer.topics
     }
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() }))
+  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen(), replyTaskId: target }))
   /* A send with no topic is a new topic of this one message, so the row
      has to appear here itself. The socket echo does not count a second time. */
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
-  topicStore.noteBorn(topicStore.open || Boolean(pane.taskId), target, sent as SpoolMessage)
+  /* SPL-996: that row is the new topic's one place; no second card in the right pane */
 }
 useOmniboxTarget({
   placeholder: () => (omniboxReplyTaskId({

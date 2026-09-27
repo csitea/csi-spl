@@ -99,11 +99,13 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     lastPane: paneFocus.last,
   })
   if (reply) topicId = reply
-  const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() }))
+  const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen(), replyTaskId: topicId || '' }))
   if (sent && sent.is_parent === 0 && livePane.taskId && (sent.task_id === livePane.taskId || sent.parent_task_id === livePane.taskId)) {
     livePane.admit([sent as SpoolMessage])
   }
-  topic.noteBorn(topic.open || Boolean(livePane.taskId), topicId, sent as SpoolMessage)
+  /* SPL-996: a new topic is its middle card and nothing else. It used to be
+     drawn a second time at the top of the open right pane (BornTopics), which
+     read as one message that is both an opening and a reply of that topic. */
 }
 
 function replyTarget() {

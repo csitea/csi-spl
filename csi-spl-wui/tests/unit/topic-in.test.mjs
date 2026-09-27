@@ -132,7 +132,7 @@ describe('the box follows the line, not the open pane', () => {
     for (const page of pages.slice(0, 2)) {
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) \}\)\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\), replyTaskId: topicId \|\| '' \}\)\)/)
     }
   })
 
@@ -164,7 +164,7 @@ describe('the box follows the line, not the open pane', () => {
     const s = src('src/pages/lobby.vue')
     assert.match(s, /sendsNewTopic/)
     assert.match(s, /topicId !== here/)
-    assert.match(s, /channel\.send\(text, topicId, files, channelId, parentBit\(\)\)/)
+    assert.match(s, /channel\.send\(text, topicId, files, channelId, parentBit\(topicId\)\)/)
     assert.match(s, /channelId \|\| 'lobby'/)
     /* SPL-985: the room send also names the lobby for the mention poke (K4) */
     assert.match(s, /store\.send\(text, files \|\| \[\], \{ isParent: parentBit\(\), pokeChannel: '' \}\)/)

@@ -205,14 +205,14 @@ async function loadLobbyTopics(pending: ReturnType<typeof api.listMessages>) {
 /* The right pane is closed and the line names no topic: one new topic,
    this message only. An open pane, or `in:` naming the lobby task, still
    posts into the room. `in:` naming some other topic replies there. */
-function parentBit() {
-  return isParentFlag({ paneVisible: lobbyPaneOpen() })
+function parentBit(replyTaskId = '') {
+  return isParentFlag({ paneVisible: lobbyPaneOpen(), replyTaskId })
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const here = String(store.taskId || '')
   if (topicId && topicId !== here) {
-    await channel.send(text, topicId, files, channelId, parentBit())
+    await channel.send(text, topicId, files, channelId, parentBit(topicId))
     return
   }
   const replyHere = omniboxReplyTaskId({
@@ -223,7 +223,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     lastPane: paneFocus.last,
   })
   if (replyHere && pane.taskId && replyHere === pane.taskId) {
-    await pane.send(text, files || [], { isParent: parentBit() })
+    await pane.send(text, files || [], { isParent: parentBit(replyHere) })
     return
   }
   if (sendsNewTopic({ paneOpen: lobbyPaneOpen(), namedTopicId: topicId || '' })) {

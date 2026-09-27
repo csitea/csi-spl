@@ -96,7 +96,12 @@ const live = useLive()
 const { dropEverywhere } = useMessageEdit()
 let offDeleted = () => {}
 let offTopic = () => {}
+/* SPL-996: a focusin chooses a pane only right after the reader's own
+   navigation key (stores/pane-focus.ts); capture, so a handler that stops
+   the key cannot hide it */
+const noteKey = (ev: KeyboardEvent) => paneFocus.noteKey(ev)
 onMounted(() => {
+  document.addEventListener('keydown', noteKey, true)
   offDeleted = live.onDeleted((m) => dropEverywhere(String(m.msg_id || '')))
   /* SPL-983: an archived card leaves the feeds; a deleted topic takes every
      row, and a pane open on one of its tasks has nothing left to show. */
@@ -109,7 +114,7 @@ onMounted(() => {
     if (topic.open && gone.includes(String(topic.parentTaskId || ''))) topic.close()
   })
 })
-onUnmounted(() => { offDeleted(); offTopic() })
+onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keydown', noteKey, true) })
 /* CLE-3429: the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)

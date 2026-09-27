@@ -46,10 +46,15 @@ describe('a new topic pops up at the top of the open right pane', () => {
     }
   })
 
-  it('channel and DM note a born topic only from the Omnibox send', () => {
-    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue']) {
-      const s = src(rel)
-      assert.match(s, /topic\.noteBorn\(topic\.open \|\| Boolean\(livePane\.taskId\), topicId, sent/)
+  /* SPL-996 (prd t1 #spool-hub-mobile, 2026-09-27): on a page whose middle
+     list shows the new topic, a born card in the right pane drew the same
+     message twice - once as an opening, once above the open topic's replies -
+     and it read as a message that is both is_parent 1 and 0. Only /t/<id>,
+     whose middle IS the topic, has no other place to show it. */
+  it('channel, DM and the Topics list draw a new topic once: no born card', () => {
+    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue']) {
+      assert.doesNotMatch(src(rel), /noteBorn\(/, rel)
     }
+    assert.match(src('src/pages/t/[task_id].vue'), /topic\.noteBorn\(/)
   })
 })

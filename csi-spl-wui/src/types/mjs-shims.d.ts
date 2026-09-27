@@ -439,6 +439,10 @@ declare module '~/utils/pane-focus.mjs' {
   export const RIGHT: 'right'
   export function paneOfTarget(el: unknown): '' | 'middle' | 'right'
   export function paneTakesLine(opts?: { paneOpen?: boolean, lastPane?: string }): boolean
+  export const KEY_NAV_MS: number
+  export function eventChoosesPane(ev?: { type?: string, onScrollbar?: boolean, keyNavAt?: number, now?: number }): boolean
+  export function isKeyNav(ev: { key?: string, target?: unknown }): boolean
+  export function onScrollbar(ev: { target?: unknown, offsetX?: number, offsetY?: number }): boolean
 }
 
 declare module '~/utils/typed-by.mjs' {

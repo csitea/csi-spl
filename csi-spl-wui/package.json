@@ -39,6 +39,7 @@
     "test:e2e:top-bar-mobile": "node tests/e2e/top-bar-mobile.test.mjs",
     "test:e2e:top-bar-tenant": "node tests/e2e/top-bar-tenant.test.mjs",
     "test:e2e:mobile-messages": "node tests/e2e/mobile-messages.test.mjs",
+    "test:e2e:topic-send-target": "node tests/e2e/topic-send-target.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

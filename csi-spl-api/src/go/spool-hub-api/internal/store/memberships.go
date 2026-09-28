@@ -54,7 +54,7 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	}
 	var out []Membership
 	for k, m := range s.hum.members {
-		if k[1] == humanID {
+		if k[1] == humanID && !m.disabled {
 			ms := Membership{TenantID: k[0], Role: m.role}
 			if t, ok := s.tenants[k[0]]; ok {
 				ms.DisplayName, ms.SortOrder = t.DisplayName, t.SortOrder
@@ -92,7 +92,7 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 			FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
 			JOIN tenants tn ON tn.tenant_id = m.tenant_id
-			WHERE m.human_id = $1 AND h.disabled_at IS NULL
+			WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
 			ORDER BY tn.sort_order NULLS LAST, m.tenant_id`, humanID)
 		if err != nil {
 			return err

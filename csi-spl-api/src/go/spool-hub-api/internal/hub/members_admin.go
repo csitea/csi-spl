@@ -28,7 +28,10 @@ type memberRow struct {
 	Role        string `json:"role"`
 	Since       string `json:"since"`
 	Disabled    bool   `json:"disabled"`
-	You         bool   `json:"you"`
+	// Suspended: disabled in this tenant only (specs/046, rdb 0074).
+	Suspended bool    `json:"suspended"`
+	LastSeen  *string `json:"last_seen"` // null = never switched into the tenant
+	You       bool    `json:"you"`
 	// Manageable: the caller's role covers this member's (025 §3.4 rule 2)
 	// and it is not the caller. The hub re-checks on every write.
 	Manageable bool `json:"manageable"`
@@ -89,9 +92,14 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 	now := s.o.Now().UTC()
 	out := membersBody{TenantID: t.ID, You: a.HumanID, Members: []memberRow{}, Invites: []inviteRow{}, Roles: []roleRow{}}
 	for _, m := range ms {
-		out.Members = append(out.Members, memberRow{HumanID: m.HumanID, DisplayName: m.DisplayName, Email: m.Email,
-			Role: m.Role, Since: rfc(m.Since), Disabled: m.Disabled, You: m.HumanID == a.HumanID,
-			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role])})
+		row := memberRow{HumanID: m.HumanID, DisplayName: m.DisplayName, Email: m.Email,
+			Role: m.Role, Since: rfc(m.Since), Disabled: m.Disabled, Suspended: m.Suspended, You: m.HumanID == a.HumanID,
+			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role])}
+		if !m.LastSeen.IsZero() {
+			at := rfc(m.LastSeen)
+			row.LastSeen = &at
+		}
+		out.Members = append(out.Members, row)
 	}
 	for _, in := range ins {
 		out.Invites = append(out.Invites, inviteRow{Email: in.Email, Role: in.Role, InvitedBy: in.InvitedBy,
@@ -162,7 +170,14 @@ func (s *Server) mailInvite(r *http.Request, tenant, email string) string {
 	if s.o.InviteMail == nil {
 		return "not_configured"
 	}
-	out, err := s.o.InviteMail(r.Context(), tenant, email, r.Header.Get("X-Locale"))
+	loc := r.Header.Get("X-Locale")
+	if ts, ok := s.o.Store.(store.TenantSettings); ok && loc == "" {
+		// specs/046 §4.5: the tenant's default locale when the admin sent none
+		if cfg, err := ts.TenantConfig(r.Context(), tenant); err == nil {
+			loc = cfg.DefaultLocale
+		}
+	}
+	out, err := s.o.InviteMail(r.Context(), tenant, email, loc)
 	if err != nil {
 		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("member.invite_mail_failed")
 		if out == "" {

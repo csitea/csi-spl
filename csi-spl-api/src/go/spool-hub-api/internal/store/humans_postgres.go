@@ -186,7 +186,7 @@ func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (stri
 		var order []string
 		err := s.queryRowTenant(ctx, tenant, `SELECT m.role, m.channel_order FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
-			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`,
+			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL AND m.disabled_at IS NULL`,
 			[]any{tenant, humanID}, &role, &order)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", nil, ErrNotFound

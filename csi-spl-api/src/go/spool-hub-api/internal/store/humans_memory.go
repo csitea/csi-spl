@@ -25,6 +25,7 @@ type memMember struct {
 	since            time.Time // tenant_memberships.created_at
 	lastActive       time.Time // last_active_at (rdb 0044); zero = never switched into
 	channelOrder     []string  // channel_order (rdb 0073); nil = never set
+	disabled         bool      // disabled_at (rdb 0074): suspended in this tenant
 }
 
 // memIdent is one human_identities row: which human the (provider, subject)
@@ -177,7 +178,7 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 		return "", ErrNotFound
 	}
 	m, ok := s.hum.members[[2]string{tenant, humanID}]
-	if !ok {
+	if !ok || m.disabled {
 		return "", ErrNotFound
 	}
 	return m.role, nil

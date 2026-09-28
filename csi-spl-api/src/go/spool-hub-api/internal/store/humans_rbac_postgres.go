@@ -53,7 +53,8 @@ func ownersLeftTx(ctx context.Context, tx pgx.Tx, tenant, humanID string) (int, 
 	var n int
 	err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
 		JOIN rbac_roles r ON r.role_id = m.role JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND m.human_id <> $2 AND r.tenant_owner AND h.disabled_at IS NULL`,
+		WHERE m.tenant_id = $1 AND m.human_id <> $2 AND r.tenant_owner AND h.disabled_at IS NULL
+		  AND m.disabled_at IS NULL`,
 		tenant, humanID).Scan(&n)
 	return n, err
 }
@@ -73,7 +74,7 @@ func adminsLeftTx(ctx context.Context, tx pgx.Tx, tenant, humanID string) (int, 
 	err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
 		JOIN rbac_role_permissions g ON g.role_id = m.role AND g.permission_id = $3
 		JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND m.human_id <> $2 AND h.disabled_at IS NULL`,
+		WHERE m.tenant_id = $1 AND m.human_id <> $2 AND h.disabled_at IS NULL AND m.disabled_at IS NULL`,
 		tenant, humanID, rbac.MembersInvite).Scan(&n)
 	return n, err
 }

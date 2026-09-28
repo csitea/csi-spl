@@ -266,7 +266,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	s.routeChannelMembers(mux)
 	s.routeMembers(mux)
-	s.routeIssues(mux) // specs/039
+	s.routeTenantSettings(mux) // specs/046
+	s.routeIssues(mux)         // specs/039
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)

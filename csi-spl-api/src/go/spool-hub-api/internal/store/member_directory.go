@@ -21,7 +21,12 @@ type Member struct {
 	Email       string
 	Role        string
 	Since       time.Time // tenant_memberships.created_at
-	Disabled    bool
+	Disabled    bool      // the account (humans.disabled_at), every tenant
+	// Suspended: this membership only (tenant_memberships.disabled_at, rdb
+	// 0074, specs/046).
+	Suspended bool
+	// LastSeen: tenant_memberships.last_active_at; zero = never.
+	LastSeen time.Time
 }
 
 // PendingInvite is one invite nobody has accepted yet (expired ones too:
@@ -57,7 +62,7 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 		if k[0] != tenant {
 			continue
 		}
-		row := Member{HumanID: k[1], Role: m.role, Since: m.since}
+		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive}
 		if hm, ok := s.hum.humans[k[1]]; ok {
 			row.DisplayName, row.Email, row.Disabled = hm.name, hm.email, hm.disabled
 		}
@@ -107,12 +112,16 @@ func (s *Memory) RevokeInvite(_ context.Context, tenant, email string) error {
 func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, error) {
 	out := []Member{}
 	err := s.queryTenant(ctx, tenant, `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), m.role,
-			m.created_at, h.disabled_at IS NOT NULL
+			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
 		WHERE m.tenant_id = $1 ORDER BY m.created_at, m.human_id`, []any{tenant}, func(rows pgx.Rows) error {
 		var m Member
-		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled); err != nil {
+		var seen *time.Time
+		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen); err != nil {
 			return err
+		}
+		if seen != nil {
+			m.LastSeen = seen.UTC()
 		}
 		out = append(out, m)
 		return nil

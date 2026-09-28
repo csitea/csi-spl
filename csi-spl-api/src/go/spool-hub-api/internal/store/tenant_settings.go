@@ -1,0 +1,226 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/jackc/pgx/v5"
+)
+
+// The Tenant settings area (SPL-1037, specs/046, rdb 0074): the tenant's
+// display name and default locale, and the per-tenant suspension of one
+// member. The responder list is Fallbacks (rdb 0067).
+
+// TenantConfig is what Tenant settings -> General shows.
+type TenantConfig struct {
+	DisplayName   string // "" = unset (the WUI shows the tenant id)
+	DefaultLocale string // "" = unset (the hub default)
+}
+
+// TenantConfigPatch changes the fields that are not nil; a pointer to ""
+// clears one.
+type TenantConfigPatch struct {
+	DisplayName   *string
+	DefaultLocale *string
+}
+
+// MaxTenantDisplayName is the rdb 0041 CHECK on tenants.display_name.
+const MaxTenantDisplayName = 200
+
+// TenantSettings is implemented by Memory and Postgres.
+type TenantSettings interface {
+	// TenantConfig reads the tenant's row; ErrNotFound when none.
+	TenantConfig(ctx context.Context, tenant string) (TenantConfig, error)
+	// SetTenantConfig applies p in one statement; ErrNotFound when no row.
+	SetTenantConfig(ctx context.Context, tenant string, p TenantConfigPatch) error
+	// SetMemberDisabled suspends (off=true) or restores one membership. A
+	// suspended member holds no role in the tenant (MemberRole answers
+	// ErrNotFound). The last-owner and last-admin guards apply to a
+	// suspension as to a removal. ErrNotFound: not a member.
+	SetMemberDisabled(ctx context.Context, tenant, humanID string, off bool, now time.Time) error
+	// MemberState is the membership's role and whether it is suspended -
+	// unlike MemberRole it also finds a suspended one, which an admin must
+	// still be able to restore or remove. ErrNotFound: not a member.
+	MemberState(ctx context.Context, tenant, humanID string) (role string, suspended bool, err error)
+}
+
+var (
+	_ TenantSettings = (*Memory)(nil)
+	_ TenantSettings = (*Postgres)(nil)
+)
+
+// ErrBadTenantConfig: a display name or locale outside the rdb checks.
+var ErrBadTenantConfig = errors.New("store: bad tenant setting")
+
+func normalizeTenantConfig(p *TenantConfigPatch) error {
+	if p.DisplayName != nil {
+		n := strings.TrimSpace(*p.DisplayName)
+		if len([]rune(n)) > MaxTenantDisplayName || strings.ContainsAny(n, "\r\n") {
+			return ErrBadTenantConfig
+		}
+		p.DisplayName = &n
+	}
+	if p.DefaultLocale != nil {
+		l := strings.TrimSpace(*p.DefaultLocale)
+		if checkLocale(l) != nil {
+			return ErrBadTenantConfig
+		}
+		p.DefaultLocale = &l
+	}
+	return nil
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// ---- Memory -----------------------------------------------------------------
+
+func (s *Memory) TenantConfig(_ context.Context, tenant string) (TenantConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[tenant]
+	if !ok {
+		return TenantConfig{}, ErrNotFound
+	}
+	return TenantConfig{DisplayName: t.DisplayName, DefaultLocale: s.tenantLocale[tenant]}, nil
+}
+
+func (s *Memory) SetTenantConfig(_ context.Context, tenant string, p TenantConfigPatch) error {
+	if err := normalizeTenantConfig(&p); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[tenant]
+	if !ok {
+		return ErrNotFound
+	}
+	if p.DisplayName != nil {
+		t.DisplayName = *p.DisplayName
+		s.tenants[tenant] = t
+	}
+	if p.DefaultLocale != nil {
+		if s.tenantLocale == nil {
+			s.tenantLocale = map[string]string{}
+		}
+		s.tenantLocale[tenant] = *p.DefaultLocale
+	}
+	return nil
+}
+
+func (s *Memory) SetMemberDisabled(_ context.Context, tenant, humanID string, off bool, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	k := [2]string{tenant, humanID}
+	m, ok := s.hum.members[k]
+	if !ok {
+		return ErrNotFound
+	}
+	if off && !m.disabled {
+		roles := memRoles()
+		if roles[m.role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
+			return ErrLastOwner
+		}
+		if grants(roles[m.role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
+			return ErrLastAdmin
+		}
+	}
+	m.disabled = off
+	s.hum.members[k] = m
+	return nil
+}
+
+func (s *Memory) MemberState(_ context.Context, tenant, humanID string) (string, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	m, ok := s.hum.members[[2]string{tenant, humanID}]
+	if !ok {
+		return "", false, ErrNotFound
+	}
+	return m.role, m.disabled, nil
+}
+
+// ---- Postgres ---------------------------------------------------------------
+
+func (s *Postgres) MemberState(ctx context.Context, tenant, humanID string) (string, bool, error) {
+	var role string
+	var off bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT role, disabled_at IS NOT NULL FROM tenant_memberships
+		WHERE tenant_id = $1 AND human_id = $2`, []any{tenant, humanID}, &role, &off)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, ErrNotFound
+	}
+	return role, off, err
+}
+
+func (s *Postgres) TenantConfig(ctx context.Context, tenant string) (TenantConfig, error) {
+	var c TenantConfig
+	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, '')
+		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TenantConfig{}, ErrNotFound
+	}
+	return c, err
+}
+
+func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantConfigPatch) error {
+	if err := normalizeTenantConfig(&p); err != nil {
+		return err
+	}
+	var name, loc any
+	if p.DisplayName != nil {
+		name = nullIfEmpty(*p.DisplayName)
+	}
+	if p.DefaultLocale != nil {
+		loc = nullIfEmpty(*p.DefaultLocale)
+	}
+	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET
+		display_name   = CASE WHEN $2 THEN $3::text ELSE display_name END,
+		default_locale = CASE WHEN $4 THEN $5::text ELSE default_locale END
+		WHERE tenant_id = $1`, tenant, p.DisplayName != nil, name, p.DefaultLocale != nil, loc)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string, off bool, now time.Time) error {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
+		if err != nil {
+			return err
+		}
+		if off {
+			if owner {
+				if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
+					return err
+				} else if n == 0 {
+					return ErrLastOwner
+				}
+			}
+			if err := lastAdminTx(ctx, tx, tenant, humanID, cur, ""); err != nil {
+				return err
+			}
+		}
+		var at any
+		if off {
+			at = now.UTC()
+		}
+		_, err = tx.Exec(ctx, `UPDATE tenant_memberships
+			SET disabled_at = CASE WHEN $3::timestamptz IS NULL THEN NULL ELSE COALESCE(disabled_at, $3) END
+			WHERE tenant_id = $1 AND human_id = $2`, tenant, humanID, at)
+		return err
+	})
+}

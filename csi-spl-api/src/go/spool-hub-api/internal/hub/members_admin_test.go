@@ -46,7 +46,7 @@ func TestMembersAdminAPI(t *testing.T) {
 
 	revoke := "/v1/members/invites?email=" + url.QueryEscape(pending)
 	for _, role := range rbac.RoleIDs {
-		if role == rbac.Admin {
+		if role == rbac.Admin || role == rbac.BizOwner { // specs/046: both manage members
 			continue
 		}
 		as := who[role]
@@ -119,7 +119,6 @@ func TestMembersAdminAPI(t *testing.T) {
 	}{
 		{"admin re-roles the victim", http.MethodPut, "/v1/members/" + victim + "/role", map[string]string{"role": rbac.Developer, "from_role": rbac.Tester}, 200, ""},
 		{"admin cannot remove itself", http.MethodDelete, "/v1/members/" + admin, nil, 409, "self"},
-		{"the last admin cannot step down", http.MethodPut, "/v1/members/" + admin + "/role", map[string]string{"role": rbac.Developer}, 409, "last_admin"},
 		{"admin removes the victim", http.MethodDelete, "/v1/members/" + victim, nil, 204, ""},
 		{"removed twice", http.MethodDelete, "/v1/members/" + victim, nil, 404, "not_found"},
 		{"revoke needs an address", http.MethodDelete, "/v1/members/invites?email=nope", nil, 400, "bad_email"},
@@ -151,5 +150,10 @@ func TestMembersAdminAPI(t *testing.T) {
 	a2 := seat(t, e2, t2, rbac.Admin)
 	if code, body := call(t, e2, t2, http.MethodPost, "/v1/members/invites", a2, map[string]string{"email": "x@example.com"}); code != http.StatusCreated || body["mail"] != "not_configured" {
 		t.Fatalf("no mailer: %d %v", code, body)
+	}
+	// The last member who can manage members (no biz_owner here, specs/046)
+	// cannot step down.
+	if code, body := call(t, e2, t2, http.MethodPut, "/v1/members/"+a2+"/role", a2, map[string]string{"role": rbac.Developer}); code != http.StatusConflict || body["error"] != "last_admin" {
+		t.Fatalf("the last admin steps down: %d %v, want 409 last_admin", code, body)
 	}
 }

@@ -45,7 +45,7 @@ func (s *Memory) TenantRoles(context.Context, string) (map[string]rbac.Role, err
 func (s *Memory) memOwnersLeft(tenant, except string) int {
 	roles, n := memRoles(), 0
 	for k, m := range s.hum.members {
-		if k[0] != tenant || k[1] == except || !roles[m.role].TenantOwner {
+		if k[0] != tenant || k[1] == except || m.disabled || !roles[m.role].TenantOwner {
 			continue
 		}
 		if hm, ok := s.hum.humans[k[1]]; ok && !hm.disabled {
@@ -60,7 +60,7 @@ func (s *Memory) memOwnersLeft(tenant, except string) int {
 func (s *Memory) memAdminsLeft(tenant, except string) int {
 	roles, n := memRoles(), 0
 	for k, m := range s.hum.members {
-		if k[0] != tenant || k[1] == except || !grants(roles[m.role], rbac.MembersInvite) {
+		if k[0] != tenant || k[1] == except || m.disabled || !grants(roles[m.role], rbac.MembersInvite) {
 			continue
 		}
 		if hm, ok := s.hum.humans[k[1]]; ok && !hm.disabled {

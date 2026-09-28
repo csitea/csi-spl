@@ -58,8 +58,8 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-1 {
-		t.Fatalf("biz_owner must be the one tenant owner with every permission but members.invite: %+v", roles[BizOwner])
+	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions) {
+		t.Fatalf("biz_owner must be the one tenant owner with every permission: %+v", roles[BizOwner])
 	}
 	for _, id := range RoleIDs {
 		if _, ok := roles[id]; !ok {
@@ -67,8 +67,8 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 	}
 	for _, r := range roles {
-		if r.ID != Admin && has(r.ID, MembersInvite) {
-			t.Errorf("%s holds members.invite: only admin may (owner 2026-09-25)", r.ID)
+		if r.ID != Admin && r.ID != BizOwner && has(r.ID, MembersInvite) {
+			t.Errorf("%s holds members.invite: only admin and biz_owner may (specs/046)", r.ID)
 		}
 	}
 	for _, id := range []string{BizCustomer, RegularUser} {

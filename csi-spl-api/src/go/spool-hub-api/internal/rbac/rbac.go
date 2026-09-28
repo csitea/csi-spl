@@ -74,12 +74,12 @@ var Permissions = []PermissionDoc{
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039). members.invite is the admin's ONLY (owner 2026-09-25: "so only
-// the admin will be able to add users to the tenant"): biz_owner holds every
-// permission but that one.
+// 0029, 0039, 0074). biz_owner holds every permission: rdb 0039 had made
+// members.invite the admin's only, and 0074 returns it (owner 2026-09-28,
+// specs/046: "the admins and the biz_owners of the tenant can CRUD users").
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
+		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
 	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
 	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead)},

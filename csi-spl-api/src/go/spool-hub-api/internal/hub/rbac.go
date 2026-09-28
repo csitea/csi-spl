@@ -173,7 +173,7 @@ func (s *Server) targetRole(w http.ResponseWriter, r *http.Request, h store.Huma
 		writeErr(w, http.StatusNotFound, "not_found", "no such member")
 		return "", "", false
 	}
-	cur, err := h.MemberRole(r.Context(), target, t.ID)
+	cur, err := s.memberRoleAny(r.Context(), h, t.ID, target)
 	if errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such member")
 		return "", "", false
@@ -322,7 +322,7 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
-		h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+		h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", "600")
 	}

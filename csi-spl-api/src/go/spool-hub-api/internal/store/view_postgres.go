@@ -291,25 +291,9 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 			`+order+`
 			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
 		func(rows pgx.Rows) error {
-			v := ViewMsg{Deliveries: []ViewDelivery{}}
-			var editedBy, typedBy, kindSetBy, mvBy, mvCh, mvTask, ch, task, parent *string
-			var editedAt, kindSetAt, mvAt *time.Time
-			var kind string
-			if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy,
-				&kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &task, &parent); err != nil {
+			v, err := scanViewMsg(rows)
+			if err != nil {
 				return err
-			}
-			scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, task, parent)
-			v.TypedBy = deref(typedBy)
-			if kindSetAt != nil { // SPL-952: an override only once someone changed it
-				v.Kind, v.KindSetAt, v.KindSetBy = kind, *kindSetAt, deref(kindSetBy)
-			}
-			// The register probe is paid only by an edited row: an
-			// unedited one (the overwhelming majority) short-circuits on
-			// the NULL and costs nothing.
-			v.EditedBy = deref(editedBy)
-			if editedAt != nil {
-				v.EditedAt = *editedAt
 			}
 			idx[v.MsgID] = len(out)
 			ids = append(ids, v.MsgID)
@@ -339,6 +323,32 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 		return nil, err
 	}
 	return out, nil
+}
+
+// scanViewMsg reads one view row: msg_id, received_at, env, edited_at,
+// edited_by, the revision, is_parent, typed_by, the kind override and
+// moveCols, after any lead columns (the batch's task_id). The register probe
+// behind the revision is paid only by an edited row: an unedited one (the
+// overwhelming majority) short-circuits on the NULL and costs nothing.
+func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
+	v := ViewMsg{Deliveries: []ViewDelivery{}}
+	var editedBy, typedBy, kindSetBy, mvBy, mvCh, mvTask, ch, task, parent *string
+	var editedAt, kindSetAt, mvAt *time.Time
+	var kind string
+	dest := append(lead, &v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy,
+		&kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &task, &parent)
+	if err := rows.Scan(dest...); err != nil {
+		return v, err
+	}
+	scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, task, parent)
+	v.TypedBy, v.EditedBy = deref(typedBy), deref(editedBy)
+	if kindSetAt != nil { // SPL-952: an override only once someone changed it
+		v.Kind, v.KindSetAt, v.KindSetBy = kind, *kindSetAt, deref(kindSetBy)
+	}
+	if editedAt != nil {
+		v.EditedAt = *editedAt
+	}
+	return v, nil
 }
 
 func (s *Postgres) ViewChannels(ctx context.Context, tenant string, now time.Time) ([]ChannelRow, error) {

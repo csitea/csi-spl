@@ -81,21 +81,9 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 		ORDER BY t.n, m.received_at DESC, m.msg_id::text DESC`, args,
 		func(rows pgx.Rows) error {
 			var task string
-			v := ViewMsg{Deliveries: []ViewDelivery{}}
-			var editedBy, typedBy, kindSetBy, mvBy, mvCh, mvTask, ch, mTask, parent *string
-			var editedAt, kindSetAt, mvAt *time.Time
-			var kind string
-			if err := rows.Scan(&task, &v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy,
-				&kind, &kindSetAt, &kindSetBy, &mvAt, &mvBy, &mvCh, &mvTask, &ch, &mTask, &parent); err != nil {
+			v, err := scanViewMsg(rows, &task)
+			if err != nil {
 				return err
-			}
-			scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, mTask, parent)
-			v.TypedBy, v.EditedBy = deref(typedBy), deref(editedBy)
-			if kindSetAt != nil { // SPL-952: an override only once someone changed it
-				v.Kind, v.KindSetAt, v.KindSetBy = kind, *kindSetAt, deref(kindSetBy)
-			}
-			if editedAt != nil {
-				v.EditedAt = *editedAt
 			}
 			msgs[task] = append(msgs[task], v)
 			ids = append(ids, v.MsgID)

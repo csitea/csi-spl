@@ -19,7 +19,12 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 		h := s.(Humans)
 		t.Run(name, func(t *testing.T) {
 			tid := newTenant(t, s)
-			alice := Identity{Provider: "google", Subject: uid("sub-"), Email: "Alice@Example.com", Name: "FirstName LastName"}
+			// Per-run addresses: a verified address links identities across
+			// tenants (CLE-3451), so a fixed one would meet the previous run's
+			// (disabled) human on a shared test database.
+			tag := uid("")
+			mail := func(local string) string { return local + "-" + tag + "@example.com" }
+			alice := Identity{Provider: "google", Subject: uid("sub-"), Email: "Alice-" + tag + "@Example.com", Name: "FirstName LastName"}
 
 			// No tenant: registered, not a member of anything.
 			a, err := h.Admit(ctx, alice, "", AdmitPolicy{}, now)
@@ -46,21 +51,21 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 
 			// A second human, bootstrap on: refused (tenant has a member), and
 			// the refusal writes nothing: a later admit mints a NEW id only then.
-			bob := Identity{Provider: "facebook", Subject: uid("fb-"), Email: "bob@example.com"}
+			bob := Identity{Provider: "facebook", Subject: uid("fb-"), Email: mail("bob")}
 			if _, err := h.Admit(ctx, bob, tid, boot, now); !errors.Is(err, ErrNotAdmitted) {
 				t.Fatalf("second human without invite: %v", err)
 			}
 			// Invite for another address does not admit bob; an expired one neither.
-			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: "other@example.com", InvitedBy: a, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: mail("other"), InvitedBy: a, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
 				t.Fatal(err)
 			}
-			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: "BOB@example.com", InvitedBy: a, ExpiresAt: now.Add(-time.Second)}, now); err != nil {
+			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: strings.ToUpper("bob-"+tag) + "@example.com", InvitedBy: a, ExpiresAt: now.Add(-time.Second)}, now); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := h.Admit(ctx, bob, tid, boot, now); !errors.Is(err, ErrNotAdmitted) {
 				t.Fatalf("expired invite admitted: %v", err)
 			}
-			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: "bob@example.com", InvitedBy: a, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: mail("bob"), InvitedBy: a, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
 				t.Fatal(err)
 			}
 			b, err := h.Admit(ctx, bob, tid, AdmitPolicy{}, now)
@@ -74,13 +79,13 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 			// not a second human - so it is admitted as the member he already
 			// is, and the spent invite is not touched. Before the fix this
 			// minted a second, unlinked human and ended 403 not_allowed.
-			bob2 := Identity{Provider: "password", Subject: "bob@example.com", Email: "bob@example.com"}
+			bob2 := Identity{Provider: "password", Subject: mail("bob"), Email: mail("bob")}
 			if got, err := h.Admit(ctx, bob2, tid, AdmitPolicy{}, now); err != nil || got != b {
 				t.Fatalf("password identity for bob's address: %q %v, want %q", got, err, b)
 			}
 			// The invite is single use: a DIFFERENT person, whose address no
 			// live invite names, is still refused (bootstrap is spent too).
-			carol := Identity{Provider: "google", Subject: uid("sub-"), Email: "carol@example.com"}
+			carol := Identity{Provider: "google", Subject: uid("sub-"), Email: mail("carol")}
 			if _, err := h.Admit(ctx, carol, tid, boot, now); !errors.Is(err, ErrNotAdmitted) {
 				t.Fatalf("uninvited third human: %v", err)
 			}

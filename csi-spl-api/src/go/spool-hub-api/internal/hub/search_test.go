@@ -258,7 +258,7 @@ func TestSearchTenantsAndEvents(t *testing.T) {
 		t.Skip("store has no human events")
 	}
 	now := time.Now()
-	if _, err := he.AddHumanEvents(ctx, reader, []store.HumanEvent{{Code: "upload_failed", Message: "boom while uploading", Path: "/v1/files", Status: 500}}, now); err != nil {
+	if _, err := he.AddHumanEvents(ctx, reader, []store.HumanEvent{{Code: "upload_failed", Message: "boom " + mine + " while uploading", Path: "/v1/files", Status: 500}}, now); err != nil {
 		t.Fatal(err)
 	}
 	// CONTROL: another human's event must never surface
@@ -271,7 +271,7 @@ func TestSearchTenantsAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := he.AddHumanEvents(ctx, eve, []store.HumanEvent{{Code: "boom_eve", Message: "boom of eve"}}, now); err != nil {
+	if _, err := he.AddHumanEvents(ctx, eve, []store.HumanEvent{{Code: "boom_eve", Message: "boom of eve " + mine}}, now); err != nil {
 		t.Fatal(err)
 	}
 	get := func(q string) map[string]struct {
@@ -289,12 +289,14 @@ func TestSearchTenantsAndEvents(t *testing.T) {
 		}
 		return out.Groups
 	}
-	g := get("type:event boom")
+	// The reader is the rig's one fixed person, so its log keeps earlier
+	// runs' events on a shared test database: this run's carry its tenant.
+	g := get("type:event boom " + mine)
 	if ev := g["events"].Results; len(ev) != 1 || ev[0]["code"] != "upload_failed" {
 		t.Fatalf("own event only: %+v", g["events"])
 	}
 	// prefix works on the new sections too
-	if ev := get("type:event uploa*")["events"].Results; len(ev) != 1 {
+	if ev := get("type:event uploa* " + mine)["events"].Results; len(ev) != 1 {
 		t.Fatalf("uploa*: %+v", ev)
 	}
 	// the reader's memberships (a shared test DB may hold several); the

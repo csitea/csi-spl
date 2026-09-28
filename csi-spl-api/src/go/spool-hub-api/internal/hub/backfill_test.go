@@ -140,9 +140,12 @@ func TestChannelInviteBackfillsEarlierPosts(t *testing.T) {
 		t.Fatalf("GRK-36 was never invited, reads %d", n)
 	}
 	bf := e.st.(store.Backfills)
-	if p, _ := bf.PendingBackfills(ctx, tid, "box-desk"); len(p) != 0 {
-		t.Fatalf("seats still pending after the back-fill: %+v", p)
-	}
+	// stamped after the end frame the pokes come from (the same race as
+	// TestChannelBackfillOnHelloAndOldClient, 38fa3314): wait for it
+	eventually(t, "seats stamped after the back-fill", func() bool {
+		p, _ := bf.PendingBackfills(ctx, tid, "box-desk")
+		return len(p) == 0
+	})
 
 	// Idempotent: a re-invite neither re-delivers nor re-pokes.
 	if code, _ := call(t, e, tid, http.MethodPost, "/v1/channels/mobile/agents", human,

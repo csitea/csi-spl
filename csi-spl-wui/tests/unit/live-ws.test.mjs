@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { backoffMs, cleanAs, createLiveClient, messageFromFrame, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
+import { backoffMs, cleanAs, createLiveClient, messageFromFrame, reconnectDelayMs, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
 
 function fakeWs() {
   const sockets = []
@@ -139,7 +139,7 @@ describe('live-ws client', () => {
   it('reconnects with backoff and re-subscribes; close() stops it', () => {
     const { FakeWS, sockets } = fakeWs()
     const t = manualTimers()
-    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer })
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, random: () => 1 })
     c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
     c.subscribe('T1')
     sockets[0].close()
@@ -258,5 +258,23 @@ describe('live-ws H4: channel subscription (wui-live-ws 0.4 §3.1)', () => {
     assert.equal(got[0].cursor, 'cur-R')
     assert.equal(c.lastCursor('R'), 'cur-R')
     assert.equal(messageFromFrame({ channel: 'lobby', env: { channel: '', msg: {} } }).channel, 'lobby')
+  })
+})
+
+describe('live-ws reconnect cost (CLE-35076, perf lane P3)', () => {
+  it('reconnect waits are equal-jittered: half of the backoff fixed, half random', () => {
+    assert.equal(reconnectDelayMs(0, () => 0), 250)
+    assert.equal(reconnectDelayMs(0, () => 1), 500)
+    assert.equal(reconnectDelayMs(3, () => 0.5), 3000)
+    assert.equal(reconnectDelayMs(20, () => 0), 15000)
+    assert.equal(reconnectDelayMs(20, () => 1), 30000)
+  })
+
+  it('100 tabs dropped by one deploy no longer redial in the same instant', () => {
+    let seed = 7
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    const first = Array.from({ length: 100 }, () => reconnectDelayMs(0, rnd))
+    assert.ok(Math.min(...first) >= 250 && Math.max(...first) <= 500)
+    assert.ok(new Set(first).size > 50, 'spread over the window, not one instant')
   })
 })

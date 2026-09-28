@@ -86,6 +86,17 @@ export function backoffMs(attempt, { base = 500, cap = 30000 } = {}) {
   return Math.min(cap, base * 2 ** Math.max(0, attempt))
 }
 
+/**
+ * The wait before reconnect `attempt`: "equal jitter", half of backoffMs fixed
+ * and half random (the box client's hubclient/flush.go rule). Every hub deploy
+ * drops every browser socket at the same instant; without jitter they all
+ * redialled the new revision in the same 500 ms, then the same 1 s, and so on.
+ */
+export function reconnectDelayMs(attempt, random = Math.random) {
+  const d = backoffMs(attempt)
+  return Math.round(d / 2 + random() * (d / 2))
+}
+
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
@@ -151,6 +162,7 @@ export function createLiveClient({
   /** issues-v1 §5 `{type:"issue_label", label}`. */
   onIssueLabel = () => {},
   onReconnected = () => {},
+  random = Math.random,
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
   ackTimeoutMs = 10000,
@@ -221,7 +233,7 @@ export function createLiveClient({
       }
       dropped = true
       setState('reconnecting')
-      retryTimer = setTimer(connect, backoffMs(attempt++))
+      retryTimer = setTimer(connect, reconnectDelayMs(attempt++, random))
     }
     ws.onerror = () => {
       /* onclose follows */

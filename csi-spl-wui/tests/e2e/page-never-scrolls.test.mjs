@@ -201,7 +201,11 @@ try {
     last.click()
     const shell = document.querySelector('.layout').getBoundingClientRect()
     return new Promise((resolve) => {
-      setTimeout(() => {
+      /* measure the sheet where it RESTS: on a phone it slides up 24 px
+         (SheetBackdrop touch-sheet-up, .18 s), and a loaded CI runner was
+         read mid-slide at a fixed 300 ms (bottom 845.07 / 850.19 vs 844) */
+      setTimeout(async () => {
+        await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
         const se = document.scrollingElement
         const menu = document.querySelector('[data-testid="msg-menu"]').getBoundingClientRect()
         const btn = last.getBoundingClientRect()

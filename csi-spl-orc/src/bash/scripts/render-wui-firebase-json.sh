@@ -166,9 +166,26 @@ doc = {
           {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},
         ],
       },
+      # Unhashed static media (logo, login wallpapers, icons, the manifest):
+      # under `**` alone every reload revalidated each one, a full round trip
+      # for a 304 (CLE-35076, prd /login warm reload: 7 of 10 round trips).
+      # One hour fresh, then served from cache while it revalidates in the
+      # background: a replaced picture shows within the hour. Before the
+      # _nuxt rule, so a hashed /_nuxt/ image keeps `immutable` (the later
+      # matching rule wins).
+      {
+        "source": "**/*.@(avif|webp|png|jpg|jpeg|gif|svg|ico|woff2|webmanifest)",
+        "headers": [{"key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400"}],
+      },
       {
         "source": "**/_nuxt/**",
         "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}],
+      },
+      # Nuxt's app manifest pointer names the CURRENT build under a fixed
+      # URL, so it must never be `immutable` like the rest of /_nuxt/.
+      {
+        "source": "/_nuxt/builds/latest.json",
+        "headers": [{"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"}],
       },
     ],
     "rewrites": [

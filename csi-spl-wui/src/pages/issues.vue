@@ -2148,23 +2148,6 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   min-width: 0;
   overflow: auto;
 }
-.issues-group__h {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 12px 4px;
-  background: transparent;
-  border: 0;
-  color: var(--color-muted);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-align: start;
-  cursor: pointer;
-}
-.issues-count { margin-inline-start: auto; }
 /* owner, topic e00da93b: a sheet - gridlines, a sticky names + filter row */
 .issues-table {
   border-collapse: separate;

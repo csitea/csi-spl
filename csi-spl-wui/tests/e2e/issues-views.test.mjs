@@ -98,6 +98,12 @@ try {
   const v1 = await layout(p)
   const placed = v1.every((g) => g.rows.every((r) => r.status === g.status) && g.count === g.rows.length)
   const counts = Object.fromEntries(v1.map((g) => [g.status, g.count]))
+  /* the header is a full-width table row (a stale rule once made it a narrow flex box) */
+  const hw = await p.evaluate(() => {
+    const tr = document.querySelector('[data-test=issues-group-h]')
+    return { tr: getComputedStyle(tr).display, w: Math.round(tr.querySelector('th').getBoundingClientRect().width), table: Math.round(document.querySelector('[data-test=issues-table]').getBoundingClientRect().width) }
+  })
+  ok('V1a each group header is a table row as wide as the sheet', hw.tr === 'table-row' && hw.w >= hw.table - 2, hw)
   ok('V1 By status: one group per status in the workflow order, each with its count, every row under its status',
     JSON.stringify(v1.map((g) => g.status)) === JSON.stringify(ORDER) && v1.every((g) => g.head) && placed &&
       counts.todo === 2 && counts.wip === 1 && counts.qas === 1 && counts.eval === 0, { order: v1.map((g) => g.status), counts, placed })

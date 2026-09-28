@@ -401,6 +401,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 | W16 | Issues without an epic; the issue prefix in Tenant settings -> General (Q5) | U6 | S | api + WUI | first issue created without an epic |
 | W17 | `spool` usage lists the `hub-*` verbs; `--root-key` also takes key text (Q6) | U2 | XS | api | `spool` with no args names every verb |
 | W18 | Off localhost, hub-init prints a one-time owner link (Zulip style) and the open first-sign-up rule is off | blocker 12 | S | api + docs | a second person cannot claim a fresh public instance |
+| W19 | Owner request (topic `bea3a4e6`, 2026-09-28): "the app settings should be in the left most vertical panel, and not in the version model". Settings get their own entry in the leftmost vertical panel, apart from the version stamp/card in the sidebar footer (`ChannelSidebar.vue` `app-version-*`) | taking into use | S | WUI | settings reachable from the leftmost panel in 1 click; the version card shows only the version |
 
 ### 5.2 Wave 2 — the big items
 
@@ -433,5 +434,5 @@ Not measured: tickets per tenant (there are no external customers yet).
 | D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing. A refund does not return Stripe's fee, and it runs on csi-rel's shared live account, so it shows in that dashboard (CLE-35079) |
 | D4 | Publish images to GHCR under the org (B1)? | yes: spool is the only one of the 3 measured self-host peers without a prebuilt image (3.1; Zulip from vendor docs) |
 | D5 | Billing, two independent calls: (a) a capped free tenant with no card (B4a)? (b) replace the one-off 20 EUR with a recurring price (B4b), per user or per tenant? | (a) **yes**: every hosted peer has one (3.2). (b) **yes, per user per month**, as all peers do ($3.50-16, 3.2): at Zulip Cloud's $6.67, ~10 paying users cover the ~$62/month prd bill (estimate, 4.2) |
-| D6 | Order: Wave 1 now (W1-W18 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
+| D6 | Order: Wave 1 now (W1-W19 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
 | D7 | Cut the dev hub cost (~$20-45/month, estimate; W11)? | **yes, 0.5 vCPU first**: scale-to-zero would likely break the desk sidecars' WS on dev (CLE-35085's judgement, not measured) |

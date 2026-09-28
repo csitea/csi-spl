@@ -93,8 +93,15 @@ try {
   const t0 = await widths(p, 'title')
   const s0 = await widths(p, 'status')
   const grips = await p.$$eval('.issues-col-grip', (g) => g.map((x) => x.getAttribute('data-test')))
+  /* "the rest" is measured, not a fixed px: the runner's fonts move it
+     (CI Title 262 px, this box 306 px) - the table fills its scroller and
+     Title is above its own 160 px floor */
+  const fill = await p.evaluate(() => {
+    const table = document.querySelector('[data-test=issues-table]')
+    return { table: Math.round(table.getBoundingClientRect().width), box: Math.round(table.parentElement.clientWidth) }
+  })
   ok('R0 control: nine grips, no stored width, Title takes the rest of the sheet',
-    grips.length === 9 && t0.th > 300 && !(await p.$('[data-test=issues-table][class*="issues-w-"]')), { grips: grips.length, t0, s0 })
+    grips.length === 9 && t0.th > 160 && Math.abs(fill.table - fill.box) <= 1 && !(await p.$('[data-test=issues-table][class*="issues-w-"]')), { grips: grips.length, t0, s0, fill })
 
   /* R1 + R2 */
   await drag(p, 'status', 120)
@@ -176,7 +183,7 @@ try {
   await p.keyboard.press('Delete')
   await sleep(150)
   const back = { title: await widths(p, 'title'), stored: await p.evaluate(() => localStorage.getItem('spool.issues.colw')) }
-  ok('R7 Delete on a grip gives the automatic width back (Title takes the rest again)', back.title.th > 300 && back.stored === '{}', { th: back.title.th, stored: back.stored })
+  ok('R7 Delete on a grip gives the automatic width back (Title takes the rest again, as in R0)', Math.abs(back.title.th - t0.th) <= 2 && back.stored === '{}', { th: back.title.th, r0: t0.th, stored: back.stored })
 
   /* R8: signed in, the claim is the source and a gesture is one PUT */
   const puts = []

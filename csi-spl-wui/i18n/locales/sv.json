@@ -433,7 +433,9 @@
     "send_failed_empty": "Inget att skicka — enbart en omnämning är inget meddelande. Lägg till text eller bifoga en fil.",
     "camera": "Ta ett foto",
     "target_thread": "Svarar i den öppna tråden",
-    "target_new": "Nytt ämne i {target}"
+    "target_new": "Nytt ämne i {target}",
+    "target_comment": "Kommenterar {target}",
+    "target_search_only": "Inget inlägg här — GO söker efter texten"
   },
   "feed": {
     "unknown_author": "okänd",

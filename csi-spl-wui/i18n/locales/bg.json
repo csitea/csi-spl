@@ -433,7 +433,9 @@
     "send_failed_empty": "Няма какво да се изпрати — само споменаване не е съобщение. Добавете текст или прикачете файл.",
     "camera": "Направи снимка",
     "target_thread": "Отговор в отворената нишка",
-    "target_new": "Нова тема в {target}"
+    "target_new": "Нова тема в {target}",
+    "target_comment": "Коментар към {target}",
+    "target_search_only": "Тук не се публикува — GO търси текста"
   },
   "feed": {
     "unknown_author": "неизвестен",

@@ -433,7 +433,9 @@
     "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto.",
     "camera": "Ota kuva",
     "target_thread": "Vastaat avoimeen ketjuun",
-    "target_new": "Uusi aihe: {target}"
+    "target_new": "Uusi aihe: {target}",
+    "target_comment": "Kommentoit: {target}",
+    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä"
   },
   "feed": {
     "unknown_author": "tuntematon",

@@ -595,6 +595,7 @@ import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useOmniboxStore } from '~/stores/omnibox'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -1285,6 +1286,19 @@ async function loadComments(issue: Issue | null) {
     comments.value = []
   }
 }
+/* one comment into the issue's discussion (is_parent 0 on its task) - the
+   discussion box and, on a phone, the bottom dock's GO (CLE-35066) */
+async function postComment(issue: Issue, text: string) {
+  const sock = live.ensure()
+  if (sock) {
+    await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
+  } else {
+    await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
+  }
+  void poke({ text, where: { issue: true, issueKey: issue.key } })
+  await loadComments(issue)
+}
+
 async function sendComment() {
   const issue = detail.value
   const text = commentMp.encode(commentText.value).trim()
@@ -1292,21 +1306,50 @@ async function sendComment() {
   busy.value = true
   saveError.value = ''
   try {
-    const sock = live.ensure()
-    if (sock) {
-      await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
-    } else {
-      await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
-    }
+    await postComment(issue, text)
     commentText.value = ''
-    void poke({ text, where: { issue: true, issueKey: issue.key } })
-    await loadComments(issue)
   } catch {
     saveError.value = 'issues.save_failed'
   } finally {
     busy.value = false
   }
 }
+
+/* CLE-35066 (owner, prd t1 topic 110d842c: "In issues on mobile, clicking on
+   the omnibox, typing and clicking the GO button does not create a
+   comment"). /issues registered no omnibox send target, so the phone dock's
+   GO had nowhere to send and did nothing. With an issue open on a phone
+   (level 3) the dock now comments on it; the list stays search-only.
+   Desktop keeps its Omnibox as search - the discussion box is on screen. */
+const omniboxStore = useOmniboxStore()
+const commentOwner = Symbol('issue-comment')
+async function sendDockComment(text: string, files: File[]) {
+  const issue = detail.value
+  if (!issue || !issue.task_id) return
+  /* a comment carries no attachment (the discussion box has none): refuse
+     rather than post the text and drop the file on the floor */
+  if (files.length) throw Object.assign(new Error('issue comments take no files'), { token: 'files' })
+  const body = text.trim()
+  if (!body) return
+  busy.value = true
+  try {
+    await postComment(issue, body)
+  } finally {
+    busy.value = false
+  }
+}
+const dockComment = computed(() => Boolean(phone.value && detail.value && detail.value.task_id && !creating.value))
+watch(dockComment, (on) => {
+  if (!on) { omniboxStore.unregister(commentOwner); return }
+  omniboxStore.register({
+    owner: commentOwner,
+    placeholder: () => t('composer.target_comment', { target: detail.value?.key || '' }),
+    dock: () => ({ reply: true, target: detail.value?.key || '', comment: true }),
+    send: sendDockComment,
+    busy: () => busy.value,
+  })
+}, { immediate: import.meta.client })
+onBeforeUnmount(() => omniboxStore.unregister(commentOwner))
 
 function typingTarget(el: EventTarget | null) {
   if (!(el instanceof HTMLElement)) return false

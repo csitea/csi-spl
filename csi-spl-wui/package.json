@@ -53,6 +53,7 @@
     "test:e2e:names-not-ids": "node tests/e2e/names-not-ids.test.mjs",
     "test:e2e:mobile-go-dock": "node tests/e2e/mobile-go-dock.test.mjs",
     "test:e2e:omnibox-bottom": "node tests/e2e/omnibox-bottom.test.mjs",
+    "test:e2e:issue-dock-comment": "node tests/e2e/issue-dock-comment.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

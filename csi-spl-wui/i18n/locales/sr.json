@@ -433,7 +433,9 @@
     "send_failed_empty": "Nema šta da se pošalje — samo pominjanje nije poruka. Dodajte tekst ili priložite datoteku.",
     "camera": "Фотографиши",
     "target_thread": "Одговор у отвореној нити",
-    "target_new": "Нова тема у {target}"
+    "target_new": "Нова тема у {target}",
+    "target_comment": "Коментар на {target}",
+    "target_search_only": "Овде се не објављује — GO претражује текст"
   },
   "feed": {
     "unknown_author": "nepoznato",

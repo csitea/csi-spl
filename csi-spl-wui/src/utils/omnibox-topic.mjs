@@ -100,12 +100,14 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
  * `dock` is the page's omnibox target `dock()`; `text` the line as typed:
  * a line that opens with `@someone` is the explicit new topic (SPL-996 B)
  * even while a thread is open, so the hint follows it.
- * @param {{ reply?: boolean, target?: string } | null | undefined} dock
+ * @param {{ reply?: boolean, target?: string, comment?: boolean } | null | undefined} dock
  * @param {unknown} [text]
- * @returns {{ mode: 'thread' | 'new', target: string } | null}
+ * @returns {{ mode: 'thread' | 'new' | 'comment', target: string } | null}
  */
 export function dockTargetHint(dock, text = '') {
   if (!dock) return null
+  /* CLE-35066: an open issue takes every line as a comment - no new topic */
+  if (dock.comment) return { mode: 'comment', target: String(dock.target || '') }
   const reply = Boolean(dock.reply) && !startsNewTopic(text)
   return { mode: reply ? 'thread' : 'new', target: String(dock.target || '') }
 }

@@ -62,7 +62,8 @@ describe('Issues rail tab', () => {
     assert.match(src, /HumanName/)
     assert.match(src, /groupIssues\(/)
     assert.match(src, /api\.listIssues\(/)
-    const send = src.slice(src.indexOf('async function sendComment'))
+    // CLE-35066: the discussion box and the phone dock share postComment
+    const send = src.slice(src.indexOf('async function postComment'))
     assert.match(send, /live\.ensure\(\)/)
     assert.match(send, /sock\.send\(/)
     assert.match(send, /api\.sendMessage\(/)

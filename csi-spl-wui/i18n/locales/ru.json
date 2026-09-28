@@ -433,7 +433,9 @@
     "send_failed_empty": "Нечего отправлять — одно упоминание не является сообщением. Добавьте текст или прикрепите файл.",
     "camera": "Сделать фото",
     "target_thread": "Ответ в открытой ветке",
-    "target_new": "Новая тема в {target}"
+    "target_new": "Новая тема в {target}",
+    "target_comment": "Комментарий к {target}",
+    "target_search_only": "Здесь не публикуется — GO ищет текст"
   },
   "feed": {
     "unknown_author": "неизвестно",

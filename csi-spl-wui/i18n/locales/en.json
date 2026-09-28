@@ -433,7 +433,9 @@
     "send_failed_empty": "Nothing to send — a mention on its own is not a message. Add some text, or attach a file.",
     "camera": "Take a photo",
     "target_thread": "Replying in the open thread",
-    "target_new": "New topic in {target}"
+    "target_new": "New topic in {target}",
+    "target_comment": "Commenting on {target}",
+    "target_search_only": "No post here — GO searches for the text"
   },
   "feed": {
     "unknown_author": "unknown",

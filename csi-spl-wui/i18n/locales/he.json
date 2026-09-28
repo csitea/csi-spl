@@ -433,7 +433,9 @@
     "send_failed_empty": "אין מה לשלוח — אזכור בלבד אינו הודעה. הוסיפו טקסט או צרפו קובץ.",
     "camera": "צלם תמונה",
     "target_thread": "תגובה בשרשור הפתוח",
-    "target_new": "נושא חדש ב-{target}"
+    "target_new": "נושא חדש ב-{target}",
+    "target_comment": "תגובה על {target}",
+    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
   },
   "feed": {
     "unknown_author": "לא ידוע",

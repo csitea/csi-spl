@@ -433,7 +433,9 @@
     "send_failed_empty": "Nav ko sūtīt — tikai pieminējums nav ziņa. Pievienojiet tekstu vai pievienojiet failu.",
     "camera": "Uzņemt foto",
     "target_thread": "Atbilde atvērtajā pavedienā",
-    "target_new": "Jauna tēma: {target}"
+    "target_new": "Jauna tēma: {target}",
+    "target_comment": "Komentārs: {target}",
+    "target_search_only": "Šeit nepublicē — GO meklē tekstu"
   },
   "feed": {
     "unknown_author": "nezināms",

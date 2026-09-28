@@ -433,7 +433,9 @@
     "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
     "camera": "Fotografuoti",
     "target_thread": "Atsakymas atviroje gijoje",
-    "target_new": "Nauja tema: {target}"
+    "target_new": "Nauja tema: {target}",
+    "target_comment": "Komentuojama: {target}",
+    "target_search_only": "Čia neskelbiama — GO ieško teksto"
   },
   "feed": {
     "unknown_author": "nežinomas",

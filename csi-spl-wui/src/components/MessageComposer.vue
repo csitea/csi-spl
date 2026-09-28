@@ -19,8 +19,20 @@
       :data-mode="dockHint.mode"
       aria-live="polite"
     >
-      <UiIcon :name="dockHint.mode === 'thread' ? 'reply' : 'plus'" :size="14" />
-      <span>{{ dockHint.mode === 'thread' ? t('composer.target_thread') : t('composer.target_new', { target: dockHint.target }) }}</span>
+      <UiIcon :name="dockHint.mode === 'new' ? 'plus' : 'reply'" :size="14" />
+      <span>{{ dockHint.mode === 'thread' ? t('composer.target_thread') : dockHint.mode === 'comment' ? t('composer.target_comment', { target: dockHint.target }) : t('composer.target_new', { target: dockHint.target }) }}</span>
+    </p>
+    <!-- CLE-35066: a phone page with no send target (/issues list, /events,
+         /settings) says so - GO there searches for the text, never nothing -->
+    <p
+      v-if="docked && !searchMode && !dockHint && sendBlocked"
+      class="composer-target"
+      data-test="dock-target"
+      data-mode="search"
+      aria-live="polite"
+    >
+      <UiIcon name="search" :size="14" />
+      <span>{{ t('composer.target_search_only') }}</span>
     </p>
     <div class="composer-box">
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
@@ -509,7 +521,7 @@ onMounted(() => { fitGlobalBox() })
 const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */
-const cannotSend = computed(() => Boolean(props.busy) || Boolean(props.sendBlocked) || (!text.value.trim() && !picked.value.length))
+const cannotSend = computed(() => Boolean(props.busy) || (Boolean(props.sendBlocked) && !docked.value) || (!text.value.trim() && !picked.value.length))
 const inQuery = ref<string | null>(null)
 const inIdx = ref(0)
 const inListEl = ref<HTMLUListElement | null>(null)
@@ -861,7 +873,17 @@ function onSend() {
     opClosed.value = true
     return
   }
-  if (props.global && props.sendBlocked) return
+  if (props.global && props.sendBlocked) {
+    /* CLE-35066 (owner: "clicking the GO button does not create a comment"):
+       on a phone GO is the only button, so with no send target the text is
+       a search rather than a tap that does nothing. Desktop is unchanged. */
+    const q = text.value.trim()
+    if (docked.value && q) {
+      emit('search', q)
+      text.value = ''
+    }
+    return
+  }
   /* Enter and the Send button both land here. An open title list picks;
      it does not send the half-typed `in:`. */
   if (inPickerOpen.value) {

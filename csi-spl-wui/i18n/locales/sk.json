@@ -433,7 +433,9 @@
     "send_failed_empty": "Nie je čo odoslať — samotná zmienka nie je správa. Pridajte text alebo priložte súbor.",
     "camera": "Odfotiť",
     "target_thread": "Odpoveď v otvorenom vlákne",
-    "target_new": "Nová téma v {target}"
+    "target_new": "Nová téma v {target}",
+    "target_comment": "Komentár k {target}",
+    "target_search_only": "Tu sa nepublikuje — GO hľadá text"
   },
   "feed": {
     "unknown_author": "neznámy",

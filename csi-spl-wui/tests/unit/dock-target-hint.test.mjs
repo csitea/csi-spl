@@ -30,6 +30,21 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, 'ping @CLE-07').mode, 'thread')
   })
 
+  it('an open issue on a phone: every line is a comment on it, `@someone` first too (CLE-35066)', () => {
+    assert.deepEqual(dockTargetHint({ reply: true, target: 'SPL-7', comment: true }, 'hello'), { mode: 'comment', target: 'SPL-7' })
+    assert.equal(dockTargetHint({ reply: true, target: 'SPL-7', comment: true }, '@CLE-07 look').mode, 'comment')
+  })
+
+  it('/issues registers the comment target only while an issue is open on a phone, and GO without a target searches (CLE-35066)', () => {
+    const s = src('src/pages/issues.vue')
+    assert.match(s, /const dockComment = computed\(\(\) => Boolean\(phone\.value && detail\.value && detail\.value\.task_id && !creating\.value\)\)/)
+    assert.match(s, /dock: \(\) => \(\{ reply: true, target: detail\.value\?\.key \|\| '', comment: true \}\)/)
+    assert.match(s, /onBeforeUnmount\(\(\) => omniboxStore\.unregister\(commentOwner\)\)/)
+    const c = src('src/components/MessageComposer.vue')
+    assert.match(c, /if \(docked\.value && q\) \{\n\s+emit\('search', q\)/)
+    assert.match(c, /data-mode="search"/)
+  })
+
   it('a page with no send target shows nothing', () => {
     assert.equal(dockTargetHint(null, 'x'), null)
     assert.equal(dockTargetHint(undefined), null)

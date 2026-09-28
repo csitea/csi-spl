@@ -433,7 +433,9 @@
     "send_failed_empty": "Немає чого надсилати — саме лише згадування не є повідомленням. Додайте текст або прикріпіть файл.",
     "camera": "Зробити фото",
     "target_thread": "Відповідь у відкритій гілці",
-    "target_new": "Нова тема в {target}"
+    "target_new": "Нова тема в {target}",
+    "target_comment": "Коментар до {target}",
+    "target_search_only": "Тут не публікується — GO шукає текст"
   },
   "feed": {
     "unknown_author": "невідомо",

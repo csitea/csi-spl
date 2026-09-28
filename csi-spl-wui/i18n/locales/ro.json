@@ -433,7 +433,9 @@
     "send_failed_empty": "Nu este nimic de trimis — o mențiune singură nu este un mesaj. Adaugă text sau atașează un fișier.",
     "camera": "Fă o fotografie",
     "target_thread": "Răspuns în firul deschis",
-    "target_new": "Subiect nou în {target}"
+    "target_new": "Subiect nou în {target}",
+    "target_comment": "Comentariu la {target}",
+    "target_search_only": "Aici nu se publică — GO caută textul"
   },
   "feed": {
     "unknown_author": "necunoscut",

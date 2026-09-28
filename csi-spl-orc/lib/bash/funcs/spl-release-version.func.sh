@@ -62,32 +62,36 @@ spl_version_min() {
   echo "$best"
 }
 
+# stdout carries ONLY the version: every log line goes to stderr, because the
+# ./run do_log prints to stdout and the caller captures this function's
+# stdout (run 36372654214, 2026-09-28: a lost race logged an INFO line into
+# the captured value and GITHUB_OUTPUT refused it).
 # spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the version for
 # <sha>, claiming a new tag on <remote> (default origin) when it has none.
 # rc 1 on a bad argument, or when no tag could be claimed after 10 attempts.
 spl_release_mint() {
   local dir="$1" sha="$2" floor="$3" remote="${4:-origin}"
   local i mine latest next out
-  spl_version_valid "$floor" || { do_log "FATAL the floor (.version) is not an odometer version: '$floor'"; return 1; }
-  sha="$(git -C "$dir" rev-parse --verify -q "$sha^{commit}")" || { do_log "FATAL not a commit: '$2'"; return 1; }
+  spl_version_valid "$floor" || { do_log "FATAL the floor (.version) is not an odometer version: '$floor'" >&2; return 1; }
+  sha="$(git -C "$dir" rev-parse --verify -q "$sha^{commit}")" || { do_log "FATAL not a commit: '$2'" >&2; return 1; }
   for i in 1 2 3 4 5 6 7 8 9 10; do
     git -C "$dir" fetch -q --force "$remote" '+refs/tags/v*:refs/tags/v*' 2>/dev/null ||
-      { do_log "FATAL cannot fetch the v-tags from $remote"; return 1; }
+      { do_log "FATAL cannot fetch the v-tags from $remote" >&2; return 1; }
     # already minted for this commit: the LOWEST of its v-tags, so every
     # reader agrees even in the (theoretical) case of two
     mine="$(git -C "$dir" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_version_min)"
     [[ -n "$mine" ]] && { echo "$mine"; return 0; }
     latest="$(git -C "$dir" tag -l 'v*' | sed 's/^v//' | spl_version_max)"
     if [[ -z "$latest" ]] || spl_version_gt "$floor" "$latest"; then next="$floor"
-    else next="$(spl_version_step "$latest")" || { do_log "FATAL the odometer is full at $latest"; return 1; }
+    else next="$(spl_version_step "$latest")" || { do_log "FATAL the odometer is full at $latest" >&2; return 1; }
     fi
     if out="$(git -C "$dir" push -q "$remote" "$sha:refs/tags/v$next" 2>&1)"; then
       git -C "$dir" tag -f "v$next" "$sha" >/dev/null 2>&1
       echo "$next"; return 0
     fi
-    do_log "INFO v$next was taken by another deploy (attempt $i): $(tail -1 <<<"$out")"
+    do_log "INFO v$next was taken by another deploy (attempt $i): $(tail -1 <<<"$out")" >&2
     sleep "$((RANDOM % 3))"
   done
-  do_log "FATAL could not claim a version tag on $remote after 10 attempts"
+  do_log "FATAL could not claim a version tag on $remote after 10 attempts" >&2
   return 1
 }

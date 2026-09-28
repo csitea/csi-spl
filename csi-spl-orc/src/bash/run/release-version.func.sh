@@ -10,7 +10,7 @@
 # @description   - else one odometer step past the highest v-tag on the remote
 # @description     (or .version when a human raised it above every tag),
 # @description     claimed by pushing the tag; a lost race takes the next one
-# @description Prints the bare version on stdout, and `version=<v>` into
+# @description Prints the bare version on stdout (logs go to stderr), and `version=<v>` into
 # @description $GITHUB_OUTPUT when that is set. Dry run unless DRY_RUN=0: a dry
 # @description run prints what it WOULD claim and pushes nothing.
 # @param RELEASE_SHA (optional) - the commit to version, default HEAD
@@ -27,22 +27,23 @@ do_release_version() {
   floor="$(tr -d '[:space:]' <"$APP_PATH/.version" 2>/dev/null)"
 
   if ((dry)); then
-    sha="$(git -C "$APP_PATH" rev-parse --verify -q "$sha^{commit}")" || { do_log "FATAL not a commit: '$RELEASE_SHA'"; return 1; }
+    sha="$(git -C "$APP_PATH" rev-parse --verify -q "$sha^{commit}")" || { do_log "FATAL not a commit: '$RELEASE_SHA'" >&2; return 1; }
     git -C "$APP_PATH" fetch -q --force "$remote" '+refs/tags/v*:refs/tags/v*' 2>/dev/null ||
-      do_log "WARN cannot fetch the v-tags from $remote: the answer below uses the local tags"
+      do_log "WARN cannot fetch the v-tags from $remote: the answer below uses the local tags" >&2
     mine="$(git -C "$APP_PATH" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_version_min)"
     if [[ -n "$mine" ]]; then
-      do_log "OK DRY_RUN ${sha:0:8} already carries v$mine"
+      do_log "OK DRY_RUN ${sha:0:8} already carries v$mine" >&2
       echo "$mine"; return 0
     fi
     latest="$(git -C "$APP_PATH" tag -l 'v*' | sed 's/^v//' | spl_version_max)"
     if [[ -z "$latest" ]] || spl_version_gt "$floor" "$latest"; then v="$floor"; else v="$(spl_version_step "$latest")" || return 1; fi
-    do_log "OK DRY_RUN would claim v$v for ${sha:0:8} on $remote (highest tag: ${latest:-none}, floor .version: $floor). Re-run with DRY_RUN=0 to claim it."
+    do_log "OK DRY_RUN would claim v$v for ${sha:0:8} on $remote (highest tag: ${latest:-none}, floor .version: $floor). Re-run with DRY_RUN=0 to claim it." >&2
     echo "$v"; return 0
   fi
 
   v="$(spl_release_mint "$APP_PATH" "$sha" "$floor" "$remote")" || return 1
+  spl_version_valid "$v" || { do_log "FATAL the minted version is not one d.d.d value: '$v'" >&2; return 1; }
   [[ -n "${GITHUB_OUTPUT:-}" ]] && echo "version=$v" >>"$GITHUB_OUTPUT"
-  do_log "OK release version of $(git -C "$APP_PATH" rev-parse --short "$sha") is $v (tag v$v on $remote)"
+  do_log "OK release version of $(git -C "$APP_PATH" rev-parse --short "$sha") is $v (tag v$v on $remote)" >&2
   echo "$v"
 }

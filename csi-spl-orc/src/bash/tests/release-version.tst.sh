@@ -12,6 +12,9 @@
 #   8. CONTROL: 8 parallel mints that compute from their own tree without the
 #      push lock DO collide, and the duplicate check in (6) sees it
 #   9. the action: DRY_RUN=1 claims nothing, DRY_RUN=0 writes GITHUB_OUTPUT
+#  10. a LOST race with do_log on stdout (./run's): GITHUB_OUTPUT is still
+#      exactly one version=d.d.d line, the same commit's tag is reused;
+#      CONTROL: the pre-fix library writes a line GitHub refuses
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -97,6 +100,66 @@ got=$(act RELEASE_SHA="$c10" DRY_RUN=0 GITHUB_OUTPUT="$T/gh.out")
 [[ "$got" == 2.1.0 && "$(cat "$T/gh.out")" == version=2.1.0 ]] && pass "DRY_RUN=0 claims v2.1.0 and writes version=2.1.0 to GITHUB_OUTPUT" || fail "live: '$got' out='$(cat "$T/gh.out")'"
 got=$(act RELEASE_SHA="$c10")
 [[ "$got" == 2.1.0 ]] && pass "DRY_RUN on a tagged commit re-reads 2.1.0" || fail "dry re-read '$got'"
+
+# --- 10. a LOST race, with do_log on STDOUT (the ./run wrapper's) ------------
+# run 36372654214 (2026-09-28): the prd leg lost v1.2.4 to the dev leg of the
+# SAME commit, logged the retry through do_log -> stdout -> the captured value,
+# and GITHUB_OUTPUT got a bare "1.2.4" line. A git shim makes the race
+# deterministic: just before this job's tag push, a second clone claims the
+# same tag (for the same commit, or for another one).
+real_git="$(command -v git)"
+git clone -q "$T/remote.git" "$T/other"
+mkdir -p "$T/shim"
+cat >"$T/shim/git" <<EOF2
+#!/bin/sh
+case " \$* " in *" push "*refs/tags/v*)
+  if [ -n "\$RACE_SHA" ] && [ ! -e "\$RACE_DONE" ]; then
+    : >"\$RACE_DONE"
+    tag="\${*##*refs/tags/}"
+    "$real_git" -C "$T/other" fetch -q origin
+    "$real_git" -C "$T/other" push -q origin "\$RACE_SHA:refs/tags/\$tag"
+  fi ;;
+esac
+exec "$real_git" "\$@"
+EOF2
+chmod +x "$T/shim/git"
+act_stdout_log() { # like act, but do_log prints to STDOUT as ./run's does
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/w" PATH="$T/shim:$PATH" RACE_DONE="$T/race.$RANDOM" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "[LOG] $*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    do_release_version' 2>>"$T/act.err"
+}
+out_ok() { grep -qvx 'version=[0-9]\.[0-9]\.[0-9]' "$1" && return 1; [[ "$(grep -c . "$1")" == 1 ]]; }
+
+c11=$(commit eleven); git -C "$T/w" push -q origin HEAD:refs/heads/master
+: >"$T/gh11"
+got=$(act_stdout_log RELEASE_SHA="$c11" DRY_RUN=0 GITHUB_OUTPUT="$T/gh11" RACE_SHA="$c11" | tail -1)
+if out_ok "$T/gh11" && [[ "$(cat "$T/gh11")" == version=2.1.1 ]]; then
+  pass "the dev leg claimed the tag for the SAME commit first: GITHUB_OUTPUT is exactly version=2.1.1 (its tag, not a new one)"
+else fail "same-commit lost race: GITHUB_OUTPUT='$(tr '\n' '|' <"$T/gh11")' last stdout='$got'"; fi
+
+c12=$(commit twelve); c13=$(commit thirteen); git -C "$T/w" push -q origin HEAD:refs/heads/master
+: >"$T/gh13"
+act_stdout_log RELEASE_SHA="$c13" DRY_RUN=0 GITHUB_OUTPUT="$T/gh13" RACE_SHA="$c12" >/dev/null
+if out_ok "$T/gh13" && [[ "$(cat "$T/gh13")" == version=2.1.3 ]]; then
+  pass "lost the race to ANOTHER commit: GITHUB_OUTPUT is exactly version=2.1.3 (2.1.2 went to the winner)"
+else fail "other-commit lost race: GITHUB_OUTPUT='$(tr '\n' '|' <"$T/gh13")'"; fi
+
+# CONTROL: the pre-fix library (logs on stdout inside the captured function)
+# under the same race writes a GITHUB_OUTPUT that GitHub refuses.
+sed 's/ >&2//' "$PROJ_ROOT/lib/bash/funcs/spl-release-version.func.sh" >"$T/old-lib.sh"
+c14=$(commit fourteen); c15=$(commit fifteen); git -C "$T/w" push -q origin HEAD:refs/heads/master
+: >"$T/gh14"
+env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/w" PATH="$T/shim:$PATH" RACE_DONE="$T/race.ctl" RACE_SHA="$c14" \
+  RELEASE_SHA="$c15" DRY_RUN=0 GITHUB_OUTPUT="$T/gh14" OLD_LIB="$T/old-lib.sh" bash -c '
+    do_log() { echo "[LOG] $*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    source "$OLD_LIB"
+    spl_version_valid() { return 0; }
+    do_release_version' >/dev/null 2>>"$T/act.err"
+out_ok "$T/gh14" && fail "CONTROL: the pre-fix library wrote a clean GITHUB_OUTPUT, so this test proves nothing" \
+  || pass "CONTROL: the pre-fix library under the same race writes a GITHUB_OUTPUT GitHub refuses ($(tr '\n' '|' <"$T/gh14" | cut -c1-70))"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

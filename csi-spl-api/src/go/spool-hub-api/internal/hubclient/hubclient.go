@@ -118,6 +118,11 @@ type Client struct {
 	Warn io.Writer
 
 	keysDirWarned sync.Once
+
+	// defaultHTTP is the one default client (and so the one transport and
+	// connection pool) of this Client; see http().
+	defaultHTTP     *http.Client
+	defaultHTTPOnce sync.Once
 }
 
 // New returns a Client for cfg with production defaults.
@@ -146,6 +151,16 @@ func (c *Client) http() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
 	}
+	c.defaultHTTPOnce.Do(func() { c.defaultHTTP = newDefaultHTTP() })
+	return c.defaultHTTP
+}
+
+// newDefaultHTTP is the default client: *.localhost resolves to loopback (lde).
+// Built once per Client (CLE-35076): a fresh transport per call opened a new
+// TCP + TLS connection for every REST call of a desk sidecar - the session
+// probe every 30 s, each pin sync and file put - and left the old one idle
+// until its 90 s timeout.
+func newDefaultHTTP() *http.Client {
 	d := &net.Dialer{Timeout: 10 * time.Second}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -777,7 +792,11 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// read to the end so an HTTP/1.1 connection goes back to the pool
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10)) //nolint:errcheck
+		resp.Body.Close()
+	}()
 	if resp.StatusCode >= 300 {
 		var eb wire.ErrorBody
 		json.NewDecoder(io.LimitReader(resp.Body, 8<<10)).Decode(&eb) //nolint:errcheck

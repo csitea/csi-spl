@@ -140,13 +140,18 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
         `issues-crud-modal-live.proof.mjs` n=1 per env - dev t1 19/19, prd
         e2e (https://e2e.spool-hub.ai) 19/19; every row it made was deleted
         and reads 404 at the hub
-- [ ] T016 SPL-1028 (owner 2026-09-28, topic 89485c7a): views List | By
+- [x] T016 SPL-1028 (owner 2026-09-28, topic 89485c7a): views List | By
       status (FR-012), remembered per person
   - [x] T016a rdb 0072 humans.issues_view (`673200dd`), applied on dev and prd
         (`applied 0072_human_issues_view.sql` both)
   - [x] T016b hub: issues_view in auth.ViewPrefs, the session claim, PUT
-        preferences (`200b4901`); TestPreferencesIssuesView, store both drivers
-  - [ ] T016c WUI switch, status groups (count, fold, +, drag); mock e2e
-        issues-views 10/10
-  - [ ] T016d live on dev and prd, proof per env
+        preferences (`200b4901`, hub 1.4.7 on dev.api and api);
+        TestPreferencesIssuesView, store both drivers
+  - [x] T016c WUI switch, status groups (count, fold, +, drag) (`6ad50d87`,
+        `d73829ec`: the header row was a narrow flex box from a stale rule);
+        mock e2e issues-views 11/11
+  - [x] T016d live, WUI d73829ec (1.4.9) on dev and apex:
+        `issues-views-live.proof.mjs` n=1 per env - dev t1 9/9, prd e2e 9/9
+        (the view stored at the hub, a reload keeps it, a group's +, a drag
+        = a status at the hub, its row deleted, the person's view restored)
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

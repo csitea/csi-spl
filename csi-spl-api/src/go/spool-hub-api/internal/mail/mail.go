@@ -81,83 +81,128 @@ func isLoopbackHost(host string) bool {
 
 // Send implements Sender.
 func (s *SMTP) Send(ctx context.Context, msg Message) error {
-	if s == nil || s.Host == "" {
-		return fmt.Errorf("mail: SMTP host not configured")
-	}
-	if msg.To == "" || strings.ContainsAny(msg.To, "\r\n") {
-		return fmt.Errorf("mail: bad recipient")
-	}
-	from := strings.TrimSpace(s.From)
-	if from == "" {
-		return fmt.Errorf("mail: empty From")
+	from, err := s.check(msg)
+	if err != nil {
+		return err
 	}
 	timeout := s.Timeout
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = defaultSMTPTimeout
 	}
 	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	raw := buildRFC822(formatMailbox(s.FromName, from), msg)
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	deadline, _ := ctx.Deadline()
-	d := net.Dialer{Deadline: deadline}
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	conn, secure, err := s.dial(ctx, addr)
 	if err != nil {
-		return fmt.Errorf("mail: dial %s: %w", addr, err)
+		return err
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(deadline)
-
-	mode := s.TLSMode
-	if mode == "" {
-		mode = TLSStartTLS
-	}
-	tlsCfg := &tls.Config{}
-	if s.TLSConfig != nil {
-		tlsCfg = s.TLSConfig.Clone()
-	}
-	if tlsCfg.ServerName == "" {
-		tlsCfg.ServerName = s.Host
-	}
-	if tlsCfg.MinVersion == 0 {
-		tlsCfg.MinVersion = tls.VersionTLS12
-	}
-	secure := false
-	if mode == TLSImplicit {
-		tc := tls.Client(conn, tlsCfg)
-		if err := tc.HandshakeContext(ctx); err != nil {
-			return fmt.Errorf("mail: tls handshake %s: %w", addr, err)
-		}
-		conn, secure = tc, true
-	}
 	c, err := smtp.NewClient(conn, s.Host)
 	if err != nil {
 		return fmt.Errorf("mail: smtp client: %w", err)
 	}
 	defer func() { _ = c.Close() }()
+	if err := s.secureAndAuth(c, addr, secure); err != nil {
+		return err
+	}
+	return deliver(c, from, msg.To, raw)
+}
 
-	if mode == TLSStartTLS {
+// defaultSMTPTimeout bounds one whole Send when SMTP.Timeout is zero.
+const defaultSMTPTimeout = 10 * time.Second
+
+// check refuses a Send that cannot be addressed and answers the envelope From.
+func (s *SMTP) check(msg Message) (string, error) {
+	if s == nil || s.Host == "" {
+		return "", fmt.Errorf("mail: SMTP host not configured")
+	}
+	if msg.To == "" || strings.ContainsAny(msg.To, "\r\n") {
+		return "", fmt.Errorf("mail: bad recipient")
+	}
+	from := strings.TrimSpace(s.From)
+	if from == "" {
+		return "", fmt.Errorf("mail: empty From")
+	}
+	return from, nil
+}
+
+// mode is the TLS mode, STARTTLS unless set.
+func (s *SMTP) mode() string {
+	if s.TLSMode == "" {
+		return TLSStartTLS
+	}
+	return s.TLSMode
+}
+
+// tlsConfig is a clone of the caller's TLS config with ServerName defaulted
+// to the host and at least TLS 1.2.
+func (s *SMTP) tlsConfig() *tls.Config {
+	cfg := &tls.Config{}
+	if s.TLSConfig != nil {
+		cfg = s.TLSConfig.Clone()
+	}
+	if cfg.ServerName == "" {
+		cfg.ServerName = s.Host
+	}
+	if cfg.MinVersion == 0 {
+		cfg.MinVersion = tls.VersionTLS12
+	}
+	return cfg
+}
+
+// dial connects within ctx's deadline; in implicit mode it completes the TLS
+// handshake first and answers secure.
+func (s *SMTP) dial(ctx context.Context, addr string) (net.Conn, bool, error) {
+	deadline, _ := ctx.Deadline()
+	d := net.Dialer{Deadline: deadline}
+	conn, err := d.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, false, fmt.Errorf("mail: dial %s: %w", addr, err)
+	}
+	_ = conn.SetDeadline(deadline)
+	if s.mode() != TLSImplicit {
+		return conn, false, nil
+	}
+	tc := tls.Client(conn, s.tlsConfig())
+	if err := tc.HandshakeContext(ctx); err != nil {
+		conn.Close()
+		return nil, false, fmt.Errorf("mail: tls handshake %s: %w", addr, err)
+	}
+	return tc, true, nil
+}
+
+// secureAndAuth upgrades with STARTTLS (that mode requires it) and then
+// authenticates; credentials never go to a remote host in clear text.
+func (s *SMTP) secureAndAuth(c *smtp.Client, addr string, secure bool) error {
+	if s.mode() == TLSStartTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return fmt.Errorf("mail: %s does not advertise STARTTLS (SPOOL_HUB_MAIL_SMTP_TLS=starttls)", addr)
 		}
-		if err := c.StartTLS(tlsCfg); err != nil {
+		if err := c.StartTLS(s.tlsConfig()); err != nil {
 			return fmt.Errorf("mail: starttls %s: %w", addr, err)
 		}
 		secure = true
 	}
-	if s.User != "" {
-		if !secure && !isLoopbackHost(s.Host) {
-			return fmt.Errorf("mail: refusing to send credentials to %s over an unencrypted connection", addr)
-		}
-		if err := c.Auth(smtp.PlainAuth("", s.User, s.Pass, s.Host)); err != nil {
-			return fmt.Errorf("mail: auth: %w", err)
-		}
+	if s.User == "" {
+		return nil
 	}
+	if !secure && !isLoopbackHost(s.Host) {
+		return fmt.Errorf("mail: refusing to send credentials to %s over an unencrypted connection", addr)
+	}
+	if err := c.Auth(smtp.PlainAuth("", s.User, s.Pass, s.Host)); err != nil {
+		return fmt.Errorf("mail: auth: %w", err)
+	}
+	return nil
+}
+
+// deliver runs MAIL FROM, RCPT TO and DATA for one message, then QUIT.
+func deliver(c *smtp.Client, from, to string, raw []byte) error {
 	if err := c.Mail(from); err != nil {
 		return fmt.Errorf("mail: MAIL FROM: %w", err)
 	}
-	if err := c.Rcpt(msg.To); err != nil {
+	if err := c.Rcpt(to); err != nil {
 		return fmt.Errorf("mail: RCPT TO: %w", err)
 	}
 	w, err := c.Data()

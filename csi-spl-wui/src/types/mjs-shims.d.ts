@@ -514,6 +514,10 @@ declare module '~/utils/msg-menu.mjs' {
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
   export function mergeableSource(rows: unknown[], msg: unknown, lobbyTaskId?: string): boolean
+  export type ThreadNeighborIndex = Map<string, { previous: Record<string, unknown> | null, next: Record<string, unknown> | null }>
+  export function threadNeighbors(rows: unknown[]): ThreadNeighborIndex
+  export function neighborIn(index: ThreadNeighborIndex, msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
+  export function mergeableSourceIn(index: ThreadNeighborIndex, msg: unknown, lobbyTaskId?: string): boolean
   export function joinBodies(older: unknown, newer: unknown): string
 }
 

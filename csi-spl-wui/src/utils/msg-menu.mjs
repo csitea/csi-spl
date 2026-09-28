@@ -87,18 +87,58 @@ function threadKey(m) {
  * @returns {object | null}
  */
 export function threadNeighbor(rows, msg, which) {
+  return neighborIn(threadNeighbors(rows), msg, which)
+}
+
+function byThreadOrder(a, b) {
+  const c = at(a).localeCompare(at(b))
+  return c !== 0 ? c : String(a.msg_id || '').localeCompare(String(b.msg_id || ''))
+}
+
+/**
+ * Every row's thread neighbors at once: one pass that groups `rows` by
+ * thread and sorts each group once. threadNeighbor() per row sorted the whole
+ * thread for every row it was asked about (a feed asks twice per card on
+ * every render), O(n^2 log n); a feed builds this once per `rows` and reads
+ * it per card (CLE-35075). The same order and tie-break as before, and a
+ * repeated msg_id keeps its first position, as findIndex did.
+ *
+ * @param {unknown[]} rows
+ * @returns {Map<string, { previous: object | null, next: object | null }>} keyed by thread + NUL + msg_id
+ */
+export function threadNeighbors(rows) {
+  const groups = new Map()
+  for (const m of Array.isArray(rows) ? rows : []) {
+    const key = threadKey(m)
+    if (!m || !key || !String(m.msg_id || '')) continue
+    const g = groups.get(key)
+    if (g) g.push(m)
+    else groups.set(key, [m])
+  }
+  const out = new Map()
+  for (const [key, peers] of groups) {
+    peers.sort(byThreadOrder)
+    for (let i = 0; i < peers.length; i++) {
+      const k = key + '\0' + String(peers[i].msg_id)
+      if (!out.has(k)) out.set(k, { previous: i > 0 ? peers[i - 1] : null, next: i < peers.length - 1 ? peers[i + 1] : null })
+    }
+  }
+  return out
+}
+
+/**
+ * threadNeighbor() read from a threadNeighbors() index.
+ *
+ * @param {ReturnType<typeof threadNeighbors>} index
+ * @param {unknown} msg
+ * @param {'previous' | 'next'} which
+ */
+export function neighborIn(index, msg, which) {
   const id = String((msg && msg.msg_id) || '')
   const key = threadKey(msg)
   if (!id || !key || (which !== 'previous' && which !== 'next')) return null
-  const peers = (Array.isArray(rows) ? rows : []).filter((m) => m && threadKey(m) === key && String(m.msg_id || ''))
-  peers.sort((a, b) => {
-    const c = at(a).localeCompare(at(b))
-    return c !== 0 ? c : String(a.msg_id || '').localeCompare(String(b.msg_id || ''))
-  })
-  const i = peers.findIndex((m) => String(m.msg_id) === id)
-  if (i < 0) return null
-  if (which === 'previous') return i > 0 ? peers[i - 1] : null
-  return i < peers.length - 1 ? peers[i + 1] : null
+  const hit = index.get(key + '\0' + id)
+  return hit ? hit[which] : null
 }
 
 /**
@@ -114,11 +154,22 @@ export function threadNeighbor(rows, msg, which) {
  * @param {string} [lobbyTaskId]
  */
 export function mergeableSource(rows, msg, lobbyTaskId = '') {
+  return mergeableSourceIn(threadNeighbors(rows), msg, lobbyTaskId)
+}
+
+/**
+ * mergeableSource() read from a threadNeighbors() index.
+ *
+ * @param {ReturnType<typeof threadNeighbors>} index
+ * @param {unknown} msg
+ * @param {string} [lobbyTaskId]
+ */
+export function mergeableSourceIn(index, msg, lobbyTaskId = '') {
   const m = msg && typeof msg === 'object' ? msg : null
   if (!m) return false
   const task = threadKey(m)
   if (m.is_parent === 0 || (task && task === String(lobbyTaskId || ''))) return true
-  return threadNeighbor(rows, m, 'previous') !== null
+  return neighborIn(index, m, 'previous') !== null
 }
 
 /**

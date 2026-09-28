@@ -87,7 +87,7 @@ import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { mergeableSource, threadNeighbor } from '~/utils/msg-menu.mjs'
+import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu.mjs'
 import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
@@ -173,11 +173,14 @@ const { canEdit } = useMessageEdit()
 const liveConn = useLive()
 
 /** The neighbor in this thread the viewer can both edit and, by deleting this row, fold into. */
+/* one sort per thread per `rows`, read twice per card (CLE-35075) */
+const neighbors = computed(() => threadNeighbors(props.rows))
 function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
-  const other = threadNeighbor(props.rows, m, which) as SpoolMessage | null
-  if (!other || !canEdit(m) || !canEdit(other)) return null
+  if (!canEdit(m)) return null
+  const other = neighborIn(neighbors.value, m, which) as SpoolMessage | null
+  if (!other || !canEdit(other)) return null
   /* a topic's card is never merged away (hub 409 is_card) */
-  if (!mergeableSource(props.rows, m, liveConn.lobbyTaskId.value)) return null
+  if (!mergeableSourceIn(neighbors.value, m, liveConn.lobbyTaskId.value)) return null
   return other
 }
 

@@ -7,6 +7,9 @@
 <template>
   <div class="issue-epics">
     <h2 v-if="issueEpics.length" data-testid="sidebar-epics-h">{{ t('sidebar.epics') }}</h2>
+    <!-- SPL-1146: the rows scroll inside the panel, above the sidebar footer;
+         without a scroller they ran on under the footer bar -->
+    <div class="sidebar-scroll" data-testid="sidebar-epics-scroll">
     <NuxtLink
       v-for="e in issueEpics"
       :key="e.key"
@@ -21,6 +24,7 @@
       <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
       <span class="epic-row__bar" aria-hidden="true"><span :style="{ width: epicPct(e) + '%' }" /></span>
     </NuxtLink>
+    </div>
   </div>
 </template>
 
@@ -43,6 +47,7 @@ function epicPct(e: EpicRow) {
 </script>
 
 <style scoped>
+.issue-epics { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .epic-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; }
 .epic-row__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .epic-row__count { font-size: 0.75rem; opacity: 0.75; font-variant-numeric: tabular-nums; }

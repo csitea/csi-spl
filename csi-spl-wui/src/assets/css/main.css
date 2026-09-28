@@ -193,10 +193,17 @@ html.pane-dragging * {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* SPL-1146: the footer is its own bar - opaque, a top border, its own row
+   of the column - so no list runs under it; each list scrolls above it.
+   No z-index: that would trap the fixed version card (SPL-999) in a
+   stacking context of its own. */
 .sidebar-foot {
+  position: relative;
   margin-top: auto;
   flex-shrink: 0;
   min-width: 0;
+  background: var(--color-sidebar);
+  border-top: 1px solid var(--color-border);
 }
 .sidebar h2 {
   flex-shrink: 0;

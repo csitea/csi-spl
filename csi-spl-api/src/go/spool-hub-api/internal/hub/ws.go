@@ -737,7 +737,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		return c, err
 	}
 	if inserted {
-		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent, typedBy)
+		s.fanoutWUI(ctx, row)
 	}
 	// Box fan-out goes by what the SIGNED envelope claims: a box-signed reply
 	// that only inherited its topic's channel carries no tag, and a member box

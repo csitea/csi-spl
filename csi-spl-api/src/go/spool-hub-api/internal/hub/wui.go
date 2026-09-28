@@ -695,9 +695,12 @@ func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Messag
 	return "", 0, ""
 }
 
-// fanoutWUI pushes one stored message to every browser subscribed to its task,
+// fanoutWUI pushes one stored message row to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
-func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte, isParent int, typedBy string) {
+func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
+	tenant, taskID, channel, msgID := row.TenantID, row.TaskID, row.Channel, row.MsgID
+	p := parties{row.FromID, row.FromBox, row.ToID, row.ToBox}
+	receivedAt, env, isParent, typedBy := row.ReceivedAt, row.Env, row.IsParent, row.TypedBy
 	// One membership lookup per stored message, outside the lock: wants()
 	// runs under srv.mu and cannot go to the store, and a set cached on the
 	// socket would keep delivering to someone removed from the channel

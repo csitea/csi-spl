@@ -50,18 +50,13 @@
           >
             <UiIcon name="chevron-left" :size="22" />
           </button>
+          <!-- SPL-1133: the X at the chosen corner (Mac = start, the default;
+               Windows = end), one shared UiCloseButton; on a phone it hides
+               in both modes and Back keeps the start edge -->
+          <UiCloseButton side="start" class="ui-dialog__close" data-testid="ui-dialog-close" @click="close" />
           <h2 :id="titleId" class="ui-dialog__title">{{ title }}</h2>
           <div class="ui-dialog__tools"><slot name="tools" /></div>
-          <button
-            type="button"
-            class="ui-dialog__close"
-            data-testid="ui-dialog-close"
-            :title="t('common.close')"
-            :aria-label="t('common.close')"
-            @click="close"
-          >
-            <UiIcon name="x" :size="18" />
-          </button>
+          <UiCloseButton side="end" class="ui-dialog__close" data-testid="ui-dialog-close" @click="close" />
         </header>
         <div class="ui-dialog__body" data-testid="ui-dialog-body">
           <slot />
@@ -286,6 +281,11 @@ onUnmounted(() => {
 @media (max-width: 640px) {
   .ui-dialog-backdrop { padding: 8px; }
   .ui-dialog { height: 100%; max-height: 100%; border-radius: var(--radius-md); }
+}
+/* SPL-1133: Mac style (the default) puts the X first - the wider inset
+   goes to the title's end instead. Phones (<= 600 px) keep their own bar. */
+@media (min-width: 601px) {
+  :global(html:not([data-close-buttons="windows"]) .ui-dialog__head) { padding-inline: 8px 14px; }
 }
 /* SPL-993: the back chevron exists only on a phone. */
 .ui-dialog__back { display: none; }

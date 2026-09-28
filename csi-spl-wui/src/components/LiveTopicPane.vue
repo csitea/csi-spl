@@ -17,18 +17,11 @@
     <header>
       <!-- SPL-989: on a phone the chevron is Back (level 3 -> 2); the X hides -->
       <MobileBack />
-      <button
-        class="icon-btn topic-close"
-        type="button"
-        data-test="live-topic-close"
-        :aria-label="t('common.close')"
-        :title="t('common.close')"
-        @click="close()"
-      >
-        <UiIcon name="x" :size="18" />
-      </button>
+      <!-- SPL-1133: the X at the chosen corner (Mac = here, the default) -->
+      <UiCloseButton side="start" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
       <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
       <LazyCardClipControl pane="thread" />
+      <UiCloseButton side="end" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
          at the newest end of the pane. -->

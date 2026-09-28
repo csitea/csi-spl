@@ -119,6 +119,12 @@
       "bottom": "Onderaan, onder de berichten",
       "hint": "Op tablets en computers. Op een telefoon staat hij altijd onderaan. Wordt op je account bewaard."
     },
+    "close_buttons": {
+      "label": "Sluitknoppen",
+      "mac": "Mac-stijl (linksboven)",
+      "windows": "Windows-stijl (rechtsboven)",
+      "hint": "Waar de X staat die dialogen, panelen en bladen sluit. Op een telefoon blijft Terug linksboven. Bewaard in je account."
+    },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
     "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",

@@ -458,10 +458,10 @@
       <div class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="filtersOpen = false; sortOpen = false" />
       <section v-if="filtersOpen" class="issues-sheet" role="dialog" aria-modal="false" :aria-label="t('issues_mobile.filters')" data-test="issues-filter-sheet">
         <header class="issues-sheet__h">
+          <!-- SPL-1133: the X at the chosen corner (Mac = start, the default) -->
+          <UiCloseButton side="start" :size="20" class="icon-btn issues-sheet__x" data-test="issues-filter-sheet-close" @click="filtersOpen = false" />
           <h3>{{ t('issues_mobile.filters') }}</h3>
-          <button type="button" class="icon-btn issues-sheet__x" data-test="issues-filter-sheet-close" :aria-label="t('common.close')" @click="filtersOpen = false">
-            <UiIcon name="x" :size="20" />
-          </button>
+          <UiCloseButton side="end" :size="20" class="icon-btn issues-sheet__x" data-test="issues-filter-sheet-close" @click="filtersOpen = false" />
         </header>
         <!-- the status filter keeps its hints (topic e00da93b): one tappable row per status -->
         <div class="issues-sheet__f" role="radiogroup" :aria-label="t('issues.filter_status')" data-test="issues-filter-status-m">
@@ -523,10 +523,9 @@
       </section>
       <section v-if="sortOpen" class="issues-sheet" role="listbox" :aria-label="t('issues_mobile.sort')" data-test="issues-sort-sheet">
         <header class="issues-sheet__h">
+          <UiCloseButton side="start" :size="20" class="icon-btn issues-sheet__x" data-test="issues-sort-sheet-close" @click="sortOpen = false" />
           <h3>{{ t('issues_mobile.sort') }}</h3>
-          <button type="button" class="icon-btn issues-sheet__x" :aria-label="t('common.close')" @click="sortOpen = false">
-            <UiIcon name="x" :size="20" />
-          </button>
+          <UiCloseButton side="end" :size="20" class="icon-btn issues-sheet__x" data-test="issues-sort-sheet-close" @click="sortOpen = false" />
         </header>
         <button
           v-for="o in sortChoices"
@@ -2740,8 +2739,8 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
     box-shadow: 0 -8px 24px rgb(0 0 0 / .3);
   }
   .issues-menu.issues-sheet { gap: 0; }
-  .issues-sheet__h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .issues-sheet__h h3 { margin: 0; font-size: 1rem; }
+  .issues-sheet__h { display: flex; align-items: center; gap: 8px; }
+  .issues-sheet__h h3 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 1rem; }
   .issues-sheet__x { min-width: var(--tap, 44px); min-height: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; }
   .issues-sheet__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
   .issues-sheet__f select {

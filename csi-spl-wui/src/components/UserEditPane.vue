@@ -13,17 +13,10 @@
   >
     <header class="users-pane__head">
       <MobileBack />
+      <!-- SPL-1133: the X at the chosen corner (Mac = start, the default) -->
+      <UiCloseButton side="start" class="icon-btn users-pane__close" data-test="users-pane-close" @click="emit('close')" />
       <h2 class="users-pane__title">{{ title }}</h2>
-      <button
-        type="button"
-        class="icon-btn users-pane__close"
-        data-test="users-pane-close"
-        :title="t('common.close')"
-        :aria-label="t('common.close')"
-        @click="emit('close')"
-      >
-        <UiIcon name="x" :size="18" />
-      </button>
+      <UiCloseButton side="end" class="icon-btn users-pane__close" data-test="users-pane-close" @click="emit('close')" />
     </header>
     <div class="users-pane__body">
       <!-- new invite -->

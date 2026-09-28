@@ -119,6 +119,12 @@
       "bottom": "Apakšā, zem ziņām",
       "hint": "Planšetdatoros un datoros. Tālrunī tas vienmēr ir apakšā. Tiek glabāts jūsu kontā."
     },
+    "close_buttons": {
+      "label": "Aizvēršanas pogas",
+      "mac": "Mac stils (augšā pa kreisi)",
+      "windows": "Windows stils (augšā pa labi)",
+      "hint": "Kur atrodas X, kas aizver dialogus, rūtis un lapas. Tālrunī Atpakaļ paliek augšā pa kreisi. Saglabā jūsu kontā."
+    },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
     "password_managed_by": "Jūsu paroli pārvalda {method}.",

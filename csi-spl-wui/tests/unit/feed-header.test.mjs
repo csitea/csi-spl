@@ -99,16 +99,19 @@ describe('i18n: the "last 30 · tenant-scoped" note is gone from every locale', 
 
 /* Owner 2026-09-26 (prd topic b8cbfbe1): the thread pane's header is one row -
    the X first, then the title on one line with an ellipsis (full title on
-   hover), then the replies' height control (SPL-945). */
+   hover), then the replies' height control (SPL-945). SPL-1133: the X is
+   the shared UiCloseButton at both ends - first in Mac style (the default),
+   after the control in Windows style; one of the two renders. */
 describe('the thread pane header: X, then the title on one line, then the control', () => {
   for (const p of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
     it(p, () => {
       const t = template(p)
       const head = t.slice(t.indexOf('<header>'), t.indexOf('</header>'))
-      const x = head.indexOf('<UiIcon name="x"')
+      const x = head.indexOf('<UiCloseButton side="start"')
       const title = head.indexOf('class="topic-heading__title"')
       const ctl = head.indexOf('<LazyCardClipControl pane="thread" />')
-      assert.ok(x > 0 && title > x && ctl > title, `order X ${x} < title ${title} < control ${ctl}`)
+      const xEnd = head.indexOf('<UiCloseButton side="end"')
+      assert.ok(x > 0 && title > x && ctl > title && xEnd > ctl, `order X ${x} < title ${title} < control ${ctl} < X ${xEnd}`)
       assert.match(head, /class="topic-heading__title"[^>]*:title="heading"/)
       assert.doesNotMatch(head, /flex-wrap:wrap/)
     })

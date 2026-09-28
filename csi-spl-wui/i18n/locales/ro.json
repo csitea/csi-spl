@@ -119,6 +119,12 @@
       "bottom": "Jos, sub mesaje",
       "hint": "Pe tablete și calculatoare. Pe telefon rămâne mereu jos. Se păstrează în contul tău."
     },
+    "close_buttons": {
+      "label": "Butoane de închidere",
+      "mac": "Stil Mac (stânga sus)",
+      "windows": "Stil Windows (dreapta sus)",
+      "hint": "Unde stă X-ul care închide dialogurile, panourile și foile. Pe telefon, Înapoi rămâne stânga sus. Păstrat în contul tău."
+    },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
     "password_managed_by": "Parola dvs. este gestionată de {method}.",

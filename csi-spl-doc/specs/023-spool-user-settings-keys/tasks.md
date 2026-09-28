@@ -46,4 +46,10 @@
 - [x] T047 (FR-015, FR-016) WUI: `utils/rail-order.mjs`, `composables/useRailOrder.ts` + `useDragReorder.ts`, the rail drags, `RailOrderSetting.vue` on `/settings/behaviour`, 19 locales.
 - [x] T052 (FR-015..FR-017) Live proof `tests/e2e/rail-order-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`), WUI `5da2853a` + hub 0.9.4 `590fd54b`, n=1 per env, 2026-09-26 ~19:45Z: 20/20 PASS each - CONTROL default order; a plain click navigates and does not reorder; a mouse drag moves the icons while dragging, is stored at once and does not click; a reload and a fresh phone sign-in draw it; Settings shows the same order, up/down by keyboard stores and redraws the rail at once; a touch drag on a 390px phone reorders and stores; Default order clears it. Accounts restored to never-reordered (PUT 200).
 
-<!-- version: 1.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:45:00Z -->
+## Phase 8 — Behaviour → Close buttons (SPL-1133, 3.9)
+
+- [x] T053 Hub: rdb 0077 `humans.close_buttons` (mac | windows), `auth.ViewPrefs` close_buttons, session + login answer; `4db84e2a`.
+- [x] T054 WUI: `UiCloseButton.vue` at both ends of every dialog / pane / sheet header, `<html data-close-buttons>`, Settings -> Behaviour radio group, 19 locales; e2e `close-buttons.test.mjs` 21/21 (mock, 1440 + 390).
+- [ ] T055 Live proof on dev (t1 test member) and prd (tenant `e2e`) once hub + rdb 0077 + WUI are deployed.
+
+<!-- version: 1.4.0 · updated: 2026-09-28 · last-edit: 2026-09-28T15:20:00Z -->

@@ -295,11 +295,11 @@ async function run(browser, base, width, touch) {
   await signIn(p, 'newest-last', 'bottom')
   await go(p, '/settings/behaviour')
   await p.waitForSelector('[data-test=view-prefs-setting]', { timeout: 10000 })
-  const checked = await p.$$eval('[data-test=view-prefs-setting] input[type=radio]:checked', (els) => els.map((e) => e.value))
+  const checked = await p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value))
   check(`${tag} settings: both radios show the account's choices`, checked.join(',') === 'newest-last,bottom', { checked })
   await signIn(p)
   await sleep(200)
-  const checkedDefault = await p.$$eval('[data-test=view-prefs-setting] input[type=radio]:checked', (els) => els.map((e) => e.value))
+  const checkedDefault = await p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value))
   check(`${tag} settings: never picked shows the defaults checked`, checkedDefault.join(',') === 'newest-first,top', { checkedDefault })
   await p.close()
 }

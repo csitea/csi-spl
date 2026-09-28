@@ -8,8 +8,8 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import {
-  applyViewPref, parseComposerPosition, parseIssuesView, parseMessageOrder,
-  type ComposerPosition, type IssuesView, type MessageOrder, type ViewPrefKey,
+  applyViewPref, parseCloseButtons, parseComposerPosition, parseIssuesView, parseMessageOrder,
+  type CloseButtons, type ComposerPosition, type IssuesView, type MessageOrder, type ViewPrefKey,
 } from '~/utils/view-prefs.mjs'
 
 export function useViewPrefs() {
@@ -20,6 +20,8 @@ export function useViewPrefs() {
   const newestLast = computed(() => messageOrder.value === 'newest-last')
   /* SPL-1028: the Issues page's view (list | status), per person */
   const issuesView = computed<IssuesView>(() => parseIssuesView(session.claims?.issues_view))
+  /* SPL-1133: which corner every close X sits in (mac = top left, the default) */
+  const closeButtons = computed<CloseButtons>(() => parseCloseButtons(session.claims?.close_buttons))
 
   /** Store one choice (optimistic). Resolves the save's outcome. */
   async function save(key: ViewPrefKey, want: string) {
@@ -31,5 +33,5 @@ export function useViewPrefs() {
     })
   }
 
-  return { messageOrder, composerPosition, newestLast, issuesView, save }
+  return { messageOrder, composerPosition, newestLast, issuesView, closeButtons, save }
 }

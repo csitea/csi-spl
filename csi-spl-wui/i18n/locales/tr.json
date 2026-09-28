@@ -119,6 +119,12 @@
       "bottom": "Altta, mesajların altında",
       "hint": "Tabletlerde ve bilgisayarlarda. Telefonda her zaman alttadır. Hesabınızda saklanır."
     },
+    "close_buttons": {
+      "label": "Kapatma düğmeleri",
+      "mac": "Mac stili (sol üst)",
+      "windows": "Windows stili (sağ üst)",
+      "hint": "İletişim kutularını, panelleri ve sayfaları kapatan X'in yeri. Telefonda Geri sol üstte kalır. Hesabınızda saklanır."
+    },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
     "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",

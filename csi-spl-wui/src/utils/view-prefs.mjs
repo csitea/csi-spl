@@ -14,6 +14,9 @@
 //   issues_view       'list'          the Issues sheet, one flat list
 //                     'status'        the same rows grouped by status
 //                                     (SPL-1028, rdb 0072, Linear's view)
+//   close_buttons     'mac'           every close X in the top left (the
+//                                     owner's default, SPL-1133, rdb 0077)
+//                     'windows'       every close X in the top right
 //
 // The hub lists the same values in the same order (auth.ViewPrefs); the unit
 // test tests/unit/view-prefs.test.mjs pins the two lists equal.
@@ -21,12 +24,14 @@
 export const MESSAGE_ORDERS = Object.freeze(['newest-first', 'newest-last'])
 export const COMPOSER_POSITIONS = Object.freeze(['top', 'bottom'])
 export const ISSUES_VIEWS = Object.freeze(['list', 'status'])
+export const CLOSE_BUTTONS = Object.freeze(['mac', 'windows'])
 
 /** Each claim's values, default first. */
 export const VIEW_PREFS = Object.freeze({
   message_order: MESSAGE_ORDERS,
   composer_position: COMPOSER_POSITIONS,
   issues_view: ISSUES_VIEWS,
+  close_buttons: CLOSE_BUTTONS,
 })
 
 export const DEFAULT_MESSAGE_ORDER = MESSAGE_ORDERS[0]
@@ -48,6 +53,22 @@ export function parseComposerPosition(raw) {
 
 export function parseIssuesView(raw) {
   return parseViewPref('issues_view', raw)
+}
+
+export function parseCloseButtons(raw) {
+  return parseViewPref('close_buttons', raw)
+}
+
+/**
+ * SPL-1133: does a close button placed at `side` of its header show? Every
+ * header carries the one shared UiCloseButton at BOTH ends, and exactly one
+ * of the two renders, so the DOM (and the Tab order) matches what is drawn.
+ * 'start' = top left = Mac style; 'end' = top right = Windows style.
+ * @param {'start' | 'end'} side
+ * @param {unknown} pref the close_buttons claim
+ */
+export function closeButtonShown(side, pref) {
+  return (parseCloseButtons(pref) === 'mac') === (side === 'start')
 }
 
 /**

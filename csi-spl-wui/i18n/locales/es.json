@@ -119,6 +119,12 @@
       "bottom": "Abajo, debajo de los mensajes",
       "hint": "En tabletas y ordenadores. En el teléfono siempre queda abajo. Se guarda en tu cuenta."
     },
+    "close_buttons": {
+      "label": "Botones de cerrar",
+      "mac": "Estilo Mac (arriba a la izquierda)",
+      "windows": "Estilo Windows (arriba a la derecha)",
+      "hint": "Dónde está la X que cierra diálogos, paneles y hojas. En el teléfono, Atrás sigue arriba a la izquierda. Se guarda en tu cuenta."
+    },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
     "password_managed_by": "Tu contraseña la gestiona {method}.",

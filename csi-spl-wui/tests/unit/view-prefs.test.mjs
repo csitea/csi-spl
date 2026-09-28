@@ -38,6 +38,34 @@ describe('view pref values', () => {
     for (const raw of [null, undefined, '', 'board', 'Status']) assert.equal(parseIssuesView(raw), 'list')
     assert.equal(parseIssuesView('status'), 'status')
   })
+  it('SPL-1133: close_buttons is mac | windows in the hub (auth.ViewPrefs) and rdb 0077, mac (the owner\'s default) first', async () => {
+    const { CLOSE_BUTTONS, parseCloseButtons, closeButtonShown } = await import('../../src/utils/view-prefs.mjs')
+    assert.deepEqual([...CLOSE_BUTTONS], ['mac', 'windows'])
+    assert.match(read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go'), /PrefCloseButtons: +\{"mac", "windows"\}/)
+    assert.match(read('../csi-spl-rdb/src/sql/postgres/spool-hub/0077_human_close_buttons.sql'), /close_buttons IN \('mac','windows'\)/)
+    for (const raw of [null, undefined, '', 'linux', 'Windows']) assert.equal(parseCloseButtons(raw), 'mac')
+    assert.equal(parseCloseButtons('windows'), 'windows')
+    /* exactly one of the two placements renders */
+    for (const pref of [null, 'mac', 'windows', 'junk']) assert.notEqual(closeButtonShown('start', pref), closeButtonShown('end', pref))
+    assert.equal(closeButtonShown('start', null), true)
+    assert.equal(closeButtonShown('end', 'windows'), true)
+  })
+  it('SPL-1133: every close X of a dialog, pane or sheet is the shared UiCloseButton, placed at both ends', () => {
+    for (const [file, n] of [['src/components/UiDialog.vue', 2], ['src/components/TopicPane.vue', 2], ['src/components/LiveTopicPane.vue', 2],
+      ['src/components/UserEditPane.vue', 2], ['src/pages/issues.vue', 4]]) {
+      const src = read(file)
+      const starts = (src.match(/<UiCloseButton side="start"/g) || []).length
+      const ends = (src.match(/<UiCloseButton side="end"/g) || []).length
+      assert.equal(starts + ends, n, `${file}: ${starts} start + ${ends} end`)
+      assert.equal(starts, ends, `${file}: one start per end`)
+      assert.doesNotMatch(src, /<button[^>]*(?:ui-dialog__close|topic-close|users-pane__close|issues-sheet__x)/, `${file}: a hand-rolled close X`)
+    }
+    assert.match(read('src/app.vue'), /'data-close-buttons': parseCloseButtons\(session\.claims\?\.close_buttons\)/)
+    for (const code of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const s = JSON.parse(read(`i18n/locales/${code}.json`)).settings
+      for (const k of ['label', 'mac', 'windows', 'hint']) assert.ok(s.close_buttons?.[k], `${code} close_buttons.${k}`)
+    }
+  })
   it('never picked = today\'s layout: newest first, Omnibox at the top', () => {
     assert.equal(DEFAULT_MESSAGE_ORDER, 'newest-first')
     assert.equal(DEFAULT_COMPOSER_POSITION, 'top')

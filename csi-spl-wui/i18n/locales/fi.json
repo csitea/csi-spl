@@ -119,6 +119,12 @@
       "bottom": "Alhaalla, viestien alla",
       "hint": "Tableteilla ja tietokoneilla. Puhelimessa se on aina alhaalla. Tallennetaan tilillesi."
     },
+    "close_buttons": {
+      "label": "Sulkemispainikkeet",
+      "mac": "Mac-tyyli (ylhäällä vasemmalla)",
+      "windows": "Windows-tyyli (ylhäällä oikealla)",
+      "hint": "Missä valintaikkunat, paneelit ja arkit sulkeva X on. Puhelimessa Takaisin pysyy ylhäällä vasemmalla. Tallennetaan tilillesi."
+    },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
     "password_managed_by": "Salasanaasi hallinnoi {method}.",

@@ -11,6 +11,7 @@
 import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
 import { tabTitle, tenantTabName } from '~/utils/tab-title.mjs'
+import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
@@ -49,6 +50,8 @@ useHead(() => ({
   htmlAttrs: {
     lang: i18nHead.value.htmlAttrs?.lang || locale.value,
     dir: docDir(),
+    /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
+    'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
   },
   link: [...(i18nHead.value.link || [])],
   meta: appVersion ? [{ name: 'version', content: appVersion }] : [],

@@ -119,6 +119,12 @@
       "bottom": "Na dole, pod wiadomościami",
       "hint": "Na tabletach i komputerach. Na telefonie zawsze jest na dole. Zapisywane na Twoim koncie."
     },
+    "close_buttons": {
+      "label": "Przyciski zamykania",
+      "mac": "Styl Mac (u góry po lewej)",
+      "windows": "Styl Windows (u góry po prawej)",
+      "hint": "Gdzie jest X zamykający okna dialogowe, panele i arkusze. Na telefonie Wstecz zostaje u góry po lewej. Zapisywane na Twoim koncie."
+    },
     "signin_security": "Logowanie i bezpieczeństwo",
     "signed_in_with": "Zalogowano przez",
     "password_managed_by": "Twoim hasłem zarządza {method}.",

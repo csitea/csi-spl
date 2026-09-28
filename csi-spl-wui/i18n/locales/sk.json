@@ -119,6 +119,12 @@
       "bottom": "Dole, pod správami",
       "hint": "Na tabletoch a počítačoch. Na telefóne je vždy dole. Uchováva sa vo vašom účte."
     },
+    "close_buttons": {
+      "label": "Tlačidlá zatvorenia",
+      "mac": "Štýl Mac (vľavo hore)",
+      "windows": "Štýl Windows (vpravo hore)",
+      "hint": "Kde je X, ktoré zatvára dialógy, panely a hárky. Na telefóne zostáva Späť vľavo hore. Uložené vo vašom účte."
+    },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",
     "password_managed_by": "Vaše heslo spravuje {method}.",

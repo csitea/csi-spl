@@ -119,6 +119,12 @@
       "bottom": "Apačioje, po žinutėmis",
       "hint": "Planšetėse ir kompiuteriuose. Telefone jis visada apačioje. Saugoma jūsų paskyroje."
     },
+    "close_buttons": {
+      "label": "Uždarymo mygtukai",
+      "mac": "Mac stilius (viršuje kairėje)",
+      "windows": "Windows stilius (viršuje dešinėje)",
+      "hint": "Kur yra X, uždarantis dialogus, skydelius ir lapus. Telefone Atgal lieka viršuje kairėje. Saugoma jūsų paskyroje."
+    },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
     "password_managed_by": "Jūsų slaptažodį tvarko {method}.",

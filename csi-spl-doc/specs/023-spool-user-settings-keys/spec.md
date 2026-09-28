@@ -285,6 +285,36 @@ renders once, in the parent, for every section.
   place shows in the other at once. An operator sets it with
   `ENV=<env> HUMAN_ID=HUM-<n> RAIL_ORDER=<six ids> ./run -a do_spl_human_behaviour`.
 
+### 3.9 Behaviour → Close buttons (SPL-1133, owner 2026-09-28)
+
+> "we need a User Setting to put the X's for closing the modal dialogs etc.
+> either Windows style, i.e. top right, or Mac style, i.e. top left" — then
+> "use the Mac style as the default" (prd t1 topic 9e0379a6).
+
+- **Two values**, `close_buttons`: `mac` (top left, **the default** for a
+  person who never picked) | `windows` (top right). `humans.close_buttons`
+  (rdb 0077, NULL or one of the two, CHECK), a hub view pref
+  (`auth.ViewPrefs`, `PUT /api/v1/auth/preferences`, `GET /session`, native
+  login answer). A never-picked row stays NULL; the default is not written into it.
+- **Implemented once**: `app.vue` mirrors the claim on
+  `<html data-close-buttons>`; `components/UiCloseButton.vue` is the one close
+  X. Each header places it at BOTH ends (`side="start"` / `side="end"`) and
+  exactly one renders (`closeButtonShown`), so the X is in the DOM where it
+  is drawn: the first Tab stop in Mac style, the last in Windows style, and
+  focus still returns to the opener on close.
+- **Where**: `UiDialog` (so every dialog: UiConfirm, the issue modal
+  SPL-1027, channel Properties, the logo, move picker, code / file viewers),
+  the thread panes (`TopicPane`, `LiveTopicPane`), the Users edit pane, the
+  Issues phone sheets (Filters, Sort).
+- **Phones**: a full-screen dialog and a pane keep their Back chevron at the
+  top left in both modes and show no X (unchanged, SPL-989/993); the bottom
+  sheets that do show an X follow the setting.
+- **Not moved**: toasts and snackbars (MoveUndoToast, ErrorSnackbar) and chip
+  removers (a file chip, a label chip) - they dismiss an item, they do not
+  close a window. The version pop-up and the search sheet have no X (the
+  pop-up is a hover card; the phone search sheet was retired, SPL-1005).
+- Proof: `tests/e2e/close-buttons.test.mjs` (mock, 1440 + 390).
+
 ## 4. Requirements
 
 - **FR-001** `/settings` is the two-column layout of 3.4; the user menu's

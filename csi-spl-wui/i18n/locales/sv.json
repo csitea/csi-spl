@@ -119,6 +119,12 @@
       "bottom": "Längst ned, under meddelandena",
       "hint": "På surfplattor och datorer. På telefonen ligger den alltid längst ned. Sparas på ditt konto."
     },
+    "close_buttons": {
+      "label": "Stängknappar",
+      "mac": "Mac-stil (uppe till vänster)",
+      "windows": "Windows-stil (uppe till höger)",
+      "hint": "Var X:et som stänger dialoger, paneler och blad sitter. På en telefon stannar Tillbaka uppe till vänster. Sparas på ditt konto."
+    },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
     "password_managed_by": "Ditt lösenord hanteras av {method}.",

@@ -119,6 +119,12 @@
       "bottom": "At the bottom, under the messages",
       "hint": "On tablets and computers. Phones always keep it at the bottom. Kept on your account."
     },
+    "close_buttons": {
+      "label": "Close buttons",
+      "mac": "Mac style (top left)",
+      "windows": "Windows style (top right)",
+      "hint": "Where the X that closes dialogs, panes and sheets sits. Phones keep Back at the top left. Kept on your account."
+    },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
     "password_managed_by": "Your password is managed by {method}.",

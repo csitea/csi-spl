@@ -119,6 +119,12 @@
       "bottom": "На дну, испод порука",
       "hint": "На таблетима и рачунарима. На телефону је увек на дну. Чува се на вашем налогу."
     },
+    "close_buttons": {
+      "label": "Дугмад за затварање",
+      "mac": "Mac стил (горе лево)",
+      "windows": "Windows стил (горе десно)",
+      "hint": "Где стоји X који затвара дијалоге, панеле и листове. На телефону Назад остаје горе лево. Чува се на вашем налогу."
+    },
     "signin_security": "Prijava i bezbednost",
     "signed_in_with": "Prijavljeni preko",
     "password_managed_by": "Vašom lozinkom upravlja {method}.",

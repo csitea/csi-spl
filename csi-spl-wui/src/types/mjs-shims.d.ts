@@ -421,7 +421,7 @@ declare module '~/utils/auth-client.mjs' {
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>
-    saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view', value: string | null): Promise<NativeResult>
+    saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons', value: string | null): Promise<NativeResult>
     saveIssueColumns(cols: Record<string, number> | null): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
@@ -1233,17 +1233,21 @@ declare module '~/utils/view-prefs.mjs' {
   export type MessageOrder = 'newest-first' | 'newest-last'
   export type ComposerPosition = 'top' | 'bottom'
   export type IssuesView = 'list' | 'status'
-  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view'
+  export type CloseButtons = 'mac' | 'windows'
+  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons'
   export const MESSAGE_ORDERS: readonly MessageOrder[]
   export const COMPOSER_POSITIONS: readonly ComposerPosition[]
   export const ISSUES_VIEWS: readonly IssuesView[]
-  export const VIEW_PREFS: Readonly<{ message_order: readonly MessageOrder[], composer_position: readonly ComposerPosition[], issues_view: readonly IssuesView[] }>
+  export const CLOSE_BUTTONS: readonly CloseButtons[]
+  export const VIEW_PREFS: Readonly<{ message_order: readonly MessageOrder[], composer_position: readonly ComposerPosition[], issues_view: readonly IssuesView[], close_buttons: readonly CloseButtons[] }>
   export const DEFAULT_MESSAGE_ORDER: MessageOrder
   export const DEFAULT_COMPOSER_POSITION: ComposerPosition
   export function parseViewPref(key: ViewPrefKey, raw: unknown): string
   export function parseMessageOrder(raw: unknown): MessageOrder
   export function parseComposerPosition(raw: unknown): ComposerPosition
   export function parseIssuesView(raw: unknown): IssuesView
+  export function parseCloseButtons(raw: unknown): CloseButtons
+  export function closeButtonShown(side: 'start' | 'end', pref: unknown): boolean
   export function displayOrder<T>(rows: readonly T[] | null | undefined, order: unknown): T[]
   export function applyViewPref(
     key: ViewPrefKey,

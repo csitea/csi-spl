@@ -119,6 +119,12 @@
       "bottom": "All, sõnumite all",
       "hint": "Tahvelarvutites ja arvutites. Telefonis on see alati all. Hoitakse sinu kontol."
     },
+    "close_buttons": {
+      "label": "Sulgemisnupud",
+      "mac": "Maci stiil (üleval vasakul)",
+      "windows": "Windowsi stiil (üleval paremal)",
+      "hint": "Kus asub X, mis sulgeb dialoogid, paanid ja lehed. Telefonis jääb Tagasi üles vasakule. Salvestatakse sinu kontole."
+    },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
     "password_managed_by": "Sinu parooli haldab {method}.",

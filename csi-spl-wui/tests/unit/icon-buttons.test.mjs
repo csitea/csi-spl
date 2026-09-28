@@ -34,13 +34,18 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     const topic = read('src/components/TopicPane.vue')
     const card = read('src/components/MessageCard.vue')
     const composer = read('src/components/MessageComposer.vue')
+    /* SPL-1133: the panes' X is the shared UiCloseButton (Mac / Windows corner) */
+    const close = read('src/components/UiCloseButton.vue')
+    for (const [name, src] of [['LiveTopicPane', live], ['TopicPane', topic]]) {
+      assert.match(src, /<UiCloseButton side="start" class="icon-btn topic-close"/, name)
+      assert.match(src, /<UiCloseButton side="end" class="icon-btn topic-close"/, name)
+    }
 
     for (const [name, src] of [
-      ['LiveTopicPane', live],
-      ['TopicPane', topic],
+      ['UiCloseButton', close],
     ]) {
-      assert.match(src, /:aria-label="t\('common\.close'\)"/, name)
-      assert.match(src, /:title="t\('common\.close'\)"/, name)
+      assert.match(src, /:aria-label="label \|\| t\('common\.close'\)"/, name)
+      assert.match(src, /:title="label \|\| t\('common\.close'\)"/, name)
       assert.match(src, /name="x"/, name)
       assert.equal(/\>\{\{\s*t\('common\.close'\)\s*\}\}</.test(src), false, name + ' visible Close')
     }

@@ -597,7 +597,9 @@ html.pane-dragging * {
 }
 /* Owner 2026-09-26 (prd topic b8cbfbe1): the thread header is ONE row -
    Close first, then the title on one line cut with an ellipsis (the full
-   title is its hover), then the replies' height control (SPL-945). */
+   title is its hover), then the replies' height control (SPL-945).
+   SPL-1133: Close is first in Mac style (the default) and last, after the
+   height control, in Windows style (UiCloseButton). */
 .topic header {
   display: flex;
   align-items: center;

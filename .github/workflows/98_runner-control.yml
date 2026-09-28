@@ -1,0 +1,19 @@
+# CONTROL (CLE-35070, SPL-64) - lives only on a throwaway PR branch, never on
+# master. A pull request asks for the self-hosted runners; the org runner group
+# spool-ci-trusted admits only named workflows at refs/heads/master, so the
+# self-hosted job must never start. The hosted job proves the PR itself ran.
+name: "98 control: a pull request cannot reach the self-hosted runners"
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  hosted:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "the pull request ran on a GitHub-hosted runner"
+  self-hosted-probe:
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 5
+    steps:
+      - run: echo "REACHED the self-hosted runner - the hardening FAILED"

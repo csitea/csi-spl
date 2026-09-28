@@ -218,9 +218,13 @@ func TestChannelBackfillOnHelloAndOldClient(t *testing.T) {
 	if !strings.Contains(pokes()[0], "added to #mobile: 1 earlier message in 1 topic, newest from HUM-") {
 		t.Fatalf("summary: %v", pokes())
 	}
-	if p, _ := bf.PendingBackfills(ctx, tid, "box-desk"); len(p) != 0 {
-		t.Fatalf("pending after hello: %+v", p)
-	}
+	// The hub stamps the seat AFTER the backfill_end frame (a stamp only for
+	// a delivered back-fill), so the poke can reach the box before the stamp
+	// commits: wait for it rather than read once (CI flaked on it 2x).
+	eventually(t, "seat stamped after hello", func() bool {
+		p, _ := bf.PendingBackfills(ctx, tid, "box-desk")
+		return len(p) == 0
+	})
 }
 
 // Nothing to send still stamps the seat, and pokes nobody.

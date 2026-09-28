@@ -173,7 +173,10 @@ jobs:
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
     # cancelled at 20m right after names-not-ids 9/9, before the bundle budget.
-    timeout-minutes: 30
+    # 30 -> 45 (2026-09-28): run 36371370216 (221c9115) ran 03:00:33..03:31:09
+    # and was cancelled at 30m inside build-watch, every suite before it green;
+    # names-not-ids, search-original and the bundle budget never ran.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: csi-spl-wui

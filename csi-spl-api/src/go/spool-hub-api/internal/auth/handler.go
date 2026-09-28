@@ -387,6 +387,9 @@ type sessionResp struct {
 	// IssuesView is the Issues page's view (SPL-1028), null when never
 	// picked (the WUI then shows the list).
 	IssuesView *string `json:"issues_view"`
+	// CloseButtons is Settings -> Behaviour "Close buttons" (SPL-1133), null
+	// when never picked (the WUI then draws them Mac style, top left).
+	CloseButtons *string `json:"close_buttons"`
 	// IssuesColumns is the Issues sheet's column widths (SPL-1132), column
 	// -> px, null when never sized (the WUI then keeps its automatic layout).
 	IssuesColumns map[string]int `json:"issues_columns"`
@@ -426,6 +429,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.MessageOrder = h.viewPref(ctx, s, PrefMessageOrder)
 		out.ComposerPosition = h.viewPref(ctx, s, PrefComposerPosition)
 		out.IssuesView = h.viewPref(ctx, s, PrefIssuesView)
+		out.CloseButtons = h.viewPref(ctx, s, PrefCloseButtons)
 		out.IssuesColumns = h.issueColumns(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -705,6 +709,9 @@ const (
 	// PrefIssuesView (SPL-1028, rdb 0072): 'list' = the Issues sheet as one
 	// flat list; 'status' = the same rows grouped by status (Linear's view).
 	PrefIssuesView = "issues_view"
+	// PrefCloseButtons (SPL-1133, rdb 0077): 'mac' = every close X in the
+	// top left (the owner's default); 'windows' = in the top right.
+	PrefCloseButtons = "close_buttons"
 )
 
 // ViewPrefs maps each layout key to its values, default first.
@@ -712,10 +719,11 @@ var ViewPrefs = map[string][]string{
 	PrefMessageOrder:     {"newest-first", "newest-last"},
 	PrefComposerPosition: {"top", "bottom"},
 	PrefIssuesView:       {"list", "status"},
+	PrefCloseButtons:     {"mac", "windows"},
 }
 
 // viewPrefKeys is ViewPrefs' keys in a fixed order (the PUT answer and logs).
-var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition, PrefIssuesView}
+var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition, PrefIssuesView, PrefCloseButtons}
 
 // IsViewPref reports whether value is one of key's ViewPrefs values, exactly.
 func IsViewPref(key, value string) bool {
@@ -772,8 +780,8 @@ func isPermutation(order, of []string) bool {
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
 // legacy six, SPL-983), or null; message_order and composer_position (topic
-// c6994436) and issues_view (SPL-1028) are one of their ViewPrefs values
-// exactly, or null; issues_columns (SPL-1132) is an object of IssueColumns
+// c6994436), issues_view (SPL-1028) and close_buttons (SPL-1133) are one of
+// their ViewPrefs values exactly, or null; issues_columns (SPL-1132) is an object of IssueColumns
 // -> px (IsIssueColumns), or null / {} to clear it.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
@@ -785,6 +793,7 @@ type preferencesReq struct {
 	MessageOrder       json.RawMessage `json:"message_order"`
 	ComposerPosition   json.RawMessage `json:"composer_position"`
 	IssuesView         json.RawMessage `json:"issues_view"`
+	CloseButtons       json.RawMessage `json:"close_buttons"`
 	IssuesColumns      json.RawMessage `json:"issues_columns"`
 }
 
@@ -795,6 +804,8 @@ func (q preferencesReq) raw(key string) json.RawMessage {
 		return q.MessageOrder
 	case PrefIssuesView:
 		return q.IssuesView
+	case PrefCloseButtons:
+		return q.CloseButtons
 	}
 	return q.ComposerPosition
 }
@@ -864,7 +875,7 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 		return p, code, detail
 	}
 	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null) or issues_columns (column -> px or null) is required"
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null) or issues_columns (column -> px or null) is required"
 	}
 	if rawLoc != "" && rawLoc != "null" {
 		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {

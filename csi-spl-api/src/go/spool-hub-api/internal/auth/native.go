@@ -409,6 +409,8 @@ type loginResp struct {
 	ComposerPosition *string `json:"composer_position"`
 	// IssuesView as GET /session answers it (SPL-1028), null when unset.
 	IssuesView *string `json:"issues_view"`
+	// CloseButtons as GET /session answers it (SPL-1133), null when unset.
+	CloseButtons *string `json:"close_buttons"`
 	// IssuesColumns as GET /session answers it (SPL-1132), null when unset.
 	IssuesColumns map[string]int `json:"issues_columns"`
 }
@@ -532,7 +534,8 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
 		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
-		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), IssuesColumns: n.h.issueColumns(ctx, sess)}
+		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), CloseButtons: n.h.viewPref(ctx, sess, PrefCloseButtons),
+		IssuesColumns: n.h.issueColumns(ctx, sess)}
 }
 
 type emailReq struct {

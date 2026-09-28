@@ -660,6 +660,45 @@ func TestPreferencesIssuesColumns(t *testing.T) {
 	}
 }
 
+// SPL-1133: close_buttons is kept on the account like the other layout keys:
+// only mac / windows, null clears, independent of the others, and GET
+// /session plus the native login answer carry it. Mac is the default.
+func TestPreferencesCloseButtons(t *testing.T) {
+	if auth.ViewPrefs[auth.PrefCloseButtons][0] != "mac" {
+		t.Fatalf("default drifted: %v", auth.ViewPrefs[auth.PrefCloseButtons])
+	}
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["close_buttons"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	} else if _, ok := got.body["close_buttons"]; !ok {
+		t.Fatalf("session must answer close_buttons null: %s", got.raw)
+	}
+	got := r.call(t, c, http.MethodPut, "preferences", `{"close_buttons":"windows"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["close_buttons"] != "windows" {
+		t.Fatalf("put: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["close_buttons"] != "windows" || got.body["issues_view"] != nil {
+		t.Fatalf("session after: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK || got.body["close_buttons"] != "windows" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for _, body := range []string{`{"close_buttons":"linux"}`, `{"close_buttons":"Mac"}`, `{"close_buttons":""}`, `{"close_buttons":"list"}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_close_buttons" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"close_buttons":null}`)
+	if got.code != http.StatusOK || got.body["close_buttons"] != nil || len(got.body) != 1 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["close_buttons"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+}
+
 // firstHum is the one HUM-* the rig registered.
 func firstHum(p *fakePrefs) string {
 	p.reg.mu.Lock()

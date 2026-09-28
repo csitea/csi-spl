@@ -18,7 +18,9 @@
 // SEND=1 also sends one line in the newest-last/bottom combination and
 // checks it lands as the LAST row with the feed still at its bottom. It
 // writes only when the session tenant AND the page host tenant are TENANT.
-// The account's two values are put back as found (null = never picked).
+// The account's two values are put back as found (null = never picked);
+// RESTORE=null puts both back to never picked instead (after a crossed run
+// on the shared e2e account left a proof's values behind as "found").
 import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -42,6 +44,7 @@ const AUTH_BASE = (process.env.AUTH_BASE || BASE).replace(/\/+$/, '')
 const TENANT = process.env.TENANT || 't1'
 const WIDTHS = String(process.env.WIDTHS || '1440,820').split(',').map(Number).filter(Boolean)
 const SEND = process.env.SEND === '1'
+const RESTORE_NULL = process.env.RESTORE === 'null'
 // Read once, held in memory, never printed or screenshotted.
 const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 mkdirSync(OUT, { recursive: true })
@@ -184,10 +187,12 @@ try {
 } finally {
   if (p && original && !original.status) {
     try {
+      const back = RESTORE_NULL ? { message_order: null, composer_position: null }
+        : { message_order: original.message_order ?? null, composer_position: original.composer_position ?? null }
       const st = await p.evaluate(async (base, body) => (await fetch(base + '/api/v1/auth/preferences', {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      })).status, AUTH_BASE, { message_order: original.message_order ?? null, composer_position: original.composer_position ?? null })
-      res.restored = { to: { message_order: original.message_order ?? null, composer_position: original.composer_position ?? null }, status: st }
+      })).status, AUTH_BASE, back)
+      res.restored = { to: back, status: st }
     } catch (e) { res.restored = { error: String(e) } }
   }
   await browser.close()

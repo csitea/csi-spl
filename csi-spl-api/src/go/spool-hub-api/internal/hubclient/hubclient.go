@@ -270,44 +270,11 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
-	conn.SetReadLimit(1 << 20)
-	fail := func(err error) (*Session, error) {
+	conn.SetReadLimit(maxFrameBytes)
+	wel, err := c.handshake(dctx, conn, role, box, priv)
+	if err != nil {
 		conn.CloseNow() //nolint:errcheck
 		return nil, err
-	}
-
-	var ch wire.Frame
-	if err := wsjson.Read(dctx, conn, &ch); err != nil || ch.Type != wire.TChallenge {
-		return fail(fmt.Errorf("%w: no challenge: %v", ErrUnreachable, err))
-	}
-	ts := c.now().UTC().Format(time.RFC3339)
-	payload, _ := wire.HelloPayload(box, ch.Nonce, ts)
-	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: ch.Nonce, Role: role, Sig: sign.Sign(priv, payload),
-		MsgVersions: msg.Supported}
-	if role == wire.RoleBox {
-		hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback} // SPL-987 backfill.go, SPL-997 fallback.go
-	}
-	if role == wire.RoleBox {
-		agents, err := c.scanAgents()
-		if err != nil {
-			return fail(err)
-		}
-		hello.Agents = agents
-		hello.Channels = c.Cfg.ChannelList()
-	}
-	if err := wsjson.Write(dctx, conn, hello); err != nil {
-		return fail(fmt.Errorf("%w: %v", ErrUnreachable, err))
-	}
-	var wel wire.Frame
-	if err := wsjson.Read(dctx, conn, &wel); err != nil {
-		var ce websocket.CloseError
-		if errors.As(err, &ce) && ce.Code >= 4000 {
-			return fail(&HubError{Token: ce.Reason, Status: int(ce.Code)})
-		}
-		return fail(fmt.Errorf("%w: %v", ErrUnreachable, err))
-	}
-	if wel.Type != wire.TWelcome {
-		return fail(fmt.Errorf("%w: expected welcome, got %q", ErrUnreachable, wel.Type))
 	}
 	s := &Session{
 		c: c, conn: conn, box: box, priv: priv, role: role,
@@ -317,17 +284,9 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	s.tokenExp, _ = time.Parse(time.RFC3339, wel.UploadTokenExpiresAt)
 	c.saveRoster(wel.Roster)
 	if role == wire.RoleBox {
-		if err := s.SyncPins(ctx); err != nil {
-			// A stale pin for some other box used to fail this hello, and the
-			// daemon retried the same conflict forever. Measured on the dev
-			// desk 2026-09-23: box-e2e-a differed, so for 90 minutes no human
-			// message reached a desk agent and no reply could be flushed.
-			var he *HubError
-			if errors.As(err, &he) && he.Token == "pin_conflict" {
-				c.Log.Warn().Err(err).Msg("pin sync left a local pin unchanged; this box stays connected")
-			} else {
-				return fail(err)
-			}
+		if err := s.syncPinsOnDial(ctx); err != nil {
+			conn.CloseNow() //nolint:errcheck
+			return nil, err
 		}
 	}
 	go s.readLoop()
@@ -335,6 +294,73 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		go s.keepalive()
 	}
 	return s, nil
+}
+
+// maxFrameBytes caps one frame read from the hub socket.
+const maxFrameBytes = 1 << 20
+
+// handshake reads the challenge, answers it with a signed hello and answers
+// the welcome frame. A hub refusal (close code >= 4000) is a *HubError.
+func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box string, priv ed25519.PrivateKey) (wire.Frame, error) {
+	var ch wire.Frame
+	if err := wsjson.Read(ctx, conn, &ch); err != nil || ch.Type != wire.TChallenge {
+		return wire.Frame{}, fmt.Errorf("%w: no challenge: %v", ErrUnreachable, err)
+	}
+	hello, err := c.hello(role, box, priv, ch.Nonce)
+	if err != nil {
+		return wire.Frame{}, err
+	}
+	if err := wsjson.Write(ctx, conn, hello); err != nil {
+		return wire.Frame{}, fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	var wel wire.Frame
+	if err := wsjson.Read(ctx, conn, &wel); err != nil {
+		var ce websocket.CloseError
+		if errors.As(err, &ce) && ce.Code >= 4000 {
+			return wire.Frame{}, &HubError{Token: ce.Reason, Status: int(ce.Code)}
+		}
+		return wire.Frame{}, fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	if wel.Type != wire.TWelcome {
+		return wire.Frame{}, fmt.Errorf("%w: expected welcome, got %q", ErrUnreachable, wel.Type)
+	}
+	return wel, nil
+}
+
+// hello is the signed answer to the challenge nonce. A box also announces
+// its features, agents and channels.
+func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string) (wire.Frame, error) {
+	ts := c.now().UTC().Format(time.RFC3339)
+	payload, _ := wire.HelloPayload(box, nonce, ts)
+	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: nonce, Role: role, Sig: sign.Sign(priv, payload),
+		MsgVersions: msg.Supported}
+	if role != wire.RoleBox {
+		return hello, nil
+	}
+	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback} // SPL-987 backfill.go, SPL-997 fallback.go
+	agents, err := c.scanAgents()
+	if err != nil {
+		return wire.Frame{}, err
+	}
+	hello.Agents = agents
+	hello.Channels = c.Cfg.ChannelList()
+	return hello, nil
+}
+
+// syncPinsOnDial syncs pins BEFORE the read loop starts, so the queued recv
+// frames verify against fresh pins. A pin_conflict only warns: a stale pin
+// for some other box used to fail this hello, and the daemon retried the
+// same conflict forever. Measured on the dev desk 2026-09-23: box-e2e-a
+// differed, so for 90 minutes no human message reached a desk agent and no
+// reply could be flushed.
+func (s *Session) syncPinsOnDial(ctx context.Context) error {
+	err := s.SyncPins(ctx)
+	var he *HubError
+	if err != nil && errors.As(err, &he) && he.Token == "pin_conflict" {
+		s.c.Log.Warn().Err(err).Msg("pin sync left a local pin unchanged; this box stays connected")
+		return nil
+	}
+	return err
 }
 
 // orphaned reports a REST refusal that proves this session's socket is held by

@@ -39,6 +39,19 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
+// Serve limits of the hub process. The blob cache is sized for one 512 MiB
+// Cloud Run instance using ~80 MiB (CLE-35061); the http limits are the
+// slow-client defence (017 FR-SEC-004).
+const (
+	blobCacheBytes     = 64 << 20
+	blobCacheItemBytes = 4 << 20
+	blobCacheTTL       = 10 * time.Minute
+	sweepEvery         = 10 * time.Minute
+	readHeaderTimeout  = 10 * time.Second
+	idleTimeout        = 120 * time.Second
+	maxHeaderBytes     = 64 << 10
+)
+
 // cmdServe runs the hub until SIGINT/SIGTERM, then drains: sockets get 1001,
 // in-flight HTTP finishes within SPOOL_HUB_GRACEFUL_SHUTDOWN (a
 // runUntilShutdown pattern).
@@ -76,7 +89,7 @@ func cmdServe() int {
 	}
 	// CLE-35061: attachment reads served from memory after the first; the
 	// hub is one instance of 512 MiB (hub.cloud_run), ~80 MiB in use.
-	cached := blob.NewCached(bs, 64<<20, 4<<20, 10*time.Minute)
+	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, blobCacheTTL)
 	opts := hub.Options{
 		Store: st, Blob: cached, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
@@ -222,12 +235,12 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	go srv.RunSweeper(ctx, 10*time.Minute)
+	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
 	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
-	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout: idleTimeout, MaxHeaderBytes: maxHeaderBytes}
 	// Bind BEFORE claiming to listen, and log the address the kernel actually
 	// gave us. ListenAndServe binds inside the goroutine, so the old line
 	// announced "hub listening" for a socket that might never have bound --

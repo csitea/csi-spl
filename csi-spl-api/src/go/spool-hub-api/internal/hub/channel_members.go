@@ -26,6 +26,10 @@ import (
 // who is not gets the 404 a non-existent channel gets, never a 403 - the
 // owner's call is that a non-member cannot learn the channel exists.
 
+// maxMemberJSONBody caps a channel-membership request body: one member id
+// and a role fit in far less.
+const maxMemberJSONBody = 4 << 10
+
 func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/{channel}/members", s.handleListChannelMembers)
 	mux.HandleFunc("POST /v1/channels/{channel}/members", s.handleAddChannelMember)
@@ -258,7 +262,7 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 	var body struct {
 		HumanID string `json:"human_id"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil || body.HumanID == "" {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {human_id}")
@@ -321,7 +325,7 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 		ID  string `json:"id"`
 		Box string `json:"box"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil || body.ID == "" || body.Box == "" {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {id, box}")
@@ -423,7 +427,7 @@ func (s *Server) handlePatchChannelInvite(w http.ResponseWriter, r *http.Request
 	var body struct {
 		MembersOpenInvite *bool `json:"members_open_invite"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil || body.MembersOpenInvite == nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {members_open_invite}")

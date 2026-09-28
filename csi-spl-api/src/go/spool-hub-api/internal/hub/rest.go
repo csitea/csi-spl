@@ -206,6 +206,10 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 // fileCacheMaxAge bounds how long a browser keeps a downloaded attachment.
 const fileCacheMaxAge = 24 * time.Hour
 
+// maxJSONBody caps a small JSON request body (pin, unpin, upload intent):
+// anything larger is not a request the hub makes sense of (017 FR-SEC).
+const maxJSONBody = 8 << 10
+
 // fileReader resolves a file read (specs/026 §2): an upload token reads its
 // own tenant (a pinned box or box-wui), anything else is a browser read of
 // the session's active tenant (or, view door off in lde, the Host's).
@@ -355,7 +359,7 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req wire.PinRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "pin body does not parse")
 		return
 	}
@@ -421,7 +425,7 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req wire.RevokeRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil || req.BoxID != r.PathValue("box_id") {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil || req.BoxID != r.PathValue("box_id") {
 		writeErr(w, http.StatusBadRequest, "bad_json", "revoke body does not parse or names another box")
 		return
 	}
@@ -495,7 +499,7 @@ func (s *Server) handleCICDLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req cicdlogs.Request
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "cicd-logs body does not parse")
 		return
 	}

@@ -296,7 +296,7 @@ func buyerLocale(r *http.Request, body string) string {
 
 func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	var req checkoutReq
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not checkout JSON")
 		return
 	}
@@ -430,7 +430,7 @@ type claimReq struct {
 
 func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 	var req claimReq
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not claim JSON")
 		return
 	}
@@ -516,7 +516,7 @@ type fakePayReq struct {
 // Refuses a checkout on a real rail and anything no longer pending.
 func (h *Handler) fakePay(w http.ResponseWriter, r *http.Request) {
 	var req fakePayReq
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not fake-pay JSON")
 		return
 	}
@@ -571,7 +571,7 @@ type paypalCaptureReq struct {
 // this response, marks the checkout paid (one authoritative transition).
 func (h *Handler) paypalCapture(w http.ResponseWriter, r *http.Request) {
 	var req paypalCaptureReq
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not capture JSON")
 		return
 	}
@@ -635,7 +635,7 @@ func stripeKind(t string) string {
 // which would drop the paid events that ARE ours. Verified goes through; the
 // checkout lookup in apply decides what, if anything, happens.
 func (h *Handler) stripeWebhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxWebhookBody))
 	if err != nil ||
 		VerifyStripe(r.Header.Get("Stripe-Signature"), string(body), strings.TrimSpace(h.cfg.StripeWebhookSecret), h.d.Now()) != nil {
 		h.d.Log.Warn().Str("provider", ProviderStripe).Msg("webhook signature rejected")
@@ -681,7 +681,7 @@ func paypalKind(t string) string {
 }
 
 func (h *Handler) paypalWebhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxWebhookBody))
 	if err != nil || h.d.PayPalVerifier == nil ||
 		h.d.PayPalVerifier.Verify(r.Context(), PayPalHeadersFrom(r.Header.Get), string(body)) != nil {
 		h.d.Log.Warn().Str("provider", ProviderPayPal).Msg("webhook signature rejected")
@@ -724,6 +724,13 @@ type delivery struct {
 // account sends this endpoint. A rise in it is normal; a rise in it while OUR
 // paid events stop is the endpoint being mis-pointed.
 const EventWebhookForeign = "payment_webhook_foreign"
+
+// Request-body caps: a checkout / portal call is a few fields; a provider
+// webhook event is a larger signed document.
+const (
+	maxJSONBody    = 8 << 10
+	maxWebhookBody = 1 << 20
+)
 
 // apply resolves the checkout by the provider's id and applies the verified
 // event: dedup + transition in ONE store transaction.

@@ -1,6 +1,6 @@
 # Feature Specification: Move by Drag (a topic to a channel, a message to a topic)
 
-**Feature ID**: `045-spool-move-by-drag` · **Milestone**: M3 · **Status**: Planned (`tasks.md`)
+**Feature ID**: `045-spool-move-by-drag` · **Milestone**: M3 · **Status**: Implemented (live dev + prd, `tasks.md` T001–T010)
 **Created**: 2026-09-27 · **Lane**: MOVE-BY-DRAG (hub + DB + browser) · **Issue**: SPL-1024 (epic 51)
 **Authority**: this file for the rule; `contracts/move-v1.md` for the wire; `tasks.md` for what is built and where.
 **Closest pattern**: `041-spool-topic-archive-delete` (a topic-level operation on a card, the same
@@ -168,19 +168,19 @@ new channel, delivered as the agent addressed it.
 
 | id | requirement | status |
 |---|---|---|
-| FR-MV-001 | rdb 0069: the five columns and `messages_moved`; applied dev + prd before any hub reads them | Planned |
-| FR-MV-002 | `POST /v1/messages/{msg_id}/move` `{to_channel}` moves a topic (3.1) in ONE transaction; §3.4 gate; the 3.1 refusals | Planned |
-| FR-MV-003 | `POST /v1/messages/{msg_id}/move` `{to_task}` moves a reply and its thread (3.2) in ONE transaction; §3.4 gate; the 3.2 refusals; the order rule | Planned |
-| FR-MV-004 | a move back home clears the stamp (3.3); the answer carries `undo` | Planned |
-| FR-MV-005 | every view element of a moved row carries `channel`, `task_id`, `parent_task_id`, `moved_at`, `moved_by`, `moved_from_channel`, `moved_from_task?` beside the envelope; the WUI lets them win over `env` | Planned |
-| FR-MV-006 | `GET /v1/view/messages/{msg_id}/move` answers what the caller may do with the row | Planned |
-| FR-MV-007 | live frames `topic_moved` / `message_moved` (3.6) | Planned |
-| FR-MV-008 | a tagged reply on a moved topic is stored in the topic's current channel (3.7) | Planned |
-| FR-MV-009 | WUI: drag a middle card onto a left-rail channel; drag a right-pane reply onto a middle card; drop targets highlight only where the move is allowed | Planned |
-| FR-MV-010 | WUI: card menu **Move to channel…** / **Move to topic…** with a picker (keyboard and touch path) | Planned |
-| FR-MV-011 | WUI: "Moved to … · Undo" for 8 s; the "moved from …" note | Planned |
-| FR-MV-012 | WUI: an old channel URL of a moved topic redirects to the new channel | Planned |
-| FR-MV-013 | every new string in all 19 locales | Planned |
+| FR-MV-001 | rdb 0069: the five columns and `messages_moved`; applied dev + prd before any hub reads them | Implemented — `tasks.md` |
+| FR-MV-002 | `POST /v1/messages/{msg_id}/move` `{to_channel}` moves a topic (3.1) in ONE transaction; §3.4 gate; the 3.1 refusals | Implemented — `tasks.md` |
+| FR-MV-003 | `POST /v1/messages/{msg_id}/move` `{to_task}` moves a reply and its thread (3.2) in ONE transaction; §3.4 gate; the 3.2 refusals; the order rule | Implemented — `tasks.md` |
+| FR-MV-004 | a move back home clears the stamp (3.3); the answer carries `undo` | Implemented — `tasks.md` |
+| FR-MV-005 | every view element of a moved row carries `channel`, `task_id`, `parent_task_id`, `moved_at`, `moved_by`, `moved_from_channel`, `moved_from_task?` beside the envelope; the WUI lets them win over `env` | Implemented — `tasks.md` |
+| FR-MV-006 | `GET /v1/view/messages/{msg_id}/move` answers what the caller may do with the row | Implemented — `tasks.md` |
+| FR-MV-007 | live frames `topic_moved` / `message_moved` (3.6) | Implemented — `tasks.md` |
+| FR-MV-008 | a tagged reply on a moved topic is stored in the topic's current channel (3.7) | Implemented — `tasks.md` |
+| FR-MV-009 | WUI: drag a middle card onto a left-rail channel; drag a right-pane reply onto a middle card; drop targets highlight only where the move is allowed | Implemented — `tasks.md` |
+| FR-MV-010 | WUI: card menu **Move to channel…** / **Move to topic…** with a picker (keyboard and touch path) | Implemented — `tasks.md` |
+| FR-MV-011 | WUI: "Moved to … · Undo" for 8 s; the "moved from …" note | Implemented — `tasks.md` |
+| FR-MV-012 | WUI: an old channel URL of a moved topic redirects to the new channel | Implemented — `tasks.md` |
+| FR-MV-013 | every new string in all 19 locales | Implemented — `tasks.md` |
 
 ## 6. Success criteria
 
@@ -193,4 +193,4 @@ new channel, delivered as the agent addressed it.
 - **SC-MV-3**: live proof in the prd `e2e` tenant and the dev test tenant only, with a DB count of the
   rows per channel / task before and after, and screenshots posted in both owner topics.
 
-<!-- version: 0.1.1 · updated: 2026-09-27 · last-edit: 2026-09-27T21:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:30:00Z -->

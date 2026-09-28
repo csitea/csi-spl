@@ -2,19 +2,32 @@
 
 Status per item: `[x]` built, with the sha and the check; `[ ]` open.
 
-- [x] T001 spec, contract, this list (the commit adding this file)
-- [ ] T002 rdb 0069 `moved_at` / `moved_by` / `moved_from_channel` / `moved_from_task` + `messages_moved`
-- [ ] T003 rdb 0069 applied dev + prd before any hub code reading it is rolled
-- [ ] T004 store `Moves` (`MoveTopic`, `MoveMessage`, `MovedTopicChannel`), memory + Postgres; the view
-      reads carry the moved fields; tests on both drivers
-- [ ] T005 hub `POST /v1/messages/{id}/move`, `GET /v1/view/messages/{id}/move`, frames, the 3.7 reply
-      rule; one test per §3.4 row and per refusal, with a control
-- [ ] T006 WUI: view override (contract §5), `moveTopic` / `moveMessage` client calls, frames
-- [ ] T007 WUI: drag a middle card onto a rail channel; drag a right-pane reply onto a middle card
-- [ ] T008 WUI: card menu Move to channel… / Move to topic… with pickers; Undo toast; "moved from" note;
-      old channel URL redirect; strings in 19 locales
-- [ ] T009 e2e: both drags, the menu path, undo, the refusals (control)
-- [ ] T010 roll + deploy dev and prd (after the prd freeze of 2026-09-27 is lifted); live proof in the
-      prd `e2e` tenant and the dev test tenant with DB counts; screenshots in both owner topics
+- [x] T001 spec, contract, this list. `3bf2d769`, `32d8e712`
+- [x] T002 rdb 0069 `moved_at` / `moved_by` / `moved_from_channel` / `moved_from_task` / `moved_from_parent`
+      + partial index `messages_moved`. `5b0dedc3`
+- [x] T003 rdb 0069 applied dev + prd (`do_spl_db_bootstrap`, `applied 0069_messages_moved.sql`), 2026-09-28
+      ~02:20Z, before `5b0dedc3` was pushed (~03:03Z)
+- [x] T004 store `Moves` (`TaskCard`, `MoveTopic`, `MoveMessage`, `MovedTaskChannel`), memory + Postgres; the
+      view reads carry the move mark. `5b0dedc3`; `internal/store/message_move_test.go` on both drivers
+- [x] T005 hub `POST /v1/messages/{id}/move`, `GET /v1/view/messages/{id}/move`, frames `topic_moved` /
+      `message_moved`, the §3.7 stale-tag rule for box replies (`followMoved`; a browser reply is already
+      stored in its topic's channel since `8d0231d9`). `5b0dedc3`; `internal/hub/message_move_test.go`: one
+      case per §3.4 row and per refusal; 6 guards each turn a test red when removed; round-trip budgets
+      unchanged. Live: hub `22703074` (1.3.0) on dev + prd contains `5b0dedc3` (`git merge-base --is-ancestor`)
+- [x] T006 WUI view override (contract §5), `moveTopic` / `moveMessage` / `moveInfo`, frames. `1e38ddef`
+- [x] T007 WUI drag: a middle card onto a rail channel; a right-pane reply onto a middle card; only allowed
+      targets light up. `1e38ddef`
+- [x] T008 WUI menu Move to channel… / Move to topic… (lazy pickers, phone overlay), 8 s Undo toast, the
+      "moved from" note (own line: `d1951060`), old channel URL redirect, 19 locales (18 machine drafts).
+      `1e38ddef`, `d1951060`
+- [x] T009 e2e `tests/e2e/move-by-drag.test.mjs` in `test:e2e` (31 checks, mock generate); initial JS 159.4 KB
+      gzip (ceiling 160). Live proof `tests/e2e/move-live.proof.mjs` (`62e1808b`, `b208df08`, `d1951060`)
+- [x] T010 live: WUI `d1951060` on dev, apex and e2e (`build.json`). Proof n=1 each: dev test tenant 26/26 on WUI
+      `62e1808b` (before the note fix) incl. the refusal control (a `developer` moving another author's card -> 403 `not_allowed`); prd e2e 25/25 on `d1951060` (that account is the tenant's `biz_owner`, so the not-the-author control is skipped there, §3.4).
+      DB rows before/after read with `do_spl_db_query`. Screenshots posted in prd t1 topics `72557f61`
+      (3 files) and `e615e3fd` (2 files)
 
-<!-- version: 0.1.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:30:00Z -->
+Found on the way (fixed): the moved-from note was 0 px wide in the right pane (the author row does not wrap);
+`d1951060` gives it its own line and the e2e now asserts its width (control: 30/31 on the old bundle).
+
+<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:30:00Z -->

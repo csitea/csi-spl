@@ -13,8 +13,16 @@
 # @param SPL_STATE_DIR (optional) - default: $HOME/.local/share/<org>-<app>/cloud/<env>
 # @example ENV=dev do_spl_cloud_cnf && echo "$SPL_IMAGE_REF"
 #------------------------------------------------------------------------------
+# spl_require_cloud_env [value]: the cloud envs are dev and prd only (the
+# first check of every owner-gated cloud action). Checks value, default
+# $ENV; logs FATAL and returns 1 otherwise. The one copy of the rule (SPL-1038).
+spl_require_cloud_env() {
+  local e="${1-${ENV:-}}"
+  [[ "$e" == dev || "$e" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '$e'"; return 1; }
+}
+
 do_spl_cloud_cnf() {
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  spl_require_cloud_env || return 1
   local proj_base
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
   [[ "$proj_base" =~ ^([a-z]+)-([a-z]+)-orc$ ]] || {

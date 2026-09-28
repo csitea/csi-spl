@@ -24,7 +24,7 @@
 do_spl_wait_for_mapping_cert() {
   do_require_bin gcloud || return 1
   do_require_bin jq || return 1
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  spl_require_cloud_env || return 1
   local domain="${DOMAIN:-}"
   [[ -n "$domain" ]] || { do_log "FATAL DOMAIN is required (the mapped host)"; return 1; }
   do_spl_cloud_cnf || return 1

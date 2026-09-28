@@ -17,7 +17,7 @@
 #------------------------------------------------------------------------------
 do_spl_lb_absent_check() {
   do_require_bin gcloud || return 1
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  spl_require_cloud_env || return 1
   do_spl_cloud_cnf || return 1
   local key cfg
   key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"

@@ -32,7 +32,7 @@ do_spl_agent_mcp_probe() {
   local envn="${ENV:-}" agent="${AGENT_USER:-}" as="${MCP_AS:-}" ctl="${MCP_CONTROL_AS:-}"
   local to="${MCP_TO:-}" tobox="${MCP_TO_BOX:-}" task="${MCP_TASK:-}" n="${MCP_N:-6}" file="${MCP_FILE:-0}"
   local idre='^[A-Z]{2,4}-[0-9]+$'
-  [[ "$envn" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd, got: '$envn'"; return 1; }
+  spl_require_cloud_env "$envn" || return 1
   [[ "$agent" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL AGENT_USER must name the agent OS user, got: '$agent'"; return 1; }
   [[ "$as" =~ $idre ]] || { do_log "FATAL MCP_AS must be an agent id, got: '$as'"; return 1; }
   [[ -z "$ctl" || ( "$ctl" =~ $idre && "$ctl" != "$as" ) ]] || { do_log "FATAL MCP_CONTROL_AS must be ANOTHER agent id, got: '$ctl'"; return 1; }

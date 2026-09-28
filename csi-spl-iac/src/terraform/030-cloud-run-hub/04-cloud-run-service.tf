@@ -9,8 +9,14 @@
 #     so delivery to a live to_box needs no cross-instance fan-out (OQ-05)
 #   - CPU always allocated (cpu_idle = false): the hub pushes frames and
 #     expires the queue between requests, which throttled CPU would stall
-#   - session affinity keeps a reconnecting box on the same instance once
-#     max_instances is raised post-M1
+#   - session affinity keeps a reconnecting browser on the same instance
+#     once max_instances is raised post-M1; with ONE instance it routes
+#     nothing and only costs: the front end sets a fresh GAESA cookie on
+#     every response, which the browser sends back on every request - 289 B
+#     in + 226 B out per API call that HTTP/2 cannot compress (it changes
+#     each time), 4.1 KB per signed-in /lobby load against 1.5 KB of API
+#     payload (CLE-35076). So it is on only when there is more than one
+#     instance. (Boxes never carried it: the Go client has no cookie jar.)
 locals {
   ingress_map = {
     "all"                               = "INGRESS_TRAFFIC_ALL"
@@ -44,7 +50,7 @@ resource "google_cloud_run_v2_service" "hub" {
     service_account                  = google_service_account.hub.email
     timeout                          = "${var.timeout_seconds}s"
     max_instance_request_concurrency = var.concurrency
-    session_affinity                 = true
+    session_affinity                 = var.max_instances > 1
 
     scaling {
       min_instance_count = var.min_instances

@@ -5,6 +5,9 @@
 #          the fixed 2 s first probe; the total budget stays >= 120 s; Cloud
 #          Run's timeout <= period rule holds. CONTROL: the previous block
 #          (2 s delay, 5 s period) fails the readiness rule.
+#          Session affinity follows the instance count: off while cnf runs
+#          ONE instance (the GAESA cookie on every API call buys nothing),
+#          on as soon as it runs more.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -34,5 +37,16 @@ old='startup_probe {
         failure_threshold     = 24
       }'
 check control "$(probe "$old")" && fail "CONTROL the old 2 s / 5 s probe passed the rule" || pass "CONTROL the old 2 s / 5 s probe fails the rule"
+
+# session affinity: the expression in 030, evaluated for the cnf instance count
+aff="$(sed -nE 's/^[[:space:]]*session_affinity[[:space:]]*=[[:space:]]*(.*)$/\1/p' "$TF")"
+[[ "$aff" == "var.max_instances > 1" ]] && pass "session_affinity = var.max_instances > 1" || fail "session_affinity is '$aff'"
+CNF="$PROJ_ROOT/../csi-spl-cnf/csi-spl"
+m="$(yq -r '.env.hub.cloud_run.max_instances' "$CNF/all.env.yaml")"
+for env in dev prd; do
+  o="$(yq -r '.env.hub.cloud_run.max_instances // ""' "$CNF/$env.env.yaml")"
+  [[ -n "$o" && "$o" != null ]] && m="$m/$env:$o"
+done
+[[ "$m" == 1 ]] && pass "cnf max_instances is 1 (OQ-05), so the cookie is gone today" || fail "cnf max_instances changed: re-read this test"
 
 [[ $fails -eq 0 ]] && echo "PASS: all hub-startup-probe-030.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

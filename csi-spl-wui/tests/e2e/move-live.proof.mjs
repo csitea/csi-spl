@@ -30,6 +30,7 @@
 //                   DRY_RUN=0 ./run -a do_spl_channel_fallback   (csi-spl-orc)
 //   PHASE=run CH_A=<A> CH_B=<B>   steps 2..7 in those channels
 //   PHASE=restore MSG=<msg_id> TO=<channel>   move one topic card back (repair)
+//   PHASE=clean IDS=<OUT of a KEEP=1 run>/ids.json   delete its topics and channels
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member>
 //   PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> PHASE=channels|run|restore
@@ -241,8 +242,13 @@ let p
 let seeded = null
 try {
   p = await signIn(browser)
-  const me = String((await hub(p, 'GET', '/v1/view/me')).body?.human_id || '')
-  step('1 the hub names the signed-in member', /^HUM-[0-9]+$/.test(me), { me })
+  const meBody = (await hub(p, 'GET', '/v1/view/me')).body || {}
+  const me = String(meBody.human_id || '')
+  /* spec 045 §3.4: an owner or admin MAY move anyone's card, so the
+     "another author's card is refused" control only means something for a
+     plain member (the dev test member; the prd e2e account owns its tenant) */
+  const mayAll = meBody.tenant_owner === true || meBody.role === 'admin' || meBody.role === 'biz_owner'
+  step('1 the hub names the signed-in member', /^HUM-[0-9]+$/.test(me), { me, role: meBody.role, tenant_owner: meBody.tenant_owner })
   if (!me) throw new Error('no member id: refusing to judge authorship')
 
   if (PHASE === 'channels') {
@@ -256,6 +262,18 @@ try {
     step('channels: A and B exist', ids.includes(A) && ids.includes(B), { A, B })
     writeFileSync(`${OUT}/channels.json`, JSON.stringify({ A, B }))
     console.log(`CH_A=${A} CH_B=${B}`)
+    throw new Error('__phase_done__')
+  }
+  if (PHASE === 'clean') { /* a KEEP=1 run's topics and channels, from its ids.json */
+    const ids = JSON.parse(readFileSync(need('IDS'), 'utf8'))
+    for (const card of [ids.one && ids.one.msg_id, ids.two && ids.two.msg_id].filter(Boolean)) {
+      const r = await hub(p, 'DELETE', `/v1/messages/${card}/topic`)
+      step(`clean: topic ${card.slice(0, 8)} deleted`, r.status === 200 || r.status === 404, { status: r.status })
+    }
+    for (const ch of [ids.A, ids.B].filter(Boolean)) {
+      const r = await hub(p, 'DELETE', `/v1/channels/${ch}`)
+      step(`clean: channel ${ch} deleted`, r.status === 204 || r.status === 200 || r.status === 404, { status: r.status })
+    }
     throw new Error('__phase_done__')
   }
   if (PHASE === 'restore') {
@@ -317,8 +335,11 @@ try {
   const s4o = await rowsOf(p, seeded.one.task_id)
   step('4 ... and topic one no longer holds it', !s4o.rows[seeded.reply.msg_id], { rows: Object.keys(s4o.rows).length })
   await openTopic(p, seeded.two.msg_id, paneRow(seeded.reply.msg_id))
-  const note = await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-moved]`)?.textContent.trim() || '', paneRow(seeded.reply.msg_id))
-  step('4 in topic two the reply says "moved from ..."', /moved from/.test(note), { note })
+  const note = await p.evaluate((sel) => {
+    const el = document.querySelector(`${sel} [data-testid=msg-moved]`)
+    return { text: el?.textContent.trim() || '', width: Math.round(el?.getBoundingClientRect().width || 0) }
+  }, paneRow(seeded.reply.msg_id))
+  step('4 in topic two the reply says "moved from ..." and the note is visible (>= 60 px)', /moved from/.test(note.text) && note.width >= 60, note)
   await shot(p, '4-reply-dragged-to-topic-two')
 
   /* ---- 5. the menu path (keyboard + touch) ---------------------------------- */
@@ -363,7 +384,9 @@ try {
     }
     if (other) break
   }
-  if (other) {
+  if (mayAll) {
+    console.log('SKIP 6 another author\'s card: this account is the tenant owner / an admin, who may move any card (§3.4) - the control runs on the dev test member')
+  } else if (other) {
     const r = await hub(p, 'POST', `/v1/messages/${other.msg_id}/move`, { to_channel: B })
     step('6 another author\'s card: the hub refuses the move, 403 not_allowed', r.status === 403 && r.body?.error === 'not_allowed', { other, me, status: r.status, error: r.body?.error })
     if (r.status === 200 && r.body?.undo) { /* a control must never leave a real card moved */

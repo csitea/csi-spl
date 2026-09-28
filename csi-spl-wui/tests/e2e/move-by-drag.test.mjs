@@ -253,6 +253,9 @@ try {
   await openTopic(p, seeded.two.msg_id, paneRow(seeded.reply.msg_id))
   const note = await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-moved]`)?.textContent.trim() || '', paneRow(seeded.reply.msg_id))
   ok('5 in the target topic the reply says where it came from', /moved from/.test(note) && /topic one/.test(note), note)
+  /* the narrow right pane squeezed the note to 0 px while it sat in the no-wrap author row (live, 2026-09-28) */
+  const noteW = await p.evaluate((sel) => Math.round(document.querySelector(`${sel} [data-testid=msg-moved]`)?.getBoundingClientRect().width || 0), paneRow(seeded.reply.msg_id))
+  ok('5 ... and the note is visible in the narrow right pane (>= 60 px wide)', noteW >= 60, noteW)
   await shot(p, '5-reply-dropped')
 
   /* ---- 6. the menu path ------------------------------------------------------ */

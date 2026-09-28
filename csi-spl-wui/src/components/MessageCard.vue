@@ -64,15 +64,6 @@
           data-test="msg-edited"
           :title="t('feed.edit.marker_title', { at: String(msg.edited_at) })"
         >{{ t('feed.edit.marker') }}</span>
-        <!-- SPL-1024: a card moved to this channel names its home channel, a
-             moved reply the topic it came from -->
-        <span
-          v-if="movedText"
-          class="msg-moved"
-          data-testid="msg-moved"
-          :data-moved-from="movedFrom"
-          :title="movedText"
-        >{{ movedText }}</span>
         <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
@@ -172,6 +163,16 @@
         </span>
         <span class="msg-meta-spacer" aria-hidden="true" />
       </div>
+      <!-- SPL-1024: a card moved to this channel names its home channel, a
+           moved reply the topic it came from. Its own line under the author
+           row: inside that no-wrap row a narrow pane squeezed it to nothing. -->
+      <p
+        v-if="movedText"
+        class="msg-moved"
+        data-testid="msg-moved"
+        :data-moved-from="movedFrom"
+        :title="movedText"
+      >{{ movedText }}</p>
       <!--
         CLE-3445: the row BECOMES the box ("the msg becomes once again a
         textbox"), pre-filled with the old body. The rendered body is NOT
@@ -1226,9 +1227,8 @@ async function save() {
    link and the menu to the right */
 .msg-meta > .msg-edited { order: 2; }
 /* SPL-1024: "moved from ..." sits beside "(edited)", muted and small */
-.msg-meta > .msg-moved {
-  order: 2;
-  flex: 0 1 auto;
+.msg-moved {
+  margin: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

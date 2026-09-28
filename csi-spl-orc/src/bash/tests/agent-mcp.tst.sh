@@ -117,7 +117,22 @@ case "$1 $2" in
   *) exit 2 ;;
 esac
 EOF
-chmod +x "$AH/.local/bin/claude" "$AH/.local/bin/grok"
+cat >"$AH/.local/bin/qwen" <<'EOF'
+#!/usr/bin/env bash
+# fake qwen: `mcp add -s user --trust --description <d> <name> <cmd> <args...>` into ~/.qwen/settings.json
+[ "$1 $2" = "mcp add" ] || exit 2
+echo "qwen $*" >>"$FAKE_LOG"
+shift 7; name="$1"; shift
+mkdir -p "$FAKE_HOME/.qwen"
+python3 - "$FAKE_HOME/.qwen/settings.json" "$name" "$@" <<'PY'
+import json, os, sys
+p, name, cmd, *args = sys.argv[1:]
+d = json.load(open(p)) if os.path.exists(p) else {}
+d.setdefault("mcpServers", {})[name] = {"command": cmd, "args": args, "trust": True}
+json.dump(d, open(p, "w"))
+PY
+EOF
+chmod +x "$AH/.local/bin/claude" "$AH/.local/bin/grok" "$AH/.local/bin/qwen"
 cat >"$T/build.sh" <<'EOF'
 #!/usr/bin/env bash
 # fake build: a spool that refuses a bad --as, or with OLD_SPOOL one that ignores it
@@ -145,7 +160,7 @@ done
 in_orc AGENT_USER="$ME" MCP_CLIS="claude grok" OLD_SPOOL=1 DRY_RUN=0; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'accepts an invalid --as' "$T/out" && [[ ! -e "$AH/.config/spool-mcp/env" ]] &&
   pass "5. a binary that ignores --as is refused before the agent side" || fail "5. old binary: rc $rc $(cat "$T/out")"
-in_orc AGENT_USER="$ME" MCP_CLIS="claude grok" DRY_RUN=0; rc=$?
+in_orc AGENT_USER="$ME" MCP_CLIS="claude grok qwen" DRY_RUN=0; rc=$?
 if [[ $rc -eq 0 ]]; then
   cmp -s "$SH" "$T/inst/mcp/spool-mcp.sh" && cmp -s "$SH" "$AH/.local/bin/spool-mcp" && [[ -x "$AH/.local/bin/spool-mcp" ]] &&
     pass "5. both halves are this checkout's spool-mcp.sh" || fail "5. halves differ from $SH"
@@ -156,11 +171,13 @@ if [[ $rc -eq 0 ]]; then
     pass "5. claude and grok each registered spool-dev and spool-prd" || fail "5. registrations: $(cat "$T/cli.log")"
   python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["mcpServers"]; assert s["spool-prd"]["command"]==sys.argv[2] and s["spool-prd"]["args"]==["prd"]' \
     "$AH/.claude.json" "$AH/.local/bin/spool-mcp" && pass "5. claude runs spool-mcp prd as spool-prd" || fail "5. claude json: $(cat "$AH/.claude.json")"
+  python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["mcpServers"]; assert s["spool-dev"]["command"]==sys.argv[2] and s["spool-dev"]["args"]==["dev"]' \
+    "$AH/.qwen/settings.json" "$AH/.local/bin/spool-mcp" && pass "5. qwen runs spool-mcp dev as spool-dev (specs/048)" || fail "5. qwen json: $(cat "$AH/.qwen/settings.json" "$T/cli.log")"
 else
   fail "5. install: rc $rc $(cat "$T/out")"
 fi
 : >"$T/cli.log"
-in_orc AGENT_USER="$ME" MCP_CLIS="claude grok agy" DRY_RUN=0; rc=$?
+in_orc AGENT_USER="$ME" MCP_CLIS="claude grok agy qwen" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -s "$T/cli.log" ]] && grep -q 'agy is not installed' "$T/out" &&
   pass "5. a re-run registers nothing twice and skips a missing CLI" || fail "5. re-run: rc $rc $(cat "$T/cli.log" "$T/out")"
 

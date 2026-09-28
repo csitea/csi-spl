@@ -9,7 +9,8 @@
 # a missing one is NAMED with the package line to install it, never installed
 # with sudo. Everything else goes under your home, no sudo anywhere:
 #   1. the agent CLIs you pick, each through its vendor's own documented
-#      installer, which installs or updates to the LATEST release
+#      installer, which installs or updates to the LATEST release (qwen:
+#      `npm install -g` into <prefix>, which needs Node 20+ and npm)
 #   2. the toolchain the harness runs on: yq (v4) and Go, when not present,
 #      into <data>/tools, and the `spool` binary built from this checkout
 #   3. the `spool-agent` command in <prefix>/bin, a shim that runs this
@@ -23,7 +24,7 @@
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
-#   --cli <list>      comma list of claude,grok,agy, or none (default claude)
+#   --cli <list>      comma list of claude,grok,agy,qwen, or none (default claude)
 #   --env dev|prd     the hub environment (default $SPOOL_ENV, else dev)
 #   --tenant <slug>   the tenant (default $SPOOL_TENANT)
 #   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
@@ -37,6 +38,8 @@
 #      ROOT_KEY_JSON - the tenant's 0600 create JSON: pin the box yourself
 #      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
+#      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
+#      SPOOL_INSTALL_NPM - the npm command (default npm)
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
@@ -100,7 +103,7 @@ fi
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
 for c in "${CLI_LIST[@]}"; do
-  case "$c" in claude|grok|agy) ;; *) die 2 "--cli takes claude,grok,agy or none, got '$c'" ;; esac
+  case "$c" in claude|grok|agy|qwen) ;; *) die 2 "--cli takes claude,grok,agy,qwen or none, got '$c'" ;; esac
 done
 if [ -z "$BOX" ]; then
   BOX="$(printf 'box-%s-%s' "$(id -un)" "$(hostname -s 2>/dev/null || echo host)" | tr '[:upper:]_.' '[:lower:]--' |
@@ -138,6 +141,12 @@ _main="$(cd "$ROOT" && cd "$(git rev-parse --git-common-dir 2>/dev/null || echo 
 _main="${_main:-$ROOT}" _app="$(basename "${_main:-$ROOT}")"
 [ "$(basename "$(dirname "$_main")")" = "${_app%%-*}" ] ||
   say "WARN clone this repo as <dir>/${_app%%-*}/$_app (it is at $_main): ./run takes the org from the parent dir"
+# qwen installs through npm (specs/048 §3.3): named up front, like a base tool.
+NPM="${SPOOL_INSTALL_NPM:-npm}"
+for c in "${CLI_LIST[@]}"; do
+  [ "$c" = qwen ] || continue
+  command -v "$NPM" >/dev/null 2>&1 || die 3 "--cli qwen needs npm (Node 20+) - install Node.js first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y nodejs npm"
+done
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
 fetch() {  # URL OUT
@@ -160,8 +169,24 @@ cli_path() {  # the installed binary, or nothing
   local p; p="$(command -v "$1" 2>/dev/null)"; [ -n "$p" ] && { echo "$p"; return; }
   for p in "$BIN/$1" "$HOME/.local/bin/$1" "$HOME/.grok/bin/$1"; do [ -x "$p" ] && { echo "$p"; return; }; done
 }
+QWEN_PKG="${SPOOL_INSTALL_NPM_QWEN:-@qwen-code/qwen-code@latest}"
+# qwen: npm into the user prefix (no sudo), then the vendored ripgrep gets its
+# execute bit - the 0.24.6 tarball ships it without one and every session
+# then warns "Ripgrep not available ... EACCES".
+qwen_install() {
+  local have="$1" rg
+  if [ "$DRY" = 1 ]; then plan "npm install --prefix $PREFIX -g $QWEN_PKG${have:+ (have $have)}, then chmod +x its vendored rg"; return 0; fi
+  say "installing the latest qwen (npm $QWEN_PKG into $PREFIX)"
+  "$NPM" install --prefix "$PREFIX" -g "$QWEN_PKG" >&2 || die 4 "npm install of $QWEN_PKG failed"
+  for rg in "$PREFIX"/lib/node_modules/@qwen-code/qwen-code/vendor/ripgrep/*/rg; do
+    [ -f "$rg" ] && [ ! -x "$rg" ] && chmod +x "$rg" && say "qwen: made $rg executable"
+  done
+  have="$(cli_path qwen)"; [ -n "$have" ] || die 4 "npm installed $QWEN_PKG but no qwen binary is on PATH or in $BIN"
+  say "qwen: $have ($("$have" --version 2>/dev/null | head -1))"
+}
 for c in "${CLI_LIST[@]}"; do
   url="$(cli_url "$c")"; have="$(cli_path "$c")"
+  [ "$c" = qwen ] && { qwen_install "$have"; continue; }
   # agy's installer stops at "already installed"; its own `update` is the
   # documented way to the latest. claude's and grok's installers update in place.
   if [ "$c" = agy ] && [ -n "$have" ]; then

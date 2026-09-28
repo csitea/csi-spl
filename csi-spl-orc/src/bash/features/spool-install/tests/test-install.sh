@@ -19,6 +19,8 @@
 #      toolchain found in tools is not downloaded again
 #   7b. --update: one pull, then the pulled installer runs (no loop)
 #   8. a foreign ~/.local/bin/spool-agent is never overwritten (exit 7)
+#   9. qwen (specs/048): npm into <prefix>, the vendored rg made executable;
+#      no npm -> exit 3 before anything is fetched
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -68,6 +70,17 @@ case "\$url" in
   *) echo "curl stub: no fixture for \$url" >&2; exit 22 ;;
 esac
 if [ -n "\$out" ]; then cp "$T/www/\$f" "\$out"; else cat "$T/www/\$f"; fi
+EOF
+cat >"$T/stub/npm" <<EOF
+#!/bin/bash
+# npm stub: \`npm install --prefix P -g PKG\` lays out qwen like the real tarball (rg not executable)
+echo "npm \$*" >>"$T/npm.log"
+[ "\$1 \$2" = "install --prefix" ] || exit 2
+p="\$3"; d="\$p/lib/node_modules/@qwen-code/qwen-code"
+mkdir -p "\$d/vendor/ripgrep/x64-linux" "\$p/bin"
+printf '#!/bin/sh\necho rg\n' >"\$d/vendor/ripgrep/x64-linux/rg"; chmod 644 "\$d/vendor/ripgrep/x64-linux/rg"
+printf '#!/bin/sh\necho 0.99.0\n' >"\$d/cli.js"; chmod +x "\$d/cli.js"
+ln -sf ../lib/node_modules/@qwen-code/qwen-code/cli.js "\$p/bin/qwen"
 EOF
 cat >"$T/stub/build.sh" <<EOF
 #!/bin/bash
@@ -208,6 +221,22 @@ ARGS=(--update --cli none --no-seat); inst; rc=$?
 [[ $rc -eq 0 && "$(grep -c ' pull ' "$T/git.log")" == 1 ]] && grep -q 'running the updated installer' "$T/o" && grep -q 'spool-agent: ' "$T/o" &&
   pass "7b. --update pulls once, then the re-exec-ed installer finishes the run" || fail "7b. update: rc $rc $(cat "$T/git.log" "$T/o")"
 rm -f "$T/stub/git"
+
+# --- 9. qwen via npm -------------------------------------------------------------------------------
+: >"$T/net.log"
+ARGS=(--cli qwen --no-seat --dry-run); inst; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'would: npm install --prefix .* -g @qwen-code/qwen-code@latest' "$T/o" && [[ ! -e "$T/npm.log" ]] &&
+  pass "9. the dry run names the npm install and runs none" || fail "9. dry: rc $rc $(cat "$T/o")"
+ARGS=(--cli qwen --no-seat); inst; rc=$?
+QD="$H/.local/lib/node_modules/@qwen-code/qwen-code"
+[[ $rc -eq 0 ]] && grep -q "^npm install --prefix $H/.local -g @qwen-code/qwen-code@latest" "$T/npm.log" && [[ -x "$H/.local/bin/qwen" ]] &&
+  pass "9. qwen installs through npm into <prefix>" || fail "9. qwen: rc $rc $(cat "$T/o" "$T/npm.log")"
+[[ -x "$QD/vendor/ripgrep/x64-linux/rg" ]] && grep -q 'made .*rg executable' "$T/o" &&
+  pass "9. the vendored rg gets its execute bit" || fail "9. rg: $(ls -l "$QD/vendor/ripgrep/x64-linux/rg")"
+: >"$T/npm.log"
+ARGS=(--cli qwen --no-seat); inst SPOOL_INSTALL_NPM="$T/no-such-npm"; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'needs npm' "$T/o" && [[ ! -s "$T/npm.log" ]] &&
+  pass "9. no npm: exit 3, named, nothing run" || fail "9. no npm: rc $rc $(cat "$T/o")"
 
 # --- 8. a foreign spool-agent ------------------------------------------------------------------------------------
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"

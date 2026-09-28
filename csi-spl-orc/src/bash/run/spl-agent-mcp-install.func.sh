@@ -21,7 +21,8 @@
 # @description      <agent home>/.config/spool-mcp/env naming the box user
 # @description   3. the registration `spool-<env>` -> `spool-mcp <env>` in
 # @description      each agent CLI that is installed (claude at user scope,
-# @description      grok at user scope, agy), added only when missing
+# @description      grok at user scope, agy, qwen at user scope and trusted),
+# @description      added only when missing
 # @description What the agent user can reach afterwards: the five tools for
 # @description ITS OWN seat, over stdio. It cannot read the desk tree or the box
 # @description key (both stay 0700 box user); the one sudo hop happens at server
@@ -31,7 +32,7 @@
 # @description Dry run unless DRY_RUN=0.
 # @param AGENT_USER - required: the OS user the agent CLIs run as (no default)
 # @param MCP_ENVS (optional) - default "dev prd"
-# @param MCP_CLIS (optional) - default "claude grok agy"; a CLI that is not at
+# @param MCP_CLIS (optional) - default "claude grok agy qwen"; a CLI that is not at
 # @param   <agent home>/.local/bin/<cli> (where their installers put them) is
 # @param   skipped and named
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -41,11 +42,11 @@ do_spl_agent_mcp_install() {
   do_require_bin python3 getent sudo install || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local agent="${AGENT_USER:-}" envs="${MCP_ENVS:-dev prd}" clis="${MCP_CLIS:-claude grok agy}"
+  local agent="${AGENT_USER:-}" envs="${MCP_ENVS:-dev prd}" clis="${MCP_CLIS:-claude grok agy qwen}"
   [[ "$agent" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL AGENT_USER must name the agent OS user (no default), got: '$agent'"; return 1; }
   local e c
   for e in $envs; do [[ "$e" =~ ^(dev|prd)$ ]] || { do_log "FATAL MCP_ENVS may hold dev and prd only, got: '$e'"; return 1; }; done
-  for c in $clis; do [[ "$c" =~ ^(claude|grok|agy)$ ]] || { do_log "FATAL MCP_CLIS may hold claude, grok and agy only, got: '$c'"; return 1; }; done
+  for c in $clis; do [[ "$c" =~ ^(claude|grok|agy|qwen)$ ]] || { do_log "FATAL MCP_CLIS may hold claude, grok, agy and qwen only, got: '$c'"; return 1; }; done
 
   local proj_base org_app me ahome mcpdir src build
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
@@ -105,6 +106,7 @@ do_spl_agent_mcp_install() {
         claude) as_agent "$cli" mcp add -s user "spool-$e" -- "$bin" "$e" >/dev/null 2>&1 ;;
         grok)   as_agent "$cli" mcp add -s user "spool-$e" "$bin" -- "$e" >/dev/null 2>&1 ;;
         agy)    as_agent "$cli" mcp add "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
+        qwen)   as_agent "$cli" mcp add -s user --trust --description "spool desk ($e)" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
       esac || { do_log "FAIL $c: could not register spool-$e"; rc=1; continue; }
       [[ "$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")" == yes ]] &&
         do_log "INFO $c: registered spool-$e -> $bin $e" || { do_log "FAIL $c: spool-$e is still not registered"; rc=1; }
@@ -116,13 +118,16 @@ do_spl_agent_mcp_install() {
 
 # spl_agent_mcp_registered <cli> <cli path> <agent home> <name> <bin> <env>:
 # prints yes when the CLI already runs <bin> <env> as <name>. claude is read
-# from ~/.claude.json (its `mcp list` starts every server to health-check it);
+# from ~/.claude.json and qwen from ~/.qwen/settings.json (their `mcp list`
+# starts every server to health-check it);
 # grok and agy print their config. as_agent is the caller's.
 spl_agent_mcp_registered() {
   local c="$1" cli="$2" ahome="$3" name="$4" bin="$5" e="$6"
+  local conf="$ahome/.claude.json"
+  [[ "$c" == qwen ]] && conf="$ahome/.qwen/settings.json"
   case "$c" in
-    claude)
-      as_agent python3 - "$ahome/.claude.json" "$name" "$bin" "$e" 2>/dev/null <<'EOF_PY'
+    claude|qwen)
+      as_agent python3 - "$conf" "$name" "$bin" "$e" 2>/dev/null <<'EOF_PY'
 import json, sys
 p, name, b, e = sys.argv[1:]
 try:

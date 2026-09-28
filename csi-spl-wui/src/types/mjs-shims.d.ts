@@ -422,6 +422,7 @@ declare module '~/utils/auth-client.mjs' {
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>
     saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view', value: string | null): Promise<NativeResult>
+    saveIssueColumns(cols: Record<string, number> | null): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -1616,4 +1617,20 @@ declare module '~/utils/now-tick.mjs' {
 declare module '~/utils/viewport-resize.mjs' {
   export function createViewportResize(env?: { win?: { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void } | null, frame?: (fn: () => void) => unknown }): { subscribe(fn: () => void): () => void, size(): number }
   export function onViewportResize(fn: () => void): () => void
+}
+
+declare module '~/utils/issue-columns-pref.mjs' {
+  export const ISSUE_COLUMNS: readonly string[]
+  export const ISSUE_COLUMN_MIN: number
+  export const ISSUE_COLUMN_MAX: number
+  export function parseIssueColumns(raw: unknown): Record<string, number>
+  export function sameIssueColumns(a: unknown, b: unknown): boolean
+  export function applyIssueColumns(
+    want: unknown,
+    io: {
+      current: unknown,
+      apply: (v: Record<string, number> | null) => void,
+      save: (v: Record<string, number> | null) => Promise<{ ok: boolean }>,
+    },
+  ): Promise<{ ok: boolean, value: Record<string, number>, out?: unknown }>
 }

@@ -36,6 +36,8 @@ export interface SessionClaims {
   composer_position?: string | null
   /** SPL-1028 Issues view: 'list' | 'status'; null = never picked (the list). */
   issues_view?: string | null
+  /** SPL-1132 Issues sheet column widths: column -> px; null = never sized (automatic layout). */
+  issues_columns?: Record<string, number> | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -129,6 +131,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, [key]: value }
   }
 
+  /** SPL-1132: mirror the Issues sheet column widths (optimistic; reverted on a failed save). */
+  function setIssuesColumns(cols: Record<string, number> | null) {
+    if (claims.value) claims.value = { ...claims.value, issues_columns: cols }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -142,5 +149,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, logout }
 })

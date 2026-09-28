@@ -382,6 +382,16 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { [String(key)]: value ? String(value) : null }, 'PUT')
     },
     /**
+     * SPL-1132: the Issues sheet's column widths (humans.issues_columns, rdb
+     * 0076). Sends ONLY that key: an object of column -> whole px, or null
+     * (an empty object too) for the automatic layout. 200 → ok; 400
+     * unsupported_issues_columns; 401; 409 = no human.
+     */
+    saveIssueColumns(cols) {
+      const obj = cols && typeof cols === 'object' && !Array.isArray(cols) && Object.keys(cols).length ? cols : null
+      return post('/preferences', { issues_columns: obj }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

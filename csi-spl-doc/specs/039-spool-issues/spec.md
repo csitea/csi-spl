@@ -34,16 +34,22 @@ Refined the same morning (binding where it differs from the first request):
 
 **Rule of interpretation (owner):** when this spec is silent, behave like Linear.
 
-## Layout (3 panes kept)
+## Layout (SPL-1027: 2 panes and a modal on desktop / tablet)
 
 - **Rail**: an `Issues` tab, the THIRD tab, directly after Channels.
-- **Middle pane**: the issue list, grouped by status in workflow order, each
-  group with its count, collapsible. A row shows the priority icon, the key,
-  the title, the labels, the level, the deadline and the assignee. It never
-  shows the description.
-- **Right pane**: the opened issue: title and description (markdown) edited
-  in place, every attribute as a picker, the deadline as a calendar control
-  with time, then the issue's discussion.
+- **Middle pane**: the issue sheet (a table: column names, a filter row, one
+  issue per row). A row shows the key, the title, the status, the priority,
+  the level, the assignee, the labels, the deadline, when it was updated and
+  a delete action. It never shows the description. Every cell but the key and
+  Updated is edited in place (FR-010).
+- **No right pane** (owner 2026-09-28, prd t1 topic 89485c7a: "the
+  right-most panel could be removed"). Above 820 px an opened issue is a
+  MODAL dialog (FR-011): title and description (markdown) edited in place,
+  every attribute as a picker, the deadline as a calendar control with time,
+  the subtasks, then the issue's discussion with its composer.
+- **Phones (<= 820 px, SPL-992)**: unchanged. The sheet is a card list (level
+  2) and an opened issue is the full-screen level 3, which is what a modal is
+  on a phone.
 
 ## Attributes (FR-001)
 
@@ -51,7 +57,7 @@ Refined the same morning (binding where it differs from the first request):
 |---|---|---|
 | key | `<prefix>-<number>`, e.g. `SPL-12` | one team per tenant for now, prefix `SPL`; numbers from a per-tenant counter, never reused |
 | title | 1..255 characters | required |
-| description | markdown, <= 20000 characters | right pane only |
+| description | markdown, <= 20000 characters | the issue dialog only (was the right pane) |
 | status | 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done (ids `eval todo wip diss blocked onhold qas done`; a hover gives the long name) | the owner's set, 2026-09-26 (rdb 0055, 0061 SPL-966; old names normalize); default eval |
 | prio | the number 1..5 | the owner's scale, 2026-09-26 (rdb 0054 + 0055); default 5, old 0 became 5 |
 | level | 1 epic / feature, 2 issue, 3 subtask | the row's place in the tree, derived by the hub (owner 2026-09-26, SPL-949, rdb 0056); was a 0..5 t-shirt estimate |
@@ -74,7 +80,10 @@ Refined the same morning (binding where it differs from the first request):
   filters (`GET /v1/view/issues?...`) so an agent gets what a person sees.
 - **FR-005** Keyboard (list focused), Linear's keys: `C` create, `J`/`K`
   move, `Enter` open, `S` status, `P` priority, `L` label, `A` assign, `Esc`
-  back. The same pickers inline on the row and in the right pane.
+  back. The same pickers inline on the row and in the issue dialog. In the
+  sheet (SPL-1027) the arrows move a cell cursor: Up / Down between rows,
+  Left / Right between cells; `Enter` edits the cell (opens the issue on the
+  key cell), `Esc` cancels an edit, `Tab` moves on to the next control.
 - **FR-006** Every change reaches every open tab of the tenant as a live
   `issue` / `issue_label` frame: no reload. A reload shows the same state.
 - **FR-007** Access: every member reads (`topics.read`); a member writes with
@@ -86,14 +95,39 @@ Refined the same morning (binding where it differs from the first request):
   issue, over its own box socket, as itself (the agent must be one its box
   announced). Talk stays in topics and messages. Front ends: `spool issue`,
   the MCP tool, `do_spl_issue_*` desk actions.
-- **FR-009** No delete: Canceled is the terminal status (Linear archives;
-  archive is next).
+- **FR-009** Delete (SPL-1027, revises "no delete"): a row action, confirmed
+  with the one destructive confirm (UiConfirm, SPL-1001). The hub soft
+  deletes (rdb 0071 `deleted_at` / `deleted_by`; the number stays taken, the
+  discussion stays, the way back is one UPDATE) and from then on treats the
+  issue as absent (404, never listed, never a parent). Who may: the member
+  who created it, or a role with `tenant.settings` (admin, owner); anyone
+  else gets 403 `forbidden`. An issue with live children is refused, 409
+  `issue_has_children` (delete or move them first). Canceled stays the
+  workflow's terminal status.
+- **FR-010** The sheet is fully CRUD, inline (owner 2026-09-28, topic
+  89485c7a: "the grid should be fully CRUD"). CREATE: the round + (or `C`)
+  puts a new row at the top of the sheet with its title typed in place;
+  `Enter` stores it (status, priority, assignee, labels, deadline, epic and
+  kind are set on that row before or after), `Esc` drops it. READ: the
+  columns, the header sort and the filter row. UPDATE: every cell in place -
+  the title (`Enter` or a double click; `Enter` / leaving saves, `Esc`
+  cancels), status, priority and level select boxes (SPL-972), assignee,
+  labels (an empty cell still opens the picker) and the deadline picker.
+  DELETE: FR-009. The hub decides every write; a refusal is shown and the
+  cell shows the stored value.
+- **FR-011** Above 820 px opening an issue (a row click, `Enter`, a deep
+  link `?issue=SPL-n`) opens it in a modal dialog (UiDialog, large): `Esc`,
+  the X and a backdrop click close it, focus is trapped inside and returns to
+  the row. The URL carries `?issue=SPL-n` while it is open (Back closes it,
+  a deep link opens it). In the dialog `S` / `P` / `A` / `L` open the pickers
+  and `E` edits the description; `Esc` with a picker open closes the picker
+  only.
 
 ## MVP now / next
 
-- **Now**: FR-001..FR-009 except the sub-issue UI.
+- **Now**: FR-001..FR-011.
 - **Next**: sub-issue UI, several teams / prefixes per tenant, cycles and
-  projects, bulk select (`X`), archive, an activity history per issue,
+  projects, bulk select (`X`), an undelete in the UI, archive, an activity history per issue,
   `is:issue` in the omnibox (with the search lane, CLE-34992).
 
 ## Discussion space (SPL-68)
@@ -145,4 +179,4 @@ rdb `0047_issues.sql`: `issue_counters`, `issue_labels`, `issues`; RLS in the
 0021 fail-closed form plus the operator policy on all three. Applied to dev
 and prd with `do_spl_db_bootstrap` before any hub that reads them rolled.
 
-<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->
+<!-- version: 0.8.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:00:00Z -->

@@ -11,11 +11,16 @@ agents use their own socket (§6). Errors are `{error, detail}`.
 | GET | `/v1/view/issues/{ref}` | topics.read | 200 `{issue}`; 404 `not_found` |
 | POST | `/v1/issues` | notes.send | 201 `{issue}` |
 | PATCH | `/v1/issues/{ref}` | notes.send | 200 `{issue}`; 404 `not_found` |
+| DELETE | `/v1/issues/{ref}` | notes.send + (creator, or `tenant.settings`) | 200 `{issue}` (the row as deleted); 404 `not_found`; 403 `forbidden`; 409 `issue_has_children` |
 | POST | `/v1/issue-labels` | notes.send | 201 `{label}`; 409 `label_exists` |
-| OPTIONS | the three write paths | — | 204, `POST, PATCH`, no new request header |
+| OPTIONS | the three write paths | — | 204, `POST, PATCH, DELETE`, no new request header |
 
 `{ref}` is `SPL-12`, `spl-12` or `12`. A write on an unpaid tenant is the
 billing refusal every write gets.
+
+DELETE (SPL-1027, rdb 0071) is a soft delete: the row gets `deleted_at` /
+`deleted_by` and every read, patch and parent lookup treats it as absent
+from then on. The discussion topic and the number stay.
 
 ## 2. The issue object
 
@@ -75,7 +80,8 @@ the field), `unknown_label`, `unknown_parent` (absent or a cycle),
 
 ## 5. Live frames on `/v1/wui/ws`
 
-- `{"type":"issue","op":"create"|"update","issue":{…}}`
+- `{"type":"issue","op":"create"|"update"|"delete","issue":{…}}` - on
+  `delete` the client drops the row with that `key` (SPL-1027).
 - `{"type":"issue_label","label":{…}}`
 
 Sent to every browser socket of the tenant, the writer's own tabs included.

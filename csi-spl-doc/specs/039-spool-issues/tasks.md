@@ -122,4 +122,12 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       wrote SPL-967..970 into prd t1 (tenant hosts: the apex is t1's host);
       the proof now refuses to write unless claim t and the page host are
       TENANT (`6c080b57`)
+- [ ] T015 SPL-1027 (owner 2026-09-28, prd t1 topic 89485c7a): the right
+      pane is gone; above 820 px an issue opens in a modal (FR-011); the sheet
+      is fully CRUD inline (FR-010); delete is a soft delete (FR-009, rdb
+      0071, DELETE /v1/issues/{ref}); phones unchanged (SPL-992)
+  - [ ] T015a spec + contract + rdb 0071, applied on dev and prd
+  - [ ] T015b hub DELETE route, store soft delete, `op: delete` frame, tests
+  - [ ] T015c WUI modal + inline CRUD sheet + cell cursor, unit + e2e 1440/1024
+  - [ ] T015d live on dev and prd, proof per env
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

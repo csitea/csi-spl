@@ -150,6 +150,32 @@ in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=flow,dm,channels,issue
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set submit_key=enter rail_order=flow,dm,channels,issues,topics,events,archive of HUM-4' "$T/out" \
   && pass "4b. both keys: one DRY_RUN plan, no cloud" || fail "4b. both dry: rc=$rc $(cat "$T/out")"
 
+# --- 4c. the layout keys (rdb 0070, topic c6994436) --------------------------
+refuse "MESSAGE_ORDER oldest-first" HUMAN_ID=HUM-4 MESSAGE_ORDER=oldest-first DRY_RUN=0
+refuse "COMPOSER_POSITION left" HUMAN_ID=HUM-4 COMPOSER_POSITION=left DRY_RUN=0
+refuse "MESSAGE_ORDER with another key's value" HUMAN_ID=HUM-4 MESSAGE_ORDER=bottom DRY_RUN=0
+refuse "injected COMPOSER_POSITION" HUMAN_ID=HUM-4 "COMPOSER_POSITION=top'; drop table humans" DRY_RUN=0
+python3 - "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0070_human_view_prefs.sql" "$FUNC" <<'PY2' && pass "0. the layout values are rdb 0070's CHECKs" || fail "0. layout values drifted from 0070"
+import re,sys
+t=open(sys.argv[1]).read(); f=open(sys.argv[2]).read()
+mo=re.findall(r"message_order IN \(([^)]*)\)", t)[0].replace("'", "").split(",")
+cp=re.findall(r"composer_position IN \(([^)]*)\)", t)[0].replace("'", "").split(",")
+sys.exit(0 if "orders='" + "|".join(mo) + "|default'" in f and "positions='" + "|".join(cp) + "|default'" in f else 1)
+PY2
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 MESSAGE_ORDER=Newest-Last COMPOSER_POSITION=default DRY_RUN=0 STUB_PSQL_OUT='HUM-4 | enter |  | newest-last | '; rc=$?
+[[ $rc -eq 0 ]] \
+  && grep -q '\[message_order=newest-last\]' "$T/calls.log" && grep -q '\[composer_position=default\]' "$T/calls.log" \
+  && grep -q '\[submit_key=\]' "$T/calls.log" && grep -q '\[rail=\]' "$T/calls.log" \
+  && grep -q "message_order = CASE :'message_order' WHEN '' THEN message_order WHEN 'default' THEN NULL ELSE :'message_order' END" "$T/stdin" \
+  && grep -q "composer_position = CASE :'composer_position' WHEN '' THEN composer_position WHEN 'default' THEN NULL ELSE :'composer_position' END" "$T/stdin" \
+  && ! grep -q 'newest-last' "$T/stdin" \
+  && grep -q "OK HUM-4 now has message_order=newest-last composer_position=default ($DEV_SA):" "$T/out" \
+  && pass "4c. MESSAGE_ORDER + COMPOSER_POSITION: lower-cased -v values, default = NULL, other keys kept" \
+  || fail "4c. layout: rc=$rc $(cat "$T/calls.log") $(cat "$T/out")"
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 COMPOSER_POSITION=bottom; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set composer_position=bottom of HUM-4' "$T/out" \
+  && pass "4c. COMPOSER_POSITION alone: a DRY_RUN plan, no cloud" || fail "4c. dry: rc=$rc $(cat "$T/out")"
+
 # --- 5. zero rows -------------------------------------------------------------
 in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 STUB_PSQL_OUT=''; rc=$?
 [[ $rc -ne 0 ]] && grep -q '0 row(s) matched HUM-4: rolled back' "$T/out" \

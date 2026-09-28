@@ -3,7 +3,9 @@
 # @description Set one human's Settings -> Behaviour choices in a cloud env's
 # @description hub DB: "Text fields" humans.submit_key (rdb 0062, SPL-976)
 # @description and/or "Left panel order" humans.rail_order (rdb 0063, 0064,
-# @description SPL-979, SPL-983), through the Cloud SQL proxy as the env's project
+# @description SPL-979, SPL-983) and/or "Message order" / "Omnibox position"
+# @description humans.message_order / composer_position (rdb 0070, topic
+# @description c6994436), through the Cloud SQL proxy as the env's project
 # @description service account. humans is hub-wide and outside row level
 # @description security (0014, 0017), so the statement has no tenant scope.
 # @description Values travel as psql variables (:'var'), never spliced into
@@ -16,21 +18,36 @@
 # @param   ctrl-enter (Enter adds a line, Ctrl/Cmd+Enter sends). Lower-cased.
 # @param RAIL_ORDER - the seven rail ids, comma separated, each once:
 # @param   dm,channels,issues,topics,flow,events,archive in any order. Lower-cased.
-# @param   At least one of SUBMIT_KEY and RAIL_ORDER is required.
+# @param MESSAGE_ORDER - newest-first or newest-last, or default (NULL = never
+# @param   picked, the WUI default). Lower-cased.
+# @param COMPOSER_POSITION - top or bottom, or default (NULL). Lower-cased.
+# @param   At least one of SUBMIT_KEY, RAIL_ORDER, MESSAGE_ORDER and
+# @param   COMPOSER_POSITION is required.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 ./run -a do_spl_human_behaviour
 # @example ENV=dev HUMAN_ID=HUM-4 RAIL_ORDER=topics,dm,channels,issues,flow,events,archive ./run -a do_spl_human_behaviour
+# @example ENV=prd HUMAN_ID=HUM-4 MESSAGE_ORDER=default COMPOSER_POSITION=default DRY_RUN=0 ./run -a do_spl_human_behaviour
 #------------------------------------------------------------------------------
 do_spl_human_behaviour() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local human="${HUMAN_ID:-}" key="${SUBMIT_KEY:-}" rail="${RAIL_ORDER:-}" dry=1
+  local order="${MESSAGE_ORDER:-}" pos="${COMPOSER_POSITION:-}"
+  # rdb 0070 humans_message_order_check / humans_composer_position_check; default = NULL
+  local orders='newest-first|newest-last|default' positions='top|bottom|default'
   # rdb 0062 humans_submit_key_check, in that order. A new choice is a migration first.
   local keys='enter|ctrl-enter'
   # rdb 0064 humans_rail_order_check: each of these once (its list; the WUI default is RAIL_TABS).
   local rail_ids='dm,channels,issues,topics,flow,events,archive'
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
-  [[ -n "$key" || -n "$rail" ]] || { do_log "FATAL set SUBMIT_KEY (enter or ctrl-enter) and/or RAIL_ORDER ($rail_ids in any order)"; return 1; }
+  [[ -n "$key" || -n "$rail" || -n "$order" || -n "$pos" ]] || { do_log "FATAL set SUBMIT_KEY (enter or ctrl-enter), RAIL_ORDER ($rail_ids in any order), MESSAGE_ORDER ($orders) and/or COMPOSER_POSITION ($positions)"; return 1; }
+  order="${order,,}" pos="${pos,,}"
+  if [[ -n "$order" ]]; then
+    [[ "$order" =~ ^($orders)$ ]] || { do_log "FATAL MESSAGE_ORDER must be one of $orders, got: '${MESSAGE_ORDER:-}'"; return 1; }
+  fi
+  if [[ -n "$pos" ]]; then
+    [[ "$pos" =~ ^($positions)$ ]] || { do_log "FATAL COMPOSER_POSITION must be one of $positions, got: '${COMPOSER_POSITION:-}'"; return 1; }
+  fi
   key="${key,,}"
   if [[ -n "$key" ]]; then
     [[ "$key" =~ ^($keys)$ ]] || { do_log "FATAL SUBMIT_KEY must be enter (Enter sends) or ctrl-enter (Ctrl+Enter sends) ($keys), got: '${SUBMIT_KEY:-}'"; return 1; }
@@ -45,6 +62,8 @@ do_spl_human_behaviour() {
   local plan=""
   [[ -n "$key" ]] && plan+=" submit_key=$key"
   [[ -n "$rail" ]] && plan+=" rail_order=$rail"
+  [[ -n "$order" ]] && plan+=" message_order=$order"
+  [[ -n "$pos" ]] && plan+=" composer_position=$pos"
   if (( dry )); then
     do_log "OK DRY_RUN would set$plan of $human on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
     return 0
@@ -53,17 +72,20 @@ do_spl_human_behaviour() {
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   local arr=""
   [[ -n "$rail" ]] && arr="{$rail}"
-  spl_via_proxy _spl_human_behaviour_run "$human" "$key" "$arr" "$plan"
+  spl_via_proxy _spl_human_behaviour_run "$human" "$key" "$arr" "$plan" "$order" "$pos"
 }
 
 _spl_human_behaviour_run() {
   local out n
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v human="$1" -v submit_key="$2" -v rail="$3" <<'SQL'
+  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v human="$1" -v submit_key="$2" -v rail="$3" \
+    -v message_order="${5:-}" -v composer_position="${6:-}" <<'SQL'
 BEGIN;
 UPDATE humans SET submit_key = COALESCE(NULLIF(:'submit_key', ''), submit_key),
-                  rail_order = COALESCE(NULLIF(:'rail', '')::text[], rail_order)
+                  rail_order = COALESCE(NULLIF(:'rail', '')::text[], rail_order),
+                  message_order = CASE :'message_order' WHEN '' THEN message_order WHEN 'default' THEN NULL ELSE :'message_order' END,
+                  composer_position = CASE :'composer_position' WHEN '' THEN composer_position WHEN 'default' THEN NULL ELSE :'composer_position' END
  WHERE human_id = :'human'
-RETURNING format('%s | %s | %s', human_id, submit_key, array_to_string(rail_order, ','));
+RETURNING format('%s | %s | %s | %s | %s', human_id, submit_key, array_to_string(rail_order, ','), message_order, composer_position);
 SELECT :ROW_COUNT = 1 AS one \gset
 \if :one
 COMMIT;

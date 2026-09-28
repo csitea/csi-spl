@@ -18,7 +18,11 @@
 # @description Needs sudo and gh with repo admin on both repos.
 # @description Dry run unless DRY_RUN=0.
 # @param OSS_RUNNER_FROM - required: <owner>/<repo> the runners serve now
-# @param OSS_RUNNER_TO - required: <owner>/<repo> they must serve
+# @param OSS_RUNNER_TO - required: <owner>/<repo> they must serve, OR an org
+# @param   name (no slash) together with OSS_RUNNER_GROUP: the runners then
+# @param   register on the org, in that runner group (whose repo + workflow
+# @param   restriction decides who may use them)
+# @param OSS_RUNNER_GROUP (optional) - the org runner group name (org target only)
 # @param OSS_RUNNER_WAIT (optional) - seconds to wait for a busy runner, default 1800
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example OSS_RUNNER_FROM=<owner>/<app> OSS_RUNNER_TO=<owner>/<app>-ops ./run -a do_oss_runners_move
@@ -44,10 +48,23 @@ do_oss_runners_move() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local from="${OSS_RUNNER_FROM:-}" to="${OSS_RUNNER_TO:-}" wait="${OSS_RUNNER_WAIT:-1800}"
   local re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
-  [[ "$from" =~ $re && "$to" =~ $re && "$from" != "$to" ]] \
-    || { do_log "FATAL OSS_RUNNER_FROM and OSS_RUNNER_TO must be two different <owner>/<repo> (no default)"; return 1; }
-  [[ "$(gh api "repos/$to" --jq .private 2>/dev/null)" == true ]] \
-    || { do_log "FATAL $to is not a private repo this token can read - self-hosted runners serve private repos only"; return 1; }
+  local group="${OSS_RUNNER_GROUP:-}" api_to url_to gid=""
+  [[ "$from" =~ $re && "$from" != "$to" ]] \
+    || { do_log "FATAL OSS_RUNNER_FROM must be <owner>/<repo> and differ from OSS_RUNNER_TO (no default)"; return 1; }
+  if [[ "$to" =~ $re ]]; then
+    [[ "$(gh api "repos/$to" --jq .private 2>/dev/null)" == true ]] \
+      || { do_log "FATAL $to is not a private repo this token can read - a repo-level runner serves private repos only"; return 1; }
+    api_to="repos/$to"
+  elif [[ "$to" =~ ^[A-Za-z0-9_.-]+$ && -n "$group" ]]; then
+    gid="$(gh api "orgs/$to/actions/runner-groups" --jq ".runner_groups[]|select(.name==\"$group\")|.id")"
+    [[ -n "$gid" ]] || { do_log "FATAL no runner group '$group' in org $to"; return 1; }
+    [[ "$(gh api "orgs/$to/actions/runner-groups/$gid" --jq '"\(.visibility) \(.restricted_to_workflows)"')" == "selected true" ]] \
+      || { do_log "FATAL runner group $group must be restricted to selected repos AND selected workflows"; return 1; }
+    api_to="orgs/$to"
+  else
+    do_log "FATAL OSS_RUNNER_TO must be <owner>/<repo>, or an org name with OSS_RUNNER_GROUP"; return 1
+  fi
+  url_to="https://github.com/$to"
   local -a units; mapfile -t units < <(oss_runner_units "$from")
   ((${#units[@]})) || { do_log "OK no runner unit of $from on this box - nothing to move"; return 0; }
   do_log "INFO ${#units[@]} runner(s) of $from on this box: ${units[*]}"
@@ -59,7 +76,7 @@ do_oss_runners_move() {
     [[ -n "$dir" && -n "$user" ]] && sudo test -x "$dir/config.sh" || { do_log "FATAL cannot read the dir/user of $u"; return 1; }
     labels="$(gh api "repos/$from/actions/runners" --paginate --jq ".runners[]|select(.name==\"$name\")|[.labels[]|select(.type==\"custom\")|.name]|join(\",\")")"
     if ((dry)); then
-      do_log "INFO DRY_RUN would move $name ($dir, user $user, labels ${labels:-none}) from $from to $to"
+      do_log "INFO DRY_RUN would move $name ($dir, user $user, labels ${labels:-none}) from $from to $to${group:+ (runner group $group)}"
       continue
     fi
     t0=$(date +%s)
@@ -72,9 +89,9 @@ do_oss_runners_move() {
     tok="$(gh api -X POST "repos/$from/actions/runners/remove-token" --jq .token)" \
       && oss_runner_in "$dir" "$user" ./config.sh remove --token "$tok" >/dev/null \
       || { do_log "FATAL cannot deregister $name from $from"; return 1; }
-    tok="$(gh api -X POST "repos/$to/actions/runners/registration-token" --jq .token)" \
-      && oss_runner_in "$dir" "$user" ./config.sh --unattended --replace --url "https://github.com/$to" \
-             --token "$tok" --name "$name" --labels "${labels:-self-hosted}" --work _work >/dev/null \
+    tok="$(gh api -X POST "$api_to/actions/runners/registration-token" --jq .token)" \
+      && oss_runner_in "$dir" "$user" ./config.sh --unattended --replace --url "$url_to" \
+             --token "$tok" --name "$name" --labels "${labels:-self-hosted}" --work _work ${group:+--runnergroup "$group"} >/dev/null \
       || { do_log "FATAL cannot register $name on $to - it is now registered NOWHERE: re-run this action"; return 1; }
     tok=""
     { oss_runner_in "$dir" root ./svc.sh install "$user" >/dev/null && oss_runner_in "$dir" root ./svc.sh start >/dev/null; } \
@@ -85,7 +102,8 @@ do_oss_runners_move() {
 
   sleep 10
   local online stale
-  online="$(gh api "repos/$to/actions/runners" --paginate --jq '[.runners[]|select(.status=="online")|.name]|join(" ")')"
+  local list_to="$api_to/actions/runners"; [[ -n "$gid" ]] && list_to="orgs/$to/actions/runner-groups/$gid/runners"
+  online="$(gh api "$list_to" --paginate --jq '[.runners[]|select(.status=="online")|.name]|join(" ")')"
   stale="$(gh api "repos/$from/actions/runners" --paginate --jq '[.runners[].name]|join(" ")')"
   do_log "INFO $to runners online: ${online:-none}; $from runners left: ${stale:-none}"
   [[ -z "$stale" ]] || { do_log "FATAL $from still lists runner(s): $stale"; return 1; }

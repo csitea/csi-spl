@@ -122,7 +122,7 @@ func fallbackCount(t *testing.T, r *fallbackRig, ch string) int {
 }
 
 // The owner's case: a human posts into a channel with no agent member. The
-// tenant's responder (CLE-001) gets the post in its inbox and ONE
+// tenant's responder gets the post in its inbox and ONE
 // "unanswered post" poke; nobody else on the box does; the post now has an
 // agent delivery; Properties names the responder.
 func TestFallbackChannelWithNoAgentReachesResponder(t *testing.T) {

@@ -88,7 +88,7 @@ func Run(cfg *config.Config, m *msg.Message, to string) {
 	cmd.Env = append(os.Environ(), "SPOOL_ROOT="+cfg.SpoolRoot)
 	// The notifier reports its own "the line is on the screen" instant into
 	// the same trace file; this one brackets the whole leg, submit wait and
-	// all, which is what blocks the caller (CLE-3435).
+	// all, which is what blocks the caller.
 	if trace.On() {
 		cmd.Env = append(cmd.Env, "SPOOL_TRACE="+os.Getenv("SPOOL_TRACE"),
 			"SPOOL_TRACE_MSG_ID="+m.MsgID, "SPOOL_TRACE_TO="+to)

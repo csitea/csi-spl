@@ -102,7 +102,7 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 // at its first passing row (lab: 1 977 -> 21.5 ms at 11.7k messages). Local
 // to this batch's implicit transaction: no other statement sees it.
 //
-// And a custom plan on every run (CLE-35061): pgx prepares the walk once per
+// And a custom plan on every run: pgx prepares the walk once per
 // pooled connection, and after five runs Postgres may keep a GENERIC plan,
 // built without the tenant, the time or the reader's channels. prd t1
 // 2026-09-27 (do_spl_db_hot_measure, n=15, execution only): generic 71 ms
@@ -183,7 +183,7 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	// this reader may see - one in a public channel, one in a channel they
 	// belong to, or a DM they are an end of. Same probe shape as Viewer, so
 	// it stays a LIMIT 1 index step inside the walk rather than a join.
-	// aggDoor is the same rule PER MESSAGE for the summary below (CLE-34986):
+	// aggDoor is the same rule PER MESSAGE for the summary below:
 	// the door above only decides whether a topic is listed, so without it a
 	// topic mixing a DM with a #lobby reply was listed with the DM's first
 	// line as its subject and the DM's ends among its parties.

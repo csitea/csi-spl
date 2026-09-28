@@ -70,7 +70,7 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 			if r, _ := h.MemberRole(ctx, b, tid); r != RoleDefault {
 				t.Fatalf("invite role: %q", r)
 			}
-			// CLE-3451: a password identity for bob's VERIFIED address IS bob,
+			// a password identity for bob's VERIFIED address IS bob,
 			// not a second human - so it is admitted as the member he already
 			// is, and the spent invite is not touched. Before the fix this
 			// minted a second, unlinked human and ended 403 not_allowed.
@@ -411,7 +411,7 @@ func TestHumansDiagnosticsEnabled(t *testing.T) {
 	}
 }
 
-// CLE-34968: a human's own display name. The IdP name seeds it at the first
+// a human's own display name. The IdP name seeds it at the first
 // sign-in; a name set in Settings survives the next sign-in (which, before,
 // replaced it with the IdP's), belongs to one human only, and an unknown
 // human is ErrNotFound.

@@ -38,7 +38,7 @@ func TestGCS(t *testing.T) {
 }
 
 // testUploaded is the Uploaded / Touch / List contract the file retention
-// (CLE-34962) rests on: an absent key is ErrNotFound, Touch moves Uploaded
+// rests on: an absent key is ErrNotFound, Touch moves Uploaded
 // forward, and List names every object under a prefix with that time.
 func testUploaded(t *testing.T, s Store) {
 	t.Helper()

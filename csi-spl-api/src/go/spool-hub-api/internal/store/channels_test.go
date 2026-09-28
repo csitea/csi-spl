@@ -163,7 +163,7 @@ func TestStoreChannels(t *testing.T) {
 			if m, err := s.ChannelMembers(ctx, tid, "feedback"); err != nil || len(m) != 0 {
 				t.Fatalf("feedback members after announce: %v %+v", err, m)
 			}
-			// CLE-34986: nor a created one - naming a channel seats nobody.
+			// nor a created one - naming a channel seats nobody.
 			if m, err := s.ChannelMembers(ctx, tid, "releases"); err != nil || len(m) != 0 {
 				t.Fatalf("releases members after announce: %v %+v", err, m)
 			}

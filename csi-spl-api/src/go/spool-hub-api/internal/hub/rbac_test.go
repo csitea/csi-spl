@@ -194,7 +194,7 @@ func TestRBACMembersAPI(t *testing.T) {
 		{"admin promotes tester to developer", http.MethodPut, "/v1/members/" + tester + "/role", admin, map[string]string{"role": rbac.Developer, "from_role": rbac.Tester}, 200, ""},
 		{"not a member", http.MethodPut, "/v1/members/HUM-999999/role", admin, map[string]string{"role": rbac.Tester}, 404, "not_found"},
 		{"the last owner cannot demote itself", http.MethodPut, "/v1/members/" + owner + "/role", owner, map[string]string{"role": rbac.Developer}, 409, "last_owner"},
-		// Nobody removes themselves (CLE-34969); the store's last-owner
+		// Nobody removes themselves; the store's last-owner
 		// guard stays (store TestTenantRolesAndLastOwner).
 		{"the owner cannot remove itself", http.MethodDelete, "/v1/members/" + owner, owner, nil, 409, "self"},
 		{"developer cannot remove", http.MethodDelete, "/v1/members/" + tester, dev, nil, 403, "forbidden"},

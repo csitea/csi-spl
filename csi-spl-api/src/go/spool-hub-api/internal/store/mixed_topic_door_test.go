@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// CLE-34986: the read door on a MIXED topic - one task holding a #lobby post
+// the read door on a MIXED topic - one task holding a #lobby post
 // and a DM between two other ends. The door decided whether the topic was
 // listed and the per-message filter what ViewTopic returned, but the topic
 // LIST summary (Postgres) and search aggregated every message of the task:

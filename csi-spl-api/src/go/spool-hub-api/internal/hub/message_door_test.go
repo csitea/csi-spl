@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CLE-34986: edit, delete and reactions ask the per-message read door FIRST.
+// edit, delete and reactions ask the per-message read door FIRST.
 // A DM between HUM-2 and CLE-07, in a topic that also holds a #lobby post
 // (so the TOPIC door lets HUM-1 in): HUM-1's edit and delete answered 403
 // not_author - confirming a message a missing id answers 404 for - and a

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// CLE-34985: the request memo answers a repeated membership read from the
+// the request memo answers a repeated membership read from the
 // first one, and nothing outlives the request. CONTROLS: a fresh request reads
 // again (a demotion bites on the next request), a transient error is never
 // memoised, and a context without a memo always reads.

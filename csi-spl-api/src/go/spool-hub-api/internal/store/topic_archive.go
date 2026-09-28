@@ -100,7 +100,7 @@ type TopicArchive interface {
 // walkTopic is the walk both drivers share. next answers, for a set of task
 // ids, the (msg_id, task_id) of every row whose task_id or parent_task_id is
 // one of them. A row's msg_id is a task too: a message-rooted thread opened
-// on it lives under task_id = that msg_id (CLE-3427).
+// on it lives under task_id = that msg_id.
 func walkTopic(card, ownTask string, next func(tasks []string) ([][2]string, error)) (TopicSet, error) {
 	seenMsg := map[string]bool{card: true}
 	seenTask := map[string]bool{card: true}

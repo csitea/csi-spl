@@ -1,5 +1,5 @@
 // Package trace is the stopwatch behind the delivery latency budget
-// (CLE-3435): one appended NDJSON line per hop a message crosses on this box,
+// one appended NDJSON line per hop a message crosses on this box,
 // so the hops can be subtracted from each other instead of guessed at.
 //
 // It answers a question the logs cannot. A delivery crosses several processes

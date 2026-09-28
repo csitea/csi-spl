@@ -67,7 +67,7 @@ func TestAuthCORSCredentialedForAllowListOnly(t *testing.T) {
 		!strings.Contains(h.Get("Access-Control-Allow-Headers"), "Content-Type") {
 		t.Fatalf("preflight: %d %v", code, h)
 	}
-	// CLE-3403: the settings page PUTs preferences and every WUI call carries X-Locale.
+	// the settings page PUTs preferences and every WUI call carries X-Locale.
 	code, h, _ = do(http.MethodOptions, "/api/v1/auth/preferences", wui,
 		"Access-Control-Request-Method", "PUT", "Access-Control-Request-Headers", "content-type,x-locale")
 	if code != http.StatusNoContent || h.Get("Access-Control-Allow-Origin") != wui ||

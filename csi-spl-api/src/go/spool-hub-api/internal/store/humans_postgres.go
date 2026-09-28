@@ -28,7 +28,7 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	// Serialise concurrent first callbacks of one identity (one HUM-*, not two)
 	// and, when the address is provider-verified, of one ADDRESS too: the
 	// linking below reads other providers' rows, so two first callbacks of the
-	// same address must not both mint a human (CLE-3451). The address lock is
+	// same address must not both mint a human. The address lock is
 	// always taken first, so no two transactions take the pair in opposite
 	// orders and deadlock. The '@' prefix cannot collide with a provider slug
 	// (providerRe forbids it).

@@ -11,7 +11,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
-// CLE-34978: a box frame carries no level, so every agent line was stored as
+// a box frame carries no level, so every agent line was stored as
 // is_parent 1 - an agent's answer in a channel thread showed up in the channel
 // feed as a new post. A box line on a task whose topic root is in a channel is
 // now a reply (0). Controls: a box line opening a new task, a box reply under

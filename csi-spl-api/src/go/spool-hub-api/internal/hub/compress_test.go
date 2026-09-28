@@ -23,7 +23,7 @@ func serveCompressed(t *testing.T, h http.HandlerFunc, header http.Header) *http
 
 func jsonOf(n int) string { return `{"x":"` + strings.Repeat("topic ", n/6) + `"}` }
 
-// TestCompressJSON (CLE-35061): a JSON body a client can take gzipped goes
+// TestCompressJSON: a JSON body a client can take gzipped goes
 // out gzipped, byte-identical once decoded; everything else is untouched.
 func TestCompressJSON(t *testing.T) {
 	big := jsonOf(20000)

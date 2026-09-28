@@ -12,7 +12,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
-// CLE-35064: POST /v1/messages/{msg_id}/merge {"into"} edits the kept message
+// POST /v1/messages/{msg_id}/merge {"into"} edits the kept message
 // and deletes the source in ONE transaction, and tells every open tab with ONE
 // message_merged frame. Every refusal is a control: remove its guard in
 // merge.go and the test goes red on the status AND on the stored rows.

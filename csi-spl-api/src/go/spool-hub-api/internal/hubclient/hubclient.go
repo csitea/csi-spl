@@ -689,7 +689,7 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	if err != nil {
 		return err
 	}
-	// The first instant this box can name the message (CLE-3435). Everything
+	// The first instant this box can name the message. Everything
 	// before it - the hub's work and two network legs - is measured from the
 	// sender's clock instead; everything after it is this clock's to subtract.
 	trace.Mark(trace.Event{Stage: trace.StageWSRecv, MsgID: m.MsgID, To: m.To})

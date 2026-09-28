@@ -146,7 +146,7 @@ func (e *env) box(tenant, id string, agents ...string) *box {
 
 // pin pins b and seats the agents its spool root holds, as the box's
 // sidecar hello would: onSend accepts msg.from only from the box that
-// announced it (CLE-34986), and most rigs send over role=cli alone.
+// announced it, and most rigs send over role=cli alone.
 func (e *env) pin(tenant string, b *box) {
 	e.t.Helper()
 	raw, _ := base64.StdEncoding.DecodeString(b.pub)

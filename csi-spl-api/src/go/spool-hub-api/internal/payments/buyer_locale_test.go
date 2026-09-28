@@ -11,7 +11,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// spec 021 T022 (CLE-3439): the claim mail speaks the language the buyer was
+// spec 021 T022: the claim mail speaks the language the buyer was
 // reading the checkout in. The mail is sent by the paid webhook, long after
 // the buyer's request is gone, so the locale has to be kept on the checkout
 // row (rdb 0025); before that column the mail was always the hub default.

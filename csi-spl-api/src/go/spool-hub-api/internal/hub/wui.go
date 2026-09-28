@@ -62,7 +62,7 @@ type wuiConn struct {
 	chans  map[string]bool // channel ids (stored form), guarded by srv.mu
 	peers  map[string]bool // DM peers, "<id>" or "<id>@<box>" (v0.5), guarded by srv.mu
 	all    bool            // topic-list follow (v0.5), guarded by srv.mu
-	upload tokenSlot       // CLE-34986: one live upload token per socket
+	upload tokenSlot       // one live upload token per socket
 	wmu    sync.Mutex
 	once   sync.Once
 }
@@ -473,7 +473,7 @@ func uiParent(v *int) (int, bool) {
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	fail := func(tok string, status int, detail string) {
-		// CLE-35057: a refusal used to leave no line in the hub log, and the
+		// a refusal used to leave no line in the hub log, and the
 		// WUI shows every refusal as "did not reach the hub" - so the owner's
 		// ERR-CLIENT-20260927-204316-6D9A could not be joined to a reason on
 		// either side. One line per refusal: the token names the check.
@@ -825,7 +825,7 @@ func (s *Server) fanoutChannelFrame(ctx context.Context, tenant string, members 
 // DELETE /v1/files/{file_id}: owner-requested; needs a valid upload token of
 // the tenant. 204, or 404 when absent / another tenant's / not the caller's.
 //
-// CLE-34986: any upload token of the tenant deleted any blob of it - the
+// any upload token of the tenant deleted any blob of it - the
 // box-wui token every signed-in browser gets in its welcome included - so a
 // member outside #hr could delete an #hr attachment or another member's DM
 // file, and 204 vs 404 told them whether a known sha256 existed. The delete

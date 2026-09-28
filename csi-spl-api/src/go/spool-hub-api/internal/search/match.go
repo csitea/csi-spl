@@ -240,7 +240,7 @@ func inRange(at time.Time, t *Term) bool {
 	return (t.From.IsZero() || !at.Before(t.From)) && (t.Until.IsZero() || at.Before(t.Until))
 }
 
-// HasCode: a fenced code block, a line starting with ``` (CLE-3407).
+// HasCode: a fenced code block, a line starting with ```.
 func HasCode(body string) bool {
 	return strings.HasPrefix(body, "```") || strings.Contains(body, "\n```")
 }

@@ -145,7 +145,7 @@ func plansOnOneConn(t *testing.T, pg *Postgres, scope, tenant string, q TopicQue
 	return g1 - g0, c1 - c0
 }
 
-// TestViewTopicsWalkNeverGenericPlan (CLE-35061): after five runs of a
+// TestViewTopicsWalkNeverGenericPlan: after five runs of a
 // prepared statement Postgres may switch to a generic plan, built without the
 // tenant, the time or the reader's channels; for the walk that plan was 2.5x
 // slower on prd t1 (71 vs 27 ms). The scope forces a custom plan every run.

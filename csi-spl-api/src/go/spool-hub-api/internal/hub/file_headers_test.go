@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
-// CLE-34986: a download is bytes a member uploaded, served from the origin
+// a download is bytes a member uploaded, served from the origin
 // that holds the session cookie - never sniffed, never rendered as a page.
 func TestFileDownloadIsNeverRendered(t *testing.T) {
 	e := newEnv(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })

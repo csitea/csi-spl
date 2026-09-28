@@ -17,7 +17,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// CLE-34986: the box key signs the envelope, not the agent, so onSend must
+// the box key signs the envelope, not the agent, so onSend must
 // bind msg.from to the SENDING box's announced roster. Before it, box-a could
 // post as box-b's CLE-07 (or as a human) and the recipient read - and
 // answered - the wrong author; only typed_by sends were checked (4336d9f).

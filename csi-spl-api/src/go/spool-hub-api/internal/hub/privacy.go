@@ -31,7 +31,7 @@ import (
 
 // readerID is the reader a read door filters for: the member HUM-* of the
 // session, or "" on the door-off lde rig (which filters nothing). It FAILS
-// CLOSED (CLE-34986): a lookup error, or no human while the door is on,
+// CLOSED: a lookup error, or no human while the door is on,
 // answers ok=false and the caller refuses. The sites it replaced dropped
 // memberID's error, and "" is "filter nothing" - so a transient membership
 // error, or a member removed mid-request, turned the door off for that
@@ -84,7 +84,7 @@ func (s *Server) canReadChannel(ctx context.Context, tenant, channel, human stri
 // canReadMessage applies the per-message rule to one stored message: a DM by
 // its two ends, a channel message by canReadChannel. "" reads all (door
 // off). Edit, delete and reactions ask it BEFORE anything that tells the
-// caller the message exists (CLE-34986): they answered 403 not_author to a
+// caller the message exists: they answered 403 not_author to a
 // non-member, which a missing id answers 404, and reactions checked only the
 // topic, so a mixed topic let a member react to (and read the reaction list
 // of) a DM they are not an end of.

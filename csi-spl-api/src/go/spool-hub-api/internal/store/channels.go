@@ -156,7 +156,7 @@ type Channels interface {
 	// ChannelKnown: a default channel or a created one of the tenant.
 	ChannelKnown(ctx context.Context, tenantID, channelID string) (bool, error)
 	// SetSubscriptions takes one box announce. It seats NO agent in any
-	// channel (CLE-34986): the default ones never took announce seats (owner
+	// channel: the default ones never took announce seats (owner
 	// decision 2026-09-25, channels-v1 §7.4) and every created channel is
 	// members-only, joined by invite alone, so a box cannot name its way into
 	// a private channel. It clears the rows an older hub seated by announce;

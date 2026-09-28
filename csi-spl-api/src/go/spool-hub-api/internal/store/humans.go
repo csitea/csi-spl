@@ -169,7 +169,7 @@ type Humans interface {
 	// DiagnosticsEnabled returns that setting, false when never set, or
 	// ErrNotFound.
 	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
-	// SetDisplayName records the human's own shown name (CLE-34968), one the
+	// SetDisplayName records the human's own shown name, one the
 	// auth layer's ValidDisplayName admitted. Unknown human = ErrNotFound.
 	// Once a human has a name, Admit no longer replaces it with the IdP's.
 	SetDisplayName(ctx context.Context, humanID, name string) error

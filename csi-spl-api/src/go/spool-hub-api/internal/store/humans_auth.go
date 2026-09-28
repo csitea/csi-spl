@@ -188,7 +188,7 @@ func (a AuthHooks) Unlink(ctx context.Context, provider, subject string) error {
 	return a.H.UnlinkIdentity(ctx, provider, subject)
 }
 
-// PreferredLocale is the human's picked locale (CLE-3403); an unknown human
+// PreferredLocale is the human's picked locale; an unknown human
 // is auth.ErrNoHuman.
 func (a AuthHooks) PreferredLocale(ctx context.Context, humanID string) (string, error) {
 	loc, err := a.H.PreferredLocale(ctx, humanID)
@@ -282,7 +282,7 @@ func (a AuthHooks) SetViewPref(ctx context.Context, humanID, key, value string) 
 	return err
 }
 
-// DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
+// DiagnosticsEnabled is the human's "Debug pane" setting; an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {
 	on, err := a.H.DiagnosticsEnabled(ctx, humanID)
@@ -301,7 +301,7 @@ func (a AuthHooks) SetDiagnosticsEnabled(ctx context.Context, humanID string, on
 	return err
 }
 
-// DisplayName is the human's shown name (CLE-34968); an unknown human is
+// DisplayName is the human's shown name; an unknown human is
 // auth.ErrNoHuman.
 func (a AuthHooks) DisplayName(ctx context.Context, humanID string) (string, error) {
 	name, err := a.H.DisplayName(ctx, humanID)

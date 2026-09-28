@@ -38,7 +38,7 @@ const (
 	ErrCodeNotAllowed  = "not_allowed"
 	ErrCodeUnavailable = "unavailable"
 	// ErrCodeInvalidDisplayName: PUT preferences display_name is not a name
-	// ValidDisplayName admits (CLE-34968).
+	// ValidDisplayName admits.
 	ErrCodeInvalidDisplayName = "invalid_display_name"
 )
 
@@ -173,7 +173,7 @@ type Options struct {
 	// Preferences backs preferred_locale (session + PUT preferences); nil = off.
 	Preferences Preferences
 	// Federated backs the forgot-password route's "you signed up with Google"
-	// mail (CLE-3451); nil = that route falls silent on such an address, as
+	// mail; nil = that route falls silent on such an address, as
 	// it did before.
 	Federated FederatedLookup
 	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the mail locale when the
@@ -372,7 +372,7 @@ type sessionResp struct {
 	// IssuesView is the Issues page's view (SPL-1028), null when never
 	// picked (the WUI then shows the list).
 	IssuesView *string `json:"issues_view"`
-	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
+	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
 	// a setting that rode the cookie would outlive its unticking by a whole
@@ -515,7 +515,7 @@ func (h *Handler) diagnosticsGrant(ctx context.Context, s Session) bool {
 }
 
 // shownName is the `name` claim the WUI renders for the signed-in human
-// (CLE-34968): the display name they set in Settings (humans.display_name),
+// the display name they set in Settings (humans.display_name),
 // read from the store on every call, else the cookie's IdP name. The cookie
 // carries the name as it was at sign-in, so a rename would otherwise show
 // only at the next sign-in. A lookup error never fails the session.
@@ -590,7 +590,7 @@ func nameRune(c rune) bool {
 	return true
 }
 
-// avatar answers the signed-in human's own stored IdP picture (CLE-3406):
+// avatar answers the signed-in human's own stored IdP picture:
 // 200 + the image, 401 without a session, 404 when there is none. The type
 // comes from the bytes (fetchAvatar admitted only png/jpeg/gif/webp), the
 // ETag is the content address, and nothing is cached by a shared cache.
@@ -746,9 +746,9 @@ func isPermutation(order, of []string) bool {
 // preferencesReq is PUT preferences' body. Each key is optional, but at
 // least one must be present: preferred_locale is one of the 19
 // i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
-// (CLE-34963) is a JSON boolean, nothing else; display_name (CLE-34968) is a
+// is a JSON boolean, nothing else; display_name is a
 // JSON string ValidDisplayName admits, and cannot be cleared (null is refused);
-// preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it;
+// preferred_theme is one of ThemeIDs exactly, or null to clear it;
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
 // legacy six, SPL-983), or null; message_order and composer_position (topic
@@ -777,7 +777,7 @@ func (q preferencesReq) raw(key string) json.RawMessage {
 	return q.ComposerPosition
 }
 
-// putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
+// putPreferences stores the signed-in human's settings.
 // Same door as the session read (the signed session cookie) and the same CSRF
 // posture as the native POSTs: application/json only, so a browser always
 // preflights it and authCORS's origin allow-list gates it. The whole body is

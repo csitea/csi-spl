@@ -47,7 +47,7 @@ type session struct {
 	// longest-online box (SPL-997).
 	since time.Time
 
-	upload tokenSlot // CLE-34986: one live upload token per socket
+	upload tokenSlot // one live upload token per socket
 	// agents is this box's seated roster, sorted: what onSend checks a
 	// sender against. It is read from the welcome's roster at hello and
 	// replaced by a stored announce, both on this session's read goroutine,
@@ -653,7 +653,7 @@ func (s *Server) missingFile(ctx context.Context, tenant string, files []msg.Att
 }
 
 // unreadableFile is the first blob attachment the sender may NOT read - a
-// box (box != "") or a human - or "" (CLE-34986). An attachment is a read
+// box (box != "") or a human - or "". An attachment is a read
 // capability: a file_id the sender cannot already read would become readable
 // to them through their own message. Text-only mode holds no blobs.
 func (s *Server) unreadableFile(ctx context.Context, tenant string, files []msg.Attachment, box, hum string) (string, error) {
@@ -816,7 +816,7 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 // the same tenant (no cross-tenant delivery, FR-011) that may read it: the
 // box sent it, it is addressed to the box, or the hub delivered it there -
 // BoxTaskEnvelopes' rule, so a follow never streams what a tail would not
-// return (CLE-34986).
+// return.
 func (s *Server) notifyTail(ctx context.Context, tenant, taskID, msgID, fromBox, toBox string, env []byte) {
 	s.mu.Lock()
 	var targets []*session

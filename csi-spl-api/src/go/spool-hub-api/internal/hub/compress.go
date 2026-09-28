@@ -24,7 +24,7 @@ var gzipPool = sync.Pool{New: func() any {
 }}
 
 // compressJSON gzips JSON responses for a client that accepts gzip
-// (CLE-35061). The hub sent every view uncompressed: on prd (6 h, Cloud Run
+// The hub sent every view uncompressed: on prd (6 h, Cloud Run
 // log, 2026-09-27) /v1/view/topics was 20 KB p50 and 295 KB p95,
 // /v1/view/issues 1.06 MB p95, one open topic 713 KB, which a throttled
 // phone link pays for in seconds. Only application/json without a

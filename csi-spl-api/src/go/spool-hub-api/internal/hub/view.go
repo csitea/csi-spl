@@ -244,7 +244,7 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 		v.Owner = owners[id]
 		out = append(out, v)
 	}
-	/* CLE-3425: newest member first, by the HUM-<n> the hub hands out in order
+	/* newest member first, by the HUM-<n> the hub hands out in order
 	   (so HUM-10 before HUM-2, which a plain string sort gets backwards). */
 	sort.Slice(out, func(i, j int) bool { return humNumber(out[i].HumanID) > humNumber(out[j].HumanID) })
 	return out, nil
@@ -341,7 +341,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 			ts, cur := rfc(c.LastAt), encCursor(c.LastAt, c.LastMsgID)
 			v.LastTS, v.LastCursor = &ts, &cur
 		}
-		/* CLE-3425: a channel created seconds ago has no message yet, and the
+		/* a channel created seconds ago has no message yet, and the
 		   client ranks it by this. Rows arrive newest activity first (the store
 		   sorts them); created_at is what makes an EMPTY new channel rank. */
 		if !c.CreatedAt.IsZero() {
@@ -363,7 +363,7 @@ type viewTopic struct {
 	Kinds        map[string]int `json:"kinds"`
 	Participants []string       `json:"participants"`
 	Subject      string         `json:"subject"`
-	// per_topic=N only (CLE-34985): the topic's newest N messages, exactly
+	// per_topic=N only: the topic's newest N messages, exactly
 	// GET /v1/view/topics/{task_id}?order=desc&limit=N, and that read's next.
 	Messages     *[]viewMsg `json:"messages,omitempty"`
 	MessagesNext *string    `json:"messages_next,omitempty"`

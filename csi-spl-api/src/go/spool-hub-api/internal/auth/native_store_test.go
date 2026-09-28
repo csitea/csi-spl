@@ -96,7 +96,7 @@ func TestCredStoreContract(t *testing.T) {
 			if ok, _ := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+5), h2, t6, t6.Add(time.Hour), floor); ok {
 				t.Fatal("daily cap (3) not enforced")
 			}
-			// CLE-34986: accept sees the link's hash; a refusal writes nothing.
+			// accept sees the link's hash; a refusal writes nothing.
 			var seen string
 			no := func(h string) bool { seen = h; return false }
 			if err := st.ConsumeVerification(ctx, th(base+4), t4, no); !errors.Is(err, auth.ErrVerifyPasswordMismatch) || seen != h2 {

@@ -16,7 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// CLE-34986: a file_id is not a capability. box-a sends box-b a file; box-x
+// a file_id is not a capability. box-a sends box-b a file; box-x
 // knows its file_id (a log line, a removed channel member). Before: any
 // upload token of the tenant DELETED it (204), and box-x re-attached the id
 // to its own message, which made the blob readable to box-x through that

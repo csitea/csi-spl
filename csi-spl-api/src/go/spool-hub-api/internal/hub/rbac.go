@@ -190,7 +190,7 @@ func (s *Server) targetRole(w http.ResponseWriter, r *http.Request, h store.Huma
 }
 
 func decodeMembers(w http.ResponseWriter, r *http.Request, v any) bool {
-	// application/json only, like keys and native auth (CLE-34986): a
+	// application/json only, like keys and native auth: a
 	// text/plain body is a "simple" cross-site form post that needs no
 	// preflight, and it can carry valid JSON - so without this gate only the
 	// session cookie's SameSite=Lax stood between another site and an invite.

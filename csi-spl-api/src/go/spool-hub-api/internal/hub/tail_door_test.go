@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// CLE-34986: the WS tail read any task of the tenant - TaskEnvelopes had no
+// the WS tail read any task of the tenant - TaskEnvelopes had no
 // party filter - and a follow streamed every later envelope of it, so a box
 // holding a task_id (a removed channel member, a guess from a log) read other
 // boxes' DMs and private-channel posts, bodies included. A box now tails only

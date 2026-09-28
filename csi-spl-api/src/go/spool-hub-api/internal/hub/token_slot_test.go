@@ -7,7 +7,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-// CLE-34986: a socket looping {"type":"token"} minted a new upload token per
+// a socket looping {"type":"token"} minted a new upload token per
 // frame, and each mint walked the whole token map under the hub-wide mutex.
 // Within the first half of its TTL a socket now gets its current token back:
 // 50 frames, one token. (The clients refresh with 30 s / 15 s left, so they

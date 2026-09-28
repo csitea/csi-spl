@@ -33,7 +33,7 @@ func Key(tenantID, fileID string) (string, error) {
 	return "t/" + tenantID + "/files/" + fileID, nil
 }
 
-// AvatarKey is the hub-wide key of a person's own IdP picture (CLE-3406):
+// AvatarKey is the hub-wide key of a person's own IdP picture:
 // avatars/<sha256>, outside every tenant prefix, so a sign-in with no tenant
 // or into a tenant the person is not yet a member of still keeps it, and it
 // never counts against a tenant's file quota.
@@ -70,7 +70,7 @@ type Store interface {
 	// Uploaded is when key was last uploaded: its creation, or the latest
 	// Touch. ErrNotFound when it is absent. The file read door lets an
 	// attachment no message carries through only this soon after an upload,
-	// and retention deletes such a blob only once it is older (CLE-34962).
+	// and retention deletes such a blob only once it is older.
 	Uploaded(ctx context.Context, key string) (time.Time, error)
 	// Touch marks key uploaded now: a re-upload of bytes the store already
 	// holds (content-addressed) is a fresh upload for Uploaded.

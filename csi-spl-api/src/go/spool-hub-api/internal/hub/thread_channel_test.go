@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
-// CLE-34977: a thread reply lives on its topic's task and the WUI reply pane
+// a thread reply lives on its topic's task and the WUI reply pane
 // sends no channel tag, so a #lobby reply was stored with channel NULL while
 // its topic said lobby. A reply now inherits its topic root's channel; the
 // #feedback and DM rows are the controls (tagged stays tagged, a DM stays a DM).
@@ -59,7 +59,7 @@ func TestThreadReplyInheritsTopicChannel(t *testing.T) {
 		}
 	}
 
-	// CLE-35057: a reply TAGGED with another channel (the page the reader had
+	// a reply TAGGED with another channel (the page the reader had
 	// on screen) is still stored in its topic's channel. This asserted the
 	// opposite until prd 2026-09-27, when the owner's reply into a
 	// #spool-hub-devel topic was stored under #spool-hub-ops.

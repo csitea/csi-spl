@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
-// CLE-34969: the Users page directory lists one tenant's members and pending
+// the Users page directory lists one tenant's members and pending
 // invites only, and revokes a pending invite. CONTROLS: another tenant's rows
 // never show, an accepted invite is neither listed nor revocable, a revoked
 // invite no longer admits.

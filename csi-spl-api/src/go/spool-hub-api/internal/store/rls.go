@@ -107,7 +107,7 @@ type tenantRead struct {
 
 // queryTenantBatch sends the tenant scope and several reads as ONE batch: one
 // round trip, where inTenant paid BEGIN + scope + one per read + COMMIT
-// (CLE-34985). The batch is one implicit transaction, like inTenant's, so the
+// The batch is one implicit transaction, like inTenant's, so the
 // scope ends with it. Results are read in queue order, so a read's each may
 // depend on what an earlier read's each stored.
 func (s *Postgres) queryTenantBatch(ctx context.Context, tenant string, reads ...tenantRead) error {

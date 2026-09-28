@@ -88,7 +88,7 @@ func TestTypedByVerifiedStoredAndShownToBrowsersOnly(t *testing.T) {
 	refused("a member with no binding", "CLE-01", unbound)
 	refused("not a member of the tenant", "CLE-01", "HUM-999999")
 	// An agent box-a never announced is refused before typed_by is read:
-	// onSend's sender check (CLE-34986), with or without a claim. A role=cli
+	// onSend's sender check, with or without a claim. A role=cli
 	// send keeps it pending for the box session to announce; nothing stored.
 	for _, claim := range []string{bound, ""} {
 		out, err := sendAs("GRK-99", claim, "never announced")

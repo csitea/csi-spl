@@ -181,7 +181,7 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
 	// Bytes a member uploaded, served from the API origin that holds the
-	// session cookie (CLE-34986): never sniffed into HTML or script, never
+	// session cookie: never sniffed into HTML or script, never
 	// rendered as a page when opened directly - a download, in a sandbox.
 	// None of the three touches an <img> or a fetch(), which is how the WUI
 	// reads them.
@@ -248,7 +248,7 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 		}
 		return s.fileReadableBy(r.Context(), tenant, fileID, box, "")
 	}
-	hum, ok := s.readerID(r, tenant) // fails closed (CLE-34986): an error read as "door off"
+	hum, ok := s.readerID(r, tenant) // fails closed: an error read as "door off"
 	if !ok {
 		return false, nil
 	}
@@ -259,7 +259,7 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 }
 
 // fileReadableBy is mayReadFile's rule for a principal already resolved: a
-// box (box != "") or a human. The send paths ask it too (CLE-34986): an
+// box (box != "") or a human. The send paths ask it too: an
 // attachment is a capability to READ the blob, so a sender may attach only a
 // file it may already read - else anyone who knew a file_id (a member
 // removed from #hr, a log line) re-attached it to their own DM and then
@@ -295,7 +295,7 @@ func (s *Server) fileReadableBy(ctx context.Context, tenant, fileID, box, hum st
 	// retention references is either an upload whose message has not been
 	// sent yet (a box uploads, then sends, and must be able to fetch back
 	// what it just produced) or the leftover of messages that EXPIRED. The
-	// second must not become readable by the whole tenant (CLE-34962): only
+	// second must not become readable by the whole tenant: only
 	// a fresh upload passes, and retention deletes the rest (sweepFiles).
 	attached, err := s.o.Store.FileAttached(ctx, tenant, fileID, now)
 	if err != nil || attached {

@@ -232,7 +232,7 @@ func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) (
 	msgs := map[string][]search.Msg{}
 	var order []string
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
-		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) { // per message, before the aggregate (CLE-34986); specs/041
+		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) { // per message, before the aggregate; specs/041
 			continue
 		}
 		r := byTask[m.TaskID]

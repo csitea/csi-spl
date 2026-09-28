@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// CLE-34986: ten wrong guesses from a stranger's address locked the owner out
+// ten wrong guesses from a stranger's address locked the owner out
 // of a known email from everywhere (the bucket was keyed on the email alone
 // and spent before the password check). Now the stranger's address is
 // locked, the owner's is not; CONTROL: the stranger's own 11th try is 429,

@@ -8,7 +8,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 )
 
-// CLE-34968: PUT preferences display_name stores the signed-in human's shown
+// PUT preferences display_name stores the signed-in human's shown
 // name, and GET session answers it as `name` from then on - without a new
 // sign-in, since the cookie still carries the old name.
 func TestDisplayNameSetReflectsInSession(t *testing.T) {
@@ -110,7 +110,7 @@ func TestValidDisplayName(t *testing.T) {
 	}
 }
 
-// CLE-34986: the seed rule for an IdP or register-form name drops what
+// the seed rule for an IdP or register-form name drops what
 // ValidDisplayName refuses and cuts at 200 characters, never mid-rune.
 func TestCleanDisplayName(t *testing.T) {
 	long := strings.Repeat("\u00e4", 250) // 2 bytes each: a byte cut at 200 is 100 runes

@@ -15,7 +15,7 @@ import (
 )
 
 // POST /v1/messages/{msg_id}/merge {"into": "<msg_id>"} — fold one message
-// into its neighbor in the same thread (CLE-35064).
+// into its neighbor in the same thread.
 //
 // The owner, prd t1 topic 04130ea2: "the merge with previous and next works,
 // but once the content is merged, the actual source of the merged content,

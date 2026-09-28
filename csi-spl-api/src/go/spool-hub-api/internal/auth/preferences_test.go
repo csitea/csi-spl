@@ -313,7 +313,7 @@ func TestPreferencesSetReflectsInSession(t *testing.T) {
 	}
 }
 
-// CLE-34994: the palette picker keeps the choice on the account, so an
+// the palette picker keeps the choice on the account, so an
 // operator default (do_spl_human_theme) and the person's own pick share one
 // field, and the session answers it back.
 func TestPreferencesTheme(t *testing.T) {

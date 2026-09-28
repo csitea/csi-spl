@@ -166,7 +166,7 @@ func (s *Memory) RestoreChannel(_ context.Context, tenant, id string) error {
 
 // SetSubscriptions records one box announce.
 //
-// CLE-34986: an announce seats nobody (see the Postgres store); it only
+// an announce seats nobody (see the Postgres store); it only
 // clears what an older announce seated.
 func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, _, _ []string, _ time.Time) error {
 	s.mu.Lock()
@@ -340,6 +340,6 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 			out = append(out, *st)
 		}
 	}
-	SortChannelStats(out) // CLE-3425: newest activity first
+	SortChannelStats(out) // newest activity first
 	return out, nil
 }

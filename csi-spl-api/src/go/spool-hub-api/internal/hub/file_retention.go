@@ -10,7 +10,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// File retention (CLE-34962). A stored blob is exactly as private as the
+// File retention. A stored blob is exactly as private as the
 // messages carrying it (mayReadFile), so once the last of them expires the
 // blob has no reader left: the read door stops serving it after the upload
 // grace, and this sweep deletes it after the orphan grace. Before this the

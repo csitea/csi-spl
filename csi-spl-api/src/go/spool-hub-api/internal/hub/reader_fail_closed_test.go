@@ -16,7 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 )
 
-// CLE-34986: every read door re-read the session after humanTenant had
+// every read door re-read the session after humanTenant had
 // PROVED it, and dropped that second lookup's error - and "" is "filter
 // nothing". A transient membership error (the pool is 8 connections) or a
 // member removed mid-request therefore opened search to the whole tenant and

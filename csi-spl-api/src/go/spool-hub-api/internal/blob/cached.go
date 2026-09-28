@@ -11,7 +11,7 @@ import (
 )
 
 // Cached keeps recently read content-addressed objects in memory in front of
-// a Store (CLE-35061). An attachment read was one GCS round trip every time:
+// a Store. An attachment read was one GCS round trip every time:
 // prd 2026-09-27, GET /v1/files/{id} 71 ms p50 / 157 ms p95 of server time
 // (n=116, 6 h), and one browser fetched the same picture 15 times, because
 // the answer varies on the session cookie and a tenant switch mints a new one.

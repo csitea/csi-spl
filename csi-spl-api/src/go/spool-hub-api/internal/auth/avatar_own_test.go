@@ -14,7 +14,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// CLE-3406: the top-right avatar is the person's own IdP picture, read from
+// the top-right avatar is the person's own IdP picture, read from
 // GET /api/v1/auth/avatar with the session alone. Claim -> stored picture ->
 // session route, for a member AND a not-yet-member (no tenant), refreshed
 // on the next sign-in. CONTROLS: no picture claim -> 404 (the WUI draws the

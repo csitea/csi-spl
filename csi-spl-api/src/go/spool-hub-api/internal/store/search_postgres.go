@@ -334,7 +334,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
 	c := &sqlc{}
 	t, now := c.arg(tenant), c.arg(q.Now)
-	// The read door per MESSAGE, before the aggregate (CLE-34986): a topic's
+	// The read door per MESSAGE, before the aggregate: a topic's
 	// title, parties, kinds and count come only from rows the viewer may read,
 	// and a topic with none of them is not there. It was decided on the whole
 	// topic, so a #lobby topic carrying a DM listed the DM's ends and count.

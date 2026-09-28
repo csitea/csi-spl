@@ -25,7 +25,7 @@ var (
 	// ErrTokenExpired: a verification token that exists but is past its expiry.
 	ErrTokenExpired = errors.New("auth: token expired")
 	// ErrVerifyPasswordMismatch: the verify click did not carry the password the
-	// link was issued for. Nothing is written or consumed (CLE-34986).
+	// link was issued for. Nothing is written or consumed.
 	ErrVerifyPasswordMismatch = errors.New("auth: password does not match the link")
 )
 
@@ -74,7 +74,7 @@ type CredStore interface {
 	// written: false = ErrVerifyPasswordMismatch, nothing consumed. The click proves
 	// the MAILBOX; accept proves the clicker is also the person who chose
 	// that password, else anyone could register a victim's address with
-	// their own password and have the victim's click verify it (CLE-34986).
+	// their own password and have the victim's click verify it.
 	ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error
 	// ConsumeReset sets newHash, marks the email verified and consumes every
 	// live reset token of the credential. Returns the subject.

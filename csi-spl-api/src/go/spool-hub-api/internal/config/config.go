@@ -325,7 +325,7 @@ type Hub struct {
 	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
 	// contracts/migration.md §5: 1 until every reader is deployed.
 	MsgVersion int `env:"SPOOL_HUB_MSG_VERSION" envDefault:"1"`
-	// DefaultLocale (CLE-3403) is the locale a request that names none gets
+	// DefaultLocale is the locale a request that names none gets
 	// (X-Locale > Accept-Language > this), the mail locale of last resort, and
 	// the one locale WUI links carry no /<loc> prefix for. cnf env.i18n, the
 	// same value the WUI builds with; one of the 19 i18n.Supported codes.

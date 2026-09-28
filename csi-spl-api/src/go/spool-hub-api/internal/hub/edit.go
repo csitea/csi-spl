@@ -116,7 +116,7 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
 		return
 	}
-	if !s.messageDoor(w, r, t.ID, m) { // the read door before rule 6 (CLE-34986)
+	if !s.messageDoor(w, r, t.ID, m) { // the read door before rule 6
 		return
 	}
 	if m.FromID != from { // rule 6
@@ -319,7 +319,7 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
 		return
 	}
-	if !s.messageDoor(w, r, t.ID, m) { // the read door before the author gate (CLE-34986)
+	if !s.messageDoor(w, r, t.ID, m) { // the read door before the author gate
 		return
 	}
 	if m.FromID != from {

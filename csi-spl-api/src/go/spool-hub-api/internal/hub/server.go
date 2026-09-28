@@ -411,7 +411,7 @@ func (s *Server) mintToken(tenant, box string) (string, time.Time) {
 // tokenSweepEvery bounds how often a mint walks the token map.
 const tokenSweepEvery = time.Minute
 
-// tokenSlot is one connection's current upload token (CLE-34986). A `token`
+// tokenSlot is one connection's current upload token. A `token`
 // frame minted a NEW token every time and each mint walked the whole map
 // under the hub-wide mutex, so one socket looping {"type":"token"} grew the
 // map without bound and stalled routing for every tenant. A connection now

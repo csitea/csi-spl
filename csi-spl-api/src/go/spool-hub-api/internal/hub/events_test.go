@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// specs/005 events-v1 (CLE-34990): a human's personal event log, through the
+// specs/005 events-v1: a human's personal event log, through the
 // keys rig (SessionID seam), so two humans can be driven in one test.
 
 func (k *keysRig) ev(t *testing.T, who, method, path, body string) (int, string) {

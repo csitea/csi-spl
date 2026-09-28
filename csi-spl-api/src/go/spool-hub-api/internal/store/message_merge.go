@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// Merging one message into its neighbor (CLE-35064). The owner, prd t1 topic
+// Merging one message into its neighbor. The owner, prd t1 topic
 // 04130ea2: "once the content is merged, the actual source of the merged
 // content, the source card, should self-delete".
 //

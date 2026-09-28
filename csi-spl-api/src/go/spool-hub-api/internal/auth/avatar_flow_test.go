@@ -53,7 +53,7 @@ func TestIdPAvatarStoredAsFileID(t *testing.T) {
 		}
 	}
 
-	// No tenant (CLE-3406): the picture is kept hub-wide and named on the
+	// No tenant: the picture is kept hub-wide and named on the
 	// human, but no tenant prefix gets a copy.
 	c := browser(t)
 	signIn(t, c, r, "google", "")

@@ -8,7 +8,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
-// CLE-34986: POST /v1/members/invites and PUT /v1/members/{id}/role take
+// POST /v1/members/invites and PUT /v1/members/{id}/role take
 // application/json only. A text/plain body is a cross-site "simple" form post
 // (no preflight) and it can carry valid JSON; nothing but SameSite=Lax stood
 // in its way. CONTROL: the same body as application/json invites.

@@ -1,4 +1,4 @@
-// Package i18n is the hub's locale negotiation (CLE-3403), ported from csi-rel
+// Package i18n is the hub's locale negotiation, ported from csi-rel
 // internal/i18n: the same 19 locales, golang.org/x/text/language matching,
 // and X-Locale over Accept-Language (a browser fetch may not override
 // Accept-Language, so the cross-origin WUI sends its active locale in

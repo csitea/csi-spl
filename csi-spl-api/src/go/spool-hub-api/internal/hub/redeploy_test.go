@@ -56,7 +56,7 @@ func newRedeploy(t *testing.T, e *env) *redeploy {
 
 func (r *redeploy) flip() { r.cur.Store(&r.next) }
 
-// The box-desk strand of 2026-09-25 (CLE-100): after a dev hub redeploy the
+// The box-desk strand of 2026-09-25: after a dev hub redeploy the
 // sidecar logged `hub session up` and then nothing, the hub said the box was
 // offline, and for ~50 min every accepted message queued for a box that never
 // came back - the 030 ping kept passing, because the OLD process answered it.

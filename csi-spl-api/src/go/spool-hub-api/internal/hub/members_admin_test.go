@@ -11,7 +11,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
-// CLE-34969: the admin's Users page API. CONTROL: every role but admin gets
+// the admin's Users page API. CONTROL: every role but admin gets
 // 403 on every members.invite route (list, invite, revoke, remove); the role
 // route is members.roles (admin + biz_owner, 025 §3.2). The admin lists,
 // invites (the invitation mail goes out), re-roles, removes and revokes; it

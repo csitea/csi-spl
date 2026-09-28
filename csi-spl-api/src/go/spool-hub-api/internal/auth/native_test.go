@@ -384,7 +384,7 @@ func TestNativePreAccountTakeover(t *testing.T) {
 	}
 }
 
-// CLE-34986: the ONE-CLICK takeover. The squatter registers the victim's
+// the ONE-CLICK takeover. The squatter registers the victim's
 // address with the squatter's password and the victim - who never
 // registered - clicks the genuine mail. The click proves the mailbox, not
 // who chose the password: without the password the link was issued for it

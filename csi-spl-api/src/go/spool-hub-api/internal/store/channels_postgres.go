@@ -126,7 +126,7 @@ func notDeleted(col string) string {
 
 // SetSubscriptions records one box announce against channel_subscriptions.
 //
-// CLE-34986: an announce no longer SEATS anyone. Every created channel is
+// an announce no longer SEATS anyone. Every created channel is
 // members-only (rdb 0028) and the box names its own channel list, so seating
 // by announce let any pinned box put an agent into any private channel it
 // could guess the slug of - and from then on receive every post there and
@@ -312,7 +312,7 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 			out = append(out, *st)
 		}
 	}
-	SortChannelStats(out) // CLE-3425: newest activity first
+	SortChannelStats(out) // newest activity first
 	return out, nil
 }
 

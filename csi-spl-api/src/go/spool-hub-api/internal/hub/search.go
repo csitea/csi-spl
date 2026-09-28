@@ -87,7 +87,7 @@ type section struct {
 }
 
 // searchReader is who is asking: the member HUM-* (also the DM filter), or
-// "" with the door off. ok=false fails closed (CLE-34986): it returned ""
+// "" with the door off. ok=false fails closed: it returned ""
 // on a lookup error, and "" searched the whole tenant, DMs included.
 func (s *Server) searchReader(r *http.Request, tenant string) (string, bool) {
 	return s.readerID(r, tenant)

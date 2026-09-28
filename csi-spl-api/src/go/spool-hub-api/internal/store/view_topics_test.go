@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// 027 T030 (CLE-3419): ViewTopics walks each topic's latest message instead
+// 027 T030: ViewTopics walks each topic's latest message instead
 // of aggregating the whole tenant. The pre-027 query stays here as the oracle:
 // on seeded data every filter combination must return the same rows, byte for
 // byte. Postgres only (SPOOL_TEST_PG_DSN); SPOOL_TEST_PERF=1 adds the timed

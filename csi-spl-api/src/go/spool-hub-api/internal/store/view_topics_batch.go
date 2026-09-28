@@ -9,7 +9,7 @@ import (
 )
 
 // TopicsMsgQuery reads the newest messages of several topics at once: the
-// per_topic= page of GET /v1/view/topics (CLE-34985). Per topic it answers
+// per_topic= page of GET /v1/view/topics. Per topic it answers
 // exactly what ViewTopic answers for TopicMsgQuery{TaskID, Desc: true,
 // Limit: PerTopic} with the same Reader door.
 type TopicsMsgQuery struct {

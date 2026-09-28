@@ -141,7 +141,7 @@ func (s *Store) writeBoxRing(m *msg.Message, id, box string, ring bool) (bool, e
 		// The delivery itself: from here the message survives a crash, a
 		// restart and a closed socket (002). The hop table subtracts this
 		// from ws_recv to price the file mailbox - the part of the design
-		// the owner asked about (CLE-3435).
+		// the owner asked about.
 		trace.Mark(trace.Event{Stage: trace.StageInboxWritten, MsgID: m.MsgID, To: id})
 	}
 	// specs/028 FR-001: this is the ONE place a message enters a local agent's

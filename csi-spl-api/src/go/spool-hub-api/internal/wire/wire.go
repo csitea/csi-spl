@@ -72,7 +72,7 @@ const (
 )
 
 // TokenFromNotAnnounced is the error token for a send whose msg.from is not
-// an agent the sending box announced (CLE-34986). A box client that hosts
+// an agent the sending box announced. A box client that hosts
 // that agent re-announces and resends; any other sender cannot post as it.
 const TokenFromNotAnnounced = "from_not_announced"
 

@@ -16,7 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// CLE-34985: GET /v1/view/topics?per_topic=N inlines each listed topic's
+// GET /v1/view/topics?per_topic=N inlines each listed topic's
 // newest N messages. The ORACLE is the read the WUI made per topic before:
 // every topic's `messages` and `messages_next` must be byte-identical to
 // GET /v1/view/topics/{task_id}?order=desc&limit=N's `messages` and `next`,

@@ -360,7 +360,7 @@ func (n *native) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The clicker confirms the password the link was issued for: the mail
-	// proves the mailbox, not who chose the password (CLE-34986).
+	// proves the mailbox, not who chose the password.
 	if req.Password == "" || len(req.Password) > maxPasswordLen {
 		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "password required")
 		return
@@ -397,7 +397,7 @@ type loginResp struct {
 	// The same operator grant GET /session answers (005 T035), so the WUI can
 	// adopt these claims without a second probe. Computed, never signed in.
 	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
-	// PreferredTheme as GET /session answers it (CLE-34994), null when unset.
+	// PreferredTheme as GET /session answers it, null when unset.
 	PreferredTheme *string `json:"preferred_theme"`
 	// SubmitKey as GET /session answers it (SPL-976), null when unset.
 	SubmitKey *string `json:"submit_key"`
@@ -420,7 +420,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := normEmail(req.Email)
-	// CLE-34986: the per-email ceiling is per (email, client IP), so a
+	// the per-email ceiling is per (email, client IP), so a
 	// stranger's wrong guesses from their address no longer lock the owner
 	// out from theirs (it was spent before the password check, keyed on the
 	// email alone: ten posts locked any known address for 15 minutes). A
@@ -493,7 +493,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
-	// The answer names the human as the session read does (CLE-34968); the
+	// The answer names the human as the session read does; the
 	// cookie keeps the credential's name, as every other claim of it.
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)

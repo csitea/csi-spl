@@ -349,7 +349,7 @@ func TestWUIChannelPostReachesEveryMemberBox(t *testing.T) {
 		if err := e.st.SetRoster(ctx, tid, x.box, x.agents, now); err != nil {
 			t.Fatal(err)
 		}
-		for _, ch := range x.chans { // agents join a created channel by invite (CLE-34986)
+		for _, ch := range x.chans { // agents join a created channel by invite
 			for _, ag := range x.agents {
 				if err := e.st.InviteChannelAgent(ctx, tid, ch, x.box, ag, now); err != nil {
 					t.Fatal(err)

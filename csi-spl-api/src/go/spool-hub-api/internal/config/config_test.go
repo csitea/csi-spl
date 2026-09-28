@@ -300,7 +300,7 @@ func TestMsgVersionKnob(t *testing.T) {
 	}
 }
 
-// CLE-3403 / GRK-3369: SPOOL_HUB_DEFAULT_LOCALE defaults to en (cnf
+// SPOOL_HUB_DEFAULT_LOCALE defaults to en (cnf
 // env.i18n.default_locale, owner 2026-09-19), takes any of the 19 locales,
 // and refuses anything else at startup.
 func TestLoadHubDefaultLocale(t *testing.T) {

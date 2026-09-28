@@ -63,7 +63,7 @@ func (s *Server) tagChannel(channel, taskID string) string {
 // of its task's topic root, else "" (a DM). A thread reply lives on its
 // topic's task and the WUI reply pane sends no tag, so without the inherit a
 // #lobby reply was stored with channel NULL while its topic said lobby
-// (CLE-34977) - and the per-message read door (rdb 0028) then judged the
+// - and the per-message read door (rdb 0028) then judged the
 // reply as a DM. A lookup error keeps the old answer rather than failing the
 // send.
 func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) string {
@@ -432,7 +432,7 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 				s.o.Log.Error().Err(err).Str("channel", c.ChannelID).Msg("channel creator membership")
 			}
 		}
-		/* CLE-3425: every other session's sidebar learns about it at once */
+		/* every other session's sidebar learns about it at once */
 		s.fanoutChannel(r.Context(), t.ID, c)
 		writeJSON(w, http.StatusCreated, map[string]any{"channel": c.ChannelID, "name": c.Name,
 			"description": c.Description, "created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt), "default": false})

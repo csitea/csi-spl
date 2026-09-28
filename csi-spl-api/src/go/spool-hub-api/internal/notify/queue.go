@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
-// Queue takes the terminal leg OFF the delivery path (CLE-3435).
+// Queue takes the terminal leg OFF the delivery path.
 //
 // Run is synchronous, and writeBox calls it inside Session.receive inside the
 // sidecar's readLoop - so for as long as a poke takes, that box cannot read

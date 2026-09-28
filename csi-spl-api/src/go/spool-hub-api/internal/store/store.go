@@ -232,7 +232,7 @@ type Store interface {
 	// if none): a hub-built resend reuses them so it re-acks, not conflicts.
 	MessageTimes(ctx context.Context, tenantID, msgID string) (ts, receivedAt time.Time, err error)
 	// TopicChannel is the channel of a task's topic root - its earliest
-	// is_parent 1 row - or "" when the root is a DM or not stored (CLE-34977).
+	// is_parent 1 row - or "" when the root is a DM or not stored.
 	TopicChannel(ctx context.Context, tenantID, taskID string) (string, error)
 
 	// Editing a sent message and its append-only revision register (specs/032).

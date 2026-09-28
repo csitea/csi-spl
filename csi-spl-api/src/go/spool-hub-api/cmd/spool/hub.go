@@ -40,7 +40,7 @@ import (
 )
 
 // Serve limits of the hub process. The blob cache is sized for one 512 MiB
-// Cloud Run instance using ~80 MiB (CLE-35061); the http limits are the
+// Cloud Run instance using ~80 MiB; the http limits are the
 // slow-client defence (017 FR-SEC-004).
 const (
 	blobCacheBytes     = 64 << 20
@@ -122,7 +122,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}
-	// CLE-3403: preferred_locale lives on the human (rdb 0017); the default
+	// preferred_locale lives on the human (rdb 0017); the default
 	// locale is cnf, validated by LoadHub.
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
 		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request})
@@ -142,7 +142,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 // baseOptions maps the hub cnf onto hub.Options; the dependencies that need
 // loading or checking are added by hubOptions.
 func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Store, originTenant *hub.OriginTenant) hub.Options {
-	// CLE-35061: attachment reads served from memory after the first; the
+	// attachment reads served from memory after the first; the
 	// hub is one instance of 512 MiB (hub.cloud_run), ~80 MiB in use.
 	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, blobCacheTTL)
 	return hub.Options{
@@ -299,7 +299,7 @@ func wirePayments(opts *hub.Options, hc *config.Hub, log zerolog.Logger, st stor
 	return pmc, nil
 }
 
-// inviteMailer is the admin's in-app invite mail (CLE-34969), through the
+// inviteMailer is the admin's in-app invite mail, through the
 // same relay and invitemail.Send as `spool hub-invite` (010 FR-016); nil when
 // the store, the relay or the app URL cannot send one.
 func inviteMailer(hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, appURL string) hub.InviteMailer {
@@ -627,7 +627,7 @@ func cmdHubRun(cfg *config.Config) int {
 		return fail(err)
 	}
 	// The daemon is the one caller that outlives its deliveries, so it is the
-	// one that can take the terminal leg off the read loop (CLE-3435). Stop
+	// one that can take the terminal leg off the read loop. Stop
 	// drains what is queued before the process leaves.
 	// SPOOL_NOTIFY_ASYNC=0 is the rollback (specs/030 FR-007): no queue, so
 	// notify.Deliver falls back to the synchronous path. Stop takes a nil.

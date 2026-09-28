@@ -1,0 +1,238 @@
+[
+  {
+    "description": "Copy a blob to dest, verifying its sha256 (== spool get-file).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dest": {
+          "description": "path to write the verified bytes to",
+          "type": "string"
+        },
+        "file_id": {
+          "description": "sha256 file_id of the blob",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_id",
+        "dest"
+      ],
+      "type": "object"
+    },
+    "name": "spool_get_file",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "file_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_id",
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Issues, the way Linear keeps them (hub mode): file concrete, specced work as an issue and post your progress on it; talk stays in messages (== spool issue \u003cop\u003e --as).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "as": {
+          "description": "the acting agent id; a seated server defaults it to its seat and refuses any other",
+          "type": "string"
+        },
+        "body": {
+          "description": "comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md",
+          "type": "string"
+        },
+        "issue": {
+          "additionalProperties": true,
+          "description": "create/update fields: title, description (markdown), status (eval|todo|wip|diss|blocked|onhold|qas|done = 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done), priority (prio 1 highest .. 5 lowest), level (derived from the tree, read-only: 1 epic or feature, 2 issue, 3 subtask), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color",
+          "type": "object"
+        },
+        "op": {
+          "description": "one of list, get, create, update, comment, label",
+          "type": "string"
+        },
+        "query": {
+          "description": "list filters in URL query form, e.g. status=todo,wip\u0026assignee=me\u0026epic=SPL-17\u0026kind=issue\u0026sort=priority",
+          "type": "string"
+        },
+        "ref": {
+          "description": "issue key, e.g. SPL-12 (get, update, comment)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "type": "object"
+    },
+    "name": "spool_issue"
+  },
+  {
+    "description": "Put a file into the content-addressed blob store (== spool put-file).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "file to put into the content-addressed store",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "name": "spool_put_file",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "file_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bytes",
+        "file_id",
+        "kind",
+        "name",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Return the v:1 messages in an agent's inbox as a JSON array (== spool recv).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ack": {
+          "description": "move the returned messages to archive/",
+          "type": "boolean"
+        },
+        "as": {
+          "description": "receiving agent id; a seated server defaults it to its seat and refuses any other",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "spool_recv"
+  },
+  {
+    "description": "Send a v:1 message to another agent, on this box or (hub mode) another box; with channel, post a new topic into that channel for every member (== spool send [--channel]).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "description": "message text; a longer post uses markdown (headers, bold, lists, GFM pipe tables), no fence needed: csi-spl-doc/doc/help/how-to-post.md",
+          "type": "string"
+        },
+        "channel": {
+          "description": "hub mode only: post into this channel id (e.g. spool-hub-devel) as a new topic every member reads, like a human's post; leave to empty (or ALL-0) and to_box empty; refused unless the sender is a member",
+          "type": "string"
+        },
+        "file_ids": {
+          "description": "file_ids from spool_put_file to attach",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "from": {
+          "description": "sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other",
+          "type": "string"
+        },
+        "kind": {
+          "description": "one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "topic uuid; a new one is minted when empty",
+          "type": "string"
+        },
+        "to": {
+          "description": "recipient agent id, e.g. CLE-07; empty for a channel post",
+          "type": "string"
+        },
+        "to_box": {
+          "description": "hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "body"
+      ],
+      "type": "object"
+    },
+    "name": "spool_send",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "delivery": {
+          "type": "string"
+        },
+        "msg_id": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delivery",
+        "msg_id",
+        "task_id",
+        "ts"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "List a topic oldest-first: human lines, or raw v:1 NDJSON with json=true (== spool tail).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "json": {
+          "description": "emit raw v:1 NDJSON instead of human lines",
+          "type": "boolean"
+        },
+        "task_id": {
+          "description": "topic uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "type": "object"
+    },
+    "name": "spool_tail"
+  }
+]

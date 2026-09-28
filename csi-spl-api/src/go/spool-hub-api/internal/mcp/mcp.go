@@ -103,107 +103,119 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 // NewServerOpts returns the spool MCP server shaped by o.
 func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 	s := sdk.NewServer(&sdk.Implementation{Name: "spool", Version: version}, nil)
-
+	t := tools{cfg: cfg, o: o}
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_put_file",
 		Description: "Put a file into the content-addressed blob store (== spool put-file).",
-	}, func(_ context.Context, _ *sdk.CallToolRequest, in PutFileIn) (*sdk.CallToolResult, action.PutResult, error) {
-		out, err := action.Put(cfg, in.Path, false)
-		if err != nil {
-			return nil, out, toolErr(err)
-		}
-		return text(action.JSON(out)), out, nil
-	})
-
+	}, t.putFile)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_send",
 		Description: "Send a v:1 message to another agent, on this box or (hub mode) another box; with channel, post a new topic into that channel for every member (== spool send [--channel]).",
-	}, func(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
-		from, err := o.who("from", in.From)
-		if err != nil {
-			return nil, action.SendResult{}, err
-		}
-		if o.Seat != "" && in.ToBox == "" && in.Channel == "" && cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
-			in.ToBox = wuiBox
-		}
-		out, err := action.SendCtx(ctx, cfg, action.SendArgs{
-			From: from, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
-			ToBox: in.ToBox, Channel: in.Channel,
-		})
-		if err != nil {
-			return nil, out, toolErr(err)
-		}
-		return text(action.JSON(out)), out, nil
-	})
-
+	}, t.send)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_recv",
 		Description: "Return the v:1 messages in an agent's inbox as a JSON array (== spool recv).",
-	}, func(_ context.Context, _ *sdk.CallToolRequest, in RecvIn) (*sdk.CallToolResult, any, error) {
-		as, err := o.who("as", in.As)
-		if err != nil {
-			return nil, nil, err
-		}
-		msgs, err := action.Recv(cfg, as, in.Ack)
-		if err == nil {
-			return text(action.JSON(msgs)), nil, nil
-		}
-		if msgs == nil {
-			return nil, nil, toolErr(err)
-		}
-		// Like the CLI (stdout + non-zero exit): the good, possibly already acked,
-		// messages are still returned alongside the error.
-		res := text(action.JSON(msgs))
-		res.Content = append(res.Content, &sdk.TextContent{Text: toolErr(err).Error()})
-		res.IsError = true
-		return res, nil, nil
-	})
-
+	}, t.recv)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_get_file",
 		Description: "Copy a blob to dest, verifying its sha256 (== spool get-file).",
-	}, func(_ context.Context, _ *sdk.CallToolRequest, in GetFileIn) (*sdk.CallToolResult, action.GetResult, error) {
-		out, err := action.Get(cfg, in.FileID, in.Dest, false)
-		if err != nil {
-			return nil, out, toolErr(err)
-		}
-		return text(action.JSON(out)), out, nil
-	})
-
+	}, t.getFile)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_tail",
 		Description: "List a topic oldest-first: human lines, or raw v:1 NDJSON with json=true (== spool tail).",
-	}, func(_ context.Context, _ *sdk.CallToolRequest, in TailIn) (*sdk.CallToolResult, any, error) {
-		out, err := action.Tail(cfg, in.TaskID, in.JSON)
-		if err != nil {
-			return nil, nil, toolErr(err)
-		}
-		return text(out), nil, nil
-	})
-
+	}, t.tail)
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "spool_issue",
 		Description: "Issues, the way Linear keeps them (hub mode): file concrete, specced work as an issue and post your progress on it; " +
 			"talk stays in messages (== spool issue <op> --as).",
-	}, func(ctx context.Context, _ *sdk.CallToolRequest, in IssueIn) (*sdk.CallToolResult, any, error) {
-		as, err := o.who("as", in.As)
-		if err != nil {
-			return nil, nil, err
-		}
-		var raw json.RawMessage
-		if in.Issue != nil {
-			if raw, err = json.Marshal(in.Issue); err != nil {
-				return nil, nil, toolErr(err)
-			}
-		}
-		out, err := action.Issue(ctx, cfg, action.IssueArgs{Op: in.Op, As: as, Ref: in.Ref, Issue: raw, Query: in.Query, Body: in.Body})
-		if err != nil {
+	}, t.issue)
+	return s
+}
+
+// tools are the handlers of the six tools, over one config and seat.
+type tools struct {
+	cfg *config.Config
+	o   Options
+}
+
+func (t tools) putFile(_ context.Context, _ *sdk.CallToolRequest, in PutFileIn) (*sdk.CallToolResult, action.PutResult, error) {
+	out, err := action.Put(t.cfg, in.Path, false)
+	if err != nil {
+		return nil, out, toolErr(err)
+	}
+	return text(action.JSON(out)), out, nil
+}
+
+func (t tools) send(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
+	from, err := t.o.who("from", in.From)
+	if err != nil {
+		return nil, action.SendResult{}, err
+	}
+	if t.o.Seat != "" && in.ToBox == "" && in.Channel == "" && t.cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
+		in.ToBox = wuiBox
+	}
+	out, err := action.SendCtx(ctx, t.cfg, action.SendArgs{
+		From: from, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
+		ToBox: in.ToBox, Channel: in.Channel,
+	})
+	if err != nil {
+		return nil, out, toolErr(err)
+	}
+	return text(action.JSON(out)), out, nil
+}
+
+func (t tools) recv(_ context.Context, _ *sdk.CallToolRequest, in RecvIn) (*sdk.CallToolResult, any, error) {
+	as, err := t.o.who("as", in.As)
+	if err != nil {
+		return nil, nil, err
+	}
+	msgs, err := action.Recv(t.cfg, as, in.Ack)
+	if err == nil {
+		return text(action.JSON(msgs)), nil, nil
+	}
+	if msgs == nil {
+		return nil, nil, toolErr(err)
+	}
+	// Like the CLI (stdout + non-zero exit): the good, possibly already acked,
+	// messages are still returned alongside the error.
+	res := text(action.JSON(msgs))
+	res.Content = append(res.Content, &sdk.TextContent{Text: toolErr(err).Error()})
+	res.IsError = true
+	return res, nil, nil
+}
+
+func (t tools) getFile(_ context.Context, _ *sdk.CallToolRequest, in GetFileIn) (*sdk.CallToolResult, action.GetResult, error) {
+	out, err := action.Get(t.cfg, in.FileID, in.Dest, false)
+	if err != nil {
+		return nil, out, toolErr(err)
+	}
+	return text(action.JSON(out)), out, nil
+}
+
+func (t tools) tail(_ context.Context, _ *sdk.CallToolRequest, in TailIn) (*sdk.CallToolResult, any, error) {
+	out, err := action.Tail(t.cfg, in.TaskID, in.JSON)
+	if err != nil {
+		return nil, nil, toolErr(err)
+	}
+	return text(out), nil, nil
+}
+
+func (t tools) issue(ctx context.Context, _ *sdk.CallToolRequest, in IssueIn) (*sdk.CallToolResult, any, error) {
+	as, err := t.o.who("as", in.As)
+	if err != nil {
+		return nil, nil, err
+	}
+	var raw json.RawMessage
+	if in.Issue != nil {
+		if raw, err = json.Marshal(in.Issue); err != nil {
 			return nil, nil, toolErr(err)
 		}
-		return text(string(out)), nil, nil
-	})
-
-	return s
+	}
+	out, err := action.Issue(ctx, t.cfg, action.IssueArgs{Op: in.Op, As: as, Ref: in.Ref, Issue: raw, Query: in.Query, Body: in.Body})
+	if err != nil {
+		return nil, nil, toolErr(err)
+	}
+	return text(string(out)), nil, nil
 }
 
 // Run serves the tools over stdin/stdout until the client disconnects or ctx

@@ -1,0 +1,202 @@
+## 
+error: bad query at 0 (""): q is required
+## deploy
+{"Raw":"deploy","Root":{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}]}
+## deplo*
+{"Raw":"deplo*","Root":{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deplo","Phrase":false,"Prefix":true,"Pos":0,"Raw":"deplo*","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deplo"]}},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deplo","Phrase":false,"Prefix":true,"Pos":0,"Raw":"deplo*","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deplo"]}]}
+## "dry run"
+{"Raw":"\"dry run\"","Root":{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"dry run","Phrase":true,"Prefix":false,"Pos":0,"Raw":"\"dry run\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["dry","run"]}},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"dry run","Phrase":true,"Prefix":false,"Pos":0,"Raw":"\"dry run\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["dry","run"]}]}
+## deploy hub
+{"Raw":"deploy hub","Root":{"Kind":1,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}},{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":7,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}}],"Term":null},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]},{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":7,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}]}
+## deploy OR hub
+{"Raw":"deploy OR hub","Root":{"Kind":2,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}},{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":10,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}}],"Term":null},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":0,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]},{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":10,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}]}
+## -deploy hub
+{"Raw":"-deploy hub","Root":{"Kind":1,"Kids":[{"Kind":3,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":1,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}}],"Term":null},{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":8,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}}],"Term":null},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"hub","Phrase":false,"Prefix":true,"Pos":8,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}]}
+## (deploy OR hub) -dry
+{"Raw":"(deploy OR hub) -dry","Root":{"Kind":1,"Kids":[{"Kind":2,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":1,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}},{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"hub","Phrase":false,"Prefix":false,"Pos":11,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}}],"Term":null},{"Kind":3,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"dry","Phrase":false,"Prefix":false,"Pos":17,"Raw":"dry","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["dry"]}}],"Term":null}],"Term":null},"Types":["message","topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":false,"Pos":1,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]},{"Op":"","Value":"hub","Phrase":false,"Prefix":false,"Pos":11,"Raw":"hub","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["hub"]}]}
+## type:robot
+{"Raw":"type:robot","Root":null,"Types":["robot"],"Explicit":true,"Warnings":null,"Positive":null}
+## type:robot,user
+{"Raw":"type:robot,user","Root":null,"Types":["robot","user"],"Explicit":true,"Warnings":null,"Positive":null}
+## type:robot,robot
+{"Raw":"type:robot,robot","Root":null,"Types":["robot"],"Explicit":true,"Warnings":null,"Positive":null}
+## kind:tickets
+{"Raw":"kind:tickets","Root":null,"Types":["issue"],"Explicit":true,"Warnings":null,"Positive":null}
+## type:
+error: bad query at 0 ("type:"): type: needs a value
+## type:nope
+error: bad query at 0 ("type:nope"): type: must be message, topic, file, robot, user, channel, box, tenant, event or issue
+## -type:robot
+error: bad query at 1 ("type:robot"): type: cannot be negated
+## type:robot type:user
+error: bad query at 11 ("type:user"): at most one type:
+## deploy OR type:robot
+error: bad query at 10 ("type:robot"): type: must be a top-level term (not negated, not inside OR or parentheses)
+## (type:robot)
+{"Raw":"(type:robot)","Root":null,"Types":["robot"],"Explicit":true,"Warnings":null,"Positive":null}
+## type:issue deploy
+{"Raw":"type:issue deploy","Root":{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":11,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}},"Types":["issue"],"Explicit":true,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":11,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}]}
+## type:robot is:task
+error: bad query at 11 ("is:task"): is:task does not apply to type:robot
+## from:CLE-07
+{"Raw":"from:CLE-07","Root":{"Kind":0,"Kids":null,"Term":{"Op":"from","Value":"CLE-07","Phrase":false,"Prefix":false,"Pos":0,"Raw":"from:CLE-07","Enum":"","ID":"CLE-07","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## from:CLE-07@box-a
+{"Raw":"from:CLE-07@box-a","Root":{"Kind":0,"Kids":null,"Term":{"Op":"from","Value":"CLE-07@box-a","Phrase":false,"Prefix":false,"Pos":0,"Raw":"from:CLE-07@box-a","Enum":"","ID":"CLE-07","Box":"box-a","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## from:CLE-07@Box_A
+error: bad query at 0 ("from:CLE-07@Box_A"): from: must be an agent id, <agent>@<box>, HUM-<n> or a box id
+## from:-bad
+error: bad query at 0 ("from:-bad"): from: must be an agent id, <agent>@<box>, HUM-<n> or a box id
+## to:HUM-3
+{"Raw":"to:HUM-3","Root":{"Kind":0,"Kids":null,"Term":{"Op":"to","Value":"HUM-3","Phrase":false,"Prefix":false,"Pos":0,"Raw":"to:HUM-3","Enum":"","ID":"HUM-3","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## to:@box
+error: bad query at 0 ("to:@box"): to: must be an agent id, <agent>@<box>, HUM-<n> or a box id
+## box:box-a
+{"Raw":"box:box-a","Root":{"Kind":0,"Kids":null,"Term":{"Op":"box","Value":"box-a","Phrase":false,"Prefix":false,"Pos":0,"Raw":"box:box-a","Enum":"","ID":"","Box":"box-a","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file","robot","box"],"Explicit":false,"Warnings":null,"Positive":null}
+## box:BOX-A
+{"Raw":"box:BOX-A","Root":{"Kind":0,"Kids":null,"Term":{"Op":"box","Value":"BOX-A","Phrase":false,"Prefix":false,"Pos":0,"Raw":"box:BOX-A","Enum":"","ID":"","Box":"box-a","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file","robot","box"],"Explicit":false,"Warnings":null,"Positive":null}
+## box:bad_box
+error: bad query at 0 ("box:bad_box"): box: must be a box id
+## in:#lobby
+{"Raw":"in:#lobby","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"#lobby","Phrase":false,"Prefix":false,"Pos":0,"Raw":"in:#lobby","Enum":"","ID":"","Box":"","Channel":"lobby","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## in:general
+{"Raw":"in:general","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"general","Phrase":false,"Prefix":false,"Pos":0,"Raw":"in:general","Enum":"","ID":"","Box":"","Channel":"lobby","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## in:#general
+{"Raw":"in:#general","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"#general","Phrase":false,"Prefix":false,"Pos":0,"Raw":"in:#general","Enum":"","ID":"","Box":"","Channel":"lobby","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## in:dm
+{"Raw":"in:dm","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"dm","Phrase":false,"Prefix":false,"Pos":0,"Raw":"in:dm","Enum":"","ID":"","Box":"","Channel":"","DM":true,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## in:DM
+{"Raw":"in:DM","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"DM","Phrase":false,"Prefix":false,"Pos":0,"Raw":"in:DM","Enum":"","ID":"","Box":"","Channel":"","DM":true,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## channel:tasks
+{"Raw":"channel:tasks","Root":{"Kind":0,"Kids":null,"Term":{"Op":"in","Value":"tasks","Phrase":false,"Prefix":false,"Pos":0,"Raw":"channel:tasks","Enum":"","ID":"","Box":"","Channel":"tasks","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## in:#Bad_Chan
+error: bad query at 0 ("in:#Bad_Chan"): in: must be a channel (#name) or dm
+## in:#
+error: bad query at 0 ("in:#"): in: must be a channel (#name) or dm
+## is:task
+{"Raw":"is:task","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"task","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:task","Enum":"task","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null}
+## is:TASK
+{"Raw":"is:TASK","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"TASK","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:TASK","Enum":"task","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null}
+## is:root
+{"Raw":"is:root","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"root","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:root","Enum":"root","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["topic"],"Explicit":false,"Warnings":null,"Positive":null}
+## is:online
+{"Raw":"is:online","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"online","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:online","Enum":"online","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["robot","user","box"],"Explicit":false,"Warnings":null,"Positive":null}
+## is:revoked
+{"Raw":"is:revoked","Root":{"Kind":0,"Kids":null,"Term":{"Op":"is","Value":"revoked","Phrase":false,"Prefix":false,"Pos":0,"Raw":"is:revoked","Enum":"revoked","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["robot","box"],"Explicit":false,"Warnings":null,"Positive":null}
+## is:nope
+error: bad query at 0 ("is:nope"): is: must be one of blocker, msg, note, offline, online, reject, result, revoked, root, task
+## has:file
+{"Raw":"has:file","Root":{"Kind":0,"Kids":null,"Term":{"Op":"has","Value":"file","Phrase":false,"Prefix":false,"Pos":0,"Raw":"has:file","Enum":"file","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null}
+## has:attachment
+{"Raw":"has:attachment","Root":{"Kind":0,"Kids":null,"Term":{"Op":"has","Value":"attachment","Phrase":false,"Prefix":false,"Pos":0,"Raw":"has:attachment","Enum":"file","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null}
+## has:code
+{"Raw":"has:code","Root":{"Kind":0,"Kids":null,"Term":{"Op":"has","Value":"code","Phrase":false,"Prefix":false,"Pos":0,"Raw":"has:code","Enum":"code","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message"],"Explicit":false,"Warnings":null,"Positive":null}
+## has:nope
+error: bad query at 0 ("has:nope"): has: must be one of attachment, code, file
+## topic:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b
+{"Raw":"topic:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b","Root":{"Kind":0,"Kids":null,"Term":{"Op":"topic","Value":"6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b","Phrase":false,"Prefix":false,"Pos":0,"Raw":"topic:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## topic:6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B
+{"Raw":"topic:6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B","Root":{"Kind":0,"Kids":null,"Term":{"Op":"topic","Value":"6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b","Phrase":false,"Prefix":false,"Pos":0,"Raw":"topic:6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## topic:nope
+error: bad query at 0 ("topic:nope"): topic: must be a task id (UUID)
+## before:2026-09-01
+{"Raw":"before:2026-09-01","Root":{"Kind":0,"Kids":null,"Term":{"Op":"before","Value":"2026-09-01","Phrase":false,"Prefix":false,"Pos":0,"Raw":"before:2026-09-01","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"2026-09-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## after:7d
+{"Raw":"after:7d","Root":{"Kind":0,"Kids":null,"Term":{"Op":"after","Value":"7d","Phrase":false,"Prefix":false,"Pos":0,"Raw":"after:7d","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"2026-09-12T12:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## after:24h
+{"Raw":"after:24h","Root":{"Kind":0,"Kids":null,"Term":{"Op":"after","Value":"24h","Phrase":false,"Prefix":false,"Pos":0,"Raw":"after:24h","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"2026-09-18T12:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## after:2w
+{"Raw":"after:2w","Root":{"Kind":0,"Kids":null,"Term":{"Op":"after","Value":"2w","Phrase":false,"Prefix":false,"Pos":0,"Raw":"after:2w","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"2026-09-05T12:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## on:2026-09-19
+{"Raw":"on:2026-09-19","Root":{"Kind":0,"Kids":null,"Term":{"Op":"on","Value":"2026-09-19","Phrase":false,"Prefix":false,"Pos":0,"Raw":"on:2026-09-19","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"2026-09-19T00:00:00Z","Until":"2026-09-20T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## on:7d
+error: bad query at 0 ("on:7d"): on: takes a day (YYYY-MM-DD), not an age
+## after:0d
+error: bad query at 0 ("after:0d"): after: age must be 1 to 3650
+## after:3651d
+error: bad query at 0 ("after:3651d"): after: age must be 1 to 3650
+## after:3650d
+{"Raw":"after:3650d","Root":{"Kind":0,"Kids":null,"Term":{"Op":"after","Value":"3650d","Phrase":false,"Prefix":false,"Pos":0,"Raw":"after:3650d","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"2016-09-21T12:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["message","topic","file"],"Explicit":false,"Warnings":null,"Positive":null}
+## before:yesterday
+error: bad query at 0 ("before:yesterday"): before: must be YYYY-MM-DD or an age like 24h, 7d, 2w
+## title:migration
+{"Raw":"title:migration","Root":{"Kind":0,"Kids":null,"Term":{"Op":"title","Value":"migration","Phrase":false,"Prefix":false,"Pos":0,"Raw":"title:migration","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["migration"]}},"Types":["topic"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"title","Value":"migration","Phrase":false,"Prefix":false,"Pos":0,"Raw":"title:migration","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["migration"]}]}
+## subject:migra*
+{"Raw":"subject:migra*","Root":{"Kind":0,"Kids":null,"Term":{"Op":"title","Value":"migra","Phrase":false,"Prefix":true,"Pos":0,"Raw":"subject:migra*","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["migra"]}},"Types":["topic"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"title","Value":"migra","Phrase":false,"Prefix":true,"Pos":0,"Raw":"subject:migra*","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["migra"]}]}
+## title:"the hub"
+{"Raw":"title:\"the hub\"","Root":{"Kind":0,"Kids":null,"Term":{"Op":"title","Value":"the hub","Phrase":true,"Prefix":false,"Pos":0,"Raw":"title:\"the hub\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["the","hub"]}},"Types":["topic"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"title","Value":"the hub","Phrase":true,"Prefix":false,"Pos":0,"Raw":"title:\"the hub\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["the","hub"]}]}
+## title:*
+error: bad query at 0 ("title:*"): title: needs a letter or digit
+## title:---
+error: bad query at 0 ("title:---"): title: needs a letter or digit
+## name:ops
+{"Raw":"name:ops","Root":{"Kind":0,"Kids":null,"Term":{"Op":"name","Value":"ops","Phrase":false,"Prefix":false,"Pos":0,"Raw":"name:ops","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["topic","file","robot","user","channel","box"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"name","Value":"ops","Phrase":false,"Prefix":false,"Pos":0,"Raw":"name:ops","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}]}
+## filename:"q3 report"
+{"Raw":"filename:\"q3 report\"","Root":{"Kind":0,"Kids":null,"Term":{"Op":"filename","Value":"q3 report","Phrase":true,"Prefix":false,"Pos":0,"Raw":"filename:\"q3 report\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"filename","Value":"q3 report","Phrase":true,"Prefix":false,"Pos":0,"Raw":"filename:\"q3 report\"","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}]}
+## ext:pdf
+{"Raw":"ext:pdf","Root":{"Kind":0,"Kids":null,"Term":{"Op":"ext","Value":"pdf","Phrase":false,"Prefix":false,"Pos":0,"Raw":"ext:pdf","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## ext:.PDF
+{"Raw":"ext:.PDF","Root":{"Kind":0,"Kids":null,"Term":{"Op":"ext","Value":"pdf","Phrase":false,"Prefix":false,"Pos":0,"Raw":"ext:.PDF","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## ext:toolongextension12
+error: bad query at 0 ("ext:toolongextension12"): ext: must be 1-16 letters or digits
+## ext:p-f
+error: bad query at 0 ("ext:p-f"): ext: must be 1-16 letters or digits
+## larger:1M
+{"Raw":"larger:1M","Root":{"Kind":0,"Kids":null,"Term":{"Op":"larger","Value":"1M","Phrase":false,"Prefix":false,"Pos":0,"Raw":"larger:1M","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":1048576,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## smaller:10K
+{"Raw":"smaller:10K","Root":{"Kind":0,"Kids":null,"Term":{"Op":"smaller","Value":"10K","Phrase":false,"Prefix":false,"Pos":0,"Raw":"smaller:10K","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":10240,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## larger:2G
+{"Raw":"larger:2G","Root":{"Kind":0,"Kids":null,"Term":{"Op":"larger","Value":"2G","Phrase":false,"Prefix":false,"Pos":0,"Raw":"larger:2G","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":2147483648,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## larger:12345
+{"Raw":"larger:12345","Root":{"Kind":0,"Kids":null,"Term":{"Op":"larger","Value":"12345","Phrase":false,"Prefix":false,"Pos":0,"Raw":"larger:12345","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":12345,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## larger:1T
+error: bad query at 0 ("larger:1T"): larger: must be bytes or <n>K, <n>M, <n>G
+## larger:999999999999999G
+error: bad query at 0 ("larger:999999999999999G"): larger: too large
+## larger:4294967296G
+{"Raw":"larger:4294967296G","Root":{"Kind":0,"Kids":null,"Term":{"Op":"larger","Value":"4294967296G","Phrase":false,"Prefix":false,"Pos":0,"Raw":"larger:4294967296G","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":4611686018427387904,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":false,"Warnings":null,"Positive":null}
+## smaller:x
+error: bad query at 0 ("smaller:x"): smaller: must be bytes or <n>K, <n>M, <n>G
+## status:wip
+{"Raw":"status:wip","Root":{"Kind":0,"Kids":null,"Term":{"Op":"status","Value":"wip","Phrase":false,"Prefix":false,"Pos":0,"Raw":"status:wip","Enum":"wip","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## status:in_progress
+{"Raw":"status:in_progress","Root":{"Kind":0,"Kids":null,"Term":{"Op":"status","Value":"in_progress","Phrase":false,"Prefix":false,"Pos":0,"Raw":"status:in_progress","Enum":"wip","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## status:nope
+error: bad query at 0 ("status:nope"): status: must be one of eval, todo, wip, diss, qas, done
+## prio:1
+{"Raw":"prio:1","Root":{"Kind":0,"Kids":null,"Term":{"Op":"priority","Value":"1","Phrase":false,"Prefix":false,"Pos":0,"Raw":"prio:1","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":1,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## prio=1
+{"Raw":"prio=1","Root":{"Kind":0,"Kids":null,"Term":{"Op":"priority","Value":"1","Phrase":false,"Prefix":false,"Pos":0,"Raw":"prio=1","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":1,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## priority:9
+error: bad query at 0 ("priority:9"): prio: must be a number 1..5
+## prio:x
+error: bad query at 0 ("prio:x"): prio: must be a number 1..5
+## assignee:me
+{"Raw":"assignee:me","Root":{"Kind":0,"Kids":null,"Term":{"Op":"assignee","Value":"me","Phrase":false,"Prefix":false,"Pos":0,"Raw":"assignee:me","Enum":"me","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## assignee:none
+{"Raw":"assignee:none","Root":{"Kind":0,"Kids":null,"Term":{"Op":"assignee","Value":"none","Phrase":false,"Prefix":false,"Pos":0,"Raw":"assignee:none","Enum":"none","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## assignee:CLE-07
+{"Raw":"assignee:CLE-07","Root":{"Kind":0,"Kids":null,"Term":{"Op":"assignee","Value":"CLE-07","Phrase":false,"Prefix":false,"Pos":0,"Raw":"assignee:CLE-07","Enum":"","ID":"CLE-07","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## assignee:-x
+error: bad query at 0 ("assignee:-x"): assignee: must be a member or agent id, me or none
+## label:Bug
+{"Raw":"label:Bug","Root":{"Kind":0,"Kids":null,"Term":{"Op":"label","Value":"bug","Phrase":false,"Prefix":false,"Pos":0,"Raw":"label:Bug","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":null}
+## type:issue status:done prio:2
+{"Raw":"type:issue status:done prio:2","Root":{"Kind":1,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"status","Value":"done","Phrase":false,"Prefix":false,"Pos":11,"Raw":"status:done","Enum":"done","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},{"Kind":0,"Kids":null,"Term":{"Op":"priority","Value":"2","Phrase":false,"Prefix":false,"Pos":23,"Raw":"prio:2","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":2,"Types":null,"Lexemes":null}}],"Term":null},"Types":["issue"],"Explicit":true,"Warnings":null,"Positive":null}
+## status:done deploy
+{"Raw":"status:done deploy","Root":{"Kind":1,"Kids":[{"Kind":0,"Kids":null,"Term":{"Op":"status","Value":"done","Phrase":false,"Prefix":false,"Pos":0,"Raw":"status:done","Enum":"done","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},{"Kind":0,"Kids":null,"Term":{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":12,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}}],"Term":null},"Types":["issue"],"Explicit":false,"Warnings":null,"Positive":[{"Op":"","Value":"deploy","Phrase":false,"Prefix":true,"Pos":12,"Raw":"deploy","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":["deploy"]}]}
+## type:robot ext:pdf
+error: bad query at 11 ("ext:pdf"): ext:pdf does not apply to type:robot
+## type:file ext:pdf
+{"Raw":"type:file ext:pdf","Root":{"Kind":0,"Kids":null,"Term":{"Op":"ext","Value":"pdf","Phrase":false,"Prefix":false,"Pos":10,"Raw":"ext:pdf","Enum":"","ID":"","Box":"","Channel":"","DM":false,"From":"0001-01-01T00:00:00Z","Until":"0001-01-01T00:00:00Z","Size":0,"Types":null,"Lexemes":null}},"Types":["file"],"Explicit":true,"Warnings":null,"Positive":null}
+## ext:pdf is:online
+error: bad query at 8 ("is:online"): is:online does not apply to any type the rest of the query searches
+## status:done is:task
+error: bad query at 12 ("is:task"): is:task does not apply to any type the rest of the query searches
+## type:issue from:CLE-07
+error: bad query at 11 ("from:CLE-07"): from:CLE-07 does not apply to type:issue
+## from:
+error: bad query at 0 ("from:"): from: needs a value
+## title:""
+error: bad query at 0 ("title:\"\""): title: needs a value
+## in: x
+error: bad query at 0 ("in:"): in: needs a value

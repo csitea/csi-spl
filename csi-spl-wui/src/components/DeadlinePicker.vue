@@ -7,9 +7,15 @@
      to and from the RFC 3339 UTC the hub stores (utils/issues-view.mjs). -->
 <template>
   <div ref="root" class="dlp">
+    <!-- SPL-1147 (owner, topic f9b6c844): "the length of the white space
+         after the date in the control should be 2 mm" - the field is as wide
+         as what it shows (this hidden copy, measured) plus DLP_TRAIL_PX -->
+    <span ref="measure" class="dlp__text dlp__measure" aria-hidden="true">{{ draft || 'YYYY-MM-DD HH:MM' }}</span>
     <input
+      ref="field"
       type="text"
       class="dlp__text"
+      :style="fieldStyle"
       inputmode="numeric"
       maxlength="16"
       spellcheck="false"
@@ -112,6 +118,9 @@ const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const opener = ref<HTMLElement | null>(null)
 const pop = ref<HTMLElement | null>(null)
+const field = ref<HTMLInputElement | null>(null)
+const measure = ref<HTMLElement | null>(null)
+const fieldStyle = ref<Record<string, string>>({})
 const open = ref(false)
 const invalid = ref(false)
 const draft = ref(deadlineText(props.modelValue))
@@ -130,6 +139,28 @@ const grid = computed(() => monthGrid(month.value))
 const weekdays = computed(() => t('picker.weekdays').split(' ').slice(0, 7))
 
 watch(() => props.modelValue, (v) => { draft.value = deadlineText(v); invalid.value = false })
+
+/* SPL-1147: 2 mm = ~8 CSS px of empty space after the text: the right
+   padding is DLP_TRAIL_PX (the caret draws in it, so a full field never
+   scrolls) and the width is the text + both paddings + borders. */
+const DLP_TRAIL_PX = 8
+function sizeField() {
+  const el = field.value
+  const m = measure.value
+  if (!el || !m) return
+  const cs = getComputedStyle(el)
+  /* an input does not inherit the page font: measure in the field's own */
+  m.style.fontFamily = cs.fontFamily
+  m.style.fontSize = cs.fontSize
+  m.style.fontWeight = cs.fontWeight
+  m.style.fontStyle = cs.fontStyle
+  m.style.letterSpacing = cs.letterSpacing
+  m.style.fontVariantNumeric = cs.fontVariantNumeric
+  const edge = ['paddingLeft', 'borderLeftWidth', 'borderRightWidth'].reduce((n, k) => n + (parseFloat(cs[k as 'paddingLeft']) || 0), 0)
+  const text = m.getBoundingClientRect().width
+  if (text > 0) fieldStyle.value = { width: `${(text + DLP_TRAIL_PX + edge).toFixed(2)}px`, paddingRight: `${DLP_TRAIL_PX}px` }
+}
+watch(draft, () => nextTick(sizeField))
 
 function set(local: string) {
   invalid.value = false
@@ -161,16 +192,25 @@ function clear() {
   close(true)
 }
 
+/* SPL-1147: always fully inside the viewport. Under the field, left edges
+   aligned; near the right edge it opens to the left (right edges aligned),
+   near the bottom it opens upwards; then clamped 8 px inside. Measured from
+   the drawn pop-up, so the numbers follow the CSS. */
+const EDGE = 8
 function place() {
   const r = root.value?.getBoundingClientRect()
   if (!r) return
-  const w = 280
-  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8))
-  const below = window.innerHeight - r.bottom
-  const style: Record<string, string> = { left: `${Math.round(left)}px` }
-  if (below < 360 && r.top > below) style.bottom = `${Math.round(window.innerHeight - r.top + 4)}px`
-  else style.top = `${Math.round(r.bottom + 4)}px`
-  popStyle.value = style
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const w = pop.value?.offsetWidth || 200
+  const h = pop.value?.offsetHeight || 300
+  let left = r.left
+  if (left + w > vw - EDGE) left = r.right - w
+  left = Math.max(EDGE, Math.min(left, vw - w - EDGE))
+  let top = r.bottom + 4
+  if (top + h > vh - EDGE && r.top - 4 - h >= EDGE) top = r.top - 4 - h
+  top = Math.max(EDGE, Math.min(top, vh - h - EDGE))
+  popStyle.value = { left: `${Math.round(left)}px`, top: `${Math.round(top)}px` }
 }
 
 async function openPop() {
@@ -180,6 +220,7 @@ async function openPop() {
   place()
   open.value = true
   await nextTick()
+  place()
   pop.value?.querySelector<HTMLElement>(`[data-date="${focusDate.value}"]`)?.focus()
 }
 
@@ -214,6 +255,8 @@ function onOutside(ev: PointerEvent) {
   if (open.value && root.value && !root.value.contains(ev.target as Node)) close()
 }
 onMounted(() => {
+  sizeField()
+  document.fonts?.ready.then(sizeField).catch(() => {})
   document.addEventListener('pointerdown', onOutside, true)
   window.addEventListener('resize', place)
   window.addEventListener('scroll', place, true)
@@ -227,39 +270,48 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dlp { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-/* owner, topic 593a804a: as wide as "YYYY-MM-DD HH:MM", no wider (20ch: `ch` is a "0", the separators are narrower; + padding and border) */
-.dlp__text { box-sizing: border-box; width: calc(20ch + 18px); max-width: 100%; font-variant-numeric: tabular-nums; }
+/* owner, topic 593a804a: as wide as "YYYY-MM-DD HH:MM", no wider; SPL-1147
+   (topic f9b6c844): then exactly ~2 mm (8 px, the right padding) of space.
+   The width is set from .dlp__measure (sizeField); calc() is the fallback. */
+.dlp__text { box-sizing: border-box; width: calc(16ch + 18px); max-width: 100%; padding-right: 8px; font-variant-numeric: tabular-nums; }
+.dlp__measure { position: absolute; visibility: hidden; pointer-events: none; white-space: pre; width: auto; padding: 0; border: 0; left: -9999px; top: 0; }
 .dlp__text[aria-invalid="true"] { border-color: var(--color-danger); }
 .dlp__open { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; }
+/* SPL-1147 (owner, topic f9b6c844: "the calendar control is too wide"):
+   196 px = 30% narrower than the old 280, smaller cells, a tighter head, one
+   compact button row */
 .dlp__pop {
   position: fixed;
   z-index: 40;
-  width: 280px;
+  width: 196px;
   max-width: calc(100vw - 16px);
+  box-sizing: border-box;
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: 6px;
   box-shadow: var(--focus-3d);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  font-size: 0.8125rem;
 }
-.dlp__head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.dlp__head { display: flex; align-items: center; justify-content: space-between; gap: 2px; }
 .dlp__month { font-weight: 600; font-variant-numeric: tabular-nums; }
-.dlp__nav { padding: 2px 10px; font-size: 1rem; line-height: 1; }
+.dlp__nav { padding: 0 6px; min-height: 0; font-size: 0.9375rem; line-height: 1.4; }
 .dlp__grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.dlp__grid td { padding: 1px; text-align: center; }
-.dlp__wd { font-size: 0.75rem; font-weight: 500; color: var(--color-muted); padding: 2px 0; }
+.dlp__grid td { padding: 0; text-align: center; }
+.dlp__wd { font-size: 0.6875rem; font-weight: 500; color: var(--color-muted); padding: 1px 0; }
 .dlp__day {
   width: 100%;
-  padding: 4px 0;
+  padding: 2px 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -267,9 +319,10 @@ onBeforeUnmount(() => {
 .dlp__day--out { color: var(--color-muted); }
 .dlp__day--today { border-color: var(--color-border-strong); }
 .dlp__day--on { background: var(--color-accent); color: var(--color-on-accent); }
-.dlp__time { display: flex; align-items: center; gap: 8px; }
-.dlp__time select { min-width: 5.5rem; }
-.dlp__foot { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.dlp__time { display: flex; align-items: center; gap: 6px; }
+.dlp__time select { min-width: 5rem; font-size: 0.75rem; padding: 1px 4px; }
+.dlp__foot { display: flex; justify-content: flex-end; gap: 4px; flex-wrap: nowrap; }
+.dlp__foot .btn { padding: 2px 8px; min-height: 0; font-size: 0.75rem; line-height: 1.4; }
 /* SPL-992 (epic SPL-988): on a phone every control is a >= 44 px touch target */
 @media (max-width: 820px) {
   .dlp__text { min-height: var(--tap, 44px); font-size: 1rem; }

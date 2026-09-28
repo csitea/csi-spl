@@ -17,7 +17,7 @@ describe('ErrorSnackbar.vue', () => {
   it('renders createSnackbarQueue bound to the one journal', () => {
     assert.match(src, /createSnackbarQueue\(/)
     assert.match(src, /bindSnackbarToJournal\(/)
-    assert.match(src, /SNACKBAR_TICK_MS/)
+    assert.match(src, /tickWhileShown\(queue\)/)
     assert.match(src, /getErrors/)
     assert.match(src, /subscribeErrors/)
     assert.match(src, /from '~\/utils\/error-snackbar\.mjs'/)

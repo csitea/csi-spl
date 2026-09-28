@@ -18,7 +18,7 @@
 //   const q = createSnackbarQueue()           // one per mounted snackbar
 //   const unbind = bindSnackbarToJournal(q, { getErrors, subscribeErrors })
 //   q.subscribe((items) => { ... })           // items: newest FIRST
-//   setInterval(() => q.tick(), SNACKBAR_TICK_MS)
+//   const stop = tickWhileShown(q)            // q.tick() only while rows show
 //   q.dismiss(id)                             // the close button
 //   q.hold(id, true|false)                    // hover / focus pauses the clock
 //
@@ -172,6 +172,37 @@ export function createSnackbarQueue(opts = {}) {
   }
 
   return { push, dismiss, hold, tick, clear, subscribe, items: view }
+}
+
+/**
+ * Run `queue.tick()` every SNACKBAR_TICK_MS only while a row is on screen.
+ * An empty queue's tick() changes nothing, yet the old always-on interval
+ * woke the tab twice a second for its whole life (CLE-35075). The first row
+ * starts the clock, the last row leaving stops it; rows expire exactly as
+ * before because every row is pushed through the queue, and a push emits.
+ *
+ * @param {ReturnType<typeof createSnackbarQueue>} queue
+ * @param {{ every?: (fn: () => void, ms: number) => unknown, cancel?: (id: unknown) => void }} [timers]
+ * @returns {() => void} stop
+ */
+export function tickWhileShown(queue, timers = {}) {
+  const every = timers.every || ((fn, ms) => setInterval(fn, ms))
+  const cancel = timers.cancel || ((id) => clearInterval(/** @type {any} */ (id)))
+  let id = null
+  function sync(items) {
+    if (items.length && id == null) id = every(() => { queue.tick() }, SNACKBAR_TICK_MS)
+    else if (!items.length && id != null) {
+      cancel(id)
+      id = null
+    }
+  }
+  const unsub = queue.subscribe(sync)
+  sync(queue.items())
+  return () => {
+    unsub()
+    if (id != null) cancel(id)
+    id = null
+  }
 }
 
 /**

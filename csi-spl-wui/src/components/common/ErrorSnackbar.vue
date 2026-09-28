@@ -52,9 +52,9 @@
 import UiIcon from '@/components/UiIcon.vue'
 import { getErrors, subscribeErrors } from '@/composables/errorJournal.mjs'
 import {
-  SNACKBAR_TICK_MS,
   bindSnackbarToJournal,
   createSnackbarQueue,
+  tickWhileShown,
 } from '~/utils/error-snackbar.mjs'
 
 type SnackItem = {
@@ -83,11 +83,12 @@ onMounted(() => {
   })
   items.value = queue.items() as SnackItem[]
   const unbind = bindSnackbarToJournal(queue, { getErrors, subscribeErrors })
-  const tick = setInterval(() => { queue.tick() }, SNACKBAR_TICK_MS)
+  /* the SNACKBAR_TICK_MS clock runs only while a row shows (CLE-35075) */
+  const stopTick = tickWhileShown(queue)
   onBeforeUnmount(() => {
     unsub()
     unbind()
-    clearInterval(tick)
+    stopTick()
   })
 })
 </script>

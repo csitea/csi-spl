@@ -1331,6 +1331,7 @@ declare module '~/utils/error-snackbar.mjs' {
     subscribe(fn: (items: SnackbarItem[]) => void): () => void
     items(): SnackbarItem[]
   }
+  export function tickWhileShown(queue: { tick(): boolean, items(): unknown[], subscribe(fn: (items: unknown[]) => void): () => void }, timers?: { every?: (fn: () => void, ms: number) => unknown, cancel?: (id: unknown) => void }): () => void
   export function bindSnackbarToJournal(
     queue: ReturnType<typeof createSnackbarQueue>,
     journal: {

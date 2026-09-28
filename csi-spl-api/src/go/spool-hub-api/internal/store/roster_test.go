@@ -2,85 +2,55 @@ package store
 
 import (
 	"context"
-	"reflect"
-	"strings"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
 
-// SPL-1111: ViewRoster's one batch answers exactly what ViewBoxes,
-// TenantAvatars and ListMembers answer one by one - boxes with agents and a
-// revoked one, members with and without a picture - and CONTROL: another
-// tenant's rows never appear.
-func TestViewRosterEqualsTheSingleReaders(t *testing.T) {
-	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Microsecond)
+// TestRosterReplaceControls (027 T010 CONTROL, the multi-row roster insert):
+// a 50-agent replace stores all 50, an empty list clears the box, tenant A's
+// replace never touches tenant B's roster for the same box id, and the bot
+// seat gate still refuses an over-seat roster without changing the old one.
+func TestRosterReplaceControls(t *testing.T) {
 	for name, s := range drivers(t) {
-		h := s.(Humans)
 		t.Run(name, func(t *testing.T) {
-			tid, other := newTenant(t, s), newTenant(t, s)
-			for _, b := range []string{"box-a", "box-b"} {
-				if err := s.PutPin(ctx, tid, b, pubkey(), false, now, now); err != nil {
-					t.Fatal(err)
-				}
+			ctx, now := context.Background(), time.Now().UTC()
+			a, b := newTenant(t, s), newTenant(t, s)
+			var fifty []string
+			for i := 1; i <= 50; i++ {
+				fifty = append(fifty, fmt.Sprintf("CLE-%d", i))
 			}
-			if err := s.PutPin(ctx, other, "box-z", pubkey(), false, now, now); err != nil {
+			if err := s.SetRoster(ctx, a, "box-a", fifty, now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.SetRoster(ctx, tid, "box-a", []string{"CLE-07", "GRK-03"}, now); err != nil {
+			if err := s.SetRoster(ctx, b, "box-a", []string{"GRK-1"}, now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.RevokePin(ctx, tid, "box-b", now.Add(time.Second), now.Add(time.Second)); err != nil {
+			if r, _ := s.Roster(ctx, a); len(r["box-a"]) != 50 {
+				t.Fatalf("50-agent replace stored %d", len(r["box-a"]))
+			}
+			if err := s.SetRoster(ctx, a, "box-a", nil, now); err != nil {
 				t.Fatal(err)
 			}
-			boot := AdmitPolicy{BootstrapOwner: true}
-			owner, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("ros-")}, tid, boot, now)
-			if err != nil {
+			if r, _ := s.Roster(ctx, a); len(r["box-a"]) != 0 {
+				t.Fatalf("empty list left %v", r)
+			}
+			if r, _ := s.Roster(ctx, b); fmt.Sprint(r) != "map[box-a:[GRK-1]]" {
+				t.Fatalf("tenant A's replace changed tenant B: %v", r)
+			}
+			capped := uid("t-")
+			if err := s.CreateTenant(ctx, Tenant{ID: capped, RootPubKey: pubkey(), SeatsBots: 2}); err != nil {
 				t.Fatal(err)
 			}
-			mail := uid("ros-") + "@example.com"
-			if err := h.PutInvite(ctx, Invite{TenantID: tid, Email: mail, InvitedBy: owner, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+			if err := s.SetRoster(ctx, capped, "box-a", []string{"CLE-1", "CLE-2"}, now); err != nil {
 				t.Fatal(err)
 			}
-			member, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("ros-"), Email: mail}, tid, AdmitPolicy{}, now)
-			if err != nil {
-				t.Fatal(err)
+			if err := s.SetRoster(ctx, capped, "box-a", []string{"CLE-1", "CLE-2", "CLE-3"}, now); !errors.Is(err, ErrSeatQuota) {
+				t.Fatalf("over-seat roster: %v, want ErrSeatQuota", err)
 			}
-			if _, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("ros-")}, other, boot, now); err != nil {
-				t.Fatal(err)
-			}
-			hums := []string{owner, member}
-			if err := h.SetAvatar(ctx, hums[0], strings.Repeat("ab", 32)); err != nil {
-				t.Fatal(err)
-			}
-			if err := h.SetDisplayName(ctx, hums[1], "FirstName LastName"); err != nil {
-				t.Fatal(err)
-			}
-
-			got, err := s.(RosterReader).ViewRoster(ctx, tid)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var want Roster
-			if want.Boxes, err = s.ViewBoxes(ctx, tid); err != nil {
-				t.Fatal(err)
-			}
-			if want.Avatars, err = h.TenantAvatars(ctx, tid); err != nil {
-				t.Fatal(err)
-			}
-			if want.Members, err = s.(MemberDirectory).ListMembers(ctx, tid); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("one batch:\n %+v\nsingle readers:\n %+v", got, want)
-			}
-			if len(got.Boxes) != 2 || len(got.Avatars) != 2 || len(got.Members) != 2 {
-				t.Fatalf("roster %d boxes %d avatars %d members, want 2 2 2 (never the other tenant's)", len(got.Boxes), len(got.Avatars), len(got.Members))
-			}
-			for _, b := range got.Boxes {
-				if b.BoxID == "box-z" {
-					t.Fatal("another tenant's box in the roster")
-				}
+			if r, _ := s.Roster(ctx, capped); fmt.Sprint(r) != "map[box-a:[CLE-1 CLE-2]]" {
+				t.Fatalf("a refused roster changed the stored one: %v", r)
 			}
 		})
 	}

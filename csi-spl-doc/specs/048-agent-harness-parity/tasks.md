@@ -36,6 +36,10 @@ per spool issue (epic SPL-1152, prd t1).
       for real; spawn commands work for every CLI installable without credentials
 - [ ] T008 SPL-1159 switch this box over to the csi-spl harness (announce
       first, rollback line), then retire the reference's FROZEN.md (§1.4)
+      PLANNED in `switch-over.md` (measured refs, steps, rollback line).
+      BLOCKED on the owner (spool blocker, prd t1 #spool-hub-devel,
+      2026-09-28): the fleet orchestrator still uses the markdown inbox, the
+      csi-spl harness the spool mailbox; recommended order = orchestrator first
 - [ ] T009 SPL-1160 port the rows marked `deferred` in `harness-parity.tsv`:
       the fleet views (agent-top, pane-scan, badges), restore-*, the spawn
       chains/tasks, the kill-your-self report. None is needed to spawn or talk

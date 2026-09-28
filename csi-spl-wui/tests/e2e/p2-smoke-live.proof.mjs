@@ -113,6 +113,9 @@ try {
     await p.type('[data-test=native-auth-email]', email)
     await p.type('[data-test=native-auth-password]', pw)
     await p.keyboard.press('Enter')
+  } else {
+    /* already signed in (USER_DATA_DIR): /login shows "Continue", it never redirects */
+    await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2', timeout: 60000 })
   }
   await p.waitForFunction(() => !location.pathname.includes('/login') && document.querySelector('.sidebar'), { timeout: 60000 })
   const t0 = Date.now()
@@ -129,6 +132,12 @@ try {
   console.log(`  / load ms n=${ms.length} p50=${res.root_ms.p50} p95=${res.root_ms.p95}`)
 } catch (e) {
   ok('harness', false, String(e && e.message || e))
+  /* what the page showed when it gave up */
+  for (const pg of await browser.pages().catch(() => [])) {
+    const at = await pg.evaluate(() => location.href).catch(() => '')
+    res.stuck_at = at
+    await pg.screenshot({ path: join(OUT, 'stuck.png') }).catch(() => {})
+  }
 } finally {
   await browser.close()
   if (res.checks.some((c) => !c.ok)) code = 1

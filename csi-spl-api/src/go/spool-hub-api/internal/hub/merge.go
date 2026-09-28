@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -68,66 +69,15 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) {
 		return
 	}
-	srcID := strings.ToLower(r.PathValue("msg_id"))
-	if !uuidRe.MatchString(srcID) {
-		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+	srcID, keepID, ok := readMergeRequest(w, r)
+	if !ok {
 		return
 	}
-	var body mergeRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {into}")
-		return
-	}
-	keepID := strings.ToLower(strings.TrimSpace(body.Into))
-	if !uuidRe.MatchString(keepID) || keepID == srcID {
-		writeErr(w, http.StatusBadRequest, "bad_json", "into must be the UUID of another message")
-		return
-	}
-
 	now := s.o.Now()
-	src, ok := s.mergeRow(w, r, t.ID, srcID, now)
+	src, keep, pub, ok := s.mergePair(w, r, t.ID, hum, from, srcID, keepID, now)
 	if !ok {
 		return
 	}
-	keep, ok := s.mergeRow(w, r, t.ID, keepID, now)
-	if !ok {
-		return
-	}
-	if src.TaskID != keep.TaskID {
-		writeErr(w, http.StatusConflict, "not_same_thread", "only two messages of one thread can be merged")
-		return
-	}
-	if src.FromID != keep.FromID {
-		writeErr(w, http.StatusConflict, "not_same_author", "only two messages of one author can be merged")
-		return
-	}
-	if !s.mayChangeTopic(r.Context(), t.ID, hum, from, src.FromID) {
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
-		return
-	}
-	pub := s.wuiPub()
-	if src.FromBox != WUIBox || keep.FromBox != WUIBox || (keep.EnvSig != "" && pub == nil) {
-		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
-		return
-	}
-	st, err := s.o.Store.CardState(r.Context(), t.ID, srcID, now)
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
-		return
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("msg_id", srcID).Msg("merge card lookup")
-		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
-		return
-	}
-	lobby := s.o.LobbyTaskID != "" && src.TaskID == s.o.LobbyTaskID
-	if st.IsParent == 1 && st.FirstOfTask && !lobby {
-		writeErr(w, http.StatusConflict, "is_card", "the message that opens a topic cannot be merged away")
-		return
-	}
-
 	older, newer := keep.Body, src.Body
 	if !msgBefore(keep, src) {
 		older, newer = src.Body, keep.Body
@@ -137,23 +87,7 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusRequestEntityTooLarge, "too_large", "the merged body would be over 65536 bytes")
 		return
 	}
-	env, innerMsg, inner, err := reEnvelope(keep, merged)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("msg_id", keepID).Msg("merge re-encode")
-		writeErr(w, http.StatusInternalServerError, "internal", "merge not stored")
-		return
-	}
-	if keep.EnvSig != "" { // the edit path's rule 7: re-sign what this hub signed
-		signed, err := s.dispatchEnvelope(env.ToBox, env.Channel, env.ParentTaskID, pub, innerMsg)
-		if err != nil {
-			s.o.Log.Error().Err(err).Str("msg_id", keepID).Msg("merge re-sign")
-			writeErr(w, http.StatusInternalServerError, "internal", "merge not stored")
-			return
-		}
-		env = signed
-		inner = signed.Msg
-	}
-	canon, err := env.Marshal()
+	canon, inner, sig, err := s.editedEnvelope(keep, merged, pub) // the edit path's rule 7: re-sign what this hub signed
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", keepID).Msg("merge envelope")
 		writeErr(w, http.StatusInternalServerError, "internal", "merge not stored")
@@ -161,7 +95,7 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	at := now.UTC().Truncate(time.Second)
 	rev, err := s.o.Store.MergeMessages(r.Context(), t.ID, keepID, srcID, store.Edit{
-		Body: merged, Msg: inner, Env: canon, EditedBy: from, EditedAt: at, EnvSig: env.Sig})
+		Body: merged, Msg: inner, Env: canon, EditedBy: from, EditedAt: at, EnvSig: sig})
 	switch {
 	case errors.Is(err, store.ErrMergeHasReplies):
 		writeErr(w, http.StatusConflict, "has_replies", "a message with replies of its own cannot be merged away")
@@ -180,6 +114,89 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 	out := editedPayload(keep, canon, at, from, rev)
 	out["merged_from"] = srcID
 	writeJSON(w, http.StatusOK, out)
+}
+
+// readMergeRequest reads the source id from the path and the kept one from
+// {into}; false has written the 400.
+func readMergeRequest(w http.ResponseWriter, r *http.Request) (srcID, keepID string, ok bool) {
+	srcID = strings.ToLower(r.PathValue("msg_id"))
+	if !uuidRe.MatchString(srcID) {
+		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+		return "", "", false
+	}
+	var body mergeRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {into}")
+		return "", "", false
+	}
+	keepID = strings.ToLower(strings.TrimSpace(body.Into))
+	if !uuidRe.MatchString(keepID) || keepID == srcID {
+		writeErr(w, http.StatusBadRequest, "bad_json", "into must be the UUID of another message")
+		return "", "", false
+	}
+	return srcID, keepID, true
+}
+
+// mergePair reads both rows and applies the merge's refusals in order: one
+// thread, one author, the caller may change it, both browser-authored and
+// re-signable, and the source is not a topic's card. It answers the key to
+// re-sign the kept row with (nil when it was never signed); false has
+// written the refusal.
+func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, from, srcID, keepID string,
+	now time.Time) (src, keep store.EditableMessage, pub ed25519.PublicKey, ok bool) {
+	if src, ok = s.mergeRow(w, r, tenant, srcID, now); !ok {
+		return src, keep, nil, false
+	}
+	if keep, ok = s.mergeRow(w, r, tenant, keepID, now); !ok {
+		return src, keep, nil, false
+	}
+	if src.TaskID != keep.TaskID {
+		writeErr(w, http.StatusConflict, "not_same_thread", "only two messages of one thread can be merged")
+		return src, keep, nil, false
+	}
+	if src.FromID != keep.FromID {
+		writeErr(w, http.StatusConflict, "not_same_author", "only two messages of one author can be merged")
+		return src, keep, nil, false
+	}
+	if !s.mayChangeTopic(r.Context(), tenant, hum, from, src.FromID) {
+		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
+		return src, keep, nil, false
+	}
+	pub = s.wuiPub()
+	if src.FromBox != WUIBox || keep.FromBox != WUIBox || (keep.EnvSig != "" && pub == nil) {
+		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
+		return src, keep, nil, false
+	}
+	if !s.mergeSourceNotCard(w, r, tenant, src, now) {
+		return src, keep, nil, false
+	}
+	if keep.EnvSig == "" {
+		pub = nil
+	}
+	return src, keep, pub, true
+}
+
+// mergeSourceNotCard refuses a source that opens its topic: deleting it
+// would leave the topic without its card (the lobby has no cards).
+func (s *Server) mergeSourceNotCard(w http.ResponseWriter, r *http.Request, tenant string, src store.EditableMessage, now time.Time) bool {
+	st, err := s.o.Store.CardState(r.Context(), tenant, src.MsgID, now)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", src.MsgID).Msg("merge card lookup")
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return false
+	}
+	lobby := s.o.LobbyTaskID != "" && src.TaskID == s.o.LobbyTaskID
+	if st.IsParent == 1 && st.FirstOfTask && !lobby {
+		writeErr(w, http.StatusConflict, "is_card", "the message that opens a topic cannot be merged away")
+		return false
+	}
+	return true
 }
 
 // mergeRow reads one side of a merge: 404 when absent or behind the read door.

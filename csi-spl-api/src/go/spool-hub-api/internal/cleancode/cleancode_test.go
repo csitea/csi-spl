@@ -27,7 +27,6 @@ var longFuncs = map[string]bool{
 	"internal/auth/cmd/auth-demo/main.go run":                            true,
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler":                    true,
 	"internal/hub/issues_agent.go (*Server).onIssue":                     true,
-	"internal/hub/merge.go (*Server).handleMergeMessage":                 true,
 	"internal/hub/rest.go (*Server).handlePutFile":                       true,
 	"internal/hub/view.go (*Server).handleViewChannels":                  true,
 	"internal/hub/view.go (*Server).handleViewTopic":                     true,

@@ -374,101 +374,29 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		return nil, err
 	}
 	base := filepath.Base(path)
-	from := ""
-	to := as // the contract: the recipient whose inbox holds the file
-	ts := ""
-	taskID := ""
-	subject := ""
+	h := parseLegacyName(base)
 	body := string(raw)
-
-	// Filename parse: <timestamp>--<from>--<subject>.md
-	parts := strings.Split(strings.TrimSuffix(base, ".md"), "--")
-	if len(parts) >= 2 {
-		if t, err := time.Parse("20060102T150405Z", parts[0]); err == nil {
-			ts = t.UTC().Format(time.RFC3339)
-		} else if t, err := time.Parse("20060102-150405", parts[0]); err == nil {
-			ts = t.UTC().Format(time.RFC3339)
-		}
-		if msg.ValidID(parts[1]) {
-			from = parts[1]
-		}
-		if len(parts) >= 3 {
-			subject = parts[2]
-		}
+	if fm, rest, ok := splitFrontmatter(body); ok {
+		body = rest
+		h.applyFrontmatter(fm)
 	}
-
-	// Frontmatter parse:
-	content := string(raw)
-	if strings.HasPrefix(content, "---\n") || strings.HasPrefix(content, "---\r\n") {
-		delim := "\n---\n"
-		idx := strings.Index(content[4:], delim)
-		if idx == -1 {
-			delim = "\r\n---\r\n"
-			idx = strings.Index(content[4:], delim)
-		}
-		if idx != -1 {
-			fm := content[4 : 4+idx]
-			body = strings.TrimPrefix(content[4+idx+len(delim):], "\n")
-			body = strings.TrimPrefix(body, "\r\n")
-			for _, line := range strings.Split(fm, "\n") {
-				line = strings.TrimSpace(line)
-				colon := strings.Index(line, ":")
-				if colon == -1 {
-					continue
-				}
-				key := strings.ToLower(strings.TrimSpace(line[:colon]))
-				val := strings.TrimSpace(line[colon+1:])
-				val = strings.Trim(val, "\"'")
-				switch key {
-				case "from":
-					if msg.ValidID(val) {
-						from = val
-					}
-				case "sent":
-					if t, err := time.Parse("20060102T150405Z", val); err == nil {
-						ts = t.UTC().Format(time.RFC3339)
-					} else if t, err := time.Parse(time.RFC3339, val); err == nil {
-						ts = t.UTC().Format(time.RFC3339)
-					}
-				case "task_id", "task":
-					if val != "" {
-						taskID = val
-					}
-				case "subject":
-					if val != "" {
-						subject = val
-					}
-				}
-			}
-		}
+	if h.from == "" {
+		h.from = msg.LegacySender
 	}
-
-	if from == "" {
-		from = msg.LegacySender
+	if h.ts == "" {
+		h.ts = fileTimeOrNow(path)
 	}
-	if ts == "" {
-		if fi, err := os.Stat(path); err == nil {
-			ts = fi.ModTime().UTC().Format(time.RFC3339)
-		} else {
-			ts = time.Now().UTC().Format(time.RFC3339)
-		}
-	}
-	msgID := uid.FromSeed("msg:" + base + ":" + string(raw))
-	if taskID == "" {
-		if subject != "" {
-			taskID = uid.FromSeed("task:" + subject)
-		} else {
-			taskID = uid.FromSeed("task:" + base)
-		}
+	if h.taskID == "" {
+		h.taskID = uid.FromSeed("task:" + firstNonEmpty(h.subject, base))
 	}
 
 	m := &msg.Message{
 		V:      msg.V1, // the .md bridge contract is v:1 and never leaves the box (020 FR-005)
-		MsgID:  msgID,
-		TaskID: taskID,
-		TS:     ts,
-		From:   from,
-		To:     to,
+		MsgID:  uid.FromSeed("msg:" + base + ":" + string(raw)),
+		TaskID: h.taskID,
+		TS:     h.ts,
+		From:   h.from,
+		To:     as, // the contract: the recipient whose inbox holds the file
 		Kind:   "note",
 		Body:   body,
 		Files:  []msg.Attachment{},
@@ -478,4 +406,104 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		return nil, fmt.Errorf("legacy %s: %w", base, err)
 	}
 	return m, nil
+}
+
+// legacyHeader is what a legacy .md file says about itself: the file name
+// first, then the frontmatter keys that override it (SPL-1032).
+type legacyHeader struct {
+	from, ts, taskID, subject string
+}
+
+// parseLegacyName reads <timestamp>--<from>--<subject>.md; a part that does
+// not parse is left empty.
+func parseLegacyName(base string) legacyHeader {
+	var h legacyHeader
+	parts := strings.Split(strings.TrimSuffix(base, ".md"), "--")
+	if len(parts) < 2 {
+		return h
+	}
+	h.ts = parseLegacyTime(parts[0], "20060102T150405Z", "20060102-150405")
+	if msg.ValidID(parts[1]) {
+		h.from = parts[1]
+	}
+	if len(parts) >= 3 {
+		h.subject = parts[2]
+	}
+	return h
+}
+
+// splitFrontmatter splits a leading "---" block (LF or CRLF) off content. ok
+// is false when there is no complete block: the whole content is the body.
+func splitFrontmatter(content string) (fm, body string, ok bool) {
+	if !strings.HasPrefix(content, "---\n") && !strings.HasPrefix(content, "---\r\n") {
+		return "", content, false
+	}
+	delim := "\n---\n"
+	idx := strings.Index(content[4:], delim)
+	if idx == -1 {
+		delim = "\r\n---\r\n"
+		idx = strings.Index(content[4:], delim)
+	}
+	if idx == -1 {
+		return "", content, false
+	}
+	body = strings.TrimPrefix(content[4+idx+len(delim):], "\n")
+	return content[4 : 4+idx], strings.TrimPrefix(body, "\r\n"), true
+}
+
+// applyFrontmatter overrides h with every "key: value" line it recognises.
+func (h *legacyHeader) applyFrontmatter(fm string) {
+	for _, line := range strings.Split(fm, "\n") {
+		key, val, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if !ok {
+			continue
+		}
+		h.apply(strings.ToLower(strings.TrimSpace(key)), strings.Trim(strings.TrimSpace(val), "\"'"))
+	}
+}
+
+// apply sets one frontmatter key; an invalid or empty value keeps what the
+// file name said.
+func (h *legacyHeader) apply(key, val string) {
+	switch key {
+	case "from":
+		if msg.ValidID(val) {
+			h.from = val
+		}
+	case "sent":
+		if ts := parseLegacyTime(val, "20060102T150405Z", time.RFC3339); ts != "" {
+			h.ts = ts
+		}
+	case "task_id", "task":
+		h.taskID = firstNonEmpty(val, h.taskID)
+	case "subject":
+		h.subject = firstNonEmpty(val, h.subject)
+	}
+}
+
+// parseLegacyTime returns v as RFC 3339 UTC under the first layout that
+// parses it, or "".
+func parseLegacyTime(v string, layouts ...string) string {
+	for _, l := range layouts {
+		if t, err := time.Parse(l, v); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+	return ""
+}
+
+// fileTimeOrNow is the fallback timestamp of a file with none in its name or
+// frontmatter: its mtime, or now when it cannot be stat'ed.
+func fileTimeOrNow(path string) string {
+	if fi, err := os.Stat(path); err == nil {
+		return fi.ModTime().UTC().Format(time.RFC3339)
+	}
+	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }

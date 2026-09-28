@@ -1,6 +1,6 @@
 # spawn-agents — spool-native agent spawning
 
-Starts Claude Code, grok and antigravity (agy) agents in their own tmux
+Starts Claude Code, grok, antigravity (agy) and Qwen Code (qwen) agents in their own tmux
 windows, each with a spool agent id and a spool mailbox, and gives them the
 spool protocol (`spool send` / `spool recv` / `spool tail`) as their way to
 talk to each other.
@@ -14,7 +14,7 @@ Nothing here sources or calls it.
 | `specs/002-box-agent-messaging/contracts/local-folder-layout.md` | the root is `$SPOOL_ROOT`, default `/var/spool-hub`. Each agent gets `<id>/{inbox,outbox,archive}`, mode 0775 |
 | `specs/002-.../contracts/message-schema.md`, `cli.md` | messages are `v:1` JSON objects written by `spool send`, not `.md` files |
 | `specs/002-.../contracts/trust-modes.md` §2 | local mode is unsigned: the spawn creates no key and no pin, and messages carry no `sig`. The file is the record and the tmux poke is only a doorbell |
-| `doc/md/SPEC-spool-identity-routing.md` §2 | ids match `^[A-Z]{2,4}-[0-9]+$`, are unique per box, and never use the `BOX` prefix. CLE/GRK/AGY belong to claude/grok/agy |
+| `doc/md/SPEC-spool-identity-routing.md` §2 | ids match `^[A-Z]{2,4}-[0-9]+$`, are unique per box, and never use the `BOX` prefix. CLE/GRK/AGY/QWN belong to claude/grok/agy/qwen |
 
 Some behaviour is box-level rather than spec-level, so it is kept exactly as
 the reference does it:
@@ -35,9 +35,9 @@ the reference does it:
 | `lib/spool-notify.inc.sh` | the one renderer and doorbell (`specs/028-spool-terminal-delivery`): a message is made VISIBLE in the recipient's pane, under the safe-poke rules |
 | `scripts/next-agent-id.sh` | allocates the next free id and claims it by `mkdir $SPOOL_ROOT/<id>`. `--claim <ID>` claims one exact id |
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
-| `scripts/spawn-{claude,grok,agy}.sh` | the per-CLI adapters |
+| `scripts/spawn-{claude,grok,agy,qwen}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |
-| `scripts/spool-agent.sh` | start claude or grok SEATED and MIRRORED (`specs/036-spool-terminal-mirror`): claims an id, names the window, seats a desk, gives the session the mirror hooks, then runs the CLI |
+| `scripts/spool-agent.sh` | start claude, grok, agy or qwen SEATED and MIRRORED (`specs/036-spool-terminal-mirror`): claims an id, names the window, seats a desk, gives the session the mirror hooks, then runs the CLI |
 | `scripts/spool-mirror.py` | the terminal -> web UI DM mirror: the CLIs' `UserPromptSubmit` / `Stop` hook and its post (redacted, never echoing the web UI's own words) |
 | `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI |
 | `scripts/spool-send.sh` | runs `spool send` and then shows the message in the recipient's tmux pane. It replaces `inbox-send.sh` |
@@ -63,7 +63,7 @@ box.
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
 | `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |
 | `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` | `600` / `1200` — the bounds on the pane line (`specs/028/contracts/poke-line.md`) |
-| `CLAUDE_BIN` `GROK_BIN` `AGY_BIN` | `<agent home>/.local/bin/<cli>`, else the bare name |
+| `CLAUDE_BIN` `GROK_BIN` `AGY_BIN` `QWEN_BIN` | `<agent home>/.local/bin/<cli>`, else the bare name |
 
 ## 3. Use
 

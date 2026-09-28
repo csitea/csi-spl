@@ -2,7 +2,7 @@
 # spawn-window.sh — create an agent's tmux window DETACHED in the box user's
 # session and start its launcher in it.
 #
-# Usage: spawn-window.sh <claude|grok|agy> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
+# Usage: spawn-window.sh <claude|grok|agy|qwen> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
 #   TITLE "auto" allocates (and claims) the next free id with next-agent-id.sh;
 #   an explicit TITLE is validated and claimed as-is (exit 3 when taken, unless
 #   SPAWN_REUSE_ID=1, which respawns an id whose spool dir already exists).
@@ -28,7 +28,7 @@ spool_env_resolve
 usage() { sed -n '5p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 
 KIND="${1:-}"; TITLE="${2:-}"
-case "$KIND" in claude|grok|agy) ;; *) usage ;; esac
+case "$KIND" in claude|grok|agy|qwen) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
@@ -63,7 +63,7 @@ shift 2
 # tmux server does not inherit this process's environment.
 envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
-         SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN GROK_BIN AGY_BIN SPAWN_GIT_IDENTITY; do
+         SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPAWN_GIT_IDENTITY; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done
 printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"

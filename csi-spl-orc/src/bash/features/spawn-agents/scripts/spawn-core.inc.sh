@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # spawn-core.inc.sh — the ONE agent launcher behind spawn-claude.sh,
-# spawn-grok.sh and spawn-agy.sh.
+# spawn-grok.sh, spawn-agy.sh and spawn-qwen.sh.
 #
 # Forked from the box engine's launcher core and adapted to the spool specs
 # (csi-spl-doc specs 002 / 004, contracts/trust-modes.md,
@@ -26,9 +26,9 @@
 #
 # AN ADAPTER SETS, then calls `spawn_main "$@"`:
 #   SPAWN_ADAPTER        "${BASH_SOURCE[0]}" of the adapter
-#   SPAWN_KIND           claude | grok | agy
-#   SPAWN_ID_PREFIX      CLE | GRK | AGY
-#   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN (resolved by spool-env)
+#   SPAWN_KIND           claude | grok | agy | qwen
+#   SPAWN_ID_PREFIX      CLE | GRK | AGY | QWN
+#   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN (resolved by spool-env)
 #   SPAWN_NAME_FLAG      the flag that names the session, or ""
 #   SPAWN_PROMPT_FLAG    the flag before the seed prompt, or "" (positional)
 #   SPAWN_PERM_FLAGS     permission / autonomy flags

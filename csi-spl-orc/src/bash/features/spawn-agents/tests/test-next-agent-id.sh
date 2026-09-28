@@ -10,6 +10,8 @@ check "claim created inbox/outbox/archive" test -d "$SPOOL_ROOT/CLE-01/inbox" -a
 eq "next claim -> CLE-02" CLE-02 "$(bash "$NAI" --kind claude)"
 eq "kinds are independent -> GRK-01" GRK-01 "$(bash "$NAI" --kind grok)"
 eq "--prefix AGY -> AGY-01" AGY-01 "$(bash "$NAI" --prefix agy)"
+eq "--kind qwen -> QWN-01 (specs/048)" QWN-01 "$(bash "$NAI" --kind qwen)"
+eq "--prefix QWN -> QWN-02" QWN-02 "$(bash "$NAI" --prefix qwn)"
 
 mkdir -p "$SPOOL_ROOT/CLE-07"
 eq "an existing dir raises the floor" CLE-08 "$(bash "$NAI" --kind claude)"

@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
-# spool-agent.sh — start claude, grok or agy as a SEATED, MIRRORED spool agent
+# spool-agent.sh — start claude, grok, agy or qwen as a SEATED, MIRRORED spool agent
 # (specs/036-spool-terminal-mirror, "the wrapper").
 #
-#   spool-agent.sh [options] [--] claude|grok|agy [cli args...]
+#   spool-agent.sh [options] [--] claude|grok|agy|qwen [cli args...]
 #
 # What a session started through it gets, before the CLI starts:
 #   1. an agent id: --as, else $MCP_BOT_AGENT_ID (the box spawner sets it),
-#      else the next free CLE-n / GRK-n on the desk (next-agent-id.sh, a claim)
+#      else the next free CLE-n / GRK-n / AGY-n / QWN-n on the desk (next-agent-id.sh, a claim)
 #   2. this tmux window carries the id, so the desk can find the pane
 #   3. a desk seat (do_spl_desk_up): a human's web UI DM to the id is typed
 #      into this terminal, and its notice strip shows on the right
 #   4. the mirror hooks for THIS session: claude gets `--settings <file>`, so
 #      it does not depend on anyone's ~/.claude/settings.json; grok has no
-#      such flag and reads ~/.grok/hooks/, which gets one idempotent file.
+#      such flag and reads ~/.grok/hooks/, which gets one idempotent file;
+#      qwen reads claude-shaped hooks from ~/.qwen/settings.json, where the
+#      mirror entries are merged in (every other key and hook kept).
 #      Neither is added when ~/.claude/settings.json already carries the
 #      mirror hook (both CLIs read that file): one copy per session.
 #      Every prompt typed here and every final answer is posted into the id's
@@ -78,7 +80,8 @@ case "$CLI" in
   claude) PREFIX=CLE; KIND=claude ;;
   grok)   PREFIX=GRK; KIND=grok ;;
   agy)    PREFIX=AGY; KIND=agy ;;
-  *) echo "spool-agent: the CLI must be claude, grok or agy, got '$CLI'" >&2; exit 2 ;;
+  qwen)   PREFIX=QWN; KIND=qwen ;;
+  *) echo "spool-agent: the CLI must be claude, grok, agy or qwen, got '$CLI'" >&2; exit 2 ;;
 esac
 [ -z "$OPERATOR" ] || [[ "$OPERATOR" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { echo "spool-agent: --operator must be a HUM-n id" >&2; exit 2; }
 [ -z "$ENVN" ] || [[ "$ENVN" =~ ^(dev|prd|dev,prd|prd,dev)$ ]] || { echo "spool-agent: --env must be dev, prd or dev,prd" >&2; exit 2; }
@@ -171,7 +174,7 @@ fi
 # TMUX_PANE. This CLI's own prefix wins: a CLE_TMUX_PANE inherited from a
 # parent claude session names THAT session's pane, not this one.
 kind_pane_var="${PREFIX}_TMUX_PANE"
-PANE="${TMUX_PANE:-${!kind_pane_var:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-}}}}}"
+PANE="${TMUX_PANE:-${!kind_pane_var:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}}"
 if [ "$SEAT" = 1 ] && [ -z "$PANE" ]; then
   say "not inside tmux: a desk seat needs a live window (run it in a tmux pane, or pass --no-seat)"; exit 3
 fi
@@ -219,6 +222,33 @@ open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
 os.replace(tmp, path)
 EOF_PY
 }
+# qwen (0.24.6) runs claude-shaped UserPromptSubmit / Stop hooks from
+# ~/.qwen/settings.json, with claude's payload fields (prompt,
+# last_assistant_message). Merged: an older spool-mirror entry is replaced,
+# everything else in the file (mcpServers, other hooks) is kept.
+QWEN_SETTINGS="${SPOOL_AGENT_QWEN_SETTINGS:-$HOME/.qwen/settings.json}"
+qwen_hooks_merge() {
+  mkdir -p "$(dirname "$QWEN_SETTINGS")" && hooks_json | python3 -c '
+import json, os, sys, time
+path = sys.argv[1]
+new = json.load(sys.stdin)["hooks"]
+try:
+    d = json.load(open(path))
+    if not isinstance(d, dict):
+        raise ValueError
+except FileNotFoundError:
+    d = {}
+except ValueError:
+    os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    d = {}
+hk = d.setdefault("hooks", {})
+for ev, entries in new.items():
+    hk[ev] = [e for e in hk.get(ev, []) if "spool-mirror.py" not in json.dumps(e)] + entries
+tmp = path + ".tmp.%d" % os.getpid()
+open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
+os.replace(tmp, path)
+' "$QWEN_SETTINGS"
+}
 hooks_json() {
   python3 - "$MIRROR_PY" <<'EOF_PY'
 import json, shlex, sys
@@ -236,7 +266,10 @@ SESSION_ID=""
 # they run different checkouts of spool-mirror.py the dedup of one cannot see
 # the other (measured: two posts per prompt, in two topics).
 USER_HOOKS=0
-[ "$KIND" != agy ] && grep -q 'spool-mirror\.py' "${SPOOL_AGENT_USER_SETTINGS:-$HOME/.claude/settings.json}" 2>/dev/null && USER_HOOKS=1
+case "$KIND" in
+  claude|grok) grep -q 'spool-mirror\.py' "${SPOOL_AGENT_USER_SETTINGS:-$HOME/.claude/settings.json}" 2>/dev/null && USER_HOOKS=1 ;;
+  qwen) grep -q 'spool-mirror\.py' "$QWEN_SETTINGS" 2>/dev/null && USER_HOOKS=1 ;;
+esac
 USE_SETTINGS=0
 [ "$MIRROR" = 1 ] && [ "$KIND" = claude ] && [ "$USER_HOOKS" = 0 ] && USE_SETTINGS=1
 # The CLI binary: CLAUDE_BIN / GROK_BIN, else PATH, else ~/.local/bin/<cli>
@@ -267,9 +300,11 @@ if [ "$DRY" = 1 ]; then
     echo "strip: the notice strip is split before $CLI paints"
   else echo "seat: skipped"; fi
   echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)${OPERATOR:+ (prompts typed by $OPERATOR)}"
-  if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
+  if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ] && [ "$KIND" = qwen ]; then echo "hooks: already in $QWEN_SETTINGS (merged again, idempotent)"
+  elif [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = grok ]; then echo "hooks: $GROK_HOOK"
+  elif [ "$MIRROR" = 1 ] && [ "$KIND" = qwen ]; then echo "hooks: $QWEN_SETTINGS (merged spool-mirror entries)"
   elif [ "$MIRROR" = 1 ]; then echo "hooks: $AGY_HOOK (named hook spool-mirror)"; fi
   [ "$BACKFILL" = 1 ] && echo "backfill: session $SESSION_ID on exit"
   printf 'argv:'; printf ' %q' "${ARGV[@]}"; echo
@@ -336,6 +371,10 @@ if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 0 ]; then
 fi
 if [ "$MIRROR" = 1 ] && [ "$KIND" = agy ]; then
   agy_hooks_merge || say "WARN cannot write $AGY_HOOK: this session is not mirrored"
+fi
+# qwen: merged on every start, so a moved checkout's hook path is replaced.
+if [ "$MIRROR" = 1 ] && [ "$KIND" = qwen ]; then
+  qwen_hooks_merge || say "WARN cannot write $QWEN_SETTINGS: this session is not mirrored"
 fi
 
 # ── 5. the CLI ───────────────────────────────────────────────────────────────

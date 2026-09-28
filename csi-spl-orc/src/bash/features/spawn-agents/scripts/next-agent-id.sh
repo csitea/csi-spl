@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # next-agent-id.sh — allocate the next free spool agent id (CLE-NN / GRK-NN /
-# AGY-NN) on THIS box and CLAIM it, atomically, by creating its spool dir.
+# AGY-NN / QWN-NN) on THIS box and CLAIM it, atomically, by creating its spool dir.
 #
 # Forked from the box engine's allocator; adapted to the spool specs:
 #   - the root is $SPOOL_ROOT (default /var/spool-hub), and the claim creates
@@ -23,8 +23,8 @@
 # concurrent spawn racing for the same one.
 #
 # Usage:
-#   next-agent-id.sh --kind claude|grok|agy      # prints e.g. CLE-08
-#   next-agent-id.sh --prefix CLE|GRK|AGY        # same, by id prefix
+#   next-agent-id.sh --kind claude|grok|agy|qwen # prints e.g. CLE-08
+#   next-agent-id.sh --prefix CLE|GRK|AGY|QWN    # same, by id prefix
 #   next-agent-id.sh --kind claude --no-reserve  # compute only; claim nothing
 #   next-agent-id.sh --kind claude --explain     # decision to stderr
 #   next-agent-id.sh --claim CLE-4441            # claim THAT id, or fail (exit 3)
@@ -48,14 +48,14 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --kind)
       [ "$#" -ge 2 ] || usage
-      PREFIX="$(spool_prefix_of_kind "$2")" || { echo "ERROR: --kind must be claude|grok|agy, got: $2" >&2; exit 2; }
+      PREFIX="$(spool_prefix_of_kind "$2")" || { echo "ERROR: --kind must be claude|grok|agy|qwen, got: $2" >&2; exit 2; }
       shift 2 ;;
     --prefix)
       [ "$#" -ge 2 ] || usage
       PREFIX="$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
       case "$PREFIX" in
-        CLE|GRK|AGY) ;;
-        *) echo "ERROR: --prefix must be CLE|GRK|AGY, got: $2" >&2; exit 2 ;;
+        CLE|GRK|AGY|QWN) ;;
+        *) echo "ERROR: --prefix must be CLE|GRK|AGY|QWN, got: $2" >&2; exit 2 ;;
       esac
       shift 2 ;;
     --claim)      [ "$#" -ge 2 ] || usage; CLAIM="$2"; shift 2 ;;

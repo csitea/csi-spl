@@ -25,7 +25,7 @@
 #                       inbox, so the agent's pane SHOWS it. Default: this
 #                       feature's scripts/spool-notify.sh. `off` disables it.
 #                       Resolved here, EXPORTED by spool-harness.sh
-#   CLAUDE_BIN GROK_BIN AGY_BIN   default <agent home>/.local/bin/<cli> when it
+#   CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN   default <agent home>/.local/bin/<cli> when it
 #                       exists, else the bare name
 #
 # Agent ids follow SPEC-spool-identity-routing.md §2: ^[A-Z]{2,4}-[0-9]+$,
@@ -39,6 +39,7 @@ spool_prefix_of_kind() {  # KIND -> PREFIX
     claude) printf 'CLE' ;;
     grok)   printf 'GRK' ;;
     agy)    printf 'AGY' ;;
+    qwen)   printf 'QWN' ;;
     *) return 1 ;;
   esac
 }
@@ -110,7 +111,7 @@ spool_env_resolve() {
 
   SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
   local cli var
-  for cli in claude grok agy; do
+  for cli in claude grok agy qwen; do
     var="$(printf '%s' "$cli" | tr '[:lower:]' '[:upper:]')_BIN"
     if [ -z "${!var:-}" ]; then
       if [ -n "$SPOOL_AGENT_HOME" ] && [ -x "$SPOOL_AGENT_HOME/.local/bin/$cli" ]; then

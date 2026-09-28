@@ -23,6 +23,10 @@
 #      the named hook "spool-mirror" merged into ~/.gemini/config/hooks.json
 #      without dropping another named hook; a non-JSON hooks file is moved
 #      aside and replaced. CONTROL: --env dev seats dev only
+#  11. qwen (specs/048, SPL-1148): a QWN id from QWN_TMUX_PANE, seated, the
+#      claude-shaped mirror hooks merged into ~/.qwen/settings.json keeping
+#      mcpServers; a re-run keeps one entry per event. CONTROL: the hook is
+#      this checkout's spool-mirror.py
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -31,7 +35,7 @@ AGENT="$T_SCRIPTS/spool-agent.sh"
 export HOME="$T_TMP/home"; mkdir -p "$HOME"
 # Hermetic: an agent session running this suite carries its OWN pane ids,
 # agent id and CLI paths (measured: CLAUDE_BIN set in a claude session of the agent user).
-unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN
+unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE QWN_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN
 export SPOOL_BOX_USER="$(id -un)"
 export SPOOL_AGENT_DESK_ROOT="$T_TMP/desk"
 export SPOOL_AGENT_REGISTRY_DIR="$T_TMP/reg"
@@ -184,5 +188,28 @@ echo 999999999 >"$SPOOL_AGENT_DESK_ROOT/spool/.hub/hub-run.pid"
 : >"$SPOOL_AGENT_DESK_ROOT/run.log"
 TMUX_PANE="$P1" bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
 has "10. a dead sidecar still calls do_spl_desk_up" "do_spl_desk_up" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+
+# --- 11. qwen: seated, hooks merged into ~/.qwen/settings.json --------------
+printf '#!/usr/bin/env bash\necho "qwen id=$MCP_BOT_AGENT_ID args=$*" >>"%s/cli.log"\n' "$T_TMP" >"$T_TMP/bin/qwen"
+chmod +x "$T_TMP/bin/qwen"
+out="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run --as QWN-71 qwen 2>&1)"
+has "11. qwen dry-run names ~/.qwen/settings.json" "$HOME/.qwen/settings.json" "$out"
+mkdir -p "$HOME/.qwen"
+printf '{"mcpServers":{"spool-dev":{"command":"x"}}}\n' >"$HOME/.qwen/settings.json"
+P4="$(t_window 'tbox: scratch-q' 'sleep 600')"
+: >"$T_TMP/cli.log"; : >"$SPOOL_AGENT_DESK_ROOT/run.log"
+env -u TMUX_PANE QWN_TMUX_PANE="$P4" bash "$AGENT" --as QWN-71 qwen --yolo >/dev/null 2>&1
+eq "11. the qwen run (pane from QWN_TMUX_PANE) exits 0" 0 "$?"
+has "11. seated as QWN-71" "DESK_AGENT=QWN-71" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+has "11. the CLI runs with the id" "qwen id=QWN-71 args=--yolo" "$(cat "$T_TMP/cli.log")"
+eq "11. the window carries the id" "tbox: QWN-71" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P4" '#{window_name}')"
+qs="$(cat "$HOME/.qwen/settings.json")"
+has "11. settings.json carries UserPromptSubmit" '"UserPromptSubmit"' "$qs"
+has "11. CONTROL: the hook calls this checkout's spool-mirror.py" "$T_SCRIPTS/spool-mirror.py" "$qs"
+has "11. mcpServers is kept" '"spool-dev"' "$qs"
+env -u TMUX_PANE QWN_TMUX_PANE="$P4" bash "$AGENT" --as QWN-71 qwen >/dev/null 2>&1
+eq "11. a re-run keeps one mirror hook per event" 2 "$(grep -o 'spool-mirror.py hook' "$HOME/.qwen/settings.json" | wc -l)"
+next="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run qwen 2>&1)"
+has "11. a new qwen id is a QWN id" "id: QWN-" "$next"
 
 t_done

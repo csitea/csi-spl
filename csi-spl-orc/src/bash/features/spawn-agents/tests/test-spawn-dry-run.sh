@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The three launchers, rendered with SPAWN_DRY_RUN=1: spool root, spool
-# protocol in the seed prompt, id guards, worktree plan, and parity (the three
+# The four launchers, rendered with SPAWN_DRY_RUN=1: spool root, spool
+# protocol in the seed prompt, id guards, worktree plan, and parity (the four
 # kinds say the same thing once their own declarations are normalised).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -9,8 +9,8 @@ export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool
 WD="$T_TMP/plain"; mkdir -p "$WD"
 echo brief > "$T_TMP/brief.md"
 
-for k in claude grok agy; do
-  p="$(printf '%s' "$k" | sed 's/claude/CLE/;s/grok/GRK/;s/agy/AGY/')"
+for k in claude grok agy qwen; do
+  p="$(printf '%s' "$k" | sed 's/claude/CLE/;s/grok/GRK/;s/agy/AGY/;s/qwen/QWN/')"
   mkdir -p "$T_TMP/plan-$k"
   out="$(SPAWN_PLAN_DIR="$T_TMP/plan-$k" bash "$T_SCRIPTS/spawn-$k.sh" "$p-77" "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"; rc=$?
   eq "$k: dry run exits 0" 0 "$rc"
@@ -36,8 +36,12 @@ for k in claude grok agy; do
 done
 check "parity: claude and grok prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-grok"
 check "parity: claude and agy prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-agy"
+check "parity: claude and qwen prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-qwen"
 
 has "agy: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-agy/launch.cmd")"
+has "qwen: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-qwen/launch.cmd")"
+has "qwen: --yolo approves tool calls" "--yolo" "$(cat "$T_TMP/plan-qwen/launch.cmd")"
+has "qwen: retitles through riname --agent" "riname.sh --agent QWN-77" "$(cat "$T_TMP/plan-qwen/launch.cmd")"
 has "claude: session named after the id" "--name 'CLE-77'" "$(cat "$T_TMP/plan-claude/launch.cmd")"
 has "grok: retitles through riname --agent" "riname.sh --agent GRK-77 \\\"do the thing\\\"" "$(cat "$T_TMP/plan-grok/launch.cmd")"
 has "grok: claude permission flag, which this grok build accepts" "--dangerously-skip-permissions" "$(cat "$T_TMP/plan-grok/launch.cmd")"

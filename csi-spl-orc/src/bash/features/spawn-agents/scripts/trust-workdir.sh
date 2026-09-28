@@ -10,11 +10,12 @@
 #   claude  <home>/.claude.json                projects["<dir>"].hasTrustDialogAccepted
 #   grok    <home>/.grok/trusted_folders.toml  [folders."<dir>"] trusted = true
 #   agy     <home>/.gemini/antigravity-cli/settings.json  trustedWorkspaces[]
+#   qwen    <home>/.qwen/trustedFolders.json   {"<dir>": "TRUST_FOLDER"}
 #
 # A store that does not exist is skipped (the CLI's first run onboards itself).
 # Each edit is idempotent, under an flock, written via temp file + rename.
 #
-# Usage: trust-workdir.sh <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy)
+# Usage: trust-workdir.sh <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen)
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -28,7 +29,7 @@ shift
 AGENT_USER="${1:-$(id -un)}"
 [ $# -gt 0 ] && shift
 AGENTS=("$@")
-[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy)
+[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy qwen)
 
 if [ -d "$DIR" ]; then DIR_ABS="$(cd "$DIR" && pwd -P)"; else DIR_ABS="$(readlink -m -- "$DIR")"; fi
 
@@ -89,6 +90,12 @@ def agy(before):
     return json.dumps(doc, indent=2) + "\n"
 
 
+def qwen(before):
+    doc = json.loads(before)
+    doc[target] = "TRUST_FOLDER"
+    return json.dumps(doc, indent=2) + "\n"
+
+
 def grok(before):
     # No stdlib TOML writer, and the file is a flat list of one-table-per-folder
     # blocks, so append a block rather than round-tripping the document.
@@ -110,6 +117,7 @@ STORES = {
     "agy": (os.path.join(home, ".gemini", "antigravity-cli", "settings.json"),
             agy, "{}\n"),
     "grok": (os.path.join(home, ".grok", "trusted_folders.toml"), grok, ""),
+    "qwen": (os.path.join(home, ".qwen", "trustedFolders.json"), qwen, "{}\n"),
 }
 
 rc = 0

@@ -24,6 +24,7 @@ import {
   saveMutedChannels,
   toggleMutedChannel,
   MUTED_CHANNELS_KEY,
+  playChime,
 } from '../../src/utils/notify.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -132,11 +133,34 @@ describe('notify escalation', () => {
     const calls = store.match(/new Notification\([^)]*\)/g) || []
     assert.ok(calls.length >= 1)
     for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value\)/)
-    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,80}new AudioContext/)
+    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,120}playChime\(\)/)
+    /* CLE-35075: the beep lives in notify.mjs playChime; only the gated store path calls it */
+    const chimes = execSync(`grep -rlE "playChime\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
+    assert.deepEqual(chimes, ['src/stores/notification.ts', 'src/utils/notify.mjs'])
     assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
     /* nothing else in src makes a sound: add it to this list AND gate it on the note */
     const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
     assert.deepEqual(hits, ['src/stores/notification.ts'])
+  })
+
+  it('CLE-35075: playChime makes the same beep and closes its AudioContext when it ends', () => {
+    const made = []
+    class FakeCtx {
+      constructor() { this.closed = false; this.currentTime = 5; this.destination = {}; made.push(this) }
+      createOscillator() { const o = { frequency: {}, connect: () => {}, start: () => { o.started = true }, stop: (t) => { o.stopAt = t } }; this.osc = o; return o }
+      createGain() { const g = { gain: {}, connect: () => {} }; this.g = g; return g }
+      close() { this.closed = true; return Promise.resolve() }
+    }
+    assert.equal(playChime(FakeCtx), true)
+    const c = made[0]
+    assert.equal(c.osc.frequency.value, 880)
+    assert.equal(c.g.gain.value, 0.04)
+    assert.equal(c.osc.started, true)
+    assert.equal(c.osc.stopAt, 5.12)
+    assert.equal(c.closed, false, 'open while it sounds')
+    c.osc.onended()
+    assert.equal(c.closed, true, 'closed when the beep ends')
+    assert.equal(playChime(undefined), false, 'no Web Audio: nothing')
   })
 
   it('NotificationCenter and the notification store do not import mock-data', () => {

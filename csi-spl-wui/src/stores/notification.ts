@@ -13,6 +13,7 @@ import {
   previewUnread,
   shouldPing,
   loadMutedChannels,
+  playChime,
 } from '~/utils/notify.mjs'
 import {
   cursorFromChannel,
@@ -105,19 +106,8 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function ping(title: string, body: string) {
     if (chime.value && import.meta.client) {
-      try {
-        const ctx = new AudioContext()
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.frequency.value = 880
-        gain.gain.value = 0.04
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.start()
-        osc.stop(ctx.currentTime + 0.12)
-      } catch {
-        /* autoplay policies */
-      }
+      /* the same beep; its AudioContext closes when it ends (CLE-35075) */
+      playChime()
     }
     if (alertsOn.value && typeof Notification !== 'undefined') {
       try {

@@ -167,3 +167,34 @@ export function previewUnread(n) {
   if (v <= 0) return ''
   return v > 99 ? '99+' : String(v)
 }
+
+/**
+ * The 880 Hz chime, 120 ms at gain 0.04. Each ping made a new AudioContext
+ * and never closed it: every context keeps an audio rendering thread and
+ * its buffers alive for the life of the tab, one more per alert (CLE-35075).
+ * The same beep, and the context is closed when the oscillator ends.
+ *
+ * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
+ * @returns {boolean} whether a beep was started
+ */
+export function playChime(Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
+  if (typeof Ctx !== 'function') return false
+  let ctx = null
+  try {
+    ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.frequency.value = 880
+    gain.gain.value = 0.04
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.onended = () => { void Promise.resolve(ctx.close()).catch(() => {}) }
+    osc.start()
+    osc.stop(ctx.currentTime + 0.12)
+    return true
+  } catch {
+    /* autoplay policies */
+    if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {})
+    return false
+  }
+}

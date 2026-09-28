@@ -109,7 +109,9 @@ const measure = (p, tab) => p.evaluate((tab) => {
     row: box(rr),
     foot: box(fr),
     /* fully above the footer: on 1.9.9 the last epic sat under it or below it, clipped */
-    clear: rr.bottom <= fr.top + 0.5,
+    /* 1 px: a fractional scroller height against an integer scrollTop;
+       the scroller clips that sliver, it never paints under the footer */
+    clear: rr.bottom <= fr.top + 1,
     rowHit: Boolean(hit && row.contains(hit)),
     hitClass: hit ? String(hit.className || hit.tagName).slice(0, 40) : null,
     opaque: alpha === undefined || Number(alpha) === 1,

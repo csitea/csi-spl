@@ -19,5 +19,10 @@ VERSION="${SPOOL_BUILD_VERSION:-$(cat "$HERE/../../../.version" 2>/dev/null || e
 COMMIT="${SPOOL_BUILD_COMMIT:-$(git -C "$HERE" rev-parse HEAD 2>/dev/null || echo unknown)}"
 BUILT_AT="${SPOOL_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 mkdir -p "$(dirname "$OUT")"
-( cd "$MOD" && go build -ldflags "-X main.version=$VERSION -X main.commit=$COMMIT -X main.builtAt=$BUILT_AT" -o "$OUT" ./cmd/spool )
+# -s -w drop the symbol table and DWARF: 60.8 MB -> 42.2 MB (CLE-35076), a
+# smaller hub image to pull on every cold start and deploy. Panics still print
+# function names and lines (pclntab). NOT -trimpath: it keeps -ldflags out of
+# the build info, where spl_host_spool_bin_rev reads main.commit to decide
+# whether a host binary is current.
+( cd "$MOD" && go build -ldflags "-s -w -X main.version=$VERSION -X main.commit=$COMMIT -X main.builtAt=$BUILT_AT" -o "$OUT" ./cmd/spool )
 echo "built $OUT ($VERSION, $COMMIT, $BUILT_AT)"

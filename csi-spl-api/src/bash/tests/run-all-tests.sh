@@ -15,6 +15,7 @@ spl_export_go_path
 
 echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
+bash "$HERE/build-stripped.tst.sh"
 
 echo "== gofmt =="
 unformatted="$(cd "$MOD" && gofmt -l .)"

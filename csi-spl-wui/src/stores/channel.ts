@@ -22,7 +22,8 @@ import {
   rowFromAck,
   parseMention,
   rootsByTask,
-  topicReplies,
+  topicReplyIndex,
+  topicRepliesIn,
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
@@ -427,7 +428,9 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   function repliesFor(taskId: string) {
-    return topicReplies(messages.value, taskId, totals.value[taskId])
+    return topicRepliesIn(replyIndex.value, taskId, totals.value[taskId])
+  /* one pass over the held rows per change, read by every card (CLE-35075) */
+  const replyIndex = computed(() => topicReplyIndex(messages.value))
   }
 
   return {

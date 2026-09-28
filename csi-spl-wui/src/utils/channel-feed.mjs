@@ -427,12 +427,47 @@ function msgAt(m) {
  * never below what is held.
  */
 export function topicReplies(messages, taskId, total) {
+  return topicRepliesIn(topicReplyIndex(messages), taskId, total)
+}
+
+/**
+ * What topicReplies reads, for every topic at once: one pass over the held
+ * rows. A channel page asks topicReplies for each card, and each call walked
+ * every held row three times (a find and two filters), so a render of N
+ * cards was O(N x rows); the store builds this once per `messages` and each
+ * card reads it (CLE-35075). The first topic row per task wins, as find did.
+ *
+ * @param {any[]} messages
+ */
+export function topicReplyIndex(messages) {
+  const rowOf = new Map()
+  const children = new Map()
+  const same = new Map()
+  for (const m of messages || []) {
+    if (m.topic_row && !rowOf.has(m.task_id)) rowOf.set(m.task_id, m)
+    if (m.parent_task_id != null) children.set(m.parent_task_id, (children.get(m.parent_task_id) || 0) + 1)
+    if (!m.topic_row) {
+      const list = same.get(m.task_id)
+      if (list) list.push(m)
+      else same.set(m.task_id, [m])
+    }
+  }
+  return { rowOf, children, same }
+}
+
+/**
+ * topicReplies read from a topicReplyIndex.
+ *
+ * @param {ReturnType<typeof topicReplyIndex>} index
+ * @param {string} taskId
+ * @param {{ count?: number, last_ts?: string } | undefined} [total]
+ */
+export function topicRepliesIn(index, taskId, total) {
   if (!taskId) return 0
-  const list = messages || []
-  const row = list.find((m) => m.topic_row && m.task_id === taskId)
-  const children = replyCount(list, taskId)
+  const row = index.rowOf.get(taskId)
+  const children = index.children.get(taskId) || 0
   if (row) return children + (Number(row.count) || 0)
-  const same = list.filter((m) => m.task_id === taskId && !m.topic_row)
+  const same = index.same.get(taskId) || []
   const held = Math.max(0, same.length - 1)
   const n = Number(total && total.count) || 0
   if (n <= 0) return children + held

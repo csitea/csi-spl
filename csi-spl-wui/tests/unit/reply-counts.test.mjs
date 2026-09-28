@@ -120,7 +120,7 @@ describe('SPL-1008 reply counts', () => {
 
   it('the channel store feeds the hub totals to the card count', () => {
     const src = readFileSync(join(SRC, 'stores/channel.ts'), 'utf8')
-    assert.match(src, /topicReplies\(messages\.value, taskId, totals\.value\[taskId\]\)/)
+    assert.match(src, /topicRepliesIn\(replyIndex\.value, taskId, totals\.value\[taskId\]\)/)
     assert.equal((src.match(/mergeTopicTotals\(totals\.value, page\.totals\)/g) || []).length, 2, 'loadOlder and catchUp merge the page totals')
     assert.match(src, /totals\.value = page\.totals \|\| \{\}/)
   })

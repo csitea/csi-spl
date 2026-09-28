@@ -274,6 +274,9 @@ declare module '~/utils/channel-feed.mjs' {
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export type TopicTotal = { count: number, last_ts: string }
   export function topicReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string, total?: TopicTotal | null): number
+  export type TopicReplyIndex = { rowOf: Map<unknown, unknown>, children: Map<unknown, number>, same: Map<unknown, unknown[]> }
+  export function topicReplyIndex(messages: { task_id?: string, parent_task_id?: string | null }[]): TopicReplyIndex
+  export function topicRepliesIn(index: TopicReplyIndex, taskId: string, total?: TopicTotal | null): number
   export function mergeTopicTotals(held: Record<string, TopicTotal> | null | undefined, incoming: Record<string, TopicTotal> | null | undefined): Record<string, TopicTotal>
   export function dropFromTotals<T extends Record<string, TopicTotal>>(totals: T, msg: unknown): T
   export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }

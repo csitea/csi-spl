@@ -56,7 +56,7 @@
           "type": "object"
         },
         "op": {
-          "description": "one of list, get, create, update, comment, label",
+          "description": "one of list, get, create, update, comment, label, delete (only the issue's creator)",
           "type": "string"
         },
         "query": {
@@ -64,7 +64,7 @@
           "type": "string"
         },
         "ref": {
-          "description": "issue key, e.g. SPL-12 (get, update, comment)",
+          "description": "issue key, e.g. SPL-12 (get, update, comment, delete)",
           "type": "string"
         }
       },

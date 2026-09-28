@@ -403,7 +403,7 @@ echo '{"issue":{"key":"SPL-7","status":"todo"}}'
 FAKE
 chmod +x "$T/fakeissue"; : >"$T/issue.log"
 ISS='spl_host_spool() { SPL_SPOOL="$FAKE"; }; '
-for a in do_spl_issue_create do_spl_issue_update do_spl_issue_comment do_spl_issue_list; do
+for a in do_spl_issue_create do_spl_issue_update do_spl_issue_comment do_spl_issue_list do_spl_issue_delete; do
   SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_EPIC=SPL-1 ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
   grep -q 'DRY_RUN' "$T/o" && pass "$a: the dry run says what it would do" || fail "$a: no DRY_RUN line: $(cat "$T/o")"
 done
@@ -414,7 +414,7 @@ for st in blocked onhold; do
 done
 for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORITY=9" "do_spl_issue_create ISSUE_PRIORITY=0" "do_spl_issue_create ISSUE_LEVEL=6" "do_spl_issue_create ISSUE_LEVEL=0" \
            "do_spl_issue_create ISSUE_STATUS=doing" "do_spl_issue_update ISSUE_REF=nope" "do_spl_issue_update ISSUE_REF=SPL-7" \
-           "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0" \
+           "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0" "do_spl_issue_delete ISSUE_REF=nope" "do_spl_issue_delete ISSUE_REF=" \
            "do_spl_issue_create ISSUE_EPIC=" "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one"; do
   read -r a kv <<<"$bad"
   title=ISSUE_NONE=1; epic=ISSUE_NONE2=1 # an update with no field set is a refusal too
@@ -459,6 +459,10 @@ out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="
   ISSUE_REF=SPL-7 ISSUE_BODY='dev done; prd next' DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|comment|--as|CLE-00|--ref|SPL-7|--body|dev done; prd next|' &&
   pass "do_spl_issue_comment posts the progress" || fail "comment (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_delete" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"op": "delete"'* ]] && tail -1 "$T/issue.log" | grep -qx 'issue|delete|--as|CLE-00|--ref|SPL-7|' &&
+  pass "do_spl_issue_delete sends spool issue delete --as --ref" || fail "delete (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_list" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|list|--as|CLE-00|--assignee|me|--status|eval,todo,wip,blocked,onhold,qas|' &&
   pass "do_spl_issue_list defaults to my open issues" || fail "list (rc=$rc): $out / $(tail -1 "$T/issue.log")"

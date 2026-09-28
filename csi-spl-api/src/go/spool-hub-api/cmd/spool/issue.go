@@ -17,7 +17,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
-const issueUsage = `usage: spool issue <list|get|create|update|comment|label> --as <AGENT> [flags]
+const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete> --as <AGENT> [flags]
   list    [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
           [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created]
   get     --ref SPL-3
@@ -25,7 +25,8 @@ const issueUsage = `usage: spool issue <list|get|create|update|comment|label> --
           [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
   update  --ref SPL-3 [any create flag; only the flags given change; "" clears]
   comment --ref SPL-3 --body TEXT | --body-file F
-  label   --name N [--color #rrggbb]`
+  label   --name N [--color #rrggbb]
+  delete  --ref SPL-3 (only its creator; a soft delete)`
 
 // cmdIssue is specs/039 FR-008: an agent files and advances its work as
 // issues. The answer object is printed as JSON.

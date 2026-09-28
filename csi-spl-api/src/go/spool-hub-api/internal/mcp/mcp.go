@@ -64,9 +64,9 @@ type TailIn struct {
 
 // IssueIn is the input of spool_issue (specs/039 issues-v1 §6).
 type IssueIn struct {
-	Op    string         `json:"op" jsonschema:"one of list, get, create, update, comment, label"`
+	Op    string         `json:"op" jsonschema:"one of list, get, create, update, comment, label, delete (only the issue's creator)"`
 	As    string         `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
-	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment)"`
+	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment, delete)"`
 	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (eval|todo|wip|diss|blocked|onhold|qas|done = 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done), priority (prio 1 highest .. 5 lowest), level (derived from the tree, read-only: 1 epic or feature, 2 issue, 3 subtask), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color"`
 	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,wip&assignee=me&epic=SPL-17&kind=issue&sort=priority"`
 	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md"`

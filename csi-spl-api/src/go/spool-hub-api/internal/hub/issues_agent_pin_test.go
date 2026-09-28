@@ -58,7 +58,7 @@ func TestAgentIssueRefusals(t *testing.T) {
 	if err := e.st.SetBillingStatus(ctx, tid, billing.StatusUnpaid); err != nil {
 		t.Fatal(err)
 	}
-	for _, op := range []string{"create", "update", "label", "comment"} {
+	for _, op := range []string{"create", "update", "label", "comment", "delete"} {
 		if got := token(action.IssueArgs{Op: op, Ref: "SPL-1", Issue: json.RawMessage(`{"title":"x"}`), Body: "x"}); got != billing.TokenUnpaid {
 			t.Errorf("unpaid %s: token %q", op, got)
 		}

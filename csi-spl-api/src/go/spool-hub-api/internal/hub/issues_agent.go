@@ -70,8 +70,10 @@ func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (an
 		return s.agentCreateLabel(ctx, x.tenant, f.As, f.Issue)
 	case "comment":
 		return s.agentComment(ctx, x, f.As, f.IssueRef, f.Body)
+	case "delete":
+		return s.agentDeleteIssue(ctx, x.tenant, f.As, f.IssueRef)
 	}
-	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label or comment"}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label, comment or delete"}
 }
 
 // issueWriteAllowed refuses a write while the tenant's billing is unpaid.
@@ -146,6 +148,37 @@ func (s *Server) agentCreateLabel(ctx context.Context, tenant, as string, raw js
 		return nil, ie
 	}
 	return map[string]any{"label": toLabelJSON(l)}, nil
+}
+
+// agentDeleteIssue is delete (SPL-1131): the soft delete of rdb 0071, as
+// DELETE /v1/issues/{ref} does it. An agent holds no tenant role, so only the
+// agent that created the issue may delete it (mayDeleteIssue's creator rule).
+func (s *Server) agentDeleteIssue(ctx context.Context, tenant, as, ref string) (any, *issueErr) {
+	is, ie := s.issueStore()
+	if ie != nil {
+		return nil, ie
+	}
+	n, ok := store.ParseIssueRef(ref)
+	if !ok {
+		return nil, &issueErr{http.StatusNotFound, "not_found", "no such issue"}
+	}
+	cur, err := is.GetIssue(ctx, tenant, n)
+	if ie := storeIssueErr(err); ie != nil {
+		return nil, ie
+	}
+	if cur.CreatedBy != as {
+		return nil, &issueErr{http.StatusForbidden, "forbidden", "only the agent or member who created " + cur.Key() + " (or an admin, in the WUI) may delete it"}
+	}
+	out, err := is.DeleteIssue(ctx, tenant, n, as, s.o.Now())
+	if ie := storeIssueErr(err); ie != nil {
+		if ie.status == http.StatusInternalServerError {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Int("number", n).Msg("agent issue delete")
+		}
+		return nil, ie
+	}
+	body := toIssueJSON(out, s.storeGetter(ctx, tenant))
+	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "delete", "issue": body})
+	return map[string]any{"issue": body}, nil
 }
 
 func decodeIssueFrame(raw json.RawMessage) (issueRequest, *issueErr) {

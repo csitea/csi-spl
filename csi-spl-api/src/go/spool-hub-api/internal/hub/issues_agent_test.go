@@ -132,6 +132,31 @@ func TestAgentIssues(t *testing.T) {
 	if _, err := do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-2", Body: "  "}); hubErr(err) != "bad_issue" {
 		t.Fatalf("empty comment: %v", err)
 	}
+	// SPL-1131: delete. An agent holds no tenant role, so a non-creator agent is
+	// refused and the issue stays; the creator deletes its own, and browsers hear it.
+	if code, out := call(t, e, tid, "POST", "/v1/issues", "HUM-1", map[string]any{"title": "a member's", "epic": "SPL-1"}); code != 201 ||
+		out["issue"].(map[string]any)["key"] != "SPL-3" {
+		t.Fatalf("member create: %d %v", code, out)
+	}
+	readType(t, watcher, "issue")
+	if _, err := do(action.IssueArgs{Op: "delete", As: "CLE-07", Ref: "SPL-3"}); hubErr(err) != "forbidden" {
+		t.Fatalf("non-creator agent delete: %v", err)
+	}
+	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil {
+		t.Fatalf("CONTROL the refused delete left the issue: %v", err)
+	}
+	if _, err := do(action.IssueArgs{Op: "delete", As: "CLE-07", Ref: "SPL-2"}); err != nil {
+		t.Fatalf("creator agent delete: %v", err)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "delete" || f["issue"].(map[string]any)["key"] != "SPL-2" {
+		t.Fatalf("delete frame %v", f)
+	}
+	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-2"}); hubErr(err) != "not_found" {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if _, err := do(action.IssueArgs{Op: "delete", As: "CLE-07", Ref: "SPL-9"}); hubErr(err) != "not_found" {
+		t.Fatalf("delete missing: %v", err)
+	}
 	if _, err := do(action.IssueArgs{Op: "drop", As: "CLE-07"}); err == nil {
 		t.Fatal("unknown op accepted")
 	}

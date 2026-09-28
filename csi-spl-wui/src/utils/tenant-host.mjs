@@ -39,13 +39,13 @@ const TENANT_SCOPED = new Set(['channel', 'dm', 't'])
 const LOCALE_SEG_RE = /^[a-z]{2}(?:-[a-z]{2,4})?$/i
 
 /**
- * The path a tenant switch carries to the other tenant's host (CLE-35057).
+ * The path a tenant switch carries to the other tenant's host.
  * A page that means the same in every tenant (/lobby, /issues, /settings/...)
  * is kept; /channel/<x>, /dm/<x> and /t/<id> name something of the OLD tenant
- * and go to that locale's home instead. Measured on prd 2026-09-27: the owner
- * switched from csi-rel's /channel/development to bnc-cpt, landed on
- * /channel/development there - a channel bnc-cpt does not have - and every
- * send was refused (unknown_channel) as "did not reach the hub".
+ * and go to that locale's home instead. Measured on prd 2026-09-27: a switch
+ * from one tenant's /channel/development to another tenant landed on
+ * /channel/development there - a channel the other tenant does not have - and
+ * every send was refused (unknown_channel) as "did not reach the hub".
  */
 export function switchPath(path) {
   const p = String(path || '/')

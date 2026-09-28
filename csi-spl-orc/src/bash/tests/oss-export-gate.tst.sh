@@ -8,7 +8,8 @@
 #            a planted fake cloud key (secret), a planted owner surname
 #            (hygiene), a planted banned literal, a CLAUDE.md inside an
 #            allowed dir (forbidden-file), an unlicensed image, a missing
-#            LICENSE, a dependency under a non-free licence
+#            LICENSE, a dependency under a non-free licence or none at all
+#            (no license field falls back to the LICENSE text)
 #          - the report names file:line and never the planted value
 #          - the export-side scrub rewrites the exported copy only; a stale
 #            rule is named and never hides a hit
@@ -171,6 +172,15 @@ check "$rc" 1 "CONTROL a non-free dependency -> the gate fails"
 grep -qP '^dep-licence\tnpm:bad@3\.0\.0\t0\tSSPL-1\.0$' "$rep" && ok "dep row names the package + licence" || no "no dep row"
 [[ $(count dep-licence) == 1 ]] && ok "an OR expression with one allowed licence passes" || no "the OR expression was counted"
 rm -rf "$tmp/nm/.pnpm/bad@3.0.0"
+# no license field: the shipped LICENSE text decides (a Zlib text passes, none is UNKNOWN)
+z="$tmp/nm/.pnpm/zl@1.0.0/node_modules/zl"; mkdir -p "$z"
+echo '{"name":"zl","version":"1.0.0"}' >"$z/package.json"
+printf "This software is provided 'as-is', without any express or implied\nwarranty.\n1. The origin of this software must not be misrepresented.\n" >"$z/LICENSE"
+run_export
+check "$rc" 0 "a package with no license field and a Zlib LICENSE text passes"
+rm "$z/LICENSE"; run_export
+grep -qP '^dep-licence\tnpm:zl@1\.0\.0\t0\tUNKNOWN$' "$rep" && ok "no field and no LICENSE -> UNKNOWN hit" || no "a package with no licence at all passed"
+rm -rf "$tmp/nm/.pnpm/zl@1.0.0"
 commit .github/workflows/50_public.yml $'# never on self-hosted runners (a comment is no hit)\njobs:\n  t:\n    runs-on: [self-hosted, x]'
 echo .github/workflows/50_public.yml >>"$tmp/allow.txt"
 run_export

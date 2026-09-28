@@ -164,8 +164,9 @@ def licence(root, out):
             except ValueError:
                 row(out, "licence", rel, 1, "package.json unreadable")
         elif base == "go.mod":
+            # the id may sit in go.mod itself (a // comment) or in a root .go file
             d = os.path.dirname(p)
-            if not any(f.endswith(".go") and "SPDX-License-Identifier:" in read(os.path.join(d, f))
+            if not any((f == "go.mod" or f.endswith(".go")) and "SPDX-License-Identifier:" in read(os.path.join(d, f))
                        for f in os.listdir(d)):
                 row(out, "licence", rel, 1, "Go module root has no SPDX-License-Identifier")
 
@@ -198,10 +199,14 @@ def classify_text(t):
         return "BSD-3-Clause" if re.search(r"Neither the name|names of (its|the|any) contributors", t) else "BSD-2-Clause"
     if re.search(r"Permission to use, copy, modify, and(/or)? distribute", t):
         return "ISC"
+    if "provided 'as-is', without any express or implied" in t and "must not be misrepresented" in t:
+        return "Zlib"
     return ""
 
 
 def go_licence(moddir):
+    """The licence of a package dir from its LICENSE/COPYING text (Go modules,
+    and npm packages whose package.json declares none)."""
     names = [f for f in os.listdir(moddir) if re.match(r"(?i)^(licen[cs]e|copying)", f)] \
         if os.path.isdir(moddir) else []
     ids = sorted({classify_text(read(os.path.join(moddir, f))) for f in names} - {""})
@@ -254,6 +259,10 @@ def deps(a):
                     lic = lic.get("type")
                 if not lic and isinstance(d.get("licenses"), list):
                     lic = " OR ".join(x.get("type", "") for x in d["licenses"] if isinstance(x, dict))
+                if not lic:
+                    # no field: the shipped LICENSE text decides (e.g. tosource is Zlib)
+                    lic = go_licence(os.path.dirname(pj))
+                    lic = "" if lic == "UNKNOWN" else lic
                 counted += 1
                 if not spdx_ok(lic):
                     row(out, "dep-licence", f"npm:{name}@{d.get('version', '?')}", 0, lic or "UNKNOWN")

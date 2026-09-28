@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 module github.com/csitea/csi-spl/spool-hub-api
 
 go 1.25.14

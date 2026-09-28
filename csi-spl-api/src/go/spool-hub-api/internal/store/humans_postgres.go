@@ -179,16 +179,19 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 // MemberRole reads the human's role in tenant, once per request when ctx
 // carries a request memo (memo.go).
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
-	return memberRole(ctx, humanID, tenant, func() (string, error) {
+	// SPL-1034: the same row's channel_order rides along into the request
+	// memo, so ChannelOrder in the same request costs no round trip.
+	return memberRoleOrder(ctx, humanID, tenant, func() (string, []string, error) {
 		var role string
-		err := s.queryRowTenant(ctx, tenant, `SELECT m.role FROM tenant_memberships m
+		var order []string
+		err := s.queryRowTenant(ctx, tenant, `SELECT m.role, m.channel_order FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
 			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`,
-			[]any{tenant, humanID}, &role)
+			[]any{tenant, humanID}, &role, &order)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", ErrNotFound
+			return "", nil, ErrNotFound
 		}
-		return role, err
+		return role, order, err
 	})
 }
 

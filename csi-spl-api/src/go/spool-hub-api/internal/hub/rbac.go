@@ -83,6 +83,9 @@ type meBody struct {
 	Role        *string  `json:"role"`
 	TenantOwner *bool    `json:"tenant_owner"`
 	Permissions []string `json:"permissions"` // null = door-off guest (no RBAC)
+	// SPL-1034 (rdb 0073): the person's own Channels order in this tenant;
+	// null = never set (or a door-off guest).
+	ChannelOrder []string `json:"channel_order"`
 }
 
 func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +104,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()
+		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

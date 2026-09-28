@@ -6,8 +6,10 @@
 # product as published: the hub suite, the WUI unit tests + typecheck, and
 # the WUI browser e2e against a generated mock bundle.
 #
-# Runs only while the repository is PUBLIC: the private working repository
-# carries this file too and runs its own, fuller gate on its own runners.
+# Runs only while the repository is PUBLIC (hosted minutes of a private repo
+# are billed). The fuller gate, 10, runs on push to master on the self-hosted
+# runners, which a pull request can never reach (org runner group
+# spool-ci-trusted: named workflows at refs/heads/master only).
 
 name: "11 ci: public quality gate"
 

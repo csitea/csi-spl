@@ -33,8 +33,8 @@ concurrency:
 jobs:
   standalone:
     name: "oss: docker compose up + browser proof"
-    # the public repo's job (CLE-35070): the private ops repo carries this
-    # file too, and hosted minutes on a private repo are billed
+    # runs once the repo is public (CLE-35070): hosted minutes of a private
+    # repo are billed
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

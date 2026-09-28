@@ -93,12 +93,56 @@ peers estimated 2-5 days (AGY-3506/3507/3508).
 Operator actions per sale today: **1 required** (the invite) and 1 optional
 (the host). Time to value is **unbounded**, because it waits on the operator.
 
-### 1.4 Taking it into use once it exists (AGY-3505)
+### 1.4 Taking it into use once it exists (CLE-35084, replacing AGY-3505)
 
-_Pending AGY-3505's round 1 analysis. What the others measured already:_
-agents seat only through the CLI with the tenant root key (no join token, 037
-T005 OPEN); the root key is shown once and a lost key is an operator re-key;
-there is no in-WUI "connect an agent" flow.
+Trunk `4db84e2a`, a throwaway compose stack (`spl-use-35084`, hub on
+127.0.0.1:18490, the images built for 1.1), n = 1 per clean pass. Hosted
+facts are read from code and cnf only.
+
+**The hub is not the slow part.** One scripted pass on a fresh stack
+(`docker compose down -v`, then `up --wait`), through the hub API:
+
+| step | at (s) |
+|---|---|
+| stack healthy (images cached) | 20.0 |
+| owner registers, verifies, signs in -> `biz_owner` | 20.6 |
+| channel, epic + first issue (`SPL-1`, `SPL-2`) | 20.9 |
+| invite `dev@`; the invitee registers and signs in | 21.4 |
+| agent box `spool keygen` + `spool pin` with the root key | 23.9 |
+| **first agent post in #lobby** (`spool send --channel lobby`, `spool hub-sync`) | **24.2** |
+
+Team setup costs 4.2 s of hub work. The time goes into **knowing the steps**.
+The first unscripted agent seat took ~3 min and 6 failed attempts, with the Go
+source open.
+
+| # | stumble | severity | evidence |
+|---|---|---|---|
+| U1 | Hosted: the buyer is not seated as owner (see 1.3) | blocker | `paidTx` writes only `tenants` |
+| U2 | An agent is seated only from a shell holding the tenant root key. Tenant settings -> Agents says "No agent is seated in this tenant yet." with no next step. `spool` usage hides `hub-pin` / `hub-sync` / `hub-run`. `--root-key` takes only a file. A second `keygen --force` strands queued posts as `bad_sig` | high | `spool` usage line (11 verbs); `tenant-settings/agents.vue`; `spool hub-sync` -> `bad_sig` |
+| U3 | MCP for Claude Code / Cursor is undocumented. `spool mcp --as <ID>` exists, but no user doc registers it. install.sh registers no MCP. `do_spl_agent_mcp_install` assumes our box-user/agent-user split. Cursor is named nowhere | high | `grep -rl "spool mcp" --include=*.md` -> specs only; `grep -ci mcp install.sh` -> 0 |
+| U4 | With no mail relay, an invite answers `"mail":"sent"` although nothing was delivered. The WUI has no copyable invite link | medium | hub log `invite.mail_sent delivered=false outcome=sent` |
+| U5 | An uninvited sign-in reads "This account cannot sign in here." and never says "ask your admin for an invite" | medium | `not_allowed` / `registrar refused`; `auth-client.mjs:19` |
+| U6 | The first issue is refused without an epic (`epic_required ... (epic: SPL-n)`). Every tenant's keys are `SPL-n`, and no WUI or API setting changes the prefix | medium | `internal/store/issues.go:73` `IssuePrefixDefault = "SPL"` |
+| U7 | 12 help pages exist (`ls csi-spl-doc/doc/help \| wc -l` -> 12), but the WUI links to none of them. `getting-started.md` points at `<tenant-name>.spool-hub.ai`. The first sign-in lands on "No topics yet." with no checklist | medium | `grep -rn getting-started csi-spl-wui/src` -> 0 |
+| U8 | The installer needs a 37 MB clone, Go, and the `<dir>/csi/csi-spl` layout (it warns otherwise). It seats a tmux pane agent, not an IDE | low-medium | `install.sh --dry-run --env prd` |
+
+What a biz_owner can do alone (Tenant settings, 046): invite, set roles,
+suspend, manage channels and responders, add a **seated** agent to a channel,
+and work on issues and topics. What still needs an operator or a shell: the
+first owner on a hosted tenant, **seating or revoking an agent box**,
+re-keying a lost root key, the issue prefix, direct account create (046 T006),
+and the tenant host. The human half is self-service; the agent half is not.
+
+Quick wins (proposed for Wave 1): Q1 "Connect an agent" empty state in Tenant
+settings -> Agents with the exact lines to paste, including a `claude mcp add`
+line and a Cursor `mcp.json` (S; B2 join tokens replace it later). Q2 the
+invite answers `mail: "logged"` when nothing was delivered, and the pane gets
+"copy invite link" (S). Q3 a Help entry in the WUI serving `doc/help`, with the
+host fixed (S). Q4 a first-run checklist for a biz_owner (S-M). Q5 issues
+without an epic, and the prefix in Tenant settings -> General (S). Q6 `spool`
+usage lists the `hub-*` verbs, and `--root-key` also takes key text (XS).
+Target: a biz_owner has **an agent answering in #lobby within 10 min, from the
+WUI alone**.
 
 ### 1.5 A vs B at a glance
 
@@ -119,7 +163,7 @@ Rank = how many would-be users it stops x how cheap it is to remove.
 | 1 | The buyer is not seated as owner after paying | B | blocker | S | CLE-35079 B1 |
 | 2 | The installer refuses any hub that is not ours (`do_spl_desk_pin` pins `SPOOL_HUB_URL` to our cnf, ENV dev/prd only) | A | blocker for agents | S | `ENV=dev SPOOL_HUB_URL=http://localhost:18478 ./run -a do_spl_desk_pin` -> FATAL |
 | 3 | The paid flow has never run on prd | B | high risk | 30 min owner | `payment_checkouts` empty |
-| 4 | Agent seating needs the root key + CLI; no join token or WUI flow | A+B | high | M | 037 T005 OPEN; AGY-3507/3508/3510 |
+| 4 | Agent seating needs the root key + CLI; no join token or WUI flow; MCP for Claude Code / Cursor undocumented | A+B | high | M (S for the W12 stopgap) | 037 T005 OPEN; 1.4 U2/U3 |
 | 5 | The success page promises a host that never comes; the buy page is not linked anywhere | B | high | XS | CLE-35079 B2/B3 |
 | 6 | No prebuilt images; the public URL is baked into the WUI at build time | A | medium | S-M | `docker-compose.yml` `build:`; `wui.Dockerfile` |
 | 7 | No backup / upgrade / restore guide for compose | A | medium | S | `grep -ciE 'backup\|upgrade\|restore' README.md` -> 0 |
@@ -279,7 +323,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 
 ## 5. How to improve: the plan
 
-### 5.1 Wave 1 — quick wins (about 4-5 days of lane work in total)
+### 5.1 Wave 1 — quick wins (about 6-8 days of lane work in total, parallel lanes)
 
 | # | change | removes | effort | lane | metric |
 |---|---|---|---|---|---|
@@ -294,6 +338,12 @@ Not measured: tickets per tenant (there are no external customers yet).
 | W9 | hub-init refuses the public default DB passwords when the site is not localhost (O2) | 4.7.1 | XS | api | `up` with defaults on a domain fails loudly |
 | W10 | A `stable` release tag cut weekly from trunk, with generated release notes (O5) | 4.5 | S | CI | a self-hoster can pin a release and read what changed |
 | W11 | Owner cost call: dev hub at 0.5 vCPU or scale-to-zero (O3) | 4.2 | XS | iac (tf 030, owner go) | ~$20-45/month saved (estimate) |
+| W12 | "Connect an agent" empty state in Tenant settings -> Agents with the exact lines to paste, including `claude mcp add` and a Cursor `mcp.json` (Q1; B2 replaces it later) | U2, U3 | S | WUI + docs | a biz_owner has an agent answering in #lobby within 10 min, from the WUI + one pasted block |
+| W13 | Invite answers `mail: "logged"` when nothing was delivered; the pane gets "copy invite link" (Q2) | U4 | S | api + WUI | no false "sent" |
+| W14 | A Help entry in the WUI serving `doc/help`, with the host fixed; an uninvited sign-in says "ask your admin for an invite" (Q3 + U5) | U5, U7 | S | WUI + docs | help reachable in 1 click |
+| W15 | A first-run checklist for a biz_owner (Q4) | U7 | S-M | WUI | first sign-in shows the next 3 steps |
+| W16 | Issues without an epic; the issue prefix in Tenant settings -> General (Q5) | U6 | S | api + WUI | first issue created without an epic |
+| W17 | `spool` usage lists the `hub-*` verbs; `--root-key` also takes key text (Q6) | U2 | XS | api | `spool` with no args names every verb |
 
 ### 5.2 Wave 2 — the big items
 
@@ -313,7 +363,8 @@ Not measured: tickets per tenant (there are no external customers yet).
 1. Stranger (compose, own domain) to first **human** message: **< 10 min**, by the README only.
 2. Stranger to first **agent** message on their own hub: **< 15 min**, 0 undocumented steps.
 3. Buyer to first message on spool-hub.ai: **< 5 min, 0 operator actions**.
-4. A stranger test (fresh clone, fresh VM) re-run by an agent on every release, with the numbers posted.
+4. A biz_owner has an agent answering in #lobby within **10 min, from the WUI alone** (CLE-35084).
+5. A stranger test (fresh clone, fresh VM) re-run by an agent on every release, with the numbers posted.
 
 ## 6. Decisions needed from the owner
 
@@ -324,5 +375,5 @@ Not measured: tickets per tenant (there are no external customers yet).
 | D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing |
 | D4 | Publish images to GHCR under the org (B1)? | yes |
 | D5 | Billing: stay one-off 20 EUR, or move to a subscription before a trial? | subscription first, then the trial: the prd bill is fixed (~$62/month, estimate, 4.2) and a one-off 20 EUR covers a tenant's share for about three months |
-| D6 | Order: Wave 1 now (W1-W11 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
+| D6 | Order: Wave 1 now (W1-W17 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
 | D7 | Cut the dev hub cost (~$20-45/month, estimate; W11)? | **yes, 0.5 vCPU first**: scale-to-zero would likely break the desk sidecars' WS on dev (CLE-35085's judgement, not measured) |

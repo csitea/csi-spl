@@ -793,85 +793,10 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	if !readNativeJSON(w, r, &req) {
 		return
 	}
-	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
-	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
-	rawName := strings.TrimSpace(string(req.DisplayName))
-	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
-	rawKey := strings.TrimSpace(string(req.SubmitKey))
-	rawRail := strings.TrimSpace(string(req.RailOrder))
-	// view holds each present layout key's value ("" = null, clear it).
-	view := map[string]string{}
-	for _, k := range viewPrefKeys {
-		raw := strings.TrimSpace(string(req.raw(k)))
-		if raw == "" {
-			continue
-		}
-		v := ""
-		if raw != "null" && (json.Unmarshal(req.raw(k), &v) != nil || !IsViewPref(k, v)) {
-			writeErr(w, http.StatusBadRequest, "unsupported_"+k,
-				k+" must be one of "+strings.Join(ViewPrefs[k], ","))
-			return
-		}
-		view[k] = v
-	}
-	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" && rawRail == "" && len(view) == 0 {
-		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null) or issues_view (list, status or null) is required")
+	p, code, detail := parsePreferences(req)
+	if code != "" {
+		writeErr(w, http.StatusBadRequest, code, detail)
 		return
-	}
-	loc := ""
-	switch {
-	case rawLoc == "" || rawLoc == "null":
-	default:
-		if json.Unmarshal(req.PreferredLocale, &loc) != nil || !i18n.IsSupported(loc) {
-			writeErr(w, http.StatusBadRequest, "unsupported_locale",
-				"preferred_locale must be one of "+strings.Join(i18n.Supported, ","))
-			return
-		}
-	}
-	// Only the literal true/false: "true", 1 and null are refused rather than
-	// coerced, the same strictness the WUI's gate applies to the claim.
-	diag := rawDiag == "true"
-	if rawDiag != "" && rawDiag != "true" && rawDiag != "false" {
-		writeErr(w, http.StatusBadRequest, "bad_request", "diagnostics_enabled must be true or false")
-		return
-	}
-	name := ""
-	if rawName != "" {
-		var raw string
-		ok := rawName != "null" && json.Unmarshal(req.DisplayName, &raw) == nil
-		if ok {
-			name, ok = ValidDisplayName(raw)
-		}
-		if !ok {
-			writeErr(w, http.StatusBadRequest, ErrCodeInvalidDisplayName,
-				"display_name must be 1 to 200 characters on one line, without control characters")
-			return
-		}
-	}
-	theme := ""
-	if rawTheme != "" && rawTheme != "null" {
-		if json.Unmarshal(req.PreferredTheme, &theme) != nil || !IsTheme(theme) {
-			writeErr(w, http.StatusBadRequest, "unsupported_theme",
-				"preferred_theme must be one of "+strings.Join(ThemeIDs, ","))
-			return
-		}
-	}
-	key := ""
-	if rawKey != "" && rawKey != "null" {
-		if json.Unmarshal(req.SubmitKey, &key) != nil || !IsSubmitKey(key) {
-			writeErr(w, http.StatusBadRequest, "unsupported_submit_key",
-				"submit_key must be one of "+strings.Join(SubmitKeys, ","))
-			return
-		}
-	}
-	var rail []string
-	if rawRail != "" && rawRail != "null" {
-		if json.Unmarshal(req.RailOrder, &rail) != nil || !IsRailOrder(rail) {
-			writeErr(w, http.StatusBadRequest, "unsupported_rail_order",
-				"rail_order must hold each of "+strings.Join(RailTabs, ",")+" exactly once")
-			return
-		}
 	}
 	if s.HumanID == "" {
 		writeErr(w, http.StatusConflict, "no_human", "this session has no registered human to keep settings on")
@@ -881,74 +806,150 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "preferences are not configured")
 		return
 	}
-	out := map[string]any{}
-	if rawLoc != "" {
-		if !h.storePref(w, h.prefs.SetPreferredLocale(r.Context(), s.HumanID, loc)) {
-			return
-		}
-		h.log.Info().Str("human_id", s.HumanID).Str("preferred_locale", loc).Msg("auth.preferences_set")
-		out["preferred_locale"] = nil
-		if loc != "" {
-			out["preferred_locale"] = loc
+	if out, ok := h.storePreferences(w, r, s.HumanID, p); ok {
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+// prefsIn is a validated PUT /preferences body. has* says which keys were
+// present (a present null clears the setting: the value is then "").
+type prefsIn struct {
+	loc, name, theme, key                               string
+	diag                                                bool
+	rail                                                []string
+	view                                                map[string]string // layout key -> value, "" = null
+	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
+}
+
+// parsePreferences validates the whole body before anything is written. A
+// refusal is (code, detail) for a 400; the checks run in the order the
+// answers were always given (layout keys, empty body, then key by key).
+func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
+	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
+	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
+	rawName := strings.TrimSpace(string(req.DisplayName))
+	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
+	rawKey := strings.TrimSpace(string(req.SubmitKey))
+	rawRail := strings.TrimSpace(string(req.RailOrder))
+	p.hasLoc, p.hasDiag, p.hasName = rawLoc != "", rawDiag != "", rawName != ""
+	p.hasTheme, p.hasKey, p.hasRail = rawTheme != "", rawKey != "", rawRail != ""
+	if p.view, code, detail = parseViewPrefs(req); code != "" {
+		return p, code, detail
+	}
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null) or issues_view (list, status or null) is required"
+	}
+	if rawLoc != "" && rawLoc != "null" {
+		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
+			return p, "unsupported_locale", "preferred_locale must be one of " + strings.Join(i18n.Supported, ",")
 		}
 	}
-	if rawDiag != "" {
-		if !h.storePref(w, h.prefs.SetDiagnosticsEnabled(r.Context(), s.HumanID, diag)) {
-			return
-		}
-		h.log.Info().Str("human_id", s.HumanID).Bool("diagnostics_enabled", diag).Msg("auth.preferences_set")
-		out["diagnostics_enabled"] = diag
+	// Only the literal true/false: "true", 1 and null are refused rather than
+	// coerced, the same strictness the WUI's gate applies to the claim.
+	p.diag = rawDiag == "true"
+	if rawDiag != "" && rawDiag != "true" && rawDiag != "false" {
+		return p, "bad_request", "diagnostics_enabled must be true or false"
 	}
 	if rawName != "" {
-		if !h.storePref(w, h.prefs.SetDisplayName(r.Context(), s.HumanID, name)) {
-			return
+		var raw string
+		ok := rawName != "null" && json.Unmarshal(req.DisplayName, &raw) == nil
+		if ok {
+			p.name, ok = ValidDisplayName(raw)
 		}
-		h.log.Info().Str("human_id", s.HumanID).Int("display_name_len", utf8.RuneCountInString(name)).
-			Msg("auth.preferences_set")
-		out["display_name"] = name
-	}
-	if rawTheme != "" {
-		if !h.storePref(w, h.prefs.SetPreferredTheme(r.Context(), s.HumanID, theme)) {
-			return
-		}
-		h.log.Info().Str("human_id", s.HumanID).Str("preferred_theme", theme).Msg("auth.preferences_set")
-		out["preferred_theme"] = nil
-		if theme != "" {
-			out["preferred_theme"] = theme
-		}
-	}
-	if rawKey != "" {
-		if !h.storePref(w, h.prefs.SetSubmitKey(r.Context(), s.HumanID, key)) {
-			return
-		}
-		h.log.Info().Str("human_id", s.HumanID).Str("submit_key", key).Msg("auth.preferences_set")
-		out["submit_key"] = nil
-		if key != "" {
-			out["submit_key"] = key
-		}
-	}
-	if rawRail != "" {
-		if !h.storePref(w, h.prefs.SetRailOrder(r.Context(), s.HumanID, rail)) {
-			return
-		}
-		h.log.Info().Str("human_id", s.HumanID).Strs("rail_order", rail).Msg("auth.preferences_set")
-		out["rail_order"] = rail
-	}
-	for _, k := range viewPrefKeys {
-		v, ok := view[k]
 		if !ok {
+			return p, ErrCodeInvalidDisplayName, "display_name must be 1 to 200 characters on one line, without control characters"
+		}
+	}
+	if rawTheme != "" && rawTheme != "null" {
+		if json.Unmarshal(req.PreferredTheme, &p.theme) != nil || !IsTheme(p.theme) {
+			return p, "unsupported_theme", "preferred_theme must be one of " + strings.Join(ThemeIDs, ",")
+		}
+	}
+	if rawKey != "" && rawKey != "null" {
+		if json.Unmarshal(req.SubmitKey, &p.key) != nil || !IsSubmitKey(p.key) {
+			return p, "unsupported_submit_key", "submit_key must be one of " + strings.Join(SubmitKeys, ",")
+		}
+	}
+	if rawRail != "" && rawRail != "null" {
+		if json.Unmarshal(req.RailOrder, &p.rail) != nil || !IsRailOrder(p.rail) {
+			return p, "unsupported_rail_order", "rail_order must hold each of " + strings.Join(RailTabs, ",") + " exactly once"
+		}
+	}
+	return p, "", ""
+}
+
+// parseViewPrefs holds each present layout key's value ("" = null, clear it).
+func parseViewPrefs(req preferencesReq) (map[string]string, string, string) {
+	view := map[string]string{}
+	for _, k := range viewPrefKeys {
+		raw := strings.TrimSpace(string(req.raw(k)))
+		if raw == "" {
 			continue
 		}
-		if !h.storePref(w, h.prefs.SetViewPref(r.Context(), s.HumanID, k, v)) {
-			return
+		v := ""
+		if raw != "null" && (json.Unmarshal(req.raw(k), &v) != nil || !IsViewPref(k, v)) {
+			return nil, "unsupported_" + k, k + " must be one of " + strings.Join(ViewPrefs[k], ",")
 		}
-		h.log.Info().Str("human_id", s.HumanID).Str(k, v).Msg("auth.preferences_set")
-		out[k] = nil
-		if v != "" {
-			out[k] = v
+		view[k] = v
+	}
+	return view, "", ""
+}
+
+// storePreferences writes each present key in a fixed order and returns the
+// answer: exactly the keys that were stored. false = an error was answered.
+func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum string, p prefsIn) (map[string]any, bool) {
+	ctx := r.Context()
+	out := map[string]any{}
+	set := func(err error, key string, val any, logged func(*zerolog.Event) *zerolog.Event) bool {
+		if !h.storePref(w, err) {
+			return false
+		}
+		logged(h.log.Info().Str("human_id", hum)).Msg("auth.preferences_set")
+		out[key] = val
+		return true
+	}
+	if p.hasLoc && !set(h.prefs.SetPreferredLocale(ctx, hum, p.loc), "preferred_locale", nullable(p.loc),
+		func(e *zerolog.Event) *zerolog.Event { return e.Str("preferred_locale", p.loc) }) {
+		return nil, false
+	}
+	if p.hasDiag && !set(h.prefs.SetDiagnosticsEnabled(ctx, hum, p.diag), "diagnostics_enabled", p.diag,
+		func(e *zerolog.Event) *zerolog.Event { return e.Bool("diagnostics_enabled", p.diag) }) {
+		return nil, false
+	}
+	if p.hasName && !set(h.prefs.SetDisplayName(ctx, hum, p.name), "display_name", p.name,
+		func(e *zerolog.Event) *zerolog.Event {
+			return e.Int("display_name_len", utf8.RuneCountInString(p.name))
+		}) {
+		return nil, false
+	}
+	if p.hasTheme && !set(h.prefs.SetPreferredTheme(ctx, hum, p.theme), "preferred_theme", nullable(p.theme),
+		func(e *zerolog.Event) *zerolog.Event { return e.Str("preferred_theme", p.theme) }) {
+		return nil, false
+	}
+	if p.hasKey && !set(h.prefs.SetSubmitKey(ctx, hum, p.key), "submit_key", nullable(p.key),
+		func(e *zerolog.Event) *zerolog.Event { return e.Str("submit_key", p.key) }) {
+		return nil, false
+	}
+	if p.hasRail && !set(h.prefs.SetRailOrder(ctx, hum, p.rail), "rail_order", p.rail,
+		func(e *zerolog.Event) *zerolog.Event { return e.Strs("rail_order", p.rail) }) {
+		return nil, false
+	}
+	for _, k := range viewPrefKeys {
+		v, ok := p.view[k]
+		if ok && !set(h.prefs.SetViewPref(ctx, hum, k, v), k, nullable(v),
+			func(e *zerolog.Event) *zerolog.Event { return e.Str(k, v) }) {
+			return nil, false
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, true
+}
+
+// nullable answers a cleared setting ("") as JSON null.
+func nullable(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 // storePref maps one Preferences write error onto the answer; true = stored.

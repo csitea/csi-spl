@@ -27,7 +27,6 @@ var longFuncs = map[string]bool{
 	"internal/action/action.go SendCtx":                                  true,
 	"internal/auth/cmd/auth-demo/main.go run":                            true,
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler":                    true,
-	"internal/auth/handler.go (*Handler).putPreferences":                 true,
 	"internal/auth/native.go (*native).handleLogin":                      true,
 	"internal/hubclient/hubclient.go (*Client).Dial":                     true,
 	"internal/hub/edit.go (*Server).handleEditMessage":                   true,

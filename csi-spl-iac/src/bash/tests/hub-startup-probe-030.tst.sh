@@ -8,6 +8,8 @@
 #          Session affinity follows the instance count: off while cnf runs
 #          ONE instance (the GAESA cookie on every API call buys nothing),
 #          on as soon as it runs more.
+#          SPL-1129: GOMAXPROCS = cloud_run.cpu and GOMEMLIMIT 80..100 % of
+#          cloud_run.memory in both rendered 030 tfvars.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -48,5 +50,17 @@ for env in dev prd; do
   [[ -n "$o" && "$o" != null ]] && m="$m/$env:$o"
 done
 [[ "$m" == 1 ]] && pass "cnf max_instances is 1 (OQ-05), so the cookie is gone today" || fail "cnf max_instances changed: re-read this test"
+
+# SPL-1129: the Go runtime is sized to the instance, in the rendered 030 tfvars
+cpu="$(yq -r '.env.hub.cloud_run.cpu' "$CNF/all.env.yaml")"
+mem="$(yq -r '.env.hub.cloud_run.memory' "$CNF/all.env.yaml")"
+for env in dev prd; do
+  line="$(grep -E '^environment_variables ' "$CNF/$env/tf/030-cloud-run-hub.vars.tfvars")"
+  p="$(sed -nE 's/.*"SPOOL_HUB_GOMAXPROCS": "([0-9]+)".*/\1/p' <<<"$line")"
+  l="$(sed -nE 's/.*"SPOOL_HUB_GOMEMLIMIT": "([0-9]+)MiB".*/\1/p' <<<"$line")"
+  [[ -n "$p" && "$p" == "$cpu" ]] && pass "$env GOMAXPROCS $p = cloud_run.cpu $cpu" || fail "$env GOMAXPROCS '$p' != cloud_run.cpu '$cpu'"
+  [[ "$mem" =~ ^([0-9]+)Mi$ ]] && cap="${BASH_REMATCH[1]}" || cap=0
+  [[ -n "$l" ]] && (( l < cap && l * 100 >= cap * 80 )) && pass "$env GOMEMLIMIT ${l}MiB is 80..100 % of ${mem}" || fail "$env GOMEMLIMIT '${l}MiB' vs cloud_run.memory '$mem'"
+done
 
 [[ $fails -eq 0 ]] && echo "PASS: all hub-startup-probe-030.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

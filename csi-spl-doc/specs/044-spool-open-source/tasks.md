@@ -69,3 +69,22 @@ owner's steps at the stage gates.
 | task | what | depends |
 |---|---|---|
 | [ ] T060 | GitHub issues/PRs -> `#spool-hub-devel` bridge for a human maintainer; content framed as data, no agent acts without a maintainer's task (D9, T025) | T025, T050 |
+
+## 5. Contingency: the actions `contingency.md` is missing
+
+Each row is a step of the compromise runbook that has no named action on tree `ca60cfc7` (the grep in
+`contingency.md` §9 found none). Until it lands, that step is the out-of-band command the runbook names, run
+by the owner. No decision needed; none of them runs against GCP without the owner's go for that call.
+
+| task | what | runbook step |
+|---|---|---|
+| [ ] T070 | `do_oss_security_signals`, read-only: `v*` tags not minted by a workflow 20 / 30 run, runner jobs from forks or unknown refs, open secret-scanning alerts on the public and the ops repo | §1.1 |
+| [ ] T071 | Revoke the `GCP_KEY_CSI_SPL_<ENV>` GitHub Actions secrets (`gh secret delete`, per env, dry run default) | §2.1 |
+| [ ] T072 | Rotate a per-env project SA key: mint a new key, re-publish via 120, delete the old key ids, SA kept (`do_gcp_002_*` only create or delete the SA) | §2.2 |
+| [ ] T073 | Mint + rotate the relay SA key as actions (today the gcloud lines of feature doc §6.3) | §2.3, §3.3.8 |
+| [ ] T074 | Rotate the hub runtime DB password (`do_spl_db_owner_split` rotates only the owner's) | §2.4 |
+| [ ] T075 | Rotate the session key and the box-wui key on purpose (the seed actions mint only into an empty slot) | §2.6 |
+| [ ] T076 | `do_oss_runners_remove`: every self-hosted runner off every repo and out of the org runner group (`do_oss_runners_move` only moves) | §2.8 |
+| [ ] T077 | A daily copy of the 045 dumps OUT of the project (the 045 bucket dies with the project) | §3.1, §4.1 |
+| [ ] T078 | `do_spl_db_restore`: a dump into a new 040 instance as the schema owner, RLS-safe, then the `do_spl_db_backup_verify` comparison (`do_gcp_import_to_cloudsql` is a csi-rel port with this estate's wrong cnf keys and secret names) | §4.2 |
+| [ ] T079 | A timed destroy/re-create drill on dev that replaces the RTO estimate with a measurement | §4.3 |

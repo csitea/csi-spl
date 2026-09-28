@@ -179,3 +179,13 @@ agent (no bridge exists, FR-OS-015).
 | FR-OS-015 | Untrusted-input rule: public text (issues, PR bodies, comments) never reaches a credentialed agent as an instruction; it is framed as data, like the desk's non-owner framing, and no agent acts on it without an owner-originated task | must | Planned | SPL-1017 |
 | FR-OS-017 | Per-agent prompt allow-list, enforced by the HUB: a DM, an @mention or a task reaches an agent only from a principal on its list. Principals are a member id (proven by the session; humans hold no key) or a box id (proven by the pin signature the box already carries, spec 004); everything else is refused. ~4-6 agent-days (CLE-35048, `bc3d20b7`). Until it lands, SECURITY.md states the limitation | must, first Stage 3 item (D10) | Planned | SPL-1018 |
 | FR-OS-016 | The client licence split per D2: a client binary/module that does not import hub, store or billing code, enforced by an import test | must if D2 = split | Planned | SPL-1022 |
+
+## 8. Contingency: compromise -> destroy and re-create
+
+The owner, 2026-09-28: the repo goes public as one repo, and "if somebody manages to hack us - we destroy the
+infra and re-create all over". The runbook is `contingency.md`: detect and decide (the owner decides),
+contain (rotate every credential), destroy and re-create the GCP estate through the tf-runner steps, restore
+the data (RPO 24 h from workflow 45; RTO ~3-4 h per env, an estimate until T079 measures it), re-seat the
+fleet, verify, post-mortem. Its §7 names the one exposure re-creating cannot undo: the self-hosted runner
+box, which is why the runners are hardened before the flip (FR-OS-005). Every step without an action yet is a
+task in `tasks.md` §5 (T070..T079).

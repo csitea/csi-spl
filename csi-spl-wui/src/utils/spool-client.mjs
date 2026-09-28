@@ -1,7 +1,6 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
-import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
 import {
   channelReadQuery,
@@ -396,7 +395,9 @@ export function createSpoolClient({
     return mockIssues
   }
   let mockDir = null
-  const dir = () => (mockDir ||= createMockDirectory())
+  const dir = async () => (mockDir ||= (await import('./tenant-users-mock.mjs')).createMockDirectory())
+  let mockTenant = null
+  const tenantMock = async () => (mockTenant ||= (await import('./tenant-settings-mock.mjs')).createMockTenant())
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
   let viewDoor = String(door || '')
@@ -833,13 +834,13 @@ export function createSpoolClient({
      * the roles the caller may grant. members.invite (admin) only.
      */
     async listTenantUsers() {
-      if (mock) return dir().list()
+      if (mock) return (await dir()).list()
       return live('/v1/members')
     },
     /** POST /v1/members/invites: invite + invitation mail. `locale` rides as X-Locale for the mail. */
     async inviteTenantUser({ email, role, locale } = {}) {
       const body = { email: String(email || '').trim(), ...(role ? { role: String(role) } : {}) }
-      if (mock) return dir().invite(body.email, body.role)
+      if (mock) return (await dir()).invite(body.email, body.role)
       return live('/v1/members/invites', {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(locale ? { 'x-locale': String(locale) } : {}) },
@@ -849,7 +850,7 @@ export function createSpoolClient({
     /** PUT /v1/members/{id}/role; `fromRole` makes a stale page answer 409 role_changed. */
     async setTenantUserRole(humanId, role, fromRole = '') {
       const id = String(humanId || '')
-      if (mock) return dir().setRole(id, String(role || ''))
+      if (mock) return (await dir()).setRole(id, String(role || ''))
       return live(`/v1/members/${encodeURIComponent(id)}/role`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -859,14 +860,62 @@ export function createSpoolClient({
     /** DELETE /v1/members/{id}: remove a member from the tenant. */
     async removeTenantUser(humanId) {
       const id = String(humanId || '')
-      if (mock) return dir().remove(id)
+      if (mock) return (await dir()).remove(id)
       return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
     /** DELETE /v1/members/invites?email=: revoke a pending invite. */
     async revokeTenantInvite(email) {
       const e = String(email || '').trim()
-      if (mock) return dir().revoke(e)
+      if (mock) return (await dir()).revoke(e)
       return live(`/v1/members/invites?email=${encodeURIComponent(e)}`, { method: 'DELETE' })
+    },
+    /**
+     * PATCH /v1/members/{id} (specs/046): { display_name?, locale?, disabled? }.
+     * disabled suspends the member in THIS tenant only.
+     */
+    async patchTenantUser(humanId, patch = {}) {
+      const id = String(humanId || '')
+      if (mock) return (await dir()).patch(id, patch)
+      return live(`/v1/members/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+    },
+    /** GET /v1/tenant/settings (specs/046, tenant.settings): name, default locale, responders. */
+    async getTenantSettings() {
+      if (mock) return (await tenantMock()).settings()
+      return live('/v1/tenant/settings')
+    },
+    /** PATCH /v1/tenant/settings { display_name?, default_locale?, responders? } → the new settings. */
+    async patchTenantSettings(patch = {}) {
+      if (mock) return (await tenantMock()).patch(patch)
+      return live('/v1/tenant/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+    },
+    /** GET /v1/tenant/channels: every channel of the tenant (private ones too), admin view. */
+    async listTenantChannels() {
+      if (mock) return (await tenantMock()).channels()
+      return live('/v1/tenant/channels')
+    },
+    /** PATCH /v1/tenant/channels/{ch} { no_fallback }. */
+    async setTenantChannelNoFallback(channel, off) {
+      const ch = String(channel || '')
+      if (mock) return (await tenantMock()).setNoFallback(ch, off)
+      return live(`/v1/tenant/channels/${encodeURIComponent(ch)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ no_fallback: Boolean(off) }),
+      })
+    },
+    /** DELETE /v1/tenant/channels/{ch}: archive a channel without being its creator. */
+    async archiveTenantChannel(channel) {
+      const ch = String(channel || '')
+      if (mock) return (await tenantMock()).archive(ch)
+      return live(`/v1/tenant/channels/${encodeURIComponent(ch)}`, { method: 'DELETE' })
     },
     /**
      * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,

@@ -97,6 +97,22 @@
               <span>{{ t('user_menu.settings') }}</span>
             </NuxtLink>
           </li>
+          <!-- SPL-1037 (specs/046): Tenant settings for admins and biz_owners;
+               on desktop the same entry is the sidebar's bottom-left icon -->
+          <li v-if="tenantSettingsShown" role="none">
+            <NuxtLink
+              ref="itemTenant"
+              role="menuitem"
+              tabindex="-1"
+              class="user-menu__item"
+              data-test="user-menu-tenant-settings"
+              :to="localePath('/tenant-settings')"
+              @click="close(false)"
+            >
+              <UiIcon name="building" :size="18" />
+              <span>{{ t('tenant_settings.title') }}</span>
+            </NuxtLink>
+          </li>
           <li role="none">
             <button
               ref="item1"
@@ -140,6 +156,7 @@ const NotificationCenter = defineAsyncComponent(() => import('@/components/Notif
 const ConnectionStatus = defineAsyncComponent(() => import('@/components/ConnectionStatus.vue'))
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
+import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
@@ -154,6 +171,7 @@ const { t } = useI18n({ useScope: 'global' })
 const menuId = 'user-menu-panel'
 
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
+const tenantSettingsShown = computed(() => signedIn.value && tenantSettingsVisible(access.me))
 // specs/025 FR-008: the member's role in the active tenant, under the name.
 watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
 const me = computed(() => userIdentity(session.claims))
@@ -183,9 +201,10 @@ const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const item0 = ref<{ $el: HTMLElement } | null>(null)
 const item1 = ref<HTMLButtonElement | null>(null)
+const itemTenant = ref<{ $el: HTMLElement } | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemTenant.value?.$el, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The

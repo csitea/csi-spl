@@ -502,6 +502,18 @@
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
       <div class="foot-row">
+        <!-- SPL-1037 (specs/046): Tenant settings, bottom-left, admins and
+             biz_owners only (owner 2026-09-28) -->
+        <NuxtLink
+          v-if="tenantSettingsShown"
+          class="foot-tenant"
+          data-testid="tenant-settings-open"
+          :to="localePath('/tenant-settings')"
+          :title="t('tenant_settings.title')"
+          :aria-label="t('tenant_settings.title')"
+        >
+          <UiIcon name="building" :size="16" />
+        </NuxtLink>
         <div
           class="health"
           data-testid="connection-health"
@@ -603,6 +615,7 @@ import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
 import { MOVE_MIME, decodeMoveDrag, hasMoveType, isChannelDropTarget } from '~/utils/move.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
+import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
@@ -726,6 +739,7 @@ const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
 const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
 /* CLE-34969: Users after flow, only when the hub lists members.invite. */
 const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
+const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
 const rail = computed(() => (usersVisible.value
   ? [...RAIL.value, { id: USERS_TAB as SideTab, icon: 'users' as UiIconName, labelKey: 'sidebar.users' }]
   : RAIL.value))
@@ -1389,6 +1403,18 @@ async function onCreate() {
 .nav-row--move-over { background: var(--color-selected); outline-style: solid; }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
+/* SPL-1037: the Tenant settings icon, first on the row = the bottom-left corner */
+.foot-row .foot-tenant {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 8px);
+  color: var(--color-muted);
+}
+.foot-row .foot-tenant:hover { color: var(--color-fg); background: var(--color-surface-hover); }
+.foot-row .foot-tenant.router-link-active { color: var(--color-fg); }
 /* owner 2026-09-27 (topic 86a570ea): on phones the connection is in the
    avatar sheet with the bell and the note - not on the start screen */
 @media (max-width: 820px) {

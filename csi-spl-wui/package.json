@@ -31,6 +31,7 @@
     "test:e2e:issues-views": "node tests/e2e/issues-views.test.mjs",
     "test:e2e:issues-mobile": "node tests/e2e/issues-mobile.test.mjs",
     "test:e2e:users": "node tests/e2e/users-admin.test.mjs",
+    "test:e2e:tenant-settings": "node tests/e2e/tenant-settings.test.mjs",
     "test:e2e:no-x-scroll": "node tests/e2e/no-x-scroll.test.mjs",
     "test:e2e:tenant-switcher": "node tests/e2e/tenant-switcher.test.mjs",
     "test:e2e:tenant-list-inset": "node tests/e2e/tenant-list-inset.test.mjs",

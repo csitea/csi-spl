@@ -77,6 +77,12 @@ declare module '~/utils/spool-client.mjs' {
     setTenantUserRole(humanId: string, role: string, fromRole?: string): Promise<unknown>
     removeTenantUser(humanId: string): Promise<null>
     revokeTenantInvite(email: string): Promise<null>
+    patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean }): Promise<null>
+    getTenantSettings(): Promise<unknown>
+    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[] }): Promise<unknown>
+    listTenantChannels(): Promise<unknown>
+    setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
+    archiveTenantChannel(channel: string): Promise<null>
     listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string
@@ -1112,7 +1118,7 @@ declare module '~/utils/access.mjs' {
 }
 
 declare module '~/utils/tenant-users.mjs' {
-  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, you: boolean, manageable: boolean }
+  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, suspended: boolean, lastSeen: string, you: boolean, manageable: boolean }
   export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean }
   export type UserRow = UserMember | UserInvite
   export const USERS_PERMISSION: string
@@ -1122,7 +1128,33 @@ declare module '~/utils/tenant-users.mjs' {
   export function memberLabel(row: UserRow | null | undefined): string
   export function userErrorKey(err: unknown): string
   export function looksLikeEmail(s: unknown): boolean
+}
+
+declare module '~/utils/tenant-users-mock.mjs' {
   export function createMockDirectory(now?: () => Date): unknown
+}
+
+declare module '~/utils/tenant-settings-nav.mjs' {
+  export type TenantSection = { id: string, label: string, perm: string }
+  export const TENANT_SETTINGS_SECTIONS: TenantSection[]
+  export const TENANT_SETTINGS_PERMS: string[]
+  export function tenantSettingsSections(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): TenantSection[]
+  export function tenantSettingsVisible(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): boolean
+  export function tenantSettingsSectionOf(path: string): string
+}
+
+declare module '~/utils/tenant-settings.mjs' {
+  export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number }
+  export type TenantChannel = { channel: string, name: string, description: string, visibility: 'default' | 'members', members: number, agents: number, messages: number, noFallback: boolean, createdBy: string, lastTs: string, archivable: boolean }
+  export function normalizeTenantSettings(body: unknown): TenantSettings
+  export function normalizeTenantChannels(body: unknown): TenantChannel[]
+  export function validResponderId(s: unknown): boolean
+  export function moveItem<T>(list: T[], i: number, delta: number): T[]
+  export function tenantSettingsErrorKey(err: unknown): string
+}
+
+declare module '~/utils/tenant-settings-mock.mjs' {
+  export function createMockTenant(): unknown
 }
 
 declare module '~/utils/theme.mjs' {

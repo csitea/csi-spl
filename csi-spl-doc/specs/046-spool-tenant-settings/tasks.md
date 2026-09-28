@@ -25,12 +25,14 @@ Spec: `spec.md`. Lane CLE-35069. `[x]` = on trunk; the sha is the commit that la
 
 ## WUI
 
-- [ ] T010 `/tenant-settings` = the Settings layout (sections by permission), the bottom-left
+- [x] T010 `/tenant-settings` = the Settings layout (sections by permission), the bottom-left
       building icon (sidebar foot) + the avatar-menu row
-- [ ] T011 Members = `<TenantUsers embedded />` (the /users list and pane, shared): suspend /
+- [x] T011 Members = `<TenantUsers embedded />` (the /users list and pane, shared): suspend /
       restore, name + language, last seen, resend invite
-- [ ] T012 Agents (roster + online, responder list editor), Channels (table, no-fallback,
+- [x] T012 Agents (roster + online, responder list editor), Channels (table, no-fallback,
       archive with a confirm), General (name, default locale)
-- [ ] T013 unit `tenant-settings.test.mjs`, e2e `tenant-settings.test.mjs` (mock bundle)
+- [x] T013 unit `tenant-settings.test.mjs`, e2e `tenant-settings.test.mjs` (mock bundle, 18/18; in the
+      10 gate; `PROVE_RED=no-archive` turns check 11 red). Mocks load lazily
+      (`tenant-users-mock.mjs`, `tenant-settings-mock.mjs`): initial JS 159.8 KB <= 160
 - [ ] T014 live proof in prd tenant `e2e`: an admin invites, changes a role, removes; a plain
       member sees no entry and gets 403 (the control)

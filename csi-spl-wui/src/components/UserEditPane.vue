@@ -61,6 +61,12 @@
           <dd><code data-test="users-pane-id">{{ member.humanId }}</code></dd>
           <dt>{{ t('users.since') }}</dt>
           <dd>{{ when(member.since) }}</dd>
+          <dt>{{ t('users.last_seen') }}</dt>
+          <dd data-test="users-pane-last-seen">{{ member.lastSeen ? when(member.lastSeen) : t('users.never') }}</dd>
+          <template v-if="member.suspended">
+            <dt>{{ t('users.status') }}</dt>
+            <dd data-test="users-pane-suspended">{{ t('users.suspended') }}</dd>
+          </template>
         </dl>
         <p v-if="!member.manageable" class="muted users-note" data-test="users-pane-locked">
           {{ member.you ? t('users.not_manageable_self') : t('users.not_manageable_role') }}
@@ -82,6 +88,32 @@
             {{ t('users.save_role') }}
           </button>
         </form>
+        <!-- specs/046: the profile of an account that is in this tenant alone
+             (the hub answers 409 shared_account otherwise) -->
+        <form v-if="member.manageable" class="users-form" data-test="users-profile-form" @submit.prevent="saveProfile">
+          <label class="users-field">
+            <span>{{ t('users.name') }}</span>
+            <input v-model="profileName" type="text" maxlength="200" autocomplete="off" data-test="users-pane-name-input">
+          </label>
+          <div class="users-field">
+            <span id="users-pane-locale-label">{{ t('users.language') }}</span>
+            <LocaleCombobox v-model="profileLocale" test-prefix="users-pane-locale" labelled-by="users-pane-locale-label" />
+          </div>
+          <button type="submit" class="btn" :disabled="busy || !profileDirty" data-test="users-pane-save-profile">
+            {{ t('users.save_profile') }}
+          </button>
+          <small class="muted">{{ t('users.profile_hint') }}</small>
+        </form>
+        <button
+          v-if="member.manageable"
+          type="button"
+          class="btn ghost"
+          :disabled="busy"
+          data-test="users-pane-suspend"
+          @click="toggleSuspend"
+        >
+          {{ member.suspended ? t('users.restore') : t('users.suspend') }}
+        </button>
         <button
           type="button"
           class="btn ghost users-danger"
@@ -105,6 +137,15 @@
           <dt>{{ t('users.expires') }}</dt>
           <dd>{{ when(invite.expiresAt) }}<template v-if="invite.expired"> · {{ t('users.expired') }}</template></dd>
         </dl>
+        <button
+          type="button"
+          class="btn"
+          :disabled="busy"
+          data-test="users-pane-resend"
+          @click="resend"
+        >
+          {{ t('users.resend') }}
+        </button>
         <button
           type="button"
           class="btn ghost users-danger"
@@ -143,6 +184,7 @@
 
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
+import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { roleLabelKey } from '~/utils/access.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
@@ -177,6 +219,9 @@ const title = computed(() => {
 const email = ref('')
 const inviteRole = ref('developer')
 const memberRole = ref('')
+const profileName = ref('')
+const profileLocale = ref('')
+const profileDirty = computed(() => Boolean(member.value) && (profileName.value.trim() !== (member.value?.displayName || '') || profileLocale.value !== ''))
 const busy = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -191,6 +236,8 @@ watch(() => [props.row?.key, props.creating], () => {
   carry = ''
   confirmOpen.value = false
   memberRole.value = member.value?.role || ''
+  profileName.value = member.value?.displayName || ''
+  profileLocale.value = ''
   if (props.creating) {
     email.value = ''
     const ids = grantable.value.map((r) => r.id)
@@ -252,6 +299,40 @@ function saveRole() {
     await api.setTenantUserRole(m.humanId, memberRole.value, m.role)
     emit('changed', m.key)
     notice.value = t('users.role_saved')
+  })
+}
+
+function saveProfile() {
+  const m = member.value
+  if (!m) return
+  const patch: { display_name?: string, locale?: string } = {}
+  if (profileName.value.trim() !== m.displayName) patch.display_name = profileName.value.trim()
+  if (profileLocale.value) patch.locale = profileLocale.value
+  void run(async () => {
+    await api.patchTenantUser(m.humanId, patch)
+    emit('changed', m.key)
+    notice.value = t('users.profile_saved')
+  })
+}
+
+function toggleSuspend() {
+  const m = member.value
+  if (!m) return
+  void run(async () => {
+    await api.patchTenantUser(m.humanId, { disabled: !m.suspended })
+    emit('changed', m.key)
+    notice.value = m.suspended ? t('users.restored') : t('users.suspended_notice')
+  })
+}
+
+function resend() {
+  const i = invite.value
+  if (!i) return
+  void run(async () => {
+    const res = await api.inviteTenantUser({ email: i.email, role: i.role, locale: String(locale.value) })
+    carry = res?.mail === 'sent' ? t('users.invited', { email: i.email }) : t('users.invite_saved_no_mail', { email: i.email })
+    notice.value = carry
+    emit('changed', i.key)
   })
 }
 

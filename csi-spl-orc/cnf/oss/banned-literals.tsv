@@ -10,7 +10,9 @@ other-org	another organisation prefix	(?i)\bbnc(-[a-z0-9]+)*\b
 private-host	hosted product domain	(?i){{cnf:.env.dns.BASE_DOMAIN}}
 private-host	org domain	(?i)csitea\.net
 private-host	Cloud Run default host	(?i)[a-z0-9-]+\.[a-z]\.run\.app\b
-private-repo	private repo path	(?i)github\.com/csitea/
+# csitea/csi-spl IS the public repo (owner 2026-09-28): its own path is allowed,
+# every other csitea repo stays banned, csi-spl-ops and csi-spl-<x> included
+private-repo	private repo path	(?i)github\.com/csitea/(?!csi-spl(?![-\w]))
 gcp-project	GCP project id	\bcsi-(spl|rel)-(dev|prd)\b
 gcp-sa	service-account e-mail	(?i)iam\.gserviceaccount\.com
 gcp-org	GCP org id key	gcp_org_id

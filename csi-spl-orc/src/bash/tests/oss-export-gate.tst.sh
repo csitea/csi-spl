@@ -12,6 +12,8 @@
 #          - the report names file:line and never the planted value
 #          - the export-side scrub rewrites the exported copy only; a stale
 #            rule is named and never hides a hit
+#          - the real private-repo rule allows csitea/csi-spl itself and bans
+#            every other csitea repo, csi-spl-ops included
 #          - refusals (exit 2): non-empty OUT_DIR, OUT_DIR inside the repo, a
 #            missing required entry, an unsafe entry, a CI gitleaks pin that
 #            drifted from the gate's, a skipped dependency class
@@ -201,6 +203,14 @@ for l in open(sys.argv[1]):
     if l.strip() and not l.startswith('#'):
         c, lab, rx = l.rstrip('\n').split('\t'); re.compile(re.sub(r"\{\{cnf:[^}]+\}\}", "x", rx))
 EOF
+python3 - "$PROJ_ROOT/cnf/oss/banned-literals.tsv" <<'PY' && ok "the real private-repo rule: csi-spl allowed, every other csitea repo banned" || no "the real private-repo rule is wrong"
+import re, sys
+rx = [re.compile(l.rstrip('\n').split('\t')[2]) for l in open(sys.argv[1]) if l.startswith('private-repo\t')]
+hit = lambda t: any(r.search(t) for r in rx)
+allowed = ["github.com/csitea/csi-spl/csi-spl-api/src/go/spool-hub-api", "https://github.com/csitea/csi-spl", "github.com/csitea/csi-spl.git"]
+banned = ["github.com/csitea/csi-spl-ops", "github.com/csitea/csi-spl-ops/x", "GitHub.com/csitea/csi-spl_x", "github.com/csitea/csi-rel", "github.com/csitea/csi-splx", "github.com/csitea/"]
+sys.exit(0 if rx and not any(map(hit, allowed)) and all(map(hit, banned)) else 1)
+PY
 # the estate values stay in cnf only (the iac domain-single-source and
 # gcloud-account-pinned gates): the real rules name them by {{cnf:...}}
 cnf_real="$REPO_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"

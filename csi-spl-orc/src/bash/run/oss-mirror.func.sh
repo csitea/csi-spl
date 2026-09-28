@@ -119,7 +119,13 @@ do_oss_mirror() {
     first=0; n=$((n + 1))
     rm -rf "$work/tree" "$work/tree.oss-gate-report.tsv"
     rc=0
-    OUT_DIR="$work/tree" OSS_REF="$c" OSS_ALLOW_LIST="$list" OSS_EXPORT_SCRUB="$scrub" do_oss_export >"$work/gate.log" 2>&1 || rc=$?
+    # npm licences come from THIS checkout's node_modules, which match only
+    # its own lockfile: an older commit of the batch is measured against it
+    # (a licence is not a leak), the newest one exactly
+    local nm=""
+    [[ "$c" != "$head" && -d "$repo/csi-spl-wui/node_modules" ]] && nm="$repo/csi-spl-wui/node_modules"
+    OUT_DIR="$work/tree" OSS_REF="$c" OSS_ALLOW_LIST="$list" OSS_EXPORT_SCRUB="$scrub" OSS_GATE_NODE_MODULES="$nm" \
+      do_oss_export >"$work/gate.log" 2>&1 || rc=$?
     if ((rc == 1)); then
       do_log "WARN ${c:0:8} FAILS the gate ($(grep -E '^TOTAL' "$work/gate.log" | tr '\t' ' ')): NOT published, folded into the next commit that passes (report: $work/tree.oss-gate-report.tsv)"
       cp -f "$work/tree.oss-gate-report.tsv" "$work/gate-fail.${c:0:12}.tsv" 2>/dev/null

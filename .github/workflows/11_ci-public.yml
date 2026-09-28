@@ -1,0 +1,182 @@
+# ci: the public quality gate of the product tree.
+#
+# GitHub-hosted runners only, no secret, read-only token: this is the CI a
+# contributor's pull request runs (after a maintainer approves the run - the
+# repository requires approval for outside contributors). It checks the
+# product as published: the hub suite, the WUI unit tests + typecheck, and
+# the WUI browser e2e against a generated mock bundle.
+#
+# Runs only while the repository is PUBLIC: the private working repository
+# carries this file too and runs its own, fuller gate on its own runners.
+
+name: "11 ci: public quality gate"
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-public-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  hub-suite:
+    name: "hub: gofmt, go vet, go test, smoke"
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      - name: Download Go modules (the suite runs with GOPROXY=off)
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      - name: Cache the fake-gcs emulator image
+        run: |
+          img=fsouza/fake-gcs-server:1.52.2
+          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
+          exit 1
+
+      - name: run-all-tests.sh
+        run: bash csi-spl-api/src/bash/tests/run-all-tests.sh
+
+  wui-suite:
+    name: "wui: unit tests + typecheck"
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: pnpm install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm run test:unit
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+  wui-e2e:
+    name: "wui: browser e2e (mock, generated)"
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: pnpm install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Chrome is on the runner (a skip is a failure)
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          [[ -n "$chrome" ]] || { echo "::error::no google-chrome on the runner"; exit 1; }
+          echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
+          "$chrome" --version
+
+      - name: nuxt generate (mock tenant)
+        env:
+          NUXT_PUBLIC_USE_MOCK: "1"
+          NUXT_PUBLIC_DEFAULT_LOCALE: "en"
+        run: pnpm run generate
+
+      - name: Browser e2e (mock bundle, signed-out API stub)
+        env:
+          CI: "1"
+        run: |
+          set -euo pipefail
+          read -r web_port api_port < <(python3 -c 'import socket
+          s=[socket.socket() for _ in range(2)]
+          [x.bind(("127.0.0.1",0)) for x in s]
+          print(*[x.getsockname()[1] for x in s])')
+          python3 - "$api_port" <<'PY' >"$RUNNER_TEMP/wui-e2e-api.log" 2>&1 &
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class H(BaseHTTPRequestHandler):
+              def _send(self, code, body):
+                  self.send_response(code)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.end_headers()
+                  self.wfile.write(body)
+              def do_GET(self):
+                  p = self.path.split("?")[0]
+                  if p == "/api/v1/auth/session":
+                      return self._send(401, b'{"error":"unauthenticated"}')
+                  if p == "/api/v1/auth/providers":
+                      return self._send(200, b'{"native":false,"providers":[]}')
+                  self._send(404, b'{"error":"not_found"}')
+              def do_OPTIONS(self):
+                  self.send_response(204)
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+                  self.send_header("Access-Control-Allow-Headers", "*")
+                  self.end_headers()
+              def log_message(self, *a):
+                  pass
+          import sys
+          HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+          PY
+          api_pid=$!
+          node src/node/test/serve-generated.mjs --port "$web_port" --api "http://127.0.0.1:$api_port" \
+            >"$RUNNER_TEMP/wui-e2e-serve.log" 2>&1 &
+          serve_pid=$!
+          trap 'kill "$api_pid" "$serve_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" && break
+            sleep 0.25
+          done
+          curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" \
+            || { echo "::error::generated bundle not serving"; cat "$RUNNER_TEMP/wui-e2e-serve.log"; exit 1; }
+          export BASE_URL="http://127.0.0.1:$web_port"
+          pnpm run test:e2e
+          pnpm run test:e2e:console-errors
+          pnpm run test:e2e:topic-pane
+          pnpm run test:e2e:mobile-stack
+          pnpm run test:e2e:msg-edit
+          pnpm run test:e2e:names-not-ids

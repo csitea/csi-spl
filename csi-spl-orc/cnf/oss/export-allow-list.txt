@@ -14,6 +14,9 @@ LICENSE
 # T001 standalone stack (CLE-35051): builds from api/rdb/wui only
 # its CI (GitHub-hosted, contents: read, no secret); never the whole .github
 .github/workflows/50_oss-standalone.yml
+# the public quality gate (CLE-35070): GitHub-hosted, no secret, runs only
+# while the repo is public
+.github/workflows/11_ci-public.yml
 docker-compose.yml
 .env.example
 ?example.env.yaml

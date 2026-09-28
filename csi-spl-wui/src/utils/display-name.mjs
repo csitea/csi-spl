@@ -48,3 +48,21 @@ export async function applyDisplayName(raw, { current, save, apply }) {
   apply(echoed)
   return { ok: true, name: echoed }
 }
+
+/**
+ * Two id -> display name maps hold the same pairs (key order ignored).
+ * useHumanNames compared two JSON.stringify strings per mount for this.
+ *
+ * @param {Record<string, string> | null | undefined} a
+ * @param {Record<string, string> | null | undefined} b
+ */
+export function sameNames(a, b) {
+  const x = a || {}
+  const y = b || {}
+  const keys = Object.keys(x)
+  if (keys.length !== Object.keys(y).length) return false
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(y, k) || x[k] !== y[k]) return false
+  }
+  return true
+}

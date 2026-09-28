@@ -1190,6 +1190,7 @@ declare module '~/utils/theme.mjs' {
 
 declare module '~/utils/display-name.mjs' {
   export const MAX_DISPLAY_NAME: number
+  export function sameNames(a: Record<string, string> | null | undefined, b: Record<string, string> | null | undefined): boolean
   export function validDisplayName(raw: unknown): { ok: boolean, name: string }
   export function applyDisplayName(
     raw: unknown,

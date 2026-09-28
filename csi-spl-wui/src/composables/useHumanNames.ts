@@ -1,7 +1,16 @@
+import { effectScope } from 'vue'
 import { forgetRosterRead, loadHumanNames } from '~/utils/avatar.mjs'
 import { personLabel } from '~/utils/channel-feed.mjs'
+import { sameNames } from '~/utils/display-name.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
+
+/* One sign-in watcher and one in-flight read for the whole tab (CLE-35075).
+   Every card, avatar, badge and text run calls useHumanNames() - about seven
+   per card - and each call used to add its own session watcher, so a sign-in
+   forgot the roster read and read it again once PER INSTANCE. */
+let wired = false
+let inFlight: Promise<void> | null = null
 
 /**
  * The display names members chose (Settings > Profile), from the roster the
@@ -13,11 +22,17 @@ export function useHumanNames() {
   const api = useSpoolApi()
   const names = useState<Record<string, string>>('spool.human-names', () => ({}))
 
-  async function load(force = false) {
-    if (api.mock) return
+  function load(force = false): Promise<void> {
+    if (api.mock) return Promise.resolve()
+    /* a mount while a read is on its way shares it; a forced read never
+       joins an older one, it starts after forgetting the cached roster */
+    if (inFlight && !force) return inFlight
     if (force) forgetRosterRead()
-    const got = await loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
-    if (JSON.stringify(got) !== JSON.stringify(names.value)) names.value = got
+    const p = loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
+      .then((got: Record<string, string>) => { if (!sameNames(got, names.value)) names.value = got })
+    const run = p.finally(() => { if (inFlight === run) inFlight = null })
+    inFlight = run
+    return run
   }
 
   /* The roster needs a member session: signed in already, read on mount;
@@ -25,7 +40,12 @@ export function useHumanNames() {
      Before either, a read is only a 401. */
   const session = useSessionStore()
   onMounted(() => { if (session.state === 'in') void load() })
-  watch(() => session.state, (now, before) => { if (now === 'in' && before !== 'in') void load(true) })
+  if (import.meta.client && !wired) {
+    wired = true
+    effectScope(true).run(() => {
+      watch(() => session.state, (now, before) => { if (now === 'in' && before !== 'in') void load(true) })
+    })
+  }
 
   function label(id: string, box?: string) {
     return personLabel(id, box, names.value)

@@ -3,32 +3,38 @@
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
-         event log), then Users for admins. Icons only; each name lives on
-         aria-label and title. Dragging an icon reorders; a click navigates. -->
+         event log). Icons only; each name lives on aria-label and title.
+         Dragging an icon reorders; a click navigates. Owner 2026-09-28
+         (topic bea3a4e6): the app settings gear sits at the foot of this
+         strip (no longer on the footer row beside the version), and Users
+         is not a strip icon - the users CRUD is Settings -> Members. -->
     <div
       ref="railEl"
       class="sidebar-rail"
-      role="tablist"
-      aria-orientation="vertical"
-      :aria-label="railLabel"
       data-testid="sidebar-rail"
     >
+      <div
+        class="sidebar-rail__tabs"
+        role="tablist"
+        aria-orientation="vertical"
+        :aria-label="railLabel"
+      >
       <button
         v-for="item in rail"
         :id="'sidebar-tab-' + item.id"
         :key="item.id"
         type="button"
         class="sidebar-tab"
-        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': item.id !== USERS_TAB }"
+        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': true }"
         role="tab"
         :data-testid="'sidebar-tab-' + item.id"
-        :data-reorder-id="item.id !== USERS_TAB ? item.id : undefined"
+        :data-reorder-id="item.id"
         :aria-selected="tab === item.id ? 'true' : 'false'"
         :aria-controls="'sidebar-panel-' + item.id"
         :tabindex="tab === item.id ? 0 : -1"
         :aria-label="t(item.labelKey)"
         :title="t(item.labelKey)"
-        @pointerdown="item.id !== USERS_TAB && railDrag.down($event, item.id as RailId)"
+        @pointerdown="railDrag.down($event, item.id as RailId)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
       >
@@ -37,6 +43,19 @@
         <span class="sidebar-tab__label" aria-hidden="true">{{ t(item.labelKey) }}</span>
         <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
+      </div>
+      <!-- SPL-1037 (specs/046): the app / tenant settings, admins and
+           biz_owners only; owner 2026-09-28: a gear -->
+      <NuxtLink
+        v-if="tenantSettingsShown"
+        class="sidebar-rail__settings"
+        data-testid="tenant-settings-open"
+        :to="localePath('/tenant-settings')"
+        :title="t('tenant_settings.title')"
+        :aria-label="t('tenant_settings.title')"
+      >
+        <UiIcon name="settings" :size="20" />
+      </NuxtLink>
     </div>
     <div class="sidebar-body">
       <div
@@ -485,38 +504,10 @@
         <h2>{{ t('sidebar.events') }}</h2>
         <NuxtLink class="nav-row" data-testid="sidebar-events-open" :to="localePath('/events')">{{ t('events.title') }}</NuxtLink>
       </div>
-      <!-- the admin's Users (members.invite only); the list and
-           the edit form live on /users -->
-      <div
-        v-if="usersVisible && (tab === 'users' || tabsWarm)"
-        v-show="tab === 'users'"
-        id="sidebar-panel-users"
-        class="sidebar-panel"
-        role="tabpanel"
-        aria-labelledby="sidebar-tab-users"
-        data-testid="sidebar-panel-users"
-      >
-        <h2>{{ t('sidebar.users') }}</h2>
-        <p class="muted sidebar-users-hint">{{ t('users.sidebar_hint') }}</p>
-        <NuxtLink class="nav-row" data-testid="sidebar-users-open" :to="localePath('/users')">{{ t('users.title') }}</NuxtLink>
-      </div>
     <div class="sidebar-foot">
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
       <div class="foot-row">
-        <!-- SPL-1037 (specs/046): Tenant settings, bottom-left, admins and
-             biz_owners only (owner 2026-09-28) -->
-        <NuxtLink
-          v-if="tenantSettingsShown"
-          class="foot-tenant"
-          data-testid="tenant-settings-open"
-          :to="localePath('/tenant-settings')"
-          :title="t('tenant_settings.title')"
-          :aria-label="t('tenant_settings.title')"
-        >
-          <!-- owner 2026-09-28: "the icon for the settings should be a зъбно колело" (a gear) -->
-          <UiIcon name="settings" :size="16" />
-        </NuxtLink>
         <div
           class="health"
           data-testid="connection-health"
@@ -617,7 +608,6 @@ import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
 import { isChannelDropTarget } from '~/utils/move.mjs'
-import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -740,12 +730,10 @@ const localePath = useLocalePath()
    sidebar keeps the icon rail and the issue list takes the width. */
 const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
 const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
-/* Users after flow, only when the hub lists members.invite. */
-const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
+/* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
+   reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
-const rail = computed(() => (usersVisible.value
-  ? [...RAIL.value, { id: USERS_TAB as SideTab, icon: 'users' as UiIconName, labelKey: 'sidebar.users' }]
-  : RAIL.value))
+const rail = computed(() => RAIL.value)
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
@@ -787,7 +775,6 @@ async function selectTab(next: SideTab) {
     return
   }
   if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
-  if (next === USERS_TAB && tabForPath(route.path) !== USERS_TAB) await navigateTo(localePath('/users'))
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
@@ -1223,6 +1210,26 @@ async function onCreate() {
   max-width: var(--sidebar-w);
 }
 .sidebar.sidebar--rail .sidebar-body { display: none; }
+/* the tablist is only a semantic wrapper: the tabs stay flex items of the strip */
+.sidebar-rail__tabs { display: contents; }
+/* the settings gear: the foot of the strip (bottom-left of the screen) */
+.sidebar-rail__settings {
+  margin-block-start: auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  container-type: size;
+}
+.sidebar-rail__settings:hover { background: var(--color-surface-hover); color: var(--color-fg); }
+.sidebar-rail__settings.router-link-active { color: var(--color-fg); }
+.sidebar-rail__settings :deep(svg) {
+  width: min(22px, 70cqi);
+  height: min(22px, 70cqi);
+}
 /* The strip owns the width (main.css, at most 5vw). These buttons fill
    that width and must not impose a 32px min that would push past the cap. */
 .sidebar-tab {
@@ -1402,18 +1409,6 @@ async function onCreate() {
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
-/* SPL-1037: the Tenant settings icon, first on the row = the bottom-left corner */
-.foot-row .foot-tenant {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm, 8px);
-  color: var(--color-muted);
-}
-.foot-row .foot-tenant:hover { color: var(--color-fg); background: var(--color-surface-hover); }
-.foot-row .foot-tenant.router-link-active { color: var(--color-fg); }
 /* owner 2026-09-27 (topic 86a570ea): on phones the connection is in the
    avatar sheet with the bell and the note - not on the start screen */
 @media (max-width: 820px) {
@@ -1536,6 +1531,9 @@ async function onCreate() {
   .sidebar-tab__label { display: block; font-size: 0.6875rem; white-space: nowrap; }
   /* a sideways drag scrolls the strip; a long press still reorders */
   .sidebar-tab--movable { touch-action: pan-x; }
+  /* the phone strip: the gear ends the row, a 44 px target */
+  .sidebar-rail__settings { margin-block-start: 0; margin-inline-start: auto; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
+  .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
   .sidebar-body { padding-top: 4px; }
   .nav-row > .nav-item { min-height: 48px; }

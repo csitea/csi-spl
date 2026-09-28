@@ -2,7 +2,8 @@
 // (dev only: it WRITES memberships of test accounts).
 //
 // Session A (ADMIN_EMAIL, an admin of TENANT): the Users icon is on the rail;
-// /users lists the members; a click on MEMBER_EMAIL's row opens its edit pane;
+// the settings gear (rail foot) opens Settings -> Members, which lists the
+// members; a click on MEMBER_EMAIL's row opens its edit pane;
 // change role (MEMBER's role -> tester -> back); remove MEMBER (confirmed);
 // invite MEMBER back with its old role; invite a throwaway THROW_EMAIL, open
 // its row, revoke it (confirmed).
@@ -91,13 +92,16 @@ try {
   const a = await signIn(await browser.createBrowserContext(), ADMIN, 'ADMIN_PW_FILE')
   step('A1 admin signs in', a.ok, { url: a.p.url() })
   const p = a.p
-  const icon = await p.waitForSelector('[data-testid=sidebar-tab-users]', { timeout: 15000 }).catch(() => null)
-  step('A2 admin sees the Users icon', Boolean(icon))
+  /* owner 2026-09-28 (topic bea3a4e6): no Users rail icon; the users CRUD
+     opens from the settings gear at the foot of the rail (Settings -> Members) */
+  step('A2a the rail has no Users icon', !(await p.$('[data-testid=sidebar-tab-users]')))
+  const icon = await p.waitForSelector('.sidebar-rail [data-testid=tenant-settings-open]', { timeout: 15000 }).catch(() => null)
+  step('A2 admin sees the settings gear at the foot of the rail', Boolean(icon))
   if (icon) {
     await icon.click()
     await p.waitForSelector('[data-test=users-row]', { timeout: 20000 }).catch(() => null)
     const api = await apiStatus(p)
-    step('A3 /users lists members; GET /v1/members is 200', p.url().endsWith('/users') && api.status === 200, { url: p.url(), api, rows: (await rowKeys(p)).length })
+    step('A3 Settings -> Members lists members; GET /v1/members is 200', p.url().endsWith('/tenant-settings/members') && api.status === 200, { url: p.url(), api, rows: (await rowKeys(p)).length })
     await p.screenshot({ path: `${OUT}/a-users-list.png` })
     const memberKey = await p.$$eval('[data-test=users-row]', (els, m) => {
       const hit = els.find((e) => e.getAttribute('data-key').startsWith('m:') && e.textContent.toLowerCase().includes(m))

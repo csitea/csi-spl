@@ -363,7 +363,9 @@ async function checkUsers(browser, base, vp) {
       const x = await noXScroll(p)
       ok(`${tag} ${q}: no horizontal page scroll`, x.ok, x)
     }
-    await p.goto(base + '/users', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    /* owner 2026-09-28 (topic bea3a4e6): the users CRUD lives only in
+       Settings -> Members (an old /users link lands there) */
+    await p.goto(base + '/tenant-settings/members', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('[data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
     await sleep(300)
     await p.click('[data-test=users-row]')
@@ -374,18 +376,18 @@ async function checkUsers(browser, base, vp) {
       const col = document.querySelector('.users-col')
       const r = col.getBoundingClientRect()
       const close = document.querySelector('[data-test=users-pane-close]')
-      return { paneW: Math.round(pane.width), vw: window.innerWidth, listShown: getComputedStyle(col).display !== 'none' && r.width > 0,
+      return { paneW: Math.round(pane.width), vw: window.innerWidth, boxW: Math.round(document.querySelector('[data-test=users-page]').getBoundingClientRect().width), listShown: getComputedStyle(col).display !== 'none' && r.width > 0,
         closeShown: close ? getComputedStyle(close).display !== 'none' : false }
     })
     if (vp.mobile) {
-      ok(`${tag} a tap opens the pane alone, full width`, !m.listShown && m.paneW >= m.vw - 2, m)
+      ok(`${tag} a tap opens the pane alone, the full width of the Members section`, !m.listShown && m.paneW >= m.boxW - 2, m)
       ok(`${tag} MobileBack in the pane, no X`, !m.closeShown && await shown(p, '[data-test=users-pane] [data-testid=mobile-back]'), m)
       const x = await noXScroll(p)
       ok(`${tag} pane: no horizontal page scroll`, x.ok, x)
       await p.goBack().catch(() => null)
       await sleep(500)
       const back = await p.evaluate(() => ({ pane: Boolean(document.querySelector('[data-test=users-pane]')), path: location.pathname }))
-      ok(`${tag} browser Back closes the pane, back on the list`, !back.pane && back.path.endsWith('/users') && await shown(p, '.users-col'), back)
+      ok(`${tag} browser Back closes the pane, back on the list`, !back.pane && back.path.endsWith('/tenant-settings/members') && await shown(p, '.users-col'), back)
     } else {
       ok(`${tag} CONTROL: desktop keeps the pane beside the list, with its X`, m.listShown && m.paneW < m.vw / 2 && m.closeShown, m)
     }

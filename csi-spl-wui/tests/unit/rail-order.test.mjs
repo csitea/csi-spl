@@ -132,12 +132,13 @@ describe('wiring', () => {
     assert.match(src, /id !== ARCHIVE_TAB\) sidePane\.setCurrent\(id\)/)
     assert.ok(read('src/pages/archive.vue').length > 0)
   })
-  it('the rail draws the stored order and drags through useDragReorder; Users is not movable', () => {
+  it('the rail draws the stored order and drags through useDragReorder; no Users icon (owner 2026-09-28)', () => {
     const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /useRailOrder\(\)/)
     assert.match(src, /useDragReorder<RailId>\(/)
-    assert.match(src, /@pointerdown="item\.id !== USERS_TAB && railDrag\.down\(/)
-    assert.match(src, /\.\.\.RAIL\.value, \{ id: USERS_TAB/)
+    assert.match(src, /@pointerdown="railDrag\.down\(\$event, item\.id as RailId\)"/)
+    assert.match(src, /const rail = computed\(\(\) => RAIL\.value\)/)
+    assert.doesNotMatch(src, /id: USERS_TAB/)
   })
   it('Settings -> Behaviour lists the same order with up / down and a reset', () => {
     assert.match(read('src/pages/settings/behaviour.vue'), /<RailOrderSetting/)

@@ -87,10 +87,18 @@ describe('the strip is icons, in that order', () => {
     assert.match(tabs, /icon: 'hash'/)
     assert.match(tabs, /icon: 'list'/)
     assert.match(tabs, /icon: 'waves'/)
-    // the rendered rail is RAIL plus Users for members.invite.
+    // owner 2026-09-28 (topic bea3a4e6): the rendered rail is RAIL - no Users
+    // icon (the users CRUD is Settings -> Members) - and the settings gear
+    // sits at the foot of the strip, not on the footer row by the version.
     assert.match(vue, /v-for="item in rail"/)
-    assert.match(vue, /usersVisible\.value\s*\n?\s*\? \[\.\.\.RAIL\.value, \{ id: USERS_TAB/)
-    assert.match(vue, /icon: 'users'/)
+    assert.match(vue, /const rail = computed\(\(\) => RAIL\.value\)/)
+    assert.doesNotMatch(vue, /icon: 'users'/)
+    assert.doesNotMatch(vue, /data-testid="sidebar-panel-users"/)
+    const strip = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
+    assert.match(strip, /class="sidebar-rail__settings"[\s\S]{0,120}data-testid="tenant-settings-open"/)
+    assert.match(strip, /role="tablist"/)
+    const foot = vue.slice(vue.indexOf('<div class="sidebar-foot">'), vue.indexOf('</nav>'))
+    assert.doesNotMatch(foot, /tenant-settings-open/)
     assert.match(vue, /:aria-label="t\(item\.labelKey\)"/)
     assert.match(vue, /:title="t\(item\.labelKey\)"/)
     const rail = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))

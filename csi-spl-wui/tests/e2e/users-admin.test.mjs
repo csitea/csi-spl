@@ -4,8 +4,10 @@
 // users" ... "each of the users should be listed and when clicking on it
 // ... the user edit form should appear".
 //
-// Against the mock bundle (the mock plays an admin, tenant-users.mjs): the
-// Users icon is on the rail; it opens /users; a click on a row opens the
+// Against the mock bundle (the mock plays an admin, tenant-users.mjs): owner
+// 2026-09-28 (topic bea3a4e6), no Users icon on the rail - the users CRUD
+// opens from the settings gear at the foot of the rail (Settings -> Members),
+// and an old /users link lands there; a click on a row opens the
 // edit pane with THAT user's data on USER_PANE_SIDE; change role, remove
 // (confirmed), invite, revoke (confirmed) each land in the list; your own
 // row cannot be removed. The non-admin half (no entry, hub 403) is the
@@ -70,14 +72,22 @@ try {
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
 
-  // 1. the entry, last: flow, then the Event log (owner: "button
-  // after the flow icon"), then Archive (SPL-983, the default order), then
-  // Users, which is never reorderable and always last (SPL-979)
+  // 1. the entry (owner 2026-09-28): no Users icon; the settings gear at the
+  // foot of the rail opens Settings -> Members, the users CRUD
   const rail = await p.$$eval('.sidebar-rail [role=tab]', (els) => els.map((e) => e.getAttribute('data-testid')))
-  ok('1 the rail shows Users last, after Flow, Archive and the Event log', rail.at(-1) === 'sidebar-tab-users' && rail.indexOf('sidebar-tab-flow') === rail.length - 4 && rail.indexOf('sidebar-tab-archive') === rail.length - 3 && rail.indexOf('sidebar-tab-events') === rail.length - 2, rail)
-  await p.click('[data-testid=sidebar-tab-users]')
+  const gear = await p.$eval('.sidebar-rail [data-testid=tenant-settings-open]', (e) => {
+    const r = e.getBoundingClientRect()
+    const tabs = [...document.querySelectorAll('.sidebar-rail [role=tab]')].map((t) => t.getBoundingClientRect().bottom)
+    return { top: Math.round(r.top), belowTabs: tabs.every((b) => b <= r.top + 1), vhGap: Math.round(window.innerHeight - r.bottom) }
+  }).catch(() => null)
+  ok('1 the rail has no Users icon; the settings gear sits at its foot, under every tab', !rail.includes('sidebar-tab-users') && rail.includes('sidebar-tab-flow') && Boolean(gear && gear.belowTabs && gear.vhGap < 80), { rail, gear })
+  await p.click('.sidebar-rail [data-testid=tenant-settings-open]')
   await p.waitForSelector('[data-test=users-page] [data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
-  ok('2 Users opens /users', new URL(p.url()).pathname.endsWith('/users'), p.url())
+  ok('2 the gear opens Settings -> Members, the users list', new URL(p.url()).pathname.endsWith('/tenant-settings/members'), p.url())
+  await p.goto(server.base + '/users', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
+  await p.waitForSelector('[data-test=users-page] [data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('2b an old /users link lands on Settings -> Members', new URL(p.url()).pathname.endsWith('/tenant-settings/members'), p.url())
   const keys = await rowKeys(p)
   ok('3 one row per member and per pending invite', keys.includes('m:HUM-1') && keys.includes('m:HUM-3') && keys.includes('i:pending@example.com'), keys)
   ok('4 no pane before a click', !(await p.$('[data-test=users-pane]')))

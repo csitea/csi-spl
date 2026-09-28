@@ -186,14 +186,9 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	}
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() {
-			continue
+		if isMessageFile(e) {
+			names = append(names, e.Name())
 		}
-		ext := filepath.Ext(e.Name())
-		if ext != ".json" && ext != ".md" {
-			continue
-		}
-		names = append(names, e.Name())
 	}
 	sort.Strings(names)
 
@@ -255,41 +250,13 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	seen := map[string]*msg.Message{}
+	seen := map[string]*msg.Message{} // dedupe: same msg exists in inbox+outbox
 	for _, a := range agents {
 		if !a.IsDir() || !msg.ValidID(a.Name()) {
 			continue
 		}
 		for _, box := range []string{"inbox", "outbox", "archive"} {
-			d := s.dir(a.Name(), box)
-			entries, err := os.ReadDir(d)
-			if err != nil {
-				continue
-			}
-			for _, e := range entries {
-				if e.IsDir() {
-					continue
-				}
-				ext := filepath.Ext(e.Name())
-				if ext != ".json" && ext != ".md" {
-					continue
-				}
-				var m *msg.Message
-				var err error
-				if ext == ".md" {
-					m, err = s.readLegacyMD(filepath.Join(d, e.Name()), a.Name())
-				} else {
-					var raw []byte
-					raw, err = os.ReadFile(filepath.Join(d, e.Name()))
-					if err == nil {
-						m, err = msg.Parse(raw)
-					}
-				}
-				if err != nil || m.TaskID != taskID {
-					continue
-				}
-				seen[m.MsgID] = m // dedupe: same msg exists in inbox+outbox
-			}
+			s.tailBox(s.dir(a.Name(), box), a.Name(), taskID, seen)
 		}
 	}
 	out := make([]*msg.Message, 0, len(seen))
@@ -303,6 +270,43 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 		return out[i].MsgID < out[j].MsgID
 	})
 	return out, nil
+}
+
+// tailBox adds every readable message on taskID in one box dir of owner to
+// seen, keyed by msg id. An unreadable dir or file is skipped.
+func (s *Store) tailBox(dir, owner, taskID string, seen map[string]*msg.Message) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !isMessageFile(e) {
+			continue
+		}
+		m, err := s.parseMessageFile(filepath.Join(dir, e.Name()), owner)
+		if err == nil && m.TaskID == taskID {
+			seen[m.MsgID] = m
+		}
+	}
+}
+
+// isMessageFile: a box holds messages as .json files and legacy .md files.
+func isMessageFile(e fs.DirEntry) bool {
+	ext := filepath.Ext(e.Name())
+	return !e.IsDir() && (ext == ".json" || ext == ".md")
+}
+
+// parseMessageFile reads one box file: a legacy .md through the bridge, a
+// .json parsed as is (Tail shows it without the Validate that Recv applies).
+func (s *Store) parseMessageFile(path, owner string) (*msg.Message, error) {
+	if filepath.Ext(path) == ".md" {
+		return s.readLegacyMD(path, owner)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return msg.Parse(raw)
 }
 
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {

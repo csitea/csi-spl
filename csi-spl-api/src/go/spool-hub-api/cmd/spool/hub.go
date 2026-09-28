@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -337,7 +339,11 @@ func serveUntilDone(ctx context.Context, hc *config.Hub, log zerolog.Logger, srv
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- hs.Serve(ln) }()
-	log.Info().Str("addr", ln.Addr().String()).Msg("hub listening")
+	// The runtime's view of the instance (CLE-35076): Cloud Run gives 1 vCPU,
+	// and a GOMAXPROCS above what the quota allows is CPU throttling in the
+	// tail latency. Logged once, so it can be read rather than assumed.
+	log.Info().Str("addr", ln.Addr().String()).Int("gomaxprocs", runtime.GOMAXPROCS(0)).
+		Int("num_cpu", runtime.NumCPU()).Int64("gomemlimit", debug.SetMemoryLimit(-1)).Msg("hub listening")
 	select {
 	case err := <-errc:
 		return fail(err)

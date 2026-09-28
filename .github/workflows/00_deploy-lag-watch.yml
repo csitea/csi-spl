@@ -115,7 +115,8 @@ jobs:
       - name: Resolve the identity
         run: |
           set -euo pipefail
-          p="${GITHUB_REPOSITORY#*/}-$ENV"
+          # the ops repo (<app>-ops, CLE-35070) deploys the <app> projects
+          p="${GITHUB_REPOSITORY#*/}"; p="${p%-ops}-$ENV"
           if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
           echo "DEPLOY_SA=$sa" >> "$GITHUB_ENV"
 

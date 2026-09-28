@@ -589,7 +589,10 @@
       "error_not_a_card": "Mērķis nav tēma.",
       "error_cycle": "Ziņu nevar pārvietot uz tās pašas pavedienu.",
       "error_unknown_channel": "Šis kanāls jums nav atvērts.",
-      "error_not_found": "Šīs tēmas vairs nav."
+      "error_not_found": "Šīs tēmas vairs nav.",
+      "not_allowed": "nav atļauts",
+      "handle_channel": "Velciet, lai pārvietotu tēmu uz kanālu",
+      "handle_topic": "Velciet, lai pārvietotu ziņu uz tēmu"
     }
   },
   "topic": {

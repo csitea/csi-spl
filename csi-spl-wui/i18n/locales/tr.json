@@ -589,7 +589,10 @@
       "error_not_a_card": "Hedef bir konu değil.",
       "error_cycle": "Bir mesaj kendi dizisine taşınamaz.",
       "error_unknown_channel": "Bu kanal size açık değil.",
-      "error_not_found": "Bu konu artık yok."
+      "error_not_found": "Bu konu artık yok.",
+      "not_allowed": "izin verilmiyor",
+      "handle_channel": "Konuyu bir kanala taşımak için sürükleyin",
+      "handle_topic": "Mesajı bir konuya taşımak için sürükleyin"
     }
   },
   "topic": {

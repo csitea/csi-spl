@@ -9,10 +9,6 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MOVE_MIME,
-  decodeMoveDrag,
-  encodeMoveDrag,
-  hasMoveType,
   isCardDropTarget,
   isChannelDropTarget,
   isMovableTopic,
@@ -137,15 +133,6 @@ describe('drop targets (FR-MV-009)', () => {
   it('the channel picker lists the same set, current one left out', () => {
     assert.deepEqual(moveChannelTargets(channels, 'devel').map((c) => c.channel_id), ['ops', 'alerts'])
     assert.equal(moveChannelTargets(channels, 'devel')[0].name, 'Ops')
-  })
-  it('the drag rides as our own type; anything else decodes to nothing', () => {
-    const d = decodeMoveDrag(encodeMoveDrag(topicDrag))
-    assert.deepEqual(d, topicDrag)
-    assert.equal(decodeMoveDrag('hello'), null)
-    assert.equal(decodeMoveDrag(JSON.stringify({ kind: 'file', msgId: 'x' })), null)
-    assert.equal(hasMoveType(['text/plain', MOVE_MIME]), true)
-    assert.equal(hasMoveType(['Files']), false)
-    assert.equal(MOVE_MIME, 'application/x-spool-move')
   })
 })
 
@@ -315,20 +302,21 @@ describe('menu and wiring', () => {
     assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.id), ['open', 'copy', 'edit', 'delete'], 'control: nothing without the flag')
     assert.equal(msgMenuItems({ moveTopic: true }).find((i) => i.id === 'move-topic').icon, 'move')
   })
-  it('the card drags only with our type, gates on the role rule, and mounts the picker lazily', () => {
+  it('the card drags only from its handle, gates on the role rule, and mounts the picker lazily', () => {
     const card = src('src/components/MessageCard.vue')
     /* the eager card imports only the small half; the rest loads on a move */
     assert.doesNotMatch(card, /move-apply\.mjs/)
-    assert.match(card, /setData\(MOVE_MIME, encodeMoveDrag\(d\)\)/)
     assert.match(card, /mayMoveTopic\(props\.msg, editorId\.value, access\.me, lobbyTask\.value\)/)
     assert.match(card, /<LazyMovePickerDialog\s+v-if="movePicker"/)
-    assert.match(card, /:draggable="dragOn \? 'true' : undefined"/)
-    /* a press in the text selects; only a press elsewhere arms the drag */
-    assert.match(card, /MOVE_NO_DRAG = '\.card-body/)
+    /* SPL-1134: no HTML5 drag left on the row: the handle's pointer stream is the only start */
+    assert.doesNotMatch(card, /draggable=|@dragstart|dataTransfer/)
+    assert.match(card, /class="msg-move-handle"[\s\S]*?@pointerdown\.stop="onHandleDown"/)
+    assert.match(card, /\.msg-move-handle \{[^}]*width: 12px;[^}]*cursor: grab;[^}]*touch-action: none;/)
   })
-  it('the rail takes the drop on channel rows; the shell routes the frames; the toast is lazy', () => {
+  it('the rail rows name themselves as drop rows; the shell routes the frames; the toast is lazy', () => {
     const side = src('src/components/ChannelSidebar.vue')
-    assert.match(side, /@drop="onMoveDrop\(\$event, c\.channel_id\)"/)
+    assert.match(side, /data-move-drop="channel"\s+data-move-scope="channels"\s+:data-move-id="c\.channel_id"/)
+    assert.doesNotMatch(side, /@drop=|dataTransfer/)
     assert.match(side, /isChannelDropTarget\(mover\.drag\.value, id, channel\.channels\)/)
     const layout = src('src/layouts/default.vue')
     assert.match(layout, /move\.dispatch\(f\)/)

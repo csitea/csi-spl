@@ -12,8 +12,9 @@
 //      two rows, the focus stays on that row's menu button; reload keeps it
 //   4  a channel created after the order was stored appears at the END, and
 //      creating it did not write the stored list
-//   5  SPL-1024 still works on the same rows: an own topic card dragged onto
-//      a channel row lights it up and the drop moves it
+//   5  SPL-1024 still works on the same rows: an own topic card dragged by
+//      its handle (SPL-1134) onto a channel row lights it up and the drop
+//      moves it
 //
 // Run:
 //   node tests/e2e/channel-order.test.mjs
@@ -204,31 +205,17 @@ try {
   await p.waitForSelector(midCard(card), { timeout: 10000 })
   await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
   await sleep(400)
-  const drop = await p.evaluate(async ({ source, target }) => {
-    const src = document.querySelector(source)
-    const dst = document.querySelector(target)
-    if (!src || !dst) return { error: 'missing' }
-    const meta = src.querySelector('.msg-meta') || src
-    const r = meta.getBoundingClientRect()
-    meta.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0, isPrimary: true, clientX: r.left + 4, clientY: r.top + 4 }))
-    meta.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0, isPrimary: true }))
-    await new Promise((res) => setTimeout(res, 50))
-    const dt = new DataTransfer()
-    src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    await new Promise((res) => setTimeout(res, 50))
-    const lit = dst.getAttribute('data-move-target')
-    dst.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt })
-    dst.dispatchEvent(over)
-    await new Promise((res) => setTimeout(res, 30))
-    const overClass = dst.className
-    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })
-    dst.dispatchEvent(ev)
-    if (src.isConnected) src.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    return { lit, accepted: over.defaultPrevented, dropped: ev.defaultPrevented, overClass }
-  }, { source: midCard(card), target: railRow('alerts') })
-  ok('5 a topic card dragged onto a channel row lights it up and it takes the drop',
-    drop.lit === 'true' && drop.accepted && drop.dropped && /nav-row--move-over/.test(drop.overClass), drop)
+  /* SPL-1134: a real mouse drag from the card's handle strip (the only start) */
+  const from = await p.$eval(`${midCard(card)} [data-testid=move-handle]`, (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+  const to = await p.$eval(railRow('alerts'), (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+  await p.mouse.move(from.x, from.y)
+  await p.mouse.down()
+  await p.mouse.move(to.x, to.y, { steps: 10 })
+  await sleep(80)
+  const drop = await p.$eval(railRow('alerts'), (e) => ({ ok: e.getAttribute('data-move-ok'), overClass: e.className }))
+  await p.mouse.up()
+  ok('5 a topic card dragged by its handle onto a channel row lights it up',
+    drop.ok === 'true' && /nav-row--move-over/.test(drop.overClass), drop)
   const gone = await until(p, (sel) => !document.querySelector(sel), midCard(card))
   ok('5 the card left its channel', gone)
   ok('5 the topic drop did not reorder the channels', same(await order(p), [...want3, NEW]), await order(p))

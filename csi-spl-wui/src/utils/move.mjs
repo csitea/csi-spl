@@ -2,14 +2,11 @@
 //
 // SPL-1024 (specs/045): move a topic to another channel, a reply to another
 // topic. The hub decides every move (move-v1 §1); this file only decides what
-// to OFFER (which card may be dragged, which rows light up as drop targets,
+// to OFFER (which card may be dragged, which rows may take the drop,
 // which menu entries show) and how a move answer / live frame changes the
 // rows already on screen. Pure: the Node tests import it.
 
 import { isTopicCard, TOPIC_ADMIN_ROLES } from './topic-archive.mjs'
-
-/** The dataTransfer type a move drag carries: a random drag (a file, a link, text) never matches it. */
-export const MOVE_MIME = 'application/x-spool-move'
 
 /** Channels a topic can never move into or out of (spec 3.1): the shared lobby and the issues channel. */
 export const MOVE_BLOCKED_CHANNELS = Object.freeze(['lobby', 'general', 'issues'])
@@ -88,36 +85,6 @@ export function isCardDropTarget(drag, card, lobbyTaskId = '') {
   if (task === String(d.taskId || '') || task === String(d.topicTask || '') || task === String(d.msgId || '')) return false
   if (String(card.msg_id || '') === String(d.msgId || '')) return false
   return true
-}
-
-/** What rides on the drag (dataTransfer, MOVE_MIME). */
-export function encodeMoveDrag(drag) {
-  const d = drag && typeof drag === 'object' ? drag : {}
-  return JSON.stringify({
-    kind: d.kind === 'message' ? 'message' : 'topic',
-    msgId: String(d.msgId || ''),
-    taskId: String(d.taskId || ''),
-    topicTask: String(d.topicTask || ''),
-    channel: moveChan(d.channel),
-  })
-}
-
-/** The drag back from dataTransfer text; null for anything that is not ours. */
-export function decodeMoveDrag(text) {
-  let d
-  try {
-    d = JSON.parse(String(text || ''))
-  } catch {
-    return null
-  }
-  if (!d || typeof d !== 'object' || (d.kind !== 'topic' && d.kind !== 'message') || !d.msgId) return null
-  return { kind: d.kind, msgId: String(d.msgId), taskId: String(d.taskId || ''), topicTask: String(d.topicTask || ''), channel: moveChan(d.channel) }
-}
-
-/** Whether a DragEvent's dataTransfer carries a move (types are readable during dragover). */
-export function hasMoveType(types) {
-  if (!types) return false
-  return Array.from(types).includes(MOVE_MIME)
 }
 
 /**

@@ -528,7 +528,6 @@ declare module '~/utils/msg-menu.mjs' {
 declare module '~/utils/move.mjs' {
   export type MoveDrag = { kind: 'topic' | 'message', msgId: string, taskId: string, topicTask: string, channel: string }
   export type MeLike = { role?: string | null, tenantOwner?: boolean } | null
-  export const MOVE_MIME: string
   export const MOVE_BLOCKED_CHANNELS: readonly string[]
   export function moveChan(v: unknown): string
   export function moveBlocked(channel: unknown): boolean
@@ -537,10 +536,25 @@ declare module '~/utils/move.mjs' {
   export function mayMoveMessage(msg: unknown, viewerId: string, me: MeLike, opts?: { openerId?: string, lobbyTaskId?: string, channel?: string | null }): boolean
   export function isChannelDropTarget(drag: MoveDrag | null, channelId: string, listed?: unknown[] | null): boolean
   export function isCardDropTarget(drag: MoveDrag | null, card: unknown, lobbyTaskId?: string): boolean
-  export function encodeMoveDrag(drag: MoveDrag): string
-  export function decodeMoveDrag(text: string): MoveDrag | null
-  export function hasMoveType(types: ArrayLike<string> | null | undefined): boolean
   export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
+}
+
+declare module '~/utils/move-drag.mjs' {
+  export type MoveHit = { kind: 'channel' | 'card', id: string, scope: string, ok: boolean, title: string }
+  export const MOVE_HANDLE_PX: number
+  export const MOVE_DRAG_START_PX: number
+  export const MOVE_TOUCH_HOLD_MS: number
+  export const MOVE_TOUCH_SLOP_PX: number
+  export function moveHit(el: unknown, drag: { kind?: string } | null | undefined): MoveHit | null
+  export function sameHit(a: MoveHit | null, b: MoveHit | null): boolean
+  type Pt = { pointerId: number, pointerType?: string, button?: number, clientX: number, clientY: number }
+  export type HandleDrag = { readonly state: 'idle' | 'pressed' | 'lifted' | 'held', down(ev: Pt): boolean, move(ev: Pt): void, up(ev: Pt): void, cancel(): void, takeClick(): boolean }
+  export function createHandleDrag(opts: {
+    onStart: (x: number, y: number) => void, onMove: (x: number, y: number) => void,
+    onDrop: (x: number, y: number) => void, onCancel: () => void, onHold?: () => boolean,
+    startPx?: number, holdMs?: number, slopPx?: number,
+    setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void,
+  }): HandleDrag
 }
 
 declare module '~/utils/move-apply.mjs' {

@@ -589,7 +589,10 @@
       "error_not_a_card": "Målet är inte ett ämne.",
       "error_cycle": "Ett meddelande kan inte flyttas in i sin egen tråd.",
       "error_unknown_channel": "Den kanalen är inte öppen för dig.",
-      "error_not_found": "Det ämnet finns inte längre."
+      "error_not_found": "Det ämnet finns inte längre.",
+      "not_allowed": "inte tillåtet",
+      "handle_channel": "Dra för att flytta ämnet till en kanal",
+      "handle_topic": "Dra för att flytta meddelandet till ett ämne"
     }
   },
   "topic": {

@@ -589,7 +589,10 @@
       "error_not_a_card": "Cieľ nie je téma.",
       "error_cycle": "Správu nemožno presunúť do jej vlastného vlákna.",
       "error_unknown_channel": "Tento kanál vám nie je otvorený.",
-      "error_not_found": "Táto téma už neexistuje."
+      "error_not_found": "Táto téma už neexistuje.",
+      "not_allowed": "nie je povolené",
+      "handle_channel": "Potiahnutím presuniete tému do kanála",
+      "handle_topic": "Potiahnutím presuniete správu do témy"
     }
   },
   "topic": {

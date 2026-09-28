@@ -589,7 +589,10 @@
       "error_not_a_card": "Cel nie jest tematem.",
       "error_cycle": "Wiadomości nie można przenieść do jej własnego wątku.",
       "error_unknown_channel": "Ten kanał nie jest dla ciebie otwarty.",
-      "error_not_found": "Ten temat już nie istnieje."
+      "error_not_found": "Ten temat już nie istnieje.",
+      "not_allowed": "niedozwolone",
+      "handle_channel": "Przeciągnij, aby przenieść temat do kanału",
+      "handle_topic": "Przeciągnij, aby przenieść wiadomość do tematu"
     }
   },
   "topic": {

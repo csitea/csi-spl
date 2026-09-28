@@ -2,7 +2,7 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--clickable': clickable, 'msg--move-target': dropTarget, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
+    :class="{ selected, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
@@ -13,24 +13,38 @@
     :aria-setsize="setsize || undefined"
     :aria-label="t('feed.card_aria', { who: whoOf(author), kind: kindLabel(String(msg.kind || 'note')) })"
     :aria-describedby="clickable ? 'feed-open-hint' : undefined"
-    :draggable="dragOn ? 'true' : undefined"
-    :data-movable="canMoveTopic || canMoveMsg ? 'true' : undefined"
-    :data-move-target="dropTarget ? 'true' : undefined"
+    :data-movable="movable ? 'true' : undefined"
+    :data-move-drop="topicMenu ? 'card' : undefined"
+    :data-move-id="topicMenu ? (msg.task_id || undefined) : undefined"
+    :data-move-ok="topicMenu && move.drag.value ? String(dropTarget) : undefined"
+    :data-move-title="dropTarget ? title : undefined"
     @click="onClick"
     @dblclick="onDblClick"
     @keydown="onKey"
     @contextmenu="onContextMenu"
-    @pointerdown="onRowPointerDown"
-    @dragstart="onDragStart"
-    @dragend="onDragEnd"
-    @dragenter="onDragOver"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
+    @pointerdown="longPress.down"
     @pointermove="longPress.move"
     @pointerup="longPress.up"
     @pointercancel="longPress.cancel"
   >
+    <!-- SPL-1134 (specs/045 §3.9): the drag handle, the card's first ~3 mm.
+         A move starts from here only; the rest of the card clicks, selects
+         and long-presses as before. -->
+    <span
+      v-if="movable"
+      class="msg-move-handle"
+      :class="{ 'msg-move-handle--denied': dragging && move.over.value && !move.over.value.ok }"
+      data-testid="move-handle"
+      :title="canMoveTopic ? t('feed.move.handle_channel') : t('feed.move.handle_topic')"
+      aria-hidden="true"
+      @pointerdown.stop="onHandleDown"
+      @pointermove="handle.move"
+      @pointerup="onHandleUp"
+      @pointercancel="handle.cancel"
+      @lostpointercapture="handle.cancel"
+      @click.stop.prevent
+      @contextmenu.stop.prevent
+    />
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div class="msg-main">
       <!--
@@ -354,7 +368,8 @@ import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
 import { mayChangeTopic, topicErrorKey } from '~/utils/topic-archive.mjs'
-import { MOVE_MIME, decodeMoveDrag, encodeMoveDrag, hasMoveType, isCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
+import { isCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
+import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
@@ -759,12 +774,13 @@ const topicDeleteOpen = ref(false)
 const msgDeleteOpen = ref(false)
 
 /*
- * SPL-1024 (specs/045) — move by drag. A middle card the viewer may move
- * (author / tenant owner / admin, a channel topic) drags onto a left-rail
- * channel; a thread row they may move drags onto another middle card. HTML5
- * drag with our own type (utils/move.mjs MOVE_MIME), desktop pointer only:
- * a finger has the menu's Move to … entries. The row is draggable only from
- * a press OUTSIDE its text, so selecting a line to copy still works.
+ * SPL-1024 / SPL-1134 (specs/045 §3.9) — move by drag. A middle card the
+ * viewer may move (author / tenant owner / admin, a channel topic) drags
+ * onto a left-rail channel; a thread row they may move drags onto another
+ * middle card. The drag starts ONLY from the handle strip (the card's first
+ * ~3 mm): a mouse after 4 px of travel, a finger after a hold. A phone has
+ * no rail beside the list, so there the hold opens Move to … instead. The
+ * row under the pointer is found by useMove (one row lit at a time).
  */
 const move = useMove()
 const lobbyTask = useLive().lobbyTaskId
@@ -774,61 +790,69 @@ const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && 
   lobbyTaskId: lobbyTask.value,
   channel: props.moveCtx?.channel || '',
 }))
-const dragOn = ref(false)
+const movable = computed(() => (canMoveTopic.value || canMoveMsg.value) && !editing.value)
 const dragging = ref(false)
-const dropOver = ref(false)
 const dropTarget = computed(() => Boolean(props.topicMenu) && isCardDropTarget(move.drag.value, props.msg, lobbyTask.value))
+const dropOver = computed(() => {
+  const o = move.over.value
+  return Boolean(o && o.kind === 'card' && o.ok && o.id === String(props.msg.task_id || ''))
+})
 const movePicker = ref<'' | 'channel' | 'topic'>('')
-const MOVE_NO_DRAG = '.card-body, .msg-title, textarea, input, select, [contenteditable="true"]'
 
-function onRowPointerDown(ev: PointerEvent) {
-  longPress.down(ev)
-  const el = ev.target as HTMLElement | null
-  dragOn.value = (canMoveTopic.value || canMoveMsg.value) && !editing.value && !mobile.value
-    && ev.pointerType !== 'touch' && !(el && el.closest && el.closest(MOVE_NO_DRAG))
-}
-
-function onDragStart(ev: DragEvent) {
-  if (!dragOn.value || !ev.dataTransfer || ev.target !== rowEl.value) return
+function moveDrag(): MoveDrag {
   const m = props.msg
-  const d: MoveDrag = canMoveTopic.value
+  return canMoveTopic.value
     ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || '') }
     : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
-  ev.dataTransfer.setData(MOVE_MIME, encodeMoveDrag(d))
-  ev.dataTransfer.effectAllowed = 'move'
-  closeMenu()
-  pickerOpen.value = false
-  move.drag.value = d
-  dragging.value = true
 }
-
-function onDragEnd() {
+function onMoveKey(ev: KeyboardEvent) {
+  if (ev.key !== 'Escape') return
+  ev.preventDefault()
+  handle.cancel()
+}
+function endDrag() {
   dragging.value = false
-  dragOn.value = false
-  move.drag.value = null
+  window.removeEventListener('keydown', onMoveKey, true)
 }
-
-function onDragOver(ev: DragEvent) {
-  if (!dropTarget.value || !hasMoveType(ev.dataTransfer?.types)) return
+const handle = createHandleDrag({
+  onStart: (x, y) => {
+    closeMenu()
+    pickerOpen.value = false
+    dragging.value = true
+    window.addEventListener('keydown', onMoveKey, true)
+    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
+    move.track(x, y)
+  },
+  onMove: (x, y) => move.track(x, y),
+  onDrop: (x, y) => {
+    move.track(x, y)
+    endDrag()
+    move.land(true)
+  },
+  onCancel: () => {
+    endDrag()
+    move.land(false)
+  },
+  onHold: () => {
+    if (!mobile.value) return true
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    openMovePicker(canMoveTopic.value ? 'channel' : 'topic')
+    return false
+  },
+})
+function onHandleDown(ev: PointerEvent) {
+  if (!movable.value || !handle.down(ev)) return
+  /* no text selection, no native drag, and the stream stays on the handle
+     wherever the pointer goes */
   ev.preventDefault()
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
-  dropOver.value = true
+  const el = ev.currentTarget as HTMLElement | null
+  try { el?.setPointerCapture(ev.pointerId) } catch { /* the pointer is gone already */ }
 }
-
-function onDragLeave(ev: DragEvent) {
-  const to = ev.relatedTarget as Node | null
-  if (to && rowEl.value?.contains(to)) return
-  dropOver.value = false
+function onHandleUp(ev: PointerEvent) {
+  handle.up(ev)
+  handle.takeClick()
 }
-
-function onDrop(ev: DragEvent) {
-  if (!dropTarget.value) return
-  ev.preventDefault()
-  dropOver.value = false
-  const d = decodeMoveDrag(ev.dataTransfer?.getData(MOVE_MIME) || '') || move.drag.value
-  if (!d || d.kind !== 'message') return
-  void move.run({ kind: 'message', msgId: d.msgId, toTask: String(props.msg.task_id || '') }, title.value)
-}
+onBeforeUnmount(() => handle.cancel())
 
 function openMovePicker(mode: 'channel' | 'topic') {
   closeMenu()
@@ -1244,11 +1268,37 @@ async function save() {
   color: var(--color-muted);
   font-size: 0.75rem;
 }
-/* SPL-1024: while a reply is dragged, the cards it may land on are outlined;
-   the one under the pointer is filled. The dragged row fades. */
-.msg--move-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; }
-.msg--move-over { background: var(--color-selected); outline-style: solid; }
+/* SPL-1134: the ONE card under a dragged reply is lit; the dragged row fades */
+.msg--move-over { background: var(--color-selected); outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .msg--dragging { opacity: 0.5; }
+/* SPL-1134 (specs/045 §3.9): the handle is the card's first 12 px (~3 mm).
+   At rest it is invisible; on hover it tints and shows a grip, the cursor
+   says grab (grabbing while lifted, not-allowed over a refusing row). */
+.msg--movable { position: relative; }
+.msg-move-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 12px;
+  z-index: 2;
+  border-start-start-radius: var(--radius);
+  border-end-start-radius: var(--radius);
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.msg-move-handle:hover,
+.msg--dragging .msg-move-handle {
+  background-color: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background-image: radial-gradient(circle, var(--color-accent) 1.2px, transparent 1.6px);
+  background-size: 6px 6px;
+  background-position: 0 center;
+  background-repeat: repeat;
+}
+.msg--dragging .msg-move-handle { cursor: grabbing; }
+.msg--dragging .msg-move-handle--denied { cursor: not-allowed; }
 .msg-meta-spacer { order: 2; flex: 1 1 0; min-width: 0; }
 .msg-actions [data-test="open-topic"] { order: 3; }
 .msg-actions .replies { order: 4; margin-top: 0; align-self: center; white-space: nowrap; }

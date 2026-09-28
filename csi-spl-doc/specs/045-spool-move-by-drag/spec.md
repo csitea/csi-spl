@@ -174,6 +174,37 @@ Wire (`contracts/move-v1.md` §7):
   (else `400 bad_json`); `[]` clears it (`null`). A signed-in member only (`403 forbidden`); a person
   with no membership row in this tenant `404 not_member`. No billing gate: it is a view preference.
 
+### 3.9 The drag handle and the one highlighted channel (SPL-1134)
+
+Owner, prd t1 topic `3393df67-49de-445b-89c6-3a676125a8df`, 2026-09-28: "whenever he hovers on the
+left-most side of the panel containing the topic, the hover evokes a typical draggability change of
+the first 3 mm of the panel, so that the user gets that those can be dragged. And then, when picking
+from this part, the draggable control should have 1..1 highlighted channel while being dragged, where
+it is to be dropped, and when dropped it becomes part of this channel."
+
+This refines the gestures of 3.1 and 3.2; the hub, the permissions (3.4), the Undo and the note (3.3)
+do not change.
+
+- **The handle**: every card the viewer may move (3.1 / 3.2) has a strip over its first **12 px**
+  (~3 mm) on the left edge. At rest it is invisible. On hover it tints, shows a dotted grip and the
+  cursor is `grab` (`grabbing` while lifted). A card the viewer may not move has no strip.
+- **Only the handle starts a drag**: a mouse / pen after 4 px of travel on the strip; a finger after a
+  350 ms hold on it. A press anywhere else on the card clicks, selects text and long-presses exactly as
+  before — no card body press can start a move. The row itself is no longer an HTML5 `draggable`, so a
+  link inside the card (or a rail row) cannot start the browser's own link drag either (the
+  SPL-1034 trap; the Flow list's channel links now carry `draggable="false"` like the Channels list).
+- **While dragged**: a compact ghost with the topic title follows the pointer. **Exactly one** row is
+  highlighted: the channel row under the pointer (3.1) or the middle card under it (3.2), and only when
+  it may take the drop (the same rule as the picker: listed for the viewer, not its own channel, not
+  the lobby, not `issues`). A row that may not take it is never highlighted; under the pointer it says
+  **"not allowed"** and the cursor is `not-allowed`. The other allowed rows are NOT outlined any more.
+  Leaving every row clears the highlight.
+- **Drop** on the highlighted row = the move (3.1 / 3.2, Undo 8 s, the moved-from note). A drop
+  anywhere else, on a refusing row, or **Escape** = cancel: nothing is sent, nothing moves.
+- **Phones** (`<= 820 px`, one panel at a time, so no rail beside the list): the hold on the handle
+  opens **Move to channel…** / **Move to topic…** (the 3.1 / 3.2 pickers list only the allowed places).
+  A long press on the rest of the card still opens its menu (SPL-991).
+
 ## 4. Data (rdb `0069`)
 
 `messages` gets five nullable columns and one partial index; nothing is backfilled.
@@ -208,6 +239,10 @@ Wire (`contracts/move-v1.md` §7):
 | FR-MV-013 | every new string in all 19 locales | Implemented — `tasks.md` |
 | FR-MV-014 | rdb 0073 `tenant_memberships.channel_order`; `GET /v1/view/me` carries it; `PUT /v1/me/channel-order` (3.8) | Implemented — `tasks.md` T011 |
 | FR-MV-015 | WUI: the Channels list renders the stored order (new channels at the end), a drag stores it, Move up / Move down in the row menu (3.8) | Implemented — `tasks.md` T012 |
+| FR-MV-016 | WUI: a movable card has a 12 px left-edge handle; hover shows the grip + `grab`; a card that cannot move has none (3.9) | In progress — `tasks.md` T013 |
+| FR-MV-017 | WUI: a move drag starts ONLY from the handle (mouse travel, touch hold); a drag from the card body moves nothing (3.9) | In progress — `tasks.md` T013 |
+| FR-MV-018 | WUI: while dragged, exactly ONE row is highlighted — the one under the pointer that may take it; a refusing row shows "not allowed" and is never highlighted; leaving the rows clears it (3.9) | In progress — `tasks.md` T013 |
+| FR-MV-019 | WUI: a drop on the highlighted row moves (Undo, note); a drop elsewhere, on a refusing row, or Escape cancels and sends nothing; a phone's hold on the handle opens the picker (3.9) | In progress — `tasks.md` T013 |
 
 ## 6. Success criteria
 
@@ -219,5 +254,8 @@ Wire (`contracts/move-v1.md` §7):
   not draggable; a channel the caller may not post in is not a drop target).
 - **SC-MV-3**: live proof in the prd `e2e` tenant and the dev test tenant only, with a DB count of the
   rows per channel / task before and after, and screenshots posted in both owner topics.
+- **SC-MV-4** (3.9): WUI e2e at 1440 and 390: hover shows the affordance only on the strip; a drag from
+  the card body does not move; a drag from the strip lights exactly one channel; a drop moves and Undo
+  brings it back; a drop outside cancels; a forbidden channel is never lit.
 
-<!-- version: 0.3.1 · updated: 2026-09-28 · last-edit: 2026-09-28T07:10:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-28 · last-edit: 2026-09-28T15:40:00Z -->

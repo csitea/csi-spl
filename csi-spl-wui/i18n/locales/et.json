@@ -589,7 +589,10 @@
       "error_not_a_card": "Sihtkoht ei ole teema.",
       "error_cycle": "Sõnumit ei saa teisaldada tema enda lõime.",
       "error_unknown_channel": "See kanal ei ole sulle avatud.",
-      "error_not_found": "Seda teemat enam ei ole."
+      "error_not_found": "Seda teemat enam ei ole.",
+      "not_allowed": "pole lubatud",
+      "handle_channel": "Lohista, et teema kanalisse viia",
+      "handle_topic": "Lohista, et sõnum teemasse viia"
     }
   },
   "topic": {

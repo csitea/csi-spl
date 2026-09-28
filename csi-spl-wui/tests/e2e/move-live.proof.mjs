@@ -72,7 +72,6 @@ if (PHASE === 'run' && (!process.env.CH_A || !process.env.CH_B)) {
   console.error('FATAL PHASE=run needs CH_A and CH_B from PHASE=channels (with the fallback switched off in between)')
   process.exit(2)
 }
-const MIME = 'application/x-spool-move'
 
 const res = { base: BASE, api: API, at: new Date().toISOString(), tenant: TENANT, channels: [A, B], steps: [], console: [] }
 let failed = 0
@@ -184,33 +183,32 @@ const midCard = (id) => `.spool-main article.msg[data-msg-id="${id}"]`
 const paneRow = (id) => `aside[data-pane="topic"] article.msg[data-msg-id="${id}"]`
 const railRow = (ch) => `#sidebar-panel-channels .nav-row[data-order="${ch}"]`
 
-/* move-by-drag.test.mjs's drag: arm with a press outside the text, then one
-   DragEvent sequence (headless Chrome starts no native drag from synthetic
-   mouse input). */
-function dnd(p, source, target, { peek = '' } = {}) {
-  return p.evaluate(async ({ source, target, peek }) => {
-    const src = document.querySelector(source)
-    const dst = document.querySelector(target)
-    if (!src || !dst) return { error: 'missing', src: Boolean(src), dst: Boolean(dst) }
-    const meta = src.querySelector('.msg-meta') || src
-    const r = meta.getBoundingClientRect()
-    meta.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0, isPrimary: true, clientX: r.left + 4, clientY: r.top + 4 }))
-    meta.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0, isPrimary: true }))
-    await new Promise((res) => setTimeout(res, 50))
-    const draggable = src.getAttribute('draggable')
-    const dt = new DataTransfer()
-    src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    await new Promise((res) => setTimeout(res, 50))
-    const lit = peek ? [...document.querySelectorAll(peek)].map((e) => e.getAttribute('data-order') || e.getAttribute('data-msg-id')) : []
-    dst.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt })
-    dst.dispatchEvent(over)
-    await new Promise((res) => setTimeout(res, 30))
-    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })
-    dst.dispatchEvent(ev)
-    if (src.isConnected) src.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }))
-    return { draggable, accepted: over.defaultPrevented, dropped: ev.defaultPrevented, lit, types: [...dt.types] }
-  }, { source, target, peek })
+/* SPL-1134: move-by-drag.test.mjs's drag - a REAL mouse drag. Press at
+   `from` (the handle strip, or the card body for the control), walk through
+   `via` (sampling what is lit at each point), release at the last point. */
+const centreOf = (p, sel) => p.evaluate((sel) => {
+  const e = document.querySelector(sel)
+  if (!e) return null
+  const r = e.getBoundingClientRect()
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+}, sel)
+const litNow = (p) => p.evaluate(() => ({
+  lit: [...document.querySelectorAll('.nav-row--move-over, article.msg.msg--move-over')].map((e) => e.getAttribute('data-order') || e.getAttribute('data-msg-id')),
+  denied: [...document.querySelectorAll('.nav-row--move-denied')].map((e) => e.getAttribute('data-order')),
+  ghost: document.querySelector('[data-testid=move-ghost]')?.textContent || null,
+}))
+async function mouseDrag(p, from, via) {
+  await p.mouse.move(from.x, from.y)
+  await p.mouse.down()
+  const seen = []
+  for (const pt of via.filter(Boolean)) {
+    await p.mouse.move(pt.x, pt.y, { steps: 10 })
+    await sleep(120)
+    seen.push(await litNow(p))
+  }
+  await p.mouse.up()
+  await sleep(300)
+  return seen
 }
 
 async function openTopic(p, cardId, row) {
@@ -307,9 +305,20 @@ try {
   await shot(p, '2-seeded')
 
   /* ---- 3. topic drag onto rail channel B, then Undo ------------------------- */
-  const drag = await dnd(p, midCard(seeded.one.msg_id), railRow(B), { peek: '#sidebar-panel-channels .nav-row[data-move-target="true"]' })
-  step('3 the card is armed, carries the move type, and B takes the drop', drag.draggable === 'true' && drag.types.includes(MIME) && drag.accepted && drag.dropped, drag)
-  step('3 A (its own channel) and #lobby do not light up, B does', drag.lit.includes(B) && !drag.lit.includes(A) && !drag.lit.includes('lobby'), { lit: drag.lit })
+  /* SPL-1134 control: a drag from the card BODY moves nothing */
+  const bodyPt = await centreOf(p, `${midCard(seeded.one.msg_id)} .msg-body`)
+  const bodyDrag = await mouseDrag(p, bodyPt, [await centreOf(p, railRow(B))])
+  await p.evaluate(() => window.getSelection()?.removeAllRanges())
+  const s3b = await rowsOf(p, seeded.one.task_id)
+  step('3 a drag from the card body lights nothing and moves nothing (control)', bodyDrag.every((x) => x.lit.length === 0 && !x.ghost) &&
+    Object.values(s3b.rows).every((x) => x.channel === A), { bodyDrag })
+  /* the handle drag: A (its own), the lobby, then B - one row lit at most, B the drop */
+  const handlePt = await centreOf(p, `${midCard(seeded.one.msg_id)} [data-testid=move-handle]`)
+  const walk = await mouseDrag(p, handlePt, [await centreOf(p, railRow(A)), await centreOf(p, railRow('lobby')), await centreOf(p, railRow(B))])
+  const atB = walk[walk.length - 1]
+  step('3 from the handle: at most ONE row lit at every step; A and #lobby never lit (say not allowed); B lit under the pointer',
+    Boolean(handlePt) && walk.every((x) => x.lit.length <= 1) && walk.slice(0, -1).every((x) => x.lit.length === 0 && x.denied.length === 1) &&
+    atB.lit.length === 1 && atB.lit[0] === B && /./.test(atB.ghost || ''), { walk })
   await p.waitForSelector('[data-testid=move-toast]', { timeout: 10000 }).catch(() => {})
   const t3 = await toastText(p)
   step('3 the toast says "Moved to #B" and offers Undo', t3 === `Moved to #${B}` && Boolean(await p.$('[data-testid=move-toast-undo]')), { toast: t3 })
@@ -326,9 +335,10 @@ try {
   /* ---- 4. reply drag from the right pane onto topic two's card -------------- */
   const opened = await openTopic(p, seeded.one.msg_id, paneRow(seeded.reply.msg_id))
   step('4 topic one opens on the right with the reply', opened)
-  const rdrag = await dnd(p, paneRow(seeded.reply.msg_id), midCard(seeded.two.msg_id), { peek: '.spool-main article.msg[data-move-target="true"]' })
-  step('4 the reply is armed and topic two\'s card takes the drop; topic one\'s card is no target',
-    rdrag.draggable === 'true' && rdrag.accepted && rdrag.dropped && rdrag.lit.includes(seeded.two.msg_id) && !rdrag.lit.includes(seeded.one.msg_id), rdrag)
+  const rFrom = await centreOf(p, `${paneRow(seeded.reply.msg_id)} [data-testid=move-handle]`)
+  const rdrag = await mouseDrag(p, rFrom, [await centreOf(p, midCard(seeded.one.msg_id)), await centreOf(p, midCard(seeded.two.msg_id))])
+  step('4 from the reply\'s handle: topic one\'s card is never lit, topic two\'s is the one lit card and takes the drop',
+    Boolean(rFrom) && rdrag[0].lit.length === 0 && rdrag[1].lit.length === 1 && rdrag[1].lit[0] === seeded.two.msg_id, rdrag)
   const s4 = await until(async () => { const r = await rowsOf(p, seeded.two.task_id); return r.rows[seeded.reply.msg_id] && r }, 15000)
   step('4 the hub reads the reply under topic two, home topic one recorded',
     !!s4 && s4.rows[seeded.reply.msg_id].moved_from_task === seeded.one.task_id && s4.rows[seeded.reply.msg_id].task === seeded.two.task_id, s4 && s4.rows[seeded.reply.msg_id])

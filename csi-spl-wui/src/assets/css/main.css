@@ -302,6 +302,28 @@ html.pane-dragging * {
   min-width: 0;
 }
 .msg:hover { background: var(--color-surface-hover); }
+/* SPL-1134: what follows the pointer while a card is dragged by its handle
+   (utils/move-drag.mjs; placed by useMove with a transform) */
+.move-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  max-width: 280px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.move-ghost[data-state="ok"] { border-color: var(--color-accent); }
+.move-ghost[data-state="denied"] { opacity: 0.7; }
 .avatar {
   width: 36px; height: 36px; border-radius: var(--radius-sm);
   display: grid; place-items: center;

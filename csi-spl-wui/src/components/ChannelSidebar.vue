@@ -159,19 +159,20 @@
       :key="c.channel_id"
       class="nav-row"
       :data-order="c.channel_id"
-      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length), 'nav-row--move-target': moveTarget(c.channel_id), 'nav-row--move-over': moveOver === c.channel_id }"
-      :data-move-target="moveTarget(c.channel_id) ? 'true' : undefined"
+      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length), 'nav-row--move-over': moveLit('channels', c.channel_id), 'nav-row--move-denied': moveDenied('channels', c.channel_id) }"
+      data-move-drop="channel"
+      data-move-scope="channels"
+      :data-move-id="c.channel_id"
+      :data-move-ok="mover.drag.value ? String(moveTarget(c.channel_id)) : undefined"
+      :data-move-denied-label="moveDenied('channels', c.channel_id) ? t('feed.move.not_allowed') : undefined"
       @pointerdown="rowPointerDown($event, 'channels', c.channel_id)"
-      @dragenter="onMoveOver($event, c.channel_id)"
-      @dragover="onMoveOver($event, c.channel_id)"
-      @dragleave="onMoveLeave($event, c.channel_id)"
-      @drop="onMoveDrop($event, c.channel_id)"
       @contextmenu.prevent="openChannelMenu('ch:' + c.channel_id)"
       @click.capture="swallowDragClick"
     >
     <!-- draggable=false: a press-and-move on the link started the browser's
          own link drag, which cancels the pointer stream, so the reorder
-         never finished (SPL-1034). Topic cards still drop here (HTML5). -->
+         never finished (SPL-1034). A topic card's handle drag (SPL-1134)
+         finds this row by data-move-drop under the pointer. -->
     <NuxtLink
       class="nav-item"
       draggable="false"
@@ -355,9 +356,10 @@
         <div class="sidebar-scroll">
         <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
-          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length), 'nav-row--move-target': moveTarget(row.id), 'nav-row--move-over': moveOver === row.id }" :data-move-target="moveTarget(row.id) ? 'true' : undefined" @dragenter="onMoveOver($event, row.id)" @dragover="onMoveOver($event, row.id)" @dragleave="onMoveLeave($event, row.id)" @drop="onMoveDrop($event, row.id)" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
+          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length), 'nav-row--move-over': moveLit('flow', row.id), 'nav-row--move-denied': moveDenied('flow', row.id) }" data-move-drop="channel" data-move-scope="flow" :data-move-id="row.id" :data-move-ok="mover.drag.value ? String(moveTarget(row.id)) : undefined" :data-move-denied-label="moveDenied('flow', row.id) ? t('feed.move.not_allowed') : undefined" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
           <NuxtLink
             class="nav-item"
+            draggable="false"
             :class="{ active: channel.active === row.id }"
             :data-key="row.id"
             :data-kind="row.kind"
@@ -614,7 +616,7 @@ import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
-import { MOVE_MIME, decodeMoveDrag, hasMoveType, isChannelDropTarget } from '~/utils/move.mjs'
+import { isChannelDropTarget } from '~/utils/move.mjs'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
@@ -1013,34 +1015,22 @@ function swallowDragClick(e: MouseEvent) {
   e.stopPropagation()
 }
 
-/* SPL-1024 (specs/045 §3.1): a topic card dragged from the middle list drops
-   on a channel row. Only the channels it may go to light up (listed for the
-   viewer, not the one it is in, not the lobby, not `issues`); any other row
-   refuses the drop. HTML5 drag events, so the pointer reorder above never
-   sees it: a browser drag cancels the pointer stream. */
+/* SPL-1024 / SPL-1134 (specs/045 §3.1, §3.9): a topic card dragged by its
+   handle drops on a channel row. The rows only say whether they may take it
+   (data-move-ok: listed for the viewer, not the one it is in, not the lobby,
+   not `issues`); useMove reads the ONE row under the pointer, so exactly one
+   is lit, and a row that may not take it says "not allowed" instead. */
 const mover = useMove()
-const moveOver = ref('')
 function moveTarget(id: string) {
   return isChannelDropTarget(mover.drag.value, id, channel.channels)
 }
-function onMoveOver(ev: DragEvent, id: string) {
-  if (!moveTarget(id) || !hasMoveType(ev.dataTransfer?.types)) return
-  ev.preventDefault()
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
-  moveOver.value = id
+function moveLit(scope: string, id: string) {
+  const o = mover.over.value
+  return !!o && o.kind === 'channel' && o.ok && o.scope === scope && o.id === id
 }
-function onMoveLeave(ev: DragEvent, id: string) {
-  const to = ev.relatedTarget
-  if (to instanceof Node && ev.currentTarget instanceof HTMLElement && ev.currentTarget.contains(to)) return
-  if (moveOver.value === id) moveOver.value = ''
-}
-function onMoveDrop(ev: DragEvent, id: string) {
-  if (!moveTarget(id)) return
-  ev.preventDefault()
-  moveOver.value = ''
-  const d = decodeMoveDrag(ev.dataTransfer?.getData(MOVE_MIME) || '') || mover.drag.value
-  if (!d || d.kind !== 'topic') return
-  void mover.run({ kind: 'topic', msgId: d.msgId, toChannel: id })
+function moveDenied(scope: string, id: string) {
+  const o = mover.over.value
+  return !!o && o.kind === 'channel' && !o.ok && o.scope === scope && o.id === id
 }
 onMounted(() => {
   /* the route middleware has usually probed already; a second probe on every
@@ -1399,9 +1389,17 @@ async function onCreate() {
 .nav-row--drag .nav-item { cursor: grabbing; }
 .nav-row--drop { box-shadow: inset 0 2px 0 var(--color-accent); }
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
-/* SPL-1024: a channel a dragged topic may move to; filled under the pointer */
-.nav-row--move-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; border-radius: var(--radius-sm); }
-.nav-row--move-over { background: var(--color-selected); outline-style: solid; }
+/* SPL-1134: the ONE channel under a dragged topic - filled when it may take
+   it, "not allowed" (never filled) when it may not */
+.nav-row--move-over { background: var(--color-selected); outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-sm); }
+.nav-row--move-denied { position: relative; opacity: 0.6; }
+.nav-row--move-denied::after {
+  content: attr(data-move-denied-label);
+  position: absolute; inset-inline-end: 8px; top: 50%; transform: translateY(-50%);
+  padding: 0 6px; border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-muted);
+  font-size: 0.75rem; pointer-events: none;
+}
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
 /* SPL-1037: the Tenant settings icon, first on the row = the bottom-left corner */

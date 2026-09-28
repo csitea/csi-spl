@@ -589,7 +589,10 @@
       "error_not_a_card": "The target is not a topic.",
       "error_cycle": "A message cannot move into its own thread.",
       "error_unknown_channel": "That channel is not open to you.",
-      "error_not_found": "That topic is not there any more."
+      "error_not_found": "That topic is not there any more.",
+      "not_allowed": "not allowed",
+      "handle_channel": "Drag to move this topic to a channel",
+      "handle_topic": "Drag to move this message to a topic"
     }
   },
   "topic": {

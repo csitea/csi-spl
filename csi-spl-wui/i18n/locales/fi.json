@@ -589,7 +589,10 @@
       "error_not_a_card": "Kohde ei ole aihe.",
       "error_cycle": "Viestiä ei voi siirtää sen omaan ketjuun.",
       "error_unknown_channel": "Tämä kanava ei ole sinulle avoin.",
-      "error_not_found": "Aihetta ei enää ole."
+      "error_not_found": "Aihetta ei enää ole.",
+      "not_allowed": "ei sallittu",
+      "handle_channel": "Vedä siirtääksesi aiheen kanavalle",
+      "handle_topic": "Vedä siirtääksesi viestin aiheeseen"
     }
   },
   "topic": {

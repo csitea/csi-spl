@@ -6,6 +6,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { MoveAnswer, MoveDrag, MoveFrame } from '~/utils/move-apply.mjs'
+import { moveHit, sameHit, type MoveHit } from '~/utils/move-drag.mjs'
 
 /** How long "Moved to ... · Undo" stays up (spec 3.3). */
 export const MOVE_UNDO_MS = 8000
@@ -18,6 +19,9 @@ export type MovedListener = (f: MoveFrame, m: MoveApply) => void
 /* One drag and one toast per tab: the card that starts a drag, the rail row
    or middle card it is dropped on and the toast are different components. */
 const drag = shallowRef<MoveDrag | null>(null)
+/* SPL-1134: the ONE row under the pointer during a handle drag (null = none) */
+const over = shallowRef<MoveHit | null>(null)
+let ghost: HTMLElement | null = null
 const toast = shallowRef<MoveToast | null>(null)
 const movedListeners = new Set<MovedListener>()
 let toastSeq = 0
@@ -119,5 +123,46 @@ export function useMove() {
     }
   }
 
-  return { drag, toast, dispatch, onMoved, run, undo, dismiss }
+  /*
+   * SPL-1134 (specs/045 §3.9) - the pointer drag from a card's handle. The
+   * card feeds the gesture (utils/move-drag.mjs createHandleDrag); this holds
+   * the one drag of the tab: the row under the pointer (`over`, read from the
+   * element there, so EXACTLY one row can be lit), a small ghost with the
+   * title, and the drop. A drop on nothing, or on a row that may not take it,
+   * moves nothing.
+   */
+  function lift(d: MoveDrag, label: string) {
+    drag.value = d
+    over.value = null
+    ghost?.remove()
+    ghost = document.createElement('div')
+    ghost.className = 'move-ghost'
+    ghost.setAttribute('data-testid', 'move-ghost')
+    ghost.setAttribute('aria-hidden', 'true')
+    ghost.textContent = label.length > 60 ? label.slice(0, 59) + '…' : label
+    document.body.appendChild(ghost)
+  }
+
+  function track(x: number, y: number) {
+    if (!drag.value) return
+    if (ghost) ghost.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 10)}px)`
+    const hit = moveHit(document.elementFromPoint(x, y), drag.value)
+    if (!sameHit(hit, over.value)) over.value = hit
+    if (ghost) ghost.dataset.state = hit ? (hit.ok ? 'ok' : 'denied') : ''
+  }
+
+  /** End the drag; `drop` false (Escape, cancel) moves nothing. */
+  function land(drop: boolean) {
+    const d = drag.value
+    const hit = over.value
+    over.value = null
+    drag.value = null
+    ghost?.remove()
+    ghost = null
+    if (!drop || !d || !hit || !hit.ok) return
+    if (d.kind === 'topic' && hit.kind === 'channel') void run({ kind: 'topic', msgId: d.msgId, toChannel: hit.id })
+    else if (d.kind === 'message' && hit.kind === 'card') void run({ kind: 'message', msgId: d.msgId, toTask: hit.id }, hit.title)
+  }
+
+  return { drag, over, toast, dispatch, onMoved, run, undo, dismiss, lift, track, land }
 }

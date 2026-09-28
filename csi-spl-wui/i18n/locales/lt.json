@@ -589,7 +589,10 @@
       "error_not_a_card": "Tikslas nėra tema.",
       "error_cycle": "Žinutės negalima perkelti į jos pačios giją.",
       "error_unknown_channel": "Šis kanalas jums neatviras.",
-      "error_not_found": "Šios temos nebėra."
+      "error_not_found": "Šios temos nebėra.",
+      "not_allowed": "neleidžiama",
+      "handle_channel": "Vilkite, kad perkeltumėte temą į kanalą",
+      "handle_topic": "Vilkite, kad perkeltumėte žinutę į temą"
     }
   },
   "topic": {

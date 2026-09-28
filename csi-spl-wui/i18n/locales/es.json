@@ -589,7 +589,10 @@
       "error_not_a_card": "El destino no es un tema.",
       "error_cycle": "Un mensaje no puede moverse a su propio hilo.",
       "error_unknown_channel": "Ese canal no está abierto para ti.",
-      "error_not_found": "Ese tema ya no existe."
+      "error_not_found": "Ese tema ya no existe.",
+      "not_allowed": "no permitido",
+      "handle_channel": "Arrastra para mover este tema a un canal",
+      "handle_topic": "Arrastra para mover este mensaje a un tema"
     }
   },
   "topic": {

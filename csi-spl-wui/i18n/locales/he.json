@@ -589,7 +589,10 @@
       "error_not_a_card": "היעד אינו נושא.",
       "error_cycle": "אי אפשר להעביר הודעה לשרשור של עצמה.",
       "error_unknown_channel": "הערוץ הזה אינו פתוח עבורך.",
-      "error_not_found": "הנושא הזה כבר לא קיים."
+      "error_not_found": "הנושא הזה כבר לא קיים.",
+      "not_allowed": "לא מותר",
+      "handle_channel": "גרור כדי להעביר את הנושא לערוץ",
+      "handle_topic": "גרור כדי להעביר את ההודעה לנושא"
     }
   },
   "topic": {

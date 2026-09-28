@@ -200,6 +200,9 @@ try {
     /* ---- M: the issue is a modal ------------------------------------------------- */
     await p.click(`${row(b)} .issues-c-key`)
     const opened = await waitModal(true)
+    /* the router writes ?issue= a tick after the modal shows (public CI, run
+       36395470020 read it too early): wait for it, M8 covers the window */
+    await p.waitForFunction((k) => new URL(location.href).searchParams.get('issue') === k, { timeout: 5000 }, b).catch(() => {})
     const m1 = await p.evaluate(() => {
       const dlg = document.querySelector('[data-test=issues-detail]')?.closest('[data-testid=ui-dialog]')
       return {
@@ -306,6 +309,18 @@ try {
       refused === 'Delete or move its subtasks first.' && d2.stays && d2.modal, { refused, d2 })
     await p.keyboard.press('Escape')
     await waitModal(false)
+
+    /* M8: Esc inside the window before the router has written ?issue= (a
+       slow router: every navigation waits 400 ms). The modal must stay
+       closed - before the fix the late push reopened it - and no ?issue=. */
+    await p.evaluate(() => { window.__slowOff = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.beforeEach(() => new Promise((r) => setTimeout(r, 400))) })
+    await p.click(`${row(a)} .issues-c-key`)
+    await waitModal(true)
+    await p.keyboard.press('Escape')
+    await sleep(1500)
+    const m8 = await p.evaluate(() => ({ modal: Boolean(document.querySelector('[data-test=issues-detail]')), issue: new URL(location.href).searchParams.get('issue') }))
+    await p.evaluate(() => window.__slowOff && window.__slowOff())
+    ok(`M8 ${W}: Esc before the router wrote ?issue= keeps the modal closed and leaves no ?issue=`, !m8.modal && m8.issue === null, m8)
 
     /* deep link: a reload is a fresh mock tenant, whose one issue is the epic SPL-1 */
     await p.goto(server.base + '/issues?issue=SPL-1', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

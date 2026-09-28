@@ -1201,6 +1201,16 @@ function writeIssueQuery(key: string) {
   if (!import.meta.client) return
   const url = new URL(window.location.href)
   if ((url.searchParams.get('issue') || '') === key) return
+  /* SPL-1027: > 820 px Back and Forward walk these entries, so the router's
+     own record of each must match its URL - a bare replaceState kept the
+     router's old path and a later Back brought a closed ?issue= back */
+  if (!phone.value) {
+    const query = currentQuery()
+    if (key) query.issue = key
+    else delete query.issue
+    void router.replace({ query })
+    return
+  }
   if (key) url.searchParams.set('issue', key)
   else url.searchParams.delete('issue')
   window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
@@ -1209,6 +1219,12 @@ function writeIssueQuery(key: string) {
    so Back closes the modal and a deep link opens it. A phone keeps
    replaceState: useMobileStack owns its levels and history (SPL-992). */
 let pushedIssue = false
+/* the router writes ?issue= a tick (or, on a loaded machine, much longer)
+   after the modal shows: a close inside that window waits for the push to
+   land, then steps Back over it, and the late route change must not reopen
+   what was just closed */
+let pendingPush: Promise<unknown> | null = null
+let suppressKey = ''
 function currentQuery(): Record<string, string> {
   const query: Record<string, string> = {}
   new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
@@ -1218,7 +1234,9 @@ function pushIssueQuery(key: string) {
   if (!import.meta.client) return
   if (phone.value || modalOpen.value || issueLinkKey() === key) { writeIssueQuery(key); return }
   pushedIssue = true
-  void router.push({ query: { ...currentQuery(), issue: key } })
+  const push = router.push({ query: { ...currentQuery(), issue: key } })
+  pendingPush = push
+  void push.finally(() => { if (pendingPush === push) pendingPush = null })
 }
 function choose(issue: Issue, fromLink = false) {
   const wasOpen = modalOpen.value
@@ -1232,10 +1250,17 @@ function choose(issue: Issue, fromLink = false) {
 }
 function closeDetail() {
   const wasModal = modalOpen.value
+  const closedKey = detail.value?.key || ''
   creating.value = false
   openKey.value = ''
   detail.value = null
   menu.value = null
+  if (wasModal && pushedIssue && pendingPush) {
+    pushedIssue = false
+    suppressKey = closedKey
+    void pendingPush.then(() => { if (issueLinkKey()) router.back() }, () => { suppressKey = '' })
+    return
+  }
   if (wasModal && pushedIssue && issueLinkKey()) {
     pushedIssue = false
     router.back()
@@ -1873,6 +1898,9 @@ watch(() => {
   const raw = Array.isArray(q) ? q[0] : q
   return typeof raw === 'string' ? raw.trim() : ''
 }, (key) => {
+  /* the push of an issue closed before it landed: not a request to open it */
+  if (key && suppressKey && key.toLowerCase() === suppressKey.toLowerCase()) { suppressKey = ''; return }
+  if (!key) suppressKey = ''
   /* SPL-1027: Back past the entry the modal pushed closes it */
   if (!key && modalOpen.value) {
     pushedIssue = false

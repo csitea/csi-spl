@@ -1597,3 +1597,13 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileOverlayPop(open: number[], state: unknown, lastPos: number | null):
     | { kind: 'none' } | { kind: 'close', keep: number } | { kind: 'leave' } | { kind: 'dead', back: boolean }
 }
+
+declare module '~/utils/now-tick.mjs' {
+  export function createNowTick(deps: {
+    set: (ms: number) => void
+    now?: () => number
+    doc?: { visibilityState?: string, addEventListener?: (t: string, fn: () => void) => void, removeEventListener?: (t: string, fn: () => void) => void } | null
+    every?: (fn: () => void, ms: number) => unknown
+    cancel?: (id: unknown) => void
+  }): { enable(on: boolean): void, running(): boolean, dispose(): void }
+}

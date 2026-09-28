@@ -1,7 +1,9 @@
 import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
+import { createNowTick } from '~/utils/now-tick.mjs'
 
 /**
- * A 1 Hz clock, running only while `enabled` is true (an open topic pane).
+ * A 1 Hz clock, running only while `enabled` is true (an open topic pane)
+ * and the tab is visible.
  * `now` is Date.now() at each tick; the first tick is immediate on enable so
  * "seconds ago from opening this topic" is defined before the first interval.
  */
@@ -15,26 +17,17 @@ import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
  * getter and unwraps a ref, so both shapes work and the clock stops again. */
 export function useNowTick(enabled: MaybeRefOrGetter<boolean>) {
   const now = ref(Date.now())
-  let id: ReturnType<typeof setInterval> | null = null
-
-  function stop() {
-    if (id != null) {
-      clearInterval(id)
-      id = null
-    }
-  }
-
-  function start() {
-    now.value = Date.now()
-    if (id != null) return
-    id = setInterval(() => { now.value = Date.now() }, 1000)
-  }
+  /* CLE-35075: paused while the tab is hidden (utils/now-tick.mjs) */
+  const clock = createNowTick({
+    set: (ms: number) => { now.value = ms },
+    doc: import.meta.client ? document : null,
+  })
 
   watch(
     () => toValue(enabled),
-    (on) => { on ? start() : stop() },
+    (on) => { clock.enable(on) },
     { immediate: true },
   )
-  onUnmounted(stop)
+  onUnmounted(() => clock.dispose())
   return now
 }

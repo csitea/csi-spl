@@ -117,6 +117,22 @@ describe('auth client', () => {
     assert.equal(providerName('github'), 'Github')
   })
 
+  it('CLE-35075: two clients mounting together read /providers ONCE; a later read asks again', async () => {
+    const ok = stub(200, { providers: ['google'], native: true })
+    const a = createAuthClient({ fetchFn: ok.fn })
+    const b = createAuthClient({ fetchFn: ok.fn })
+    const [x, y] = await Promise.all([a.loadProviders(), b.loadProviders()])
+    assert.equal(ok.calls.length, 1)
+    assert.deepEqual(x, { status: 'ok', reason: '', providers: ['google'], native: true })
+    assert.deepEqual(y, x)
+    assert.notEqual(x.providers, y.providers, 'each caller owns its list')
+    await a.loadProviders()
+    assert.equal(ok.calls.length, 2, 'settled: the next mount reads afresh')
+    const other = createAuthClient({ fetchFn: ok.fn, base: 'https://api.example.com' })
+    await Promise.all([a.loadProviders(), other.loadProviders()])
+    assert.equal(ok.calls.length, 4, 'another auth origin is another read')
+  })
+
   it('providers: list in order, [] on off / error / network', async () => {
     const ok = stub(200, { providers: ['google', 'facebook'] })
     assert.deepEqual(await createAuthClient({ fetchFn: ok.fn }).providers(), ['google', 'facebook'])

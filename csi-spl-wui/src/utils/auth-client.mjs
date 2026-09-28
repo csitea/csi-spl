@@ -173,6 +173,9 @@ export function startHref(provider, redirect, tenant, base = '') {
   return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
 }
 
+/** in-flight GET /providers per fetch function and auth origin (loadProviders) */
+const providersInFlight = new WeakMap()
+
 export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false } = {}) {
   const root = authOrigin(base)
   // 'include': the cookie must ride a cross-origin call to the auth base; it is
@@ -203,7 +206,23 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
    * 'unavailable': non-2xx, network, bad JSON). `reason` is the HTTP status or
    * 'network' / 'bad_json'; '' when ok.
    */
-  async function loadProviders() {
+  /* /login mounts SocialAuthButtons AND NativeAuthForm, and each asked the
+     registry on mount: two identical GETs per load (CLE-35076's probe,
+     CLE-35075). Callers in flight at the same moment share one read; each
+     gets its own copy, and a later mount reads afresh. */
+  function loadProviders() {
+    const key = typeof fetchFn === 'function' ? fetchFn : providersInFlight
+    let joins = providersInFlight.get(key)
+    if (!joins) providersInFlight.set(key, (joins = new Map()))
+    let p = joins.get(root)
+    if (!p) {
+      p = readProviders().finally(() => { joins.delete(root) })
+      joins.set(root, p)
+    }
+    return p.then((out) => ({ ...out, providers: [...out.providers] }))
+  }
+
+  async function readProviders() {
     let res
     try {
       res = await call('/providers')

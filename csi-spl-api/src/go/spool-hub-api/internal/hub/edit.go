@@ -2,8 +2,10 @@ package hub
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -82,80 +84,15 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) { // rule 4, per request: a demotion bites at once
 		return
 	}
-	id := strings.ToLower(r.PathValue("msg_id"))
-	if !uuidRe.MatchString(id) {
-		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+	id, body, ok := readEditRequest(w, r)
+	if !ok {
 		return
 	}
-	var body editRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, bodyMax+4<<10))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {body}")
+	m, pub, ok := s.editTarget(w, r, t.ID, id, from)
+	if !ok {
 		return
 	}
-	// The composer's own empty guard has been bypassed before (CLE-3433 found
-	// a body = "" row in the dev store), so the hub refuses it too rather than
-	// trusting the one caller it happens to know about.
-	if strings.TrimSpace(body.Body) == "" {
-		writeErr(w, http.StatusBadRequest, "empty_body", "body must not be empty")
-		return
-	}
-	if len(body.Body) > bodyMax {
-		writeErr(w, http.StatusRequestEntityTooLarge, "too_large", "body must be at most 65536 bytes")
-		return
-	}
-
-	m, err := s.o.Store.GetEditable(r.Context(), t.ID, id, s.o.Now())
-	switch {
-	case errors.Is(err, store.ErrNotFound): // rule 5: absent, another tenant's, or past retention
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
-		return
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit lookup")
-		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
-		return
-	}
-	if !s.messageDoor(w, r, t.ID, m) { // the read door before rule 6
-		return
-	}
-	if m.FromID != from { // rule 6
-		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
-		return
-	}
-	// Rule 7. A from_box other than box-wui is that box's envelope: the hub
-	// holds no key that could re-sign for it, so the body stays as signed.
-	// A box-wui envelope with a signature was signed by this hub — channel
-	// fan-out and agent dispatch both call dispatchEnvelope — and the author
-	// (rule 6) may edit it. The same signer re-signs the new bytes with the
-	// key this process already holds. An unsigned box-wui envelope, a lobby
-	// note that never fanned out, is edited with its empty sig left empty.
-	// A signed envelope and no key is the same 409: there is nothing to
-	// re-sign with.
-	pub := s.wuiPub()
-	if m.FromBox != WUIBox || (m.EnvSig != "" && pub == nil) {
-		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
-		return
-	}
-	resign := m.EnvSig != ""
-
-	env, innerMsg, inner, err := reEnvelope(m, body.Body)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit re-encode")
-		writeErr(w, http.StatusInternalServerError, "internal", "edit not stored")
-		return
-	}
-	if resign {
-		signed, err := s.dispatchEnvelope(env.ToBox, env.Channel, env.ParentTaskID, pub, innerMsg)
-		if err != nil {
-			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit re-sign")
-			writeErr(w, http.StatusInternalServerError, "internal", "edit not stored")
-			return
-		}
-		env = signed
-		inner = signed.Msg
-	}
-	canon, err := env.Marshal()
+	canon, inner, sig, err := s.editedEnvelope(m, body, pub)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit envelope")
 		writeErr(w, http.StatusInternalServerError, "internal", "edit not stored")
@@ -163,7 +100,7 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	now := s.o.Now().UTC().Truncate(time.Second)
 	rev, err := s.o.Store.ApplyEdit(r.Context(), t.ID, id, store.Edit{
-		Body: body.Body, Msg: inner, Env: canon, EditedBy: from, EditedAt: now, EnvSig: env.Sig})
+		Body: body, Msg: inner, Env: canon, EditedBy: from, EditedAt: now, EnvSig: sig})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such message")
@@ -177,6 +114,95 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 
 	s.fanoutEdited(r.Context(), t.ID, m, canon, now, from, rev)
 	writeJSON(w, http.StatusOK, editedPayload(m, canon, now, from, rev))
+}
+
+// readEditRequest reads the message id from the path and the new body; false
+// has written the refusal.
+func readEditRequest(w http.ResponseWriter, r *http.Request) (id, body string, ok bool) {
+	id = strings.ToLower(r.PathValue("msg_id"))
+	if !uuidRe.MatchString(id) {
+		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+		return "", "", false
+	}
+	var req editRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, bodyMax+4<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {body}")
+		return "", "", false
+	}
+	// The composer's own empty guard has been bypassed before (CLE-3433 found
+	// a body = "" row in the dev store), so the hub refuses it too rather than
+	// trusting the one caller it happens to know about.
+	if strings.TrimSpace(req.Body) == "" {
+		writeErr(w, http.StatusBadRequest, "empty_body", "body must not be empty")
+		return "", "", false
+	}
+	if len(req.Body) > bodyMax {
+		writeErr(w, http.StatusRequestEntityTooLarge, "too_large", "body must be at most 65536 bytes")
+		return "", "", false
+	}
+	return id, req.Body, true
+}
+
+// editTarget is rules 5-7: the message exists and the reader may see it, the
+// caller is its author, and the hub can re-sign it. It answers the message
+// and, for a signed box-wui envelope, the key to re-sign with (nil = leave
+// the empty signature empty). false has written the refusal.
+func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, id, from string) (store.EditableMessage, ed25519.PublicKey, bool) {
+	m, err := s.o.Store.GetEditable(r.Context(), tenant, id, s.o.Now())
+	switch {
+	case errors.Is(err, store.ErrNotFound): // rule 5: absent, another tenant's, or past retention
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return m, nil, false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit lookup")
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return m, nil, false
+	}
+	if !s.messageDoor(w, r, tenant, m) { // the read door before rule 6
+		return m, nil, false
+	}
+	if m.FromID != from { // rule 6
+		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
+		return m, nil, false
+	}
+	// Rule 7. A from_box other than box-wui is that box's envelope: the hub
+	// holds no key that could re-sign for it, so the body stays as signed.
+	// A box-wui envelope with a signature was signed by this hub — channel
+	// fan-out and agent dispatch both call dispatchEnvelope — and the author
+	// (rule 6) may edit it. The same signer re-signs the new bytes with the
+	// key this process already holds. An unsigned box-wui envelope, a lobby
+	// note that never fanned out, is edited with its empty sig left empty.
+	// A signed envelope and no key is the same 409: there is nothing to
+	// re-sign with.
+	pub := s.wuiPub()
+	if m.FromBox != WUIBox || (m.EnvSig != "" && pub == nil) {
+		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
+		return m, nil, false
+	}
+	if m.EnvSig == "" {
+		return m, nil, true
+	}
+	return m, pub, true
+}
+
+// editedEnvelope is m's envelope with body, re-signed with pub when it was
+// signed: the canonical bytes, the inner v:1 message and the signature.
+func (s *Server) editedEnvelope(m store.EditableMessage, body string, pub ed25519.PublicKey) (canon, inner []byte, sig string, err error) {
+	env, innerMsg, inner, err := reEnvelope(m, body)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("re-encode: %w", err)
+	}
+	if pub != nil {
+		signed, err := s.dispatchEnvelope(env.ToBox, env.Channel, env.ParentTaskID, pub, innerMsg)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("re-sign: %w", err)
+		}
+		env, inner = signed, signed.Msg
+	}
+	canon, err = env.Marshal()
+	return canon, inner, env.Sig, err
 }
 
 // editorID is the v:1 agent id the caller's messages are stamped with. It is

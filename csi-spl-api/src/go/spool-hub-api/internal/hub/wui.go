@@ -497,112 +497,150 @@ func uiParent(v *int) (int, bool) {
 // wuiSend builds the v:1 object for a browser send and stores it through the
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
-	fail := func(tok string, status int, detail string) {
+	fail := func(rf *frameRefusal) {
 		// a refusal used to leave no line in the hub log, and the
 		// WUI shows every refusal as "did not reach the hub" - so the owner's
 		// ERR-CLIENT-20260927-204316-6D9A could not be joined to a reason on
 		// either side. One line per refusal: the token names the check.
 		s.o.Log.Info().Str("tenant", c.tenant).Str("member", c.member).Str("msg_id", f.MsgID).
-			Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", tok).Int("status", status).
-			Str("detail", detail).Msg("wui send refused")
-		c.write(ctx, wuiErr{"error", tok, status, detail, f.MsgID}) //nolint:errcheck
+			Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", rf.token).Int("status", rf.status).
+			Str("detail", rf.detail).Msg("wui send refused")
+		c.write(ctx, wuiErr{"error", rf.token, rf.status, rf.detail, f.MsgID}) //nolint:errcheck
 	}
 	task, id, isParent, tok, status, detail := s.wuiIDs(f)
 	if tok != "" {
-		fail(tok, status, detail)
+		fail(&frameRefusal{tok, status, detail})
 		return
 	}
 	f.MsgID = id
 	to, agent := s.wuiRecipient(f)
-	// A resend of a stored msg_id reuses its ts, so the rebuilt envelope is
-	// byte-identical and re-acks instead of conflicting (003 wui-live-ws §4).
-	ts := s.o.Now()
-	if prev, _, err := s.o.Store.MessageTimes(ctx, c.tenant, id); err == nil {
-		ts = prev
-	} else if !errors.Is(err, store.ErrNotFound) {
-		fail("internal", http.StatusInternalServerError, "message lookup failed")
-		return
-	}
-	m := &msg.Message{V: s.writeVersion(), MsgID: id, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
-		From: c.from, To: to, Kind: wuiKind(f.Kind), Body: f.Body, Files: wuiAttachments(f.Files)}
-	if err := m.Validate(); err != nil {
-		fail("bad_json", http.StatusBadRequest, err.Error())
+	m, rf := s.wuiMessage(ctx, c, f, task, to)
+	if rf != nil {
+		fail(rf)
 		return
 	}
 	f.ParentTaskID = strings.ToLower(f.ParentTaskID)
-	if tok, status, detail := s.checkTags(ctx, c.tenant, f.Channel, f.ParentTaskID, task); tok != "" {
-		fail(tok, status, detail)
+	rt, rf := s.wuiRoute(ctx, c, f, m, isParent, agent)
+	if rf == nil {
+		rf = frameRefusalOf(s.admit(ctx, c.tenant, c.member, m))
+	}
+	if rf != nil {
+		fail(rf)
 		return
 	}
-	channel := s.wuiChannel(ctx, c.tenant, f.Channel, task, isParent)
-	if tok, status, detail := s.wuiMayPost(ctx, c, channel, f.Channel, agent); tok != "" {
-		fail(tok, status, detail)
-		return
-	}
-	// Owner rule 2026-09-22: a channel post reaches every agent member of the
-	// channel, @mention or not - so a plain post now lands in agent inboxes,
-	// which is what agents.command guards (025 §3.1, "command an agent through
-	// box-wui dispatch"). POSTING stays notes.send: a tester must still be able
-	// to chat in #lobby, and #lobby may have agent members, so
-	// raising the post itself to agents.command would silence the role
-	// altogether. The FAN-OUT is what the stronger permission buys - without
-	// it the post is stored and shown in every browser (fanoutWUI) and no box
-	// delivery is built, which is exactly the pre-fan-out behaviour. Same
-	// identity rule as a dispatch (014 §3 step 1): a signed-in member, never a
-	// door-off anonymous socket.
-	fanOut := agent == "" && channel != "" && s.o.WUIDispatch && c.member != "" &&
-		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)
-	var box string
-	var pin ed25519.PublicKey
-	if agent != "" {
-		var tok string
-		var status int
-		var detail string
-		if box, pin, tok, status, detail = s.dispatchCheck(ctx, c, m); tok != "" {
-			fail(tok, status, detail)
-			return
-		}
-	}
-	if tok, status, detail := s.admit(ctx, c.tenant, c.member, m); tok != "" {
-		fail(tok, status, detail)
-		return
-	}
-	env, tok, status, detail := s.wuiEnvelope(ctx, c.tenant, m, wuiSigning{agent: agent, box: box, pin: pin, fanOut: fanOut},
-		channel, f.ParentTaskID)
+	env, tok, status, detail := s.wuiEnvelope(ctx, c.tenant, m, rt.signing, rt.channel, f.ParentTaskID)
 	if tok != "" {
-		fail(tok, status, detail)
+		fail(&frameRefusal{tok, status, detail})
 		return
 	}
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
-		fail("conflict_msg", http.StatusConflict, "msg_id exists with a different message")
+		fail(&frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})
 		return
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui store message")
-		fail("internal", http.StatusInternalServerError, "message not stored")
+		fail(&frameRefusal{"internal", http.StatusInternalServerError, "message not stored"})
 		return
 	}
-	receivedAt := r.receivedAt
-	if !r.inserted { // a duplicate acks with the stored row's cursor
-		if _, receivedAt, err = s.o.Store.MessageTimes(ctx, c.tenant, id); err != nil {
-			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui duplicate lookup")
-			fail("internal", http.StatusInternalServerError, "message lookup failed")
-			return
-		}
-	}
-	ack := map[string]any{"type": "ack", "msg_id": id, "task_id": task,
-		"cursor": encCursor(receivedAt, id), "received_at": rfc(receivedAt)}
-	if agent != "" {
-		ack["to_box"], ack["delivery"] = box, r.delivery
-		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", id).Str("from", m.From).
-			Str("to", m.To).Str("to_box", box).Str("delivery", r.delivery).Msg("wui dispatch")
+	ack, rf := s.wuiAck(ctx, c, m, rt, r)
+	if rf != nil {
+		fail(rf)
+		return
 	}
 	c.write(ctx, ack) //nolint:errcheck
 	// SPL-997: after the ack, so the sender never waits on it.
 	if r.inserted {
-		s.fallback(ctx, c.tenant, channel, env, m)
+		s.fallback(ctx, c.tenant, rt.channel, env, m)
 	}
+}
+
+// frameRefusalOf is the (token, status, detail) triple of the older check
+// helpers as a frameRefusal; nil when token is "".
+func frameRefusalOf(token string, status int, detail string) *frameRefusal {
+	if token == "" {
+		return nil
+	}
+	return &frameRefusal{token, status, detail}
+}
+
+// wuiMessage is the v:1 object of a browser send. A resend of a stored
+// msg_id reuses its ts, so the rebuilt envelope is byte-identical and
+// re-acks instead of conflicting (003 wui-live-ws §4).
+func (s *Server) wuiMessage(ctx context.Context, c *wuiConn, f wuiIn, task, to string) (*msg.Message, *frameRefusal) {
+	ts := s.o.Now()
+	if prev, _, err := s.o.Store.MessageTimes(ctx, c.tenant, f.MsgID); err == nil {
+		ts = prev
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return nil, &frameRefusal{"internal", http.StatusInternalServerError, "message lookup failed"}
+	}
+	m := &msg.Message{V: s.writeVersion(), MsgID: f.MsgID, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
+		From: c.from, To: to, Kind: wuiKind(f.Kind), Body: f.Body, Files: wuiAttachments(f.Files)}
+	if err := m.Validate(); err != nil {
+		return nil, &frameRefusal{"bad_json", http.StatusBadRequest, err.Error()}
+	}
+	return m, nil
+}
+
+// wuiRouted is where a browser send goes: its channel, and for an agent
+// dispatch the box and pin it is signed for.
+type wuiRouted struct {
+	channel string
+	signing wuiSigning
+}
+
+// wuiRoute checks the channel / parent tags and the poster's rights and
+// resolves the route. Owner rule 2026-09-22: a channel post reaches every
+// agent member of the channel, @mention or not - so a plain post now lands
+// in agent inboxes, which is what agents.command guards (025 §3.1, "command
+// an agent through box-wui dispatch"). POSTING stays notes.send: a tester
+// must still be able to chat in #lobby, and #lobby may have agent members,
+// so raising the post itself to agents.command would silence the role
+// altogether. The FAN-OUT is what the stronger permission buys - without it
+// the post is stored and shown in every browser (fanoutWUI) and no box
+// delivery is built, which is exactly the pre-fan-out behaviour. Same
+// identity rule as a dispatch (014 §3 step 1): a signed-in member, never a
+// door-off anonymous socket.
+func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Message, isParent int, agent string) (wuiRouted, *frameRefusal) {
+	var rt wuiRouted
+	if rf := frameRefusalOf(s.checkTags(ctx, c.tenant, f.Channel, f.ParentTaskID, m.TaskID)); rf != nil {
+		return rt, rf
+	}
+	rt.channel = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
+	if rf := frameRefusalOf(s.wuiMayPost(ctx, c, rt.channel, f.Channel, agent)); rf != nil {
+		return rt, rf
+	}
+	rt.signing = wuiSigning{agent: agent, fanOut: agent == "" && rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
+		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
+	if agent != "" {
+		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m)
+		if tok != "" {
+			return rt, &frameRefusal{tok, status, detail}
+		}
+		rt.signing.box, rt.signing.pin = box, pin
+	}
+	return rt, nil
+}
+
+// wuiAck is the browser's ack; a duplicate acks with the stored row's
+// cursor, and an agent dispatch names its box and delivery.
+func (s *Server) wuiAck(ctx context.Context, c *wuiConn, m *msg.Message, rt wuiRouted, r committed) (map[string]any, *frameRefusal) {
+	receivedAt := r.receivedAt
+	if !r.inserted {
+		var err error
+		if _, receivedAt, err = s.o.Store.MessageTimes(ctx, c.tenant, m.MsgID); err != nil {
+			s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("wui duplicate lookup")
+			return nil, &frameRefusal{"internal", http.StatusInternalServerError, "message lookup failed"}
+		}
+	}
+	ack := map[string]any{"type": "ack", "msg_id": m.MsgID, "task_id": m.TaskID,
+		"cursor": encCursor(receivedAt, m.MsgID), "received_at": rfc(receivedAt)}
+	if rt.signing.agent != "" {
+		ack["to_box"], ack["delivery"] = rt.signing.box, r.delivery
+		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", m.MsgID).Str("from", m.From).
+			Str("to", m.To).Str("to_box", rt.signing.box).Str("delivery", r.delivery).Msg("wui dispatch")
+	}
+	return ack, nil
 }
 
 // wuiIDs checks the ids of a browser send: the task ("lobby" resolved), the

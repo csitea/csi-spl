@@ -331,12 +331,16 @@ try {
   await closeModal(p)
 
   await create(p, 'A third row for J', '')
-  /* the deadline box is as wide as "YYYY-MM-DD HH:MM" (topic 593a804a) */
+  /* the deadline box is as wide as "YYYY-MM-DD HH:MM" (topic 593a804a), plus
+     the ~2 mm of SPL-1147: what it shows (the value, else the placeholder)
+     and no more. Measured in the FIELD's font: an input does not
+     inherit the page font, and Chrome answers the `font` shorthand of an
+     input as '' (the probe then used the larger page font) */
   const dl = await p.$eval('[data-test=issues-filter-deadline-date]', (el) => {
     const probe = document.createElement('span')
     const cs = getComputedStyle(el)
-    probe.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${cs.font};font-variant-numeric:tabular-nums`
-    probe.textContent = '2026-09-26 17:45'
+    probe.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font-family:${cs.fontFamily};font-size:${cs.fontSize};font-weight:${cs.fontWeight};font-variant-numeric:tabular-nums`
+    probe.textContent = el.value || el.placeholder
     document.body.appendChild(probe)
     const text = probe.getBoundingClientRect().width
     probe.remove()

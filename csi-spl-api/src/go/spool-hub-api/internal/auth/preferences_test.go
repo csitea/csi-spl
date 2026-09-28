@@ -540,8 +540,45 @@ func TestPreferencesViewPrefs(t *testing.T) {
 		t.Fatalf("no session: %d %s", got.code, got.raw)
 	}
 	// Defaults are the first value of each list: today's layout.
-	if auth.ViewPrefs[auth.PrefMessageOrder][0] != "newest-first" || auth.ViewPrefs[auth.PrefComposerPosition][0] != "top" {
+	if auth.ViewPrefs[auth.PrefMessageOrder][0] != "newest-first" || auth.ViewPrefs[auth.PrefComposerPosition][0] != "top" ||
+		auth.ViewPrefs[auth.PrefIssuesView][0] != "list" {
 		t.Fatalf("defaults drifted: %v", auth.ViewPrefs)
+	}
+}
+
+// SPL-1028: issues_view is kept on the account like the other layout keys:
+// only list / status, null clears, independent of the others, and GET
+// /session plus the native login answer carry it.
+func TestPreferencesIssuesView(t *testing.T) {
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["issues_view"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	} else if _, ok := got.body["issues_view"]; !ok {
+		t.Fatalf("session must answer issues_view null: %s", got.raw)
+	}
+	got := r.call(t, c, http.MethodPut, "preferences", `{"issues_view":"status"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["issues_view"] != "status" {
+		t.Fatalf("put: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["issues_view"] != "status" || got.body["message_order"] != nil {
+		t.Fatalf("session after: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK || got.body["issues_view"] != "status" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for _, body := range []string{`{"issues_view":"board"}`, `{"issues_view":"Status"}`, `{"issues_view":""}`, `{"issues_view":"top"}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_issues_view" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"issues_view":null}`)
+	if got.code != http.StatusOK || got.body["issues_view"] != nil || len(got.body) != 1 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["issues_view"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
 	}
 }
 

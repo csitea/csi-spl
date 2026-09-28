@@ -369,6 +369,9 @@ type sessionResp struct {
 	// (the WUI then keeps today's layout: newest first, Omnibox at the top).
 	MessageOrder     *string `json:"message_order"`
 	ComposerPosition *string `json:"composer_position"`
+	// IssuesView is the Issues page's view (SPL-1028), null when never
+	// picked (the WUI then shows the list).
+	IssuesView *string `json:"issues_view"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -403,6 +406,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.RailOrder = h.railOrder(r.Context(), s)
 		out.MessageOrder = h.viewPref(r.Context(), s, PrefMessageOrder)
 		out.ComposerPosition = h.viewPref(r.Context(), s, PrefComposerPosition)
+		out.IssuesView = h.viewPref(r.Context(), s, PrefIssuesView)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -678,16 +682,20 @@ const (
 	// PrefComposerPosition: 'top' = the Omnibox in the top bar; 'bottom' =
 	// docked under the middle pane on screens wider than 820 px.
 	PrefComposerPosition = "composer_position"
+	// PrefIssuesView (SPL-1028, rdb 0072): 'list' = the Issues sheet as one
+	// flat list; 'status' = the same rows grouped by status (Linear's view).
+	PrefIssuesView = "issues_view"
 )
 
 // ViewPrefs maps each layout key to its values, default first.
 var ViewPrefs = map[string][]string{
 	PrefMessageOrder:     {"newest-first", "newest-last"},
 	PrefComposerPosition: {"top", "bottom"},
+	PrefIssuesView:       {"list", "status"},
 }
 
 // viewPrefKeys is ViewPrefs' keys in a fixed order (the PUT answer and logs).
-var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition}
+var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition, PrefIssuesView}
 
 // IsViewPref reports whether value is one of key's ViewPrefs values, exactly.
 func IsViewPref(key, value string) bool {
@@ -744,7 +752,8 @@ func isPermutation(order, of []string) bool {
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
 // legacy six, SPL-983), or null; message_order and composer_position (topic
-// c6994436) are one of their ViewPrefs values exactly, or null.
+// c6994436) and issues_view (SPL-1028) are one of their ViewPrefs values
+// exactly, or null.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
@@ -754,12 +763,16 @@ type preferencesReq struct {
 	RailOrder          json.RawMessage `json:"rail_order"`
 	MessageOrder       json.RawMessage `json:"message_order"`
 	ComposerPosition   json.RawMessage `json:"composer_position"`
+	IssuesView         json.RawMessage `json:"issues_view"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
 func (q preferencesReq) raw(key string) json.RawMessage {
-	if key == PrefMessageOrder {
+	switch key {
+	case PrefMessageOrder:
 		return q.MessageOrder
+	case PrefIssuesView:
+		return q.IssuesView
 	}
 	return q.ComposerPosition
 }
@@ -803,7 +816,7 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" && rawRail == "" && len(view) == 0 {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null) or composer_position (top, bottom or null) is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null) or issues_view (list, status or null) is required")
 		return
 	}
 	loc := ""

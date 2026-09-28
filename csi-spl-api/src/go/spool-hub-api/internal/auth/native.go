@@ -407,6 +407,8 @@ type loginResp struct {
 	// c6994436), null when unset.
 	MessageOrder     *string `json:"message_order"`
 	ComposerPosition *string `json:"composer_position"`
+	// IssuesView as GET /session answers it (SPL-1028), null when unset.
+	IssuesView *string `json:"issues_view"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -498,7 +500,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
-		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition)})
+		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
+		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView)})
 }
 
 type emailReq struct {

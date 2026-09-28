@@ -100,15 +100,20 @@ resource "google_cloud_run_v2_service" "hub" {
         }
       }
 
+      # Ask at once and every second (CLE-35076): the hub listens 0.76 s
+      # after an instance starts (p50, n=20 prd revisions, 2026-09-28) but
+      # the first probe waited a fixed 2 s, so every deploy and cold start
+      # was ready at 2.21 s. The budget stays 120 s (120 x 1 s, was 24 x 5 s);
+      # Cloud Run needs timeout <= period.
       startup_probe {
         http_get {
           path = var.health_path
           port = var.container_port
         }
-        initial_delay_seconds = 2
-        timeout_seconds       = 3
-        period_seconds        = 5
-        failure_threshold     = 24
+        initial_delay_seconds = 0
+        timeout_seconds       = 1
+        period_seconds        = 1
+        failure_threshold     = 120
       }
 
       liveness_probe {

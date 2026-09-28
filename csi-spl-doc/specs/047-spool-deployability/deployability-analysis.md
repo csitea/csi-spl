@@ -12,10 +12,11 @@ deployability for the spool-hub.ai", sharpened to two ways in:
 - **B. Hosted and paid:** a customer buys a tenant from Csitea on
   spool-hub.ai.
 
-Panel: CLE-35078 (A, this document), CLE-35079 (B, technical), AGY-3505
-(taking it into use), AGY-3509 (operations + cost), AGY-3510 (benchmark),
-with independent opinions from CLE-35074, CLE-35076, AGY-3506, AGY-3507 and
-AGY-3508.
+Panel: CLE-35078 (A, this document), CLE-35079 (B, technical), CLE-35084
+(taking it into use; replaced AGY-3505), CLE-35085 (operations + cost;
+replaced AGY-3509), CLE-35086 (benchmark; replaced AGY-3510), with
+independent opinions from CLE-35074, CLE-35076, AGY-3506, AGY-3507, AGY-3508
+and the first AGY-3510 benchmark.
 
 **Evidence rule.** Every number below carries its command or file. The tree
 is trunk `4dc8df91` (tag v1.9.2). Unless a row says otherwise, n = 1. An
@@ -141,18 +142,144 @@ The peer figures below were reported from product docs by AGY-3510 and were
 | agent seated on own hub | 5 manual CLI steps | Slack bot install ~30 s | **one pasted line** |
 | hosted: pay to first message | unbounded (operator) | Slack/Linear < 90 s, no card | **< 5 min, 0 operator actions** |
 
-## 4. Operations and cost (AGY-3509)
+## 4. Operations and cost (CLE-35085, replacing AGY-3509)
 
-_Pending AGY-3509's analysis: the GCP running cost per env and per tenant,
-backups and restore (spec 029, contingency T070..T079), updates and
-versioning, support load, and the self-hoster's security duties._ Known from
-this lane: compose has no documented backup or upgrade (blocker 7), and the
-hub Cloud Run service runs as one 1 vCPU / 512 MiB instance (commit
-`4dc8df91`).
+Measured 2026-09-28 15:05-15:15Z, trunk `4db84e2a`, as the per-env project
+SAs (`key-csi-spl-<env>.json`, throwaway `CLOUDSDK_CONFIG`), n = 1 per
+reading. The SAs cannot read billing (`gcloud billing projects describe
+csi-spl-prd` -> "Cloud Billing API has not been used in project ... or it is
+disabled"), so every **cost** is an **estimate** from GCP list prices for
+europe-north1 as known to the author, not fetched from a price sheet or an
+invoice. The owner's billing console is the one place to confirm them.
+
+### 4.1 What the estate runs, per env (measured)
+
+| resource | dev | prd | command |
+|---|---|---|---|
+| Cloud Run hub | 1 vCPU / 512Mi, min 1 = max 1, **CPU always allocated** (`cpu-throttling: false`) | same | `gcloud run services list --format=value(...minScale,maxScale,limits,cpu-throttling)` |
+| Cloud SQL | `db-f1-micro`, 10 GB, ZONAL, backups on, PITR on, 7 retained, public IPv4 on | same | `gcloud sql instances list --format=value(...)` |
+| GCS | db-backups 27.5 MB, files 3.4 MB, rel 0, tfstate 0.2 MB | db-backups 27.3 MB, files 53.7 MB, rel 0, tfstate 0.2 MB | `gcloud storage du -s gs://<b>` |
+| Artifact Registry | 2 632 MB | 2 611 MB | `gcloud artifacts repositories list --format=value(name,sizeBytes)` |
+| Secret Manager | 13 secrets | 13 secrets | `gcloud secrets list \| wc -l` |
+| VMs, static IPs, LB forwarding rules | 0 / 0 / 0 | 0 / 0 / 0 | `gcloud compute {instances,addresses,forwarding-rules} list` |
+| WUI | Firebase Hosting (static) | same | memory: WUI on Firebase since 2026-09-19 |
+
+prd load (`ENV=prd do_spl_db_query`): **10 tenants, 11 humans, 6 681
+messages (all in the last 7 days), DB 57 MB**.
+
+### 4.2 Monthly running cost (estimate, list prices, 730 h)
+
+| item | per env | why |
+|---|---|---|
+| Cloud Run, 1 vCPU always on | ~$47 | 2 628 000 vCPU-s x $0.000018 |
+| Cloud Run, 0.5 GiB always on | ~$3 | 1 314 000 GiB-s x $0.000002 |
+| Cloud SQL db-f1-micro + 10 GB SSD + backups/PITR | ~$10-11 | ~$8 instance + ~$2 disk + < $1 backups |
+| Artifact Registry 2.6 GB | ~$0.25 | $0.10/GB beyond 0.5 GB |
+| Secret Manager, GCS, Firebase Hosting, logging | ~$1 | 13 active secrets x $0.06; the rest is inside free tiers |
+| **total per env** | **~$60-65** | |
+| **dev + prd** | **~$120-130 / month** | |
+
+1. **~80% of the bill is the always-on hub CPU**, and dev pays it exactly
+   like prd. Cheapest levers (estimates, none applied): dev at 0.5 vCPU or
+   scale-to-zero outside working hours (-$20..45/month); request-based CPU on
+   prd only if the hub's background work (sweeps, relay, WS) is proven to
+   survive throttling, which is NOT measured and is the risky one.
+2. **Cost per tenant is ~0 at the margin.** 10 prd tenants share one fixed
+   ~$62 bill: $6.2/tenant/month today, ~$0.6 at 100 tenants, until the
+   ceilings below bite. At the one-off 20 EUR price a sale covers roughly one
+   tenant's share for three months and then nothing: the fixed cost wants a
+   subscription (supports decision **D5**).
+3. **Self-hoster (A, compose):** the whole stack idles at ~110 MiB (section
+   1.1), so it fits the smallest VM class (estimate: ~$5-8/month on a 1-2 GB
+   VM from any provider) plus their own SMTP relay and domain.
+
+### 4.3 Capacity ceilings = the SLA we can honestly offer today
+
+| ceiling | value | source |
+|---|---|---|
+| hub instances | max 1: every deploy is a revision swap on one instance, no redundancy | 4.1 |
+| DB | `db-f1-micro`, `max_connections` 25, hub pool 8, ZONAL (no failover) | 4.1; spec 027 |
+| deploy frequency | hub workflow 20: **118 runs** in the last 24 h (108 ok, 9 fail, 1 cancelled); WUI 30: **97** (78 / 5 / 14) | `gh run list -w <wf> --created '>=2026-09-27T15:00Z'` |
+
+With one zonal DB and one hub instance there is no basis for a written SLA
+above "best effort". A paid tier with an SLA needs, at least: REGIONAL Cloud
+SQL (roughly doubles the DB line, estimate), max instances >= 2 with the WS
+fan-out proven across instances (1.0.1 cross-revision relay is a start), and
+uptime measured (no uptime check exists: `monitoring` is enabled, nothing
+reads it into a number).
+
+### 4.4 Backups and restore
+
+| path | state | evidence |
+|---|---|---|
+| B (GCP) Cloud SQL automated | on, 7 retained, PITR on | 4.1 |
+| B daily off-instance export + **daily restore verify** into a container (workflow 45) | 7 of the last 8 runs green (2026-09-24 red, log expired) | `gh run list -w 45_db-backup.yml -L 10` |
+| B copy OUT of the project | **GAP T077**: the 045 bucket dies with the project | 044 `contingency.md` §3.1 |
+| B restore into a NEW Cloud SQL instance | **GAP T078**: no action; owner's out-of-band step | contingency §4.2 |
+| B RTO for a full re-create | ~3-4 h per env, "a working day" end to end: **estimate**; T079 drill not run | contingency §4.3 |
+| B key/secret rotation after a compromise | **GAPs T071-T076** (GitHub secret revoke, SA key, relay key, runtime DB password, session/box-wui keys, runners) | 044 `tasks.md` T070..T079, all `[ ]` |
+| A (compose) | **nothing documented**: no backup, restore or upgrade section | `grep -ciE 'backup\|upgrade\|restore' README.md` -> 0 |
+
+So B has a good *data* backup (daily, verified, 30-day lifecycle) but no
+tested *estate* recovery; A has neither.
+
+### 4.5 Updates and versioning
+
+1. Release cadence: **80 `v*` tags in 14.5 h today** (v1.1.3 at 21:31Z
+   yesterday to v1.9.2 at 12:01Z): `git for-each-ref --sort=creatordate
+   refs/tags/v*`. Every deploy mints a tag, so a tag is a build, not a release.
+2. Schema: 77 forward-only migrations (`ls csi-spl-rdb/src/sql/postgres/spool-hub | wc -l`),
+   54 commits touching them since 2026-09-21. No downgrade path exists by design.
+3. `SECURITY.md`: "Only the latest commit on master receives security fixes.
+   Self-hosters should rebuild from it (`git pull && docker compose up --build -d`)".
+   No CHANGELOG, no release notes, no stable channel (`ls | grep -i change` -> none).
+
+For a self-hoster that is unsupportable: they can only track a trunk that
+moves ~5 tags an hour and applies migrations they cannot roll back. Proposal:
+a **weekly (or per-milestone) release train** cut from trunk with a
+`stable` tag, generated release notes, images published per release (links
+B1), and "upgrade = pull the new tag, take a dump, `up -d`" in the README.
+
+### 4.6 Support load (operator actions today)
+
+| event | operator actions | evidence |
+|---|---|---|
+| a tenant is bought (B) | 1+ (seat the buyer; host reconcile, workflow 40 paused) | blocker 1, B5 |
+| an agent is seated (A+B) | root key + CLI on the box, by someone with the key | blocker 4 |
+| a red deploy | 14 red hub+WUI runs in 24 h, each watched by a lane or the ORC | 4.3 |
+| backup failure | a red workflow 45 is the only alert (nobody is paged) | spec 029 §4.5 |
+
+Not measured: tickets per tenant (there are no external customers yet).
+
+### 4.7 The self-hoster's security duties (A)
+
+1. **Change the DB passwords before the first `up`**: the compose defaults
+   are public (`spool-local-owner`, `spool-local-superuser`,
+   `spool-local-runtime`, `docker-compose.yml:22,30,54`). pg publishes no
+   port, which limits but does not remove the risk. Quick win: hub-init
+   refuses the defaults when `SPOOL_SITE_ADDRESS` is not localhost.
+2. TLS and the domain: Caddy does it, given ports 80/443 open.
+3. SMTP relay credentials (no preflight: blocker 9).
+4. Tracking `master` for security fixes (4.5), rebuilding, and backups (4.4):
+   all on them, none documented.
+5. Protecting the tenant **root key** that seats agents (blocker 4, B2).
+6. Host hardening, OS patches, firewall: theirs, unstated in the README.
+
+### 4.8 Quick wins from this angle (map to SPL-57)
+
+| # | change | effort | removes |
+|---|---|---|---|
+| O1 | README "Backup, restore and upgrade" for compose (`pg_dump` from the pg container, restore, pull + `up -d`) | XS | 4.4 A, 4.5 |
+| O2 | hub-init refuses default DB passwords off localhost | XS | 4.7.1 |
+| O3 | dev hub to 0.5 vCPU or scale-to-zero (owner cost decision) | XS | ~$20-45/month |
+| O4 | T077 off-project dump copy | S | the worst B data-loss case |
+| O5 | a `stable` release tag + release notes, weekly | S | 4.5 |
+| O6 | an uptime check + monthly availability number | S | the SLA basis |
+| big | T078 restore action + T079 timed drill; REGIONAL DB + 2 hub instances before any paid SLA | M-L | 4.3, 4.4 |
 
 ## 5. How to improve: the plan
 
-### 5.1 Wave 1 — quick wins (about 3-4 days of lane work in total)
+### 5.1 Wave 1 — quick wins (about 4-5 days of lane work in total)
 
 | # | change | removes | effort | lane | metric |
 |---|---|---|---|---|---|
@@ -160,10 +287,13 @@ hub Cloud Run service runs as one 1 vCPU / 512 MiB instance (commit
 | W2 | Checkout copy: drop "being prepared"; say where the tenant is. Add a "Buy a workspace" link + a price line on the landing and login pages | blocker 5 | XS | WUI | `curl -s https://spool-hub.ai/ \| grep -ic checkout` >= 1 |
 | W3 | One owner-run live buy + refund on prd | blocker 3 | 30 min owner | owner | 1 prd checkout paid, refunded -> `unpaid` |
 | W4 | `do_spl_desk_pin` / install.sh accept any `SPOOL_HUB_URL` when told it is self-hosted (no cnf match, no ENV) | blocker 2 | S | orc (installer) | the stranger test seats an agent with install.sh |
-| W5 | hub-init prints the one-line agent seat command; README gains "Connect an agent" + "Backup and upgrade" sections | blockers 2, 7 | S | docs + api | stranger to first agent message < 10 min, following the README only |
+| W5 | hub-init prints the one-line agent seat command; README gains "Connect an agent" + "Backup, restore and upgrade" sections (O1) | blockers 2, 7 | S | docs + api | stranger to first agent message < 10 min, following the README only |
 | W6 | Stamp the real version into the self-built images (`git describe` build arg) | blocker 8 | XS | api + WUI | `/version` = the tag |
 | W7 | Mail preflight at hub start in prd mode (log a loud error, or refuse to start) | blocker 9 | S | api | a dead relay is visible at `up` |
 | W8 | Drop the unused `BITBUCKET_APP_PASSWORD` demand | G7 | XS | orc | `grep -c BITBUCKET setup-app-inf.func.mk` -> 0 |
+| W9 | hub-init refuses the public default DB passwords when the site is not localhost (O2) | 4.7.1 | XS | api | `up` with defaults on a domain fails loudly |
+| W10 | A `stable` release tag cut weekly from trunk, with generated release notes (O5) | 4.5 | S | CI | a self-hoster can pin a release and read what changed |
+| W11 | Owner cost call: dev hub at 0.5 vCPU or scale-to-zero (O3) | 4.2 | XS | iac (tf 030, owner go) | ~$20-45/month saved (estimate) |
 
 ### 5.2 Wave 2 — the big items
 
@@ -174,6 +304,8 @@ hub Cloud Run service runs as one 1 vCPU / 512 MiB instance (commit
 | B3 | Prebuilt `spool` CLI binaries (release assets), so the installer needs no Go build | S-M | CI | install.sh without a toolchain |
 | B4 | Recurring billing (Stripe subscriptions), grace period, VAT/invoices, terms; then a trial | M-L | hub payments + WUI | renewal, cancel, and grace proven on dev |
 | B5 | Paid -> tenant host automatic (revive workflow 40, or drop per-tenant hosts for tenant-from-identity) | M | iac/orc | `host_status` reaches `ready` with 0 operator actions |
+| B7 | Estate recovery: T077 off-project dump copy, T078 restore-into-new-instance action, T079 timed drill (O4 + big) | M | iac/orc | RTO measured, not estimated |
+| B8 | Before any paid SLA: REGIONAL Cloud SQL, >= 2 hub instances with the WS fan-out proven, an uptime check with a monthly number (O6) | M-L | iac + api | a measured availability figure |
 | B6 | Only if D2 = yes: parameterise the GCP estate (project/resource names from cnf, org optional, a blank cnf template, env names free) | L (2-3 wk) | iac + cnf | a second org stands up with a documented runbook |
 
 ### 5.3 Success metrics for SPL-57

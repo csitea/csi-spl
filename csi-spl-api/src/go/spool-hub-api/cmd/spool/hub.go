@@ -71,26 +71,81 @@ func cmdServe() int {
 		return fail(err)
 	}
 	defer st.Close()
-	var bs blob.Store
-	if hc.FilesBucket != "" {
-		g, err := blob.OpenGCS(ctx, hc.FilesBucket)
-		if err != nil {
-			return fail(err)
-		}
-		bs = g
-	} else {
-		bs = blob.Dir{Root: hc.FilesDir}
+	bs, err := openBlobStore(ctx, hc)
+	if err != nil {
+		return fail(err)
 	}
 	defer bs.Close()
 
+	opts, err := hubOptions(ctx, hc, log, st, bs)
+	if err != nil {
+		return fail(err)
+	}
+	srv, err := hub.New(opts)
+	if err != nil {
+		return fail(err)
+	}
+	go srv.RunSweeper(ctx, sweepEvery)
+	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
+	return serveUntilDone(ctx, hc, log, srv)
+}
+
+// hubOptions wires every dependency of the hub in boot order: the base
+// options, the box-wui key, CI logs, auth (OIDC + native), payments and the
+// invite mailer (SPL-1036: one named step each). Any error is fatal.
+func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Store) (hub.Options, error) {
 	var originTenant *hub.OriginTenant // SPL-959; nil = tenant hosts off
 	if hc.WUITenantHosts {
 		originTenant = hub.NewOriginTenant(hc.TenantHostPattern, hc.WUIApexTenant)
 	}
+	opts := baseOptions(hc, log, st, bs, originTenant)
+	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
+	if err != nil {
+		return opts, err
+	}
+	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
+	if wuiKey != nil {
+		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
+			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")
+	}
+	if opts.CICD, err = cicdService(hc); err != nil {
+		return opts, err
+	}
+	ac, nc, err := loadAuthConfig(hc)
+	if err != nil {
+		return opts, err
+	}
+	logRLSPosture(ctx, log, st)
+	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
+	// The IdP picture lands in the same tenant blob store (010 T044).
+	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner},
+		Blob: bs, AvatarErr: func(hum string, err error) {
+			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
+		}}
+	// CLE-3403: preferred_locale lives on the human (rdb 0017); the default
+	// locale is cnf, validated by LoadHub.
+	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
+		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request})
+	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
+	if err := enableNativeSignIn(opts.Auth, nc, st, log); err != nil {
+		return opts, err
+	}
+	pmc, err := wirePayments(&opts, hc, log, st)
+	if err != nil {
+		return opts, err
+	}
+	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
+	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
+	return opts, nil
+}
+
+// baseOptions maps the hub cnf onto hub.Options; the dependencies that need
+// loading or checking are added by hubOptions.
+func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Store, originTenant *hub.OriginTenant) hub.Options {
 	// CLE-35061: attachment reads served from memory after the first; the
 	// hub is one instance of 512 MiB (hub.cloud_run), ~80 MiB in use.
 	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, blobCacheTTL)
-	opts := hub.Options{
+	return hub.Options{
 		Store: st, Blob: cached, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
@@ -106,101 +161,124 @@ func cmdServe() int {
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},
 	}
-	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
+}
+
+// openBlobStore is the tenant file store: the GCS bucket when one is set,
+// else a local dir.
+func openBlobStore(ctx context.Context, hc *config.Hub) (blob.Store, error) {
+	if hc.FilesBucket == "" {
+		return blob.Dir{Root: hc.FilesDir}, nil
+	}
+	g, err := blob.OpenGCS(ctx, hc.FilesBucket)
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
-	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
-	if wuiKey != nil {
-		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
-			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")
+	return g, nil
+}
+
+// cicdService is the CI-logs service, or nil when it is off.
+func cicdService(hc *config.Hub) (*cicdlogs.Service, error) {
+	if !hc.CICDLogsEnabled {
+		return nil, nil
 	}
-	if hc.CICDLogsEnabled {
-		stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)
-		if err != nil {
-			return fail(err)
+	stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)
+	if err != nil {
+		return nil, err
+	}
+	svc := &cicdlogs.Service{Settings: stt, Fetch: cicdlogs.HTTPFetcher{}, Now: time.Now, MsgVersion: hc.MsgVersion}
+	if k := strings.TrimSpace(hc.CICDHubBoxKey); k != "" {
+		raw, err := base64.StdEncoding.DecodeString(k)
+		if err != nil || len(raw) != ed25519.PrivateKeySize {
+			return nil, fmt.Errorf("SPOOL_HUB_CICD_HUB_BOX_KEY is not a base64 ed25519 private key")
 		}
-		svc := &cicdlogs.Service{Settings: stt, Fetch: cicdlogs.HTTPFetcher{}, Now: time.Now, MsgVersion: hc.MsgVersion}
-		if k := strings.TrimSpace(hc.CICDHubBoxKey); k != "" {
-			raw, err := base64.StdEncoding.DecodeString(k)
-			if err != nil || len(raw) != ed25519.PrivateKeySize {
-				return fail(fmt.Errorf("SPOOL_HUB_CICD_HUB_BOX_KEY is not a base64 ed25519 private key"))
-			}
-			svc.Signer = ed25519.PrivateKey(raw)
-		}
-		opts.CICD = svc
+		svc.Signer = ed25519.PrivateKey(raw)
 	}
+	return svc, nil
+}
+
+// loadAuthConfig loads the OIDC and native sign-in cnf and cross-checks them
+// with the hub cnf.
+func loadAuthConfig(hc *config.Hub) (*auth.Config, *auth.NativeConfig, error) {
 	ac, err := auth.Load(hc.Env) // fails fast on a bad SPOOL_HUB_AUTH_*; no providers = auth off
 	if err != nil {
-		return fail(err)
+		return nil, nil, err
 	}
 	nc, err := auth.LoadNative(hc.Env) // spec 015; off unless SPOOL_HUB_AUTH_NATIVE_ENABLED=true
 	if err != nil {
-		return fail(err)
+		return nil, nil, err
 	}
 	// 017 FR-SEC-006: one hops value for every per-IP limit. The retired
 	// native-only knob may stay set only if it agrees.
 	if v, ok := os.LookupEnv("SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS"); ok && strings.TrimSpace(v) != strconv.Itoa(hc.TrustedProxyHops) {
-		return fail(fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS=%q disagrees with SPOOL_HUB_TRUSTED_PROXY_HOPS=%d: set only SPOOL_HUB_TRUSTED_PROXY_HOPS", v, hc.TrustedProxyHops))
+		return nil, nil, fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS=%q disagrees with SPOOL_HUB_TRUSTED_PROXY_HOPS=%d: set only SPOOL_HUB_TRUSTED_PROXY_HOPS", v, hc.TrustedProxyHops)
 	}
 	nc.TrustedProxyHops = hc.TrustedProxyHops
 	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 && !nc.Enabled {
-		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)"))
+		return nil, nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)")
 	}
-	// 017 FR-SEC-013: rdb 0014 row level security binds only a role that is
-	// neither superuser nor BYPASSRLS; say which one this hub got.
+	return ac, nc, nil
+}
+
+// logRLSPosture says whether tenant row level security binds this hub's
+// database role (017 FR-SEC-013/014). It only logs; a memory store is silent.
+func logRLSPosture(ctx context.Context, log zerolog.Logger, st store.Store) {
+	pg, ok := st.(*store.Postgres)
+	if !ok {
+		return
+	}
+	// rdb 0014 row level security binds only a role that is neither
+	// superuser nor BYPASSRLS; say which one this hub got.
+	if by, err := pg.RLSBypassed(ctx); err != nil {
+		log.Warn().Err(err).Msg("db.rls_role_unknown")
+	} else if by {
+		log.Warn().Str("severity", "WARNING").Msg("db.rls_bypassed: the hub role is superuser or BYPASSRLS, tenant RLS policies do not apply")
+	} else {
+		log.Info().Msg("db.rls_role_bound: the hub role is subject to row level security")
+	}
+	// A role that owns the tables can lift FORCE itself.
+	if why, err := pg.HubRoleCanLiftRLS(ctx); err != nil {
+		log.Warn().Err(err).Msg("db.rls_lift_unknown")
+	} else if len(why) > 0 {
+		log.Warn().Str("severity", "WARNING").Int("paths", len(why)).Str("first", why[0]).
+			Msg("db.rls_liftable: the hub role could switch tenant row level security off (it should not own the tables)")
+	} else {
+		log.Info().Msg("db.rls_not_liftable: the hub role cannot switch row level security off")
+	}
+}
+
+// enableNativeSignIn turns on e-mail + password sign-in (spec 015) when its
+// cnf says so, with credentials in Postgres (memory for a memory store).
+func enableNativeSignIn(a *auth.Handler, nc *auth.NativeConfig, st store.Store, log zerolog.Logger) error {
+	if !nc.Enabled {
+		return nil
+	}
+	mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host
+	if err != nil {
+		return err
+	}
+	var cs auth.CredStore = auth.NewMemoryCredStore()
 	if pg, ok := st.(*store.Postgres); ok {
-		if by, err := pg.RLSBypassed(ctx); err != nil {
-			log.Warn().Err(err).Msg("db.rls_role_unknown")
-		} else if by {
-			log.Warn().Str("severity", "WARNING").Msg("db.rls_bypassed: the hub role is superuser or BYPASSRLS, tenant RLS policies do not apply")
-		} else {
-			log.Info().Msg("db.rls_role_bound: the hub role is subject to row level security")
-		}
-		// 017 FR-SEC-014: a role that owns the tables can lift FORCE itself.
-		if why, err := pg.HubRoleCanLiftRLS(ctx); err != nil {
-			log.Warn().Err(err).Msg("db.rls_lift_unknown")
-		} else if len(why) > 0 {
-			log.Warn().Str("severity", "WARNING").Int("paths", len(why)).Str("first", why[0]).
-				Msg("db.rls_liftable: the hub role could switch tenant row level security off (it should not own the tables)")
-		} else {
-			log.Info().Msg("db.rls_not_liftable: the hub role cannot switch row level security off")
-		}
+		cs = auth.PgCredStore{Pool: pg.Pool()}
 	}
-	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
-	// The IdP picture lands in the same tenant blob store (010 T044).
-	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner},
-		Blob: bs, AvatarErr: func(hum string, err error) {
-			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
-		}}
-	// CLE-3403: preferred_locale lives on the human (rdb 0017); the default
-	// locale is cnf, validated by LoadHub.
-	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
-		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request})
-	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
-	if nc.Enabled {
-		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host
-		if err != nil {
-			return fail(err)
-		}
-		var cs auth.CredStore = auth.NewMemoryCredStore()
-		if pg, ok := st.(*store.Postgres); ok {
-			cs = auth.PgCredStore{Pool: pg.Pool()}
-		}
-		if err := opts.Auth.EnableNative(nc, auth.NativeDeps{Store: cs, Sender: mc.Sender(log), Delivers: mc.Delivers()}); err != nil {
-			return fail(err)
-		}
-		log.Info().Str("mail_transport", mc.Transport).Bool("verify_required", nc.VerifyRequired).Msg("native sign-in on")
+	if err := a.EnableNative(nc, auth.NativeDeps{Store: cs, Sender: mc.Sender(log), Delivers: mc.Delivers()}); err != nil {
+		return err
 	}
-	// 006 M2 checkout: fails fast on an unknown rail, a rail it cannot run,
-	// or fake-pay outside lde/dev (T018). No rail = checkout 503, hub up.
+	log.Info().Str("mail_transport", mc.Transport).Bool("verify_required", nc.VerifyRequired).Msg("native sign-in on")
+	return nil
+}
+
+// wirePayments sets opts.Payments (006 M2 checkout) and returns the mail cnf
+// it loaded, which the invite mailer shares. It fails fast on an unknown
+// rail, a rail it cannot run, or fake-pay outside lde/dev (T018); no rail =
+// checkout 503, hub up.
+func wirePayments(opts *hub.Options, hc *config.Hub, log zerolog.Logger, st store.Store) (*mail.Config, error) {
 	pc, err := payments.Load(hc.Env)
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	pmc, err := mail.Load() // the one welcome mail (T021); same relay as spec 015
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	plog := log.With().Str("component", "payments").Logger()
 	if g := pc.Guard(); g != "" {
@@ -212,31 +290,36 @@ func cmdServe() int {
 		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern,
 		DefaultLocale: hc.DefaultLocale})
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	opts.Payments = ph
 	log.Info().Str("rail", pc.Rail()).Strs("methods", pc.Methods()).Bool("fake_pay", pc.FakePayMounted()).
 		Str("card_key_mode", pc.CardKeyMode()).Str("plan_id", pc.PlanID).
 		Int("plan_cents", pc.PlanCents).Str("mail_transport", pmc.Transport).Msg("payment rail")
-	// CLE-34969: the admin's in-app invite mails through the same relay and
-	// invitemail.Send as `spool hub-invite` (010 FR-016).
-	if im, ok := st.(store.InviteMails); ok && pmc.Transport != mail.TransportNone && ac.AppURL != "" {
-		ilog := log.With().Str("component", "invitemail").Logger()
-		sender, delivers := pmc.Sender(log), pmc.Delivers()
-		opts.InviteMail = func(ctx context.Context, tenant, email, locale string) (string, error) {
-			res, err := invitemail.Send(ctx, invitemail.Deps{Store: im, Sender: sender, Delivers: delivers, Log: ilog,
-				AppURL: ac.AppURL, Locale: locale, DefaultLocale: hc.DefaultLocale,
-				Limits: store.InviteMailLimits{MinGap: invitemail.DefaultMinGap, MaxSends: invitemail.DefaultMaxSends}}, tenant, email)
-			return res.Outcome, err
-		}
+	return pmc, nil
+}
+
+// inviteMailer is the admin's in-app invite mail (CLE-34969), through the
+// same relay and invitemail.Send as `spool hub-invite` (010 FR-016); nil when
+// the store, the relay or the app URL cannot send one.
+func inviteMailer(hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, appURL string) hub.InviteMailer {
+	im, ok := st.(store.InviteMails)
+	if !ok || pmc.Transport == mail.TransportNone || appURL == "" {
+		return nil
 	}
-	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
-	srv, err := hub.New(opts)
-	if err != nil {
-		return fail(err)
+	ilog := log.With().Str("component", "invitemail").Logger()
+	sender, delivers := pmc.Sender(log), pmc.Delivers()
+	return func(ctx context.Context, tenant, email, locale string) (string, error) {
+		res, err := invitemail.Send(ctx, invitemail.Deps{Store: im, Sender: sender, Delivers: delivers, Log: ilog,
+			AppURL: appURL, Locale: locale, DefaultLocale: hc.DefaultLocale,
+			Limits: store.InviteMailLimits{MinGap: invitemail.DefaultMinGap, MaxSends: invitemail.DefaultMaxSends}}, tenant, email)
+		return res.Outcome, err
 	}
-	go srv.RunSweeper(ctx, sweepEvery)
-	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
+}
+
+// serveUntilDone binds, serves until ctx ends or the server fails, then
+// drains within SPOOL_HUB_GRACEFUL_SHUTDOWN.
+func serveUntilDone(ctx context.Context, hc *config.Hub, log zerolog.Logger, srv *hub.Server) int {
 	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
 	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: readHeaderTimeout,

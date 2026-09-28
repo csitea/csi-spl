@@ -32,7 +32,9 @@ function setup(key: 'main' | 'pane') {
   const i18n = useNuxtApp().$i18n
   const { poke } = useMentionPoke()
   const taskId = ref<string | null>(null)
-  const messages = ref<SpoolMessage[]>([])
+  /* replaced whole on every change (merge / applyEdit / withoutMsg ...), never
+     mutated in place, so the rows need no deep proxies (CLE-35075) */
+  const messages = shallowRef<SpoolMessage[]>([])
   const error = ref<string | null>(null)
   /** view-v1 §2: the last read hit the view door (401) — pages show the door prompt. */
   const door = ref<{ detail: string } | null>(null)

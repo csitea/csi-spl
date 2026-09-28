@@ -61,7 +61,9 @@ export const useChannelStore = defineStore('channel', () => {
   const channels = ref<ChannelInfo[]>([])
   const active = ref<string | null>(null)
   const peer = ref<string | null>(null)
-  const messages = ref<FeedMessage[]>([])
+  /* replaced whole on every change (mergeLive / mergePage / applyEdit ...),
+     never mutated in place, so the rows need no deep proxies (CLE-35075) */
+  const messages = shallowRef<FeedMessage[]>([])
   const unread = ref<Record<string, number>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -427,10 +429,10 @@ export const useChannelStore = defineStore('channel', () => {
     return { ...row, channel_id: id }
   }
 
-  function repliesFor(taskId: string) {
-    return topicRepliesIn(replyIndex.value, taskId, totals.value[taskId])
   /* one pass over the held rows per change, read by every card (CLE-35075) */
   const replyIndex = computed(() => topicReplyIndex(messages.value))
+  function repliesFor(taskId: string) {
+    return topicRepliesIn(replyIndex.value, taskId, totals.value[taskId])
   }
 
   return {

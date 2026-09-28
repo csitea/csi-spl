@@ -257,7 +257,7 @@ describe('the Properties dialog', () => {
   })
 })
 
-describe('the dropdown list opens under its own input (CLE-3493)', () => {
+describe('the dropdown list opens under its own input', () => {
   const dialog = src('src/components/ChannelPropertiesDialog.vue')
   const template = dialog.slice(0, dialog.indexOf('<script'))
   const style = dialog.slice(dialog.indexOf('<style'))
@@ -329,7 +329,7 @@ describe('a default channel lists every person read-only and picks its agents (C
   })
 })
 
-describe('every people and agent list is vertical, one avatar per row (CLE-3493)', () => {
+describe('every people and agent list is vertical, one avatar per row', () => {
   const dialog = src('src/components/ChannelPropertiesDialog.vue')
   const template = dialog.slice(0, dialog.indexOf('<script'))
   const style = dialog.slice(dialog.indexOf('<style'))

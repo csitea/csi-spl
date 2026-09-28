@@ -133,7 +133,7 @@ async function armSessionDoor(api, prev, read) {
  * several reads at once (channels, roster, a topic), and reading it after the
  * fact sees the door a SIBLING caller has already switched, so this caller
  * rethrows a 401 that a retry would have answered — the channel list stayed
- * empty for a poll on prd (CLE-3415). Concurrent callers then share ONE arming
+ * empty for a poll on prd. Concurrent callers then share ONE arming
  * of the door (single-flight): the first switches it and proves it with its own
  * retry, the others wait for that verdict and re-issue their own read, which is
  * a different URL for each of them and cannot be shared.
@@ -149,7 +149,7 @@ export async function withSessionRetry(api, read) {
     return await read()
   } catch (e) {
     const err = /** @type {{ status?: number, detail?: string }} */ (e || {})
-    /* CLE-34984: the door was guessed from a signed-in probe (guessDoor), not
+    /* the door was guessed from a signed-in probe (guessDoor), not
        proven. A read under it that fails WITHOUT an HTTP status is a token
        door's CORS refusing credentials: take the guess back and discover the
        door the old way (a 401 detail, then arming). The first caller to see
@@ -283,7 +283,7 @@ export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
  * always reads `online: false` for it, while whether the humans on it are
  * online is entirely a matter of who holds a browser socket.
  *
- * CLE-3448: letting the snapshot own box-wui deleted every human's dot on the
+ * letting the snapshot own box-wui deleted every human's dot on the
  * next refresh, and `refresh()` runs again on every reconnect.
  *
  * @param {string[]} online what the socket has said so far

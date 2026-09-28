@@ -68,12 +68,12 @@ describe('MessageCard wires it on phones only', () => {
     assert.match(card, /mobile\.value \? phoneCardTime\(fullTime\.value, at\.value\) : fullTime\.value/)
     assert.match(card, /:title="timeTitle"/)
   })
-  it('the home topic rows use it on phones too (CLE-35065); desktop keeps formatTs', () => {
+  it('the home topic rows use it on phones too; desktop keeps formatTs', () => {
     const home = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/pages/index.vue'), 'utf8')
     assert.match(home, /<span class="msg-time">\{\{ rowTime\(t\.last_ts\) \}\}<\/span>/)
     assert.match(home, /mobile\.value \? phoneCardTime\(formatMsgListTs\(ts\), ts\) : formatTs\(ts, locale\.value\)/)
   })
-  it('phones: card text 10 px from either edge, under the avatar too (CLE-35065)', () => {
+  it('phones: card text 10 px from either edge, under the avatar too', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/assets/css/main.css'), 'utf8')
     const phoneCss = css.slice(css.indexOf('@media (max-width: 820px) {'))
     assert.match(phoneCss, /\n  \.feed-body, \.feed-body\.pinned-root \{ padding-inline: 6px; \}/)

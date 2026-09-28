@@ -175,7 +175,7 @@ const avatarLoads = new Map()
  * page. Resolves {} on any failure (the default is drawn), never rejects.
  * `read` (the spool client's rosterView) replaces the raw fetch: the read
  * then joins the roster store's identical one in flight instead of being a
- * second request (CLE-34984).
+ * second request.
  */
 export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, read = null, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS } = {}) {
   const root = String(base || '').replace(/\/+$/, '')
@@ -253,7 +253,7 @@ export function bytesToDataUri(bytes, type) {
 /**
  * The picture as a data: URL, or '' (draw the default). Every deployed CSP
  * is img-src 'self' data: (render-wui-firebase-json.sh) — a blob: URL is
- * blocked there, which is why no stored picture ever showed (CLE-3406) —
+ * blocked there, which is why no stored picture ever showed —
  * and connect-src admits the hub, so the bytes are fetched with the caller's
  * credentials (017 FR-SEC-002: /v1/files needs the member session;
  * /api/v1/auth/avatar the session cookie) and only an image by its magic

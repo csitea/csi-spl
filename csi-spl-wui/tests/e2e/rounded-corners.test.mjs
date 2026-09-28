@@ -1,4 +1,4 @@
-// GRK-3376: every visible rectangular surface has a non-zero corner radius,
+// every visible rectangular surface has a non-zero corner radius,
 // and every selected/active marker is one colour and at most 3px wide.
 //
 // Computed styles in headless Chrome — not a CSS-source grep.

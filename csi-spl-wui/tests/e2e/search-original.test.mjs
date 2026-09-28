@@ -1,4 +1,4 @@
-// 022 §10 (CLE-35063): "Open original" on a search result, in a real browser
+// 022 §10: "Open original" on a search result, in a real browser
 // on the mock tenant. Desktop: a click on a message hit opens the channel it
 // was posted in, with its topic open on the right and the hit marked there;
 // Back returns to the results; the row's right menu (right-click and the row

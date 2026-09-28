@@ -23,7 +23,7 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
   /* SPL-983: Archive (owner, topic 8f58f802); the page is CLE-35018's. */
   Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
-  /* CLE-34990: the personal Event log (owner, topic 4335f075); last by default
+  /* the personal Event log (owner, topic 4335f075); last by default
      since 2026-09-27 (topic 116646c8 left it out of the named order). */
   Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
 ])

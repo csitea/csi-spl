@@ -216,7 +216,7 @@ const MEMBER_ID_RE = /^HUM-[0-9]+$/
  *
  * `humans` (§4.1, the tenant's members) is folded into the browser box, so a
  * member is a peer whether or not they happen to hold a socket right now.
- * CLE-3448: dropping it meant the people pane could only ever show a human
+ * dropping it meant the people pane could only ever show a human
  * a live `presence` frame had just announced — and a reader who is the only
  * human signed in is exactly the one no frame announces to anybody else.
  *

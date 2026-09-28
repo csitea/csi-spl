@@ -255,7 +255,7 @@ export function searchTarget(row) {
 }
 
 /**
- * 022 §10 (CLE-35063): a hit that was POSTED somewhere - a message, a topic,
+ * 022 §10: a hit that was POSTED somewhere - a message, a topic,
  * a file. Its original is the DM or channel it lives in, not the row's own
  * page, and it also has a preview in the search page's right pane.
  */

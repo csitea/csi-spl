@@ -162,7 +162,7 @@ onMounted(() => {
   })
 })
 onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keydown', noteKey, true) })
-/* CLE-3429: the single source of truth for which topic section is on screen. */
+/* the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)
 

@@ -143,7 +143,7 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
   })
 
   /*
-   * CLE-3415: the shell fires several reads at once (channels + roster from the
+   * the shell fires several reads at once (channels + roster from the
    * bootstrap plugin, a topic from the pane). The door used to be read in the
    * catch, so a caller whose 401 landed AFTER a sibling had switched the door
    * saw door === 'session' and rethrew a 401 the retry would have answered —
@@ -244,7 +244,7 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
     assert.equal(signInHref('/lobby', ''), '/login?redirect=%2Flobby')
     assert.equal(signInHref('//evil.example.com', 't1'), '/login?redirect=%2F&tenant=t1')
     assert.equal(signInHref('/login?x=1', 'Bad Tenant'), '/login?redirect=%2F')
-    // CLE-34987: the same guard as sign-in (safeRedirect), so a TAB cannot make it //host
+    // the same guard as sign-in (safeRedirect), so a TAB cannot make it //host
     assert.equal(signInHref('/\t/evil.example.com', 't1'), '/login?redirect=%2F&tenant=t1')
     assert.equal(signInHref('/fi/login', ''), '/login?redirect=%2F')
   })
@@ -286,7 +286,7 @@ describe('presence (wui-live-ws §3, channels-v1 §6)', () => {
   it('the roster applies presence and lists online humans', () => {
     const roster = src('src/stores/roster.ts')
     assert.match(roster, /applyPresence\(/)
-    /* CLE-3448: the row shaping and the snapshot merge moved into this module
+    /* the row shaping and the snapshot merge moved into this module
        (peopleRows / mergeSnapshotOnline), so Node drives them without Vue -
        see tests/unit/human-presence.test.mjs. The store only wires them. */
     assert.match(roster, /peopleRows\(/)

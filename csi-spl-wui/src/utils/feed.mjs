@@ -16,7 +16,7 @@ export function newestFirst(messages) {
 }
 
 /**
- * When a row LAST changed (CLE-3425): a topic card's newest reply (`last_ts`),
+ * When a row LAST changed: a topic card's newest reply (`last_ts`),
  * else the message's own moment. A card sorted on this one moves back to the top
  * as soon as anyone replies inside it — sorting on `ts` alone leaves a busy
  * topic buried under newer but idle ones, which is what the owner saw on

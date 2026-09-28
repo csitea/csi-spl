@@ -15,7 +15,7 @@ export interface SessionClaims {
   iat?: number
   exp?: number
   /**
-   * The human's own "Debug pane" setting (CLE-34963), which shows the
+   * The human's own "Debug pane" setting, which shows the
    * diagnostics panel (005 T035): the hub answers it from the store on every
    * session read, and only the literal `true` admits (debugAudience.mjs).
    * The WUI writes it only through setDiagnosticsEnabled, mirroring the
@@ -47,7 +47,7 @@ export const useSessionStore = defineStore('session', () => {
   const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
 
   /*
-   * CLE-34984: a member session means the view reads ride the cookie, so the
+   * a member session means the view reads ride the cookie, so the
    * client's door is guessed as `session` BEFORE the state flips and every
    * watcher of 'in' fires its reads. Without it a cold load sent each shell
    * read once with no credentials, took a 401 for each (7 on dev), and only
@@ -68,7 +68,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function probeOnce() {
-    /* CLE-35062: the first probe of the page was started before the plugins
+    /* the first probe of the page was started before the plugins
        ran (plugins/0.boot-early); take its answer instead of asking again */
     const out = await (takeEarlySession() || auth.session())
     // 'unknown' keeps what we had (auth-v1 §4: the csi-rel 052 incident case)
@@ -99,17 +99,17 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, preferred_locale: code }
   }
 
-  /** CLE-34963: mirror the "Debug pane" checkbox (optimistic; reverted on a failed save). */
+  /** mirror the "Debug pane" checkbox (optimistic; reverted on a failed save). */
   function setDiagnosticsEnabled(on: boolean) {
     if (claims.value) claims.value = { ...claims.value, diagnostics_enabled: on === true }
   }
 
-  /** CLE-34968: mirror a saved display name (the hub answers it as `name`). */
+  /** mirror a saved display name (the hub answers it as `name`). */
   function setName(name: string) {
     if (claims.value) claims.value = { ...claims.value, name }
   }
 
-  /** CLE-34994: mirror a palette pick saved on the account. */
+  /** mirror a palette pick saved on the account. */
   function setPreferredTheme(theme: string) {
     if (claims.value) claims.value = { ...claims.value, preferred_theme: theme }
   }

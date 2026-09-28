@@ -1,4 +1,4 @@
-<!-- CLE-34969: the edit form of one Users row, opened by a click on the row
+<!-- the edit form of one Users row, opened by a click on the row
      the way a message opens its topic pane (owner 2026-09-25: "when clicking
      on it ... the user edit form should appear"). Three shapes: a member
      (role, remove), a pending invite (revoke), and a new invite (email +

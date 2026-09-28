@@ -121,7 +121,7 @@ function toggleOpen() {
 function choose(id: SpoolTheme) {
   setTheme(id)
   close(true)
-  // CLE-34994: the account keeps it too (signed in only; failure is silent)
+  // the account keeps it too (signed in only; failure is silent)
   void saveThemeToAccount(id, {
     claims: session.claims,
     save: (t) => auth.saveTheme(t),

@@ -120,7 +120,7 @@ export function mentionCandidates({ peers = [], names = null, owners = [], selfI
    stays the tag (`@HUM-11@box-wui`), so a rename breaks no link and every
    reader (notify, poke, the renderer) keeps parsing ids. */
 
-// bidi controls must not reorder the field around a name (CLE-34987)
+// bidi controls must not reorder the field around a name
 const BIDI = /[؜‎‏‪-‮⁦-⁩]/g
 const NAME_END = '(?![\\p{L}\\p{N}_-])'
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

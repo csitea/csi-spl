@@ -1,4 +1,4 @@
-<!-- SPL-941 (CLE-35001): the middle pane's header, one component for the
+<!-- SPL-941: the middle pane's header, one component for the
      channel, DM and lobby pages. The title is what you are reading; a DM or
      the lobby puts its presence / connection dot in front and the words in
      the dot's tooltip; the card height control sits at the right edge. The

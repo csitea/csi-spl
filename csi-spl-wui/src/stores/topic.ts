@@ -98,7 +98,7 @@ export const useTopicStore = defineStore('topic', () => {
   }
 
   /**
-   * CLE-3445: the pinned root of a MESSAGE-rooted topic is held here, not in
+   * the pinned root of a MESSAGE-rooted topic is held here, not in
    * the feed store — so an edit to that message has to be applied here too or
    * the 3rd panel keeps showing the old body while every other view updates.
    */

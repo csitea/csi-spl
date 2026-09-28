@@ -1,4 +1,4 @@
-// Font size (CLE-3495): five levels, default one step above the old 16px root,
+// Font size: five levels, default one step above the old 16px root,
 // − / + clamp at the ends, per-browser persistence, one root variable in CSS.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

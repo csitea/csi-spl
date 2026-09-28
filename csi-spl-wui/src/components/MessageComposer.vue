@@ -22,7 +22,7 @@
       <UiIcon :name="dockHint.mode === 'new' ? 'plus' : 'reply'" :size="14" />
       <span>{{ dockHint.mode === 'thread' ? t('composer.target_thread') : dockHint.mode === 'comment' ? t('composer.target_comment', { target: dockHint.target }) : t('composer.target_new', { target: dockHint.target }) }}</span>
     </p>
-    <!-- CLE-35066: a phone page with no send target (/issues list, /events,
+    <!-- a phone page with no send target (/issues list, /events,
          /settings) says so - GO there searches for the text, never nothing -->
     <p
       v-if="docked && !searchMode && !dockHint && sendBlocked"
@@ -625,7 +625,7 @@ function setText(s: string) {
 function focusInput() {
   inputEl.value?.focus()
 }
-/* CLE-3433: the box is cleared on emit, because the emit is fire-and-forget
+/* the box is cleared on emit, because the emit is fire-and-forget
    and there is nothing to await. That is fine as long as a caller whose send
    FAILED can put the text back - otherwise the only copy of what the human
    wrote is gone, which is exactly how the owner lost a message. */
@@ -1176,7 +1176,7 @@ textarea.in-code {
 .mention-item:hover {
   background: var(--color-surface-hover);
 }
-/* CLE-3427: the highlighted suggestion is a SELECTED list row — darker fill,
+/* the highlighted suggestion is a SELECTED list row — darker fill,
    one 3px marker bar in the shared ring colour. */
 .mention-item.active {
   background: var(--color-selected);

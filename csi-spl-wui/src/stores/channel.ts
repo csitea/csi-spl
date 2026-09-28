@@ -72,7 +72,7 @@ export const useChannelStore = defineStore('channel', () => {
    */
   const liveAt = ref<Record<string, string>>({})
   const dmAt = ref<Record<string, string>>({})
-  /** The sidebar's channel list: newest activity first (CLE-3425). */
+  /** The sidebar's channel list: newest activity first. */
   const ordered = computed(() => orderChannels(channels.value, liveAt.value) as ChannelInfo[])
 
   const feed = computed(() => rootsByTask(topLevel(messages.value)))
@@ -265,7 +265,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /**
-   * CLE-3445: a message this store holds was edited — here, or in another
+   * a message this store holds was edited — here, or in another
    * session via a `message_edited` frame. applyEdit replaces it at its index
    * and never re-sorts (FR-ED-009: an edit does not move the message), and
    * ignores a msg_id this feed does not hold.
@@ -316,7 +316,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /**
-   * CLE-3433: a picked File is not a wire value. `stores/live.ts` POSTs each
+   * a picked File is not a wire value. `stores/live.ts` POSTs each
    * one to /v1/files first and puts the returned ref on the frame; this store
    * never did, so /channel and /dm offered the attach control and then sent a
    * frame with no files at all. Measured on the deployed dev build bb20552,
@@ -366,7 +366,7 @@ export const useChannelStore = defineStore('channel', () => {
     }
     const channelNow = channelId || active.value
     if (channelNow) frame.channel = channelNow
-    /* CLE-3433: `@CLE-00` alone parses to a task frame with an EMPTY body.
+    /* `@CLE-00` alone parses to a task frame with an EMPTY body.
        The composer cannot catch it - it only sees the text before the
        mention is stripped - so the refusal lives here, where the real
        payload is known. An empty row reads exactly like a lost one. */
@@ -382,7 +382,7 @@ export const useChannelStore = defineStore('channel', () => {
       })
       messages.value = mergeLive(messages.value, own) as FeedMessage[]
     }
-    /* CLE-3433: one automatic resend when the socket went away underneath a
+    /* one automatic resend when the socket went away underneath a
        pending frame. The frame carries our own msg_id, so the hub de-dupes
        the race where the first copy did land, and live-ws will have queued
        and flushed on the new socket by the time this second call runs. Any

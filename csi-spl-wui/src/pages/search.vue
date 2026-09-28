@@ -199,7 +199,7 @@ const liveIdentity = useLive().identity
 const viewerId = computed(() => String(access.me?.humanId || liveIdentity.value || roster.me?.id || ''))
 const { copy: copyText } = useCopyText()
 
-/* CLE-3427: the topic a hit opens is in the URL too, so a search result the
+/* the topic a hit opens is in the URL too, so a search result the
    reader wants to show someone is one link, not "search this, then click the
    third row". The `q` parameter is untouched. */
 useTopicRoute({
@@ -489,7 +489,7 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
   min-width: 0;
   max-width: 100%;
 }
-/* CLE-3427: a chosen row is a SELECTED item — the darker fill and the one
+/* a chosen row is a SELECTED item — the darker fill and the one
    3px marker bar of the shared treatment, not a lighter hover fill. */
 .search-row.active { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
 .search-row__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 0.875rem; }

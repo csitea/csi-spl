@@ -102,7 +102,7 @@ export function threadNeighbor(rows, msg, which) {
 }
 
 /**
- * CLE-35064: may `msg` be merged AWAY (deleted into a neighbor)? Not when it
+ * may `msg` be merged AWAY (deleted into a neighbor)? Not when it
  * opens its topic: a task's first row with is_parent 1 is the topic's card,
  * and the hub refuses it (409 is_card) rather than leave a topic with no
  * card. Lobby rows are each their own card and stay mergeable. A row whose

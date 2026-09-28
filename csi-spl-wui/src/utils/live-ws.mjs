@@ -24,7 +24,7 @@ export const FRAMES = {
   subscribed: 'subscribed',
   token: 'token',
   presence: 'presence',
-  /* CLE-3425: a channel created anywhere in the tenant (wui-live-ws v0.6) */
+  /* a channel created anywhere in the tenant (wui-live-ws v0.6) */
   channel: 'channel',
   /* SPL-72: a channel its creator deleted; sent to its members only */
   channelDeleted: 'channel_deleted',
@@ -42,7 +42,7 @@ export const FRAMES = {
   edited: 'message_edited',
   /* A message was deleted. Not a `message` frame: mergeById would keep the row. */
   deleted: 'message_deleted',
-  /* CLE-35064: one message folded into its neighbor — the kept row's edit
+  /* one message folded into its neighbor — the kept row's edit
      plus `merged_from`, the row that is gone. Handled as the two frames it
      replaces, so every store that applies an edit or a delete applies it. */
   merged: 'message_merged',
@@ -138,7 +138,7 @@ export function createLiveClient({
   onPresence = () => {},
   /** CLE-3425 §3.3 `channel` frames ({ channel, name, created_by, created_at }). */
   onChannel = () => {},
-  /** CLE-3445: a `message_edited` frame — a REPLACEMENT for a row already held. */
+  /** a `message_edited` frame — a REPLACEMENT for a row already held. */
   onEdited = () => {},
   /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
   onDeleted = () => {},
@@ -166,7 +166,7 @@ export function createLiveClient({
   const subs = new Set()
   const chanSubs = new Set()
   const peerSubs = new Set()
-  /* CLE-3425: `all` is ref-counted. The topic list holds it while `/` is open
+  /* `all` is ref-counted. The topic list holds it while `/` is open
      and the app shell holds it for the whole tab, so the page leaving `/` must
      not take the shell's follow down with it. */
   let allSub = 0

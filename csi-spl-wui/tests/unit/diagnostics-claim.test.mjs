@@ -1,5 +1,5 @@
 // The diagnostics panel is the signed-in human's own choice: the "Debug pane"
-// checkbox in Settings → Appearance (CLE-34963), kept by the HUB per human
+// checkbox in Settings → Appearance, kept by the HUB per human
 // (rdb 0038 humans.diagnostics_enabled, default false = nobody) and answered
 // as the session claim (005 T035, 010 auth-v1 §3; hub side: handler.go
 // diagnosticsGrant + putPreferences). The checkbox is the SOLE gate.
@@ -161,7 +161,7 @@ describe('CONTROL: the claim is not settable from the browser', () => {
     // A `diagnostics_enabled =` or a `diagnostics_enabled:` OUTSIDE a type
     // declaration would be the WUI minting its own grant. The claims arrive
     // from the hub; the ONE writer is the session store's mirror of the
-    // checkbox while its save is in flight (CLE-34963), and the hub body
+    // checkbox while its save is in flight, and the hub body
     // written by saveDiagnostics — both coercing to a strict boolean.
     const offenders = []
     for (const f of srcFiles()) {
@@ -211,7 +211,7 @@ describe('CONTROL: with the panel off there is nothing else to reach', () => {
   })
 })
 
-describe('the "Debug pane" checkbox (CLE-34963)', () => {
+describe('the "Debug pane" checkbox', () => {
   it('saves ONLY the boolean, to PUT /preferences', async () => {
     for (const [arg, sent] of [[true, true], [false, false], ['true', false], [1, false], [undefined, false]]) {
       const s = stub(200, { diagnostics_enabled: sent })

@@ -1,4 +1,4 @@
-// CLE-35062: /lobby's first reads start at session 'in' (utils/lobby-warm.mjs).
+// /lobby's first reads start at session 'in' (utils/lobby-warm.mjs).
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -15,7 +15,7 @@ function bus() {
   }
 }
 
-describe('lobby warm reads (CLE-35062)', () => {
+describe('lobby warm reads', () => {
   beforeEach(() => resetLobbyWarm())
 
   it('knows the lobby route in every locale form, and nothing else', () => {

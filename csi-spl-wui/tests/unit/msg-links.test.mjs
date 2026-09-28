@@ -164,7 +164,7 @@ describe('MessageBody.vue renders a link part', () => {
   })
 })
 
-describe('bidi controls (CLE-34987)', () => {
+describe('bidi controls', () => {
   // built from code points: a literal override in this file would itself be the trojan-source shape
   const BIDI = [0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069].map((c) => String.fromCharCode(c))
   const RLO = String.fromCharCode(0x202e)

@@ -5,7 +5,7 @@
      Phones keep the level-3 full screen (SPL-992). The description is only
      in the opened issue.
      Deadline is a calendar with a time, stored UTC. The hub contract is
-     issues-v1 (CLE-34993): GET /v1/view/issues, POST /v1/issues, PATCH. -->
+     issues-v1: GET /v1/view/issues, POST /v1/issues, PATCH. -->
 <template>
   <div ref="pageEl" class="issues-page" data-test="issues-page">
     <div class="issues-list" data-test="issues-list">
@@ -1678,7 +1678,7 @@ async function loadComments(issue: Issue | null) {
   }
 }
 /* one comment into the issue's discussion (is_parent 0 on its task) - the
-   discussion box and, on a phone, the bottom dock's GO (CLE-35066) */
+   discussion box and, on a phone, the bottom dock's GO */
 async function postComment(issue: Issue, text: string) {
   const sock = live.ensure()
   if (sock) {

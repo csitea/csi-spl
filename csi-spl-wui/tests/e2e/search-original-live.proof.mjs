@@ -1,4 +1,4 @@
-// 022 §10 (CLE-35063) live proof: "Open original" on a deployed WUI, signed
+// 022 §10 live proof: "Open original" on a deployed WUI, signed
 // in. Search Q -> the first message hit's menu (right-click) lists Open
 // original / Show here / Copy link -> a click opens the DM or channel the hit
 // was posted in (?topic= and #<msg_id>), the hit marked on screen -> Back

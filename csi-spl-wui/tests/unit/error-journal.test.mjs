@@ -62,7 +62,7 @@ describe('errorJournal: redaction happens at capture', () => {
   })
 })
 
-describe('errorJournal: a hub socket refusal keeps its reason (CLE-35057)', () => {
+describe('errorJournal: a hub socket refusal keeps its reason', () => {
   // live-ws rejects an error frame as Error(detail) + { token, status }
   const refusal = Object.assign(new Error('no channel development in this tenant'), { token: 'unknown_channel', status: 404 })
 

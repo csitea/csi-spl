@@ -1,4 +1,4 @@
-// CLE-35062: work that only needs the entry chunk starts before the other
+// work that only needs the entry chunk starts before the other
 // plugins run - the i18n plugin awaits the locale catalogue, and everything
 // after it (the route middleware's session probe, the frame's chunks) used to
 // wait for that download too.

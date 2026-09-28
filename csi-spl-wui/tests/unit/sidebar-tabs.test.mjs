@@ -87,7 +87,7 @@ describe('the strip is icons, in that order', () => {
     assert.match(tabs, /icon: 'hash'/)
     assert.match(tabs, /icon: 'list'/)
     assert.match(tabs, /icon: 'waves'/)
-    // CLE-34969: the rendered rail is RAIL plus Users for members.invite.
+    // the rendered rail is RAIL plus Users for members.invite.
     assert.match(vue, /v-for="item in rail"/)
     assert.match(vue, /usersVisible\.value\s*\n?\s*\? \[\.\.\.RAIL\.value, \{ id: USERS_TAB/)
     assert.match(vue, /icon: 'users'/)

@@ -2,7 +2,7 @@
      tenant this member may read (GET /v1/view/archived), newest archived
      first. Each row opens its topic, and carries Unarchive and - for its
      author, the tenant owner or an admin - Delete. The left-rail entry that
-     opens this page is SPL-979's (CLE-35017). -->
+     opens this page is SPL-979's. -->
 <template>
   <div class="feed-col" data-test="archive-page">
     <header class="feed-header">

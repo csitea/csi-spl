@@ -237,7 +237,7 @@ and asserts `document.scrollingElement.scrollWidth <= innerWidth`. When
 puppeteer-core when resolvable (`PUPPETEER_CORE` or `node_modules`); otherwise
 Chrome DevTools Protocol against `CHROME_PATH` (default `/usr/bin/google-chrome`).
 
-`pnpm test:e2e:thread-pane` is the 1..1 gate (CLE-3429): it walks
+`pnpm test:e2e:thread-pane` is the 1..1 gate: it walks
 `/channel/<name>` -> `/lobby` -> `/` -> back, opens a thread from each side,
 alternates rapidly, resizes the divider and flips the theme, at 390x844 and
 1280x800, and asserts the DOM never holds more than one

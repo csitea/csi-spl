@@ -48,7 +48,7 @@ export function useMessageEdit() {
    * CLE-00's ruling of the same day. Escape-cancels, over in
    * utils/msg-edit.mjs, stays INFERRED — the owner said nothing about it.
    *
-   * CLE-3446: this predicate answers about a ROW, and it was never the thing
+   * this predicate answers about a ROW, and it was never the thing
    * that was wrong. The bug was that a MessageCard outlived the row it was
    * mounted for, so a `false` here arrived at a card that was already holding
    * an open editor. The hosts key that mount by msg_id now, and MessageCard
@@ -115,7 +115,7 @@ export function useMessageEdit() {
   }
 
   /**
-   * CLE-35064: fold `srcId` into `keepId` with ONE hub call (the kept row
+   * fold `srcId` into `keepId` with ONE hub call (the kept row
    * gets both bodies, the source is deleted, in one transaction), then show
    * both halves in every store at once. Rejects with the hub token and
    * changes nothing on screen.

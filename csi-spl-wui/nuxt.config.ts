@@ -60,7 +60,7 @@ const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(aut
 // ── The lobby task id, from cnf ───────────────────────────────────────────
 // wui-live-ws.md §LOBBY_TASK_ID: defined ONCE, in cnf (env.hub.env.
 // SPOOL_HUB_LOBBY_TASK_ID); the hub publishes it in `welcome`. The deployed
-// build shipped `lobbyTaskId: ""` (CLE-35062), so /lobby could not read a row
+// build shipped `lobbyTaskId: ""`, so /lobby could not read a row
 // before the socket was up and had said welcome (session -> socket -> welcome
 // -> read). So the build reads the same cnf file the deploy job reads, for the
 // env it builds (NUXT_PUBLIC_ENV_NAME); NUXT_PUBLIC_LOBBY_TASK_ID still
@@ -223,12 +223,12 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-09-18",
   devtools: { enabled: isDev },
   ssr: true,
-  // CLE-35062: the painted app-frame outline 200.html shows until the app
+  // the painted app-frame outline 200.html shows until the app
   // mounts (every non-prerendered route boots from 200.html); see the file.
   spaLoadingTemplate: "spa-loading-template.html",
 
   experimental: {
-    // CLE-35062: no page uses useAsyncData/useFetch, so every prerendered
+    // no page uses useAsyncData/useFetch, so every prerendered
     // route's _payload.json is `data: {}` - yet a client-side move to one
     // (/, /login, /channel/general) waited for that fetch before the page's
     // own read started: one more round trip per click (~150-300 ms on 4G).

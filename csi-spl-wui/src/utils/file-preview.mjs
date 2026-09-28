@@ -96,7 +96,7 @@ export const PREVIEW_CACHE_MAX = 48
 const previews = new Map()
 
 /**
- * One download + sha256 check per file for the life of the page (CLE-34984).
+ * One download + sha256 check per file for the life of the page.
  * The same picture posted into several messages, or a channel opened twice,
  * used to download it once per card and per visit: 5-8 identical
  * /v1/files/<id> reads per page on dev, 100-650 ms each. The file id IS the

@@ -73,7 +73,7 @@ const { hintFor: sk } = useSubmitKey()
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
 
-/* CLE-3445: an edit landed on a lobby row. That row is the main feed store's
+/* an edit landed on a lobby row. That row is the main feed store's
    AND the pinned root of the 3rd panel when its topic is open, so every
    store that may hold it is told through the one helper. */
 const { applyEverywhere } = useMessageEdit()
@@ -189,9 +189,9 @@ watch([lobbyId, () => session.state], ([id, st]) => {
    go out now. The topics are admitted only once the room task is open,
    because opening resets the rows. They used to be read only AFTER the room
    task answered, and every lobby row comes from them: first message ~560 ms
-   later on dev (CLE-34984). */
+   later on dev. */
 function openLobby(id: string) {
-  /* CLE-35062: on a load that landed here, both reads were started when the
+  /* on a load that landed here, both reads were started when the
      session said 'in' (plugins/lobby-warm); take them, and admit the live
      frames that arrived meanwhile once the reads are in. */
   const warm = takeLobbyWarm(id)

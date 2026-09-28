@@ -139,7 +139,7 @@ const hub = (p, method, path, body) => p.evaluate(async (api, m, pth, b) => {
 
 const rows = (p) => p.evaluate(() => [...document.querySelectorAll('#sidebar-panel-channels .nav-row[data-order]')].map((e) => e.getAttribute('data-order')))
 const stored = async (p) => (await hub(p, 'GET', '/v1/view/me')).body?.channel_order ?? null
-/* the rail builds its hidden panels after the first idle (CLE-35062), so the
+/* the rail builds its hidden panels after the first idle, so the
    tab is waited for and the click retried until the Channels rows show */
 async function channelsTab(p) {
   await p.waitForSelector('[data-testid=sidebar-tab-channels]', { timeout: 60000 })

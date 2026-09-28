@@ -1,4 +1,4 @@
-// SPL-974 (CLE-35015) — live proof, signed in: the plus+hierarchy icon opens
+// SPL-974 — live proof, signed in: the plus+hierarchy icon opens
 // the subtask dialog on a deployed WUI + hub.
 //
 // Owner, 2026-09-26: "there should be just a plus with hierarchical icon for

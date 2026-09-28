@@ -59,7 +59,7 @@ export function tenantSwitchOptions(claims, configured = '') {
 }
 
 /**
- * The drop box's hover explanation (CLE-34991): which tenant this is, what a
+ * The drop box's hover explanation: which tenant this is, what a
  * tenant is, and whether picking another one switches. `t` is the i18n
  * translate function; keys sidebar.tenant_hint ({name}), then
  * sidebar.tenant_hint_switch when the box can switch, else

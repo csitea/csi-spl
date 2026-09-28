@@ -68,7 +68,7 @@ const KNOWN = {
   'light focus ring on --color-surface-hover': 1.75,
 }
 
-describe('theme contrast (CLE-34994)', () => {
+describe('theme contrast', () => {
   const rows = []
   for (const theme of THEME_IDS) {
     for (const [label, fg, bgs, bar] of PAIRS) {

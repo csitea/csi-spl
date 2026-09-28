@@ -35,7 +35,7 @@ defineProps<{ label: string }>()
 const channel = useChannelStore()
 const topic = useTopicStore()
 
-/* CLE-3445: the same message can be on screen in the feed AND as the pinned
+/* the same message can be on screen in the feed AND as the pinned
    root of the 3rd panel, so every store that may hold it is told. */
 const { applyEverywhere } = useMessageEdit()
 
@@ -43,7 +43,7 @@ function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
 
-/* CLE-3427: a click anywhere on a row opens its topic in the pane and puts
+/* a click anywhere on a row opens its topic in the pane and puts
    it in the URL. Every row here is a topic root of its own (the feed is
    rootsByTask), so this is the task-rooted case the pane already handled —
    what is new is that the whole row does it, that it works from the keyboard,

@@ -174,7 +174,7 @@
         :title="movedText"
       >{{ movedText }}</p>
       <!--
-        CLE-3445: the row BECOMES the box ("the msg becomes once again a
+        the row BECOMES the box ("the msg becomes once again a
         textbox"), pre-filled with the old body. The rendered body is NOT
         replaced while saving and NOT replaced on failure — the new text
         reaches the screen only when the hub's answer arrives and the row
@@ -382,13 +382,13 @@ const props = defineProps<{
   posinset?: number
   setsize?: number
   topicLink?: boolean
-  /** CLE-3427: the whole row opens its topic (pointer and keyboard). */
+  /** the whole row opens its topic (pointer and keyboard). */
   clickable?: boolean
   /** the row the open topic is rooted at */
   selected?: boolean
   /** Date.now() at topic open (ticks while open): `yyyy-mm-dd HH:MM:SS sent <age>` */
   sinceMs?: number
-  /** CLE-3445: offer the `e` shortcut on this row (author-only; the host decides). */
+  /** offer the `e` shortcut on this row (author-only; the host decides). */
   editable?: boolean
   /** The older message in this same thread, when this row may be folded into it. */
   mergePrev?: SpoolMessage | null
@@ -396,7 +396,7 @@ const props = defineProps<{
   mergeNext?: SpoolMessage | null
   /** The task the list itself shows (#lobby), so a card's link names the right topic. */
   currentTaskId?: string | null
-  /** CLE-34989: titles / 5 rows / full. Omitted = show the whole card. */
+  /** titles / 5 rows / full. Omitted = show the whole card. */
   clipMode?: CardClipMode
   /** SPL-983: a middle-pane card, where Archive / Delete (the topic) may be offered. */
   topicMenu?: boolean
@@ -424,7 +424,7 @@ function whoOf(p: { id?: string, box?: string } | null | undefined) {
 const author = computed(() => typedByAuthor(props.msg))
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
-/* CLE-3425: a topic card is ordered by its LAST activity, so it shows that
+/* a topic card is ordered by its LAST activity, so it shows that
    moment — a card that sits above another must not print an older time. */
 const at = computed(() => activityOf(props.msg))
 /*
@@ -588,7 +588,7 @@ function onMenuOpen() {
   if (rowEl.value) openThreadRow(rowEl.value)
 }
 
-/* CLE-34996: a thread line (not a middle card) can go back to where its
+/* a thread line (not a middle card) can go back to where its
    thread lives: the channel or DM with the parent card selected, or the
    issue whose discussion it is. Shown by the same rule as utils/parent-section.mjs parentSection: a channel, or a
    DM end that is not the viewer. What the item does is loaded when it is
@@ -700,7 +700,7 @@ function onDblClick(ev: MouseEvent) {
 }
 
 function onKey(ev: KeyboardEvent) {
-  /* CLE-3445: `e` on the focused row opens the editor. Checked BEFORE the
+  /* `e` on the focused row opens the editor. Checked BEFORE the
      open-topic keys so a row that is editable but not clickable still takes
      it, and guarded by the same target === currentTarget rule. */
   if (wantsEdit(ev, { editable: props.editable && !editing.value })) {

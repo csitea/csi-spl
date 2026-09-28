@@ -73,7 +73,7 @@ function setup(key: 'main' | 'pane') {
   }
 
   /**
-   * CLE-3445: an edited message replaces the row held for its msg_id, in
+   * an edited message replaces the row held for its msg_id, in
    * place. It is NOT routed through merge(): mergeById drops a repeat of a
    * row already held as confirmed (feed.mjs line 89), which is why the hub
    * sends `message_edited` as its own frame at all. Nothing re-sorts and
@@ -147,7 +147,7 @@ function setup(key: 'main' | 'pane') {
         if (m.task_id === taskId.value) merge([m as unknown as SpoolMessage], true)
       })
     }
-    /* CLE-3445: another session edited a row this pane is showing */
+    /* another session edited a row this pane is showing */
     if (!offEdited) offEdited = live.onEdited((m) => applyEdited(m))
     if (!offReaction) offReaction = live.onReaction((m) => applyReactions(m))
     if (!offReconnect) offReconnect = live.onReconnected(() => { void catchUpAfterReconnect() })
@@ -218,7 +218,7 @@ function setup(key: 'main' | 'pane') {
   }
 
   /**
-   * CLE-3427: `opts` is what a MESSAGE-rooted topic needs. Its task_id is the
+   * `opts` is what a MESSAGE-rooted topic needs. Its task_id is the
    * clicked message's msg_id, a task the hub has never seen, so the reply says
    * which task it hangs off (`parentTaskId` -> parent_task_id, hub checkTags:
    * a UUID other than task_id) and which channel it belongs to, and the topic

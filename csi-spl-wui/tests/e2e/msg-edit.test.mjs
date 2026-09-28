@@ -52,7 +52,7 @@ const OWN_MSG = '11111111-1111-4111-8111-111111111111'
 /** a message from CLE-07@box-a: not ours, and box-signed — the hub refuses both */
 const THEIR_MSG = '33333333-3333-4333-8333-333333333333'
 const THEIR_TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-/* CLE-3446: the same CLE-07@box-a message as the ROOT of its own task - the
+/* the same CLE-07@box-a message as the ROOT of its own task - the
    3rd panel's pinned-root path, which step 8's feed path does not reach */
 const BOT_MSG = '33333333-3333-4333-8333-333333333333'
 const BOT_TASK = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
@@ -371,7 +371,7 @@ try {
   if (threadRow) await threadRow.click({ button: 'right' })
   await sleep(300)
   const menuIds = await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
-  /* a thread line also goes back to its parent section (CLE-34996) */
+  /* a thread line also goes back to its parent section */
   ok('right-click opens a menu with open, open parent section, copy link, edit, and delete',
     menuIds.join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-edit,msg-menu-delete',
     { menuIds })

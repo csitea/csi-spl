@@ -24,7 +24,7 @@ const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const closed = Object.assign(new Error('socket closed'), { token: 'closed' })
 const timeout = Object.assign(new Error('send timed out'), { token: 'timeout' })
 
-describe('classifying a failed send (CLE-3433)', () => {
+describe('classifying a failed send', () => {
   it('reads the token live-ws sets, and nothing else', () => {
     assert.equal(failureToken(closed), 'closed')
     assert.equal(failureToken(timeout), 'timeout')
@@ -57,7 +57,7 @@ describe('classifying a failed send (CLE-3433)', () => {
    parseMention() over the text, and `@CLE-00` alone strips to nothing - so a
    task frame with an empty body reached the hub. To the next reader an empty
    row is indistinguishable from the lost message this lane is about. */
-describe('an empty send never reaches the hub (CLE-3433)', () => {
+describe('an empty send never reaches the hub', () => {
   it('text-only, files-only and both are all real messages', () => {
     assert.equal(isEmptySend('hello'), false)
     assert.equal(isEmptySend('', [{ name: 'a.pdf' }]), false)
@@ -86,7 +86,7 @@ describe('an empty send never reaches the hub (CLE-3433)', () => {
   })
 })
 
-describe('the send path cannot lose text silently any more (CLE-3433)', () => {
+describe('the send path cannot lose text silently any more', () => {
   it('TopBar catches the rejection instead of leaving it unhandled', () => {
     const s = src('src/components/TopBar.vue')
     assert.match(s, /await target\.send\(text, sent, parent, channelId\)/)

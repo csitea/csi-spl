@@ -1,5 +1,5 @@
 /**
- * Top-right user control (CLE-3402), shaped after the reference storefront's
+ * Top-right user control, shaped after the reference storefront's
  * header account control: the signed-in person's avatar, a dropdown with who
  * they are, Settings and Sign out; signed out, the sign-in entry.
  *

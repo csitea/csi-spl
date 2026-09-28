@@ -54,7 +54,7 @@ watch(picture, async (url) => {
 
 /* The roster needs a member session: read it once the probe says 'in', never
    before (a signed-out read is a 401, and it used to go out on every page,
-   /login included). It joins the roster store's read in flight (CLE-34984). */
+   /login included). It joins the roster store's read in flight. */
 const session = useSessionStore()
 let asked = false
 onMounted(() => {

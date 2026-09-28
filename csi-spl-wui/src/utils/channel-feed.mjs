@@ -44,7 +44,7 @@ export function displayName(id, box) {
  * @param {Record<string, string> | null | undefined} names humanNamesFromView
  */
 export function personLabel(id, box, names) {
-  // bidi controls dropped: a chosen name must not reorder the row around it (CLE-34987)
+  // bidi controls dropped: a chosen name must not reorder the row around it
   const n = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? stripBidiControls(names[id] || '').trim() : ''
   if (n && /^HUM-/.test(String(id || '')) && (!box || box === 'box-wui')) return n
   return displayName(id, box)
@@ -544,7 +544,7 @@ export function channelFollow(current, { channel, peer } = {}) {
 /**
  * The card for our own live send, built from the hub ack before the echo frame.
  *
- * It carries the ack's `delivery` and `to_box` through (CLE-3435). The hub
+ * It carries the ack's `delivery` and `to_box` through. The hub
  * already decides both in `onSend` and puts them on the ack - `sent` means it
  * handed the message to the recipient's box, `queued` that the box is offline
  * and it is being held - and until now the client threw them away. That is the
@@ -577,7 +577,7 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
 
 /**
  * One card per topic (task_id), carrying the topic's LAST activity
- * (CLE-3425). The card itself stays the topic's oldest message — that is the
+ * The card itself stays the topic's oldest message — that is the
  * root the channel lists — but `last_ts` is the newest moment of any message of
  * that task, so a reply inside an old topic bumps the card. A hub topic row
  * (topic_row) already carries `last_ts` and its own `count`; a flat page gets

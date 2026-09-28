@@ -106,7 +106,7 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
  */
 export function dockTargetHint(dock, text = '') {
   if (!dock) return null
-  /* CLE-35066: an open issue takes every line as a comment - no new topic */
+  /* an open issue takes every line as a comment - no new topic */
   if (dock.comment) return { mode: 'comment', target: String(dock.target || '') }
   const reply = Boolean(dock.reply) && !startsNewTopic(text)
   return { mode: reply ? 'thread' : 'new', target: String(dock.target || '') }

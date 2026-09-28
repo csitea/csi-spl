@@ -1,4 +1,4 @@
-// Issues screen in a real browser (GRK-3519). Mock mode starts with the one
+// Issues screen in a real browser. Mock mode starts with the one
 // epic every tenant has (SPL-1 "random", SPL-18), so the rows it creates
 // start at SPL-2 and land under that epic by default.
 //

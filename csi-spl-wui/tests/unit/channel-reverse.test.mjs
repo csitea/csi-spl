@@ -34,7 +34,7 @@ describe('channelView (X3 ordering)', () => {
 
   /*
    * Owner, 2026-09-23: pane 2 is the starter again. A reply still makes that
-   * topic the newest thing in the channel (CLE-3425), and the row that moves
+   * topic the newest thing in the channel, and the row that moves
    * is the starter — its author and its body — not the reply.
    */
   it('a live in-topic reply lifts the starter, and the row stays the starter', () => {
@@ -68,7 +68,7 @@ describe('channelView (X3 ordering)', () => {
     const a = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', count: 3, participants: ['HUM-2@box-wui'] })
     const b = feedRow({ task_id: 'tb', first_ts: '2026-09-19T09:05:00Z', count: 1, participants: ['CLE-7@box-a'] })
     assert.deepEqual(ids(channelView([a, b])), ['tb', 'ta'])
-    /* CLE-3425: the same two rows, but `ta` was replied to after `tb` started —
+    /* the same two rows, but `ta` was replied to after `tb` started —
        the busy topic is on top. The pre-2026-09-20 code sorted on first_ts and
        left it buried, which is the defect the owner reported. */
     const busy = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', last_ts: '2026-09-19T09:10:00Z', count: 4, participants: ['HUM-2@box-wui'] })

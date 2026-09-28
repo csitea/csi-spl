@@ -1,4 +1,4 @@
-// The "Display name" field (CLE-34968), proved in a REAL browser (owner
+// The "Display name" field, proved in a REAL browser (owner
 // 2026-09-25: "there should be an option for the users to show their display
 // name" / "in their user settings").
 //

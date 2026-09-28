@@ -1,4 +1,4 @@
-// SPL-980 (CLE-35015) — live proof, signed in: 2px of the tenant switcher's
+// SPL-980 — live proof, signed in: 2px of the tenant switcher's
 // white box before and after the tenant name, closed box and open list.
 // Read-only: nothing is switched or written.
 //

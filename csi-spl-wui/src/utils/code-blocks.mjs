@@ -142,7 +142,7 @@ export function tokenize(src, { openAnywhere = false } = {}) {
 }
 
 /*
- * Links (CLE-3494). Only plain text is scanned: ``` blocks and `inline code`
+ * Links. Only plain text is scanned: ``` blocks and `inline code`
  * never reach here, and a mention or **bold** that starts first wins its run.
  * Three shapes, three schemes, nothing else:
  *   http:// https://   -> the text as written
@@ -156,7 +156,7 @@ export function tokenize(src, { openAnywhere = false } = {}) {
  * Bidi embedding / override / isolate controls (U+202A..U+202E, U+2066..U+2069)
  * and the ALM/LRM/RLM marks (the hub refuses the same set, 323c76e5).
  * They are invisible and reorder the text around them,
- * so "evil.example/\u202egpj.doog" reads as another address (CLE-34987): a link
+ * so "evil.example/\u202egpj.doog" reads as another address: a link
  * ends before one, and a display name drops them (stripBidiControls).
  */
 const BIDI_CLASS = String.raw`\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069`

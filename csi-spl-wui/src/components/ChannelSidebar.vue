@@ -53,7 +53,7 @@
       <span id="sidebar-help-dm-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.direct_messages') }}</span>
     </h2>
     <div class="sidebar-scroll">
-    <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
+    <!-- the reader's own row. A signed-in human is the one peer
          guaranteed to be online, and was the only one the pane never drew -
          so "am I connected?" had no answer here at all. It is not a link:
          there is no DM with yourself, and the row exists to show presence. -->
@@ -455,7 +455,7 @@
         </template>
         </div>
       </div>
-      <!-- GRK-3519: Issues, third rail tab. The list is the middle pane. -->
+      <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
         v-if="tab === 'issues' || tabsWarm"
         v-show="tab === 'issues' && issueEpics.length"
@@ -470,7 +470,7 @@
              features" is the panel's only section, at the top. -->
         <LazyIssueEpicsPanel v-if="tab === 'issues'" />
       </div>
-      <!-- CLE-34990: the personal Event log; the list lives on /events -->
+      <!-- the personal Event log; the list lives on /events -->
       <div
         v-if="tab === 'events' || tabsWarm"
         v-show="tab === 'events'"
@@ -483,7 +483,7 @@
         <h2>{{ t('sidebar.events') }}</h2>
         <NuxtLink class="nav-row" data-testid="sidebar-events-open" :to="localePath('/events')">{{ t('events.title') }}</NuxtLink>
       </div>
-      <!-- CLE-34969: the admin's Users (members.invite only); the list and
+      <!-- the admin's Users (members.invite only); the list and
            the edit form live on /users -->
       <div
         v-if="usersVisible && (tab === 'users' || tabsWarm)"
@@ -567,7 +567,7 @@
           </span>
         </span>
       </div>
-      <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
+      <!-- identity, Sign in / Sign out: the top-right UserMenu -->
     </div>
     </div>
     </div>
@@ -594,7 +594,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
-/* Async (CLE-34984): it carries @headlessui/vue + @tanstack/virtual-core
+/* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -642,7 +642,7 @@ const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
   .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: item.labelKey })))
 const tab = ref<SideTab>('dm')
-/* CLE-35062: the first render builds the open rail tab only. The other tabs
+/* the first render builds the open rail tab only. The other tabs
    (a v-show each) were built with it and hidden: on / the flow tab alone was
    915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page. They
    are built once the browser is first idle (at most 1.5 s later), and are
@@ -737,7 +737,7 @@ const localePath = useLocalePath()
    sidebar keeps the icon rail and the issue list takes the width. */
 const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
 const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
-/* CLE-34969: Users after flow, only when the hub lists members.invite. */
+/* Users after flow, only when the hub lists members.invite. */
 const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
 const rail = computed(() => (usersVisible.value
@@ -815,7 +815,7 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
   return n ? t('sidebar.retention_days', { n }) : ''
 }
 const health = computed(() => connectionHealth(live.state.value))
-/* CLE-3425: newest first here too - the peer we last exchanged a DM with on top */
+/* newest first here too - the peer we last exchanged a DM with on top */
 const hiddenPeers = ref<Record<string, true>>({})
 /* "Remove from list": this browser only, until a newer DM (sidebar-row-menu.mjs) */
 const listHidden = ref<Record<string, string>>({})
@@ -830,7 +830,7 @@ function isChannelMuted(id: string) {
 function toggleChannelMute(id: string) {
   mutedChannels.value = saveMutedChannels(toggleMutedChannel(mutedChannels.value, id))
 }
-// A default channel has Properties too: it lists everyone, read-only (CLE-3493).
+// A default channel has Properties too: it lists everyone, read-only.
 function showProperties(_id: string) {
   return !isSignedOutVisitor(session.state, api.mock)
 }
@@ -1043,7 +1043,7 @@ function onMoveDrop(ev: DragEvent, id: string) {
 }
 onMounted(() => {
   /* the route middleware has usually probed already; a second probe on every
-     page load was one more session read for nothing (CLE-34984) */
+     page load was one more session read for nothing */
   if (session.state === 'loading' || session.state === 'unknown') void session.probe()
   mutedChannels.value = loadMutedChannels()
   listHidden.value = loadHiddenPeers()
@@ -1059,7 +1059,7 @@ const creating = ref(false)
 const createError = ref('')
 /* what the channel will actually be called in a URL and in an @mention */
 const slug = computed(() => channelSlug(newChannel.value))
-/* CLE-3433: `access.can` fails OPEN by design (the store only hides actions;
+/* `access.can` fails OPEN by design (the store only hides actions;
    the hub re-checks every write), which is right for a member whose /view/me
    read failed and wrong for a visitor who is not signed in at all - they were
    offered a control that can only answer 401. A settled signed-out probe is
@@ -1276,7 +1276,7 @@ async function onCreate() {
 .topic-empty { padding: 8px 16px; margin: 0; }
 .retention { font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
-   hover highlight, nothing that reads as "click me" (CLE-3448) */
+   hover highlight, nothing that reads as "click me" */
 .self-row { cursor: default; }
 .self-row:hover { background: transparent; }
 /* shrinks last, after the id: which row is yours matters more than the tail

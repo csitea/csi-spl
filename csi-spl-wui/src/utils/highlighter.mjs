@@ -98,7 +98,7 @@ export function loadedGrammars() {
  * Load the AUTODETECT_LANGS set, once per page, for a block that carries NO
  * usable language tag.
  *
- * CLE-3437: this used to be skipped, and an untagged block was therefore left
+ * this used to be skipped, and an untagged block was therefore left
  * plain unless some OTHER block on the page had already happened to load an
  * auto-detectable grammar. Measured on this tree against a 5-line shell
  * script: tagged ```bash coloured 11 of 19 runs, the same text untagged

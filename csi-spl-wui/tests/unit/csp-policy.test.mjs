@@ -144,7 +144,7 @@ for (const env of ['dev', 'prd']) {
       for (const l of e.steps?.['031-gcp-hub-ingress']?.extra_host_labels ?? []) assert.ok(hosts.includes(`${l}.${base}`), `extra host ${l}.${base}`)
       const tenantHosts = (e.dns.mapped_tenants ?? []).map((t) => `${t}.${e.dns.fqdn}`)
       for (const t of tenantHosts) assert.ok(hosts.includes(t), `tenant host ${t}`)
-      // CLE-34987: exactly the named hosts; no *.<fqdn> fallback (tenant hosts
+      // exactly the named hosts; no *.<fqdn> fallback (tenant hosts
       // retired in spec 026, the WUI talks to the one api host)
       for (const h of hosts) assert.equal(h.includes('*'), false, `wildcard host ${h}`)
     })

@@ -1,4 +1,4 @@
-// 022 §10 (CLE-35063): the right menu of a search row and where its
+// 022 §10: the right menu of a search row and where its
 // "Open original" goes. Pure helpers of utils/search-results.mjs.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

@@ -1,4 +1,4 @@
-// 013 US7 FR-012 (CLE-3412): in a real browser (mock tenant, nuxi dev), a
+// 013 US7 FR-012: in a real browser (mock tenant, nuxi dev), a
 // reader scrolled down in #lobby keeps the row they look at in place when
 // rows are prepended, and gets the "new" pill; at the top, rows just enter.
 // Rows are injected through the page's own Pinia store, as a live frame would.
@@ -64,7 +64,7 @@ try {
     await new Promise((r) => setTimeout(r, 1200))
     const after = await p.evaluate(() => ({ top: window.__sc.scrollTop, y: window.__anchor.getBoundingClientRect().top, pill: !!document.querySelector('[data-testid=new-pill]') }))
     ok(`${height}px (${before.page ? 'page' : 'feed-body'} scrolls): the row in view stays put, pill shown`, Math.abs(after.y - before.y) < 2 && after.pill && after.top > before.top, { before, after })
-    /* CLE-3425: "shown" has to mean ON SCREEN AND HITTABLE. This test used to
+    /* "shown" has to mean ON SCREEN AND HITTABLE. This test used to
        assert only that the element exists, and it did exist - at y = -379 px,
        scrolled out of view, because `position: sticky` resolved against
        .feed-body (overflow-y: auto) which never scrolls here. The click below

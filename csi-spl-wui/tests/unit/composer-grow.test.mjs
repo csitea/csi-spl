@@ -39,7 +39,7 @@ function walk(dir, acc = []) {
   return acc
 }
 
-describe('composer growth (CLE-3437)', () => {
+describe('composer growth', () => {
   const css = read('src/assets/css/main.css')
 
   it('the base composer sizes to its content, bounded', () => {

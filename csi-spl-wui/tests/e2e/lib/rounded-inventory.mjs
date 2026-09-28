@@ -1,5 +1,5 @@
 // In-page inventory of visible rectangular surfaces and selected-state rings.
-// Used by tests/e2e/rounded-corners.test.mjs (GRK-3376).
+// Used by tests/e2e/rounded-corners.test.mjs.
 //
 // A "surface" is a visible box with its own fill, border, or shadow.
 // Full-bleed chrome (the page, the 3-pane shell, the top bar, pane

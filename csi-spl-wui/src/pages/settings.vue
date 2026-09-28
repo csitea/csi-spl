@@ -102,7 +102,7 @@ stack.rightPanel(
   overflow-wrap: anywhere;
 }
 .settings-nav__link:hover { background: var(--color-bg-2); }
-/* CLE-3427: the active nav item is a SELECTED item — a step DARKER than the
+/* the active nav item is a SELECTED item — a step DARKER than the
    hover fill, and its 3px edge is the one ring colour the whole WUI uses. */
 .settings-nav__link--active {
   background: var(--color-selected);

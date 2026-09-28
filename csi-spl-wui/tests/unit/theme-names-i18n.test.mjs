@@ -1,6 +1,6 @@
 // Theme names for the palette picker, all 19 locales.
 // EN is the lead's exact string. Every other locale differs.
-// theme.to_light / theme.to_dark went with the sun/moon toggle (CLE-34994).
+// theme.to_light / theme.to_dark went with the sun/moon toggle.
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

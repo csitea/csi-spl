@@ -19,7 +19,7 @@ function walk(dir, acc = []) {
   return acc
 }
 
-describe('rounded corners (GRK-3376)', () => {
+describe('rounded corners', () => {
   const vars = read('src/assets/css/variables.css')
   const root = vars.slice(vars.indexOf(':root {'), vars.indexOf('\n}'))
 

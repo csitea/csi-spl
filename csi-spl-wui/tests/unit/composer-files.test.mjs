@@ -33,7 +33,7 @@ const OMNIBOX_PAGES = [
 ]
 /* topic panes no longer have their own composer; the top bar sends the reply */
 
-describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
+describe('cause 1: the handler has to ACCEPT the files', () => {
   for (const page of OMNIBOX_PAGES) {
     it(`${page}: what it registers takes (text, files)`, () => {
       const s = src(page)
@@ -51,7 +51,7 @@ describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
 
 })
 
-describe('cause 2: a picked File is not a wire value (CLE-3433)', () => {
+describe('cause 2: a picked File is not a wire value', () => {
   const store = () => src('src/stores/channel.ts')
 
   it('the channel store uploads a Blob before it puts it on the frame', () => {

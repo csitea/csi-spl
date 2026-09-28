@@ -33,7 +33,7 @@ export interface SpoolMessage {
   /** 013 US7 FR-013: our own send, shown before the hub echo / ack confirms it. */
   pending?: boolean
   /**
-   * message-edit-v1 §2 (CLE-3445). All three are OMITTED until a message has
+   * message-edit-v1 §2. All three are OMITTED until a message has
    * been edited — `edited_at` is an RFC3339 UTC string and its PRESENCE is
    * the marker's test, `revision` counts bodies with the original included
    * (2 after the first edit). They ride at the element's top level, beside
@@ -130,7 +130,7 @@ export interface AckFrame {
    * recipient's box, `queued` = the box is offline and it is held, `local`,
    * `pending`. This is the delivery RECEIPT - the evidence a human has that
    * their message arrived, ~83 ms after send, without waiting for a reply
-   * that contains a model turn (CLE-3435).
+   * that contains a model turn.
    */
   delivery?: string
   /** the box the hub routed it to */

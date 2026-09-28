@@ -46,7 +46,7 @@ const props = defineProps<{
   editable?: boolean
   mergePrev?: boolean
   mergeNext?: boolean
-  /** a thread line: offer Open parent section (CLE-34996) */
+  /** a thread line: offer Open parent section */
   parent?: boolean
   /** SPL-983: a topic card the viewer may archive / delete */
   topic?: boolean

@@ -1,4 +1,4 @@
-// CLE-35062: serve a generated bundle the way Firebase Hosting does, over TLS +
+// serve a generated bundle the way Firebase Hosting does, over TLS +
 // HTTP/2, so a perf proof can A/B two bundles under the REAL WUI host name:
 //
 //   node tests/e2e/lib/serve-hosting-h2.mjs --root <dist> --port 8443 --cert <pem> --key <pem>

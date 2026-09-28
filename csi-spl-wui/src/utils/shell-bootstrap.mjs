@@ -4,7 +4,7 @@
  *
  * Both need one: signed out the hub answers 401 view_door to each, so every
  * page load — /login included, where there is nothing to show — put 2×401 in
- * the console (CLE-3374). Nothing goes out until a session probe answers
+ * the console. Nothing goes out until a session probe answers
  * 'in', and then exactly once for the life of the app: the probe is owned by
  * the shell (ChannelSidebar) and by the login page, and a sign-in flips the
  * same store, so a human who signs in gets the reads without a reload.
@@ -57,7 +57,7 @@ export function shouldOpenHubSocket(sessionState, mock = false) {
 }
 
 /**
- * CLE-3433: is this a visitor we should be showing a way IN, rather than an
+ * is this a visitor we should be showing a way IN, rather than an
  * empty member view? Only a SETTLED 'out' qualifies — 'loading' and 'unknown'
  * must not flash a sign-in notice at a human whose cookie is still being
  * probed, and 'unknown' is an unreachable hub (auth-v1 §4), not a signed-out

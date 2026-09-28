@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-/* Async (CLE-34984): keeps @headlessui/vue out of the first download (TopBar.vue). */
+/* Async: keeps @headlessui/vue out of the first download (TopBar.vue). */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import { loginBarTitle } from '~/utils/login-title.mjs'
 import { useKeyboardInset } from '~/composables/useTouchUi'

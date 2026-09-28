@@ -1,7 +1,7 @@
 import { openParentSection } from './parent-section-open.mjs'
 
 /**
- * 022 §10 (CLE-35063): what "Open original" does for a posted hit (a message,
+ * 022 §10: what "Open original" does for a posted hit (a message,
  * a topic, a file). Loaded only when a row is opened: pages/search.vue
  * imports this file dynamically.
  *

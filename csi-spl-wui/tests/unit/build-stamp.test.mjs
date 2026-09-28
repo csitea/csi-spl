@@ -15,7 +15,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const LIVE = { commit: '4c212dd0ee1c0d1a5a2f3f5a6b7c8d9e0f1a2b3c', built_at: '2026-09-21T12:26:00Z', run: '35599162052' }
 
-describe('build stamp (CLE-3433)', () => {
+describe('build stamp', () => {
   it('shows the semver plus a short commit', () => {
     assert.equal(buildStampText('v0.1.0', LIVE), 'v0.1.0 · 4c212dd')
   })

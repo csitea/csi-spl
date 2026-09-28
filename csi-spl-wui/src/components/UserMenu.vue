@@ -1,4 +1,4 @@
-<!-- Top-right user control (CLE-3402), after the reference storefront's header
+<!-- Top-right user control, after the reference storefront's header
      account control: signed in → the person's avatar (member HUM-*: the stored
      IdP picture, else the deterministic identicon — SpoolAvatar; no member id:
      initials, else a silhouette). CLE-3406: first the person's OWN IdP picture
@@ -178,13 +178,13 @@ const me = computed(() => userIdentity(session.claims))
 const mode = computed(() => avatarMode(session.claims))
 const initials = computed(() => userInitials(session.claims))
 
-// CLE-3406: the signed-in person's own IdP picture, '' until loaded / none.
+// the signed-in person's own IdP picture, '' until loaded / none.
 const authBase = useAuthBase()
 const ownPic = ref('')
 const ownPicUrl = computed(() => (signedIn.value ? ownAvatarUrl(authBase, session.claims) : ''))
 watch(ownPicUrl, async (url) => {
   ownPic.value = ''
-  /* CLE-35062: a member with no stored picture got a 404 on every load */
+  /* a member with no stored picture got a 404 on every load */
   let missStore: Storage | null = null
   try { missStore = window.localStorage } catch { /* blocked */ }
   const got = await loadAvatarImageUrl(url, { credentials: 'include', missStore })

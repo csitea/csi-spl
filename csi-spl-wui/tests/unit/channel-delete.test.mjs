@@ -60,7 +60,7 @@ describe('applyChannelFrame', () => {
     assert.equal(applyChannelFrame(rows, { type: 'channel_deleted', channel: 'nope' }), rows)
     assert.equal(applyChannelFrame(rows, { type: 'channel_deleted' }), rows)
   })
-  it('a channel frame still adds (CLE-3425)', () => {
+  it('a channel frame still adds', () => {
     const out = applyChannelFrame(rows, { type: 'channel', channel: 'fresh', name: 'Fresh' })
     assert.deepEqual(out.map((r) => r.channel_id), ['lobby', 'doomed', 'fresh'])
   })

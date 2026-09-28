@@ -160,14 +160,14 @@ export function useLive() {
     return () => presenceListeners.delete(fn)
   }
 
-  /** CLE-3425: a channel created anywhere in the tenant, for the sidebar. */
+  /** a channel created anywhere in the tenant, for the sidebar. */
   function onChannel(fn: Listener) {
     channelListeners.add(fn)
     return () => channelListeners.delete(fn)
   }
 
   /**
-   * CLE-3445: another session edited a message this one is showing. Kept
+   * another session edited a message this one is showing. Kept
    * apart from onMessage because an edit is a replacement and every
    * onMessage listener merges by appending — see applyEdit in msg-edit.mjs.
    */

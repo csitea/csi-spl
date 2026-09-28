@@ -1,4 +1,4 @@
-// CLE-35064: the lde mock's POST /v1/messages/{src}/merge - the hub's rules
+// the lde mock's POST /v1/messages/{src}/merge - the hub's rules
 // (csi-spl-api internal/hub/merge.go) against the in-memory store. Loaded only
 // in mock mode, from spool-client.mjs mergeMessage, so it stays out of the
 // initial chunk.

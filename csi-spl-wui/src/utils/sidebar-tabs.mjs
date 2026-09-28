@@ -5,7 +5,7 @@ import { productPath } from './signed-out-redirect.mjs'
 
 export const SIDE_TABS = ['dm', 'channels', 'topics', 'flow']
 
-/** The admin's Users tab (CLE-34969): after flow, only for members.invite
+/** The admin's Users tab: after flow, only for members.invite
  *  (tenant-users.mjs usersEntryVisible), so it is not in SIDE_TABS. */
 export const USERS_TAB = 'users'
 
@@ -14,7 +14,7 @@ export const USERS_TAB = 'users'
  *  as USERS_TAB: it is a page, not a sidebar list. */
 export const EVENTS_TAB = 'events'
 
-/** Issues (GRK-3519): the third rail tab, directly after Channels. A page,
+/** Issues: the third rail tab, directly after Channels. A page,
  *  like the event log, so it is not one of the four sidebar lists. */
 export const ISSUES_TAB = 'issues'
 

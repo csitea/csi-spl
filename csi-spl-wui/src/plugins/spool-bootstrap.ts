@@ -1,6 +1,6 @@
 // The shell's first reads. Both the channel list and the roster need a member
 // session, so firing them on every page load answered 401 view_door twice —
-// on /login too, where there is no shell and nothing to fill (CLE-3374).
+// on /login too, where there is no shell and nothing to fill.
 //
 // So: wait for the session store to say 'in' (ChannelSidebar and the login
 // page own the probe; a native sign-in adopts the claims into the same store),

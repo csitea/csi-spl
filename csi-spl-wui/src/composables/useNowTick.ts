@@ -5,7 +5,7 @@ import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
  * `now` is Date.now() at each tick; the first tick is immediate on enable so
  * "seconds ago from opening this topic" is defined before the first interval.
  */
-/* CLE-3433: MaybeRefOrGetter, not MaybeRef. All three call sites pass a
+/* MaybeRefOrGetter, not MaybeRef. All three call sites pass a
  * GETTER - `() => topic.open`, `() => Boolean(pane.taskId)`,
  * `() => Boolean(taskId.value)` - which typecheck refused (TS2345) and which
  * `unref` cannot read: unref(fn) hands back the function, and a function is

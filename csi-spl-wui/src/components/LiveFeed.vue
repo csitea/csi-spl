@@ -113,7 +113,7 @@ const props = defineProps<{
   /** /channel and /dm (X3): every card is a topic root with a reply count. */
   countFor?: (taskId: string) => number
   alwaysTopic?: boolean
-  /** CLE-3427: a click (or Enter / Space) anywhere on a row opens its topic. */
+  /** a click (or Enter / Space) anywhere on a row opens its topic. */
   clickable?: boolean
   /** what "no rows" says here — in a topic pane that is "no replies yet". */
   emptyText?: string
@@ -126,7 +126,7 @@ const props = defineProps<{
       be displayed only on the middle pane and it should work so that it will
       open the topic". A thread pane never passes it. */
   openButton?: boolean
-  /** CLE-34989: a middle-pane feed of level-1 cards takes the pane's height
+  /** a middle-pane feed of level-1 cards takes the pane's height
       mode (titles / 5 rows / full). SPL-945: a thread (the right pane, the
       /t page) passes it too, with clipPane="thread" - its own mode. SPL-963:
       the thread's root card takes that mode as well, so the buttons change
@@ -165,7 +165,7 @@ const announce = computed(() => {
   return m ? t('feed.announce_new', { who: people.label(String(m.from || ''), m.from_box) }) : ''
 })
 
-/* CLE-3445: `e` is offered only on the viewer's OWN browser-authored rows —
+/* `e` is offered only on the viewer's OWN browser-authored rows —
    the hub refuses anything else, and a shortcut that opens an editor the
    server will 403 is a defect. The predicate lives in utils/msg-edit.mjs. */
 const { canEdit } = useMessageEdit()
@@ -176,7 +176,7 @@ const liveConn = useLive()
 function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
   const other = threadNeighbor(props.rows, m, which) as SpoolMessage | null
   if (!other || !canEdit(m) || !canEdit(other)) return null
-  /* CLE-35064: a topic's card is never merged away (hub 409 is_card) */
+  /* a topic's card is never merged away (hub 409 is_card) */
   if (!mergeableSource(props.rows, m, liveConn.lobbyTaskId.value)) return null
   return other
 }

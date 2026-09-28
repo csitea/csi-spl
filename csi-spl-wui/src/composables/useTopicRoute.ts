@@ -39,7 +39,7 @@ export function useTopicRoute(opts: {
      a thread open landed on /search with no q) */
   watch(() => topic.target, (t) => {
     if (router.currentRoute.value.path !== route.path) return
-    /* 022 §10 (CLE-35063): Back / Forward. The address bar already shows the
+    /* 022 §10: Back / Forward. The address bar already shows the
        entry popped to while vue-router has not committed it yet, and the
        mobile stack's popstate listener closes the topic in that gap. A write
        here would cancel the Back (the channel reached from a search result

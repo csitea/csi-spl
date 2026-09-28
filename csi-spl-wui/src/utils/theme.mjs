@@ -1,6 +1,6 @@
 /** Theme persist + mapping. Default is dark; no prefers-color-scheme
  *  (the app has never followed the system setting — keep that).
- *  CLE-34994: five themes, chosen from the palette picker (ThemeToggle.vue).
+ *  five themes, chosen from the palette picker (ThemeToggle.vue).
  *  Storage is try/catch via prefs.mjs (private mode).
  */
 import { storageGet, storageSet } from './prefs.mjs'
@@ -10,7 +10,7 @@ export const THEME_DEFAULT = 'dark'
 
 /** @typedef {'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow' | 'light-orange' | 'light-red'} SpoolTheme */
 
-/** CLE-34994: the palette picker's options, dark to light, in menu order.
+/** the palette picker's options, dark to light, in menu order.
  *  `swatch` is the theme's own --color-bg / --color-accent pair, so each
  *  option previews its theme whatever theme is active. */
 export const THEMES = [
@@ -55,7 +55,7 @@ export function applyThemeAttr(theme, el) {
 }
 
 /**
- * CLE-34994: keep a palette pick on the account too (PUT preferences
+ * keep a palette pick on the account too (PUT preferences
  * preferred_theme), so the operator default and the person's own choice are
  * one field and a new device starts from it. Only for a signed-in member
  * (claims.hum), and not when the account already says so. A failed save is

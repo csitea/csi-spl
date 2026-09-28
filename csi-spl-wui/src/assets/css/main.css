@@ -3,7 +3,7 @@
 
 a { color: var(--color-accent); text-decoration: none; }
 button, textarea, input { font-family: inherit; }
-/* GRK-3376: every control is a rounded rectangle. Checkboxes/radios
+/* every control is a rounded rectangle. Checkboxes/radios
    stay the UA circle; file inputs are visually hidden. */
 button,
 .btn,
@@ -451,7 +451,7 @@ html.pane-dragging * {
   outline: none;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
-  /* CLE-3437: a ``` block is many lines, so the box that holds it has to be
+  /* a ``` block is many lines, so the box that holds it has to be
      many lines. The top-bar Omnibox got this in 022; the IN-PAGE composers
      (topic pane, live topic pane, /t/<task>) never did, so a block typed
      there was a two-line peephole with its own scrollbar and the author could
@@ -906,7 +906,7 @@ html.pane-dragging * {
 /* the search hit the pane scrolled to: the focus ring, held for a moment */
 .msg.search-focus { outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: var(--focus-offset); box-shadow: var(--focus-3d); }
 
-/* ---- CLE-3427: keyboard focus and selection, in ONE place ----------------
+/* ---- keyboard focus and selection, in ONE place ----------------
    Tab cycling must read as RAISED, never as a flat hard line, and in the
    LIGHT theme the line itself is lighter than the old --color-accent:
    relative luminance 0.41 (#4bb8dc) against 0.26 (#0a97c4), asserted in
@@ -968,6 +968,6 @@ html.pane-dragging * {
   background: var(--color-accent-pressed);
 }
 
-/* CLE-3427: a feed row whose whole surface opens its topic. The pointer says
+/* a feed row whose whole surface opens its topic. The pointer says
    so; the keyboard half is Enter / Space on the focused row (MessageCard). */
 .msg--clickable { cursor: pointer; }

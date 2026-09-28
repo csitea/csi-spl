@@ -74,7 +74,7 @@ const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow', 
 const OLD_LIGHT_LINE = '#0a97c4'
 const SURFACES = ['--color-bg', '--color-bg-2', '--color-surface', '--color-surface-hover', '--color-sidebar']
 
-describe('focus + selection tokens (CLE-3427)', () => {
+describe('focus + selection tokens', () => {
   it('every theme defines the whole set — a half-themed token is a broken theme', () => {
     for (const theme of ['root', ...THEMES]) {
       for (const name of ['--focus-ring', '--focus-ring-w', '--focus-offset', '--select-bar-w', '--focus-3d', '--color-selected', '--color-accent-pressed']) {
@@ -115,7 +115,7 @@ describe('focus + selection tokens (CLE-3427)', () => {
     assert.match(MAIN, /box-shadow:\s*inset var\(--select-bar-w\) 0 0 var\(--focus-ring\)/)
     /* and nothing in the shared treatment reaches for a second ring colour */
     /* the declarations only: a comment that QUOTES another rule is prose, not a ring */
-    const treatment = MAIN.slice(MAIN.indexOf('/* ---- CLE-3427: keyboard focus and selection')).replace(/\/\*[\s\S]*?\*\//g, '')
+    const treatment = MAIN.slice(MAIN.indexOf('/* ---- keyboard focus and selection')).replace(/\/\*[\s\S]*?\*\//g, '')
     const NOT_A_COLOUR = ['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--radius']
     const ringColours = new Set(
       [...treatment.matchAll(/(?:outline|box-shadow):([^;]*);/g)]

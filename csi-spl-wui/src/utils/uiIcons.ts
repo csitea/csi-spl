@@ -38,7 +38,7 @@ export const UI_ICON_PATHS = {
     "m21 3-9 9",
     "M15 3h6v6",
   ],
-  // CLE-34994: the theme picker's button (lucide palette). The paint dots
+  // the theme picker's button (lucide palette). The paint dots
   // are filled path discs, never <circle>, so they survive at 18px.
   palette: [
     "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z",
@@ -82,7 +82,7 @@ export const UI_ICON_PATHS = {
     "M22 21v-2a4 4 0 0 0-3-3.87",
     "M16 3.13a4 4 0 0 1 0 7.75",
   ],
-  // CLE-34991: the tenant drop box's glyph (lucide building-2), in place of
+  // the tenant drop box's glyph (lucide building-2), in place of
   // the visible "Tenant" caption.
   building: [
     "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z",
@@ -99,7 +99,7 @@ export const UI_ICON_PATHS = {
     "M3 3v5h5",
     "M12 7v5l4 2",
   ],
-  // CLE-3433: the notification control in the collapsed 72px sidebar rail,
+  // the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
   // chime on/off (owner, 2026-09-26): lucide "music" - two notes on a beam
   music: [

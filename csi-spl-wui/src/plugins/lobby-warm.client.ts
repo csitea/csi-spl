@@ -1,4 +1,4 @@
-// CLE-35062: start /lobby's first two reads when the session says 'in', not
+// start /lobby's first two reads when the session says 'in', not
 // when the page has mounted (utils/lobby-warm.mjs says why and how nothing is
 // lost). Only on a load that lands on /lobby, only with a lobby id in the
 // build, never in the mock tenant.

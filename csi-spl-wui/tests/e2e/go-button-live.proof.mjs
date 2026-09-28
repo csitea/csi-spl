@@ -1,4 +1,4 @@
-// SPL-977 (CLE-35015) — live proof, signed in: the omnibox's GO button and
+// SPL-977 — live proof, signed in: the omnibox's GO button and
 // the top bar's height, on a deployed WUI. Read-only: nothing is sent.
 //
 // Owner, 2026-09-26: "change the Send button on the right of the omnibox to a

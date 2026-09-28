@@ -1,6 +1,6 @@
 // csi-spl-wui/src/utils/debug-pane.mjs
 //
-// The "Debug pane" checkbox in Settings → Appearance (CLE-34963) as a pure,
+// The "Debug pane" checkbox in Settings → Appearance as a pure,
 // node-testable step: flip the session claim at once so the DebugPanel at the
 // bottom of the app appears or disappears without a reload, then save it to
 // the hub (PUT /api/v1/auth/preferences diagnostics_enabled) and put the old

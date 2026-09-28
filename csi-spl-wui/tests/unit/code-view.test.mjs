@@ -285,7 +285,7 @@ describe('the highlighter (highlight.js + our emitter): tokens, never markup', (
     assert.deepEqual(toks, [{ text: 'hello', cls: '' }])
   })
 
-  // CLE-3437: an UNTAGGED block is the common case — it is what a person
+  // an UNTAGGED block is the common case — it is what a person
   // typing ``` in a hurry sends, and what an agent pasting terminal output
   // sends. It used to be left plain unless some other block on the page had
   // already happened to load an auto-detectable grammar, which on a freshly

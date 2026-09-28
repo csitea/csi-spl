@@ -121,7 +121,7 @@
   --color-composer: #f4f8ff;
   --color-glow: rgba(10, 151, 196, 0.28);
 
-  /* CLE-3427: the light theme's focus line is LIGHTER than the old
+  /* the light theme's focus line is LIGHTER than the old
      --color-accent (#0a97c4, relative luminance 0.26) - #4bb8dc is 0.41 -
      which is what the owner asked for. Measured cost, stated rather than
      hidden: a SINGLE light line cannot also clear the 3:1 non-text-contrast

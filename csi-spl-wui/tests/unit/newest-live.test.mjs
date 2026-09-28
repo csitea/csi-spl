@@ -1,4 +1,4 @@
-// 013 US7 (CLE-3412): newest on top everywhere, pushed live — ordering,
+// 013 US7: newest on top everywhere, pushed live — ordering,
 // dedupe of our optimistic send, scroll anchoring, reconnect catch-up, and
 // the WS follows for DMs and the topic list (wui-live-ws v0.5).
 import { describe, it } from 'node:test'
@@ -204,7 +204,7 @@ describe('WS follows: DM peer and topic list (wui-live-ws v0.5)', () => {
     sockets[1].onopen(); sockets[1].onmessage({ data: JSON.stringify({ type: 'welcome' }) })
     assert.deepEqual(sockets[1].sent.slice(1), [{ type: 'subscribe', peer: 'HUM-2' }, { type: 'subscribe', all: true }])
     assert.equal(reconnected, 1)
-    /* CLE-3425: `all` is ref-counted - two holders (the topic list on `/` and
+    /* `all` is ref-counted - two holders (the topic list on `/` and
        the tab-wide shell follow), so the FIRST unsubscribe must not drop it. */
     c.unsubscribePeer('HUM-2'); c.unsubscribeAll()
     assert.deepEqual(sockets[1].sent.slice(3), [{ type: 'unsubscribe', peer: 'HUM-2' }],

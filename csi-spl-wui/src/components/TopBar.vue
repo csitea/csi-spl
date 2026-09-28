@@ -62,7 +62,7 @@
         @ready="onComposerReady"
       />
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
-      <!-- CLE-3433: a send that did not land says so HERE, next to the box
+      <!-- a send that did not land says so HERE, next to the box
            that still holds the text, and offers the one action that helps -->
       <ErrorNotice
         v-if="sendError"
@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-/* Async (CLE-34984): its Combobox pulls @headlessui/vue + @tanstack/virtual-core
+/* Async: its Combobox pulls @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) into the first download of every page; it loads right after. */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import MessageComposer from '@/components/MessageComposer.vue'

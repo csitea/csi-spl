@@ -1,4 +1,4 @@
-// CLE-34969: the admin's Users page, WUI side - the entry gate (strict, not
+// the admin's Users page, WUI side - the entry gate (strict, not
 // fail-open), the GET /v1/members reader, the error words, the mock hub rules.
 // Run: node tests/unit/tenant-users.test.mjs
 import { readFileSync } from 'node:fs'

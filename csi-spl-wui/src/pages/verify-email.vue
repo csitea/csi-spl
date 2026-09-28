@@ -3,7 +3,7 @@
      POSTed with the password, and dropped from the URL once posted
      (router.replace → history.replaceState), like /reset-password.
 
-     The person confirms the password they signed up with (CLE-34986): the
+     The person confirms the password they signed up with: the
      click proves the MAILBOX, not who chose the password, so without it
      anyone could register someone else's address with their own password
      and have the owner's click verify it. The hub refuses a verify without

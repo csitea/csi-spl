@@ -18,7 +18,7 @@ export const useRosterStore = defineStore('roster', () => {
    * Who the reader is, as the pane must know them. The socket's `welcome.as`
    * (wui-live-ws §3.2) is authoritative and arrives before any presence frame.
    *
-   * CLE-3448: this used to default to a literal `HUM-1` that a live session
+   * this used to default to a literal `HUM-1` that a live session
    * never overwrote — `/v1/view/roster` carries no `me` — so on any tenant
    * whose member list holds a real HUM-1, that member would be taken for the
    * reader and hidden from everybody.

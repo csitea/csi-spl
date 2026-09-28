@@ -715,7 +715,7 @@ async function onToggle(ev: Event) {
 /* A plain div, not the Combobox: headlessui's Combobox renders a fragment,
    which never gets this component's scoped attribute, so a rule on it does not
    apply and the list anchored to the dialog backdrop - off the bottom of the
-   page (CLE-3493). */
+   page. */
 .invite-add__combo {
   position: relative;
   flex: 1 1 auto;

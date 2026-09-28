@@ -153,7 +153,7 @@ async function onTenantChange(ev: Event) {
   flex: 0 1 auto;
   min-width: 0;
 }
-/* Compact drop box (CLE-34991): one slim row, a glyph and the box, no
+/* Compact drop box: one slim row, a glyph and the box, no
    caption. The select's width is the widest option in its own font, plus
    3px, plus the arrow (set from script, not a fixed px width). max-width
    keeps the row inside the bar. SPL-71: the name and the arrow sit in one

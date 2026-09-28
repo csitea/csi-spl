@@ -78,7 +78,7 @@ describe('tenant-host', () => {
   })
 })
 
-// CLE-35057: a tenant switch must not carry the old tenant's channel / DM /
+// a tenant switch must not carry the old tenant's channel / DM /
 // topic to the new tenant's host - every send there was refused.
 describe('switchPath', () => {
   it('drops a channel, DM or topic page to the home page, keeping the locale', () => {

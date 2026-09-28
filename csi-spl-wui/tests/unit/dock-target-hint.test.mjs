@@ -30,12 +30,12 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, 'ping @CLE-07').mode, 'thread')
   })
 
-  it('an open issue on a phone: every line is a comment on it, `@someone` first too (CLE-35066)', () => {
+  it('an open issue on a phone: every line is a comment on it, `@someone` first too', () => {
     assert.deepEqual(dockTargetHint({ reply: true, target: 'SPL-7', comment: true }, 'hello'), { mode: 'comment', target: 'SPL-7' })
     assert.equal(dockTargetHint({ reply: true, target: 'SPL-7', comment: true }, '@CLE-07 look').mode, 'comment')
   })
 
-  it('/issues registers the comment target only while an issue is open on a phone, and GO without a target searches (CLE-35066)', () => {
+  it('/issues registers the comment target only while an issue is open on a phone, and GO without a target searches', () => {
     const s = src('src/pages/issues.vue')
     assert.match(s, /const dockComment = computed\(\(\) => Boolean\(phone\.value && detail\.value && detail\.value\.task_id && !creating\.value\)\)/)
     assert.match(s, /dock: \(\) => \(\{ reply: true, target: detail\.value\?\.key \|\| '', comment: true \}\)/)

@@ -15,7 +15,7 @@ export interface OmniboxTarget {
    * SPL-1003: where the next post goes, for the phone dock's hint - `reply`
    * true while it will go into the open thread (is_parent 0), else a new
    * topic in `target` (the page's own name: '#channel', the peer, ...).
-   * CLE-35066: `comment` true on an open issue (/issues on a phone): the
+   * `comment` true on an open issue (/issues on a phone): the
    * post is a comment on the issue named by `target` (SPL-n).
    */
   dock?: () => { reply: boolean, target: string, comment?: boolean }

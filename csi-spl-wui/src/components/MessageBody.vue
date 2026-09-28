@@ -26,7 +26,7 @@ import MessageRuns from '~/components/MessageRuns.vue'
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
    open control and the dialog); inline spans stay here, where they belong.
-   A plain link (CLE-3494) is http, https or mailto; a wiki markdown link
+   A plain link is http, https or mailto; a wiki markdown link
    may also be relative. Same-origin and relative links stay in this tab
    (link-target.mjs). A click, double-click or Enter on the link stops here,
    so the link opens and the row does not also open its topic, select, or

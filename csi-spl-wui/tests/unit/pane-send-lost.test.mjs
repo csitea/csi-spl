@@ -9,7 +9,7 @@
 // was pending, the Topics page (`/`) stored NOTHING and emptied the Omnibox;
 // the only trace was a notice inside the right pane. /channel/lobby, same
 // drop, stored the reply. The two pages send through different stores:
-// channel.sendLive resends once on 'closed' and rethrows (CLE-3433), while
+// channel.sendLive resends once on 'closed' and rethrows, while
 // stores/live.ts send() - used by `/`, `/t/<id>` and #lobby - did neither.
 // It caught every failure, so TopBar never learned the send had failed and
 // never put the text back.

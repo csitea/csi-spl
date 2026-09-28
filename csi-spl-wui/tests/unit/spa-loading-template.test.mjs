@@ -1,4 +1,4 @@
-// CLE-35062: the 200.html loading shell's style block must be the block the
+// the 200.html loading shell's style block must be the block the
 // Hosting render hashes. The render (csi-spl-orc/.../render-wui-firebase-json.sh)
 // finds inline blocks with a regex, so a tag name written in a comment made it
 // hash comment text, and every deployed page refused the real block

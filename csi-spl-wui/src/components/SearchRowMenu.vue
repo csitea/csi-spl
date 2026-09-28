@@ -1,4 +1,4 @@
-<!-- 022 §10 (CLE-35063): the right menu of a search result row. The same
+<!-- 022 §10: the right menu of a search result row. The same
      panel as the message menu (icon + name, arrows move, Escape and a click
      outside close it); a bottom sheet at <= 820 px. The items come from
      utils/search-results.mjs searchRowMenuItems. -->

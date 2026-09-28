@@ -1,4 +1,4 @@
-// The delivery receipt (CLE-3435).
+// The delivery receipt.
 //
 // The hub already decides what happened to a message and says so on the ack:
 // `sent` means it handed the message to the recipient's box, `queued` that the

@@ -1,4 +1,4 @@
-// The bootstrap gate (CLE-3374): the channel list and the roster both need a
+// The bootstrap gate: the channel list and the roster both need a
 // member session, so the plugin used to answer 401 view_door twice on every
 // page load — including /login, which has no shell to fill.
 //
@@ -25,7 +25,7 @@ function spy() {
   return { n, boot }
 }
 
-describe('shell bootstrap: no hub read without a session (CLE-3374)', () => {
+describe('shell bootstrap: no hub read without a session', () => {
   it('signed out — no channel or roster request, whatever the probe says', async () => {
     const { n, boot } = spy()
     for (const state of ['loading', 'unknown', 'out', 'loading', 'out']) await boot.onSession(state)

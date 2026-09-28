@@ -22,7 +22,7 @@ export function useHumanNames() {
 
   /* The roster needs a member session: signed in already, read on mount;
      signing in makes it readable, so read it then, not on the next reload.
-     Before either, a read is only a 401 (CLE-34984). */
+     Before either, a read is only a 401. */
   const session = useSessionStore()
   onMounted(() => { if (session.state === 'in') void load() })
   watch(() => session.state, (now, before) => { if (now === 'in' && before !== 'in') void load(true) })

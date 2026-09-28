@@ -1,4 +1,4 @@
-// CLE-35062: /lobby's two first reads, started when the session says 'in'
+// /lobby's two first reads, started when the session says 'in'
 // instead of when the page mounts.
 //
 // Between the session answer and the page's first read the frame renders,

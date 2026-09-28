@@ -116,7 +116,7 @@ declare module '~/utils/spool-client.mjs' {
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     deleteMessage(msgId: string): Promise<null>
-    /** CLE-35064: fold msgId into intoId (one hub transaction); resolves with the kept row. */
+    /** fold msgId into intoId (one hub transaction); resolves with the kept row. */
     mergeMessage(msgId: string, intoId: string): Promise<import('./spool').SpoolMessage & { merged_from: string }>
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
@@ -1063,7 +1063,7 @@ declare module '~/utils/search-results.mjs' {
   export function moveIndex(i: number, n: number, key: string): number
   export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | { tenant: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
-  /** 022 §10 (CLE-35063): the right menu of a row and its original */
+  /** 022 §10: the right menu of a row and its original */
   export function isPlacedRow(row: unknown): boolean
   export function searchRowMenuItems(row: unknown): { id: 'original' | 'here' | 'copy', icon: import('~/utils/uiIcons').UiIconName, labelKey: string }[]
   export function topicPageOf(row: unknown): string

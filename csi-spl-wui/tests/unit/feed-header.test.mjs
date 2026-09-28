@@ -1,4 +1,4 @@
-// SPL-941 (CLE-35001): the middle pane's header is one FeedHeader for the
+// SPL-941: the middle pane's header is one FeedHeader for the
 // channel, DM and lobby pages. Owner, 2026-09-26: the title is what you are
 // reading, "last 30 · tenant-scoped" is gone, the channel description is not
 // shown (it lives in channel Properties), and the card height control is a

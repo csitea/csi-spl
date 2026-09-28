@@ -63,7 +63,7 @@ const label = computed(() => t('feed.download.' + status.value))
  * A picture shows inline, and a click opens it at 90% of the screen. The
  * bytes come through the same credentialed door as Download and must match
  * the sha256 the message names. It is a data: URL, not a blob: one: every
- * deployed CSP is img-src 'self' data: (CLE-3406). The magic bytes pick the
+ * deployed CSP is img-src 'self' data:. The magic bytes pick the
  * type, so a file NAMED .png that is not a picture shows nothing. A failed
  * fetch leaves the card as it was: name and Download.
  */
@@ -87,7 +87,7 @@ async function loadPreview() {
     } else if (linkable.value && isPreviewableImage(props.file.name, props.file.bytes)) {
       const id = String(props.file.file_id || props.file.sha256 || '')
       const want = String(props.file.sha256 || props.file.file_id || '')
-      /* one verified download per file for the page, shared by every card (CLE-34984) */
+      /* one verified download per file for the page, shared by every card */
       url = await sharedPreview(want ? id + '\n' + want : '', async () => {
         const buf = await api.downloadFile(id)
         if (want && (await sha256Hex(buf)) !== want) return ''

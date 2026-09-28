@@ -1,6 +1,6 @@
 /**
  * Which topic a clicked feed row opens, and how that choice survives a
- * reload (CLE-3427). Pure: the Node tests import this file, the Vue stores
+ * reload. Pure: the Node tests import this file, the Vue stores
  * and panes wrap it.
  *
  * A topic here is a task_id: its root is the task's oldest message, its

@@ -1,4 +1,4 @@
-// CLE-35062: the session probe, started before the app's plugins have run.
+// the session probe, started before the app's plugins have run.
 //
 // The i18n plugin awaits the locale catalogue (a lazy chunk found only once
 // the entry runs), and the route middleware - which sends the probe - runs

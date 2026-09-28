@@ -4,7 +4,7 @@
 // keyboard focus, and choosing that option does not navigate. Checked at
 // 1280x800. SPL-995: at <= 820 px the switcher is in the top bar instead
 // (tests/e2e/top-bar-tenant.test.mjs proves it there and absent here).
-// CLE-34991: one slim row with no visible caption; hovering it shows the
+// one slim row with no visible caption; hovering it shows the
 // explanation (the wrapper's title), which names the tenant.
 // SPL-71: a drop box - the name and the arrow sit inside one bordered box,
 // and a press on the arrow focuses the select as a press on the name does.

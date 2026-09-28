@@ -134,7 +134,7 @@ export function providerLabel(p) {
  * Whitespace, a C0 control or DEL anywhere, or any backslash, is refused: the URL parser
  * drops tab / CR / LF and reads a backslash as '/', so "/<TAB>/evil.example"
  * is "//evil.example" to the browser, and NuxtLink (ufo hasProtocol) renders
- * it as an external link (CLE-34987); ufo reads any whitespace there the same
+ * it as an external link; ufo reads any whitespace there the same
  * way. The URL check is the backstop: whatever
  * survives must still resolve on this origin.
  */
@@ -183,7 +183,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
   // header is non-simple, so a cross-origin call preflights, and a hub whose
   // CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
   // sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
-  // Even then it rides only a write (CLE-34984): the hub reads it in the native
+  // Even then it rides only a write: the hub reads it in the native
   // POST handlers that mail, never on a GET, and on GET /session it made the
   // probe every cold load waits for preflight first (one extra round trip,
   // ~380 ms on dev).
@@ -285,7 +285,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       if (name) b.name = String(name)
       return post('/register', b)
     },
-    /** CLE-34986: the password the link was issued for rides with the token. */
+    /** the password the link was issued for rides with the token. */
     verifyEmail({ token, password } = {}) {
       return post('/email/verify', { token: String(token || ''), password: String(password || '') })
     },
@@ -314,7 +314,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { preferred_locale: String(preferred_locale || '') }, 'PUT')
     },
     /**
-     * CLE-34963: store the signed-in human's "Debug pane" checkbox. Sends
+     * store the signed-in human's "Debug pane" checkbox. Sends
      * ONLY that key (the language is left as it is) and only a real boolean.
      * 200 → ok; 400 = not a boolean; 401 = no session; 409 = no human.
      */
@@ -322,7 +322,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { diagnostics_enabled: on === true }, 'PUT')
     },
     /**
-     * CLE-34968: store the signed-in human's display name. Sends ONLY that
+     * store the signed-in human's display name. Sends ONLY that
      * key. 200 → `data.display_name` is the stored (trimmed) name; 400
      * invalid_display_name; 401 = no session; 409 = no human.
      */
@@ -330,7 +330,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
     },
     /**
-     * CLE-34994: keep the palette pick on the account (humans.preferred_theme,
+     * keep the palette pick on the account (humans.preferred_theme,
      * the field an operator sets with do_spl_human_theme). Sends ONLY that
      * key. 200 → ok; 400 unsupported_theme; 401 = no session; 409 = no human.
      */

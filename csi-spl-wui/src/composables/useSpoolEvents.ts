@@ -70,7 +70,7 @@ export function useSpoolEvents() {
     function attach() {
       startHubSocket(live)
       if (!off) off = live.onMessage((m) => channel.ingestLive(m))
-      /* CLE-3445: an edit is a REPLACEMENT, so it takes its own frame and its
+      /* an edit is a REPLACEMENT, so it takes its own frame and its
          own path — ingestLive merges, and a merge drops a row already held */
       if (!offEdited) offEdited = live.onEdited((m) => channel.applyEdited(m))
       /* An emoji lands on every store that can be showing the message, the

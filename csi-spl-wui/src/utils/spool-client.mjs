@@ -401,7 +401,7 @@ export function createSpoolClient({
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
   let viewDoor = String(door || '')
-  /* CLE-34984: a door set from a signed-in session probe, not yet proven by a
+  /* a door set from a signed-in session probe, not yet proven by a
      read. withSessionRetry takes it back if the hub refuses credentials. */
   let doorGuessed = false
   let send = sender
@@ -667,7 +667,7 @@ export function createSpoolClient({
       doorGuessed = false
     },
     /**
-     * CLE-34984: set the door BEFORE the first read, from a signed-in session
+     * set the door BEFORE the first read, from a signed-in session
      * probe, so a cold load does not spend one 401 per shell read discovering
      * it. Only an unset door is guessed; withSessionRetry takes the guess back
      * when a read under it fails without an HTTP status (a token door's CORS
@@ -830,7 +830,7 @@ export function createSpoolClient({
       return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
     /**
-     * GET /v1/members (CLE-34969): the tenant's members, pending invites and
+     * GET /v1/members: the tenant's members, pending invites and
      * the roles the caller may grant. members.invite (admin) only.
      */
     async listTenantUsers() {
@@ -1142,7 +1142,7 @@ export function createSpoolClient({
       return null
     },
     /**
-     * CLE-35064: POST /v1/messages/{msg_id}/merge {into}. {msg_id} is the
+     * POST /v1/messages/{msg_id}/merge {into}. {msg_id} is the
      * source, the row that goes away; `into` keeps both bodies, older first.
      * ONE request: the hub edits `into` and deletes the source in one
      * transaction, so a merge can no longer leave the source behind (the old

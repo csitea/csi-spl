@@ -109,7 +109,7 @@ try {
     return {
       blocks: blocks.length,
       lang: a.querySelector('.code-lang')?.textContent.trim() || '',
-      // CLE-3423: one row per source line, so the text is the rows joined —
+      // one row per source line, so the text is the rows joined —
       // `pre.textContent` has no newlines to give any more
       code: rows.map((r) => r.textContent).join('\n'),
       // and the browser's own serialisation (what a user's select+copy gets)

@@ -1,6 +1,6 @@
 // csi-spl-wui/src/utils/display-name.mjs
 //
-// The "Display name" field in Settings → Profile (CLE-34968) as pure,
+// The "Display name" field in Settings → Profile as pure,
 // node-testable steps. The hub is the authority (PUT /api/v1/auth/preferences
 // display_name, auth-v1 §3): these rules mirror its ValidDisplayName so the
 // form refuses what the hub would, without a round trip, and the saved name is

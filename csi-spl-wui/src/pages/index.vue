@@ -100,7 +100,7 @@ const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
-/* CLE-35065: a phone prints the row's time on the viewer's own clock, only
+/* a phone prints the row's time on the viewer's own clock, only
    HH:MM when it is from today (phoneCardTime, as on every card); desktop
    keeps the UTC HH:MM */
 const mobile = useMobileStack().isMobile
@@ -144,7 +144,7 @@ watch(openedTopicId, async (id) => {
   if (row) scrollRowToTop(root, row)
 })
 const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r.task_id))
-/* W5 (GRK-3377): `/` opened the hub socket while signed out - viewer.follow()
+/* W5: `/` opened the hub socket while signed out - viewer.follow()
    calls live.ensure(), which constructs and connects a client, and the hub
    answers the upgrade 401, so a signed-out visitor got 4 attempts plus backoff
    (measured on both apexes, tree e52e250). The read and the follow now wait for

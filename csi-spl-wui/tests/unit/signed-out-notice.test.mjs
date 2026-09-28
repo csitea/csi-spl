@@ -17,7 +17,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const FEED_PAGES = ['src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue']
 
-describe('isSignedOutVisitor (CLE-3433)', () => {
+describe('isSignedOutVisitor', () => {
   it("only a settled 'out' counts", () => {
     assert.equal(isSignedOutVisitor('out'), true)
     assert.equal(isSignedOutVisitor('in'), false)

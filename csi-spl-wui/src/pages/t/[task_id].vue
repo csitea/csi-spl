@@ -73,7 +73,7 @@ onMounted(() => {
   watch(taskId, reopen, { immediate: true })
 })
 
-/* CLE-3445: an edit landed on this page's own feed store (the live store
+/* an edit landed on this page's own feed store (the live store
    already applies a `message_edited` frame from another session itself). */
 const { applyEverywhere } = useMessageEdit()
 

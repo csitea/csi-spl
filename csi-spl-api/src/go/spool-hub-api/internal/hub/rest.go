@@ -366,6 +366,13 @@ func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if r.URL.Query().Get("probe") == "1" {
+		// SPL-1105: the box session probe (every 30 s per box) asks only
+		// whether this process knows the token, which the door above
+		// answered; it never reads the list, so no database read for it.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	pins, err := s.o.Store.ListPins(r.Context(), t.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "pins unavailable")

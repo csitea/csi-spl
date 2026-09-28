@@ -176,7 +176,11 @@ func (c *Client) endpoint(path string) (string, error) {
 	if err != nil || u.Host == "" {
 		return "", fmt.Errorf("SPOOL_HUB_URL %q is not a URL", c.Cfg.HubURL)
 	}
+	path, query, _ := strings.Cut(path, "?")
 	u.Path = strings.TrimSuffix(u.Path, "/") + path
+	if query != "" {
+		u.RawQuery = query
+	}
 	return u.String(), nil
 }
 
@@ -372,10 +376,11 @@ func orphaned(err error) bool {
 	return errors.As(err, &he) && he.Status == http.StatusUnauthorized && he.Token == "door"
 }
 
-// Probe makes one token-authenticated REST call (GET /v1/pins, discarded). A
+// Probe makes one token-authenticated REST call (GET /v1/pins?probe=1: 204,
+// no list read, SPL-1105; a hub before it answers the list, discarded). A
 // nil error means the process answering REST knows this session's token.
 func (s *Session) Probe(ctx context.Context) error {
-	return s.rest(ctx, http.MethodGet, "/v1/pins", nil, io.Discard)
+	return s.rest(ctx, http.MethodGet, "/v1/pins?probe=1", nil, io.Discard)
 }
 
 // defaultSessionProbe bounds how long a redeploy can strand a box: the probe

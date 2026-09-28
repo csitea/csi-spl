@@ -36,75 +36,7 @@ func (s *Server) onIssue(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, TokenFromNotAnnounced, http.StatusForbidden, detail)
 		return
 	}
-	write := f.IssueOp != "get" && f.IssueOp != "list"
-	if write {
-		t, err := s.o.Store.GetTenant(ctx, x.tenant)
-		if err != nil {
-			x.fail(ctx, id, "internal", http.StatusInternalServerError, "tenant unavailable")
-			return
-		}
-		if !billing.AllowsWrite(t.BillingStatus) {
-			x.fail(ctx, id, billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid")
-			return
-		}
-	}
-	var out any
-	var ie *issueErr
-	switch f.IssueOp {
-	case "list":
-		var q url.Values
-		q, err := url.ParseQuery(f.Query)
-		if err != nil {
-			ie = badIssue("query must be URL query form, e.g. status=todo&assignee=me")
-			break
-		}
-		fl, fie := parseIssueFilter(q, f.As)
-		if ie = fie; ie == nil {
-			out, ie = s.listIssues(ctx, x.tenant, fl)
-		}
-	case "get":
-		out, ie = s.agentGetIssue(ctx, x.tenant, f.IssueRef)
-	case "create":
-		var q issueRequest
-		if q, ie = decodeIssueFrame(f.Issue); ie == nil {
-			var i store.Issue
-			if i, ie = s.createIssue(ctx, x.tenant, f.As, q); ie == nil {
-				out = map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, x.tenant))}
-			}
-		}
-	case "update":
-		n, ok := store.ParseIssueRef(f.IssueRef)
-		if !ok {
-			ie = &issueErr{http.StatusNotFound, "not_found", "no such issue"}
-			break
-		}
-		var q issueRequest
-		if q, ie = decodeIssueFrame(f.Issue); ie == nil {
-			var i store.Issue
-			if i, ie = s.updateIssue(ctx, x.tenant, f.As, n, q); ie == nil {
-				out = map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, x.tenant))}
-			}
-		}
-	case "label":
-		var body struct {
-			Name  string `json:"name"`
-			Color string `json:"color"`
-		}
-		dec := json.NewDecoder(bytes.NewReader(f.Issue))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&body); err != nil {
-			ie = &issueErr{http.StatusBadRequest, "bad_json", "issue must be {name, color?}"}
-			break
-		}
-		var l store.IssueLabel
-		if l, ie = s.createIssueLabel(ctx, x.tenant, f.As, body.Name, body.Color); ie == nil {
-			out = map[string]any{"label": toLabelJSON(l)}
-		}
-	case "comment":
-		out, ie = s.agentComment(ctx, x, f.As, f.IssueRef, f.Body)
-	default:
-		ie = &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label or comment"}
-	}
+	out, ie := s.agentIssueOp(ctx, x, f)
 	if ie != nil {
 		x.fail(ctx, id, ie.token, ie.status, ie.detail)
 		return
@@ -115,6 +47,105 @@ func (s *Server) onIssue(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	x.write(ctx, wire.Frame{Type: wire.TIssue, MsgID: id, IssueOp: f.IssueOp, Issue: raw}) //nolint:errcheck
+}
+
+// agentIssueOp answers one issue op for the acting agent f.As. Every op but
+// get and list writes, and a write needs a paying tenant.
+func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (any, *issueErr) {
+	if f.IssueOp != "get" && f.IssueOp != "list" {
+		if ie := s.issueWriteAllowed(ctx, x.tenant); ie != nil {
+			return nil, ie
+		}
+	}
+	switch f.IssueOp {
+	case "list":
+		return s.agentListIssues(ctx, x.tenant, f.As, f.Query)
+	case "get":
+		return s.agentGetIssue(ctx, x.tenant, f.IssueRef)
+	case "create":
+		return s.agentCreateIssue(ctx, x.tenant, f.As, f.Issue)
+	case "update":
+		return s.agentUpdateIssue(ctx, x.tenant, f.As, f.IssueRef, f.Issue)
+	case "label":
+		return s.agentCreateLabel(ctx, x.tenant, f.As, f.Issue)
+	case "comment":
+		return s.agentComment(ctx, x, f.As, f.IssueRef, f.Body)
+	}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label or comment"}
+}
+
+// issueWriteAllowed refuses a write while the tenant's billing is unpaid.
+func (s *Server) issueWriteAllowed(ctx context.Context, tenant string) *issueErr {
+	t, err := s.o.Store.GetTenant(ctx, tenant)
+	if err != nil {
+		return &issueErr{http.StatusInternalServerError, "internal", "tenant unavailable"}
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		return &issueErr{billing.HTTPUnpaid, billing.TokenUnpaid, "tenant billing is unpaid"}
+	}
+	return nil
+}
+
+// agentListIssues is list: the filter comes as a URL query string.
+func (s *Server) agentListIssues(ctx context.Context, tenant, as, query string) (any, *issueErr) {
+	q, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, badIssue("query must be URL query form, e.g. status=todo&assignee=me")
+	}
+	fl, ie := parseIssueFilter(q, as)
+	if ie != nil {
+		return nil, ie
+	}
+	return s.listIssues(ctx, tenant, fl)
+}
+
+// agentCreateIssue is create: the issue object of issues-v1 §3.
+func (s *Server) agentCreateIssue(ctx context.Context, tenant, as string, raw json.RawMessage) (any, *issueErr) {
+	q, ie := decodeIssueFrame(raw)
+	if ie != nil {
+		return nil, ie
+	}
+	i, ie := s.createIssue(ctx, tenant, as, q)
+	if ie != nil {
+		return nil, ie
+	}
+	return map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, nil
+}
+
+// agentUpdateIssue is update: ref names the issue, raw carries the fields
+// that change.
+func (s *Server) agentUpdateIssue(ctx context.Context, tenant, as, ref string, raw json.RawMessage) (any, *issueErr) {
+	n, ok := store.ParseIssueRef(ref)
+	if !ok {
+		return nil, &issueErr{http.StatusNotFound, "not_found", "no such issue"}
+	}
+	q, ie := decodeIssueFrame(raw)
+	if ie != nil {
+		return nil, ie
+	}
+	i, ie := s.updateIssue(ctx, tenant, as, n, q)
+	if ie != nil {
+		return nil, ie
+	}
+	return map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, nil
+}
+
+// agentCreateLabel is label: {name, color?}.
+func (s *Server) agentCreateLabel(ctx context.Context, tenant, as string, raw json.RawMessage) (any, *issueErr) {
+	var body struct {
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		return nil, &issueErr{http.StatusBadRequest, "bad_json", "issue must be {name, color?}"}
+	}
+	l, ie := s.createIssueLabel(ctx, tenant, as, body.Name, body.Color)
+	if ie != nil {
+		return nil, ie
+	}
+	return map[string]any{"label": toLabelJSON(l)}, nil
 }
 
 func decodeIssueFrame(raw json.RawMessage) (issueRequest, *issueErr) {

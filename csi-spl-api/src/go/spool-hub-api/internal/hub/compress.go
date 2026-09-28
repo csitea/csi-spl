@@ -96,8 +96,8 @@ func (g *gzipWriter) Write(p []byte) (int, error) {
 	case !g.hold:
 		return g.ResponseWriter.Write(p)
 	}
-	g.buf.Write(p)
-	if g.buf.Len() < gzipMinBytes {
+	if g.buf.Len()+len(p) < gzipMinBytes {
+		g.buf.Write(p)
 		return len(p), nil
 	}
 	g.hold = false
@@ -107,10 +107,18 @@ func (g *gzipWriter) Write(p []byte) (int, error) {
 	g.ResponseWriter.WriteHeader(g.status)
 	g.zw = gzipPool.Get().(*gzip.Writer)
 	g.zw.Reset(g.ResponseWriter)
-	if _, err := g.zw.Write(g.buf.Bytes()); err != nil {
+	// SPL-1122: what is held goes first, then p straight into the stream. A
+	// view answer arrives in ONE Write (wire.WriteJSON), and copying it into
+	// buf first allocated and copied the whole body (1.2 MB per 1 MB answer).
+	if g.buf.Len() > 0 {
+		if _, err := g.zw.Write(g.buf.Bytes()); err != nil {
+			return 0, err
+		}
+		g.buf.Reset()
+	}
+	if _, err := g.zw.Write(p); err != nil {
 		return 0, err
 	}
-	g.buf.Reset()
 	return len(p), nil
 }
 

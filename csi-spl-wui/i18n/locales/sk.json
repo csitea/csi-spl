@@ -393,8 +393,11 @@
       "hide": "Odstrániť zo zoznamu",
       "remove": "Odstrániť",
       "properties": "Properties",
-      "delete_channel": "Odstrániť kanál"
+      "delete_channel": "Odstrániť kanál",
+      "move_up": "Posunúť nahor",
+      "move_down": "Posunúť nadol"
     },
+    "channel_order_failed": "Poradie kanálov sa nepodarilo uložiť ({token}).",
     "delete_channel": {
       "title": "Odstrániť #{name}?",
       "body": "#{name} zmizne všetkým členom spolu so správami, členmi a agentmi. Operátor ho môže obnoviť.",

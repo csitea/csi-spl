@@ -69,6 +69,8 @@ declare module '~/utils/spool-client.mjs' {
       next: string | null
     }>
     me(): Promise<Record<string, unknown> | null>
+    mockChannelOrder(): string[] | null
+    setChannelOrder(ids: string[]): Promise<{ channel_order: string[] | null }>
     removeMember(humanId: string): Promise<null>
     listTenantUsers(): Promise<unknown>
     inviteTenantUser(opts: { email: string, role?: string, locale?: string }): Promise<{ email?: string, role?: string, mail?: string } | null>
@@ -1090,9 +1092,21 @@ declare module '~/utils/slash-focus.mjs' {
   }
 }
 
+declare module '~/utils/channel-order.mjs' {
+  export const CHANNEL_ORDER_MAX: number
+  export const MOCK_CHANNEL_ORDER_KEY: string
+  export function normalizeChannelOrder(raw: unknown): string[]
+}
+
+declare module '~/utils/channel-order-edit.mjs' {
+  export function mergeChannelOrder(displayed: readonly string[], stored: readonly string[]): string[]
+  export function stepChannelOrder(displayed: readonly string[], id: string, step: -1 | 1): string[] | null
+  export function sameChannelOrder(a: readonly string[] | null | undefined, b: readonly string[] | null | undefined): boolean
+}
+
 declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
-  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null }
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
   export function roleLabelKey(role: string | null | undefined): string
 }

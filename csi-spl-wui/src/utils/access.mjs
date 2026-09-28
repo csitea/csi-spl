@@ -9,10 +9,15 @@
  * Node tests import this file.
  */
 
+import { normalizeChannelOrder } from './channel-order.mjs'
+
 /** 025 §3.2 role ids, in the spec's order (hub internal/rbac RoleIDs). */
 export const ROLE_IDS = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent', 'biz_customer', 'regular_user']
 
-/** A /v1/view/me body → { humanId, role, tenantOwner, permissions } (permissions null = unrestricted). */
+/**
+ * A /v1/view/me body → { humanId, role, tenantOwner, permissions, channelOrder }
+ * (permissions null = unrestricted; channelOrder null = never set, SPL-1034).
+ */
 export function normalizeMe(body) {
   const b = body && typeof body === 'object' ? body : {}
   return {
@@ -20,6 +25,7 @@ export function normalizeMe(body) {
     role: typeof b.role === 'string' && b.role ? b.role : null,
     tenantOwner: b.tenant_owner === true,
     permissions: Array.isArray(b.permissions) ? b.permissions.filter((p) => typeof p === 'string') : null,
+    channelOrder: Array.isArray(b.channel_order) ? normalizeChannelOrder(b.channel_order) : null,
   }
 }
 

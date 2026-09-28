@@ -393,8 +393,11 @@
       "hide": "Ta bort från listan",
       "remove": "Ta bort",
       "properties": "Properties",
-      "delete_channel": "Ta bort kanal"
+      "delete_channel": "Ta bort kanal",
+      "move_up": "Flytta upp",
+      "move_down": "Flytta ned"
     },
+    "channel_order_failed": "Kanalordningen kunde inte sparas ({token}).",
     "delete_channel": {
       "title": "Ta bort #{name}?",
       "body": "#{name} försvinner för alla medlemmar, med sina meddelanden, medlemmar och agenter. En operatör kan återställa den.",

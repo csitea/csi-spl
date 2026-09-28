@@ -393,8 +393,11 @@
       "hide": "Pašalinti iš sąrašo",
       "remove": "Pašalinti",
       "properties": "Properties",
-      "delete_channel": "Ištrinti kanalą"
+      "delete_channel": "Ištrinti kanalą",
+      "move_up": "Perkelti aukštyn",
+      "move_down": "Perkelti žemyn"
     },
+    "channel_order_failed": "Nepavyko išsaugoti kanalų tvarkos ({token}).",
     "delete_channel": {
       "title": "Ištrinti #{name}?",
       "body": "#{name} dings visiems nariams kartu su žinutėmis, nariais ir agentais. Operatorius gali jį atkurti.",

@@ -393,8 +393,11 @@
       "hide": "Usuń z listy",
       "remove": "Usuń",
       "properties": "Properties",
-      "delete_channel": "Usuń kanał"
+      "delete_channel": "Usuń kanał",
+      "move_up": "Przenieś w górę",
+      "move_down": "Przenieś w dół"
     },
+    "channel_order_failed": "Nie udało się zapisać kolejności kanałów ({token}).",
     "delete_channel": {
       "title": "Usunąć #{name}?",
       "body": "#{name} znika dla wszystkich członków wraz z wiadomościami, członkami i agentami. Operator może go przywrócić.",

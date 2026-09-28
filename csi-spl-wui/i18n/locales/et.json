@@ -393,8 +393,11 @@
       "hide": "Eemalda loendist",
       "remove": "Eemalda",
       "properties": "Properties",
-      "delete_channel": "Kustuta kanal"
+      "delete_channel": "Kustuta kanal",
+      "move_up": "Liiguta üles",
+      "move_down": "Liiguta alla"
     },
+    "channel_order_failed": "Kanalite järjekorda ei saanud salvestada ({token}).",
     "delete_channel": {
       "title": "Kas kustutada #{name}?",
       "body": "#{name} kaob kõigi liikmete jaoks koos oma sõnumite, liikmete ja agentidega. Operaator saab selle taastada.",

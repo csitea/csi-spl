@@ -393,8 +393,11 @@
       "hide": "Remove from list",
       "remove": "Remove",
       "properties": "Properties",
-      "delete_channel": "Delete channel"
+      "delete_channel": "Delete channel",
+      "move_up": "Move up",
+      "move_down": "Move down"
     },
+    "channel_order_failed": "Could not save the channel order ({token}).",
     "delete_channel": {
       "title": "Delete #{name}?",
       "body": "#{name} disappears for every member, with its messages, members and agents. An operator can restore it.",

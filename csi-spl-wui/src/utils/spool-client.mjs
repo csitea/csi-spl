@@ -13,6 +13,8 @@ import {
   topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, searchApiQuery } from './search.mjs'
+import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 /* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
    Issues code stays off the initial script; tests/unit/issues.test.mjs
    checks the two agree). */
@@ -781,6 +783,35 @@ export function createSpoolClient({
         if (e && e.status === 404) return null
         throw e
       }
+    },
+    /**
+     * SPL-1034: the lde mock's stored channel order (the live one rides
+     * /v1/view/me `channel_order`). null = never set.
+     */
+    mockChannelOrder() {
+      if (!mock) return null
+      const raw = storageGetJson(MOCK_CHANNEL_ORDER_KEY, null)
+      return Array.isArray(raw) ? normalizeChannelOrder(raw) : null
+    },
+    /**
+     * PUT /v1/me/channel-order (contracts/move-v1.md §7): the whole list;
+     * answers the stored one, normalized ([] clears it -> null).
+     */
+    async setChannelOrder(ids) {
+      if (!Array.isArray(ids) || ids.some((v) => typeof v !== 'string')) {
+        throw Object.assign(new Error('channel_order must be a list'), { status: 400, token: 'bad_json' })
+      }
+      if (mock) {
+        const list = normalizeChannelOrder(ids)
+        if (list.length > CHANNEL_ORDER_MAX) throw Object.assign(new Error('too many ids'), { status: 400, token: 'bad_json' })
+        storageSetJson(MOCK_CHANNEL_ORDER_KEY, list.length ? list : null)
+        return { channel_order: list.length ? list : null }
+      }
+      return live('/v1/me/channel-order', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel_order: ids }),
+      })
     },
     /**
      * DELETE /v1/members/{human_id} (025 FR-007). Humans only; the hub

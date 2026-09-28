@@ -393,8 +393,11 @@
       "hide": "Poista listalta",
       "remove": "Poista",
       "properties": "Properties",
-      "delete_channel": "Poista kanava"
+      "delete_channel": "Poista kanava",
+      "move_up": "Siirrä ylös",
+      "move_down": "Siirrä alas"
     },
+    "channel_order_failed": "Kanavien järjestystä ei voitu tallentaa ({token}).",
     "delete_channel": {
       "title": "Poistetaanko #{name}?",
       "body": "#{name} katoaa kaikilta jäseniltä viesteineen, jäsenineen ja agentteineen. Operaattori voi palauttaa sen.",

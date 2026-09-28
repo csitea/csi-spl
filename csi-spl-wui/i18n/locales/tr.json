@@ -393,8 +393,11 @@
       "hide": "Listeden kaldır",
       "remove": "Kaldır",
       "properties": "Properties",
-      "delete_channel": "Kanalı sil"
+      "delete_channel": "Kanalı sil",
+      "move_up": "Yukarı taşı",
+      "move_down": "Aşağı taşı"
     },
+    "channel_order_failed": "Kanal sırası kaydedilemedi ({token}).",
     "delete_channel": {
       "title": "#{name} silinsin mi?",
       "body": "#{name}, mesajları, üyeleri ve ajanlarıyla birlikte tüm üyeler için kaybolur. Bir operatör onu geri yükleyebilir.",

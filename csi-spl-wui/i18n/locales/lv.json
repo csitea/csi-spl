@@ -393,8 +393,11 @@
       "hide": "Noņemt no saraksta",
       "remove": "Noņemt",
       "properties": "Properties",
-      "delete_channel": "Dzēst kanālu"
+      "delete_channel": "Dzēst kanālu",
+      "move_up": "Pārvietot augšup",
+      "move_down": "Pārvietot lejup"
     },
+    "channel_order_failed": "Neizdevās saglabāt kanālu secību ({token}).",
     "delete_channel": {
       "title": "Dzēst #{name}?",
       "body": "#{name} pazūd visiem dalībniekiem kopā ar ziņām, dalībniekiem un aģentiem. Operators to var atjaunot.",

@@ -159,7 +159,7 @@
       :key="c.channel_id"
       class="nav-row"
       :data-order="c.channel_id"
-      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length), 'nav-row--move-target': moveTarget(c.channel_id), 'nav-row--move-over': moveOver === c.channel_id }"
+      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length), 'nav-row--move-target': moveTarget(c.channel_id), 'nav-row--move-over': moveOver === c.channel_id }"
       :data-move-target="moveTarget(c.channel_id) ? 'true' : undefined"
       @pointerdown="rowPointerDown($event, 'channels', c.channel_id)"
       @dragenter="onMoveOver($event, c.channel_id)"
@@ -169,8 +169,12 @@
       @contextmenu.prevent="openChannelMenu('ch:' + c.channel_id)"
       @click.capture="swallowDragClick"
     >
+    <!-- draggable=false: a press-and-move on the link started the browser's
+         own link drag, which cancels the pointer stream, so the reorder
+         never finished (SPL-1034). Topic cards still drop here (HTML5). -->
     <NuxtLink
       class="nav-item"
+      draggable="false"
       :class="{ active: channel.active === c.channel_id }"
       :data-key="c.channel_id"
       :data-ts="channelActivity(c, channel.liveAt) || undefined"
@@ -192,6 +196,8 @@
       :properties="showProperties(c.channel_id)"
       :deletable="deletableChannel(c.channel_id)"
       :muted="isChannelMuted(c.channel_id)"
+      :move-up="channelIndex > 0"
+      :move-down="channelIndex < channelRows.length - 1"
       :open="rowMenu === 'ch:' + c.channel_id"
       @toggle="toggleRowMenu('ch:' + c.channel_id)"
       @close="closeRowMenu()"
@@ -200,6 +206,8 @@
       @mute="toggleChannelMute(c.channel_id)"
       @properties="openProperties(c.channel_id)"
       @delete="askDeleteChannel(c.channel_id)"
+      @move-up="stepChannel(c.channel_id, -1)"
+      @move-down="stepChannel(c.channel_id, 1)"
     />
     </div>
     </div>
@@ -601,6 +609,7 @@ import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/spool-client.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { useChannelOrder } from '~/composables/useChannelOrder'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users'
@@ -824,7 +833,8 @@ function openProperties(id: string) {
 /* index 0 is the top. A drag replaces the whole list: that order is pinned,
    and a person who appears later sorts after it, in the usual activity order. */
 const pinnedPeers = ref<string[]>([])
-const channelOrder = ref<string[]>([])
+/* SPL-1034: the Channels order is the person's, kept on the hub (per tenant) */
+const { order: channelOrder, set: setChannelOrder, step: stepChannelOrder } = useChannelOrder()
 const topicOrder = ref<string[]>([])
 const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
@@ -966,12 +976,20 @@ function rowPointerDown(e: PointerEvent, list: DragList, key: string) {
       suppressDragClick = true
       const keys = keysNow()
       const from = keys.indexOf(key)
-      if (from >= 0) orderBag(list).value = moveKey(keys, from, overIndex)
+      if (from >= 0) {
+        const next = moveKey(keys, from, overIndex)
+        if (list === 'channels') void setChannelOrder(next)
+        else orderBag(list).value = next
+      }
     }
     drag.value = null
   }
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
+}
+/* SPL-1034 keyboard / touch: Move up / Move down in a channel row's menu */
+function stepChannel(id: string, step: -1 | 1) {
+  void stepChannelOrder(channelRows.value.map((c) => String(c.channel_id || '')), id, step)
 }
 function swallowDragClick(e: MouseEvent) {
   if (!suppressDragClick) return

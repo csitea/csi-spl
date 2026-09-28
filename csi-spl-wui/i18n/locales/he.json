@@ -393,8 +393,11 @@
       "hide": "הסר מהרשימה",
       "remove": "הסרה",
       "properties": "Properties",
-      "delete_channel": "מחיקת ערוץ"
+      "delete_channel": "מחיקת ערוץ",
+      "move_up": "הזזה למעלה",
+      "move_down": "הזזה למטה"
     },
+    "channel_order_failed": "לא ניתן היה לשמור את סדר הערוצים ({token}).",
     "delete_channel": {
       "title": "למחוק את #{name}?",
       "body": "#{name} ייעלם לכל החברים, יחד עם ההודעות, החברים והסוכנים שלו. מפעיל יכול לשחזר אותו.",

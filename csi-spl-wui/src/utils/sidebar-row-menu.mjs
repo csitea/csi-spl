@@ -11,9 +11,12 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
  * A topic row (SPL-986, specs/041 §3.5) ends with the card menu's own
  * Archive then Delete, each only once the hub said the viewer may.
  *
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
+ * A Channels row (SPL-1034) offers Move up / Move down, each only when there
+ * is a neighbour that way (not on the first / last row).
+ *
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, moveUp?: boolean, moveDown?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete' | 'chevron-up' | 'chevron-down', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -27,6 +30,8 @@ export function rowMenuItems(unread, opts = {}) {
       icon: o.muted ? 'bell' : 'bell-off',
       labelKey: o.muted ? 'sidebar.row_menu.unmute' : 'sidebar.row_menu.mute',
     })
+    if (o.moveUp) items.push({ id: 'move-up', icon: 'chevron-up', labelKey: 'sidebar.row_menu.move_up' })
+    if (o.moveDown) items.push({ id: 'move-down', icon: 'chevron-down', labelKey: 'sidebar.row_menu.move_down' })
     if (o.properties) items.push({ id: 'properties', icon: 'settings', labelKey: 'sidebar.row_menu.properties' })
     /* SPL-72: its creator only (canDeleteChannel); opens a confirm, never deletes at once */
     if (o.deletable) items.push({ id: 'delete', icon: 'trash', labelKey: 'sidebar.row_menu.delete_channel' })

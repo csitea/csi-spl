@@ -393,8 +393,11 @@
       "hide": "Quitar de la lista",
       "remove": "Quitar",
       "properties": "Properties",
-      "delete_channel": "Eliminar canal"
+      "delete_channel": "Eliminar canal",
+      "move_up": "Subir",
+      "move_down": "Bajar"
     },
+    "channel_order_failed": "No se pudo guardar el orden de los canales ({token}).",
     "delete_channel": {
       "title": "¿Eliminar #{name}?",
       "body": "#{name} desaparece para todos los miembros, con sus mensajes, miembros y agentes. Un operador puede restaurarlo.",

@@ -85,6 +85,9 @@ const props = defineProps<{
   channel?: boolean
   properties?: boolean
   deletable?: boolean
+  /** SPL-1034: a Channels row that may go up / down one place */
+  moveUp?: boolean
+  moveDown?: boolean
   /** SPL-986: a topic row the hub said the viewer may archive / delete */
   topicArchive?: boolean
   topicDelete?: boolean
@@ -106,6 +109,8 @@ const emit = defineEmits<{
   delete: []
   archive: []
   deleteTopic: []
+  moveUp: []
+  moveDown: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -128,6 +133,8 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   channel: props.channel,
   properties: props.properties,
   deletable: props.deletable,
+  moveUp: props.moveUp,
+  moveDown: props.moveDown,
   topicArchive: props.topicArchive,
   topicDelete: props.topicDelete,
 }))
@@ -261,6 +268,10 @@ function choose(id: string) {
     emit('archive')
   } else if (id === 'delete-topic') {
     emit('deleteTopic')
+  } else if (id === 'move-up') {
+    emit('moveUp')
+  } else if (id === 'move-down') {
+    emit('moveDown')
   } else {
     emit('open')
   }

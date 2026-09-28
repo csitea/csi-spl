@@ -393,8 +393,11 @@
       "hide": "Elimină din listă",
       "remove": "Elimină",
       "properties": "Properties",
-      "delete_channel": "Șterge canalul"
+      "delete_channel": "Șterge canalul",
+      "move_up": "Mută în sus",
+      "move_down": "Mută în jos"
     },
+    "channel_order_failed": "Ordinea canalelor nu a putut fi salvată ({token}).",
     "delete_channel": {
       "title": "Ștergi #{name}?",
       "body": "#{name} dispare pentru toți membrii, cu mesajele, membrii și agenții săi. Un operator îl poate restaura.",

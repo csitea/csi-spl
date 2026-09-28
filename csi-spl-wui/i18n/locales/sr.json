@@ -393,8 +393,11 @@
       "hide": "Ukloni sa liste",
       "remove": "Ukloni",
       "properties": "Properties",
-      "delete_channel": "Обриши канал"
+      "delete_channel": "Обриши канал",
+      "move_up": "Помери нагоре",
+      "move_down": "Помери надоле"
     },
+    "channel_order_failed": "Редослед канала није сачуван ({token}).",
     "delete_channel": {
       "title": "Обрисати #{name}?",
       "body": "#{name} нестаје за све чланове, заједно са порукама, члановима и агентима. Оператор може да га врати.",

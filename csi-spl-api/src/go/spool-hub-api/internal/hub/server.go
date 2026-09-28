@@ -283,7 +283,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	// The edge limits sit inside authCORS so a 429 on /api/v1/auth/* still
 	// carries the CORS headers the WUI needs to read it.
-	inner := s.edge.Wrap(mux)
+	inner := etagViews(s.edge.Wrap(mux))
 	if s.o.Auth != nil {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}

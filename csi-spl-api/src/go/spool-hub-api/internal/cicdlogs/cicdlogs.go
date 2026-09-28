@@ -7,7 +7,6 @@ package cicdlogs
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -423,7 +423,7 @@ func (s *Service) deliverNote(ctx context.Context, tenant string, req Request, b
 		atts = []msg.Attachment{}
 	}
 	m := &msg.Message{
-		V: s.writeVersion(), MsgID: newUUID(), TaskID: req.TaskID,
+		V: s.writeVersion(), MsgID: uid.New(), TaskID: req.TaskID,
 		TS: msg.Now(s.now()), From: s.Settings.FromID, To: req.To, Kind: "note",
 		Body: body, Files: atts,
 	}
@@ -450,17 +450,6 @@ func scrubErr(err error, token string) error {
 		msg = strings.ReplaceAll(msg, token, "[redacted]")
 	}
 	return fmt.Errorf("%s", msg)
-}
-
-func newUUID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	h := hex.EncodeToString(b[:])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
 }
 
 // MemoryBus is an in-process Bus for unit tests.

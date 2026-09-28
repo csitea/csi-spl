@@ -2,11 +2,9 @@ package hubclient
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -33,7 +31,7 @@ func (c *Client) Issue(ctx context.Context, r IssueRequest) (json.RawMessage, er
 
 // Issue sends one issue frame on s and waits for its reply.
 func (s *Session) Issue(ctx context.Context, r IssueRequest) (json.RawMessage, error) {
-	id := issueReqID()
+	id := uid.New()
 	f, err := s.request(ctx, wire.Frame{Type: wire.TIssue, MsgID: id, IssueOp: r.Op, As: r.As, IssueRef: r.Ref,
 		Issue: r.Issue, Query: r.Query, Body: r.Body}, wire.TIssue,
 		func(f wire.Frame) bool { return f.MsgID == id || (f.Type == wire.TError && f.MsgID == "") })
@@ -41,15 +39,4 @@ func (s *Session) Issue(ctx context.Context, r IssueRequest) (json.RawMessage, e
 		return nil, err
 	}
 	return f.Issue, nil
-}
-
-func issueReqID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	h := hex.EncodeToString(b[:])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
 }

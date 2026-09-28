@@ -15,6 +15,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
 // Issues, the way Linear keeps them (specs/039 contracts/issues-v1.md,
@@ -308,7 +309,7 @@ func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueR
 	if ie != nil {
 		return store.Issue{}, ie
 	}
-	in := store.Issue{TenantID: tenant, TaskID: newUUID(), CreatedBy: actor, Status: store.IssueBacklog}
+	in := store.Issue{TenantID: tenant, TaskID: uid.New(), CreatedBy: actor, Status: store.IssueBacklog}
 	if q.Status != nil {
 		in.Status = *q.Status
 	}

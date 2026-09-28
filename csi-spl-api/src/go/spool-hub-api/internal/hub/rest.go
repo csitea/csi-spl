@@ -23,6 +23,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -58,7 +59,7 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	}
 	// Cleanup must outlive a client that went away mid-body.
 	bg := context.WithoutCancel(r.Context())
-	tmp := blob.TmpKey(t.ID, randHex(16))
+	tmp := blob.TmpKey(t.ID, uid.Hex(16))
 	h := sha256.New()
 	body := &readErr{r: http.MaxBytesReader(w, r.Body, msg.MaxFileBytes)}
 	n, err := s.o.Blob.PutReader(r.Context(), tmp, io.TeeReader(body, h))

@@ -13,6 +13,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -167,7 +168,7 @@ func (s *Server) agentComment(ctx context.Context, x *session, agent, ref, body 
 	if ie := storeIssueErr(err); ie != nil {
 		return nil, ie
 	}
-	m := &msg.Message{V: s.writeVersion(), MsgID: newUUID(), TaskID: i.TaskID, TS: s.o.Now().UTC().Format(time.RFC3339),
+	m := &msg.Message{V: s.writeVersion(), MsgID: uid.New(), TaskID: i.TaskID, TS: s.o.Now().UTC().Format(time.RFC3339),
 		From: agent, To: BroadcastID, Kind: "note", Body: body, Files: []msg.Attachment{}}
 	if err := m.Validate(); err != nil {
 		return nil, badIssue(err.Error())

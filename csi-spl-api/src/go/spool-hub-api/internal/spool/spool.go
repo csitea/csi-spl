@@ -5,9 +5,6 @@
 package spool
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -22,6 +19,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/trace"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
 // Store binds the spool operations to a resolved config.
@@ -66,10 +64,10 @@ func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachme
 		return nil, fmt.Errorf("from/to must be valid agent ids")
 	}
 	if taskID == "" {
-		taskID = newUUID()
+		taskID = uid.New()
 	}
 	m := &msg.Message{
-		V: s.cfg.WriteVersion(), MsgID: newUUID(), TaskID: taskID,
+		V: s.cfg.WriteVersion(), MsgID: uid.New(), TaskID: taskID,
 		TS: msg.Now(time.Now()), From: from, To: to, Kind: kind, Body: body,
 		Files: atts,
 	}
@@ -353,17 +351,6 @@ func atomicMove(src, dst string) error {
 	return os.Remove(src)
 }
 
-func newUUID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-	h := hex.EncodeToString(b[:])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
-}
-
 // ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse, 1 other.
 // Local mode raises neither sign error; they are kept for hub mode (003).
 func ExitCode(err error) int {
@@ -466,12 +453,12 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 			ts = time.Now().UTC().Format(time.RFC3339)
 		}
 	}
-	msgID := deterministicUUID("msg:" + base + ":" + string(raw))
+	msgID := uid.FromSeed("msg:" + base + ":" + string(raw))
 	if taskID == "" {
 		if subject != "" {
-			taskID = deterministicUUID("task:" + subject)
+			taskID = uid.FromSeed("task:" + subject)
 		} else {
-			taskID = deterministicUUID("task:" + base)
+			taskID = uid.FromSeed("task:" + base)
 		}
 	}
 
@@ -491,12 +478,4 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		return nil, fmt.Errorf("legacy %s: %w", base, err)
 	}
 	return m, nil
-}
-
-func deterministicUUID(data string) string {
-	sum := sha256.Sum256([]byte(data))
-	sum[6] = (sum[6] & 0x0f) | 0x40 // version 4
-	sum[8] = (sum[8] & 0x3f) | 0x80 // variant 10
-	h := hex.EncodeToString(sum[:16])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
 }

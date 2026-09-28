@@ -3,8 +3,6 @@ package hub
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +20,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -214,7 +213,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	case msg.ValidID(h.As):
 		c.from = h.As
 	case strings.TrimSpace(h.As) == "":
-		c.from = s.humans.id(t.ID, "#"+randHex(6))
+		c.from = s.humans.id(t.ID, "#"+uid.Hex(6))
 	default:
 		c.from = s.humans.id(t.ID, strings.TrimSpace(h.As))
 	}
@@ -494,7 +493,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	}
 	id := strings.ToLower(f.MsgID)
 	if id == "" {
-		id = newUUID()
+		id = uid.New()
 	} else if !uuidRe.MatchString(id) {
 		fail("bad_json", http.StatusBadRequest, "msg_id must be a UUID")
 		return
@@ -836,19 +835,4 @@ func (s *Server) filesPreflight(w http.ResponseWriter, r *http.Request) {
 		h.Set("Access-Control-Max-Age", "600")
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func randHex(n int) string {
-	b := make([]byte, n)
-	rand.Read(b) //nolint:errcheck
-	return hex.EncodeToString(b)
-}
-
-func newUUID() string {
-	b := make([]byte, 16)
-	rand.Read(b) //nolint:errcheck
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	h := hex.EncodeToString(b)
-	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
 }

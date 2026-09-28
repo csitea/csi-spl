@@ -32,7 +32,6 @@ var longFuncs = map[string]bool{
 	"internal/hub/merge.go (*Server).handleMergeMessage":                 true,
 	"internal/hub/rest.go (*Server).handlePutFile":                       true,
 	"internal/hub/search.go (*Server).handleSearch":                      true,
-	"internal/hub/search.go (*Server).searchSection":                     true,
 	"internal/hub/view.go (*Server).handleViewChannels":                  true,
 	"internal/hub/view.go (*Server).handleViewTopic":                     true,
 	"internal/hub/ws.go (*Server).hello":                                 true,

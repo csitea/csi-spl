@@ -206,86 +206,106 @@ func strPtr(s string) *string {
 // searchSection answers one type's page. The keyset types page by the last
 // row; the small entity types (and relevance) by offset.
 func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
-	out := section{Results: []any{}}
 	se, ok := s.o.Store.(store.Searcher)
 	if !ok {
-		return out, errors.New("store cannot search")
+		return section{Results: []any{}}, errors.New("store cannot search")
 	}
-	more := func(n int) bool { return n > limit }
 	switch c.T {
 	case search.TypeMessage:
-		rows, err := se.SearchMessages(ctx, t.ID, sq)
-		if err != nil {
-			return out, err
-		}
-		if more(len(rows)) {
-			rows = rows[:limit]
-			last := rows[limit-1]
-			nc := searchCursor{T: c.T, H: c.H, At: last.ReceivedAt, ID: last.MsgID}
-			if sq.Relevance {
-				nc = searchCursor{T: c.T, H: c.H, Off: sq.Offset + limit}
-			}
-			out.Next = nc.enc()
-		}
-		for _, m := range rows {
-			text, hs := q.Snippet(m.Body)
-			out.Results = append(out.Results, map[string]any{
-				"msg_id": m.MsgID, "task_id": m.TaskID, "parent_task_id": strPtr(m.Parent), "channel": strPtr(m.Channel),
-				"kind": m.Kind, "from": m.FromID, "from_box": m.FromBox, "to": m.ToID, "to_box": m.ToBox,
-				"created_at": rfc(m.TS), "received_at": rfc(m.ReceivedAt), "files": m.Files,
-				"snippet": hl{text, hs}})
-		}
+		return messageSection(ctx, se, t.ID, q, sq, c, limit)
 	case search.TypeTopic:
 		sq.Relevance = false
-		rows, err := se.SearchTopics(ctx, t.ID, sq)
-		if err != nil {
-			return out, err
-		}
-		if more(len(rows)) {
-			rows = rows[:limit]
-			out.Next = searchCursor{T: c.T, H: c.H, At: rows[limit-1].LastAt, ID: rows[limit-1].TaskID}.enc()
-		}
-		for _, th := range rows {
-			out.Results = append(out.Results, map[string]any{
-				"task_id": th.TaskID, "parent_task_id": strPtr(th.Parent), "channel": strPtr(th.Channel),
-				"title":    hl{th.Title, q.HighlightWords(th.Title)},
-				"first_ts": rfc(th.FirstAt), "last_ts": rfc(th.LastAt), "count": th.Count})
-		}
+		return topicSection(ctx, se, t.ID, q, sq, c, limit)
 	case search.TypeFile:
 		sq.Relevance = false
-		rows, err := se.SearchFiles(ctx, t.ID, sq)
-		if err != nil {
-			return out, err
+		return fileSection(ctx, se, t.ID, q, sq, c, limit)
+	}
+	out := section{Results: []any{}}
+	rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
+	if err != nil {
+		return out, err
+	}
+	off := min(sq.Offset, len(rows))
+	rows = rows[off:]
+	if len(rows) > limit {
+		rows = rows[:limit]
+		out.Next = searchCursor{T: c.T, H: c.H, Off: off + limit}.enc()
+	}
+	out.Results = rows
+	return out, nil
+}
+
+// messageSection pages by the last row's (received_at, msg_id), or by offset
+// when sorted by relevance.
+func messageSection(ctx context.Context, se store.Searcher, tenant string, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	rows, err := se.SearchMessages(ctx, tenant, sq)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[limit-1]
+		nc := searchCursor{T: c.T, H: c.H, At: last.ReceivedAt, ID: last.MsgID}
+		if sq.Relevance {
+			nc = searchCursor{T: c.T, H: c.H, Off: sq.Offset + limit}
 		}
-		if more(len(rows)) {
-			rows = rows[:limit]
-			last := rows[limit-1]
-			out.Next = searchCursor{T: c.T, H: c.H, At: last.Msg.ReceivedAt, ID: last.Msg.MsgID, Idx: last.Idx}.enc()
+		out.Next = nc.enc()
+	}
+	for _, m := range rows {
+		text, hs := q.Snippet(m.Body)
+		out.Results = append(out.Results, map[string]any{
+			"msg_id": m.MsgID, "task_id": m.TaskID, "parent_task_id": strPtr(m.Parent), "channel": strPtr(m.Channel),
+			"kind": m.Kind, "from": m.FromID, "from_box": m.FromBox, "to": m.ToID, "to_box": m.ToBox,
+			"created_at": rfc(m.TS), "received_at": rfc(m.ReceivedAt), "files": m.Files,
+			"snippet": hl{text, hs}})
+	}
+	return out, nil
+}
+
+// topicSection pages by the last topic's (last_ts, task_id).
+func topicSection(ctx context.Context, se store.Searcher, tenant string, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	rows, err := se.SearchTopics(ctx, tenant, sq)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		out.Next = searchCursor{T: c.T, H: c.H, At: rows[limit-1].LastAt, ID: rows[limit-1].TaskID}.enc()
+	}
+	for _, th := range rows {
+		out.Results = append(out.Results, map[string]any{
+			"task_id": th.TaskID, "parent_task_id": strPtr(th.Parent), "channel": strPtr(th.Channel),
+			"title":    hl{th.Title, q.HighlightWords(th.Title)},
+			"first_ts": rfc(th.FirstAt), "last_ts": rfc(th.LastAt), "count": th.Count})
+	}
+	return out, nil
+}
+
+// fileSection pages by the last file's message and its index in the message.
+func fileSection(ctx context.Context, se store.Searcher, tenant string, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	rows, err := se.SearchFiles(ctx, tenant, sq)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[limit-1]
+		out.Next = searchCursor{T: c.T, H: c.H, At: last.Msg.ReceivedAt, ID: last.Msg.MsgID, Idx: last.Idx}.enc()
+	}
+	for _, f := range rows {
+		var bytes *int64
+		if f.HasBytes {
+			b := f.Bytes
+			bytes = &b
 		}
-		for _, f := range rows {
-			var bytes *int64
-			if f.HasBytes {
-				b := f.Bytes
-				bytes = &b
-			}
-			out.Results = append(out.Results, map[string]any{
-				"file_id": strPtr(f.FileID), "kind": f.Kind, "mode": f.Mode, "bytes": bytes,
-				"name":   hl{f.Name, q.HighlightSubstrings(f.Name)},
-				"msg_id": f.Msg.MsgID, "task_id": f.Msg.TaskID, "channel": strPtr(f.Msg.Channel),
-				"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "received_at": rfc(f.Msg.ReceivedAt)})
-		}
-	default:
-		rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
-		if err != nil {
-			return out, err
-		}
-		off := min(sq.Offset, len(rows))
-		rows = rows[off:]
-		if more(len(rows)) {
-			rows = rows[:limit]
-			out.Next = searchCursor{T: c.T, H: c.H, Off: off + limit}.enc()
-		}
-		out.Results = rows
+		out.Results = append(out.Results, map[string]any{
+			"file_id": strPtr(f.FileID), "kind": f.Kind, "mode": f.Mode, "bytes": bytes,
+			"name":   hl{f.Name, q.HighlightSubstrings(f.Name)},
+			"msg_id": f.Msg.MsgID, "task_id": f.Msg.TaskID, "channel": strPtr(f.Msg.Channel),
+			"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "received_at": rfc(f.Msg.ReceivedAt)})
 	}
 	return out, nil
 }

@@ -465,11 +465,13 @@ func (s *Postgres) TopicAccess(ctx context.Context, tenant, task string, now tim
 
 // ---- the file read door (rdb 0028 + 0030, file_door.go) -------------------
 
-// fileCarrier is the indexable "this message carries file_id" predicate.
-// Containment against the 0030 gin (files jsonb_path_ops) index; sha256 is
+// fileCarrier is the "this message carries file_id" predicate; sha256 is
 // checked too because a stored attachment may name the blob under either key
-// (wuiSend copies file_id into sha256 when the frame omits it).
-const fileCarrier = `(m.files @> jsonb_build_array(jsonb_build_object('file_id', $2::text))
+// (wuiSend copies file_id into sha256 when the frame omits it). The 0030 gin
+// index never serves it (FORCE RLS: jsonb @> is not LEAKPROOF), so the leading
+// m.has_files (rdb 0075, true for every carrier) is what lets the planner walk
+// messages_with_files - the few rows with files - not the tenant (SPL-1124).
+const fileCarrier = `m.has_files AND (m.files @> jsonb_build_array(jsonb_build_object('file_id', $2::text))
 	OR m.files @> jsonb_build_array(jsonb_build_object('sha256', $2::text)))`
 
 func (s *Postgres) FileAttached(ctx context.Context, tenant, fileID string, now time.Time) (bool, error) {

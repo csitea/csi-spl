@@ -33,6 +33,7 @@ func (o *oneRead) HumanSettings(ctx context.Context, hum string) (auth.HumanSett
 	v.RailOrder, _ = o.fakePrefs.RailOrder(ctx, hum)
 	v.Diagnostics, _ = o.fakePrefs.DiagnosticsEnabled(ctx, hum)
 	v.DisplayName, _ = o.fakePrefs.DisplayName(ctx, hum)
+	v.IssueColumns, _ = o.fakePrefs.IssueColumns(ctx, hum)
 	v.ViewPrefs = map[string]string{}
 	for k := range auth.ViewPrefs {
 		v.ViewPrefs[k], _ = o.fakePrefs.ViewPref(ctx, hum, k)
@@ -65,6 +66,11 @@ func (o *oneRead) ViewPref(ctx context.Context, hum, key string) (string, error)
 	return o.fakePrefs.ViewPref(ctx, hum, key)
 }
 
+func (o *oneRead) IssueColumns(ctx context.Context, hum string) (map[string]int, error) {
+	o.single.Add(1)
+	return o.fakePrefs.IssueColumns(ctx, hum)
+}
+
 func (o *oneRead) DiagnosticsEnabled(ctx context.Context, hum string) (bool, error) {
 	o.single.Add(1)
 	return o.fakePrefs.DiagnosticsEnabled(ctx, hum)
@@ -88,7 +94,7 @@ func TestSessionReadsSettingsOnce(t *testing.T) {
 	ctl.signedIn(t, cc, "person@example.com")
 	const put = `{"preferred_locale":"fi","preferred_theme":"light-red","submit_key":"ctrl-enter","display_name":"FirstName LastName",` +
 		`"diagnostics_enabled":true,"rail_order":["archive","events","flow","topics","issues","channels","dm"],` +
-		`"message_order":"newest-last","composer_position":"bottom","issues_view":"status"}`
+		`"message_order":"newest-last","composer_position":"bottom","issues_view":"status","issues_columns":{"key":96}}`
 	for _, rig := range []struct {
 		r *nrig
 		c *http.Client
@@ -129,7 +135,7 @@ func TestSessionReadsSettingsOnce(t *testing.T) {
 	o.fail = errors.New("db down")
 	got = r.call(t, c, http.MethodGet, "session", "")
 	if got.code != http.StatusOK || got.body["preferred_locale"] != nil || got.body["preferred_theme"] != nil ||
-		got.body["diagnostics_enabled"] != false || got.body["rail_order"] != nil || got.body["name"] == "FirstName LastName" {
+		got.body["diagnostics_enabled"] != false || got.body["rail_order"] != nil || got.body["issues_columns"] != nil || got.body["name"] == "FirstName LastName" {
 		t.Fatalf("failed read: %d %s", got.code, got.raw)
 	}
 }

@@ -353,6 +353,40 @@ func TestHumansPreferredLocale(t *testing.T) {
 					t.Fatalf("unknown human %s: %v", key, err)
 				}
 			}
+			// SPL-1132 issues_columns (rdb 0076): nil until sized, a copy out, {} / nil clear to SQL NULL
+			if got, err := h.IssueColumns(ctx, hum); err != nil || got != nil {
+				t.Fatalf("unset issues columns %v %v", got, err)
+			}
+			cols := map[string]int{"key": 96, "title": 420}
+			if err := h.SetIssueColumns(ctx, hum, cols); err != nil {
+				t.Fatal(err)
+			}
+			cols["key"] = 1
+			if got, err := h.IssueColumns(ctx, hum); err != nil || len(got) != 2 || got["key"] != 96 || got["title"] != 420 {
+				t.Fatalf("issues columns got %v %v", got, err)
+			}
+			for _, bad := range []map[string]int{{"epic": 100}, {"key": 1}, {"title": 5000}} {
+				if err := h.SetIssueColumns(ctx, hum, bad); err == nil {
+					t.Fatalf("SetIssueColumns accepted %v", bad)
+				}
+			}
+			for _, clear := range []map[string]int{{}, nil} {
+				if err := h.SetIssueColumns(ctx, hum, map[string]int{"status": 140}); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.SetIssueColumns(ctx, hum, clear); err != nil {
+					t.Fatal(err)
+				}
+				if got, err := h.IssueColumns(ctx, hum); err != nil || got != nil {
+					t.Fatalf("cleared (%v) issues columns %v %v", clear, got, err)
+				}
+			}
+			if err := h.SetIssueColumns(ctx, "HUM-999999999", map[string]int{"key": 96}); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human issues columns: %v", err)
+			}
+			if _, err := h.IssueColumns(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human issues columns read: %v", err)
+			}
 			if err := h.SetViewPref(ctx, hum, "message_order", "bottom"); err == nil {
 				t.Fatal("SetViewPref accepted another key's value")
 			}

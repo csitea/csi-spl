@@ -413,6 +413,35 @@ func (s *Postgres) ViewPref(ctx context.Context, humanID, key string) (string, e
 	return v, err
 }
 
+// SetIssueColumns writes humans.issues_columns (rdb 0076); nil or empty is
+// SQL NULL, never the JSON null a nil map would marshal to.
+func (s *Postgres) SetIssueColumns(ctx context.Context, humanID string, cols map[string]int) error {
+	if err := checkIssueColumns(cols); err != nil {
+		return err
+	}
+	var arg any
+	if len(cols) > 0 {
+		arg = cols
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET issues_columns = $2::jsonb WHERE human_id = $1`, humanID, arg)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) IssueColumns(ctx context.Context, humanID string) (map[string]int, error) {
+	var cols map[string]int
+	err := s.pool.QueryRow(ctx, `SELECT issues_columns FROM humans WHERE human_id = $1`, humanID).Scan(&cols)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return copyCols(cols), err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)

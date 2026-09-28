@@ -47,11 +47,11 @@ var viewPrefColumns = func() []string {
 	return keys
 }()
 
-// humanSettingsSQL reads the nine settings of one human in one statement;
+// humanSettingsSQL reads every setting of one human in one statement;
 // the columns are the single readers' own, COALESCEd the same way.
 var humanSettingsSQL = func() string {
 	cols := []string{"COALESCE(preferred_locale, '')", "COALESCE(preferred_theme, '')", "COALESCE(submit_key, '')",
-		"COALESCE(display_name, '')", "rail_order", "diagnostics_enabled"}
+		"COALESCE(display_name, '')", "rail_order", "diagnostics_enabled", "issues_columns"}
 	for _, k := range viewPrefColumns {
 		cols = append(cols, "COALESCE("+k+", '')")
 	}
@@ -63,7 +63,7 @@ var humanSettingsSQL = func() string {
 func (s *Postgres) HumanSettings(ctx context.Context, humanID string) (auth.HumanSettings, error) {
 	var v auth.HumanSettings
 	views := make([]string, len(viewPrefColumns))
-	dest := []any{&v.Locale, &v.Theme, &v.SubmitKey, &v.DisplayName, &v.RailOrder, &v.Diagnostics}
+	dest := []any{&v.Locale, &v.Theme, &v.SubmitKey, &v.DisplayName, &v.RailOrder, &v.Diagnostics, &v.IssueColumns}
 	for i := range views {
 		dest = append(dest, &views[i])
 	}
@@ -78,6 +78,7 @@ func (s *Postgres) HumanSettings(ctx context.Context, humanID string) (auth.Huma
 	for i, k := range viewPrefColumns {
 		v.ViewPrefs[k] = views[i]
 	}
+	v.IssueColumns = copyCols(v.IssueColumns)
 	return v, nil
 }
 
@@ -104,6 +105,9 @@ func settingsOneByOne(ctx context.Context, h Humans, humanID string) (v auth.Hum
 		return v, err
 	}
 	if v.Diagnostics, err = h.DiagnosticsEnabled(ctx, humanID); err != nil {
+		return v, err
+	}
+	if v.IssueColumns, err = h.IssueColumns(ctx, humanID); err != nil {
 		return v, err
 	}
 	v.ViewPrefs = make(map[string]string, len(viewPrefColumns))

@@ -106,6 +106,12 @@ type Preferences interface {
 	// SetViewPref stores it ("" clears), already admitted by IsViewPref.
 	// Unknown human = ErrNoHuman.
 	SetViewPref(ctx context.Context, humanID, key, value string) error
+	// IssueColumns is the human's Issues sheet column widths (SPL-1132),
+	// column -> px, nil when never sized. Unknown human = ErrNoHuman.
+	IssueColumns(ctx context.Context, humanID string) (map[string]int, error)
+	// SetIssueColumns stores them (nil clears), already admitted by
+	// IsIssueColumns. Unknown human = ErrNoHuman.
+	SetIssueColumns(ctx context.Context, humanID string, cols map[string]int) error
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -381,6 +387,9 @@ type sessionResp struct {
 	// IssuesView is the Issues page's view (SPL-1028), null when never
 	// picked (the WUI then shows the list).
 	IssuesView *string `json:"issues_view"`
+	// IssuesColumns is the Issues sheet's column widths (SPL-1132), column
+	// -> px, null when never sized (the WUI then keeps its automatic layout).
+	IssuesColumns map[string]int `json:"issues_columns"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -417,6 +426,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.MessageOrder = h.viewPref(ctx, s, PrefMessageOrder)
 		out.ComposerPosition = h.viewPref(ctx, s, PrefComposerPosition)
 		out.IssuesView = h.viewPref(ctx, s, PrefIssuesView)
+		out.IssuesColumns = h.issueColumns(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -763,7 +773,8 @@ func isPermutation(order, of []string) bool {
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
 // legacy six, SPL-983), or null; message_order and composer_position (topic
 // c6994436) and issues_view (SPL-1028) are one of their ViewPrefs values
-// exactly, or null.
+// exactly, or null; issues_columns (SPL-1132) is an object of IssueColumns
+// -> px (IsIssueColumns), or null / {} to clear it.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
@@ -774,6 +785,7 @@ type preferencesReq struct {
 	MessageOrder       json.RawMessage `json:"message_order"`
 	ComposerPosition   json.RawMessage `json:"composer_position"`
 	IssuesView         json.RawMessage `json:"issues_view"`
+	IssuesColumns      json.RawMessage `json:"issues_columns"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
@@ -828,7 +840,9 @@ type prefsIn struct {
 	diag                                                bool
 	rail                                                []string
 	view                                                map[string]string // layout key -> value, "" = null
+	cols                                                map[string]int    // issues_columns, nil = null
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
+	hasCols                                             bool
 }
 
 // parsePreferences validates the whole body before anything is written. A
@@ -846,8 +860,11 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.view, code, detail = parseViewPrefs(req); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null) or issues_view (list, status or null) is required"
+	if p.cols, p.hasCols, code, detail = parseIssueColumns(req.IssuesColumns); code != "" {
+		return p, code, detail
+	}
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null) or issues_columns (column -> px or null) is required"
 	}
 	if rawLoc != "" && rawLoc != "null" {
 		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
@@ -950,6 +967,10 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 			func(e *zerolog.Event) *zerolog.Event { return e.Str(k, v) }) {
 			return nil, false
 		}
+	}
+	if p.hasCols && !set(h.prefs.SetIssueColumns(ctx, hum, p.cols), "issues_columns", p.cols,
+		func(e *zerolog.Event) *zerolog.Event { return e.Int("issues_columns", len(p.cols)) }) {
+		return nil, false
 	}
 	return out, true
 }

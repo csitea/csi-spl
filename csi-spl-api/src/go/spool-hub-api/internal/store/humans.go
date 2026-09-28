@@ -159,6 +159,12 @@ type Humans interface {
 	SetViewPref(ctx context.Context, humanID, key, value string) error
 	// ViewPref returns it, "" when none, or ErrNotFound.
 	ViewPref(ctx context.Context, humanID, key string) (string, error)
+	// SetIssueColumns records the human's Issues sheet column widths (rdb
+	// 0076, SPL-1132), column -> px as auth.IsIssueColumns admits, or nil
+	// (or empty) to clear them. Unknown human = ErrNotFound.
+	SetIssueColumns(ctx context.Context, humanID string, cols map[string]int) error
+	// IssueColumns returns them, nil when none, or ErrNotFound.
+	IssueColumns(ctx context.Context, humanID string) (map[string]int, error)
 	// IdentityLocale returns the picked locale of the human the (provider,
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
@@ -241,6 +247,16 @@ func checkViewPref(key, value string) error {
 		return nil
 	}
 	return errors.New(key + " must be one of " + strings.Join(auth.ViewPrefs[key], ","))
+}
+
+// checkIssueColumns admits nil / empty (never sized) or what
+// auth.IsIssueColumns admits; humans_issues_columns_check (rdb 0076) only
+// pins the JSON shape (an object).
+func checkIssueColumns(cols map[string]int) error {
+	if auth.IsIssueColumns(cols) {
+		return nil
+	}
+	return errors.New("issues columns must map sheet columns to a width in px")
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

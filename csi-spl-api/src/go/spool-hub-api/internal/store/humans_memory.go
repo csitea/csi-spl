@@ -16,6 +16,7 @@ type memHuman struct {
 	submitKey   string            // submit_key (rdb 0062, SPL-976); "" = never picked
 	railOrder   []string          // rail_order (rdb 0063, SPL-979); nil = never reordered
 	view        map[string]string // rdb 0070 message_order / composer_position; absent = never picked
+	issueCols   map[string]int    // issues_columns (rdb 0076, SPL-1132); nil = never sized
 	diagnostics bool              // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
@@ -380,6 +381,44 @@ func (s *Memory) ViewPref(_ context.Context, humanID, key string) (string, error
 		return "", ErrNotFound
 	}
 	return hm.view[key], nil
+}
+
+func (s *Memory) SetIssueColumns(_ context.Context, humanID string, cols map[string]int) error {
+	if err := checkIssueColumns(cols); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.issueCols = copyCols(cols)
+	return nil
+}
+
+func (s *Memory) IssueColumns(_ context.Context, humanID string) (map[string]int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return copyCols(hm.issueCols), nil
+}
+
+// copyCols is a private copy of a width map; nil or empty is nil.
+func copyCols(cols map[string]int) map[string]int {
+	if len(cols) == 0 {
+		return nil
+	}
+	out := make(map[string]int, len(cols))
+	for k, v := range cols {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {

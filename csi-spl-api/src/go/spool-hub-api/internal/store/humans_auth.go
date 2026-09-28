@@ -282,6 +282,25 @@ func (a AuthHooks) SetViewPref(ctx context.Context, humanID, key, value string) 
 	return err
 }
 
+// IssueColumns is the human's Issues sheet column widths (SPL-1132); an
+// unknown human is auth.ErrNoHuman.
+func (a AuthHooks) IssueColumns(ctx context.Context, humanID string) (map[string]int, error) {
+	cols, err := a.H.IssueColumns(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return nil, auth.ErrNoHuman
+	}
+	return cols, err
+}
+
+// SetIssueColumns stores them (nil clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetIssueColumns(ctx context.Context, humanID string, cols map[string]int) error {
+	err := a.H.SetIssueColumns(ctx, humanID, cols)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting; an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

@@ -51,6 +51,7 @@ func TestHumanSettingsEqualsTheSingleReaders(t *testing.T) {
 				h.SetViewPref(ctx, hum, auth.PrefMessageOrder, "newest-last"),
 				h.SetViewPref(ctx, hum, auth.PrefComposerPosition, "bottom"),
 				h.SetViewPref(ctx, hum, auth.PrefIssuesView, "status"),
+				h.SetIssueColumns(ctx, hum, map[string]int{"key": 96, "deadline": 180}),
 			} {
 				if err != nil {
 					t.Fatal(err)
@@ -58,11 +59,11 @@ func TestHumanSettingsEqualsTheSingleReaders(t *testing.T) {
 			}
 			check("set")
 			got, _ := hooks.HumanSettings(ctx, hum)
-			if got.Theme != "light-red" || !got.Diagnostics || got.ViewPrefs[auth.PrefIssuesView] != "status" || len(got.RailOrder) != 7 {
+			if got.Theme != "light-red" || !got.Diagnostics || got.ViewPrefs[auth.PrefIssuesView] != "status" || len(got.RailOrder) != 7 || got.IssueColumns["deadline"] != 180 {
 				t.Fatalf("set values not read: %+v", got)
 			}
 			for _, err := range []error{h.SetPreferredTheme(ctx, hum, ""), h.SetRailOrder(ctx, hum, nil),
-				h.SetViewPref(ctx, hum, auth.PrefIssuesView, "")} {
+				h.SetViewPref(ctx, hum, auth.PrefIssuesView, ""), h.SetIssueColumns(ctx, hum, nil)} {
 				if err != nil {
 					t.Fatal(err)
 				}

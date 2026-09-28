@@ -25,12 +25,13 @@ type fakePrefs struct {
 	reg   *recReg
 	loc   map[string]string
 	theme map[string]string
-	key   map[string]string   // SPL-976 submit_key, nil until first set
-	rail  map[string][]string // SPL-979 rail_order, nil until first set
-	view  map[string]string   // topic c6994436, keyed "<HUM>/<key>", nil until first set
-	diag  map[string]bool     // CLE-34963 "Debug pane", nil until first set
-	name  map[string]string   // CLE-34968 display name, nil until first set
-	fail  error               // non-nil: DiagnosticsEnabled answers it
+	key   map[string]string         // SPL-976 submit_key, nil until first set
+	rail  map[string][]string       // SPL-979 rail_order, nil until first set
+	view  map[string]string         // topic c6994436, keyed "<HUM>/<key>", nil until first set
+	cols  map[string]map[string]int // SPL-1132 issues_columns, nil until first set
+	diag  map[string]bool           // CLE-34963 "Debug pane", nil until first set
+	name  map[string]string         // CLE-34968 display name, nil until first set
+	fail  error                     // non-nil: DiagnosticsEnabled answers it
 }
 
 func (p *fakePrefs) known(hum string) bool {
@@ -148,6 +149,28 @@ func (p *fakePrefs) SetViewPref(_ context.Context, hum, key, value string) error
 		p.view = map[string]string{}
 	}
 	p.view[hum+"/"+key] = value
+	return nil
+}
+
+func (p *fakePrefs) IssueColumns(_ context.Context, hum string) (map[string]int, error) {
+	if !p.known(hum) {
+		return nil, auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.cols[hum], nil
+}
+
+func (p *fakePrefs) SetIssueColumns(_ context.Context, hum string, cols map[string]int) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cols == nil {
+		p.cols = map[string]map[string]int{}
+	}
+	p.cols[hum] = cols
 	return nil
 }
 
@@ -588,6 +611,52 @@ func TestPreferencesIssuesView(t *testing.T) {
 	}
 	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["issues_view"] != nil {
 		t.Fatalf("session after clear: %s", got.raw)
+	}
+}
+
+// SPL-1132: issues_columns is kept on the account: an object of known sheet
+// columns -> whole px, null or {} clears, independent of the other keys, and
+// GET /session plus the native login answer carry it.
+func TestPreferencesIssuesColumns(t *testing.T) {
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["issues_columns"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	} else if _, ok := got.body["issues_columns"]; !ok {
+		t.Fatalf("session must answer issues_columns null: %s", got.raw)
+	}
+	got := r.call(t, c, http.MethodPut, "preferences", `{"issues_columns":{"key":96,"title":420,"status":140}}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || jsonBody(got.body["issues_columns"]) != `{"key":96,"status":140,"title":420}` {
+		t.Fatalf("put: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); jsonBody(got.body["issues_columns"]) != `{"key":96,"status":140,"title":420}` || got.body["issues_view"] != nil {
+		t.Fatalf("session after: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK ||
+		jsonBody(got.body["issues_columns"]) != `{"key":96,"status":140,"title":420}` {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for _, body := range []string{
+		`{"issues_columns":{"epic":100}}`, `{"issues_columns":{"key":10}}`, `{"issues_columns":{"key":2001}}`,
+		`{"issues_columns":{"key":96.5}}`, `{"issues_columns":{"key":"96"}}`, `{"issues_columns":[96]}`,
+		`{"issues_columns":"key"}`, `{"issues_columns":{"Key":96}}`,
+	} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_issues_columns" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); jsonBody(got.body["issues_columns"]) != `{"key":96,"status":140,"title":420}` {
+		t.Fatalf("a refused PUT changed the widths: %s", got.raw)
+	}
+	for _, clear := range []string{`{"issues_columns":{}}`, `{"issues_columns":null}`} {
+		got = r.call(t, c, http.MethodPut, "preferences", clear)
+		if got.code != http.StatusOK || got.body["issues_columns"] != nil || len(got.body) != 1 {
+			t.Fatalf("clear %s: %d %s", clear, got.code, got.raw)
+		}
+		if got = r.call(t, c, http.MethodGet, "session", ""); got.body["issues_columns"] != nil {
+			t.Fatalf("session after clear %s: %s", clear, got.raw)
+		}
 	}
 }
 

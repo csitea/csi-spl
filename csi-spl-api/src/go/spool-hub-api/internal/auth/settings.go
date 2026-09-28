@@ -14,8 +14,10 @@ type HumanSettings struct {
 	// RailOrder is nil when never reordered.
 	RailOrder []string
 	// ViewPrefs holds every ViewPrefs key, "" when never picked.
-	ViewPrefs   map[string]string
-	Diagnostics bool
+	ViewPrefs map[string]string
+	// IssueColumns is nil when the Issues sheet was never sized (SPL-1132).
+	IssueColumns map[string]int
+	Diagnostics  bool
 }
 
 // SettingsReader is an optional extension of Preferences: a store that reads
@@ -33,6 +35,7 @@ type settingReader interface {
 	SubmitKey(ctx context.Context, humanID string) (string, error)
 	RailOrder(ctx context.Context, humanID string) ([]string, error)
 	ViewPref(ctx context.Context, humanID, key string) (string, error)
+	IssueColumns(ctx context.Context, humanID string) (map[string]int, error)
 	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
 	DisplayName(ctx context.Context, humanID string) (string, error)
 }
@@ -98,6 +101,13 @@ func (p *settingsSnapshot) ViewPref(_ context.Context, _ string, key string) (st
 		return "", fmt.Errorf("auth: unknown view pref %q", key)
 	}
 	return v, nil
+}
+
+func (p *settingsSnapshot) IssueColumns(context.Context, string) (map[string]int, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	return p.s.IssueColumns, nil
 }
 
 func (p *settingsSnapshot) DiagnosticsEnabled(context.Context, string) (bool, error) {

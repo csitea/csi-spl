@@ -69,34 +69,42 @@ do_oss_runners_move() {
   ((${#units[@]})) || { do_log "OK no runner unit of $from on this box - nothing to move"; return 0; }
   do_log "INFO ${#units[@]} runner(s) of $from on this box: ${units[*]}"
 
-  local u name dir user labels busy t0 tok
-  for u in "${units[@]}"; do
-    name="${u#actions.runner.${from/\//-}.}"; name="${name%.service}"
-    dir="$(systemctl show -p WorkingDirectory --value "$u")"; user="$(systemctl show -p User --value "$u")"
-    [[ -n "$dir" && -n "$user" ]] && sudo test -x "$dir/config.sh" || { do_log "FATAL cannot read the dir/user of $u"; return 1; }
-    labels="$(gh api "repos/$from/actions/runners" --paginate --jq ".runners[]|select(.name==\"$name\")|[.labels[]|select(.type==\"custom\")|.name]|join(\",\")")"
-    if ((dry)); then
-      do_log "INFO DRY_RUN would move $name ($dir, user $user, labels ${labels:-none}) from $from to $to${group:+ (runner group $group)}"
-      continue
-    fi
-    t0=$(date +%s)
-    while busy="$(gh api "repos/$from/actions/runners" --paginate --jq ".runners[]|select(.name==\"$name\")|.busy")" && [[ "$busy" == true ]]; do
-      (( $(date +%s) - t0 < wait )) || { do_log "FATAL $name stayed busy for ${wait}s - not moved (re-run later)"; return 1; }
-      sleep 15
+  # a runner is moved when it is IDLE (a running job is never killed); each
+  # pass moves every idle one, so one long job does not hold the others back
+  local u name dir user labels busy t0 tok pending=("${units[@]}") left
+  t0=$(date +%s)
+  while ((${#pending[@]})); do
+    left=()
+    for u in "${pending[@]}"; do
+      name="${u#actions.runner.${from/\//-}.}"; name="${name%.service}"
+      dir="$(systemctl show -p WorkingDirectory --value "$u")"; user="$(systemctl show -p User --value "$u")"
+      [[ -n "$dir" && -n "$user" ]] && sudo test -x "$dir/config.sh" || { do_log "FATAL cannot read the dir/user of $u"; return 1; }
+      labels="$(gh api "repos/$from/actions/runners" --paginate --jq ".runners[]|select(.name==\"$name\")|[.labels[]|select(.type==\"custom\")|.name]|join(\",\")")"
+      if ((dry)); then
+        do_log "INFO DRY_RUN would move $name ($dir, user $user, labels ${labels:-none}) from $from to $to${group:+ (runner group $group)}"
+        continue
+      fi
+      busy="$(gh api "repos/$from/actions/runners" --paginate --jq ".runners[]|select(.name==\"$name\")|.busy")" || busy=true
+      [[ "$busy" == false ]] || { left+=("$u"); continue; }
+      { oss_runner_in "$dir" root ./svc.sh stop >/dev/null && oss_runner_in "$dir" root ./svc.sh uninstall >/dev/null; } \
+        || { do_log "FATAL cannot stop/uninstall the service of $name"; return 1; }
+      tok="$(gh api -X POST "repos/$from/actions/runners/remove-token" --jq .token)" \
+        && oss_runner_in "$dir" "$user" ./config.sh remove --token "$tok" >/dev/null \
+        || { do_log "FATAL cannot deregister $name from $from"; return 1; }
+      tok="$(gh api -X POST "$api_to/actions/runners/registration-token" --jq .token)" \
+        && oss_runner_in "$dir" "$user" ./config.sh --unattended --replace --url "$url_to" \
+               --token "$tok" --name "$name" --labels "${labels:-self-hosted}" --work _work ${group:+--runnergroup "$group"} >/dev/null \
+        || { do_log "FATAL cannot register $name on $to - it is now registered NOWHERE: re-run this action"; return 1; }
+      tok=""
+      { oss_runner_in "$dir" root ./svc.sh install "$user" >/dev/null && oss_runner_in "$dir" root ./svc.sh start >/dev/null; } \
+        || { do_log "FATAL $name is registered on $to but its service did not start"; return 1; }
+      do_log "OK $name moved: $from -> $to"
     done
-    { oss_runner_in "$dir" root ./svc.sh stop >/dev/null && oss_runner_in "$dir" root ./svc.sh uninstall >/dev/null; } \
-      || { do_log "FATAL cannot stop/uninstall the service of $name"; return 1; }
-    tok="$(gh api -X POST "repos/$from/actions/runners/remove-token" --jq .token)" \
-      && oss_runner_in "$dir" "$user" ./config.sh remove --token "$tok" >/dev/null \
-      || { do_log "FATAL cannot deregister $name from $from"; return 1; }
-    tok="$(gh api -X POST "$api_to/actions/runners/registration-token" --jq .token)" \
-      && oss_runner_in "$dir" "$user" ./config.sh --unattended --replace --url "$url_to" \
-             --token "$tok" --name "$name" --labels "${labels:-self-hosted}" --work _work ${group:+--runnergroup "$group"} >/dev/null \
-      || { do_log "FATAL cannot register $name on $to - it is now registered NOWHERE: re-run this action"; return 1; }
-    tok=""
-    { oss_runner_in "$dir" root ./svc.sh install "$user" >/dev/null && oss_runner_in "$dir" root ./svc.sh start >/dev/null; } \
-      || { do_log "FATAL $name is registered on $to but its service did not start"; return 1; }
-    do_log "OK $name moved: $from -> $to"
+    ((dry)) && break
+    pending=("${left[@]}")
+    ((${#pending[@]})) || break
+    (( $(date +%s) - t0 < wait )) || { do_log "FATAL still busy after ${wait}s, not moved (re-run later): ${pending[*]}"; return 1; }
+    sleep 15
   done
   ((dry)) && { do_log "OK DRY_RUN nothing moved. Re-run with DRY_RUN=0."; return 0; }
 

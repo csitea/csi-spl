@@ -360,3 +360,35 @@ func TestNotifyAsyncOff(t *testing.T) {
 		}
 	}
 }
+
+// TestHubRuntimeLimits (CLE-35076): SPOOL_HUB_GOMAXPROCS / SPOOL_HUB_GOMEMLIMIT
+// parse into what cmd/spool applies; unset leaves the runtime's own.
+func TestHubRuntimeLimits(t *testing.T) {
+	for _, c := range []struct {
+		procs   int
+		mem     string
+		wantP   int
+		wantB   int64
+		wantErr bool
+	}{
+		{0, "", 0, -1, false},
+		{1, "460MiB", 1, 460 << 20, false},
+		{2, "1GiB", 2, 1 << 30, false},
+		{0, "4096", 0, 4096, false},
+		{0, "512KiB", 0, 512 << 10, false},
+		{-1, "", 0, 0, true},
+		{0, "0MiB", 0, 0, true},
+		{0, "lots", 0, 0, true},
+		{0, "-5MiB", 0, 0, true},
+	} {
+		h := &Hub{GoMaxProcs: c.procs, GoMemLimit: c.mem}
+		p, b, err := h.RuntimeLimits()
+		if (err != nil) != c.wantErr {
+			t.Errorf("%d %q: err %v, want error %v", c.procs, c.mem, err, c.wantErr)
+			continue
+		}
+		if !c.wantErr && (p != c.wantP || b != c.wantB) {
+			t.Errorf("%d %q: got %d %d, want %d %d", c.procs, c.mem, p, b, c.wantP, c.wantB)
+		}
+	}
+}

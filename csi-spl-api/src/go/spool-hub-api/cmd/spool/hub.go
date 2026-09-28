@@ -54,12 +54,32 @@ const (
 	maxHeaderBytes     = 64 << 10
 )
 
+// applyRuntimeLimits sets GOMAXPROCS and the soft memory limit from cnf
+// (SPOOL_HUB_GOMAXPROCS / SPOOL_HUB_GOMEMLIMIT) before anything starts; unset
+// leaves the runtime's own. The "hub listening" line reports what is in force.
+func applyRuntimeLimits(hc *config.Hub) error {
+	procs, bytes, err := hc.RuntimeLimits()
+	if err != nil {
+		return err
+	}
+	if procs > 0 {
+		runtime.GOMAXPROCS(procs)
+	}
+	if bytes > 0 {
+		debug.SetMemoryLimit(bytes)
+	}
+	return nil
+}
+
 // cmdServe runs the hub until SIGINT/SIGTERM, then drains: sockets get 1001,
 // in-flight HTTP finishes within SPOOL_HUB_GRACEFUL_SHUTDOWN (a
 // runUntilShutdown pattern).
 func cmdServe() int {
 	hc, err := config.LoadHub()
 	if err != nil {
+		return fail(err)
+	}
+	if err := applyRuntimeLimits(hc); err != nil {
 		return fail(err)
 	}
 	log := logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).

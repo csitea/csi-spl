@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -330,6 +331,48 @@ type Hub struct {
 	// the one locale WUI links carry no /<loc> prefix for. cnf env.i18n, the
 	// same value the WUI builds with; one of the 19 i18n.Supported codes.
 	DefaultLocale string `env:"SPOOL_HUB_DEFAULT_LOCALE" envDefault:"en"`
+	// The Go runtime's view of the instance (CLE-35076). On Cloud Run the
+	// hub saw 2 CPUs under a 1-vCPU limit (GOMAXPROCS 2, logged 2026-09-28)
+	// and no memory limit under a 512 Mi cap. 0 / "" = the runtime's own
+	// default; cnf sets them from hub.cloud_run cpu and memory.
+	GoMaxProcs int    `env:"SPOOL_HUB_GOMAXPROCS" envDefault:"0"`
+	GoMemLimit string `env:"SPOOL_HUB_GOMEMLIMIT"`
+}
+
+// RuntimeLimits returns the validated SPOOL_HUB_GOMAXPROCS and
+// SPOOL_HUB_GOMEMLIMIT: procs 0 and bytes -1 mean "leave the runtime's own".
+func (h *Hub) RuntimeLimits() (procs int, bytes int64, err error) {
+	if h.GoMaxProcs < 0 {
+		return 0, 0, fmt.Errorf("SPOOL_HUB_GOMAXPROCS must be 0 (runtime default) or positive, got %d", h.GoMaxProcs)
+	}
+	bytes = -1
+	if strings.TrimSpace(h.GoMemLimit) != "" {
+		if bytes, err = ParseMemLimit(h.GoMemLimit); err != nil {
+			return 0, 0, fmt.Errorf("SPOOL_HUB_GOMEMLIMIT: %w", err)
+		}
+	}
+	return h.GoMaxProcs, bytes, nil
+}
+
+// ParseMemLimit reads a GOMEMLIMIT-style size: an integer with an optional
+// B, KiB, MiB, GiB or TiB suffix; it must be positive.
+func ParseMemLimit(s string) (int64, error) {
+	s = strings.TrimSpace(s)
+	mult := int64(1)
+	for _, u := range []struct {
+		suffix string
+		mult   int64
+	}{{"KiB", 1 << 10}, {"MiB", 1 << 20}, {"GiB", 1 << 30}, {"TiB", 1 << 40}, {"B", 1}} {
+		if strings.HasSuffix(s, u.suffix) {
+			s, mult = strings.TrimSuffix(s, u.suffix), u.mult
+			break
+		}
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n <= 0 || n > (1<<62)/mult {
+		return 0, fmt.Errorf("%q is not a positive size like 460MiB", s)
+	}
+	return n * mult, nil
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,

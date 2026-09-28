@@ -483,97 +483,21 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	id := m.MsgID
-	if env.FromBox != x.box {
-		x.fail(ctx, id, "bad_sig", http.StatusBadRequest, "from_box is not the hello box")
-		return
+	rf := s.sendSenderRefusal(ctx, x, env, m)
+	if rf == nil {
+		rf = s.sendRouteRefusal(ctx, x, env, m)
 	}
-	pub, err := s.o.Store.GetPin(ctx, x.tenant, env.FromBox)
-	if err != nil {
-		x.fail(ctx, id, "unpinned_box", http.StatusBadRequest, "from_box is no longer pinned")
-		return
+	if rf == nil {
+		rf = s.sendTenantRefusal(ctx, x, id)
 	}
-	if err := env.Verify(pub); err != nil {
-		x.fail(ctx, id, "bad_sig", http.StatusBadRequest, "envelope sig does not verify against the from_box pin")
-		return
+	if rf == nil {
+		rf = s.sendContentRefusal(ctx, x, env, m, f.TypedBy)
 	}
-	if detail := senderRefusal(x, m.From); detail != "" {
-		x.fail(ctx, id, TokenFromNotAnnounced, http.StatusForbidden, detail)
+	if rf != nil {
+		x.fail(ctx, id, rf.token, rf.status, rf.detail)
 		return
-	}
-	if env.ToBox == "" {
-		roster, _ := s.o.Store.Roster(ctx, x.tenant)
-		n := 0
-		for _, agents := range roster {
-			if contains(agents, m.To) {
-				n++
-			}
-		}
-		if n > 1 {
-			x.fail(ctx, id, "ambiguous_to_box", http.StatusConflict, m.To+" is announced on more than one box; the sender must sign to_box")
-		} else {
-			x.fail(ctx, id, "missing_to_box", http.StatusBadRequest, "the sender must resolve and sign to_box")
-		}
-		return
-	}
-	if !msg.ValidBoxID(env.ToBox) {
-		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "to_box is not a valid box id")
-		return
-	}
-	if !s.toBoxKnown(ctx, x.tenant, env.ToBox) {
-		x.fail(ctx, id, "unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant")
-		return
-	}
-	trow, err := s.o.Store.GetTenant(ctx, x.tenant)
-	if err != nil {
-		x.fail(ctx, id, "internal", http.StatusInternalServerError, "tenant unavailable")
-		return
-	}
-	if !billing.AllowsWrite(trow.BillingStatus) {
-		x.fail(ctx, id, billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid")
-		return
-	}
-	if tok, status, detail := s.messageQuota(ctx, x.tenant, id); tok != "" {
-		x.fail(ctx, id, tok, status, detail)
-		return
-	}
-	if missing := s.missingFile(ctx, x.tenant, m.Files); missing != "" {
-		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+missing+" is not held by the hub")
-		return
-	}
-	switch f, err := s.unreadableFile(ctx, x.tenant, m.Files, x.box, ""); {
-	case err != nil:
-		x.fail(ctx, id, "internal", http.StatusInternalServerError, "file lookup failed")
-		return
-	case f != "": // answered as a missing file: no oracle for what the box may not read
-		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+f+" is not held by the hub")
-		return
-	}
-	if _, err := time.Parse(time.RFC3339, m.TS); err != nil {
-		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "ts is not RFC3339")
-		return
-	}
-	if tok, status, detail := s.checkTags(ctx, x.tenant, env.Channel, env.ParentTaskID, m.TaskID); tok != "" {
-		x.fail(ctx, id, tok, status, detail)
-		return
-	}
-	if env.Channel != "" { // specs/038 FR-004: members post, others see no channel
-		switch in, err := s.agentInChannel(ctx, x.tenant, env.Channel, env.FromBox, m.From); {
-		case err != nil:
-			x.fail(ctx, id, "internal", http.StatusInternalServerError, "channel lookup failed")
-			return
-		case !in:
-			x.fail(ctx, id, "unknown_channel", http.StatusNotFound, "no channel "+env.Channel+" in this tenant")
-			return
-		}
-	}
-	if f.TypedBy != "" {
-		if detail := s.typedByRefusal(ctx, x, m.From, f.TypedBy); detail != "" {
-			x.fail(ctx, id, "typed_by_not_bound", http.StatusForbidden, detail)
-			return
-		}
 	}
 	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
-	delivery := r.delivery
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")
 		return
@@ -583,7 +507,109 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "internal", http.StatusInternalServerError, "message not stored")
 		return
 	}
-	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
+	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: r.delivery}) //nolint:errcheck
+}
+
+// frameRefusal is an error frame's token, status and detail.
+type frameRefusal struct {
+	token  string
+	status int
+	detail string
+}
+
+// sendSenderRefusal: the envelope is the hello box's, still pinned, signed
+// by that pin, and from an agent the box announced.
+func (s *Server) sendSenderRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message) *frameRefusal {
+	if env.FromBox != x.box {
+		return &frameRefusal{"bad_sig", http.StatusBadRequest, "from_box is not the hello box"}
+	}
+	pub, err := s.o.Store.GetPin(ctx, x.tenant, env.FromBox)
+	if err != nil {
+		return &frameRefusal{"unpinned_box", http.StatusBadRequest, "from_box is no longer pinned"}
+	}
+	if err := env.Verify(pub); err != nil {
+		return &frameRefusal{"bad_sig", http.StatusBadRequest, "envelope sig does not verify against the from_box pin"}
+	}
+	if detail := senderRefusal(x, m.From); detail != "" {
+		return &frameRefusal{TokenFromNotAnnounced, http.StatusForbidden, detail}
+	}
+	return nil
+}
+
+// sendRouteRefusal: the sender resolved and signed a valid to_box that is
+// pinned in this tenant.
+func (s *Server) sendRouteRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message) *frameRefusal {
+	if env.ToBox == "" {
+		roster, _ := s.o.Store.Roster(ctx, x.tenant)
+		n := 0
+		for _, agents := range roster {
+			if contains(agents, m.To) {
+				n++
+			}
+		}
+		if n > 1 {
+			return &frameRefusal{"ambiguous_to_box", http.StatusConflict, m.To + " is announced on more than one box; the sender must sign to_box"}
+		}
+		return &frameRefusal{"missing_to_box", http.StatusBadRequest, "the sender must resolve and sign to_box"}
+	}
+	if !msg.ValidBoxID(env.ToBox) {
+		return &frameRefusal{"bad_json", http.StatusBadRequest, "to_box is not a valid box id"}
+	}
+	if !s.toBoxKnown(ctx, x.tenant, env.ToBox) {
+		return &frameRefusal{"unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant"}
+	}
+	return nil
+}
+
+// sendTenantRefusal: the tenant pays and is within its message quota.
+func (s *Server) sendTenantRefusal(ctx context.Context, x *session, id string) *frameRefusal {
+	trow, err := s.o.Store.GetTenant(ctx, x.tenant)
+	if err != nil {
+		return &frameRefusal{"internal", http.StatusInternalServerError, "tenant unavailable"}
+	}
+	if !billing.AllowsWrite(trow.BillingStatus) {
+		return &frameRefusal{billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid"}
+	}
+	if tok, status, detail := s.messageQuota(ctx, x.tenant, id); tok != "" {
+		return &frameRefusal{tok, status, detail}
+	}
+	return nil
+}
+
+// sendContentRefusal: every attached file is held and readable by the box
+// (an unreadable one answers as missing: no oracle for what the box may not
+// read), the ts parses, the channel / parent tags fit, the agent is in the
+// channel it posts to (specs/038 FR-004), and a typed_by claim is bound.
+func (s *Server) sendContentRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message, typedBy string) *frameRefusal {
+	if missing := s.missingFile(ctx, x.tenant, m.Files); missing != "" {
+		return &frameRefusal{"missing_file", http.StatusBadRequest, "file_id " + missing + " is not held by the hub"}
+	}
+	switch f, err := s.unreadableFile(ctx, x.tenant, m.Files, x.box, ""); {
+	case err != nil:
+		return &frameRefusal{"internal", http.StatusInternalServerError, "file lookup failed"}
+	case f != "":
+		return &frameRefusal{"missing_file", http.StatusBadRequest, "file_id " + f + " is not held by the hub"}
+	}
+	if _, err := time.Parse(time.RFC3339, m.TS); err != nil {
+		return &frameRefusal{"bad_json", http.StatusBadRequest, "ts is not RFC3339"}
+	}
+	if tok, status, detail := s.checkTags(ctx, x.tenant, env.Channel, env.ParentTaskID, m.TaskID); tok != "" {
+		return &frameRefusal{tok, status, detail}
+	}
+	if env.Channel != "" {
+		switch in, err := s.agentInChannel(ctx, x.tenant, env.Channel, env.FromBox, m.From); {
+		case err != nil:
+			return &frameRefusal{"internal", http.StatusInternalServerError, "channel lookup failed"}
+		case !in:
+			return &frameRefusal{"unknown_channel", http.StatusNotFound, "no channel " + env.Channel + " in this tenant"}
+		}
+	}
+	if typedBy != "" {
+		if detail := s.typedByRefusal(ctx, x, m.From, typedBy); detail != "" {
+			return &frameRefusal{"typed_by_not_bound", http.StatusForbidden, detail}
+		}
+	}
+	return nil
 }
 
 // TokenFromNotAnnounced refuses a box send whose msg.from is not an agent

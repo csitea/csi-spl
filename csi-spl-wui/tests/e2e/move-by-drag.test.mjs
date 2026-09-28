@@ -152,9 +152,17 @@ async function openTopic(p, cardId, row) {
 const toastText = (p) => p.evaluate(() => document.querySelector('[data-testid=move-toast-text]')?.textContent.trim() || '')
 
 async function openMenu(p, sel) {
-  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
-  await sleep(300)
-  return p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  /* the menu mounts lazily: wait for its items (a fixed sleep read [] now and then), click again once */
+  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  for (let i = 0; i < 2; i++) {
+    await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
+    for (let t = 0; t < 20; t++) {
+      await sleep(150)
+      const got = await items()
+      if (got.length) return got
+    }
+  }
+  return []
 }
 
 /** Seed two channels and two own topics in #a, a reply on the first (the mock tenant lives per page load). */

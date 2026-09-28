@@ -36,12 +36,16 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       e2e `channel-order.test.mjs` 21/21. `f3a78d2c`, live on dev, apex and e2e (`build.json`). Live proof
       `tests/e2e/channel-order-live.proof.mjs` on dev t1, n=1: 14/14 incl. the CONTROL (another member's
       stored order unchanged). prd e2e has one member, so the control cannot run there
-- [ ] T013 SPL-1134 WUI (§3.9, FR-MV-016..019): the 12 px drag handle on every movable card, pointer drag
+- [x] T013 SPL-1134 WUI (§3.9, FR-MV-016..019): the 12 px drag handle on every movable card, pointer drag
       from the handle only (`utils/move-drag.mjs`, unit `move-drag.test.mjs`), ONE lit row via `useMove().over`
       (`data-move-drop` / `-scope` / `-ok` rows), "not allowed" on a refusing row, drop elsewhere / Escape =
       cancel, phone hold = the picker; the HTML5 drag removed (no `draggable` row, no `dataTransfer`); the Flow
       list's channel link `draggable="false"`. e2e `move-by-drag.test.mjs` 46/46 at 1440 + 390 and
-      `channel-order.test.mjs` 21/21 on the generated bundle; initial JS 155.9 KB gzip (ceiling 160)
+      `channel-order.test.mjs` 21/21 on the generated bundle; initial JS 155.9 KB gzip (ceiling 160). `7af7cd03`,
+      live on dev, apex and e2e (`build.json`). Live proof `move-live.proof.mjs` (now a real mouse drag from the
+      handle, incl. the body-drag control and a one-lit walk over A, #lobby, B), n=1 each: dev t1 26/26 incl. the
+      not-the-author 403 control; prd e2e 25/25 (biz_owner: that control skipped, §3.4). Mid-drag screenshots in the
+      owner topic `3393df67`
 
 Found on the way (fixed): the moved-from note was 0 px wide in the right pane (the author row does not wrap);
 `d1951060` gives it its own line and the e2e now asserts its width (control: 30/31 on the old bundle).

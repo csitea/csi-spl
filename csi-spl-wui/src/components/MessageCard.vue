@@ -1269,7 +1269,7 @@ async function save() {
   font-size: 0.75rem;
 }
 /* SPL-1134: the ONE card under a dragged reply is lit; the dragged row fades */
-.msg--move-over { background: var(--color-selected); outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.msg--move-over { background: var(--color-selected); outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .msg--dragging { opacity: 0.5; }
 /* SPL-1134 (specs/045 §3.9): the handle is the card's first 12 px (~3 mm).
    At rest it is invisible; on hover it tints and shows a grip, the cursor

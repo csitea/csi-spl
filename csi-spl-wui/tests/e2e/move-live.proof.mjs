@@ -197,7 +197,7 @@ const litNow = (p) => p.evaluate(() => ({
   denied: [...document.querySelectorAll('.nav-row--move-denied')].map((e) => e.getAttribute('data-order')),
   ghost: document.querySelector('[data-testid=move-ghost]')?.textContent || null,
 }))
-async function mouseDrag(p, from, via) {
+async function mouseDrag(p, from, via, name = '') {
   await p.mouse.move(from.x, from.y)
   await p.mouse.down()
   const seen = []
@@ -206,6 +206,7 @@ async function mouseDrag(p, from, via) {
     await sleep(120)
     seen.push(await litNow(p))
   }
+  if (name) await shot(p, name)
   await p.mouse.up()
   await sleep(300)
   return seen
@@ -220,9 +221,17 @@ async function openTopic(p, cardId, row) {
   return false
 }
 async function openMenu(p, sel) {
-  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
-  await sleep(400)
-  return p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  /* the menu mounts lazily: wait for its items (a fixed sleep read [] now and then), click again once */
+  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  for (let i = 0; i < 2; i++) {
+    await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
+    for (let t = 0; t < 20; t++) {
+      await sleep(150)
+      const got = await items()
+      if (got.length) return got
+    }
+  }
+  return []
 }
 const toastText = (p) => p.evaluate(() => document.querySelector('[data-testid=move-toast-text]')?.textContent.trim() || '')
 const goto = (p, path) => p.evaluate(async (path) => {
@@ -314,7 +323,7 @@ try {
     Object.values(s3b.rows).every((x) => x.channel === A), { bodyDrag })
   /* the handle drag: A (its own), the lobby, then B - one row lit at most, B the drop */
   const handlePt = await centreOf(p, `${midCard(seeded.one.msg_id)} [data-testid=move-handle]`)
-  const walk = await mouseDrag(p, handlePt, [await centreOf(p, railRow(A)), await centreOf(p, railRow('lobby')), await centreOf(p, railRow(B))])
+  const walk = await mouseDrag(p, handlePt, [await centreOf(p, railRow(A)), await centreOf(p, railRow('lobby')), await centreOf(p, railRow(B))], '3-dragging-one-channel-lit')
   const atB = walk[walk.length - 1]
   step('3 from the handle: at most ONE row lit at every step; A and #lobby never lit (say not allowed); B lit under the pointer',
     Boolean(handlePt) && walk.every((x) => x.lit.length <= 1) && walk.slice(0, -1).every((x) => x.lit.length === 0 && x.denied.length === 1) &&
@@ -336,7 +345,7 @@ try {
   const opened = await openTopic(p, seeded.one.msg_id, paneRow(seeded.reply.msg_id))
   step('4 topic one opens on the right with the reply', opened)
   const rFrom = await centreOf(p, `${paneRow(seeded.reply.msg_id)} [data-testid=move-handle]`)
-  const rdrag = await mouseDrag(p, rFrom, [await centreOf(p, midCard(seeded.one.msg_id)), await centreOf(p, midCard(seeded.two.msg_id))])
+  const rdrag = await mouseDrag(p, rFrom, [await centreOf(p, midCard(seeded.one.msg_id)), await centreOf(p, midCard(seeded.two.msg_id))], '4-dragging-one-card-lit')
   step('4 from the reply\'s handle: topic one\'s card is never lit, topic two\'s is the one lit card and takes the drop',
     Boolean(rFrom) && rdrag[0].lit.length === 0 && rdrag[1].lit.length === 1 && rdrag[1].lit[0] === seeded.two.msg_id, rdrag)
   const s4 = await until(async () => { const r = await rowsOf(p, seeded.two.task_id); return r.rows[seeded.reply.msg_id] && r }, 15000)

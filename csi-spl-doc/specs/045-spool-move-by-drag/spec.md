@@ -239,10 +239,10 @@ do not change.
 | FR-MV-013 | every new string in all 19 locales | Implemented — `tasks.md` |
 | FR-MV-014 | rdb 0073 `tenant_memberships.channel_order`; `GET /v1/view/me` carries it; `PUT /v1/me/channel-order` (3.8) | Implemented — `tasks.md` T011 |
 | FR-MV-015 | WUI: the Channels list renders the stored order (new channels at the end), a drag stores it, Move up / Move down in the row menu (3.8) | Implemented — `tasks.md` T012 |
-| FR-MV-016 | WUI: a movable card has a 12 px left-edge handle; hover shows the grip + `grab`; a card that cannot move has none (3.9) | In progress — `tasks.md` T013 |
-| FR-MV-017 | WUI: a move drag starts ONLY from the handle (mouse travel, touch hold); a drag from the card body moves nothing (3.9) | In progress — `tasks.md` T013 |
-| FR-MV-018 | WUI: while dragged, exactly ONE row is highlighted — the one under the pointer that may take it; a refusing row shows "not allowed" and is never highlighted; leaving the rows clears it (3.9) | In progress — `tasks.md` T013 |
-| FR-MV-019 | WUI: a drop on the highlighted row moves (Undo, note); a drop elsewhere, on a refusing row, or Escape cancels and sends nothing; a phone's hold on the handle opens the picker (3.9) | In progress — `tasks.md` T013 |
+| FR-MV-016 | WUI: a movable card has a 12 px left-edge handle; hover shows the grip + `grab`; a card that cannot move has none (3.9) | Implemented — `tasks.md` T013 |
+| FR-MV-017 | WUI: a move drag starts ONLY from the handle (mouse travel, touch hold); a drag from the card body moves nothing (3.9) | Implemented — `tasks.md` T013 |
+| FR-MV-018 | WUI: while dragged, exactly ONE row is highlighted — the one under the pointer that may take it; a refusing row shows "not allowed" and is never highlighted; leaving the rows clears it (3.9) | Implemented — `tasks.md` T013 |
+| FR-MV-019 | WUI: a drop on the highlighted row moves (Undo, note); a drop elsewhere, on a refusing row, or Escape cancels and sends nothing; a phone's hold on the handle opens the picker (3.9) | Implemented — `tasks.md` T013 |
 
 ## 6. Success criteria
 

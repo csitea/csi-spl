@@ -1391,7 +1391,7 @@ async function onCreate() {
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
 /* SPL-1134: the ONE channel under a dragged topic - filled when it may take
    it, "not allowed" (never filled) when it may not */
-.nav-row--move-over { background: var(--color-selected); outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-sm); }
+.nav-row--move-over { background: var(--color-selected); outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: var(--radius-sm); }
 .nav-row--move-denied { position: relative; opacity: 0.6; }
 .nav-row--move-denied::after {
   content: attr(data-move-denied-label);

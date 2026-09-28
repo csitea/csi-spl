@@ -7,8 +7,11 @@
      a few card placeholders - in the theme's colours, so the first paint is
      the shape of the page instead of a blank screen and nothing jumps when
      the app replaces it. Nuxt renders it inside #__nuxt and drops it on mount.
-     CSP: one <style> block (the Hosting render hashes it) and classes only;
-     a style="" attribute is never allowed. -->
+     CSP: one style element (the Hosting render hashes it) and classes only;
+     an inline style attribute is never allowed. NEVER write the tag names
+     themselves in this comment: the render's hasher is a regex, and a tag
+     name in here made it hash comment text instead of the real block, so
+     every deployed page refused the block (style-src-elem, CLE-35067). -->
 <div class="spl-boot" aria-busy="true">
   <div class="spl-boot__bar"><span class="spl-boot__brand">spool-hub</span></div>
   <div class="spl-boot__body">

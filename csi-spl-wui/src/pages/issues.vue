@@ -1635,6 +1635,21 @@ watch(dockComment, (on) => {
 }, { immediate: import.meta.client })
 onBeforeUnmount(() => omniboxStore.unregister(commentOwner))
 
+/* SPL-1027: a picker opened by S / P / A / L sits under its control - the
+   modal's field, or the row's cell - never at a fixed corner of the page */
+const KEY_ANCHOR: Record<string, [string, string]> = {
+  status: ['issues-status', 'status'],
+  priority: ['issues-priority', 'priority'],
+  assign: ['issues-assignee', 'assignee'],
+  label: ['issues-labels', 'label'],
+}
+function keyAnchor(kind: string, issue: Issue): Event | undefined {
+  const [field, col] = KEY_ANCHOR[kind] || ['', '']
+  const el = modalOpen.value
+    ? document.querySelector(`[data-test=issues-detail] [data-test=${field}]`)
+    : (!phone.value && issue.key && issue.key !== 'draft' ? cellEl(issue.key, col) : null)
+  return el ? { currentTarget: el } as unknown as Event : undefined
+}
 function typingTarget(el: EventTarget | null) {
   if (!(el instanceof HTMLElement)) return false
   const tag = el.tagName
@@ -1714,7 +1729,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (k === 'e' && form.value) { void descEl.value?.edit(); ev.preventDefault(); return }
   const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
   const issue = creating.value ? detailOrDraft() : (detail.value || flat.value.find((i) => i.key === cursorKey.value) || flat.value[0])
-  if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
+  if (kind && issue) { openMenu(kind, issue, keyAnchor(kind, issue)); ev.preventDefault() }
 }
 
 watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverSort, epicF], () => { void load() })
@@ -2186,7 +2201,8 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   color: var(--color-fg);
   font: inherit;
 }
-.issues-title-cell--edit { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* the pencil takes its own track: the cell grows by it, the title keeps its room */
+.issues-title-cell--edit { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; min-width: calc(10rem + 28px); }
 .issues-title-edit, .issues-cellbtn {
   display: inline-flex;
   align-items: center;

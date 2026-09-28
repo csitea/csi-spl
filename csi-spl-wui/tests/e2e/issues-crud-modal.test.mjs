@@ -234,11 +234,13 @@ try {
       const m = document.querySelector('[data-test=issues-menu]')
       const r = m.getBoundingClientRect()
       const top = document.elementFromPoint(r.left + r.width / 2, r.top + 12)
-      return { onTop: Boolean(top && m.contains(top)), z: getComputedStyle(m).zIndex }
+      /* it opens under the modal's Status field, not at a corner of the page */
+      const f = document.querySelector('[data-test=issues-detail] [data-test=issues-status]').getBoundingClientRect()
+      return { onTop: Boolean(top && m.contains(top)), z: getComputedStyle(m).zIndex, under: Math.abs(r.top - (f.bottom + 4)) <= 2 && Math.abs(r.left - f.left) <= 2 }
     }), () => null)
     await p.keyboard.press('Escape')
     const m3 = { menuGone: !(await p.$('[data-test=issues-menu]')), still: await modalUp() }
-    ok(`M3 ${W}: S opens the Status picker above the modal; Esc closes the picker only`, Boolean(m3menu?.onTop) && m3.menuGone && m3.still, { m3menu, m3 })
+    ok(`M3 ${W}: S opens the Status picker above the modal, under its Status field; Esc closes the picker only`, Boolean(m3menu?.onTop && m3menu.under) && m3.menuGone && m3.still, { m3menu, m3 })
 
     await p.keyboard.press('Escape')
     const escClosed = await waitModal(false)

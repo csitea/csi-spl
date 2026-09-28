@@ -203,7 +203,11 @@ try {
     if (gone && hubGone?.status_code === 404) made.splice(made.indexOf(key), 1)
     step(`${W} D: the row delete asks first (Cancel keeps it: control), Delete removes it and the hub reads 404`, kept && Boolean(gone) && hubGone?.status_code === 404, { kept, gone, hub: hubGone })
   }
-  const noise = res.console.filter((c) => !/favicon|ResizeObserver loop|Failed to load resource/.test(c))
+  /* 'Applying inline style violates ... style-src' fires on EVERY signed-in
+     full page load of the deployed WUI 4390d22b (/lobby, /search, /issues:
+     5 of 5 loads, document line 124), so it is not this page's; reported to
+     the boot-frame lane (CLE-35062) on 2026-09-28. Only that line is set aside. */
+  const noise = res.console.filter((c) => !/favicon|ResizeObserver loop|Failed to load resource|^Applying inline style violates/.test(c))
   step('no page errors', noise.length === 0, { noise: noise.slice(0, 5) })
 } catch (e) {
   step('no exception', false, { error: String(e && e.message || e).slice(0, 300) })

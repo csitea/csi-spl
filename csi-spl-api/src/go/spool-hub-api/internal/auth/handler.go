@@ -243,8 +243,17 @@ func (h *Handler) providers(w http.ResponseWriter, _ *http.Request) {
 	if h.native != nil {
 		body["native"] = true // spec 015: the WUI shows the email + password form
 	}
+	// The list changes only with a deploy's cnf, and the sign-in page asked
+	// for it twice per load (prd /login, CLE-35076): five minutes in the
+	// browser's own cache answers the second read and every reload in that
+	// window without a round trip.
+	w.Header().Set("Cache-Control", providersCacheControl)
 	writeJSON(w, http.StatusOK, body)
 }
+
+// providersCacheControl: private (the answer carries this origin's CORS
+// headers), fresh for 5 minutes.
+const providersCacheControl = "private, max-age=300"
 
 func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("provider")

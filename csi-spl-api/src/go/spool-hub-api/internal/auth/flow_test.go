@@ -356,6 +356,10 @@ func TestAuthOffServesEmptyList(t *testing.T) {
 	if strings.TrimSpace(string(b)) != `{"providers":[]}` {
 		t.Fatalf("providers body %s", b)
 	}
+	// CLE-35076: the browser keeps the list 5 minutes; nothing shared keeps it
+	if cc := resp.Header.Get("Cache-Control"); cc != "private, max-age=300" {
+		t.Fatalf("providers Cache-Control %q, want private, max-age=300", cc)
+	}
 	resp, _ = http.Get(srv.URL + "/api/v1/auth/session")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("session with auth off = %d", resp.StatusCode)

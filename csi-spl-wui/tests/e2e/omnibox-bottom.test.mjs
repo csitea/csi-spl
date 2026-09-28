@@ -26,6 +26,7 @@
 // Run:
 //   node tests/e2e/omnibox-bottom.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 SHOTS=/tmp/shots node tests/e2e/omnibox-bottom.test.mjs
+//   FULL=1 ... also repeats the desktop pass at 1280 and 900 px
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
@@ -327,8 +328,12 @@ try {
   const only = process.env.ONLY || ''
   if (!only || only === 'desktop') {
     await desktopCase(browser, 1440, 900)
-    await desktopCase(browser, 1280, 800)
-    await desktopCase(browser, 900, 1180)
+    /* the CI wui-e2e job runs every suite in one 45-minute budget: the full
+       desktop pass once (1440) there; FULL=1 repeats it at 1280 and 900 */
+    if (process.env.FULL === '1') {
+      await desktopCase(browser, 1280, 800)
+      await desktopCase(browser, 900, 1180)
+    }
     await overlayCase(browser)
     await deepLinkCase(browser)
   }

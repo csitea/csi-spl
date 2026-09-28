@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
@@ -133,6 +134,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	limit := searchLimit(r, len(types))
 	ctx, cancel := context.WithTimeout(r.Context(), s.o.SearchBudget+time.Second)
 	defer cancel()
+	ctx = withSearchBoxes(ctx)
 	mine, err := s.readerChannels(ctx, t.ID, reader) // rdb 0028, the read door
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
@@ -394,9 +396,34 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 // keeps it when the query matches.
 type entityAdd func(search.Entity, map[string]any)
 
+// searchBoxesKey carries one search request's box list: the robot and the
+// box sections both list the tenant's boxes, and read them once (SPL-1120).
+type searchBoxesKey struct{}
+
+type searchBoxes struct {
+	once  sync.Once
+	boxes []store.ViewBox
+	err   error
+}
+
+func withSearchBoxes(ctx context.Context) context.Context {
+	return context.WithValue(ctx, searchBoxesKey{}, &searchBoxes{})
+}
+
+// viewBoxes is ViewBoxes, read once per search request (every call without
+// one reads the store).
+func (s *Server) viewBoxes(ctx context.Context, tenant string) ([]store.ViewBox, error) {
+	sb, ok := ctx.Value(searchBoxesKey{}).(*searchBoxes)
+	if !ok {
+		return s.o.Store.ViewBoxes(ctx, tenant)
+	}
+	sb.once.Do(func() { sb.boxes, sb.err = s.o.Store.ViewBoxes(ctx, tenant) })
+	return sb.boxes, sb.err
+}
+
 // boxEntities offers each box, or (robots) each agent on a box.
 func (s *Server) boxEntities(ctx context.Context, tenant string, ty search.Type, add entityAdd) error {
-	boxes, err := s.o.Store.ViewBoxes(ctx, tenant)
+	boxes, err := s.viewBoxes(ctx, tenant)
 	if err != nil {
 		return err
 	}

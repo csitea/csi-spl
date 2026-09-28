@@ -95,7 +95,7 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		{"GET /v1/view/roster", 2, get("/v1/view/roster")},
 		{"GET /v1/view/topics", 2, get("/v1/view/topics")},
 		{"GET /v1/view/topics/{lobby}", 5, get("/v1/view/topics/" + lobby)},
-		{"GET /v1/view/search?q=seed", 8, get("/v1/view/search?q=seed")},
+		{"GET /v1/view/search?q=seed", 7, get("/v1/view/search?q=seed")},
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
 		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},

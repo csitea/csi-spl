@@ -806,6 +806,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
+import { useIssueColumns } from '~/composables/useIssueColumns'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, saveColWidths, withColWidth } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
@@ -1101,12 +1102,18 @@ const sheetColumns = computed(() => [
 ])
 const serverSort = computed(() => hubSort(sheetSort.value))
 /* owner, topic beb4024f: resizable columns. A width set by dragging a
-   header's edge (or the arrow keys on it) is kept per browser; a column
-   with no width keeps the automatic layout. */
+   header's edge (or the arrow keys on it) is the PERSON's (SPL-1132: the
+   issues_columns claim kept on the hub, one PUT per gesture); signed out it
+   is kept per browser. A column with no width keeps the automatic layout.
+   colWidths is what the table draws: a drag writes it on every move, the
+   store only on release. */
+const issueCols = useIssueColumns({ load: loadColWidths, save: saveColWidths })
 const colWidths = ref<Record<string, number>>({})
+let colDragging = false
+watch(issueCols.widths, (w) => { if (!colDragging) colWidths.value = { ...w } })
 function setColWidth(col: string, px: number) {
   colWidths.value = withColWidth(colWidths.value, col, px)
-  saveColWidths(colWidths.value)
+  issueCols.save(colWidths.value)
 }
 function headerWidth(grip: EventTarget | null): number {
   const th = grip instanceof HTMLElement ? grip.closest('th') : null
@@ -1136,6 +1143,7 @@ function onGripDown(ev: PointerEvent, col: string) {
   const rtl = isRtl(grip)
   grip.setPointerCapture?.(ev.pointerId)
   grip.dataset.dragging = 'true'
+  colDragging = true
   const move = (e: PointerEvent) => {
     const w = dragWidth(startW, e.clientX - startX, rtl, col)
     if (w != null) colWidths.value = withColWidth(colWidths.value, col, w)
@@ -1145,7 +1153,8 @@ function onGripDown(ev: PointerEvent, col: string) {
     grip.removeEventListener('pointerup', end)
     grip.removeEventListener('pointercancel', end)
     delete grip.dataset.dragging
-    saveColWidths(colWidths.value)
+    colDragging = false
+    issueCols.save(colWidths.value)
   }
   grip.addEventListener('pointermove', move)
   grip.addEventListener('pointerup', end)
@@ -2054,7 +2063,7 @@ function onDocPointer(ev: Event) {
   if (deadlineEditKey.value && !inside('[data-deadline-edit="true"]')) deadlineEditKey.value = ''
 }
 onMounted(() => {
-  colWidths.value = loadColWidths()
+  colWidths.value = { ...issueCols.widths.value }
   try {
     const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
     if (Array.isArray(raw)) folded.value = raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))

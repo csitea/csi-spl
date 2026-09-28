@@ -12,6 +12,10 @@
 //   R6  a reload keeps the widths (per browser)
 //   R7  a double-click fits the column to its content; Delete on the grip
 //       gives the automatic width back
+//   R8  signed in, the widths are the person's (SPL-1132): the
+//       issues_columns claim sizes the sheet, one drag sends ONE PUT
+//       {"issues_columns": ...} after release, and the per-browser store is
+//       left alone
 //
 //   pnpm run test:e2e:issues-col-resize
 //   BASE_URL=<generated bundle> pnpm run test:e2e:issues-col-resize
@@ -173,6 +177,38 @@ try {
   await sleep(150)
   const back = { title: await widths(p, 'title'), stored: await p.evaluate(() => localStorage.getItem('spool.issues.colw')) }
   ok('R7 Delete on a grip gives the automatic width back (Title takes the rest again)', back.title.th > 300 && back.stored === '{}', { th: back.title.th, stored: back.stored })
+
+  /* R8: signed in, the claim is the source and a gesture is one PUT */
+  const puts = []
+  await p.setRequestInterception(true)
+  p.on('request', (req) => {
+    if (req.method() === 'PUT' && req.url().includes('/preferences')) {
+      puts.push(JSON.parse(req.postData() || '{}'))
+      return req.respond({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': new URL(server.base).origin, 'access-control-allow-credentials': 'true' }, body: req.postData() || '{}' })
+    }
+    return req.continue()
+  })
+  const stored0 = await p.evaluate(() => localStorage.getItem('spool.issues.colw'))
+  await p.evaluate(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    s.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', issues_columns: { status: 200 } })
+  })
+  await sleep(300)
+  const c0 = (await widths(p, 'status')).th
+  await drag(p, 'status', 60)
+  const moved = (await widths(p, 'status')).th
+  await sleep(900)
+  const r8 = {
+    c0, moved, puts,
+    claim: await p.evaluate(() => {
+      const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+      return { state: s.state, cols: JSON.parse(JSON.stringify(s.claims?.issues_columns ?? null)) }
+    }),
+    stored: await p.evaluate(() => localStorage.getItem('spool.issues.colw')),
+  }
+  ok('R8 signed in, the issues_columns claim sizes Status (200 px); a +60 drag is ONE PUT of issues_columns, the claim follows, localStorage untouched',
+    Math.abs(c0 - 200) <= 1 && Math.abs(moved - 260) <= 3 && puts.length === 1 && Math.abs((puts[0].issues_columns?.status ?? 0) - moved) <= 1 &&
+    Object.keys(puts[0]).length === 1 && r8.claim.state === 'in' && Math.abs((r8.claim.cols?.status ?? 0) - moved) <= 1 && r8.stored === stored0, r8)
 
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {

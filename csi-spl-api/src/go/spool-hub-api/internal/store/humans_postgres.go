@@ -25,59 +25,108 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 			return "", err
 		}
 	}
-	// Serialise concurrent first callbacks of one identity (one HUM-*, not two)
-	// and, when the address is provider-verified, of one ADDRESS too: the
-	// linking below reads other providers' rows, so two first callbacks of the
-	// same address must not both mint a human. The address lock is
-	// always taken first, so no two transactions take the pair in opposite
-	// orders and deadlock. The '@' prefix cannot collide with a provider slug
-	// (providerRe forbids it).
+	if err := lockIdentity(ctx, tx, id); err != nil {
+		return "", err
+	}
+	f, err := findHuman(ctx, tx, id)
+	if err != nil {
+		return "", err
+	}
+	if f.disabled {
+		return "", ErrNotAdmitted
+	}
+	if f.hum, err = recordIdentity(ctx, tx, id, f, now); err != nil {
+		return "", err
+	}
+	if tenant != "" {
+		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, p, now); err != nil {
+			return "", err // rollback: a refusal writes nothing
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return f.hum, nil
+}
+
+// lockIdentity serialises concurrent first callbacks of one identity (one
+// HUM-*, not two) and, when the address is provider-verified, of one ADDRESS
+// too: the linking in findHuman reads other providers' rows, so two first
+// callbacks of the same address must not both mint a human. The address lock
+// is always taken first, so no two transactions take the pair in opposite
+// orders and deadlock. The '@' prefix cannot collide with a provider slug
+// (providerRe forbids it).
+func lockIdentity(ctx context.Context, tx pgx.Tx, id Identity) error {
 	if id.Email != "" {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('@email|' || $1, 0))`,
 			id.Email); err != nil {
-			return "", err
+			return err
 		}
 	}
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || '|' || $2, 0))`,
-		id.Provider, id.Subject); err != nil {
-		return "", err
-	}
-	var hum string
-	var disabled bool
-	err = tx.QueryRow(ctx, `SELECT h.human_id, h.disabled_at IS NOT NULL FROM human_identities i
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || '|' || $2, 0))`,
+		id.Provider, id.Subject)
+	return err
+}
+
+// foundHuman is who an identity signs in as: known (the identity exists),
+// linked (a new identity joining the human of its verified address), or
+// neither (a new human is minted).
+type foundHuman struct {
+	hum                     string
+	disabled, known, linked bool
+}
+
+// findHuman looks the identity up, then (CLE-3451 defect 2) links a NEW
+// identity whose PROVIDER-VERIFIED address already belongs to a human to
+// that human instead of minting a second, unlinked one (which then finds no
+// invite, no bootstrap, and is refused 403 not_allowed). BOTH sides must be
+// verified, or this is an account takeover: id.Email is non-empty only when
+// the provider asserted email_verified (auth FR-004 - idp.go / oidc.go
+// refuse the sign-in otherwise), and the stored side must carry
+// email_verified = true.
+func findHuman(ctx context.Context, tx pgx.Tx, id Identity) (foundHuman, error) {
+	var f foundHuman
+	err := tx.QueryRow(ctx, `SELECT h.human_id, h.disabled_at IS NOT NULL FROM human_identities i
 		JOIN humans h ON h.human_id = i.human_id WHERE i.provider = $1 AND i.subject = $2`,
-		id.Provider, id.Subject).Scan(&hum, &disabled)
-	known := err == nil
+		id.Provider, id.Subject).Scan(&f.hum, &f.disabled)
+	f.known = err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return "", err
+		return f, err
 	}
-	// CLE-3451 defect 2: a NEW identity whose PROVIDER-VERIFIED address already
-	// belongs to a human joins that human instead of minting a second, unlinked
-	// one (which then finds no invite, no bootstrap, and is refused 403
-	// not_allowed). BOTH sides must be verified, or this is an account
-	// takeover: id.Email is non-empty only when the provider asserted
-	// email_verified (auth FR-004 - idp.go / oidc.go refuse the sign-in
-	// otherwise), and the stored side must carry email_verified = true.
-	linked := false
-	if !known && id.Email != "" {
-		var lhum string
-		var ldisabled bool
-		err := tx.QueryRow(ctx, `SELECT i.human_id, h.disabled_at IS NOT NULL
-			FROM human_identities i JOIN humans h ON h.human_id = i.human_id
-			WHERE i.email = $1 AND i.email_verified
-			ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, id.Email).Scan(&lhum, &ldisabled)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if f.known || id.Email == "" {
+		return f, nil
+	}
+	var lhum string
+	var ldisabled bool
+	err = tx.QueryRow(ctx, `SELECT i.human_id, h.disabled_at IS NOT NULL
+		FROM human_identities i JOIN humans h ON h.human_id = i.human_id
+		WHERE i.email = $1 AND i.email_verified
+		ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, id.Email).Scan(&lhum, &ldisabled)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return f, err
+	}
+	if err == nil {
+		f.hum, f.disabled, f.linked = lhum, ldisabled, true
+	}
+	return f, nil
+}
+
+// recordIdentity mints the human when neither known nor linked, inserts a
+// new identity or stamps a known one's login, and for an existing human
+// refreshes the address. The IdP name only seeds an empty display_name:
+// once the human has one (their own, set in Settings) a sign-in keeps it.
+// It answers the human id.
+func recordIdentity(ctx context.Context, tx pgx.Tx, id Identity, f foundHuman, now time.Time) (string, error) {
+	hum := f.hum
+	switch {
+	case f.known:
+		if _, err := tx.Exec(ctx, `UPDATE human_identities SET last_login_at = $3,
+			email = COALESCE(NULLIF($4, ''), email), email_verified = email_verified OR $4 <> ''
+			WHERE provider = $1 AND subject = $2`, id.Provider, id.Subject, now, id.Email); err != nil {
 			return "", err
 		}
-		if err == nil {
-			hum, disabled, linked = lhum, ldisabled, true
-		}
-	}
-	if disabled {
-		return "", ErrNotAdmitted
-	}
-	if !known {
-		if !linked {
+	default:
+		if !f.linked {
 			if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
 				VALUES (NULLIF($1, ''), NULLIF($2, ''), $3) RETURNING human_id`,
 				id.Name, id.Email, now).Scan(&hum); err != nil {
@@ -90,29 +139,13 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 			id.Provider, id.Subject, hum, id.Email, now); err != nil {
 			return "", err
 		}
-	} else {
-		if _, err := tx.Exec(ctx, `UPDATE human_identities SET last_login_at = $3,
-			email = COALESCE(NULLIF($4, ''), email), email_verified = email_verified OR $4 <> ''
-			WHERE provider = $1 AND subject = $2`, id.Provider, id.Subject, now, id.Email); err != nil {
-			return "", err
-		}
 	}
-	if known || linked {
-		// The IdP name only seeds an empty display_name: once the human has
-		// one (their own, set in Settings) a sign-in keeps it.
+	if f.known || f.linked {
 		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
 			display_name = COALESCE(display_name, NULLIF($3, '')) WHERE human_id = $1`,
 			hum, id.Email, id.Name); err != nil {
 			return "", err
 		}
-	}
-	if tenant != "" {
-		if err := s.admitTx(ctx, tx, hum, id.Email, tenant, p, now); err != nil {
-			return "", err // rollback: a refusal writes nothing
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
 	}
 	return hum, nil
 }

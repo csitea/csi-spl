@@ -28,7 +28,6 @@ var longFuncs = map[string]bool{
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler":                    true,
 	"internal/store/channels_postgres.go (*Postgres).ViewChannelStats":   true,
 	"internal/store/humans_postgres.go (*Postgres).Admit":                true,
-	"internal/store/payments_postgres.go (*Postgres).ApplyPayment":       true,
 	"internal/store/view_postgres.go (*Postgres).ViewTopic":              true,
 	"internal/store/view_postgres.go viewTopicsSQL":                      true,
 	"internal/store/view_topics_batch.go (*Postgres).ViewTopicsMessages": true,

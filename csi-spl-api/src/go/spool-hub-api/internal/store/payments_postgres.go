@@ -111,89 +111,96 @@ func (s *Postgres) CheckoutByProviderRef(ctx context.Context, provider, ref stri
 func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (string, error) {
 	defer s.hot.forget() // creates / reactivates / refunds a tenant row
 	var outcome string
-	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `INSERT INTO webhook_events_seen (provider, event_id, received_at)
-			VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, ev.Provider, ev.EventID, now)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			outcome = PayOutcomeDuplicate
-			return nil
-		}
-		if ev.Kind == PayEventIgnore {
-			outcome = PayOutcomeIgnored
-			return nil
-		}
-		c, err := scanCheckout(tx.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
-			WHERE intent_id = $1 FOR UPDATE`, ev.CheckoutID))
-		if errors.Is(err, ErrNotFound) {
-			outcome = PayOutcomeNoMatch
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		switch ev.Kind {
-		case PayEventPaid:
-			if c.Status == CheckoutPaid {
-				outcome = PayOutcomeAlreadyPaid
-				return nil
-			}
-			tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
-				VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
-				c.TenantID, []byte(c.RootPubKey), billing.StatusActive, c.PlanID)
-			if err != nil {
-				return err
-			}
-			if tag.RowsAffected() == 0 {
-				var root []byte
-				if err := tx.QueryRow(ctx, `SELECT root_pubkey FROM tenants WHERE tenant_id = $1 FOR UPDATE`,
-					c.TenantID).Scan(&root); err != nil {
-					return err
-				}
-				if !bytes.Equal(root, c.RootPubKey) {
-					outcome = PayOutcomeConflict
-					return nil
-				}
-				if _, err := tx.Exec(ctx, `UPDATE tenants SET billing_status = $2 WHERE tenant_id = $1`,
-					c.TenantID, billing.StatusActive); err != nil {
-					return err
-				}
-			}
-			if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET status = 'paid', paid_at = $2
-				WHERE intent_id = $1`, c.ID, now); err != nil {
-				return err
-			}
-			if err := applySeatsTx(ctx, tx, c, ev.Env, now); err != nil {
-				return err
-			}
-			outcome = PayOutcomePaid
-		case PayEventFailed:
-			if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET status = 'failed'
-				WHERE intent_id = $1 AND status = 'pending'`, c.ID); err != nil {
-				return err
-			}
-			outcome = PayOutcomeFailed
-		case PayEventRefund, PayEventCancel:
-			status, err := billing.MapEvent(ev.Kind)
-			if err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `UPDATE tenants SET billing_status = $3
-				WHERE tenant_id = $1 AND root_pubkey = $2`, c.TenantID, []byte(c.RootPubKey), status); err != nil {
-				return err
-			}
-			outcome = PayOutcomeRefund
-		default:
-			return errUnknownPayEvent(ev.Kind)
-		}
-		return nil
+	err := s.asOperator(ctx, func(tx pgx.Tx) (err error) {
+		outcome, err = applyPaymentTx(ctx, tx, ev, now)
+		return err
 	})
 	if err != nil {
 		return "", err
 	}
 	return outcome, nil
+}
+
+// applyPaymentTx records the event id once (a replay is a duplicate), finds
+// the checkout it names and applies the event to it.
+func applyPaymentTx(ctx context.Context, tx pgx.Tx, ev PaymentEvent, now time.Time) (string, error) {
+	tag, err := tx.Exec(ctx, `INSERT INTO webhook_events_seen (provider, event_id, received_at)
+		VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, ev.Provider, ev.EventID, now)
+	if err != nil {
+		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		return PayOutcomeDuplicate, nil
+	}
+	if ev.Kind == PayEventIgnore {
+		return PayOutcomeIgnored, nil
+	}
+	c, err := scanCheckout(tx.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
+		WHERE intent_id = $1 FOR UPDATE`, ev.CheckoutID))
+	if errors.Is(err, ErrNotFound) {
+		return PayOutcomeNoMatch, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	switch ev.Kind {
+	case PayEventPaid:
+		return paidTx(ctx, tx, c, ev, now)
+	case PayEventFailed:
+		if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET status = 'failed'
+			WHERE intent_id = $1 AND status = 'pending'`, c.ID); err != nil {
+			return "", err
+		}
+		return PayOutcomeFailed, nil
+	case PayEventRefund, PayEventCancel:
+		status, err := billing.MapEvent(ev.Kind)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE tenants SET billing_status = $3
+			WHERE tenant_id = $1 AND root_pubkey = $2`, c.TenantID, []byte(c.RootPubKey), status); err != nil {
+			return "", err
+		}
+		return PayOutcomeRefund, nil
+	}
+	return "", errUnknownPayEvent(ev.Kind)
+}
+
+// paidTx creates the tenant active, or re-activates the row that already
+// exists with the checkout's own root key (another key is a conflict), marks
+// the checkout paid and applies its seats.
+func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now time.Time) (string, error) {
+	if c.Status == CheckoutPaid {
+		return PayOutcomeAlreadyPaid, nil
+	}
+	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
+		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
+		c.TenantID, []byte(c.RootPubKey), billing.StatusActive, c.PlanID)
+	if err != nil {
+		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		var root []byte
+		if err := tx.QueryRow(ctx, `SELECT root_pubkey FROM tenants WHERE tenant_id = $1 FOR UPDATE`,
+			c.TenantID).Scan(&root); err != nil {
+			return "", err
+		}
+		if !bytes.Equal(root, c.RootPubKey) {
+			return PayOutcomeConflict, nil
+		}
+		if _, err := tx.Exec(ctx, `UPDATE tenants SET billing_status = $2 WHERE tenant_id = $1`,
+			c.TenantID, billing.StatusActive); err != nil {
+			return "", err
+		}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET status = 'paid', paid_at = $2
+		WHERE intent_id = $1`, c.ID, now); err != nil {
+		return "", err
+	}
+	if err := applySeatsTx(ctx, tx, c, ev.Env, now); err != nil {
+		return "", err
+	}
+	return PayOutcomePaid, nil
 }
 
 func (s *Postgres) SetClaimLink(ctx context.Context, id string, mailClaimHash []byte, expires time.Time) error {

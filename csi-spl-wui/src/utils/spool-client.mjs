@@ -1,7 +1,6 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
-import { joinBodies } from './msg-menu.mjs'
 import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
 import {
@@ -1077,25 +1076,8 @@ export function createSpoolClient({
       const src = String(msgId || '')
       const into = String(intoId || '')
       if (!src || !into || src === into) throw Object.assign(new Error('two message ids required'), { status: 400, token: 'bad_json' })
-      if (mock) {
-        const refuse = (status, token) => { throw Object.assign(new Error(token), { status, token }) }
-        const a = state.messages.find((m) => m.msg_id === src)
-        const b = state.messages.find((m) => m.msg_id === into)
-        if (!a || !b) refuse(404, 'not_found')
-        if (a.task_id !== b.task_id) refuse(409, 'not_same_thread')
-        if (a.from !== b.from) refuse(409, 'not_same_author')
-        if (a.from !== state.me.id) refuse(403, 'not_allowed')
-        if (a.from_box !== state.me.box || b.from_box !== state.me.box) refuse(409, 'not_editable')
-        if (state.messages.some((m) => m.task_id === src && m.msg_id !== src)) refuse(409, 'has_replies')
-        const at = (m) => String(m.received_at || m.ts || '')
-        const aFirst = at(a) < at(b) || (at(a) === at(b) && a.msg_id < b.msg_id)
-        b.body = aFirst ? joinBodies(a.body, b.body) : joinBodies(b.body, a.body)
-        b.edited_at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
-        b.edited_by = state.me.id
-        b.revision = (Number(b.revision) || 1) + 1
-        state.messages.splice(state.messages.indexOf(a), 1)
-        return { ...b, merged_from: src }
-      }
+      /* the mock's rules load on use: they are not first-paint code (specs/027) */
+      if (mock) return (await import('./mock-merge.mjs')).mockMerge(state, src, into)
       const data = await live(`/v1/messages/${encodeURIComponent(src)}/merge`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

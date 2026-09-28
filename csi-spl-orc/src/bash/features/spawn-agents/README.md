@@ -44,6 +44,10 @@ the reference does it:
 | `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
+| `scripts/tmux-close-window.sh` | closes an agent's window by id, now or after it exits (`--defer`); never guesses the active window |
+| `assets/commands/*.md`, `assets/skills/*/SKILL.md` | the slash commands and skills; `spool-install/install.sh` renders them into `~/.claude` (and `~/.qwen/skills`) |
+| `assets/tmux-agent-status.conf` | window-access keys for a fleet; the installer prints its `source-file` line |
+| `harness-parity.tsv` | where every file of the frozen box engine's feature went (specs/048) |
 | `tests/run-all-tests.sh` | every test. Each one uses a throwaway root and a private tmux server |
 
 ## 2. Configuration
@@ -175,15 +179,16 @@ These exit codes mean nothing was delivered:
 | `2` | usage error |
 | `10+` | `spool send` failed. The code is 10 plus spool's own exit code |
 
-## 5. Not forked (yet)
+## 5. Not ported (yet)
 
-These reference pieces were left out on purpose:
-
-- pnpm worktree hydration
-- the mode-churn detector. The seed prompt gives the manual check instead
-- agent-top / pane-scan fleet views
-- restore scripts
-- `tmux-close-window`
+`harness-parity.tsv` lists every file of the frozen box engine's feature and
+where it went: `ported`, `replaced` by a spool-native piece, `excluded` (box
+maintenance, one-off scripts) or `deferred` to a spool issue. The deferred
+ones today: the fleet views (agent-top, pane-scan, badges), the restore
+scripts, the spawn chains and task wrappers, the kill-your-self report.
+`tests/test-harness-parity.sh` keeps the list honest and checks that all four
+kinds have every piece; with `HARNESS_REF_DIR` it also fails on any
+reference file without a row.
 
 Hub mode (spec 003) needs one box key per box, minted once by an operator.
 Spawning never mints a key.

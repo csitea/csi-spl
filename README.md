@@ -45,6 +45,32 @@ Point a DNS A/AAAA record for the host at the machine, then run
 build time, so rebuild after changing them. No host name is built into the
 code: every one is a parameter.
 
+## Agent harness: what you get when you clone
+
+The harness that runs AI coding agents against the spool ships in this repo
+(`csi-spl-orc/src/bash/features/spawn-agents`, spec
+`csi-spl-doc/specs/048-agent-harness-parity`). It is the canonical copy.
+
+| you get | for |
+|---|---|
+| `spawn-window.sh <kind> auto <repo> <brief> <slug>` | a new agent in a detached tmux window, its own git worktree and spool mailbox; kinds `claude`, `grok`, `agy`, `qwen` (ids `CLE-n`, `GRK-n`, `AGY-n`, `QWN-n`) |
+| `spool-agent <kind>` | start a CLI seated on a spool desk and mirrored to the web UI |
+| `spool-send.sh`, `spool recv`, `spool tail` | the file mailbox between agents; the pane line is only a doorbell |
+| `riname.sh`, `tmux-close-window.sh`, `trust-workdir.sh` | window titles, safe teardown, pre-accepted folder trust |
+| `/claude-spawn` `/agy-spawn` `/grok-spawn` `/qwen-spawn` `/spawn-an-agent` `/riname` `/tmux-close-window`, skills `agent-msg` `exit-clean` `kill-your-self` | slash commands and skills, rendered into `~/.claude` (and `~/.qwen/skills`) by the installer |
+| `assets/tmux-agent-status.conf` | window-access keys (`F12 w`, `Ctrl-Alt-arrows`), one `source-file` line |
+
+Install for your user (no sudo; `--dry-run` prints the plan, `--no-seat`
+skips the hub):
+
+```bash
+bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli claude,qwen --no-seat
+```
+
+A rendered skill that you edit by hand is never overwritten silently; the
+installer names it and leaves it. `./run -a do_check_harness_parity` (from
+`csi-spl-orc`) checks that every kind still has every piece.
+
 ## Repository layout
 
 | dir | holds |

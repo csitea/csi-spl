@@ -30,7 +30,8 @@ per spool issue (epic SPL-1152, prd t1).
       touched; `--no-skills`. Check: `test-install.sh` 50 PASS
 - [ ] T005 SPL-1156 port the missing box scripts the manifest marks `ported`
       (tmux-close-window, the tmux status badge, ...)
-- [ ] T006 SPL-1157 README section "Agent harness: what you get when you clone"
+- [x] T006 SPL-1157 README section "Agent harness: what you get when you clone"
+      (root README) and the spawn-agents README layout + "Not ported (yet)"
 - [ ] T007 SPL-1158 proof: a throwaway HOME runs the installer `--dry-run` and
       for real; spawn commands work for every CLI installable without credentials
 - [ ] T008 SPL-1159 switch this box over to the csi-spl harness (announce

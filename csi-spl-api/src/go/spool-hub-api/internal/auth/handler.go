@@ -1043,13 +1043,9 @@ func digest(s string) string {
 	return hex.EncodeToString(sum[:6])
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) //nolint:errcheck
-}
+func writeJSON(w http.ResponseWriter, status int, v any) { wire.WriteJSON(w, status, v) }
 
 // writeErr uses the hub's shared error envelope (003 contracts/http-v1.md).
 func writeErr(w http.ResponseWriter, status int, token, detail string) {
-	writeJSON(w, status, wire.ErrorBody{Error: token, Detail: detail})
+	wire.WriteError(w, status, token, detail)
 }

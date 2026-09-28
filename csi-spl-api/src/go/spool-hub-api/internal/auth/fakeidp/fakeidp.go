@@ -23,7 +23,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -34,6 +33,7 @@ import (
 	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // Client is one registered app at the fake provider.
@@ -279,8 +279,4 @@ func (f *IdP) validToken(tok, prov string) bool {
 	return tok != "" && f.tokens[tok] == prov
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) //nolint:errcheck
-}
+func writeJSON(w http.ResponseWriter, status int, v any) { wire.WriteJSON(w, status, v) }

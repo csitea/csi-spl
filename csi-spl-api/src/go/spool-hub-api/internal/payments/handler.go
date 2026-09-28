@@ -787,12 +787,10 @@ func TenantPaid(to, locale, tenantID, tenantURL, claimLink string, ttl time.Dura
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) //nolint:errcheck
+	wire.WriteJSON(w, status, v)
 }
 
 func writeErr(w http.ResponseWriter, status int, token, detail string) {
-	writeJSON(w, status, wire.ErrorBody{Error: token, Detail: detail})
+	wire.WriteError(w, status, token, detail)
 }

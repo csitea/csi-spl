@@ -9,7 +9,6 @@
 package edge
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"strconv"
@@ -217,10 +216,8 @@ func (g *Guard) release(ip string) {
 // never the address (Constitution VII: no caller identity in logs).
 func (g *Guard) refuse(w http.ResponseWriter, retry time.Duration, bucket, path string) {
 	w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(http.StatusTooManyRequests)
-	json.NewEncoder(w).Encode(wire.ErrorBody{Error: TokenLimited, Detail: bucket}) //nolint:errcheck
+	wire.WriteError(w, http.StatusTooManyRequests, TokenLimited, bucket)
 	g.log.Warn().Str("bucket", bucket).Str("path", path).Msg("edge.rate_limited")
 }
 
@@ -237,9 +234,8 @@ func (g *Guard) Probe(w http.ResponseWriter, r *http.Request) {
 	if xff == nil {
 		xff = []string{}
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+	wire.WriteJSON(w, http.StatusOK, map[string]any{
 		"peer": peer, "x_forwarded_for": xff, "trusted_proxy_hops": g.l.TrustedProxyHops,
 		"client_ip": g.ClientIP(r),
 	})

@@ -12,7 +12,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -449,14 +448,10 @@ func (s *Server) skewOK(ts string) bool {
 	return d <= s.o.HelloSkew && d >= -s.o.HelloSkew
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) //nolint:errcheck
-}
+func writeJSON(w http.ResponseWriter, status int, v any) { wire.WriteJSON(w, status, v) }
 
 func writeErr(w http.ResponseWriter, status int, token, detail string) {
-	writeJSON(w, status, wire.ErrorBody{Error: token, Detail: detail})
+	wire.WriteError(w, status, token, detail)
 }
 
 func writeUnpaid(w http.ResponseWriter) {

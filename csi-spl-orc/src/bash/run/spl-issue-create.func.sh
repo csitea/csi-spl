@@ -29,7 +29,7 @@ do_spl_issue_create() {
     { do_log "FATAL ISSUE_EPIC must name the epic / feature above it (or ISSUE_PARENT a level-2 issue), or ISSUE_KIND=epic|feature"; return 1; }
   spl_issue_check_fields || return 1
   local args=()
-  mapfile -t args < <(spl_issue_field_args)
+  mapfile -d '' -t args < <(spl_issue_field_args)
   spl_desk_issue create "${args[@]}" || return 1
   [[ "${DRY_RUN:-1}" == 0 ]] && do_log "OK ${DESK_AGENT} filed an issue in ${TENANT_ID}"
   return 0

@@ -52,13 +52,16 @@ EOF_PY
 }
 
 # spl_issue_field_args: the create / update flags for every ISSUE_* variable
-# that is SET (an empty value clears on update), one per line pair.
+# that is SET (an empty value clears on update), each flag and value
+# NUL-terminated: read it with `mapfile -d '' -t`. A newline-delimited stream
+# split a multi-line ISSUE_DESCRIPTION into several argv words and spool's flag
+# parser dropped every flag after it (SPL-1130).
 spl_issue_field_args() {
   local v flag
   for v in TITLE:title DESCRIPTION:description STATUS:status PRIORITY:priority LEVEL:level \
            ASSIGNEE:assignee LABELS:labels DEADLINE:deadline PARENT:parent EPIC:epic KIND:kind DESCRIPTION_FILE:description-file; do
     flag="${v#*:}"; v="ISSUE_${v%%:*}"
-    [[ -n "${!v+x}" ]] && printf -- '--%s\n%s\n' "$flag" "${!v}"
+    [[ -n "${!v+x}" ]] && printf -- '--%s\0%s\0' "$flag" "${!v}"
   done
   return 0
 }

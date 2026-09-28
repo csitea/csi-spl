@@ -441,6 +441,20 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   ISSUE_REF=SPL-7 ISSUE_STATUS=in_progress ISSUE_ASSIGNEE= DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|update|--as|CLE-00|--ref|SPL-7|--status|in_progress|--assignee||' &&
   pass "do_spl_issue_update sends only the SET fields; an empty one clears" || fail "update (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+# SPL-1130: a multi-line description stays ONE argv word, and the flags after it
+# still reach spool (a newline-delimited stream dropped --priority and --epic).
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE=t ISSUE_DESCRIPTION=$'line1\n\nline2' ISSUE_PRIORITY=1 ISSUE_EPIC=SPL-10 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == $'issue|create|--as|CLE-00|--title|t|--description|line1\n\nline2|--priority|1|--epic|SPL-10|' ]] &&
+  pass "do_spl_issue_create keeps a multi-line description whole and the flags after it" ||
+  fail "multi-line create (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_DESCRIPTION=$'a\n\nb\n' ISSUE_STATUS=wip DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == $'issue|update|--as|CLE-00|--ref|SPL-7|--description|a\n\nb\n|--status|wip|' ]] &&
+  pass "do_spl_issue_update keeps a multi-line description (trailing newline too) and the flags after it" ||
+  fail "multi-line update (rc=$rc): $out / $(cat "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_BODY='dev done; prd next' DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|comment|--as|CLE-00|--ref|SPL-7|--body|dev done; prd next|' &&

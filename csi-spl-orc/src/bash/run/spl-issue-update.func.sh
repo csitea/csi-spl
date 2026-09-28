@@ -19,7 +19,7 @@ do_spl_issue_update() {
   spl_issue_check_ref || return 1
   spl_issue_check_fields || return 1
   local args=()
-  mapfile -t args < <(spl_issue_field_args)
+  mapfile -d '' -t args < <(spl_issue_field_args)
   (( ${#args[@]} )) || { do_log "FATAL set at least one ISSUE_* field to change"; return 1; }
   spl_desk_issue update --ref "$ISSUE_REF" "${args[@]}" || return 1
   [[ "${DRY_RUN:-1}" == 0 ]] && do_log "OK ${DESK_AGENT} updated $ISSUE_REF"

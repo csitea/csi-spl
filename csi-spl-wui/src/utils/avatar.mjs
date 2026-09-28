@@ -120,8 +120,21 @@ export function avatarSvg(id, box) {
   return isHuman(id) ? identiconSvg(key) : robotSvg(key)
 }
 
+/* The generated picture is a pure function of id@box, and every card draws
+   two: remember the few hundred a tab sees instead of rebuilding the SVG and
+   URI-encoding it per mount (CLE-35075). Bounded: cleared when full. */
+const avatarUris = new Map()
+const AVATAR_URI_MAX = 1000
+
 export function avatarDataUri(id, box) {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(id, box))}`
+  const key = String(id || '') + '\n' + String(box || '')
+  let uri = avatarUris.get(key)
+  if (uri === undefined) {
+    uri = `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(id, box))}`
+    if (avatarUris.size >= AVATAR_URI_MAX) avatarUris.clear()
+    avatarUris.set(key, uri)
+  }
+  return uri
 }
 
 /*

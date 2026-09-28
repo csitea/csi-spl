@@ -392,9 +392,9 @@ Not measured: tickets per tenant (there are no external customers yet).
 | W7 | Mail preflight at hub start in prd mode (log a loud error, or refuse to start) | blocker 9 | S | api | a dead relay is visible at `up` |
 | W8 | Drop the unused `BITBUCKET_APP_PASSWORD` demand | G7 | XS | orc | `grep -c BITBUCKET setup-app-inf.func.mk` -> 0 |
 | W9 | hub-init refuses the public default DB passwords when the site is not localhost (O2) | 4.7.1 | XS | api | `up` with defaults on a domain fails loudly |
-| W10 | A `stable` release tag cut weekly from trunk, with generated release notes (O5) | 4.5 | S | CI | a self-hoster can pin a release and read what changed |
+| W10 | A `stable` release tag cut weekly from trunk, with generated release notes (O5); the benchmark shape is Mattermost's monthly releases with security backports to the last 3 ([release policy](https://docs.mattermost.com/product-overview/release-policy.html)) | 4.5 | S | CI | a self-hoster can pin a release and read what changed |
 | W11 | Owner cost call: dev hub at 0.5 vCPU or scale-to-zero (O3) | 4.2 | XS | iac (tf 030, owner go) | ~$20-45/month saved (estimate) |
-| W12 | "Connect an agent" empty state in Tenant settings -> Agents with the exact lines to paste, including `claude mcp add` and a Cursor `mcp.json` (Q1; B2 replaces it later) | U2, U3 | S | WUI + docs | a biz_owner has an agent answering in #lobby within 10 min, from the WUI + one pasted block |
+| W12 | "Connect an agent" empty state in Tenant settings -> Agents with the exact lines to paste, including `claude mcp add` and a Cursor `mcp.json` (Q1; B2 replaces it later). Ships in the same batch as W1, so a paid buyer can also seat an agent | U2, U3 | S | WUI + docs | a biz_owner has an agent answering in #lobby within 10 min, from the WUI + one pasted block |
 | W13 | Invite answers `mail: "logged"` when nothing was delivered; the pane gets "copy invite link" (Q2) | U4 | S | api + WUI | no false "sent" |
 | W14 | A Help entry in the WUI serving `doc/help`, with the host fixed; an uninvited sign-in says "ask your admin for an invite" (Q3 + U5) | U5, U7 | S | WUI + docs | help reachable in 1 click |
 | W15 | A first-run checklist for a biz_owner (Q4) | U7 | S-M | WUI | first sign-in shows the next 3 steps |
@@ -409,7 +409,8 @@ Not measured: tickets per tenant (there are no external customers yet).
 | B1 | Publish hub + web images (GHCR) per release tag; move pg-init into hub-init so the compose file needs no repo checkout; the WUI reads the public URL at runtime | M (1-2 wk) | api + WUI + CI | `curl compose.yml && docker compose up -d` healthy < 2 min |
 | B2 | Agent join tokens: a tenant admin mints a short-lived token in Tenant settings; `spool-agent join <url> <token>` seats the box; the root key stays offline | M-L | api + WUI + orc | an agent is seated from the WUI in < 1 min |
 | B3 | Prebuilt `spool` CLI binaries (release assets), so the installer needs no Go build | S-M | CI | install.sh without a toolchain |
-| B4 | Recurring billing (Stripe subscriptions), grace period, VAT/invoices, terms; then quotas (006 T012a) + an invite/verify mail rate limit; only then a trial (the trial costs ~nothing per tenant; it risks mail/storage abuse and the single-instance ceiling, 4.3) | M-L | hub payments + WUI | renewal, cancel, and grace proven on dev |
+| B4a | A capped free tenant, no card, gated on quotas (006 T012a) + an invite/verify mail rate limit (4.2: it costs ~nothing per tenant; it risks mail/storage abuse and the single-instance ceiling, 4.3) | M | hub + WUI | a team starts free with no card; caps enforced on dev |
+| B4b | Recurring per-user billing (Stripe subscriptions), grace period, VAT/invoices, terms | M-L | hub payments + WUI | renewal, cancel and grace proven on dev |
 | B5 | Paid -> tenant host automatic (revive workflow 40, or drop per-tenant hosts for tenant-from-identity) | M | iac/orc | `host_status` reaches `ready` with 0 operator actions |
 | B7 | Estate recovery: T077 off-project dump copy, T078 restore-into-new-instance action, T079 timed drill (O4 + big) | M | iac/orc | RTO measured, not estimated |
 | B8 | Before any paid SLA: REGIONAL Cloud SQL, >= 2 hub instances with the WS fan-out proven, an uptime check with a monthly number (O6) | M-L | iac + api | a measured availability figure |
@@ -418,7 +419,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 ### 5.3 Success metrics for SPL-57
 
 1. Stranger (compose, own domain) to first **human** message: **< 5 min** on a fresh VM with prebuilt images (section 3.3), by the README only.
-2. Stranger to first **agent** message on their own hub: **< 15 min**, 0 undocumented steps.
+2. Stranger to first **agent** message on their own hub: **< 10 min**, 0 undocumented steps.
 3. Buyer to first message on spool-hub.ai: **< 5 min, 0 operator actions**.
 4. A biz_owner has an agent answering in #lobby within **10 min, from the WUI alone** (CLE-35084).
 5. A stranger test (fresh clone, fresh VM) re-run by an agent on every release, with the numbers posted.
@@ -429,8 +430,8 @@ Not measured: tickets per tenant (there are no external customers yet).
 |---|---|---|
 | D1 | A paid tenant seats the buyer as owner automatically (W1)? | **yes** |
 | D2 | Is "self-host on your own GCP with our terraform" a product? | **no, not now**: compose on any VM (GCE included) is the supported self-host; the GCP estate stays Csitea's operation; byo-GCP stays "later" as `SPEC-spool-byo-gcp.md` already says |
-| D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing |
-| D4 | Publish images to GHCR under the org (B1)? | yes: spool is the only one of the 4 measured self-host peers without a prebuilt image (3.1) |
-| D5 | Billing: stay one-off 20 EUR, or move to a subscription (per user or per tenant, per month) before a capped free tier? | subscription first, then the trial: the prd bill is fixed (~$62/month, estimate, 4.2) and a one-off 20 EUR covers a tenant's share for about three months |
+| D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing. A refund does not return Stripe's fee, and it runs on csi-rel's shared live account, so it shows in that dashboard (CLE-35079) |
+| D4 | Publish images to GHCR under the org (B1)? | yes: spool is the only one of the 3 measured self-host peers without a prebuilt image (3.1; Zulip from vendor docs) |
+| D5 | Billing, two independent calls: (a) a capped free tenant with no card (B4a)? (b) replace the one-off 20 EUR with a recurring price (B4b), per user or per tenant? | (a) **yes**: every hosted peer has one (3.2). (b) **yes, per user per month**, as all peers do ($3.50-16, 3.2): at Zulip Cloud's $6.67, ~10 paying users cover the ~$62/month prd bill (estimate, 4.2) |
 | D6 | Order: Wave 1 now (W1-W18 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
 | D7 | Cut the dev hub cost (~$20-45/month, estimate; W11)? | **yes, 0.5 vCPU first**: scale-to-zero would likely break the desk sidecars' WS on dev (CLE-35085's judgement, not measured) |

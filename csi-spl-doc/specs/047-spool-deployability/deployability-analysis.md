@@ -171,20 +171,76 @@ Rank = how many would-be users it stops x how cheap it is to remove.
 | 9 | No SMTP preflight: the prd profile starts green with a dead relay | A | medium | S | hub healthy with `SMTP_HOST=smtp.example.org` |
 | 10 | No recurring billing, VAT, invoices or terms | B | high (business): a fixed ~$62/month prd bill vs a one-off 20 EUR per tenant (4.2) | M | CLE-35079 B5/B7 |
 | 11 | The GCP estate is not reusable (G1-G7) | A (GCP) | high, but see decision D2 | L | section 1.2 |
+| 12 | On a public domain the first verified sign-up becomes owner: whoever reaches a new instance first owns it | A | high (security) | S | `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "true"` in `docker-compose.yml`; section 3.3 |
 
-## 3. Benchmark targets (AGY-3510)
+## 3. Benchmark targets (CLE-35086, replacing AGY-3510)
 
-The peer figures below were reported from product docs by AGY-3510 and were
-**not re-measured here**.
+AGY-3510's figures were not sourced, so they are replaced here. Each peer
+number below is either **measured** on the box with `docker run` (a cold pull,
+then start until HTTP 200, then `docker stats --no-stream` after 90 s idle on an
+empty instance, n = 1, load average ~48), or **quoted** from the vendor's own
+page on 2026-09-28. The spool column is section 1.1.
 
-| metric | spool today (measured here) | benchmark | target |
+### 3.1 Self-hosted peers, measured
+
+| product | pull | start to HTTP 200 | idle RAM | image | domain change | first admin |
+|---|---|---|---|---|---|---|
+| Gitea 1.24 (SQLite) | 16.6 s | 3.0 s | 162 MiB | 259 MB | env var + restart | install wizard |
+| Mattermost Team 10.11 + pg 16 | 71.8 s | 23.2 s | 323 MiB | 1.22 GB | env var + restart | first sign-up = admin |
+| Rocket.Chat 7.10.0 + mongo 6 (replica set) | 275 s | 84.0 s | 772 MiB | 3.22 GB | env var + restart | 4-step wizard |
+| **spool v1.9.2** | build 241 s | 19 s | **~110 MiB** | 79.5 + 98.1 MB | **rebuild** | first verified sign-up = owner |
+| Zulip (vendor, not run) | tarball + install script | "a few minutes" | vendor minimum 2 GB + 2 GB swap | apt | `--hostname` at install | one-time org-creation link printed by the installer |
+
+Vendor sizing (under load, not idle): Mattermost 1 vCPU / 2 GB for up to 1000
+users; Rocket.Chat Starter 2 vCPU / 4 GiB plus a 3-member Mongo replica set of
+2 vCPU / 4 GiB each; Zulip 2 GB + swap.
+
+Spool is the lightest of the five and starts faster than Mattermost and
+Rocket.Chat. It is the **only** one without a prebuilt image and the **only**
+one that needs a rebuild to change its public URL (`SPOOL_PUBLIC_URL` is a build
+`arg` of `web` in `docker-compose.yml`).
+
+### 3.2 Hosted and paid peers, vendor pages
+
+| product | free tier | paid, per user / month | card before first use |
 |---|---|---|---|
-| self-host: clone/pull to healthy | 268 s (8 + 241 + 19) | Gitea `docker run` < 1 min | **< 2 min** with prebuilt images |
-| self-host: stranger to first message | 6 min 26 s | Mattermost 3-5 min | **< 10 min** on a fresh VM with own domain + TLS |
-| self-host idle RAM | ~110 MiB | Gitea ~80 MB, Mattermost/Zulip 2-4 GB | **keep < 200 MiB** |
-| domain change | a rebuild | an env var + restart | **0 rebuilds** |
-| agent seated on own hub | 5 manual CLI steps | Slack bot install ~30 s | **one pasted line** |
-| hosted: pay to first message | unbounded (operator) | Slack/Linear < 90 s, no card | **< 5 min, 0 operator actions** |
+| Slack | 90 days of history | Pro €6.75 yearly / €8.25 monthly | no |
+| Linear | 250 issues, 2 teams, unlimited members | Basic $10, Business $16 (yearly) | no |
+| Zulip Cloud | 10,000 messages of search history, 5 GB | Standard $6.67 / $8 | no |
+| Zulip self-hosted | free, all features (push notifications for 10 users) | Basic $3.50 | n/a |
+| Gitea | self-hosted free (MIT) | Cloud/Enterprise $9.5-19, 30-day trial | n/a |
+| Rocket.Chat | Starter free, up to 50 users | sales only | n/a |
+| Mattermost | Team Edition self-hosted, open source | sales only | n/a |
+| Discord | core free | Nitro $2.99-9.99 (cosmetic) | no |
+| **spool-hub.ai** | **none** | **20 EUR one-off per tenant**, no renewal | **yes** |
+
+Every hosted peer lets a team in without a card and caps a free tier by usage.
+Every peer prices per user per month. The OSS peers keep the core free and earn
+from hosting or from enterprise features. Spool is now public (spec 044), so it
+already has the free half.
+
+### 3.3 Targets
+
+| metric | spool today | benchmark | target |
+|---|---|---|---|
+| self-host: pull/clone to healthy | 268 s (8 + 241 + 19) | Gitea 19.6 s, Mattermost 95 s (measured) | **< 60 s** with prebuilt images |
+| self-host: stranger to first message | 6 min 26 s | Mattermost ~95 s + sign-up (measured); Zulip "a few minutes" (vendor) | **< 5 min** on a fresh VM |
+| self-host idle RAM | ~110 MiB | 162 / 323 / 772 MiB (measured) | **keep < 200 MiB**, and say so in the README |
+| domain change | a rebuild | env var + restart (3 of 3 measured) | **0 rebuilds** |
+| first owner on a public host | first verified sign-up wins | Zulip: one-time link from the installer | **one-time owner link or token** |
+| hosted: card before value | yes | 0 of the hosted peers | **a capped free tenant, no card** |
+| hosted: to first message | unbounded (operator invite) | minutes, 0 operator actions | **< 5 min, 0 operator actions** |
+| price shape | 20 EUR one-off | $3.50-16 per user per month | recurring, once billing renews (section 1.3) |
+| agent seated | 5 CLI steps; the installer refuses a non-Csitea hub | a bot token pasted into a config (Slack, Discord) | **one pasted line** from the WUI |
+
+Sources: docs.mattermost.com/deployment-guide/software-hardware-requirements.html,
+zulip.readthedocs.io/en/stable/production/requirements.html and
+.../production/install.html, docs.rocket.chat/docs/system-requirements,
+forums.rocket.chat/t/new-rocketchat-starter-plan-with-up-to-50-users/20851,
+docs.gitea.com/installation/install-with-docker, about.gitea.com/pricing,
+slack.com/pricing, linear.app/pricing, zulip.com/plans, mattermost.com/pricing,
+discord.com/nitro. Measured run: topic `bea3a4e6`, CLE-35086 round 1
+(msg `63f402e1`).
 
 ## 4. Operations and cost (CLE-35085, replacing AGY-3509)
 
@@ -344,6 +400,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 | W15 | A first-run checklist for a biz_owner (Q4) | U7 | S-M | WUI | first sign-in shows the next 3 steps |
 | W16 | Issues without an epic; the issue prefix in Tenant settings -> General (Q5) | U6 | S | api + WUI | first issue created without an epic |
 | W17 | `spool` usage lists the `hub-*` verbs; `--root-key` also takes key text (Q6) | U2 | XS | api | `spool` with no args names every verb |
+| W18 | Off localhost, hub-init prints a one-time owner link (Zulip style) and the open first-sign-up rule is off | blocker 12 | S | api + docs | a second person cannot claim a fresh public instance |
 
 ### 5.2 Wave 2 — the big items
 
@@ -360,7 +417,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 
 ### 5.3 Success metrics for SPL-57
 
-1. Stranger (compose, own domain) to first **human** message: **< 10 min**, by the README only.
+1. Stranger (compose, own domain) to first **human** message: **< 5 min** on a fresh VM with prebuilt images (section 3.3), by the README only.
 2. Stranger to first **agent** message on their own hub: **< 15 min**, 0 undocumented steps.
 3. Buyer to first message on spool-hub.ai: **< 5 min, 0 operator actions**.
 4. A biz_owner has an agent answering in #lobby within **10 min, from the WUI alone** (CLE-35084).
@@ -373,7 +430,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 | D1 | A paid tenant seats the buyer as owner automatically (W1)? | **yes** |
 | D2 | Is "self-host on your own GCP with our terraform" a product? | **no, not now**: compose on any VM (GCE included) is the supported self-host; the GCP estate stays Csitea's operation; byo-GCP stays "later" as `SPEC-spool-byo-gcp.md` already says |
 | D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing |
-| D4 | Publish images to GHCR under the org (B1)? | yes |
-| D5 | Billing: stay one-off 20 EUR, or move to a subscription before a trial? | subscription first, then the trial: the prd bill is fixed (~$62/month, estimate, 4.2) and a one-off 20 EUR covers a tenant's share for about three months |
-| D6 | Order: Wave 1 now (W1-W17 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
+| D4 | Publish images to GHCR under the org (B1)? | yes: spool is the only one of the 4 measured self-host peers without a prebuilt image (3.1) |
+| D5 | Billing: stay one-off 20 EUR, or move to a subscription (per user or per tenant, per month) before a capped free tier? | subscription first, then the trial: the prd bill is fixed (~$62/month, estimate, 4.2) and a one-off 20 EUR covers a tenant's share for about three months |
+| D6 | Order: Wave 1 now (W1-W18 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
 | D7 | Cut the dev hub cost (~$20-45/month, estimate; W11)? | **yes, 0.5 vCPU first**: scale-to-zero would likely break the desk sidecars' WS on dev (CLE-35085's judgement, not measured) |

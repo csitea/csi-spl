@@ -162,99 +162,28 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 // hello runs the challenge-response (OQ-03b) and registers the session.
 func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant) (*session, bool) {
-	nb := make([]byte, 32)
-	if _, err := rand.Read(nb); err != nil {
-		conn.CloseNow() //nolint:errcheck
+	nonce, ok := sendChallenge(ctx, conn)
+	if !ok {
 		return nil, false
 	}
-	nonce := base64.StdEncoding.EncodeToString(nb)
-	if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TChallenge, Nonce: nonce}); err != nil {
-		conn.CloseNow() //nolint:errcheck
+	f, ok := s.readHello(ctx, conn, t.ID)
+	if !ok {
 		return nil, false
 	}
-
-	// A Read whose ctx expires kills the socket without a close frame, so the
-	// hello deadline is a timer that sends a proper 4408 close instead.
-	var timedOut atomic.Bool
-	timer := time.AfterFunc(s.o.HelloTimeout, func() {
-		timedOut.Store(true)
-		conn.Close(wire.CloseHelloTimeout, "hello_timeout") //nolint:errcheck
-	})
-	var f wire.Frame
-	err := wsjson.Read(ctx, conn, &f)
-	if !timer.Stop() && err == nil {
-		return nil, false // the deadline fired as the hello arrived; the socket is closed
-	}
-	refuse := func(code websocket.StatusCode, token string) (*session, bool) {
+	if code, token := s.helloRefusal(ctx, t.ID, f, nonce); token != "" {
 		s.o.Log.Warn().Str("tenant", t.ID).Str("box", f.BoxID).Str("reason", token).Msg("ws hello refused")
 		conn.Close(code, token) //nolint:errcheck
 		return nil, false
 	}
-	switch {
-	case err != nil && timedOut.Load():
-		s.o.Log.Warn().Str("tenant", t.ID).Str("reason", "hello_timeout").Msg("ws hello refused")
+	x, ok := s.seatSession(ctx, conn, t.ID, &f)
+	if !ok {
 		return nil, false
-	case err != nil:
-		conn.CloseNow() //nolint:errcheck
-		return nil, false
-	case f.Type != wire.THello || (f.Role != wire.RoleBox && f.Role != wire.RoleCLI) || !msg.ValidBoxID(f.BoxID):
-		return refuse(wire.CloseBadFrame, "bad_frame")
-	case f.BoxID == WUIBox: // the hub holds box-wui's key; it is never a box session (specs/014)
-		return refuse(wire.CloseUnauthorized, "unauthorized")
-	case f.Nonce != nonce:
-		return refuse(wire.CloseUnauthorized, "bad_nonce")
-	case !s.skewOK(f.TS):
-		return refuse(wire.CloseUnauthorized, "stale_hello")
-	}
-	pub, err := s.o.Store.GetPin(ctx, t.ID, f.BoxID)
-	if err != nil {
-		return refuse(wire.CloseUnauthorized, "unpinned_box")
-	}
-	payload, err := wire.HelloPayload(f.BoxID, f.Nonce, f.TS)
-	if err != nil {
-		return refuse(wire.CloseBadFrame, "bad_frame")
-	}
-	if err := verify(pub, payload, f.Sig); err != nil {
-		return refuse(wire.CloseUnauthorized, "bad_sig")
-	}
-	if f.Role == wire.RoleBox {
-		if !validRoster(f.Agents) {
-			return refuse(wire.CloseBadFrame, "roster_duplicate")
-		}
-	}
-
-	now := s.o.Now()
-	if err := s.o.Store.TouchBox(ctx, t.ID, f.BoxID, now); err != nil {
-		conn.CloseNow() //nolint:errcheck
-		return nil, false
-	}
-	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
-		msgVersions: f.MsgVersions, features: f.Features, since: now, welcomed: make(chan struct{})}
-	if f.Role == wire.RoleBox {
-		agents, err := s.seatRoster(ctx, t.ID, f.BoxID, f.Agents, now)
-		if err != nil {
-			conn.CloseNow() //nolint:errcheck
-			return nil, false
-		}
-		f.Agents = agents
-		if err := s.o.Store.SetSubscriptions(ctx, t.ID, f.BoxID, f.Agents, f.Channels, now); err != nil {
-			conn.CloseNow() //nolint:errcheck
-			return nil, false
-		}
 	}
 	if !s.register(x) {
 		conn.Close(websocket.StatusGoingAway, "shutdown") //nolint:errcheck
 		return nil, false
 	}
-
-	roster, _ := s.o.Store.Roster(ctx, t.ID)
-	x.agents = roster[f.BoxID] // Roster sorts each box's list
-	tok, exp := s.slotToken(&x.upload, t.ID, f.BoxID)
-	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: f.BoxID, Roster: roster,
-		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
-	x.markWelcomed()
-	if err != nil {
-		s.drop(x)
+	if !s.welcome(ctx, x) {
 		return nil, false
 	}
 	if f.Role == wire.RoleBox {
@@ -264,6 +193,120 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		s.backfillBox(ctx, t.ID, f.BoxID) // SPL-987: seats owed a back-fill
 	}
 	return x, true
+}
+
+// sendChallenge writes a fresh 32-byte nonce as the challenge frame.
+func sendChallenge(ctx context.Context, conn *websocket.Conn) (string, bool) {
+	nb := make([]byte, 32)
+	if _, err := rand.Read(nb); err != nil {
+		conn.CloseNow() //nolint:errcheck
+		return "", false
+	}
+	nonce := base64.StdEncoding.EncodeToString(nb)
+	if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TChallenge, Nonce: nonce}); err != nil {
+		conn.CloseNow() //nolint:errcheck
+		return "", false
+	}
+	return nonce, true
+}
+
+// readHello reads the answer to the challenge within HelloTimeout. A Read
+// whose ctx expires kills the socket without a close frame, so the deadline
+// is a timer that sends a proper 4408 close instead.
+func (s *Server) readHello(ctx context.Context, conn *websocket.Conn, tenant string) (wire.Frame, bool) {
+	var timedOut atomic.Bool
+	timer := time.AfterFunc(s.o.HelloTimeout, func() {
+		timedOut.Store(true)
+		conn.Close(wire.CloseHelloTimeout, "hello_timeout") //nolint:errcheck
+	})
+	var f wire.Frame
+	err := wsjson.Read(ctx, conn, &f)
+	switch {
+	case !timer.Stop() && err == nil:
+		return f, false // the deadline fired as the hello arrived; the socket is closed
+	case err != nil && timedOut.Load():
+		s.o.Log.Warn().Str("tenant", tenant).Str("reason", "hello_timeout").Msg("ws hello refused")
+		return f, false
+	case err != nil:
+		conn.CloseNow() //nolint:errcheck
+		return f, false
+	}
+	return f, true
+}
+
+// helloRefusal checks the hello: its shape, never box-wui (the hub holds
+// box-wui's key; it is never a box session, specs/014), the nonce, the
+// clock skew, the pin and signature, and a box's roster. It answers the
+// close code and reason, or "" when the hello is good.
+func (s *Server) helloRefusal(ctx context.Context, tenant string, f wire.Frame, nonce string) (websocket.StatusCode, string) {
+	switch {
+	case f.Type != wire.THello || (f.Role != wire.RoleBox && f.Role != wire.RoleCLI) || !msg.ValidBoxID(f.BoxID):
+		return wire.CloseBadFrame, "bad_frame"
+	case f.BoxID == WUIBox:
+		return wire.CloseUnauthorized, "unauthorized"
+	case f.Nonce != nonce:
+		return wire.CloseUnauthorized, "bad_nonce"
+	case !s.skewOK(f.TS):
+		return wire.CloseUnauthorized, "stale_hello"
+	}
+	pub, err := s.o.Store.GetPin(ctx, tenant, f.BoxID)
+	if err != nil {
+		return wire.CloseUnauthorized, "unpinned_box"
+	}
+	payload, err := wire.HelloPayload(f.BoxID, f.Nonce, f.TS)
+	if err != nil {
+		return wire.CloseBadFrame, "bad_frame"
+	}
+	if err := verify(pub, payload, f.Sig); err != nil {
+		return wire.CloseUnauthorized, "bad_sig"
+	}
+	if f.Role == wire.RoleBox && !validRoster(f.Agents) {
+		return wire.CloseBadFrame, "roster_duplicate"
+	}
+	return 0, ""
+}
+
+// seatSession stamps the box's hello and, for a box, seats its roster and
+// channel subscriptions (f.Agents becomes the seated roster). It answers
+// the session, not yet registered.
+func (s *Server) seatSession(ctx context.Context, conn *websocket.Conn, tenant string, f *wire.Frame) (*session, bool) {
+	now := s.o.Now()
+	if err := s.o.Store.TouchBox(ctx, tenant, f.BoxID, now); err != nil {
+		conn.CloseNow() //nolint:errcheck
+		return nil, false
+	}
+	x := &session{srv: s, conn: conn, tenant: tenant, box: f.BoxID, role: f.Role, follows: map[string]bool{},
+		msgVersions: f.MsgVersions, features: f.Features, since: now, welcomed: make(chan struct{})}
+	if f.Role != wire.RoleBox {
+		return x, true
+	}
+	agents, err := s.seatRoster(ctx, tenant, f.BoxID, f.Agents, now)
+	if err != nil {
+		conn.CloseNow() //nolint:errcheck
+		return nil, false
+	}
+	f.Agents = agents
+	if err := s.o.Store.SetSubscriptions(ctx, tenant, f.BoxID, f.Agents, f.Channels, now); err != nil {
+		conn.CloseNow() //nolint:errcheck
+		return nil, false
+	}
+	return x, true
+}
+
+// welcome answers the registered session with the roster and its upload
+// token; false has dropped it.
+func (s *Server) welcome(ctx context.Context, x *session) bool {
+	roster, _ := s.o.Store.Roster(ctx, x.tenant)
+	x.agents = roster[x.box] // Roster sorts each box's list
+	tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
+	err := x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: x.box, Roster: roster,
+		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
+	x.markWelcomed()
+	if err != nil {
+		s.drop(x)
+		return false
+	}
+	return true
 }
 
 // register adds x; a role=box session evicts the previous one of the same box

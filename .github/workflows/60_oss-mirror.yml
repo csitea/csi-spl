@@ -13,7 +13,8 @@
 #
 # The FIRST run is a dispatch naming `base`: the ops commit the public master
 # currently is (both repos share that history). Every later run finds its
-# place from the Ops-Commit trailer of the public master.
+# place from the Ops-Commit trailer of the public master. Push runs start
+# once the repo variable OSS_MIRROR_ENABLED is 1 (set after that first run).
 
 name: "60 oss: publish the public product repo"
 
@@ -44,7 +45,10 @@ permissions:
 jobs:
   mirror:
     name: Project, gate, publish
-    if: github.repository == 'csitea/csi-spl-ops'
+    # push runs start once the first dispatch has published (repo variable
+    # OSS_MIRROR_ENABLED=1): until the product tree passes the gate a push
+    # run could only go red, and a red that is nobody's reads as a broken trunk
+    if: github.repository == 'csitea/csi-spl-ops' && (github.event_name == 'workflow_dispatch' || vars.OSS_MIRROR_ENABLED == '1')
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 60
     steps:

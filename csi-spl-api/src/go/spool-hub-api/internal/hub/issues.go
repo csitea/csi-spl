@@ -19,7 +19,7 @@ import (
 )
 
 // Issues, the way Linear keeps them (specs/039 contracts/issues-v1.md,
-// rdb 0047, CLE-34993). A browser reads under the view door (topics.read)
+// rdb 0047). A browser reads under the view door (topics.read)
 // and writes with notes.send; a box agent does the same over its socket
 // (issue frames, ws.go). Every change reaches every browser of the tenant as
 // an `issue` frame, so a list updates without a reload.

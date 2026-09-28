@@ -94,7 +94,7 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A view is a read: the door, the permit and the handler share one
-		// membership lookup (store.WithMemo, CLE-34985).
+		// membership lookup (store.WithMemo).
 		r = r.WithContext(store.WithMemo(r.Context()))
 		s.allowOrigin(w, r)
 		// specs/026: the session's active tenant (the view token format is

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TestReplyChannelBackfill (rdb 0042, CLE-34978): the file gives every
+// TestReplyChannelBackfill (rdb 0042): the file gives every
 // untagged reply stored before hub 0.5.4 the channel TopicChannel would give
 // it now - its task's earliest is_parent 1 row. Controls: a reply under a DM
 // topic stays NULL, a reply that names another channel keeps it, a topic

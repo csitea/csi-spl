@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Tenant isolation guards (specs/017 FR-SEC-014, CLE-3416). Postgres only,
+// Tenant isolation guards (specs/017 FR-SEC-014). Postgres only,
 // run by hub-pg.tst.sh in the 10 ci hub job as the plain owner role.
 //
 // The gate reads the CATALOGUE after every migration, never a hand list: any

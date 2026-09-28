@@ -1,4 +1,4 @@
-<!-- CLE-34989 (specs/033 FR-023): the middle pane's card height, three ways -
+<!-- (specs/033 FR-023): the middle pane's card height, three ways -
      titles (the first 90 characters) / 5 rows (default) / full. Native radios
      in one named group, so Tab lands on the group and the arrow keys move
      between the three; the label around each radio is the visible segment.

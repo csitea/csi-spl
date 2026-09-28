@@ -1,4 +1,4 @@
-// Middle-pane header (SPL-941, CLE-35001) — live proof + screenshots, signed in,
+// Middle-pane header (SPL-941) — live proof + screenshots, signed in,
 // against a deployed WUI.
 //
 // Owner, 2026-09-26: the channel / DM / lobby header carried "Msgs", the name,

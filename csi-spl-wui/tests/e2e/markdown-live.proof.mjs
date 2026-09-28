@@ -80,7 +80,7 @@ try {
   p.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await p.evaluateOnNewDocument(() => {
     window.__csp = []
-    // the full card, so the screenshots show the whole block (card clip, CLE-34989)
+    // the full card, so the screenshots show the whole block (card clip)
     try {
       localStorage.setItem('spool-card-clip-default', 'full')
       sessionStorage.setItem('spool-card-clip-session-msgs', 'full')

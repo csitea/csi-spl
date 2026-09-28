@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// events-v1 store (rdb 0045, CLE-34990) on memory and, with SPOOL_TEST_PG_DSN,
+// events-v1 store (rdb 0045) on memory and, with SPOOL_TEST_PG_DSN,
 // Postgres: own rows only, newest first, paging, the 500-row trim, clear, and
 // the row checks the table enforces.
 func TestHumanEvents(t *testing.T) {

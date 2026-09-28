@@ -114,7 +114,7 @@ type Preferences interface {
 	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
 	// SetDiagnosticsEnabled stores it. Unknown human = ErrNoHuman.
 	SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error
-	// DisplayName is the human's shown name (humans.display_name, CLE-34968),
+	// DisplayName is the human's shown name (humans.display_name),
 	// "" when none. An unknown human is ErrNoHuman.
 	DisplayName(ctx context.Context, humanID string) (string, error)
 	// SetDisplayName stores name, already admitted by ValidDisplayName.
@@ -485,7 +485,7 @@ func (h *Handler) viewPref(ctx context.Context, s Session, key string) *string {
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
 // 010 auth-v1 section 3): did THIS signed-in human tick "Debug pane" in their
-// settings (rdb 0038 humans.diagnostics_enabled, CLE-34963)?
+// settings (rdb 0038 humans.diagnostics_enabled)?
 //
 // The setting is the SOLE gate. It replaced the operator list
 // SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS: under "list OR setting" unticking the box

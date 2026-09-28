@@ -1,4 +1,4 @@
-// CLE-3429 — the shell renders exactly ONE topic section (1..1).
+// the shell renders exactly ONE topic section (1..1).
 //
 // The bug this guards: layouts/default.vue mounted BOTH <TopicPane /> and
 // <LiveTopicPane />, unconditionally and side by side, each with its own

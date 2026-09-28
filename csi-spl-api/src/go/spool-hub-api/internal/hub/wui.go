@@ -733,7 +733,7 @@ func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Messag
 		return "missing_file", http.StatusBadRequest, "file_id " + missing + " is not held by the hub"
 	}
 	if member != "" { // "" = the door-off anonymous rig, which reads everything
-		switch f, err := s.unreadableFile(ctx, tenant, m.Files, "", member); { // CLE-34986
+		switch f, err := s.unreadableFile(ctx, tenant, m.Files, "", member); {
 		case err != nil:
 			return "internal", http.StatusInternalServerError, "file lookup failed"
 		case f != "":
@@ -787,7 +787,7 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 }
 
 // fanoutChannel pushes one `channel` frame to every browser socket of the
-// tenant (CLE-3425, wui-live-ws v0.6 §3.3). A channel created in one session has
+// tenant (wui-live-ws v0.6 §3.3). A channel created in one session has
 // to appear in every other session's sidebar without a reload, and it carries no
 // message yet, so the message fan-out cannot carry it.
 //

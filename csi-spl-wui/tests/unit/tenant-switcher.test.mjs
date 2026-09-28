@@ -134,7 +134,7 @@ describe('tenantSwitchOptions (specs/026 §6)', () => {
   })
 })
 
-describe('tenantHint (CLE-34991, the hover explanation)', () => {
+describe('tenantHint (the hover explanation)', () => {
   const t = (key, p) => (p ? key + '(' + JSON.stringify(p) + ')' : key)
 
   it('names the selected tenant, then says it is the only one', () => {

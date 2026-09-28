@@ -874,7 +874,7 @@ function onSend() {
     return
   }
   if (props.global && props.sendBlocked) {
-    /* CLE-35066 (owner: "clicking the GO button does not create a comment"):
+    /* (owner: "clicking the GO button does not create a comment"):
        on a phone GO is the only button, so with no send target the text is
        a search rather than a tap that does nothing. Desktop is unchanged. */
     const q = text.value.trim()

@@ -1,4 +1,4 @@
-<!-- CLE-3433 — the signed-out state of a member-only view.
+<!-- the signed-out state of a member-only view.
 
      layouts/default.vue mounts the whole shell for everyone, so a visitor
      who is not signed in used to land on an EMPTY feed next to a composer

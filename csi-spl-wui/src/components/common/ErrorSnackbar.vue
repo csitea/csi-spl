@@ -1,4 +1,4 @@
-<!-- Sliding top error snackbar (GRK-3514, topic 4335f075).
+<!-- Sliding top error snackbar (topic 4335f075).
 
      Renders the queue in utils/error-snackbar.mjs — one source, the journal
      (subscribe via bindSnackbarToJournal). Newest on top, at most 3, count

@@ -14,7 +14,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Grammar 1.2 (CLE-34992, spec 039): the issue section. CONTROLS: another
+// Grammar 1.2 (spec 039): the issue section. CONTROLS: another
 // tenant's issues never appear; a plain query does not search issues (opt-in);
 // assignee:me is the reader, and no reader matches nobody.
 func TestSearchIssues(t *testing.T) {

@@ -105,7 +105,7 @@ type MessageEdits interface {
 
 	// MergeMessages applies e to keepID (as ApplyEdit) and deletes dropID (as
 	// DeleteMessage) in ONE transaction, and returns keepID's new revision
-	// (CLE-35064, message_merge.go). ErrNotFound when either row is gone,
+	// (message_merge.go). ErrNotFound when either row is gone,
 	// ErrMergeHasReplies when dropID has a thread of its own.
 	MergeMessages(ctx context.Context, tenantID, keepID, dropID string, e Edit) (int, error)
 }

@@ -1,4 +1,4 @@
-/** Level-1 card height in the middle pane (CLE-34989, specs/033 FR-020..FR-026).
+/** Level-1 card height in the middle pane (specs/033 FR-020..FR-026).
  *
  *  Owner, 2026-09-25: "clip the size of the msg with is_parent=1 to max 5 rows
  *  of text or max 30% of the screen if picture is involved ... the rest should

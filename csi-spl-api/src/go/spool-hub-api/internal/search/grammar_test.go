@@ -289,7 +289,7 @@ func TestParsePrefix(t *testing.T) {
 	if tm := leafOf("title:mig*"); !tm.Prefix || tm.Lexemes[0] != "mig" {
 		t.Fatalf("title:mig*: %+v", tm)
 	}
-	// as you type (1.1, CLE-34992): the query's last bare word is a prefix
+	// as you type (1.1): the query's last bare word is a prefix
 	if tm := leafOf("deplo"); !tm.Prefix {
 		t.Fatalf("last bare word: %+v", tm)
 	}

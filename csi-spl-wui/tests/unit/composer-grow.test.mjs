@@ -1,4 +1,4 @@
-// CLE-3437 — the box a ``` block is typed into grows with the block.
+// the box a ``` block is typed into grows with the block.
 //
 // The owner asked for code formatting on ``` a second time. It was not the
 // parser and it was not the renderer: both worked on every surface (measured

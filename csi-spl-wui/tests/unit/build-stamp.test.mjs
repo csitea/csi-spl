@@ -1,4 +1,4 @@
-// CLE-3433 — the version footer read a bare `v0.1.0` from .version, a marker
+// the version footer read a bare `v0.1.0` from .version, a marker
 // nobody has bumped. ORC listed it third among the things the owner may mean
 // by "the UI seems completely broken": it answers a question nobody asks and
 // not the one they do — "am I looking at the build that carries the fix?".

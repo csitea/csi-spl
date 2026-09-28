@@ -1,4 +1,4 @@
-// GRK-3514 — event-log + snackbar catalogue keys (topic 4335f075).
+// event-log + snackbar catalogue keys (topic 4335f075).
 // English values are the lead's specified strings; every other locale has
 // the same leaf set (i18n-parity) and snackbar.repeat keeps the {n} token.
 //

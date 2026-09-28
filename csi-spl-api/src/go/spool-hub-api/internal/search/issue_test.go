@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Grammar 1.2 (CLE-34992, spec 039 issues): type:issue and the issue fields.
+// Grammar 1.2 (spec 039 issues): type:issue and the issue fields.
 // The closed sets come from store's init in the binary; here the fixture sets
 // them (store/search_issue_test.go pins store's values onto these vars).
 func issueFixture(t *testing.T) {

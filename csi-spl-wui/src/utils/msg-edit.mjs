@@ -1,5 +1,5 @@
 /**
- * Editing a message in place (row E1, CLE-3445) — the BROWSER half.
+ * Editing a message in place (row E1) — the BROWSER half.
  *
  * The owner, 2026-09-22:
  *

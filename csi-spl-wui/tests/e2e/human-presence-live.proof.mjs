@@ -1,4 +1,4 @@
-// CLE-3448 — a signed-in human must be listed, and lit, in the people pane.
+// a signed-in human must be listed, and lit, in the people pane.
 //
 // The owner signed in on the deployed dev WUI and the presence/roster pane
 // listed no human at all. This proof measures the three layers that carry a

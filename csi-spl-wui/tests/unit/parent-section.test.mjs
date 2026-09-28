@@ -1,4 +1,4 @@
-// CLE-34996 (SPL-15): "Open parent section" on a thread message.
+// (SPL-15): "Open parent section" on a thread message.
 // Run: node tests/unit/parent-section.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

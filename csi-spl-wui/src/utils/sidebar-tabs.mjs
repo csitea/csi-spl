@@ -9,7 +9,7 @@ export const SIDE_TABS = ['dm', 'channels', 'topics', 'flow']
  *  (tenant-users.mjs usersEntryVisible), so it is not in SIDE_TABS. */
 export const USERS_TAB = 'users'
 
-/** The personal Event log (CLE-34990, 005 FR-017): directly after flow, for
+/** The personal Event log (005 FR-017): directly after flow, for
  *  everyone; the list lives on /events. Not in SIDE_TABS for the same reason
  *  as USERS_TAB: it is a page, not a sidebar list. */
 export const EVENTS_TAB = 'events'

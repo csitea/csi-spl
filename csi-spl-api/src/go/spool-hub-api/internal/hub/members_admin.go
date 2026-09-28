@@ -11,7 +11,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// The admin's Users page (specs/025 FR-012, CLE-34969): list the tenant's
+// The admin's Users page (specs/025 FR-012): list the tenant's
 // members and pending invites, revoke an invite. Invite, role change and
 // removal are the FR-007 routes in rbac.go. Every route re-checks the
 // permission per request; the WUI hiding the section is convenience only.

@@ -99,7 +99,7 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	}
 	if known || linked {
 		// The IdP name only seeds an empty display_name: once the human has
-		// one (their own, set in Settings, CLE-34968) a sign-in keeps it.
+		// one (their own, set in Settings) a sign-in keeps it.
 		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
 			display_name = COALESCE(display_name, NULLIF($3, '')) WHERE human_id = $1`,
 			hum, id.Email, id.Name); err != nil {

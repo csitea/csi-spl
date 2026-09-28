@@ -1,4 +1,4 @@
-// CLE-34968 — the "Display name" field in Settings → Profile.
+// the "Display name" field in Settings → Profile.
 //
 // What it proves:
 //  - validDisplayName mirrors the hub's ValidDisplayName (trim, 1..200

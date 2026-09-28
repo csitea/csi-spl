@@ -22,7 +22,7 @@ func testEpic(t *testing.T, is Issues, tenant string, now time.Time) int {
 	return e.Number
 }
 
-// rdb 0047 (specs/039, CLE-34993) on memory and, with SPOOL_TEST_PG_DSN,
+// rdb 0047 (specs/039) on memory and, with SPOOL_TEST_PG_DSN,
 // Postgres: numbering per tenant, the field checks, labels and parents that
 // must exist, the status clocks, and one tenant never reading another's.
 func TestIssues(t *testing.T) {

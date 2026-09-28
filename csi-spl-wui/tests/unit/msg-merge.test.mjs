@@ -1,4 +1,4 @@
-// CLE-35064 — merge with previous / next deletes its source, in ONE hub call.
+// merge with previous / next deletes its source, in ONE hub call.
 //
 // Owner (prd t1 topic 04130ea2): "once the content is merged, the actual
 // source of the merged content, the source card, should self-delete". On prd

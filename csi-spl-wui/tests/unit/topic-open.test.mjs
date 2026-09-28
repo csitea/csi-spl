@@ -1,4 +1,4 @@
-// CLE-3427 — which topic a clicked message opens, and the URL that reopens it.
+// which topic a clicked message opens, and the URL that reopens it.
 //
 // Owner (2026-09-20): "When being in a channel, for example in the lobby, If
 // I click on a msg it should open in the 3rd left pannel the topic (even if

@@ -1,4 +1,4 @@
-<!-- /settings (CLE-3402; GitHub-style since specs/023 §3.4) — the user
+<!-- /settings (GitHub-style since specs/023 §3.4) — the user
      dropdown's Settings entry. A left nav of sections, the selected section on
      the right; each section is its own child route (pages/settings/*.vue), so
      /settings/keys and /fi/settings/keys deep-link. /settings itself redirects

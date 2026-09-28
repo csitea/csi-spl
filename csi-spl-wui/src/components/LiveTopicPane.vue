@@ -78,7 +78,7 @@ const { newestLast } = useViewPrefs()
 const { onTopicPaneClick } = useTopicPaneClick()
 
 /*
- * CLE-3427 — two shapes of topic land in this pane.
+ * two shapes of topic land in this pane.
  *
  * task-rooted (a /search hit, a topic row): the pane's own task holds the
  * root and its replies, as before — rootAndReplies over what it read.
@@ -107,7 +107,7 @@ const heading = computed(() => {
 })
 
 /*
- * CLE-3445 — an edit landed. Which stores hold this row depends on the
+ * an edit landed. Which stores hold this row depends on the
  * topic's shape (a task-rooted pane reads its root from the feed store, a
  * MESSAGE-rooted one pins topic.rootMsg, which no feed owns) AND on the
  * route behind the panel, so the pane does not try to work it out: it tells

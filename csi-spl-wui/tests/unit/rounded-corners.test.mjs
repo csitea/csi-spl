@@ -1,4 +1,4 @@
-// GRK-3376 — radius tokens are the only corner radii in the WUI.
+// radius tokens are the only corner radii in the WUI.
 // Raw `border-radius: 8px` (and friends) drift; 50% is a circle, not a box.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

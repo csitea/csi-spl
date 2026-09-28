@@ -48,7 +48,7 @@ export function avatarMode(claims) {
 }
 
 /**
- * The signed-in person's own IdP picture (CLE-3406, auth-v1 GET
+ * The signed-in person's own IdP picture (auth-v1 GET
  * /api/v1/auth/avatar) on the auth base; '' when not signed in. It needs the
  * session only, never a membership, so a Google user whose invite is not yet
  * accepted sees their picture too. `at` (the session's iat) makes each

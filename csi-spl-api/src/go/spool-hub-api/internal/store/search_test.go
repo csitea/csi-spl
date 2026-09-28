@@ -119,7 +119,7 @@ func TestSearch(t *testing.T) {
 			if rs, err := se.SearchMessages(ctx, ta, sq(t, "hub gre*", now)); err != nil || fmt.Sprint(msgIDs(rs)) != fmt.Sprint([]string{m2.MsgID}) {
 				t.Fatalf("hub gre*: %v %v", err, msgIDs(rs))
 			}
-			// as you type (1.1, CLE-34992): the last bare word is a prefix
+			// as you type (1.1): the last bare word is a prefix
 			if rs, err := se.SearchMessages(ctx, ta, sq(t, "deplo", now)); err != nil || len(rs) != 4 {
 				t.Fatalf("deplo (being typed): %v %v", err, msgIDs(rs))
 			}

@@ -1,4 +1,4 @@
-// CLE-34996 (SPL-15): "Open parent section" from a search result, in a real
+// (SPL-15): "Open parent section" from a search result, in a real
 // browser. Search -> open a thread hit -> the thread line's menu -> Open
 // parent section (keyboard only) -> the channel, its rail tab, the parent
 // card selected in the middle and the thread still open on the right.

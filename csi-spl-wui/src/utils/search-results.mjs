@@ -164,7 +164,7 @@ export function normalizeSearchResponse(data) {
 }
 
 /**
- * CLE-3425 — the clock a search row is ordered by, whatever its group: a message
+ * the clock a search row is ordered by, whatever its group: a message
  * its received_at, a topic its last_at, a channel its last_ts, a box its last
  * hello. Stamped on the row as data-ts so the rendered order can be audited
  * against the clock (the hub answers each group newest first, search-v1 §4).

@@ -1,5 +1,5 @@
 /**
- * CLE-3433 — a send that does not land must SAY SO.
+ * a send that does not land must SAY SO.
  *
  * On 2026-09-21 the owner wrote a message in a DM and it vanished: the hub's
  * `messages` table has nothing from them after 12:39:03Z (CLE-3434 read it

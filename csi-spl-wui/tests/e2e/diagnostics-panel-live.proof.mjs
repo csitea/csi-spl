@@ -17,7 +17,7 @@
 //     node tests/e2e/diagnostics-panel-live.proof.mjs
 //
 // The hub behind BASE decides it from the member's own "Debug pane" setting
-// (CLE-34963; debug-pane-toggle-live.proof.mjs flips it);
+// (debug-pane-toggle-live.proof.mjs flips it);
 // EXPECT says which answer this run is asserting, so a run that proves
 // nothing cannot read green.
 import { createRequire } from 'node:module'

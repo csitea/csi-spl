@@ -1,4 +1,4 @@
-// The admin's Users page, proved in a REAL browser (CLE-34969, owner
+// The admin's Users page, proved in a REAL browser (owner
 // 2026-09-25): "the admin role owning user should see besides direct
 // messages channels, topics and flow the users" ... "to be able to CRUD
 // users" ... "each of the users should be listed and when clicking on it
@@ -70,7 +70,7 @@ try {
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
 
-  // 1. the entry, last: flow, then the Event log (CLE-34990, owner: "button
+  // 1. the entry, last: flow, then the Event log (owner: "button
   // after the flow icon"), then Archive (SPL-983, the default order), then
   // Users, which is never reorderable and always last (SPL-979)
   const rail = await p.$$eval('.sidebar-rail [role=tab]', (els) => els.map((e) => e.getAttribute('data-testid')))

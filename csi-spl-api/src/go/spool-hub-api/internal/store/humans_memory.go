@@ -157,7 +157,7 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		h.humans[hum].email = id.Email
 	}
 	// The IdP name only seeds an empty name: once the human has one (their
-	// own, set in Settings, CLE-34968) a sign-in never replaces it.
+	// own, set in Settings) a sign-in never replaces it.
 	if id.Name != "" && h.humans[hum].name == "" {
 		h.humans[hum].name = id.Name
 	}

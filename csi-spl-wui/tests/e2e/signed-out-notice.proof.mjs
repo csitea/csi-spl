@@ -1,4 +1,4 @@
-// CLE-3433 — the signed-out feed routes offer a way IN, and only when the
+// the signed-out feed routes offer a way IN, and only when the
 // session probe has actually settled on 'out'.
 //
 // Anonymous is the honest half: load each route with no cookie and read what

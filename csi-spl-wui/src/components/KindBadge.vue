@@ -125,7 +125,7 @@ async function setKind(kind: string) {
     height: var(--tap);
     transform: translate(-50%, -50%);
     /* above a clipped card body: its mask makes it a z-0 layer painted after
-       the header, which covered the lower edge (CLE-35022, ef280108) */
+       the header, which covered the lower edge (ef280108) */
     z-index: 1;
   }
 }

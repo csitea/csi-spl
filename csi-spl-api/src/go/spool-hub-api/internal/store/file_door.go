@@ -29,7 +29,7 @@ type FileDoor interface {
 	// whose message has not been sent, or the leftover of messages that
 	// expired. The door lets it through only within the hub's upload grace
 	// of its upload, and retention deletes it after the orphan grace
-	// (CLE-34962, hub/file_retention.go): an expired private attachment
+	// (hub/file_retention.go): an expired private attachment
 	// must not turn tenant-readable. While a message carries the file, the
 	// two checks below govern it.
 	FileAttached(ctx context.Context, tenantID, fileID string, now time.Time) (bool, error)

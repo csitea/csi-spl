@@ -497,7 +497,7 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+missing+" is not held by the hub")
 		return
 	}
-	switch f, err := s.unreadableFile(ctx, x.tenant, m.Files, x.box, ""); { // CLE-34986
+	switch f, err := s.unreadableFile(ctx, x.tenant, m.Files, x.box, ""); {
 	case err != nil:
 		x.fail(ctx, id, "internal", http.StatusInternalServerError, "file lookup failed")
 		return

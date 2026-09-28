@@ -216,7 +216,7 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	order := " ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1"
 	// The topic's first message (subject, channel, parent) is ONE ordered
 	// row, f, not (array_agg(m.msg ...))[1] in a: that read and copied every
-	// body of the topic to keep one (CLE-35061, prd t1 2026-09-27, custom
+	// body of the topic to keep one (prd t1 2026-09-27, custom
 	// plan, n=15: 27 -> 13 ms a page).
 	sql := `WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE ` + walk + order + `)
@@ -272,7 +272,7 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 	if q.HideArchived { // specs/041: the lobby feed
 		archived = " AND archived_at IS NULL"
 	}
-	// Two single-statement batches, two round trips (CLE-34985; it was a
+	// Two single-statement batches, two round trips (it was a
 	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement
 	// of that transaction already took its own snapshot, so the answer is the
 	// same: a delivery row is read at least as late as its message.

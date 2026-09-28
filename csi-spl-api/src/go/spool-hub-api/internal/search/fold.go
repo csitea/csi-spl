@@ -7,7 +7,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Fold is the language-neutral match form of one word (1.1, CLE-34992):
+// Fold is the language-neutral match form of one word (1.1):
 // lower-cased and with its accents removed, the way Postgres unaccent does it
 // in the spool_search configuration (rdb 0047). So cafe finds café, strasse
 // finds Straße and resume finds résumé in every one of the 19 WUI locales,

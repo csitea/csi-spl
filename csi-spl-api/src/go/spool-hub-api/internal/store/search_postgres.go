@@ -197,7 +197,7 @@ const pgScopeTenantBudget = `SELECT set_config('app.tenant_id', $1, true), set_c
 
 // search runs one statement in the tenant scope under the time budget: the
 // scope, the budget and the statement go as ONE batch, so one round trip
-// (CLE-34985; it was inTenant's BEGIN / scope / budget / statement / COMMIT,
+// (it was inTenant's BEGIN / scope / budget / statement / COMMIT,
 // five). A batch is one implicit transaction, so both settings end with it,
 // exactly as they ended at inTenant's COMMIT.
 func (s *Postgres) search(ctx context.Context, tenant string, q SearchQuery, sql string, args []any, each func(pgx.Rows) error) error {
@@ -238,7 +238,7 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
 		pub, mine := c.arg(PublicChannels), c.arg(q.ViewerChannels)
-		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
+		// A DM row is readable by ITS two ends (it was: by an
 		// end of any message of the task, so a search handed over another
 		// member's DM that shared a task with one of yours).
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
@@ -288,7 +288,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
 		pub, mine := c.arg(PublicChannels), c.arg(q.ViewerChannels)
-		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
+		// A DM row is readable by ITS two ends (it was: by an
 		// end of any message of the task, so a search handed over another
 		// member's DM that shared a task with one of yours).
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
@@ -386,7 +386,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 }
 
 // topicCandidates narrows the topic aggregate to the tasks the message index
-// can name (CLE-34992; specs/022 §9 measures it). A topic's title and channel
+// can name (specs/022 §9 measures it). A topic's title and channel
 // are its FIRST message's, so a topic matching a top-level positive text /
 // title: / in: term has one message matching all of them: only those tasks
 // are aggregated, not every live message of the tenant. The final WHERE still

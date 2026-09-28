@@ -1,6 +1,6 @@
 package hub_test
 
-// CLE-34985 (spec 027 P2): Postgres round trips per hot request, over the
+// (spec 027 P2): Postgres round trips per hot request, over the
 // real session door (fake IdP sign-in, store-backed membership) against a real
 // Postgres behind the counting TCP proxy of onsend_bench_test.go. A round trip
 // is one client-to-server packet: pgx writes one buffer per round trip, and a

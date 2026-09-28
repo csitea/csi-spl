@@ -34,7 +34,7 @@
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div class="msg-main">
       <!--
-        CLE-3446 — the owner's settled row format, 2026-09-22: per message,
+        the owner's settled row format, 2026-09-22: per message,
         sender -> recipient, and the arrow flips per row because BOTH ends are
         read from THIS message. A broadcast (ALL-0) has no recipient and shows
         the sender alone. SPL-981 (owner, 2026-09-26): so does a direct
@@ -181,7 +181,7 @@
         itself changes underneath us (message-edit-v1 §5).
       -->
       <!--
-        CLE-34989 (specs/033 FR-020..FR-026): a level-1 card in the middle pane
+        (specs/033 FR-020..FR-026): a level-1 card in the middle pane
         takes the pane's height mode. `titles` is the first 90 characters on one
         line; `rows` clips the body and its attachments at 5 text rows, or at
         30% of the window when a picture is on the card, and a grip under it
@@ -448,7 +448,7 @@ const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files :
 const count = computed(() => props.count || 0)
 
 /*
- * CLE-3427 — clicking the row opens its topic. The row already carried
+ * clicking the row opens its topic. The row already carried
  * tabindex="0" for the feed pattern, so the keyboard half is Enter / Space on
  * the focused row; the explicit "open topic" icon button stays as the
  * discoverable, screen-reader-named affordance.
@@ -732,7 +732,7 @@ function onKey(ev: KeyboardEvent) {
  * reuse into a row: a row has no attach control, no `/search` mode and no
  * send button. It does share the one @ picker (SPL-985, useMentionPicker).
  *
- * The rule this is shaped by (CLE-3433, and now message-edit-v1 §5): nothing
+ * The rule this is shaped by (and now message-edit-v1 §5): nothing
  * on screen is replaced before the hub confirms. So the rendered body stays
  * exactly as it was while the PATCH is in flight, and on a refusal the typed
  * text stays in the still-open box with the reason under it — the human's
@@ -902,7 +902,7 @@ async function onReact(emoji: string) {
 }
 
 /*
- * CLE-34989 — the card's height in the middle pane (utils/card-clip.mjs holds
+ * the card's height in the middle pane (utils/card-clip.mjs holds
  * the rule and its tests). The box is measured, not guessed: the line height
  * is read from the rendered body, so the 5 rows follow the font-size setting
  * (rem), and "clipped" is the content being taller than the box, so a short
@@ -1046,7 +1046,7 @@ const editMp = useMentionPicker({
 })
 
 /*
- * CLE-3446 — the row under this card can CHANGE, and the edit state must not
+ * the row under this card can CHANGE, and the edit state must not
  * ride across when it does.
  *
  * THE OWNER, 2026-09-22: "the editing of the msg appears whenever the bot is
@@ -1182,7 +1182,7 @@ async function save() {
 <style scoped>
 .mention-anchor { position: relative; min-width: 0; }
 /*
- * CLE-3446 — the recipient half of the owner's row format.
+ * the recipient half of the owner's row format.
  *
  * The inline avatar deliberately does NOT take the shared `.avatar` class:
  * that rule is the row's 36px left gutter (`width: 36px; height: 36px`), and
@@ -1277,7 +1277,7 @@ async function save() {
 }
 .msg-reaction__n { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
 /*
- * CLE-34989 — the middle pane's clipped card. The fallback cap is the same
+ * the middle pane's clipped card. The fallback cap is the same
  * rule as utils/card-clip.mjs (5 rows of the body's 0.875rem x 1.45, or 30%
  * of the window with a picture) so the card is already tight before the first
  * measurement; once measured, the inline max-height takes over. rem, so the
@@ -1351,7 +1351,7 @@ async function save() {
    LAST in this sheet on purpose: it overrides same-specificity rules above
    (.card-grip, .msg-reaction, .msg-meta > .msg-reactions) by order. */
 @media (max-width: 820px) {
-  /* CLE-35065 (owner, topics 95adf832 + fd1e5be4): the card's text near
+  /* (owner, topics 95adf832 + fd1e5be4): the card's text near
      either screen edge (10 px: 6 was "a bit too much"), "the max amount of the screen area must be
      used". The header row keeps the avatar column; everything under it (the
      body, the files, the clip, the grip, the edit box) spans the whole card,

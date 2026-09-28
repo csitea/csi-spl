@@ -320,7 +320,7 @@ html.pane-dragging * {
   max-width: 100%;
 }
 /*
- * CLE-3445 — the message row as a textbox.
+ * the message row as a textbox.
  *
  * This is NOT a `.composer`, and the composer-grow gate is right that it
  * should not pretend to be one: it has no attach control, no mention picker
@@ -697,7 +697,7 @@ html.pane-dragging * {
   .spool-shell .feed-body {
     padding-bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));
   }
-  /* CLE-35065 (owner, prd t1 topics 95adf832 + fd1e5be4): "the avatar could
+  /* (owner, prd t1 topics 95adf832 + fd1e5be4): "the avatar could
      be 5 px more to the left, the whole row", "the text content of the cards
      must not be more than 6 px from the left edge of the screen, and likewise
      no more than 6 px from the right", then live "the text could go 1 mm to

@@ -21,7 +21,7 @@
 //
 // The spool reads the setting from the session claims (GET /api/v1/auth/session,
 // spec 010 auth-v1 §3). It is the human's OWN "Debug pane" checkbox in
-// Settings → Appearance (CLE-34963, components/DebugPaneSetting.vue): the hub
+// Settings → Appearance (components/DebugPaneSetting.vue): the hub
 // keeps it per human (rdb 0038 humans.diagnostics_enabled, default false =
 // nobody) and answers it on every session read, so it is never part of the
 // signed cookie: there is no such field for a browser to assert, and unticking

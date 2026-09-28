@@ -1,4 +1,4 @@
-<!-- Personal event log (GRK-3514, topic 4335f075).
+<!-- Personal event log (topic 4335f075).
 
      Lists GET /api/v1/auth/events via createEventsClient.
      Signed-out shows the catalogue line and never POSTs. A failed read

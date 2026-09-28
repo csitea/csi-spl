@@ -190,7 +190,7 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	// The file_id IS the sha256 of the bytes, so they never change under this
 	// URL: the browser keeps them instead of re-downloading an attached
-	// picture on every page (CLE-34985, 100-650 ms each, up to 8x a page on
+	// picture on every page (100-650 ms each, up to 8x a page on
 	// dev). private: never a shared cache. Vary on the credentials: a cached
 	// copy answers only the same session that passed the read door above, so
 	// a sign-out or another member on the same browser goes back through it.

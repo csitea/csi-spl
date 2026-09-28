@@ -1,4 +1,4 @@
-// CLE-3437 — the owner asked for code formatting on ``` a second time. This is
+// the owner asked for code formatting on ``` a second time. This is
 // the proof, against a DEPLOYED WUI, of the two things that were wrong and of
 // the things that were already right, in the view the owner actually uses:
 // the DM with their agent.

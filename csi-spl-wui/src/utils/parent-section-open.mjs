@@ -3,7 +3,7 @@ import { withSessionRetry } from './live-follow.mjs'
 import { issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
 
 /**
- * CLE-34996 (SPL-15): what "Open parent section" does, loaded only when the
+ * (SPL-15): what "Open parent section" does, loaded only when the
  * item is chosen (MessageCard imports this file dynamically). The initial
  * JS is at its 210 KB gzip ceiling (specs/027 perf-budgets.json), so none of
  * this sits in the chunk every page loads.

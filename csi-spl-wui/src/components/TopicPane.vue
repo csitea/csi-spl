@@ -213,7 +213,7 @@ if (import.meta.client && !api.mock) {
 }
 
 /*
- * CLE-3445 — an edit landed (here, or in another session via a
+ * an edit landed (here, or in another session via a
  * `message_edited` frame). This pane reads its own rows, so it patches its
  * own copy; the channel store holds the same message in the feed behind the
  * pane and is told too, or closing the pane would show the old body again.

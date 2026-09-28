@@ -1,4 +1,4 @@
-// CLE-3494 — link-like text in a message body becomes a clickable link, in
+// link-like text in a message body becomes a clickable link, in
 // the middle topic cards and the right thread / topic panes alike (both render
 // through MessageBody.vue -> parseBody).
 import { describe, it } from 'node:test'

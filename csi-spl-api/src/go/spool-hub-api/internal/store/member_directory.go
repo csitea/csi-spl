@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The tenant's member directory (specs/025 FR-012, CLE-34969): what the
+// The tenant's member directory (specs/025 FR-012): what the
 // admin's Users page lists, and the one write it adds beyond Humans - the
 // revoke of a pending invite. Every read is tenant-scoped (RLS in Postgres).
 

@@ -1,5 +1,5 @@
 // event-log.client.ts — ship every error-journal record of a signed-in human
-// to their personal event log (005 FR-017, contracts/events-v1.md, CLE-34990).
+// to their personal event log (005 FR-017, contracts/events-v1.md).
 //
 // Same contract as error-journal.client.ts: this plugin OBSERVES. It reads the
 // journal, never writes it, and its own failures are silent (event-log.mjs

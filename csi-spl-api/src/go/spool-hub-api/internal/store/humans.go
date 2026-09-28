@@ -130,7 +130,7 @@ type Humans interface {
 	// TenantAvatars maps every member HUM-* of tenant (disabled humans
 	// excluded) to its avatar file_id, "" when none (view-v1 §4.1 humans).
 	TenantAvatars(ctx context.Context, tenant string) (map[string]string, error)
-	// SetPreferredLocale records the human's picked locale (rdb 0017, CLE-3403),
+	// SetPreferredLocale records the human's picked locale (rdb 0017),
 	// one of i18n.Supported, or "" to clear it. Unknown human = ErrNotFound.
 	SetPreferredLocale(ctx context.Context, humanID, locale string) error
 	// PreferredLocale returns the human's picked locale, "" when none, or
@@ -164,7 +164,7 @@ type Humans interface {
 	// identity or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
 	// SetDiagnosticsEnabled records the human's "Debug pane" setting (rdb
-	// 0038, CLE-34963). Unknown human = ErrNotFound.
+	// 0038). Unknown human = ErrNotFound.
 	SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error
 	// DiagnosticsEnabled returns that setting, false when never set, or
 	// ErrNotFound.

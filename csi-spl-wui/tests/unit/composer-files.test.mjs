@@ -1,4 +1,4 @@
-// CLE-3433 — /dm and /channel offered the 📎 attach control and then sent a
+// /dm and /channel offered the 📎 attach control and then sent a
 // frame with NO files. Measured on the deployed dev build bb20552, signed in
 // as the t1 test member, WS `send` frames captured and held back so nothing
 // reached the hub (n=1 per route):

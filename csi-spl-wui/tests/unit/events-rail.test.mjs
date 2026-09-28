@@ -1,4 +1,4 @@
-// The Event log rail button (005 FR-017, CLE-34990): directly after Flow,
+// The Event log rail button (005 FR-017): directly after Flow,
 // /events selects it, and the shipper plugin is wired to the journal.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

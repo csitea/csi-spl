@@ -3,7 +3,7 @@
 // XSS payload, type ```js (monospace block, hint), Enter adds lines instead of
 // sending, a very long line, the payload again inside the block, ``` closes,
 // Ctrl+Enter sends. The sent card must show one code block (label "js", exact
-// text, WRAPPED - no x-scroll in the block or the page, CLE-3423), the copy button must put exactly
+// text, WRAPPED - no x-scroll in the block or the page), the copy button must put exactly
 // the code on the clipboard, and the CONTROL: nothing executes (no dialog,
 // no <img>/<script> in the body) and 0 CSP violations. Desktop + mobile
 // screenshots and results.json to OUT.
@@ -127,7 +127,7 @@ try {
     { blocks: got.blocks, lang: got.lang, exact: got.code === expectedCode, whiteSpace: got.whiteSpace, font: got.font })
   step('select-and-copy still yields the lines (block rows serialise with newlines)', got.innerText.trim() === expectedCode.trim(), { exact: got.innerText.trim() === expectedCode.trim() })
   step('inline `code` styled', got.inline.includes('inline'), { inline: got.inline })
-  // CLE-3423 (owner 2026-09-19) REVERSES what this step asserted on 4c204d0:
+  // (owner 2026-09-19) REVERSES what this step asserted on 4c204d0:
   // a 400-character line now WRAPS, so neither the block nor the page scrolls
   step('the long line wraps: neither the block nor the page scrolls sideways', !got.preScrolls && (await xscroll(p)) <= 0, { preScrolls: got.preScrolls, xscroll: await xscroll(p) })
   await p.screenshot({ path: `${OUT}/feed-code-block-desktop.png` })

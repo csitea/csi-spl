@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { formatMsgListTs, phoneCardTime } from '../../src/utils/channel-feed.mjs'
 
 // SPL-1007 (owner, 2026-09-27, topic 70c82b54): a message from today shows only its time.
-// CLE-35065 (owner, prd t1 topic 95adf832): "today" is the viewer's LOCAL day on every phone surface.
+// (owner, prd t1 topic 95adf832): "today" is the viewer's LOCAL day on every phone surface.
 describe('phoneCardTime', () => {
   /* the viewer's zone: Node re-reads process.env.TZ on assignment */
   const tz0 = process.env.TZ

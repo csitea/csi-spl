@@ -261,7 +261,7 @@ export function bytesToDataUri(bytes, type) {
  *
  * `missStore` (a Storage) also remembers a 404 across reloads, for ONE url:
  * the own-picture route answers 404 to a member with no stored picture on
- * every page load (124 times for one member in 6 h on prd, CLE-35062). Its
+ * every page load (124 times for one member in 6 h on prd). Its
  * URL carries the session's iat, so the next sign-in asks again. Only a 404
  * is remembered; a network error or a 5xx is asked again next time.
  */

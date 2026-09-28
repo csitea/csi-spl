@@ -1,4 +1,4 @@
-// CLE-35065 (owner, prd t1 topics 95adf832 + fd1e5be4, 2026-09-28): on a
+// (owner, prd t1 topics 95adf832 + fd1e5be4, 2026-09-28): on a
 // phone "the text content of the cards must not be more than 6 px from the
 // left edge of the screen, and likewise no more than 6 px from the right",
 // "like the max amount of the screen area must be used", and the header row

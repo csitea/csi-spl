@@ -65,7 +65,7 @@ export const useChannelStore = defineStore('channel', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   /**
-   * CLE-3425 — last activity per channel id and per DM peer label, fed by the
+   * last activity per channel id and per DM peer label, fed by the
    * tab-wide `all` follow (plugins/spool-live.client.ts). The sidebar orders
    * both lists by it, so a message in a channel nobody has open still moves
    * that channel to the top with no refetch and no reload.
@@ -119,7 +119,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /**
-   * CLE-3425 — one live frame into the sidebar's order. Called for EVERY frame
+   * one live frame into the sidebar's order. Called for EVERY frame
    * of the tenant, not only the open view's (ingestLive keeps that filter).
    */
   function noteLive(m: Record<string, unknown>, self = '') {
@@ -128,7 +128,7 @@ export const useChannelStore = defineStore('channel', () => {
     if (next.peers !== dmAt.value) dmAt.value = next.peers
   }
 
-  /** CLE-3425 — a channel created anywhere in the tenant (hub `channel` frame). */
+  /** a channel created anywhere in the tenant (hub `channel` frame). */
   /** A live `channel` or `channel_deleted` frame (applyChannelFrame). */
   function addChannel(frame: Record<string, unknown>) {
     channels.value = applyChannelFrame(channels.value, frame) as ChannelInfo[]
@@ -141,7 +141,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /**
-   * CLE-3425 — the last DM per peer, so the DM list is ordered by activity on
+   * the last DM per peer, so the DM list is ordered by activity on
    * the first paint too (live frames keep it fresh afterwards). A hub without
    * the route, or a closed door, leaves the previous map alone.
    */

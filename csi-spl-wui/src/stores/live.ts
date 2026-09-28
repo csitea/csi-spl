@@ -125,7 +125,7 @@ function setup(key: 'main' | 'pane') {
   let offEdited: (() => void) | null = null
   let offReaction: (() => void) | null = null
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does.
-      `first`: that same newest window, already asked for (CLE-35062, utils/lobby-warm);
+      `first`: that same newest window, already asked for (utils/lobby-warm);
       a failed one is asked again here. */
   async function open(id: string, opts: { all?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
     if (!id) return

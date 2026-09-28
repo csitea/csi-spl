@@ -1,6 +1,6 @@
 package hub_test
 
-// CLE-3425 — the owner's order of 2026-09-20: newest first in EVERY listing, and
+// the owner's order of 2026-09-20: newest first in EVERY listing, and
 // a new item appears at the top in real time. These are the hub's two halves of
 // it: the order the view API answers in, and the one event the message fan-out
 // cannot carry (a channel created in another session has no message yet).

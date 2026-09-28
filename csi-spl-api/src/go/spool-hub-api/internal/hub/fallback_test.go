@@ -316,7 +316,7 @@ func TestFallbackPokeLine(t *testing.T) {
 	}
 }
 
-// FR-039 (CLE-001, after go-live): a proof / test channel that opted out
+// FR-039 (after go-live): a proof / test channel that opted out
 // keeps the old behaviour - the unheard post reaches nobody - while a
 // channel that did not opt out still falls back.
 func TestFallbackChannelOptOut(t *testing.T) {

@@ -1,6 +1,6 @@
 // csi-spl-wui/src/utils/event-log.mjs
 //
-// The personal event log (005 FR-WUI-EVLOG, contracts/events-v1.md, CLE-34990).
+// The personal event log (005 FR-WUI-EVLOG, contracts/events-v1.md).
 //
 // Owner, 2026-09-25: "all of the errors should get saved into a personal per
 // user event-log entry in the db, which should be accessible from event log,

@@ -10,7 +10,7 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * its topic on the right, as the replies button does; a thread line is
  * selected and scrolled into view. The order is Open, Copy link, Edit.
  *
- * A thread line (`parent`, CLE-34996) also has Open parent section, right
+ * A thread line (`parent`) also has Open parent section, right
  * after Open: the channel or DM the thread lives in, the parent card
  * selected there and the thread kept open (utils/parent-section.mjs).
  *

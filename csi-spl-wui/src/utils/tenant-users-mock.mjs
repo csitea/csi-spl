@@ -1,5 +1,5 @@
 /**
- * The mock hub's member directory (NUXT_PUBLIC_USE_MOCK=1, CLE-34969). Its
+ * The mock hub's member directory (NUXT_PUBLIC_USE_MOCK=1). Its
  * own module so spool-client loads it only in a mock build (dynamic import):
  * the initial chunk stays inside the 027 budget (SPL-1037).
  */

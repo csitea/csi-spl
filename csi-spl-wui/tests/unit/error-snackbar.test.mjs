@@ -1,4 +1,4 @@
-// The error snackbar's queue (005 FR-WUI-ERR-SNACK, CLE-34990), executed.
+// The error snackbar's queue (005 FR-WUI-ERR-SNACK), executed.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 

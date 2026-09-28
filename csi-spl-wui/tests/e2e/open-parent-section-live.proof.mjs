@@ -1,4 +1,4 @@
-// Open parent section (CLE-34996, SPL-15) - live proof, signed in, against a deployed WUI.
+// Open parent section (SPL-15) - live proof, signed in, against a deployed WUI.
 //
 // Owner, 2026-09-26: from a search result, a thread message's menu opens the
 // parent: the parent message selected in the middle, the channel (or DM)

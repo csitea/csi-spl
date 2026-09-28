@@ -412,7 +412,7 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 		}
 	}
 	if ty == search.TypeIssue {
-		// 1.2 (CLE-34992, spec 039): the tenant's issues, readable by every
+		// 1.2 (spec 039): the tenant's issues, readable by every
 		// member (topics.read, the view door above). ListIssues is one read,
 		// newest number first; an issue's name is its key and title.
 		is, ok := s.o.Store.(store.Issues)

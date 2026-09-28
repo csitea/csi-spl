@@ -1,4 +1,4 @@
-<!-- "Display name" (CLE-34968, Settings → Profile): the signed-in human's own
+<!-- "Display name" (Settings → Profile): the signed-in human's own
      shown name. The hub keeps it per human (humans.display_name, PUT
      /api/v1/auth/preferences display_name) and answers it as the session's
      `name`, which the user menu and the profile card render.

@@ -1,4 +1,4 @@
-// CLE-35066 (owner, prd t1 topic 110d842c, 2026-09-28): "In issues on mobile,
+// (owner, prd t1 topic 110d842c, 2026-09-28): "In issues on mobile,
 // clicking on the omnibox, typing and clicking the GO button does not create
 // a comment". /issues registered no omnibox send target, so the phone dock's
 // GO returned without a word. Now, in a real browser on the mock tenant:

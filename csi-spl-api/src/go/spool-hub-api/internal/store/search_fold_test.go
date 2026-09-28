@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Grammar 1.1 on both stores (CLE-34992, rdb 0048 spool_search): accents and
+// Grammar 1.1 on both stores (rdb 0048 spool_search): accents and
 // case fold in the message index, topic titles, topic name: and file names;
 // the topic prefilter keeps the aggregate's answer. CONTROLS: a word that is
 // not there stays a miss, and another tenant's accented row never appears.

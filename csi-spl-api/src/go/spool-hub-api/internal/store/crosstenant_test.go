@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Cross-tenant suite, store half (specs/017 FR-SEC-015, CLE-3416). Postgres
+// Cross-tenant suite, store half (specs/017 FR-SEC-015). Postgres
 // only (hub-pg.tst.sh, 10 ci hub job). Two tenants hold data in EVERY table
 // that carries tenant_id - the list comes from the catalogue, and a table the
 // seed does not fill fails the suite, so a new tenant table (RBAC, search,

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TestBoxReplyLevelBackfill (rdb 0043, CLE-34978): a box line stored after
+// TestBoxReplyLevelBackfill (rdb 0043): a box line stored after
 // the root of a channel topic becomes a reply (is_parent 0), as hub.boxLevel
 // now stores it. Controls: the root, a box line under a DM topic, a browser
 // row, a box line on the legacy lobby task and another tenant all keep 1.

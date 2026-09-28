@@ -1,10 +1,10 @@
-// CLE-34994 — WCAG AA contrast of every theme the palette picker offers,
+// WCAG AA contrast of every theme the palette picker offers,
 // computed from variables.css (not eyeballed). Prints the table it asserts,
 // so the numbers posted to the owner come from this run.
 //
 // Bars: text 4.5:1 (1.4.3), focus ring 3:1 (1.4.11). The light theme's ring
 // and its accent/button pair predate this lane and are owner-ruled or known
-// (see variables.css, CLE-3427); they are printed, flagged, and held to what
+// (see variables.css); they are printed, flagged, and held to what
 // they measure today so they cannot get worse. The three new tinted themes
 // must clear every bar.
 import { describe, it } from 'node:test'

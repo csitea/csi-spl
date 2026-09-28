@@ -1,6 +1,6 @@
 package hub_test
 
-// CLE-34962 — a file must not outlive the privacy of the messages carrying it.
+// a file must not outlive the privacy of the messages carrying it.
 //
 // The read door (rdb 0030) let an UNATTACHED blob through to any member or
 // pinned box of the tenant, for the upload-then-send window. Retention

@@ -1,5 +1,5 @@
 /**
- * CLE-3433 — what the version footer should say.
+ * what the version footer should say.
  *
  * The footer read a bare `v0.1.0` from `csi-spl-wui/.version`, which is a real
  * marker nobody has bumped, so it answered a question nobody asks and NOT the

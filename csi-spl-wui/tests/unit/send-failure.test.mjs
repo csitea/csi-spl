@@ -1,4 +1,4 @@
-// CLE-3433 — the owner wrote a message in a DM on 2026-09-21 and it vanished.
+// the owner wrote a message in a DM on 2026-09-21 and it vanished.
 // CLE-3434 read the dev hub's own `messages` table: nothing from HUM-9 after
 // 12:39:03Z. The row was never written, and the WUI said nothing. Three
 // things had to line up, and all three did:

@@ -1,4 +1,4 @@
-// CLE-3433 — a send that does not land must keep the text, say so, and offer
+// a send that does not land must keep the text, say so, and offer
 // a retry. On 2026-09-21 it did none of the three: the owner's message left
 // no row in the hub's `messages` table and no trace in the browser.
 //

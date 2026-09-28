@@ -1,5 +1,5 @@
 <!-- Settings → Appearance (the theme and the font size; specs/023 §3.4; the
-     "Debug pane" checkbox, CLE-34963). -->
+     "Debug pane" checkbox). -->
 <template>
   <SettingsSection id="settings-appearance" :title="t('settings.appearance')" data-test="settings-appearance">
     <div class="settings__row">

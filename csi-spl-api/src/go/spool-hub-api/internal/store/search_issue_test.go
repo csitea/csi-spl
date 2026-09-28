@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 )
 
-// The search grammar's issue sets are store's, not a copy (1.2, CLE-34992).
+// The search grammar's issue sets are store's, not a copy (1.2).
 // CONTROL: every workflow status parses as status:, a value outside it does not.
 func TestSearchIssueSetsAreStores(t *testing.T) {
 	if !reflect.DeepEqual(search.IssueStatuses, IssueStatuses) || search.IssuePriorityMax != IssuePriorityMax || search.IssuePriorityMin != IssuePriorityMin {

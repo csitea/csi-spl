@@ -1,5 +1,5 @@
 /**
- * The admin's Users page (specs/025 FR-012, CLE-34969): GET /v1/members,
+ * The admin's Users page (specs/025 FR-012): GET /v1/members,
  * POST /v1/members/invites, PUT /v1/members/{id}/role, DELETE
  * /v1/members/{id}, DELETE /v1/members/invites?email=.
  *

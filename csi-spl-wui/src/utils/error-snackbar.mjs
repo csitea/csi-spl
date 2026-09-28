@@ -1,6 +1,6 @@
 // csi-spl-wui/src/utils/error-snackbar.mjs
 //
-// The error snackbar's state (005 FR-WUI-ERR-SNACK, CLE-34990).
+// The error snackbar's state (005 FR-WUI-ERR-SNACK).
 //
 // Owner, 2026-09-25: "all of the errors to occur via a cool sliding snackbar
 // from the top".

@@ -1,4 +1,4 @@
-// CLE-3429 — the shell shows exactly ONE topic section (1..1).
+// the shell shows exactly ONE topic section (1..1).
 //
 // Why this module exists: the shell has two topic panes driven by two
 // independent pinia stores — LiveTopicPane off useLiveFeed('pane') (fed by

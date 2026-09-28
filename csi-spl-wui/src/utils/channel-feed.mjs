@@ -213,7 +213,7 @@ export function formatTs(ts, _locale) {
 }
 
 /**
- * CLE-3446 — the owner's settled row format wants a REAL ISO 8601 stamp, with
+ * the owner's settled row format wants a REAL ISO 8601 stamp, with
  * the `T` and the `Z`: `2026-09-22T11:58:03Z`.
  *
  * `formatAbsTs` below is NOT that and must not be bent into it: it returns
@@ -252,7 +252,7 @@ function wallClock(d) {
  * today shows only its time - `13:43`; another day this year `09-26 23:59`,
  * another year `2025-12-31 23:59` (SPL-1000).
  *
- * CLE-35065 (owner, prd t1 topic 95adf832, 2026-09-28 00:3x EEST): "today"
+ * (owner, prd t1 topic 95adf832, 2026-09-28 00:3x EEST): "today"
  * is the VIEWER's local calendar day, on every phone surface. The first cut
  * read "today" in the frame the text was printed in, and the topic pane's
  * clock prints UTC, so between local midnight and UTC midnight a viewer east
@@ -705,7 +705,7 @@ export function channelView(messages, { search = '', visible = 50 } = {}) {
 }
 
 /**
- * CLE-3425 — the sidebar channel list, newest first. A channel ranks by the
+ * the sidebar channel list, newest first. A channel ranks by the
  * newest of: a live message just pushed for it (`liveAt`, so the order moves
  * with no refetch), the hub's `last_ts`, and its `created_at` (so a channel
  * created seconds ago tops the list although nobody has posted in it yet).
@@ -719,7 +719,7 @@ export function channelActivity(row, liveAt = {}) {
 }
 
 /**
- * CLE-3446 — the RIGHT-hand party of a row, in the owner's settled format:
+ * the RIGHT-hand party of a row, in the owner's settled format:
  *
  *   [identicon] HUM-17@box-wui   ->  [robot] CLE-3444@box-desk   note   <iso>
  *   [robot] CLE-3444@box-desk    ->  [identicon] HUM-17@box-wui  note   <iso>
@@ -787,7 +787,7 @@ export function orderPeers(rows, lastAt = {}) {
 }
 
 /**
- * CLE-3425 — last DM moment per peer label from view-v1 §4.3 DM topic rows
+ * last DM moment per peer label from view-v1 §4.3 DM topic rows
  * (`?dm=true`), for orderPeers. `self` (our own label) is never a peer.
  */
 export function dmActivity(topics, self = '') {
@@ -804,7 +804,7 @@ export function dmActivity(topics, self = '') {
 }
 
 /**
- * CLE-3425 — the DM peer of one message, as the sidebar labels peers
+ * the DM peer of one message, as the sidebar labels peers
  * ("<id>@<box>"): the end that is not us. `self` is our v:1 id (live.identity);
  * a broadcast (ALL-0) and a message with no other end give ''.
  */
@@ -820,7 +820,7 @@ export function dmPeerOf(msg, self = '') {
 }
 
 /**
- * CLE-3425 — fold one live frame into the per-channel / per-peer "last activity"
+ * fold one live frame into the per-channel / per-peer "last activity"
  * maps the sidebar orders by. Returns the new maps (the same objects when
  * nothing moved, so a store can skip the write).
  */
@@ -839,7 +839,7 @@ export function noteActivity({ channels = {}, peers = {} }, msg, self = '') {
 }
 
 /**
- * CLE-3425 — a `channel` frame (a channel created anywhere in the tenant) into
+ * a `channel` frame (a channel created anywhere in the tenant) into
  * the sidebar rows: a new row is added, a known one keeps what the hub told us.
  * orderChannels puts it on top through its created_at.
  */

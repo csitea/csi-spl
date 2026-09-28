@@ -56,7 +56,7 @@ export function credentialsFor(door) {
 /**
  * Per-topic reads listMessages keeps in flight. The api host speaks HTTP/2,
  * so this is the client's own cap, not the browser's: at 6 a 20-topic page
- * went out in four serial waves (~70-100 ms each on dev, CLE-34984).
+ * went out in four serial waves (~70-100 ms each on dev).
  */
 export const TOPIC_READS_IN_FLIGHT = 10
 
@@ -439,7 +439,7 @@ export function createSpoolClient({
   }
 
   /*
-   * CLE-34984 (perf P1, measured on dev 947635e7): one cold /lobby asked for
+   * (perf P1, measured on dev 947635e7): one cold /lobby asked for
    * /v1/view/roster six times and channels / me / operators / the DM list
    * twice each, because the shell, the plugins and the page each read what
    * they need at the same moment. A GET that is identical to one already in

@@ -35,7 +35,7 @@
   --color-composer: #0a1424;
   --color-glow: rgba(52, 213, 240, 0.35);
 
-  /* CLE-3427 — keyboard focus and selection, defined ONCE for every view.
+  /* keyboard focus and selection, defined ONCE for every view.
      Owner, 2026-09-20: "any selected item should have no more than 1 color in
      the selected border which cannot be wider than 3 px". So there is exactly
      ONE ring colour in the whole treatment — --focus-ring, used by the focus
@@ -141,7 +141,7 @@
   --color-btn-select-fg: #f4f8ff;
 }
 
-/* CLE-34994 — three tinted light themes between light and dark (owner,
+/* three tinted light themes between light and dark (owner,
    2026-09-26: "light violette, and light green, and light yellow"). Each is a
    FULL palette set, same token list as light, so nothing falls back to the
    dark :root values. Unlike light, each focus ring clears the WCAG 1.4.11
@@ -342,7 +342,7 @@
   --color-composer: #0a1424;
   --color-glow: rgba(52, 213, 240, 0.35);
 
-  /* CLE-3427 — keyboard focus and selection, defined ONCE for every view.
+  /* keyboard focus and selection, defined ONCE for every view.
      Owner, 2026-09-20: "any selected item should have no more than 1 color in
      the selected border which cannot be wider than 3 px". So there is exactly
      ONE ring colour in the whole treatment — --focus-ring, used by the focus

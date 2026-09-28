@@ -231,7 +231,7 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 		get(d)
 	}
 	deleted := map[string]bool{} // rdb 0052: dropped once every read is in
-	// One batch, one round trip (CLE-34985; it was a BEGIN .. COMMIT
+	// One batch, one round trip (it was a BEGIN .. COMMIT
 	// transaction of 5 + len(reads) round trips). Results come back in queue
 	// order, so the unread counts see the counts the stats read stored.
 	reqs := []tenantRead{

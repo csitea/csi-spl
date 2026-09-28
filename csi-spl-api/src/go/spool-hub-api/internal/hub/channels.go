@@ -81,7 +81,7 @@ func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) 
 // wuiChannel is the channel a BROWSER send is stored in: the channel of the
 // topic the line goes into when that topic already has a root in one, else
 // channelOf. The frame's tag is the page the reader had on screen, and a
-// reply into an open topic is not a post into that page (CLE-35057, prd
+// reply into an open topic is not a post into that page (prd
 // 2026-09-27: reply a28f0111 into topic 58397faf, rooted in
 // #spool-hub-devel, was stored under #spool-hub-ops because the page was
 // #spool-hub-ops - the owner's "it went into the wrong channel"). A topic
@@ -110,7 +110,7 @@ func (s *Server) wuiChannel(ctx context.Context, tenant, channel, taskID string,
 // boxLevel is the is_parent a box send is stored with. A box frame carries
 // no level, so every agent line used to be stored as 1 - an agent's answer in
 // a channel thread then sat in the channel feed as a new post, while the
-// same answer typed in the WUI reply pane was a reply (CLE-34978, measured
+// same answer typed in the WUI reply pane was a reply (measured
 // 2026-09-25: every non-root box row under a channel topic was 1, dev 8 prd
 // 23; every browser one 0). A line on a task whose topic root is in a channel
 // is a reply; a new task, a DM and the legacy lobby task stay 1. A lookup

@@ -144,7 +144,7 @@ func (q SearchQuery) Hides(channel string) bool {
 	return true
 }
 
-// readable is the per-message read door (rdb 0028, CLE-34986): a DM row by
+// readable is the per-message read door (rdb 0028): a DM row by
 // its two ends, a channel row by what Hides allows. "" viewer reads all.
 func (q SearchQuery) readable(m *Message) bool {
 	if q.Viewer == "" {

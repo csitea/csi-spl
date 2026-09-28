@@ -1,6 +1,6 @@
 // Level-1 card clip + 3 height modes — live proof, signed in, against a deployed WUI.
 //
-// Owner, 2026-09-25 (CLE-34989, specs/033 FR-ML-020..026): a level-1 card in
+// Owner, 2026-09-25 (specs/033 FR-ML-020..026): a level-1 card in
 // the middle pane is clipped at 5 text rows, or at 30% of the screen when a
 // picture is on it; a grip drags it taller; a control sets titles (first 90
 // chars) / 5 rows (default) / full; the thread's root card is never clipped

@@ -697,7 +697,7 @@ func StatusDoc() string {
 }
 
 // asYouType makes the query's last bare word a prefix when nothing follows it
-// (1.1, CLE-34992): "deplo" finds deploy while it is being typed; "deplo "
+// (1.1): "deplo" finds deploy while it is being typed; "deplo "
 // (a space typed after it) does not, and neither does a negated word.
 func (q *Query) asYouType(end int) {
 	var last *Term

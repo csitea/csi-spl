@@ -1,4 +1,4 @@
-// CLE-3448 — a signed-in human must reach the people pane, and stay there.
+// a signed-in human must reach the people pane, and stay there.
 //
 // The owner signed in on the deployed dev WUI and the presence/roster pane
 // listed no human at all. Measured on dev (build 021d706, tenant t1, n=1):

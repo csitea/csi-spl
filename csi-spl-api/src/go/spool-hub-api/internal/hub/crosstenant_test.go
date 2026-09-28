@@ -20,7 +20,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Cross-tenant suite, hub half (specs/017 FR-SEC-015, CLE-3416). One suite:
+// Cross-tenant suite, hub half (specs/017 FR-SEC-015). One suite:
 // every test is TestCrossTenant*, CLE-3415's tenant-from-identity tests
 // (crosstenant_identity_test.go: B's Host, ?tenant=B, X-Spool-Tenant: B)
 // included; hub-pg.tst.sh runs them against Postgres and requires every one

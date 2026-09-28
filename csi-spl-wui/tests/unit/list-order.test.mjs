@@ -1,4 +1,4 @@
-// CLE-3425 — "newest first EVERYWHERE, and a new item pops to the top without
+// "newest first EVERYWHERE, and a new item pops to the top without
 // a refresh" (the owner's order of 2026-09-20, extending 013 US7 / CLE-3412).
 //
 // 013 proved it for one list: the messages of the open view. This suite covers

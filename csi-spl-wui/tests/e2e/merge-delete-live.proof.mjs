@@ -1,4 +1,4 @@
-// CLE-35064 — live proof, signed in: a merge removes its source message.
+// live proof, signed in: a merge removes its source message.
 //
 // Owner, prd t1 topic 04130ea2: "the merge with previous and next works, but
 // once the content is merged, the actual source of the merged content, the

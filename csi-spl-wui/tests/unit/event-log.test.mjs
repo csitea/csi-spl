@@ -1,5 +1,5 @@
 // The personal event log's client + shipper (005 FR-WUI-EVLOG,
-// contracts/events-v1.md, CLE-34990), executed.
+// contracts/events-v1.md), executed.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

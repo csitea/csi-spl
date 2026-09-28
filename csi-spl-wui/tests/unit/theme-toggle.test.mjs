@@ -1,4 +1,4 @@
-// Theme picker (CLE-34994, was the GRK-3374 toggle): five themes, persisted,
+// Theme picker (was the GRK-3374 toggle): five themes, persisted,
 // chosen from a palette-icon listbox.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

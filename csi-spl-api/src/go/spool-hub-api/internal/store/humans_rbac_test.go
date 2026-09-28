@@ -89,7 +89,7 @@ func TestTenantRolesAndLastOwner(t *testing.T) {
 			if r, _ := h.MemberRole(ctx, own, tid); r != rbac.BizOwner {
 				t.Fatalf("last owner changed anyway: %q", r)
 			}
-			// Last member manager (CLE-34969; specs/046: admin AND biz_owner
+			// Last member manager (specs/046: admin AND biz_owner
 			// hold members.invite). own is a biz_owner, so dev may step down.
 			if err := h.SetMemberRole(ctx, tid, dev, rbac.Developer, ""); err != nil {
 				t.Fatalf("admin steps down beside a biz_owner: %v", err)

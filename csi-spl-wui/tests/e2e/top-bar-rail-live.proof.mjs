@@ -1,4 +1,4 @@
-// CLE-3433 — the two rendering defects that made the deployed WUI read as
+// the two rendering defects that made the deployed WUI read as
 // "completely broken", pinned as a browser measurement rather than a look.
 //
 //   1. the decorative `/` keycap is gone from the top bar (it covered Send

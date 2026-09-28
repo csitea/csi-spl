@@ -1,6 +1,6 @@
 package wire_test
 
-// CLE-3436 (specs/030 FR-001): what one message costs INSIDE the process, so a
+// (specs/030 FR-001): what one message costs INSIDE the process, so a
 // fast-path change is argued from a number rather than from a hunch. Each
 // benchmark is one hop of the send path the owner's DM actually walks:
 //

@@ -1,4 +1,4 @@
-<!-- Issues (GRK-3519, topic 9c19bfe9). Two panes: the rail and this sheet.
+<!-- Issues (topic 9c19bfe9). Two panes: the rail and this sheet.
      SPL-1027 (owner, prd t1 topic 89485c7a): the right pane is gone - above
      820 px an opened issue is a modal (IssueDetailFrame), and the sheet is
      fully CRUD in place (a new row on top, every cell edited, a row delete).
@@ -1706,7 +1706,7 @@ async function sendComment() {
   }
 }
 
-/* CLE-35066 (owner, prd t1 topic 110d842c: "In issues on mobile, clicking on
+/* (owner, prd t1 topic 110d842c: "In issues on mobile, clicking on
    the omnibox, typing and clicking the GO button does not create a
    comment"). /issues registered no omnibox send target, so the phone dock's
    GO had nowhere to send and did nothing. With an issue open on a phone

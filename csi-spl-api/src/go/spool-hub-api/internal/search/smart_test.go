@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Grammar 1.1 (CLE-34992, the smart omnibox): tenant and event types, the
+// Grammar 1.1 (the smart omnibox): tenant and event types, the
 // kind: / channel: / thread / person aliases, as-you-type prefixes and the
 // language-neutral fold.
 

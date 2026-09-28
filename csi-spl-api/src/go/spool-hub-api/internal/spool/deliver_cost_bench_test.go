@@ -1,6 +1,6 @@
 package spool
 
-// CLE-3436 (specs/030 FR-001): what the BOX-SIDE MAILBOX costs per message.
+// (specs/030 FR-001): what the BOX-SIDE MAILBOX costs per message.
 //
 // The owner asked whether the file-based mailbox is what makes the WUI chat
 // slow, and whether it should become "web sockets + streaming client to server

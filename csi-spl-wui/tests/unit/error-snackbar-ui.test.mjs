@@ -1,4 +1,4 @@
-// GRK-3514 — ErrorSnackbar.vue + pages/events.vue + the default-layout mount
+// ErrorSnackbar.vue + pages/events.vue + the default-layout mount
 // (topic 4335f075). Source-read, same shape as error-journal.test.mjs.
 //
 // Run: node tests/unit/error-snackbar-ui.test.mjs

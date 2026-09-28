@@ -2,7 +2,7 @@ import { dmPeerOf } from './channel-feed.mjs'
 import { topicQuery } from './topic-open.mjs'
 
 /**
- * CLE-34996 (SPL-15): "Open parent section" on a thread message.
+ * (SPL-15): "Open parent section" on a thread message.
  *
  * Owner, 2026-09-26: from a search result, a thread message's right-click
  * menu opens the place the thread lives in: the parent message selected in

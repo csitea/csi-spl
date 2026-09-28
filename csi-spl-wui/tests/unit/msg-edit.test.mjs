@@ -413,7 +413,7 @@ describe('the wire body helper', () => {
 
 
 /*
- * CLE-3446 — the OWNER's bug, 2026-09-22:
+ * the OWNER's bug, 2026-09-22:
  *
  *   "also the editing of the msg appears whenever the bot is sending"
  *   "of course msgs sent by bots should not be editable"

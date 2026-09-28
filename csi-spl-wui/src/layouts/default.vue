@@ -59,7 +59,7 @@
           @input="setTopic"
           @reset="resetTopic"
         />
-        <!-- CLE-3429 (1..1): ONE topic section, whichever store holds it.
+        <!-- (1..1): ONE topic section, whichever store holds it.
              This v-if / v-else chain is the structural half of the invariant —
              the two panes can never both be in the tree, on any route, theme or
              width. Do NOT mount either of them a second time: utils/topic-pane

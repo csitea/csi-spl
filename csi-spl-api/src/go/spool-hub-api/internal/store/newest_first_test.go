@@ -1,6 +1,6 @@
 package store
 
-// CLE-3425 — every listing the store answers is newest first. These are the two
+// every listing the store answers is newest first. These are the two
 // orderings clients render straight through: the channel list and the member
 // list. Ordering that a client re-sorts anyway is not covered here.
 

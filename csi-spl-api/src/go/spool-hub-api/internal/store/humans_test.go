@@ -217,7 +217,7 @@ func TestHumansAvatar(t *testing.T) {
 	}
 }
 
-// CLE-3403 (rdb 0017): a human's picked locale, and the lookup the native
+// (rdb 0017): a human's picked locale, and the lookup the native
 // mails use to reach it from a (provider, subject) sign-in.
 func TestHumansPreferredLocale(t *testing.T) {
 	ctx := context.Background()
@@ -367,7 +367,7 @@ func TestHumansPreferredLocale(t *testing.T) {
 	}
 }
 
-// CLE-34963 (rdb 0038): a human's own "Debug pane" setting. It starts off,
+// (rdb 0038): a human's own "Debug pane" setting. It starts off,
 // flips both ways, belongs to one human only, and an unknown human is ErrNotFound.
 func TestHumansDiagnosticsEnabled(t *testing.T) {
 	ctx := context.Background()

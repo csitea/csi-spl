@@ -1,4 +1,4 @@
-// CLE-3429 — in a real browser, the shell shows at most ONE topic section.
+// in a real browser, the shell shows at most ONE topic section.
 //
 // The bug: layouts/default.vue mounted <TopicPane /> and <LiveTopicPane />
 // side by side, each with its own v-if over its own pinia store. The stores

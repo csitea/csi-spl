@@ -1,4 +1,4 @@
-<!-- "Debug pane" (CLE-34963, Settings → Appearance): the signed-in human's own
+<!-- "Debug pane" (Settings → Appearance): the signed-in human's own
      switch for the diagnostics panel at the bottom of the app
      (components/common/DebugPanel.vue). The hub keeps it per human
      (humans.diagnostics_enabled, PUT /api/v1/auth/preferences) and answers it

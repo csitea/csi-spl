@@ -1,4 +1,4 @@
-// CLE-3427 — the focus / selection tokens, asserted as NUMBERS rather than as
+// the focus / selection tokens, asserted as NUMBERS rather than as
 // "the CSS mentions a colour": the test computes relative luminance from
 // variables.css and fails when a future edit makes the ring darker than the
 // owner asked for, widens a ring past the ceiling, or lets a second colour

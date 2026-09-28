@@ -1,4 +1,4 @@
-// Font size (CLE-3495, specs/023 §3.5) — live proof, signed in, against a
+// Font size (specs/023 §3.5) — live proof, signed in, against a
 // deployed WUI.
 //
 //   0. a fresh browser (nothing stored) opens at the default level 3: the

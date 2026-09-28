@@ -1,4 +1,4 @@
-<!-- Font size (CLE-3495, specs/023 §3.4 Appearance). Five levels as a real
+<!-- Font size (specs/023 §3.4 Appearance). Five levels as a real
      radiogroup — native radios in one named group, so arrow keys move between
      them — flanked by − (one level smaller) and + (one level bigger), each
      disabled at its end. The level lives on <html data-font-size> and in this

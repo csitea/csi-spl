@@ -1,4 +1,4 @@
-// CLE-34984 (spec 027 perf P1): the WUI client's request waterfall.
+// (spec 027 perf P1): the WUI client's request waterfall.
 //
 // Measured on dev (build 947635e7, tests/e2e/perf-live.proof.mjs, n=1): one
 // cold /lobby sent 7 view reads with no credentials before the door was known

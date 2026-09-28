@@ -1,4 +1,4 @@
-// Issues (specs/039, CLE-34993) — live proof, signed in, against a deployed WUI + hub.
+// Issues (specs/039) — live proof, signed in, against a deployed WUI + hub.
 //
 // Owner, 2026-09-26: issues "the way Linear shows the issues, keeping still
 // this 3 vertical lines structure"; "each issue must have prio, deadline,

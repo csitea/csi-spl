@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// Request memo (CLE-34985, specs/027 P2). One browser read asks for the same
+// Request memo (specs/027 P2). One browser read asks for the same
 // membership up to three times: the session door (AuthHooks.Member), the RBAC
 // permit (rbac.Authorizer.Access) and the handler's own permission check. Each
 // ask is a Postgres round trip. A memo attached to ONE request's context

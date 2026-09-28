@@ -1,4 +1,4 @@
-<!-- Theme picker (CLE-34994, was the GRK-3374 sun/moon toggle). A painter's
+<!-- Theme picker (was the GRK-3374 sun/moon toggle). A painter's
      palette icon button opens a listbox of the five themes (THEMES in
      utils/theme.mjs), the current one checked; each option shows its own
      theme's background + accent swatch. Choosing persists as before

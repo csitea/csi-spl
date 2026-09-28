@@ -279,7 +279,7 @@ describe('the dropdown list opens under its own input', () => {
   })
 })
 
-describe('a default channel lists every person read-only and picks its agents (CLE-3493, 2026-09-25)', () => {
+describe('a default channel lists every person read-only and picks its agents (2026-09-25)', () => {
   const dialog = src('src/components/ChannelPropertiesDialog.vue')
   const sidebar = src('src/components/ChannelSidebar.vue')
 

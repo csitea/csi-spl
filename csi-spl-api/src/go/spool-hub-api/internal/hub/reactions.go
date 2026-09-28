@@ -101,7 +101,7 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
 		return
 	}
-	// The door on THIS message (CLE-34986; it was the topic's, so a mixed
+	// The door on THIS message (it was the topic's, so a mixed
 	// topic let a member react to a DM they are not an end of). A message you
 	// cannot see is a 404, so the refusal does not confirm that it exists.
 	if !s.messageDoor(w, r, t.ID, m) {

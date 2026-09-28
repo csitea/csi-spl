@@ -3,7 +3,7 @@ import { useTopicStore, type TopicTarget } from '~/stores/topic'
 import { queryWithTopic, sameQuery, sameTarget, targetFromQuery, topicFeedRelease, topicTargetFor } from '~/utils/topic-open.mjs'
 
 /**
- * CLE-3427 — the open topic and the URL, kept as one fact.
+ * the open topic and the URL, kept as one fact.
  *
  * The page says how to open a target (the two panes read different stores)
  * and this keeps `?topic=` / `?in=` in step with it both ways: a click

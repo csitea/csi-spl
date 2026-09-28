@@ -1,4 +1,4 @@
-// CLE-3427 — live proof, signed in, against a deployed WUI, in BOTH themes.
+// live proof, signed in, against a deployed WUI, in BOTH themes.
 //
 // Two owner orders are under test here (2026-09-20):
 //   "make the selected UI parts when one cycles with the tab more 3D - the

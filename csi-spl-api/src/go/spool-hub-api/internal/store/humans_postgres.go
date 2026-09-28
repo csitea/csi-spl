@@ -213,18 +213,29 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 // carries a request memo (memo.go).
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
 	// SPL-1034: the same row's channel_order rides along into the request
-	// memo, so ChannelOrder in the same request costs no round trip.
-	return memberRoleOrder(ctx, humanID, tenant, func() (string, []string, error) {
-		var role string
-		var order []string
-		err := s.queryRowTenant(ctx, tenant, `SELECT m.role, m.channel_order FROM tenant_memberships m
+	// memo, so ChannelOrder in the same request costs no round trip; so do
+	// the human's channels (SPL-1115, HumanChannels), in the same batch.
+	return memberRoleOrder(ctx, humanID, tenant, func(memo bool) (memberRead, error) {
+		var v memberRead
+		found := false
+		reads := []tenantRead{{sql: `SELECT m.role, m.channel_order FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
 			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL AND m.disabled_at IS NULL`,
-			[]any{tenant, humanID}, &role, &order)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", nil, ErrNotFound
+			args: []any{tenant, humanID}, each: func(rows pgx.Rows) error {
+				found = true
+				return rows.Scan(&v.role, &v.order)
+			}}}
+		if memo {
+			reads = append(reads, humanChannelsRead(tenant, humanID, &v.chans))
 		}
-		return role, order, err
+		if err := s.queryTenantBatch(ctx, tenant, reads...); err != nil {
+			return memberRead{}, err
+		}
+		v.chansRead = memo
+		if !found {
+			return v, ErrNotFound
+		}
+		return v, nil
 	})
 }
 

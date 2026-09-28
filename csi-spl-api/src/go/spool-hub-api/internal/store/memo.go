@@ -30,6 +30,19 @@ type memoRole struct {
 	// (ordered = it was read), so GET /v1/view/me stays one round trip.
 	order   []string
 	ordered bool
+	// SPL-1115: the human's channel_humans list (HumanChannels), read in the
+	// same batch as the membership, so the read door costs no round trip of
+	// its own. chansRead = it was read.
+	chans     []string
+	chansRead bool
+}
+
+// memberRead is what one membership read answered for the memo.
+type memberRead struct {
+	role      string
+	order     []string
+	chans     []string
+	chansRead bool
 }
 
 // WithMemo returns ctx carrying a fresh request memo (ctx itself when it
@@ -47,12 +60,14 @@ func memoFrom(ctx context.Context) *memo {
 }
 
 // memberRoleOrder is memberRole for a driver whose one membership read also
-// answers channel_order (rdb 0073): both go into the memo.
-func memberRoleOrder(ctx context.Context, humanID, tenant string, load func() (string, []string, error)) (string, error) {
+// answers channel_order (rdb 0073) and, with a memo, the human's channels
+// (SPL-1115): all of it goes into the memo. load's argument says whether a
+// memo will keep what it reads.
+func memberRoleOrder(ctx context.Context, humanID, tenant string, load func(memo bool) (memberRead, error)) (string, error) {
 	m := memoFrom(ctx)
 	if m == nil {
-		role, _, err := load()
-		return role, err
+		v, err := load(false)
+		return v.role, err
 	}
 	k := [2]string{tenant, humanID}
 	m.mu.Lock()
@@ -61,13 +76,29 @@ func memberRoleOrder(ctx context.Context, humanID, tenant string, load func() (s
 	if ok {
 		return r.role, r.err
 	}
-	role, order, err := load()
+	v, err := load(true)
 	if err == nil || err == ErrNotFound {
 		m.mu.Lock()
-		m.roles[k] = memoRole{role: role, err: err, order: order, ordered: true}
+		m.roles[k] = memoRole{role: v.role, err: err, order: v.order, ordered: true, chans: v.chans, chansRead: v.chansRead}
 		m.mu.Unlock()
 	}
-	return role, err
+	return v.role, err
+}
+
+// memoChannels is the human's channel list the request's memo already read
+// with the membership: ok=false when it has not.
+func memoChannels(ctx context.Context, humanID, tenant string) (chans []string, ok bool) {
+	m := memoFrom(ctx)
+	if m == nil {
+		return nil, false
+	}
+	m.mu.Lock()
+	r, found := m.roles[[2]string{tenant, humanID}]
+	m.mu.Unlock()
+	if !found || !r.chansRead {
+		return nil, false
+	}
+	return append([]string(nil), r.chans...), true
 }
 
 // memoOrder is the channel_order the request's memo already read: ok=false

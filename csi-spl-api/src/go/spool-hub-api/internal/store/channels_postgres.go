@@ -374,18 +374,28 @@ func (s *Postgres) ChannelHumanMembers(ctx context.Context, tenant, channel stri
 }
 
 func (s *Postgres) HumanChannels(ctx context.Context, tenant, human string) ([]string, error) {
+	if chans, ok := memoChannels(ctx, human, tenant); ok { // SPL-1115: read with the membership
+		return chans, nil
+	}
 	var out []string
-	err := s.queryTenant(ctx, tenant, `SELECT channel_id FROM channel_humans
-		WHERE tenant_id = $1 AND human_id = $2 AND `+notDeleted("channel_humans.channel_id")+` ORDER BY channel_id`, []any{tenant, human},
-		func(rows pgx.Rows) error {
+	r := humanChannelsRead(tenant, human, &out)
+	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
+	return out, err
+}
+
+// humanChannelsRead is HumanChannels' statement, shared with MemberRole's
+// memo batch.
+func humanChannelsRead(tenant, human string, out *[]string) tenantRead {
+	return tenantRead{sql: `SELECT channel_id FROM channel_humans
+		WHERE tenant_id = $1 AND human_id = $2 AND ` + notDeleted("channel_humans.channel_id") + ` ORDER BY channel_id`,
+		args: []any{tenant, human}, each: func(rows pgx.Rows) error {
 			var c string
 			if err := rows.Scan(&c); err != nil {
 				return err
 			}
-			out = append(out, c)
+			*out = append(*out, c)
 			return nil
-		})
-	return out, err
+		}}
 }
 
 func (s *Postgres) AddChannelHumans(ctx context.Context, tenant, channel string, humans []string, by string, now time.Time) error {

@@ -80,6 +80,8 @@ func TestRoundTripsPerRequest(t *testing.T) {
 	// n: a background write - presence, last-seen - can land inside one
 	// sample, never inside all of them). Tree bbe04d26 read 3 10 5 5 11 28 5;
 	// raising a budget needs a reason in the commit.
+	// SPL-1115: the read door's channel list rides the membership batch, one
+	// round trip off channels, topics, topics/{id}, search and a channel page.
 	probes := []struct {
 		name   string
 		budget int64
@@ -88,15 +90,15 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		{"GET /v1/view/me", 1, get("/v1/view/me")},
 		// SPL-1100: one humans read for every setting (it read the row 9 times: 14).
 		{"GET /api/v1/auth/session", 6, get("/api/v1/auth/session")},
-		{"GET /v1/view/channels", 3, get("/v1/view/channels")},
+		{"GET /v1/view/channels", 2, get("/v1/view/channels")},
 		// SPL-1111: boxes, avatars and members in one batch (it was 3: 4).
 		{"GET /v1/view/roster", 2, get("/v1/view/roster")},
-		{"GET /v1/view/topics", 3, get("/v1/view/topics")},
-		{"GET /v1/view/topics/{lobby}", 6, get("/v1/view/topics/" + lobby)},
-		{"GET /v1/view/search?q=seed", 9, get("/v1/view/search?q=seed")},
+		{"GET /v1/view/topics", 2, get("/v1/view/topics")},
+		{"GET /v1/view/topics/{lobby}", 5, get("/v1/view/topics/" + lobby)},
+		{"GET /v1/view/search?q=seed", 8, get("/v1/view/search?q=seed")},
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
-		{"GET topics?channel&per_topic=30", 5, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
+		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
 		{"WS wui send (lobby) -> ack", 5, func() error { send("probe"); return nil }},
 	}
 	const n = 5

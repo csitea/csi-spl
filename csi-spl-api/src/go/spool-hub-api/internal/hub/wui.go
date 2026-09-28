@@ -482,43 +482,13 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			Str("detail", detail).Msg("wui send refused")
 		c.write(ctx, wuiErr{"error", tok, status, detail, f.MsgID}) //nolint:errcheck
 	}
-	task, ok := s.lobbyAlias(f.TaskID)
-	if !ok {
-		fail("lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID")
-		return
-	}
-	if !uuidRe.MatchString(task) {
-		fail("bad_json", http.StatusBadRequest, "task_id must be a UUID or \"lobby\"")
-		return
-	}
-	id := strings.ToLower(f.MsgID)
-	if id == "" {
-		id = uid.New()
-	} else if !uuidRe.MatchString(id) {
-		fail("bad_json", http.StatusBadRequest, "msg_id must be a UUID")
-		return
-	}
-	isParent, okParent := uiParent(f.IsParent)
-	if !okParent {
-		fail("bad_json", http.StatusBadRequest, "is_parent must be 0 or 1")
+	task, id, isParent, tok, status, detail := s.wuiIDs(f)
+	if tok != "" {
+		fail(tok, status, detail)
 		return
 	}
 	f.MsgID = id
-	kind := f.Kind
-	switch kind {
-	case "", "chat": // v:1 has no chat kind (NFR-003): a chat line is a note
-		kind = "note"
-	}
-	to := f.To
-	agent := ""
-	if s.o.WUIDispatch {
-		if agent = dispatchAgent(to, f.Body); agent != "" {
-			to = agent
-		}
-	}
-	if to == "" {
-		to = BroadcastID
-	}
+	to, agent := s.wuiRecipient(f)
 	// A resend of a stored msg_id reuses its ts, so the rebuilt envelope is
 	// byte-identical and re-acks instead of conflicting (003 wui-live-ws §4).
 	ts := s.o.Now()
@@ -529,21 +499,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	m := &msg.Message{V: s.writeVersion(), MsgID: id, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
-		From: c.from, To: to, Kind: kind, Body: f.Body, Files: []msg.Attachment{}}
-	for _, a := range f.Files {
-		mode, k := a.Mode, a.Kind
-		if mode == "" {
-			mode = "blob"
-		}
-		if k == "" {
-			k = "file"
-		}
-		sum := a.SHA256
-		if sum == "" {
-			sum = a.FileID
-		}
-		m.Files = append(m.Files, msg.Attachment{Mode: mode, Kind: k, FileID: a.FileID, Name: a.Name, Bytes: a.Bytes, SHA256: sum})
-	}
+		From: c.from, To: to, Kind: wuiKind(f.Kind), Body: f.Body, Files: wuiAttachments(f.Files)}
 	if err := m.Validate(); err != nil {
 		fail("bad_json", http.StatusBadRequest, err.Error())
 		return
@@ -554,25 +510,8 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	channel := s.wuiChannel(ctx, c.tenant, f.Channel, task, isParent)
-	// rdb 0028: posting into a channel you are not in would both leak the
-	// post to its members and place you in a conversation you cannot read
-	// back. Same unknown_channel token as a channel that does not exist.
-	switch may, err := s.canReadChannel(ctx, c.tenant, channel, c.member); {
-	case err != nil:
-		fail("internal", http.StatusInternalServerError, "channel lookup failed")
-		return
-	case !may:
-		fail("unknown_channel", http.StatusNotFound, "no channel "+f.Channel+" in this tenant")
-		return
-	}
-	// specs/025: a note needs notes.send, commanding an agent agents.command
-	// (checked per send, so a demotion bites on the open socket too).
-	perm := rbac.NotesSend
-	if agent != "" {
-		perm = rbac.AgentsCommand
-	}
-	if c.member != "" && !s.allowed(ctx, c.member, c.tenant, perm) {
-		fail("forbidden", http.StatusForbidden, "your role in this tenant does not grant "+perm)
+	if tok, status, detail := s.wuiMayPost(ctx, c, channel, f.Channel, agent); tok != "" {
+		fail(tok, status, detail)
 		return
 	}
 	// Owner rule 2026-09-22: a channel post reaches every agent member of the
@@ -603,38 +542,11 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(tok, status, detail)
 		return
 	}
-	var env *wire.Envelope
-	if agent != "" {
-		var err error
-		if env, err = s.dispatchEnvelope(box, channel, f.ParentTaskID, pin, m); err != nil {
-			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui dispatch sign")
-			fail("wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin")
-			return
-		}
-	} else if fanOut {
-		// The same signer as a dispatch, to_box box-wui: no single box owns a
-		// channel post, and routeChannel builds one delivery per member box.
-		// A tenant that has not pinned box-wui gets the old browser-only post
-		// rather than a refusal - it never asked for agents to read its chat.
-		if p := s.wuiPin(ctx, c.tenant); p != nil {
-			signed, err := s.dispatchEnvelope(WUIBox, channel, f.ParentTaskID, p, m)
-			if err != nil {
-				s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui channel sign")
-			} else {
-				env = signed
-			}
-		} else {
-			s.warnUnpinnedAgents(ctx, c.tenant, channel, id)
-		}
-	}
-	if env == nil {
-		inner, err := msg.Canonical(m)
-		if err != nil {
-			fail("bad_json", http.StatusBadRequest, "message does not encode")
-			return
-		}
-		env = &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Channel: channel,
-			ParentTaskID: f.ParentTaskID, Msg: inner, Sig: ""}
+	env, tok, status, detail := s.wuiEnvelope(ctx, c.tenant, m, wuiSigning{agent: agent, box: box, pin: pin, fanOut: fanOut},
+		channel, f.ParentTaskID)
+	if tok != "" {
+		fail(tok, status, detail)
+		return
 	}
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
@@ -666,6 +578,142 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if r.inserted {
 		s.fallback(ctx, c.tenant, channel, env, m)
 	}
+}
+
+// wuiIDs checks the ids of a browser send: the task ("lobby" resolved), the
+// msg id (minted when the browser sent none) and the panel flag. A refusal
+// comes back as the hub's (tok, status, detail) triple.
+func (s *Server) wuiIDs(f wuiIn) (task, id string, isParent int, tok string, status int, detail string) {
+	task, ok := s.lobbyAlias(f.TaskID)
+	if !ok {
+		return "", "", 0, "lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID"
+	}
+	if !uuidRe.MatchString(task) {
+		return "", "", 0, "bad_json", http.StatusBadRequest, "task_id must be a UUID or \"lobby\""
+	}
+	id = strings.ToLower(f.MsgID)
+	if id == "" {
+		id = uid.New()
+	} else if !uuidRe.MatchString(id) {
+		return "", "", 0, "bad_json", http.StatusBadRequest, "msg_id must be a UUID"
+	}
+	isParent, ok = uiParent(f.IsParent)
+	if !ok {
+		return "", "", 0, "bad_json", http.StatusBadRequest, "is_parent must be 0 or 1"
+	}
+	return task, id, isParent, "", 0, ""
+}
+
+// wuiMayPost checks that c may post into channel (asked for as asked):
+// rdb 0028 - posting into a channel you are not in would both leak the post
+// to its members and place you in a conversation you cannot read back (same
+// unknown_channel token as a channel that does not exist); specs/025 - a
+// note needs notes.send, commanding an agent agents.command (checked per
+// send, so a demotion bites on the open socket too).
+func (s *Server) wuiMayPost(ctx context.Context, c *wuiConn, channel, asked, agent string) (string, int, string) {
+	switch may, err := s.canReadChannel(ctx, c.tenant, channel, c.member); {
+	case err != nil:
+		return "internal", http.StatusInternalServerError, "channel lookup failed"
+	case !may:
+		return "unknown_channel", http.StatusNotFound, "no channel " + asked + " in this tenant"
+	}
+	perm := rbac.NotesSend
+	if agent != "" {
+		perm = rbac.AgentsCommand
+	}
+	if c.member != "" && !s.allowed(ctx, c.member, c.tenant, perm) {
+		return "forbidden", http.StatusForbidden, "your role in this tenant does not grant " + perm
+	}
+	return "", 0, ""
+}
+
+// wuiRecipient is the v:1 `to` of a browser send and, when box-wui dispatch
+// is on and the body addresses an agent, that agent (else "").
+func (s *Server) wuiRecipient(f wuiIn) (to, agent string) {
+	to = f.To
+	if s.o.WUIDispatch {
+		if agent = dispatchAgent(to, f.Body); agent != "" {
+			to = agent
+		}
+	}
+	if to == "" {
+		to = BroadcastID
+	}
+	return to, agent
+}
+
+// wuiKind maps the browser's kind onto v:1: it has no chat kind (NFR-003),
+// so a chat line is a note.
+func wuiKind(kind string) string {
+	if kind == "" || kind == "chat" {
+		return "note"
+	}
+	return kind
+}
+
+// wuiAttachments turns the browser's file list into v:1 attachments: an
+// uploaded blob unless it says otherwise, keyed by its file id when the
+// browser sent no digest.
+func wuiAttachments(files []wuiFile) []msg.Attachment {
+	out := []msg.Attachment{}
+	for _, a := range files {
+		mode, k := a.Mode, a.Kind
+		if mode == "" {
+			mode = "blob"
+		}
+		if k == "" {
+			k = "file"
+		}
+		sum := a.SHA256
+		if sum == "" {
+			sum = a.FileID
+		}
+		out = append(out, msg.Attachment{Mode: mode, Kind: k, FileID: a.FileID, Name: a.Name, Bytes: a.Bytes, SHA256: sum})
+	}
+	return out
+}
+
+// wuiSigning is how wuiSend decided to sign a browser post: a dispatch to
+// agent on box (pinned key pin), a channel fan-out, or neither.
+type wuiSigning struct {
+	agent, box string
+	pin        ed25519.PublicKey
+	fanOut     bool
+}
+
+// wuiEnvelope wraps m for storage: box-wui-signed to the agent's box for a
+// dispatch, box-wui-signed to box-wui for a channel fan-out, else the
+// unsigned browser-only envelope.
+func (s *Server) wuiEnvelope(ctx context.Context, tenant string, m *msg.Message, sg wuiSigning, channel, parentTaskID string) (*wire.Envelope, string, int, string) {
+	if sg.agent != "" {
+		env, err := s.dispatchEnvelope(sg.box, channel, parentTaskID, sg.pin, m)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("wui dispatch sign")
+			return nil, "wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin"
+		}
+		return env, "", 0, ""
+	}
+	if sg.fanOut {
+		// The same signer as a dispatch, to_box box-wui: no single box owns a
+		// channel post, and routeChannel builds one delivery per member box.
+		// A tenant that has not pinned box-wui gets the old browser-only post
+		// rather than a refusal - it never asked for agents to read its chat.
+		if p := s.wuiPin(ctx, tenant); p != nil {
+			signed, err := s.dispatchEnvelope(WUIBox, channel, parentTaskID, p, m)
+			if err == nil {
+				return signed, "", 0, ""
+			}
+			s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("wui channel sign")
+		} else {
+			s.warnUnpinnedAgents(ctx, tenant, channel, m.MsgID)
+		}
+	}
+	inner, err := msg.Canonical(m)
+	if err != nil {
+		return nil, "bad_json", http.StatusBadRequest, "message does not encode"
+	}
+	return &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Channel: channel,
+		ParentTaskID: parentTaskID, Msg: inner, Sig: ""}, "", 0, ""
 }
 
 // admit applies the 006 billing / quota rules and the OQ-11 file rule to a

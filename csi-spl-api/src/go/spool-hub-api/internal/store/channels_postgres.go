@@ -279,9 +279,19 @@ func (cs *channelStats) channelsRead() tenantRead {
 // countsRead is each channel's live message count, newest message and
 // posters; unread starts at the count.
 func (cs *channelStats) countsRead(now time.Time) tenantRead {
-	return tenantRead{`SELECT channel, count(*)::int, max(received_at),
-				(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
-			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
+	// SPL-1127: one pass over the tenant's channel rows (m), counted by a hash
+	// aggregate; the posters as a hashed DISTINCT; the newest message by one
+	// index probe per channel at its max(received_at), ties by msg_id text
+	// DESC. It used array_agg(... ORDER BY)[1] and count(DISTINCT), which sort
+	// every row of every channel (5 % of prd database time); same rows out.
+	return tenantRead{`WITH m AS MATERIALIZED (SELECT channel, from_id, received_at FROM messages
+				WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2),
+			c AS (SELECT channel, count(*)::int AS n, max(received_at) AS last_at FROM m GROUP BY channel),
+			p AS (SELECT channel, count(*)::int AS posters FROM (SELECT DISTINCT channel, from_id FROM m) d GROUP BY channel)
+		SELECT c.channel, c.n, c.last_at, l.msg_id, p.posters FROM c JOIN p USING (channel)
+		CROSS JOIN LATERAL (SELECT x.msg_id::text AS msg_id FROM messages x
+			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at
+			ORDER BY x.msg_id::text DESC LIMIT 1) l`,
 		[]any{cs.tenant, now}, func(r pgx.Rows) error {
 			var id string
 			var n, posters int

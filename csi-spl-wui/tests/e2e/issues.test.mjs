@@ -206,7 +206,8 @@ try {
   const day15 = `${grid.month}-15`
   await p.click(`[data-test=deadline-picker-day][data-date="${day15}"]`)
   await p.select('[data-test=issues-deadline-time]', '15:30')
-  await p.click('[data-test=deadline-picker-done]')
+  /* SPL-1147: no Done - the day and time applied at once; the x closes */
+  await p.click('[data-test=deadline-picker-close]')
   await p.waitForFunction((want) => document.querySelector('[data-test=issues-deadline]').value === want, { timeout: 5000 }, `${day15} 15:30`).catch(() => {})
   const picked = await p.$eval('[data-test=issues-deadline]', (el) => el.value)
   const popGone = !(await p.$('[data-test=deadline-picker]'))

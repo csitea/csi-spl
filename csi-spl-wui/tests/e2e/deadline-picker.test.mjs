@@ -7,6 +7,11 @@
 //       830x900 (the last desktop width) and 1024x420 (too short below)
 //   C4  near the right edge it opens to the left: its right edge meets the
 //       control's right edge instead of running off the screen
+//   C5  no Done button: a picked day applies at once (the pop-up stays for
+//       the time); the shared close x (SPL-1133) sits top LEFT by default
+//       (Mac style) and closes it
+//   C6  Esc and an outside click close it too
+//   C7  Windows style (close_buttons=windows) puts the x top RIGHT
 //
 //   pnpm run test:e2e:deadline-picker
 //   BASE_URL=<generated bundle> pnpm run test:e2e:deadline-picker
@@ -87,6 +92,53 @@ try {
     if (m.ctl.l + m.pop.w > m.vw - 8) ok(`C4 ${w}x${h}: near the right edge it opens to the left`, Math.abs(m.pop.r - m.ctl.r) <= 1 || m.pop.r === m.vw - 8, m)
     await p.keyboard.press('Escape')
   }
+  /* C5..C7 at 1440 */
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(FIELD, { visible: true, timeout: NAV_TIMEOUT })
+  const openPop = async () => {
+    await p.click('[data-test=issues-filter-deadline-date-open]')
+    await p.waitForSelector('[data-test=deadline-picker]', { visible: true, timeout: 5000 })
+    await sleep(100)
+  }
+  const xSide = () => p.evaluate(() => {
+    const pop = document.querySelector('[data-test=deadline-picker]').getBoundingClientRect()
+    const xs = [...document.querySelectorAll('[data-test=deadline-picker] [data-test=deadline-picker-close]')]
+    if (xs.length !== 1) return { n: xs.length }
+    const x = xs[0].getBoundingClientRect()
+    return { n: 1, side: x.left - pop.left < pop.right - x.right ? 'left' : 'right', top: Math.round(x.top - pop.top) }
+  })
+  await openPop()
+  const done = await p.$$eval('[data-test=deadline-picker] button', (bs) => bs.filter((b) => /^\s*done\s*$/i.test(b.textContent) || b.getAttribute('data-test') === 'deadline-picker-done').length)
+  const month = await p.$eval('[data-test=deadline-picker-month]', (el) => el.textContent.trim())
+  await p.click(`[data-test=deadline-picker-day][data-date="${month}-15"]`)
+  await sleep(150)
+  const applied = await p.$eval(FIELD, (el) => el.value)
+  const stillOpen = Boolean(await p.$('[data-test=deadline-picker]'))
+  const mac = await xSide()
+  await p.click('[data-test=deadline-picker] [data-test=deadline-picker-close]')
+  await sleep(150)
+  const closedByX = !(await p.$('[data-test=deadline-picker]'))
+  ok('C5 no Done; a picked day applies at once; one x, top left (Mac default), and it closes the pop-up',
+    done === 0 && applied.startsWith(`${month}-15 `) && stillOpen && mac.n === 1 && mac.side === 'left' && mac.top < 24 && closedByX, { done, applied, stillOpen, mac, closedByX })
+  await openPop()
+  await p.keyboard.press('Escape')
+  await sleep(100)
+  const escClosed = !(await p.$('[data-test=deadline-picker]'))
+  await openPop()
+  await p.mouse.click(700, 700)
+  await sleep(100)
+  const outsideClosed = !(await p.$('[data-test=deadline-picker]'))
+  ok('C6 Esc and an outside click close the pop-up', escClosed && outsideClosed, { escClosed, outsideClosed })
+  await p.evaluate(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    s.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', close_buttons: 'windows' })
+  })
+  await sleep(200)
+  await openPop()
+  const win = await xSide()
+  ok('C7 Windows style: the one x sits top right', win.n === 1 && win.side === 'right', win)
+
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {
   ok('harness', false, String(e && e.stack || e))

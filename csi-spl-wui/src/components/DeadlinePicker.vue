@@ -55,10 +55,16 @@
       data-test="deadline-picker"
       @keydown.esc.stop.prevent="close(true)"
     >
+      <!-- SPL-1147 (owner, topic f9b6c844): "the Done button is obsolete,
+           add a simple x" - a picked day / time applies at once; the shared
+           close X (SPL-1133: Mac = top left, the default; Windows = top
+           right), Esc or an outside click closes -->
       <div class="dlp__head">
+        <UiCloseButton side="start" class="dlp__close" :size="14" data-test="deadline-picker-close" @click="close(true)" />
         <button type="button" class="btn ghost dlp__nav" data-test="deadline-picker-prev" :aria-label="t('picker.prev_month')" :title="t('picker.prev_month')" @click="month = shiftMonth(month, -1)">‹</button>
         <span class="dlp__month" data-test="deadline-picker-month" aria-live="polite">{{ month }}</span>
         <button type="button" class="btn ghost dlp__nav" data-test="deadline-picker-next" :aria-label="t('picker.next_month')" :title="t('picker.next_month')" @click="month = shiftMonth(month, 1)">›</button>
+        <UiCloseButton side="end" class="dlp__close" :size="14" data-test="deadline-picker-close" @click="close(true)" />
       </div>
       <table class="dlp__grid" role="grid" :aria-label="month">
         <thead>
@@ -92,7 +98,6 @@
       <div class="dlp__foot">
         <button type="button" class="btn ghost" data-test="deadline-picker-today" @click="pickDay(today)">{{ t('picker.today') }}</button>
         <button type="button" class="btn ghost" data-test="deadline-picker-clear" @click="clear">{{ t('picker.clear') }}</button>
-        <button type="button" class="btn" data-test="deadline-picker-done" @click="close(true)">{{ t('picker.done') }}</button>
       </div>
     </div>
   </div>
@@ -297,7 +302,9 @@ onBeforeUnmount(() => {
   font-size: 0.8125rem;
 }
 .dlp__head { display: flex; align-items: center; justify-content: space-between; gap: 2px; }
-.dlp__month { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dlp__month { flex: 1; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dlp__close { display: inline-flex; align-items: center; justify-content: center; padding: 2px; min-height: 0; border: 0; background: transparent; color: var(--color-muted); cursor: pointer; }
+.dlp__close:hover { color: inherit; background: var(--color-surface-hover); }
 .dlp__nav { padding: 0 6px; min-height: 0; font-size: 0.9375rem; line-height: 1.4; }
 .dlp__grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .dlp__grid td { padding: 0; text-align: center; }
@@ -326,7 +333,7 @@ onBeforeUnmount(() => {
 /* SPL-992 (epic SPL-988): on a phone every control is a >= 44 px touch target */
 @media (max-width: 820px) {
   .dlp__text { min-height: var(--tap, 44px); font-size: 1rem; }
-  .dlp__open, .dlp__nav { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .dlp__open, .dlp__nav, .dlp__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   .dlp__pop { width: min(340px, calc(100vw - 16px)); }
   .dlp__day { min-height: 40px; font-size: 0.9375rem; }
   .dlp__time select, .dlp__foot .btn { min-height: var(--tap, 44px); }

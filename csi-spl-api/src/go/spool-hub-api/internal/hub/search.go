@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -109,16 +110,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
 		return
 	}
-	key := t.ID + "|"
-	if reader != "" {
-		key += reader
-	} else {
-		key += "ip:" + s.edge.ClientIP(r)
-	}
-	if ok, retry := s.searchRate.Allow(key, s.o.SearchRatePerMin); !ok {
-		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
-		w.Header().Set("Access-Control-Expose-Headers", "Retry-After") // the WUI backs off by it
-		writeErr(w, http.StatusTooManyRequests, "rate_limited", "too many searches; retry later")
+	if !s.allowSearch(w, r, t.ID, reader) {
 		return
 	}
 	now := s.o.Now()
@@ -133,30 +125,12 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		return
 	}
 	hash := queryHash(raw, sortBy)
-	types := q.Types
-	var cur *searchCursor
-	if c := qs.Get("cursor"); c != "" {
-		dc, err := decSearchCursor(c)
-		ok := err == nil && dc.H == hash
-		if ok {
-			ok = false
-			for _, ty := range q.Types {
-				ok = ok || ty == dc.T
-			}
-		}
-		if !ok {
-			writeErr(w, http.StatusBadRequest, "bad_cursor", "cursor is not from this API for this q and sort")
-			return
-		}
-		cur, types = &dc, []search.Type{dc.T}
+	types, cur, ok := searchPage(q, qs.Get("cursor"), hash)
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "bad_cursor", "cursor is not from this API for this q and sort")
+		return
 	}
-	limit := viewLimit(r)
-	if len(types) > 1 {
-		limit = searchGroupedDefault
-		if n, err := strconv.Atoi(qs.Get("limit")); err == nil && n > 0 {
-			limit = min(n, searchGroupedMax)
-		}
-	}
+	limit := searchLimit(r, len(types))
 	ctx, cancel := context.WithTimeout(r.Context(), s.o.SearchBudget+time.Second)
 	defer cancel()
 	mine, err := s.readerChannels(ctx, t.ID, reader) // rdb 0028, the read door
@@ -166,6 +140,72 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	}
 	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
 		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance"}
+	groups, names, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
+	if errors.Is(err, store.ErrSearchBudget) {
+		writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
+		return
+	}
+	warnings := q.Warnings
+	if warnings == nil {
+		warnings = []search.Warning{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"query": raw, "sort": sortBy, "types": names,
+		"warnings": warnings, "groups": groups})
+}
+
+// allowSearch applies the per-reader (or, without one, per-IP) search rate;
+// false has answered 429 with Retry-After.
+func (s *Server) allowSearch(w http.ResponseWriter, r *http.Request, tenant, reader string) bool {
+	key := tenant + "|"
+	if reader != "" {
+		key += reader
+	} else {
+		key += "ip:" + s.edge.ClientIP(r)
+	}
+	ok, retry := s.searchRate.Allow(key, s.o.SearchRatePerMin)
+	if !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+		w.Header().Set("Access-Control-Expose-Headers", "Retry-After") // the WUI backs off by it
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "too many searches; retry later")
+	}
+	return ok
+}
+
+// searchPage is the sections one request answers: every type of q, or with a
+// cursor the one type it continues. ok=false: the cursor is not from this q
+// and sort.
+func searchPage(q *search.Query, cursor, hash string) ([]search.Type, *searchCursor, bool) {
+	if cursor == "" {
+		return q.Types, nil, true
+	}
+	dc, err := decSearchCursor(cursor)
+	if err != nil || dc.H != hash || !slices.Contains(q.Types, dc.T) {
+		return nil, nil, false
+	}
+	return []search.Type{dc.T}, &dc, true
+}
+
+// searchLimit is the page size: the view limit for one section, the grouped
+// default (or ?limit, capped) for several.
+func searchLimit(r *http.Request, sections int) int {
+	if sections <= 1 {
+		return viewLimit(r)
+	}
+	limit := searchGroupedDefault
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+		limit = min(n, searchGroupedMax)
+	}
+	return limit
+}
+
+// searchSections runs each section in order; a section past the time budget
+// is store.ErrSearchBudget.
+func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Query, base store.SearchQuery,
+	types []search.Type, cur *searchCursor, hash string, limit int) (map[string]section, []string, error) {
 	groups := map[string]section{}
 	names := []string{}
 	for _, ty := range types {
@@ -177,23 +217,16 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		}
 		sec, err := s.searchSection(ctx, t, q, sq, c, limit)
 		if errors.Is(err, store.ErrSearchBudget) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")
-			return
+			return nil, nil, store.ErrSearchBudget
 		}
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("type", string(ty)).Msg("search failed")
-			writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
-			return
+			return nil, nil, err
 		}
 		groups[ty.Group()] = sec
 		names = append(names, string(ty))
 	}
-	warnings := q.Warnings
-	if warnings == nil {
-		warnings = []search.Warning{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"query": raw, "sort": sortBy, "types": names,
-		"warnings": warnings, "groups": groups})
+	return groups, names, nil
 }
 
 func strPtr(s string) *string {

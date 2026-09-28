@@ -85,3 +85,37 @@ func TestSearchPagingWalksEverySection(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchGroupedLimit pins the page size of a grouped (several-section)
+// search: 5 by default, ?limit when positive, capped at 20.
+func TestSearchGroupedLimit(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.SearchRatePerMin = 10000
+		o.Authorizer = rbac.Fixed(rbac.Developer)
+		o.SessionID = func(r *http.Request, _ string) (string, error) { return "", nil }
+	})
+	ctx := context.Background()
+	ta, _ := e.tenant()
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.PutPin(ctx, ta, "box-a", pub, false, at, at); err != nil {
+		t.Fatal(err)
+	}
+	var agents []string
+	for i := 0; i < 25; i++ {
+		agents = append(agents, fmt.Sprintf("CLE-%02d", i))
+	}
+	e.st.SetRoster(ctx, ta, "box-a", agents, at) //nolint:errcheck
+	for _, c := range []struct {
+		extra     string
+		n         int
+		wantsNext bool
+	}{{"", 5, true}, {"&limit=0", 5, true}, {"&limit=x", 5, true}, {"&limit=7", 7, true}, {"&limit=100", 20, true}, {"&limit=25", 20, true}} {
+		code, _, r, _ := searchGet(t, e, ta, "type:robot,user CLE", c.extra)
+		g := r.Groups["robots"]
+		if code != http.StatusOK || len(g.Results) != c.n || (g.Next != nil) != c.wantsNext {
+			t.Errorf("%q: %d, %d robots, next %v; want %d", c.extra, code, len(g.Results), g.Next != nil, c.n)
+		}
+	}
+}

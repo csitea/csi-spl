@@ -31,6 +31,7 @@ export function useScrollAnchor(
   let listening = false
   /* newest last: the reader is glued to the bottom (last known from a scroll) */
   let stuck = true
+  let lastTop = 0
   let resize: ResizeObserver | null = null
   let watched: HTMLElement | null = null
 
@@ -63,7 +64,14 @@ export function useScrollAnchor(
     if (newestLast()) {
       const s = el()
       if (!s || (ev && ev.target !== s && !(s === document.scrollingElement && ev.target === document))) return
-      stuck = fromBottom(s) <= NEAR_BOTTOM_PX
+      /* Only the reader scrolling UP lets go of the bottom. Content that grows
+         (markdown, pictures, the Omnibox dock padding) fires scroll events far
+         from the bottom too, but never moves scrollTop up (measured live on
+         prd e2e: +203 px of late height read as "scrolled away"). */
+      const top = s.scrollTop
+      if (fromBottom(s) <= NEAR_BOTTOM_PX) stuck = true
+      else if (top < lastTop - 1) stuck = false
+      lastTop = top
       if (stuck) pill.value = 0
       return
     }
@@ -88,6 +96,7 @@ export function useScrollAnchor(
     if (!s) return
     stuck = true
     s.scrollTo({ top: s.scrollHeight, behavior: smooth && !reduced() ? 'smooth' : 'auto' })
+    lastTop = s.scrollTop
   }
 
   function reduced() {
@@ -124,7 +133,7 @@ export function useScrollAnchor(
     const row = firstVisibleRow(root.value, edge(s))
     before = {
       el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '',
-      y: row ? layoutTop(row as HTMLElement) : null, atBottom: stuck && fromBottom(s) <= NEAR_BOTTOM_PX,
+      y: row ? layoutTop(row as HTMLElement) : null, atBottom: stuck,
     }
   }, { flush: 'pre' })
 

@@ -149,6 +149,8 @@ describe('newest-last scroll anchor', () => {
     const c = read('src/composables/useScrollAnchor.ts')
     assert.match(c, /newestLast: \(\) => boolean = \(\) => false/)
     assert.match(c, /new ResizeObserver/)
+    /* only scrolling UP lets go of the bottom (late growth fires scroll events too) */
+    assert.match(c, /else if \(top < lastTop - 1\) stuck = false/)
     assert.match(c, /anchorAfterPrepend\(\{/)
     const feed = read('src/components/LiveFeed.vue')
     assert.match(feed, /\(\) => props\.holdScroll !== true \|\| newestLast\.value,\n\s+\(\) => newestLast\.value,/)

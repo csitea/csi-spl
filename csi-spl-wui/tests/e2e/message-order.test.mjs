@@ -156,6 +156,24 @@ async function run(browser, base, width, touch) {
   m = await measure(p)
   check(`${tag} A2: a late height change is followed at the bottom`, m.fromBottom <= 2, m)
   await p.evaluate(() => document.querySelector('[data-e2e-late]')?.remove())
+  await sleep(300)
+
+  /* A2 (prd e2e 2026-09-28): content grows AND a scroll event fires while the
+     view is far from the bottom but scrollTop did not move up (the dock
+     padding / a late picture). That is not the reader leaving the bottom. */
+  await p.evaluate(() => {
+    const sc = window.__sc
+    const rows = document.querySelectorAll('.live-rows > article.msg')
+    const pad = document.createElement('div')
+    pad.style.height = '240px'
+    pad.setAttribute('data-e2e-late2', '1')
+    rows[rows.length - 1].appendChild(pad)
+    sc.scrollTop = sc.scrollTop + 40
+  })
+  await sleep(600)
+  m = await measure(p)
+  check(`${tag} A2: growth with a scroll event far from the bottom still follows`, m.fromBottom <= 2, m)
+  await p.evaluate(() => document.querySelector('[data-e2e-late2]')?.remove())
 
   /* A1/A5: scrolled up, the row in view stays put and the pill counts below */
   const before = await p.evaluate(() => {

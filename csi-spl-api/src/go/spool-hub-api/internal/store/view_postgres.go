@@ -355,9 +355,19 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 	if len(ids) == 0 {
 		return out, nil
 	}
-	err = s.queryTenant(ctx, tenant, `SELECT msg_id::text, to_box, state FROM deliveries
-		WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) ORDER BY msg_id, to_box`, []any{tenant, ids},
-		func(rows pgx.Rows) error {
+	if err := s.viewTopicDeliveries(ctx, tenant, ids, idx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// viewTopicDeliveries fills out's delivery lists (idx: msg_id -> row). A view
+// request (it carries the memo) reads the same messages' reactions in the
+// same batch (SPL-1121), and ReactionsFor then answers from the memo.
+func (s *Postgres) viewTopicDeliveries(ctx context.Context, tenant string, ids []string, idx map[string]int, out []ViewMsg) error {
+	deliveries := tenantRead{sql: `SELECT msg_id::text, to_box, state FROM deliveries
+		WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) ORDER BY msg_id, to_box`, args: []any{tenant, ids},
+		each: func(rows pgx.Rows) error {
 			var id string
 			var d ViewDelivery
 			if err := rows.Scan(&id, &d.ToBox, &d.State); err != nil {
@@ -367,11 +377,16 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 				out[i].Deliveries = append(out[i].Deliveries, d)
 			}
 			return nil
-		})
-	if err != nil {
-		return nil, err
+		}}
+	if memoFrom(ctx) == nil {
+		return s.queryTenant(ctx, tenant, deliveries.sql, deliveries.args, deliveries.each)
 	}
-	return out, nil
+	reacts := map[string][]StoredReaction{}
+	if err := s.queryTenantBatch(ctx, tenant, deliveries, reactionsRead(tenant, ids, reacts)); err != nil {
+		return err
+	}
+	memoPutReactions(ctx, tenant, ids, reacts)
+	return nil
 }
 
 // scanViewMsg reads one view row: msg_id, received_at, env, edited_at,

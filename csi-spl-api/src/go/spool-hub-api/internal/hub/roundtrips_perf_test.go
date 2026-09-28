@@ -94,7 +94,8 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// SPL-1111: boxes, avatars and members in one batch (it was 3: 4).
 		{"GET /v1/view/roster", 2, get("/v1/view/roster")},
 		{"GET /v1/view/topics", 2, get("/v1/view/topics")},
-		{"GET /v1/view/topics/{lobby}", 5, get("/v1/view/topics/" + lobby)},
+		{"GET /v1/view/topics/{lobby}", 4, // SPL-1121: reactions ride the deliveries batch
+			get("/v1/view/topics/" + lobby)},
 		{"GET /v1/view/search?q=seed", 7, get("/v1/view/search?q=seed")},
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.

@@ -21,6 +21,9 @@ type memoKey struct{}
 type memo struct {
 	mu    sync.Mutex
 	roles map[[2]string]memoRole
+	// SPL-1121: reactions a view read fetched in its deliveries batch, per
+	// (tenant, msg_id); a message with none is present with a nil list.
+	reacts map[[2]string][]StoredReaction
 }
 
 type memoRole struct {
@@ -138,4 +141,43 @@ func memberRole(ctx context.Context, humanID, tenant string, load func() (string
 		m.mu.Unlock()
 	}
 	return role, err
+}
+
+// memoPutReactions keeps the reactions read for ids (every id, reacted or
+// not) in the request's memo; no-op without one.
+func memoPutReactions(ctx context.Context, tenant string, ids []string, by map[string][]StoredReaction) {
+	m := memoFrom(ctx)
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.reacts == nil {
+		m.reacts = map[[2]string][]StoredReaction{}
+	}
+	for _, id := range ids {
+		m.reacts[[2]string{tenant, id}] = by[id]
+	}
+}
+
+// memoReactions answers ReactionsFor(ids) from the request's memo when it
+// holds every one of ids; ok=false sends the caller to the database.
+func memoReactions(ctx context.Context, tenant string, ids []string) (map[string][]StoredReaction, bool) {
+	m := memoFrom(ctx)
+	if m == nil {
+		return nil, false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string][]StoredReaction{}
+	for _, id := range ids {
+		rs, ok := m.reacts[[2]string{tenant, id}]
+		if !ok {
+			return nil, false
+		}
+		if len(rs) > 0 {
+			out[id] = append([]StoredReaction(nil), rs...)
+		}
+	}
+	return out, true
 }

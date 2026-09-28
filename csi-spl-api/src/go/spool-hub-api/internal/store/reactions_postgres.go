@@ -71,15 +71,25 @@ func (s *Postgres) ReactionsFor(ctx context.Context, tenant string, msgIDs []str
 	if len(ids) == 0 {
 		return out, nil
 	}
-	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, emoji, actor FROM message_reactions
+	if got, ok := memoReactions(ctx, tenant, ids); ok { // SPL-1121: read with the view's deliveries
+		return got, nil
+	}
+	r := reactionsRead(tenant, ids, out)
+	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
+	return out, err
+}
+
+// reactionsRead is ReactionsFor's statement (ids already canonical), shared
+// with ViewTopic's deliveries batch.
+func reactionsRead(tenant string, ids []string, out map[string][]StoredReaction) tenantRead {
+	return tenantRead{sql: `SELECT msg_id::text, emoji, actor FROM message_reactions
 		WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])
-		ORDER BY created_at, actor`, []any{tenant, ids}, func(rows pgx.Rows) error {
+		ORDER BY created_at, actor`, args: []any{tenant, ids}, each: func(rows pgx.Rows) error {
 		var id, emoji, actor string
 		if err := rows.Scan(&id, &emoji, &actor); err != nil {
 			return err
 		}
 		out[id] = append(out[id], StoredReaction{Emoji: emoji, Actor: actor})
 		return nil
-	})
-	return out, err
+	}}
 }

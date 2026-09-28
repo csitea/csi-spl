@@ -40,3 +40,41 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 - CLI and MCP tooling retain standard chronological tail streams.
 
 <!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:32:00Z -->
+
+---
+
+## 4. Per-person layout: newest last (owner, topic c6994436, 2026-09-27)
+
+Newest first stays the **default**. A person can pick the mirror image in
+Settings -> Behaviour; nobody's view changes until they choose.
+
+| Setting | Values (first = default) | Kept as |
+|---|---|---|
+| Message order | `newest-first`, `newest-last` | `humans.message_order` (rdb 0070), session claim `message_order` |
+| Omnibox position | `top`, `bottom` (> 820 px; phones always dock at the bottom) | `humans.composer_position` (rdb 0070), session claim `composer_position` |
+
+NULL = never picked = the default. `PUT /api/v1/auth/preferences` sets or
+clears each key (`unsupported_<key>` for another value).
+
+Newest last, in every message feed (channels, #lobby, DMs) and thread:
+
+- The stores still hand a feed its rows **newest first**, so every window holds
+  the newest N; `LiveFeed` only draws them reversed (`utils/view-prefs.mjs`
+  `displayOrder`). The DOM order is the reading order: never `column-reverse`
+  (section 2's accessibility rule).
+- **Load more** for older rows sits **above** the first row. Loading it keeps
+  the row being read in place.
+- The feed opens at its **bottom**. A reader at the bottom follows new rows and
+  late height changes (markdown, pictures, the card clip mode, the phone
+  keyboard). A reader scrolled up is not moved; new rows are counted in a
+  **"↓ N new"** pill stuck to the bottom edge, which jumps down.
+- Our own send jumps to the bottom. A `#<msg_id>` deep link wins over the
+  bottom follow. Flipping the setting re-renders open feeds at the newest end.
+- Threads: the root on top, replies oldest to newest; new-topic cards
+  (BornTopics) sit under the thread.
+- Not flipped: the sidebar lists, the `/` topic list, `/search` results (ranked
+  by the hub) and the issues sheet.
+
+Code: `composables/useViewPrefs.ts` (the one reader), `composables/useScrollAnchor.ts`
+(`newestLast` mode, pure rules in `utils/scroll-anchor.mjs`). Tests:
+`tests/unit/view-prefs.test.mjs`, `tests/e2e/message-order.test.mjs`.

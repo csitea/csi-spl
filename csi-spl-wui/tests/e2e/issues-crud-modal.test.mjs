@@ -67,6 +67,8 @@ try {
     const modalUp = () => p.$('[data-test=issues-detail]').then(Boolean)
     const waitModal = (up) => p.waitForFunction((u) => Boolean(document.querySelector('[data-test=issues-detail]')) === u, { timeout: 5000 }, up).then(() => true, () => false)
     const issueParam = () => p.evaluate(() => new URL(location.href).searchParams.get('issue'))
+    /* the router writes the URL a tick after the modal changes: read it once it settles */
+    const paramSettles = (want) => p.waitForFunction((w) => new URL(location.href).searchParams.get('issue') === w, { timeout: 5000 }, want).then(() => want, () => issueParam())
     const cellOn = () => p.evaluate(() => {
       const td = document.querySelector('[data-test=issues-row] td[data-cell-on="true"]')
       return td ? { key: td.closest('[data-test=issues-row]').getAttribute('data-key'), col: td.getAttribute('data-col'), focused: document.activeElement === td } : null
@@ -247,7 +249,9 @@ try {
 
     await p.keyboard.press('Escape')
     const escClosed = await waitModal(false)
-    const m4 = await p.evaluate((k) => ({ focusRow: document.activeElement?.closest('[data-test=issues-row]')?.getAttribute('data-key') === k, issue: new URL(location.href).searchParams.get('issue') }), b)
+    const m4issue = await paramSettles(null)
+    const m4 = await p.evaluate((k) => ({ focusRow: document.activeElement?.closest('[data-test=issues-row]')?.getAttribute('data-key') === k }), b)
+    m4.issue = m4issue
     ok(`M4 ${W}: Esc closes the modal, ?issue= goes, focus returns to the row`, escClosed && m4.focusRow && m4.issue === null, m4)
 
     await p.click(`${row(c)} .issues-c-key`)
@@ -259,10 +263,10 @@ try {
     const pathBefore = await p.evaluate(() => location.pathname)
     await p.goBack()
     const backClosed = await waitModal(false)
-    const m5 = await p.evaluate(() => ({ path: location.pathname, issue: new URL(location.href).searchParams.get('issue') }))
+    const m5 = { issue: await paramSettles(null), path: await p.evaluate(() => location.pathname) }
     await p.goForward()
     const fwdOpen = await waitModal(true)
-    const fwdKey = await issueParam()
+    const fwdKey = await paramSettles(c)
     await p.click('[data-testid=ui-dialog-close]')
     await waitModal(false)
     ok(`M5 ${W}: browser Back closes the modal and stays on the sheet; Forward opens it again; X closes`,
@@ -328,7 +332,7 @@ try {
     const deepTitle = await p.$eval('[data-test=issues-detail]', (el) => el.closest('[data-testid=ui-dialog]')?.querySelector('.ui-dialog__title')?.textContent.trim()).catch(() => '')
     await p.keyboard.press('Escape')
     const deepClosed = await waitModal(false)
-    const deepParam = await issueParam()
+    const deepParam = await paramSettles(null)
     ok(`M7 ${W}: a deep link ?issue=SPL-1 opens it as the modal; Esc closes it and drops ?issue=`, deep && deepTitle === 'SPL-1' && deepClosed && deepParam === null, { deep, deepTitle, deepClosed, deepParam })
 
     const wide = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))

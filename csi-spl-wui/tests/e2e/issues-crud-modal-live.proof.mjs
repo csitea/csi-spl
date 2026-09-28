@@ -181,12 +181,14 @@ try {
     await p.waitForFunction((k) => new URL(location.href).searchParams.get('issue') === k, { timeout: 8000 }, key)
     await p.goBack()
     const backClosed = await waitModal(false)
-    step(`${W} M4: browser Back closes the modal and stays on /issues`, backClosed && new URL(p.url()).pathname.endsWith('/issues') && (await issueParam()) === null, { url: p.url() })
+    const backParam = await until(async () => ((await issueParam()) === null ? 'none' : null), 5000)
+    step(`${W} M4: browser Back closes the modal and stays on /issues`, backClosed && new URL(p.url()).pathname.endsWith('/issues') && backParam === 'none', { url: p.url() })
     await nav(p, BASE + `/issues?issue=${key}`)
     const deep = await waitModal(true)
     await p.keyboard.press('Escape')
     const escClosed = await waitModal(false)
-    step(`${W} M5: a deep link ?issue=${key} opens the modal; Esc closes it`, deep && escClosed && (await issueParam()) === null, { deep, escClosed })
+    const escParam = await until(async () => ((await issueParam()) === null ? 'none' : null), 5000)
+    step(`${W} M5: a deep link ?issue=${key} opens the modal; Esc closes it`, deep && escClosed && escParam === 'none', { deep, escClosed })
 
     /* DELETE: Cancel (control), then Delete; the hub answers 404 after */
     await p.waitForSelector(`${row(key)} [data-test=issues-row-delete]`, { visible: true, timeout: 8000 })

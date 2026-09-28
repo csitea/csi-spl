@@ -79,10 +79,7 @@
           <!-- owner 2026-09-27 (topic 86a570ea): the hub connection lives here
                on phones, next to the bell and the note, not on the start screen -->
           <div class="user-menu__pref" data-test="user-menu-connection" role="status">
-            <span class="user-menu__pref-label user-menu__health">
-              <span class="user-menu__health-dot" :class="health" data-test="user-menu-connection-dot" aria-hidden="true" />
-              <span data-test="user-menu-connection-label">{{ t('sidebar.health_title', { state: t('sidebar.health.' + health) }) }}</span>
-            </span>
+            <span class="user-menu__pref-label"><ConnectionStatus /></span>
           </div>
         </div>
         <ul role="menu" class="user-menu__items" :aria-label="buttonLabel" @keydown="onMenuKey">
@@ -139,6 +136,8 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
    the first paint */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 const NotificationCenter = defineAsyncComponent(() => import('@/components/NotificationCenter.vue'))
+/* topic 86a570ea: reads the live socket state - async keeps the live store out of the entry */
+const ConnectionStatus = defineAsyncComponent(() => import('@/components/ConnectionStatus.vue'))
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
@@ -146,8 +145,6 @@ import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-po
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { useLive } from '~/composables/useLive'
-import { connectionHealth } from '~/utils/channel-feed.mjs'
 
 const session = useSessionStore()
 const access = useAccessStore()
@@ -194,9 +191,6 @@ function items(): HTMLElement[] {
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
    media query is read too, for a shell that has not installed the stack. */
 const narrow = useMobileStack().isMobile
-/* the sidebar footer's dot, read from the same socket state (no socket is opened here) */
-const liveState = useLive().state
-const health = computed(() => connectionHealth(liveState.value))
 const phone = () => narrow.value || window.matchMedia('(max-width: 820px)').matches
 
 function placePanel() {
@@ -442,10 +436,6 @@ watch(signedIn, (v) => { if (!v) close(false) })
     padding: 6px 0;
     border-bottom: 1px solid var(--color-border);
   }
-  .user-menu__health { display: inline-flex; align-items: center; gap: 8px; }
-  .user-menu__health-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--color-danger); }
-  .user-menu__health-dot.ok { background: var(--color-ok); }
-  .user-menu__health-dot.warn { background: var(--color-muted); }
   .user-menu__pref {
     display: flex;
     align-items: center;

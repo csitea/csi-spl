@@ -215,105 +215,145 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 }
 
 func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error) {
-	by := map[string]*ChannelStat{}
-	get := func(id string) *ChannelStat {
-		st := by[id]
-		if st == nil {
-			st = &ChannelStat{Channel: Channel{TenantID: tenant, ChannelID: id, Name: id}, Default: IsDefaultChannel(id)}
-			if st.Default {
-				st.CreatedBy = "hub"
-			}
-			by[id] = st
-		}
-		return st
-	}
-	for _, d := range DefaultChannels {
-		get(d)
-	}
-	deleted := map[string]bool{} // rdb 0052: dropped once every read is in
+	cs := newChannelStats(tenant)
 	// One batch, one round trip (it was a BEGIN .. COMMIT
 	// transaction of 5 + len(reads) round trips). Results come back in queue
 	// order, so the unread counts see the counts the stats read stored.
-	reqs := []tenantRead{
-		{`SELECT channel_id, name, description, created_by, created_at, members_open_invite, deleted_at IS NOT NULL FROM channels WHERE tenant_id = $1`,
-			[]any{tenant}, func(r pgx.Rows) error {
-				var c Channel
-				var gone bool
-				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite, &gone); err != nil {
-					return err
-				}
-				if gone {
-					deleted[c.ChannelID] = true
-					return nil
-				}
-				st := get(c.ChannelID)
-				st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
+	reqs := append([]tenantRead{cs.channelsRead(), cs.countsRead(now)}, cs.unreadReads(reads, now)...)
+	reqs = append(reqs, cs.membersRead())
+	if err := s.queryTenantBatch(ctx, tenant, reqs...); err != nil {
+		return nil, err
+	}
+	return cs.result(), nil
+}
+
+// channelStats collects one tenant's channel list across the batch's reads:
+// every default channel, then what each read adds.
+type channelStats struct {
+	tenant  string
+	by      map[string]*ChannelStat
+	deleted map[string]bool // rdb 0052: dropped once every read is in
+}
+
+func newChannelStats(tenant string) *channelStats {
+	cs := &channelStats{tenant: tenant, by: map[string]*ChannelStat{}, deleted: map[string]bool{}}
+	for _, d := range DefaultChannels {
+		cs.get(d)
+	}
+	return cs
+}
+
+// get is the row of channel id, created on first sight.
+func (cs *channelStats) get(id string) *ChannelStat {
+	st := cs.by[id]
+	if st == nil {
+		st = &ChannelStat{Channel: Channel{TenantID: cs.tenant, ChannelID: id, Name: id}, Default: IsDefaultChannel(id)}
+		if st.Default {
+			st.CreatedBy = "hub"
+		}
+		cs.by[id] = st
+	}
+	return st
+}
+
+// channelsRead is the created channels; a deleted one is remembered and left
+// out.
+func (cs *channelStats) channelsRead() tenantRead {
+	return tenantRead{`SELECT channel_id, name, description, created_by, created_at, members_open_invite, deleted_at IS NOT NULL FROM channels WHERE tenant_id = $1`,
+		[]any{cs.tenant}, func(r pgx.Rows) error {
+			var c Channel
+			var gone bool
+			if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite, &gone); err != nil {
+				return err
+			}
+			if gone {
+				cs.deleted[c.ChannelID] = true
 				return nil
-			}},
-		{`SELECT channel, count(*)::int, max(received_at),
+			}
+			st := cs.get(c.ChannelID)
+			st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
+			return nil
+		}}
+}
+
+// countsRead is each channel's live message count, newest message and
+// posters; unread starts at the count.
+func (cs *channelStats) countsRead(now time.Time) tenantRead {
+	return tenantRead{`SELECT channel, count(*)::int, max(received_at),
 				(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
 			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
-			[]any{tenant, now}, func(r pgx.Rows) error {
-				var id string
-				var n, posters int
-				var last time.Time
-				var lastID string
-				if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
-					return err
-				}
-				st := get(id)
-				st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
-				return nil
-			}},
-	}
-	// A read mark only matters for a channel with messages, which is known
-	// only once the stats read is scanned: every mark is queued, and one for
-	// a channel without messages is scanned and dropped.
+		[]any{cs.tenant, now}, func(r pgx.Rows) error {
+			var id string
+			var n, posters int
+			var last time.Time
+			var lastID string
+			if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
+				return err
+			}
+			st := cs.get(id)
+			st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
+			return nil
+		}}
+}
+
+// unreadReads counts, per read mark, the messages after it. A mark only
+// matters for a channel with messages, which is known only once the counts
+// read is scanned: every mark is queued, and one for a channel without
+// messages is scanned and dropped.
+func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time) []tenantRead {
 	ids := make([]string, 0, len(reads))
 	for id := range reads {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
+	out := make([]tenantRead, 0, len(ids))
 	for _, id := range ids {
 		mark := reads[id]
-		reqs = append(reqs, tenantRead{`SELECT count(*)::int FROM messages
+		out = append(out, tenantRead{`SELECT count(*)::int FROM messages
 				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
-			[]any{tenant, id, now, mark.At, mark.MsgID}, func(r pgx.Rows) error {
+			[]any{cs.tenant, id, now, mark.At, mark.MsgID}, func(r pgx.Rows) error {
 				var unread int
 				if err := r.Scan(&unread); err != nil {
 					return err
 				}
-				if st, ok := by[id]; ok && st.Count > 0 {
+				if st, ok := cs.by[id]; ok && st.Count > 0 {
 					st.Unread = unread
 				}
 				return nil
 			}})
 	}
-	reqs = append(reqs, tenantRead{`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
+	return out
+}
+
+// membersRead is each channel's agent and box members (announced default
+// channel seats do not count).
+func (cs *channelStats) membersRead() tenantRead {
+	return tenantRead{`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
 			WHERE tenant_id = $1 AND origin <> 'removed' AND NOT (origin = 'announce' AND channel_id = ANY($2::text[]))
-			GROUP BY channel_id`, []any{tenant, DefaultChannels}, func(r pgx.Rows) error {
+			GROUP BY channel_id`, []any{cs.tenant, DefaultChannels}, func(r pgx.Rows) error {
 		var id string
 		var agents, boxes int
 		if err := r.Scan(&id, &agents, &boxes); err != nil {
 			return err
 		}
-		if st, ok := by[id]; ok {
+		if st, ok := cs.by[id]; ok {
 			st.Agents, st.Boxes = agents, boxes
 		}
 		return nil
-	}})
-	err := s.queryTenantBatch(ctx, tenant, reqs...)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]ChannelStat, 0, len(by))
-	for id, st := range by {
-		if !ChannelHidden(id) && !deleted[id] { // issue discussions are not a channel; rdb 0052
+	}}
+}
+
+// result is the list, newest activity first, without issue discussions
+// (not a channel) and deleted channels (rdb 0052).
+func (cs *channelStats) result() []ChannelStat {
+	out := make([]ChannelStat, 0, len(cs.by))
+	for id, st := range cs.by {
+		if !ChannelHidden(id) && !cs.deleted[id] {
 			out = append(out, *st)
 		}
 	}
-	SortChannelStats(out) // newest activity first
-	return out, nil
+	SortChannelStats(out)
+	return out
 }
 
 // ---- human channel membership (rdb 0028, channel_humans.go) ---------------

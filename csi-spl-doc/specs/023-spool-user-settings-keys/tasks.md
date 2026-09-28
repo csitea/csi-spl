@@ -50,6 +50,6 @@
 
 - [x] T053 Hub: rdb 0077 `humans.close_buttons` (mac | windows), `auth.ViewPrefs` close_buttons, session + login answer; `4db84e2a`.
 - [x] T054 WUI: `UiCloseButton.vue` at both ends of every dialog / pane / sheet header, `<html data-close-buttons>`, Settings -> Behaviour radio group, 19 locales; e2e `close-buttons.test.mjs` 21/21 (mock, 1440 + 390).
-- [ ] T055 Live proof on dev (t1 test member) and prd (tenant `e2e`) once hub + rdb 0077 + WUI are deployed.
+- [x] T055 Live proof `tests/e2e/close-buttons-live.proof.mjs` on dev (t1 test member) and prd (tenant host `e2e`), WUI 2.0.7 `fbfdf13b` + hub `4db84e2a` + rdb 0077, n=1 per env (dev n=2: the first run passed every check and crashed in its restore step, fixed), 2026-09-28 ~16:35Z: 11/11 PASS each - never picked = Mac (X before the title), Windows stored and after a reload the X after the title, 390 keeps Back with no X, back to Mac; the SPL-1150 logo card (720 px, about, version, links); accounts restored to never-picked.
 
 <!-- version: 1.4.0 · updated: 2026-09-28 · last-edit: 2026-09-28T15:20:00Z -->

@@ -78,4 +78,15 @@ These win over `env.channel`, `env.msg.task_id` and `env.parent_task_id` in the 
 Audience: every browser socket that would have received the row's own `message` frame at its old place
 or at its new place (041's `fanoutTopic`, taken for both).
 
-<!-- version: 0.1.0 · updated: 2026-09-27 · last-edit: 2026-09-27T21:30:00Z -->
+## 7. A person's channel order (SPL-1034, spec 3.8)
+
+- `GET /v1/view/me` gains `"channel_order": ["ops", "devel"] | null` (null = never set).
+- `PUT /v1/me/channel-order` body `{"channel_order": ["ops", "devel"]}`:
+  - `200 {"channel_order": ["ops", "devel"]}` — normalized (`#` dropped, lower case), duplicates removed
+    (first wins); `[]` clears it and answers `{"channel_order": null}`.
+  - `400 bad_json` — not a list of strings, more than 200 ids, or an id that is not a channel id.
+  - `403 forbidden` — no signed-in member session; `404 not_member` — no membership in this tenant.
+  - CORS preflight allows `PUT` with `Authorization, Content-Type, X-Locale` (no new header).
+- No live frame: the order is one person's view; their other tabs read it on the next `/v1/view/me`.
+
+<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T06:20:00Z -->

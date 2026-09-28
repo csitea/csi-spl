@@ -149,6 +149,31 @@ current channel. An agent's reply keeps its own signed tag, and the box fan-out 
 envelope claims (channels-v1 §4.5), so the old channel's member agents get it: stored and shown in the
 new channel, delivered as the agent addressed it.
 
+### 3.8 Drag a channel to set your own order (SPL-1034)
+
+Owner, prd t1 topic `49a2588c-3e19-453c-a7b4-e7a644db9de1`, 2026-09-28: "one should be able to drag and
+drop the channels to define their order".
+
+- The same drag layer as 3.1, two gestures on the Channels list of the left panel: a drag of a CHANNEL
+  row reorders the list (pointer drag, already built, until now forgotten on reload); a drag of a TOPIC
+  card onto a channel row moves the topic (3.1).
+- The order is **per person and per tenant** (a channel id means nothing in another tenant), kept on the
+  membership: `tenant_memberships.channel_order text[]` (rdb `0073`). NULL = never set = today's order.
+- Rendering: the stored ids first, in their order; a channel the list does not name (new, or created by
+  someone else later) follows them in today's order, so it appears at the END; a stored id that no
+  longer exists (deleted, or no longer readable) is ignored.
+- Keyboard / touch: the channel row menu gets **Move up** and **Move down**; each stores the whole
+  displayed order. Phones use the menu (a long-press drag is not offered: it fights the list's scroll).
+- Nobody else is affected: another member's order is their own row.
+
+Wire (`contracts/move-v1.md` §7):
+
+- `GET /v1/view/me` answers `channel_order: [ids] | null` beside `role`.
+- `PUT /v1/me/channel-order` `{"channel_order": ["a", "b", ...]}` -> `200 {"channel_order": [...]}`,
+  normalized (`#` dropped, lower case), duplicates removed, at most 200 ids, each a valid channel id
+  (else `400 bad_json`); `[]` clears it (`null`). A signed-in member only (`403 forbidden`); a person
+  with no membership row in this tenant `404 not_member`. No billing gate: it is a view preference.
+
 ## 4. Data (rdb `0069`)
 
 `messages` gets five nullable columns and one partial index; nothing is backfilled.
@@ -181,6 +206,8 @@ new channel, delivered as the agent addressed it.
 | FR-MV-011 | WUI: "Moved to … · Undo" for 8 s; the "moved from …" note | Implemented — `tasks.md` |
 | FR-MV-012 | WUI: an old channel URL of a moved topic redirects to the new channel | Implemented — `tasks.md` |
 | FR-MV-013 | every new string in all 19 locales | Implemented — `tasks.md` |
+| FR-MV-014 | rdb 0073 `tenant_memberships.channel_order`; `GET /v1/view/me` carries it; `PUT /v1/me/channel-order` (3.8) | Planned |
+| FR-MV-015 | WUI: the Channels list renders the stored order (new channels at the end), a drag stores it, Move up / Move down in the row menu (3.8) | Planned |
 
 ## 6. Success criteria
 
@@ -193,4 +220,4 @@ new channel, delivered as the agent addressed it.
 - **SC-MV-3**: live proof in the prd `e2e` tenant and the dev test tenant only, with a DB count of the
   rows per channel / task before and after, and screenshots posted in both owner topics.
 
-<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-28 · last-edit: 2026-09-28T06:20:00Z -->

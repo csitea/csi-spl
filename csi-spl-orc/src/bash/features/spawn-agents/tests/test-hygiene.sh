@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # The fork is self-contained and org-neutral: no path into the reference
 # engine, none of its message root, no literal users, boxes or homes (in the
-# shipped lib/, scripts/ and docs; the tests name what they forbid). Every
+# shipped lib/, scripts/, assets/ and docs; the tests name what they forbid). Every
 # script parses.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 
-hits() { grep -rnE "$1" "$T_FEAT" --include='*.sh' --include='*.md' | grep -v '/tests/' || true; }  # tests may NAME what they forbid
+hits() { grep -rnE "$1" "$T_FEAT" --include='*.sh' --include='*.md' --include='*.conf' --include='*.tsv' | grep -v '/tests/' || true; }  # tests may NAME what they forbid
 
 eq "no path into the reference engine" "" "$(hits '/ysg-box|ysg-box/|box-env\.inc|\.box-root')"
 eq "no markdown-inbox root or MSGS_ROOT" "" "$(hits '/var/tmp/claude|MSGS_ROOT')"

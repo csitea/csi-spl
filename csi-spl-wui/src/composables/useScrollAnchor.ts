@@ -143,6 +143,9 @@ export function useScrollAnchor(
       before = null
       return
     }
+    /* a scroll UP whose event has not been delivered yet (a wheel, then a click
+       on Load more in the same frame) already left the bottom */
+    if (newestLast() && stuck && s.scrollTop < lastTop - 1 && fromBottom(s) > NEAR_BOTTOM_PX) stuck = false
     const row = firstVisibleRow(root.value, edge(s))
     before = {
       el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '',

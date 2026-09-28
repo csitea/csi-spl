@@ -217,15 +217,20 @@ async function run(browser, base, width, touch) {
   }
 
   /* A1: an older page loaded above does not move the row in view */
+  /* the scroll up and the click in ONE task: the scroll event is not delivered
+     yet when Load more runs (CI 10 gate, 820 px, 2026-09-28: the view jumped
+     to the bottom, y 233 -> -997) */
   const olderBefore = await p.evaluate(() => {
     const sc = window.__sc
     sc.scrollTop = Math.max(0, Math.round(sc.scrollHeight / 2))
     const edge = sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top
     const row = [...document.querySelectorAll('.live-rows > article.msg')].find((r) => r.getBoundingClientRect().top >= edge + 40)
     window.__anchor = row
-    return { y: row ? Math.round(row.getBoundingClientRect().top) : null, n: document.querySelectorAll('.live-rows > article.msg').length }
+    const b = document.querySelector('[data-testid=load-more]')
+    if (b) b.click()
+    return { y: row ? Math.round(row.getBoundingClientRect().top) : null, n: document.querySelectorAll('.live-rows > article.msg').length, clicked: Boolean(b) }
   })
-  const clicked = await p.evaluate(() => { const b = document.querySelector('[data-testid=load-more]'); if (b) b.click(); return Boolean(b) })
+  const clicked = olderBefore.clicked
   await sleep(1000)
   const olderAfter = await p.evaluate(() => ({ y: window.__anchor ? Math.round(window.__anchor.getBoundingClientRect().top) : null, n: document.querySelectorAll('.live-rows > article.msg').length }))
   check(`${tag} A1: Load more above adds older rows without moving the row in view`,

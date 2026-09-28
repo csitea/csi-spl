@@ -374,6 +374,7 @@ import {
   cardIsClipped,
   cardTitle,
 } from '~/utils/card-clip.mjs'
+import { onViewportResize } from '~/utils/viewport-resize.mjs'
 import type { CardClipMode } from '~/composables/useCardClip'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
@@ -945,8 +946,9 @@ function measure() {
   const inner = clipInner.value
   if (!inner) return
   const body = inner.querySelector<HTMLElement>('.msg-body') || inner
-  const lh = parseFloat(getComputedStyle(body).lineHeight)
-  const fs = parseFloat(getComputedStyle(body).fontSize) || 14
+  const style = getComputedStyle(body)
+  const lh = parseFloat(style.lineHeight)
+  const fs = parseFloat(style.fontSize) || 14
   lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
   viewportPx.value = window.innerHeight
   /* a picture card caps its text at 5 rows inside the 30% box, so the
@@ -956,10 +958,12 @@ function measure() {
 }
 
 let clipObserver: ResizeObserver | null = null
+let offResize: (() => void) | null = null
 function stopObserving() {
   clipObserver?.disconnect()
   clipObserver = null
-  if (typeof window !== 'undefined') window.removeEventListener('resize', measure)
+  offResize?.()
+  offResize = null
 }
 function startObserving() {
   stopObserving()
@@ -969,7 +973,8 @@ function startObserving() {
     clipObserver = new ResizeObserver(() => measure())
     clipObserver.observe(clipInner.value)
   }
-  window.addEventListener('resize', measure)
+  /* one shared window listener, once per frame (CLE-35075) */
+  offResize = onViewportResize(measure)
 }
 watch([clipOn, clipInner], () => { void nextTick(startObserving) })
 onMounted(() => startObserving())

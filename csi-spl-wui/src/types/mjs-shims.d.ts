@@ -1612,3 +1612,8 @@ declare module '~/utils/now-tick.mjs' {
     cancel?: (id: unknown) => void
   }): { enable(on: boolean): void, running(): boolean, dispose(): void }
 }
+
+declare module '~/utils/viewport-resize.mjs' {
+  export function createViewportResize(env?: { win?: { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void } | null, frame?: (fn: () => void) => unknown }): { subscribe(fn: () => void): () => void, size(): number }
+  export function onViewportResize(fn: () => void): () => void
+}

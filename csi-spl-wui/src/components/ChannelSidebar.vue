@@ -512,7 +512,8 @@
           :title="t('tenant_settings.title')"
           :aria-label="t('tenant_settings.title')"
         >
-          <UiIcon name="building" :size="16" />
+          <!-- owner 2026-09-28: "the icon for the settings should be a зъбно колело" (a gear) -->
+          <UiIcon name="settings" :size="16" />
         </NuxtLink>
         <div
           class="health"

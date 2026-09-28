@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Om spool-hub",
     "slogan": "där människor och AI möts"
+  },
+  "issues_crud": {
+    "delete": "Ta bort ärende",
+    "delete_title": "Ta bort {key}?",
+    "delete_body": "Det försvinner ur tabellen för alla. Numret förblir upptaget.",
+    "deleting": "Tar bort…",
+    "err_has_children": "Ta bort eller flytta dess deluppgifter först.",
+    "err_delete_forbidden": "Bara medlemmen som skapade det eller en administratör kan ta bort det.",
+    "edit_title": "Redigera titel",
+    "set_deadline": "Ange deadline",
+    "shortcuts": "C nytt ärende. Pilarna flyttar mellan celler, Enter redigerar (på nyckeln öppnar), Esc avbryter, Tab går vidare. J och K flyttar. S status. P prioritet. A ansvarig. L etikett."
   }
 }

@@ -93,6 +93,20 @@ async function typeAndGo(p, text) {
    one (the FAB on a phone, + on a desktop); Create leaves it open */
 async function createIssue(p, title) {
   await p.click('[data-test=issues-new]')
+  if (await p.evaluate(() => window.innerWidth > 820)) {
+    /* SPL-1027: > 820 px a new issue is the sheet's top row, opened as a modal */
+    await p.waitForSelector('[data-test=issues-newrow-title]', { visible: true, timeout: 5000 })
+    await p.type('[data-test=issues-newrow-title]', title)
+    await p.keyboard.press('Enter')
+    const key = await p.waitForFunction((want) => {
+      const r = [...document.querySelectorAll('[data-test=issues-row]')].find((x) => x.querySelector('.issues-title')?.textContent.trim() === want)
+      return r ? r.getAttribute('data-key') : false
+    }, { timeout: 5000 }, title).then((h) => h.jsonValue())
+    await p.click(`[data-test=issues-row][data-key="${key}"] .issues-c-key`)
+    await p.waitForSelector('[data-test=issues-comment-input]', { timeout: 8000 }).catch(() => {})
+    await sleep(400)
+    return key
+  }
   await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
   await p.type('[data-test=issues-detail-title]', title)
   await p.click('[data-test=issues-create]')

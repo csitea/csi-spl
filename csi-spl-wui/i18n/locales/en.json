@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "About spool-hub",
     "slogan": "where humans and AI meet"
+  },
+  "issues_crud": {
+    "delete": "Delete issue",
+    "delete_title": "Delete {key}?",
+    "delete_body": "It leaves the sheet for everyone. Its number stays taken.",
+    "deleting": "Deleting…",
+    "err_has_children": "Delete or move its subtasks first.",
+    "err_delete_forbidden": "Only the member who created it or an admin may delete it.",
+    "edit_title": "Edit title",
+    "set_deadline": "Set deadline",
+    "shortcuts": "C new issue. Arrows move between cells, Enter edits (on the key it opens), Esc cancels, Tab moves on. J and K move. S status. P priority. A assignee. L label."
   }
 }

@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "O spool-hub",
     "slogan": "kde sa stretávajú ľudia a AI"
+  },
+  "issues_crud": {
+    "delete": "Odstrániť úlohu",
+    "delete_title": "Odstrániť {key}?",
+    "delete_body": "Zmizne z tabuľky pre všetkých. Jej číslo zostane obsadené.",
+    "deleting": "Odstraňuje sa…",
+    "err_has_children": "Najprv odstráňte alebo presuňte jej podúlohy.",
+    "err_delete_forbidden": "Odstrániť ju môže iba člen, ktorý ju vytvoril, alebo administrátor.",
+    "edit_title": "Upraviť názov",
+    "set_deadline": "Nastaviť termín",
+    "shortcuts": "C nová úloha. Šípky sa pohybujú medzi bunkami, Enter upravuje (na kľúči otvára), Esc ruší, Tab pokračuje. J a K posúvajú. S stav. P priorita. A riešiteľ. L štítok."
   }
 }

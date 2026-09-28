@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Acerca de spool-hub",
     "slogan": "donde humanos e IA se encuentran"
+  },
+  "issues_crud": {
+    "delete": "Eliminar incidencia",
+    "delete_title": "¿Eliminar {key}?",
+    "delete_body": "Desaparece de la hoja para todos. Su número queda ocupado.",
+    "deleting": "Eliminando…",
+    "err_has_children": "Elimina o mueve primero sus subtareas.",
+    "err_delete_forbidden": "Solo el miembro que la creó o un administrador puede eliminarla.",
+    "edit_title": "Editar título",
+    "set_deadline": "Fijar fecha límite",
+    "shortcuts": "C nueva incidencia. Las flechas mueven entre celdas, Enter edita (en la clave abre), Esc cancela, Tab avanza. J y K mueven. S estado. P prioridad. A asignado. L etiqueta."
   }
 }

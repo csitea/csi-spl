@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Apie spool-hub",
     "slogan": "kur susitinka žmonės ir DI"
+  },
+  "issues_crud": {
+    "delete": "Ištrinti užduotį",
+    "delete_title": "Ištrinti {key}?",
+    "delete_body": "Ji dingsta iš lentelės visiems. Jos numeris lieka užimtas.",
+    "deleting": "Trinama…",
+    "err_has_children": "Pirmiau ištrinkite arba perkelkite jos subužduotis.",
+    "err_delete_forbidden": "Ištrinti gali tik ją sukūręs narys arba administratorius.",
+    "edit_title": "Redaguoti pavadinimą",
+    "set_deadline": "Nustatyti terminą",
+    "shortcuts": "C nauja užduotis. Rodyklės juda tarp langelių, Enter redaguoja (ant rakto atidaro), Esc atšaukia, Tab eina toliau. J ir K juda. S būsena. P prioritetas. A vykdytojas. L žyma."
   }
 }

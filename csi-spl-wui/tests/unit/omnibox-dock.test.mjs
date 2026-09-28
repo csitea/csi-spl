@@ -97,7 +97,8 @@ describe('wiring', () => {
   })
   it('the panes that overlay the middle one at <= 1100 px end above the dock', () => {
     assert.match(css, /\.live-pane \{[\s\S]*?bottom: var\(--omnibox-dock-h, 0px\);/)
-    assert.match(read('pages/issues.vue'), /\.issues-detail \{[\s\S]*?bottom: var\(--omnibox-dock-h, 0px\);/)
+    // SPL-1027: the issue is no overlay pane any more but a modal (above the dock)
+    assert.doesNotMatch(read('pages/issues.vue'), /@media \(max-width: 1100px\)/)
   })
   it('B10: the dock rides above a tablet keyboard', () => {
     assert.match(css, /\.omnibox-dock\[data-on="true"\] \{[\s\S]*?calc\(6px \+ var\(--kb-inset, 0px\)\)/)

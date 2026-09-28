@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Par spool-hub",
     "slogan": "kur satiekas cilvēki un MI"
+  },
+  "issues_crud": {
+    "delete": "Dzēst uzdevumu",
+    "delete_title": "Dzēst {key}?",
+    "delete_body": "Tas pazūd no tabulas visiem. Tā numurs paliek aizņemts.",
+    "deleting": "Dzēš…",
+    "err_has_children": "Vispirms dzēsiet vai pārvietojiet tā apakšuzdevumus.",
+    "err_delete_forbidden": "Dzēst var tikai to izveidojušais dalībnieks vai administrators.",
+    "edit_title": "Rediģēt virsrakstu",
+    "set_deadline": "Iestatīt termiņu",
+    "shortcuts": "C jauns uzdevums. Bultiņas pārvietojas starp šūnām, Enter rediģē (uz atslēgas atver), Esc atceļ, Tab iet tālāk. J un K pārvietojas. S statuss. P prioritāte. A izpildītājs. L birka."
   }
 }

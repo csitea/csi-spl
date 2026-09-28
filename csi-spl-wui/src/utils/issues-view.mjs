@@ -136,12 +136,14 @@ export function stepKey(order, current, delta) {
   return keys[Math.min(keys.length - 1, Math.max(0, at + delta))]
 }
 
-/** An `issue` frame (create / update) merged into the held list, by key. */
+/** An `issue` frame (create / update) merged into the held list, by key; op delete drops it. */
 export function applyIssueFrame(list, frame) {
   const f = frame || {}
   if (f.type !== 'issue' || !f.issue) return list
   const next = normalizeIssue(f.issue)
   if (!next.key) return list
+  /* SPL-1027: the hub's soft delete - the row leaves every open tab */
+  if (f.op === 'delete') return (list || []).filter((i) => i.key !== next.key)
   const out = (list || []).slice()
   const at = out.findIndex((i) => i.key === next.key)
   if (at < 0) out.push(next)

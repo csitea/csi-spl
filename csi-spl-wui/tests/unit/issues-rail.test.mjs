@@ -44,7 +44,7 @@ describe('Issues rail tab', () => {
     assert.equal(/\{ id:/.test(tabs.slice(archive, events).slice(1)), false)
   })
 
-  it('the description is only in the right pane, and the list uses the shared helpers', () => {
+  it('the description is only in the opened issue, and the list uses the shared helpers', () => {
     const src = read('src/pages/issues.vue')
     const listAt = src.indexOf('data-test="issues-list"')
     const detailAt = src.indexOf('data-test="issues-detail"')
@@ -70,8 +70,12 @@ describe('Issues rail tab', () => {
     assert.match(src, /route\.query\.issue/)
     assert.match(src, /history\.replaceState/)
     assert.match(src, /api\.getIssue\(/)
-    assert.match(src, /pane="issue"/)
-    assert.match(src, /saveIssuePane/)
+    // SPL-1027: no right pane (no divider, no stored width); > 820 px the issue is a modal
+    assert.doesNotMatch(src, /pane="issue"/)
+    assert.doesNotMatch(src, /saveIssuePane/)
+    assert.match(src, /<IssueDetailFrame[\s\S]*?:modal="!phone"/)
+    assert.match(read('src/components/IssueDetailFrame.vue'), /<UiDialog v-if="modal"[^>]*size="lg"/)
+    assert.match(src, /router\.push\(\{ query: \{ \.\.\.currentQuery\(\), issue: key \} \}\)/)
   })
 })
 

@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "spool-hub hakkında",
     "slogan": "insanların ve yapay zekânın buluştuğu yer"
+  },
+  "issues_crud": {
+    "delete": "Kaydı sil",
+    "delete_title": "{key} silinsin mi?",
+    "delete_body": "Tablodan herkes için kalkar. Numarası dolu kalır.",
+    "deleting": "Siliniyor…",
+    "err_has_children": "Önce alt görevlerini silin ya da taşıyın.",
+    "err_delete_forbidden": "Yalnızca onu oluşturan üye veya bir yönetici silebilir.",
+    "edit_title": "Başlığı düzenle",
+    "set_deadline": "Son tarih belirle",
+    "shortcuts": "C yeni kayıt. Oklar hücreler arasında gezer, Enter düzenler (anahtarda açar), Esc iptal eder, Tab ilerler. J ve K gezer. S durum. P öncelik. A atanan. L etiket."
   }
 }

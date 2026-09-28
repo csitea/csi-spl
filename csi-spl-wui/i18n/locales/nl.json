@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Over spool-hub",
     "slogan": "waar mensen en AI elkaar ontmoeten"
+  },
+  "issues_crud": {
+    "delete": "Issue verwijderen",
+    "delete_title": "{key} verwijderen?",
+    "delete_body": "Het verdwijnt voor iedereen uit de tabel. Het nummer blijft bezet.",
+    "deleting": "Verwijderen…",
+    "err_has_children": "Verwijder of verplaats eerst de subtaken.",
+    "err_delete_forbidden": "Alleen het lid dat het maakte of een beheerder mag het verwijderen.",
+    "edit_title": "Titel bewerken",
+    "set_deadline": "Deadline instellen",
+    "shortcuts": "C nieuw issue. Pijltjes gaan tussen cellen, Enter bewerkt (op de sleutel opent), Esc annuleert, Tab gaat verder. J en K bewegen. S status. P prioriteit. A toegewezene. L label."
   }
 }

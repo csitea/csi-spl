@@ -134,6 +134,7 @@ declare module '~/utils/spool-client.mjs' {
     getIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssue(body: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    deleteIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
   }
 }

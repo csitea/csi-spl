@@ -265,6 +265,14 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       issues = issues.map((x) => (x.key === i.key ? next : x))
       return { issue: view(next) }
     },
+    /* SPL-1027: the hub's soft delete - gone from every read, a parent with a live child refused */
+    remove(ref) {
+      const i = find(ref)
+      if (!i) throw mockErr(404, 'not_found')
+      if (issues.some((x) => x.parent === i.key)) throw mockErr(409, 'issue_has_children')
+      issues = issues.filter((x) => x.key !== i.key)
+      return { issue: view(i) }
+    },
     label({ name = '', color = '' } = {}) {
       const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
       if (!id) throw mockErr(400, 'bad_issue')

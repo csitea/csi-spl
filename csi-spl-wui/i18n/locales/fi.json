@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Tietoa spool-hubista",
     "slogan": "missä ihmiset ja tekoäly kohtaavat"
+  },
+  "issues_crud": {
+    "delete": "Poista tehtävä",
+    "delete_title": "Poistetaanko {key}?",
+    "delete_body": "Se katoaa taulukosta kaikilta. Sen numero pysyy varattuna.",
+    "deleting": "Poistetaan…",
+    "err_has_children": "Poista tai siirrä ensin sen alitehtävät.",
+    "err_delete_forbidden": "Vain sen luonut jäsen tai ylläpitäjä voi poistaa sen.",
+    "edit_title": "Muokkaa otsikkoa",
+    "set_deadline": "Aseta määräaika",
+    "shortcuts": "C uusi tehtävä. Nuolet siirtävät solujen välillä, Enter muokkaa (avainsarakkeessa avaa), Esc peruu, Tab siirtyy eteenpäin. J ja K siirtävät. S tila. P prioriteetti. A vastuuhenkilö. L tunniste."
   }
 }

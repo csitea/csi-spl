@@ -1,9 +1,13 @@
-<!-- Issues (GRK-3519, topic 9c19bfe9). Three panes stay: the rail, this list,
-     and the detail on the right. The description is only in the detail.
+<!-- Issues (GRK-3519, topic 9c19bfe9). Two panes: the rail and this sheet.
+     SPL-1027 (owner, prd t1 topic 89485c7a): the right pane is gone - above
+     820 px an opened issue is a modal (IssueDetailFrame), and the sheet is
+     fully CRUD in place (a new row on top, every cell edited, a row delete).
+     Phones keep the level-3 full screen (SPL-992). The description is only
+     in the opened issue.
      Deadline is a calendar with a time, stored UTC. The hub contract is
      issues-v1 (CLE-34993): GET /v1/view/issues, POST /v1/issues, PATCH. -->
 <template>
-  <div ref="pageEl" class="issues-page" data-test="issues-page" :style="detailStyle">
+  <div ref="pageEl" class="issues-page" data-test="issues-page">
     <div class="issues-list" data-test="issues-list">
       <header class="feed-header issues-head">
         <!-- SPL-992: on a phone the list is level 2; Back goes to the sections (level 1) -->
@@ -15,7 +19,7 @@
           <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
       </header>
-      <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
+      <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
            menu) and the epics as a chip strip in place of the sheet's header rows -->
       <template v-if="phone">
@@ -51,7 +55,7 @@
            scrolls sideways inside its pane. -->
       <div v-if="!phone" class="issues-tools" data-test="issues-tools">
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
-        <p v-if="saveError && !form" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
+        <p v-if="saveError && !modalOpen" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
         <table v-if="!phone" class="issues-table" data-test="issues-table">
@@ -72,6 +76,8 @@
                   @click="toggleSort(c.col)"
                 >{{ c.name }}<span class="issues-sort-mark" aria-hidden="true">{{ sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? '▲' : '▼') : '' }}</span></button>
               </th>
+              <!-- SPL-1027: the row actions (delete); no name, no sort -->
+              <th scope="col" class="issues-c-act" :aria-label="t('issues_crud.delete')" />
             </tr>
             <tr class="issues-frow">
               <th class="issues-c-key" />
@@ -139,11 +145,79 @@
                 <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
               </th>
               <th />
+              <th class="issues-c-act" />
             </tr>
           </thead>
+          <!-- SPL-1027 CREATE: the new issue is a row on top of the sheet, typed in
+               place - the title, then any cell; Enter stores it, Esc drops it -->
+          <tbody v-if="creating && !phone" class="issues-newbody">
+            <tr class="issues-row issues-newrow" data-test="issues-newrow" :data-kind="draft.kind">
+              <td class="issues-c-key">
+                <button type="button" class="issues-pill issues-newrow__kind" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">{{ t('issues.kind_' + draft.kind) }}</button>
+              </td>
+              <td class="issues-c-title">
+                <span class="issues-title-cell">
+                  <input
+                    ref="newTitleEl"
+                    v-model="draft.title"
+                    class="issues-cell-input"
+                    data-test="issues-newrow-title"
+                    :placeholder="t('issues.title_placeholder')"
+                    :aria-label="t('issues.title_placeholder')"
+                    @keydown.enter.prevent="createIssue"
+                    @keydown.esc.stop.prevent="cancelCreate"
+                  >
+                  <button v-if="!isTopKind(draft.kind)" type="button" class="issues-pill issues-epic-tag" data-test="issues-epic" :title="draft.epic ? epicLabel(draft.epic) : t('issues.no_epic')" @click="openMenu('epic', detailOrDraft(), $event)">{{ draft.epic ? epicTitleOf(draft.epic) : t('issues.no_epic') }}</button>
+                </span>
+              </td>
+              <td>
+                <button type="button" class="issues-iconbtn issues-row-status" data-test="issues-newrow-status" :data-status="draft.status" :aria-label="t('issues.filter_status')" :title="t(statusHintKey(draft.status))" @click="openMenu('status', detailOrDraft(), $event)">
+                  <IssueGlyph :name="statusIcon(draft.status)" :size="14" :class="'issues-st issues-st--' + draft.status" />
+                  <span class="issues-status-code">{{ statusLabel(draft.status) }}</span>
+                </button>
+              </td>
+              <td>
+                <select class="issues-cell-select issues-prio" :class="'issues-prio--' + draft.priority" data-test="issues-newrow-priority" :aria-label="t('issues.field_priority')" :value="String(draft.priority)" @keydown.stop @change="onDetailPriority">
+                  <option v-for="n in ISSUE_PRIORITIES" :key="'np' + n" :value="String(n)">{{ n }}</option>
+                </select>
+              </td>
+              <td><span class="issues-level" data-test="issues-newrow-level" :title="t(levelKey(isTopKind(draft.kind) ? 1 : 2))">{{ isTopKind(draft.kind) ? 1 : 2 }}</span></td>
+              <td>
+                <button type="button" class="issues-person" data-test="issues-newrow-assignee" :aria-label="t('issues.field_assignee')" @click="openMenu('assign', detailOrDraft(), $event)">
+                  <SpoolAvatar v-if="draft.assignee" :id="draft.assignee" :box="boxOf(draft.assignee)" :size="20" />
+                  <HumanName v-if="draft.assignee" :id="draft.assignee" :box="boxOf(draft.assignee)" />
+                  <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
+                </button>
+              </td>
+              <td>
+                <span class="issues-pills">
+                  <button v-for="id in draft.labels" :key="id" type="button" class="issues-pill" data-test="issues-newrow-label" @click="openMenu('label', detailOrDraft(), $event)">
+                    <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
+                  </button>
+                  <button v-if="!draft.labels.length" type="button" class="issues-cellbtn" data-test="issues-newrow-label-add" :aria-label="t('issues.add_label')" :title="t('issues.add_label')" @click="openMenu('label', detailOrDraft(), $event)">
+                    <UiIcon name="plus" :size="14" />
+                  </button>
+                </span>
+              </td>
+              <td>
+                <DeadlinePicker v-model="draft.deadlineLocal" :label="t('issues.field_deadline')" test-id="issues-newrow-deadline" time-test-id="issues-newrow-deadline-time" />
+              </td>
+              <td />
+              <td class="issues-c-act">
+                <span class="issues-newrow__acts">
+                  <button type="button" class="issues-iconbtn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" :aria-label="t('issues.create')" :title="t('issues.create')" @click="createIssue">
+                    <UiIcon name="check" :size="16" />
+                  </button>
+                  <button type="button" class="issues-iconbtn" data-test="issues-newrow-cancel" :aria-label="t('common.cancel')" :title="t('common.cancel')" @click="cancelCreate">
+                    <UiIcon name="x" :size="16" />
+                  </button>
+                </span>
+              </td>
+            </tr>
+          </tbody>
           <tbody v-if="(loading && !issues.length) || loadError || !rowCount">
             <tr>
-              <td colspan="9" class="issues-note">
+              <td colspan="10" class="issues-note">
                 <p v-if="loading && !issues.length" class="muted" data-test="issues-loading">{{ t('issues.loading') }}</p>
                 <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
                 <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
@@ -163,23 +237,38 @@
                 :data-level="issue.level"
                 :data-selected="cursorKey === issue.key ? 'true' : 'false'"
                 @click="choose(issue)"
-                @keydown.enter.prevent="choose(issue)"
+                @keydown.enter.self.prevent="choose(issue)"
               >
-                <td class="issues-c-key"><span class="issues-key">{{ issue.key }}</span></td>
-                <td class="issues-c-title">
-                  <span class="issues-title-cell">
+                <td class="issues-c-key" v-bind="cellAttrs(issue, 'key')"><span class="issues-key">{{ issue.key }}</span></td>
+                <!-- SPL-1027 UPDATE: the title is edited in place (the pencil, or
+                     Enter on the cell); Enter or leaving saves, Esc cancels -->
+                <td class="issues-c-title" v-bind="cellAttrs(issue, 'title')">
+                  <input
+                    v-if="titleEdit.key === issue.key"
+                    v-model="titleEdit.text"
+                    class="issues-cell-input"
+                    data-test="issues-row-title-input"
+                    :aria-label="t('issues_crud.edit_title')"
+                    @click.stop
+                    @keydown.stop="onRowTitleKey($event, issue)"
+                    @blur="commitRowTitle(issue)"
+                  >
+                  <span v-else class="issues-title-cell issues-title-cell--edit">
                     <span class="issues-title" :title="issue.title">{{ issue.title }}</span>
+                    <button type="button" class="issues-title-edit" data-test="issues-row-title-edit" :aria-label="t('issues_crud.edit_title')" :title="t('issues_crud.edit_title')" @click.stop="startTitleEdit(issue)">
+                      <UiIcon name="pencil" :size="14" />
+                    </button>
                     <button v-if="!epicF && issue.epic" type="button" class="issues-pill issues-epic-tag" data-test="issues-row-epic" :title="epicTitleOf(issue.epic)" @click.stop="openMenu('epic', issue, $event)">{{ epicTitleOf(issue.epic) }}</button>
                   </span>
                 </td>
-                <td>
+                <td v-bind="cellAttrs(issue, 'status')">
                   <button type="button" class="issues-iconbtn issues-row-status" data-test="issues-row-status" :data-status="issue.status" :aria-label="t('issues.filter_status')" :title="t(statusHintKey(issue.status))" @click.stop="openMenu('status', issue, $event)">
                     <IssueGlyph :name="statusIcon(issue.status)" :size="14" :class="'issues-st issues-st--' + issue.status" />
                     <span class="issues-status-code">{{ statusLabel(issue.status) }}</span>
                   </button>
                 </td>
                 <!-- owner, topic e0f6f074 (SPL-972): prio and level are select boxes in the sheet -->
-                <td @click.stop>
+                <td v-bind="cellAttrs(issue, 'priority')" @click.stop>
                   <select
                     class="issues-cell-select issues-prio"
                     :class="'issues-prio--' + issue.priority"
@@ -193,7 +282,7 @@
                     <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
                   </select>
                 </td>
-                <td @click.stop>
+                <td v-bind="cellAttrs(issue, 'level')" @click.stop>
                   <select
                     class="issues-cell-select"
                     data-test="issues-row-level"
@@ -207,22 +296,45 @@
                     <option v-for="n in ISSUE_LEVELS" :key="'rl' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
                   </select>
                 </td>
-                <td>
+                <td v-bind="cellAttrs(issue, 'assignee')">
                   <button type="button" class="issues-person" data-test="issues-row-assignee" :data-assignee="issue.assignee" :aria-label="t('issues.field_assignee')" @click.stop="openMenu('assign', issue, $event)">
                     <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
                     <HumanName v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" />
                     <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
                   </button>
                 </td>
-                <td>
+                <td v-bind="cellAttrs(issue, 'label')">
                   <span class="issues-pills">
                     <button v-for="id in issue.labels" :key="id" type="button" class="issues-pill" data-test="issues-row-label" @click.stop="openMenu('label', issue, $event)">
                       <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
                     </button>
+                    <!-- an empty Labels cell still opens the picker -->
+                    <button v-if="!issue.labels.length" type="button" class="issues-cellbtn" data-test="issues-row-label-add" :aria-label="t('issues.add_label')" :title="t('issues.add_label')" @click.stop="openMenu('label', issue, $event)">
+                      <UiIcon name="plus" :size="14" />
+                    </button>
                   </span>
                 </td>
-                <td><time v-if="issue.deadline" class="issues-when" :datetime="issue.deadline">{{ when(issue.deadline) }}</time></td>
-                <td><time v-if="issue.updated_at" class="issues-when issues-updated" :datetime="issue.updated_at">{{ when(issue.updated_at) }}</time></td>
+                <td v-bind="cellAttrs(issue, 'deadline')" :data-deadline-edit="deadlineEditKey === issue.key ? 'true' : undefined" @click.stop>
+                  <DeadlinePicker
+                    v-if="deadlineEditKey === issue.key"
+                    :model-value="deadlineToLocalInput(issue.deadline)"
+                    :label="t('issues.field_deadline')"
+                    test-id="issues-row-deadline-input"
+                    time-test-id="issues-row-deadline-time"
+                    @update:model-value="onRowDeadline(issue, $event)"
+                  />
+                  <button v-else type="button" class="issues-cellbtn issues-cellbtn--when" data-test="issues-row-deadline" :aria-label="t('issues_crud.set_deadline')" :title="t('issues_crud.set_deadline')" @click="startDeadlineEdit(issue)">
+                    <time v-if="issue.deadline" class="issues-when" :datetime="issue.deadline">{{ when(issue.deadline) }}</time>
+                    <UiIcon v-else name="calendar" :size="14" />
+                  </button>
+                </td>
+                <td v-bind="cellAttrs(issue, 'updated')"><time v-if="issue.updated_at" class="issues-when issues-updated" :datetime="issue.updated_at">{{ when(issue.updated_at) }}</time></td>
+                <!-- SPL-1027 DELETE: a row action and the one destructive confirm (SPL-1001) -->
+                <td class="issues-c-act" v-bind="cellAttrs(issue, 'actions')">
+                  <button type="button" class="issues-iconbtn issues-row-delete" data-test="issues-row-delete" :aria-label="t('issues_crud.delete')" :title="t('issues_crud.delete')" @click.stop="askDelete(issue)">
+                    <UiIcon name="delete" :size="16" />
+                  </button>
+                </td>
               </tr>
           </tbody>
         </table>
@@ -355,23 +467,21 @@
         >{{ o.label }}</button>
       </section>
     </template>
-    <PaneDivider
-      v-if="form && !phone"
-      pane="issue"
-      :value="detailShown"
-      :min="ISSUE_PANE_MIN"
-      :max="detailRoom"
-      @input="setDetailW"
-      @reset="resetDetailW"
-    />
-    <aside v-if="form" class="issues-detail" data-test="issues-detail" :aria-label="t('issues.title')">
-      <header class="issues-detail__h">
+    <!-- SPL-1027: > 820 px the opened issue is a modal (UiDialog: Esc, X,
+         backdrop, focus trapped and handed back); a phone keeps level 3 -->
+    <IssueDetailFrame
+      :modal="!phone"
+      :open="phone ? Boolean(form) : modalOpen"
+      :title="form && !creating ? form.key : ''"
+      class="issues-detail"
+      :aria-label="t('issues.title')"
+      @close="closeDetail"
+    >
+      <div v-if="form" class="issues-detail-in" data-test="issues-detail" :data-modal="phone ? 'false' : 'true'">
+      <header v-if="phone" class="issues-detail__h">
         <!-- SPL-992: level 3 on a phone - Back goes to the list, like browser Back and a swipe right -->
         <MobileBack class="issues-mback" data-test="issues-detail-back" />
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
-        <button v-if="!phone" type="button" class="icon-btn" data-test="issues-detail-close" :aria-label="t('common.close')" @click="closeDetail">
-          <UiIcon name="x" :size="18" />
-        </button>
       </header>
       <input
         ref="titleEl"
@@ -451,6 +561,11 @@
           />
         </div>
       </div>
+      <!-- SPL-1027: the opened issue can be deleted too (the same confirm as the row).
+           Not in the dialog's header: focus opens on its X, never on a delete -->
+      <button v-if="detail && !creating" type="button" class="issues-prop issues-row-delete issues-detail-del" data-test="issues-detail-delete" @click="askDelete(detail)">
+        <UiIcon name="delete" :size="16" /><span>{{ t('issues_crud.delete') }}</span>
+      </button>
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
       <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
       <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
@@ -535,13 +650,31 @@
           </span>
         </label>
       </section>
-    </aside>
+      </div>
+    </IssueDetailFrame>
+    <UiConfirm
+      :open="Boolean(delTarget)"
+      :title="t('issues_crud.delete_title', { key: delTarget ? delTarget.key : '' })"
+      testid="issues-delete"
+      :confirm-label="t('issues_crud.delete')"
+      :busy-label="t('issues_crud.deleting')"
+      :busy="delBusy"
+      :error="delError"
+      :body-attrs="{ 'data-key': delTarget ? delTarget.key : '' }"
+      @update:open="onDeleteOpen"
+      @confirm="confirmDelete"
+    >
+      <p class="issues-del-title">{{ delTarget ? delTarget.title : '' }}</p>
+      <p>{{ t('issues_crud.delete_body') }}</p>
+    </UiConfirm>
     <!-- SPL-992: on a phone every picker is a bottom sheet over a scrim -->
     <div v-if="menu && phone" class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="menu = null" />
+    <!-- SPL-1027: over the issue modal the picker rides above the backdrop -->
+    <Teleport to="body" :disabled="!menuOverModal">
     <div
       v-if="menu"
       class="issues-menu"
-      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-sheet': phone }"
+      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
       role="listbox"
       data-test="issues-menu"
       :data-kind="menu.kind"
@@ -568,6 +701,7 @@
         <button type="submit" class="btn" data-test="issues-label-add">{{ t('issues.add_label') }}</button>
       </form>
     </div>
+    </Teleport>
   </div>
 </template>
 
@@ -599,13 +733,10 @@ import { useOmniboxStore } from '~/stores/omnibox'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
-  ISSUE_PANE_DEFAULT,
-  ISSUE_PANE_MIN,
   ISSUE_PRIORITIES,
   LEVEL_SHORT,
   applyIssueFrame,
   applyLabelFrame,
-  clampIssuePane,
   deadlineToLocalInput,
   groupIssues,
   hubSort,
@@ -613,9 +744,7 @@ import {
   sortFromQuery,
   sortSheet,
   levelKey,
-  loadIssuePane,
   localInputToDeadline,
-  saveIssuePane,
   controlLabel,
   statusHintKey,
   statusLabel,
@@ -685,12 +814,20 @@ const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
+const newTitleEl = ref<HTMLInputElement | null>(null)
 const descEl = ref<{ edit: () => Promise<void> } | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
 const theadEl = ref<HTMLElement | null>(null)
 const pageEl = ref<HTMLElement | null>(null)
-const detailW = ref(ISSUE_PANE_DEFAULT)
-const detailRoom = ref(720)
+/* SPL-1027: the sheet's cell cursor (the row is cursorKey), the title being
+   edited in place, the row whose deadline picker is open, the delete asked */
+const SHEET_COLS = ['key', 'title', 'status', 'priority', 'level', 'assignee', 'label', 'deadline', 'updated', 'actions'] as const
+const cursorCol = ref('')
+const titleEdit = reactive({ key: '', text: '' })
+const deadlineEditKey = ref('')
+const delTarget = ref<Issue | null>(null)
+const delBusy = ref(false)
+const delError = ref('')
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
   assignee: '', labels: [] as string[], deadlineLocal: '',
@@ -847,20 +984,6 @@ const shownGroups = computed(() => (rowCount.value ? groups.value : []))
 const flat = computed(() => groups.value[0].issues)
 const activeAssignee = computed(() => creating.value ? draft.assignee : (detail.value?.assignee || ''))
 const activeLabels = computed(() => creating.value ? draft.labels : (detail.value?.labels || []))
-const detailShown = computed(() => clampIssuePane(detailW.value, detailRoom.value))
-const detailStyle = computed(() => ({ '--issues-detail-w': `${detailShown.value}px` }))
-function measureDetailRoom() {
-  const page = pageEl.value?.clientWidth || 0
-  const room = (page > 0 ? page : 900) - 360 - 6
-  detailRoom.value = Math.max(ISSUE_PANE_MIN, Math.min(720, Math.round(room)))
-}
-function setDetailW(n: number) {
-  detailW.value = clampIssuePane(n, detailRoom.value)
-  saveIssuePane(detailW.value)
-}
-function resetDetailW() {
-  setDetailW(ISSUE_PANE_DEFAULT)
-}
 const form = computed(() => {
   if (creating.value) {
     return {
@@ -884,6 +1007,9 @@ const stack = useMobileStack()
 const phone = computed(() => stack.isMobile.value)
 const filtersOpen = ref(false)
 const sortOpen = ref(false)
+/* SPL-1027: above 820 px an opened issue is the modal; its pickers ride above it */
+const modalOpen = computed(() => !phone.value && Boolean(detail.value) && !creating.value)
+const menuOverModal = computed(() => import.meta.client && modalOpen.value && Boolean(menu.value))
 stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
 /* SPL-994: each sheet is the top level while open - Back closes it first */
 stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value = false })
@@ -966,19 +1092,43 @@ function writeIssueQuery(key: string) {
   else url.searchParams.delete('issue')
   window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
 }
-function choose(issue: Issue) {
+/* SPL-1027: above 820 px opening an issue is a history entry (?issue=SPL-n),
+   so Back closes the modal and a deep link opens it. A phone keeps
+   replaceState: useMobileStack owns its levels and history (SPL-992). */
+let pushedIssue = false
+function currentQuery(): Record<string, string> {
+  const query: Record<string, string> = {}
+  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
+  return query
+}
+function pushIssueQuery(key: string) {
+  if (!import.meta.client) return
+  if (phone.value || modalOpen.value || issueLinkKey() === key) { writeIssueQuery(key); return }
+  pushedIssue = true
+  void router.push({ query: { ...currentQuery(), issue: key } })
+}
+function choose(issue: Issue, fromLink = false) {
+  const wasOpen = modalOpen.value
   cursorKey.value = issue.key
   creating.value = false
   openKey.value = issue.key
-  detail.value = issue
   menu.value = null
-  writeIssueQuery(issue.key)
+  if (fromLink || wasOpen) writeIssueQuery(issue.key)
+  else pushIssueQuery(issue.key)
+  detail.value = issue
 }
 function closeDetail() {
+  const wasModal = modalOpen.value
   creating.value = false
   openKey.value = ''
   detail.value = null
   menu.value = null
+  if (wasModal && pushedIssue && issueLinkKey()) {
+    pushedIssue = false
+    router.back()
+    return
+  }
+  pushedIssue = false
   writeIssueQuery('')
 }
 function startCreate() {
@@ -997,7 +1147,14 @@ function startCreate() {
   draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'diss')?.key || epics.value[0]?.key || ''
   menu.value = null
   saveError.value = ''
-  void nextTick(() => titleEl.value?.focus())
+  cursorCol.value = ''
+  /* SPL-1027: > 820 px the new issue is the sheet's top row */
+  void nextTick(() => (phone.value ? titleEl.value : newTitleEl.value)?.focus())
+}
+function cancelCreate() {
+  creating.value = false
+  saveError.value = ''
+  menu.value = null
 }
 function detailOrDraft(): Issue {
   if (detail.value && !creating.value) return detail.value
@@ -1207,7 +1364,8 @@ async function addLabel() {
 }
 async function createIssue() {
   const title = draft.title.trim()
-  if (!title) return
+  if (!title || busy.value) return
+  if (!isTopKind(draft.kind) && !draft.epic) { saveError.value = 'issues.err_epic_required'; return }
   busy.value = true
   saveError.value = ''
   const body: Record<string, unknown> = {
@@ -1230,6 +1388,13 @@ async function createIssue() {
     hold(created)
     void poke({ text: `${title}\n${String(body.description || '')}`, where: { issue: true, issueKey: created.key } })
     creating.value = false
+    if (!phone.value) {
+      /* SPL-1027: the row stays in the sheet; the cursor moves on to its cells */
+      cursorKey.value = created.key
+      cursorCol.value = 'status'
+      focusCell()
+      return
+    }
     openKey.value = created.key
     detail.value = created
     cursorKey.value = created.key
@@ -1238,6 +1403,119 @@ async function createIssue() {
     saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
   } finally {
     busy.value = false
+  }
+}
+
+/* ---- SPL-1027: the sheet's cells, in place ------------------------------------ */
+function cellAttrs(issue: Issue, col: string) {
+  return {
+    'data-col': col,
+    'data-cell-on': cursorKey.value === issue.key && cursorCol.value === col ? 'true' : undefined,
+    tabindex: -1,
+  }
+}
+function cellEl(key: string, col: string): HTMLElement | null {
+  return pageEl.value?.querySelector(`[data-test=issues-row][data-key="${CSS.escape(key)}"] [data-col="${col}"]`) || null
+}
+function focusCell() {
+  void nextTick(() => {
+    if (!cursorKey.value || !cursorCol.value) return
+    cellEl(cursorKey.value, cursorCol.value)?.focus()
+  })
+}
+function stepCol(delta: number) {
+  if (!cursorKey.value) cursorKey.value = flat.value[0]?.key || ''
+  if (!cursorKey.value) return
+  const at = SHEET_COLS.indexOf(cursorCol.value as typeof SHEET_COLS[number])
+  const from = at < 0 ? (delta > 0 ? 0 : 1) : at
+  cursorCol.value = SHEET_COLS[Math.max(0, Math.min(SHEET_COLS.length - 1, from + (at < 0 ? 0 : delta)))]
+  focusCell()
+}
+/* Enter on a cell: the key and Updated open the issue, every other cell edits */
+function editCell(issue: Issue, col: string) {
+  const td = cellEl(issue.key, col)
+  const at = td ? { currentTarget: td } as unknown as Event : undefined
+  if (col === 'title') { startTitleEdit(issue); return }
+  if (col === 'status') { openMenu('status', issue, at); return }
+  if (col === 'assignee') { openMenu('assign', issue, at); return }
+  if (col === 'label') { openMenu('label', issue, at); return }
+  if (col === 'deadline') { startDeadlineEdit(issue); return }
+  if (col === 'actions') { askDelete(issue); return }
+  if (col === 'priority' || col === 'level') {
+    const sel = td?.querySelector('select') as (HTMLSelectElement & { showPicker?: () => void }) | null
+    sel?.focus()
+    try { sel?.showPicker?.() } catch { /* focus is enough: the arrows pick */ }
+    return
+  }
+  choose(issue)
+}
+function startTitleEdit(issue: Issue) {
+  cursorKey.value = issue.key
+  cursorCol.value = 'title'
+  menu.value = null
+  titleEdit.key = issue.key
+  titleEdit.text = issue.title
+  void nextTick(() => {
+    const el = pageEl.value?.querySelector<HTMLInputElement>('[data-test=issues-row-title-input]')
+    el?.focus()
+    el?.select()
+  })
+}
+function commitRowTitle(issue: Issue) {
+  if (titleEdit.key !== issue.key) return
+  const value = titleEdit.text.trim()
+  titleEdit.key = ''
+  if (value && value !== issue.title) void save(issue.key, { title: value })
+}
+function onRowTitleKey(ev: KeyboardEvent, issue: Issue) {
+  if (ev.key === 'Enter') { ev.preventDefault(); commitRowTitle(issue); focusCell(); return }
+  if (ev.key === 'Escape') { ev.preventDefault(); titleEdit.key = ''; focusCell() }
+}
+function startDeadlineEdit(issue: Issue) {
+  cursorKey.value = issue.key
+  cursorCol.value = 'deadline'
+  menu.value = null
+  deadlineEditKey.value = issue.key
+  void nextTick(() => pageEl.value?.querySelector<HTMLInputElement>('[data-test=issues-row-deadline-input]')?.focus())
+}
+function onRowDeadline(issue: Issue, local: string) {
+  deadlineEditKey.value = ''
+  const deadline = localInputToDeadline(local)
+  if (deadline === null || deadline === (issue.deadline || '')) { focusCell(); return }
+  void save(issue.key, { deadline })
+  focusCell()
+}
+function askDelete(issue: Issue) {
+  menu.value = null
+  delError.value = ''
+  delTarget.value = issue
+}
+function onDeleteOpen(open: boolean) {
+  if (!open && !delBusy.value) delTarget.value = null
+}
+function deleteErrKey(err: { status?: number, token?: string }) {
+  if (err?.token === 'issue_has_children') return 'issues_crud.err_has_children'
+  if (Number(err?.status) === 403) return 'issues_crud.err_delete_forbidden'
+  return errorKey(err, 'one')
+}
+async function confirmDelete() {
+  const issue = delTarget.value
+  if (!issue || delBusy.value) return
+  delBusy.value = true
+  delError.value = ''
+  try {
+    await withSessionRetry(api, () => api.deleteIssue(issue.key))
+    const at = flat.value.findIndex((i) => i.key === issue.key)
+    issues.value = issues.value.filter((i) => i.key !== issue.key)
+    subtasks.value = subtasks.value.filter((i) => i.key !== issue.key)
+    refreshEpics()
+    if (detail.value?.key === issue.key) closeDetail()
+    if (cursorKey.value === issue.key) cursorKey.value = flat.value[Math.min(at, flat.value.length - 1)]?.key || ''
+    delTarget.value = null
+  } catch (e) {
+    delError.value = t(deleteErrKey(e as { status?: number, token?: string }))
+  } finally {
+    delBusy.value = false
   }
 }
 
@@ -1362,13 +1640,39 @@ function typingTarget(el: EventTarget | null) {
   const tag = el.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
+/* SPL-1027: the issue modal is the ONE open dialog and holds the issue */
+function issueModal(): HTMLElement | null {
+  const open = document.querySelectorAll<HTMLElement>('[aria-modal="true"]')
+  return open.length === 1 && open[0].querySelector('[data-test=issues-detail]') ? open[0] : null
+}
+/* Esc inside the issue modal: a picker closes first, then a text area is
+   left (the description saves on blur, a comment draft stays), and only then
+   UiDialog closes the modal. Capture phase: UiDialog's own keydown stops Esc
+   before the page sees it. */
+function onDocKeyCapture(ev: KeyboardEvent) {
+  if (ev.key !== 'Escape' || phone.value || !modalOpen.value) return
+  const modal = issueModal()
+  if (!modal) return
+  if (menu.value) { ev.preventDefault(); ev.stopPropagation(); menu.value = null; return }
+  const el = ev.target
+  if (el instanceof HTMLTextAreaElement && modal.contains(el)) {
+    ev.preventDefault()
+    ev.stopPropagation()
+    el.blur()
+    modal.focus() /* focus stays in the dialog, so the next Esc closes it */
+  }
+}
 function onDocKey(ev: KeyboardEvent) {
   if (tabForPath(route.path) !== 'issues') return
-  if (document.querySelector('[aria-modal="true"]')) return
+  const inModal = Boolean(document.querySelector('[aria-modal="true"]'))
+  if (inModal && !issueModal()) return
   const key = ev.key
   const typing = typingTarget(ev.target)
   const menuOpen = Boolean(menu.value)
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return
+  /* focus outside the panel (a click on its padding): UiDialog never saw it */
+  if (inModal && key === 'Escape') { ev.preventDefault(); if (menuOpen) menu.value = null; else closeDetail(); return }
+  if (key === 'Escape' && deadlineEditKey.value) { ev.preventDefault(); deadlineEditKey.value = ''; focusCell(); return }
   if (key === 'Escape' && (filtersOpen.value || sortOpen.value)) { ev.preventDefault(); filtersOpen.value = false; sortOpen.value = false; return }
   if (key === 'Escape' && (menuOpen || statusOpen.value)) { ev.preventDefault(); menu.value = null; statusOpen.value = false; return }
   if (key === 'Escape' && typing) { (ev.target as HTMLElement).blur(); ev.preventDefault(); return }
@@ -1376,6 +1680,8 @@ function onDocKey(ev: KeyboardEvent) {
     ev.preventDefault()
     if (statusOpen.value) { statusOpen.value = false; return }
     if (menuOpen) menu.value = null
+    else if (creating.value && !phone.value) cancelCreate()
+    else if (cursorCol.value) { cursorCol.value = ''; (ev.target as HTMLElement)?.blur?.() }
     else closeDetail()
     return
   }
@@ -1391,9 +1697,19 @@ function onDocKey(ev: KeyboardEvent) {
     return
   }
   const k = key.toLowerCase()
-  if (k === 'j' || key === 'ArrowDown') { move(1); ev.preventDefault(); return }
-  if (k === 'k' || key === 'ArrowUp') { move(-1); ev.preventDefault(); return }
-  if (key === 'Enter') { const issue = flat.value.find((i) => i.key === cursorKey.value) || flat.value[0]; if (issue) choose(issue); ev.preventDefault(); return }
+  /* in the issue modal only its own keys: E and the S / P / A / L pickers */
+  if (inModal && !['e', 's', 'p', 'a', 'l'].includes(k)) return
+  if (k === 'j' || key === 'ArrowDown') { move(1); focusCell(); ev.preventDefault(); return }
+  if (k === 'k' || key === 'ArrowUp') { move(-1); focusCell(); ev.preventDefault(); return }
+  /* SPL-1027: Left / Right move the cell cursor, Enter edits the cell */
+  if (!phone.value && (key === 'ArrowRight' || key === 'ArrowLeft')) { stepCol(key === 'ArrowRight' ? 1 : -1); ev.preventDefault(); return }
+  if (key === 'Enter') {
+    const issue = flat.value.find((i) => i.key === cursorKey.value) || flat.value[0]
+    if (issue && cursorCol.value && !phone.value) editCell(issue, cursorCol.value)
+    else if (issue) choose(issue)
+    ev.preventDefault()
+    return
+  }
   if (k === 'c') { startCreate(); ev.preventDefault(); return }
   if (k === 'e' && form.value) { void descEl.value?.edit(); ev.preventDefault(); return }
   const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
@@ -1417,7 +1733,7 @@ async function openLinkedIssue() {
       return
     }
   }
-  choose(issue)
+  choose(issue, true)
 }
 watch(detail, (issue) => {
   if (creating.value) return
@@ -1428,7 +1744,17 @@ watch(() => {
   const q = route.query.issue
   const raw = Array.isArray(q) ? q[0] : q
   return typeof raw === 'string' ? raw.trim() : ''
-}, () => { void openLinkedIssue() })
+}, (key) => {
+  /* SPL-1027: Back past the entry the modal pushed closes it */
+  if (!key && modalOpen.value) {
+    pushedIssue = false
+    openKey.value = ''
+    detail.value = null
+    menu.value = null
+    return
+  }
+  void openLinkedIssue()
+})
 watch(creating, (on) => { if (on) comments.value = [] })
 
 /* SPL-18: a frame can move an issue between epics or change its status, so
@@ -1451,7 +1777,6 @@ let offBack = () => {}
 let offCommentEdit = () => {}
 let offCommentDelete = () => {}
 let offCommentReact = () => {}
-let detailObserver: ResizeObserver | null = null
 /* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it */
 function onDocPointer(ev: Event) {
   const t = ev.target
@@ -1459,20 +1784,18 @@ function onDocPointer(ev: Event) {
     const el = pageEl.value?.querySelector(sel)
     return Boolean(el && t instanceof Node && el.contains(t))
   }
+  /* the menu may ride over the issue modal, teleported out of the page */
+  const menuEl = document.querySelector('[data-test=issues-menu]')
   if (statusOpen.value && !inside('[data-test=issues-filter-status]')) statusOpen.value = false
-  if (menu.value && !inside('[data-test=issues-menu]')) menu.value = null
+  if (menu.value && !(menuEl && t instanceof Node && menuEl.contains(t))) menu.value = null
+  if (deadlineEditKey.value && !inside('[data-deadline-edit="true"]')) deadlineEditKey.value = ''
 }
 onMounted(() => {
   useTopicStore().close()
   useLiveFeed('pane').close()
-  detailW.value = loadIssuePane()
-  measureDetailRoom()
   document.addEventListener('keydown', onDocKey)
+  document.addEventListener('keydown', onDocKeyCapture, true)
   document.addEventListener('pointerdown', onDocPointer)
-  if (typeof ResizeObserver !== 'undefined' && pageEl.value) {
-    detailObserver = new ResizeObserver(() => measureDetailRoom())
-    detailObserver.observe(pageEl.value)
-  }
   offIssue = live.onIssue((f) => {
     issues.value = applyIssueFrame(issues.value, f)
     refreshEpics()
@@ -1493,8 +1816,8 @@ onMounted(() => {
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKey)
+  document.removeEventListener('keydown', onDocKeyCapture, true)
   document.removeEventListener('pointerdown', onDocPointer)
-  detailObserver?.disconnect()
   offIssue()
   offLabel()
   offMsg()
@@ -1834,20 +2157,67 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-st--diss, .issues-st--todo { color: var(--color-muted); }
 .issues-st--blocked { color: var(--color-danger); } /* the SPL-952 blocker red */
 .issues-st--onhold { color: var(--color-muted); }
+/* SPL-1027: the frame (the phone's aside, or UiDialog's body) scrolls; the
+   content is one column, capped for reading in the wide modal */
 .issues-detail {
-  flex: 0 0 var(--issues-detail-w, 380px);
-  width: var(--issues-detail-w, 380px);
-  max-width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  border-inline-start: 1px solid var(--color-border);
-  padding: 12px;
+  background: var(--color-bg);
+}
+.issues-detail-in {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--color-bg);
+  min-width: 0;
+  padding: 12px;
 }
+.issues-detail-in[data-modal="true"] { padding: 16px 20px 20px; max-width: 880px; margin-inline: auto; box-sizing: border-box; width: 100%; }
+/* SPL-1027: the sheet's CRUD cells */
+.issues-c-act { width: 1%; white-space: nowrap; text-align: center; }
+.issues-cell-input {
+  width: 100%;
+  min-width: 10rem;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-fg);
+  font: inherit;
+}
+.issues-title-cell--edit { grid-template-columns: minmax(0, 1fr) auto auto; }
+.issues-title-edit, .issues-cellbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.issues-cellbtn--when { color: inherit; }
+.issues-cellbtn--when .ui-icon { color: var(--color-muted); }
+.issues-title-edit { opacity: 0; }
+.issues-row:hover .issues-title-edit,
+.issues-row[data-selected="true"] .issues-title-edit,
+.issues-title-edit:focus-visible { opacity: 1; }
+.issues-title-edit:hover, .issues-cellbtn:hover, .issues-title-edit:focus-visible, .issues-cellbtn:focus-visible { color: var(--color-fg); border-color: var(--color-border); }
+.issues-row-delete { color: var(--color-muted); }
+.issues-row-delete:hover, .issues-row-delete:focus-visible { color: var(--color-danger); }
+/* the cell cursor is the focused cell: the one global focus ring marks it */
+.issues-newrow { background: var(--color-selected); }
+.issues-newrow__acts { display: inline-flex; gap: 2px; }
+.issues-newrow__kind { cursor: pointer; }
+.issues-del-title { font-weight: 600; }
+.issues-detail-del { align-self: flex-start; }
+.issues-menu.issues-menu--modal { z-index: calc(var(--z-modal) + 1); }
 .issues-detail__h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .issues-detail__title, .issues-field textarea, .issues-field input, .issues-menu__add input {
   width: 100%;
@@ -1915,18 +2285,6 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
-@media (max-width: 1100px) {
-  .issues-detail {
-    position: fixed;
-    inset-inline-end: 0;
-    top: var(--top-bar-h);
-    /* topic c6994436: ends above the bottom Omnibox dock (0 when off) */
-    bottom: var(--omnibox-dock-h, 0px);
-    width: min(380px, 100%);
-    z-index: 20;
-    box-shadow: -8px 0 24px rgb(0 0 0 / .35);
-  }
 }
 /* SPL-992 (epic SPL-988): phones and small tablets. The page is level 2 of
    M1's stack: a card list, Filters / Sort / epic chips on top, the + floating

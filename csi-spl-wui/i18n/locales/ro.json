@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "Despre spool-hub",
     "slogan": "unde oamenii și AI se întâlnesc"
+  },
+  "issues_crud": {
+    "delete": "Șterge problema",
+    "delete_title": "Ștergi {key}?",
+    "delete_body": "Dispare din tabel pentru toți. Numărul rămâne ocupat.",
+    "deleting": "Se șterge…",
+    "err_has_children": "Șterge sau mută mai întâi subsarcinile.",
+    "err_delete_forbidden": "Doar membrul care a creat-o sau un administrator o poate șterge.",
+    "edit_title": "Editează titlul",
+    "set_deadline": "Setează termenul",
+    "shortcuts": "C problemă nouă. Săgețile trec între celule, Enter editează (pe cheie deschide), Esc anulează, Tab trece mai departe. J și K mută. S stare. P prioritate. A responsabil. L etichetă."
   }
 }

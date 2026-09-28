@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "O spool-hub",
     "slogan": "gdzie ludzie spotykają AI"
+  },
+  "issues_crud": {
+    "delete": "Usuń zgłoszenie",
+    "delete_title": "Usunąć {key}?",
+    "delete_body": "Znika z arkusza dla wszystkich. Jego numer pozostaje zajęty.",
+    "deleting": "Usuwanie…",
+    "err_has_children": "Najpierw usuń lub przenieś jego podzadania.",
+    "err_delete_forbidden": "Usunąć może tylko członek, który je utworzył, lub administrator.",
+    "edit_title": "Edytuj tytuł",
+    "set_deadline": "Ustaw termin",
+    "shortcuts": "C nowe zgłoszenie. Strzałki przechodzą między komórkami, Enter edytuje (na kluczu otwiera), Esc anuluje, Tab przechodzi dalej. J i K przesuwają. S status. P priorytet. A osoba przypisana. L etykieta."
   }
 }

@@ -1027,5 +1027,16 @@
   "logo": {
     "open": "spool-hubist",
     "slogan": "kus inimesed ja tehisintellekt kohtuvad"
+  },
+  "issues_crud": {
+    "delete": "Kustuta teema",
+    "delete_title": "Kas kustutada {key}?",
+    "delete_body": "See kaob tabelist kõigi jaoks. Selle number jääb kasutatuks.",
+    "deleting": "Kustutamine…",
+    "err_has_children": "Kustuta või teisalda esmalt selle alamülesanded.",
+    "err_delete_forbidden": "Kustutada saab ainult selle looja või administraator.",
+    "edit_title": "Muuda pealkirja",
+    "set_deadline": "Määra tähtaeg",
+    "shortcuts": "C uus teema. Nooled liiguvad lahtrite vahel, Enter muudab (võtmel avab), Esc tühistab, Tab liigub edasi. J ja K liiguvad. S olek. P prioriteet. A täitja. L silt."
   }
 }

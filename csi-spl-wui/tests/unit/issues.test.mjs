@@ -359,3 +359,30 @@ describe('owner, topic e65c0f60: the default view is one flat list', () => {
     assert.ok(groupIssues(list, { sort: 'updated' }).length > 1)
   })
 })
+
+describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async () => {
+  const { createMockIssues } = await import('../../src/utils/issues.mjs')
+  const { applyIssueFrame } = await import('../../src/utils/issues-view.mjs')
+  it('an op delete frame drops the row by key; create / update keep merging', () => {
+    const list = [{ key: 'SPL-2', title: 'a' }, { key: 'SPL-3', title: 'b' }]
+    assert.deepEqual(applyIssueFrame(list, { type: 'issue', op: 'delete', issue: { key: 'SPL-2' } }).map((i) => i.key), ['SPL-3'])
+    assert.equal(applyIssueFrame(list, { type: 'issue', op: 'update', issue: { key: 'SPL-2', title: 'x' } }).length, 2)
+  })
+  it('the mock refuses a parent with a live child, then deletes; a deleted issue reads 404', () => {
+    const m = createMockIssues({ me: 'HUM-1' })
+    const parent = m.create({ title: 'parent', epic: 'SPL-1' }).issue
+    const child = m.create({ title: 'child', parent: parent.key }).issue
+    assert.throws(() => m.remove(parent.key), (e) => e.token === 'issue_has_children' && e.status === 409)
+    assert.equal(m.remove(child.key).issue.key, child.key)
+    assert.throws(() => m.get(child.key), (e) => e.status === 404)
+    assert.equal(m.remove(parent.key).issue.key, parent.key)
+    assert.equal(m.list('kind=issue').issues.some((i) => i.key === parent.key), false)
+  })
+  it('the page asks with UiConfirm and the client sends DELETE', () => {
+    const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
+    const client = readFileSync(new URL('../../src/utils/spool-client.mjs', import.meta.url), 'utf8')
+    assert.match(page, /<UiConfirm[\s\S]*?testid="issues-delete"/)
+    assert.match(page, /api\.deleteIssue\(issue\.key\)/)
+    assert.match(client, /async deleteIssue\(ref\) \{[\s\S]*?method: 'DELETE'/)
+  })
+})

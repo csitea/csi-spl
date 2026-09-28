@@ -41,20 +41,34 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
+/* SPL-1027: a new issue is the sheet's top row (title, Enter); the
+   description is written in the opened issue (the modal), saved on blur */
+async function closeModal(p) {
+  if (!(await p.$('[data-test=issues-detail]'))) return
+  await p.click('[data-testid=ui-dialog-close]')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 })
+}
 async function create(p, title, body) {
+  await closeModal(p)
   await p.click('[data-test=issues-new]')
-  await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
-  await p.click('[data-test=issues-detail-title]', { clickCount: 3 })
-  await p.type('[data-test=issues-detail-title]', title)
+  await p.waitForSelector('[data-test=issues-newrow-title]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=issues-newrow-title]', title)
+  await p.keyboard.press('Enter')
+  const key = await p.waitForFunction((want) => {
+    const row = [...document.querySelectorAll('[data-test=issues-row]')].find((r) => r.querySelector('.issues-title')?.textContent.trim() === want)
+    return !document.querySelector('[data-test=issues-newrow]') && row ? row.getAttribute('data-key') : false
+  }, { timeout: 5000 }, title).then((h) => h.jsonValue())
   if (body) {
-    await p.click('[data-test=issues-detail-body]')
+    await p.click(`[data-test=issues-row][data-key="${key}"] .issues-c-key`)
+    await p.waitForSelector('[data-test=issues-detail-rendered]', { visible: true, timeout: 5000 })
+    await p.click('[data-test=issues-detail-rendered]')
+    await p.waitForSelector('[data-test=issues-detail-body]', { visible: true, timeout: 5000 })
     await p.type('[data-test=issues-detail-body]', body)
+    await p.click('[data-test=issues-detail-title]')
+    await p.waitForFunction((want) => document.querySelector('[data-test=issues-detail-rendered]')?.textContent.trim() === want, { timeout: 5000 }, body)
+    await closeModal(p)
   }
-  await p.click('[data-test=issues-create]')
-  await p.waitForFunction((want) => {
-    const el = document.querySelector('[data-test=issues-detail-title]')
-    return el && el.value === want
-  }, { timeout: 5000 }, title)
+  return key
 }
 
 const server = await startServer()
@@ -103,7 +117,7 @@ try {
     return { nameTexts, underName, ctrlValues, rowCells, rowUnder, sticky, grid, deadline: !!filters.querySelector('[data-test=issues-filter-deadline-date]') }
   })
   ok('2c the list is a sheet: names row, each filter under its column, rows in the same columns, sticky, gridlines',
-    JSON.stringify(sheet.nameTexts) === JSON.stringify(['Key', 'Title', 'Status', 'prio', 'Level', 'Assignee', 'Label', 'Deadline', 'Updated']) &&
+    JSON.stringify(sheet.nameTexts) === JSON.stringify(['Key', 'Title', 'Status', 'prio', 'Level', 'Assignee', 'Label', 'Deadline', 'Updated', '']) &&
       sheet.underName && sheet.sticky === 'sticky' && sheet.grid === 'solid' && sheet.deadline &&
       !sheet.ctrlValues.some((v) => v.includes(':')), sheet)
   /* owner, topic e00da93b: the closed Assignee control is sized to its value like the others, capped at 13em */
@@ -150,8 +164,8 @@ try {
     const title = row.querySelector('.issues-title')
     return { cells: row.cells.length, under: [...row.cells].every((c, i) => Math.abs(Math.round(c.getBoundingClientRect().left) - cols[i]) <= 1), titleHover: title.getAttribute('title') === title.textContent.trim(), ellipsis: getComputedStyle(title).textOverflow }
   })
-  ok('3a each issue is one row in the same 9 columns; the title ellipsizes with the full text on hover',
-    rowCols.cells === 9 && rowCols.under && rowCols.titleHover && rowCols.ellipsis === 'ellipsis', rowCols)
+  ok('3a each issue is one row in the same 10 columns (the last: delete); the title ellipsizes with the full text on hover',
+    rowCols.cells === 10 && rowCols.under && rowCols.titleHover && rowCols.ellipsis === 'ellipsis', rowCols)
   /* owner, topic e00da93b: a header click sorts ▲, then ▼, then back to the default */
   const sortState = () => p.evaluate(() => {
     const th = document.querySelector('[data-test=issues-sort-title]').closest('th')
@@ -210,12 +224,11 @@ try {
   const typed = await p.$eval('[data-test=issues-deadline]', (el) => ({ v: el.value, inv: el.getAttribute('aria-invalid') }))
   ok('4d typing YYYY-MM-DD HH:MM is kept, mm/dd/yyyy is refused', refused === 'true' && typed.v === '2026-10-02 07:45' && typed.inv === null, { refused, typed })
   const side = await p.evaluate(() => {
-    const list = document.querySelector('[data-test=issues-list]').getBoundingClientRect()
-    const pane = document.querySelector('[data-test=issues-detail]').getBoundingClientRect()
-    return { paneRight: pane.left >= list.right - 2 }
+    const d = document.querySelector('[data-test=issues-detail]').closest('[data-testid=ui-dialog]')
+    return { modal: Boolean(d && d.getAttribute('aria-modal') === 'true'), divider: Boolean(document.querySelector('[data-testid=pane-divider-issue]')) }
   })
-  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'text' && deadlineHint === 'YYYY-MM-DD HH:MM' &&
-    times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.paneRight,
+  ok('4 the issue modal shows the description and a calendar with a 24-hour time (07:00-22:00); no right pane', body === 'Only in the detail' && deadlineType === 'text' && deadlineHint === 'YYYY-MM-DD HH:MM' &&
+    times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.modal && !side.divider,
     { body, deadlineType, deadlineHint, first: times[0], last: times[times.length - 1], n: times.length, side })
 
   /* SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask), shown and never picked */
@@ -237,14 +250,15 @@ try {
     await p.click('[data-test=issues-subtask-open]')
     await p.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-test') === 'issues-subtask-input', { timeout: 5000 })
   }
-  const dialogGone = () => p.waitForFunction(() => !document.querySelector('[data-testid=ui-dialog]'), { timeout: 5000 }).then(() => true, () => false)
+  /* the subtask dialog sits on the issue modal: gone = one dialog left */
+  const dialogGone = () => p.waitForFunction(() => document.querySelectorAll('[data-testid=ui-dialog]').length === 1, { timeout: 5000 }).then(() => true, () => false)
   const focusOnOpener = () => p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-test') === 'issues-subtask-open')
   await openSub()
-  const modal = await p.$eval('[data-testid=ui-dialog]', (el) => ({ modal: el.getAttribute('aria-modal'), role: el.getAttribute('role') }))
+  const modal = await p.evaluate(() => { const all = document.querySelectorAll('[data-testid=ui-dialog]'); const el = all[all.length - 1]; return { modal: el.getAttribute('aria-modal'), role: el.getAttribute('role'), n: all.length } })
   const trapped = []
   for (let n = 0; n < 9; n++) {
     await p.keyboard.press('Tab')
-    trapped.push(await p.evaluate(() => Boolean(document.querySelector('[data-testid=ui-dialog]').contains(document.activeElement))))
+    trapped.push(await p.evaluate(() => { const all = document.querySelectorAll('[data-testid=ui-dialog]'); return Boolean(all[all.length - 1].contains(document.activeElement)) }))
   }
   await p.keyboard.press('Escape')
   const escClosed = await dialogGone()
@@ -280,6 +294,7 @@ try {
   await p.waitForSelector('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', { timeout: 5000 }).catch(() => {})
   const flatStatus = await p.$eval('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', (el) => ({ status: el.getAttribute('data-status'), text: el.textContent.trim() })).catch(() => null)
   ok('5c back in the flat list the row shows its new status', flatStatus && flatStatus.status === 'wip' && flatStatus.text === '03-wip', flatStatus)
+  await closeModal(p)
 
   /* owner, topic e0f6f074 (SPL-972): every pop-up list closes on a click outside it and on Esc */
   const menuUp = () => p.$('[data-test=issues-menu]').then(Boolean)
@@ -312,6 +327,7 @@ try {
   const subs = await p.$$eval('[data-test=issues-subtask]', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()))
   ok('5f the Level cell is a select box: 3 moves the issue under a picked issue, listed as its subtask',
     parentOpts.includes('SPL-2') && !parentOpts.includes('SPL-3') && rowGone && subs.some((x) => x.includes('SPL-3')), { parentOpts, rowGone, subs })
+  await closeModal(p)
 
   await create(p, 'A third row for J', '')
   /* the deadline box is as wide as "YYYY-MM-DD HH:MM" (topic 593a804a) */
@@ -334,6 +350,9 @@ try {
     const el = document.querySelector('[data-test=issues-row][data-selected="true"]')
     return el && el.getAttribute('data-key') === k && new URL(location.href).searchParams.get('issue') === k
   }, { timeout: 5000 }, firstKey)
+  /* SPL-1027: J moves in the sheet, so the modal closes first (Esc) */
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 })
   const before = await p.$eval('[data-test=issues-row][data-selected="true"]', (el) => el.getAttribute('data-key'))
   await p.keyboard.press('KeyJ')
   await p.waitForFunction((prev) => {
@@ -362,17 +381,6 @@ try {
   await dragHandle('[data-testid=pane-divider-sidebar]', 64)
   const side1 = await p.evaluate(() => getComputedStyle(document.querySelector('.spool-shell')).getPropertyValue('--sidebar-w'))
   ok('10 the sidebar divider resizes beside the issue list', parseFloat(side1) >= parseFloat(side0) + 40, { side0, side1 })
-  await p.waitForSelector('[data-testid=pane-divider-issue]', { timeout: 5000 })
-  const d0 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
-  await dragHandle('[data-testid=pane-divider-issue]', -72)
-  const d1 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
-  ok('11 the issue detail divider widens the detail', d1 >= d0 + 40, { d0, d1 })
-  await p.click('[data-testid=pane-divider-issue]')
-  await p.keyboard.press('ArrowRight')
-  const d2 = await p.$eval('[data-test=issues-detail]', (el) => el.getBoundingClientRect().width)
-  ok('12 the issue detail divider answers the keyboard', d2 <= d1 - 8, { d1, d2 })
-  const stored = await p.evaluate(() => localStorage.getItem('spool.pane-widths'))
-  ok('13 the issue detail width is stored with the other pane widths', Boolean(stored && stored.includes('"issues"')), stored)
   await p.setViewport({ width: 390, height: 844, isMobile: true })
   await p.waitForSelector('[data-test=issues-page]', { timeout: 5000 })
   const narrow = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))

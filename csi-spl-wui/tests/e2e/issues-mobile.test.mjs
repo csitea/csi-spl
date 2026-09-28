@@ -53,12 +53,13 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/* the desktop way in: header +, title, Create (the mock tenant starts empty) */
+/* the desktop way in: header +, the new top row's title, Enter (SPL-1027;
+   the mock tenant starts empty) */
 async function createDesktop(p, title) {
   await p.click('[data-test=issues-new]')
-  await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
-  await p.type('[data-test=issues-detail-title]', title)
-  await p.click('[data-test=issues-create]')
+  await p.waitForSelector('[data-test=issues-newrow-title]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=issues-newrow-title]', title)
+  await p.keyboard.press('Enter')
   await p.waitForFunction((want) => [...document.querySelectorAll('[data-test=issues-row] .issues-title')].some((e) => e.textContent === want), { timeout: 5000 }, title)
 }
 
@@ -113,7 +114,7 @@ try {
   await openIssues(p, desk)
   await createDesktop(p, 'Rotate the relay key')
   await createDesktop(p, 'Mobile issues card list')
-  await p.click('[data-test=issues-detail-close]')
+  /* SPL-1027: a desktop create leaves no issue open (the row stays in the sheet) */
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 })
   const d = await p.evaluate(() => ({
     table: !!document.querySelector('[data-test=issues-table]'),

@@ -16,8 +16,13 @@ per spool issue (epic SPL-1152, prd t1).
       no npm = exit 3 before anything runs) and `do_spl_agent_mcp_install`
       registers spool-dev/prd in qwen (user scope, trusted). Check:
       `spool-install/tests/test-install.sh` 40 PASS, `agent-mcp.tst.sh` 0 failures
-- [ ] T004 SPL-1155 skills + slash commands as spool-native templates under
-      `assets/`, rendered by `install.sh` (hand edits never overwritten silently)
+- [x] T004 SPL-1155 skills + slash commands as spool-native templates under
+      `assets/` (/claude-spawn /agy-spawn /grok-spawn /qwen-spawn
+      /spawn-an-agent /riname /tmux-close-window; skills agent-msg, exit-clean,
+      kill-your-self), rendered by `install.sh` step 5b into ~/.claude and,
+      with qwen, ~/.qwen/skills; sha256 marker: untouched = rewritten, hand
+      edit = kept and named (`--force-skills` + backup), foreign = never
+      touched; `--no-skills`. Check: `test-install.sh` 50 PASS
 - [ ] T005 SPL-1156 port the missing box scripts the manifest marks `ported`
       (tmux-close-window, the tmux status badge, ...)
 - [ ] T006 SPL-1157 README section "Agent harness: what you get when you clone"

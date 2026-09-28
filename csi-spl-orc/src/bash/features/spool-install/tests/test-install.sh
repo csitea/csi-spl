@@ -21,6 +21,11 @@
 #   8. a foreign ~/.local/bin/spool-agent is never overwritten (exit 7)
 #   9. qwen (specs/048): npm into <prefix>, the vendored rg made executable;
 #      no npm -> exit 3 before anything is fetched
+#  10. the harness (specs/048): every command + skill rendered into ~/.claude
+#      (and ~/.qwen/skills with qwen) with no {{placeholder}} left; a re-run
+#      rewrites nothing; a hand edit is kept and named, --force-skills
+#      replaces it with a backup; a foreign same-named file is never touched;
+#      the tmux snippet lands in <data>; --no-skills renders nothing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -237,6 +242,39 @@ QD="$H/.local/lib/node_modules/@qwen-code/qwen-code"
 ARGS=(--cli qwen --no-seat); inst SPOOL_INSTALL_NPM="$T/no-such-npm"; rc=$?
 [[ $rc -eq 3 ]] && grep -q 'needs npm' "$T/o" && [[ ! -s "$T/npm.log" ]] &&
   pass "9. no npm: exit 3, named, nothing run" || fail "9. no npm: rc $rc $(cat "$T/o")"
+
+# --- 10. the harness: skills + commands -----------------------------------------------------------
+ASSETS="$(cd "$TEST_DIR/../../spawn-agents/assets" && pwd)"
+CMD="$H/.claude/commands"; SK="$H/.claude/skills"
+n_cmd="$(ls "$ASSETS/commands" | wc -l)"; n_sk="$(ls "$ASSETS/skills" | wc -l)"
+[[ "$(ls "$CMD"/*.md 2>/dev/null | wc -l)" == "$n_cmd" && "$(ls "$SK"/*/SKILL.md 2>/dev/null | wc -l)" == "$n_sk" ]] &&
+  pass "10. every command ($n_cmd) and skill ($n_sk) is rendered into ~/.claude" || fail "10. rendered: $(ls -R "$H/.claude" | head -30)"
+for k in claude grok agy qwen; do [[ -r "$CMD/$k-spawn.md" ]] || fail "10. no /$k-spawn"; done
+! grep -rqE '\{\{[A-Z_]+\}\}' "$CMD" "$SK" && pass "10. no placeholder is left" || fail "10. placeholders: $(grep -rlE '\{\{[A-Z_]+\}\}' "$CMD" "$SK")"
+grep -qF "$(cd "$TEST_DIR/../../spawn-agents" && pwd)/scripts/spawn-window.sh qwen auto" "$CMD/qwen-spawn.md" &&
+  pass "10. /qwen-spawn runs this checkout's spawn-window.sh" || fail "10. HARNESS_DIR: $(grep spawn-window "$CMD/qwen-spawn.md")"
+[[ -r "$H/.qwen/skills/qwen-spawn/SKILL.md" && -r "$H/.qwen/skills/agent-msg/SKILL.md" ]] &&
+  pass "10. with qwen installed, ~/.qwen/skills gets them too" || fail "10. qwen skills: $(ls "$H/.qwen/skills" 2>&1)"
+cp -a "$H/.claude" "$T/claude.before"
+ARGS=(--cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 ]] && diff -r "$T/claude.before" "$H/.claude" >/dev/null && grep -q 'skills: 0 written' "$T/o" &&
+  pass "10. a re-run rewrites nothing" || fail "10. re-run: rc $rc $(grep skills "$T/o")"
+[[ -r "$H/.local/share/spool-agent/tmux-agent-status.conf" ]] && grep -q 'source-file .*tmux-agent-status.conf' "$T/o" &&
+  pass "10. the tmux snippet lands in <data> and the source-file line is printed" || fail "10. tmux: $(cat "$T/o")"
+echo "my own line" >>"$CMD/riname.md"
+printf 'mine, not the installer'"'"'s\n' >"$CMD/tmux-close-window.md"
+ARGS=(--cli none --no-seat); inst; rc=$?
+grep -q 'my own line' "$CMD/riname.md" && grep -q "riname.md was edited by hand" "$T/o" &&
+  pass "10. a hand-edited file is kept and named" || fail "10. hand edit: $(tail -3 "$CMD/riname.md") $(cat "$T/o")"
+grep -qx "mine, not the installer's" "$CMD/tmux-close-window.md" && grep -q 'tmux-close-window.md is not ours' "$T/o" &&
+  pass "10. a foreign same-named file is never touched" || fail "10. foreign: $(cat "$CMD/tmux-close-window.md")"
+ARGS=(--cli none --no-seat --force-skills); inst; rc=$?
+! grep -q 'my own line' "$CMD/riname.md" && grep -q 'my own line' "$CMD/riname.md.bak-spool-install" &&
+  grep -qx "mine, not the installer's" "$CMD/tmux-close-window.md" &&
+  pass "10. --force-skills replaces the hand edit, keeps a backup, still skips the foreign file" || fail "10. force: rc $rc $(cat "$T/o")"
+rm -rf "$H/.claude/commands"
+ARGS=(--cli none --no-seat --no-skills); inst
+[[ ! -e "$H/.claude/commands" ]] && pass "10. --no-skills renders nothing" || fail "10. --no-skills rendered"
 
 # --- 8. a foreign spool-agent ------------------------------------------------------------------------------------
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"

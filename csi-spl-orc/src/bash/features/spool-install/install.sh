@@ -17,6 +17,12 @@
 #      checkout's spool-agent.sh with your env / tenant / box
 #   4. the terminal mirror hooks in ~/.claude/settings.json (claude and grok
 #      both read it; the hook does nothing in a session that has no agent id)
+#   4b. the agent harness (specs/048): the slash commands and skills of
+#      spawn-agents/assets rendered into ~/.claude/commands, ~/.claude/skills
+#      and (with qwen) ~/.qwen/skills; the tmux window-access snippet copied
+#      to <data>. A rendered file carries a sha256 marker: a re-run rewrites
+#      it only while it is untouched; a hand-edited one is left alone and
+#      named, a same-named file we did not write is never touched
 #   5. your box on a tenant: its key, and its pin at the hub. The hub pins a
 #      box only with the tenant root key: with ROOT_KEY_JSON you pin it
 #      yourself; without, the seat is PENDING - this prints the one line your
@@ -30,6 +36,9 @@
 #   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
 #   --no-seat         skip step 5 (no hub needed)
 #   --no-hooks        skip step 4 (spool-agent then passes the hooks per session)
+#   --no-skills       skip step 4b
+#   --force-skills    step 4b also overwrites a hand-edited rendered file
+#                     (the old one is kept as <file>.bak-spool-install)
 #   --update          `git pull --ff-only` this checkout first (clean checkouts only)
 #   --dry-run         print the plan; change nothing
 #
@@ -40,6 +49,8 @@
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
+#      SPOOL_ROOT / SPOOL_AGENT_CEILING - rendered into the skills (defaults
+#      /var/spool-hub and 40)
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
@@ -65,7 +76,7 @@ CLIS="claude" ENVN="${SPOOL_ENV:-$(cfg_get SPOOL_ENV)}" TENANT="${SPOOL_TENANT:-
 ENVN="${ENVN:-dev}"
 [ -n "${SPOOL_HUB_URL:-}" ] || SPOOL_HUB_URL="$(cfg_get SPOOL_HUB_URL)"
 [ -n "$SPOOL_HUB_URL" ] || unset SPOOL_HUB_URL
-SEAT=1 HOOKS=1 UPDATE=0 DRY=0
+SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0
 say()  { echo "spool-install: $*" >&2; }
 die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
 usage() { sed -n '/^#   install.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -78,6 +89,8 @@ while [ "$#" -gt 0 ]; do
     --box)      [ "$#" -ge 2 ] || usage; BOX="$2"; shift 2 ;;
     --no-seat)  SEAT=0; shift ;;
     --no-hooks) HOOKS=0; shift ;;
+    --no-skills) SKILLS=0; shift ;;
+    --force-skills) FORCE_SKILLS=1; shift ;;
     --update)   UPDATE=1; shift ;;
     --dry-run)  DRY=1; shift ;;
     -h|--help)  usage ;;
@@ -331,6 +344,69 @@ with open(tmp, "w") as f: json.dump(cur, f, indent=2); f.write("\n")
 os.replace(tmp, path)
 ' "$SETTINGS" || die 6 "cannot merge the hooks into $SETTINGS (is it valid JSON?)"
     say "mirror hooks: $SETTINGS"
+  fi
+fi
+
+# ── 5b. the agent harness: skills, slash commands, tmux snippet (specs/048) ──
+HARNESS_DIR="$ORC/src/bash/features/spawn-agents"
+if [ "$SKILLS" = 1 ]; then
+  QWEN_SKILLS=0
+  for c in "${CLI_LIST[@]}"; do [ "$c" = qwen ] && QWEN_SKILLS=1; done
+  [ -d "$HOME/.qwen" ] && QWEN_SKILLS=1
+  if [ "$DRY" = 1 ]; then
+    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills") (hand-edited files kept)"
+    plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
+  else
+    python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
+      "$HARNESS_DIR" "${SPOOL_ROOT:-/var/spool-hub}" "${SPOOL_AGENT_CEILING:-40}" <<'EOF_PY' || die 6 "cannot render the harness skills"
+import hashlib, os, re, sys
+assets, home, qwen, force, harness, root, ceiling = sys.argv[1:]
+MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
+subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling}
+def render(src):
+    t = open(src).read()
+    t = re.sub(r"\{\{([A-Z_]+)\}\}", lambda m: subst[m.group(1)], t)
+    return t + "\n<!-- spool-install: sha256=%s -->\n" % hashlib.sha256(t.encode()).hexdigest()
+jobs = []
+for f in sorted(os.listdir(os.path.join(assets, "commands"))):
+    n = f[:-3]
+    src = os.path.join(assets, "commands", f)
+    jobs.append((src, os.path.join(home, ".claude", "commands", f)))
+    if qwen == "1":
+        jobs.append((src, os.path.join(home, ".qwen", "skills", n, "SKILL.md")))
+for n in sorted(os.listdir(os.path.join(assets, "skills"))):
+    src = os.path.join(assets, "skills", n, "SKILL.md")
+    jobs.append((src, os.path.join(home, ".claude", "skills", n, "SKILL.md")))
+    if qwen == "1":
+        jobs.append((src, os.path.join(home, ".qwen", "skills", n, "SKILL.md")))
+wrote = same = 0
+for src, dst in jobs:
+    new = render(src)
+    if os.path.exists(dst):
+        cur = open(dst).read()
+        if cur == new:
+            same += 1
+            continue
+        m = MARK.search(cur)
+        if not m:
+            print("spool-install: skills: %s is not ours (no spool-install marker): left alone" % dst, file=sys.stderr)
+            continue
+        body = cur[:m.start()] + cur[m.end():]
+        if hashlib.sha256(body.encode()).hexdigest() != m.group(1):
+            if force != "1":
+                print("spool-install: skills: %s was edited by hand: left alone (--force-skills overwrites it)" % dst, file=sys.stderr)
+                continue
+            open(dst + ".bak-spool-install", "w").write(cur)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    tmp = dst + ".tmp.%d" % os.getpid()
+    open(tmp, "w").write(new)
+    os.replace(tmp, dst)
+    wrote += 1
+print("spool-install: skills: %d written, %d already current" % (wrote, same), file=sys.stderr)
+EOF_PY
+    mkdir -p "$DATA" && cp -f "$HARNESS_DIR/assets/tmux-agent-status.conf" "$DATA/tmux-agent-status.conf" ||
+      die 6 "cannot copy the tmux snippet to $DATA"
+    say "tmux: add this line to ~/.tmux.conf for the window-access keys:  source-file $DATA/tmux-agent-status.conf"
   fi
 fi
 

@@ -132,12 +132,27 @@ async function phoneCase(browser, width, height) {
     const l = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `issue-dock-comment-${width}-open.png`) })
     ok(`${tag} issue open (level 3): the dock says "Commenting on <key>"`, l.docked && l.level === '3' && l.mode === 'comment' && l.hint.includes(key), { key, ...l })
+    /* two earlier comments first: the discussion then runs below the dock,
+       as it does on a real issue, so the on-screen check below can fail */
+    for (const n of [1, 2]) {
+      const warm = `cle35066 warm-up ${n} ${width}`
+      await typeAndGo(p, warm)
+      await commentShown(p, warm)
+    }
     const note = `cle35066 dock comment ${width} ${Date.now()}`
     await typeAndGo(p, note)
     const shown = await commentShown(p, note)
     const after = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `issue-dock-comment-${width}-sent.png`) })
     ok(`${tag} issue open: GO posts the line as a comment on the open issue`, shown, after)
+    /* the new comment is scrolled into view, clear of the dock - an empty dock alone reads as nothing happened */
+    const seen = await p.evaluate((t, dockSel) => {
+      const c = [...document.querySelectorAll('[data-test=issues-comment]')].find((x) => x.innerText.includes(t))
+      const r = c && c.getBoundingClientRect()
+      const dockTop = document.querySelector(dockSel)?.getBoundingClientRect().top ?? innerHeight
+      return r ? { top: Math.round(r.top), bottom: Math.round(r.bottom), dockTop: Math.round(dockTop), onScreen: r.top >= 0 && r.top < dockTop } : null
+    }, note, DOCK)
+    ok(`${tag} issue open: the new comment is on screen above the dock`, Boolean(seen && seen.onScreen), seen)
     ok(`${tag} issue open: the dock empties and the page stays on the issue`, after.field === '' && after.path.endsWith('/issues') && after.level === '3', after)
     /* /search from the same dock still searches */
     await typeAndGo(p, '/search cle35066l3')

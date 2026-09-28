@@ -1337,6 +1337,12 @@ async function sendDockComment(text: string, files: File[]) {
   } finally {
     busy.value = false
   }
+  /* the discussion is below the fold on a phone: without this the only sign
+     of the post was an empty dock - the owner's "does not create a comment"
+     again. Comments are oldest first, so the new one is the last card. */
+  await nextTick()
+  const cards = document.querySelectorAll('[data-test=issues-comment]')
+  cards[cards.length - 1]?.scrollIntoView({ block: 'center' })
 }
 const dockComment = computed(() => Boolean(phone.value && detail.value && detail.value.task_id && !creating.value))
 watch(dockComment, (on) => {

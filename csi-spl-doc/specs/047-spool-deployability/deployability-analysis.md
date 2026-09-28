@@ -402,7 +402,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 | W17 | `spool` usage lists the `hub-*` verbs; `--root-key` also takes key text (Q6) | U2 | XS | api | `spool` with no args names every verb |
 | W18 | Off localhost, hub-init prints a one-time owner link (Zulip style) and the open first-sign-up rule is off | blocker 12 | S | api + docs | a second person cannot claim a fresh public instance |
 | W19 | Owner request (topic `bea3a4e6`, 2026-09-28): "the app settings should be in the left most vertical panel, and not in the version model". Settings get their own entry in the leftmost vertical panel, apart from the version stamp/card in the sidebar footer (`ChannelSidebar.vue` `app-version-*`) | taking into use | S | WUI | settings reachable from the leftmost panel in 1 click; the version card shows only the version |
-| W20 | Owner request (topic `bea3a4e6`, 2026-09-28): "the users icon on the left most panel can be removed". Members are managed in Tenant settings -> Members (046) | taking into use | XS | WUI | the leftmost panel has no Users entry; e2e that opened it goes via Tenant settings |
+| W20 | Owner request (topic `bea3a4e6`, 2026-09-28): "the users icon on the left most panel can be removed" ... "so that the users CRUD will be accesible only from the app settings". Users CRUD lives only in settings (Tenant settings -> Members, 046) | taking into use | XS-S | WUI | the leftmost panel has no Users entry; no users CRUD is reachable outside settings; e2e that opened it goes via settings |
 
 ### 5.2 Wave 2 — the big items
 

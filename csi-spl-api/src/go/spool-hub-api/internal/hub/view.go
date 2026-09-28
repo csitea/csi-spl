@@ -270,87 +270,111 @@ func humNumber(id string) int {
 // handleViewChannels is view-v1 §4.2 / channels-v1 §5.2: every default,
 // created and seen channel, with unread against the reader's read= cursors.
 func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t store.Tenant) {
-	reads := map[string]store.ReadMark{}
-	for _, rd := range r.URL.Query()["read"] {
-		id, cur, ok := strings.Cut(rd, "~")
-		at, msgID, err := decCursor(cur)
-		if !ok || err != nil {
-			writeErr(w, http.StatusBadRequest, "bad_cursor", "read must be <channel>~<cursor from this API>")
-			return
-		}
-		reads[store.NormalizeChannel(id)] = store.ReadMark{At: at, MsgID: msgID}
+	reads, ok := parseReadMarks(r.URL.Query()["read"])
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "bad_cursor", "read must be <channel>~<cursor from this API>")
+		return
 	}
-	now := s.o.Now()
-	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, now, reads)
+	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads)
+	if err == nil {
+		rows, err = s.visibleChannels(r, t.ID, rows)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return
 	}
-	// The read door (rdb 0028): a created channel the reader is not in is
-	// omitted entirely - not greyed out, not listed as joinable. Its name and
-	// description are as private as its messages.
-	hum, ok := s.readerID(r, t.ID)
-	if !ok {
-		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
-		return
-	}
-	if hum != "" {
-		mine, err := s.readerChannels(r.Context(), t.ID, hum)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
-			return
-		}
-		in := map[string]bool{}
-		for _, c := range mine {
-			in[c] = true
-		}
-		kept := rows[:0]
-		for _, c := range rows {
-			if store.ChannelPublic(c.ChannelID) || in[c.ChannelID] {
-				kept = append(kept, c)
-			}
-		}
-		rows = kept
-	}
-	type members struct {
-		Agents  int `json:"agents"`
-		Boxes   int `json:"boxes"`
-		Posters int `json:"posters"`
-	}
-	type ch struct {
-		Channel           string  `json:"channel"`
-		Name              string  `json:"name"`
-		Description       string  `json:"description"`
-		MembersOpenInvite bool    `json:"members_open_invite"`
-		Default           bool    `json:"default"`
-		RetentionDays     int     `json:"retention_days"`
-		CreatedBy         string  `json:"created_by"`
-		CreatedAt         *string `json:"created_at"`
-		Count             int     `json:"count"`
-		LastTS            *string `json:"last_ts"`
-		LastCursor        *string `json:"last_cursor"`
-		Unread            int     `json:"unread"`
-		Members           members `json:"members"`
-	}
-	out := []ch{}
+	out := []viewChannel{}
 	for _, c := range rows {
-		v := ch{Channel: c.ChannelID, Name: c.Name, Description: c.Description, MembersOpenInvite: c.MembersOpenInvite, Default: c.Default, CreatedBy: c.CreatedBy,
-			RetentionDays: int(s.retention(c.ChannelID) / (24 * time.Hour)), Count: c.Count, Unread: c.Unread,
-			Members: members{Agents: c.Agents, Boxes: c.Boxes, Posters: c.Posters}}
-		if !c.LastAt.IsZero() {
-			ts, cur := rfc(c.LastAt), encCursor(c.LastAt, c.LastMsgID)
-			v.LastTS, v.LastCursor = &ts, &cur
-		}
-		/* a channel created seconds ago has no message yet, and the
-		   client ranks it by this. Rows arrive newest activity first (the store
-		   sorts them); created_at is what makes an EMPTY new channel rank. */
-		if !c.CreatedAt.IsZero() {
-			at := rfc(c.CreatedAt)
-			v.CreatedAt = &at
-		}
-		out = append(out, v)
+		out = append(out, s.toViewChannel(c))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
+}
+
+// parseReadMarks reads the read=<channel>~<cursor> marks, keyed by the
+// normalized channel; false when one is malformed.
+func parseReadMarks(marks []string) (map[string]store.ReadMark, bool) {
+	reads := map[string]store.ReadMark{}
+	for _, rd := range marks {
+		id, cur, ok := strings.Cut(rd, "~")
+		at, msgID, err := decCursor(cur)
+		if !ok || err != nil {
+			return nil, false
+		}
+		reads[store.NormalizeChannel(id)] = store.ReadMark{At: at, MsgID: msgID}
+	}
+	return reads, true
+}
+
+// errChannelsDoor is a reader lookup that failed: the listing fails closed.
+var errChannelsDoor = errors.New("channels: reader unavailable")
+
+// visibleChannels is the read door (rdb 0028): a created channel the reader
+// is not in is omitted entirely - not greyed out, not listed as joinable. Its
+// name and description are as private as its messages.
+func (s *Server) visibleChannels(r *http.Request, tenant string, rows []store.ChannelStat) ([]store.ChannelStat, error) {
+	hum, ok := s.readerID(r, tenant)
+	if !ok {
+		return nil, errChannelsDoor
+	}
+	if hum == "" {
+		return rows, nil
+	}
+	mine, err := s.readerChannels(r.Context(), tenant, hum)
+	if err != nil {
+		return nil, err
+	}
+	in := map[string]bool{}
+	for _, c := range mine {
+		in[c] = true
+	}
+	kept := rows[:0]
+	for _, c := range rows {
+		if store.ChannelPublic(c.ChannelID) || in[c.ChannelID] {
+			kept = append(kept, c)
+		}
+	}
+	return kept, nil
+}
+
+// viewChannel is one row of GET /v1/view/channels.
+type viewChannel struct {
+	Channel           string         `json:"channel"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	MembersOpenInvite bool           `json:"members_open_invite"`
+	Default           bool           `json:"default"`
+	RetentionDays     int            `json:"retention_days"`
+	CreatedBy         string         `json:"created_by"`
+	CreatedAt         *string        `json:"created_at"`
+	Count             int            `json:"count"`
+	LastTS            *string        `json:"last_ts"`
+	LastCursor        *string        `json:"last_cursor"`
+	Unread            int            `json:"unread"`
+	Members           channelMembers `json:"members"`
+}
+
+type channelMembers struct {
+	Agents  int `json:"agents"`
+	Boxes   int `json:"boxes"`
+	Posters int `json:"posters"`
+}
+
+func (s *Server) toViewChannel(c store.ChannelStat) viewChannel {
+	v := viewChannel{Channel: c.ChannelID, Name: c.Name, Description: c.Description, MembersOpenInvite: c.MembersOpenInvite, Default: c.Default, CreatedBy: c.CreatedBy,
+		RetentionDays: int(s.retention(c.ChannelID) / (24 * time.Hour)), Count: c.Count, Unread: c.Unread,
+		Members: channelMembers{Agents: c.Agents, Boxes: c.Boxes, Posters: c.Posters}}
+	if !c.LastAt.IsZero() {
+		ts, cur := rfc(c.LastAt), encCursor(c.LastAt, c.LastMsgID)
+		v.LastTS, v.LastCursor = &ts, &cur
+	}
+	/* a channel created seconds ago has no message yet, and the
+	   client ranks it by this. Rows arrive newest activity first (the store
+	   sorts them); created_at is what makes an EMPTY new channel rank. */
+	if !c.CreatedAt.IsZero() {
+		at := rfc(c.CreatedAt)
+		v.CreatedAt = &at
+	}
+	return v
 }
 
 type viewTopic struct {

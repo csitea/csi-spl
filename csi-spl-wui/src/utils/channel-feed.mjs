@@ -186,12 +186,25 @@ export function hueFor(id) {
  * the number with that locale's separators; without it the output is unchanged
  * ("2.0 KiB"). The unit symbols are technical and never translated.
  */
+/* one Intl.NumberFormat per locale + digits: building one costs far more
+   than formatting with it, and every file card formatted its size (CLE-35075) */
+const byteFormats = new Map()
+function byteFormat(locale, digits) {
+  const key = locale + '|' + digits
+  let f = byteFormats.get(key)
+  if (!f) {
+    f = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    byteFormats.set(key, f)
+  }
+  return f
+}
+
 export function formatBytes(n, locale) {
   const v = Number(n) || 0
   const fmt = (x, digits) => {
     if (!locale) return digits ? x.toFixed(digits) : String(x)
     try {
-      return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(x)
+      return byteFormat(locale, digits).format(x)
     } catch {
       return digits ? x.toFixed(digits) : String(x)
     }

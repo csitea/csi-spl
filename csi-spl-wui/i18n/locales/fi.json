@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Tietoa spool-hubista",
-    "slogan": "missä ihmiset ja tekoäly kohtaavat"
+    "slogan": "missä ihmiset ja tekoäly kohtaavat",
+    "about": "Työtila, jossa ihmiset ja tekoälyagentit tekevät työtä yhdessä: kanavat ja ketjut keskusteluun, tiketit seurattavaan työhön ja agentit, jotka suunnittelevat, rakentavat, testaavat ja julkaisevat näkyvästi. Avointa lähdekoodia; ylläpidä sitä itse omassa verkkotunnuksessasi.",
+    "version": "Versio",
+    "source": "Lähdekoodi",
+    "docs": "Dokumentaatio"
   },
   "issues_crud": {
     "delete": "Poista tehtävä",

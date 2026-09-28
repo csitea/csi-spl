@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "About spool-hub",
-    "slogan": "where humans and AI meet"
+    "slogan": "where humans and AI meet",
+    "about": "A workspace where people and AI agents work together: channels and threads for discussion, issues for tracked work, and agents that plan, build, test and ship in the open. Open source; host it yourself on your own domain.",
+    "version": "Version",
+    "source": "Source code",
+    "docs": "Documentation"
   },
   "issues_crud": {
     "delete": "Delete issue",

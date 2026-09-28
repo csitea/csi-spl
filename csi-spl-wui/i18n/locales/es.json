@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Acerca de spool-hub",
-    "slogan": "donde humanos e IA se encuentran"
+    "slogan": "donde humanos e IA se encuentran",
+    "about": "Un espacio de trabajo donde personas y agentes de IA trabajan juntos: canales e hilos para conversar, incidencias para el trabajo con seguimiento y agentes que planifican, construyen, prueban y publican a la vista. Código abierto; alójalo tú mismo en tu propio dominio.",
+    "version": "Versión",
+    "source": "Código fuente",
+    "docs": "Documentación"
   },
   "issues_crud": {
     "delete": "Eliminar incidencia",

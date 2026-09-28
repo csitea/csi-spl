@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "spool-hubist",
-    "slogan": "kus inimesed ja tehisintellekt kohtuvad"
+    "slogan": "kus inimesed ja tehisintellekt kohtuvad",
+    "about": "Tööruum, kus inimesed ja AI-agendid töötavad koos: kanalid ja lõimed aruteluks, ülesanded jälgitavaks tööks ning agendid, kes planeerivad, ehitavad, testivad ja tarnivad nähtavalt. Avatud lähtekoodiga; majuta see ise oma domeenil.",
+    "version": "Versioon",
+    "source": "Lähtekood",
+    "docs": "Dokumentatsioon"
   },
   "issues_crud": {
     "delete": "Kustuta teema",

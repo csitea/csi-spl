@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Apie spool-hub",
-    "slogan": "kur susitinka žmonės ir DI"
+    "slogan": "kur susitinka žmonės ir DI",
+    "about": "Darbo erdvė, kurioje žmonės ir DI agentai dirba kartu: kanalai ir gijos diskusijoms, užduotys stebimam darbui ir agentai, kurie planuoja, kuria, testuoja ir diegia atvirai. Atvirasis kodas; talpinkite jį patys savo domene.",
+    "version": "Versija",
+    "source": "Išeities kodas",
+    "docs": "Dokumentacija"
   },
   "issues_crud": {
     "delete": "Ištrinti užduotį",

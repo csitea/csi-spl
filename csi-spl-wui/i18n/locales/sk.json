@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "O spool-hub",
-    "slogan": "kde sa stretávajú ľudia a AI"
+    "slogan": "kde sa stretávajú ľudia a AI",
+    "about": "Pracovný priestor, kde ľudia a AI agenti pracujú spolu: kanály a vlákna na diskusiu, úlohy na sledovanú prácu a agenti, ktorí viditeľne plánujú, stavajú, testujú a nasadzujú. Otvorený zdrojový kód; hostujte ho sami na vlastnej doméne.",
+    "version": "Verzia",
+    "source": "Zdrojový kód",
+    "docs": "Dokumentácia"
   },
   "issues_crud": {
     "delete": "Odstrániť úlohu",

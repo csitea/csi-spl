@@ -20,6 +20,9 @@
      and no teleport target to miss. -->
 <template>
   <Teleport v-if="mounted" to="body">
+    <!-- SPL-1150: only the `card` size fades and scales in and out; every
+         other size has no transition CSS, so it opens and closes at once -->
+    <Transition :name="size === 'card' ? 'ui-dialog-pop' : 'ui-dialog-none'" appear>
     <div
       v-if="open"
       class="ui-dialog-backdrop"
@@ -66,6 +69,7 @@
         </footer>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -74,8 +78,8 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001). */
-    size?: 'sm' | 'md' | 'lg' | 'xl'
+    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001); `card` is a compact, centred card that fades in (the logo, SPL-1150). */
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'card'
   }>(),
   { size: 'lg' },
 )
@@ -218,6 +222,42 @@ onUnmounted(() => {
   background: transparent;
 }
 .ui-dialog.lg { max-width: 1100px; height: 100%; }
+/* SPL-1150: a compact card - soft radius, a soft two-layer shadow, no
+   header strip; its height is its content's */
+.ui-dialog.card {
+  max-width: 720px;
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.32), 0 2px 8px rgb(0 0 0 / 0.16);
+}
+/* above a phone; at <= 600 px the card is a full screen with its top bar */
+@media (min-width: 601px) {
+  .ui-dialog.card .ui-dialog__head {
+    border-bottom: 0;
+    background: transparent;
+    padding-block: 10px 0;
+  }
+  .ui-dialog.card .ui-dialog__title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-muted);
+  }
+}
+.ui-dialog-pop-enter-active,
+.ui-dialog-pop-leave-active { transition: opacity 160ms ease-out; }
+.ui-dialog-pop-enter-active .ui-dialog,
+.ui-dialog-pop-leave-active .ui-dialog { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease-out; }
+.ui-dialog-pop-enter-from,
+.ui-dialog-pop-leave-to { opacity: 0; }
+.ui-dialog-pop-enter-from .ui-dialog,
+.ui-dialog-pop-leave-to .ui-dialog { opacity: 0; transform: translateY(6px) scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .ui-dialog-pop-enter-active,
+  .ui-dialog-pop-leave-active,
+  .ui-dialog-pop-enter-active .ui-dialog,
+  .ui-dialog-pop-leave-active .ui-dialog { transition: none; }
+}
 .ui-dialog.xl { width: 90vw; max-width: 90vw; height: 90vh; max-height: 90vh; }
 .ui-dialog:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .ui-dialog__head {
@@ -298,7 +338,8 @@ onUnmounted(() => {
   .ui-dialog.sm,
   .ui-dialog.md,
   .ui-dialog.lg,
-  .ui-dialog.xl {
+  .ui-dialog.xl,
+  .ui-dialog.card {
     width: 100%;
     max-width: 100%;
     height: 100%;

@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "spool-hub hakkında",
-    "slogan": "insanların ve yapay zekânın buluştuğu yer"
+    "slogan": "insanların ve yapay zekânın buluştuğu yer",
+    "about": "İnsanların ve yapay zekâ ajanlarının birlikte çalıştığı bir çalışma alanı: tartışma için kanallar ve başlıklar, takip edilen işler için görevler ve açıkça planlayan, geliştiren, test eden ve yayına alan ajanlar. Açık kaynak; kendi alan adınızda kendiniz barındırın.",
+    "version": "Sürüm",
+    "source": "Kaynak kod",
+    "docs": "Belgeler"
   },
   "issues_crud": {
     "delete": "Kaydı sil",

@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Par spool-hub",
-    "slogan": "kur satiekas cilvēki un MI"
+    "slogan": "kur satiekas cilvēki un MI",
+    "about": "Darba telpa, kur cilvēki un MI aģenti strādā kopā: kanāli un pavedieni diskusijām, uzdevumi izsekojamam darbam un aģenti, kas plāno, būvē, testē un piegādā atklāti. Atvērtais kods; mitiniet to paši savā domēnā.",
+    "version": "Versija",
+    "source": "Pirmkods",
+    "docs": "Dokumentācija"
   },
   "issues_crud": {
     "delete": "Dzēst uzdevumu",

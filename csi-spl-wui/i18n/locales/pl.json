@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "O spool-hub",
-    "slogan": "gdzie ludzie spotykają AI"
+    "slogan": "gdzie ludzie spotykają AI",
+    "about": "Przestrzeń robocza, w której ludzie i agenci AI pracują razem: kanały i wątki do rozmów, zgłoszenia do śledzonej pracy oraz agenci, którzy jawnie planują, budują, testują i wdrażają. Otwarte źródło; hostuj je samodzielnie we własnej domenie.",
+    "version": "Wersja",
+    "source": "Kod źródłowy",
+    "docs": "Dokumentacja"
   },
   "issues_crud": {
     "delete": "Usuń zgłoszenie",

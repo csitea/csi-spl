@@ -128,7 +128,10 @@ try {
     const panel = document.querySelector('[data-testid=ui-dialog]')
     const sel = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
     const all = [...panel.querySelectorAll(sel)].filter((el) => el.offsetParent !== null)
-    return { first: all[0]?.getAttribute('data-testid'), last: all[all.length - 1]?.getAttribute('data-testid') }
+    /* the header row's own Tab stops: the X leads it (Mac) or ends it (Windows);
+       the body's controls (links, buttons) always come after the header */
+    const head = [...panel.querySelector('.ui-dialog__head').querySelectorAll(sel)].filter((el) => el.offsetParent !== null)
+    return { first: all[0]?.getAttribute('data-testid'), headLast: head[head.length - 1]?.getAttribute('data-testid') }
   })
   const openThread = async () => {
     const r = await p.evaluate((id) => {
@@ -175,7 +178,7 @@ try {
   await openLogo()
   g = await geometry(...DIALOG)
   ok('W1 1440 dialog: the X is top right, after the title', g.found && g.visible && !g.left && g.afterTitle && !g.domFirst && g.side === 'end', g)
-  ok('K3 Windows: the X is the dialog\'s last Tab stop', (await firstTabStop()).last === 'ui-dialog-close', await firstTabStop())
+  ok('K3 Windows: the X is the header\'s last Tab stop, after the title', (await firstTabStop()).headLast === 'ui-dialog-close', await firstTabStop())
   await shot('1440-windows-dialog')
   ok('K4 Windows: closing by the X gives focus back to the opener', (await closeDialogByX()) === 'top-bar-logo')
   await openThread()

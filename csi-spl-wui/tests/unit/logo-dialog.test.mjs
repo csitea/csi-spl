@@ -32,6 +32,19 @@ describe('the logo dialog', () => {
     assert.ok(existsSync(join(WUI, 'src/public/logo.webp')))
   })
 
+  it('SPL-1150: a compact card - what spool-hub is, the version, the source and the docs', () => {
+    assert.match(dialog, /size="card"/)
+    for (const id of ['logo-dialog-about', 'logo-dialog-version', 'logo-dialog-source', 'logo-dialog-docs']) assert.match(dialog, new RegExp(`data-testid="${id}"`))
+    assert.match(dialog, /'https:\/\/github\.com\/csitea\/csi-spl'/)
+    assert.match(dialog, /useRuntimeConfig\(\)\.public\.appVersion/)
+    assert.match(dialog, /rel="noopener noreferrer"/)
+    const ui = src('src/components/UiDialog.vue')
+    assert.match(ui, /<Transition :name="size === 'card' \? 'ui-dialog-pop' : 'ui-dialog-none'" appear>/)
+    assert.match(ui, /\.ui-dialog\.card \{\n  max-width: 720px;/)
+    assert.match(ui, /@media \(prefers-reduced-motion: reduce\) \{\n  \.ui-dialog-pop-enter-active,/)
+    assert.match(topBar, /\.top-bar__logo:hover img,/)
+  })
+
   it('every locale has the slogan and the button label', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
@@ -39,6 +52,7 @@ describe('the logo dialog', () => {
     for (const f of files) {
       const d = JSON.parse(readFileSync(join(dir, f), 'utf8'))
       assert.ok(d.logo && d.logo.slogan && d.logo.open, `${f}: logo.slogan + logo.open`)
+      for (const k of ['about', 'version', 'source', 'docs']) assert.ok(d.logo[k], `${f}: logo.${k}`)
     }
     assert.equal(JSON.parse(src('i18n/locales/en.json')).logo.slogan, 'where humans and AI meet')
   })

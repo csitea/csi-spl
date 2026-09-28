@@ -274,7 +274,18 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
-.top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
+.top-bar__logo img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); transition: transform 140ms ease-out, filter 140ms ease-out; }
+/* SPL-1150: the logo answers the pointer - a small lift and glow; the
+   keyboard ring is the one global :focus-visible rule (main.css) */
+.top-bar__logo:hover img,
+.top-bar__logo:focus-visible img { transform: scale(1.08); filter: brightness(1.12) drop-shadow(0 0 6px var(--color-accent)); }
+.top-bar__logo:active img { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .top-bar__logo img { transition: none; }
+  .top-bar__logo:hover img,
+  .top-bar__logo:focus-visible img,
+  .top-bar__logo:active img { transform: none; }
+}
 .top-bar__omnibox {
   flex: 1;
   min-width: 0;

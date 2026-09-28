@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Om spool-hub",
-    "slogan": "där människor och AI möts"
+    "slogan": "där människor och AI möts",
+    "about": "En arbetsyta där människor och AI-agenter arbetar tillsammans: kanaler och trådar för diskussion, ärenden för spårat arbete och agenter som planerar, bygger, testar och levererar öppet. Öppen källkod; driv den själv på din egen domän.",
+    "version": "Version",
+    "source": "Källkod",
+    "docs": "Dokumentation"
   },
   "issues_crud": {
     "delete": "Ta bort ärende",

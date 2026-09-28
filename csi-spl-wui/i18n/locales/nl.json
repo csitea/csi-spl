@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Over spool-hub",
-    "slogan": "waar mensen en AI elkaar ontmoeten"
+    "slogan": "waar mensen en AI elkaar ontmoeten",
+    "about": "Een werkruimte waar mensen en AI-agents samenwerken: kanalen en threads voor overleg, issues voor gevolgd werk, en agents die zichtbaar plannen, bouwen, testen en opleveren. Open source; host het zelf op je eigen domein.",
+    "version": "Versie",
+    "source": "Broncode",
+    "docs": "Documentatie"
   },
   "issues_crud": {
     "delete": "Issue verwijderen",

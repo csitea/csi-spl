@@ -1055,7 +1055,11 @@
   },
   "logo": {
     "open": "Despre spool-hub",
-    "slogan": "unde oamenii și AI se întâlnesc"
+    "slogan": "unde oamenii și AI se întâlnesc",
+    "about": "Un spațiu de lucru în care oamenii și agenții AI lucrează împreună: canale și fire pentru discuții, sarcini pentru munca urmărită și agenți care planifică, construiesc, testează și livrează la vedere. Open source; găzduiește-l singur pe propriul domeniu.",
+    "version": "Versiune",
+    "source": "Cod sursă",
+    "docs": "Documentație"
   },
   "issues_crud": {
     "delete": "Șterge problema",

@@ -300,43 +300,13 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not checkout JSON")
 		return
 	}
-	method := strings.ToLower(strings.TrimSpace(req.Method))
-	if method == "" {
-		method = MethodCard
-	}
-	switch {
-	case method == MethodCard && h.cfg.Rail() == RailNone, method == MethodPayPal && !h.cfg.EnablePayPal:
-		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", "that payment method is not configured")
-		return
-	case method != MethodCard && method != MethodPayPal:
-		writeErr(w, http.StatusBadRequest, "bad_method", "method must be card or paypal")
-		return
-	case h.cfg.Guard() != "":
-		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", GuardReasonMisconfigured)
-		return
-	}
-	tid := strings.ToLower(strings.TrimSpace(req.TenantID))
-	email := strings.TrimSpace(req.Email)
-	if !msg.ValidTenantID(tid) {
-		writeErr(w, http.StatusBadRequest, "bad_tenant_id", "tenant_id is not a valid, unreserved slug")
-		return
-	}
-	if !validEmail(email) {
-		writeErr(w, http.StatusBadRequest, "bad_request", "email is not an address")
-		return
-	}
-	items, total, bad := h.lineItems(&req)
-	if bad != "" {
-		writeErr(w, http.StatusBadRequest, bad, "seats / org / app do not fit this plan (GET "+RoutePrefix+"/plan)")
-		return
-	}
 	ctx := r.Context()
-	if _, err := h.d.Store.GetTenant(ctx, tid); err == nil {
-		writeErr(w, http.StatusConflict, "tenant_taken", "that tenant exists")
-		return
-	} else if !errors.Is(err, store.ErrNotFound) {
-		h.d.Log.Error().Err(err).Msg("checkout: tenant lookup")
-		writeErr(w, http.StatusInternalServerError, "internal", "tenant lookup failed")
+	in, rf := h.checkoutInput(&req)
+	if rf == nil {
+		rf = h.tenantFree(ctx, in.tid)
+	}
+	if rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
 		return
 	}
 	// A PLACEHOLDER root key: its private half is dropped here, so nothing
@@ -349,55 +319,129 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	id, token := newCheckoutID(), NewClaimToken()
 	// Provider first: a failed provider call must not hold the slug. The
 	// checkout id is the provider's order reference / idempotency key.
-	out := map[string]any{"checkout_id": id, "claim_token": token, "method": method,
-		"amount_cents": total, "currency": h.cfg.Currency, "tenant_id": tid, "tenant_url": h.tenantURL(tid)}
-	if len(items) > 0 {
-		out["line_items"] = items
+	out := map[string]any{"checkout_id": id, "claim_token": token, "method": in.method,
+		"amount_cents": in.total, "currency": h.cfg.Currency, "tenant_id": in.tid, "tenant_url": h.tenantURL(in.tid)}
+	if len(in.items) > 0 {
+		out["line_items"] = in.items
 	}
-	var provider, ref string
-	var cancel func(context.Context, string) error
-	if method == MethodPayPal {
-		provider, cancel = ProviderPayPal, h.d.PayPal.CancelIntent
-		orderID, approve, perr := h.d.PayPal.CreateProviderOrder(ctx, id, total, h.cfg.Currency)
-		err, ref = perr, orderID
-		out["rail"], out["provider_order_id"], out["approve_url"] = MethodPayPal, orderID, approve
-	} else {
-		provider, cancel = h.cardProvider(), h.d.Card.CancelIntent
-		var intentID, clientSecret string
-		var cerr error
-		if li, ok := h.d.Card.(LineItemProvider); ok && len(items) > 0 {
-			intentID, clientSecret, cerr = li.CreateIntentWithItems(ctx, id, total, h.cfg.Currency, items)
-		} else {
-			intentID, clientSecret, cerr = h.d.Card.CreateIntent(ctx, id, total, h.cfg.Currency)
-		}
-		err, ref = cerr, intentID
-		out["rail"] = h.cfg.Rail()
-		if h.cfg.Rail() == RailCard {
-			out["client_secret"], out["publishable_key"] = clientSecret, strings.TrimSpace(h.cfg.StripePublishableKey)
-		}
-	}
+	pay, err := h.startPayment(ctx, in, id, out)
 	if err != nil {
-		h.d.Log.Error().Err(err).Str("checkout_id", id).Str("provider", provider).Msg("checkout: provider refused")
+		h.d.Log.Error().Err(err).Str("checkout_id", id).Str("provider", pay.provider).Msg("checkout: provider refused")
 		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", "the payment provider did not start a payment")
 		return
 	}
-	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: provider, ProviderRef: ref,
-		AmountCents: total, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
+	c := store.Checkout{ID: id, TenantID: in.tid, PlanID: h.cfg.PlanID, Provider: pay.provider, ProviderRef: pay.ref,
+		AmountCents: in.total, Currency: h.cfg.Currency, Email: in.email, RootPubKey: pub,
 		ClaimHash: ClaimHash(token), SeatsUsers: req.SeatsUsers, SeatsBots: req.SeatsBots, Org: req.Org, App: req.App,
 		Locale: buyerLocale(r, req.Locale)}
-	if err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold); err != nil {
-		_ = cancel(context.WithoutCancel(ctx), ref)
-		if errors.Is(err, store.ErrConflict) {
-			writeErr(w, http.StatusConflict, "tenant_taken", "that tenant exists or is being bought")
-			return
-		}
-		h.d.Log.Error().Err(err).Str("checkout_id", id).Msg("checkout: hold not stored")
-		writeErr(w, http.StatusInternalServerError, "internal", "checkout not stored")
+	if rf := h.holdCheckout(ctx, c, pay); rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
 		return
 	}
-	h.d.Log.Info().Str("checkout_id", id).Str("tenant_id", tid).Str("provider", provider).
-		Str("to", mail.Digest(email)).Msg("checkout: slug held")
+	h.d.Log.Info().Str("checkout_id", id).Str("tenant_id", in.tid).Str("provider", pay.provider).
+		Str("to", mail.Digest(in.email)).Msg("checkout: slug held")
 	writeJSON(w, http.StatusCreated, out)
+}
+
+// refusal is an error answer of the checkout: status, token and detail.
+type refusal struct {
+	status        int
+	token, detail string
+}
+
+// checkoutIn is a checkout request that passed checkoutInput.
+type checkoutIn struct {
+	method, tid, email string
+	items              []LineItem
+	total              int
+}
+
+// checkoutInput normalizes and checks the request: the payment method is
+// configured, the rail is not guarded, the slug, the email and the seats fit.
+func (h *Handler) checkoutInput(req *checkoutReq) (checkoutIn, *refusal) {
+	in := checkoutIn{method: strings.ToLower(strings.TrimSpace(req.Method)),
+		tid: strings.ToLower(strings.TrimSpace(req.TenantID)), email: strings.TrimSpace(req.Email)}
+	if in.method == "" {
+		in.method = MethodCard
+	}
+	switch {
+	case in.method == MethodCard && h.cfg.Rail() == RailNone, in.method == MethodPayPal && !h.cfg.EnablePayPal:
+		return in, &refusal{http.StatusServiceUnavailable, "payment_unavailable", "that payment method is not configured"}
+	case in.method != MethodCard && in.method != MethodPayPal:
+		return in, &refusal{http.StatusBadRequest, "bad_method", "method must be card or paypal"}
+	case h.cfg.Guard() != "":
+		return in, &refusal{http.StatusServiceUnavailable, "payment_unavailable", GuardReasonMisconfigured}
+	case !msg.ValidTenantID(in.tid):
+		return in, &refusal{http.StatusBadRequest, "bad_tenant_id", "tenant_id is not a valid, unreserved slug"}
+	case !validEmail(in.email):
+		return in, &refusal{http.StatusBadRequest, "bad_request", "email is not an address"}
+	}
+	var bad string
+	in.items, in.total, bad = h.lineItems(req)
+	if bad != "" {
+		return in, &refusal{http.StatusBadRequest, bad, "seats / org / app do not fit this plan (GET " + RoutePrefix + "/plan)"}
+	}
+	return in, nil
+}
+
+// tenantFree refuses a slug that is already a tenant.
+func (h *Handler) tenantFree(ctx context.Context, tid string) *refusal {
+	_, err := h.d.Store.GetTenant(ctx, tid)
+	switch {
+	case err == nil:
+		return &refusal{http.StatusConflict, "tenant_taken", "that tenant exists"}
+	case !errors.Is(err, store.ErrNotFound):
+		h.d.Log.Error().Err(err).Msg("checkout: tenant lookup")
+		return &refusal{http.StatusInternalServerError, "internal", "tenant lookup failed"}
+	}
+	return nil
+}
+
+// payment is a provider-side payment that startPayment opened.
+type payment struct {
+	provider, ref string
+	cancel        func(context.Context, string) error
+}
+
+// startPayment opens the payment at the provider of the method (the PayPal
+// order, or the card intent with its line items) and adds what the browser
+// needs to out.
+func (h *Handler) startPayment(ctx context.Context, in checkoutIn, id string, out map[string]any) (payment, error) {
+	if in.method == MethodPayPal {
+		p := payment{provider: ProviderPayPal, cancel: h.d.PayPal.CancelIntent}
+		orderID, approve, err := h.d.PayPal.CreateProviderOrder(ctx, id, in.total, h.cfg.Currency)
+		p.ref = orderID
+		out["rail"], out["provider_order_id"], out["approve_url"] = MethodPayPal, orderID, approve
+		return p, err
+	}
+	p := payment{provider: h.cardProvider(), cancel: h.d.Card.CancelIntent}
+	var clientSecret string
+	var err error
+	if li, ok := h.d.Card.(LineItemProvider); ok && len(in.items) > 0 {
+		p.ref, clientSecret, err = li.CreateIntentWithItems(ctx, id, in.total, h.cfg.Currency, in.items)
+	} else {
+		p.ref, clientSecret, err = h.d.Card.CreateIntent(ctx, id, in.total, h.cfg.Currency)
+	}
+	out["rail"] = h.cfg.Rail()
+	if h.cfg.Rail() == RailCard {
+		out["client_secret"], out["publishable_key"] = clientSecret, strings.TrimSpace(h.cfg.StripePublishableKey)
+	}
+	return p, err
+}
+
+// holdCheckout stores the hold on the slug; when it cannot, the provider-side
+// payment is cancelled so it can never be confirmed.
+func (h *Handler) holdCheckout(ctx context.Context, c store.Checkout, pay payment) *refusal {
+	err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold)
+	if err == nil {
+		return nil
+	}
+	_ = pay.cancel(context.WithoutCancel(ctx), pay.ref)
+	if errors.Is(err, store.ErrConflict) {
+		return &refusal{http.StatusConflict, "tenant_taken", "that tenant exists or is being bought"}
+	}
+	h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("checkout: hold not stored")
+	return &refusal{http.StatusInternalServerError, "internal", "checkout not stored"}
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {

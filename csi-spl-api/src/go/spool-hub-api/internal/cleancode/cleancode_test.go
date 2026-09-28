@@ -39,7 +39,6 @@ var longFuncs = map[string]bool{
 	"internal/hub/ws.go (*Server).onSend":                                true,
 	"internal/hub/wui.go (*Server).handleWUIWS":                          true,
 	"internal/hub/wui.go (*Server).wuiSend":                              true,
-	"internal/payments/handler.go (*Handler).checkout":                   true,
 	"internal/store/channels_postgres.go (*Postgres).ViewChannelStats":   true,
 	"internal/store/humans_postgres.go (*Postgres).Admit":                true,
 	"internal/store/payments_postgres.go (*Postgres).ApplyPayment":       true,

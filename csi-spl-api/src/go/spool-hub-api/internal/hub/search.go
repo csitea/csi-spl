@@ -305,147 +305,184 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 			rows = append(rows, row{e, v})
 		}
 	}
+	var err error
 	switch ty {
 	case search.TypeRobot, search.TypeBox:
-		boxes, err := s.o.Store.ViewBoxes(ctx, tenant)
-		if err != nil {
-			return nil, err
-		}
-		for _, b := range boxes {
-			online := false
-			if !b.Revoked {
-				s.mu.Lock()
-				online = s.boxes[[2]string{tenant, b.BoxID}] != nil
-				s.mu.Unlock()
-			}
-			if ty == search.TypeBox {
-				agents := append([]string{}, b.Agents...)
-				var hello *string
-				if !b.LastHelloAt.IsZero() {
-					h := rfc(b.LastHelloAt)
-					hello = &h
-				}
-				add(search.Entity{Name: b.BoxID, Text: []string{b.BoxID}, Box: b.BoxID, Online: online, Revoked: b.Revoked},
-					map[string]any{"box_id": b.BoxID, "online": online, "revoked": b.Revoked, "agents": agents, "last_hello_at": hello})
-				continue
-			}
-			for _, a := range b.Agents {
-				add(search.Entity{Name: a + "@" + b.BoxID, Text: []string{a, b.BoxID}, Box: b.BoxID, Online: online, Revoked: b.Revoked},
-					map[string]any{"id": a, "box": b.BoxID, "online": online, "revoked": b.Revoked})
-			}
-		}
+		err = s.boxEntities(ctx, tenant, ty, add)
 	case search.TypeUser:
-		se, _ := s.o.Store.(store.Searcher)
-		hs, err := se.TenantHumans(ctx, tenant)
-		if err != nil {
-			return nil, err
-		}
-		for _, h := range hs {
-			s.mu.Lock()
-			online := s.online[[2]string{tenant, h.HumanID}] > 0
-			s.mu.Unlock()
-			label, text := h.HumanID, []string{h.HumanID}
-			if h.DisplayName != "" {
-				label, text = h.DisplayName+" ("+h.HumanID+")", append(text, h.DisplayName)
-			}
-			add(search.Entity{Name: label, Text: text, Online: online},
-				map[string]any{"id": h.HumanID, "display_name": strPtr(h.DisplayName), "avatar_file_id": strPtr(h.AvatarFileID), "online": online})
-		}
+		err = s.userEntities(ctx, tenant, add)
 	case search.TypeChannel:
-		chs, err := s.o.Store.ViewChannelStats(ctx, tenant, sq.Now, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range chs {
-			// rdb 0028: searching must not surface the name of a channel the
-			// reader is not in - that is exactly what the sidebar hides.
-			if sq.Hides(c.ChannelID) {
-				continue
-			}
-			var last *string
-			if !c.LastAt.IsZero() {
-				l := rfc(c.LastAt)
-				last = &l
-			}
-			add(search.Entity{Name: c.ChannelID, Text: []string{c.ChannelID, c.Name}},
-				map[string]any{"channel": c.ChannelID, "default": c.Default, "count": c.Count, "last_ts": last})
-		}
+		err = s.channelEntities(ctx, tenant, sq, add)
 	case search.TypeTenant:
-		// The reader's OWN memberships only; a door-off or box reader has none.
-		ml, ok := s.o.Store.(store.MembershipLister)
-		if !ok || sq.Viewer == "" {
-			break
-		}
-		ms, err := ml.Memberships(ctx, sq.Viewer)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range ms {
-			name := m.DisplayName
-			if name == "" {
-				name = m.TenantID
-			}
-			add(search.Entity{Name: name, Text: []string{m.TenantID, m.DisplayName}},
-				map[string]any{"tenant_id": m.TenantID, "role": m.Role, "current": m.TenantID == tenant})
-		}
+		err = s.tenantEntities(ctx, tenant, sq, add)
 	case search.TypeEvent:
-		// The reader's OWN event log (events-v1: same privacy as GET /events).
-		he, ok := s.o.Store.(store.HumanEvents)
-		if !ok || sq.Viewer == "" {
-			break
-		}
-		evs, err := he.HumanEventsPage(ctx, sq.Viewer, 0, searchEventScan)
-		if err != nil {
-			return nil, err
-		}
-		for _, ev := range evs {
-			name := ev.Code
-			if name == "" {
-				name = ev.Message
-			}
-			if name == "" {
-				name = ev.ErrorID
-			}
-			add(search.Entity{Name: name, Text: []string{ev.ErrorID, ev.Code, ev.Message, ev.Path, ev.Source, ev.Route}, At: ev.ReceivedAt},
-				map[string]any{"event_id": ev.ID, "error_id": ev.ErrorID, "code": ev.Code, "message": ev.Message,
-					"status": ev.Status, "method": ev.Method, "path": ev.Path, "source": ev.Source, "received_at": rfc(ev.ReceivedAt)})
-		}
-	}
-	if ty == search.TypeIssue {
-		// 1.2 (spec 039): the tenant's issues, readable by every
-		// member (topics.read, the view door above). ListIssues is one read,
-		// newest number first; an issue's name is its key and title.
+		err = s.eventEntities(ctx, sq, add)
+	case search.TypeIssue:
 		is, ok := s.o.Store.(store.Issues)
 		if !ok {
 			return []any{}, nil
 		}
-		list, err := is.ListIssues(ctx, tenant)
-		if err != nil {
-			return nil, err
-		}
-		for _, it := range list {
-			key := it.Key()
-			labels := append([]string{}, it.Labels...)
-			add(search.Entity{Name: key + " " + it.Title, Text: []string{key, it.Title, it.Description},
-				Status: it.Status, Priority: it.Priority, Assignee: it.Assignee, Labels: labels, Me: sq.Viewer},
-				map[string]any{"key": key, "number": it.Number, "title": hl{it.Title, q.HighlightSubstrings(it.Title)},
-					"status": it.Status, "priority": it.Priority, "assignee": strPtr(it.Assignee), "labels": labels,
-					"task_id": strPtr(it.TaskID), "updated_at": rfc(it.UpdatedAt)})
-		}
+		err = issueEntities(ctx, is, tenant, q, sq, add)
 	}
-	if ty == search.TypeEvent || ty == search.TypeIssue { // newest first (HumanEventsPage / ListIssues order)
-		out := make([]any, len(rows))
-		for i, r := range rows {
-			out[i] = r.v
-		}
-		return out, nil
+	if err != nil {
+		return nil, err
 	}
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].e.Name < rows[j].e.Name })
+	if ty != search.TypeEvent && ty != search.TypeIssue { // those stay newest first (HumanEventsPage / ListIssues order)
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].e.Name < rows[j].e.Name })
+	}
 	out := make([]any, len(rows))
 	for i, r := range rows {
 		out[i] = r.v
 	}
 	return out, nil
+}
+
+// entityAdd offers one entity and its answer row to searchEntities, which
+// keeps it when the query matches.
+type entityAdd func(search.Entity, map[string]any)
+
+// boxEntities offers each box, or (robots) each agent on a box.
+func (s *Server) boxEntities(ctx context.Context, tenant string, ty search.Type, add entityAdd) error {
+	boxes, err := s.o.Store.ViewBoxes(ctx, tenant)
+	if err != nil {
+		return err
+	}
+	for _, b := range boxes {
+		online := false
+		if !b.Revoked {
+			s.mu.Lock()
+			online = s.boxes[[2]string{tenant, b.BoxID}] != nil
+			s.mu.Unlock()
+		}
+		if ty == search.TypeBox {
+			agents := append([]string{}, b.Agents...)
+			var hello *string
+			if !b.LastHelloAt.IsZero() {
+				h := rfc(b.LastHelloAt)
+				hello = &h
+			}
+			add(search.Entity{Name: b.BoxID, Text: []string{b.BoxID}, Box: b.BoxID, Online: online, Revoked: b.Revoked},
+				map[string]any{"box_id": b.BoxID, "online": online, "revoked": b.Revoked, "agents": agents, "last_hello_at": hello})
+			continue
+		}
+		for _, a := range b.Agents {
+			add(search.Entity{Name: a + "@" + b.BoxID, Text: []string{a, b.BoxID}, Box: b.BoxID, Online: online, Revoked: b.Revoked},
+				map[string]any{"id": a, "box": b.BoxID, "online": online, "revoked": b.Revoked})
+		}
+	}
+	return nil
+}
+
+// userEntities offers the tenant's humans, labelled "Name (HUM-n)".
+func (s *Server) userEntities(ctx context.Context, tenant string, add entityAdd) error {
+	se, _ := s.o.Store.(store.Searcher)
+	hs, err := se.TenantHumans(ctx, tenant)
+	if err != nil {
+		return err
+	}
+	for _, h := range hs {
+		s.mu.Lock()
+		online := s.online[[2]string{tenant, h.HumanID}] > 0
+		s.mu.Unlock()
+		label, text := h.HumanID, []string{h.HumanID}
+		if h.DisplayName != "" {
+			label, text = h.DisplayName+" ("+h.HumanID+")", append(text, h.DisplayName)
+		}
+		add(search.Entity{Name: label, Text: text, Online: online},
+			map[string]any{"id": h.HumanID, "display_name": strPtr(h.DisplayName), "avatar_file_id": strPtr(h.AvatarFileID), "online": online})
+	}
+	return nil
+}
+
+// channelEntities offers the channels the reader may see.
+func (s *Server) channelEntities(ctx context.Context, tenant string, sq store.SearchQuery, add entityAdd) error {
+	chs, err := s.o.Store.ViewChannelStats(ctx, tenant, sq.Now, nil)
+	if err != nil {
+		return err
+	}
+	for _, c := range chs {
+		// rdb 0028: searching must not surface the name of a channel the
+		// reader is not in - that is exactly what the sidebar hides.
+		if sq.Hides(c.ChannelID) {
+			continue
+		}
+		var last *string
+		if !c.LastAt.IsZero() {
+			l := rfc(c.LastAt)
+			last = &l
+		}
+		add(search.Entity{Name: c.ChannelID, Text: []string{c.ChannelID, c.Name}},
+			map[string]any{"channel": c.ChannelID, "default": c.Default, "count": c.Count, "last_ts": last})
+	}
+	return nil
+}
+
+// tenantEntities offers the reader's OWN memberships only; a door-off or box
+// reader has none.
+func (s *Server) tenantEntities(ctx context.Context, tenant string, sq store.SearchQuery, add entityAdd) error {
+	ml, ok := s.o.Store.(store.MembershipLister)
+	if !ok || sq.Viewer == "" {
+		return nil
+	}
+	ms, err := ml.Memberships(ctx, sq.Viewer)
+	if err != nil {
+		return err
+	}
+	for _, m := range ms {
+		name := m.DisplayName
+		if name == "" {
+			name = m.TenantID
+		}
+		add(search.Entity{Name: name, Text: []string{m.TenantID, m.DisplayName}},
+			map[string]any{"tenant_id": m.TenantID, "role": m.Role, "current": m.TenantID == tenant})
+	}
+	return nil
+}
+
+// eventEntities offers the reader's OWN event log (events-v1: same privacy
+// as GET /events), newest first.
+func (s *Server) eventEntities(ctx context.Context, sq store.SearchQuery, add entityAdd) error {
+	he, ok := s.o.Store.(store.HumanEvents)
+	if !ok || sq.Viewer == "" {
+		return nil
+	}
+	evs, err := he.HumanEventsPage(ctx, sq.Viewer, 0, searchEventScan)
+	if err != nil {
+		return err
+	}
+	for _, ev := range evs {
+		name := ev.Code
+		if name == "" {
+			name = ev.Message
+		}
+		if name == "" {
+			name = ev.ErrorID
+		}
+		add(search.Entity{Name: name, Text: []string{ev.ErrorID, ev.Code, ev.Message, ev.Path, ev.Source, ev.Route}, At: ev.ReceivedAt},
+			map[string]any{"event_id": ev.ID, "error_id": ev.ErrorID, "code": ev.Code, "message": ev.Message,
+				"status": ev.Status, "method": ev.Method, "path": ev.Path, "source": ev.Source, "received_at": rfc(ev.ReceivedAt)})
+	}
+	return nil
+}
+
+// issueEntities offers the tenant's issues (grammar 1.2, spec 039), readable
+// by every member (topics.read, the view door above). ListIssues is one
+// read, newest number first; an issue's name is its key and title.
+func issueEntities(ctx context.Context, is store.Issues, tenant string, q *search.Query, sq store.SearchQuery, add entityAdd) error {
+	list, err := is.ListIssues(ctx, tenant)
+	if err != nil {
+		return err
+	}
+	for _, it := range list {
+		key := it.Key()
+		labels := append([]string{}, it.Labels...)
+		add(search.Entity{Name: key + " " + it.Title, Text: []string{key, it.Title, it.Description},
+			Status: it.Status, Priority: it.Priority, Assignee: it.Assignee, Labels: labels, Me: sq.Viewer},
+			map[string]any{"key": key, "number": it.Number, "title": hl{it.Title, q.HighlightSubstrings(it.Title)},
+				"status": it.Status, "priority": it.Priority, "assignee": strPtr(it.Assignee), "labels": labels,
+				"task_id": strPtr(it.TaskID), "updated_at": rfc(it.UpdatedAt)})
+	}
+	return nil
 }
 
 // searchEventScan bounds how many of the reader's newest events one search

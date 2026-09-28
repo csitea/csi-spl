@@ -107,6 +107,18 @@
       "reset": "Oletusjärjestys",
       "moved": "{name} on nyt numero {n}"
     },
+    "message_order": {
+      "label": "Viestien järjestys",
+      "newest_first": "Uusimmat ylimpänä",
+      "newest_last": "Uusimmat alimpana",
+      "hint": "Kanaville, yksityisviesteille ja ketjuille. Tallennetaan tilillesi, joten jokainen laite noudattaa sitä."
+    },
+    "composer_position": {
+      "label": "Omniboxin paikka",
+      "top": "Ylhäällä",
+      "bottom": "Alhaalla, viestien alla",
+      "hint": "Tableteilla ja tietokoneilla. Puhelimessa se on aina alhaalla. Tallennetaan tilillesi."
+    },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
     "password_managed_by": "Salasanaasi hallinnoi {method}.",

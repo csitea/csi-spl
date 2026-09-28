@@ -29,6 +29,10 @@ export interface SessionClaims {
   submit_key?: string | null
   /** SPL-979 "Left panel order": the six rail ids in the person's order; null = default. */
   rail_order?: string[] | null
+  /** Topic c6994436 "Message order": 'newest-first' | 'newest-last'; null = never picked (newest first). */
+  message_order?: string | null
+  /** Topic c6994436 "Omnibox position": 'top' | 'bottom'; null = never picked (top). */
+  composer_position?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -115,6 +119,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, rail_order: order }
   }
 
+  /** Topic c6994436: mirror a layout choice (optimistic; reverted on a failed save). */
+  function setViewPref(key: 'message_order' | 'composer_position', value: string) {
+    if (claims.value) claims.value = { ...claims.value, [key]: value }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -128,5 +137,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, logout }
 })

@@ -107,6 +107,18 @@
       "reset": "Predvolené poradie",
       "moved": "{name} je teraz na mieste {n}"
     },
+    "message_order": {
+      "label": "Poradie správ",
+      "newest_first": "Najnovšie hore",
+      "newest_last": "Najnovšie dole",
+      "hint": "Pre kanály, priame správy a vlákna. Uchováva sa vo vašom účte, takže ho dodržiava každé zariadenie."
+    },
+    "composer_position": {
+      "label": "Poloha Omniboxu",
+      "top": "Hore",
+      "bottom": "Dole, pod správami",
+      "hint": "Na tabletoch a počítačoch. Na telefóne je vždy dole. Uchováva sa vo vašom účte."
+    },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",
     "password_managed_by": "Vaše heslo spravuje {method}.",

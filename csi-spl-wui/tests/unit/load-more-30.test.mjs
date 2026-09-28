@@ -51,7 +51,10 @@ describe('LiveFeed: a Load more button, not a scroll sentinel', () => {
   const feed = read('src/components/LiveFeed.vue')
 
   it('renders the button only while there is more, and it emits older', () => {
-    assert.match(feed, /<div v-if="hasOlder" class="older-sentinel">/)
+    /* newest first: under the last row; newest last (topic c6994436): above the first */
+    assert.match(feed, /<div v-if="hasOlder && !newestLast" class="older-sentinel">/)
+    assert.match(feed, /<div v-if="newestLast && hasOlder" class="older-sentinel older-sentinel--top">/)
+    assert.equal(feed.match(/data-testid="load-more"/g).length, 2)
     assert.match(feed, /data-testid="load-more"/)
     assert.match(feed, /@click="\$emit\('older'\)"/)
     assert.match(feed, /:disabled="loadingOlder"/)

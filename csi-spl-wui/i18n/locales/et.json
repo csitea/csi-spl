@@ -107,6 +107,18 @@
       "reset": "Vaikimisi järjestus",
       "moved": "{name} on nüüd number {n}"
     },
+    "message_order": {
+      "label": "Sõnumite järjekord",
+      "newest_first": "Uusimad üleval",
+      "newest_last": "Uusimad all",
+      "hint": "Kanalitele, otsesõnumitele ja lõimedele. Hoitakse sinu kontol, nii et iga seade järgib seda."
+    },
+    "composer_position": {
+      "label": "Omniboxi asukoht",
+      "top": "Üleval",
+      "bottom": "All, sõnumite all",
+      "hint": "Tahvelarvutites ja arvutites. Telefonis on see alati all. Hoitakse sinu kontol."
+    },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
     "password_managed_by": "Sinu parooli haldab {method}.",

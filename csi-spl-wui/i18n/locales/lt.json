@@ -107,6 +107,18 @@
       "reset": "Numatytoji tvarka",
       "moved": "{name} dabar yra {n}-as"
     },
+    "message_order": {
+      "label": "Žinučių tvarka",
+      "newest_first": "Naujausios viršuje",
+      "newest_last": "Naujausios apačioje",
+      "hint": "Kanalams, asmeninėms žinutėms ir gijoms. Saugoma jūsų paskyroje, todėl ją seka kiekvienas įrenginys."
+    },
+    "composer_position": {
+      "label": "Omnibox vieta",
+      "top": "Viršuje",
+      "bottom": "Apačioje, po žinutėmis",
+      "hint": "Planšetėse ir kompiuteriuose. Telefone jis visada apačioje. Saugoma jūsų paskyroje."
+    },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
     "password_managed_by": "Jūsų slaptažodį tvarko {method}.",

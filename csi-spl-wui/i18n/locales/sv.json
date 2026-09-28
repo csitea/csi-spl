@@ -107,6 +107,18 @@
       "reset": "Standardordning",
       "moved": "{name} är nu nummer {n}"
     },
+    "message_order": {
+      "label": "Meddelandeordning",
+      "newest_first": "Nyaste överst",
+      "newest_last": "Nyaste längst ned",
+      "hint": "För kanaler, direktmeddelanden och trådar. Sparas på ditt konto, så att varje enhet följer det."
+    },
+    "composer_position": {
+      "label": "Omniboxens placering",
+      "top": "Överst",
+      "bottom": "Längst ned, under meddelandena",
+      "hint": "På surfplattor och datorer. På telefonen ligger den alltid längst ned. Sparas på ditt konto."
+    },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
     "password_managed_by": "Ditt lösenord hanteras av {method}.",

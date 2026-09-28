@@ -107,6 +107,18 @@
       "reset": "Default order",
       "moved": "{name} is now number {n}"
     },
+    "message_order": {
+      "label": "Message order",
+      "newest_first": "Newest at the top",
+      "newest_last": "Newest at the bottom",
+      "hint": "For channels, direct messages and threads. Kept on your account, so every device follows it."
+    },
+    "composer_position": {
+      "label": "Omnibox position",
+      "top": "At the top",
+      "bottom": "At the bottom, under the messages",
+      "hint": "On tablets and computers. Phones always keep it at the bottom. Kept on your account."
+    },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
     "password_managed_by": "Your password is managed by {method}.",

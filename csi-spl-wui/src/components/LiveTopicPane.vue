@@ -30,7 +30,9 @@
       <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
       <LazyCardClipControl pane="thread" />
     </header>
-    <BornTopics />
+    <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
+         at the newest end of the pane. -->
+    <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
@@ -52,6 +54,7 @@
         @edited="onEdited"
       />
     </div>
+    <BornTopics v-if="newestLast" />
   </aside>
 </template>
 
@@ -62,6 +65,7 @@ import { useTopicStore } from '~/stores/topic'
 import { newestFirst } from '~/utils/feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 import type { SpoolMessage } from '~/types/spool'
 
 /* Messages prepend at the top. The newest row is first; an older one sits below it. */
@@ -69,6 +73,7 @@ const pane = useLiveFeed('pane')
 const { t } = useI18n({ useScope: 'global' })
 const sinceMs = useNowTick(() => Boolean(pane.taskId))
 const topic = useTopicStore()
+const { newestLast } = useViewPrefs()
 const { onTopicPaneClick } = useTopicPaneClick()
 
 /*

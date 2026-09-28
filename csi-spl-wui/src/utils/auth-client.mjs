@@ -354,6 +354,15 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { rail_order: Array.isArray(order) ? order.map(String) : null }, 'PUT')
     },
     /**
+     * Topic c6994436: Settings -> Behaviour "Message order" / "Omnibox
+     * position" (humans.message_order / composer_position, rdb 0070). `key`
+     * is 'message_order' or 'composer_position'; sends ONLY that key, null
+     * clears it. 200 → ok; 400 unsupported_<key>; 401; 409 = no human.
+     */
+    saveViewPref(key, value) {
+      return post('/preferences', { [String(key)]: value ? String(value) : null }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

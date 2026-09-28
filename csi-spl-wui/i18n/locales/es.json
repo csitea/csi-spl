@@ -107,6 +107,18 @@
       "reset": "Orden predeterminado",
       "moved": "{name} ahora es el número {n}"
     },
+    "message_order": {
+      "label": "Orden de los mensajes",
+      "newest_first": "Los más nuevos arriba",
+      "newest_last": "Los más nuevos abajo",
+      "hint": "Para canales, mensajes directos e hilos. Se guarda en tu cuenta, así que todos tus dispositivos lo siguen."
+    },
+    "composer_position": {
+      "label": "Posición del Omnibox",
+      "top": "Arriba",
+      "bottom": "Abajo, debajo de los mensajes",
+      "hint": "En tabletas y ordenadores. En el teléfono siempre queda abajo. Se guarda en tu cuenta."
+    },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
     "password_managed_by": "Tu contraseña la gestiona {method}.",

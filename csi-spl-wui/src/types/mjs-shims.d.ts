@@ -396,6 +396,7 @@ declare module '~/utils/auth-client.mjs' {
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>
+    saveViewPref(key: 'message_order' | 'composer_position', value: string | null): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -635,6 +636,19 @@ declare module '~/utils/scroll-anchor.mjs' {
     anchorBefore?: number | null
     anchorAfter?: number | null
   }): { top: number, pill: number, moved: boolean }
+  export const NEAR_BOTTOM_PX: number
+  export function distanceFromBottom(o: { top?: number, height?: number, client?: number }): number
+  export function appendedCount(prevKeys: string[], nextKeys: string[]): number
+  export function isFreshList(prevKeys: string[], nextKeys: string[]): boolean
+  export function anchorAfterAppend(o: {
+    top?: number
+    atBottom?: boolean
+    own?: boolean
+    anchorBefore?: number | null
+    anchorAfter?: number | null
+    added?: number
+    pill?: number
+  }): { bottom: boolean, top: number, pill: number }
   export function firstVisibleRow(root: Element | null, edge: number): Element | null
   export function layoutTop(el: HTMLElement | null): number
   export function scrollerOf(el: Element | null, doc?: Document): Element
@@ -1087,6 +1101,26 @@ declare module '~/utils/submit-key.mjs' {
     want: unknown,
     io: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },
   ): Promise<{ ok: boolean, value: SubmitKey, out?: unknown }>
+}
+
+declare module '~/utils/view-prefs.mjs' {
+  export type MessageOrder = 'newest-first' | 'newest-last'
+  export type ComposerPosition = 'top' | 'bottom'
+  export type ViewPrefKey = 'message_order' | 'composer_position'
+  export const MESSAGE_ORDERS: readonly MessageOrder[]
+  export const COMPOSER_POSITIONS: readonly ComposerPosition[]
+  export const VIEW_PREFS: Readonly<{ message_order: readonly MessageOrder[], composer_position: readonly ComposerPosition[] }>
+  export const DEFAULT_MESSAGE_ORDER: MessageOrder
+  export const DEFAULT_COMPOSER_POSITION: ComposerPosition
+  export function parseViewPref(key: ViewPrefKey, raw: unknown): string
+  export function parseMessageOrder(raw: unknown): MessageOrder
+  export function parseComposerPosition(raw: unknown): ComposerPosition
+  export function displayOrder<T>(rows: readonly T[] | null | undefined, order: unknown): T[]
+  export function applyViewPref(
+    key: ViewPrefKey,
+    want: unknown,
+    io: { current: unknown, apply: (v: string) => void, save: (v: string) => Promise<{ ok: boolean }> },
+  ): Promise<{ ok: boolean, value: string, out?: unknown }>
 }
 
 declare module '~/utils/rail-order.mjs' {

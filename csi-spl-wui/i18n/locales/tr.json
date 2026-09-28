@@ -107,6 +107,18 @@
       "reset": "Varsayılan sıra",
       "moved": "{name} artık {n}. sırada"
     },
+    "message_order": {
+      "label": "Mesaj sırası",
+      "newest_first": "En yeniler üstte",
+      "newest_last": "En yeniler altta",
+      "hint": "Kanallar, doğrudan mesajlar ve konular için. Hesabınızda saklanır, böylece her cihaz buna uyar."
+    },
+    "composer_position": {
+      "label": "Omnibox konumu",
+      "top": "Üstte",
+      "bottom": "Altta, mesajların altında",
+      "hint": "Tabletlerde ve bilgisayarlarda. Telefonda her zaman alttadır. Hesabınızda saklanır."
+    },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
     "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",

@@ -107,6 +107,18 @@
       "reset": "Ordinea implicită",
       "moved": "{name} este acum pe locul {n}"
     },
+    "message_order": {
+      "label": "Ordinea mesajelor",
+      "newest_first": "Cele mai noi sus",
+      "newest_last": "Cele mai noi jos",
+      "hint": "Pentru canale, mesaje directe și fire. Se păstrează în contul tău, așa că fiecare dispozitiv o urmează."
+    },
+    "composer_position": {
+      "label": "Poziția Omnibox",
+      "top": "Sus",
+      "bottom": "Jos, sub mesaje",
+      "hint": "Pe tablete și calculatoare. Pe telefon rămâne mereu jos. Se păstrează în contul tău."
+    },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
     "password_managed_by": "Parola dvs. este gestionată de {method}.",

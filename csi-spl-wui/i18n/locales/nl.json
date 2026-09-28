@@ -107,6 +107,18 @@
       "reset": "Standaardvolgorde",
       "moved": "{name} staat nu op plaats {n}"
     },
+    "message_order": {
+      "label": "Volgorde van berichten",
+      "newest_first": "Nieuwste bovenaan",
+      "newest_last": "Nieuwste onderaan",
+      "hint": "Voor kanalen, directe berichten en threads. Wordt op je account bewaard, dus elk apparaat volgt het."
+    },
+    "composer_position": {
+      "label": "Positie van de Omnibox",
+      "top": "Bovenaan",
+      "bottom": "Onderaan, onder de berichten",
+      "hint": "Op tablets en computers. Op een telefoon staat hij altijd onderaan. Wordt op je account bewaard."
+    },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
     "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",

@@ -11,18 +11,32 @@
       <button class="btn ghost" type="button" @click="$emit('clear-search')">{{ t('feed.clear') }}</button>
     </p>
     <p v-if="clickable" id="feed-open-hint" class="sr-only">{{ t('feed.open_topic_hint') }}</p>
-    <div class="new-pill-wrap">
+    <div v-if="!newestLast" class="new-pill-wrap">
       <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
         ↑ {{ t('feed.new_pill', { n: pill }) }}
       </button>
     </div>
-    <TransitionGroup name="prepend" tag="div" class="live-rows">
+    <!-- Newest last (topic c6994436): Load more for older rows sits ABOVE the
+         first row, where the older rows go. -->
+    <div v-if="newestLast && hasOlder" class="older-sentinel older-sentinel--top">
+      <button
+        class="btn ghost load-more"
+        type="button"
+        data-testid="load-more"
+        :disabled="loadingOlder"
+        :aria-busy="loadingOlder ? 'true' : 'false'"
+        @click="$emit('older')"
+      >
+        {{ loadingOlder ? t('feed.loading_older') : t('feed.load_more') }}
+      </button>
+    </div>
+    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
       <MessageCard
-        v-for="(m, i) in rows"
+        v-for="(m, i) in shown"
         :key="m.msg_id"
         :msg="m"
         :posinset="i + 1"
-        :setsize="hasOlder ? -1 : rows.length"
+        :setsize="hasOlder ? -1 : shown.length"
         :topic-link="openable(m)"
         :count="countFor ? countFor(String(m.task_id || '')) : 0"
         :always-topic="alwaysTopic"
@@ -45,7 +59,12 @@
       />
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
-    <div v-if="hasOlder" class="older-sentinel">
+    <div v-if="newestLast" class="new-pill-wrap new-pill-wrap--bottom">
+      <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
+        ↓ {{ t('feed.new_pill', { n: pill }) }}
+      </button>
+    </div>
+    <div v-if="hasOlder && !newestLast" class="older-sentinel">
       <button
         class="btn ghost load-more"
         type="button"
@@ -70,10 +89,15 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { threadNeighbor } from '~/utils/msg-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
+import { useViewPrefs } from '~/composables/useViewPrefs'
+import { displayOrder } from '~/utils/view-prefs.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
-   US7: a reader scrolled down keeps their place when rows arrive on top, and gets a "new" pill. */
+   US7: a reader scrolled down keeps their place when rows arrive on top, and gets a "new" pill.
+   Topic c6994436: `rows` always come newest first (so every window holds the
+   newest N); a person who picked "newest last" sees them reversed, Load more
+   above the first row, and the pill (↓) at the bottom. */
 const props = defineProps<{
   rows: SpoolMessage[]
   hasOlder: boolean
@@ -118,11 +142,17 @@ function clipModeFor() {
   return props.clip ? clipMode.value : undefined
 }
 const root = ref<HTMLElement | null>(null)
-const { pill, jump } = useScrollAnchor(
+const { newestLast } = useViewPrefs()
+/* the rows in DOM (= reading) order */
+const shown = computed(() => displayOrder(props.rows, newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[])
+/* Newest last: a thread follows new replies too while its reader sits at the
+   bottom (A6); a reader scrolled up in it is never moved. */
+const { pill, jump, hold } = useScrollAnchor(
   root,
-  () => props.rows.map((m) => String(m.msg_id)),
+  () => shown.value.map((m) => String(m.msg_id)),
   (id) => Boolean(props.rows.find((m) => m.msg_id === id)?.pending),
-  () => props.holdScroll !== true,
+  () => props.holdScroll !== true || newestLast.value,
+  () => newestLast.value,
 )
 
 const announce = computed(() => {
@@ -157,6 +187,8 @@ watch(() => [route.hash, props.rows.length] as const, async ([hash]) => {
   await nextTick()
   const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`)
   const scroller = el?.closest<HTMLElement>('.feed-body')
+  /* newest last: the linked row wins over following the bottom (A9) */
+  if (el) hold()
   if (el && scroller) scrollRowToTop(scroller, el)
   el?.focus({ preventScroll: true })
 }, { immediate: true })
@@ -172,3 +204,19 @@ function isSelected(m: SpoolMessage) {
   return Boolean(props.clickable) && isSelectedRow(m, topic.target)
 }
 </script>
+
+<style scoped>
+/* Newest last (topic c6994436): the mirror of main.css .prepend-* - a new
+   row rises from below; the pill sticks to the bottom edge of the feed. */
+.append-enter-active { transition: transform .22s ease-out, opacity .22s ease-out; }
+.append-enter-from { transform: translateY(12px); opacity: 0; }
+.append-move { transition: transform .22s ease-out; }
+/* A row the window drops sits at the TOP here. TransitionGroup would keep it
+   in the flow for one more frame (a leave with no duration), after the anchor
+   has measured, and the view would jump by its height: out of the flow now. */
+.append-leave-active { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .append-enter-active, .append-move { transition: none; }
+}
+.new-pill-wrap--bottom { top: auto; bottom: 8px; align-items: flex-end; }
+</style>

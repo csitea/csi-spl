@@ -30,7 +30,9 @@
       <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
       <LazyCardClipControl pane="thread" />
     </header>
-    <BornTopics />
+    <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
+         at the newest end of the pane. -->
+    <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
       <LiveFeed
@@ -53,6 +55,7 @@
         @reacted="onReacted"
       />
     </div>
+    <BornTopics v-if="newestLast" />
   </aside>
 </template>
 
@@ -69,9 +72,11 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
+const { newestLast } = useViewPrefs()
 const { onTopicPaneClick } = useTopicPaneClick()
 const sinceMs = useNowTick(() => topic.open)
 const channel = useChannelStore()

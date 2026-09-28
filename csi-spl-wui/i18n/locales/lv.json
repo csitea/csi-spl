@@ -107,6 +107,18 @@
       "reset": "Noklusējuma secība",
       "moved": "{name} tagad ir {n}. vietā"
     },
+    "message_order": {
+      "label": "Ziņu secība",
+      "newest_first": "Jaunākās augšā",
+      "newest_last": "Jaunākās apakšā",
+      "hint": "Kanāliem, tiešajām ziņām un pavedieniem. Tiek glabāta jūsu kontā, tāpēc katra ierīce to ievēro."
+    },
+    "composer_position": {
+      "label": "Omnibox novietojums",
+      "top": "Augšā",
+      "bottom": "Apakšā, zem ziņām",
+      "hint": "Planšetdatoros un datoros. Tālrunī tas vienmēr ir apakšā. Tiek glabāts jūsu kontā."
+    },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
     "password_managed_by": "Jūsu paroli pārvalda {method}.",

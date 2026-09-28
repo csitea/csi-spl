@@ -26,7 +26,6 @@ const (
 var longFuncs = map[string]bool{
 	"internal/auth/cmd/auth-demo/main.go run":                            true,
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler":                    true,
-	"internal/hub/view.go (*Server).handleViewTopic":                     true,
 	"internal/hub/ws.go (*Server).hello":                                 true,
 	"internal/hub/ws.go (*Server).onSend":                                true,
 	"internal/hub/wui.go (*Server).handleWUIWS":                          true,

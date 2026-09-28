@@ -1,10 +1,12 @@
 package hub
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -661,30 +663,10 @@ type viewMsg struct {
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	task := r.PathValue("task_id")
-	if !uuidRe.MatchString(task) {
-		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return
-	}
-	// The read door (rdb 0028, privacy.go). Only rbac.TopicsRead - a
-	// TENANT-wide role - stood here before, so knowing a task_id was enough
-	// to read another member's DM or a channel you were never in.
-	hum, ok := s.readerID(r, t.ID)
+	hum, ok := s.topicReader(w, r, t.ID, task)
 	if !ok {
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
-	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, task, hum); {
-	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-		return
-	case found && !ok:
-		// 404, never 403: a refusal that distinguishes "not yours" from "no
-		// such topic" confirms the topic exists to someone who may not
-		// know that (owner's call: a non-member cannot learn it exists).
-		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return
-	}
-	q := r.URL.Query()
 	// specs/041: the lobby feed leaves its archived cards out; any other
 	// topic read by its id answers even while archived (the Archive view).
 	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now(),
@@ -697,39 +679,9 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		}
 		sq.Reader, sq.ReaderChannels = hum, mine
 	}
-	switch q.Get("order") {
-	case "", "asc":
-	case "desc":
-		sq.Desc = true
-	default:
-		writeErr(w, http.StatusBadRequest, "bad_json", "order must be asc or desc")
+	if rf := topicWindow(r.URL.Query(), &sq); rf != nil {
+		writeErr(w, rf.status, rf.token, rf.detail)
 		return
-	}
-	// after= is the oldest-first catch-up cursor; before= pages newest-first
-	// windows backwards (view-v1 §4.4). Each belongs to one order only.
-	if c := q.Get("after"); c != "" {
-		if sq.Desc {
-			writeErr(w, http.StatusBadRequest, "bad_json", "after is for order=asc; use before with order=desc")
-			return
-		}
-		at, id, err := decCursor(c)
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, "bad_cursor", "after is not a cursor from this API")
-			return
-		}
-		sq.AfterAt, sq.AfterID = at, id
-	}
-	if c := q.Get("before"); c != "" {
-		if !sq.Desc {
-			writeErr(w, http.StatusBadRequest, "bad_json", "before is for order=desc; use after with order=asc")
-			return
-		}
-		at, id, err := decCursor(c)
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, "bad_cursor", "before is not a cursor from this API")
-			return
-		}
-		sq.BeforeAt, sq.BeforeID = at, id
 	}
 	rows, err := s.o.Store.ViewTopic(r.Context(), t.ID, sq)
 	if err != nil {
@@ -747,21 +699,94 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
 		next = &c
 	}
-	react := map[string][]store.StoredReaction{}
-	if len(rows) > 0 {
-		ids := make([]string, len(rows))
-		for i := range rows {
-			ids[i] = rows[i].MsgID
-		}
-		var rerr error
-		react, rerr = s.o.Store.ReactionsFor(r.Context(), t.ID, ids)
-		if rerr != nil {
-			s.o.Log.Error().Err(rerr).Str("task", task).Msg("reactions")
-			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-			return
-		}
+	react, err := s.rowReactions(r.Context(), t.ID, rows)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task", task).Msg("reactions")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"task_id": task, "messages": viewMsgs(rows, react), "next": next})
+}
+
+// topicReader is the read door of one topic (rdb 0028, privacy.go): it
+// answers the reader ("" with the door off); false has written the refusal.
+// Only rbac.TopicsRead - a TENANT-wide role - stood here before, so knowing
+// a task_id was enough to read another member's DM or a channel you were
+// never in.
+func (s *Server) topicReader(w http.ResponseWriter, r *http.Request, tenant, task string) (string, bool) {
+	if !uuidRe.MatchString(task) {
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return "", false
+	}
+	hum, ok := s.readerID(r, tenant)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return "", false
+	}
+	switch ok, found, err := s.canReadTopic(r.Context(), tenant, task, hum); {
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return "", false
+	case found && !ok:
+		// 404, never 403: a refusal that distinguishes "not yours" from "no
+		// such topic" confirms the topic exists to someone who may not
+		// know that (owner's call: a non-member cannot learn it exists).
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return "", false
+	}
+	return hum, true
+}
+
+// viewRefusal is a 4xx answer of a view read.
+type viewRefusal struct {
+	status        int
+	token, detail string
+}
+
+// topicWindow reads order= and the cursor that belongs to it into sq:
+// after= is the oldest-first catch-up cursor, before= pages newest-first
+// windows backwards (view-v1 §4.4).
+func topicWindow(q url.Values, sq *store.TopicMsgQuery) *viewRefusal {
+	switch q.Get("order") {
+	case "", "asc":
+	case "desc":
+		sq.Desc = true
+	default:
+		return &viewRefusal{http.StatusBadRequest, "bad_json", "order must be asc or desc"}
+	}
+	if c := q.Get("after"); c != "" {
+		if sq.Desc {
+			return &viewRefusal{http.StatusBadRequest, "bad_json", "after is for order=asc; use before with order=desc"}
+		}
+		at, id, err := decCursor(c)
+		if err != nil {
+			return &viewRefusal{http.StatusBadRequest, "bad_cursor", "after is not a cursor from this API"}
+		}
+		sq.AfterAt, sq.AfterID = at, id
+	}
+	if c := q.Get("before"); c != "" {
+		if !sq.Desc {
+			return &viewRefusal{http.StatusBadRequest, "bad_json", "before is for order=desc; use after with order=asc"}
+		}
+		at, id, err := decCursor(c)
+		if err != nil {
+			return &viewRefusal{http.StatusBadRequest, "bad_cursor", "before is not a cursor from this API"}
+		}
+		sq.BeforeAt, sq.BeforeID = at, id
+	}
+	return nil
+}
+
+// rowReactions reads the reactions of rows in one call (none for no rows).
+func (s *Server) rowReactions(ctx context.Context, tenant string, rows []store.ViewMsg) (map[string][]store.StoredReaction, error) {
+	if len(rows) == 0 {
+		return map[string][]store.StoredReaction{}, nil
+	}
+	ids := make([]string, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].MsgID
+	}
+	return s.o.Store.ReactionsFor(ctx, tenant, ids)
 }
 
 // viewMsgs is the §4.4 message list of rows, with their reactions.

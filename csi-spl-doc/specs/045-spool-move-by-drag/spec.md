@@ -206,8 +206,8 @@ Wire (`contracts/move-v1.md` §7):
 | FR-MV-011 | WUI: "Moved to … · Undo" for 8 s; the "moved from …" note | Implemented — `tasks.md` |
 | FR-MV-012 | WUI: an old channel URL of a moved topic redirects to the new channel | Implemented — `tasks.md` |
 | FR-MV-013 | every new string in all 19 locales | Implemented — `tasks.md` |
-| FR-MV-014 | rdb 0073 `tenant_memberships.channel_order`; `GET /v1/view/me` carries it; `PUT /v1/me/channel-order` (3.8) | Planned |
-| FR-MV-015 | WUI: the Channels list renders the stored order (new channels at the end), a drag stores it, Move up / Move down in the row menu (3.8) | Planned |
+| FR-MV-014 | rdb 0073 `tenant_memberships.channel_order`; `GET /v1/view/me` carries it; `PUT /v1/me/channel-order` (3.8) | Implemented — `tasks.md` T011 |
+| FR-MV-015 | WUI: the Channels list renders the stored order (new channels at the end), a drag stores it, Move up / Move down in the row menu (3.8) | Implemented — `tasks.md` T012 |
 
 ## 6. Success criteria
 
@@ -220,4 +220,4 @@ Wire (`contracts/move-v1.md` §7):
 - **SC-MV-3**: live proof in the prd `e2e` tenant and the dev test tenant only, with a DB count of the
   rows per channel / task before and after, and screenshots posted in both owner topics.
 
-<!-- version: 0.3.0 · updated: 2026-09-28 · last-edit: 2026-09-28T06:20:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-28 · last-edit: 2026-09-28T07:10:00Z -->

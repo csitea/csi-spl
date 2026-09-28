@@ -27,7 +27,17 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       DB rows before/after read with `do_spl_db_query`. Screenshots posted in prd t1 topics `72557f61`
       (3 files) and `e615e3fd` (2 files)
 
+- [x] T011 SPL-1034 hub: rdb 0073 `tenant_memberships.channel_order` (applied dev + prd ~06:23Z before the push),
+      `PUT /v1/me/channel-order`, `GET /v1/view/me` carries it in its one round trip (the membership read fills
+      the request memo; control: without the memo the budget test reads 5 round trips). `d64ba4c8`; live on
+      dev + prd in hub `fc264bab` (1.5.2, `merge-base --is-ancestor`)
+- [x] T012 SPL-1034 WUI: the Channels list loads / saves the order, Move up / Move down in the row menu, a
+      channel row's link no longer starts a native link drag (the reorder never completed with a real mouse),
+      e2e `channel-order.test.mjs` 21/21. `f3a78d2c`, live on dev, apex and e2e (`build.json`). Live proof
+      `tests/e2e/channel-order-live.proof.mjs` on dev t1, n=1: 14/14 incl. the CONTROL (another member's
+      stored order unchanged). prd e2e has one member, so the control cannot run there
+
 Found on the way (fixed): the moved-from note was 0 px wide in the right pane (the author row does not wrap);
 `d1951060` gives it its own line and the e2e now asserts its width (control: 30/31 on the old bundle).
 
-<!-- version: 0.2.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-28 · last-edit: 2026-09-28T07:10:00Z -->

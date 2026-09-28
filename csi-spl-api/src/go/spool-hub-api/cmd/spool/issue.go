@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/url"
@@ -33,92 +34,12 @@ func cmdIssue(cfg *config.Config, args []string) int {
 		fmt.Fprintln(os.Stderr, issueUsage)
 		return 1
 	}
-	op := args[0]
-	fs := flag.NewFlagSet("issue "+op, flag.ContinueOnError)
-	as := fs.String("as", "", "the acting agent id (one this box announced)")
-	ref := fs.String("ref", "", "issue key, e.g. SPL-3")
-	title := fs.String("title", "", "title")
-	desc := fs.String("description", "", "description (markdown)")
-	descFile := fs.String("description-file", "", "read the description from this file")
-	status := fs.String("status", "", "eval|todo|wip|diss|blocked|onhold|qas|done (01-eval .. 09-done; list: comma list)")
-	priority := fs.String("priority", "", "prio 1 (highest) .. 5 (lowest) (list: comma list)")
-	level := fs.String("level", "", "1 epic or feature, 2 issue, 3 subtask: derived from the tree, only checked (list: comma list)")
-	assignee := fs.String("assignee", "", "member HUM-* or agent id; list also takes me and none")
-	labels := fs.String("labels", "", "label ids, comma separated")
-	label := fs.String("label", "", "list: label ids, comma separated")
-	deadline := fs.String("deadline", "", "RFC 3339 with a zone; empty clears on update")
-	parent := fs.String("parent", "", "the parent: an epic / feature, or a level-2 issue (the new one is its subtask); list: comma list")
-	epic := fs.String("epic", "", "the parent epic's key (SPL-18: every issue has one); list: comma list")
-	kind := fs.String("kind", "", "epic | feature | issue (create / update); list: epic,feature,issue,subtask")
-	before := fs.String("deadline-before", "", "list: RFC 3339")
-	after := fs.String("deadline-after", "", "list: RFC 3339")
-	sortBy := fs.String("sort", "", "list: priority|level|deadline|updated|created")
-	body := fs.String("body", "", "comment text")
-	bodyFile := fs.String("body-file", "", "read the comment from this file")
-	name := fs.String("name", "", "label name")
-	color := fs.String("color", "", "label colour #rrggbb")
-	if err := fs.Parse(args[1:]); err != nil {
+	in, err := parseIssueArgs(args[0], args[1:])
+	if err == errIssueFlags {
 		return 1
 	}
-	set := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
-	in := action.IssueArgs{Op: op, As: *as, Ref: *ref}
-	switch op {
-	case "list":
-		q := url.Values{}
-		for k, v := range map[string]string{"status": *status, "priority": *priority, "level": *level, "assignee": *assignee,
-			"label": *label, "deadline_before": *before, "deadline_after": *after, "sort": *sortBy, "epic": *epic, "kind": *kind, "parent": *parent} {
-			if v != "" {
-				q.Set(k, v)
-			}
-		}
-		in.Query = q.Encode()
-	case "create", "update":
-		obj := map[string]any{}
-		if set["description-file"] {
-			b, err := os.ReadFile(*descFile)
-			if err != nil {
-				return fail(err)
-			}
-			*desc, set["description"] = string(b), true
-		}
-		for flagName, key := range map[string]string{"title": "title", "description": "description", "status": "status",
-			"assignee": "assignee", "deadline": "deadline", "parent": "parent", "epic": "epic", "kind": "kind"} {
-			if set[flagName] {
-				obj[key] = map[string]string{"title": *title, "description": *desc, "status": *status,
-					"assignee": *assignee, "deadline": *deadline, "parent": *parent, "epic": *epic, "kind": *kind}[flagName]
-			}
-		}
-		for flagName, v := range map[string]string{"priority": *priority, "level": *level} {
-			if set[flagName] {
-				n, err := strconv.Atoi(v)
-				if err != nil {
-					return fail(fmt.Errorf("--%s must be a number", flagName))
-				}
-				obj[flagName] = n
-			}
-		}
-		if set["labels"] {
-			ls := []string{}
-			for _, l := range strings.Split(*labels, ",") {
-				if l = strings.TrimSpace(l); l != "" {
-					ls = append(ls, l)
-				}
-			}
-			obj["labels"] = ls
-		}
-		in.Issue, _ = json.Marshal(obj)
-	case "comment":
-		in.Body = *body
-		if set["body-file"] {
-			b, err := os.ReadFile(*bodyFile)
-			if err != nil {
-				return fail(err)
-			}
-			in.Body = string(b)
-		}
-	case "label":
-		in.Issue, _ = json.Marshal(map[string]string{"name": *name, "color": *color})
+	if err != nil {
+		return fail(err)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -128,4 +49,134 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	}
 	fmt.Println(string(out))
 	return 0
+}
+
+var errIssueFlags = errors.New("bad flags")
+
+// issueFlags are every flag of every issue op; each op reads its own.
+type issueFlags struct {
+	as, ref, title, desc, descFile, status, priority, level, assignee, labels, label string
+	deadline, parent, epic, kind, before, after, sortBy, body, bodyFile, name, color string
+	set                                                                              map[string]bool // the flags given
+}
+
+func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
+	fs := flag.NewFlagSet("issue "+op, flag.ContinueOnError)
+	for _, d := range []struct {
+		p          *string
+		name, help string
+	}{
+		{&f.as, "as", "the acting agent id (one this box announced)"},
+		{&f.ref, "ref", "issue key, e.g. SPL-3"},
+		{&f.title, "title", "title"},
+		{&f.desc, "description", "description (markdown)"},
+		{&f.descFile, "description-file", "read the description from this file"},
+		{&f.status, "status", "eval|todo|wip|diss|blocked|onhold|qas|done (01-eval .. 09-done; list: comma list)"},
+		{&f.priority, "priority", "prio 1 (highest) .. 5 (lowest) (list: comma list)"},
+		{&f.level, "level", "1 epic or feature, 2 issue, 3 subtask: derived from the tree, only checked (list: comma list)"},
+		{&f.assignee, "assignee", "member HUM-* or agent id; list also takes me and none"},
+		{&f.labels, "labels", "label ids, comma separated"},
+		{&f.label, "label", "list: label ids, comma separated"},
+		{&f.deadline, "deadline", "RFC 3339 with a zone; empty clears on update"},
+		{&f.parent, "parent", "the parent: an epic / feature, or a level-2 issue (the new one is its subtask); list: comma list"},
+		{&f.epic, "epic", "the parent epic's key (SPL-18: every issue has one); list: comma list"},
+		{&f.kind, "kind", "epic | feature | issue (create / update); list: epic,feature,issue,subtask"},
+		{&f.before, "deadline-before", "list: RFC 3339"},
+		{&f.after, "deadline-after", "list: RFC 3339"},
+		{&f.sortBy, "sort", "list: priority|level|deadline|updated|created"},
+		{&f.body, "body", "comment text"},
+		{&f.bodyFile, "body-file", "read the comment from this file"},
+		{&f.name, "name", "label name"},
+		{&f.color, "color", "label colour #rrggbb"},
+	} {
+		fs.StringVar(d.p, d.name, "", d.help)
+	}
+	return fs
+}
+
+// parseIssueArgs turns `spool issue <op> [flags]` into the request for the
+// hub; errIssueFlags when the flags do not parse (the flag package has
+// already said why).
+func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
+	f := &issueFlags{set: map[string]bool{}}
+	fs := newIssueFlagSet(op, f)
+	if err := fs.Parse(args); err != nil {
+		return action.IssueArgs{}, errIssueFlags
+	}
+	fs.Visit(func(fl *flag.Flag) { f.set[fl.Name] = true })
+	in := action.IssueArgs{Op: op, As: f.as, Ref: f.ref}
+	var err error
+	switch op {
+	case "list":
+		in.Query = f.listQuery()
+	case "create", "update":
+		in.Issue, err = f.issueObject()
+	case "comment":
+		in.Body, err = f.commentBody()
+	case "label":
+		in.Issue, _ = json.Marshal(map[string]string{"name": f.name, "color": f.color})
+	}
+	if err != nil {
+		return action.IssueArgs{}, err
+	}
+	return in, nil
+}
+
+// listQuery is the list filter as a query string; empty flags are left out.
+func (f *issueFlags) listQuery() string {
+	q := url.Values{}
+	for k, v := range map[string]string{"status": f.status, "priority": f.priority, "level": f.level, "assignee": f.assignee,
+		"label": f.label, "deadline_before": f.before, "deadline_after": f.after, "sort": f.sortBy, "epic": f.epic, "kind": f.kind, "parent": f.parent} {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	return q.Encode()
+}
+
+// issueObject is the create / update body: only the flags given, so an
+// update changes those and "" clears.
+func (f *issueFlags) issueObject() (json.RawMessage, error) {
+	obj := map[string]any{}
+	if f.set["description-file"] {
+		b, err := os.ReadFile(f.descFile)
+		if err != nil {
+			return nil, err
+		}
+		f.desc, f.set["description"] = string(b), true
+	}
+	for key, v := range map[string]string{"title": f.title, "description": f.desc, "status": f.status,
+		"assignee": f.assignee, "deadline": f.deadline, "parent": f.parent, "epic": f.epic, "kind": f.kind} {
+		if f.set[key] {
+			obj[key] = v
+		}
+	}
+	for key, v := range map[string]string{"priority": f.priority, "level": f.level} {
+		if f.set[key] {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return nil, fmt.Errorf("--%s must be a number", key)
+			}
+			obj[key] = n
+		}
+	}
+	if f.set["labels"] {
+		ls := []string{}
+		for _, l := range strings.Split(f.labels, ",") {
+			if l = strings.TrimSpace(l); l != "" {
+				ls = append(ls, l)
+			}
+		}
+		obj["labels"] = ls
+	}
+	return json.Marshal(obj)
+}
+
+// commentBody is --body, or the --body-file contents when that is given.
+func (f *issueFlags) commentBody() (string, error) {
+	if !f.set["body-file"] {
+		return f.body, nil
+	}
+	b, err := os.ReadFile(f.bodyFile)
+	return string(b), err
 }

@@ -23,9 +23,18 @@
 //   7. CLEAN: delete both topics and both channels (KEEP=1 keeps them for the
 //      screenshots / a DB count)
 //
+// Proof channels must not wake the fallback responder (SPL-997), and that
+// switch is a DB action, so a run is two invocations with the switch between:
+//   PHASE=channels  sign in, create A and B, print their ids, exit
+//   (shell)         for ch in A B: ENV=<env> TENANT_ID=<t> CHANNEL=$ch NO_FALLBACK=1
+//                   DRY_RUN=0 ./run -a do_spl_channel_fallback   (csi-spl-orc)
+//   PHASE=run CH_A=<A> CH_B=<B>   steps 2..7 in those channels
+//   PHASE=restore MSG=<msg_id> TO=<channel>   move one topic card back (repair)
+//
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member>
-//   PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> [KEEP=1]
-//   [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/move-live.proof.mjs
+//   PW_FILE=<0600 file> OUT=<dir> TENANT=<tenant> PHASE=channels|run|restore
+//   [CH_A=... CH_B=...] [KEEP=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
+//   node tests/e2e/move-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { createRequire } from 'node:module'
@@ -52,11 +61,16 @@ const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = need('TENANT')
 const KEEP = process.env.KEEP === '1'
+const PHASE = process.env.PHASE || 'run'
 mkdirSync(OUT, { recursive: true })
 
 const RUN = Date.now().toString(36)
-const A = `mv-a-${RUN}`
-const B = `mv-b-${RUN}`
+const A = process.env.CH_A || `mv-a-${RUN}`
+const B = process.env.CH_B || `mv-b-${RUN}`
+if (PHASE === 'run' && (!process.env.CH_A || !process.env.CH_B)) {
+  console.error('FATAL PHASE=run needs CH_A and CH_B from PHASE=channels (with the fallback switched off in between)')
+  process.exit(2)
+}
 const MIME = 'application/x-spool-move'
 
 const res = { base: BASE, api: API, at: new Date().toISOString(), tenant: TENANT, channels: [A, B], steps: [], console: [] }
@@ -227,13 +241,33 @@ let p
 let seeded = null
 try {
   p = await signIn(browser)
+  const me = String((await hub(p, 'GET', '/v1/view/me')).body?.human_id || '')
+  step('1 the hub names the signed-in member', /^HUM-[0-9]+$/.test(me), { me })
+  if (!me) throw new Error('no member id: refusing to judge authorship')
+
+  if (PHASE === 'channels') {
+    await p.evaluate(async ({ A, B }) => {
+      const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+      await ch.createChannel(A)
+      await ch.createChannel(B)
+    }, { A, B })
+    const list = await hub(p, 'GET', '/v1/view/channels')
+    const ids = ((list.body && list.body.channels) || []).map((c) => c.channel_id || c.channel)
+    step('channels: A and B exist', ids.includes(A) && ids.includes(B), { A, B })
+    writeFileSync(`${OUT}/channels.json`, JSON.stringify({ A, B }))
+    console.log(`CH_A=${A} CH_B=${B}`)
+    throw new Error('__phase_done__')
+  }
+  if (PHASE === 'restore') {
+    const r = await hub(p, 'POST', `/v1/messages/${need('MSG')}/move`, { to_channel: need('TO') })
+    step('restore: the card is back', r.status === 200, { status: r.status, body: r.body })
+    throw new Error('__phase_done__')
+  }
 
   /* ---- 2. seed -------------------------------------------------------------- */
-  seeded = await p.evaluate(async ({ A, B, RUN }) => {
+  seeded = await p.evaluate(async ({ A, RUN }) => {
     const app = document.querySelector('#__nuxt').__vue_app__
     const ch = app.config.globalProperties.$pinia._s.get('channel')
-    await ch.createChannel(B)
-    await ch.createChannel(A)
     await app.config.globalProperties.$router.push('/channel/' + A)
     await new Promise((r) => setTimeout(r, 1500))
     const one = await ch.send(`SPL-1024 proof ${RUN}: topic one`, undefined, undefined, undefined, 1)
@@ -244,7 +278,7 @@ try {
       one: { msg_id: one.msg_id, task_id: one.task_id }, two: { msg_id: two.msg_id, task_id: two.task_id },
       reply: { msg_id: reply.msg_id },
     }
-  }, { A, B, RUN })
+  }, { A, RUN })
   writeFileSync(`${OUT}/ids.json`, JSON.stringify({ A, B, ...seeded }, null, 2))
   const s0 = await rowsOf(p, seeded.one.task_id)
   step('2 seeded: channels A and B, topics one and two in A, a reply under one', s0.status === 200 &&
@@ -318,10 +352,6 @@ try {
   await shot(p, '5-topic-two-in-B-moved-from-A')
 
   /* ---- 6. refusals (controls) ----------------------------------------------- */
-  const me = await p.evaluate(() => {
-    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia.state.value.viewer
-    return s && s.me ? String(s.me.id || '') : ''
-  })
   const chans = await hub(p, 'GET', '/v1/view/channels')
   let other = null
   for (const c of ((chans.body && chans.body.channels) || []).map((x) => x.channel_id || x.channel).filter((c) => c && !['lobby', 'general', 'issues', A, B].includes(c))) {
@@ -335,7 +365,11 @@ try {
   }
   if (other) {
     const r = await hub(p, 'POST', `/v1/messages/${other.msg_id}/move`, { to_channel: B })
-    step('6 another author\'s card: the hub refuses the move, 403 not_allowed', r.status === 403 && r.body?.error === 'not_allowed', { other, status: r.status, error: r.body?.error })
+    step('6 another author\'s card: the hub refuses the move, 403 not_allowed', r.status === 403 && r.body?.error === 'not_allowed', { other, me, status: r.status, error: r.body?.error })
+    if (r.status === 200 && r.body?.undo) { /* a control must never leave a real card moved */
+      const u = await hub(p, 'POST', `/v1/messages/${other.msg_id}/move`, r.body.undo)
+      step('6 (repair) the wrongly moved card was moved back at once', u.status === 200, { status: u.status })
+    }
   } else {
     step('6 another author\'s card: none readable in this tenant (skipped, not a pass)', false, { me })
   }
@@ -347,7 +381,8 @@ try {
   step('6 the refusals moved nothing (topic one still home in A)', Object.values(s6.rows).every((x) => x.channel === A && !x.moved_at), s6.rows)
   step('no page errors', !res.console.some((c) => c.startsWith('pageerror')), { n: res.console.length })
 } catch (e) {
-  step('the run completed', false, { error: String(e).slice(0, 300) })
+  if (String(e).includes('__phase_done__')) seeded = null
+  else step('the run completed', false, { error: String(e).slice(0, 300) })
 } finally {
   /* ---- 7. clean -------------------------------------------------------------- */
   if (p && seeded && !KEEP) {

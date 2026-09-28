@@ -263,7 +263,10 @@ export default defineNuxtConfig({
     locales: I18N_LOCALES,
     lazy: true,
     detectBrowserLanguage: false,
-    bundle: { optimizeTranslationDirective: false },
+    // Runtime-only vue-i18n, no message compiler (CLE-35075): the catalogues
+    // are JSON the build precompiles, so the ~5 KB gzip compiler never ran in
+    // the browser. tests/unit/i18n-runtime-only.test.mjs refuses runtime messages.
+    bundle: { optimizeTranslationDirective: false, runtimeOnly: true, dropMessageCompiler: true },
     // Default "absolute" embeds the CI workspace path in shipped
     // __NUXT__.config locales[].files[].path (e.g. /home/runner/work/...).
     experimental: { generatedLocaleFilePathFormat: "off" },

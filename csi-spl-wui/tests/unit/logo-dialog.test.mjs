@@ -39,7 +39,10 @@ describe('the logo dialog', () => {
     assert.match(dialog, /useRuntimeConfig\(\)\.public\.appVersion/)
     assert.match(dialog, /rel="noopener noreferrer"/)
     const ui = src('src/components/UiDialog.vue')
-    assert.match(ui, /<Transition :name="size === 'card' \? 'ui-dialog-pop' : 'ui-dialog-none'" appear>/)
+    assert.match(ui, /<Transition name="ui-dialog-pop" :css="size === 'card'" appear>/)
+    /* only the card animates: every other size stays synchronous (a CSS-less
+       transition name still delays removal ~2 frames - issues-crud-modal D1) */
+    assert.doesNotMatch(ui, /ui-dialog-none/)
     assert.match(ui, /\.ui-dialog\.card \{\n  max-width: 720px;/)
     assert.match(ui, /@media \(prefers-reduced-motion: reduce\) \{\n  \.ui-dialog-pop-enter-active,/)
     assert.match(topBar, /\.top-bar__logo:hover img,/)

@@ -20,9 +20,12 @@
      and no teleport target to miss. -->
 <template>
   <Teleport v-if="mounted" to="body">
-    <!-- SPL-1150: only the `card` size fades and scales in and out; every
-         other size has no transition CSS, so it opens and closes at once -->
-    <Transition :name="size === 'card' ? 'ui-dialog-pop' : 'ui-dialog-none'" appear>
+    <!-- SPL-1150: only the `card` size fades and scales in and out. Every
+         other size is `:css="false"` with no JS hooks, so Vue inserts and
+         removes it synchronously, exactly as before the Transition existed
+         (a CSS-less NAME would still wait ~2 frames to find no transition,
+         and a confirm read right after Delete saw it still there). -->
+    <Transition name="ui-dialog-pop" :css="size === 'card'" appear>
     <div
       v-if="open"
       class="ui-dialog-backdrop"

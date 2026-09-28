@@ -13,6 +13,9 @@
 //   P   phone 390: the full-screen dialog keeps Back at the top left and
 //       shows no X, in both modes
 //   M   back to Mac style: the sheet X is left of its heading again
+//   R   a non-card dialog closing by `open` (the issue delete confirm) is
+//       gone one macrotask after Cancel - no transition frames
+//       (issues-crud-modal D1 read it once, CI 36451966904)
 //
 //   node tests/e2e/close-buttons.test.mjs
 //   BASE_URL=<generated bundle> OUT=/tmp/shots node tests/e2e/close-buttons.test.mjs
@@ -161,6 +164,26 @@ try {
   g = await geometry(...THREAD)
   ok('D3 1440 thread pane: the X is top left, before the title', g.found && g.visible && g.left && g.beforeTitle, g)
   await shot('1440-mac-thread')
+
+  /* R: close timing. The issue delete confirm stays mounted and closes by
+     `open` going false - the Transition leave path. Click Cancel in the page
+     and look one macrotask later, before any animation frame can run. */
+  await load(DESKTOP, '/issues')
+  await p.waitForSelector('[data-test=issues-new]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.click('[data-test=issues-new]')
+  await p.waitForSelector('[data-test=issues-newrow-title]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=issues-newrow-title]', 'close timing row')
+  await p.keyboard.press('Enter')
+  await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: 5000 })
+  await p.hover('[data-test=issues-row]')
+  await p.click('[data-test=issues-row] [data-test=issues-row-delete]')
+  await p.waitForSelector('[data-testid=issues-delete-cancel]', { visible: true, timeout: 5000 })
+  await sleep(300)
+  const confirmStill = await p.evaluate(() => new Promise((resolve) => {
+    document.querySelector('[data-testid=issues-delete-cancel]').click()
+    setTimeout(() => resolve(Boolean(document.querySelector('[data-testid=ui-dialog]'))), 0)
+  }))
+  ok('R1 a confirm (size sm, no transition) is gone one macrotask after Cancel', confirmStill === false, { confirmStill })
 
   /* S: switch in Settings -> Behaviour */
   await load(DESKTOP, '/settings/behaviour')

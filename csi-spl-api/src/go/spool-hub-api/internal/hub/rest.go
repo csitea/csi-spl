@@ -38,80 +38,106 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 		writeUnpaid(w)
 		return
 	}
-	// 027 T020: the body streams to a scratch object while it is hashed, so
-	// the hub holds a few MiB per upload, not the file. Refusals that need no
-	// byte (size, quota by Content-Length) answer before reading any.
-	if r.ContentLength > msg.MaxFileBytes {
-		writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
+	if !s.uploadFitsDeclared(w, r, t.ID) {
 		return
-	}
-	if r.ContentLength > 0 {
-		over, err := s.fileUsage.over(r.Context(), s.o.Blob, s.quota(), t.ID, r.ContentLength, s.o.Now())
-		if err != nil {
-			s.o.Log.Error().Err(err).Msg("blob prefix bytes")
-			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
-			return
-		}
-		if over {
-			writeQuota(w, "stored file bytes exceed the tenant quota")
-			return
-		}
 	}
 	// Cleanup must outlive a client that went away mid-body.
 	bg := context.WithoutCancel(r.Context())
-	tmp := blob.TmpKey(t.ID, uid.Hex(16))
-	h := sha256.New()
-	body := &readErr{r: http.MaxBytesReader(w, r.Body, msg.MaxFileBytes)}
-	n, err := s.o.Blob.PutReader(r.Context(), tmp, io.TeeReader(body, h))
-	if err != nil {
-		s.o.Blob.Delete(bg, tmp) //nolint:errcheck // PutReader leaves nothing; belt and braces
-		var mbe *http.MaxBytesError
-		switch {
-		case errors.As(body.err, &mbe):
-			writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
-		case body.err != nil:
-			writeErr(w, http.StatusBadRequest, "bad_json", "could not read the body")
-		default:
-			s.o.Log.Error().Err(err).Msg("blob put")
-			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
-		}
+	tmp, id, n, ok := s.streamUpload(bg, w, r, t.ID)
+	if !ok {
 		return
 	}
-	id := hex.EncodeToString(h.Sum(nil))
 	key, _ := blob.Key(t.ID, id)
-	exists, _ := s.o.Blob.Exists(r.Context(), key)
-	if exists {
+	if exists, _ := s.o.Blob.Exists(r.Context(), key); exists {
 		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
 		s.touchUpload(bg, key)
 		writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
 		return
 	}
-	fits, err := s.fileUsage.reserve(r.Context(), s.o.Blob, s.quota(), t.ID, n, s.o.Now())
-	if err != nil {
-		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
-		s.o.Log.Error().Err(err).Msg("blob prefix bytes")
-		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+	if !s.keepUpload(bg, w, r, t.ID, tmp, key, n) {
 		return
 	}
-	if !fits {
-		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+}
+
+// uploadFitsDeclared refuses, before reading any byte, a body whose
+// Content-Length is over the per-file limit or the tenant's file quota.
+func (s *Server) uploadFitsDeclared(w http.ResponseWriter, r *http.Request, tenant string) bool {
+	if r.ContentLength > msg.MaxFileBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
+		return false
+	}
+	if r.ContentLength <= 0 {
+		return true
+	}
+	over, err := s.fileUsage.over(r.Context(), s.o.Blob, s.quota(), tenant, r.ContentLength, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("blob prefix bytes")
+		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+		return false
+	}
+	if over {
 		writeQuota(w, "stored file bytes exceed the tenant quota")
-		return
+		return false
+	}
+	return true
+}
+
+// streamUpload streams the body to a scratch object while hashing it (027
+// T020: the hub holds a few MiB per upload, not the file) and answers the
+// scratch key, the content id and the size; false has written the refusal.
+func (s *Server) streamUpload(bg context.Context, w http.ResponseWriter, r *http.Request, tenant string) (tmp, id string, n int64, ok bool) {
+	tmp = blob.TmpKey(tenant, uid.Hex(16))
+	h := sha256.New()
+	body := &readErr{r: http.MaxBytesReader(w, r.Body, msg.MaxFileBytes)}
+	n, err := s.o.Blob.PutReader(r.Context(), tmp, io.TeeReader(body, h))
+	if err == nil {
+		return tmp, hex.EncodeToString(h.Sum(nil)), n, true
+	}
+	s.o.Blob.Delete(bg, tmp) //nolint:errcheck // PutReader leaves nothing; belt and braces
+	var mbe *http.MaxBytesError
+	switch {
+	case errors.As(body.err, &mbe):
+		writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
+	case body.err != nil:
+		writeErr(w, http.StatusBadRequest, "bad_json", "could not read the body")
+	default:
+		s.o.Log.Error().Err(err).Msg("blob put")
+		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+	}
+	return "", "", 0, false
+}
+
+// keepUpload reserves n bytes of the tenant's quota and promotes the scratch
+// object to its content key. The reservation is released when the promote
+// fails or found the bytes already there; a failure removes the scratch
+// object. false has written the refusal.
+func (s *Server) keepUpload(bg context.Context, w http.ResponseWriter, r *http.Request, tenant, tmp, key string, n int64) bool {
+	fits, err := s.fileUsage.reserve(r.Context(), s.o.Blob, s.quota(), tenant, n, s.o.Now())
+	if err != nil || !fits {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		if err != nil {
+			s.o.Log.Error().Err(err).Msg("blob prefix bytes")
+			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+		} else {
+			writeQuota(w, "stored file bytes exceed the tenant quota")
+		}
+		return false
 	}
 	existed, err := s.o.Blob.Promote(bg, tmp, key)
 	if err != nil || existed {
-		s.fileUsage.release(t.ID, n)
-	}
-	if err == nil && existed {
-		s.touchUpload(bg, key)
+		s.fileUsage.release(tenant, n)
 	}
 	if err != nil {
 		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
 		s.o.Log.Error().Err(err).Msg("blob promote")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
-		return
+		return false
 	}
-	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+	if existed {
+		s.touchUpload(bg, key)
+	}
+	return true
 }
 
 // touchUpload restarts the upload grace of bytes the store already held

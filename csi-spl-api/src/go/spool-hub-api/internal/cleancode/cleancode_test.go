@@ -26,7 +26,6 @@ const (
 var longFuncs = map[string]bool{
 	"internal/auth/cmd/auth-demo/main.go run":         true,
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler": true,
-	"internal/store/view_postgres.go viewTopicsSQL":   true,
 }
 
 // folded are helpers that exist ONCE; the pattern may appear only in the

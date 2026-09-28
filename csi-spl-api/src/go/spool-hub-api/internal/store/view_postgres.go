@@ -137,88 +137,132 @@ func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, arg
 // viewTopicsSQL builds the statement for q. Only the filters q sets reach the
 // SQL, so the planner sees concrete predicates (a channel walk takes
 // messages_channel) instead of "$n is empty OR ..." shapes. Every topic filter
-// is a probe on that one topic inside the walk step.
+// is a probe on that one topic inside the walk step. The steps below ask for
+// their arguments in a fixed order, which is the $n numbering.
 func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
-	c := &sqlc{}
-	tn, now := c.arg(tenant), c.arg(q.Now)
-	msgs := func(a string) string { // the message filters, on alias a
-		w := a + ".tenant_id = " + tn + " AND " + a + ".expires_at > " + now
-		if q.Channel != "" {
-			w += " AND " + a + ".channel = " + c.arg(q.Channel)
-		}
-		if q.DM {
-			w += " AND " + a + ".channel IS NULL"
-		}
-		return w
+	b := &topicsSQL{c: &sqlc{}, q: q}
+	b.tn, b.now = b.c.arg(tenant), b.c.arg(q.Now)
+	walk := b.walkLatest() + b.walkParties()
+	door, aggDoor := b.readerDoor()
+	walk += door + b.walkTree() + archivedTopicHideSQL("l", b.tn, b.c.arg(q.Lobby)) // specs/041
+	return b.statement(walk, aggDoor, b.c.arg(pgLimit(q.Limit))), b.c.args
+}
+
+// topicsSQL builds viewTopicsSQL's statement; tn and now are the tenant and
+// clock placeholders.
+type topicsSQL struct {
+	c       *sqlc
+	q       TopicQuery
+	tn, now string
+}
+
+// msgs is the message filters on alias a (each call binds the channel anew).
+func (b *topicsSQL) msgs(a string) string {
+	w := a + ".tenant_id = " + b.tn + " AND " + a + ".expires_at > " + b.now
+	if b.q.Channel != "" {
+		w += " AND " + a + ".channel = " + b.c.arg(b.q.Channel)
 	}
-	topic := func(a string) string { // a's messages in l's topic
-		return msgs(a) + " AND " + a + ".task_id = l.task_id"
+	if b.q.DM {
+		w += " AND " + a + ".channel IS NULL"
 	}
-	// Every probe is a boolean scalar subquery on l's topic: it is never
-	// pulled up into a (hash) join over the whole tenant, and the planner
-	// rates a boolean qual at 1/2, not at the 1/rows of an equality on a
-	// unique column, so each LIMIT 1 step stays an ordered index scan.
-	// l is its topic's latest message (the cheapest probe, run first):
-	walk := msgs("l") + ` AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE ` + topic("x") + `
+	return w
+}
+
+// topic is a's messages in l's topic.
+func (b *topicsSQL) topic(a string) string {
+	return b.msgs(a) + " AND " + a + ".task_id = l.task_id"
+}
+
+// first: the topic's first message's parent passes test.
+func (b *topicsSQL) first(test string) string {
+	return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + b.topic("f") +
+		" ORDER BY f.received_at, f.msg_id::text LIMIT 1)"
+}
+
+// walkLatest: l is its topic's latest message (the cheapest probe, run
+// first), before the page cursor. Every probe is a boolean scalar subquery on
+// l's topic: it is never pulled up into a (hash) join over the whole tenant,
+// and the planner rates a boolean qual at 1/2, not at the 1/rows of an
+// equality on a unique column, so each LIMIT 1 step stays an ordered index
+// scan.
+func (b *topicsSQL) walkLatest() string {
+	walk := b.msgs("l") + ` AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE ` + b.topic("x") + `
 			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1)`
-	if !q.BeforeAt.IsZero() {
-		at := c.arg(q.BeforeAt)
-		walk += " AND l.received_at <= " + at + " AND (l.received_at, l.task_id::text) < (" + at + ", " + c.arg(q.BeforeTask) + ")"
+	if !b.q.BeforeAt.IsZero() {
+		at := b.c.arg(b.q.BeforeAt)
+		walk += " AND l.received_at <= " + at + " AND (l.received_at, l.task_id::text) < (" + at + ", " + b.c.arg(b.q.BeforeTask) + ")"
 	}
-	if q.Agent != "" {
-		id, fromBox, toBox := c.arg(q.Agent), "", ""
-		if q.AgentBox != "" {
-			b := c.arg(q.AgentBox)
-			fromBox, toBox = " AND g.from_box = "+b, " AND g.to_box = "+b
+	return walk
+}
+
+// walkParties: the topic has a message from or to the agent (on its box) and
+// from or to the viewer.
+func (b *topicsSQL) walkParties() string {
+	walk := ""
+	if b.q.Agent != "" {
+		id, fromBox, toBox := b.c.arg(b.q.Agent), "", ""
+		if b.q.AgentBox != "" {
+			box := b.c.arg(b.q.AgentBox)
+			fromBox, toBox = " AND g.from_box = "+box, " AND g.to_box = "+box
 		}
-		walk += " AND (SELECT true FROM messages g WHERE " + topic("g") +
+		walk += " AND (SELECT true FROM messages g WHERE " + b.topic("g") +
 			" AND ((g.from_id = " + id + fromBox + ") OR (g.to_id = " + id + toBox + ")) LIMIT 1)"
 	}
-	if q.Viewer != "" {
-		v := c.arg(q.Viewer)
-		walk += " AND (SELECT true FROM messages v WHERE " + topic("v") +
+	if b.q.Viewer != "" {
+		v := b.c.arg(b.q.Viewer)
+		walk += " AND (SELECT true FROM messages v WHERE " + b.topic("v") +
 			" AND (v.from_id = " + v + " OR v.to_id = " + v + ") LIMIT 1)"
 	}
-	// The read door (rdb 0028): the topic must hold at least one message
-	// this reader may see - one in a public channel, one in a channel they
-	// belong to, or a DM they are an end of. Same probe shape as Viewer, so
-	// it stays a LIMIT 1 index step inside the walk rather than a join.
-	// aggDoor is the same rule PER MESSAGE for the summary below:
-	// the door above only decides whether a topic is listed, so without it a
-	// topic mixing a DM with a #lobby reply was listed with the DM's first
-	// line as its subject and the DM's ends among its parties.
-	aggDoor := ""
-	if q.Reader != "" {
-		rd, pub, mine := c.arg(q.Reader), c.arg(PublicChannels), c.arg(q.ReaderChannels)
-		walk += " AND (SELECT true FROM messages d WHERE " + topic("d") + " AND (" +
-			"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
-			"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
-		aggDoor = " AND (m.channel = ANY(" + pub + "::text[]) OR m.channel = ANY(" + mine + "::text[]) OR " +
-			"(m.channel IS NULL AND (m.from_id = " + rd + " OR m.to_id = " + rd + ")))"
+	return walk
+}
+
+// readerDoor is the read door (rdb 0028): the topic must hold at least one
+// message this reader may see - one in a public channel, one in a channel
+// they belong to, or a DM they are an end of. Same probe shape as Viewer, so
+// it stays a LIMIT 1 index step inside the walk rather than a join. aggDoor
+// is the same rule PER MESSAGE for the summary: the door only decides
+// whether a topic is listed, so without it a topic mixing a DM with a #lobby
+// reply was listed with the DM's first line as its subject and the DM's ends
+// among its parties.
+func (b *topicsSQL) readerDoor() (walk, aggDoor string) {
+	if b.q.Reader == "" {
+		return "", ""
 	}
-	first := func(test string) string { // the topic's first message's parent passes test
-		return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + topic("f") +
-			" ORDER BY f.received_at, f.msg_id::text LIMIT 1)"
+	rd, pub, mine := b.c.arg(b.q.Reader), b.c.arg(PublicChannels), b.c.arg(b.q.ReaderChannels)
+	walk = " AND (SELECT true FROM messages d WHERE " + b.topic("d") + " AND (" +
+		"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
+		"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
+	aggDoor = " AND (m.channel = ANY(" + pub + "::text[]) OR m.channel = ANY(" + mine + "::text[]) OR " +
+		"(m.channel IS NULL AND (m.from_id = " + rd + " OR m.to_id = " + rd + ")))"
+	return walk, aggDoor
+}
+
+// walkTree: roots only, no issue discussions (rdb 0047: a probe on the
+// (tenant_id, task_id) unique index), children of one parent.
+func (b *topicsSQL) walkTree() string {
+	walk := ""
+	if b.q.Roots {
+		walk += b.first("IS NULL")
 	}
-	if q.Roots {
-		walk += first("IS NULL")
+	if b.q.NoIssues {
+		walk += " AND (SELECT true FROM issues i WHERE i.tenant_id = " + b.tn + " AND i.task_id = l.task_id LIMIT 1) IS NULL"
 	}
-	if q.NoIssues { // rdb 0047: a probe on the (tenant_id, task_id) unique index
-		walk += " AND (SELECT true FROM issues i WHERE i.tenant_id = " + tn + " AND i.task_id = l.task_id LIMIT 1) IS NULL"
+	if b.q.Parent != "" {
+		p := b.c.arg(b.q.Parent)
+		walk += " AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = " + b.tn +
+			" AND p.parent_task_id = " + p + "::uuid)" + b.first("IS NOT DISTINCT FROM "+p+"::uuid")
 	}
-	if q.Parent != "" {
-		p := c.arg(q.Parent)
-		walk += " AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = " + tn +
-			" AND p.parent_task_id = " + p + "::uuid)" + first("IS NOT DISTINCT FROM "+p+"::uuid")
-	}
-	walk += archivedTopicHideSQL("l", tn, c.arg(q.Lobby)) // specs/041
-	lim := c.arg(pgLimit(q.Limit))
+	return walk
+}
+
+// statement is the recursive walk over topics newest first, lim of them,
+// with each topic's summary. The topic's first message (subject, channel,
+// parent) is ONE ordered row, f, not (array_agg(m.msg ...))[1] in a: that
+// read and copied every body of the topic to keep one (prd t1 2026-09-27,
+// custom plan, n=15: 27 -> 13 ms a page).
+func (b *topicsSQL) statement(walk, aggDoor, lim string) string {
 	order := " ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1"
-	// The topic's first message (subject, channel, parent) is ONE ordered
-	// row, f, not (array_agg(m.msg ...))[1] in a: that read and copied every
-	// body of the topic to keep one (prd t1 2026-09-27, custom
-	// plan, n=15: 27 -> 13 ms a page).
-	sql := `WITH RECURSIVE w (task_id, received_at, n) AS (
+	return `WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE ` + walk + order + `)
 			UNION ALL
 			SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL (
@@ -235,16 +279,15 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
 					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
 			FROM messages m
-			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
+			WHERE ` + b.msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
 				m.received_at AS first_at, m.msg AS first_msg
 			FROM messages m
-			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
+			WHERE ` + b.msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
-	return sql, c.args
 }
 
 // ViewTopic reads one topic by task_id = $2::uuid (027 T030: the pre-027

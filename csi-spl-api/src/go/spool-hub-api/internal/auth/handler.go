@@ -391,22 +391,23 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
-	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(r.Context(), s)}
-	out.Name = h.shownName(r.Context(), s)
+	ctx := h.withSettings(r.Context(), s) // one settings read for the whole answer (SPL-1100)
+	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(ctx, s)}
+	out.Name = h.shownName(ctx, s)
 	h.sessionTenants(r, &out)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
-		if loc, err := h.prefs.PreferredLocale(r.Context(), s.HumanID); err != nil {
+		if loc, err := h.settings(ctx, s.HumanID).PreferredLocale(ctx, s.HumanID); err != nil {
 			h.log.Warn().Err(err).Msg("auth.session preferred_locale lookup")
 		} else if i18n.IsSupported(loc) {
 			out.PreferredLocale = &loc
 		}
-		out.PreferredTheme = h.preferredTheme(r.Context(), s)
-		out.SubmitKey = h.submitKey(r.Context(), s)
-		out.RailOrder = h.railOrder(r.Context(), s)
-		out.MessageOrder = h.viewPref(r.Context(), s, PrefMessageOrder)
-		out.ComposerPosition = h.viewPref(r.Context(), s, PrefComposerPosition)
-		out.IssuesView = h.viewPref(r.Context(), s, PrefIssuesView)
+		out.PreferredTheme = h.preferredTheme(ctx, s)
+		out.SubmitKey = h.submitKey(ctx, s)
+		out.RailOrder = h.railOrder(ctx, s)
+		out.MessageOrder = h.viewPref(ctx, s, PrefMessageOrder)
+		out.ComposerPosition = h.viewPref(ctx, s, PrefComposerPosition)
+		out.IssuesView = h.viewPref(ctx, s, PrefIssuesView)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -421,7 +422,7 @@ func (h *Handler) preferredTheme(ctx context.Context, s Session) *string {
 	if s.HumanID == "" || h.prefs == nil {
 		return nil
 	}
-	theme, err := h.prefs.PreferredTheme(ctx, s.HumanID)
+	theme, err := h.settings(ctx, s.HumanID).PreferredTheme(ctx, s.HumanID)
 	if err != nil {
 		h.log.Warn().Err(err).Msg("auth preferred_theme lookup")
 		return nil
@@ -439,7 +440,7 @@ func (h *Handler) submitKey(ctx context.Context, s Session) *string {
 	if s.HumanID == "" || h.prefs == nil {
 		return nil
 	}
-	key, err := h.prefs.SubmitKey(ctx, s.HumanID)
+	key, err := h.settings(ctx, s.HumanID).SubmitKey(ctx, s.HumanID)
 	if err != nil {
 		h.log.Warn().Err(err).Msg("auth submit_key lookup")
 		return nil
@@ -457,7 +458,7 @@ func (h *Handler) railOrder(ctx context.Context, s Session) []string {
 	if s.HumanID == "" || h.prefs == nil {
 		return nil
 	}
-	order, err := h.prefs.RailOrder(ctx, s.HumanID)
+	order, err := h.settings(ctx, s.HumanID).RailOrder(ctx, s.HumanID)
 	if err != nil {
 		h.log.Warn().Err(err).Msg("auth rail_order lookup")
 		return nil
@@ -472,7 +473,7 @@ func (h *Handler) viewPref(ctx context.Context, s Session, key string) *string {
 	if s.HumanID == "" || h.prefs == nil {
 		return nil
 	}
-	v, err := h.prefs.ViewPref(ctx, s.HumanID, key)
+	v, err := h.settings(ctx, s.HumanID).ViewPref(ctx, s.HumanID, key)
 	if err != nil {
 		h.log.Warn().Err(err).Str("key", key).Msg("auth view pref lookup")
 		return nil
@@ -504,7 +505,7 @@ func (h *Handler) diagnosticsGrant(ctx context.Context, s Session) bool {
 	if s.HumanID == "" || h.prefs == nil {
 		return false
 	}
-	on, err := h.prefs.DiagnosticsEnabled(ctx, s.HumanID)
+	on, err := h.settings(ctx, s.HumanID).DiagnosticsEnabled(ctx, s.HumanID)
 	if err != nil {
 		if !errors.Is(err, ErrNoHuman) {
 			h.log.Warn().Err(err).Msg("auth.session diagnostics_enabled lookup")
@@ -523,7 +524,7 @@ func (h *Handler) shownName(ctx context.Context, s Session) string {
 	if s.HumanID == "" || h.prefs == nil {
 		return s.Name
 	}
-	name, err := h.prefs.DisplayName(ctx, s.HumanID)
+	name, err := h.settings(ctx, s.HumanID).DisplayName(ctx, s.HumanID)
 	if err != nil {
 		if !errors.Is(err, ErrNoHuman) {
 			h.log.Warn().Err(err).Msg("auth.session display_name lookup")

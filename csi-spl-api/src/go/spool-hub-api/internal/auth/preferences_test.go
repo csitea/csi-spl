@@ -210,6 +210,12 @@ func (p *fakePrefs) IdentityLocale(_ context.Context, provider, subject string) 
 // newPRig is newNRig with Preferences and a configurable default locale.
 func newPRig(t *testing.T, defLocale string, withRegistrar bool) (*nrig, *fakePrefs) {
 	t.Helper()
+	return newPRigWrapped(t, defLocale, withRegistrar, nil)
+}
+
+// newPRigWrapped is newPRig whose hub reads the fake through wrap (nil = as is).
+func newPRigWrapped(t *testing.T, defLocale string, withRegistrar bool, wrap func(*fakePrefs) auth.Preferences) (*nrig, *fakePrefs) {
+	t.Helper()
 	r := &nrig{box: &mail.Recorder{}, reg: &recReg{}, store: auth.NewMemoryCredStore(),
 		t: time.Date(2026, 9, 19, 6, 0, 0, 0, time.UTC)}
 	prefs := &fakePrefs{reg: r.reg, loc: map[string]string{}}
@@ -230,6 +236,9 @@ func newPRig(t *testing.T, defLocale string, withRegistrar bool) (*nrig, *fakePr
 		t.Fatal(err)
 	}
 	o := auth.Options{Preferences: prefs, DefaultLocale: defLocale, Now: r.now}
+	if wrap != nil {
+		o.Preferences = wrap(prefs)
+	}
 	if withRegistrar {
 		o.Registrar = r.reg
 	}

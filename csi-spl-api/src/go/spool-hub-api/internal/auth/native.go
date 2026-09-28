@@ -523,6 +523,7 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 // the credential's name, as every other claim of it) and carries the
 // person's preferences.
 func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string) loginResp {
+	ctx = n.h.withSettings(ctx, sess) // one settings read for the whole answer (SPL-1100)
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
 	return loginResp{Session: claims, Redirect: safeRedirect(redirect),

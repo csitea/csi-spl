@@ -82,7 +82,9 @@ func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 	var ot *hub.OriginTenant
 	e := newEnv(t, func(o *hub.Options) {
 		hooks := store.AuthHooks{H: o.Store.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: true}, Blob: o.Blob}
-		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks,
+		// Preferences as cmd/spool wires it, so GET /session reads what it
+		// reads in production (the round-trip budget counts those reads).
+		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks, Preferences: hooks,
 			HTTP:       &http.Client{Transport: tr, Timeout: 5 * time.Second},
 			PageTenant: func(r *http.Request) string { return ot.Request(r) }})
 		o.ViewDoor = hub.ViewDoorSession

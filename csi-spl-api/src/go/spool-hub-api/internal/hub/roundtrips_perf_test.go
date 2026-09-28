@@ -86,6 +86,8 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		run    func() error
 	}{
 		{"GET /v1/view/me", 1, get("/v1/view/me")},
+		// SPL-1100: one humans read for every setting (it read the row 9 times: 14).
+		{"GET /api/v1/auth/session", 6, get("/api/v1/auth/session")},
 		{"GET /v1/view/channels", 3, get("/v1/view/channels")},
 		{"GET /v1/view/roster", 4, get("/v1/view/roster")},
 		{"GET /v1/view/topics", 3, get("/v1/view/topics")},

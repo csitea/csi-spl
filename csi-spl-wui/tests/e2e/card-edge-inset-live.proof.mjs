@@ -2,7 +2,7 @@
 //   - a message from the viewer's today shows only HH:MM, read on the
 //     VIEWER's clock (TZ, default Europe/Helsinki: the owner's), other days
 //     keep their date - checked against every card's data-ts
-//   - card text sits <= 6 px from the left and the right window edge, the
+//   - card text sits 8..10 px from the left and the right window edge, the
 //     avatar at the same inset, the header on one line
 // on the lobby, the first topic, the first DM and the first issue with
 // comments. Writes OUT/<surface>-<w>.png and OUT/results.json.
@@ -27,7 +27,9 @@ const TENANT = process.env.TENANT || 'e2e'
 const TZ_VIEW = process.env.TZ_VIEW || 'Europe/Helsinki'
 const WIDTHS = (process.env.WIDTHS || '360x740,390x844,820x1180').split(',').map((s) => s.split('x').map(Number))
 const EXPECT = process.env.EXPECT || ''
-const MAX = 6
+/* 6 px was "a bit too much" live (fd1e5be4): 10 px, about 1 mm more */
+const MIN = 8
+const MAX = 10
 if (new URL(BASE).hostname.split('.').length === 2 && TENANT !== 't1') { console.error('FATAL the apex is the t1 host: use https://<tenant>.<domain>'); process.exit(2) }
 mkdirSync(OUT, { recursive: true })
 
@@ -136,9 +138,9 @@ try {
       if (!cards.length) { console.log(`  --   ${tag}: no card with text on screen (${f.url})`); continue }
       const L = cards.map((c) => c.textL); const R = cards.map((c) => c.textR)
       const A = cards.map((c) => c.avatarL).filter((x) => x != null)
-      ok(`${tag}: text <= ${MAX}px from the left`, Math.min(...L) >= 0 && Math.max(...L) <= MAX, [Math.min(...L), Math.max(...L)])
-      ok(`${tag}: text <= ${MAX}px from the right`, Math.min(...R) >= 0 && Math.max(...R) <= MAX, [Math.min(...R), Math.max(...R)])
-      ok(`${tag}: avatar at the text inset`, A.every((x) => x >= 0 && x <= MAX), A.length ? [Math.min(...A), Math.max(...A)] : null)
+      ok(`${tag}: text ${MIN}..${MAX}px from the left`, Math.min(...L) >= MIN && Math.max(...L) <= MAX, [Math.min(...L), Math.max(...L)])
+      ok(`${tag}: text ${MIN}..${MAX}px from the right`, Math.min(...R) >= MIN && Math.max(...R) <= MAX, [Math.min(...R), Math.max(...R)])
+      ok(`${tag}: avatar at the text inset`, A.every((x) => x >= MIN && x <= MAX), A.length ? [Math.min(...A), Math.max(...A)] : null)
       ok(`${tag}: one header line`, cards.every((c) => c.headRows === 1), cards.map((c) => c.headRows))
       ok(`${tag}: no sideways scroll`, f.scrollW <= f.vw, [f.scrollW, f.vw])
       const timed = f.cards.filter((c) => c.today != null && c.time)

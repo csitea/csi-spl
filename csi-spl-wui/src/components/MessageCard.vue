@@ -1202,11 +1202,11 @@ async function save() {
    LAST in this sheet on purpose: it overrides same-specificity rules above
    (.card-grip, .msg-reaction, .msg-meta > .msg-reactions) by order. */
 @media (max-width: 820px) {
-  /* CLE-35065 (owner, topics 95adf832 + fd1e5be4): the card's text at most
-     6 px from either screen edge, "the max amount of the screen area must be
+  /* CLE-35065 (owner, topics 95adf832 + fd1e5be4): the card's text near
+     either screen edge (10 px: 6 was "a bit too much"), "the max amount of the screen area must be
      used". The header row keeps the avatar column; everything under it (the
      body, the files, the clip, the grip, the edit box) spans the whole card,
-     so the text starts under the avatar: 2 px list inset + 4 px card inset. */
+     so the text starts under the avatar: 6 px list inset + 4 px card inset. */
   .msg {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 0 8px;

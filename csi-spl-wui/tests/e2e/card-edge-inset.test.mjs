@@ -9,7 +9,8 @@
 //   text: the .msg-body content box - its left edge and its gap to the right
 //         window edge (a line wraps inside that box, so it is the text's reach)
 //   head: the avatar's left edge, and how many lines the header takes
-// Phones (360, 390, 820): 0 <= text left <= 6, 0 <= right gap <= 6, the
+// Phones (360, 390, 820): text left and right gap 8..10 (the owner: 6 was "a
+// bit too much", 1 mm more), the
 // avatar at the same inset, no sideways scroll, one header line from 390 px.
 // Desktop (1440): unchanged - text starts right of the avatar column.
 //
@@ -23,7 +24,9 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const MEASURE = !!process.env.MEASURE
-const MAX = 6
+/* 6 px was "a bit too much" live (fd1e5be4): 10 px, about 1 mm more */
+const MIN = 8
+const MAX = 10
 const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const LOBBY_TASK = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SURFACES = [
@@ -128,9 +131,9 @@ try {
       const ev = { cards: f.cards.length, textL: [minL, worstL], textR: [minR, worstR], avatarL: avatars.length ? [Math.min(...avatars), Math.max(...avatars)] : null, headRows: rows, scrollW: f.scrollW, vw: f.vw }
       if (MEASURE) { console.log(`  ${tag} ${JSON.stringify(ev)}`); continue }
       if (phone) {
-        ok(`${tag}: card text <= ${MAX}px from the left edge`, minL >= 0 && worstL <= MAX, ev)
-        ok(`${tag}: card text <= ${MAX}px from the right edge`, minR >= 0 && worstR <= MAX, ev)
-        ok(`${tag}: the avatar sits at the text inset`, avatars.every((x) => x >= 0 && x <= MAX), ev.avatarL)
+        ok(`${tag}: card text ${MIN}..${MAX}px from the left edge`, minL >= MIN && worstL <= MAX, ev)
+        ok(`${tag}: card text ${MIN}..${MAX}px from the right edge`, minR >= MIN && worstR <= MAX, ev)
+        ok(`${tag}: the avatar sits at the text inset`, avatars.every((x) => x >= MIN && x <= MAX), ev.avatarL)
         /* at 360 a sender -> recipient card with "via terminal" and a
            replies button needs ~324 px of a 308 px header: it may take a
            second line there; from 390 (the owner's phone) every header is one */

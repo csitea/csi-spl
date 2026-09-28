@@ -133,6 +133,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `043-spool-wui-mobile/` | the WUI at <= 820 px as the owner's one-panel stack (sections -> list -> item, Back = one level up), bottom composer, 44 px targets, no hover-only controls; desktop unchanged; five lanes with a file-ownership map | M3 | CLE-35022 lead (SPL-988, lanes SPL-989..993) |
 | `044-spool-open-source/` | open-sourcing csi-spl in 4 stages (split + sanitise, stranger test, launch, community): a gated one-time export into a NEW public repo (no history rewrite), the owner decisions, the go-public checklist | M3 | CLE-35047 (SPL-67, epic SPL-61) |
 | `046-spool-tenant-settings/` | Tenant settings for admins and biz_owners: the Settings layout behind a bottom-left icon; Members (users CRUD: invite, create, role, name/locale, disable, remove), Agents + fallback responders, Channels (no-fallback, archive), General (display name, default locale); permission table first | M3 | CLE-35069 (SPL-1037, epic 43) |
+| `047-spool-deployability/` | Deployability and taking spool-hub into use: a stranger self-hosting (compose, own GCP) vs buying a tenant, measured; ranked blockers, benchmark targets, a two-wave plan and the owner decisions (`deployability-analysis.md`) | M3 | CLE-35078 (SPL-57) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is

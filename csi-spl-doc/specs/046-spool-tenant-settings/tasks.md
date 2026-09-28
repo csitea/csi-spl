@@ -25,7 +25,7 @@ Spec: `spec.md`. Lane CLE-35069. `[x]` = on trunk; the sha is the commit that la
 
 ## WUI
 
-- [x] T010 `/tenant-settings` = the Settings layout (sections by permission), the bottom-left
+- [x] T010 (`ef53505b`) `/tenant-settings` = the Settings layout (sections by permission), the bottom-left
       building icon (sidebar foot) + the avatar-menu row
 - [x] T011 Members = `<TenantUsers embedded />` (the /users list and pane, shared): suspend /
       restore, name + language, last seen, resend invite
@@ -34,5 +34,10 @@ Spec: `spec.md`. Lane CLE-35069. `[x]` = on trunk; the sha is the commit that la
 - [x] T013 unit `tenant-settings.test.mjs`, e2e `tenant-settings.test.mjs` (mock bundle, 18/18; in the
       10 gate; `PROVE_RED=no-archive` turns check 11 red). Mocks load lazily
       (`tenant-users-mock.mjs`, `tenant-settings-mock.mjs`): initial JS 159.8 KB <= 160
-- [ ] T014 live proof in prd tenant `e2e`: an admin invites, changes a role, removes; a plain
-      member sees no entry and gets 403 (the control)
+- [x] T014 live proof in prd tenant `e2e` (`tests/e2e/tenant-settings-live.proof.mjs`, WUI
+      `ef53505b`, hub `fc264bab`, 2026-09-28, 19/19): the biz_owner HUM-1 opens the bottom-left
+      icon, all four sections load, invites the second test account as tester (the mail went
+      out); that member signs in and is the CONTROL - no icon, no menu row, 403 `tenant.settings`
+      on /v1/tenant/settings + /v1/tenant/channels, 403 `members.invite` on /v1/members, the page
+      says not allowed; the biz_owner changes the role to developer (the hub agrees) and removes
+      it; the member's /v1/view/me is 403 at once. The tenant ends as it began (1 member).

@@ -23,7 +23,6 @@ const (
 // list may only shrink: split one and delete its line. A NEW long function
 // fails the gate; add it here only with a reason in the commit.
 var longFuncs = map[string]bool{
-	"internal/action/action.go SendCtx":                                  true,
 	"internal/auth/cmd/auth-demo/main.go run":                            true,
 	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler":                    true,
 	"internal/auth/native.go (*native).handleLogin":                      true,

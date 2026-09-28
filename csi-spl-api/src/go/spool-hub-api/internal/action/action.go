@@ -105,65 +105,12 @@ func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 
 // SendCtx is Send with a context for the hub round trip.
 func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, error) {
-	if in.ToBox != "" && cfg.HubURL == "" {
-		return SendResult{}, fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	if err := checkSend(cfg, &in); err != nil {
+		return SendResult{}, err
 	}
-	if in.Channel != "" {
-		in.Channel = ChannelID(in.Channel)
-		switch {
-		case cfg.HubURL == "":
-			return SendResult{}, fmt.Errorf("--channel needs hub mode ($SPOOL_HUB_URL)")
-		case !channelRe.MatchString(in.Channel):
-			return SendResult{}, fmt.Errorf("--channel must match ^[a-z0-9][a-z0-9-]{0,63}$, got %q", in.Channel)
-		case in.ToBox != "":
-			return SendResult{}, fmt.Errorf("--channel posts to every member of the channel: drop --to-box")
-		case in.To != "" && in.To != Broadcast:
-			return SendResult{}, fmt.Errorf("--channel posts to every member of the channel: --to must be empty or %s, got %q", Broadcast, in.To)
-		}
-		in.To = Broadcast
-		if in.Kind == "" {
-			in.Kind = "note"
-		}
-	}
-	if in.TypedBy != "" {
-		if cfg.HubURL == "" {
-			return SendResult{}, fmt.Errorf("--typed-by needs hub mode ($SPOOL_HUB_URL)")
-		}
-		if !typedByRe.MatchString(in.TypedBy) {
-			return SendResult{}, fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
-		}
-	}
-	var atts []msg.Attachment
-	for _, id := range in.FileIDs {
-		atts = append(atts, files.RefBlob(cfg.FilesDir(), id))
-	}
-	if in.PutFile != "" {
-		a, err := files.PutFile(cfg.FilesDir(), in.PutFile)
-		if err != nil {
-			return SendResult{}, err
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range in.DirBlobs {
-		a, err := files.PutDir(cfg.FilesDir(), p)
-		if err != nil {
-			return SendResult{}, err
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range in.FileRefs {
-		a, err := files.RefFile(p)
-		if err != nil {
-			return SendResult{}, err
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range in.DirRefs {
-		a, err := files.RefDir(p)
-		if err != nil {
-			return SendResult{}, err
-		}
-		atts = append(atts, a)
+	atts, err := attachments(cfg, in)
+	if err != nil {
+		return SendResult{}, err
 	}
 	if cfg.HubURL == "" {
 		m, err := spool.New(cfg).Send(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
@@ -172,6 +119,78 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 		}
 		return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
 	}
+	return sendHub(ctx, cfg, in, atts)
+}
+
+// checkSend refuses the hub-only flags in local mode and a malformed channel
+// post or typed_by claim. A channel post is normalized in place: the channel
+// id, to ALL-0, kind note by default.
+func checkSend(cfg *config.Config, in *SendArgs) error {
+	if in.ToBox != "" && cfg.HubURL == "" {
+		return fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	}
+	if in.Channel != "" {
+		in.Channel = ChannelID(in.Channel)
+		switch {
+		case cfg.HubURL == "":
+			return fmt.Errorf("--channel needs hub mode ($SPOOL_HUB_URL)")
+		case !channelRe.MatchString(in.Channel):
+			return fmt.Errorf("--channel must match ^[a-z0-9][a-z0-9-]{0,63}$, got %q", in.Channel)
+		case in.ToBox != "":
+			return fmt.Errorf("--channel posts to every member of the channel: drop --to-box")
+		case in.To != "" && in.To != Broadcast:
+			return fmt.Errorf("--channel posts to every member of the channel: --to must be empty or %s, got %q", Broadcast, in.To)
+		}
+		in.To = Broadcast
+		if in.Kind == "" {
+			in.Kind = "note"
+		}
+	}
+	if in.TypedBy != "" {
+		if cfg.HubURL == "" {
+			return fmt.Errorf("--typed-by needs hub mode ($SPOOL_HUB_URL)")
+		}
+		if !typedByRe.MatchString(in.TypedBy) {
+			return fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
+		}
+	}
+	return nil
+}
+
+// attachments builds the message's files in a fixed order: blob ids, the
+// put file, dir blobs, file refs, dir refs.
+func attachments(cfg *config.Config, in SendArgs) ([]msg.Attachment, error) {
+	var atts []msg.Attachment
+	for _, id := range in.FileIDs {
+		atts = append(atts, files.RefBlob(cfg.FilesDir(), id))
+	}
+	var puts []string
+	if in.PutFile != "" {
+		puts = []string{in.PutFile}
+	}
+	for _, src := range []struct {
+		paths []string
+		make  func(string) (msg.Attachment, error)
+	}{
+		{puts, func(p string) (msg.Attachment, error) { return files.PutFile(cfg.FilesDir(), p) }},
+		{in.DirBlobs, func(p string) (msg.Attachment, error) { return files.PutDir(cfg.FilesDir(), p) }},
+		{in.FileRefs, files.RefFile},
+		{in.DirRefs, files.RefDir},
+	} {
+		for _, p := range src.paths {
+			a, err := src.make(p)
+			if err != nil {
+				return nil, err
+			}
+			atts = append(atts, a)
+		}
+	}
+	return atts, nil
+}
+
+// sendHub signs the composed message into the box envelope and sends it:
+// into a channel, or to one recipient.
+func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.Attachment) (SendResult, error) {
 	m, err := spool.New(cfg).Compose(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
 	if err != nil {
 		return SendResult{}, err

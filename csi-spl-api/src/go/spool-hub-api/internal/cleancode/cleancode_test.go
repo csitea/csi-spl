@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -54,6 +55,14 @@ var folded = []struct{ pattern, home, why string }{
 	{"json.NewEncoder(w).Encode(", "internal/wire/http.go", "a JSON answer goes through wire.WriteJSON / wire.WriteError (SPL-1031)"},
 }
 
+// banned are patterns no Go source may carry (SPL-1029 round 2).
+var banned = []struct {
+	re  *regexp.Regexp
+	why string
+}{
+	{regexp.MustCompile(`(?i)\bselect\s+\*\s+from\b`), "name the columns a query reads, not SELECT * (a new column is not dragged through every read)"},
+}
+
 type fn struct {
 	key                  string
 	lines, params, depth int
@@ -92,6 +101,13 @@ func TestCleanCodeGate(t *testing.T) {
 	sort.Strings(stale)
 	for _, k := range stale {
 		t.Logf("longFuncs: %q is no longer over %d lines - delete its line", k, maxFuncLines)
+	}
+	for _, b := range banned {
+		for path, src := range srcs {
+			if loc := b.re.FindStringIndex(src); loc != nil {
+				t.Errorf("%s:%d: %q: %s", path, strings.Count(src[:loc[0]], "\n")+1, src[loc[0]:loc[1]], b.why)
+			}
+		}
 	}
 	for _, fd := range folded {
 		for path, src := range srcs {

@@ -31,6 +31,14 @@ type TopicsMessager interface {
 
 var _ TopicsMessager = (*Postgres)(nil)
 
+// topicMsgCols are the messages columns the per-topic LATERAL hands to the
+// outer select of ViewTopicsMessages: exactly what it reads (the revision
+// subquery's tenant_id and msg_id, the row fields, moveCols), not SELECT *,
+// so a new messages column is not dragged through every card read.
+const topicMsgCols = `m.tenant_id, m.msg_id, m.received_at, m.env, m.edited_at, m.edited_by, m.is_parent, m.typed_by,
+				m.kind, m.kind_set_at, m.kind_set_by, m.moved_at, m.moved_by, m.moved_from_channel, m.moved_from_task,
+				m.channel, m.task_id, m.parent_task_id`
+
 // ViewTopicsMessages is two round trips whatever the number of topics: the
 // messages (one LATERAL walk per topic, newest first, on
 // messages_task_received), then their deliveries and reactions in one batch.
@@ -66,7 +74,7 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 			m.is_parent, m.typed_by, m.kind, m.kind_set_at, m.kind_set_by, `+moveCols("m")+`
 		FROM unnest($2::uuid[]) WITH ORDINALITY AS t(task_id, n)
 		CROSS JOIN LATERAL (
-			SELECT * FROM messages m
+			SELECT `+topicMsgCols+` FROM messages m
 			WHERE m.tenant_id = $1 AND m.task_id = t.task_id AND m.expires_at > $3 AND `+door+`
 			ORDER BY m.received_at DESC, m.msg_id::text DESC
 			LIMIT $4) m

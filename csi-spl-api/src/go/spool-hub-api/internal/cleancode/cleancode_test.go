@@ -45,7 +45,6 @@ var longFuncs = map[string]bool{
 	"internal/mail/mail.go (*SMTP).Send":                                 true,
 	"internal/mcp/mcp.go NewServerOpts":                                  true,
 	"internal/payments/handler.go (*Handler).checkout":                   true,
-	"internal/search/grammar.go (*Query).finish":                         true,
 	"internal/store/channels_postgres.go (*Postgres).ViewChannelStats":   true,
 	"internal/store/humans_postgres.go (*Postgres).Admit":                true,
 	"internal/store/payments_postgres.go (*Postgres).ApplyPayment":       true,

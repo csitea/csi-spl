@@ -583,9 +583,41 @@ func mk(k NodeKind, kids []*Node) *Node {
 }
 
 // finish checks type: placement, applies it, and computes the sections.
+// finish checks where type: stands, then narrows the sections to the types
+// every operator applies to, and collects the positive terms.
 func (q *Query) finish(root *Node) error {
+	typeTerm, rest, err := splitTypeTerm(root)
+	if err != nil {
+		return err
+	}
+	q.Root = mk(And, rest)
+	cand := defaultTypes(q.Root)
+	if typeTerm != nil {
+		q.Explicit = true
+		cand = typeSet(typeTerm.Types)
+	}
+	cand, fail := narrowTypes(q.Root, cand)
+	if fail != nil {
+		d := fail.Raw + " does not apply to any type the rest of the query searches"
+		if typeTerm != nil {
+			d = fail.Raw + " does not apply to " + typeTerm.Raw
+		}
+		return &Error{Pos: fail.Pos, Token: fail.Raw, Detail: d}
+	}
+	for _, t := range Types {
+		if cand[t] {
+			q.Types = append(q.Types, t)
+		}
+	}
+	q.Positive = positives(q.Root, false, nil)
+	return nil
+}
+
+// splitTypeTerm takes the one type: term off the top-level conjuncts
+// (search-v1 §3.1) and answers the rest; a second type:, or one anywhere
+// deeper, is an error.
+func splitTypeTerm(root *Node) (*Term, []*Node, error) {
 	var typeTerm *Term
-	// type: only as a top-level conjunct (search-v1 §3.1).
 	top := []*Node{root}
 	if root != nil && root.Kind == And {
 		top = root.Kids
@@ -594,7 +626,7 @@ func (q *Query) finish(root *Node) error {
 	for _, n := range top {
 		if n != nil && n.Kind == Leaf && n.Term.Op == OpType {
 			if typeTerm != nil {
-				return &Error{Pos: n.Term.Pos, Token: n.Term.Raw, Detail: "at most one type:"}
+				return nil, nil, &Error{Pos: n.Term.Pos, Token: n.Term.Raw, Detail: "at most one type:"}
 			}
 			typeTerm = n.Term
 			continue
@@ -610,46 +642,53 @@ func (q *Query) finish(root *Node) error {
 		}
 	})
 	if bad != nil {
-		return &Error{Pos: bad.Pos, Token: bad.Raw, Detail: "type: must be a top-level term (not negated, not inside OR or parentheses)"}
+		return nil, nil, &Error{Pos: bad.Pos, Token: bad.Raw, Detail: "type: must be a top-level term (not negated, not inside OR or parentheses)"}
 	}
-	q.Root = mk(And, rest)
-	cand := map[Type]bool{}
-	if typeTerm != nil {
-		q.Explicit = true
-		for _, t := range typeTerm.Types {
-			cand[t] = true
+	return typeTerm, rest, nil
+}
+
+func typeSet(ts []Type) map[Type]bool {
+	set := map[Type]bool{}
+	for _, t := range ts {
+		set[t] = true
+	}
+	return set
+}
+
+// defaultTypes are the sections searched without a type:. 1.2: an operator
+// that applies only to opt-in types (status: and the other issue fields)
+// names its type, so "status:done" searches issues without a type:issue.
+func defaultTypes(root *Node) map[Type]bool {
+	cand := typeSet(DefaultTypes)
+	implied := map[Type]bool{}
+	walk(root, func(n *Node) {
+		if n.Kind != Leaf {
+			return
 		}
-	} else {
-		for _, t := range DefaultTypes {
-			cand[t] = true
+		ap := applies(n.Term)
+		if ap == nil {
+			return
 		}
-		// 1.2: an operator that applies only to opt-in types (status: and the
-		// other issue fields) names its type, so "status:done" searches issues
-		// without a type:issue.
-		implied := map[Type]bool{}
-		walk(q.Root, func(n *Node) {
-			if n.Kind != Leaf {
+		for _, t := range ap {
+			if cand[t] {
 				return
 			}
-			ap := applies(n.Term)
-			if ap == nil {
-				return
-			}
-			for _, t := range ap {
-				if cand[t] {
-					return
-				}
-			}
-			for _, t := range ap {
-				implied[t] = true
-			}
-		})
-		if len(implied) > 0 {
-			cand = implied
 		}
+		for _, t := range ap {
+			implied[t] = true
+		}
+	})
+	if len(implied) > 0 {
+		return implied
 	}
+	return cand
+}
+
+// narrowTypes keeps the candidate types every operator term applies to; the
+// first term that leaves none is answered as fail.
+func narrowTypes(root *Node, cand map[Type]bool) (map[Type]bool, *Term) {
 	var fail *Term
-	walk(q.Root, func(n *Node) {
+	walk(root, func(n *Node) {
 		if n.Kind != Leaf || fail != nil {
 			return
 		}
@@ -669,20 +708,7 @@ func (q *Query) finish(root *Node) error {
 		}
 		cand = next
 	})
-	if fail != nil {
-		d := fail.Raw + " does not apply to any type the rest of the query searches"
-		if typeTerm != nil {
-			d = fail.Raw + " does not apply to " + typeTerm.Raw
-		}
-		return &Error{Pos: fail.Pos, Token: fail.Raw, Detail: d}
-	}
-	for _, t := range Types {
-		if cand[t] {
-			q.Types = append(q.Types, t)
-		}
-	}
-	q.Positive = positives(q.Root, false, nil)
-	return nil
+	return cand, fail
 }
 
 // StatusDoc is the status: operator's doc with the workflow's CURRENT names,

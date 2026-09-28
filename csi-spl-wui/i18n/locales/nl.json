@@ -1038,5 +1038,13 @@
     "edit_title": "Titel bewerken",
     "set_deadline": "Deadline instellen",
     "shortcuts": "C nieuw issue. Pijltjes gaan tussen cellen, Enter bewerkt (op de sleutel opent), Esc annuleert, Tab gaat verder. J en K bewegen. S status. P prioriteit. A toegewezene. L label."
+  },
+  "issues_views": {
+    "label": "Weergave",
+    "list": "Lijst",
+    "status": "Per status",
+    "collapse": "{name} inklappen",
+    "expand": "{name} uitklappen",
+    "add_in": "Nieuw issue in {name}"
   }
 }

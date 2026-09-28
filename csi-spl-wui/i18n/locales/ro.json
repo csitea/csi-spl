@@ -1038,5 +1038,13 @@
     "edit_title": "Editează titlul",
     "set_deadline": "Setează termenul",
     "shortcuts": "C problemă nouă. Săgețile trec între celule, Enter editează (pe cheie deschide), Esc anulează, Tab trece mai departe. J și K mută. S stare. P prioritate. A responsabil. L etichetă."
+  },
+  "issues_views": {
+    "label": "Vizualizare",
+    "list": "Listă",
+    "status": "După stare",
+    "collapse": "Restrânge {name}",
+    "expand": "Extinde {name}",
+    "add_in": "Problemă nouă în {name}"
   }
 }

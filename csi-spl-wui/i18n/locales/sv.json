@@ -1038,5 +1038,13 @@
     "edit_title": "Redigera titel",
     "set_deadline": "Ange deadline",
     "shortcuts": "C nytt ärende. Pilarna flyttar mellan celler, Enter redigerar (på nyckeln öppnar), Esc avbryter, Tab går vidare. J och K flyttar. S status. P prioritet. A ansvarig. L etikett."
+  },
+  "issues_views": {
+    "label": "Vy",
+    "list": "Lista",
+    "status": "Efter status",
+    "collapse": "Fäll ihop {name}",
+    "expand": "Fäll ut {name}",
+    "add_in": "Nytt ärende i {name}"
   }
 }

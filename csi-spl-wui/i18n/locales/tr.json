@@ -1038,5 +1038,13 @@
     "edit_title": "Başlığı düzenle",
     "set_deadline": "Son tarih belirle",
     "shortcuts": "C yeni kayıt. Oklar hücreler arasında gezer, Enter düzenler (anahtarda açar), Esc iptal eder, Tab ilerler. J ve K gezer. S durum. P öncelik. A atanan. L etiket."
+  },
+  "issues_views": {
+    "label": "Görünüm",
+    "list": "Liste",
+    "status": "Duruma göre",
+    "collapse": "{name} daralt",
+    "expand": "{name} genişlet",
+    "add_in": "{name} içinde yeni kayıt"
   }
 }

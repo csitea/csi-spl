@@ -54,7 +54,7 @@ const prefs = useViewPrefs()
 const uid = useId()
 const signedIn = computed(() => session.state === 'in')
 const saving = ref(false)
-const status = reactive<Record<ViewPrefKey, string>>({ message_order: '', composer_position: '' })
+const status = reactive<Record<ViewPrefKey, string>>({ message_order: '', composer_position: '', issues_view: '' })
 
 const groups = computed(() => [
   { key: 'message_order' as const, values: MESSAGE_ORDERS as readonly string[], current: prefs.messageOrder.value as string },

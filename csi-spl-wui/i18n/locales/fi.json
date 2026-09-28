@@ -1038,5 +1038,13 @@
     "edit_title": "Muokkaa otsikkoa",
     "set_deadline": "Aseta määräaika",
     "shortcuts": "C uusi tehtävä. Nuolet siirtävät solujen välillä, Enter muokkaa (avainsarakkeessa avaa), Esc peruu, Tab siirtyy eteenpäin. J ja K siirtävät. S tila. P prioriteetti. A vastuuhenkilö. L tunniste."
+  },
+  "issues_views": {
+    "label": "Näkymä",
+    "list": "Lista",
+    "status": "Tilan mukaan",
+    "collapse": "Tiivistä {name}",
+    "expand": "Laajenna {name}",
+    "add_in": "Uusi tehtävä tilaan {name}"
   }
 }

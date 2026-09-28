@@ -15,7 +15,7 @@
         <h2 data-test="issues-heading">{{ epicTitle || t('issues.title') }}</h2>
         <!-- SPL-978: "just a button with + the google way": a round accent button, the plus only.
              SPL-992: on a phone it floats bottom right (CSS), and hides while an issue is open -->
-        <button v-show="!(phone && form)" type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate">
+        <button v-show="!(phone && form)" type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate()">
           <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
       </header>
@@ -54,6 +54,24 @@
            (▲, ▼, then back to Updated newest first). On a phone the table
            scrolls sideways inside its pane. -->
       <div v-if="!phone" class="issues-tools" data-test="issues-tools">
+        <!-- SPL-1028 (owner, topic 89485c7a): Linear's views - the list (default)
+             or the same rows grouped by status; remembered per person (rdb 0072) -->
+        <div class="issues-views" role="radiogroup" :aria-label="t('issues_views.label')" data-test="issues-views">
+          <button
+            v-for="v in ISSUES_VIEWS"
+            :key="v"
+            type="button"
+            role="radio"
+            class="issues-views__opt"
+            data-test="issues-view"
+            :data-value="v"
+            :aria-checked="viewBy === v ? 'true' : 'false'"
+            @click="pickView(v)"
+          >
+            <UiIcon :name="v === 'list' ? 'list' : 'issues'" :size="16" />
+            <span>{{ t('issues_views.' + v) }}</span>
+          </button>
+        </div>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
         <p v-if="saveError && !modalOpen" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       </div>
@@ -224,13 +242,48 @@
               </td>
             </tr>
           </tbody>
-          <tbody v-for="g in shownGroups" :key="g.status || 'all'" class="issues-group" :data-status="g.status">
+          <tbody
+            v-for="g in shownGroups"
+            :key="g.status || 'all'"
+            class="issues-group"
+            data-test="issues-group"
+            :data-status="g.status"
+            :data-drop="dropStatus && dropStatus === g.status ? 'true' : undefined"
+            @dragover="onGroupDragOver($event, g.status)"
+            @dragleave="onGroupDragLeave($event, g.status)"
+            @drop="onGroupDrop($event, g.status)"
+          >
+              <!-- SPL-1028: a status group's header - its glyph, name and count;
+                   a click folds it, + files a new issue straight into it -->
+              <tr v-if="g.status" class="issues-group__h" data-test="issues-group-h" :data-status="g.status" :data-count="g.count">
+                <th colspan="10" scope="colgroup">
+                  <span class="issues-group__hin">
+                    <button
+                      type="button"
+                      class="issues-group__fold"
+                      data-test="issues-group-fold"
+                      :aria-expanded="folded.includes(g.status) ? 'false' : 'true'"
+                      :title="t(folded.includes(g.status) ? 'issues_views.expand' : 'issues_views.collapse', { name: statusLabel(g.status) })"
+                      @click="toggleFold(g.status)"
+                    >
+                      <UiIcon :name="folded.includes(g.status) ? 'chevron-down' : 'chevron-up'" :size="14" />
+                      <IssueGlyph :name="statusIcon(g.status)" :size="14" :class="'issues-st issues-st--' + g.status" />
+                      <span class="issues-status-code">{{ statusLabel(g.status) }}</span>
+                      <span class="issues-group__n" data-test="issues-group-count">{{ g.count }}</span>
+                    </button>
+                    <button type="button" class="issues-cellbtn" data-test="issues-group-add" :aria-label="t('issues_views.add_in', { name: statusLabel(g.status) })" :title="t('issues_views.add_in', { name: statusLabel(g.status) })" @click="startCreate(g.status)">
+                      <UiIcon name="plus" :size="14" />
+                    </button>
+                  </span>
+                </th>
+              </tr>
               <tr
-                v-for="issue in g.issues"
+                v-for="issue in (g.status && folded.includes(g.status) ? [] : g.issues)"
                 :key="issue.key"
                 class="issues-row"
                 role="button"
                 tabindex="0"
+                :draggable="viewBy === 'status' ? 'true' : undefined"
                 data-test="issues-row"
                 :data-key="issue.key"
                 :data-priority="issue.priority"
@@ -238,6 +291,8 @@
                 :data-selected="cursorKey === issue.key ? 'true' : 'false'"
                 @click="choose(issue)"
                 @keydown.enter.self.prevent="choose(issue)"
+                @dragstart="onRowDragStart($event, issue)"
+                @dragend="onRowDragEnd"
               >
                 <td class="issues-c-key" v-bind="cellAttrs(issue, 'key')"><span class="issues-key">{{ issue.key }}</span></td>
                 <!-- SPL-1027 UPDATE: the title is edited in place (the pencil, or
@@ -730,6 +785,8 @@ import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxStore } from '~/stores/omnibox'
+import { useViewPrefs } from '~/composables/useViewPrefs'
+import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -950,11 +1007,67 @@ const assigneeOptions = computed(() => {
   }
   return out
 })
+/* SPL-1028: the view. Signed in it is the person's (session claim, rdb 0072);
+   signed out (the mock tenant) a click still switches this page. Phones keep
+   the card list (SPL-992). */
+const viewPrefs = useViewPrefs()
+const viewLocal = ref<IssuesView | ''>('')
+const viewBy = computed<IssuesView>(() => {
+  if (phone.value) return 'list'
+  return session.state === 'in' ? viewPrefs.issuesView.value : (viewLocal.value || 'list')
+})
+async function pickView(v: IssuesView) {
+  if (session.state === 'in') { await viewPrefs.save('issues_view', v); return }
+  viewLocal.value = v
+}
 const groups = computed(() => {
   const kept = groupIssues(issues.value, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
   const rows = sortSheet(kept, sheetSort.value, { name: person, labelName: labelText })
-  return [{ status: '', count: rows.length, issues: rows }]
+  if (viewBy.value !== 'status') return [{ status: '', count: rows.length, issues: rows }]
+  /* Linear's "group by status": every status in the workflow order, its
+     count, the sheet's sort inside each group; an empty group stays as a drop target */
+  return ISSUE_STATUSES.map((status) => {
+    const inGroup = rows.filter((i) => i.status === status)
+    return { status, count: inGroup.length, issues: inGroup }
+  })
 })
+/* folded status groups: a per-browser convenience (localStorage), not a hub setting */
+const FOLD_KEY = 'spool.issues-folded'
+const folded = ref<string[]>([])
+function toggleFold(status: string) {
+  folded.value = folded.value.includes(status) ? folded.value.filter((s) => s !== status) : [...folded.value, status]
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded.value)) } catch { /* private window: this visit only */ }
+}
+/* drag a row onto another status group = that status (the Status cell does the same) */
+const dragKey = ref('')
+const dropStatus = ref('')
+function onRowDragStart(ev: DragEvent, issue: Issue) {
+  if (viewBy.value !== 'status') return
+  dragKey.value = issue.key
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', issue.key) }
+}
+function onRowDragEnd() {
+  dragKey.value = ''
+  dropStatus.value = ''
+}
+function onGroupDragOver(ev: DragEvent, status: string) {
+  if (!dragKey.value || !status) return
+  ev.preventDefault()
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+  dropStatus.value = status
+}
+function onGroupDragLeave(ev: DragEvent, status: string) {
+  const to = ev.relatedTarget
+  if (dropStatus.value === status && !(to instanceof Node && (ev.currentTarget as HTMLElement).contains(to))) dropStatus.value = ''
+}
+function onGroupDrop(ev: DragEvent, status: string) {
+  const key = dragKey.value || ev.dataTransfer?.getData('text/plain') || ''
+  onRowDragEnd()
+  if (!key || !status) return
+  ev.preventDefault()
+  const issue = issues.value.find((i) => i.key === key)
+  if (issue && issue.status !== status) void save(issue.key, { status })
+}
 const sheetColumns = computed(() => [
   { col: 'key', name: t('issues_view.col_key'), cls: 'issues-c-key' },
   { col: 'title', name: t('issues_view.col_title'), cls: 'issues-c-title' },
@@ -979,9 +1092,9 @@ watch(sheetSort, (v) => {
 })
 const rowCount = computed(() => groups.value.reduce((n, g) => n + g.count, 0))
 /* the table keeps its header and filter row when nothing matches; the note says so */
-const shownGroups = computed(() => (rowCount.value ? groups.value : []))
+const shownGroups = computed(() => (rowCount.value || viewBy.value === 'status' ? groups.value : []))
 /* J / K walk the rows in the order the sheet shows them */
-const flat = computed(() => groups.value[0].issues)
+const flat = computed(() => groups.value.flatMap((g) => (g.status && folded.value.includes(g.status) ? [] : g.issues)))
 const activeAssignee = computed(() => creating.value ? draft.assignee : (detail.value?.assignee || ''))
 const activeLabels = computed(() => creating.value ? draft.labels : (detail.value?.labels || []))
 const form = computed(() => {
@@ -1131,14 +1244,14 @@ function closeDetail() {
   pushedIssue = false
   writeIssueQuery('')
 }
-function startCreate() {
+function startCreate(status = '') {
   creating.value = true
   openKey.value = ''
   detail.value = null
   writeIssueQuery('')
   draft.title = ''
   draft.description = ''
-  draft.status = 'todo'
+  draft.status = (ISSUE_STATUSES as readonly string[]).includes(status) ? status : 'todo'
   draft.priority = PRIO_DEFAULT
   draft.assignee = ''
   draft.labels = []
@@ -1806,6 +1919,10 @@ function onDocPointer(ev: Event) {
   if (deadlineEditKey.value && !inside('[data-deadline-edit="true"]')) deadlineEditKey.value = ''
 }
 onMounted(() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
+    if (Array.isArray(raw)) folded.value = raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))
+  } catch { /* none folded */ }
   useTopicStore().close()
   useLiveFeed('pane').close()
   document.addEventListener('keydown', onDocKey)
@@ -2234,6 +2351,40 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-del-title { font-weight: 600; }
 .issues-detail-del { align-self: flex-start; }
 .issues-menu.issues-menu--modal { z-index: calc(var(--z-modal) + 1); }
+/* SPL-1028: the view switch (a segmented control) and the status groups */
+.issues-views { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; }
+.issues-views__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.issues-views__opt + .issues-views__opt { border-inline-start: 1px solid var(--color-border); }
+.issues-views__opt[aria-checked="true"] { background: var(--color-selected); color: var(--color-fg); }
+.issues-group__h th { padding: 0; text-align: start; background: var(--color-bg-2); position: static; }
+.issues-group__hin { display: flex; align-items: center; gap: 6px; padding: 4px 8px; min-width: 0; }
+.issues-group__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.issues-group__n { color: var(--color-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.issues-group[data-drop="true"] { outline: 2px dashed var(--color-accent); outline-offset: -2px; }
+.issues-row[draggable="true"] { cursor: grab; }
 .issues-detail__h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .issues-detail__title, .issues-field textarea, .issues-field input, .issues-menu__add input {
   width: 100%;

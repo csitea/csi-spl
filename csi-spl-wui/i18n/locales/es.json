@@ -1038,5 +1038,13 @@
     "edit_title": "Editar título",
     "set_deadline": "Fijar fecha límite",
     "shortcuts": "C nueva incidencia. Las flechas mueven entre celdas, Enter edita (en la clave abre), Esc cancela, Tab avanza. J y K mueven. S estado. P prioridad. A asignado. L etiqueta."
+  },
+  "issues_views": {
+    "label": "Vista",
+    "list": "Lista",
+    "status": "Por estado",
+    "collapse": "Contraer {name}",
+    "expand": "Expandir {name}",
+    "add_in": "Nueva incidencia en {name}"
   }
 }

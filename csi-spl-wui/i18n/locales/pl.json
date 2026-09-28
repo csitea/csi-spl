@@ -1038,5 +1038,13 @@
     "edit_title": "Edytuj tytuł",
     "set_deadline": "Ustaw termin",
     "shortcuts": "C nowe zgłoszenie. Strzałki przechodzą między komórkami, Enter edytuje (na kluczu otwiera), Esc anuluje, Tab przechodzi dalej. J i K przesuwają. S status. P priorytet. A osoba przypisana. L etykieta."
+  },
+  "issues_views": {
+    "label": "Widok",
+    "list": "Lista",
+    "status": "Według statusu",
+    "collapse": "Zwiń {name}",
+    "expand": "Rozwiń {name}",
+    "add_in": "Nowe zgłoszenie w {name}"
   }
 }

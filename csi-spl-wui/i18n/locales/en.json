@@ -1038,5 +1038,13 @@
     "edit_title": "Edit title",
     "set_deadline": "Set deadline",
     "shortcuts": "C new issue. Arrows move between cells, Enter edits (on the key it opens), Esc cancels, Tab moves on. J and K move. S status. P priority. A assignee. L label."
+  },
+  "issues_views": {
+    "label": "View",
+    "list": "List",
+    "status": "By status",
+    "collapse": "Collapse {name}",
+    "expand": "Expand {name}",
+    "add_in": "New issue in {name}"
   }
 }

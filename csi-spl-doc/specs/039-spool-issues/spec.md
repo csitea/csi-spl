@@ -123,9 +123,24 @@ Refined the same morning (binding where it differs from the first request):
   and `E` edits the description; `Esc` with a picker open closes the picker
   only.
 
+- **FR-012** Views (SPL-1028, owner 2026-09-28 topic 89485c7a: "the
+  Linear-style grouping of issues in views, i.e. the default is a list, but
+  there could be a view by status as well"). Above 820 px a switch in the
+  sheet's toolbar: **List** (the default, FR-010) | **By status**: one group
+  per status in the workflow order (01-eval .. 09-done, 05-blocked and
+  06-onhold included), each with its count and a + that files a new row
+  straight into it, the same CRUD rows and header sort inside. Every group is
+  shown, the empty ones too (a drop target). A group folds (per browser). A
+  row dragged onto another group takes that status (the Status cell does the
+  same). The chosen view is the person's: `humans.issues_view` (rdb 0072,
+  list | status, NULL = list), the `issues_view` session claim and `PUT
+  /api/v1/auth/preferences`, like the rdb 0070 layout keys. The column-header
+  sort stays; the removed Sort / Group-by dropdowns (topic e65c0f60) do not
+  come back. Phones keep the card list.
+
 ## MVP now / next
 
-- **Now**: FR-001..FR-011.
+- **Now**: FR-001..FR-012.
 - **Next**: sub-issue UI, several teams / prefixes per tenant, cycles and
   projects, bulk select (`X`), an undelete in the UI, archive, an activity history per issue,
   `is:issue` in the omnibox (with the search lane, CLE-34992).

@@ -140,4 +140,13 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
         `issues-crud-modal-live.proof.mjs` n=1 per env - dev t1 19/19, prd
         e2e (https://e2e.spool-hub.ai) 19/19; every row it made was deleted
         and reads 404 at the hub
+- [ ] T016 SPL-1028 (owner 2026-09-28, topic 89485c7a): views List | By
+      status (FR-012), remembered per person
+  - [x] T016a rdb 0072 humans.issues_view (`673200dd`), applied on dev and prd
+        (`applied 0072_human_issues_view.sql` both)
+  - [x] T016b hub: issues_view in auth.ViewPrefs, the session claim, PUT
+        preferences (`200b4901`); TestPreferencesIssuesView, store both drivers
+  - [ ] T016c WUI switch, status groups (count, fold, +, drag); mock e2e
+        issues-views 10/10
+  - [ ] T016d live on dev and prd, proof per env
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

@@ -30,6 +30,14 @@ describe('view pref values', () => {
     assert.match(sql, /message_order IN \('newest-first','newest-last'\)/)
     assert.match(sql, /composer_position IN \('top','bottom'\)/)
   })
+  it('SPL-1028: issues_view is list | status in the hub (auth.ViewPrefs) and rdb 0072, list first', async () => {
+    const { ISSUES_VIEWS, parseIssuesView } = await import('../../src/utils/view-prefs.mjs')
+    assert.deepEqual([...ISSUES_VIEWS], ['list', 'status'])
+    assert.match(read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go'), /PrefIssuesView: +\{"list", "status"\}/)
+    assert.match(read('../csi-spl-rdb/src/sql/postgres/spool-hub/0072_human_issues_view.sql'), /issues_view IN \('list','status'\)/)
+    for (const raw of [null, undefined, '', 'board', 'Status']) assert.equal(parseIssuesView(raw), 'list')
+    assert.equal(parseIssuesView('status'), 'status')
+  })
   it('never picked = today\'s layout: newest first, Omnibox at the top', () => {
     assert.equal(DEFAULT_MESSAGE_ORDER, 'newest-first')
     assert.equal(DEFAULT_COMPOSER_POSITION, 'top')

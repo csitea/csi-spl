@@ -8,8 +8,8 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import {
-  applyViewPref, parseComposerPosition, parseMessageOrder,
-  type ComposerPosition, type MessageOrder, type ViewPrefKey,
+  applyViewPref, parseComposerPosition, parseIssuesView, parseMessageOrder,
+  type ComposerPosition, type IssuesView, type MessageOrder, type ViewPrefKey,
 } from '~/utils/view-prefs.mjs'
 
 export function useViewPrefs() {
@@ -18,6 +18,8 @@ export function useViewPrefs() {
   const messageOrder = computed<MessageOrder>(() => parseMessageOrder(session.claims?.message_order))
   const composerPosition = computed<ComposerPosition>(() => parseComposerPosition(session.claims?.composer_position))
   const newestLast = computed(() => messageOrder.value === 'newest-last')
+  /* SPL-1028: the Issues page's view (list | status), per person */
+  const issuesView = computed<IssuesView>(() => parseIssuesView(session.claims?.issues_view))
 
   /** Store one choice (optimistic). Resolves the save's outcome. */
   async function save(key: ViewPrefKey, want: string) {
@@ -29,5 +31,5 @@ export function useViewPrefs() {
     })
   }
 
-  return { messageOrder, composerPosition, newestLast, save }
+  return { messageOrder, composerPosition, newestLast, issuesView, save }
 }

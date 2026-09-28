@@ -11,17 +11,22 @@
 //                     'newest-last'   messages appended, newest at the bottom
 //   composer_position 'top'           the Omnibox in the top bar
 //                     'bottom'        docked under the middle pane (> 820 px)
+//   issues_view       'list'          the Issues sheet, one flat list
+//                     'status'        the same rows grouped by status
+//                                     (SPL-1028, rdb 0072, Linear's view)
 //
 // The hub lists the same values in the same order (auth.ViewPrefs); the unit
 // test tests/unit/view-prefs.test.mjs pins the two lists equal.
 
 export const MESSAGE_ORDERS = Object.freeze(['newest-first', 'newest-last'])
 export const COMPOSER_POSITIONS = Object.freeze(['top', 'bottom'])
+export const ISSUES_VIEWS = Object.freeze(['list', 'status'])
 
 /** Each claim's values, default first. */
 export const VIEW_PREFS = Object.freeze({
   message_order: MESSAGE_ORDERS,
   composer_position: COMPOSER_POSITIONS,
+  issues_view: ISSUES_VIEWS,
 })
 
 export const DEFAULT_MESSAGE_ORDER = MESSAGE_ORDERS[0]
@@ -39,6 +44,10 @@ export function parseMessageOrder(raw) {
 
 export function parseComposerPosition(raw) {
   return parseViewPref('composer_position', raw)
+}
+
+export function parseIssuesView(raw) {
+  return parseViewPref('issues_view', raw)
 }
 
 /**

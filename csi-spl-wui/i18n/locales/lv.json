@@ -1038,5 +1038,13 @@
     "edit_title": "Rediģēt virsrakstu",
     "set_deadline": "Iestatīt termiņu",
     "shortcuts": "C jauns uzdevums. Bultiņas pārvietojas starp šūnām, Enter rediģē (uz atslēgas atver), Esc atceļ, Tab iet tālāk. J un K pārvietojas. S statuss. P prioritāte. A izpildītājs. L birka."
+  },
+  "issues_views": {
+    "label": "Skats",
+    "list": "Saraksts",
+    "status": "Pēc statusa",
+    "collapse": "Sakļaut {name}",
+    "expand": "Izvērst {name}",
+    "add_in": "Jauns uzdevums statusā {name}"
   }
 }

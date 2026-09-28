@@ -1038,5 +1038,13 @@
     "edit_title": "Muuda pealkirja",
     "set_deadline": "Määra tähtaeg",
     "shortcuts": "C uus teema. Nooled liiguvad lahtrite vahel, Enter muudab (võtmel avab), Esc tühistab, Tab liigub edasi. J ja K liiguvad. S olek. P prioriteet. A täitja. L silt."
+  },
+  "issues_views": {
+    "label": "Vaade",
+    "list": "Loend",
+    "status": "Oleku järgi",
+    "collapse": "Ahenda {name}",
+    "expand": "Laienda {name}",
+    "add_in": "Uus teema olekusse {name}"
   }
 }

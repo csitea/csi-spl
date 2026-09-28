@@ -1038,5 +1038,13 @@
     "edit_title": "Upraviť názov",
     "set_deadline": "Nastaviť termín",
     "shortcuts": "C nová úloha. Šípky sa pohybujú medzi bunkami, Enter upravuje (na kľúči otvára), Esc ruší, Tab pokračuje. J a K posúvajú. S stav. P priorita. A riešiteľ. L štítok."
+  },
+  "issues_views": {
+    "label": "Zobrazenie",
+    "list": "Zoznam",
+    "status": "Podľa stavu",
+    "collapse": "Zbaliť {name}",
+    "expand": "Rozbaliť {name}",
+    "add_in": "Nová úloha v {name}"
   }
 }

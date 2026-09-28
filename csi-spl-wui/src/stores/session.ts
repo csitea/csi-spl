@@ -34,6 +34,8 @@ export interface SessionClaims {
   message_order?: string | null
   /** Topic c6994436 "Omnibox position": 'top' | 'bottom'; null = never picked (top). */
   composer_position?: string | null
+  /** SPL-1028 Issues view: 'list' | 'status'; null = never picked (the list). */
+  issues_view?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -123,7 +125,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   /** Topic c6994436: mirror a layout choice (optimistic; reverted on a failed save). */
-  function setViewPref(key: 'message_order' | 'composer_position', value: string) {
+  function setViewPref(key: 'message_order' | 'composer_position' | 'issues_view', value: string) {
     if (claims.value) claims.value = { ...claims.value, [key]: value }
   }
 

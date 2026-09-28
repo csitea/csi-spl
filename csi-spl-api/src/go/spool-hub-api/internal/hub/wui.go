@@ -195,41 +195,8 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(maxFrameBytes)
 	ctx := context.WithoutCancel(r.Context())
-
-	hctx, cancel := context.WithTimeout(ctx, s.o.HelloTimeout)
-	var h wuiIn
-	err = wsjson.Read(hctx, conn, &h)
-	cancel()
-	if err != nil {
-		conn.Close(wire.CloseHelloTimeout, "hello_timeout") //nolint:errcheck
-		return
-	}
-	if h.Type != "hello" || len(h.As) > 64 {
-		conn.Close(wire.CloseBadFrame, "bad_frame") //nolint:errcheck
-		return
-	}
-	c := &wuiConn{conn: conn, tenant: t.ID, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}, peers: map[string]bool{}}
-	switch {
-	case msg.ValidID(h.As):
-		c.from = h.As
-	case strings.TrimSpace(h.As) == "":
-		c.from = s.humans.id(t.ID, "#"+uid.Hex(6))
-	default:
-		c.from = s.humans.id(t.ID, strings.TrimSpace(h.As))
-	}
-	// The member humanTenant PROVED is authoritative (spec 010); hello.as
-	// never is. CLE-34986: this re-read the session through a second
-	// membership query and dropped its error, so a failed or racing lookup
-	// left c.member "" and c.from = the client's own hello.as ("HUM-3"):
-	// the socket then spoke as that human and every read door was off.
-	switch {
-	case hum != "":
-		c.member, c.from = hum, hum
-		if !msg.ValidID(hum) {
-			c.from = s.humans.session(t.ID, hum)
-		}
-	case s.o.ViewDoor != ViewDoorOff:
-		conn.Close(wire.CloseUnauthorized, "view_door") //nolint:errcheck
+	c, ok := s.wuiHello(ctx, conn, t.ID, hum)
+	if !ok {
 		return
 	}
 	s.mu.Lock()
@@ -246,18 +213,8 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		c.close(websocket.StatusNormalClosure, "")
 	}()
-
-	tok, exp := s.slotToken(&c.upload, t.ID, WUIBox)
-	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
-		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}
-	if s.o.LobbyTaskID != "" {
-		welcome["lobby_task_id"] = s.o.LobbyTaskID
-	}
-	if err := c.write(ctx, welcome); err != nil {
+	if !s.wuiWelcome(ctx, c) {
 		return
-	}
-	for _, p := range s.onlinePeers(ctx, t.ID) { // presence snapshot (wui-live-ws.md §3.2)
-		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
 	}
 	s.humanOnline(ctx, t.ID, c.from, 1)
 	kctx, stopPing := context.WithCancel(ctx)
@@ -274,60 +231,128 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		if err := wsjson.Read(ctx, conn, &f); err != nil {
 			return
 		}
-		switch f.Type {
-		case "subscribe", "unsubscribe":
-			if f.Channel != "" {
-				s.wuiSubscribeChannel(ctx, c, f)
-				continue
-			}
-			if f.Peer != "" || f.All {
-				s.wuiSubscribeFollow(ctx, c, f)
-				continue
-			}
-			task, ok := s.lobbyAlias(f.TaskID)
-			if !ok {
-				c.write(ctx, wuiErr{"error", "lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID", ""}) //nolint:errcheck
-				continue
-			}
-			if !uuidRe.MatchString(task) {
-				c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "task_id must be a UUID or \"lobby\"", ""}) //nolint:errcheck
-				continue
-			}
-			// The read door (rdb 0028): subscribing by task_id used to be
-			// enough to follow another member's DM or a private channel
-			// live. An unknown topic is allowed - the lobby, and any new
-			// topic, has no message yet - and wants() vetoes per message.
-			if f.Type == "subscribe" {
-				switch may, found, err := s.canReadTopic(ctx, c.tenant, task, c.member); {
-				case err != nil:
-					c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "topic lookup failed", ""}) //nolint:errcheck
-					continue
-				case found && !may:
-					c.write(ctx, wuiErr{"error", "not_found", http.StatusNotFound, "no such topic", ""}) //nolint:errcheck
-					continue
-				}
-			}
-			s.mu.Lock()
-			if f.Type == "subscribe" {
-				c.subs[task] = true
-			} else {
-				delete(c.subs, task)
-			}
-			s.mu.Unlock()
-			if f.Type == "subscribe" {
-				c.write(ctx, map[string]string{"type": "subscribed", "task_id": task}) //nolint:errcheck
-			}
-		case "send":
-			// One frame, one membership lookup (store.WithMemo): the channel
-			// door and both permission checks share it, and the next frame
-			// reads it again, so a demotion still bites on an open socket.
-			s.wuiSend(store.WithMemo(ctx), c, f)
-		case "token":
-			tok, exp := s.slotToken(&c.upload, t.ID, WUIBox)
-			c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
-		default:
-			c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "unknown frame type", ""}) //nolint:errcheck
+		s.wuiFrame(ctx, c, f)
+	}
+}
+
+// wuiHello reads the browser's hello within HelloTimeout and names the
+// socket. The member humanTenant PROVED is authoritative (spec 010); hello.as
+// never is. CLE-34986: this re-read the session through a second membership
+// query and dropped its error, so a failed or racing lookup left c.member ""
+// and c.from = the client's own hello.as ("HUM-3"): the socket then spoke as
+// that human and every read door was off.
+func (s *Server) wuiHello(ctx context.Context, conn *websocket.Conn, tenant, hum string) (*wuiConn, bool) {
+	hctx, cancel := context.WithTimeout(ctx, s.o.HelloTimeout)
+	var h wuiIn
+	err := wsjson.Read(hctx, conn, &h)
+	cancel()
+	if err != nil {
+		conn.Close(wire.CloseHelloTimeout, "hello_timeout") //nolint:errcheck
+		return nil, false
+	}
+	if h.Type != "hello" || len(h.As) > 64 {
+		conn.Close(wire.CloseBadFrame, "bad_frame") //nolint:errcheck
+		return nil, false
+	}
+	c := &wuiConn{conn: conn, tenant: tenant, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}, peers: map[string]bool{}}
+	switch {
+	case msg.ValidID(h.As):
+		c.from = h.As
+	case strings.TrimSpace(h.As) == "":
+		c.from = s.humans.id(tenant, "#"+uid.Hex(6))
+	default:
+		c.from = s.humans.id(tenant, strings.TrimSpace(h.As))
+	}
+	switch {
+	case hum != "":
+		c.member, c.from = hum, hum
+		if !msg.ValidID(hum) {
+			c.from = s.humans.session(tenant, hum)
 		}
+	case s.o.ViewDoor != ViewDoorOff:
+		conn.Close(wire.CloseUnauthorized, "view_door") //nolint:errcheck
+		return nil, false
+	}
+	return c, true
+}
+
+// wuiWelcome writes the welcome (the socket's id, its upload token, the
+// lobby) and the presence snapshot (wui-live-ws.md §3.2).
+func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
+	tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox)
+	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
+		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}
+	if s.o.LobbyTaskID != "" {
+		welcome["lobby_task_id"] = s.o.LobbyTaskID
+	}
+	if err := c.write(ctx, welcome); err != nil {
+		return false
+	}
+	for _, p := range s.onlinePeers(ctx, c.tenant) {
+		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
+	}
+	return true
+}
+
+// wuiFrame answers one browser frame.
+func (s *Server) wuiFrame(ctx context.Context, c *wuiConn, f wuiIn) {
+	switch f.Type {
+	case "subscribe", "unsubscribe":
+		switch {
+		case f.Channel != "":
+			s.wuiSubscribeChannel(ctx, c, f)
+		case f.Peer != "" || f.All:
+			s.wuiSubscribeFollow(ctx, c, f)
+		default:
+			s.wuiSubscribeTask(ctx, c, f)
+		}
+	case "send":
+		// One frame, one membership lookup (store.WithMemo): the channel
+		// door and both permission checks share it, and the next frame
+		// reads it again, so a demotion still bites on an open socket.
+		s.wuiSend(store.WithMemo(ctx), c, f)
+	case "token":
+		tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox)
+		c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
+	default:
+		c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "unknown frame type", ""}) //nolint:errcheck
+	}
+}
+
+// wuiSubscribeTask (un)subscribes a socket to one topic ("lobby" is the
+// lobby). The read door (rdb 0028): subscribing by task_id used to be enough
+// to follow another member's DM or a private channel live. An unknown topic
+// is allowed - the lobby, and any new topic, has no message yet - and
+// wants() vetoes per message.
+func (s *Server) wuiSubscribeTask(ctx context.Context, c *wuiConn, f wuiIn) {
+	task, ok := s.lobbyAlias(f.TaskID)
+	if !ok {
+		c.write(ctx, wuiErr{"error", "lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID", ""}) //nolint:errcheck
+		return
+	}
+	if !uuidRe.MatchString(task) {
+		c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "task_id must be a UUID or \"lobby\"", ""}) //nolint:errcheck
+		return
+	}
+	if f.Type == "subscribe" {
+		switch may, found, err := s.canReadTopic(ctx, c.tenant, task, c.member); {
+		case err != nil:
+			c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "topic lookup failed", ""}) //nolint:errcheck
+			return
+		case found && !may:
+			c.write(ctx, wuiErr{"error", "not_found", http.StatusNotFound, "no such topic", ""}) //nolint:errcheck
+			return
+		}
+	}
+	s.mu.Lock()
+	if f.Type == "subscribe" {
+		c.subs[task] = true
+	} else {
+		delete(c.subs, task)
+	}
+	s.mu.Unlock()
+	if f.Type == "subscribe" {
+		c.write(ctx, map[string]string{"type": "subscribed", "task_id": task}) //nolint:errcheck
 	}
 }
 

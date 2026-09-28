@@ -19,7 +19,7 @@ independent opinions from CLE-35074, CLE-35076, AGY-3506, AGY-3507, AGY-3508
 and the first AGY-3510 benchmark.
 
 **Evidence rule.** Every number below carries its command or file. The tree
-is trunk `4dc8df91` (tag v1.9.2). Unless a row says otherwise, n = 1. An
+is trunk `4dc8df91` (tag v1.9.2) unless a section names its own tree. Unless a row says otherwise, n = 1. An
 **estimate** is labelled as one.
 
 ## 1. Today, measured
@@ -125,7 +125,7 @@ Rank = how many would-be users it stops x how cheap it is to remove.
 | 7 | No backup / upgrade / restore guide for compose | A | medium | S | `grep -ciE 'backup\|upgrade\|restore' README.md` -> 0 |
 | 8 | Wrong version on a self-built stack (WUI v1.1.3, hub 0.1.0-dev, tree v1.9.2) | A | medium | XS | `curl localhost:18478/version` |
 | 9 | No SMTP preflight: the prd profile starts green with a dead relay | A | medium | S | hub healthy with `SMTP_HOST=smtp.example.org` |
-| 10 | No recurring billing, VAT, invoices or terms | B | medium (business) | M | CLE-35079 B5/B7 |
+| 10 | No recurring billing, VAT, invoices or terms | B | high (business): a fixed ~$62/month prd bill vs a one-off 20 EUR per tenant (4.2) | M | CLE-35079 B5/B7 |
 | 11 | The GCP estate is not reusable (G1-G7) | A (GCP) | high, but see decision D2 | L | section 1.2 |
 
 ## 3. Benchmark targets (AGY-3510)
@@ -162,7 +162,7 @@ invoice. The owner's billing console is the one place to confirm them.
 | Artifact Registry | 2 632 MB | 2 611 MB | `gcloud artifacts repositories list --format=value(name,sizeBytes)` |
 | Secret Manager | 13 secrets | 13 secrets | `gcloud secrets list \| wc -l` |
 | VMs, static IPs, LB forwarding rules | 0 / 0 / 0 | 0 / 0 / 0 | `gcloud compute {instances,addresses,forwarding-rules} list` |
-| WUI | Firebase Hosting (static) | same | memory: WUI on Firebase since 2026-09-19 |
+| WUI | Firebase Hosting (static) | same | terraform step `019-firebase-static-site` |
 
 prd load (`ENV=prd do_spl_db_query`): **10 tenants, 11 humans, 6 681
 messages (all in the last 7 days), DB 57 MB**.
@@ -302,7 +302,7 @@ Not measured: tickets per tenant (there are no external customers yet).
 | B1 | Publish hub + web images (GHCR) per release tag; move pg-init into hub-init so the compose file needs no repo checkout; the WUI reads the public URL at runtime | M (1-2 wk) | api + WUI + CI | `curl compose.yml && docker compose up -d` healthy < 2 min |
 | B2 | Agent join tokens: a tenant admin mints a short-lived token in Tenant settings; `spool-agent join <url> <token>` seats the box; the root key stays offline | M-L | api + WUI + orc | an agent is seated from the WUI in < 1 min |
 | B3 | Prebuilt `spool` CLI binaries (release assets), so the installer needs no Go build | S-M | CI | install.sh without a toolchain |
-| B4 | Recurring billing (Stripe subscriptions), grace period, VAT/invoices, terms; then a trial | M-L | hub payments + WUI | renewal, cancel, and grace proven on dev |
+| B4 | Recurring billing (Stripe subscriptions), grace period, VAT/invoices, terms; then quotas (006 T012a) + an invite/verify mail rate limit; only then a trial (the trial costs ~nothing per tenant; it risks mail/storage abuse and the single-instance ceiling, 4.3) | M-L | hub payments + WUI | renewal, cancel, and grace proven on dev |
 | B5 | Paid -> tenant host automatic (revive workflow 40, or drop per-tenant hosts for tenant-from-identity) | M | iac/orc | `host_status` reaches `ready` with 0 operator actions |
 | B7 | Estate recovery: T077 off-project dump copy, T078 restore-into-new-instance action, T079 timed drill (O4 + big) | M | iac/orc | RTO measured, not estimated |
 | B8 | Before any paid SLA: REGIONAL Cloud SQL, >= 2 hub instances with the WS fan-out proven, an uptime check with a monthly number (O6) | M-L | iac + api | a measured availability figure |
@@ -323,5 +323,6 @@ Not measured: tickets per tenant (there are no external customers yet).
 | D2 | Is "self-host on your own GCP with our terraform" a product? | **no, not now**: compose on any VM (GCE included) is the supported self-host; the GCP estate stays Csitea's operation; byo-GCP stays "later" as `SPEC-spool-byo-gcp.md` already says |
 | D3 | Run W3 (one live 20 EUR buy + refund on prd)? | **yes**, before any marketing |
 | D4 | Publish images to GHCR under the org (B1)? | yes |
-| D5 | Billing: stay one-off 20 EUR, or move to a subscription before a trial? | subscription first, then the trial |
-| D6 | Order: Wave 1 now (W1-W8 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
+| D5 | Billing: stay one-off 20 EUR, or move to a subscription before a trial? | subscription first, then the trial: the prd bill is fixed (~$62/month, estimate, 4.2) and a one-off 20 EUR covers a tenant's share for about three months |
+| D6 | Order: Wave 1 now (W1-W11 in parallel lanes), then B2 (join tokens) as the next spec? | yes |
+| D7 | Cut the dev hub cost (~$20-45/month, estimate; W11)? | **yes, 0.5 vCPU first**: scale-to-zero would likely break the desk sidecars' WS on dev (CLE-35085's judgement, not measured) |

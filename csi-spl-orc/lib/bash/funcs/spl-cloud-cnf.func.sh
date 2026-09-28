@@ -160,6 +160,14 @@ spl_host_spool_paths() {
   printf '%s\n' "$SPL_ORG_APP-api/src/go/spool-hub-api" "$SPL_ORG_APP-api/src/bash/build.sh" .version
 }
 
+# spl_host_spool_inputs_unchanged <from> <to> -> 0 when no build input of the
+# spool binary (spl_host_spool_paths) differs between the two commits.
+spl_host_spool_inputs_unchanged() {
+  local -a paths=()
+  mapfile -t paths < <(spl_host_spool_paths)
+  git -C "$APP_PATH" diff --quiet "$1" "$2" -- "${paths[@]}" 2>/dev/null
+}
+
 # clean | dirty: whether the module's paths differ from HEAD in this tree.
 # Scoped to the module on purpose - the shared checkout is routinely dirty in
 # unrelated files, and that is no reason to rebuild.
@@ -218,6 +226,15 @@ spl_host_spool_verdict() {
     return 0
   fi
   if git -C "$APP_PATH" merge-base --is-ancestor "$rev" "$head" 2>/dev/null; then
+    # Newer commits that touch none of the build inputs make the same binary,
+    # so it is kept (CLE-35076). Rebuilding on ANY newer commit restarted
+    # every desk sidecar - dropping its hub socket - after each docs or WUI
+    # push: 422 restarts on the prd desk cron and 80 on dev by 11:05Z
+    # 2026-09-28. Only for a binary built clean, from a clean module.
+    if spl_host_spool_inputs_unchanged "$rev" "$head" && [[ "$(spl_host_spool_tree_state)" == clean ]] &&
+      [[ "$(cat "$bin.src" 2>/dev/null)" == "$rev clean" || "$mod" == false ]]; then
+      echo "keep built from ${rev:0:12}: no build input changed up to ${head:0:12}"; return 0
+    fi
     echo "build the tree (${head:0:12}) is newer than the binary (${rev:0:12})"; return 0
   fi
   if git -C "$APP_PATH" merge-base --is-ancestor "$head" "$rev" 2>/dev/null; then

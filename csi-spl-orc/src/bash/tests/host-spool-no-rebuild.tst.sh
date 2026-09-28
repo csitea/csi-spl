@@ -8,7 +8,9 @@
 #   2. same HEAD, clean module -> no build (CONTROL: the previous function
 #      builds on EVERY call)
 #   3. a modified module -> build; reverted -> build again (the stamp said dirty)
-#   4. a newer commit -> build
+#   4. a newer commit -> build; 4b. newer commits that touch no build input
+#      keep the binary (CONTROLS: a newer .version builds, a DIRTY build is
+#      not kept)
 #   5. an OLDER tree (a worktree at HEAD~1) -> REFUSED: the binary is kept, a
 #      WARN says why; SPL_SPOOL_REBUILD=1 overrides
 #   6. a commit the tree does not know -> refused
@@ -106,22 +108,43 @@ in_orc 'spl_host_spool' >/dev/null
 eq "4 a newer HEAD builds" 7 "$(builds)"
 eq "4 …stamped with it" "$H2 clean" "$(cat "$S/bin/spool.src")"
 
-# --- 5. an older tree is refused -------------------------------------------------
+# --- 4b. newer commits OUTSIDE the build inputs keep the binary (CLE-35076) -------
+echo docs >>"$A/README.md"
+g "$A" commit -qam docs
+before="$(md5sum <"$S/bin/spool")"
+in_orc 'spl_host_spool; spl_host_spool' >/dev/null
+eq "4b a newer commit outside the module builds NOTHING" 7 "$(builds)"
+eq "4b …the binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
+v="$(in_orc 'spl_host_spool_verdict "$SPL_STATE_DIR/bin/spool"')"
+grep -q "^keep built from ${H2:0:12}: no build input changed" <<<"$v" && pass "4b …and the verdict says why" || fail "4b verdict: $v"
+echo 0.0.2 >"$A/.version"
+g "$A" commit -qam version
+in_orc 'spl_host_spool' >/dev/null
+eq "4b CONTROL a newer .version (a build input) builds" 8 "$(builds)"
+H2="$(git -C "$A" rev-parse HEAD)"
+echo docs2 >>"$A/README.md"
+g "$A" commit -qam docs2
+printf '%s dirty\n' "$H2" >"$S/bin/spool.src"
+in_orc 'spl_host_spool' >/dev/null
+eq "4b CONTROL a binary built DIRTY is not kept across a newer commit" 9 "$(builds)"
+H2="$(git -C "$A" rev-parse HEAD)"
 g "$A" worktree add -q "$T/old" "$H1" 2>/dev/null
+
+# --- 5. an older tree is refused -------------------------------------------------
 before="$(md5sum <"$S/bin/spool")"
 out="$(APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
-eq "5 an OLDER tree builds nothing" 7 "$(builds)"
+eq "5 an OLDER tree builds nothing" 9 "$(builds)"
 eq "5 …the binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
 grep -q '^WARN keeping .*NEWER than this tree' <<<"$out" && pass "5 …and a WARN says why" || fail "5 no WARN: $out"
 grep -q "^rc=0 SPOOL=$S/bin/spool" <<<"$out" && pass "5 …while the caller still gets the (newer) binary" || fail "5 caller: $out"
 APP="$T/old" SPL_SPOOL_REBUILD=1 in_orc 'spl_host_spool' >/dev/null
-eq "5 SPL_SPOOL_REBUILD=1 overrides the refusal" 8 "$(builds)"
+eq "5 SPL_SPOOL_REBUILD=1 overrides the refusal" 10 "$(builds)"
 eq "5 …and the stamp says so" "$H1 clean" "$(cat "$S/bin/spool.src")"
 
 # --- 6. an unknown commit is refused ---------------------------------------------
 printf '#!/bin/sh\n# commit=%s\n' 0123456789abcdef0123456789abcdef01234567 >"$S/bin/spool"
 out="$(in_orc 'spl_host_spool')"
-eq "6 a binary from an unknown commit is not replaced" 8 "$(builds)"
+eq "6 a binary from an unknown commit is not replaced" 10 "$(builds)"
 grep -q 'does not know' <<<"$out" && pass "6 …and the WARN names it" || fail "6 no WARN: $out"
 
 # --- 7. the real reader, on a real Go binary -------------------------------------

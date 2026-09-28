@@ -95,10 +95,10 @@ const messageRooted = computed(() => target.value?.mode === 'message')
 /* The clicked message is not in the task this pane reads. It joins the
    same newest-first list, so it sits where its time puts it. */
 const messages = computed(() => {
-  const rows = messageRooted.value
-    ? [topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m))
-    : pane.newestFirst
-  return newestFirst(rows)
+  /* pane.newestFirst is already in this order (stores/live.ts sorts it with
+     the same newestFirst), so only the extra root row needs a sort (CLE-35075) */
+  if (!messageRooted.value) return pane.newestFirst
+  return newestFirst([topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m)))
 })
 /* The open topic's own title, selected at the top of this pane. */
 const heading = computed(() => {

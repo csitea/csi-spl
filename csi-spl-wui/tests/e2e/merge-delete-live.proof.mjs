@@ -233,12 +233,20 @@ try {
     if (u.startsWith(API + '/v1/messages/') && !['OPTIONS', 'GET'].includes(rq.method())) wire.push(`${rq.method()} ${u.slice(API.length)}`)
   })
   step('3 both tabs show reply two', (await rowShown(a, r2)) && (await rowShown(b, r2)))
+  /* The feed is a TransitionGroup: a leaving row waits for a paint, and a
+     background tab never paints, so the row a merge removed stayed in tab A's
+     DOM until its screenshot brought it forward. Each tab is read in front,
+     as a person would see it. */
+  await a.bringToFront()
   await click(a, `article.msg[data-msg-id="${r2}"] [data-testid=msg-menu-btn]`)
   await sleep(400)
   const offered = await click(a, '[data-testid=msg-menu-merge-prev]')
   step('3 reply two offers Merge with previous', offered)
 
-  const goneA = await until(() => rowShown(a, r2).then((v) => !v), 10000)
+  const t0 = Date.now()
+  const goneA = await until(() => rowShown(a, r2).then((v) => !v), 30000)
+  res.goneAfterMs = Date.now() - t0
+  res.shownNow = await rowShown(a, r2)
   const textA = await until(async () => {
     const t = await bodyText(a, r1)
     return /reply two/.test(t) ? t : ''
@@ -247,6 +255,7 @@ try {
   res.offscreen = await offscreen(a, r2)
   step('4 tab A: reply two is gone, reply one shows both bodies', goneA && /reply one/.test(textA || ''), { goneA, textA: String(textA || '').slice(0, 160) })
 
+  await b.bringToFront()
   const goneB = await until(() => rowShown(b, r2).then((v) => !v), 10000)
   const textB = await until(async () => {
     const t = await bodyText(b, r1)

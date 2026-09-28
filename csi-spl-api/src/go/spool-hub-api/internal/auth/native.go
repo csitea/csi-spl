@@ -420,43 +420,13 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := normEmail(req.Email)
-	// the per-email ceiling is per (email, client IP), so a
-	// stranger's wrong guesses from their address no longer lock the owner
-	// out from theirs (it was spent before the password check, keyed on the
-	// email alone: ten posts locked any known address for 15 minutes). A
-	// tenfold per-email ceiling across ALL addresses still bounds a guess
-	// spread over many IPs.
-	if email != "" && (!n.limit(w, "login-email:"+email+"|"+n.ip(r), n.cfg.LoginPerEmail) ||
-		!n.limit(w, "login-email-all:"+email, 10*n.cfg.LoginPerEmail)) {
+	if !n.loginEmailAllowed(w, r, email) {
 		return
 	}
 	ctx, cancel := n.ctx(r)
 	defer cancel()
-	var cred Credential
-	var err error
-	if email != "" {
-		cred, err = n.store.GetCredential(ctx, email)
-	} else {
-		err = ErrCredNotFound
-	}
-	if err != nil && !errors.Is(err, ErrCredNotFound) {
-		n.log.Error().Err(err).Msg("auth.native_login store")
-		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
-		return
-	}
-	if errors.Is(err, ErrCredNotFound) {
-		_ = VerifyPassword(n.dummy, req.Password) // equal timing (FR-005)
-		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
-		return
-	}
-	if VerifyPassword(cred.PasswordHash, req.Password) != nil {
-		n.log.Warn().Str("email", digest(email)).Msg("auth.native_login_fail")
-		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
-		return
-	}
-	// Past the password on purpose: this branch enumerates nothing.
-	if !cred.Verified() && n.cfg.VerifyRequired {
-		writeErr(w, http.StatusForbidden, ErrTokEmailUnverified, "confirm your email first")
+	cred, ok := n.checkPassword(ctx, w, email, req.Password)
+	if !ok {
 		return
 	}
 	now := n.h.now()
@@ -465,23 +435,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if validTenant(req.Tenant) {
 		sess.Tenant = req.Tenant
 	}
-	// The Registrar treats Identity.Email as verified and matches invites on
-	// it, so an unverified credential never reaches it (FR-004).
-	if n.h.reg != nil && cred.Verified() {
-		hum, err := n.h.reg.Register(ctx, Identity{Provider: ProviderPassword, Subject: email, Email: email,
-			Name: cred.DisplayName}, sess.Tenant)
-		if errors.Is(err, ErrNotAllowed) {
-			n.log.Warn().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.native_login_not_allowed")
-			writeErr(w, http.StatusForbidden, ErrCodeNotAllowed, "registrar refused")
-			return
-		}
-		if err != nil {
-			n.log.Error().Err(err).Msg("auth.native_login registrar")
-			writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "registrar")
-			return
-		}
-		sess.HumanID = hum
-		n.h.bindTenant(ctx, &sess)
+	if !n.registerLogin(ctx, w, cred, &sess) {
+		return
 	}
 	tok, err := signToken(n.h.sessionKey, sess)
 	if err != nil {
@@ -493,15 +448,88 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
-	// The answer names the human as the session read does; the
-	// cookie keeps the credential's name, as every other claim of it.
+	writeJSON(w, http.StatusOK, n.loginAnswer(ctx, sess, req.Redirect))
+}
+
+// loginEmailAllowed spends the per-email ceilings. The ceiling is per
+// (email, client IP), so a stranger's wrong guesses from their address no
+// longer lock the owner out from theirs (it was spent before the password
+// check, keyed on the email alone: ten posts locked any known address for 15
+// minutes). A tenfold per-email ceiling across ALL addresses still bounds a
+// guess spread over many IPs.
+func (n *native) loginEmailAllowed(w http.ResponseWriter, r *http.Request, email string) bool {
+	return email == "" || (n.limit(w, "login-email:"+email+"|"+n.ip(r), n.cfg.LoginPerEmail) &&
+		n.limit(w, "login-email-all:"+email, 10*n.cfg.LoginPerEmail))
+}
+
+// checkPassword answers the credential of email when password matches it
+// and it may sign in; otherwise it has written the refusal. An unknown email
+// costs the same hash as a wrong password and answers the same 401 (FR-005).
+func (n *native) checkPassword(ctx context.Context, w http.ResponseWriter, email, password string) (Credential, bool) {
+	var cred Credential
+	err := ErrCredNotFound
+	if email != "" {
+		cred, err = n.store.GetCredential(ctx, email)
+	}
+	if err != nil && !errors.Is(err, ErrCredNotFound) {
+		n.log.Error().Err(err).Msg("auth.native_login store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return cred, false
+	}
+	if errors.Is(err, ErrCredNotFound) {
+		_ = VerifyPassword(n.dummy, password) // equal timing (FR-005)
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
+		return cred, false
+	}
+	if VerifyPassword(cred.PasswordHash, password) != nil {
+		n.log.Warn().Str("email", digest(email)).Msg("auth.native_login_fail")
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
+		return cred, false
+	}
+	// Past the password on purpose: this branch enumerates nothing.
+	if !cred.Verified() && n.cfg.VerifyRequired {
+		writeErr(w, http.StatusForbidden, ErrTokEmailUnverified, "confirm your email first")
+		return cred, false
+	}
+	return cred, true
+}
+
+// registerLogin names the human of a verified credential through the
+// Registrar and binds the session's tenant. The Registrar treats
+// Identity.Email as verified and matches invites on it, so an unverified
+// credential never reaches it (FR-004). false has written the refusal.
+func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred Credential, sess *Session) bool {
+	if n.h.reg == nil || !cred.Verified() {
+		return true
+	}
+	hum, err := n.h.reg.Register(ctx, Identity{Provider: ProviderPassword, Subject: sess.Email, Email: sess.Email,
+		Name: cred.DisplayName}, sess.Tenant)
+	if errors.Is(err, ErrNotAllowed) {
+		n.log.Warn().Str("email", digest(sess.Email)).Str("tenant", sess.Tenant).Msg("auth.native_login_not_allowed")
+		writeErr(w, http.StatusForbidden, ErrCodeNotAllowed, "registrar refused")
+		return false
+	}
+	if err != nil {
+		n.log.Error().Err(err).Msg("auth.native_login registrar")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "registrar")
+		return false
+	}
+	sess.HumanID = hum
+	n.h.bindTenant(ctx, sess)
+	return true
+}
+
+// loginAnswer names the human as the session read does (the cookie keeps
+// the credential's name, as every other claim of it) and carries the
+// person's preferences.
+func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string) loginResp {
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
-	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
+	return loginResp{Session: claims, Redirect: safeRedirect(redirect),
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
 		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
-		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView)})
+		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView)}
 }
 
 type emailReq struct {

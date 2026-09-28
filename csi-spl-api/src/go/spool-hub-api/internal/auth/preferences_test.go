@@ -27,6 +27,7 @@ type fakePrefs struct {
 	theme map[string]string
 	key   map[string]string   // SPL-976 submit_key, nil until first set
 	rail  map[string][]string // SPL-979 rail_order, nil until first set
+	view  map[string]string   // topic c6994436, keyed "<HUM>/<key>", nil until first set
 	diag  map[string]bool     // CLE-34963 "Debug pane", nil until first set
 	name  map[string]string   // CLE-34968 display name, nil until first set
 	fail  error               // non-nil: DiagnosticsEnabled answers it
@@ -125,6 +126,28 @@ func (p *fakePrefs) SetRailOrder(_ context.Context, hum string, order []string) 
 		p.rail = map[string][]string{}
 	}
 	p.rail[hum] = order
+	return nil
+}
+
+func (p *fakePrefs) ViewPref(_ context.Context, hum, key string) (string, error) {
+	if !p.known(hum) {
+		return "", auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.view[hum+"/"+key], nil
+}
+
+func (p *fakePrefs) SetViewPref(_ context.Context, hum, key, value string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.view == nil {
+		p.view = map[string]string{}
+	}
+	p.view[hum+"/"+key] = value
 	return nil
 }
 
@@ -458,6 +481,67 @@ func TestPreferencesRailOrder(t *testing.T) {
 	}
 	if got := r.call(t, nil, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusUnauthorized {
 		t.Fatalf("no session: %d %s", got.code, got.raw)
+	}
+}
+
+// Topic c6994436: message_order and composer_position are kept on the
+// account, each admits only its own values, null clears, the two keys are
+// independent, and GET /session plus the native login answer carry both.
+func TestPreferencesViewPrefs(t *testing.T) {
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	got := r.call(t, c, http.MethodGet, "session", "")
+	for _, k := range []string{"message_order", "composer_position"} {
+		if v, ok := got.body[k]; !ok || v != nil {
+			t.Fatalf("session before: %s must answer %s null", got.raw, k)
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"message_order":"newest-last"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["message_order"] != "newest-last" {
+		t.Fatalf("put order: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["message_order"] != "newest-last" || got.body["composer_position"] != nil {
+		t.Fatalf("the order must not set the position: %s", got.raw)
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"composer_position":"bottom","message_order":"newest-first"}`)
+	if got.code != http.StatusOK || got.body["composer_position"] != "bottom" || got.body["message_order"] != "newest-first" {
+		t.Fatalf("put both: %d %s", got.code, got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK ||
+		got.body["composer_position"] != "bottom" || got.body["message_order"] != "newest-first" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for body, code := range map[string]string{
+		`{"message_order":"oldest-first"}`:                           "unsupported_message_order",
+		`{"message_order":"top"}`:                                    "unsupported_message_order",
+		`{"message_order":""}`:                                       "unsupported_message_order",
+		`{"message_order":true}`:                                     "unsupported_message_order",
+		`{"composer_position":"newest-last"}`:                        "unsupported_composer_position",
+		`{"composer_position":"Bottom"}`:                             "unsupported_composer_position",
+		`{"composer_position":"top","message_order":"sideways"}`:     "unsupported_message_order",
+		`{"message_order":"newest-last","composer_position":"left"}`: "unsupported_composer_position",
+	} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != code {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["message_order"] != "newest-first" || got.body["composer_position"] != "bottom" {
+		t.Fatalf("a refused PUT stored something: %s", got.raw)
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"message_order":null,"composer_position":null}`)
+	if got.code != http.StatusOK || got.body["message_order"] != nil || got.body["composer_position"] != nil || len(got.body) != 2 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["message_order"] != nil || got.body["composer_position"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+	if got := r.call(t, nil, http.MethodPut, "preferences", `{"message_order":"newest-last"}`); got.code != http.StatusUnauthorized {
+		t.Fatalf("no session: %d %s", got.code, got.raw)
+	}
+	// Defaults are the first value of each list: today's layout.
+	if auth.ViewPrefs[auth.PrefMessageOrder][0] != "newest-first" || auth.ViewPrefs[auth.PrefComposerPosition][0] != "top" {
+		t.Fatalf("defaults drifted: %v", auth.ViewPrefs)
 	}
 }
 

@@ -263,6 +263,25 @@ func (a AuthHooks) SetRailOrder(ctx context.Context, humanID string, order []str
 	return err
 }
 
+// ViewPref is one of the human's layout choices (topic c6994436); an unknown
+// human is auth.ErrNoHuman.
+func (a AuthHooks) ViewPref(ctx context.Context, humanID, key string) (string, error) {
+	v, err := a.H.ViewPref(ctx, humanID, key)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return v, err
+}
+
+// SetViewPref stores it ("" clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetViewPref(ctx context.Context, humanID, key, value string) error {
+	err := a.H.SetViewPref(ctx, humanID, key, value)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

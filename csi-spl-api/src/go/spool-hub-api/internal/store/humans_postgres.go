@@ -338,6 +338,34 @@ func (s *Postgres) RailOrder(ctx context.Context, humanID string) ([]string, err
 	return order, err
 }
 
+// SetViewPref: key names the column (rdb 0070); checkViewPref admits only
+// the auth.ViewPrefs keys, so the interpolated identifier is one of those.
+func (s *Postgres) SetViewPref(ctx context.Context, humanID, key, value string) error {
+	if err := checkViewPref(key, value); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET `+key+` = NULLIF($2, '') WHERE human_id = $1`, humanID, value)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) ViewPref(ctx context.Context, humanID, key string) (string, error) {
+	if err := checkViewPref(key, ""); err != nil {
+		return "", err
+	}
+	var v string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(`+key+`, '') FROM humans WHERE human_id = $1`, humanID).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return v, err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)

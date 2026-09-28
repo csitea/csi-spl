@@ -327,6 +327,41 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetRailOrder(ctx, "HUM-999999999", rev); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown human rail order: %v", err)
 			}
+			// topic c6994436 message_order / composer_position (rdb 0070)
+			for key, vals := range map[string][]string{
+				"message_order":     {"newest-last", "newest-first", ""},
+				"composer_position": {"bottom", "top", ""},
+			} {
+				if got, err := h.ViewPref(ctx, hum, key); err != nil || got != "" {
+					t.Fatalf("unset %s %q %v", key, got, err)
+				}
+				for _, v := range vals {
+					if err := h.SetViewPref(ctx, hum, key, v); err != nil {
+						t.Fatal(key, v, err)
+					}
+					if got, err := h.ViewPref(ctx, hum, key); err != nil || got != v {
+						t.Fatalf("%s %q got %q %v", key, v, got, err)
+					}
+				}
+				if err := h.SetViewPref(ctx, "HUM-999999999", key, vals[0]); !errors.Is(err, ErrNotFound) {
+					t.Fatalf("unknown human %s: %v", key, err)
+				}
+			}
+			if err := h.SetViewPref(ctx, hum, "message_order", "bottom"); err == nil {
+				t.Fatal("SetViewPref accepted another key's value")
+			}
+			if err := h.SetViewPref(ctx, hum, "submit_key = 'enter', display_name", "top"); err == nil {
+				t.Fatal("SetViewPref accepted an unknown key (it names a column)")
+			}
+			if _, err := h.ViewPref(ctx, hum, "display_name"); err == nil {
+				t.Fatal("ViewPref read a column that is not a view preference")
+			}
+			if err := h.SetViewPref(ctx, hum, "message_order", "newest-last"); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := h.ViewPref(ctx, hum, "composer_position"); got != "" {
+				t.Fatalf("message_order leaked into composer_position: %q", got)
+			}
 		})
 	}
 }

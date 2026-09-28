@@ -153,6 +153,12 @@ type Humans interface {
 	SetRailOrder(ctx context.Context, humanID string, order []string) error
 	// RailOrder returns it, nil when none, or ErrNotFound.
 	RailOrder(ctx context.Context, humanID string) ([]string, error)
+	// SetViewPref records one layout choice (rdb 0070, topic c6994436): key
+	// is an auth.ViewPrefs key (the column of that name), value one of its
+	// values or "" to clear it. Unknown human = ErrNotFound.
+	SetViewPref(ctx context.Context, humanID, key, value string) error
+	// ViewPref returns it, "" when none, or ErrNotFound.
+	ViewPref(ctx context.Context, humanID, key string) (string, error)
 	// IdentityLocale returns the picked locale of the human the (provider,
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
@@ -222,6 +228,19 @@ func checkRailOrder(order []string) error {
 		return nil
 	}
 	return errors.New("rail order must hold each rail tab exactly once")
+}
+
+// checkViewPref admits a known auth.ViewPrefs key with "" (never picked) or
+// one of its values, what rdb 0070's CHECKs admit. Postgres interpolates the
+// key as a column name, so an unknown key must never get past here.
+func checkViewPref(key, value string) error {
+	if _, ok := auth.ViewPrefs[key]; !ok {
+		return errors.New("unknown view preference " + key)
+	}
+	if value == "" || auth.IsViewPref(key, value) {
+		return nil
+	}
+	return errors.New(key + " must be one of " + strings.Join(auth.ViewPrefs[key], ","))
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

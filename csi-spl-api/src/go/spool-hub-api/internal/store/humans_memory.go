@@ -10,12 +10,13 @@ import (
 
 type memHuman struct {
 	name, email string
-	avatar      string   // file_id
-	locale      string   // preferred_locale (rdb 0017)
-	theme       string   // preferred_theme (rdb 0057); light is the light-blue palette
-	submitKey   string   // submit_key (rdb 0062, SPL-976); "" = never picked
-	railOrder   []string // rail_order (rdb 0063, SPL-979); nil = never reordered
-	diagnostics bool     // diagnostics_enabled (rdb 0038)
+	avatar      string            // file_id
+	locale      string            // preferred_locale (rdb 0017)
+	theme       string            // preferred_theme (rdb 0057); light is the light-blue palette
+	submitKey   string            // submit_key (rdb 0062, SPL-976); "" = never picked
+	railOrder   []string          // rail_order (rdb 0063, SPL-979); nil = never reordered
+	view        map[string]string // rdb 0070 message_order / composer_position; absent = never picked
+	diagnostics bool              // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
 
@@ -345,6 +346,38 @@ func (s *Memory) RailOrder(_ context.Context, humanID string) ([]string, error) 
 		return nil, nil
 	}
 	return append([]string(nil), hm.railOrder...), nil
+}
+
+func (s *Memory) SetViewPref(_ context.Context, humanID, key, value string) error {
+	if err := checkViewPref(key, value); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	if hm.view == nil {
+		hm.view = map[string]string{}
+	}
+	hm.view[key] = value
+	return nil
+}
+
+func (s *Memory) ViewPref(_ context.Context, humanID, key string) (string, error) {
+	if err := checkViewPref(key, ""); err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.view[key], nil
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {

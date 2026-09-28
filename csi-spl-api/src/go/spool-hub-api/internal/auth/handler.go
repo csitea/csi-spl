@@ -99,6 +99,13 @@ type Preferences interface {
 	// SetRailOrder stores it (nil clears), already admitted by IsRailOrder.
 	// Unknown human = ErrNoHuman.
 	SetRailOrder(ctx context.Context, humanID string, order []string) error
+	// ViewPref is one of the human's layout choices (topic c6994436): key is
+	// a ViewPrefs key, the answer one of its values, "" when never picked.
+	// Unknown human = ErrNoHuman.
+	ViewPref(ctx context.Context, humanID, key string) (string, error)
+	// SetViewPref stores it ("" clears), already admitted by IsViewPref.
+	// Unknown human = ErrNoHuman.
+	SetViewPref(ctx context.Context, humanID, key, value string) error
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -357,6 +364,11 @@ type sessionResp struct {
 	// RailOrder is Settings -> Behaviour "Left panel order" (SPL-979), null
 	// when never reordered (the WUI then draws its default order).
 	RailOrder []string `json:"rail_order"`
+	// MessageOrder and ComposerPosition are Settings -> Behaviour "Message
+	// order" / "Omnibox position" (topic c6994436), null when never picked
+	// (the WUI then keeps today's layout: newest first, Omnibox at the top).
+	MessageOrder     *string `json:"message_order"`
+	ComposerPosition *string `json:"composer_position"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -389,6 +401,8 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.PreferredTheme = h.preferredTheme(r.Context(), s)
 		out.SubmitKey = h.submitKey(r.Context(), s)
 		out.RailOrder = h.railOrder(r.Context(), s)
+		out.MessageOrder = h.viewPref(r.Context(), s, PrefMessageOrder)
+		out.ComposerPosition = h.viewPref(r.Context(), s, PrefComposerPosition)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -445,6 +459,24 @@ func (h *Handler) railOrder(ctx context.Context, s Session) []string {
 		return nil
 	}
 	return order
+}
+
+// viewPref is one stored layout choice of the session human (topic
+// c6994436), nil when unset, with no human or store, or when the read fails.
+// It rides GET /session and the native POST /login answer, like submitKey.
+func (h *Handler) viewPref(ctx context.Context, s Session, key string) *string {
+	if s.HumanID == "" || h.prefs == nil {
+		return nil
+	}
+	v, err := h.prefs.ViewPref(ctx, s.HumanID, key)
+	if err != nil {
+		h.log.Warn().Err(err).Str("key", key).Msg("auth view pref lookup")
+		return nil
+	}
+	if v == "" {
+		return nil
+	}
+	return &v
 }
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
@@ -635,6 +667,38 @@ func IsSubmitKey(key string) bool {
 	return false
 }
 
+// The layout choices of Settings -> Behaviour (topic c6994436), each a
+// humans column of the same name (rdb 0070) whose CHECK admits the same
+// values. The first value of each list is the default a human who never
+// picked one sees (the column stays NULL; the WUI applies it).
+const (
+	// PrefMessageOrder: 'newest-first' = the newest message at the top (spec
+	// 013); 'newest-last' = messages appended, the newest at the bottom.
+	PrefMessageOrder = "message_order"
+	// PrefComposerPosition: 'top' = the Omnibox in the top bar; 'bottom' =
+	// docked under the middle pane on screens wider than 820 px.
+	PrefComposerPosition = "composer_position"
+)
+
+// ViewPrefs maps each layout key to its values, default first.
+var ViewPrefs = map[string][]string{
+	PrefMessageOrder:     {"newest-first", "newest-last"},
+	PrefComposerPosition: {"top", "bottom"},
+}
+
+// viewPrefKeys is ViewPrefs' keys in a fixed order (the PUT answer and logs).
+var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition}
+
+// IsViewPref reports whether value is one of key's ViewPrefs values, exactly.
+func IsViewPref(key, value string) bool {
+	for _, v := range ViewPrefs[key] {
+		if value == v {
+			return true
+		}
+	}
+	return false
+}
+
 // RailTabs are the reorderable left-rail entries (SPL-979) in their default
 // order: channels, direct messages, issues, topics, flow, archive (SPL-983)
 // and the event log last (owner 2026-09-27, topic 116646c8) (the admin-only Users tab stays last and is not one of
@@ -679,7 +743,8 @@ func isPermutation(order, of []string) bool {
 // preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it;
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
-// legacy six, SPL-983), or null.
+// legacy six, SPL-983), or null; message_order and composer_position (topic
+// c6994436) are one of their ViewPrefs values exactly, or null.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
@@ -687,6 +752,16 @@ type preferencesReq struct {
 	DisplayName        json.RawMessage `json:"display_name"`
 	SubmitKey          json.RawMessage `json:"submit_key"`
 	RailOrder          json.RawMessage `json:"rail_order"`
+	MessageOrder       json.RawMessage `json:"message_order"`
+	ComposerPosition   json.RawMessage `json:"composer_position"`
+}
+
+// raw is the request's JSON for one ViewPrefs key.
+func (q preferencesReq) raw(key string) json.RawMessage {
+	if key == PrefMessageOrder {
+		return q.MessageOrder
+	}
+	return q.ComposerPosition
 }
 
 // putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
@@ -711,9 +786,24 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
 	rawKey := strings.TrimSpace(string(req.SubmitKey))
 	rawRail := strings.TrimSpace(string(req.RailOrder))
-	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" && rawRail == "" {
+	// view holds each present layout key's value ("" = null, clear it).
+	view := map[string]string{}
+	for _, k := range viewPrefKeys {
+		raw := strings.TrimSpace(string(req.raw(k)))
+		if raw == "" {
+			continue
+		}
+		v := ""
+		if raw != "null" && (json.Unmarshal(req.raw(k), &v) != nil || !IsViewPref(k, v)) {
+			writeErr(w, http.StatusBadRequest, "unsupported_"+k,
+				k+" must be one of "+strings.Join(ViewPrefs[k], ","))
+			return
+		}
+		view[k] = v
+	}
+	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" && rawRail == "" && len(view) == 0 {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null) or rail_order (the rail ids or null) is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null) or composer_position (top, bottom or null) is required")
 		return
 	}
 	loc := ""
@@ -830,6 +920,20 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		}
 		h.log.Info().Str("human_id", s.HumanID).Strs("rail_order", rail).Msg("auth.preferences_set")
 		out["rail_order"] = rail
+	}
+	for _, k := range viewPrefKeys {
+		v, ok := view[k]
+		if !ok {
+			continue
+		}
+		if !h.storePref(w, h.prefs.SetViewPref(r.Context(), s.HumanID, k, v)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Str(k, v).Msg("auth.preferences_set")
+		out[k] = nil
+		if v != "" {
+			out[k] = v
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

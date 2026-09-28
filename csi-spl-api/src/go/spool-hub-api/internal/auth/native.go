@@ -403,6 +403,10 @@ type loginResp struct {
 	SubmitKey *string `json:"submit_key"`
 	// RailOrder as GET /session answers it (SPL-979), null when unset.
 	RailOrder []string `json:"rail_order"`
+	// MessageOrder and ComposerPosition as GET /session answers them (topic
+	// c6994436), null when unset.
+	MessageOrder     *string `json:"message_order"`
+	ComposerPosition *string `json:"composer_position"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -493,7 +497,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims.Name = n.h.shownName(ctx, sess)
 	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
-		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess)})
+		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
+		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition)})
 }
 
 type emailReq struct {

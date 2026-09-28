@@ -86,7 +86,7 @@ peers estimated 2-5 days (AGY-3506/3507/3508).
 | **buyer signs in** | **refused on prd** until an operator runs `do_spl_hub_invite` | `paidTx` writes only the tenant row; prd `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: "false"` |
 | tenant host `<slug>.spool-hub.ai` | stays `pending` for ever: workflow 40 is paused | `.github/workflows/40_tenant-host-reconcile.yml` header |
 | live on prd | **0 checkouts ever**; all 10 prd tenants `billing_status=manual` | `payment_checkouts` empty |
-| billing model | one-off 20 EUR PaymentIntent; no renewal or grace timer; no VAT/invoice/terms page | 006 T012a/T013a Planned |
+| billing model | one-off 20 EUR PaymentIntent; no renewal; refund/cancel -> `unpaid`, failed -> `grace` but the grace window is not timed; no VAT/invoice/terms page | `billing.MapEvent`; 006 T012a/T013a Planned |
 | buy page discoverability | nothing links to `/checkout` | `curl -s https://spool-hub.ai/ \| grep -ic 'checkout\|buy\|pricing'` -> 0 |
 
 Operator actions per sale today: **1 required** (the invite) and 1 optional
@@ -105,7 +105,7 @@ there is no in-WUI "connect an agent" flow.
 |---|---|---|---|
 | time to first human message | **~6.5 min** (measured) | days (estimate), after a fork | unbounded (operator invite) |
 | operator actions | 0 | n/a (they are the operator) | 1 per sale |
-| agent seating | manual CLI, 5 steps; installer refuses | same | CLI + root key; installer works |
+| agent seating | manual CLI, 5 steps; installer refuses | same | CLI + root key (installer against a bought tenant not measured) |
 | blocked by our estate? | no | **yes** (G1-G7) | n/a |
 | proven in production | CI workflow 50 on every push | no | **no** (0 prd checkouts) |
 
@@ -156,7 +156,7 @@ hub Cloud Run service runs as one 1 vCPU / 512 MiB instance (commit
 
 | # | change | removes | effort | lane | metric |
 |---|---|---|---|---|---|
-| W1 | `paidTx` writes a `tenant_invites` row (buyer email, owner) in the same transaction | blocker 1 | S (~0.5 d) | hub (payments/store) | a paid test buyer signs in with 0 operator actions |
+| W1 | `paidTx` writes a `tenant_invites` row (checkout email, role `biz_owner`) in the same transaction; its `expires_at` is at least the claim TTL; the claim page says "sign in with <email>" (`admitTx` admits only that verified email) | blocker 1 | S (~0.5 d) | hub (payments/store) + WUI copy | a paid test buyer signs in with the checkout email and lands as `biz_owner`, 0 operator actions; a different email is refused |
 | W2 | Checkout copy: drop "being prepared"; say where the tenant is. Add a "Buy a workspace" link + a price line on the landing and login pages | blocker 5 | XS | WUI | `curl -s https://spool-hub.ai/ \| grep -ic checkout` >= 1 |
 | W3 | One owner-run live buy + refund on prd | blocker 3 | 30 min owner | owner | 1 prd checkout paid, refunded -> `unpaid` |
 | W4 | `do_spl_desk_pin` / install.sh accept any `SPOOL_HUB_URL` when told it is self-hosted (no cnf match, no ENV) | blocker 2 | S | orc (installer) | the stranger test seats an agent with install.sh |
@@ -173,7 +173,7 @@ hub Cloud Run service runs as one 1 vCPU / 512 MiB instance (commit
 | B2 | Agent join tokens: a tenant admin mints a short-lived token in Tenant settings; `spool-agent join <url> <token>` seats the box; the root key stays offline | M-L | api + WUI + orc | an agent is seated from the WUI in < 1 min |
 | B3 | Prebuilt `spool` CLI binaries (release assets), so the installer needs no Go build | S-M | CI | install.sh without a toolchain |
 | B4 | Recurring billing (Stripe subscriptions), grace period, VAT/invoices, terms; then a trial | M-L | hub payments + WUI | renewal, cancel, and grace proven on dev |
-| B5 | Paid -> tenant host automatic (revive workflow 40, or drop per-tenant hosts for tenant-from-identity) | M | iac/orc | `host_status` reaches `live` with 0 operator actions |
+| B5 | Paid -> tenant host automatic (revive workflow 40, or drop per-tenant hosts for tenant-from-identity) | M | iac/orc | `host_status` reaches `ready` with 0 operator actions |
 | B6 | Only if D2 = yes: parameterise the GCP estate (project/resource names from cnf, org optional, a blank cnf template, env names free) | L (2-3 wk) | iac + cnf | a second org stands up with a documented runbook |
 
 ### 5.3 Success metrics for SPL-57

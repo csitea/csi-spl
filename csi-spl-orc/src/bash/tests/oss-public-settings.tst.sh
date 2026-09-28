@@ -50,7 +50,7 @@ G
 chmod +x "$T/bin/gh"; export PATH="$T/bin:$PATH" GH_STATE="$S"
 reset() { echo "$1" >"$S/private"; echo "write true" >"$S/tok"; echo "$2" >"$S/runners"; rm -f "$S/fork" "$S/pvr" "$S/ss" "$S/log" "$S/wf/"*
           printf 'on:\n  push:\njobs:\n  a:\n    runs-on: [self-hosted, x]\n' >"$S/wf/10.yml"
-          printf 'on:\n  pull_request:\njobs:\n  a:\n    runs-on: ubuntu-latest\n' >"$S/wf/11.yml"
+          printf '# the self-hosted runners are never reached from here\non:\n  pull_request:\njobs:\n  a:\n    runs-on: ubuntu-latest\n' >"$S/wf/11.yml"
           echo "selected true" >"$S/grp"; echo "o/app/.github/workflows/10.yml@refs/heads/master" >"$S/gwf"; }
 act() { ( LOGF="$T/log"; : >"$LOGF"
     do_log() { printf '%s\n' "$*" >>"$LOGF"; }

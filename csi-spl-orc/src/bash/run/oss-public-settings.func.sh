@@ -41,7 +41,7 @@ do_oss_public_settings() {
   for wf in $(gh api "repos/$pub/contents/.github/workflows?ref=$branch" --jq '.[].name'); do
     body="$(gh api -H 'Accept: application/vnd.github.raw' "repos/$pub/contents/.github/workflows/$wf?ref=$branch")" || { _oss_bad "cannot read $wf"; continue; }
     grep -qE '^[[:space:]]*pull_request_target[[:space:]]*:?' <<<"$body" && _oss_bad "$wf triggers on pull_request_target"
-    grep -qE '^[[:space:]]*pull_request[[:space:]]*:?' <<<"$body" && grep -q 'self-hosted' <<<"$body" \
+    grep -qE '^[[:space:]]*pull_request[[:space:]]*:?' <<<"$body" && grep -qE '^[[:space:]]*runs-on:.*self-hosted' <<<"$body" \
       && _oss_bad "$wf runs on pull_request AND names a self-hosted runner"
   done
   ((bad)) || _oss_ok "no workflow on $branch reaches a self-hosted runner from a pull request, none uses pull_request_target"

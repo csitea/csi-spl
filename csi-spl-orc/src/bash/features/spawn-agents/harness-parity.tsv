@@ -1,0 +1,115 @@
+# harness-parity.tsv - every file of the frozen box engine's spawn-agents feature
+# (frozen at 844b088) and where its capability lives in THIS feature
+# (specs/048-agent-harness-parity §3.1). Columns: reference path, disposition,
+# target (a path relative to this feature dir, a spool issue key for
+# deferred, or the reason for excluded). tests/test-harness-parity.sh checks it.
+FROZEN.md	excluded	the freeze notice itself: this feature is the canonical copy
+assets/commands/agy-spawn.md	ported	assets/commands/agy-spawn.md
+assets/commands/claude-spawn.md	ported	assets/commands/claude-spawn.md
+assets/commands/grok-spawn.md	ported	assets/commands/grok-spawn.md
+assets/commands/qwen-spawn.md	ported	assets/commands/qwen-spawn.md
+assets/commands/riname.md	ported	assets/commands/riname.md
+assets/commands/spawn-an-agent.md	ported	assets/commands/spawn-an-agent.md
+assets/commands/tmux-close-window.md	ported	assets/commands/tmux-close-window.md
+assets/defaults.env	replaced	../spool-install/install.sh
+assets/skills/agent-msg/SKILL.md	ported	assets/skills/agent-msg/SKILL.md
+assets/skills/exit-clean/SKILL.md	ported	assets/skills/exit-clean/SKILL.md
+assets/skills/kill-your-self/SKILL.md	ported	assets/skills/kill-your-self/SKILL.md
+assets/tmux-agent-status.conf	ported	assets/tmux-agent-status.conf
+feature.sh	replaced	../spool-install/install.sh
+lib/msg-bridge.sh	replaced	scripts/spool-send.sh
+lib/msg.sh	replaced	scripts/spool-send.sh
+lib/notice-strip.inc.sh	replaced	lib/spool-notify.inc.sh
+one-off/2026-09-02-spawn-prompt-ff-race-dominant-mechanism.py	excluded	one-off investigation script, kept in the frozen history
+one-off/2026-09-02-spawn-prompt-two-process-fixes.py	excluded	one-off investigation script, kept in the frozen history
+run/git-mode-churn.func.sh	excluded	the ./run wrapper of an excluded script
+run/hydrate-worktree.func.sh	excluded	the ./run wrapper of an excluded script
+run/kill-your-self-report.func.sh	deferred	SPL-1160
+run/next-agent-id.func.sh	replaced	scripts/next-agent-id.sh
+run/normalize-acls.func.sh	excluded	the ./run wrapper of an excluded script
+run/pane-poke-selftest.func.sh	excluded	the ./run wrapper of an excluded script
+run/restore-agy.func.sh	deferred	SPL-1160
+run/restore-claude-plain.func.sh	deferred	SPL-1160
+run/restore-claude.func.sh	deferred	SPL-1160
+run/restore-grok.func.sh	deferred	SPL-1160
+run/restore-qwen.func.sh	deferred	SPL-1160
+run/spawn-agy.func.sh	replaced	scripts/spawn-agy.sh
+run/spawn-claude-chain.func.sh	deferred	SPL-1160
+run/spawn-claude-task.func.sh	deferred	SPL-1160
+run/spawn-claude.func.sh	replaced	scripts/spawn-claude.sh
+run/spawn-grok-chain.func.sh	deferred	SPL-1160
+run/spawn-grok-task.func.sh	deferred	SPL-1160
+run/spawn-grok.func.sh	replaced	scripts/spawn-grok.sh
+run/spawn-qwen.func.sh	replaced	scripts/spawn-qwen.sh
+run/spawn-window.func.sh	replaced	scripts/spawn-window.sh
+run/trust-workdir.func.sh	replaced	scripts/trust-workdir.sh
+scripts/agent-name.sh	replaced	lib/spool-env.inc.sh
+scripts/agent-state.inc.sh	deferred	SPL-1160
+scripts/agent-top.sh	deferred	SPL-1160
+scripts/agent-watch.sh	deferred	SPL-1160
+scripts/git-mode-churn.sh	excluded	box maintenance of shared checkouts (mode-bit churn), not part of an agent harness
+scripts/hydrate-worktree.sh	excluded	box maintenance (pnpm store hydration of a new worktree)
+scripts/inbox-send.sh	replaced	scripts/spool-send.sh
+scripts/inject-agy.sh	replaced	scripts/spool-notify.sh
+scripts/inject-grok.sh	replaced	scripts/spool-notify.sh
+scripts/inject-qwen.sh	replaced	scripts/spool-notify.sh
+scripts/kill-your-self-report.sh	deferred	SPL-1160
+scripts/next-agent-id.sh	ported	scripts/next-agent-id.sh
+scripts/normalize-acls.sh	excluded	box maintenance of shared checkouts (ACLs), not part of an agent harness
+scripts/outbox-watch.sh	replaced	scripts/spool-notify.sh
+scripts/pane-poke-selftest.sh	excluded	one-box diagnostic of the old poke path, replaced by the spool-notify tests
+scripts/pane-scan.sh	deferred	SPL-1160
+scripts/restore-agy.sh	deferred	SPL-1160
+scripts/restore-claude-plain.sh	deferred	SPL-1160
+scripts/restore-claude.sh	deferred	SPL-1160
+scripts/restore-grok.sh	deferred	SPL-1160
+scripts/restore-qwen.sh	deferred	SPL-1160
+scripts/riname.sh	ported	scripts/riname.sh
+scripts/spawn-agy.sh	ported	scripts/spawn-agy.sh
+scripts/spawn-claude-chain.sh	deferred	SPL-1160
+scripts/spawn-claude-task.sh	deferred	SPL-1160
+scripts/spawn-claude.sh	ported	scripts/spawn-claude.sh
+scripts/spawn-core.inc.sh	ported	scripts/spawn-core.inc.sh
+scripts/spawn-grok-chain.sh	deferred	SPL-1160
+scripts/spawn-grok-task.sh	deferred	SPL-1160
+scripts/spawn-grok.sh	ported	scripts/spawn-grok.sh
+scripts/spawn-qwen.sh	ported	scripts/spawn-qwen.sh
+scripts/spawn-window.sh	ported	scripts/spawn-window.sh
+scripts/tmux-close-window.sh	ported	scripts/tmux-close-window.sh
+scripts/tmux-sort-windows.sh	deferred	SPL-1160
+scripts/trust-workdir.sh	ported	scripts/trust-workdir.sh
+tests/fixtures/fake-spawn-claude.sh	deferred	SPL-1160
+tests/fixtures/pane-agy-idle.txt	deferred	SPL-1160
+tests/fixtures/pane-agy-typed.txt	deferred	SPL-1160
+tests/fixtures/pane-claude-dim.txt	deferred	SPL-1160
+tests/fixtures/pane-claude-idle.txt	deferred	SPL-1160
+tests/fixtures/pane-grok-idle.txt	deferred	SPL-1160
+tests/run-all.sh	replaced	tests/run-all-tests.sh
+tests/test-agent-name-through-symlink.sh	replaced	tests/test-hygiene.sh
+tests/test-agent-top.sh	deferred	SPL-1160
+tests/test-agent-winch.sh	deferred	SPL-1160
+tests/test-badge-canonical.sh	deferred	SPL-1160
+tests/test-box-doctor.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-env-base-dirs.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-env-multi-box.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-env-parse-only.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-env-size-runas.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-env.sh	replaced	lib/spool-env.inc.sh
+tests/test-box-tag.sh	replaced	tests/test-tmux-close-window.sh
+tests/test-git-mode-churn.sh	excluded	tests an excluded piece (git-mode-churn)
+tests/test-hydrate-worktree.sh	excluded	tests an excluded piece (hydrate-worktree)
+tests/test-inbox-send-prompt.sh	replaced	tests/test-spool-send.sh
+tests/test-inbox-send-resolve.sh	replaced	tests/test-spool-send.sh
+tests/test-next-agent-id.sh	ported	tests/test-next-agent-id.sh
+tests/test-normalize-acls-git-clean.sh	excluded	tests an excluded piece (normalize-acls)
+tests/test-normalize-acls.sh	excluded	tests an excluded piece (normalize-acls)
+tests/test-outbox-watch.sh	replaced	tests/test-spool-notify.sh
+tests/test-pane-scan.sh	deferred	SPL-1160
+tests/test-riname.sh	replaced	tests/test-spawn-window-riname.sh
+tests/test-spawn-parity.sh	replaced	tests/test-spawn-dry-run.sh
+tests/test-spawn-window-pane-id.sh	replaced	tests/test-spawn-window-riname.sh
+tests/test-spawn-window-size.sh	replaced	tests/test-spawn-window-riname.sh
+tests/test-spawn-wrapper.sh	replaced	tests/test-spool-agent.sh
+tests/test-tmux-close-window.sh	ported	tests/test-tmux-close-window.sh
+tests/test-tmux-rc-isolation.sh	replaced	tests/lib.inc.sh
+tests/test-tmux-utf8.sh	deferred	SPL-1160

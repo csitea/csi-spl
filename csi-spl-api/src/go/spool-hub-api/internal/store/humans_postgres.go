@@ -456,20 +456,25 @@ func (s *Postgres) IdentityLocale(ctx context.Context, provider, subject string)
 
 func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string]string, error) {
 	out := map[string]string{}
-	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
+	r := tenantAvatarsRead(tenant, out)
+	if err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// tenantAvatarsRead is TenantAvatars' statement, shared with ViewRoster's batch.
+func tenantAvatarsRead(tenant string, out map[string]string) tenantRead {
+	return tenantRead{sql: `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`,
-		[]any{tenant}, func(rows pgx.Rows) error {
+		args: []any{tenant}, each: func(rows pgx.Rows) error {
 			var id, fid string
 			if err := rows.Scan(&id, &fid); err != nil {
 				return err
 			}
 			out[id] = fid
 			return nil
-		})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+		}}
 }
 
 // unverifyIdentity is a test hook: see Memory.unverifyIdentity.

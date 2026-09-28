@@ -111,10 +111,19 @@ func (s *Memory) RevokeInvite(_ context.Context, tenant, email string) error {
 
 func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, error) {
 	out := []Member{}
-	err := s.queryTenant(ctx, tenant, `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), m.role,
+	r := listMembersRead(tenant, &out)
+	if err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// listMembersRead is ListMembers' statement, shared with ViewRoster's batch.
+func listMembersRead(tenant string, out *[]Member) tenantRead {
+	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), m.role,
 			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 ORDER BY m.created_at, m.human_id`, []any{tenant}, func(rows pgx.Rows) error {
+		WHERE m.tenant_id = $1 ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var m Member
 		var seen *time.Time
 		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen); err != nil {
@@ -123,13 +132,9 @@ func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, er
 		if seen != nil {
 			m.LastSeen = seen.UTC()
 		}
-		out = append(out, m)
+		*out = append(*out, m)
 		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	}}
 }
 
 func (s *Postgres) ListInvites(ctx context.Context, tenant string) ([]PendingInvite, error) {

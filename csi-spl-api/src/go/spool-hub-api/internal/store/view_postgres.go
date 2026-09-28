@@ -28,14 +28,21 @@ func pgLimit(n int) int {
 
 func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, error) {
 	var out []ViewBox
-	err := s.queryTenant(ctx, tenant, `SELECT p.box_id, p.pubkey, p.revoked_at IS NOT NULL, b.last_hello_at,
+	r := viewBoxesRead(tenant, &out)
+	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
+	return out, err
+}
+
+// viewBoxesRead is ViewBoxes' statement, shared with ViewRoster's batch.
+func viewBoxesRead(tenant string, out *[]ViewBox) tenantRead {
+	return tenantRead{sql: `SELECT p.box_id, p.pubkey, p.revoked_at IS NOT NULL, b.last_hello_at,
 			COALESCE(array_agg(r.agent_id ORDER BY r.agent_id) FILTER (WHERE r.agent_id IS NOT NULL), '{}')
 		FROM pins p
 		LEFT JOIN boxes b ON b.tenant_id = p.tenant_id AND b.box_id = p.box_id
 		LEFT JOIN roster r ON r.tenant_id = p.tenant_id AND r.box_id = p.box_id
 		WHERE p.tenant_id = $1
 		GROUP BY p.box_id, p.pubkey, p.revoked_at, b.last_hello_at
-		ORDER BY p.box_id`, []any{tenant}, func(rows pgx.Rows) error {
+		ORDER BY p.box_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var v ViewBox
 		var pub []byte
 		var hello *time.Time
@@ -46,10 +53,9 @@ func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, err
 		if hello != nil {
 			v.LastHelloAt = *hello
 		}
-		out = append(out, v)
+		*out = append(*out, v)
 		return nil
-	})
-	return out, err
+	}}
 }
 
 // canonUUIDRe is a uuid as Postgres prints it (uuid::text). A task or parent

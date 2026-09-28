@@ -164,13 +164,13 @@ type viewBox struct {
 }
 
 func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t store.Tenant) {
-	boxes, err := s.o.Store.ViewBoxes(r.Context(), t.ID)
+	rs, err := s.readRoster(r.Context(), t.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
 		return
 	}
 	out := []viewBox{}
-	for _, b := range boxes {
+	for _, b := range rs.Boxes {
 		v := viewBox{BoxID: b.BoxID, PubKey: base64.StdEncoding.EncodeToString(b.PubKey), Revoked: b.Revoked, Agents: b.Agents}
 		if v.Agents == nil {
 			v.Agents = []string{}
@@ -186,12 +186,29 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		}
 		out = append(out, v)
 	}
-	humans, err := s.viewHumans(r, t.ID)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
-		return
+	writeJSON(w, http.StatusOK, map[string]any{"boxes": out, "humans": viewHumans(rs)})
+}
+
+// readRoster is the roster's three reads: in ONE store call when the store
+// batches them (store.RosterReader, SPL-1111: one round trip, it was three),
+// else one by one. A store without the 010 tables has no avatars (and so
+// lists no humans); one without a member directory names no one.
+func (s *Server) readRoster(ctx context.Context, tenant string) (rs store.Roster, err error) {
+	if rr, ok := s.o.Store.(store.RosterReader); ok {
+		return rr.ViewRoster(ctx, tenant)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"boxes": out, "humans": humans})
+	if rs.Boxes, err = s.o.Store.ViewBoxes(ctx, tenant); err != nil {
+		return rs, err
+	}
+	if h, ok := s.o.Store.(store.Humans); ok {
+		if rs.Avatars, err = h.TenantAvatars(ctx, tenant); err != nil {
+			return rs, err
+		}
+	}
+	if md, ok := s.o.Store.(store.MemberDirectory); ok {
+		rs.Members, err = md.ListMembers(ctx, tenant)
+	}
+	return rs, err
 }
 
 type viewHuman struct {
@@ -210,31 +227,17 @@ type viewHuman struct {
 // (view-v1 §4.1; 010 T044): a file_id the WUI loads with GET /v1/files/{id}
 // on this same tenant host, null = draw the deterministic default. Members
 // of this tenant only; a store without the 010 tables lists none.
-func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error) {
+func viewHumans(rs store.Roster) []viewHuman {
 	out := []viewHuman{}
-	h, ok := s.o.Store.(store.Humans)
-	if !ok {
-		return out, nil
-	}
-	avatars, err := h.TenantAvatars(r.Context(), tenant)
-	if err != nil {
-		return nil, err
-	}
 	names := map[string]string{}
 	owners := map[string]bool{}
-	if md, ok := s.o.Store.(store.MemberDirectory); ok {
-		members, err := md.ListMembers(r.Context(), tenant)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range members {
-			names[m.HumanID] = strings.TrimSpace(m.DisplayName)
-			if m.Role == rbac.BizOwner && !m.Disabled {
-				owners[m.HumanID] = true
-			}
+	for _, m := range rs.Members {
+		names[m.HumanID] = strings.TrimSpace(m.DisplayName)
+		if m.Role == rbac.BizOwner && !m.Disabled {
+			owners[m.HumanID] = true
 		}
 	}
-	for id, fid := range avatars {
+	for id, fid := range rs.Avatars {
 		v := viewHuman{HumanID: id}
 		if fid != "" {
 			f := fid
@@ -249,7 +252,7 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 	/* newest member first, by the HUM-<n> the hub hands out in order
 	   (so HUM-10 before HUM-2, which a plain string sort gets backwards). */
 	sort.Slice(out, func(i, j int) bool { return humNumber(out[i].HumanID) > humNumber(out[j].HumanID) })
-	return out, nil
+	return out
 }
 
 // humNumber is the <n> of a HUM-<n> member id; 0 for anything else (a 010 id

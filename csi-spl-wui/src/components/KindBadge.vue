@@ -34,8 +34,9 @@
     <UiIcon v-if="icon" :name="icon" :size="14" :stroke-width="2" />
     <template v-else>{{ label }}</template>
   </span>
+  <!-- mounted only while open (CLE-35075), like the card's EmojiPicker -->
   <KindPicker
-    v-if="settable"
+    v-if="settable && open"
     :open="open"
     :x="at.x"
     :y="at.y"

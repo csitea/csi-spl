@@ -64,7 +64,7 @@ function onDocPointer(e: PointerEvent) {
   emit('close')
 }
 
-watch(() => props.open, async (v) => {
+async function onOpenChange(v: boolean) {
   if (v) {
     document.addEventListener('pointerdown', onDocPointer, true)
     await place()
@@ -74,7 +74,11 @@ watch(() => props.open, async (v) => {
   } else {
     document.removeEventListener('pointerdown', onDocPointer, true)
   }
-})
+}
+/* the card mounts this picker only while it is open (CLE-35075), so the
+   opening is usually the mount itself, not a change of `open` */
+watch(() => props.open, onOpenChange)
+onMounted(() => { if (props.open) void onOpenChange(true) })
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer, true))
 
 function onKey(e: KeyboardEvent) {

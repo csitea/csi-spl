@@ -318,7 +318,10 @@
       v-model:open="msgDeleteOpen"
       @confirm="remove"
     />
+    <!-- mounted only while open (CLE-35075): a closed picker per card cost an
+         overlay registration, a watcher and a Teleport on every card -->
     <EmojiPicker
+      v-if="pickerOpen"
       :open="pickerOpen"
       :x="pickerAt.x"
       :y="pickerAt.y"

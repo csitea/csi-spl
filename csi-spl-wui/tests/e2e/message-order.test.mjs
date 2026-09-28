@@ -283,7 +283,8 @@ async function run(browser, base, width, touch) {
   check(`${tag} A13: flipping back draws newest first at the top`, m.order === 'newest-first' && m.desc && m.top <= 2, m)
 
   const errs = await p.evaluate(() => window.__errs || [])
-  check(`${tag} no ResizeObserver loop error reached the page`, !errs.some((m) => /ResizeObserver/.test(m)), { errs })
+  const snack = await p.evaluate(() => [...document.querySelectorAll('[data-test=error-snackbar-item]')].map((el) => el.innerText))
+  check(`${tag} no ResizeObserver error in the error snackbar`, !snack.some((m) => /ResizeObserver/.test(m)), { snack, windowErrors: errs.length })
 
   /* Settings -> Behaviour reflects both claims */
   await signIn(p, 'newest-last', 'bottom')

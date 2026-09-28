@@ -14,6 +14,12 @@
 // build-time failure must never be baked into a static page.
 import { noteError } from '@/composables/errorJournal.mjs'
 
+/** Browser notices that arrive as window errors but are not defects. */
+const BENIGN_WINDOW_ERRORS = [
+  'ResizeObserver loop completed with undelivered notifications.',
+  'ResizeObserver loop limit exceeded',
+]
+
 type MaybeError = { name?: unknown; message?: unknown; statusCode?: unknown } | undefined
 
 function record(source: string, err: unknown, extra: Record<string, unknown> = {}): void {
@@ -53,6 +59,13 @@ export default defineNuxtPlugin((nuxtApp) => {
     // `error` and a target that is an element — those are noise, not defects,
     // and would flood a 50-slot buffer.
     if (!ev.error && ev.target && ev.target !== window) return
+    // Chrome's "ResizeObserver loop completed with undelivered notifications"
+    // (and the older "loop limit exceeded") is a notice, not a failure: the
+    // observations it names are delivered in the next frame. It fires whenever
+    // an observer on a feed sees the cards re-clip inside one delivery loop
+    // (newest last follows the bottom that way, topic c6994436), and on prd
+    // e2e the snackbar showed it to the reader as an error. Exact text only.
+    if (!ev.error && BENIGN_WINDOW_ERRORS.includes(String(ev.message || ''))) return
     record('window', ev.error ?? { name: 'Error', message: ev.message }, {
       url: ev.filename || '',
     })

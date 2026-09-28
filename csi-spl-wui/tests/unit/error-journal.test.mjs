@@ -186,6 +186,15 @@ describe('wiring', () => {
     assert.equal(/preventDefault|stopPropagation|throw /.test(src.replace(/\/\/.*$/gm, '')), false)
   })
 
+  it('the benign ResizeObserver loop notice is not journaled - exact text, no-error events only (c6994436)', () => {
+    const src = read('src/plugins/error-journal.client.ts')
+    assert.ok(src.includes("'ResizeObserver loop completed with undelivered notifications.'"))
+    assert.ok(src.includes("'ResizeObserver loop limit exceeded'"))
+    assert.ok(src.includes('if (!ev.error && BENIGN_WINDOW_ERRORS.includes(String(ev.message || \'\'))) return'))
+    /* a thrown Error that merely mentions ResizeObserver is still recorded: no substring match */
+    assert.equal(/ResizeObserver\/|\.includes\('ResizeObserver'\)|test\(/.test(src.replace(/\/\/.*$/gm, '')), false)
+  })
+
   it('viewer, topic, lobby, channel and live pane errors go through ErrorNotice', () => {
     for (const rel of [
       'src/pages/index.vue',

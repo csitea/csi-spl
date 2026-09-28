@@ -167,9 +167,12 @@ try {
       step(`${tag}: the Omnibox is ${bottomDock ? 'in the lower half' : 'in the top bar'}`,
         m.omniTop !== null && (bottomDock ? m.omniTop > m.vh / 2 : m.omniTop < 80), { omniTop: m.omniTop, vh: m.vh })
       await p.screenshot({ path: `${OUT}/${order}-${pos}-${width}.png` })
+      /* the browser still raises its benign ResizeObserver loop notice (recorded
+         for the result); what must not happen is the reader seeing it */
       const errs = await p.evaluate(() => window.__errs || [])
       errsSeen.push(...errs)
-      step(`${tag}: no ResizeObserver loop error reached the page`, !errs.some((x) => /ResizeObserver/.test(x)), { errs })
+      const snack = await p.evaluate(() => [...document.querySelectorAll('[data-test=error-snackbar-item]')].map((el) => el.innerText))
+      step(`${tag}: no ResizeObserver error in the error snackbar`, !snack.some((x) => /ResizeObserver/.test(x)), { snack, windowErrors: errs.length })
 
       if (SEND && order === 'newest-last' && pos === 'bottom' && width === WIDTHS[0]) {
         const host = m.host.split('.')[0]

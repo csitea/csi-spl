@@ -60,7 +60,7 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, w
 		var grand string
 		err := tx.QueryRow(ctx, `SELECT p.kind, COALESCE(p.parent_number, 0), COALESCE(g.kind, '')
 			FROM issues p LEFT JOIN issues g ON g.tenant_id = p.tenant_id AND g.number = p.parent_number
-			WHERE p.tenant_id = $1 AND p.number = $2 FOR SHARE OF p`,
+			WHERE p.tenant_id = $1 AND p.number = $2 AND p.deleted_at IS NULL FOR SHARE OF p`,
 			i.TenantID, i.Parent).Scan(&r.parent.Kind, &r.parent.Parent, &grand)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
@@ -75,7 +75,7 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, w
 		return setLevel(i, r, want)
 	}
 	if i.Number != 0 {
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2)`,
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL)`,
 			i.TenantID, i.Number).Scan(&r.hasChildren); err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			return err
 		}
 		cur, err := scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
-			WHERE tenant_id = $1 AND number = $2 FOR UPDATE`, tenant, number), tenant, prefix)
+			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -190,7 +190,7 @@ func (s *Postgres) GetIssue(ctx context.Context, tenant string, number int) (Iss
 		if err != nil {
 			return err
 		}
-		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues WHERE tenant_id = $1 AND number = $2`,
+		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL`,
 			tenant, number), tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -206,7 +206,7 @@ func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, erro
 	err := s.queryTenantBatch(ctx, tenant,
 		tenantRead{sql: `SELECT prefix FROM issue_counters WHERE tenant_id = $1`, args: []any{tenant},
 			each: func(r pgx.Rows) error { return r.Scan(&prefix) }},
-		tenantRead{sql: `SELECT ` + issueCols + ` FROM issues WHERE tenant_id = $1 ORDER BY number DESC`, args: []any{tenant},
+		tenantRead{sql: `SELECT ` + issueCols + ` FROM issues WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY number DESC`, args: []any{tenant},
 			each: func(r pgx.Rows) error {
 				i, err := scanIssue(r, tenant, "")
 				out = append(out, i)
@@ -216,6 +216,40 @@ func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, erro
 		out[k].Prefix = prefix
 	}
 	return out, err
+}
+
+// DeleteIssue: the soft delete of rdb 0071. The row is locked FOR UPDATE, so
+// a concurrent create cannot put a child under it between the check and the
+// stamp (txIssueRefs locks the parent FOR SHARE).
+func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, by string, now time.Time) (Issue, error) {
+	now = now.UTC().Truncate(time.Microsecond)
+	var out Issue
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		prefix, err := txPrefix(ctx, tx, tenant)
+		if err != nil {
+			return err
+		}
+		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
+			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		var kids bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL)`,
+			tenant, number).Scan(&kids); err != nil {
+			return err
+		}
+		if kids {
+			return ErrIssueHasChildren
+		}
+		_, err = tx.Exec(ctx, `UPDATE issues SET deleted_at = $3, deleted_by = $4 WHERE tenant_id = $1 AND number = $2`,
+			tenant, number, now, by)
+		return err
+	})
+	return out, pgIssueErr(err)
 }
 
 func (s *Postgres) IssuePrefix(ctx context.Context, tenant string) (string, error) {

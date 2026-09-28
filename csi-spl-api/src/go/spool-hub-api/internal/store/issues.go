@@ -106,6 +106,10 @@ var ErrBadEpic = errors.New("parent must be an epic / feature or a level-2 issue
 // ErrEpicHasIssues: the epic label was dropped from an epic that still has issues.
 var ErrEpicHasIssues = errors.New("epic still has issues")
 
+// ErrIssueHasChildren: a delete of an issue that still has live children
+// (SPL-1027): delete or move them first.
+var ErrIssueHasChildren = errors.New("issue still has children")
+
 var (
 	issueAssigneeRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
 	issueLabelIDRe  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
@@ -290,6 +294,11 @@ type Issues interface {
 	ListIssueLabels(ctx context.Context, tenantID string) ([]IssueLabel, error)
 	// CreateIssueLabel adds one; ErrConflict when the id exists.
 	CreateIssueLabel(ctx context.Context, l IssueLabel, now time.Time) (IssueLabel, error)
+	// DeleteIssue soft-deletes one (rdb 0071, SPL-1027) and answers the row
+	// as it was. From then on every read, patch and parent lookup treats it
+	// as absent. ErrNotFound for no such (live) issue, ErrIssueHasChildren
+	// while a live issue names it as parent.
+	DeleteIssue(ctx context.Context, tenantID string, number int, by string, now time.Time) (Issue, error)
 }
 
 func invalidIssue(format string, a ...any) error {
@@ -486,6 +495,7 @@ func checkLabel(l *IssueLabel) error {
 
 // memIssues is Memory's copy of rdb 0047, guarded by Memory.mu.
 type memIssues struct {
+	gone   map[string]map[int]Issue // soft-deleted rows (rdb 0071)
 	last   map[string]int
 	prefix map[string]string
 	rows   map[string]map[int]Issue
@@ -496,6 +506,7 @@ func (m *memIssues) init() {
 	if m.rows == nil {
 		m.last, m.prefix = map[string]int{}, map[string]string{}
 		m.rows, m.labels = map[string]map[int]Issue{}, map[string]map[string]IssueLabel{}
+		m.gone = map[string]map[int]Issue{}
 	}
 }
 
@@ -509,6 +520,11 @@ func (m *memIssues) prefixOf(tenant string) string {
 // isTask reports an issue's discussion task_id. Caller holds Memory.mu.
 func (m *memIssues) isTask(tenant, taskID string) bool {
 	for _, r := range m.rows[tenant] {
+		if r.TaskID == taskID {
+			return true
+		}
+	}
+	for _, r := range m.gone[tenant] { // a deleted issue's topic stays out of lists
 		if r.TaskID == taskID {
 			return true
 		}
@@ -645,6 +661,28 @@ func (s *Memory) ListIssues(_ context.Context, tenant string) ([]Issue, error) {
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Number > out[b].Number })
 	return out, nil
+}
+
+func (s *Memory) DeleteIssue(_ context.Context, tenant string, number int, _ string, _ time.Time) (Issue, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	row, ok := s.iss.rows[tenant][number]
+	if !ok {
+		return Issue{}, ErrNotFound
+	}
+	for _, c := range s.iss.rows[tenant] {
+		if c.Parent == number {
+			return Issue{}, ErrIssueHasChildren
+		}
+	}
+	delete(s.iss.rows[tenant], number)
+	if s.iss.gone[tenant] == nil {
+		s.iss.gone[tenant] = map[int]Issue{}
+	}
+	s.iss.gone[tenant][number] = row
+	row.Prefix = s.iss.prefixOf(tenant)
+	return copyIssue(row), nil
 }
 
 func (s *Memory) IssuePrefix(_ context.Context, tenant string) (string, error) {

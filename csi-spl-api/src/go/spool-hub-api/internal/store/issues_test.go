@@ -353,3 +353,66 @@ func TestIssueBlockedOnHold(t *testing.T) {
 		})
 	}
 }
+
+// rdb 0071 (SPL-1027): a soft delete. The deleted issue reads ErrNotFound on
+// get, patch and a second delete, leaves the list, is never a parent, its
+// number is never reused, and a parent with a live child is refused.
+func TestIssueSoftDelete(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			is := s.(Issues)
+			tn := uid("idel-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+				t.Fatal(err)
+			}
+			ep := testEpic(t, is, tn, now)
+			mk := func(title string, parent int) Issue {
+				t.Helper()
+				i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: title, Parent: parent, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return i
+			}
+			parent := mk("parent", ep)
+			sub := mk("sub", parent.Number)
+			if _, err := is.DeleteIssue(ctx, tn, parent.Number, "HUM-1", now); !errors.Is(err, ErrIssueHasChildren) {
+				t.Fatalf("parent with a child: %v", err)
+			}
+			got, err := is.DeleteIssue(ctx, tn, sub.Number, "HUM-2", now)
+			if err != nil || got.Number != sub.Number || got.Title != "sub" {
+				t.Fatalf("delete: %+v %v", got, err)
+			}
+			if _, err := is.GetIssue(ctx, tn, sub.Number); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("get deleted: %v", err)
+			}
+			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Title: ptr("back")}, "HUM-1", now); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("patch deleted: %v", err)
+			}
+			if _, err := is.DeleteIssue(ctx, tn, sub.Number, "HUM-1", now); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("delete twice: %v", err)
+			}
+			list, err := is.ListIssues(ctx, tn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, i := range list {
+				if i.Number == sub.Number {
+					t.Fatalf("deleted issue listed: %+v", list)
+				}
+			}
+			// no live child now: the parent goes, and nothing can go under it
+			if _, err := is.DeleteIssue(ctx, tn, parent.Number, "HUM-1", now); err != nil {
+				t.Fatalf("parent after its child: %v", err)
+			}
+			if _, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "orphan", Parent: parent.Number, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); !errors.Is(err, ErrUnknownParent) {
+				t.Fatalf("child of a deleted parent: %v", err)
+			}
+			if next := mk("next", ep); next.Number <= sub.Number {
+				t.Fatalf("number reused: %d <= %d", next.Number, sub.Number)
+			}
+		})
+	}
+}

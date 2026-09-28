@@ -263,8 +263,88 @@ func TestIssuesPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Methods") != "POST, PATCH" {
+		if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Methods") != "POST, PATCH, DELETE" {
 			t.Fatalf("%s preflight %d %v", p, resp.StatusCode, resp.Header)
 		}
+	}
+}
+
+// SPL-1027 (spec 039 FR-009): DELETE is a soft delete by the creator or a
+// tenant.settings role; a parent with live children is refused; the frame
+// says op delete; the deleted issue is a 404, off the list, and never a parent.
+func TestIssuesDelete(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	tester := seat(t, e, tid, rbac.Tester)
+	admin := seat(t, e, tid, rbac.Admin)
+	watcher := dialMember(t, e, tid, "Tess", tester)
+	mk := func(who string, body map[string]any) string {
+		t.Helper()
+		code, out := call(t, e, tid, http.MethodPost, "/v1/issues", who, body)
+		if code != http.StatusCreated {
+			t.Fatalf("create %v: %d %v", body, code, out)
+		}
+		readType(t, watcher, "issue")
+		return issueOf(t, out)["key"].(string)
+	}
+	epic := mk(dev, map[string]any{"title": "Epic", "kind": "epic"})
+	parent := mk(dev, map[string]any{"title": "Parent", "epic": epic})
+	sub := mk(tester, map[string]any{"title": "Sub", "parent": parent})
+	other := mk(dev, map[string]any{"title": "Other", "epic": epic})
+
+	del := func(who, key string) (int, map[string]any) {
+		t.Helper()
+		return call(t, e, tid, http.MethodDelete, "/v1/issues/"+key, who, nil)
+	}
+	// someone else's issue: a developer may not, an admin may
+	if code, out := del(tester, other); code != http.StatusForbidden || out["error"] != "forbidden" {
+		t.Fatalf("tester deletes dev's issue: %d %v", code, out)
+	}
+	// a parent with a live subtask is refused, whoever asks
+	if code, out := del(dev, parent); code != http.StatusConflict || out["error"] != "issue_has_children" {
+		t.Fatalf("parent with a child: %d %v", code, out)
+	}
+	if code, out := del(dev, "SPL-99"); code != http.StatusNotFound {
+		t.Fatalf("unknown: %d %v", code, out)
+	}
+	// the creator deletes the subtask; the frame names it
+	code, out := del(tester, sub)
+	if code != http.StatusOK || issueOf(t, out)["key"] != sub {
+		t.Fatalf("creator delete: %d %v", code, out)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "delete" || f["issue"].(map[string]any)["key"] != sub {
+		t.Fatalf("delete frame %v", f)
+	}
+	// gone: 404 on read, patch and a second delete, off the list, not a parent
+	if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/issues/"+sub, tester, nil); code != http.StatusNotFound {
+		t.Fatalf("read deleted: %d", code)
+	}
+	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/"+sub, tester, map[string]any{"title": "back"}); code != http.StatusNotFound {
+		t.Fatalf("patch deleted: %d", code)
+	}
+	if code, _ := del(tester, sub); code != http.StatusNotFound {
+		t.Fatalf("delete twice: %d", code)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues", tester, nil)
+	if code != http.StatusOK {
+		t.Fatalf("list: %d %v", code, out)
+	}
+	for _, k := range issueKeys(out) {
+		if k == sub {
+			t.Fatalf("deleted %s still listed: %v", sub, issueKeys(out))
+		}
+	}
+	// the parent has no live child now: an admin deletes it (not the creator)
+	if code, out := del(admin, parent); code != http.StatusOK {
+		t.Fatalf("admin delete: %d %v", code, out)
+	}
+	readType(t, watcher, "issue")
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "x", "parent": parent}); code != http.StatusBadRequest || out["error"] != "unknown_parent" {
+		t.Fatalf("child of a deleted parent: %d %v", code, out)
+	}
+	// a non-member: the tenant door refuses
+	if code, _ := del("HUM-999999", other); code != http.StatusForbidden {
+		t.Fatalf("non-member delete: %d", code)
 	}
 }

@@ -246,6 +246,8 @@ func storeIssueErr(err error) *issueErr {
 		return &issueErr{http.StatusBadRequest, "bad_epic", "the parent must be an epic, and an epic has no parent"}
 	case errors.Is(err, store.ErrEpicHasIssues):
 		return &issueErr{http.StatusConflict, "epic_has_issues", "move this epic's issues to another epic first"}
+	case errors.Is(err, store.ErrIssueHasChildren):
+		return &issueErr{http.StatusConflict, "issue_has_children", "delete or move this issue's children first"}
 	case errors.Is(err, store.ErrNotFound):
 		return &issueErr{http.StatusNotFound, "not_found", "no such issue"}
 	case errors.Is(err, store.ErrConflict):
@@ -726,6 +728,7 @@ func (s *Server) routeIssues(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/issues/{ref}", s.viewHandler(s.handleViewIssue))
 	mux.HandleFunc("POST /v1/issues", s.handleCreateIssue)
 	mux.HandleFunc("PATCH /v1/issues/{ref}", s.handlePatchIssue)
+	mux.HandleFunc("DELETE /v1/issues/{ref}", s.handleDeleteIssue)
 	mux.HandleFunc("POST /v1/issue-labels", s.handleCreateIssueLabel)
 	mux.HandleFunc("OPTIONS /v1/issues", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}", s.issuesPreflight)
@@ -826,6 +829,60 @@ func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
 }
 
+// mayDeleteIssue (SPL-1027, spec 039 FR-009): the member who created the
+// issue, or a role that holds tenant.settings (admin, owner). An issue an
+// agent or the hub created is deleted by such a role. The door-off rig (hum
+// "") is allowed, as every write there.
+func (s *Server) mayDeleteIssue(ctx context.Context, tenant, hum string, i store.Issue) bool {
+	if hum == "" || i.CreatedBy == hum {
+		return true
+	}
+	return s.allowed(ctx, hum, tenant, rbac.TenantSettings)
+}
+
+// handleDeleteIssue is the soft delete of rdb 0071: 200 {issue} as it was,
+// then an `issue` frame with op delete to every tab of the tenant.
+func (s *Server) handleDeleteIssue(w http.ResponseWriter, r *http.Request) {
+	t, actor, ok := s.issueWriter(w, r)
+	if !ok {
+		return
+	}
+	is, ie := s.issueStore()
+	if ie != nil {
+		writeIssueErr(w, ie)
+		return
+	}
+	n, ok := store.ParseIssueRef(r.PathValue("ref"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "not_found", "no such issue")
+		return
+	}
+	cur, err := is.GetIssue(r.Context(), t.ID, n)
+	if ie := storeIssueErr(err); ie != nil {
+		writeIssueErr(w, ie)
+		return
+	}
+	hum := actor
+	if hum == "wui" { // issueWriter's door-off rig actor
+		hum = ""
+	}
+	if !s.mayDeleteIssue(r.Context(), t.ID, hum, cur) {
+		writeForbidden(w, rbac.TenantSettings, "only the member who created "+cur.Key()+" or an admin may delete it")
+		return
+	}
+	out, err := is.DeleteIssue(r.Context(), t.ID, n, actor, s.o.Now())
+	if ie := storeIssueErr(err); ie != nil {
+		if ie.status == http.StatusInternalServerError {
+			s.o.Log.Error().Err(err).Str("tenant", t.ID).Int("number", n).Msg("issue delete")
+		}
+		writeIssueErr(w, ie)
+		return
+	}
+	body := toIssueJSON(out, s.storeGetter(r.Context(), t.ID))
+	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "delete", "issue": body})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": body})
+}
+
 // createIssueLabel is the one label path (browser and agent).
 func (s *Server) createIssueLabel(ctx context.Context, tenant, actor, name, color string) (store.IssueLabel, *issueErr) {
 	is, ie := s.issueStore()
@@ -866,12 +923,12 @@ func (s *Server) handleCreateIssueLabel(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, map[string]any{"label": toLabelJSON(l)})
 }
 
-// issuesPreflight is CORS for POST /v1/issues, PATCH /v1/issues/{ref} and
-// POST /v1/issue-labels. No new request header.
+// issuesPreflight is CORS for POST /v1/issues, PATCH and DELETE
+// /v1/issues/{ref} and POST /v1/issue-labels. No new request header.
 func (s *Server) issuesPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
-		h.Set("Access-Control-Allow-Methods", "POST, PATCH")
+		h.Set("Access-Control-Allow-Methods", "POST, PATCH, DELETE")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", "600")
 	}

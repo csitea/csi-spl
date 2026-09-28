@@ -97,6 +97,9 @@ export function reconnectDelayMs(attempt, random = Math.random) {
   return Math.round(d / 2 + random() * (d / 2))
 }
 
+/** Consecutive refused dials (closed before `open`) after which the session is probed. */
+export const REFUSED_PROBE_AFTER = 2
+
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
@@ -162,6 +165,15 @@ export function createLiveClient({
   /** issues-v1 §5 `{type:"issue_label", label}`. */
   onIssueLabel = () => {},
   onReconnected = () => {},
+  /**
+   * Resolves true only when the human is signed OUT (auth-v1 §4 session 401).
+   * The hub refuses the upgrade of a tab whose session ended with a 401 the
+   * browser never sees (the socket just closes before `open`), so without this
+   * such a tab redialled every 31 s for as long as it stayed open: 265 refused
+   * upgrades in 2 h 15 min from one tab on prd, 2026-09-28. A signed-out
+   * answer parks the client in state `signed_out`; connect() resumes it.
+   */
+  isSignedOut = async () => false,
   random = Math.random,
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -170,6 +182,7 @@ export function createLiveClient({
   let ws = null
   let state = 'idle'
   let attempt = 0
+  let refused = 0
   let closedByUs = false
   let retryTimer = null
   let welcome = null
@@ -202,9 +215,15 @@ export function createLiveClient({
   function connect() {
     if (typeof WebSocketImpl !== 'function') throw new Error('no WebSocket')
     closedByUs = false
+    if (state === 'signed_out') refused = 0
+    if (retryTimer) clearTimer(retryTimer)
+    retryTimer = null
     setState('connecting')
+    let opened = false
     ws = new WebSocketImpl(url)
     ws.onopen = () => {
+      opened = true
+      refused = 0
       const hello = { type: FRAMES.hello }
       if (token) hello.token = token
       const id = cleanAs(as)
@@ -233,11 +252,36 @@ export function createLiveClient({
       }
       dropped = true
       setState('reconnecting')
-      retryTimer = setTimer(connect, reconnectDelayMs(attempt++, random))
+      if (!opened && ++refused >= REFUSED_PROBE_AFTER) {
+        probeThenRetry()
+        return
+      }
+      retry()
     }
     ws.onerror = () => {
       /* onclose follows */
     }
+  }
+
+  function retry() {
+    retryTimer = setTimer(connect, reconnectDelayMs(attempt++, random))
+  }
+
+  /* Refused dials: ask whether the session ended before dialling again. Any
+     answer other than a definite "signed out" (an error included) keeps the
+     usual backoff, so a hub outage never parks a signed-in tab. */
+  function probeThenRetry() {
+    Promise.resolve()
+      .then(() => isSignedOut())
+      .catch(() => false)
+      .then((out) => {
+        if (closedByUs || state !== 'reconnecting') return
+        if (out === true) {
+          setState('signed_out')
+          return
+        }
+        retry()
+      })
   }
 
   function handle(f) {

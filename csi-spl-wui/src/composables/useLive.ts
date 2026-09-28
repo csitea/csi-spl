@@ -1,5 +1,6 @@
 import { cleanAs, createLiveClient, tokenStale, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
 
 /**
@@ -75,16 +76,24 @@ export function useLive() {
       state.value = 'mock'
       return null
     }
-    if (live) return live
+    if (live) {
+      // parked after the hub refused a signed-out tab: a page asking again
+      // (after a sign-in, say) dials again
+      if (live.state === 'signed_out') live.connect()
+      return live
+    }
     if (!api.base) {
       state.value = api.configError || 'no_base'
       return null
     }
+    // bound here, not via useAuthClient: ensure() also runs outside setup
+    const auth = createAuthClient({ base: authOrigin(String(config.public.authBase || '')) })
     live = createLiveClient({
       url: wsUrl(api.base),
       token: api.token || '',
       as: identity.value,
       onState: (s: string) => { state.value = s },
+      isSignedOut: async () => (await auth.session()).state === 'out',
       // live-ws fires this after the re-subscribes (subscribe first, then read)
       onReconnected: () => {
         for (const fn of reconnectListeners) fn()

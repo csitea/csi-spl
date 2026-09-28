@@ -153,6 +153,7 @@ declare module '~/utils/live-ws.mjs' {
   export function wsUrl(base: string, path?: string): string
   export function backoffMs(attempt: number, opts?: { base?: number, cap?: number }): number
   export function reconnectDelayMs(attempt: number, random?: () => number): number
+  export const REFUSED_PROBE_AFTER: number
   export function messageFromFrame(f: unknown): Record<string, unknown>
   export const AGENT_ID_RE: RegExp
   export function cleanAs(s: string): string
@@ -164,6 +165,8 @@ declare module '~/utils/live-ws.mjs' {
     WebSocketImpl?: unknown
     onMessage?: (m: Record<string, unknown>, raw: unknown) => void
     onState?: (s: string) => void
+    /** true only when the session probe answers signed out: parks the client in `signed_out`. */
+    isSignedOut?: () => Promise<boolean>
     random?: () => number
     onWelcome?: (w: Record<string, unknown>) => void
     onToken?: (f: Record<string, unknown>) => void

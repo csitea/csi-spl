@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { backoffMs, cleanAs, createLiveClient, messageFromFrame, reconnectDelayMs, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
+import { REFUSED_PROBE_AFTER, backoffMs, cleanAs, createLiveClient, messageFromFrame, reconnectDelayMs, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
 
 function fakeWs() {
   const sockets = []
@@ -262,6 +262,8 @@ describe('live-ws H4: channel subscription (wui-live-ws 0.4 §3.1)', () => {
 })
 
 describe('live-ws reconnect cost (CLE-35076, perf lane P3)', () => {
+  const tick = () => new Promise((r) => setImmediate(r))
+
   it('reconnect waits are equal-jittered: half of the backoff fixed, half random', () => {
     assert.equal(reconnectDelayMs(0, () => 0), 250)
     assert.equal(reconnectDelayMs(0, () => 1), 500)
@@ -276,5 +278,73 @@ describe('live-ws reconnect cost (CLE-35076, perf lane P3)', () => {
     const first = Array.from({ length: 100 }, () => reconnectDelayMs(0, rnd))
     assert.ok(Math.min(...first) >= 250 && Math.max(...first) <= 500)
     assert.ok(new Set(first).size > 50, 'spread over the window, not one instant')
+  })
+
+  it('a dial that opened then dropped never probes the session (a deploy, not a sign-out)', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    let probes = 0
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, isSignedOut: async () => { probes++; return true } })
+    c.connect()
+    for (let i = 0; i < 4; i++) {
+      sockets[i].open(); sockets[i].recv({ type: 'welcome' }); sockets[i].close()
+      await tick()
+      t.fire(i)
+    }
+    assert.equal(probes, 0)
+    assert.equal(sockets.length, 5)
+  })
+
+  it(`${REFUSED_PROBE_AFTER} refused dials in a row: a signed-out session parks the client, connect() resumes it`, async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    const states = []
+    let probes = 0
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, onState: (s) => states.push(s), isSignedOut: async () => { probes++; return true } })
+    c.connect()
+    sockets[0].close() // refused #1: plain backoff, no probe
+    await tick()
+    assert.equal(probes, 0)
+    assert.equal(t.timers.length, 1)
+    t.fire(0)
+    sockets[1].close() // refused #2: probe -> signed out -> parked, no timer
+    await tick()
+    assert.equal(probes, 1)
+    assert.equal(c.state, 'signed_out')
+    assert.equal(t.timers.length, 1)
+    assert.equal(states.at(-1), 'signed_out')
+    c.connect() // e.g. a page asks again after a sign-in
+    assert.equal(sockets.length, 3)
+    sockets[2].open(); sockets[2].recv({ type: 'welcome' })
+    assert.equal(c.state, 'open')
+  })
+
+  it('refused dials while still signed in (hub down, probe error) keep the usual backoff', async () => {
+    for (const answer of [async () => false, async () => { throw new Error('network') }]) {
+      const { FakeWS, sockets } = fakeWs()
+      const t = manualTimers()
+      const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, isSignedOut: answer })
+      c.connect()
+      sockets[0].close(); await tick(); t.fire(0)
+      sockets[1].close(); await tick()
+      assert.equal(c.state, 'reconnecting')
+      assert.equal(t.timers.length, 2)
+      t.fire(1)
+      assert.equal(sockets.length, 3)
+    }
+  })
+
+  it('close() while the probe is in flight stays closed', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    let release
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, isSignedOut: () => new Promise((r) => { release = r }) })
+    c.connect()
+    sockets[0].close(); await tick(); t.fire(0)
+    sockets[1].close(); await tick()
+    c.close()
+    release(false); await tick()
+    assert.equal(c.state, 'closed')
+    assert.equal(t.timers.length, 1)
   })
 })

@@ -37,6 +37,24 @@ const puppeteer = await loadPuppeteer()
 const res = { base: BASE, q: Q, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/** any copy of the hit that is marked AND has a box: on a phone the first copy
+    in the DOM is the hidden middle-list card, and waitForSelector's `visible`
+    tests only the first match (measured on prd e2e, d61ff191) */
+const markedCopy = (p, msgId) => p.waitForFunction((id) => [...document.querySelectorAll(`.msg[data-msg-id="${CSS.escape(id)}"].search-focus`)]
+  .some((el) => el.getBoundingClientRect().width > 0), { timeout: 15000 }, msgId).then(() => true).catch(() => false)
+/** the hit's thread-pane copy (else any copy) is inside its scroller's viewport - "rendered" is not "on screen" */
+async function hitOnScreen(p, msgId) {
+  await sleep(1800)
+  return p.evaluate((id) => {
+    const sel = `.msg[data-msg-id="${CSS.escape(id)}"]`
+    const el = document.querySelector(`aside.live-pane ${sel}`) || document.querySelector(sel)
+    const sc = el && el.closest('.feed-body')
+    if (!el || !sc) return false
+    const r = el.getBoundingClientRect()
+    const s = sc.getBoundingClientRect()
+    return r.top >= s.top - 1 && r.top < s.bottom - 24 && r.top >= 0 && r.top < window.innerHeight
+  }, msgId)
+}
 
 /** the original of a hit: its channel or DM with the topic open and the hit as the hash (or its topic page) */
 function isOriginal(href, msgId) {
@@ -78,8 +96,9 @@ try {
   await p.click(HIT)
   await p.waitForFunction(() => !location.pathname.endsWith('/search'), { timeout: 15000 }).catch(() => null)
   step('click opens the original', isOriginal(p.url(), msgId), { url: p.url(), msgId })
-  const marked = await p.waitForSelector(`.msg[data-msg-id="${msgId}"].search-focus`, { visible: true, timeout: 15000 }).then(() => true).catch(() => false)
-  step('the hit is on screen and marked', marked)
+  const marked = await markedCopy(p, msgId)
+  const onScreen = marked && await hitOnScreen(p, msgId)
+  step('the hit is marked and ON SCREEN in its pane', Boolean(onScreen), { marked, onScreen })
   await p.screenshot({ path: `${OUT}/2-original-desktop.png` })
   await p.goBack()
   const back = await p.waitForSelector(HIT, { visible: true, timeout: 15000 }).then(() => true).catch(() => false)
@@ -88,6 +107,9 @@ try {
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await p.goto(search, { waitUntil: 'networkidle2' })
   await p.waitForSelector(HIT, { visible: true, timeout: 20000 })
+  /* on a phone the message section can sit below the fold (channels and topics come first) */
+  await p.$eval(HIT, (el) => el.scrollIntoView({ block: 'center' }))
+  await sleep(300)
   const box = await (await p.$(`${HIT} .search-row__snippet`)).boundingBox()
   await p.touchscreen.touchStart(box.x + 20, box.y + 5)
   await sleep(800)
@@ -98,8 +120,9 @@ try {
   if (sheet) {
     await p.tap('[data-testid=search-row-menu-original]')
     await p.waitForFunction(() => !location.pathname.endsWith('/search'), { timeout: 15000 }).catch(() => null)
-    const phoneMarked = await p.waitForSelector(`.msg[data-msg-id="${msgId}"].search-focus`, { visible: true, timeout: 15000 }).then(() => true).catch(() => false)
-    step('phone: Open original, the hit marked', isOriginal(p.url(), msgId) && phoneMarked, { url: p.url(), phoneMarked })
+    const phoneMarked = await markedCopy(p, msgId)
+    const phoneOnScreen = phoneMarked && await hitOnScreen(p, msgId)
+    step('phone: Open original, the hit marked and on screen', isOriginal(p.url(), msgId) && Boolean(phoneOnScreen), { url: p.url(), phoneMarked, phoneOnScreen })
     await p.screenshot({ path: `${OUT}/4-original-phone.png` })
   }
 } catch (e) {

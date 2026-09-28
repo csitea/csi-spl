@@ -34,6 +34,7 @@ export function useScrollAnchor(
   let lastTop = 0
   let resize: ResizeObserver | null = null
   let watched: HTMLElement | null = null
+  let frame = 0
 
   function el(): HTMLElement | null {
     if (!enabled()) return null
@@ -83,7 +84,19 @@ export function useScrollAnchor(
   /* newest last: content or scroller height changed while glued to the bottom */
   function observe(s: HTMLElement) {
     if (typeof ResizeObserver === 'undefined') return
-    if (!resize) resize = new ResizeObserver(() => { if (stuck && newestLast() && enabled()) toBottom() })
+    /* Scrolling INSIDE the callback changes layout in the same frame, which the
+       browser reports as a window error ("ResizeObserver loop completed with
+       undelivered notifications") and the error snackbar showed it on prd e2e.
+       The next animation frame is outside the observer's delivery loop. */
+    if (!resize) {
+      resize = new ResizeObserver(() => {
+        if (frame || !stuck || !newestLast() || !enabled()) return
+        frame = requestAnimationFrame(() => {
+          frame = 0
+          if (stuck && newestLast() && enabled()) toBottom()
+        })
+      })
+    }
     if (watched === s) return
     resize.disconnect()
     watched = s
@@ -206,6 +219,7 @@ export function useScrollAnchor(
   onUnmounted(() => {
     if (listening) document.removeEventListener('scroll', onScroll, { capture: true })
     resize?.disconnect()
+    if (frame) cancelAnimationFrame(frame)
   })
 
   return { pill, jump, hold }

@@ -72,6 +72,13 @@ let p
 try {
   p = await (await browser.createBrowserContext()).newPage()
   await p.setViewport({ width: 1440, height: 900 })
+  /* every window error, from the first document on (the ResizeObserver loop
+     error reached the error snackbar on prd e2e, 2026-09-28) */
+  await p.evaluateOnNewDocument(() => {
+    window.__errs = []
+    window.addEventListener('error', (e) => window.__errs.push(String(e.message || '')))
+  })
+  const errsSeen = []
   const claims = async () => p.evaluate(async (base) => {
     const r = await fetch(base + '/api/v1/auth/session', { credentials: 'include', cache: 'no-store' })
     if (r.status !== 200) return { status: r.status }
@@ -160,6 +167,9 @@ try {
       step(`${tag}: the Omnibox is ${bottomDock ? 'in the lower half' : 'in the top bar'}`,
         m.omniTop !== null && (bottomDock ? m.omniTop > m.vh / 2 : m.omniTop < 80), { omniTop: m.omniTop, vh: m.vh })
       await p.screenshot({ path: `${OUT}/${order}-${pos}-${width}.png` })
+      const errs = await p.evaluate(() => window.__errs || [])
+      errsSeen.push(...errs)
+      step(`${tag}: no ResizeObserver loop error reached the page`, !errs.some((x) => /ResizeObserver/.test(x)), { errs })
 
       if (SEND && order === 'newest-last' && pos === 'bottom' && width === WIDTHS[0]) {
         const host = m.host.split('.')[0]

@@ -115,6 +115,13 @@ async function run(browser, base, width, touch) {
   const p = await browser.newPage()
   await p.setViewport({ width, height: 800, isMobile: touch, hasTouch: touch })
   const tag = `${width}px`
+  /* prd e2e 2026-09-28: a scroll inside the ResizeObserver callback raised
+     "ResizeObserver loop completed with undelivered notifications" as a
+     window error, and the error snackbar showed it to the reader */
+  await p.evaluateOnNewDocument(() => {
+    window.__errs = []
+    window.addEventListener('error', (e) => window.__errs.push(String(e.message || '')))
+  })
 
   /* control: never picked = newest first */
   await p.goto(`${base}/lobby`, { waitUntil: 'networkidle2', timeout: NAV })
@@ -274,6 +281,9 @@ async function run(browser, base, width, touch) {
   await sleep(800)
   m = await measure(p)
   check(`${tag} A13: flipping back draws newest first at the top`, m.order === 'newest-first' && m.desc && m.top <= 2, m)
+
+  const errs = await p.evaluate(() => window.__errs || [])
+  check(`${tag} no ResizeObserver loop error reached the page`, !errs.some((m) => /ResizeObserver/.test(m)), { errs })
 
   /* Settings -> Behaviour reflects both claims */
   await signIn(p, 'newest-last', 'bottom')

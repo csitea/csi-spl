@@ -178,6 +178,7 @@ try {
     await p.keyboard.press('Escape')
     const menuGone = !(await p.$('[data-test=issues-menu]')) && (await modalUp())
     step(`${W} M3: S opens the Status picker above the modal; Esc closes the picker only`, menuTop && menuGone, { menuTop, menuGone })
+    await p.waitForFunction((k) => new URL(location.href).searchParams.get('issue') === k, { timeout: 8000 }, key)
     await p.goBack()
     const backClosed = await waitModal(false)
     step(`${W} M4: browser Back closes the modal and stays on /issues`, backClosed && new URL(p.url()).pathname.endsWith('/issues') && (await issueParam()) === null, { url: p.url() })

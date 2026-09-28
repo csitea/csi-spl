@@ -249,6 +249,10 @@ try {
 
     await p.click(`${row(c)} .issues-c-key`)
     await waitModal(true)
+    /* the modal shows at once; the router writes ?issue= a tick later. Back
+       before that entry exists goes one entry too far and leaves nothing to
+       go Forward to (a fast hosted runner, workflow 11 run 36393403727) */
+    await p.waitForFunction((k) => new URL(location.href).searchParams.get('issue') === k, { timeout: 5000 }, c)
     const pathBefore = await p.evaluate(() => location.pathname)
     await p.goBack()
     const backClosed = await waitModal(false)

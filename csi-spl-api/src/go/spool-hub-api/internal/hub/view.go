@@ -82,12 +82,20 @@ func (s *Server) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// corsMaxAge is how long a browser may reuse a CORS preflight answer: the
+// longest Chrome honours (2 h; Firefox allows 24 h). At 600 s nearly every
+// write after ten quiet minutes paid an extra OPTIONS round trip first (prd
+// 24 h to 2026-09-28: 67 OPTIONS for 63 POST /api/v1/auth/events). A browser
+// re-asks on its own whenever a request needs a method or header the cached
+// answer did not list, so a longer life never admits anything new.
+const corsMaxAge = "7200"
+
 func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "GET")
 		h.Set("Access-Control-Allow-Headers", "Authorization, X-Locale")
-		h.Set("Access-Control-Max-Age", "600")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

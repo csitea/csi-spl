@@ -33,7 +33,7 @@ func (s *Server) authCORS(next http.Handler) http.Handler {
 			// X-Locale: the WUI's active locale (i18n; a browser fetch may
 			// not set Accept-Language cross-origin).
 			h.Set("Access-Control-Allow-Headers", "Content-Type, X-Locale")
-			h.Set("Access-Control-Max-Age", "600")
+			h.Set("Access-Control-Max-Age", corsMaxAge)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})

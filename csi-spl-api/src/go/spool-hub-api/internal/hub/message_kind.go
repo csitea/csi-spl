@@ -132,7 +132,7 @@ func (s *Server) kindPreflight(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "PATCH")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
-		h.Set("Access-Control-Max-Age", "600")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

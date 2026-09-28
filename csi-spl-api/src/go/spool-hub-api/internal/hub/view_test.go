@@ -222,6 +222,9 @@ func TestViewAPI(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Headers") != "Authorization, X-Locale" {
 		t.Fatalf("preflight: %d %v", resp.StatusCode, resp.Header)
 	}
+	if got := resp.Header.Get("Access-Control-Max-Age"); got != "7200" {
+		t.Fatalf("preflight Max-Age = %q, want 7200 (CLE-35076)", got)
+	}
 }
 
 // FR-020: the default token door admits nobody until OQ-16 fixes the format.

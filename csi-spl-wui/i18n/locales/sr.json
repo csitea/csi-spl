@@ -1014,6 +1014,7 @@
     "group_none": "Bez",
     "col_key": "Ključ",
     "col_title": "Naslov",
+    "col_resize": "Промени ширину колоне {col}",
     "comment_hint": "Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje",
     "comment_hint_enter": "Enter šalje, Shift+Enter dodaje red"
   },

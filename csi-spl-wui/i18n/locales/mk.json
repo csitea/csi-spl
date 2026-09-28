@@ -1014,6 +1014,7 @@
     "group_none": "Без",
     "col_key": "Клуч",
     "col_title": "Наслов",
+    "col_resize": "Промена на ширината на колоната {col}",
     "comment_hint": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање",
     "comment_hint_enter": "Enter испраќа, Shift+Enter додава ред"
   },

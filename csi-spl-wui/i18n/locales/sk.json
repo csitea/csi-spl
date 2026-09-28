@@ -1014,6 +1014,7 @@
     "group_none": "Žiadne",
     "col_key": "Kľúč",
     "col_title": "Názov",
+    "col_resize": "Zmeniť šírku stĺpca {col}",
     "comment_hint": "Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle",
     "comment_hint_enter": "Enter odošle, Shift+Enter pridá riadok"
   },

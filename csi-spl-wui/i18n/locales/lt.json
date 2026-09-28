@@ -1014,6 +1014,7 @@
     "group_none": "Nėra",
     "col_key": "Raktas",
     "col_title": "Pavadinimas",
+    "col_resize": "Keisti stulpelio {col} plotį",
     "comment_hint": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti",
     "comment_hint_enter": "Enter siunčia, Shift+Enter prideda eilutę"
   },

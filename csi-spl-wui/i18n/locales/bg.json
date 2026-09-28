@@ -1014,6 +1014,7 @@
     "group_none": "Без",
     "col_key": "Ключ",
     "col_title": "Заглавие",
+    "col_resize": "Промяна на ширината на колоната {col}",
     "comment_hint": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане",
     "comment_hint_enter": "Enter изпраща, Shift+Enter добавя ред"
   },

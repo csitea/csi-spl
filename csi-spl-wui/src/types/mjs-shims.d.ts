@@ -1634,3 +1634,23 @@ declare module '~/utils/issue-columns-pref.mjs' {
     },
   ): Promise<{ ok: boolean, value: Record<string, number>, out?: unknown }>
 }
+
+declare module '~/utils/issues-colw.mjs' {
+  export type ColWidths = Record<string, number>
+  export const ISSUES_COLW_KEY: string
+  export const ISSUES_COLW_COLS: string[]
+  export const COLW_MIN: number
+  export const COLW_MIN_BY_COL: Record<string, number>
+  export const COLW_MAX: number
+  export const COLW_STEP: number
+  export function colMin(col: string): number
+  export function clampColWidth(px: unknown, col?: string): number | null
+  export function cleanColWidths(raw: unknown): ColWidths
+  export function loadColWidths(store?: unknown): ColWidths
+  export function saveColWidths(widths: ColWidths, store?: unknown): boolean
+  export function dragWidth(startPx: number, dx: number, rtl?: boolean, col?: string): number | null
+  export function keyWidth(currentPx: number, key: string, rtl?: boolean, col?: string): number | null
+  export function withColWidth(widths: ColWidths, col: string, px: number | null): ColWidths
+  export function colWidthVars(widths: ColWidths): Record<string, string>
+  export function colWidthClasses(widths: ColWidths): string[]
+}

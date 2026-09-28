@@ -1014,6 +1014,7 @@
     "group_none": "Ingen",
     "col_key": "Nyckel",
     "col_title": "Titel",
+    "col_resize": "Ändra bredden på kolumnen {col}",
     "comment_hint": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka",
     "comment_hint_enter": "Enter skickar, Shift+Enter lägger till en rad"
   },

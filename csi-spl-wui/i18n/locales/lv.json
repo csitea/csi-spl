@@ -1014,6 +1014,7 @@
     "group_none": "Nav",
     "col_key": "Atslēga",
     "col_title": "Nosaukums",
+    "col_resize": "Mainīt kolonnas {col} platumu",
     "comment_hint": "Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu",
     "comment_hint_enter": "Enter nosūta, Shift+Enter pievieno rindu"
   },

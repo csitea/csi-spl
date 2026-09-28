@@ -1014,6 +1014,7 @@
     "group_none": "Geen",
     "col_key": "Sleutel",
     "col_title": "Titel",
+    "col_resize": "Breedte van kolom {col} aanpassen",
     "comment_hint": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen",
     "comment_hint_enter": "Enter verstuurt, Shift+Enter voegt een regel toe"
   },

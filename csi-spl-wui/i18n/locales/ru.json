@@ -1014,6 +1014,7 @@
     "group_none": "Нет",
     "col_key": "Ключ",
     "col_title": "Название",
+    "col_resize": "Изменить ширину столбца {col}",
     "comment_hint": "Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки",
     "comment_hint_enter": "Enter отправляет, Shift+Enter добавляет строку"
   },

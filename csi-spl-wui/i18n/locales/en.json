@@ -1014,6 +1014,7 @@
     "group_none": "None",
     "col_key": "Key",
     "col_title": "Title",
+    "col_resize": "Resize the {col} column",
     "comment_hint": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send",
     "comment_hint_enter": "Enter sends, Shift+Enter adds a line"
   },

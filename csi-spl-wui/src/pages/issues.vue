@@ -76,7 +76,7 @@
         <p v-if="saveError && !modalOpen" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
-        <table v-if="!phone" class="issues-table" data-test="issues-table">
+        <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
             <tr class="issues-names">
               <th
@@ -84,6 +84,7 @@
                 :key="c.col"
                 scope="col"
                 :class="c.cls"
+                :data-col="c.col"
                 :aria-sort="sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
               >
                 <button
@@ -92,15 +93,33 @@
                   :data-test="'issues-sort-' + c.col"
                   :data-sorted="sheetSort.col === c.col ? sheetSort.dir : undefined"
                   @click="toggleSort(c.col)"
+                  @keydown.alt.left="onGripKey($event, c.col)"
+                  @keydown.alt.right="onGripKey($event, c.col)"
                 >{{ c.name }}<span class="issues-sort-mark" aria-hidden="true">{{ sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? '▲' : '▼') : '' }}</span></button>
+                <!-- owner, topic beb4024f: drag the edge to resize; arrows on focus; double-click = automatic -->
+                <span
+                  class="issues-col-grip"
+                  role="separator"
+                  aria-orientation="vertical"
+                  tabindex="0"
+                  :aria-label="t('issues_view.col_resize', { col: c.name })"
+                  :aria-valuenow="colWidths[c.col] || undefined"
+                  :aria-valuemin="colMin(c.col)"
+                  :aria-valuemax="COLW_MAX"
+                  :data-test="'issues-col-grip-' + c.col"
+                  :data-resized="colWidths[c.col] ? 'true' : undefined"
+                  @pointerdown="onGripDown($event, c.col)"
+                  @keydown="onGripKey($event, c.col)"
+                  @click.stop
+                />
               </th>
               <!-- SPL-1027: the row actions (delete); no name, no sort -->
               <th scope="col" class="issues-c-act" :aria-label="t('issues_crud.delete')" />
             </tr>
             <tr class="issues-frow">
-              <th class="issues-c-key" />
-              <th />
-              <th>
+              <th data-col="key" class="issues-c-key" />
+              <th data-col="title" />
+              <th data-col="status">
                 <div class="issues-status-dd" data-test="issues-filter-status">
                   <button
                     type="button"
@@ -132,19 +151,19 @@
                   </div>
                 </div>
               </th>
-              <th>
+              <th data-col="priority">
                 <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
                   <option value="">{{ t('issues.filter_all') }}</option>
                   <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
                 </select>
               </th>
-              <th>
+              <th data-col="level">
                 <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
                   <option value="">{{ t('issues.filter_all') }}</option>
                   <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
                 </select>
               </th>
-              <th>
+              <th data-col="assignee">
                 <select v-model="assigneeF" class="issues-filter-assignee" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')" :title="assigneeTitle">
                   <option value="">{{ t('issues.filter_all') }}</option>
                   <option value="me">{{ t('issues.filter_me') }}</option>
@@ -152,17 +171,17 @@
                   <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
                 </select>
               </th>
-              <th>
+              <th data-col="label">
                 <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
                   <option value="">{{ t('issues.filter_all') }}</option>
                   <option v-for="l in labels" :key="l.id" :value="l.id">{{ l.name }}</option>
                 </select>
               </th>
               <!-- owner, topic 778ad161: the calendar control, YYYY-MM-DD HH:MM; due on or before that minute -->
-              <th role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
+              <th data-col="deadline" role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
                 <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
               </th>
-              <th />
+              <th data-col="updated" />
               <th class="issues-c-act" />
             </tr>
           </thead>
@@ -170,10 +189,10 @@
                place - the title, then any cell; Enter stores it, Esc drops it -->
           <tbody v-if="creating && !phone" class="issues-newbody">
             <tr class="issues-row issues-newrow" data-test="issues-newrow" :data-kind="draft.kind">
-              <td class="issues-c-key">
+              <td data-col="key" class="issues-c-key">
                 <button type="button" class="issues-pill issues-newrow__kind" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">{{ t('issues.kind_' + draft.kind) }}</button>
               </td>
-              <td class="issues-c-title">
+              <td data-col="title" class="issues-c-title">
                 <span class="issues-title-cell">
                   <input
                     ref="newTitleEl"
@@ -188,26 +207,26 @@
                   <button v-if="!isTopKind(draft.kind)" type="button" class="issues-pill issues-epic-tag" data-test="issues-epic" :title="draft.epic ? epicLabel(draft.epic) : t('issues.no_epic')" @click="openMenu('epic', detailOrDraft(), $event)">{{ draft.epic ? epicTitleOf(draft.epic) : t('issues.no_epic') }}</button>
                 </span>
               </td>
-              <td>
+              <td data-col="status">
                 <button type="button" class="issues-iconbtn issues-row-status" data-test="issues-newrow-status" :data-status="draft.status" :aria-label="t('issues.filter_status')" :title="t(statusHintKey(draft.status))" @click="openMenu('status', detailOrDraft(), $event)">
                   <IssueGlyph :name="statusIcon(draft.status)" :size="14" :class="'issues-st issues-st--' + draft.status" />
                   <span class="issues-status-code">{{ statusLabel(draft.status) }}</span>
                 </button>
               </td>
-              <td>
+              <td data-col="priority">
                 <select class="issues-cell-select issues-prio" :class="'issues-prio--' + draft.priority" data-test="issues-newrow-priority" :aria-label="t('issues.field_priority')" :value="String(draft.priority)" @keydown.stop @change="onDetailPriority">
                   <option v-for="n in ISSUE_PRIORITIES" :key="'np' + n" :value="String(n)">{{ n }}</option>
                 </select>
               </td>
-              <td><span class="issues-level" data-test="issues-newrow-level" :title="t(levelKey(isTopKind(draft.kind) ? 1 : 2))">{{ isTopKind(draft.kind) ? 1 : 2 }}</span></td>
-              <td>
+              <td data-col="level"><span class="issues-level" data-test="issues-newrow-level" :title="t(levelKey(isTopKind(draft.kind) ? 1 : 2))">{{ isTopKind(draft.kind) ? 1 : 2 }}</span></td>
+              <td data-col="assignee">
                 <button type="button" class="issues-person" data-test="issues-newrow-assignee" :aria-label="t('issues.field_assignee')" @click="openMenu('assign', detailOrDraft(), $event)">
                   <SpoolAvatar v-if="draft.assignee" :id="draft.assignee" :box="boxOf(draft.assignee)" :size="20" />
                   <HumanName v-if="draft.assignee" :id="draft.assignee" :box="boxOf(draft.assignee)" />
                   <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
                 </button>
               </td>
-              <td>
+              <td data-col="label">
                 <span class="issues-pills">
                   <button v-for="id in draft.labels" :key="id" type="button" class="issues-pill" data-test="issues-newrow-label" @click="openMenu('label', detailOrDraft(), $event)">
                     <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
@@ -217,10 +236,10 @@
                   </button>
                 </span>
               </td>
-              <td>
+              <td data-col="deadline">
                 <DeadlinePicker v-model="draft.deadlineLocal" :label="t('issues.field_deadline')" test-id="issues-newrow-deadline" time-test-id="issues-newrow-deadline-time" />
               </td>
-              <td />
+              <td data-col="updated" />
               <td class="issues-c-act">
                 <span class="issues-newrow__acts">
                   <button type="button" class="issues-iconbtn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" :aria-label="t('issues.create')" :title="t('issues.create')" @click="createIssue">
@@ -787,6 +806,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
+import { COLW_MAX, colMin, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, saveColWidths, withColWidth } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -1080,6 +1100,93 @@ const sheetColumns = computed(() => [
   { col: 'updated', name: t('issues.sort_updated'), cls: '' },
 ])
 const serverSort = computed(() => hubSort(sheetSort.value))
+/* owner, topic beb4024f: resizable columns. A width set by dragging a
+   header's edge (or the arrow keys on it) is kept per browser; a column
+   with no width keeps the automatic layout. */
+const colWidths = ref<Record<string, number>>({})
+function setColWidth(col: string, px: number) {
+  colWidths.value = withColWidth(colWidths.value, col, px)
+  saveColWidths(colWidths.value)
+}
+function headerWidth(grip: EventTarget | null): number {
+  const th = grip instanceof HTMLElement ? grip.closest('th') : null
+  return th ? th.getBoundingClientRect().width : 0
+}
+function isRtl(el: EventTarget | null): boolean {
+  return el instanceof HTMLElement && getComputedStyle(el).direction === 'rtl'
+}
+/* preventDefault on pointerdown (no text selection while dragging) also
+   swallows the browser's dblclick, so a second press on the same grip
+   within the double-click time is the double-click */
+let lastGripDown = { col: '', at: 0 }
+function onGripDown(ev: PointerEvent, col: string) {
+  if (ev.button !== 0) return
+  const grip = ev.currentTarget as HTMLElement
+  ev.preventDefault()
+  ev.stopPropagation()
+  const now = ev.timeStamp || Date.now()
+  if (lastGripDown.col === col && now - lastGripDown.at < 400) {
+    lastGripDown = { col: '', at: 0 }
+    void fitColumn(col)
+    return
+  }
+  lastGripDown = { col, at: now }
+  const startX = ev.clientX
+  const startW = headerWidth(grip)
+  const rtl = isRtl(grip)
+  grip.setPointerCapture?.(ev.pointerId)
+  grip.dataset.dragging = 'true'
+  const move = (e: PointerEvent) => {
+    const w = dragWidth(startW, e.clientX - startX, rtl, col)
+    if (w != null) colWidths.value = withColWidth(colWidths.value, col, w)
+  }
+  const end = () => {
+    grip.removeEventListener('pointermove', move)
+    grip.removeEventListener('pointerup', end)
+    grip.removeEventListener('pointercancel', end)
+    delete grip.dataset.dragging
+    saveColWidths(colWidths.value)
+  }
+  grip.addEventListener('pointermove', move)
+  grip.addEventListener('pointerup', end)
+  grip.addEventListener('pointercancel', end)
+}
+/* A double-click fits the column to its content: every cell of it is
+   shrunk to its floor for one synchronous measure, and each cell asks for
+   its width plus whatever its content still overflows by (a clipped title,
+   an ellipsised name). Nothing paints in between. */
+async function fitColumn(col: string) {
+  colWidths.value = withColWidth(colWidths.value, col, 0)
+  await nextTick()
+  const table = pageEl.value?.querySelector<HTMLElement>('.issues-table')
+  if (!table) return
+  const cells = [...table.querySelectorAll<HTMLElement>(`[data-col="${col}"]`)]
+  const saved = cells.map((el) => el.style.cssText)
+  for (const el of cells) {
+    el.style.width = '1%'
+    el.style.minWidth = '0'
+    el.style.maxWidth = 'none'
+  }
+  let need = 0
+  for (const el of cells) {
+    let over = 0
+    for (const d of [el, ...el.querySelectorAll<HTMLElement>('*')]) {
+      /* only an element that clips (overflow not visible) hides content; an
+         inline span reads clientWidth 0 and must not count */
+      if (d.scrollWidth > d.clientWidth + 1 && getComputedStyle(d).overflowX !== 'visible') over = Math.max(over, d.scrollWidth - d.clientWidth)
+    }
+    need = Math.max(need, el.getBoundingClientRect().width + over)
+  }
+  cells.forEach((el, i) => { el.style.cssText = saved[i] })
+  if (need > 0) setColWidth(col, Math.ceil(need))
+}
+function onGripKey(ev: KeyboardEvent, col: string) {
+  const w = keyWidth(colWidths.value[col] || headerWidth(ev.currentTarget), ev.key, isRtl(ev.currentTarget), col)
+  if (w == null) return
+  ev.preventDefault()
+  ev.stopPropagation()
+  setColWidth(col, w)
+}
 function toggleSort(col: string) {
   sheetSort.value = nextSort(col, sheetSort.value)
 }
@@ -1947,6 +2054,7 @@ function onDocPointer(ev: Event) {
   if (deadlineEditKey.value && !inside('[data-deadline-edit="true"]')) deadlineEditKey.value = ''
 }
 onMounted(() => {
+  colWidths.value = loadColWidths()
   try {
     const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
     if (Array.isArray(raw)) folded.value = raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))
@@ -2196,6 +2304,41 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-names th { top: 0; height: 1.75rem; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
 .issues-frow th { top: 1.75rem; font-weight: normal; }
 .issues-c-key { width: 1%; }
+/* owner, topic beb4024f: a resized column - the width the reader dragged,
+   exactly (min = max), its body cells clipped with an ellipsis; header
+   controls shrink with it. Unset columns keep the automatic layout. */
+.issues-table.issues-w-key [data-col="key"] { width: var(--iw-key); min-width: var(--iw-key); max-width: var(--iw-key); }
+.issues-table.issues-w-title [data-col="title"] { width: var(--iw-title); min-width: var(--iw-title); max-width: var(--iw-title); }
+.issues-table.issues-w-status [data-col="status"] { width: var(--iw-status); min-width: var(--iw-status); max-width: var(--iw-status); }
+.issues-table.issues-w-priority [data-col="priority"] { width: var(--iw-priority); min-width: var(--iw-priority); max-width: var(--iw-priority); }
+.issues-table.issues-w-level [data-col="level"] { width: var(--iw-level); min-width: var(--iw-level); max-width: var(--iw-level); }
+.issues-table.issues-w-assignee [data-col="assignee"] { width: var(--iw-assignee); min-width: var(--iw-assignee); max-width: var(--iw-assignee); }
+.issues-table.issues-w-label [data-col="label"] { width: var(--iw-label); min-width: var(--iw-label); max-width: var(--iw-label); }
+.issues-table.issues-w-deadline [data-col="deadline"] { width: var(--iw-deadline); min-width: var(--iw-deadline); max-width: var(--iw-deadline); }
+.issues-table.issues-w-updated [data-col="updated"] { width: var(--iw-updated); min-width: var(--iw-updated); max-width: var(--iw-updated); }
+.issues-table[class*="issues-w-"] td[data-col] { overflow: hidden; text-overflow: ellipsis; }
+.issues-table[class*="issues-w-"] .issues-frow th[data-col] select { max-width: 100%; }
+.issues-col-grip {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -4px;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 4;
+  touch-action: none;
+}
+.issues-col-grip::after {
+  content: '';
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 3px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+.issues-col-grip:hover::after,
+.issues-col-grip:focus-visible::after,
+.issues-col-grip[data-dragging="true"]::after { background: var(--color-accent, currentColor); }
 /* a sheet's frozen first column: the key stays in view when the table scrolls sideways */
 .issues-table .issues-c-key { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--color-bg); }
 .issues-table thead .issues-c-key { z-index: 3; }

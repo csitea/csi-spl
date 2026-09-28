@@ -1014,6 +1014,7 @@
     "group_none": "Ei mitään",
     "col_key": "Tunnus",
     "col_title": "Otsikko",
+    "col_resize": "Muuta sarakkeen {col} leveyttä",
     "comment_hint": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää",
     "comment_hint_enter": "Enter lähettää, Shift+Enter lisää rivin"
   },

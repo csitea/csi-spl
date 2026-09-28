@@ -1014,6 +1014,7 @@
     "group_none": "Καμία",
     "col_key": "Κλειδί",
     "col_title": "Τίτλος",
+    "col_resize": "Αλλαγή πλάτους της στήλης {col}",
     "comment_hint": "Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή",
     "comment_hint_enter": "Το Enter στέλνει, το Shift+Enter προσθέτει γραμμή"
   },

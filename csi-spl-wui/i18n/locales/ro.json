@@ -1014,6 +1014,7 @@
     "group_none": "Niciuna",
     "col_key": "Cheie",
     "col_title": "Titlu",
+    "col_resize": "Redimensionează coloana {col}",
     "comment_hint": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite",
     "comment_hint_enter": "Enter trimite, Shift+Enter adaugă un rând"
   },

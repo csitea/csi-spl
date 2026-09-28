@@ -1014,6 +1014,7 @@
     "group_none": "Puudub",
     "col_key": "Võti",
     "col_title": "Pealkiri",
+    "col_resize": "Muuda veeru {col} laiust",
     "comment_hint": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab",
     "comment_hint_enter": "Enter saadab, Shift+Enter lisab rea"
   },

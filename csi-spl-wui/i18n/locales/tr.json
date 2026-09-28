@@ -1014,6 +1014,7 @@
     "group_none": "Yok",
     "col_key": "Anahtar",
     "col_title": "Başlık",
+    "col_resize": "{col} sütununu yeniden boyutlandır",
     "comment_hint": "yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter",
     "comment_hint_enter": "Enter gönderir, Shift+Enter satır ekler"
   },

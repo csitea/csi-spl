@@ -1014,6 +1014,7 @@
     "group_none": "Brak",
     "col_key": "Klucz",
     "col_title": "Tytuł",
+    "col_resize": "Zmień szerokość kolumny {col}",
     "comment_hint": "Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła",
     "comment_hint_enter": "Enter wysyła, Shift+Enter dodaje wiersz"
   },

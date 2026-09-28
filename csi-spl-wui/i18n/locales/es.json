@@ -1014,6 +1014,7 @@
     "group_none": "Ninguno",
     "col_key": "Clave",
     "col_title": "Título",
+    "col_resize": "Cambiar el ancho de la columna {col}",
     "comment_hint": "Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar",
     "comment_hint_enter": "Enter envía, Shift+Enter añade una línea"
   },

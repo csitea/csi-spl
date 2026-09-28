@@ -1014,6 +1014,7 @@
     "group_none": "Немає",
     "col_key": "Ключ",
     "col_title": "Назва",
+    "col_resize": "Змінити ширину стовпця {col}",
     "comment_hint": "Enter для нового рядка · Ctrl+Enter або Cmd+Enter, щоб надіслати",
     "comment_hint_enter": "Enter надсилає, Shift+Enter додає рядок"
   },

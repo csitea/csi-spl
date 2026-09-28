@@ -1014,6 +1014,7 @@
     "group_none": "ללא",
     "col_key": "מפתח",
     "col_title": "כותרת",
+    "col_resize": "שינוי רוחב העמודה {col}",
     "comment_hint": "Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה",
     "comment_hint_enter": "Enter שולח, Shift+Enter מוסיף שורה"
   },

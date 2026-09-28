@@ -124,7 +124,7 @@ func (s *Server) keepUpload(bg context.Context, w http.ResponseWriter, r *http.R
 		}
 		return false
 	}
-	existed, err := s.o.Blob.Promote(bg, tmp, key)
+	existed, err := blob.PromoteNew(bg, s.o.Blob, tmp, key) // handlePutFile has just seen key missing
 	if err != nil || existed {
 		s.fileUsage.release(tenant, n)
 	}

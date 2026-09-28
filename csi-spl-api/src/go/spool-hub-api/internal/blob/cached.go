@@ -148,6 +148,12 @@ func (c *Cached) Promote(ctx context.Context, src, dst string) (bool, error) {
 	return c.Store.Promote(ctx, src, dst)
 }
 
+// PromoteNew passes the store's PromoteNew through (SPL-1123).
+func (c *Cached) PromoteNew(ctx context.Context, src, dst string) (bool, error) {
+	c.evict(src, dst)
+	return PromoteNew(ctx, c.Store, src, dst)
+}
+
 func (c *Cached) Delete(ctx context.Context, key string) error {
 	c.evict(key)
 	return c.Store.Delete(ctx, key)

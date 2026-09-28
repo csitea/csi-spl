@@ -334,18 +334,47 @@ func (g *GCS) Promote(ctx context.Context, src, dst string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if !existed {
-		_, err = g.bucket.Object(dst).If(storage.Conditions{DoesNotExist: true}).
-			CopierFrom(g.bucket.Object(src)).Run(ctx)
-		existed = isPrecondition(err)
-		if err != nil && !existed {
-			return false, err
-		}
+	if existed {
+		return true, g.dropSrc(ctx, src)
 	}
+	return g.PromoteNew(ctx, src, dst)
+}
+
+// PromoteNew is Promote for a caller that has just seen dst missing (the
+// upload handler's Exists): it skips the second existence check, one GCS
+// round trip per new upload (SPL-1123). A dst written in between still fails
+// the copy's DoesNotExist precondition and answers existed, as in Promote.
+func (g *GCS) PromoteNew(ctx context.Context, src, dst string) (bool, error) {
+	_, err := g.bucket.Object(dst).If(storage.Conditions{DoesNotExist: true}).
+		CopierFrom(g.bucket.Object(src)).Run(ctx)
+	existed := isPrecondition(err)
+	if err != nil && !existed {
+		return false, err
+	}
+	return existed, g.dropSrc(ctx, src)
+}
+
+// dropSrc deletes a promoted scratch object; gone already is fine.
+func (g *GCS) dropSrc(ctx context.Context, src string) error {
 	if err := g.Delete(ctx, src); err != nil && !errors.Is(err, ErrNotFound) {
-		return existed, err
+		return err
 	}
-	return existed, nil
+	return nil
+}
+
+// newPromoter is the optional PromoteNew of a Store.
+type newPromoter interface {
+	PromoteNew(ctx context.Context, src, dst string) (bool, error)
+}
+
+// PromoteNew moves src to dst for a caller that has just seen dst missing:
+// the store's PromoteNew when it has one (GCS: one round trip fewer), else
+// its Promote. The answer is Promote's.
+func PromoteNew(ctx context.Context, s Store, src, dst string) (bool, error) {
+	if p, ok := s.(newPromoter); ok {
+		return p.PromoteNew(ctx, src, dst)
+	}
+	return s.Promote(ctx, src, dst)
 }
 
 func (g *GCS) Get(ctx context.Context, key string) (io.ReadCloser, error) {

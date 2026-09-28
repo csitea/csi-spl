@@ -72,4 +72,10 @@ func TestUploadGCSListCalls(t *testing.T) {
 	}
 	t.Logf("UPLOADGCS uploads=%d list_calls=%d list_per_upload=%.2f gcs_requests_per_upload=%.2f",
 		n, lists.Load(), float64(lists.Load())/n, float64(reqs.Load())/n)
+	// SPL-1123 budget: scratch put, exists, conditional copy, scratch delete
+	// per new upload, plus the one quota list (it was 5.20: Promote asked
+	// Exists again right after the handler had).
+	if got := reqs.Load(); got > 4*n+1 {
+		t.Errorf("%d GCS requests for %d new uploads, budget %d", got, n, 4*n+1)
+	}
 }

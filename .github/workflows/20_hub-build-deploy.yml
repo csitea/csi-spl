@@ -327,6 +327,33 @@ jobs:
           ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
           DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_build_push_hub_image
 
+      # SPL-1194: apply the schema BEFORE rolling the new revision, so the code
+      # never runs ahead of the DB (the SPL-1179 tenant-dropdown incident: the
+      # image read rdb 0078 before the migration was applied, the query failed,
+      # and the tenant list went empty). do_spl_db_bootstrap is IDEMPOTENT (it
+      # runs `spool migrate`, a no-op for already-applied files) and pins the
+      # per-env SA via GCP_ACCOUNT, exactly like the build + verify steps. A
+      # migrate failure FAILS the deploy — the old, working revision keeps
+      # serving rather than a new one against a stale schema. The matrix runs
+      # dev and prd as separate jobs; each migrates its own env before its roll.
+      - name: Apply DB migrations before rolling (do_spl_db_bootstrap)
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          # Tools do_spl_db_bootstrap requires that the runner may lack (gcloud,
+          # curl, python3, openssl are already present). The Cloud SQL Auth
+          # Proxy binary is preferred by spl_sql_proxy_start over the docker image.
+          command -v yq >/dev/null || {
+            sudo curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          }
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          command -v cloud-sql-proxy >/dev/null || {
+            sudo curl -fsSL -o /usr/local/bin/cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
+            sudo chmod +x /usr/local/bin/cloud-sql-proxy
+          }
+          ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap
+
       - name: Roll the 030 service to the minted image
         id: deploy
         if: steps.guard.outputs.ok == 'true'

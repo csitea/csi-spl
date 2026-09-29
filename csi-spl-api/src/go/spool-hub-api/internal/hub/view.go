@@ -855,7 +855,7 @@ func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []v
 	out := make([]viewMsg, 0, len(rows))
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
-			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent,
+			Env: json.RawMessage(m.Env), Deliveries: make([]viewDelivery, 0, len(m.Deliveries)), IsParent: m.IsParent,
 			Reactions: groupReactions(react[m.MsgID]), TypedBy: m.TypedBy}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision

@@ -66,6 +66,17 @@ describe('notify escalation', () => {
     assert.equal(channelKey(dm, { selfId: 'HUM-1' }), 'dm:CLE-07')
   })
 
+  it('a human->human DM escalates and keys like an agent->person one (owner, prd t1 dd88348d)', () => {
+    // The live recipient path must treat both sender kinds identically: only the
+    // sender box differs (an agent's own box vs box-wui). "the same way it
+    // works, agent to person now".
+    const fromAgent = msg({ channel: null, from: 'CLE-07', from_box: 'box-desk', to: 'HUM-1', body: 'hi' })
+    const fromHuman = msg({ channel: null, from: 'HUM-5', from_box: 'box-wui', to: 'HUM-1', body: 'hi' })
+    assert.equal(escalateReason(fromHuman, { selfId: 'HUM-1' }), 'dm')
+    assert.equal(channelKey(fromAgent, { selfId: 'HUM-1' }), 'dm:CLE-07@box-desk')
+    assert.equal(channelKey(fromHuman, { selfId: 'HUM-1' }), 'dm:HUM-5@box-wui')
+  })
+
   it('escalates any #alerts message and not a plain #tasks note', () => {
     const alerts = msg({ channel: 'alerts', body: 'box-b offline' })
     assert.equal(escalateReason(alerts, { selfId: 'HUM-1' }), 'alerts')

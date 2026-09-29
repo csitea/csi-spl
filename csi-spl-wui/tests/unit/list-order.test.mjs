@@ -223,6 +223,22 @@ describe('unreadFromDms: the DM rail badge on load, the twin of the hub channel 
     })
   })
 
+  it('a human->human DM raises the badge exactly like an agent->person one (owner, prd t1 dd88348d)', () => {
+    // The only difference between the two is the sender's box: an agent sends
+    // from its own box (box-desk), a human from box-wui (hub wuiEnvelope). The
+    // count must not care - "the same way it works, agent to person now".
+    const me2 = 'HUM-9'
+    const agentDm = [{ task_id: 't-ag', inline: { messages: [
+      { msg_id: 'g1', from: 'CLE-07', from_box: 'box-desk', to: me2, to_box: 'box-wui', channel: null, received_at: '2026-09-29T10:00:00Z' },
+    ] } }]
+    const humanDm = [{ task_id: 't-hu', inline: { messages: [
+      { msg_id: 'h1', from: 'HUM-5', from_box: 'box-wui', to: me2, to_box: 'box-wui', channel: null, received_at: '2026-09-29T10:00:00Z' },
+    ] } }]
+    assert.deepEqual(unreadFromDms(agentDm, {}, me2), { 'dm:CLE-07@box-desk': 1 })
+    assert.deepEqual(unreadFromDms(humanDm, {}, me2), { 'dm:HUM-5@box-wui': 1 },
+      'a human sender must raise dm:<id>@box-wui, the label the rail gives a human peer')
+  })
+
   it('skips channel rows and yields nothing without inline messages (CONTROL: today the rail had no DM badge on load)', () => {
     const chRow = [{ task_id: 't-c', inline: { messages: [
       { msg_id: 'c1', from: 'EZB-1', from_box: 'box-e2e-b', to: me, channel: 'lobby', received_at: 'z' },

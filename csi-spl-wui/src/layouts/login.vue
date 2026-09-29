@@ -146,11 +146,12 @@ watch(kb, async () => {
 /* The title keeps its full name. The language control gives up width on a
    phone so the two never collide or push the page sideways. */
 .login-bar :deep(.lang-switcher) {
-  /* Content-sized (the control shrink-wraps to the longest locale name,
-     SPL-1184); it may still give up width on a phone, capped at 16rem. Do NOT
-     force width:100% here — that overrode the control's own max-content width
-     and left a wide dead gap after the language name. */
-  flex: 0 1 auto;
+  /* Keep the 16rem cap (flex-basis, shrinkable on a phone) so the switcher
+     stays on the frame. The dead gap the owner saw (SPL-1184) came from
+     width:100% forcing the COMBOBOX wide — that force is gone, so the control
+     inside shrink-wraps to the longest locale name and, being align-items:
+     flex-end, hugs the bar's right edge within this box. */
+  flex: 0 1 16rem;
   min-width: 0;
   max-width: 16rem;
 }

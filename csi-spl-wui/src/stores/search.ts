@@ -11,7 +11,11 @@ type SearchError = { status: number, token: string, detail: string, pos: number,
  */
 export const useSearchStore = defineStore('search', () => {
   const q = ref('')
-  const result = ref<SearchResult | null>(null)
+  /* SPL-1216: the whole result (groups x rows x bodies) is READ-ONLY to the UI
+     and is only ever replaced wholesale (run() and more() reassign result.value,
+     never mutate it in place), so shallowRef skips the deep reactive proxy over
+     every hit - the same call SPL-5086 made for the live/channel row lists. */
+  const result = shallowRef<SearchResult | null>(null)
   const loading = ref(false)
   const loadingMore = ref('')
   const error = ref<SearchError | null>(null)

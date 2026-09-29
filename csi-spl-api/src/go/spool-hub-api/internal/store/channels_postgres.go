@@ -279,16 +279,21 @@ func (cs *channelStats) channelsRead() tenantRead {
 // countsRead is each channel's live message count, newest message and
 // posters; unread starts at the count.
 func (cs *channelStats) countsRead(now time.Time) tenantRead {
-	// SPL-1127: one pass over the tenant's channel rows (m), counted by a hash
-	// aggregate; the posters as a hashed DISTINCT; the newest message by one
-	// index probe per channel at its max(received_at), ties by msg_id text
-	// DESC. It used array_agg(... ORDER BY)[1] and count(DISTINCT), which sort
-	// every row of every channel (5 % of prd database time); same rows out.
-	return tenantRead{`WITH m AS MATERIALIZED (SELECT channel, from_id, received_at FROM messages
-				WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2),
-			c AS (SELECT channel, count(*)::int AS n, max(received_at) AS last_at FROM m GROUP BY channel),
-			p AS (SELECT channel, count(*)::int AS posters FROM (SELECT DISTINCT channel, from_id FROM m) d GROUP BY channel)
-		SELECT c.channel, c.n, c.last_at, l.msg_id, p.posters FROM c JOIN p USING (channel)
+	// e908f41b lane B: one GROUP BY over the covering index messages_channel_stats
+	// (rdb 0080, (tenant_id, channel) INCLUDE received_at, from_id, expires_at) —
+	// count, max(received_at) and count(DISTINCT from_id) posters come from ONE
+	// Index Only Scan, and the newest message by one index probe per channel at
+	// its max(received_at), ties by msg_id text DESC. It was SPL-1127's
+	// MATERIALIZED CTE scanned twice with a separate global DISTINCT that spilled
+	// to temp; the index makes the DISTINCT a per-channel in-memory sort. Same
+	// rows out. Measured pg 16.14, owner under the tenant scope, t1 180k channel
+	// messages: 147 ms + Seq Scan 14059 buffers + temp 748 -> 96 ms + Index Only
+	// Scan 1340 buffers + no temp.
+	return tenantRead{`WITH c AS (
+			SELECT channel, count(*)::int AS n, max(received_at) AS last_at, count(DISTINCT from_id)::int AS posters
+			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2
+			GROUP BY channel)
+		SELECT c.channel, c.n, c.last_at, l.msg_id, c.posters FROM c
 		CROSS JOIN LATERAL (SELECT x.msg_id::text AS msg_id FROM messages x
 			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at
 			ORDER BY x.msg_id::text DESC LIMIT 1) l`,

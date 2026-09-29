@@ -291,7 +291,8 @@
       "warning_save": "Sačuvajte ga kao fajl koji samo vi možete da čitate (režim 0600) i usmerite {var} na njega.",
       "tenant": "Radni prostor {id} — prijavite se na {url}",
       "copy": "Kopiraj ključ",
-      "download": "Preuzmi ključ"
+      "download": "Preuzmi ključ",
+      "sign_in_as": "Prijavite se adresom {email} — ta adresa je vlasnik radnog prostora."
     },
     "error": {
       "bad_request": "Proverite imejl adresu i pokušajte ponovo.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Vaša adresa {host} se priprema (obično 15–30 minuta). Stranica će se osvežiti kada odgovori; u međuvremenu čuvajte ključ na sigurnom.",
       "ready": "Vaša adresa {host} je spremna."
+    },
+    "buy": {
+      "link": "Kupite radni prostor"
     }
   },
   "user_menu": {

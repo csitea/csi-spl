@@ -291,7 +291,8 @@
       "warning_save": "Yalnızca sizin okuyabileceğiniz bir dosyaya kaydedin (mod 0600) ve {var} değişkenini ona yönlendirin.",
       "tenant": "Çalışma alanı {id} — şu adresten giriş yapın: {url}",
       "copy": "Anahtarı kopyala",
-      "download": "Anahtarı indir"
+      "download": "Anahtarı indir",
+      "sign_in_as": "{email} ile giriş yapın — bu adres çalışma alanının sahibidir."
     },
     "error": {
       "bad_request": "E-posta adresini kontrol edip tekrar deneyin.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "{host} adresiniz hazırlanıyor (genellikle 15–30 dakika). Yanıt verdiğinde bu sayfa güncellenir; bu arada anahtarınızı güvende tutun.",
       "ready": "{host} adresiniz hazır."
+    },
+    "buy": {
+      "link": "Çalışma alanı satın alın"
     }
   },
   "user_menu": {

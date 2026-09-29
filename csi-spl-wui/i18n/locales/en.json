@@ -291,7 +291,8 @@
       "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
       "tenant": "Workspace {id} — sign in at {url}",
       "copy": "Copy key",
-      "download": "Download key"
+      "download": "Download key",
+      "sign_in_as": "Sign in with {email} — that address owns the workspace."
     },
     "error": {
       "bad_request": "Check the email address and try again.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
       "ready": "Your address {host} is ready."
+    },
+    "buy": {
+      "link": "Buy a workspace"
     }
   },
   "user_menu": {

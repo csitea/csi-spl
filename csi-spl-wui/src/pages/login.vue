@@ -13,6 +13,7 @@
       <button class="btn ghost" type="button" @click="session.logout()">{{ t('auth.login.sign_out') }}</button>
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
+    <BuyWorkspaceLink v-if="session.state !== 'in'" with-price />
   </div>
 </template>
 
@@ -21,6 +22,7 @@ import { safeRedirect } from '~/utils/auth-client.mjs'
 import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import NativeAuthForm from '~/components/NativeAuthForm.vue'
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
+import BuyWorkspaceLink from '~/components/BuyWorkspaceLink.vue'
 import { useSessionStore } from '~/stores/session'
 import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'

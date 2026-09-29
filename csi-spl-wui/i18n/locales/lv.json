@@ -291,7 +291,8 @@
       "warning_save": "Saglabājiet to failā, ko varat lasīt tikai jūs (režīms 0600), un norādiet uz to {var}.",
       "tenant": "Darbvieta {id} — piesakieties: {url}",
       "copy": "Kopēt atslēgu",
-      "download": "Lejupielādēt atslēgu"
+      "download": "Lejupielādēt atslēgu",
+      "sign_in_as": "Piesakieties ar {email} — šī adrese ir darbvietas īpašniece."
     },
     "error": {
       "bad_request": "Pārbaudiet e-pasta adresi un mēģiniet vēlreiz.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Jūsu adrese {host} tiek sagatavota (parasti 15–30 minūtes). Šī lapa atjaunosies, kad tā atbildēs; pa to laiku glabājiet savu atslēgu drošībā.",
       "ready": "Jūsu adrese {host} ir gatava."
+    },
+    "buy": {
+      "link": "Iegādājieties darbvietu"
     }
   },
   "user_menu": {

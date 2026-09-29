@@ -797,7 +797,7 @@ declare module '~/utils/checkout-client.mjs' {
     error: string
   }
   export type ClaimOutcome =
-    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, tenant_host?: string, host_status?: string } }
+    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, tenant_host?: string, host_status?: string, email?: string } }
     | { state: 'claimed' | 'expired' | 'failed' | 'cancelled' | 'stopped' }
     | { state: 'error', error: string }
   export interface CheckoutClient {

@@ -291,7 +291,8 @@
       "warning_save": "Tallenna se tiedostoksi, jonka vain sinä voit lukea (tila 0600), ja osoita {var} siihen.",
       "tenant": "Työtila {id} — kirjaudu osoitteessa {url}",
       "copy": "Kopioi avain",
-      "download": "Lataa avain"
+      "download": "Lataa avain",
+      "sign_in_as": "Kirjaudu osoitteella {email} — se osoite omistaa työtilan."
     },
     "error": {
       "bad_request": "Tarkista sähköpostiosoite ja yritä uudelleen.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Osoitettasi {host} valmistellaan (yleensä 15–30 minuuttia). Tämä sivu päivittyy, kun se vastaa; säilytä avaimesi turvassa sillä välin.",
       "ready": "Osoitteesi {host} on valmis."
+    },
+    "buy": {
+      "link": "Osta työtila"
     }
   },
   "user_menu": {

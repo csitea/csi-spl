@@ -291,7 +291,8 @@
       "warning_save": "Išsaugokite jį faile, kurį galite skaityti tik jūs (režimas 0600), ir nukreipkite {var} į jį.",
       "tenant": "Darbo sritis {id} — prisijunkite adresu {url}",
       "copy": "Kopijuoti raktą",
-      "download": "Atsisiųsti raktą"
+      "download": "Atsisiųsti raktą",
+      "sign_in_as": "Prisijunkite su {email} — šis adresas yra darbo srities savininkas."
     },
     "error": {
       "bad_request": "Patikrinkite el. pašto adresą ir bandykite dar kartą.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Jūsų adresas {host} ruošiamas (paprastai 15–30 minučių). Šis puslapis atsinaujins, kai jis atsakys; tuo metu saugokite savo raktą.",
       "ready": "Jūsų adresas {host} paruoštas."
+    },
+    "buy": {
+      "link": "Įsigykite darbo sritį"
     }
   },
   "user_menu": {

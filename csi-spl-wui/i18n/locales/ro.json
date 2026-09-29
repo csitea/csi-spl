@@ -291,7 +291,8 @@
       "warning_save": "Salvați-o într-un fișier pe care doar dvs. îl puteți citi (mod 0600) și setați {var} să indice spre el.",
       "tenant": "Spațiul de lucru {id} — conectați-vă la {url}",
       "copy": "Copiază cheia",
-      "download": "Descarcă cheia"
+      "download": "Descarcă cheia",
+      "sign_in_as": "Conectați-vă cu {email} — această adresă este proprietarul spațiului de lucru."
     },
     "error": {
       "bad_request": "Verificați adresa de e-mail și încercați din nou.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Adresa dvs. {host} este în pregătire (de obicei 15–30 de minute). Pagina se actualizează când răspunde; între timp păstrați cheia în siguranță.",
       "ready": "Adresa dvs. {host} este gata."
+    },
+    "buy": {
+      "link": "Cumpărați un spațiu de lucru"
     }
   },
   "user_menu": {

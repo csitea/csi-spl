@@ -69,7 +69,9 @@
       </div>
       </div>
       <template #fallback>
-        <div class="login"><p class="muted">{{ $t('app.loading') }}</p></div>
+        <!-- 047 W2: the prerendered shell is the document a stranger's first
+             request gets, so the way in to /checkout rides in it -->
+        <div class="login"><p class="muted">{{ $t('app.loading') }}</p><BuyWorkspaceLink /></div>
       </template>
     </ClientOnly>
     <!-- Renders only for a human who ticked "Debug pane" in Settings →
@@ -95,6 +97,7 @@ const paneFocus = usePaneFocus()
 import DebugPanel from '@/components/common/DebugPanel.vue'
 import ErrorSnackbar from '@/components/common/ErrorSnackbar.vue'
 import TopBar from '@/components/TopBar.vue'
+import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'

@@ -14,6 +14,10 @@
       <template #id><strong>{{ tenantId }}</strong></template>
       <template #url><a :href="tenantUrl" rel="noopener" data-test="checkout-tenant-url">{{ tenantUrl }}</a></template>
     </i18n-t>
+    <!-- 047 W1: the paid webhook invited this address as biz_owner; any other is refused -->
+    <i18n-t v-if="email" keypath="checkout.key.sign_in_as" tag="p" scope="global" data-test="checkout-sign-in-as">
+      <template #email><strong>{{ email }}</strong></template>
+    </i18n-t>
     <pre class="checkout-key__text" data-test="checkout-key">{{ keyText }}</pre>
     <div class="checkout-key__actions">
       <button class="btn" type="button" data-test="checkout-key-copy" @click="copyKey">{{ copied ? t('common.copied') : t('checkout.key.copy') }}</button>
@@ -26,7 +30,7 @@
 import { ref } from 'vue'
 import { keyFileName } from '~/utils/checkout-client.mjs'
 
-const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string }>()
+const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string, email?: string }>()
 const { t } = useI18n({ useScope: 'global' })
 const copied = ref(false)
 

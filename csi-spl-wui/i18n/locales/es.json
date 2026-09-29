@@ -291,7 +291,8 @@
       "warning_save": "Guárdala en un archivo que solo tú puedas leer (modo 0600) y apunta {var} a él.",
       "tenant": "Espacio de trabajo {id}: inicia sesión en {url}",
       "copy": "Copiar clave",
-      "download": "Descargar clave"
+      "download": "Descargar clave",
+      "sign_in_as": "Inicia sesión con {email}: esa dirección es la propietaria del espacio de trabajo."
     },
     "error": {
       "bad_request": "Revisa el correo electrónico e inténtalo de nuevo.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Tu dirección {host} se está preparando (normalmente 15–30 minutos). Esta página se actualizará cuando responda; mientras tanto, guarda tu clave en un lugar seguro.",
       "ready": "Tu dirección {host} está lista."
+    },
+    "buy": {
+      "link": "Compra un espacio de trabajo"
     }
   },
   "user_menu": {

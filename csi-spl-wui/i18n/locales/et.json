@@ -291,7 +291,8 @@
       "warning_save": "Salvesta see faili, mida saad lugeda ainult sina (režiim 0600), ja suuna {var} sellele.",
       "tenant": "Tööruum {id} — logi sisse aadressil {url}",
       "copy": "Kopeeri võti",
-      "download": "Laadi võti alla"
+      "download": "Laadi võti alla",
+      "sign_in_as": "Logi sisse aadressiga {email} — see aadress on tööruumi omanik."
     },
     "error": {
       "bad_request": "Kontrolli e-posti aadressi ja proovi uuesti.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Sinu aadressi {host} valmistatakse ette (tavaliselt 15–30 minutit). See leht uueneb, kui aadress vastab; hoia seni oma võti turvaliselt alles.",
       "ready": "Sinu aadress {host} on valmis."
+    },
+    "buy": {
+      "link": "Osta tööruum"
     }
   },
   "user_menu": {

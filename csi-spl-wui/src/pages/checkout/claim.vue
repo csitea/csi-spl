@@ -9,7 +9,7 @@
     <h1>{{ t('checkout.your_spool') }}</h1>
     <p v-if="state === 'claiming'" class="muted" role="status" data-test="checkout-claiming">{{ t('checkout.claim.claiming') }}</p>
     <template v-else-if="state === 'ok'">
-      <CheckoutKeyReveal :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
+      <CheckoutKeyReveal :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" :email="email" />
     </template>
     <p v-else-if="state === 'claimed'" role="status" data-test="checkout-claimed">
       {{ t('checkout.claim.claimed') }}
@@ -56,6 +56,7 @@ const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
 const tenantUrl = ref('')
+const email = ref('')
 // deliberately NOT reactive: the link token never reaches a template, devtools or a store
 let link = { id: '', token: '' }
 let left = false
@@ -81,6 +82,7 @@ async function claim() {
     keyText.value = String(r.root_private_key || '')
     tenantId.value = String(r.tenant_id || '')
     tenantUrl.value = String(r.tenant_url || '')
+    email.value = String(r.email || '')
     link = { id: '', token: '' }
     state.value = 'ok'
     return

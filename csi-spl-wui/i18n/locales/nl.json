@@ -291,7 +291,8 @@
       "warning_save": "Sla hem op in een bestand dat alleen jij kunt lezen (modus 0600) en laat {var} ernaar verwijzen.",
       "tenant": "Werkruimte {id} — meld je aan op {url}",
       "copy": "Sleutel kopiëren",
-      "download": "Sleutel downloaden"
+      "download": "Sleutel downloaden",
+      "sign_in_as": "Meld je aan met {email} — dat adres is de eigenaar van de werkruimte."
     },
     "error": {
       "bad_request": "Controleer het e-mailadres en probeer het opnieuw.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Je adres {host} wordt voorbereid (meestal 15–30 minuten). Deze pagina wordt bijgewerkt zodra het antwoordt; bewaar je sleutel intussen veilig.",
       "ready": "Je adres {host} is klaar."
+    },
+    "buy": {
+      "link": "Koop een werkruimte"
     }
   },
   "user_menu": {

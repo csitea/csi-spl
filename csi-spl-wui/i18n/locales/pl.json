@@ -291,7 +291,8 @@
       "warning_save": "Zapisz go w pliku czytelnym tylko dla Ciebie (tryb 0600) i wskaż go w {var}.",
       "tenant": "Obszar roboczy {id} — zaloguj się pod adresem {url}",
       "copy": "Kopiuj klucz",
-      "download": "Pobierz klucz"
+      "download": "Pobierz klucz",
+      "sign_in_as": "Zaloguj się adresem {email} — ten adres jest właścicielem obszaru roboczego."
     },
     "error": {
       "bad_request": "Sprawdź adres e-mail i spróbuj ponownie.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Twój adres {host} jest przygotowywany (zwykle 15–30 minut). Ta strona odświeży się, gdy zacznie odpowiadać; w międzyczasie przechowuj klucz w bezpiecznym miejscu.",
       "ready": "Twój adres {host} jest gotowy."
+    },
+    "buy": {
+      "link": "Kup obszar roboczy"
     }
   },
   "user_menu": {

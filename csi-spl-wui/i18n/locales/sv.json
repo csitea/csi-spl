@@ -291,7 +291,8 @@
       "warning_save": "Spara den som en fil som bara du kan läsa (läge 0600) och peka {var} på den.",
       "tenant": "Arbetsyta {id} — logga in på {url}",
       "copy": "Kopiera nyckel",
-      "download": "Ladda ner nyckel"
+      "download": "Ladda ner nyckel",
+      "sign_in_as": "Logga in med {email} — den adressen äger arbetsytan."
     },
     "error": {
       "bad_request": "Kontrollera e-postadressen och försök igen.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Din adress {host} förbereds (vanligtvis 15–30 minuter). Sidan uppdateras när den svarar; förvara din nyckel säkert under tiden.",
       "ready": "Din adress {host} är klar."
+    },
+    "buy": {
+      "link": "Köp en arbetsyta"
     }
   },
   "user_menu": {

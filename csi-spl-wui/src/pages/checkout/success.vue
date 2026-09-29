@@ -11,7 +11,7 @@
     <h1>{{ t('checkout.your_spool') }}</h1>
     <p v-if="state === 'waiting'" class="muted" role="status" data-test="checkout-waiting">{{ t('checkout.success.waiting') }}</p>
     <template v-else-if="state === 'ok'">
-      <CheckoutKeyReveal :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
+      <CheckoutKeyReveal :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" :email="email" />
     </template>
     <p v-else-if="state === 'claimed'" role="status" data-test="checkout-claimed">
       {{ t('checkout.success.claimed') }}
@@ -61,6 +61,7 @@ const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
 const tenantUrl = ref('')
+const email = ref('')
 let stopped = false
 let checkoutId = ''
 
@@ -83,6 +84,7 @@ async function run() {
     keyText.value = String(r.root_private_key || '')
     tenantId.value = String(r.tenant_id || '')
     tenantUrl.value = String(r.tenant_url || '')
+    email.value = String(r.email || '')
     state.value = 'ok'
     return
   }

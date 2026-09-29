@@ -291,7 +291,8 @@
       "warning_save": "Uložte ho do súboru, ktorý môžete čítať iba vy (mode 0600), a nastavte naň {var}.",
       "tenant": "Pracovný priestor {id} — prihláste sa na {url}",
       "copy": "Kopírovať kľúč",
-      "download": "Stiahnuť kľúč"
+      "download": "Stiahnuť kľúč",
+      "sign_in_as": "Prihláste sa adresou {email} — táto adresa je vlastníkom pracovného priestoru."
     },
     "error": {
       "bad_request": "Skontrolujte e-mailovú adresu a skúste to znova.",
@@ -318,6 +319,9 @@
     "host": {
       "preparing": "Vaša adresa {host} sa pripravuje (zvyčajne 15–30 minút). Stránka sa aktualizuje, keď odpovie; medzitým si kľúč bezpečne uschovajte.",
       "ready": "Vaša adresa {host} je pripravená."
+    },
+    "buy": {
+      "link": "Kúpte si pracovný priestor"
     }
   },
   "user_menu": {

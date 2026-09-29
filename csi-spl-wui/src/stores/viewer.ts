@@ -9,10 +9,15 @@ import type { SpoolMessage, TopicRow } from '~/types/spool'
 /** Read-only topic viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
 export const useViewerStore = defineStore('viewer', () => {
   const api = useSpoolApi()
-  const topics = ref<TopicRow[]>([])
+  /* SPL-1219: both row lists are READ-ONLY to the UI and only ever replaced
+     wholesale (never mutated in place - see every topics.value/messages.value
+     write below), so shallowRef skips the deep reactive proxy over every row.
+     topics is re-derived on EVERY live message (bumpTopic), so this is on the
+     hot path; the same call SPL-5086 made for the live/channel stores. */
+  const topics = shallowRef<TopicRow[]>([])
   const next = ref<string | null>(null)
   const taskId = ref<string | null>(null)
-  const messages = ref<SpoolMessage[]>([])
+  const messages = shallowRef<SpoolMessage[]>([])
   const loading = ref(false)
   /*
    * spec 021: the failure as a catalogue key (or the client's raw technical

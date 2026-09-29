@@ -8,17 +8,23 @@
 # @description appears in the browser's open DM.
 # @description   1. `spool recv --as <agent>` on the desk root (no --ack: the
 # @description      message stays in the inbox unless DESK_ACK=1)
-# @description   2. the conversation to answer. NOT simply "the newest human":
-# @description      two people (or a probe) writing to the same agent would
-# @description      then take turns stealing each other's topic, and an answer
-# @description      meant for one appears under the other - measured
+# @description   2. the conversation to answer. When DESK_TASK names a topic,
+# @description      the answer goes into THAT topic, full stop (owner rule, prd
+# @description      t1 topic b280b0e8, 2026-09-29) - no inbox read, so a busy
+# @description      desk's undrained inbox cannot block a reply into a named
+# @description      topic. Otherwise the picker runs. NOT simply "the newest
+# @description      human": two people (or a probe) writing to the same agent
+# @description      would then take turns stealing each other's topic, and an
+# @description      answer meant for one appears under the other - measured
 # @description      2026-09-21, while the owner watched. So: only messages
 # @description      NEWER than this desk's last answer count, and
 # @description        - exactly one such (sender, topic)  -> answer it
 # @description        - several                            -> REFUSE, exit 4,
 # @description          and name them; pass DESK_TO / DESK_TASK to choose
 # @description        - none                               -> exit 3
-# @description      DESK_TO / DESK_TASK override the whole rule
+# @description      DESK_TO overrides the human; DESK_TASK overrides the topic
+# @description      and skips the picker (the recv JSON rides on stdin, never
+# @description      argv - an undrained inbox once overran ARG_MAX, 2026-09-29)
 # @description   3. `spool send --from <agent> --to <hum> --task <task>
 # @description      --to-box box-wui --kind <DESK_KIND>`; the desk's hub-run
 # @description      sidecar flushes it to the hub
@@ -36,7 +42,12 @@
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
-# @param DESK_TASK (optional) - answer in THIS topic instead of the newest one
+# @param DESK_TASK (optional) - answer in THIS topic instead of the newest one.
+# @param   A full task UUID, or an 8-hex topic-id prefix resolved against the
+# @param   inbox (refused when ambiguous or unknown). When given, the answer
+# @param   goes into that topic even when no newer human line is waiting; the
+# @param   human is DESK_TO, else the topic's opener, else it refuses naming
+# @param   DESK_TO. Given with a full UUID and DESK_TO, no inbox is read.
 # @param DESK_FILES (optional) - space-separated paths to attach to the answer
 # @param   (each put as a blob first, exactly as do_spl_desk_post does)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
@@ -56,7 +67,8 @@ do_spl_desk_reply() {
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
   [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
   [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
-  [[ -z "$task" || "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID, got: '$task'"; return 1; }
+  local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' pfx_re='^[0-9a-f]{8}$'
+  [[ -z "$task" || "$task" =~ $uuid_re || "$task" =~ $pfx_re ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID or an 8-hex topic prefix, got: '$task'"; return 1; }
   local f files=()
   read -r -a files <<<"${DESK_FILES:-}"
   for f in "${files[@]}"; do
@@ -75,28 +87,44 @@ do_spl_desk_reply() {
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
-  local msgs pick prc=0
-  msgs="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" 2>&1)" ||
-    { do_log "FATAL recv --as $agent on $box: $msgs"; return 1; }
-  pick="$(spl_desk_pick "$msgs" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
-  if (( prc == 3 )); then
-    do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox)"; return 3
-  elif (( prc == 4 )); then
-    do_log "FATAL $agent has more than one conversation waiting; name one with DESK_TO and DESK_TASK (or DESK_ANY=1):"
-    do_log "FATAL $pick"
-    return 4
-  elif (( prc != 0 )); then
-    do_log "FATAL cannot choose a conversation to answer: $pick"; return 1
-  fi
   local ans_to ans_task ans_msg ans_head
-  IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
-  [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
+  if [[ -n "$to" && "$task" =~ $uuid_re ]]; then
+    # Owner rule (prd t1 topic b280b0e8, 2026-09-29): a full topic id plus the
+    # human means post THERE, full stop - no inbox read at all, so a busy
+    # desk's undrained inbox (which once overran ARG_MAX) cannot block it.
+    ans_to="$to"; ans_task="$task"; ans_msg=""; ans_head=""
+  else
+    local recvf pick prc=0
+    recvf="$(mktemp "${TMPDIR:-/tmp}/spl-desk-recv.XXXXXX")" || { do_log "FATAL could not make a temp file for $agent's inbox"; return 1; }
+    # The recv JSON lands in a FILE, never a shell word: an inbox is never
+    # drained, so a busy desk (CLE-001) whose JSON went on argv overran ARG_MAX
+    # and python never ran (measured 2026-09-29: "Argument list too long", the
+    # pick empty, a waiting topic lost). spl_desk_pick reads the file by path.
+    if ! spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" >"$recvf" 2>&1; then
+      do_log "FATAL recv --as $agent on $box: $(cat "$recvf")"; rm -f "$recvf"; return 1
+    fi
+    pick="$(spl_desk_pick "$recvf" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
+    rm -f "$recvf"
+    if (( prc == 3 )); then
+      do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox); name a topic with DESK_TASK to answer in it regardless"; return 3
+    elif (( prc == 4 )); then
+      do_log "FATAL $agent has more than one conversation waiting; name one with DESK_TO and DESK_TASK (or DESK_ANY=1):"
+      do_log "FATAL $pick"
+      return 4
+    elif (( prc == 5 )); then
+      do_log "FATAL $pick"; return 1
+    elif (( prc != 0 )); then
+      do_log "FATAL cannot choose a conversation to answer: $pick"; return 1
+    fi
+    IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
+    [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
+  fi
 
   local ids=() put id
   for f in "${files[@]}"; do
     put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
       { do_log "FATAL put-file $f: $put"; return 1; }
-    id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["file_id"])' "$put" 2>/dev/null)" ||
+    id="$(printf '%s' "$put" | python3 -c 'import json,sys; print(json.load(sys.stdin)["file_id"])' 2>/dev/null)" ||
       { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
     ids+=(--file-id "$id")
   done
@@ -105,9 +133,10 @@ do_spl_desk_reply() {
   sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
     --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}")" || rc=$?
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head" "$sent" <<'EOF_PY'
-import json, sys
-env, tenant, box, agent, kind, to, task, in_msg, head, sent = sys.argv[1:]
+  SPL_SENT="$sent" python3 - "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head" <<'EOF_PY'
+import json, os, sys
+env, tenant, box, agent, kind, to, task, in_msg, head = sys.argv[1:]
+sent = os.environ.get("SPL_SENT", "")
 try:
     sent = json.loads(sent)
 except ValueError:
@@ -129,47 +158,82 @@ EOF_PY
   do_log "OK $agent answered $ans_to in topic $ans_task ($kind); the sidecar flushes it to $hub"
 }
 
-# spl_desk_pick <recv json> <to override> <task override> <answered file> <any>:
-# the conversation to answer, as "<to>\t<task>\t<msg_id>\t<head>".
+# spl_desk_pick <recv file> <to override> <task override> <answered file> <any>:
+# the conversation to answer, as "<to>\t<task>\t<msg_id>\t<head>". The recv JSON
+# is read from a FILE, never argv - a desk's inbox is never drained, so a busy
+# one (its JSON as an argv word) overran ARG_MAX and python never ran (measured
+# 2026-09-29: "Argument list too long", the pick empty, a waiting topic lost).
 #
 # Humans only (a HUM-* sender): a desk answers the person in the browser, not
-# another box. Among those, only messages NEWER than this desk's last answer
-# are candidates - an inbox is never drained, so "the newest human message"
-# alone would keep re-picking whoever spoke most recently ANYWHERE, and an
-# answer meant for one person would land in another's topic.
+# another box. When DESK_TASK names a topic, the answer goes into THAT topic
+# full stop (owner rule, prd t1 topic b280b0e8, 2026-09-29) - no "newer than
+# the last answer" gate. Otherwise, among the human messages, only ones NEWER
+# than this desk's last answer are candidates - an inbox is never drained, so
+# "the newest human message" alone would keep re-picking whoever spoke most
+# recently ANYWHERE, and an answer meant for one person would land in another's.
 #
-# Exit 3 nothing to answer; exit 4 more than one conversation is waiting, with
-# them listed on stdout - that is a question for the operator, not a guess.
+# An 8-hex DESK_TASK is a topic-id prefix, resolved against the inbox's
+# task_ids. Exit 3 nothing to answer; exit 4 more than one conversation is
+# waiting; exit 5 a named topic could not be resolved or addressed - each
+# listed on stdout, a question for the operator, not a guess.
 spl_desk_pick() {
-  python3 - "$1" "${2:-}" "${3:-}" "${4:-}" "${5:-0}" <<'EOF_PY'
-import json, sys
-raw, to, task, answered, any_one = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "1"
+  python3 - "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-0}" <<'EOF_PY'
+import json, re, sys
+src, to, task, answered, any_one = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "1"
 try:
-    msgs = json.loads(raw) or []
-except ValueError:
+    with open(src) as f:
+        msgs = json.load(f) or []
+except (OSError, ValueError):
     msgs = []
-rows = [m for m in msgs if isinstance(m, dict) and str(m.get("from", "")).startswith("HUM-")]
+if not isinstance(msgs, list):
+    msgs = []
+msgs = [m for m in msgs if isinstance(m, dict)]
 
-def out(m, to_=None, task_=None):
-    head = " ".join(str(m.get("body", "")).split())[:80] if m else ""
-    print("\t".join([to_ or m.get("from", ""), task_ or m.get("task_id", ""),
-                     (m or {}).get("msg_id", "") if m else "", head]))
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+# An 8-hex (or otherwise partial) DESK_TASK is a topic-id prefix: resolve it to
+# the one full task_id the inbox carries; refuse it ambiguous or unknown.
+if task and not UUID.match(task):
+    cands = sorted({str(m.get("task_id", "")) for m in msgs
+                    if str(m.get("task_id", "")).startswith(task)})
+    if len(cands) == 1:
+        task = cands[0]
+    elif not cands:
+        print("no topic in this desk's inbox starts with '%s'; pass the full DESK_TASK uuid" % task)
+        sys.exit(5)
+    else:
+        print("DESK_TASK prefix '%s' is ambiguous, name the full uuid: %s" % (task, ", ".join(cands)))
+        sys.exit(5)
+
+hums = [m for m in msgs if str(m.get("from", "")).startswith("HUM-")]
+
+def out(to_, task_, m=None):
+    head = " ".join(str((m or {}).get("body", "")).split())[:80]
+    print("\t".join([to_, task_, (m or {}).get("msg_id", "") if m else "", head]))
     sys.exit(0)
 
+# Owner rule (prd t1 topic b280b0e8, 2026-09-29): "if the agent gives the topic
+# id, post there, full stop. The 'answer the last human' logic is used only when
+# no topic is given." So a named DESK_TASK never falls through to exit 3.
+if task:
+    in_topic = sorted([m for m in hums if m.get("task_id") == task],
+                      key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
+    if to:
+        m = next((x for x in reversed(in_topic) if x.get("from") == to), None)
+        out(to, task, m)  # obey the explicit human, with a message or without
+    if in_topic:
+        out(in_topic[-1].get("from", ""), task, in_topic[-1])  # the topic's human opener
+    print("topic %s has no human message in this desk's inbox; name the human with DESK_TO" % task)
+    sys.exit(5)
+
+# No DESK_TASK: the "answer the last human" picker.
+rows = hums
 if to:
     rows = [m for m in rows if m.get("from") == to]
-if task:
-    rows = [m for m in rows if m.get("task_id") == task]
 rows.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
-
-if to or task:
-    # An explicit choice is obeyed, including a topic we hold no message of
-    # yet (the person opened a fresh DM) when BOTH halves are named.
+if to:
     if rows:
-        out(rows[-1])
-    if to and task:
-        print("\t".join([to, task, "", ""]))
-        sys.exit(0)
+        out(to, rows[-1].get("task_id", ""), rows[-1])
     sys.exit(3)
 
 since = ""
@@ -189,6 +253,6 @@ if len(topics) > 1 and not any_one:
         print("DESK_TO=%s DESK_TASK=%s  (%d waiting, newest: %s)"
               % (frm, tsk, len(ms), " ".join(str(ms[-1].get("body", "")).split())[:60]))
     sys.exit(4)
-out(fresh[-1])
+out(fresh[-1].get("from", ""), fresh[-1].get("task_id", ""), fresh[-1])
 EOF_PY
 }

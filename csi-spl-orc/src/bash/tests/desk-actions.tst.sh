@@ -150,54 +150,130 @@ SNIPPET="spl_desk_sidecar_stale not-a-pid" in_orc >/dev/null 2>&1 &&
 kill "$stale_pid" "$kept_pid" 2>/dev/null || true
 
 # --- 4. which message gets answered ------------------------------------------------
+# spl_desk_pick reads the recv JSON from a FILE by path (never an argv word): a
+# desk's inbox is never drained, so a busy one (CLE-001) whose JSON went on argv
+# overran ARG_MAX and python never ran - "Argument list too long", the pick
+# empty, a waiting topic lost (measured 2026-09-29). Every call names a file.
 U1=0f8fad5b-d9cb-469f-a165-70867728950e
 U2=1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d
-msgs=$(cat <<JSON
+cat >"$T/msgs.json" <<JSON
 [{"msg_id":"m1","task_id":"$U1","ts":"2026-09-21T10:00:00Z","from":"HUM-9","body":"first"},
  {"msg_id":"m2","task_id":"$U2","ts":"2026-09-21T12:00:00Z","from":"HUM-4","body":"newest  human"},
  {"msg_id":"m3","task_id":"$U1","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"a box, never answered"}]
 JSON
-)
 # Two humans in two topics: a guess here is what put an answer meant for the
 # owner into a probe account's topic while the owner watched (2026-09-21).
-out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '' 0" in_orc 2>&1); rc=$?
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '' '' 0" in_orc 2>&1); rc=$?
 [[ $rc -eq 4 ]] && pass "two waiting conversations are REFUSED, not guessed (exit 4)" ||
   fail "two conversations did not exit 4 (rc=$rc): $out"
 [[ "$out" == *"DESK_TO=HUM-9 DESK_TASK=$U1"* && "$out" == *"DESK_TO=HUM-4 DESK_TASK=$U2"* ]] &&
   pass "…and both are named, with the flags to choose one" || fail "the refusal does not name both: $out"
-out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '' 1" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '' '' 1" in_orc 2>&1)
 [[ "$out" == "HUM-4	$U2	m2	newest  human" || "$out" == "HUM-4	$U2	m2	newest human" ]] &&
   pass "DESK_ANY=1 takes the newest human anyway" || fail "DESK_ANY: $out"
 # One conversation only: answered without asking.
-one='[{"msg_id":"m1","task_id":"'$U1'","ts":"2026-09-21T10:00:00Z","from":"HUM-9","body":"first"},
-     {"msg_id":"m9","task_id":"'$U1'","ts":"2026-09-21T11:00:00Z","from":"HUM-9","body":"and again"}]'
-out=$(SNIPPET="spl_desk_pick '$one' '' '' '' 0" in_orc 2>&1)
+cat >"$T/one.json" <<JSON
+[{"msg_id":"m1","task_id":"$U1","ts":"2026-09-21T10:00:00Z","from":"HUM-9","body":"first"},
+ {"msg_id":"m9","task_id":"$U1","ts":"2026-09-21T11:00:00Z","from":"HUM-9","body":"and again"}]
+JSON
+out=$(SNIPPET="spl_desk_pick '$T/one.json' '' '' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U1	m9	and again" ]] && pass "one waiting conversation is answered, at its newest message" ||
   fail "single conversation: $out"
 # The watermark: what we already answered stops counting, so the second human
 # becomes the only one waiting and is answered without a question.
 printf '{"to":"HUM-9","task":"%s","ts":"2026-09-21T10:30:00Z"}' "$U1" >"$T/answered"
-out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '$T/answered' 0" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '' '$T/answered' 0" in_orc 2>&1)
 [[ "$out" == "HUM-4	$U2	m2"* ]] && pass "the answered watermark leaves one conversation waiting" ||
   fail "watermark: $out"
 printf '{"to":"HUM-9","task":"%s","ts":"2026-09-21T23:00:00Z"}' "$U1" >"$T/answered"
-SNIPPET="spl_desk_pick '$msgs' '' '' '$T/answered' 0" in_orc >/dev/null 2>&1
+SNIPPET="spl_desk_pick '$T/msgs.json' '' '' '$T/answered' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "nothing newer than the last answer is exit 3" || fail "stale watermark did not exit 3"
 rm -f "$T/answered"
-out=$(SNIPPET="spl_desk_pick '$msgs' 'HUM-9' '' '' 0" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' 'HUM-9' '' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U1	m1	first" ]] && pass "DESK_TO narrows it to that human" || fail "pick by to: $out"
-out=$(SNIPPET="spl_desk_pick '$msgs' '' '$U1' '' 0" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '$U1' '' 0" in_orc 2>&1)
 [[ "$out" == HUM-9* ]] && pass "DESK_TASK narrows it to that topic" || fail "pick by task: $out"
-boxonly='[{"msg_id":"m3","task_id":"'$U1'","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"box"}]'
-SNIPPET="spl_desk_pick '$boxonly' '' '' '' 0" in_orc >/dev/null 2>&1
+printf '[{"msg_id":"m3","task_id":"%s","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"box"}]' "$U1" >"$T/boxonly.json"
+SNIPPET="spl_desk_pick '$T/boxonly.json' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "a box-only inbox is nothing to answer (exit 3)" || fail "box-only inbox did not exit 3"
-SNIPPET="spl_desk_pick '[]' '' '' '' 0" in_orc >/dev/null 2>&1
+printf '[]' >"$T/empty.json"
+SNIPPET="spl_desk_pick '$T/empty.json' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "an empty inbox is nothing to answer (exit 3)" || fail "empty inbox did not exit 3"
-SNIPPET="spl_desk_pick 'not json' '' '' '' 0" in_orc >/dev/null 2>&1
+printf 'not json' >"$T/notjson.json"
+SNIPPET="spl_desk_pick '$T/notjson.json' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "unreadable recv output is nothing to answer (exit 3)" || fail "bad json did not exit 3"
-out=$(SNIPPET="spl_desk_pick '[]' 'HUM-9' '$U2' '' 0" in_orc 2>&1)
+SNIPPET="spl_desk_pick '$T/no-such.json' '' '' '' 0" in_orc >/dev/null 2>&1
+[[ $? -eq 3 ]] && pass "a missing recv file is nothing to answer (exit 3)" || fail "missing recv file did not exit 3"
+out=$(SNIPPET="spl_desk_pick '$T/empty.json' 'HUM-9' '$U2' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U2		" ]] && pass "both overrides open a topic we hold no message of" ||
   fail "both overrides: $out"
+
+# Owner rule (prd t1 topic b280b0e8, 2026-09-29): a NAMED topic is answered
+# even when no human line is NEWER than the last answer - the whole point of
+# the fix. CONTROL below shows the old "waiting" gate would have exit 3'd it.
+printf '{"to":"HUM-9","task":"%s","ts":"2026-09-21T23:00:00Z"}' "$U1" >"$T/answered"
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '$U1' '$T/answered' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "HUM-9	$U1	m1	first" ]] &&
+  pass "a named DESK_TASK is answered though nothing is newer than the last answer" ||
+  fail "named topic with a stale watermark (rc=$rc): $out"
+# CONTROL: the SAME inbox and watermark, with NO topic named, is exit 3.
+SNIPPET="spl_desk_pick '$T/msgs.json' '' '' '$T/answered' 0" in_orc >/dev/null 2>&1
+[[ $? -eq 3 ]] && pass "CONTROL the same inbox with no DESK_TASK falls to exit 3 (the bug's shape)" ||
+  fail "CONTROL no-topic path did not exit 3"
+rm -f "$T/answered"
+# A named topic whose only messages are a box's (no human) cannot be addressed
+# without DESK_TO: exit 5, naming the flag - never a silent guess.
+out=$(SNIPPET="spl_desk_pick '$T/boxonly.json' '' '$U1' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 5 && "$out" == *"DESK_TO"* ]] && pass "a named topic with no human message asks for DESK_TO (exit 5)" ||
+  fail "named topic no-human (rc=$rc): $out"
+# …and DESK_TO settles it, message in the inbox or not.
+out=$(SNIPPET="spl_desk_pick '$T/boxonly.json' 'HUM-2' '$U1' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "HUM-2	$U1		" ]] && pass "DESK_TO + DESK_TASK answers the named topic regardless" ||
+  fail "named topic + DESK_TO (rc=$rc): $out"
+
+# An 8-hex DESK_TASK is a topic-id prefix, resolved against the inbox.
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' '${U1:0:8}' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "HUM-9	$U1	m1	first" ]] && pass "an 8-hex DESK_TASK prefix resolves to the full topic" ||
+  fail "prefix resolve (rc=$rc): $out"
+# Ambiguous prefix: two topics share it -> exit 5, both named.
+cat >"$T/ambig.json" <<JSON
+[{"msg_id":"a1","task_id":"deadbeef-1111-4111-8111-111111111111","ts":"2026-09-21T10:00:00Z","from":"HUM-9","body":"one"},
+ {"msg_id":"a2","task_id":"deadbeef-2222-4222-8222-222222222222","ts":"2026-09-21T11:00:00Z","from":"HUM-9","body":"two"}]
+JSON
+out=$(SNIPPET="spl_desk_pick '$T/ambig.json' '' 'deadbeef' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 5 && "$out" == *"ambiguous"* && "$out" == *deadbeef-1111* && "$out" == *deadbeef-2222* ]] &&
+  pass "an ambiguous DESK_TASK prefix is refused, both topics named (exit 5)" ||
+  fail "ambiguous prefix (rc=$rc): $out"
+out=$(SNIPPET="spl_desk_pick '$T/msgs.json' '' 'cafef00d' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 5 && "$out" == *"no topic"* ]] && pass "a DESK_TASK prefix matching nothing is refused (exit 5)" ||
+  fail "unknown prefix (rc=$rc): $out"
+
+# THE ARG_MAX CONTROL: a recv JSON far larger than ARG_MAX still picks, because
+# it is read from a file by path. On this box getconf ARG_MAX is ~2 MB; the file
+# is ~8 MB of padded box messages plus the one waiting human. Passed as an argv
+# word (the old code) this is "Argument list too long" and python never runs.
+python3 - "$U1" "$U2" >"$T/huge.json" <<'GEN'
+import json, sys
+u1, u2 = sys.argv[1], sys.argv[2]
+pad = "x" * 4000
+rows = [{"msg_id": "b%d" % i, "task_id": u1, "ts": "2026-09-21T10:00:00Z",
+         "from": "EZB-1", "body": pad} for i in range(2000)]
+rows.append({"msg_id": "hz", "task_id": u2, "ts": "2026-09-21T12:00:00Z",
+             "from": "HUM-4", "body": "answer me"})
+print(json.dumps(rows))
+GEN
+argmax=$(getconf ARG_MAX 2>/dev/null || echo 0)
+hugesz=$(wc -c <"$T/huge.json")
+[[ "$hugesz" -gt "$argmax" ]] && pass "CONTROL the recv JSON ($hugesz bytes) exceeds ARG_MAX ($argmax)" ||
+  fail "CONTROL the fixture is not larger than ARG_MAX ($hugesz vs $argmax)"
+out=$(SNIPPET="spl_desk_pick '$T/huge.json' '' '' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == "HUM-4	$U2	hz	answer me" ]] &&
+  pass "an inbox larger than ARG_MAX still picks (the JSON is read from the file)" ||
+  fail "huge inbox from file (rc=$rc): $out"
+# CONTROL: the same JSON passed as an argv word (the pre-fix call shape) fails.
+out=$(SNIPPET="python3 -c 'import sys; print(len(sys.argv))' \"\$(cat '$T/huge.json')\"" in_orc 2>&1); rc=$?
+[[ $rc -ne 0 ]] && pass "CONTROL that same JSON as an argv word is 'Argument list too long' (the old bug)" ||
+  fail "CONTROL argv did not overflow (rc=$rc): $out"
 
 # --- 5. is the desk REACHABLE, or only apparently so? -------------------------------
 # The live shape this came from (dev, 2026-09-21): sidecar alive 17 minutes,
@@ -393,6 +469,33 @@ SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 
   DESK_BODY='here' DRY_RUN=0 >/dev/null 2>&1
 grep -q -- '^send ' "$T/fake.log" && ! grep -qE -- 'put-file|--file-id' "$T/fake.log" &&
   pass "CONTROL a reply without DESK_FILES attaches nothing" || fail "CONTROL plain reply: $(cat "$T/fake.log")"
+
+# SPL-1183 (owner rule, prd t1 topic b280b0e8, 2026-09-29): a full DESK_TASK +
+# DESK_TO answers into THAT topic with NO inbox read at all - a busy desk whose
+# undrained inbox overran ARG_MAX could not reply into a named topic before.
+B280=b280b0e8-3dd7-4164-bc94-bfdd7261e0f5
+: >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
+out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_TO=HUM-10 DESK_TASK="$B280" DESK_BODY='status update' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-10 --task $B280 --to-box box-wui --kind note --body status update" "$T/fake.log" &&
+  ! grep -q -- '^recv' "$T/fake.log" &&
+  pass "DESK_TO + full DESK_TASK posts into that topic and never reads the inbox (ARG_MAX-proof)" ||
+  fail "named topic straight-send (rc=$rc): $out / $(cat "$T/fake.log")"
+# A full DESK_TASK without DESK_TO reads the inbox and addresses the topic's
+# human opener (HUM-9 in the fake recv), still into the named topic.
+: >"$T/fake.log"
+out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_TASK=0f8fad5b-d9cb-469f-a165-70867728950e DESK_BODY='re' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-9 --task 0f8fad5b-d9cb-469f-a165-70867728950e --to-box box-wui --kind note --body re" "$T/fake.log" &&
+  pass "a full DESK_TASK with no DESK_TO answers the topic's human opener" ||
+  fail "named topic, opener resolved (rc=$rc): $out / $(cat "$T/fake.log")"
+# An 8-hex DESK_TASK prefix is accepted and resolved against the inbox topic.
+: >"$T/fake.log"
+out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_TASK=0f8fad5b DESK_BODY='re' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-9 --task 0f8fad5b-d9cb-469f-a165-70867728950e --to-box box-wui --kind note --body re" "$T/fake.log" &&
+  pass "an 8-hex DESK_TASK prefix is accepted and resolved to the full topic" ||
+  fail "prefix reply (rc=$rc): $out / $(cat "$T/fake.log")"
 
 # --- 9. the issue leg (specs/039 FR-008) -------------------------------------------
 cat >"$T/fakeissue" <<'FAKE'

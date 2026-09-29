@@ -78,11 +78,33 @@ do_gcp_002_create_project_service_account() {
   fi
 
   # ---- Is key creation blocked on this project? -----------------------------
+  # Read the effective policy FIRST - never mutate on a state we cannot read.
+  # The one exception: a brand-new project (the first ENV=bkp bootstrap) has not
+  # enabled orgpolicy.googleapis.com yet, so the read is impossible until this
+  # step's own API prerequisites are on (gcp-004 turns on the terraform APIs but
+  # runs AFTER this step); when, and only when, the read fails BECAUSE that API
+  # is off, enable it (and iam, for the SA + key below) and read again. dev and
+  # prd never reach here: their SA + key already exist, the step returned above.
+  local enforced=false dep_apis="orgpolicy.googleapis.com iam.googleapis.com"
   out=$(gcloud org-policies describe "${constraint}" --project="${PROJ_ID}" --effective "${acct}" 2>&1)
   rc=$?
-  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the effective ${constraint} on ${PROJ_ID} (rc=${rc}): ${out}"; exit 1; }
-  local enforced=false
-  printf '%s' "${out}" | grep -qE 'enforce: *true' && enforced=true
+  if [[ ${rc} -ne 0 ]] && printf '%s' "${out}" | grep -qiE 'orgpolicy\.googleapis\.com|Organization Policy API|SERVICE_DISABLED|has not been used'; then
+    if [[ "${dry_run}" == 1 ]]; then
+      do_log "INFO DRY_RUN would run: gcloud services enable ${dep_apis} --project=${PROJ_ID} ${acct}, then re-read ${constraint}"
+      rc=0
+    else
+      do_log "INFO enabling ${dep_apis} on ${PROJ_ID} (this step's own prerequisites for reading/lifting ${constraint} and minting the key)"
+      # shellcheck disable=SC2086
+      gcloud services enable ${dep_apis} --project="${PROJ_ID}" "${acct}" >/dev/null || quit_on "enable ${dep_apis} on ${PROJ_ID}"
+      out=$(gcloud org-policies describe "${constraint}" --project="${PROJ_ID}" --effective "${acct}" 2>&1)
+      rc=$?
+    fi
+  fi
+  if [[ ${rc} -eq 0 ]]; then
+    printf '%s' "${out}" | grep -qE 'enforce: *true' && enforced=true
+  elif [[ "${dry_run}" != 1 ]]; then
+    do_log "FATAL cannot read the effective ${constraint} on ${PROJ_ID} (rc=${rc}): ${out}"; exit 1
+  fi
 
   if [[ "${dry_run}" == 1 ]]; then
     [[ "${need_sa}" == true ]] && do_log "INFO DRY_RUN would run: gcloud iam service-accounts create ${sa_id} --project=${PROJ_ID} ${acct}"

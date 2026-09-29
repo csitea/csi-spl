@@ -76,7 +76,7 @@ scripts/spawn-grok.sh	ported	scripts/spawn-grok.sh
 scripts/spawn-qwen.sh	ported	scripts/spawn-qwen.sh
 scripts/spawn-window.sh	ported	scripts/spawn-window.sh
 scripts/tmux-close-window.sh	ported	scripts/tmux-close-window.sh
-scripts/tmux-sort-windows.sh	deferred	SPL-1160
+scripts/tmux-sort-windows.sh	ported	scripts/tmux-sort-windows.sh
 scripts/trust-workdir.sh	ported	scripts/trust-workdir.sh
 tests/fixtures/fake-spawn-claude.sh	replaced	tests/test-agent-top.sh
 tests/fixtures/pane-agy-idle.txt	ported	tests/fixtures/pane-agy-idle.txt
@@ -112,4 +112,4 @@ tests/test-spawn-window-size.sh	replaced	tests/test-spawn-window-riname.sh
 tests/test-spawn-wrapper.sh	replaced	tests/test-spool-agent.sh
 tests/test-tmux-close-window.sh	ported	tests/test-tmux-close-window.sh
 tests/test-tmux-rc-isolation.sh	replaced	tests/lib.inc.sh
-tests/test-tmux-utf8.sh	deferred	SPL-1160
+tests/test-tmux-utf8.sh	ported	tests/test-tmux-utf8.sh

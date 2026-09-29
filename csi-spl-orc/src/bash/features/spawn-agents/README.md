@@ -46,6 +46,12 @@ the reference does it:
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
 | `scripts/agent-send.sh` | one send command for every live agent: the spool for this harness's agents, the older markdown inbox (through its own sender, `SPOOL_LEGACY_SEND`) for agents spawned before a switch-over (specs/048) |
 | `scripts/agent-inbox.sh` | the reports an orchestrator has not seen yet, from its spool inbox and (with `SPOOL_LEGACY_INBOX_ROOT`) the older agents' outboxes |
+| `scripts/pane-scan.sh` | census of every agent prompt: RESIDUE (a poke stuck unsent; must be 0), TYPED (unsent text; never poked), clear |
+| `scripts/agent-watch.sh` | one line per agent pane that needs someone (DIALOG, TYPED), and a shell-inert nudge for an idle agent with unread mail; `--once` |
+| `scripts/restore-{claude,claude-plain,grok,agy,qwen}.sh`, `scripts/restore-core.inc.sh` | resume a session after a restart, in the dir it ran in, through spool-harness, with a re-orientation kick |
+| `scripts/spawn-{claude,grok}-{chain,task}.sh` | briefs in sequence in one window (commit, never push), or one brief that commits and pushes |
+| `scripts/kill-your-self-report.sh` | read-only close-out discovery for `/exit-clean` |
+| `scripts/tmux-sort-windows.sh` | keeps the window bar in natural order, agents first, never moving the window you look at; the tmux snippet's hooks run it |
 | `scripts/tmux-close-window.sh` | closes an agent's window by id, now or after it exits (`--defer`); never guesses the active window |
 | `assets/commands/*.md`, `assets/skills/*/SKILL.md` | the slash commands and skills; `spool-install/install.sh` renders them into `~/.claude` (and `~/.qwen/skills`) |
 | `scripts/agent-top.sh`, `lib/agent-state.inc.sh` | the fleet view (`agent-top.sh`), the tmux status line (`--status-line`: `agents N  >busy ?waiting !ended .idle`) and the window badges (`--badge-loop`); reads both the spool and, with `SPOOL_LEGACY_INBOX_ROOT`, the older markdown mailbox |
@@ -183,15 +189,14 @@ These exit codes mean nothing was delivered:
 | `2` | usage error |
 | `10+` | `spool send` failed. The code is 10 plus spool's own exit code |
 
-## 5. Not ported (yet)
+## 5. The frozen box engine, accounted for
 
 `harness-parity.tsv` lists every file of the frozen box engine's feature and
-where it went: `ported`, `replaced` by a spool-native piece, `excluded` (box
-maintenance, one-off scripts) or `deferred` to a spool issue. The deferred
-ones today: pane-scan and agent-watch, the restore scripts, the spawn chains and task wrappers, the kill-your-self report.
+where it went: `ported`, `replaced` by a spool-native piece, or `excluded`
+(box maintenance, one-off scripts). Nothing is deferred.
 `tests/test-harness-parity.sh` keeps the list honest and checks that all four
-kinds have every piece; with `HARNESS_REF_DIR` it also fails on any
-reference file without a row.
+kinds have every piece; with `HARNESS_REF_DIR` it also fails on any reference
+file without a row.
 
 Hub mode (spec 003) needs one box key per box, minted once by an operator.
 Spawning never mints a key.

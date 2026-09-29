@@ -100,6 +100,13 @@ async function loadPreview() {
   if (url || !previewUrl.value) previewUrl.value = url
 }
 onMounted(() => {
+  /* SPL-1223: the icon-only glyph (a title-row / clipped card) never shows the
+     inline preview - it renders a UiIcon and fetches the image only when the
+     reader clicks (onIcon). Prefetching it on mount downloaded, sha256-verified
+     and base64-encoded every image attachment just to draw a glyph, so a feed
+     of image messages in "titles" clip mode fetched them all. Leave that to the
+     click. A picked-Blob optimistic row is never icon-only, so nothing regresses. */
+  if (props.iconOnly) return
   watch(() => [props.file, props.file.file_id, props.file.sha256], loadPreview, { immediate: true })
 })
 

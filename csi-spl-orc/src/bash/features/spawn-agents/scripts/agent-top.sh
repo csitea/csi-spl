@@ -6,8 +6,9 @@
 #
 # Rows come from LIVE windows whose name (box tag stripped) starts with an
 # agent id; a registry row whose pane is gone is never shown. Identity and kind
-# come from the spawn-<kind>.sh <ID> argv in the pane's session, not from the
-# title. Orchestrators (xxx-00, ORC-n, @agent-role orc) are listed, never badged.
+# come from the pane's process tree (agent_of_ps: a spawn-/restore-<kind>.sh
+# <ID> argv, else the id the run-as hop exports), not from the title; a window
+# whose tree holds no agent reads "ended". Orchestrators (xxx-00, ORC-n, @agent-role orc) are listed, never badged.
 #
 # Usage:
 #   agent-top.sh                      # one-shot table
@@ -108,8 +109,8 @@ collect_rows() {  # TSV: id kind state window branch rundir pending pane target
     has_launcher=0 kind=- launch=""
     if [ -n "$pid" ]; then
       sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ')"
-      [ -n "$sid" ] && launch="$(ps -o args= -g "$sid" 2>/dev/null | launcher_from_ps || true)"
-      if [ -n "$launch" ]; then has_launcher=1; id="${launch##* }"; kind="$(kind_from_launch "$launch")"; fi
+      [ -n "$sid" ] && launch="$(ps -o args= -g "$sid" 2>/dev/null | agent_of_ps)"
+      if [ -n "$launch" ]; then has_launcher=1; id="${launch##* }"; kind="${launch%% *}"; fi
     fi
     is_orc=0; agent_is_orc "$bare" "$role" && is_orc=1
     n="$(pending_count "$id")"

@@ -9,8 +9,8 @@
 #           append to it and submit both)
 #   MAIL    idle with unread messages -> nudged with one shell-inert line
 #
-# An agent is known by the spawn-<kind>.sh <ID> argv in its pane's session,
-# never by its window title (two windows can carry one title). Orchestrators
+# An agent is known by its pane's process tree (agent_of_ps: the launcher
+# argv, else the id its run-as hop exports), never by its window title (two windows can carry one title). Orchestrators
 # (xxx-00, ORC-n, @agent-role orc) and this watcher's own agent
 # ($SPOOL_AGENT_ID / $MCP_BOT_AGENT_ID) are skipped. "Unread" is read from the
 # mailbox the agent was spawned with, the same routing as agent-send.sh:
@@ -50,7 +50,7 @@ scan() {
   for p in $("${TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null); do
     pid="$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)" || continue
     sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ')"; [ -n "$sid" ] || continue
-    args="$(ps -o args= -g "$sid" 2>/dev/null | launcher_from_ps)"
+    args="$(ps -o args= -g "$sid" 2>/dev/null | agent_of_ps)"
     [ -n "$args" ] || continue                        # not an agent pane
     id="${args##* }"
     wname="$("${TM[@]}" display -p -t "$p" '#{window_name}' 2>/dev/null)"

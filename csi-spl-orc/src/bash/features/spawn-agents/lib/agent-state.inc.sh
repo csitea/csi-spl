@@ -127,12 +127,31 @@ name_badge() {  # NAME -> its badge token, or none
   case "$r" in '>'|'?'|'!'|'> '*|'? '*|'! '*) printf '%s\n' "${r:0:1}" ;; *) printf '%s\n' none ;; esac
 }
 
-# First spawn-<kind>.sh <ID> in a `ps -o args=` dump on stdin. Both this
-# harness's launchers and the frozen engine's carry that argv.
-launcher_from_ps() { grep -oE "spawn-(claude|grok|agy|qwen)\.sh [A-Z]+-[0-9]+" | head -1; }
+# First launcher argv - spawn-<kind>.sh <ID>, or restore-<kind>[-plain].sh <ID>
+# for a session resumed after a restart - in a `ps -o args=` dump on stdin.
+# Both this harness's launchers and the frozen engine's carry that argv.
+launcher_from_ps() { grep -oE "(spawn|restore)-(claude|grok|agy|qwen)(-plain)?\.sh [A-Z]+-[0-9]+" | head -1; }
+
+# "KIND ID" of the agent in a pane's session, from a `ps -o args=` dump on
+# stdin, or nothing when the pane holds no agent. The process tree, never the
+# window title: first a launcher argv (above); else the id the run-as hop
+# exports (SPOOL_AGENT_ID=... from this harness, MCP_BOT_AGENT_ID=... from a
+# restorer such as the frozen engine's session restore), with the kind from the
+# CLI binary in the same tree ("-" when none is recognisable).
+agent_of_ps() {
+  local dump launch id kind
+  dump="$(cat)"
+  launch="$(printf '%s\n' "$dump" | launcher_from_ps || true)"
+  if [ -n "$launch" ]; then printf '%s %s\n' "$(kind_from_launch "$launch")" "${launch##* }"; return 0; fi
+  id="$(printf '%s\n' "$dump" | grep -oE "(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=[\"']?[A-Z]{2,4}-[0-9]+" | head -1 | grep -oE '[A-Z]{2,4}-[0-9]+$' || true)"
+  [ -n "$id" ] || return 0
+  kind="$(printf '%s\n' "$dump" | grep -oE "(^|[ /'\"])(claude|grok|agy|qwen)([ '\"]|$)" | head -1 | tr -d " /'\"" || true)"
+  printf '%s %s\n' "${kind:--}" "$id"
+}
 
 kind_from_launch() {
-  case "$1" in
+  local l="${1#restore-}"; l="${l/-plain.sh/.sh}"
+  case "spawn-${l#spawn-}" in
     spawn-claude.sh*) printf '%s\n' claude ;;
     spawn-grok.sh*)   printf '%s\n' grok ;;
     spawn-agy.sh*)    printf '%s\n' agy ;;

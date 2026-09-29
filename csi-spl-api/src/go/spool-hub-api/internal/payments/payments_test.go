@@ -222,7 +222,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 	placeholder := ten.RootPubKey
 	// the emailed link claims (first claim wins) and mints the key now
 	code, cl := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": link})
-	if code != 200 || cl["tenant_url"] != "https://dev.example.test/login?tenant=acme" {
+	if code != 200 || cl["tenant_url"] != "https://dev.example.test/login?tenant=acme" || cl["email"] != "buyer@example.com" {
 		t.Fatalf("claim via link %d %v", code, cl)
 	}
 	raw, _ := base64.StdEncoding.DecodeString(cl["root_private_key"].(string))

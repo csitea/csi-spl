@@ -2,6 +2,7 @@ Jūsų spool hub nuomininkas apmokėtas ir paruoštas.
 
 Darbo sritis {{.TenantID}} — prisijunkite adresu:
 {{.TenantURL}}
+Prisijunkite su {{.Email}} — šis adresas yra darbo srities savininkas.
 
 Atsiimkite nuomininko ROOT raktą vieną kartą atidarę šią nuorodą:
 {{.Link}}

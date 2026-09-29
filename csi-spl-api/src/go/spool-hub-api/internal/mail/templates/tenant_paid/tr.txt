@@ -2,6 +2,7 @@ spool hub kiracınız ödendi ve hazır.
 
 Çalışma alanı {{.TenantID}} — şu adresten giriş yapın:
 {{.TenantURL}}
+{{.Email}} ile giriş yapın — bu adres çalışma alanının sahibidir.
 
 Kiracınızın ROOT anahtarını almak için bu bağlantıyı bir kez açın:
 {{.Link}}

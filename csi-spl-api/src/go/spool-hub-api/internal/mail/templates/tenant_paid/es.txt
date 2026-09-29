@@ -2,6 +2,7 @@ Tu inquilino de spool hub está pagado y listo.
 
 Espacio de trabajo {{.TenantID}}: inicia sesión en:
 {{.TenantURL}}
+Inicia sesión con {{.Email}}: esa dirección es la propietaria del espacio de trabajo.
 
 Recoge la clave ROOT de tu inquilino abriendo este enlace una vez:
 {{.Link}}

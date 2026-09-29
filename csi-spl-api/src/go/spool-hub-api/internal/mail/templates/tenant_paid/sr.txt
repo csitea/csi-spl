@@ -2,6 +2,7 @@ Vaš spool hub zakupac je plaćen i spreman.
 
 Radni prostor {{.TenantID}} — prijavite se na:
 {{.TenantURL}}
+Prijavite se adresom {{.Email}} — ta adresa je vlasnik radnog prostora.
 
 Preuzmite ROOT ključ zakupca tako što ćete jednom otvoriti ovaj link:
 {{.Link}}

@@ -2,6 +2,7 @@ Je spool hub-tenant is betaald en klaar.
 
 Werkruimte {{.TenantID}} — meld je aan op:
 {{.TenantURL}}
+Meld je aan met {{.Email}} — dat adres is de eigenaar van de werkruimte.
 
 Haal de ROOT-sleutel van je tenant op door deze link één keer te openen:
 {{.Link}}

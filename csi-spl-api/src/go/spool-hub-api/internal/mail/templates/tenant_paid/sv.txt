@@ -2,6 +2,7 @@ Din spool hub-tenant är betald och klar.
 
 Arbetsyta {{.TenantID}} — logga in på:
 {{.TenantURL}}
+Logga in med {{.Email}} — den adressen äger arbetsytan.
 
 Hämta din tenants ROOT-nyckel genom att öppna den här länken en gång:
 {{.Link}}

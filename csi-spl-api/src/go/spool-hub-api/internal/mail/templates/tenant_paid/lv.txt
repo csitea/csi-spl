@@ -2,6 +2,7 @@ Jūsu spool hub īrnieks ir apmaksāts un gatavs.
 
 Darbvieta {{.TenantID}} — piesakieties:
 {{.TenantURL}}
+Piesakieties ar {{.Email}} — šī adrese ir darbvietas īpašniece.
 
 Saņemiet īrnieka ROOT atslēgu, vienreiz atverot šo saiti:
 {{.Link}}

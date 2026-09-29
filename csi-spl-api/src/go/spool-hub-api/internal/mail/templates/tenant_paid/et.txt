@@ -2,6 +2,7 @@ Sinu spool hubi rentnik on makstud ja valmis.
 
 Tööruum {{.TenantID}} — logi sisse aadressil:
 {{.TenantURL}}
+Logi sisse aadressiga {{.Email}} — see aadress on tööruumi omanik.
 
 Võta oma rentniku ROOT-võti, avades selle lingi üks kord:
 {{.Link}}

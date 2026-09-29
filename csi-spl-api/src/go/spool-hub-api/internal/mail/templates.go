@@ -170,7 +170,7 @@ func PasswordReset(to, locale, link string, ttl time.Duration) (Message, error) 
 // URL + a single-use claim link. It carries NO key material.
 func TenantPaid(to, locale, tenantID, tenantURL, claimLink string, ttl time.Duration) (Message, error) {
 	return build(TemplateTenantPaid, to, locale,
-		TemplateData{Link: claimLink, TTL: ttl, TenantID: tenantID, TenantURL: tenantURL})
+		TemplateData{Link: claimLink, TTL: ttl, TenantID: tenantID, TenantURL: tenantURL, Email: to})
 }
 
 // InviteData is what the invitation mail says (010 FR-016).

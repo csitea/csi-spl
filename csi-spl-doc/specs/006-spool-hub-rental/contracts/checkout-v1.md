@@ -132,8 +132,13 @@ token (§1.8). `200` (exactly once per checkout; the key is minted now):
 ```json
 {"tenant_id":"acme","tenant_url":"https://dev.<domain>/login?tenant=acme",
  "tenant_host":"acme.dev.<domain>","host_status":"pending|ready|unknown",
- "root_private_key":"<base64 64-byte ed25519 private key>"}
+ "root_private_key":"<base64 64-byte ed25519 private key>",
+ "email":"buyer@example.com"}
 ```
+
+`email` is the checkout's address (047 W1): the paid transition wrote a
+`biz_owner` invite for it, so the buyer signs in with that address and no
+other (the page says so).
 
 `root_private_key` is the format `spool root-keygen` writes (save it 0600 and
 point `$SPOOL_TENANT_ROOT_KEY` at it). Render it once, keep it in memory only,

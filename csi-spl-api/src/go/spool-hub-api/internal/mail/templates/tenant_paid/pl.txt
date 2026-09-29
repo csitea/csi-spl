@@ -2,6 +2,7 @@ Twoja dzierżawa spool hub jest opłacona i gotowa.
 
 Obszar roboczy {{.TenantID}} — zaloguj się pod adresem:
 {{.TenantURL}}
+Zaloguj się adresem {{.Email}} — ten adres jest właścicielem obszaru roboczego.
 
 Odbierz klucz ROOT dzierżawy, otwierając ten link jeden raz:
 {{.Link}}

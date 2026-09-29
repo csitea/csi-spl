@@ -511,7 +511,9 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 	h.d.Log.Info().Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).Msg("checkout: claimed, root key minted and shown once")
 	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": c.TenantID, "tenant_url": h.tenantURL(c.TenantID),
 		"tenant_host": h.tenantHost(c.TenantID), "host_status": h.hostStatus(r.Context(), c.TenantID),
-		"root_private_key": base64.StdEncoding.EncodeToString(priv)})
+		"root_private_key": base64.StdEncoding.EncodeToString(priv),
+		// 047 W1: the buyer signs in with this address (paidTx's biz_owner invite)
+		"email": c.Email})
 }
 
 // afterPaid sends the one email (017 T008): tenant URL + a fresh single-use

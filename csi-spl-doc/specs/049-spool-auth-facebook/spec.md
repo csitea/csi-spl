@@ -1,6 +1,6 @@
 # Feature Specification: Sign in with Facebook
 
-**Feature ID**: `049-spool-auth-facebook` · **Status**: Partial (010 T031/T043 client + Meta callbacks Implemented; 049 contract tests, deletion status page and policy pages Implemented; per-tenant method policy Planned; live only after the owner registers the Meta app)
+**Feature ID**: `049-spool-auth-facebook` · **Status**: Implemented and live on dev + prd since 2026-09-29 (a real prd sign-in, 18:28Z); per-tenant method policy (T040) Planned
 **Created**: 2026-09-29 · **Lane**: CLE-35097 · **Parent**: `../010-spool-social-auth/` (FR-003, FR-013, T031, T043)
 **Siblings**: `../018-spool-auth-microsoft/`, `../019-spool-auth-linkedin/` (same rails) · **Donor**: csi-rel `csi-rel-api/src/internal/auth/` (`facebook_idp.go`, `facebook_callbacks.go`, `method_policy.go`, `social_registry.go`)
 

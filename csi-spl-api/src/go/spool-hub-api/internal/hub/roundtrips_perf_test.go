@@ -97,6 +97,10 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		{"GET /v1/view/topics/{lobby}", 4, // SPL-1121: reactions ride the deliveries batch
 			get("/v1/view/topics/" + lobby)},
 		{"GET /v1/view/search?q=seed", 7, get("/v1/view/search?q=seed")},
+		// SPL-1206: the grammar is built once (sync.Once), so operators is only
+		// the view door's one membership read — it must never grow a read of its
+		// own (measured 1/1 against Postgres).
+		{"GET /v1/view/search/operators", 1, get("/v1/view/search/operators")},
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
 		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},

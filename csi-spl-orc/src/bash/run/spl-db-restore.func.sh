@@ -17,16 +17,24 @@
 # @description                    while that database holds any table (a
 # @description                    restore never merges into live data), and on
 # @description                    prd refused without ALLOW_PRD_RESTORE=1
-# @description The dump is read from the env's 045 bucket as the env's project
-# @description SA. `gcloud sql import` reads the object as the INSTANCE's
-# @description service agent, which has objectAdmin on that bucket only (iac
-# @description 045), so an import source must sit in that bucket.
+# @description Where the dump comes from (BACKUP_SOURCE):
+# @description   env  the env's 045 bucket, read as the env's project SA
+# @description   bkp  the OFF-PROJECT copy gs://csi-spl-bkp-<env>/<env>/db (iac
+# @description        046), read as the csi-spl-bkp SA - the one that survives
+# @description        a destroy of csi-spl-<env>. Default once cnf
+# @description        steps.046.copy_enabled is true.
+# @description `gcloud sql import` reads the object as the INSTANCE's service
+# @description agent, which has objectAdmin on the 045 bucket only, so a bkp
+# @description dump bound for Cloud SQL is staged into 045 under restore/ first
+# @description (through this box: the two identities never share a grant) and
+# @description removed after the import.
 # @description Prints the per-table comparison and one timing line: RPO (age
 # @description of the dump) and RTO (download/import -> counted).
 # @description DRY_RUN=1 (the default) resolves the dump and the target and
 # @description touches nothing.
 # @param ENV - required: dev or prd, the env whose dump is restored
-# @param BACKUP_URI (optional) - gs://<045 bucket>/... or latest (default)
+# @param BACKUP_URI (optional) - a gs:// .sql.gz in the chosen source, or latest (default)
+# @param BACKUP_SOURCE (optional) - env | bkp; default bkp when cnf 046 copy_enabled is true, else env
 # @param TARGET (optional) - local (default) | database:spool_restore_<x> | env
 # @param ALLOW_PRD_RESTORE (optional) - 1 lets TARGET=env write into prd
 # @param KEEP (optional) - 1 keeps a database:<name> target after the count
@@ -42,17 +50,31 @@ do_spl_db_restore() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_db_restore_target_ok "$target" || return 1
   bucket="$(spl_db_backup_bucket)" || return 1
+  spl_offsite_cnf || return 1
+  local src="${BACKUP_SOURCE:-}"
+  [[ -n "$src" ]] || { src=env; [[ "$SPL_OFFSITE_ENABLED" == true ]] && src=bkp; }
+  # under <env>/ only: restore/ holds staged copies, never a source
+  local base="gs://$bucket/$ENV"
+  case "$src" in
+    env) ;;
+    bkp) base="gs://$SPL_OFFSITE_BUCKET/$ENV/db" ;;
+    *) do_log "FATAL BACKUP_SOURCE must be env or bkp, got: $src"; return 1 ;;
+  esac
+  export SPL_RESTORE_WHO="$src"
+  [[ "$src" != bkp ]] || spl_bkp_key >/dev/null || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
 
   if [[ "$uri" == latest ]]; then
-    uri="$(spl_db_backup_newest "$bucket")" || { do_log "FATAL $ENV: no dump in gs://$bucket"; return 1; }
+    uri="$(spl_gs_names "$base" "$src" | grep '\.sql\.gz$' | tail -1)"
+    [[ -n "$uri" ]] || { do_log "FATAL $ENV: no dump under $base"; return 1; }
+    uri="$base/$uri"
   fi
-  [[ "$uri" == "gs://$bucket/"*.sql.gz ]] ||
-    { do_log "FATAL BACKUP_URI must be a .sql.gz object in gs://$bucket (the $ENV 045 bucket), got: $uri"; return 1; }
+  [[ "$uri" == "$base/"*.sql.gz ]] ||
+    { do_log "FATAL BACKUP_URI must be a .sql.gz object under $base (BACKUP_SOURCE=$src), got: $uri"; return 1; }
   local rpo
   rpo="$(spl_db_restore_age "$uri")" || return 1
-  do_log "INFO $ENV: restore $uri (age ${rpo}s) -> $target (as $GCP_ACCOUNT)"
+  do_log "INFO $ENV: restore $uri (age ${rpo}s, read as the $src identity) -> $target"
 
   if (( dry )); then
     do_log "OK DRY RUN: nothing restored. DRY_RUN=0 to restore."
@@ -93,7 +115,7 @@ spl_db_restore_target_ok() {
 # restore of it would have.
 spl_db_restore_age() {
   local c
-  c="$(gcloud storage objects describe "$1" --account="$GCP_ACCOUNT" --format='value(creation_time)' 2>/dev/null)"
+  c="$(_spl_db_restore_gcloud storage objects describe "$1" --format='value(creation_time)' 2>/dev/null)"
   [[ -n "$c" ]] || { do_log "FATAL $ENV: cannot read $1 as $GCP_ACCOUNT"; return 1; }
   python3 -c 'import sys,datetime as d; t=d.datetime.fromisoformat(sys.argv[1].replace("Z","+00:00")); print(int((d.datetime.now(d.timezone.utc)-t).total_seconds()))' "$c"
 }
@@ -114,7 +136,7 @@ spl_db_restore_local() {
 
 _spl_db_restore_local_in() {
   local work="$2"
-  gcloud storage cp "$1" "$work/dump.sql.gz" --account="$GCP_ACCOUNT" >/dev/null 2>&1 ||
+  _spl_db_restore_gcloud storage cp "$1" "$work/dump.sql.gz" >/dev/null 2>&1 ||
     { do_log "FATAL $ENV: cannot download $1"; return 1; }
   gunzip -f "$work/dump.sql.gz" || { do_log "FATAL $ENV: $1 is not gzip"; return 4; }
   do_require_bin docker psql || return 1
@@ -128,7 +150,11 @@ _spl_db_restore_local_in() {
 # throwaway database (database:<name>) or into the env's hub database (env),
 # then the same count comparison, read through the proxy as the runtime login.
 spl_db_restore_cloud() {
-  local uri="$1" target="$2" db rc=0
+  local uri="$1" target="$2" db rc=0 staged=""
+  if [[ "$SPL_RESTORE_WHO" == bkp ]]; then
+    staged="$(spl_db_restore_stage "$uri")" || return 1
+    uri="$staged"
+  fi
   if [[ "$target" == env ]]; then
     db="$SPL_DB_NAME"
     local n
@@ -165,6 +191,10 @@ spl_db_restore_cloud() {
     do_log "FATAL $ENV: import failed: $(tail -5 "$SPL_STATE_DIR/restore-import.log" 2>/dev/null | tr '\n' ' ')"
   fi
 
+  if [[ -n "$staged" ]]; then
+    gcloud storage rm "$staged" --account="$GCP_ACCOUNT" --quiet >/dev/null 2>&1 ||
+      do_log "WARN $ENV: could not remove the staged copy $staged (the 045 lifecycle removes it)"
+  fi
   if [[ "$target" == database:* && "${KEEP:-0}" != 1 ]]; then
     if gcloud sql databases delete "$db" --instance="$SPL_SQL_INSTANCE" --project="$SPL_PROJECT" \
       --account="$GCP_ACCOUNT" --quiet >/dev/null 2>&1; then
@@ -175,6 +205,26 @@ spl_db_restore_cloud() {
     fi
   fi
   return $rc
+}
+
+# _spl_db_restore_gcloud <args> -> gcloud as the identity that reads the
+# chosen source: the csi-spl-bkp SA for bkp, the env SA for env.
+_spl_db_restore_gcloud() {
+  if [[ "${SPL_RESTORE_WHO:-env}" == bkp ]]; then spl_bkp_gcloud "$@"; else gcloud "$@" --account="$GCP_ACCOUNT"; fi
+}
+
+# spl_db_restore_stage <bkp uri> -> prints the gs:// uri of a copy in the env's
+# 045 bucket under restore/, where the instance's service agent can read it.
+spl_db_restore_stage() {
+  local work staged rc=0
+  work="$(umask 077 && mktemp -d)" || return 1
+  staged="gs://$(spl_db_backup_bucket)/restore/$(basename "$1")"
+  _spl_db_restore_gcloud storage cp "$1" "$work/d.sql.gz" >/dev/null 2>&1 &&
+    gcloud storage cp "$work/d.sql.gz" "$staged" --account="$GCP_ACCOUNT" >/dev/null 2>&1 || rc=1
+  rm -rf "$work"
+  (( rc == 0 )) || { do_log "FATAL $ENV: cannot stage $1 into $staged"; return 1; }
+  do_log "INFO $ENV: staged $1 -> $staged for the import"
+  printf '%s' "$staged"
 }
 
 # _spl_db_restore_dsn_for <db> -> SPL_PROXY_DSN with its database swapped.

@@ -51,6 +51,8 @@
 # Local equivalent:
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_backup
 #   ENV=<env>            ./csi-spl-orc/run -a do_spl_db_backup_verify
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_backup_offsite
+# Restore: do_spl_db_restore / do_spl_files_restore (spec 029 §7).
 
 name: "45 ops: hub db daily backup"
 
@@ -156,6 +158,17 @@ jobs:
       - name: Prove it restores (throwaway container, live read-only)
         if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true' && github.event.inputs.verify != 'false'
         run: ./run -a do_spl_db_backup_verify
+
+      # OFF the project (spec 044 T077, iac 046): the dump and the files
+      # bucket both live in csi-spl-<env>, which "destroy and re-create"
+      # destroys. The env SA may only ADD to gs://csi-spl-bkp-<env>; a
+      # bucket-to-bucket rsync inside Google, no byte on this runner. Until
+      # cnf steps.046.copy_enabled is true the action says so and exits 0.
+      - name: Copy the dump and the files off-project
+        if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true'
+        env:
+          DRY_RUN: '0'
+        run: ./run -a do_spl_backup_offsite
 
       - name: Drop the key
         if: always()

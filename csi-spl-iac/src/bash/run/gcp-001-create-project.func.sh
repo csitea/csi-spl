@@ -22,7 +22,7 @@
 # @description (gcp_account_owner_email, gcp_org_id; the env overrides); who
 # @description pays comes from the environment and fails fast. The project id is read from
 # @description csi-spl-cnf and must equal csi-spl-<env>.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev, prd or bkp (csi-spl-bkp, the off-project backups of iac 046)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): the identity that creates the project and links billing
 # @param GCP_ORG_ID or GCP_FOLDER_ID - the parent of the project, exactly one; GCP_ORG_ID defaults to cnf env.gcp.gcp_org_id when GCP_FOLDER_ID is unset
 # @param GCP_BILLING_ACCOUNT_ID - required: XXXXXX-XXXXXX-XXXXXX
@@ -39,7 +39,8 @@ do_gcp_001_create_project() {
   do_gcp_pin_bootstrap_account || exit 1
   do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
 
-  [[ "${ENV}" == dev || "${ENV}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: ${ENV}"; exit 1; }
+  # bkp: csi-spl-bkp, the off-project backup project (iac 046, spec 044 T077)
+  [[ "${ENV}" == dev || "${ENV}" == prd || "${ENV}" == bkp ]] || { do_log "FATAL ENV must be dev, prd or bkp, got: ${ENV}"; exit 1; }
 
   # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
   [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)

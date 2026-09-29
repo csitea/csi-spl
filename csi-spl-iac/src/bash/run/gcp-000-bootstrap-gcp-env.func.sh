@@ -8,7 +8,7 @@
 # @description state. Ported from csi-rel-iac gcp-000, minus its interactive
 # @description login and `gcloud config set account`: the caller proves the
 # @description identity (gcloud auth login GCP_ACCOUNT, as the box user) first.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev, prd or bkp (csi-spl-bkp, the off-project backups of iac 046)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email, an org-level human identity; the ONLY actions that may resolve the owner)
 # @param GCP_ORG_ID (optional) - overrides cnf env.gcp.gcp_org_id (gcp-002 sets the org policy there; gcp-001 parent)
 # @param GCP_BILLING_ACCOUNT_ID - required by gcp-001

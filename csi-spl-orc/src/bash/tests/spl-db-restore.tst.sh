@@ -34,8 +34,8 @@ cat >"$T/stub/gcloud" <<'STUB'
 echo "gcloud $*" >>"$STUB_LOG"
 case "$*" in
   *"print-access-token"*) head -c 1024 /dev/zero | tr '\0' 'x'; echo; exit 0 ;;
-  *"storage ls"*)         echo "gs://$STUB_BUCKET/dev/spool-20260101T000000Z.sql.gz"
-                          echo "gs://$STUB_BUCKET/dev/spool-20260102T000000Z.sql.gz"; exit 0 ;;
+  *"storage ls"*)         echo "gs://$STUB_BUCKET/$ENV/spool-20260101T000000Z.sql.gz"
+                          echo "gs://$STUB_BUCKET/$ENV/spool-20260102T000000Z.sql.gz"; exit 0 ;;
   *"objects describe"*)   echo "2026-01-02T00:00:00+00:00"; exit 0 ;;
   *) exit 0 ;;
 esac

@@ -48,7 +48,14 @@ do_tf_init() {
   export TF_VAR_CNF_VER="$(git rev-parse --short HEAD)"
   export TF_VAR_STEP=${STEP:-}
   export TF_GITHUB_TOKEN=${GITHUB_TOKEN:-}
-  export GOOGLE_APPLICATION_CREDENTIALS=$(eval echo "~/.gcp/.$ORG/key-${GCP_PROJECT}.json")
+  # A step that works in ANOTHER project names it as steps.<step>.tf_key_project
+  # (046: the off-project backups in csi-spl-bkp, run as that project's SA).
+  # Read from the json for THIS step only, never from an exported variable: a
+  # value left over from an earlier step in the same shell must not move a
+  # later step onto the wrong key.
+  local key_project
+  key_project=$(jq -r --arg s "$STEP" '.env.steps[$s].tf_key_project // empty' "$ENV_CONF_JSON_FLE" 2>/dev/null)
+  export GOOGLE_APPLICATION_CREDENTIALS=$(eval echo "~/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json")
   export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
 
   # env | sort

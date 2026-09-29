@@ -10,7 +10,7 @@
 # @description live-credential pre-flight, three-way SA check, --account on
 # @description every call, no write to the shared gcloud config, and no grant
 # @description when the binding is already there.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev, prd or bkp (csi-spl-bkp, the off-project backups of iac 046)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): an identity allowed to set the project IAM policy
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: grant.
 # @example ENV=dev GCP_ACCOUNT=admin@example.com DRY_RUN=0 ./run -a do_gcp_003_configure_proj_sa_permissions

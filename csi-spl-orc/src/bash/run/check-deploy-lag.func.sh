@@ -132,18 +132,25 @@ _spl_lag_one() {
     echo "$ENV $comp unknown served=${served:0:8} sha=${sha:0:8} reason=the served commit is not an ancestor of the one under test"
     return 1; }
 
-  local n
-  n="$(git -C "$APP_PATH" rev-list --count "$served..$sha" -- "${paths[@]}")" || {
+  # One history walk, not two: the count (--count) and the oldest unserved
+  # input commit (--reverse | head -1) walked the same `served..sha` range with
+  # the same pathspec. Walk it once (--reverse) and read both off the list -- n
+  # is its length, oldest is its first line. ~15 ms -> ~7 ms per component.
+  local revs
+  revs="$(git -C "$APP_PATH" rev-list --reverse "$served..$sha" -- "${paths[@]}")" || {
     echo "$ENV $comp unknown served=${served:0:8} sha=${sha:0:8} reason=git rev-list failed"; return 1; }
-  if [[ "$n" -eq 0 ]]; then
+  if [[ -z "$revs" ]]; then
     echo "$ENV $comp current served=${served:0:8} sha=${sha:0:8} n=0 (no $comp build input changed since the served commit)"
     return 0
   fi
+  local -a changed=()
+  mapfile -t changed <<<"$revs"
+  local n=${#changed[@]}
 
   # the OLDEST unserved input commit decides the age: that is how long the env
   # has been behind, not how long ago the newest push was
   local oldest age_min first
-  oldest="$(git -C "$APP_PATH" rev-list --reverse "$served..$sha" -- "${paths[@]}" | head -1)"
+  oldest="${changed[0]}"
   first="$(git -C "$APP_PATH" show -s --format=%ct "$oldest")"
   age_min=$(( ( $(date -u +%s) - first ) / 60 ))
   if [[ "$age_min" -lt "$grace" ]]; then

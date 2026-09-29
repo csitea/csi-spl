@@ -29,7 +29,7 @@ func scanCard(ctx context.Context, tx pgx.Tx, tenant, msgID string, now time.Tim
 	var by *string
 	err := tx.QueryRow(ctx, `SELECT m.msg_id::text, m.task_id::text, m.is_parent, m.archived_at, m.archived_by,
 			NOT EXISTS (SELECT 1 FROM messages e WHERE e.tenant_id = m.tenant_id AND e.task_id = m.task_id
-				AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id)),
+				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id)),
 			EXISTS (SELECT 1 FROM issues i WHERE i.tenant_id = m.tenant_id AND i.task_id = m.task_id)
 		FROM messages m
 		WHERE m.tenant_id = $1 AND m.msg_id = $2 AND ($3::timestamptz IS NULL OR m.expires_at > $3)`,

@@ -181,6 +181,40 @@ func TestTopicArchivePermissions(t *testing.T) {
 	}
 }
 
+// A topic whose OLDEST row is a reply (is_parent=0) - a channel message, a
+// moved-in message or a desk DM stored before the opening card - is still
+// archivable and deletable through its card. The card is the earliest
+// is_parent=1 row, not the earliest row of any level (prd t1 topic e802196b,
+// 2026-09-29). The control: before the fix the card fails resolveCard's
+// "opening card" test and both routes answer 409 not_a_card.
+func TestTopicArchiveOldestRowReply(t *testing.T) {
+	e := archiveEnv(t)
+	tid, _ := e.tenant()
+	now := time.Now().UTC()
+	T := uuidV4()
+	putCard(t, e, tid, T, "", "HUM-2", hub.WUIBox, 0, now)                          // the oldest row is a reply
+	card := putCard(t, e, tid, T, "", "HUM-1", hub.WUIBox, 1, now.Add(time.Second)) // the opening card, stored after it
+
+	// The confirm dialog offers the card, then the owner archives it: T
+	// leaves the list. Both would 409 not_a_card before the fix.
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/messages/"+card+"/topic", "HUM-8", nil); code != http.StatusOK || out["can_archive"] != true {
+		t.Fatalf("topic size: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/messages/"+card+"/archive", "HUM-8", nil); code != http.StatusOK || out["archived"] != true {
+		t.Fatalf("owner archive of an oldest-reply topic: %d %v", code, out)
+	}
+	if got := listedTasks(t, e, tid, "HUM-2"); got[T] {
+		t.Fatalf("archived topic still listed: %v", got)
+	}
+	if code, _ := call(t, e, tid, http.MethodDelete, "/v1/messages/"+card+"/archive", "HUM-8", nil); code != http.StatusOK {
+		t.Fatalf("owner unarchive: %d", code)
+	}
+	// Delete removes the card and the reply that predated it.
+	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+card+"/topic", "HUM-8", nil); code != http.StatusOK || out["deleted"] != float64(2) {
+		t.Fatalf("owner delete of an oldest-reply topic: %d %v", code, out)
+	}
+}
+
 // A lobby card: archive hides it from the lobby feed and tells the open
 // sockets; delete takes it and its thread, never another lobby card.
 func TestTopicArchiveLobbyFrames(t *testing.T) {

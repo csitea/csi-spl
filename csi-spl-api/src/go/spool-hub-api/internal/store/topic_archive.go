@@ -27,7 +27,13 @@ type CardState struct {
 	MsgID    string
 	TaskID   string
 	IsParent int
-	// FirstOfTask: no row of the same task was received before this one.
+	// FirstOfTask: no is_parent=1 row of the same task was received before
+	// this one - i.e. this is the task's opening card, the row TopicChannel
+	// and TaskCard treat as the opener (is_parent=1, earliest received). A
+	// plain reply (is_parent=0) received earlier does NOT unseat the card:
+	// a topic whose oldest row is a channel reply or a moved-in message
+	// (is_parent=0) was otherwise stuck - neither archivable nor deletable,
+	// prd t1 topic e802196b, 2026-09-29 (SPL bug).
 	FirstOfTask bool
 	// IssueTopic: the task is an issue's discussion (rdb 0047), which
 	// keeps its own lifecycle (specs/041 §3.2).
@@ -152,7 +158,8 @@ func (s *Memory) CardState(_ context.Context, tenant, msgID string, now time.Tim
 func (s *Memory) cardStateLocked(tenant string, m *Message) CardState {
 	first := true
 	for k, o := range s.messages {
-		if k[0] == tenant && o.TaskID == m.TaskID && newer(m.ReceivedAt, m.MsgID, o.ReceivedAt, o.MsgID) {
+		if k[0] == tenant && o.TaskID == m.TaskID && parentBit(o.IsParent) == 1 &&
+			newer(m.ReceivedAt, m.MsgID, o.ReceivedAt, o.MsgID) {
 			first = false
 			break
 		}

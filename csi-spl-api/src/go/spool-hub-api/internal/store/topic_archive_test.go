@@ -207,3 +207,79 @@ func TestTopicArchiveAndDelete(t *testing.T) {
 		})
 	}
 }
+
+// A topic whose OLDEST row is not its card - a channel reply, a moved-in
+// message or a desk DM (is_parent=0) received before the opening card - was
+// stuck: the card failed the "first row of the task" test, so it could be
+// neither archived nor deleted (prd t1 topic e802196b, 2026-09-29). The
+// opening card is the earliest is_parent=1 row (TopicChannel / TaskCard),
+// not the earliest row of any level. This is the control for that fix:
+// before it, CardState(card).FirstOfTask is false and the archive/delete
+// below refuse; after it, the card opens its topic and both succeed.
+func TestTopicArchiveOldestRowIsReply(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			at := func(n int) time.Time { return now.Add(time.Duration(n) * time.Second) }
+			put := func(task, parent string, isParent, n int) Message {
+				t.Helper()
+				m := msgFor(tid, task, "box-b", at(n), at(n), `{"n":"`+uuid4()+`"}`)
+				m.ParentTaskID, m.IsParent = parent, isParent
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+				return m
+			}
+			T := uuid4()
+			r0 := put(T, "", 0, 0)    // the oldest row is a reply / moved-in message
+			card := put(T, "", 1, 1)  // the opening card, received AFTER r0
+			r1 := put(T, "", 0, 2)    // a later reply
+			card2 := put(T, "", 1, 3) // a second card is never the opener
+
+			// The card opens its topic even though r0 came first; a later
+			// is_parent=1 row does not, and neither reply is a card.
+			if st, err := s.CardState(ctx, tid, card.MsgID, now); err != nil || !st.FirstOfTask || st.IsParent != 1 {
+				t.Fatalf("card state: %+v %v", st, err)
+			}
+			if st, _ := s.CardState(ctx, tid, card2.MsgID, now); st.FirstOfTask {
+				t.Fatal("a later card read as the topic's opener")
+			}
+			if st, _ := s.CardState(ctx, tid, r1.MsgID, now); st.IsParent == 1 {
+				t.Fatal("a reply read as a card")
+			}
+
+			// Archive the card: the topic leaves the list, its rows stay.
+			if st, err := s.SetArchived(ctx, tid, card.MsgID, "HUM-1", at(30), true); err != nil || st.ArchivedAt.IsZero() {
+				t.Fatalf("archive: %+v %v", st, err)
+			}
+			rows, err := s.ViewTopics(ctx, tid, TopicQuery{Limit: 50, Now: now})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, r := range rows {
+				if r.TaskID == T {
+					t.Fatal("archived topic still listed")
+				}
+			}
+			if _, err := s.SetArchived(ctx, tid, card.MsgID, "HUM-1", at(31), false); err != nil {
+				t.Fatal(err)
+			}
+
+			// Delete the card: every row of the task goes, the card first.
+			set, err := s.DeleteTopic(ctx, tid, card.MsgID, T)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(set.MsgIDs) != 4 || set.MsgIDs[0] != card.MsgID {
+				t.Fatalf("deleted %v, want 4 rows, card first", set.MsgIDs)
+			}
+			for _, id := range []string{r0.MsgID, card.MsgID, r1.MsgID, card2.MsgID} {
+				if ok, _ := s.HasMessage(ctx, tid, id); ok {
+					t.Fatalf("%s survived the delete", id)
+				}
+			}
+		})
+	}
+}

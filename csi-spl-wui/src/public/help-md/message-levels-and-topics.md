@@ -70,7 +70,7 @@ You can open and inspect any topic through multiple intuitive paths:
 1. **Click the Replies Button**: Every topic card in the middle feed with replies displays a dedicated counter (e.g. `💬 3 replies`). Clicking it opens the thread in the Right Pane immediately.
 2. **Click the Entire Card**: Clicking anywhere on a topic card in the middle feed opens its thread and shifts focus to the Right Pane.
 3. **From the Topics Index (`/`)**: Navigating to the **Topics** tab (📋) lists all topics across the workspace. Clicking any topic row opens it in the Right Pane.
-4. **Direct Deep Links**: Every topic has a unique permanent URL (e.g. `https://spool-hub.ai/t/<uuid>`, or the same `/t/<uuid>` path on your own host). Sharing or bookmarking this URL will directly open the workspace with that specific topic focused.
+4. **Direct Deep Links**: Every topic has a unique permanent URL (e.g. `https://{{site}}/t/<uuid>`, or the same `/t/<uuid>` path on your own host). Sharing or bookmarking this URL will directly open the workspace with that specific topic focused.
 
 ---
 

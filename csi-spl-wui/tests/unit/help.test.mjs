@@ -1,7 +1,7 @@
 // W14 (spec 047, SPL-1169): the /help page's link rules (utils/help.mjs).
 //
 // Run: node tests/unit/help.test.mjs
-import { HELP_REPO_BASE, helpHref, rewriteHelpLinks, validHelpSlug } from '../../src/utils/help.mjs'
+import { HELP_REPO_BASE, fillHelpHosts, helpHref, hostOf, rewriteHelpLinks, validHelpSlug } from '../../src/utils/help.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -15,6 +15,9 @@ ok('absolute, mailto, anchor and site paths stay', ['https://example.com/a', 'ma
 ok('any other relative link points at the public repo', helpHref('../../specs/047/x.md') === new URL('../../specs/047/x.md', HELP_REPO_BASE).href)
 ok('rewrite touches only link targets', rewriteHelpLinks('see [Post](./how-to-post.md) and (./x.md) text') === 'see [Post](/help/how-to-post) and (./x.md) text')
 ok('slugs are the sync rule', validHelpSlug('getting-started') && !validHelpSlug('../x') && !validHelpSlug('') && !validHelpSlug('A'))
+ok('host tokens: this deployment\'s hub and site', fillHelpHosts('https://{{api}} at https://{{site}}/t/1', { api: 'hub.example.org', site: 'chat.example.org' }) === 'https://hub.example.org at https://chat.example.org/t/1')
+ok('one host for both (self-hosted, same origin)', fillHelpHosts('{{api}} {{site}}', { site: 'chat.example.org' }) === 'chat.example.org chat.example.org')
+ok('hostOf', hostOf('https://a.example.org:8443/x') === 'a.example.org:8443' && hostOf('nope') === '')
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)
 

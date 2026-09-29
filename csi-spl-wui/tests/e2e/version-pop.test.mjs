@@ -171,9 +171,16 @@ async function run(browser, base, width, touch) {
   /* a plain spot outside the card: the feed when there is one, never a control */
   const spot = await p.evaluate(() => {
     const w = document.querySelector('[data-test=app-version-wrap]')
-    const plain = (x, y) => {
+    const one = (x, y) => {
       const e = document.elementFromPoint(x, y)
       return e && !w.contains(e) && !e.closest('a,button,input,select,textarea,label,summary,[role=button],[role=tab],[role=option],[tabindex],[contenteditable=true],[data-test=top-bar]') ? e : null
+    }
+    /* Chrome's touch adjustment moves a tap onto a control up to ~20 px
+       away (the rail's Help link, 047 W14, took a tap beside it): the whole
+       neighbourhood must be plain, not only the point */
+    const plain = (x, y) => {
+      const e = one(x, y)
+      return e && [[-20, 0], [20, 0], [0, -20], [0, 20]].every(([dx, dy]) => one(x + dx, y + dy)) ? e : null
     }
     const main = document.querySelector('main')
     const areas = [main?.getBoundingClientRect(), { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }].filter((r) => r && r.right - r.left > 40)

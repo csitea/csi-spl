@@ -32,6 +32,22 @@ export function helpHref(raw, route = (slug) => '/help/' + slug) {
   }
 }
 
+/**
+ * The copy's host tokens filled in (src/node/help/sync-help.mjs writes them
+ * where doc/help names the hosted domain): {{api}} = this site's hub host,
+ * {{site}} = this site's own host. A token with no value stays readable.
+ */
+export function fillHelpHosts(md, { api = '', site = '' } = {}) {
+  return String(md ?? '')
+    .replace(/\{\{api\}\}/g, api || site || 'your-hub')
+    .replace(/\{\{site\}\}/g, site || 'your-site')
+}
+
+/** The host of a URL ('' when it is not one). */
+export function hostOf(url) {
+  try { return new URL(String(url || '')).host } catch { return '' }
+}
+
 /** The markdown with every inline link target rewritten by helpHref. */
 export function rewriteHelpLinks(md, route) {
   return String(md ?? '').replace(/\]\(([^)\s]+)\)/g, (_, href) => '](' + helpHref(href, route) + ')')

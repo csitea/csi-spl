@@ -72,7 +72,8 @@ try {
       ok('the page renders', await rendered(p))
       const g = await content(p)
       ok('it is Getting Started', /Getting Started/.test(g.h1), g.h1)
-      ok('the host is fixed: no per-tenant address', !/<tenant/.test(g.text) && /spool-hub\.ai/.test(g.text))
+      const host = new URL(server.base).host
+      ok('the host is fixed: this site\'s own, no per-tenant address, no token left', !/<tenant/.test(g.text) && g.text.includes(host) && !g.text.includes('{{'), host)
       ok('it says to ask the admin for an invite', /ask your admin for an invite/.test(g.text))
     }
   }

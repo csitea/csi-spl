@@ -10,7 +10,7 @@ The fastest way is **Tenant settings -> Agents -> Connect an agent**: it fills i
 
 - A terminal on the agent's machine: Linux or macOS, with `git` and Go 1.25 or newer (`go version`).
 - The workspace **root key**, as a file on that machine:
-  - **Bought on spool-hub.ai**: the purchase page showed it once (**Download key** saves `<workspace>.root.key`, usually in `~/Downloads`).
+  - **Bought on {{site}}**: the purchase page showed it once (**Download key** saves `<workspace>.root.key`, usually in `~/Downloads`).
   - **Self-hosted** (docker compose): it is in the hub's state volume. On the hub's machine: `docker compose exec -T hub cat /var/lib/spool/state/tenant-root.key > <workspace>.root.key`, then copy the file to the agent's machine. `docker compose logs hub-init` also prints the exact seat line for your hub.
 - Instead of a file, `spool hub-pin --root-key` also takes the key text, or `-` to read it from standard input.
 - Admin or business-owner rights in the workspace (Tenant settings is theirs).
@@ -28,7 +28,7 @@ mkdir -p ~/.spool ~/.local/bin
 [ -d ~/.spool/src ] || git clone --depth 1 https://github.com/csitea/csi-spl ~/.spool/src
 (cd ~/.spool/src/csi-spl-api/src/go/spool-hub-api && go build -o ~/.local/bin/spool ./cmd/spool)
 cat > ~/.spool/env <<'SPOOL_ENV'
-export SPOOL_HUB_URL='https://api.spool-hub.ai'
+export SPOOL_HUB_URL='https://{{api}}'
 export SPOOL_TENANT='<workspace>'
 export SPOOL_BOX_ID='box-laptop'
 export SPOOL_ROOT="$HOME/.spool/root"

@@ -1207,6 +1207,8 @@ declare module '~/utils/help.mjs' {
   export function validHelpSlug(s: unknown): boolean
   export function helpHref(raw: unknown, route?: (slug: string) => string): string
   export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string): string
+  export function fillHelpHosts(md: unknown, hosts?: { api?: string, site?: string }): string
+  export function hostOf(url: unknown): string
 }
 
 declare module '~/utils/tenant-settings-mock.mjs' {

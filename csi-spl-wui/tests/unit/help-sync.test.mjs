@@ -6,7 +6,7 @@
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { HELP_OUT, HELP_SRC, helpDrift, helpFiles, helpTitle } from '../../src/node/help/sync-help.mjs'
+import { HELP_OUT, HELP_SRC, helpDomain, helpDrift, helpFiles, helpTitle, tokenizeHosts } from '../../src/node/help/sync-help.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -25,7 +25,13 @@ if (!existsSync(HELP_SRC)) {
   ok('pages.json follows the index order', pages[0]?.slug === 'getting-started', JSON.stringify(pages.slice(0, 2)))
   ok('every page has a title', pages.every((p) => p.title && p.title !== p.slug))
   ok('no per-tenant host in the help (W14: the host is fixed)',
-    ![...helpFiles().values()].some((b) => /<tenant(-name)?>\.spool-hub\.ai/.test(b)))
+    ![...helpFiles().values()].some((b) => /<tenant(-name)?>\./.test(b)))
+  /* the domain lives only in csi-spl-cnf and csi-spl-doc (iac domain-single-source) */
+  const domain = helpDomain()
+  ok('the domain is read from the cnf', /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain), domain)
+  ok('the copy never names the domain: {{api}} / {{site}} instead',
+    ![...helpFiles().values()].some((b) => b.includes(domain)) && [...helpFiles().values()].some((b) => b.includes('{{site}}')))
+  ok('CONTROL a page that names the domain is tokenized', tokenizeHosts(`https://api.${domain}/x and ${domain}`, domain) === 'https://{{api}}/x and {{site}}')
 
   /* CONTROL: an edited source page must read as drift (needs a copy to edit) */
   const tmp = existsSync(HELP_OUT) ? mkdtempSync(join(tmpdir(), 'help-sync-')) : ''

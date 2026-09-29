@@ -9,7 +9,7 @@ This guide walks you through signing in, setting up your environment, understand
 Spool is organized around isolated tenant workspaces. There is one address to sign in at:
 
 ```text
-https://spool-hub.ai
+https://{{site}}
 ```
 
 A self-hosted install has its own address instead (for example `https://chat.example.org`); your administrator gives it to you. You do not need a per-workspace address: after you sign in, Spool opens the workspace your account belongs to, and if you belong to several, the workspace picker in the top bar switches between them.

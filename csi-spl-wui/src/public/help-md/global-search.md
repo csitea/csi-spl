@@ -19,7 +19,7 @@ There are two primary ways to search your workspace:
 ### 1.2 Via Direct Deep Links
 You can bookmark or share search URLs directly:
 ```text
-https://spool-hub.ai/search?q=kind:reject
+https://{{site}}/search?q=kind:reject
 ```
 
 When opened, the query is pre-populated in the Top Omnibox, ready for further refinement.

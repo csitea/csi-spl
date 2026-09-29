@@ -47,7 +47,8 @@
 
 <script setup lang="ts">
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import { rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
+import { fillHelpHosts, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
+import { boxHubUrl } from '~/utils/connect-agent.mjs'
 
 type HelpPage = { slug: string, title: string }
 
@@ -62,6 +63,15 @@ const route = (s: string) => localePath(s ? '/help/' + s : '/help')
 const pages = ref<HelpPage[]>([])
 const text = ref('')
 const state = ref<'loading' | 'ready' | 'missing' | 'failed'>('loading')
+const pub = useRuntimeConfig().public
+/* the copy names hosts as {{api}} / {{site}}: this deployment's own */
+function hosts() {
+  const origin = import.meta.client ? window.location.origin : ''
+  return {
+    api: hostOf(boxHubUrl(String(pub.apiBase || ''), origin, '')),
+    site: hostOf(String(pub.siteUrl || '')) || hostOf(origin),
+  }
+}
 
 async function getText(path: string): Promise<string | null> {
   const r = await fetch(path, { cache: 'no-cache' })
@@ -81,7 +91,7 @@ async function load() {
     if (mine !== seq) return
     /* the SPA fallback answers an unknown file with the app shell, not a 404 */
     if (md === null || /^\s*<!doctype html/i.test(md)) { state.value = 'missing'; return }
-    text.value = rewriteHelpLinks(md, route)
+    text.value = rewriteHelpLinks(fillHelpHosts(md, hosts()), route)
     state.value = 'ready'
   } catch {
     if (mine === seq) state.value = 'failed'

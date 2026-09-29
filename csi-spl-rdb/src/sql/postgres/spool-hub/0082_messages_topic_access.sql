@@ -1,0 +1,31 @@
+-- 0082_messages_topic_access.sql — a covering index for the per-topic reads
+-- (perf round e908f41b, lane B). Forward-only.
+--
+-- Two hot read shapes ask "the messages of ONE task" and need only
+-- channel / from_id / to_id / expires_at from each row:
+--   * TopicAccess (channels_postgres.go) — count + the DISTINCT channels and
+--     DM ends of a task, 25k calls/day on prd.
+--   * the topic-walk door/parties probes (view_postgres.go viewTopicsSQL) —
+--     "does this task hold a message the reader may see / from this agent?"
+--     (SELECT ... WHERE task_id = l.task_id AND (channel/from_id/to_id ...)
+--     LIMIT 1), run per candidate row of the walk (topic list ~40% of prd db
+--     time).
+-- Both took messages_task_received (tenant_id, task_id, received_at, msg_id)
+-- and then HEAP-fetched channel/from_id/to_id/expires_at.
+--
+-- This index carries those four as INCLUDE payload on the (tenant_id, task_id)
+-- key, so both become Index Only Scans. Measured pg 16.14, owner under the
+-- tenant RLS scope, t1 with 300k messages (150 per task):
+--   TopicAccess          Index Scan 155 buffers  ->  Index Only Scan 8, Heap Fetches 0
+--   topic walk (page 51) median 19.5 ms           ->  16.8 ms (door/parties probes index-only)
+--
+-- It shares the (tenant_id, task_id) prefix with messages_task_received on
+-- purpose: that index keeps received_at/msg_id in its KEY for the walk's
+-- ordered LIMIT-1 latest/first probes (which this one cannot serve), while
+-- this one answers the unordered "any such message" probes and the whole-task
+-- aggregate from the index alone. Membership of a task never changes after
+-- write, so the extra index costs little on the insert path.
+-- No RLS clause: an index inherits the table's policies.
+
+CREATE INDEX IF NOT EXISTS messages_topic_access
+    ON messages (tenant_id, task_id) INCLUDE (channel, from_id, to_id, expires_at);

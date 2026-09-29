@@ -1,6 +1,8 @@
 # 048 T008: switching a box over to the csi-spl harness
 
-Status: owner answered **A** (2026-09-29): the orchestrator moves to the spool
+Status: **DONE on this box 2026-09-29 12:19Z** (owner: "ok, do it now",
+ahead of the confirmed 19:00Z). Old files in `~/.claude/.pre-048-20260929T121954Z`.
+Owner answered **A** (2026-09-29): the orchestrator moves to the spool
 mailbox FIRST, through a bridge that keeps every older agent reachable; then
 the spawn skills flip. The one hard rule: never break a live agent's
 reachability. Section 4 runs only after the proof in 4.1 and the orchestrator's
@@ -122,10 +124,27 @@ new `/claude-spawn` and completes a round trip. Any failure: section 5.
 4.9 Rewrite the frozen engine's FROZEN.md per its §1.4 (retired: the box runs
 the csi-spl harness), landed with `frozen-exception: <csi-spl sha>`.
 
+FLIP RUN 2026-09-29 (n=1, trunk `2db3a7fe`):
+- 4.5 moved 7 commands + 3 skills to `~/.claude/.pre-048-20260929T121954Z`
+- 4.6 install.sh rc 0: `skills: 20 written`, spool 1.1.3 built into the
+  agent user's tools, a new `spool-agent` shim + config (none existed); the
+  rendered `/claude-spawn` runs `SPOOL_ROOT=/var/spool-hub
+  SPOOL_ORCHESTRATOR_ID=CLE-001 ... spawn-window.sh`; the running session
+  listed the new skills without a restart
+- 4.7 NOT applied, on purpose: the box's current tmux snippet carries the same
+  window keys PLUS the agent-top status line, which is not ported yet
+  (SPL-1160); swapping would only lose the status line. Revisit with SPL-1160
+- 4.8 round trip through the rendered command: `CLE-35098` (auto id) sent
+  CLE-001 a hello at 12:20:33Z, `agent-send.sh` went via spool with a pane
+  poke, it answered pong on the same task at 12:20:51Z, `agent-inbox.sh`
+  listed both; window closed with `tmux-close-window.sh`
+- running agents: no restart needed; they keep their markdown inbox and are
+  reached through `agent-send.sh`'s legacy route
+
 ## 5. Rollback (one line, as the agent user)
 
 ```bash
-cd ~/.claude && for f in commands/*.md skills/*/SKILL.md; do grep -q 'spool-install: sha256=' "$f" && rm -f "$f"; done; cp -a .pre-048-<ts>/*.md commands/ && cp -a .pre-048-<ts>/{agent-msg,exit-clean,kill-your-self} skills/
+cd ~/.claude && for f in commands/*.md skills/*/SKILL.md; do grep -q 'spool-install: sha256=' "$f" && rm -f "$f"; done; cp -a .pre-048-20260929T121954Z/*.md commands/ && cp -a .pre-048-20260929T121954Z/{agent-msg,exit-clean,kill-your-self} skills/
 ```
 
 The orchestrator's side needs no rollback step of its own: `agent-send.sh`

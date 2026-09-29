@@ -47,7 +47,7 @@ do-echo-setup-app-inf: demand_var-GITHUB_TOKEN
 
 
 .PHONY: do-setup-app-inf-no-cache  ## @-> 01.03 setup the whole csi-spl dockerized setup
-do-setup-app-inf-no-cache: do-create-network demand_var-BITBUCKET_APP_PASSWORD demand_var-GITHUB_TOKEN
+do-setup-app-inf-no-cache: do-create-network demand_var-GITHUB_TOKEN
 	@export DOCKER_BUILDKIT=1; ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} down --rmi all \
 	&& ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} --verbose build --no-cache \
 	&& ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} --verbose up -d
@@ -55,8 +55,8 @@ do-setup-app-inf-no-cache: do-create-network demand_var-BITBUCKET_APP_PASSWORD d
 	@$(MAKE) do-echo-attach-exec
 
 .PHONY: do-setup-app-inf-up  ## @-> 01.02 setup the whole csi-spl dockerized setup
-do-setup-app-inf-up: demand_var-BITBUCKET_APP_PASSWORD demand_var-GITHUB_TOKEN
-	@export DOCKER_BUILDKIT=1; ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_wui_INF} down --rmi all \
-	&& ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_wui_INF} --verbose up -d
+do-setup-app-inf-up: demand_var-GITHUB_TOKEN
+	@export DOCKER_BUILDKIT=1; ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} down --rmi all \
+	&& ${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} --verbose up -d
 	./run -a do_check_container_dns
 	@$(MAKE) do-echo-attach-exec

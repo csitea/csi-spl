@@ -38,6 +38,20 @@ func TestBoxReplyLevel(t *testing.T) {
 			t.Fatalf("ack %+v", ack)
 		}
 	}
+	// A channel reply (is_parent 0) into a task with no is_parent 1 root: the
+	// e802196b shape, where the opening card is gone and the oldest row is a
+	// human's channel reply.
+	reply := func(task, channel string) {
+		t.Helper()
+		f := map[string]any{"type": "send", "task_id": task, "body": "R", "is_parent": 0}
+		if channel != "" {
+			f["channel"] = channel
+		}
+		w.send(f)
+		if ack := w.read("ack"); ack.MsgID == "" {
+			t.Fatalf("ack %+v", ack)
+		}
+	}
 	boxSend := func(task string) string {
 		t.Helper()
 		out, err := action.SendCtx(ctx, a.cfg, action.SendArgs{From: "GRK-03", To: hub.BroadcastID, ToBox: hub.WUIBox,
@@ -71,10 +85,12 @@ func TestBoxReplyLevel(t *testing.T) {
 		feedbackTopic = "33333333-3333-4333-8333-333333333302"
 		dmTopic       = "33333333-3333-4333-8333-333333333303"
 		fresh         = "33333333-3333-4333-8333-333333333304"
+		orphanTopic   = "33333333-3333-4333-8333-333333333305"
 	)
 	topic(lobbyTopic, "lobby")
 	topic(feedbackTopic, "feedback")
 	topic(dmTopic, "")
+	reply(orphanTopic, "feedback")
 
 	for _, c := range []struct {
 		name, task string
@@ -82,6 +98,7 @@ func TestBoxReplyLevel(t *testing.T) {
 	}{
 		{"reply under a #lobby topic", lobbyTopic, 0},
 		{"reply under a #feedback topic", feedbackTopic, 0},
+		{"reply under a channel topic whose opening card is gone", orphanTopic, 0},
 		{"reply under a DM topic (control)", dmTopic, 1},
 		{"a new task (control)", fresh, 1},
 		{"the lobby task (control)", lobby, 1},

@@ -115,6 +115,14 @@ func (s *Server) wuiChannel(ctx context.Context, tenant, channel, taskID string,
 // 23; every browser one 0). A line on a task whose topic root is in a channel
 // is a reply; a new task, a DM and the legacy lobby task stay 1. A lookup
 // error keeps the old answer rather than failing the send.
+//
+// The channel test is the earliest is_parent 1 row (TopicChannel) AND, when
+// that is empty, the task's earliest row of ANY level (TaskFirstChannel): a
+// channel topic whose opening card is missing has an is_parent 0 channel row
+// as its oldest, so TopicChannel alone read it as a DM and turned every agent
+// answer into a card (prd t1 e802196b, 2026-09-29 - an untagged desk reply put
+// under a human's channel post). Only a genuine DM (no channel row at all) or
+// a not-yet-stored new task stays 1.
 func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
 	if s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID {
 		return 1
@@ -124,10 +132,18 @@ func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
 		return 1
 	}
-	if c == "" {
+	if c != "" {
+		return 0
+	}
+	first, err := s.o.Store.TaskFirstChannel(ctx, tenant, taskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("task first channel")
 		return 1
 	}
-	return 0
+	if first != "" {
+		return 0
+	}
+	return 1
 }
 
 // followMoved is specs/045 §3.7 for a BOX reply: a channel tag on a task

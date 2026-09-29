@@ -546,6 +546,18 @@ func (s *Postgres) TopicChannel(ctx context.Context, tenant, taskID string) (str
 	return channel, err
 }
 
+// TaskFirstChannel: see Store. The earliest row of the task at ANY level.
+func (s *Postgres) TaskFirstChannel(ctx context.Context, tenant, taskID string) (string, error) {
+	var channel string
+	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(channel, '') FROM messages
+		WHERE tenant_id = $1 AND task_id = $2
+		ORDER BY received_at, msg_id LIMIT 1`, []any{tenant, taskID}, &channel)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return channel, err
+}
+
 // mapFK turns a foreign-key violation (unknown tenant) into ErrNotFound.
 func mapFK(err error) error {
 	if err == nil {

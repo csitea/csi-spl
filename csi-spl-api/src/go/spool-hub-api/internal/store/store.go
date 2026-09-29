@@ -234,6 +234,12 @@ type Store interface {
 	// TopicChannel is the channel of a task's topic root - its earliest
 	// is_parent 1 row - or "" when the root is a DM or not stored.
 	TopicChannel(ctx context.Context, tenantID, taskID string) (string, error)
+	// TaskFirstChannel is the channel of a task's earliest row of ANY level
+	// (is_parent 0 or 1), or "" when it has none or that row is a DM. Unlike
+	// TopicChannel it does not require an is_parent 1 root, so a channel topic
+	// whose opening card is missing (its oldest row is a reply) is still known
+	// to be channel-rooted - the reply-level test hub.boxLevel makes.
+	TaskFirstChannel(ctx context.Context, tenantID, taskID string) (string, error)
 
 	// Editing a sent message and its append-only revision register (specs/032).
 	MessageEdits

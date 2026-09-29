@@ -467,6 +467,25 @@ func (s *Memory) TopicChannel(_ context.Context, tenant, taskID string) (string,
 	return root.Channel, nil
 }
 
+func (s *Memory) TaskFirstChannel(_ context.Context, tenant, taskID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var first *Message
+	for k, m := range s.messages {
+		if k[0] != tenant || m.TaskID != taskID {
+			continue
+		}
+		if first == nil || m.ReceivedAt.Before(first.ReceivedAt) ||
+			(m.ReceivedAt.Equal(first.ReceivedAt) && m.MsgID < first.MsgID) {
+			first = m
+		}
+	}
+	if first == nil {
+		return "", nil
+	}
+	return first.Channel, nil
+}
+
 func (s *Memory) Close() {}
 
 // ---- M4 seats (seats.go) ------------------------------------------------------

@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Powiadomienia",
-    "per_tenant_note": "Te ustawienia dotyczą {tenant}."
+    "per_tenant_note": "Te ustawienia dotyczą {tenant}.",
+    "issues_sort": {
+      "label": "Zgłoszenia: domyślne sortowanie",
+      "hint": "Kolejność, w jakiej otwiera się lista. Kliknięcie nagłówka kolumny nadal sortuje widok — to tylko wartość domyślna.",
+      "asc": "Rosnąco (1 na górze)",
+      "desc": "Malejąco"
+    }
   },
   "auth": {
     "error": {

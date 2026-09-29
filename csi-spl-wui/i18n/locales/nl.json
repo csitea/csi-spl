@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Meldingen",
-    "per_tenant_note": "Deze instellingen gelden voor {tenant}."
+    "per_tenant_note": "Deze instellingen gelden voor {tenant}.",
+    "issues_sort": {
+      "label": "Issues: standaardsortering",
+      "hint": "De volgorde waarin de lijst opent. Klikken op een kolomkop sorteert een weergave opnieuw — dit is alleen de standaard.",
+      "asc": "Oplopend (1 eerst)",
+      "desc": "Aflopend"
+    }
   },
   "auth": {
     "error": {

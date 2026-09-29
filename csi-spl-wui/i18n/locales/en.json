@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Notifications",
-    "per_tenant_note": "These settings apply to {tenant}."
+    "per_tenant_note": "These settings apply to {tenant}.",
+    "issues_sort": {
+      "label": "Issues: default sort",
+      "hint": "The order the Issues list opens in. Clicking a column header still re-sorts a view — this is only the default.",
+      "asc": "Ascending (1 first)",
+      "desc": "Descending"
+    }
   },
   "auth": {
     "error": {

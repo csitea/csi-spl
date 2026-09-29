@@ -7,6 +7,7 @@
     <SubmitKeySetting />
     <RailOrderSetting />
     <ViewPrefsSetting />
+    <IssuesSortSetting />
   </SettingsSection>
 </template>
 
@@ -15,6 +16,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import SubmitKeySetting from '~/components/SubmitKeySetting.vue'
 import RailOrderSetting from '~/components/RailOrderSetting.vue'
 import ViewPrefsSetting from '~/components/ViewPrefsSetting.vue'
+import IssuesSortSetting from '~/components/IssuesSortSetting.vue'
 
 const { t } = useI18n({ useScope: 'global' })
 </script>

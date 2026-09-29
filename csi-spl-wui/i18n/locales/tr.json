@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Bildirimler",
-    "per_tenant_note": "Bu ayarlar {tenant} için geçerlidir."
+    "per_tenant_note": "Bu ayarlar {tenant} için geçerlidir.",
+    "issues_sort": {
+      "label": "Konular: varsayılan sıralama",
+      "hint": "Listenin açıldığı sıra. Bir sütun başlığına tıklamak görünümü yeniden sıralar — bu yalnızca varsayılandır.",
+      "asc": "Artan (1 önce)",
+      "desc": "Azalan"
+    }
   },
   "auth": {
     "error": {

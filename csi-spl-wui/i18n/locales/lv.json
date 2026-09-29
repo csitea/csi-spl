@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Paziņojumi",
-    "per_tenant_note": "Šie iestatījumi attiecas uz {tenant}."
+    "per_tenant_note": "Šie iestatījumi attiecas uz {tenant}.",
+    "issues_sort": {
+      "label": "Uzdevumi: noklusējuma kārtošana",
+      "hint": "Secība, kādā saraksts tiek atvērts. Noklikšķinot uz kolonnas galvenes, skats tiek pārkārtots — šī ir tikai noklusējuma vērtība.",
+      "asc": "Augoša (1 augšā)",
+      "desc": "Dilstoša"
+    }
   },
   "auth": {
     "error": {

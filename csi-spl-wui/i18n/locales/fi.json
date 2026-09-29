@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Ilmoitukset",
-    "per_tenant_note": "Nämä asetukset koskevat työtilaa {tenant}."
+    "per_tenant_note": "Nämä asetukset koskevat työtilaa {tenant}.",
+    "issues_sort": {
+      "label": "Aiheet: oletuslajittelu",
+      "hint": "Järjestys, jossa luettelo avautuu. Sarakeotsikon napsautus lajittelee näkymän silti uudelleen — tämä on vain oletus.",
+      "asc": "Nouseva (1 ensin)",
+      "desc": "Laskeva"
+    }
   },
   "auth": {
     "error": {

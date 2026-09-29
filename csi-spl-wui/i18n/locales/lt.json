@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Pranešimai",
-    "per_tenant_note": "Šie nustatymai taikomi {tenant}."
+    "per_tenant_note": "Šie nustatymai taikomi {tenant}.",
+    "issues_sort": {
+      "label": "Užduotys: numatytasis rikiavimas",
+      "hint": "Tvarka, kuria atsiveria sąrašas. Spustelėjus stulpelio antraštę rūšiuojama iš naujo — tai tik numatytoji reikšmė.",
+      "asc": "Didėjantis (1 viršuje)",
+      "desc": "Mažėjantis"
+    }
   },
   "auth": {
     "error": {

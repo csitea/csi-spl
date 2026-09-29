@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Notificaciones",
-    "per_tenant_note": "Estos ajustes se aplican a {tenant}."
+    "per_tenant_note": "Estos ajustes se aplican a {tenant}.",
+    "issues_sort": {
+      "label": "Incidencias: orden predeterminado",
+      "hint": "El orden en que se abre la lista. Pulsar una cabecera de columna reordena la vista; esto es solo el valor predeterminado.",
+      "asc": "Ascendente (1 primero)",
+      "desc": "Descendente"
+    }
   },
   "auth": {
     "error": {

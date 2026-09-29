@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Upozornenia",
-    "per_tenant_note": "Tieto nastavenia platia pre {tenant}."
+    "per_tenant_note": "Tieto nastavenia platia pre {tenant}.",
+    "issues_sort": {
+      "label": "Úlohy: predvolené triedenie",
+      "hint": "Poradie, v ktorom sa zoznam otvára. Kliknutie na hlavičku stĺpca preusporiada zobrazenie — toto je len predvolené.",
+      "asc": "Vzostupne (1 hore)",
+      "desc": "Zostupne"
+    }
   },
   "auth": {
     "error": {

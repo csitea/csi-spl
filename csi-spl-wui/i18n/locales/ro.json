@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Notificări",
-    "per_tenant_note": "Aceste setări se aplică pentru {tenant}."
+    "per_tenant_note": "Aceste setări se aplică pentru {tenant}.",
+    "issues_sort": {
+      "label": "Probleme: sortare implicită",
+      "hint": "Ordinea în care se deschide lista. Un clic pe antetul coloanei resortează vizualizarea — aceasta este doar valoarea implicită.",
+      "asc": "Crescător (1 primul)",
+      "desc": "Descrescător"
+    }
   },
   "auth": {
     "error": {

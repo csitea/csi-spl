@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Aviseringar",
-    "per_tenant_note": "De här inställningarna gäller {tenant}."
+    "per_tenant_note": "De här inställningarna gäller {tenant}.",
+    "issues_sort": {
+      "label": "Ärenden: standardsortering",
+      "hint": "Ordningen som listan öppnas i. Ett klick på en kolumnrubrik sorterar om vyn ändå — det här är bara standardvärdet.",
+      "asc": "Stigande (1 först)",
+      "desc": "Fallande"
+    }
   },
   "auth": {
     "error": {

@@ -173,7 +173,13 @@
       }
     },
     "notifications": "Teavitused",
-    "per_tenant_note": "Need seaded kehtivad {tenant} kohta."
+    "per_tenant_note": "Need seaded kehtivad {tenant} kohta.",
+    "issues_sort": {
+      "label": "Ülesanded: vaikimisi sortimine",
+      "hint": "Järjekord, milles loend avaneb. Veeru päisele klõpsamine sordib vaate ümber — see on ainult vaikeväärtus.",
+      "asc": "Kasvav (1 esimesena)",
+      "desc": "Kahanev"
+    }
   },
   "auth": {
     "error": {

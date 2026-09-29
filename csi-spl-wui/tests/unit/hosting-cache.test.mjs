@@ -60,14 +60,14 @@ for (const [name, load] of [['render (deploy)', rendered], ['checked-in firebase
     before(() => { doc = load() })
 
     it('every unhashed picture, icon and the manifest in src/public is fresh for an hour, then stale-while-revalidate', () => {
-      /* the help pages (047 W14, /help-md) are text a deploy changes: they revalidate, below */
-      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.startsWith('/help-md/'))
+      /* the help pages (047 W14, /help-md) and the static .html pages (049 /privacy, /terms) are text a deploy changes: they revalidate, below */
+      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.endsWith('.html') && !p.startsWith('/help-md/'))
       assert.ok(media.length >= 10, media.join(' '))
       for (const p of media) assert.equal(effective(doc, p), MEDIA, p)
     })
 
     it('the service worker, build.json and every page still revalidate on each load (a deploy is seen at once)', () => {
-      for (const p of ['/sw.js', '/build.json', '/200.html', '/login', '/', '/lobby', '/help-md/index.md', '/help-md/pages.json']) assert.equal(effective(doc, p), REVALIDATE, p)
+      for (const p of ['/sw.js', '/build.json', '/200.html', '/login', '/', '/lobby', '/help-md/index.md', '/help-md/pages.json', '/privacy.html', '/terms.html']) assert.equal(effective(doc, p), REVALIDATE, p)
     })
 
     it('hashed /_nuxt/ assets stay immutable, pictures included', () => {

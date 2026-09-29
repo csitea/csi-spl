@@ -657,7 +657,13 @@
     "resize_topic": "Преоразмеряване на панела на темата",
     "resize_issue": "Преоразмеряване на панела с подробности",
     "resize_hint": "Плъзнете, за да преоразмерите. Щракнете двукратно, за да нулирате.",
-    "msgs": "Съобщения"
+    "msgs": "Съобщения",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",

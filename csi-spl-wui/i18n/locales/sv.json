@@ -657,7 +657,13 @@
     "resize_topic": "Ändra storlek på ämnespanelen",
     "resize_issue": "Ändra storlek på ärendepanelen",
     "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa.",
-    "msgs": "Meddelanden"
+    "msgs": "Meddelanden",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",

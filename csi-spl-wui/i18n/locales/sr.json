@@ -657,7 +657,13 @@
     "resize_topic": "Promeni veličinu okna teme",
     "resize_issue": "Promeni veličinu panela detalja",
     "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje.",
-    "msgs": "Поруке"
+    "msgs": "Поруке",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Poruka za {target} — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",

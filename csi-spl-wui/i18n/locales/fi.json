@@ -657,7 +657,13 @@
     "resize_topic": "Muuta aihepaneelin kokoa",
     "resize_issue": "Muuta asian paneelin kokoa",
     "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella.",
-    "msgs": "Viestit"
+    "msgs": "Viestit",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Viesti kohteeseen {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",

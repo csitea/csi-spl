@@ -657,7 +657,13 @@
     "resize_topic": "Redimensionar el panel del tema",
     "resize_issue": "Redimensionar el panel del asunto",
     "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer.",
-    "msgs": "Mensajes"
+    "msgs": "Mensajes",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",

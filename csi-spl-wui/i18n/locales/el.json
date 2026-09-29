@@ -657,7 +657,13 @@
     "resize_topic": "Αλλαγή μεγέθους πλαισίου θέματος",
     "resize_issue": "Αλλαγή μεγέθους πλαισίου λεπτομερειών",
     "resize_hint": "Σύρετε για αλλαγή μεγέθους. Διπλό κλικ για επαναφορά.",
-    "msgs": "Μηνύματα"
+    "msgs": "Μηνύματα",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Μήνυμα προς {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για φιλτράρισμα",

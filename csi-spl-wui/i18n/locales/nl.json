@@ -657,7 +657,13 @@
     "resize_topic": "Formaat van onderwerppaneel wijzigen",
     "resize_issue": "Formaat van issuedetail wijzigen",
     "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen.",
-    "msgs": "Berichten"
+    "msgs": "Berichten",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",

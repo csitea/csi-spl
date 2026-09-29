@@ -657,7 +657,13 @@
     "resize_topic": "Змінити розмір панелі теми",
     "resize_issue": "Змінити розмір панелі деталей",
     "resize_hint": "Перетягніть, щоб змінити розмір. Двічі клацніть, щоб скинути.",
-    "msgs": "Повідомлення"
+    "msgs": "Повідомлення",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter, щоб надіслати · /search для фільтрування",

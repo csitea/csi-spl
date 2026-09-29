@@ -657,7 +657,13 @@
     "resize_topic": "Resize topic pane",
     "resize_issue": "Resize issue detail",
     "resize_hint": "Drag to resize. Double-click to reset.",
-    "msgs": "Msgs"
+    "msgs": "Msgs",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",

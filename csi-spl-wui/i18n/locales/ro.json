@@ -657,7 +657,13 @@
     "resize_topic": "Redimensionează panoul temei",
     "resize_issue": "Redimensionează panoul detaliilor",
     "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare.",
-    "msgs": "Mesaje"
+    "msgs": "Mesaje",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",

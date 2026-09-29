@@ -657,7 +657,13 @@
     "resize_topic": "Muuda teemapaneeli suurust",
     "resize_issue": "Muuda üksikasjade paneeli suurust",
     "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab.",
-    "msgs": "Sõnumid"
+    "msgs": "Sõnumid",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",

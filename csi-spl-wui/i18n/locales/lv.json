@@ -657,7 +657,13 @@
     "resize_topic": "Mainīt tēmas paneļa izmēru",
     "resize_issue": "Mainīt detaļu paneļa izmēru",
     "resize_hint": "Velciet, lai mainītu izmēru. Veiciet dubultklikšķi, lai atiestatītu.",
-    "msgs": "Ziņas"
+    "msgs": "Ziņas",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Ziņa {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",

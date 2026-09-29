@@ -657,7 +657,13 @@
     "resize_topic": "Промени ја големината на панелот со темата",
     "resize_issue": "Промени ја големината на панелот со деталите",
     "resize_hint": "Повлечете за да ја промените големината. Двоен клик за ресетирање.",
-    "msgs": "Пораки"
+    "msgs": "Пораки",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",

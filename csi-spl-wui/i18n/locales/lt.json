@@ -657,7 +657,13 @@
     "resize_topic": "Keisti temos skydelio dydį",
     "resize_issue": "Keisti užduoties išsamios informacijos skydelio dydį",
     "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte.",
-    "msgs": "Žinutės"
+    "msgs": "Žinutės",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Žinutė {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",

@@ -657,7 +657,13 @@
     "resize_topic": "Изменить ширину панели темы",
     "resize_issue": "Изменить ширину панели задачи",
     "resize_hint": "Перетащите, чтобы изменить размер. Двойной щелчок — сброс.",
-    "msgs": "Сообщения"
+    "msgs": "Сообщения",
+    "collapse_channels": "Collapse channels",
+    "expand_channels": "Expand channels",
+    "collapse_messages": "Collapse messages",
+    "expand_messages": "Expand messages",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread"
   },
   "pages": {
     "message_placeholder": "Сообщение в {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки · /search для фильтра",

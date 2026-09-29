@@ -33,8 +33,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://spool-hub.ai/terms
 
 *Use cases → Authenticate and request data from users with Facebook Login → Customize*:
 
-1. **Permissions**: `public_profile` (always there) and add **`email`**. Both are standard
-   access: no App Review.
+1. **Permissions**: `public_profile` (always there) and add **`email`**. They start at
+   standard access ("Ready for testing"), which serves only people with a role on the app.
 2. **Settings** (Facebook Login → Settings):
    - Client OAuth login: **Yes** · Web OAuth login: **Yes** · Enforce HTTPS: **Yes** ·
      Use Strict Mode for redirect URIs: **Yes** · Login with the JavaScript SDK: No.
@@ -97,11 +97,15 @@ asks your password).
 1. While the app is in Development mode only people with a role on it can sign in. For
    the dev test: *App roles → Roles → Add people* (or *Test users*), and sign in with that
    account.
-2. Dashboard → **Publish** (App Mode: **Live**). Meta checks the privacy URL, the data
-   deletion URL and the icon. `public_profile` + `email` need no App Review.
-3. **Business verification is NOT needed** for basic Facebook Login. Meta asks for it
-   only for advanced access or other permissions (pages, ads, business data). Skip it if
-   offered.
+2. **App Review → Permissions and features**: click **Get advanced access** on
+   `public_profile` and on `email`. A **Live** app with only standard access shows every
+   visitor "Feature Unavailable - Facebook Login is currently unavailable for this app,
+   since we are updating additional details" (measured 2026-09-29 on dev and prd; Meta's
+   own forum answer, developers.facebook.com/community/threads/518949739253025/).
+3. Dashboard → **Publish** (App Mode: **Live**). Meta checks the privacy URL, the data
+   deletion URL and the icon.
+4. **Business verification**: if Meta requires it to grant advanced access, it is the
+   owner's step (the business portfolio's documents); nothing on the spool side changes.
 
 ## 7. What the agent does next (named actions only)
 

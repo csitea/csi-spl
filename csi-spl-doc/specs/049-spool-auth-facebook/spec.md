@@ -172,8 +172,10 @@ per tenant, so the policy moves to the tenant:
   after it is clicked; never admit on the unverified address.
 - **OQ-F3 — per-tenant policy (§4).** Recommended default `NULL` (all listed methods) for
   every tenant; build T040 when a tenant asks to restrict sign-in.
-- **OQ-F4 — Business verification.** Not needed: `public_profile` and `email` are
-  standard access, so basic login needs no App Review and no Business verification. It
-  is needed only for advanced access or for other permissions.
+- **OQ-F4 — access level.** Corrected 2026-09-29: a **Live** app needs **advanced access**
+  for `public_profile` and `email`; with standard access ("Ready for testing") Facebook
+  shows "Feature Unavailable ... updating additional details" to everyone (measured on
+  dev + prd, no callback reached the hub). Unverified: whether Meta grants advanced access for
+  these two without App Review or Business verification (owner step if it asks).
 
 <!-- version: 0.1.0 · updated: 2026-09-29 · last-edit: 2026-09-29T05:00:00Z -->

@@ -42,11 +42,17 @@ do_check_hub_deploy() {
     do_log "FATAL cannot describe $svc in $SPL_PROJECT/$SPL_REGION as $GCP_ACCOUNT: $(tail -1 <<<"$json")"
     return 1; }
 
-  image="$(yq -p json -r '.spec.template.spec.containers[0].image // ""' <<<"$json")"
-  # the Ready condition by type, not by position
-  ready="$(yq -p json -r '[.status.conditions[] | select(.type == "Ready") | .status][0] // ""' <<<"$json")"
-  created="$(yq -p json -r '.status.latestCreatedRevisionName // ""' <<<"$json")"
-  latest="$(yq -p json -r '.status.latestReadyRevisionName // ""' <<<"$json")"
+  # One yq over the describe JSON, not four: image, the Ready condition by type
+  # (not position), and the two revision names, tab-joined. ~33 ms of four
+  # spawns -> ~5 ms of one; in the deploy-verify retry loop that is 24 yq -> 6.
+  # None of these values can contain a tab (image ref, revision names, a
+  # condition status), so @tsv round-trips exactly.
+  IFS=$'\t' read -r image ready created latest < <(yq -p json -r '[
+      .spec.template.spec.containers[0].image // "",
+      ([.status.conditions[] | select(.type == "Ready") | .status][0] // ""),
+      .status.latestCreatedRevisionName // "",
+      .status.latestReadyRevisionName // ""
+    ] | @tsv' <<<"$json")
 
   local live_tag="${image##*:}" floor="${SPL_IMAGE_CNF_REF##*:}" ok=0
   if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then

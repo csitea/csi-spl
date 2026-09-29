@@ -104,6 +104,11 @@ func (s *Memory) ApplyPayment(_ context.Context, ev PaymentEvent, now time.Time)
 			t = Tenant{ID: c.TenantID, RootPubKey: append([]byte(nil), c.RootPubKey...),
 				BillingStatus: billing.StatusActive, PlanID: c.PlanID}
 		}
+		in, err := paidOwnerInvite(*c, now)
+		if err != nil {
+			delete(s.pay.seen, key)
+			return "", err
+		}
 		// one "transaction": the line items apply to a copy, nothing is
 		// written unless they all succeed
 		if err := s.applySeatsLocked(&t, c, ev.Env, now); err != nil {
@@ -114,6 +119,7 @@ func (s *Memory) ApplyPayment(_ context.Context, ev PaymentEvent, now time.Time)
 		if !existed {
 			s.ch.seedLocked(c.TenantID, now.UTC())
 		}
+		s.putPaidInviteLocked(in, now)
 		c.Status, c.PaidAt = CheckoutPaid, now
 		return PayOutcomePaid, nil
 	case PayEventFailed:
@@ -250,4 +256,17 @@ func (s *Memory) SeatPeriods(_ context.Context, tenantID string) ([]SeatPeriod, 
 	defer s.mu.Unlock()
 	s.pay.init()
 	return append([]SeatPeriod(nil), s.pay.periods[tenantID]...), nil
+}
+
+// putPaidInviteLocked is paidInviteTx for Memory (047 W1): no invite when the
+// tenant already has a member or the address already has one.
+func (s *Memory) putPaidInviteLocked(in Invite, now time.Time) {
+	s.hum.init()
+	if s.hum.memberCount(in.TenantID) > 0 {
+		return
+	}
+	k := [2]string{in.TenantID, in.Email}
+	if _, ok := s.hum.invites[k]; !ok {
+		s.hum.invites[k] = &memInvite{Invite: in, createdAt: now}
+	}
 }

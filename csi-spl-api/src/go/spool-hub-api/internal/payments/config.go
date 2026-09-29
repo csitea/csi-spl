@@ -179,6 +179,9 @@ func (c *Config) validate() error {
 	if c.Hold <= 0 || c.ClaimTTL <= 0 {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_HOLD and SPOOL_HUB_PAYMENT_CLAIM_TTL must be positive")
 	}
+	if c.ClaimTTL > store.PaidOwnerInviteTTL { // 047 W1: the owner invite outlives the claim link
+		return fmt.Errorf("SPOOL_HUB_PAYMENT_CLAIM_TTL must be at most %s (the buyer's owner invite)", store.PaidOwnerInviteTTL)
+	}
 	// A SET but malformed claim page refuses boot; an unset one only guards
 	// checkout (Guard): an image roll must never crash-loop the hub that also
 	// carries every box because the env has not caught up yet.

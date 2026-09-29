@@ -200,7 +200,25 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	if err := applySeatsTx(ctx, tx, c, ev.Env, now); err != nil {
 		return "", err
 	}
+	if err := paidInviteTx(ctx, tx, c, now); err != nil {
+		return "", err
+	}
 	return PayOutcomePaid, nil
+}
+
+// paidInviteTx seats the buyer (047 W1): a biz_owner invite for the checkout
+// email, unless the tenant already has a member or that address an invite.
+func paidInviteTx(ctx context.Context, tx pgx.Tx, c Checkout, now time.Time) error {
+	in, err := paidOwnerInvite(c, now)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
+		SELECT $1, $2, $3, $4, $5, $6
+		WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)
+		ON CONFLICT (tenant_id, email) DO NOTHING`,
+		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt)
+	return err
 }
 
 func (s *Postgres) SetClaimLink(ctx context.Context, id string, mailClaimHash []byte, expires time.Time) error {

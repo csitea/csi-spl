@@ -76,6 +76,7 @@ func normalizeRole(role, def string) (string, error) {
 const (
 	AdmittedBootstrap = "bootstrap"
 	AdmittedOperator  = "operator"
+	AdmittedCheckout  = "checkout" // the paid webhook's buyer invite (047 W1)
 )
 
 var providerRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)

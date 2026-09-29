@@ -146,6 +146,20 @@ func errUnknownPayEvent(kind string) error {
 	return fmt.Errorf("payment event kind %q is not paid|failed|refund|cancel|ignore", kind)
 }
 
+// PaidOwnerInviteTTL is how long the buyer's biz_owner invite waits for the
+// first sign-in (047 W1). It outlives the claim link: payments config refuses
+// a SPOOL_HUB_PAYMENT_CLAIM_TTL longer than this.
+const PaidOwnerInviteTTL = 30 * 24 * time.Hour
+
+// paidOwnerInvite is the invite the paid transition writes in the same
+// transaction as the tenant row (047 W1, D1): the checkout email signs in as
+// biz_owner with no operator action. Only that verified address is admitted.
+func paidOwnerInvite(c Checkout, now time.Time) (Invite, error) {
+	in := Invite{TenantID: c.TenantID, Email: c.Email, Role: RoleTenantOwner,
+		InvitedBy: AdmittedCheckout, ExpiresAt: now.Add(PaidOwnerInviteTTL)}
+	return in, normalizeInvite(&in)
+}
+
 func normalizeCheckout(c *Checkout) error {
 	if c.ID == "" || c.TenantID == "" || c.Provider == "" {
 		return errors.New("checkout id, tenant and provider are required")

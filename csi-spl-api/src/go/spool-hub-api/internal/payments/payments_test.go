@@ -70,6 +70,7 @@ func TestConfigFailClosed(t *testing.T) {
 		{"paypal without webhook id", "dev", with(paypal, "SPOOL_HUB_PAYPAL_WEBHOOK_ID", "")},
 		{"paypal placeholder secret", "dev", with(paypal, "SPOOL_HUB_PAYPAL_CLIENT_SECRET", "PLACEHOLDER-x")},
 		{"bad currency", "dev", map[string]string{"SPOOL_HUB_PAYMENT_CURRENCY": "euro"}},
+		{"claim ttl past the owner invite (047 W1)", "dev", map[string]string{"SPOOL_HUB_PAYMENT_CLAIM_TTL": "721h"}},
 	}
 	refuse = append(refuse, struct {
 		name, env string

@@ -2,6 +2,7 @@
 
 import { bodyToHtml, stripBidiControls } from './code-blocks.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
+import { isUnread } from './read-cursor.mjs'
 
 export function topLevel(messages) {
   return messages
@@ -846,6 +847,40 @@ export function dmActivity(topics, self = '') {
       const label = String(p || '')
       if (!label || label === self) continue
       if (at > String(out[label] || '')) out[label] = at
+    }
+  }
+  return out
+}
+
+/**
+ * Per-peer DM unread from the reader's stored cursors and the inline messages
+ * of the `?dm=true` topic rows (per_topic). This is the DM twin of the hub's
+ * channel `unread` (channels-v1 §5.2, applied by unreadFromChannels): the hub
+ * counts unread only for channels, so on a fresh load or after a reconnect a
+ * DM that arrived while the tab was closed showed no badge, while a channel
+ * message did. Only INCOMING lines (from !== self) newer than the peer's cursor
+ * count - our own lines are read by definition, and a channel row is not a DM.
+ * The key is `dm:<id>@<box>`, exactly as the sidebar labels a peer.
+ *
+ * @param {Array<{ inline?: { messages?: any[] } }>} topics ?dm=true rows with per_topic
+ * @param {Record<string, { ts?: string, id?: string }>} cursors loadCursors()
+ * @param {string} self our own v:1 id (live.identity)
+ * @returns {Record<string, number>} `dm:<peer>` → unread count
+ */
+export function unreadFromDms(topics, cursors, self = '') {
+  const cs = cursors || {}
+  const me = String(self || '')
+  const out = {}
+  for (const t of topics || []) {
+    const msgs = t && t.inline && Array.isArray(t.inline.messages) ? t.inline.messages : []
+    for (const m of msgs) {
+      if (!m || m.channel) continue
+      const from = String(m.from || '')
+      if (!from || from === me) continue
+      const peer = dmPeerOf(m, me)
+      if (!peer) continue
+      const key = `dm:${peer}`
+      if (isUnread(m, cs[key])) out[key] = (out[key] || 0) + 1
     }
   }
   return out

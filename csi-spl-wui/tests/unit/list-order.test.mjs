@@ -17,6 +17,7 @@ import {
   channelView,
   rowsForRightPane,
   dmActivity,
+  unreadFromDms,
   dmPeerOf,
   noteActivity,
   feedRow,
@@ -187,6 +188,48 @@ describe('orderPeers / dmActivity: the sidebar DM list, online first, then DM hi
       { first_ts: '2026-09-19T19:00:00Z', participants: ['EZA-1@box-e2e-a', 'HUM-4@box-wui'] },
     ], 'HUM-4@box-wui')
     assert.deepEqual(at, { 'EZB-1@box-e2e-b': '2026-09-19T18:56:38Z', 'EZA-1@box-e2e-a': '2026-09-19T19:00:00Z' })
+  })
+})
+
+describe('unreadFromDms: the DM rail badge on load, the twin of the hub channel unread', () => {
+  const self = 'HUM-4@box-wui'
+  const me = 'HUM-4'
+  // Two DM topics, each with its newest messages inlined (?dm=true&per_topic=N),
+  // exactly as the sidebar's loadDmActivity fetches them.
+  const topics = () => [
+    { task_id: 't-a', inline: { messages: [
+      { msg_id: 'a1', from: 'EZB-1', from_box: 'box-e2e-b', to: me, to_box: 'box-wui', channel: null, received_at: '2026-09-19T10:00:00Z' },
+      { msg_id: 'a2', from: 'EZB-1', from_box: 'box-e2e-b', to: me, to_box: 'box-wui', channel: null, received_at: '2026-09-19T11:00:00Z' },
+      { msg_id: 'a3', from: me, from_box: 'box-wui', to: 'EZB-1', to_box: 'box-e2e-b', channel: null, received_at: '2026-09-19T11:05:00Z' },
+    ] } },
+    { task_id: 't-b', inline: { messages: [
+      { msg_id: 'b1', from: 'EZA-1', from_box: 'box-e2e-a', to: me, to_box: 'box-wui', channel: null, received_at: '2026-09-19T09:00:00Z' },
+    ] } },
+  ]
+
+  it('counts INCOMING DMs newer than the peer cursor, per peer, and never our own line', () => {
+    // no cursor for either peer → every incoming line is unread; a3 is ours, so it never counts
+    assert.deepEqual(unreadFromDms(topics(), {}, me), {
+      'dm:EZB-1@box-e2e-b': 2,
+      'dm:EZA-1@box-e2e-a': 1,
+    })
+  })
+
+  it('a per-peer cursor clears what has been read (the DM twin of read=<channel>~<cursor>)', () => {
+    const cursors = { 'dm:EZB-1@box-e2e-b': { ts: '2026-09-19T10:00:00Z', id: 'a1' } }
+    assert.deepEqual(unreadFromDms(topics(), cursors, me), {
+      'dm:EZB-1@box-e2e-b': 1, // only a2 is newer than the cursor at a1
+      'dm:EZA-1@box-e2e-a': 1,
+    })
+  })
+
+  it('skips channel rows and yields nothing without inline messages (CONTROL: today the rail had no DM badge on load)', () => {
+    const chRow = [{ task_id: 't-c', inline: { messages: [
+      { msg_id: 'c1', from: 'EZB-1', from_box: 'box-e2e-b', to: me, channel: 'lobby', received_at: 'z' },
+    ] } }]
+    assert.deepEqual(unreadFromDms(chRow, {}, me), {})
+    assert.deepEqual(unreadFromDms([{ task_id: 't-d' }], {}, me), {})
+    assert.deepEqual(unreadFromDms([], {}, me), {})
   })
 })
 

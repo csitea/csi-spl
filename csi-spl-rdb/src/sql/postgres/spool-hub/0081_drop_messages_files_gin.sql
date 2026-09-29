@@ -1,0 +1,22 @@
+-- 0081_drop_messages_files_gin.sql — drop the messages.files gin index the hub
+-- never uses (perf round e908f41b, lane B). Forward-only.
+--
+-- 0030 added `messages_files` (gin, files jsonb_path_ops) to answer the file
+-- read door's containment probe (files @> '[{"file_id": ...}]'). 0075 found
+-- that the hub can NEVER use it: messages is FORCE row level security (0014)
+-- and Postgres refuses a non-LEAKPROOF operator (jsonb @>) as an index
+-- condition under a policy. 0075 gave the door a usable path (the has_files
+-- boolean + the messages_with_files partial btree) but left the dead gin in
+-- place. prd pg_stat_user_indexes (2026-09-29): messages_files idx_scan = 0
+-- since it was built, while it is maintained on every file-carrying insert.
+--
+-- Dropping it takes work off the insert path (inserts are ~9% of prd database
+-- time) and returns ~120 kB. Measured pg 16.14, inserting 20 000 file-carrying
+-- messages: 839 ms -> 565 ms (33% faster) with the gin gone. No read regresses:
+-- the door already uses messages_with_files, and nothing queries files @>
+-- through this index. SearchFiles walks jsonb_array_elements, not @>.
+--
+-- DROP INDEX (not CONCURRENTLY) inside the migrate transaction takes a brief
+-- ACCESS EXCLUSIVE lock; messages is small enough that it is milliseconds.
+
+DROP INDEX IF EXISTS messages_files;

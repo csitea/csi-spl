@@ -1019,17 +1019,20 @@ html.pane-dragging * {
    the corner mirror in RTL via CSS logical properties (no JS). See
    components/PaneCollapseToggle.vue and stores/pane-collapse.ts.
    -------------------------------------------------------------------------- */
-.spool-shell { --pane-strip-w: 16px; }
+/* SPL-1186 (owner, topic d2c03bc9): the triangles are 20% bigger, the channels
+   (left-most) triangle sits 0.9 cm (~34px @96dpi) further into the panel, all
+   three sit 1 mm (~4px) higher, and the hover/press 3D effect is stronger. */
+.spool-shell { --pane-strip-w: 16px; --pane-collapse-shift: 34px; }
 
 .pane-collapse {
   position: absolute;
-  inset-block-end: 6px;
+  inset-block-end: 10px; /* 1 mm (~4px) higher than the original 6px (SPL-1186) */
   z-index: 6;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;  /* 20% bigger hit area than the original 20px (SPL-1186) */
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -1037,32 +1040,79 @@ html.pane-dragging * {
   color: var(--color-muted);
   cursor: pointer;
   opacity: 0.5;
-  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease,
+    box-shadow 0.12s ease, transform 0.08s ease;
+}
+/* on a touch (coarse) pointer, pad the clickable area out to the 44px minimum
+   without growing the visual button (SPL-1186 "keep >= 44px touch") */
+@media (pointer: coarse) {
+  .pane-collapse::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
 }
 .pane-collapse--start { inset-inline-start: 4px; }
 .pane-collapse--end { inset-inline-end: 4px; }
+/* SPL-1186: the left-most panel (channels) triangle moves 0.9 cm to the RIGHT.
+   Applied to the start-anchored corner (mac / LTR bottom-left; the logical
+   inset mirrors it for free in RTL, i.e. "to the right" becomes "to the left").
+   Only while the panel is open — when collapsed to the ~16px strip the toggle
+   must stay in the strip, so it falls back to the 4px base. In windows mode the
+   channels triangle is in the END (right) corner, where the same move would
+   push it out of the panel, so it is left where it is there. */
+.pane-collapse--start[data-pane="channels"]:not(.pane-collapse--collapsed) {
+  inset-inline-start: calc(4px + var(--pane-collapse-shift));
+}
+/* When a panel is a thin strip the toggle is the only way back, so it centres in
+   the ~16px strip — the bigger (24px) button would otherwise reach past the
+   strip and its click centre would land on the neighbouring pane (SPL-1186). */
+.pane-collapse--collapsed { width: var(--pane-strip-w); }
+.pane-collapse--collapsed.pane-collapse--start { inset-inline-start: 0; }
+.pane-collapse--collapsed.pane-collapse--end { inset-inline-end: 0; }
 .pane-collapse:hover,
 .pane-collapse:focus-visible {
   opacity: 1;
   color: var(--color-text);
+  /* raised: theme-aware drop shadow (var(--focus-3d)) + a top-light / bottom-
+     dark bevel, lifted 1px — a more pronounced 3D than the flat original */
+  background: var(--color-surface);
+  transform: translateY(-1px);
+  box-shadow:
+    var(--focus-3d),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+/* pressed: pushed 1px down into a darker recess, inset shadow — a clear
+   pressed state in both light and dark themes (SPL-1186) */
+.pane-collapse:active {
+  transform: translateY(1px);
   background: var(--color-selected);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12);
 }
 /* the focus ring itself is the ONE global :focus-visible treatment below in
    main.css (var(--focus-ring)); no per-button outline here (focus-tokens) */
 /* The triangle, drawn with borders so it stays crisp and flips with logical
    direction. Open state points to inline-start (◀ in LTR = "close to the
    left"); the collapsed strip points to inline-end (▶ = "open from the left").
-   RTL swaps inline-start/end, so Hebrew gets the mirrored arrow for free. */
+   RTL swaps inline-start/end, so Hebrew gets the mirrored arrow for free.
+   Border widths are 20% bigger than the original 5px/7px (SPL-1186). */
 .pane-collapse__tri {
   width: 0;
   height: 0;
-  border-block: 5px solid transparent;
-  border-inline-end: 7px solid currentColor;
+  border-block: 6px solid transparent;
+  border-inline-end: 8.4px solid currentColor;
   border-inline-start: 0;
 }
 .pane-collapse--collapsed .pane-collapse__tri {
   border-inline-end: 0;
-  border-inline-start: 7px solid currentColor;
+  border-inline-start: 8.4px solid currentColor;
 }
 
 @media (min-width: 821px) {

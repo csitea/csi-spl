@@ -68,7 +68,10 @@ export default defineNuxtPlugin(() => {
      (plugins/spool-live.client.ts), on first paint and every reconnect. */
   watch(
     () => channel.dmSeed,
-    (topics) => notes.applyDms(topics, live.identity.value, ctx().activeKey),
+    (topics) => {
+      const page = ctx()
+      notes.applyDms(topics, page.selfId, page.activeKey)
+    },
     { immediate: true },
   )
 

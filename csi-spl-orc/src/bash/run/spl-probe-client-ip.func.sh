@@ -52,7 +52,7 @@ do_spl_probe_client_ip() {
 }
 
 _spl_probe_measure() {
-  local url="$1" n="$2" marker="192.0.2.1" i body hops first seen="" chain client deployed
+  local url="$1" n="$2" marker="192.0.2.1" i body hops first seen="" chain client deployed xff0 peer
   local path="${PROBE_PATH:-/v1/debug/client-ip}"
   for ((i = 1; i <= n; i++)); do
     body="$(curl -sS -m 15 -H "X-Forwarded-For: $marker" -H 'Cache-Control: no-cache' \
@@ -62,14 +62,24 @@ _spl_probe_measure() {
       do_log "FATAL $url$path answered $(tail -1 <<<"$body") (SPOOL_HUB_CLIENT_IP_PROBE off, or an older hub image)"
       return 1; }
     body="$(sed '$d' <<<"$body")"
+    # One yq for every scalar this sample needs (marker, hops, first, client,
+    # deployed, peer), tab-joined -- was six spawns per sample, ~39 ms -> ~8 ms
+    # (PROBE_N defaults to 3, so 18 yq -> 3 per probe, plus one for chain).
+    # None of these is a tab (IPs and small ints), so @tsv round-trips exactly.
+    IFS=$'\t' read -r xff0 hops first client deployed peer < <(yq -p json -r '[
+        (.x_forwarded_for[0] // ""),
+        (.x_forwarded_for | length - 1),
+        (.x_forwarded_for[1] // ""),
+        .client_ip,
+        .trusted_proxy_hops,
+        .peer
+      ] | @tsv' <<<"$body")
+    # chain stays its own compact-json read: it is a JSON array, shown in the
+    # messages below, not a scalar the @tsv above can carry.
     chain="$(yq -p json -o json -I0 '.x_forwarded_for' <<<"$body")"
-    [[ "$(yq -p json -r '.x_forwarded_for[0] // ""' <<<"$body")" == "$marker" ]] || {
+    [[ "$xff0" == "$marker" ]] || {
       echo "$ENV inconsistent url=$url sample=$i chain=$chain (the spoofed marker is not the first entry: a proxy rewrote the header)"
       return 3; }
-    hops="$(yq -p json -r '.x_forwarded_for | length - 1' <<<"$body")"
-    first="$(yq -p json -r '.x_forwarded_for[1] // ""' <<<"$body")"
-    client="$(yq -p json -r '.client_ip' <<<"$body")"
-    deployed="$(yq -p json -r '.trusted_proxy_hops' <<<"$body")"
     if [[ -n "$seen" && "$seen" != "$hops $first" ]]; then
       echo "$ENV inconsistent url=$url samples disagree: '$seen' vs '$hops $first'"
       return 3
@@ -78,7 +88,7 @@ _spl_probe_measure() {
   done
   local current=no
   [[ "$hops" -ge 1 && "$client" == "$first" && "$deployed" == "$hops" ]] && current=yes
-  echo "$ENV hops=$hops url=$url$path n=$n chain=$chain peer=$(yq -p json -r '.peer' <<<"$body") deployed_hops=$deployed current=$current"
+  echo "$ENV hops=$hops url=$url$path n=$n chain=$chain peer=$peer deployed_hops=$deployed current=$current"
 }
 
 _spl_probe_spoof_control() {

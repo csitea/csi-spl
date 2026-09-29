@@ -55,6 +55,8 @@ export function normalizeDirectory(body) {
     createdAt: str(i.created_at),
     expiresAt: str(i.expires_at),
     expired: i.expired === true,
+    /* the list's own tenant (047 W13: the invite link names it) */
+    tenant: str(b.tenant_id),
   }))
   const roles = (Array.isArray(b.roles) ? b.roles : []).filter((r) => r && str(r.id)).map((r) => ({ id: r.id, grantable: r.grantable === true }))
   return { you: str(b.you), members, invites, roles }
@@ -72,6 +74,18 @@ export function userErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
   const known = ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'shared_account', 'bad_name', 'bad_locale']
   return 'users.error.' + (known.includes(token) ? token : 'generic')
+}
+
+/**
+ * 047 W13: the link an admin hands an invitee when no mail arrives. It is the
+ * sign-in page of the tenant (the shape invitemail.SignInURL mails) and carries
+ * no secret: admission is the verified-email match. '' without a tenant.
+ */
+export function inviteLink(origin, tenant) {
+  const o = String(origin || '').replace(/\/+$/, '')
+  const id = String(tenant || '').trim()
+  if (!o || !id) return ''
+  return `${o}/login?tenant=${encodeURIComponent(id)}`
 }
 
 /** A loose address check before the round trip; the hub has the last word. */

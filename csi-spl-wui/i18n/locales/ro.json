@@ -882,7 +882,9 @@
     "restore": "Enable again",
     "suspended_notice": "Disabled: the person keeps their account but cannot open this tenant.",
     "restored": "Enabled again.",
-    "resend": "Resend invite"
+    "resend": "Resend invite",
+    "copy_link": "Copiază linkul de invitație",
+    "copy_link_hint": "Linkul deschide conectarea la acest spațiu de lucru; este admis doar {email}. Trimiteți-l dvs. dacă nu sosește niciun e-mail."
   },
   "events": {
     "title": "Jurnal de evenimente",

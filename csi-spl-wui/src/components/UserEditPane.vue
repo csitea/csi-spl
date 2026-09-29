@@ -130,6 +130,18 @@
           <dt>{{ t('users.expires') }}</dt>
           <dd>{{ when(invite.expiresAt) }}<template v-if="invite.expired"> · {{ t('users.expired') }}</template></dd>
         </dl>
+        <!-- 047 W13: the way in when no mail arrived (a log-only relay, spam) -->
+        <button
+          v-if="linkOf(invite)"
+          type="button"
+          class="btn ghost"
+          data-test="users-pane-copy-link"
+          :data-link="linkOf(invite)"
+          @click="copyLink(invite)"
+        >
+          {{ copied ? t('common.copied') : t('users.copy_link') }}
+        </button>
+        <small v-if="linkOf(invite)" class="muted users-note" data-test="users-pane-copy-link-hint">{{ t('users.copy_link_hint', { email: invite.email }) }}</small>
         <button
           type="button"
           class="btn"
@@ -181,7 +193,7 @@ import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { roleLabelKey } from '~/utils/access.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
+import { inviteLink, memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
 const props = defineProps<{
@@ -228,6 +240,7 @@ watch(() => [props.row?.key, props.creating], () => {
   notice.value = carry
   carry = ''
   confirmOpen.value = false
+  copied.value = false
   memberRole.value = member.value?.role || ''
   profileName.value = member.value?.displayName || ''
   profileLocale.value = ''
@@ -238,6 +251,22 @@ watch(() => [props.row?.key, props.creating], () => {
     void nextTick(() => emailEl.value?.focus())
   }
 }, { immediate: true })
+
+const copied = ref(false)
+/* the sign-in page of the tenant the list came from */
+function linkOf(i: UserInvite | null) {
+  return i && !i.expired && import.meta.client ? inviteLink(window.location.origin, i.tenant) : ''
+}
+async function copyLink(i: UserInvite | null) {
+  const link = linkOf(i)
+  if (!link) return
+  try {
+    await navigator.clipboard.writeText(link)
+    copied.value = true
+  } catch {
+    copied.value = false
+  }
+}
 
 function roleName(id: string) {
   const key = roleLabelKey(id)

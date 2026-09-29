@@ -882,7 +882,9 @@
     "restore": "Enable again",
     "suspended_notice": "Disabled: the person keeps their account but cannot open this tenant.",
     "restored": "Enabled again.",
-    "resend": "Resend invite"
+    "resend": "Resend invite",
+    "copy_link": "Copiar enlace de invitación",
+    "copy_link_hint": "El enlace abre el inicio de sesión de este espacio de trabajo; solo se admite {email}. Envíalo tú si no llega ningún correo."
   },
   "events": {
     "title": "Registro de eventos",

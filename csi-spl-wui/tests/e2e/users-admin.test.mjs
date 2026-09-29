@@ -133,6 +133,14 @@ try {
   ok('10 invite adds a pending row with its role', /regular/i.test(await rowRole(p, 'i:e2e-invitee@example.com')), await rowKeys(p))
   const notice = await text(p, '[data-test=users-pane-notice]')
   ok('10b the pane moves to the new invite and keeps the notice', notice.includes('e2e-invitee@example.com') && (await text(p, '[data-test=users-pane-email]')) === 'e2e-invitee@example.com', { notice })
+  // 047 W13: the invite's sign-in link, for when no mail arrived
+  const link = await p.$eval('[data-test=users-pane-copy-link]', (e) => e.getAttribute('data-link')).catch(() => '')
+  await browser.defaultBrowserContext().overridePermissions(server.base, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'])
+  await p.click('[data-test=users-pane-copy-link]').catch(() => null)
+  await sleep(200)
+  const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => 'ERR ' + e)
+  ok('10c Copy invite link copies <origin>/login?tenant=<the tenant>', /^http:\/\/127\.0\.0\.1:\d+\/login\?tenant=[a-z0-9-]+$/.test(link) && clip === link &&
+    /copied/i.test(await text(p, '[data-test=users-pane-copy-link]')), { link, clip })
 
   // 7. revoke, confirmed
   await p.click(row('i:e2e-invitee@example.com'))

@@ -44,6 +44,16 @@
         <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
       </div>
+      <!-- W14 (spec 047): Help, one click for everyone; the gear below it -->
+      <NuxtLink
+        class="sidebar-rail__help"
+        data-testid="help-open"
+        :to="localePath('/help')"
+        :title="t('help.title')"
+        :aria-label="t('help.title')"
+      >
+        <UiIcon name="help" :size="20" />
+      </NuxtLink>
       <!-- SPL-1037 (specs/046): the app / tenant settings, admins and
            biz_owners only; owner 2026-09-28: a gear -->
       <NuxtLink
@@ -1212,9 +1222,11 @@ async function onCreate() {
 .sidebar.sidebar--rail .sidebar-body { display: none; }
 /* the tablist is only a semantic wrapper: the tabs stay flex items of the strip */
 .sidebar-rail__tabs { display: contents; }
-/* the settings gear: the foot of the strip (bottom-left of the screen) */
+/* Help and the settings gear: the foot of the strip (bottom-left of the
+   screen); Help takes the push, the gear sits under it */
+.sidebar-rail__help { margin-block-start: auto; }
+.sidebar-rail__help,
 .sidebar-rail__settings {
-  margin-block-start: auto;
   display: grid;
   place-items: center;
   width: 100%;
@@ -1224,8 +1236,11 @@ async function onCreate() {
   color: var(--color-muted);
   container-type: size;
 }
+.sidebar-rail__help:hover,
 .sidebar-rail__settings:hover { background: var(--color-surface-hover); color: var(--color-fg); }
+.sidebar-rail__help.router-link-active,
 .sidebar-rail__settings.router-link-active { color: var(--color-fg); }
+.sidebar-rail__help :deep(svg),
 .sidebar-rail__settings :deep(svg) {
   width: min(22px, 70cqi);
   height: min(22px, 70cqi);
@@ -1532,7 +1547,10 @@ async function onCreate() {
   /* a sideways drag scrolls the strip; a long press still reorders */
   .sidebar-tab--movable { touch-action: pan-x; }
   /* the phone strip: the gear ends the row, a 44 px target */
-  .sidebar-rail__settings { margin-block-start: 0; margin-inline-start: auto; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
+  .sidebar-rail__help,
+  .sidebar-rail__settings { margin-block-start: 0; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
+  .sidebar-rail__help { margin-inline-start: auto; }
+  .sidebar-rail__help :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
   .sidebar-body { padding-top: 4px; }

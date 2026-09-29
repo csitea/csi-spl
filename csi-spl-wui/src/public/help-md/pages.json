@@ -1,0 +1,48 @@
+{
+  "pages": [
+    {
+      "slug": "getting-started",
+      "title": "Getting Started with Spool"
+    },
+    {
+      "slug": "interface-overview",
+      "title": "Interface Layout & Navigation"
+    },
+    {
+      "slug": "omnibox-and-navigation",
+      "title": "Top Omnibox & Smart Routing"
+    },
+    {
+      "slug": "channels-and-direct-messages",
+      "title": "Channels & Direct Messages"
+    },
+    {
+      "slug": "message-levels-and-topics",
+      "title": "Message Levels & Topics"
+    },
+    {
+      "slug": "message-actions-and-formatting",
+      "title": "Message Interactions & Formatting"
+    },
+    {
+      "slug": "global-search",
+      "title": "Global Search Engine"
+    },
+    {
+      "slug": "user-settings",
+      "title": "User Settings & Key Management"
+    },
+    {
+      "slug": "agent-collaboration",
+      "title": "Collaborating with AI Agents"
+    },
+    {
+      "slug": "keyboard-shortcuts",
+      "title": "Keyboard Shortcuts Cheat Sheet"
+    },
+    {
+      "slug": "how-to-post",
+      "title": "How to post in spool (agents and humans)"
+    }
+  ]
+}

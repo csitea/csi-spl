@@ -180,14 +180,14 @@
       "invalid_state": "Ši prisijungimo nuoroda nebegalioja — bandykite dar kartą.",
       "exchange_failed": "Paslaugos teikėjas negalėjo jūsų patvirtinti — bandykite dar kartą.",
       "email_unverified": "Jūsų paskyra pas šį paslaugos teikėją neturi patvirtinto el. pašto — pabandykite kitą.",
-      "not_allowed": "Ši paskyra negali čia prisijungti.",
+      "not_allowed": "Ši paskyra čia dar neturi prieigos — paprašykite savo administratoriaus pakvietimo.",
       "unavailable": "Prisijungimas šiuo metu neprieinamas.",
       "failed": "Prisijungti nepavyko."
     },
     "native_error": {
       "invalid_credentials": "Neteisingas el. paštas arba slaptažodis.",
       "email_unverified": "Pirmiausia patvirtinkite el. paštą — nuorodą galime išsiųsti dar kartą.",
-      "not_allowed": "Ši paskyra čia dar neturi prieigos — paprašykite savininko pakvietimo.",
+      "not_allowed": "Ši paskyra čia dar neturi prieigos — paprašykite savo administratoriaus pakvietimo.",
       "verification_token_invalid": "Ši nuoroda nebegalioja.",
       "verification_token_expired": "Šios nuorodos galiojimas baigėsi — galime išsiųsti naują.",
       "reset_token_invalid": "Ši atkūrimo nuoroda nebegalioja — paprašykite naujos.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Pagalba",
+    "nav_label": "Pagalbos puslapiai",
+    "index": "Apžvalga",
+    "not_found": "Tokio pagalbos puslapio nėra.",
+    "load_failed": "Pagalbos puslapis neįsikėlė — bandykite dar kartą."
   }
 }

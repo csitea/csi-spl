@@ -180,14 +180,14 @@
       "invalid_state": "Platnosť odkazu na prihlásenie vypršala — skúste to znova.",
       "exchange_failed": "Poskytovateľ vás nedokázal overiť — skúste to znova.",
       "email_unverified": "Váš účet u tohto poskytovateľa nemá overený e-mail — skúste iného.",
-      "not_allowed": "Tento účet sa tu nemôže prihlásiť.",
+      "not_allowed": "Tento účet tu zatiaľ nemá prístup — požiadajte svojho správcu o pozvánku.",
       "unavailable": "Prihlásenie momentálne nie je k dispozícii.",
       "failed": "Prihlásenie zlyhalo."
     },
     "native_error": {
       "invalid_credentials": "E-mail alebo heslo je nesprávne.",
       "email_unverified": "Najprv potvrďte svoj e-mail — odkaz vám môžeme poslať znova.",
-      "not_allowed": "Tento účet tu zatiaľ nemá prístup — požiadajte vlastníka o pozvánku.",
+      "not_allowed": "Tento účet tu zatiaľ nemá prístup — požiadajte svojho správcu o pozvánku.",
       "verification_token_invalid": "Tento odkaz už nie je platný.",
       "verification_token_expired": "Platnosť odkazu vypršala — môžeme vám poslať nový.",
       "reset_token_invalid": "Odkaz na obnovenie už nie je platný — požiadajte o nový.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Pomoc",
+    "nav_label": "Stránky pomoci",
+    "index": "Prehľad",
+    "not_found": "Taká stránka pomoci neexistuje.",
+    "load_failed": "Stránka pomoci sa nenačítala — skúste to znova."
   }
 }

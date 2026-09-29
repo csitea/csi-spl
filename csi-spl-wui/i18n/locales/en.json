@@ -180,14 +180,14 @@
       "invalid_state": "That sign-in link expired — try again.",
       "exchange_failed": "The provider could not confirm you — try again.",
       "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
+      "not_allowed": "This account has no access here yet — ask your admin for an invite.",
       "unavailable": "Sign-in is unavailable right now.",
       "failed": "Sign-in failed."
     },
     "native_error": {
       "invalid_credentials": "Email or password is wrong.",
       "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
+      "not_allowed": "This account has no access here yet — ask your admin for an invite.",
       "verification_token_invalid": "That link is not valid any more.",
       "verification_token_expired": "That link expired — we can send a new one.",
       "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Help",
+    "nav_label": "Help pages",
+    "index": "Overview",
+    "not_found": "There is no such help page.",
+    "load_failed": "The help page did not load — try again."
   }
 }

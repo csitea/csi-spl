@@ -1181,6 +1181,13 @@ declare module '~/utils/tenant-settings.mjs' {
   export function tenantSettingsErrorKey(err: unknown): string
 }
 
+declare module '~/utils/help.mjs' {
+  export const HELP_REPO_BASE: string
+  export function validHelpSlug(s: unknown): boolean
+  export function helpHref(raw: unknown, route?: (slug: string) => string): string
+  export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string): string
+}
+
 declare module '~/utils/tenant-settings-mock.mjs' {
   export function createMockTenant(): unknown
 }

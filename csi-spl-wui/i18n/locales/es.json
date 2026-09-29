@@ -180,14 +180,14 @@
       "invalid_state": "Ese enlace de inicio de sesión ha caducado — inténtalo de nuevo.",
       "exchange_failed": "El proveedor no pudo confirmar tu identidad — inténtalo de nuevo.",
       "email_unverified": "Tu cuenta no tiene un correo verificado con este proveedor — prueba con otro.",
-      "not_allowed": "Esta cuenta no puede iniciar sesión aquí.",
+      "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación a tu administrador.",
       "unavailable": "El inicio de sesión no está disponible ahora mismo.",
       "failed": "No se pudo iniciar sesión."
     },
     "native_error": {
       "invalid_credentials": "El correo o la contraseña no son correctos.",
       "email_unverified": "Primero confirma tu correo — podemos enviarte el enlace de nuevo.",
-      "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación al propietario.",
+      "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación a tu administrador.",
       "verification_token_invalid": "Ese enlace ya no es válido.",
       "verification_token_expired": "Ese enlace ha caducado — podemos enviarte uno nuevo.",
       "reset_token_invalid": "Ese enlace de restablecimiento ya no es válido — pide uno nuevo.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Ayuda",
+    "nav_label": "Páginas de ayuda",
+    "index": "Resumen",
+    "not_found": "No existe esa página de ayuda.",
+    "load_failed": "La página de ayuda no se cargó — inténtalo de nuevo."
   }
 }

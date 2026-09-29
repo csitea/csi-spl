@@ -180,14 +180,14 @@
       "invalid_state": "Linkul de autentificare a expirat — încercați din nou.",
       "exchange_failed": "Furnizorul nu v-a putut confirma — încercați din nou.",
       "email_unverified": "Contul dvs. nu are un e-mail verificat la acest furnizor — încercați altul.",
-      "not_allowed": "Acest cont nu se poate autentifica aici.",
+      "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație administratorului dvs.",
       "unavailable": "Autentificarea nu este disponibilă momentan.",
       "failed": "Autentificarea a eșuat."
     },
     "native_error": {
       "invalid_credentials": "E-mailul sau parola sunt greșite.",
       "email_unverified": "Confirmați mai întâi e-mailul — putem retrimite linkul.",
-      "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație proprietarului.",
+      "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație administratorului dvs.",
       "verification_token_invalid": "Linkul nu mai este valid.",
       "verification_token_expired": "Linkul a expirat — vă putem trimite unul nou.",
       "reset_token_invalid": "Linkul de resetare nu mai este valid — cereți unul nou.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Ajutor",
+    "nav_label": "Pagini de ajutor",
+    "index": "Prezentare",
+    "not_found": "Nu există această pagină de ajutor.",
+    "load_failed": "Pagina de ajutor nu s-a încărcat — încercați din nou."
   }
 }

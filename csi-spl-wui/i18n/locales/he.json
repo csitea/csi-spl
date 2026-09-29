@@ -180,14 +180,14 @@
       "invalid_state": "תוקף קישור ההתחברות פג — נסו שוב.",
       "exchange_failed": "הספק לא הצליח לאמת אתכם — נסו שוב.",
       "email_unverified": "לחשבון שלכם אין אימייל מאומת אצל ספק זה — נסו ספק אחר.",
-      "not_allowed": "חשבון זה אינו יכול להתחבר כאן.",
+      "not_allowed": "לחשבון זה עדיין אין גישה כאן — בקשו הזמנה ממנהל המערכת שלכם.",
       "unavailable": "ההתחברות אינה זמינה כרגע.",
       "failed": "ההתחברות נכשלה."
     },
     "native_error": {
       "invalid_credentials": "האימייל או הסיסמה שגויים.",
       "email_unverified": "אשרו קודם את האימייל שלכם — נוכל לשלוח את הקישור שוב.",
-      "not_allowed": "לחשבון זה עדיין אין גישה כאן — בקשו הזמנה מהבעלים.",
+      "not_allowed": "לחשבון זה עדיין אין גישה כאן — בקשו הזמנה ממנהל המערכת שלכם.",
       "verification_token_invalid": "הקישור כבר אינו תקף.",
       "verification_token_expired": "תוקף הקישור פג — נוכל לשלוח קישור חדש.",
       "reset_token_invalid": "קישור האיפוס כבר אינו תקף — בקשו קישור חדש.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "עזרה",
+    "nav_label": "דפי עזרה",
+    "index": "סקירה",
+    "not_found": "אין דף עזרה כזה.",
+    "load_failed": "דף העזרה לא נטען — נסו שוב."
   }
 }

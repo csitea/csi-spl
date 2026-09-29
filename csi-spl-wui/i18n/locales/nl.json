@@ -180,14 +180,14 @@
       "invalid_state": "Die inloglink is verlopen — probeer het opnieuw.",
       "exchange_failed": "De provider kon je niet bevestigen — probeer het opnieuw.",
       "email_unverified": "Je account heeft bij deze provider geen geverifieerd e-mailadres — probeer een andere.",
-      "not_allowed": "Met dit account kun je hier niet inloggen.",
+      "not_allowed": "Dit account heeft hier nog geen toegang — vraag je beheerder om een uitnodiging.",
       "unavailable": "Inloggen is op dit moment niet beschikbaar.",
       "failed": "Inloggen mislukt."
     },
     "native_error": {
       "invalid_credentials": "E-mailadres of wachtwoord is onjuist.",
       "email_unverified": "Bevestig eerst je e-mailadres — we kunnen de link opnieuw sturen.",
-      "not_allowed": "Dit account heeft hier nog geen toegang — vraag de eigenaar om een uitnodiging.",
+      "not_allowed": "Dit account heeft hier nog geen toegang — vraag je beheerder om een uitnodiging.",
       "verification_token_invalid": "Die link is niet meer geldig.",
       "verification_token_expired": "Die link is verlopen — we kunnen je een nieuwe sturen.",
       "reset_token_invalid": "Die resetlink is niet meer geldig — vraag een nieuwe aan.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Help",
+    "nav_label": "Helppagina's",
+    "index": "Overzicht",
+    "not_found": "Deze helppagina bestaat niet.",
+    "load_failed": "De helppagina is niet geladen — probeer het opnieuw."
   }
 }

@@ -180,14 +180,14 @@
       "invalid_state": "Taj link za prijavu je istekao — pokušajte ponovo.",
       "exchange_failed": "Dobavljač nije mogao da vas potvrdi — pokušajte ponovo.",
       "email_unverified": "Vaš nalog kod ovog dobavljača nema potvrđen imejl — probajte drugi.",
-      "not_allowed": "Ovim nalogom ne možete da se prijavite ovde.",
+      "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od svog administratora.",
       "unavailable": "Prijava trenutno nije dostupna.",
       "failed": "Prijava nije uspela."
     },
     "native_error": {
       "invalid_credentials": "Imejl ili lozinka nisu ispravni.",
       "email_unverified": "Prvo potvrdite imejl — možemo ponovo da pošaljemo link.",
-      "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od vlasnika.",
+      "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od svog administratora.",
       "verification_token_invalid": "Taj link više ne važi.",
       "verification_token_expired": "Taj link je istekao — možemo da pošaljemo novi.",
       "reset_token_invalid": "Taj link za resetovanje više ne važi — zatražite novi.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Помоћ",
+    "nav_label": "Странице помоћи",
+    "index": "Преглед",
+    "not_found": "Таква страница помоћи не постоји.",
+    "load_failed": "Страница помоћи се није учитала — покушајте поново."
   }
 }

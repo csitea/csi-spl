@@ -180,14 +180,14 @@
       "invalid_state": "Bu giriş bağlantısının süresi doldu — tekrar deneyin.",
       "exchange_failed": "Sağlayıcı kimliğinizi doğrulayamadı — tekrar deneyin.",
       "email_unverified": "Bu sağlayıcıdaki hesabınızın doğrulanmış bir e-postası yok — başka birini deneyin.",
-      "not_allowed": "Bu hesap burada giriş yapamaz.",
+      "not_allowed": "Bu hesabın henüz burada erişimi yok — yöneticinizden davet isteyin.",
       "unavailable": "Giriş şu anda kullanılamıyor.",
       "failed": "Giriş başarısız."
     },
     "native_error": {
       "invalid_credentials": "E-posta veya parola hatalı.",
       "email_unverified": "Önce e-postanızı onaylayın — bağlantıyı yeniden gönderebiliriz.",
-      "not_allowed": "Bu hesabın henüz burada erişimi yok — sahibinden davet isteyin.",
+      "not_allowed": "Bu hesabın henüz burada erişimi yok — yöneticinizden davet isteyin.",
       "verification_token_invalid": "Bu bağlantı artık geçerli değil.",
       "verification_token_expired": "Bu bağlantının süresi doldu — yenisini gönderebiliriz.",
       "reset_token_invalid": "Bu sıfırlama bağlantısı artık geçerli değil — yenisini isteyin.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Yardım",
+    "nav_label": "Yardım sayfaları",
+    "index": "Genel bakış",
+    "not_found": "Böyle bir yardım sayfası yok.",
+    "load_failed": "Yardım sayfası yüklenmedi — tekrar deneyin."
   }
 }

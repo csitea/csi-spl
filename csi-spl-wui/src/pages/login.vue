@@ -14,6 +14,8 @@
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
     <BuyWorkspaceLink v-if="session.state !== 'in'" with-price />
+    <!-- W14 (spec 047): the help pages, also before sign-in -->
+    <p class="muted login-help"><NuxtLink :to="localePath('/help')" data-test="login-help">{{ t('help.title') }}</NuxtLink></p>
   </div>
 </template>
 
@@ -32,6 +34,7 @@ definePageMeta({ layout: 'login' })
 
 const route = useRoute()
 const router = useRouter()
+const localePath = useLocalePath()
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
 const copy = useAuthCopy()

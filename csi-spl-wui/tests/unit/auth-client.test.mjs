@@ -271,7 +271,7 @@ describe('native-auth-v1 client (spec 015)', () => {
     const copy = {
       invalid_credentials: 'Email or password is wrong.',
       email_unverified: 'Confirm your email first — we can send the link again.',
-      not_allowed: 'This account has no access here yet — ask the owner for an invite.',
+      not_allowed: 'This account has no access here yet — ask your admin for an invite.',
       verification_token_invalid: 'That link is not valid any more.',
       verification_token_expired: 'That link expired — we can send a new one.',
       reset_token_invalid: 'That reset link is not valid any more — ask for a new one.',

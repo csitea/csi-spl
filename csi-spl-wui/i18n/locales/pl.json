@@ -180,14 +180,14 @@
       "invalid_state": "Ten link do logowania wygasł — spróbuj ponownie.",
       "exchange_failed": "Dostawca nie mógł Cię potwierdzić — spróbuj ponownie.",
       "email_unverified": "Twoje konto u tego dostawcy nie ma zweryfikowanego e-maila — wybierz innego.",
-      "not_allowed": "To konto nie może się tutaj zalogować.",
+      "not_allowed": "To konto nie ma tu jeszcze dostępu — poproś swojego administratora o zaproszenie.",
       "unavailable": "Logowanie jest teraz niedostępne.",
       "failed": "Logowanie nie powiodło się."
     },
     "native_error": {
       "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
       "email_unverified": "Najpierw potwierdź swój e-mail — możemy wysłać link ponownie.",
-      "not_allowed": "To konto nie ma tu jeszcze dostępu — poproś właściciela o zaproszenie.",
+      "not_allowed": "To konto nie ma tu jeszcze dostępu — poproś swojego administratora o zaproszenie.",
       "verification_token_invalid": "Ten link nie jest już ważny.",
       "verification_token_expired": "Ten link wygasł — możemy wysłać nowy.",
       "reset_token_invalid": "Ten link do resetu nie jest już ważny — poproś o nowy.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Pomoc",
+    "nav_label": "Strony pomocy",
+    "index": "Przegląd",
+    "not_found": "Nie ma takiej strony pomocy.",
+    "load_failed": "Strona pomocy się nie wczytała — spróbuj ponownie."
   }
 }

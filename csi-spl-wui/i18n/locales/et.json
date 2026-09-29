@@ -180,14 +180,14 @@
       "invalid_state": "See sisselogimislink on aegunud — proovi uuesti.",
       "exchange_failed": "Teenusepakkuja ei suutnud sind kinnitada — proovi uuesti.",
       "email_unverified": "Sinu kontol selle teenusepakkuja juures pole kinnitatud e-posti — proovi mõnda teist.",
-      "not_allowed": "Selle kontoga ei saa siin sisse logida.",
+      "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi oma administraatorilt kutset.",
       "unavailable": "Sisselogimine pole praegu saadaval.",
       "failed": "Sisselogimine ebaõnnestus."
     },
     "native_error": {
       "invalid_credentials": "E-post või parool on vale.",
       "email_unverified": "Kinnita esmalt oma e-post — saame lingi uuesti saata.",
-      "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi omanikult kutset.",
+      "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi oma administraatorilt kutset.",
       "verification_token_invalid": "See link ei kehti enam.",
       "verification_token_expired": "See link on aegunud — saame saata uue.",
       "reset_token_invalid": "See lähtestamislink ei kehti enam — küsi uus.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Abi",
+    "nav_label": "Abilehed",
+    "index": "Ülevaade",
+    "not_found": "Sellist abilehte pole.",
+    "load_failed": "Abileht ei laadinud — proovi uuesti."
   }
 }

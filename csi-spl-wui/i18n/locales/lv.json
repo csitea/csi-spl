@@ -180,14 +180,14 @@
       "invalid_state": "Šīs pieteikšanās saites derīgums beidzies — mēģiniet vēlreiz.",
       "exchange_failed": "Pakalpojums nevarēja jūs apstiprināt — mēģiniet vēlreiz.",
       "email_unverified": "Jūsu kontam šajā pakalpojumā nav apstiprināta e-pasta — izmēģiniet citu.",
-      "not_allowed": "Ar šo kontu šeit pieteikties nevar.",
+      "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet savam administratoram uzaicinājumu.",
       "unavailable": "Pieteikšanās pašlaik nav pieejama.",
       "failed": "Pieteikšanās neizdevās."
     },
     "native_error": {
       "invalid_credentials": "Nepareizs e-pasts vai parole.",
       "email_unverified": "Vispirms apstipriniet savu e-pastu — varam nosūtīt saiti vēlreiz.",
-      "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet īpašniekam uzaicinājumu.",
+      "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet savam administratoram uzaicinājumu.",
       "verification_token_invalid": "Šī saite vairs nav derīga.",
       "verification_token_expired": "Šīs saites derīgums beidzies — varam nosūtīt jaunu.",
       "reset_token_invalid": "Šī atiestatīšanas saite vairs nav derīga — pieprasiet jaunu.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Palīdzība",
+    "nav_label": "Palīdzības lapas",
+    "index": "Pārskats",
+    "not_found": "Šādas palīdzības lapas nav.",
+    "load_failed": "Palīdzības lapa neielādējās — mēģiniet vēlreiz."
   }
 }

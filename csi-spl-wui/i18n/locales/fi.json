@@ -180,14 +180,14 @@
       "invalid_state": "Kirjautumislinkki on vanhentunut — yritä uudelleen.",
       "exchange_failed": "Palveluntarjoaja ei voinut vahvistaa henkilöllisyyttäsi — yritä uudelleen.",
       "email_unverified": "Tililläsi ei ole vahvistettua sähköpostiosoitetta tällä palveluntarjoajalla — kokeile toista.",
-      "not_allowed": "Tällä tilillä ei voi kirjautua tänne.",
+      "not_allowed": "Tällä tilillä ei ole vielä pääsyä tänne — pyydä kutsu ylläpitäjältäsi.",
       "unavailable": "Kirjautuminen ei ole juuri nyt käytettävissä.",
       "failed": "Kirjautuminen epäonnistui."
     },
     "native_error": {
       "invalid_credentials": "Sähköposti tai salasana on väärin.",
       "email_unverified": "Vahvista ensin sähköpostiosoitteesi — voimme lähettää linkin uudelleen.",
-      "not_allowed": "Tällä tilillä ei ole vielä pääsyä tänne — pyydä kutsu omistajalta.",
+      "not_allowed": "Tällä tilillä ei ole vielä pääsyä tänne — pyydä kutsu ylläpitäjältäsi.",
       "verification_token_invalid": "Linkki ei ole enää voimassa.",
       "verification_token_expired": "Linkki on vanhentunut — voimme lähettää uuden.",
       "reset_token_invalid": "Palautuslinkki ei ole enää voimassa — pyydä uusi.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Ohje",
+    "nav_label": "Ohjesivut",
+    "index": "Yleiskatsaus",
+    "not_found": "Tällaista ohjesivua ei ole.",
+    "load_failed": "Ohjesivu ei latautunut — yritä uudelleen."
   }
 }

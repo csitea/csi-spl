@@ -180,14 +180,14 @@
       "invalid_state": "Inloggningslänken har gått ut — försök igen.",
       "exchange_failed": "Leverantören kunde inte bekräfta dig — försök igen.",
       "email_unverified": "Ditt konto har ingen verifierad e-postadress hos den här leverantören — prova en annan.",
-      "not_allowed": "Det här kontot kan inte logga in här.",
+      "not_allowed": "Det här kontot har ingen åtkomst här ännu — be din administratör om en inbjudan.",
       "unavailable": "Inloggning är inte tillgänglig just nu.",
       "failed": "Inloggningen misslyckades."
     },
     "native_error": {
       "invalid_credentials": "Fel e-postadress eller lösenord.",
       "email_unverified": "Bekräfta din e-postadress först — vi kan skicka länken igen.",
-      "not_allowed": "Det här kontot har ingen åtkomst här ännu — be ägaren om en inbjudan.",
+      "not_allowed": "Det här kontot har ingen åtkomst här ännu — be din administratör om en inbjudan.",
       "verification_token_invalid": "Länken är inte längre giltig.",
       "verification_token_expired": "Länken har gått ut — vi kan skicka en ny.",
       "reset_token_invalid": "Återställningslänken är inte längre giltig — begär en ny.",
@@ -1148,5 +1148,12 @@
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }
+  },
+  "help": {
+    "title": "Hjälp",
+    "nav_label": "Hjälpsidor",
+    "index": "Översikt",
+    "not_found": "Det finns ingen sådan hjälpsida.",
+    "load_failed": "Hjälpsidan laddades inte — försök igen."
   }
 }

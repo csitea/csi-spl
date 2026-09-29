@@ -575,7 +575,12 @@
     </div>
     </div>
     </div>
+    <!-- SPL-1204: like LazyChannelDeleteDialog above, gate on the target so the
+         async chunk loads on the first Properties open, not on every sidebar
+         mount; it stays mounted after (channel_id persists) so the close
+         animation still plays. -->
     <ChannelPropertiesDialog
+      v-if="propertiesChannel.channel_id"
       v-model:open="propertiesOpen"
       :channel-id="propertiesChannel.channel_id"
       :name="propertiesChannel.name"

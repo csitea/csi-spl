@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -312,11 +313,29 @@ func TestFacebookMetaCallbacks(t *testing.T) {
 		if code[len(code)-1] == '0' {
 			last = "1"
 		}
-		st, _ = http.Get(r.hub + "/api/v1/auth/facebook/data-deletion?code=" + url.QueryEscape(code[:len(code)-1]+last))
+		forged := code[:len(code)-1] + last
+		st, _ = http.Get(r.hub + "/api/v1/auth/facebook/data-deletion?code=" + url.QueryEscape(forged))
 		if st.StatusCode != http.StatusNotFound {
 			t.Fatalf("forged code status %d, want 404", st.StatusCode)
 		}
 		st.Body.Close()
+		// spec 049 FR-F6: the person Meta sends here gets a page, not JSON
+		for c, want := range map[string]int{code: http.StatusOK, forged: http.StatusNotFound} {
+			req, _ := http.NewRequest(http.MethodGet, r.hub+"/api/v1/auth/facebook/data-deletion?code="+url.QueryEscape(c), nil)
+			req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+			pg, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, _ := io.ReadAll(pg.Body)
+			pg.Body.Close()
+			shows := strings.Contains(string(b), "Status: completed") && strings.Contains(string(b), code)
+			if pg.StatusCode != want || !strings.HasPrefix(pg.Header.Get("Content-Type"), "text/html") ||
+				!strings.HasPrefix(pg.Header.Get("Content-Security-Policy"), "default-src 'none'") ||
+				shows != (want == http.StatusOK) || strings.Contains(string(b), "<script") {
+				t.Fatalf("status page for %s: %d %q %s", c, pg.StatusCode, pg.Header.Get("Content-Type"), b)
+			}
+		}
 	}
 
 	t.Run("unlinker failure is a 500, not a silent ok", func(t *testing.T) {

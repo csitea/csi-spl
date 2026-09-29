@@ -11,12 +11,12 @@
 
 ## Phase 2 — Hub (internal/auth)
 
-- [ ] T010 FR-F2/FR-F4: `facebook_test.go` runs `Facebook.Exchange` against a Graph-shaped stub (GET token with client secret, `/me` with `appsecret_proof`): success, no email, Graph error, silhouette; and the flow on the fake IdP: Facebook's own denial parameters, state mismatch. Each refusal has a passing control on the same rig.
-- [ ] T011 FR-F6: the deletion status page answers HTML to a browser, JSON otherwise, 404 for an unknown code in both forms.
+- [x] T010 Implemented (CLE-35097, hub commit after `461fa46d`) — FR-F2/FR-F4: `facebook_test.go` runs `Facebook.Exchange` against a Graph-shaped stub (GET token with client secret, `/me` with `appsecret_proof`): success, no email, Graph error, silhouette; and the flow on the fake IdP: Facebook's own denial parameters, state mismatch. Each refusal has a passing control on the same rig. Check: `go test -race -count=1 -run 'TestFacebook|TestCallbackFailuresLandOnLogin' ./internal/auth/` → ok. CONTROL (mutation, n=1): the `email == ""` guard in `idp.go` removed → `no email` and `blank email` FAIL.
+- [x] T011 Implemented (same commit) — FR-F6: the deletion status page answers HTML to a browser, JSON otherwise, 404 for an unknown code in both forms; `Content-Security-Policy: default-src 'none'`. Check: `go test -run TestFacebookMetaCallbacks ./internal/auth/` → ok.
 
 ## Phase 3 — WUI
 
-- [ ] T020 FR-F7: static `/privacy` and `/terms` (`csi-spl-wui/src/public/*.html`, no JavaScript), live on both envs before the owner switches the app to Live.
+- [x] T020 Implemented (`461fa46d`) — FR-F7: static `/privacy` and `/terms` (`csi-spl-wui/src/public/*.html`, no JavaScript), live on both envs before the owner switches the app to Live. Check: `node --test csi-spl-wui/tests/unit/legal-pages.test.mjs` → 8/8; CONTROL: an injected `<script>` fails it.
 
 ## Phase 4 — Per-tenant method policy
 

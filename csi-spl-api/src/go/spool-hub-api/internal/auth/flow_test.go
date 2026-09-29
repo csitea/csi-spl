@@ -195,6 +195,30 @@ func TestCallbackFailuresLandOnLogin(t *testing.T) {
 			}
 		})
 	}
+	// spec 049 FR-F4: Facebook's own denial shape, on a state that is valid
+	// (the control: the same rig signs in when consent is given).
+	t.Run("consent denied facebook (Graph parameters)", func(t *testing.T) {
+		r := newRig(t, registrar{})
+		c := browser(t)
+		st := startState(t, c, r, "facebook")
+		resp, err := c.Get(r.hub + "/api/v1/auth/facebook/callback?" + url.Values{"state": {st},
+			"error": {"access_denied"}, "error_code": {"200"}, "error_description": {"Permissions error"},
+			"error_reason": {"user_denied"}}.Encode())
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if got := authError(resp.Request.URL); got != auth.ErrCodeCancelled {
+			t.Fatalf("auth_error = %q", got)
+		}
+		if code, _ := session(t, c, r); code != http.StatusUnauthorized {
+			t.Fatal("a denied sign-in left a session")
+		}
+		signIn(t, c, r, "facebook", "")
+		if code, s := session(t, c, r); code != http.StatusOK || s.Provider != auth.ProviderFacebook {
+			t.Fatalf("control: consent given, session %d %+v", code, s)
+		}
+	})
 	t.Run("registrar refuses", func(t *testing.T) {
 		r := newRig(t, registrar{refuse: true})
 		if got := authError(signIn(t, browser(t), r, "facebook", "")); got != auth.ErrCodeNotAllowed {

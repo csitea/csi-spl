@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -131,14 +132,45 @@ func (h *Handler) facebookDataDeletion(w http.ResponseWriter, r *http.Request) {
 }
 
 // facebookDeletionStatus is the page Meta links the person to: 200 for a code
-// this hub issued, 404 otherwise.
+// this hub issued, 404 otherwise. A browser (Accept: text/html) gets a small
+// self-contained page (spec 049 FR-F6); anything else the JSON.
 func (h *Handler) facebookDeletionStatus(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
-	if _, on := h.idps[ProviderFacebook]; !on || !h.validDeletionCode(code) {
+	_, on := h.idps[ProviderFacebook]
+	ok := on && h.validDeletionCode(code)
+	if strings.Contains(r.Header.Get("Accept"), "text/html") {
+		writeDeletionPage(w, ok, code)
+		return
+	}
+	if !ok {
 		writeErr(w, http.StatusNotFound, "not_found", "unknown confirmation code")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"confirmation_code": code, "status": "completed"})
+}
+
+const deletionPageHead = `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+	`<meta name="viewport" content="width=device-width, initial-scale=1">` +
+	`<title>Facebook data deletion - spool-hub</title><style>` +
+	`:root{color-scheme:light dark}body{margin:0;font:16px/1.6 system-ui,sans-serif}` +
+	`main{max-width:40rem;margin:0 auto;padding:2rem 1rem}code{overflow-wrap:anywhere}` +
+	`</style></head><body><main><h1>Facebook data deletion</h1>`
+
+func writeDeletionPage(w http.ResponseWriter, ok bool, code string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+	w.Header().Set("Cache-Control", "no-store")
+	body := `<p>This confirmation code is unknown to spool-hub.</p>`
+	status := http.StatusNotFound
+	if ok {
+		status = http.StatusOK
+		body = `<p><strong>Status: completed.</strong> The link between your Facebook account and ` +
+			`spool-hub has been deleted. spool-hub no longer signs you in with Facebook.</p>` +
+			`<p>Confirmation code: <code>` + html.EscapeString(code) + `</code></p>` +
+			`<p>To delete the rest of your spool-hub account, see the <a href="/privacy">privacy policy</a>.</p>`
+	}
+	w.WriteHeader(status)
+	w.Write([]byte(deletionPageHead + body + `</main></body></html>`)) //nolint:errcheck
 }
 
 // A deletion code is <32 hex random>-<20 hex MAC of it>.

@@ -87,7 +87,7 @@ tests/fixtures/pane-grok-idle.txt	deferred	SPL-1160
 tests/run-all.sh	replaced	tests/run-all-tests.sh
 tests/test-agent-name-through-symlink.sh	replaced	tests/test-hygiene.sh
 tests/test-agent-top.sh	ported	tests/test-agent-top.sh
-tests/test-agent-winch.sh	deferred	SPL-1160
+tests/test-agent-winch.sh	ported	tests/test-agent-winch.sh
 tests/test-badge-canonical.sh	replaced	tests/test-agent-top.sh
 tests/test-box-doctor.sh	replaced	lib/spool-env.inc.sh
 tests/test-box-env-base-dirs.sh	replaced	lib/spool-env.inc.sh

@@ -146,18 +146,35 @@ spool_tmux_default_size() {
 }
 
 # ── Running a command as the agent user ─────────────────────────────────────
-#   su-dash   sudo su - <agent>        needs sudo to root
+#   su-dash   sudo su --pty - <agent>  needs sudo to root
 #   sudo-i    sudo -u <agent> -i bash  needs only `(<agent>) NOPASSWD`
-#   same user, or already root: no sudo
-spool_agent_argv() {
+#   same user: no hop; already root: su --pty - <agent>
+#
+# --pty, on a terminal only (ported from the frozen box engine, specs/048).
+# `su -c` setsid()s its child, so a CLI started by plain `su - <agent> -c` has
+# no controlling tty: a tmux split or resize never reaches it as SIGWINCH and it
+# keeps drawing at the old width (the notice strip split into a live agent's
+# window garbles every line). Off a terminal --pty is harmful: su turns every
+# \n into \r\n and echoes piped stdin, so captured output is mangled.
+# SPOOL_AGENT_PTY=1|0 overrides the terminal test (default auto); --tty builds
+# the terminal form whatever fd 0/1 are (for the "resume with" hints).
+# `sudo -u <agent> -i` needs no flag: sudo's own pty makes the CLI its
+# foreground job.
+spool_agent_argv() {  # [--tty]
+  local pty=()
+  case "${1:-}:${SPOOL_AGENT_PTY:-auto}" in
+    --tty:*|*:1) pty=(--pty) ;;
+    *:0) ;;
+    *) if [ -t 0 ] && [ -t 1 ]; then pty=(--pty); fi ;;
+  esac
   case "$SPOOL_RUN_AS_AGENT" in
     su-dash|sudo-i) ;;
     *) echo "spool-env: unknown SPOOL_RUN_AS_AGENT '${SPOOL_RUN_AS_AGENT}' (want su-dash or sudo-i)" >&2; return 2 ;;
   esac
   if [ "$(id -un)" = "$SPOOL_AGENT_USER" ]; then SPOOL_AGENT_ARGV=(bash -l); return 0; fi
-  if [ "$(id -u)" = 0 ]; then SPOOL_AGENT_ARGV=(su - "$SPOOL_AGENT_USER"); return 0; fi
+  if [ "$(id -u)" = 0 ]; then SPOOL_AGENT_ARGV=(su "${pty[@]}" - "$SPOOL_AGENT_USER"); return 0; fi
   case "$SPOOL_RUN_AS_AGENT" in
-    su-dash) SPOOL_AGENT_ARGV=(sudo su - "$SPOOL_AGENT_USER") ;;
+    su-dash) SPOOL_AGENT_ARGV=(sudo su "${pty[@]}" - "$SPOOL_AGENT_USER") ;;
     sudo-i)  SPOOL_AGENT_ARGV=(sudo -u "$SPOOL_AGENT_USER" -i bash) ;;
   esac
 }
@@ -176,7 +193,7 @@ spool_agent_exec() {  # "<command string>"
   fi
 }
 
-spool_agent_cmd_text() { spool_agent_argv >/dev/null 2>&1 || return 0; printf '%s' "${SPOOL_AGENT_ARGV[*]}"; }
+spool_agent_cmd_text() { spool_agent_argv --tty >/dev/null 2>&1 || return 0; printf '%s' "${SPOOL_AGENT_ARGV[*]}"; }
 
 # STRING escaped for a double-quoted argument that a shell parses again: only
 # \ " $ and ` are live inside double quotes. Stored in VAR so trailing

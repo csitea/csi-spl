@@ -48,6 +48,10 @@ type FeedMessage = SpoolMessage & { count?: number, topic_row?: boolean }
 /** One page of the Msgs list: the first paint and every Load more. */
 export const WINDOW = 30
 
+/** Newest DMs inlined per peer for the load-time unread count. The hub caps
+ *  per_topic at 50 (view.go perTopicMax); previewUnread shows 99+ past that. */
+export const DM_SEED_PER_TOPIC = 50
+
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
@@ -75,6 +79,13 @@ export const useChannelStore = defineStore('channel', () => {
    */
   const liveAt = ref<Record<string, string>>({})
   const dmAt = ref<Record<string, string>>({})
+  /**
+   * The ?dm=true topic rows with their newest messages inlined, refreshed by
+   * loadDmActivity on first paint and every reconnect. notify.client.ts turns
+   * them into the per-peer DM unread badge (notes.applyDms), the DM twin of the
+   * hub channel unread — the hub counts unread for channels only.
+   */
+  const dmSeed = ref<unknown[]>([])
   /** The sidebar's channel list: newest activity first. */
   const ordered = computed(() => orderChannels(channels.value, liveAt.value) as ChannelInfo[])
 
@@ -151,8 +162,12 @@ export const useChannelStore = defineStore('channel', () => {
   async function loadDmActivity(self = '') {
     if (api.mock) return
     try {
-      const page = await withSessionRetry(api, () => api.listTopics({ dm: true, limit: 50 }))
+      /* per_topic inlines each DM's newest messages, so the same read counts
+         the per-peer unread against our cursors (notes.applyDms) as orders the
+         list — one round trip, exactly as loadChannels does for channels. */
+      const page = await withSessionRetry(api, () => api.listTopics({ dm: true, limit: 50, perTopic: DM_SEED_PER_TOPIC }))
       dmAt.value = { ...dmAt.value, ...dmActivity(page.topics, self) }
+      dmSeed.value = page.topics
     } catch {
       /* the sidebar still lists peers; only the order falls back to a-z */
     }
@@ -440,6 +455,7 @@ export const useChannelStore = defineStore('channel', () => {
     ordered,
     liveAt,
     dmAt,
+    dmSeed,
     noteLive,
     addChannel,
     deleteChannel,

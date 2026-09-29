@@ -286,6 +286,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]
   export function orderPeers<T extends { label?: string, online?: boolean }>(rows: T[], lastAt?: Record<string, string>): T[]
   export function dmActivity(topics: unknown[], self?: string): Record<string, string>
+  export function unreadFromDms(topics: unknown, cursors: Record<string, unknown>, self?: string): Record<string, number>
   export function dmPeerOf(msg: unknown, self?: string): string
   export function noteActivity(
     maps: { channels?: Record<string, string>, peers?: Record<string, string> },

@@ -63,6 +63,15 @@ export default defineNuxtPlugin(() => {
     },
   )
 
+  /* the DM twin: the hub counts unread for channels only, so DM badges are
+     recomputed here from our cursors + the ?dm=true rows loadDmActivity fetched
+     (plugins/spool-live.client.ts), on first paint and every reconnect. */
+  watch(
+    () => channel.dmSeed,
+    (topics) => notes.applyDms(topics, live.identity.value, ctx().activeKey),
+    { immediate: true },
+  )
+
   /*
    * A live frame is keyed by ITS OWN channel, not the open page: a #alerts
    * message escalates as alerts even while a DM is open (FR-014).

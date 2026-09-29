@@ -23,7 +23,7 @@ import {
   saveCursors,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
-import { namedText, peopleLabels } from '~/utils/channel-feed.mjs'
+import { namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 type Ctx = {
@@ -141,6 +141,17 @@ export const useNotificationStore = defineStore('notification', () => {
     unread.value = { ...unread.value, ...hub }
   }
 
+  /** DM unread from our cursors + the ?dm=true topic rows, on load and every
+   *  reconnect — the DM twin of applyChannels (the hub counts channels only, so
+   *  a DM that arrived while the tab was closed showed no badge). Live bumps
+   *  add between refetches; a refetch overwrites the peer with the fresh count,
+   *  and the open DM is left alone (it is read as it is viewed). */
+  function applyDms(topics: unknown, self = '', activeKey = '') {
+    const dm = unreadFromDms(topics, loadCursors(), self) as Record<string, number>
+    if (activeKey) delete dm[activeKey]
+    unread.value = { ...unread.value, ...dm }
+  }
+
   function bump(key: string, reason: string | null) {
     unread.value = { ...unread.value, [key]: (unread.value[key] || 0) + 1 }
     if (reason === 'mention') mentions.value = { ...mentions.value, [key]: (mentions.value[key] || 0) + 1 }
@@ -196,6 +207,7 @@ export const useNotificationStore = defineStore('notification', () => {
     markRead,
     markChannelRead,
     applyChannels,
+    applyDms,
     hydrate,
     previewUnread,
   }

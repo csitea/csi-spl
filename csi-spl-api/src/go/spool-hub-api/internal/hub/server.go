@@ -494,9 +494,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		start := s.o.Now()
 		rid := r.Header.Get("X-Request-ID")
 		if rid == "" {
-			b := make([]byte, 8)
-			rand.Read(b) //nolint:errcheck
-			rid = base64.RawURLEncoding.EncodeToString(b)
+			rid = newRequestID()
 		}
 		w.Header().Set("X-Request-ID", rid)
 		sw := &statusWriter{ResponseWriter: w}

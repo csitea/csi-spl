@@ -20,14 +20,21 @@
         :style="shellStyle"
         :data-mobile-level="stack.level.value"
         :data-mobile-topic="topicPaneOpen ? '1' : undefined"
+        :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
+        :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
+        :data-collapse-threads="collapse.collapsed.threads ? '1' : undefined"
+        :data-filler="filler"
         @pointerdown.capture="paneFocus.noteEvent"
         @focusin="paneFocus.noteEvent"
         @touchstart.passive="stack.swipe.onTouchStart"
         @touchend.passive="stack.swipe.onTouchEnd"
       >
         <ChannelSidebar />
+        <!-- 050: a collapsed panel is a strip, so resizing it makes no sense -
+             hide the divider that would grow it (also while the middle is a
+             strip, which overrides the widths). CLE-35099 owns show*Divider. -->
         <PaneDivider
-          v-if="showSidebarDivider"
+          v-if="showSidebarDivider && !collapse.collapsed.channels && !collapse.collapsed.topic"
           pane="sidebar"
           :value="displayed.sidebar"
           :min="sidebarBounds.min"
@@ -49,9 +56,13 @@
             data-test="omnibox-dock"
             :data-on="dockOn ? 'true' : undefined"
           />
+          <!-- 050: the middle (topic/messages) panel's collapse triangle, in its
+               bottom corner. Kept a DIRECT child of .spool-main so the collapse
+               CSS can hide every sibling and leave only this strip. -->
+          <PaneCollapseToggle pane="topic" />
         </main>
         <PaneDivider
-          v-if="topicPaneOpen && showTopicDivider"
+          v-if="topicPaneOpen && showTopicDivider && !collapse.collapsed.threads && !collapse.collapsed.topic"
           pane="topic"
           :value="displayed.topic"
           :min="topicBounds.min"
@@ -98,6 +109,9 @@ import DebugPanel from '@/components/common/DebugPanel.vue'
 import ErrorSnackbar from '@/components/common/ErrorSnackbar.vue'
 import TopBar from '@/components/TopBar.vue'
 import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
+import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
+import { usePaneCollapse } from '~/stores/pane-collapse'
+import { fillerPane } from '~/utils/pane-collapse.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
@@ -112,6 +126,10 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 
 const topic = useTopicStore()
+/* 050: the collapsed state of the 3 vertical panels (shared Pinia store, also
+   read by each panel's PaneCollapseToggle). Hydrated from localStorage on mount
+   below; the shell is ClientOnly so there is no SSR read. */
+const collapse = usePaneCollapse()
 /* topic c6994436: the bottom dock under the middle pane is on */
 const dockOn = useOmniboxDock()
 /* its height, for the panes that overlay the middle one (main.css). A ref,
@@ -150,6 +168,7 @@ let offTopic = () => {}
    the key cannot hide it */
 const noteKey = (ev: KeyboardEvent) => paneFocus.noteKey(ev)
 onMounted(() => {
+  collapse.load() /* 050: read the remembered collapsed state on the client */
   document.addEventListener('keydown', noteKey, true)
   offDeleted = live.onDeleted((m) => dropEverywhere(String(m.msg_id || '')))
   /* SPL-983: an archived card leaves the feeds; a deleted topic takes every
@@ -168,6 +187,9 @@ onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keyd
 /* the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)
+/* 050: which panel absorbs the slack the fixed/collapsed panels leave, as a
+   data-filler attribute the collapse CSS reads. Normally the middle feed. */
+const filler = computed(() => fillerPane(collapse.collapsed, topicPaneOpen.value))
 
 /* SPL-989: the phone stack. Level 3 follows either topic store; Back from it
    closes whichever is open, exactly as the pane's own Close does. */

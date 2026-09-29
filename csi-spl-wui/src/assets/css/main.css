@@ -96,6 +96,8 @@ html.pane-dragging * {
   flex-direction: column;
   overflow: clip;
   border-left: 1px solid var(--color-border);
+  /* 050: anchor for the bottom-corner collapse triangle */
+  position: relative;
 }
 /* Topic c6994436 (lane B): the bottom Omnibox dock, the last child of
    .spool-main - under the middle pane only. Empty (the default "at the top")
@@ -142,6 +144,8 @@ html.pane-dragging * {
   padding: 0;
   flex-shrink: 0;
   overflow: clip;
+  /* 050: anchor for the bottom-corner collapse triangle */
+  position: relative;
 }
 /* The icon strip and the list stay a row. The tenant drop box sits above them. */
 .sidebar-main {
@@ -601,6 +605,8 @@ html.pane-dragging * {
   flex-direction: column;
   flex-shrink: 0;
   overflow: clip;
+  /* 050: anchor for the bottom-corner collapse triangle */
+  position: relative;
 }
 /* Owner 2026-09-26 (prd topic b8cbfbe1): the thread header is ONE row -
    Close first, then the title on one line cut with an ellipsis (the full
@@ -1002,3 +1008,93 @@ html.pane-dragging * {
 /* a feed row whose whole surface opens its topic. The pointer says
    so; the keyboard half is Enter / Space on the focused row (MessageCard). */
 .msg--clickable { cursor: pointer; }
+
+/* ---------------------------------------------------------------------------
+   Spec 050 (owner, prd t1 topic d2c03bc9): collapse / expand triangles on the
+   3 vertical panels — the channels sidebar, the middle topic feed, and the
+   thread pane. A small triangle at the BOTTOM corner of each panel collapses it
+   to a thin strip and expands it back. Desktop / tablet only (> 820 px); the
+   phone stack (useMobileStack) shows one panel at a time, so the toggles hide
+   there. The corner side follows the Win/Mac close_buttons rule, the glyph and
+   the corner mirror in RTL via CSS logical properties (no JS). See
+   components/PaneCollapseToggle.vue and stores/pane-collapse.ts.
+   -------------------------------------------------------------------------- */
+.spool-shell { --pane-strip-w: 16px; }
+
+.pane-collapse {
+  position: absolute;
+  inset-block-end: 6px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.pane-collapse--start { inset-inline-start: 4px; }
+.pane-collapse--end { inset-inline-end: 4px; }
+.pane-collapse:hover,
+.pane-collapse:focus-visible {
+  opacity: 1;
+  color: var(--color-text);
+  background: var(--color-selected);
+}
+.pane-collapse:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+/* The triangle, drawn with borders so it stays crisp and flips with logical
+   direction. Open state points to inline-start (◀ in LTR = "close to the
+   left"); the collapsed strip points to inline-end (▶ = "open from the left").
+   RTL swaps inline-start/end, so Hebrew gets the mirrored arrow for free. */
+.pane-collapse__tri {
+  width: 0;
+  height: 0;
+  border-block: 5px solid transparent;
+  border-inline-end: 7px solid currentColor;
+  border-inline-start: 0;
+}
+.pane-collapse--collapsed .pane-collapse__tri {
+  border-inline-end: 0;
+  border-inline-start: 7px solid currentColor;
+}
+
+@media (min-width: 821px) {
+  /* a collapsed panel shrinks to the strip; its content is hidden and only the
+     toggle (.pane-collapse) survives, so the strip is how you re-open it */
+  .spool-shell[data-collapse-channels="1"] > .sidebar,
+  .spool-shell[data-collapse-threads="1"] > .topic {
+    width: var(--pane-strip-w);
+    flex: 0 0 var(--pane-strip-w);
+    min-width: var(--pane-strip-w);
+  }
+  .spool-shell[data-collapse-topic="1"] > .spool-main {
+    flex: 0 0 var(--pane-strip-w);
+    min-width: var(--pane-strip-w);
+  }
+  .spool-shell[data-collapse-channels="1"] > .sidebar > :not(.pane-collapse),
+  .spool-shell[data-collapse-topic="1"] > .spool-main > :not(.pane-collapse),
+  .spool-shell[data-collapse-threads="1"] > .topic > :not(.pane-collapse) {
+    display: none !important;
+  }
+  /* the filler panel absorbs the slack. Normally the middle (.spool-main is
+     already flex:1); when it collapses, the open thread pane, else the sidebar
+     (utils/pane-collapse.mjs fillerPane) */
+  .spool-shell[data-filler="threads"] > .topic,
+  .spool-shell[data-filler="channels"] > .sidebar {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}
+@media (max-width: 820px) {
+  /* phones excluded: the mobile stack switches whole panels */
+  .pane-collapse { display: none; }
+}

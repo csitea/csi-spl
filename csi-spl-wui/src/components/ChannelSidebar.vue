@@ -582,6 +582,10 @@
       :description="propertiesChannel.description"
       :created-by="propertiesChannel.created_by"
     />
+    <!-- 050: the channels panel's collapse triangle, bottom corner. A DIRECT
+         child of .sidebar so the collapse CSS hides its siblings and keeps only
+         this strip. -->
+    <PaneCollapseToggle pane="channels" />
   </nav>
 </template>
 

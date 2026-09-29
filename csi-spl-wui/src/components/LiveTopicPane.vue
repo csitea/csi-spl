@@ -49,6 +49,9 @@
       />
     </div>
     <BornTopics v-if="newestLast" />
+    <!-- 050: the thread panel's collapse triangle, bottom corner (see
+         TopicPane.vue). A DIRECT child of .topic for the collapse CSS. -->
+    <PaneCollapseToggle pane="threads" />
   </aside>
 </template>
 

@@ -50,6 +50,11 @@
       />
     </div>
     <BornTopics v-if="newestLast" />
+    <!-- 050: the thread panel's collapse triangle, bottom corner. Distinct from
+         the header X: the X closes the topic, this collapses it to a strip and
+         keeps it loaded. A DIRECT child of .topic so the collapse CSS hides its
+         siblings and keeps only this strip. -->
+    <PaneCollapseToggle pane="threads" />
   </aside>
 </template>
 

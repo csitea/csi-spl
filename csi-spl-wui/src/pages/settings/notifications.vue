@@ -108,6 +108,10 @@ function preview(name: string) {
   cursor: pointer;
   min-width: 0;
   overflow-wrap: anywhere;
+  /* SPL-1221: the label IS the radio's touch target (mobile-m5 measures the
+     closest label), so it must be a full 44 px tall, not just its ~27 px of
+     text - the enclosing opt row was 44 px but the label sat centred inside. */
+  min-height: var(--tap, 44px);
 }
 .settings__sound-opt--on { color: var(--color-accent); }
 .settings__sound-play { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }

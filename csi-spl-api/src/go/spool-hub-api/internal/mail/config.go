@@ -29,6 +29,9 @@ type Config struct {
 	From         string        `env:"SPOOL_HUB_MAIL_FROM"`
 	FromName     string        `env:"SPOOL_HUB_MAIL_FROM_NAME"`
 	Timeout      time.Duration `env:"SPOOL_HUB_MAIL_TIMEOUT" envDefault:"10s"`
+	// Preflight is the relay check at hub start (spec 047 W7): off, warn
+	// (log a CRITICAL line, keep serving) or require (refuse to start).
+	Preflight string `env:"SPOOL_HUB_MAIL_PREFLIGHT" envDefault:"warn"`
 }
 
 // Load reads the process environment.
@@ -45,6 +48,7 @@ func load(o env.Options) (*Config, error) {
 		return nil, fmt.Errorf("parse mail config: %w", err)
 	}
 	c.Transport = strings.ToLower(strings.TrimSpace(c.Transport))
+	c.Preflight = strings.ToLower(strings.TrimSpace(c.Preflight))
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -54,6 +58,11 @@ func load(o env.Options) (*Config, error) {
 func placeholder(v string) bool { return strings.Contains(strings.ToUpper(v), "PLACEHOLDER") }
 
 func (c *Config) validate() error {
+	switch c.Preflight {
+	case PreflightOff, PreflightWarn, PreflightRequire:
+	default:
+		return fmt.Errorf("SPOOL_HUB_MAIL_PREFLIGHT %q must be off, warn or require", c.Preflight)
+	}
 	switch c.Transport {
 	case TransportNone, TransportLog:
 		return nil

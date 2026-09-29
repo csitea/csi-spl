@@ -28,6 +28,7 @@ type fakeSMTP struct {
 	mu       sync.Mutex
 	authSeen bool
 	authTLS  bool
+	authFail bool // answer AUTH with 535 (a wrong relay password)
 	data     string
 }
 
@@ -83,7 +84,12 @@ func (f *fakeSMTP) serve(c net.Conn) {
 		case strings.HasPrefix(cmd, "AUTH"):
 			f.mu.Lock()
 			f.authSeen, f.authTLS = true, isTLS
+			fail := f.authFail
 			f.mu.Unlock()
+			if fail {
+				say("535 5.7.8 bad credentials")
+				continue
+			}
 			say("235 ok")
 		case strings.HasPrefix(cmd, "MAIL"), strings.HasPrefix(cmd, "RCPT"):
 			say("250 ok")

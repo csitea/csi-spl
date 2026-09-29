@@ -85,29 +85,61 @@ func (s *SMTP) Send(ctx context.Context, msg Message) error {
 	if err != nil {
 		return err
 	}
-	timeout := s.Timeout
-	if timeout == 0 {
-		timeout = defaultSMTPTimeout
-	}
-	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	raw := buildRFC822(formatMailbox(s.FromName, from), msg)
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, s.timeout())
 	defer cancel()
+	c, done, err := s.session(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	return deliver(c, from, msg.To, raw)
+}
+
+// Probe runs everything a Send does up to the envelope - dial, TLS, AUTH -
+// then QUITs: no mail is sent (spec 047 W7, the relay preflight at start).
+func (s *SMTP) Probe(ctx context.Context) error {
+	if s == nil || s.Host == "" {
+		return fmt.Errorf("mail: SMTP host not configured")
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.timeout())
+	defer cancel()
+	c, done, err := s.session(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if err := c.Quit(); err != nil {
+		return fmt.Errorf("mail: quit: %w", err)
+	}
+	return nil
+}
+
+func (s *SMTP) timeout() time.Duration {
+	if s.Timeout == 0 {
+		return defaultSMTPTimeout
+	}
+	return s.Timeout
+}
+
+// session dials, secures and authenticates within ctx; done closes it.
+func (s *SMTP) session(ctx context.Context) (*smtp.Client, func(), error) {
+	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	conn, secure, err := s.dial(ctx, addr)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer conn.Close()
 	c, err := smtp.NewClient(conn, s.Host)
 	if err != nil {
-		return fmt.Errorf("mail: smtp client: %w", err)
+		conn.Close()
+		return nil, nil, fmt.Errorf("mail: smtp client: %w", err)
 	}
-	defer func() { _ = c.Close() }()
+	done := func() { _ = c.Close(); conn.Close() }
 	if err := s.secureAndAuth(c, addr, secure); err != nil {
-		return err
+		done()
+		return nil, nil, err
 	}
-	return deliver(c, from, msg.To, raw)
+	return c, done, nil
 }
 
 // defaultSMTPTimeout bounds one whole Send when SMTP.Timeout is zero.

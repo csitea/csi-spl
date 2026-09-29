@@ -156,9 +156,23 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	if err != nil {
 		return opts, err
 	}
+	if err := mailPreflight(ctx, hc, log, pmc); err != nil {
+		return opts, err
+	}
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 	return opts, nil
+}
+
+// mailPreflight checks the relay at start (spec 047 W7). require: before
+// the hub listens, and a failure stops the start; warn: in the background,
+// so a dead relay costs one CRITICAL log line and never the boxes' hub.
+func mailPreflight(ctx context.Context, hc *config.Hub, log zerolog.Logger, mc *mail.Config) error {
+	if mc.Preflight == mail.PreflightRequire {
+		return mail.Preflight(ctx, mc, hc.Env, log)
+	}
+	go func() { _ = mail.Preflight(ctx, mc, hc.Env, log) }()
+	return nil
 }
 
 // baseOptions maps the hub cnf onto hub.Options; the dependencies that need

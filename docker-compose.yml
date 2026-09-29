@@ -97,6 +97,10 @@ services:
       SPOOL_HUB_MAIL_SMTP_USER: ${SPOOL_MAIL_SMTP_USER:-}
       SPOOL_HUB_MAIL_SMTP_PASSWORD: ${SPOOL_MAIL_SMTP_PASSWORD:-}
       SPOOL_HUB_MAIL_FROM: ${SPOOL_MAIL_FROM:-}
+      # at start the hub connects to the relay and logs in (no mail sent);
+      # require = a dead relay, a wrong password, or no relay on a prd hub
+      # stops `up` here instead of failing every confirmation mail later
+      SPOOL_HUB_MAIL_PREFLIGHT: ${SPOOL_MAIL_PREFLIGHT:-require}
     volumes:
       - hub-state:/var/lib/spool/state:ro
       - hub-files:/var/lib/spool/files

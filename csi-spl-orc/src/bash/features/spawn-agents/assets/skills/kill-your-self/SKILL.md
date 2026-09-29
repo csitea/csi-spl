@@ -23,11 +23,12 @@ Work that is not finished is named in the report, never silently dropped.
 
 ## 2. Report
 
-Send the summary to your orchestrator: what landed (shas), what is open, and
+Send the summary to your orchestrator (`{{ORCHESTRATOR_ID}}` unless your brief names
+another): what landed (shas), what is open, and
 anything another lane must act on.
 
 ```bash
-bash {{HARNESS_DIR}}/scripts/spool-send.sh --from <YOUR-ID> --to <ORCHESTRATOR-ID> --kind result --body-file <summary-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> {{ORCHESTRATOR_ID}} --kind result --file <summary-file>
 ```
 
 ## 3. Schedule the window close, then exit

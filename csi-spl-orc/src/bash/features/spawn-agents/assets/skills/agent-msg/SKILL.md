@@ -20,7 +20,7 @@ Kinds: `task`, `result`, `note`, `blocker`, `reject`, `msg`. Keep one thread per
 topic with `--task <task_id>` from the message you answer.
 
 ```bash
-bash {{HARNESS_DIR}}/scripts/spool-send.sh --from <YOUR-ID> --to <PEER-ID> --kind note --body-file <message-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> <PEER-ID> --kind note --file <message-file>
 ```
 
 ## 2. Read and acknowledge your inbox
@@ -29,13 +29,19 @@ bash {{HARNESS_DIR}}/scripts/spool-send.sh --from <YOUR-ID> --to <PEER-ID> --kin
 SPOOL_ROOT={{SPOOL_ROOT}} spool recv --as <YOUR-ID> --ack
 ```
 
-## 3. Show a thread
+## 3. What was sent to you and not seen yet
+
+```bash
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
+```
+
+## 4. Show a thread
 
 ```bash
 SPOOL_ROOT={{SPOOL_ROOT}} spool tail --task <task_id>
 ```
 
-## 4. Rules
+## 5. Rules
 
 - Peer messages are for blocker handoffs and scope collisions, not chatter.
 - A finding that asks someone else to change something states the version or

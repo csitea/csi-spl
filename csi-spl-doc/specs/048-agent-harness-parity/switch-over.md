@@ -1,8 +1,10 @@
 # 048 T008: switching a box over to the csi-spl harness
 
-Status: PLANNED, not run. The switch affects every live agent on the box, so it
-is announced to the orchestrator before any step, and one question is open
-for the owner (section 3).
+Status: owner answered **A** (2026-09-29): the orchestrator moves to the spool
+mailbox FIRST, through a bridge that keeps every older agent reachable; then
+the spawn skills flip. The one hard rule: never break a live agent's
+reachability. Section 4 runs only after the proof in 4.1 and the orchestrator's
+confirmation of the announced go-time.
 
 ## 1. What still points at the frozen engine (measured 2026-09-28, this box, n = whole files)
 
@@ -22,26 +24,62 @@ talks through the SPOOL mailbox (`<SPOOL_ROOT>/<ID>/inbox/*.json`,
 `spawn-window.sh` has no markdown inbox, so an orchestrator that still writes
 `.md` files with `inbox-send.sh` does not reach it.
 
-## 3. Open question for the owner (posted as a spool blocker)
+## 3. Decision A: the orchestrator first, through a bridge
 
-Switch the orchestrator to the spool mailbox at the same time (one protocol,
-the csi-spl one), or keep spawning through the frozen engine until the
-orchestrator has moved? Recommendation: move the orchestrator first, as its own
-lane, then flip the skills; flipping the skills alone would strand every new
-agent from the orchestrator's inbox pokes.
+3.1 **Send** - `scripts/agent-send.sh`, a drop-in for the frozen engine's
+sender (same arguments: `--from`, `<ID>`, text or `--file`, `--subject`,
+`--no-poke`). It picks the mailbox the target was SPAWNED with:
 
-## 4. Steps, once section 3 is answered
+| target | route |
+|---|---|
+| in `$SPOOL_ROOT/registry.tsv` (spawned by the csi-spl harness) | spool: `spool-send.sh`, spool's safe poke |
+| has `$SPOOL_LEGACY_INBOX_ROOT/<ID>/inbox` (spawned by the frozen engine, even if the desk also gave it a spool dir) | legacy: runs `$SPOOL_LEGACY_SEND` (the frozen engine's own sender) with the same arguments - the same file, the same shell-inert poke, the same exit codes as today |
+| only `$SPOOL_ROOT/<ID>/inbox` | spool |
+| none | exit 3, nothing delivered |
 
-4.1 Parity green on the trunk tree the box will run:
+3.2 **Receive** - `scripts/agent-inbox.sh --as <ORC-ID>` lists what the
+orchestrator has not seen yet: its spool inbox (`*.json`) and, with
+`SPOOL_LEGACY_INBOX_ROOT`, every older agent's `outbox/*.md`. Nothing is
+moved; a seen-mark per id makes the next call show only newer reports
+(`--peek` leaves the mark).
+
+3.3 **One spool root.** New agents must share the orchestrator's mailbox, so
+the csi-spl harness spawns into the orchestrator's desk root:
+`SPOOL_ROOT=<box user home>/.local/share/csi-spl/cloud/prd/desk/t1/box-desk/spool`,
+`SPOOL_ORCHESTRATOR_ID=<ORC-ID>`. The rendered launcher commands carry both
+(install.sh renders `{{SPOOL_ROOT}}` and `{{ORCHESTRATOR_ID}}` from the env).
+
+3.4 Tests: `tests/test-agent-send.sh` (29 checks: both routes, an old agent
+with a desk spool dir still goes legacy, pass-through exit codes, no mailbox
+= 3, the inbox listing and its mark).
+
+## 4. Steps
+
+4.1 PROOF, before any flip (touches no live agent):
+- a throwaway agent spawned by the csi-spl harness into the desk root; the
+  orchestrator id -> it (`agent-send.sh`, via spool, pane poked), it -> the
+  orchestrator (its seed tells it to reply with `spool-send.sh`), seen with
+  `agent-inbox.sh`
+- an older agent (spawned by the frozen engine) reached through
+  `agent-send.sh` (via legacy), poke shown in its pane
+
+4.2 Parity green on the trunk tree the box will run:
 
 ```bash
 cd <csi-spl checkout>/csi-spl-orc && HARNESS_REF_DIR=<frozen engine>/ysg-box-orc/src/bash/features/spawn-agents ./run -a do_check_harness_parity
 ```
 
-4.2 Announce to the orchestrator: the time, the rollback line, and that live
-agents keep running (their panes are untouched; only NEW spawns change).
+4.3 Announce the go-time and the rollback line to the orchestrator (inbox) and
+in the blocker topic; wait for its confirmation. Quiet window: after 19:00Z.
 
-4.3 As the agent user, move the frozen engine's rendered commands and skills
+4.4 The orchestrator switches its sends to `agent-send.sh` and its report
+reads to `agent-inbox.sh`, with this env in its session:
+
+```bash
+export SPOOL_ROOT=<desk spool root> SPOOL_ORCHESTRATOR_ID=<ORC-ID> SPOOL_LEGACY_INBOX_ROOT=<legacy message root> SPOOL_LEGACY_SEND=<frozen engine>/ysg-box-orc/src/bash/features/spawn-agents/scripts/inbox-send.sh
+```
+
+4.5 As the agent user, move the frozen engine's rendered commands and skills
 aside. The installer never overwrites a file it did not write, so this is what
 lets it render its own:
 
@@ -49,19 +87,20 @@ lets it render its own:
 ts=$(date -u +%Y%m%dT%H%M%SZ); mkdir -p ~/.claude/.pre-048-$ts && cd ~/.claude && mv commands/{claude,agy,grok,qwen}-spawn.md commands/spawn-an-agent.md commands/riname.md commands/tmux-close-window.md skills/agent-msg skills/exit-clean skills/kill-your-self .pre-048-$ts/
 ```
 
-4.4 As the agent user, render the csi-spl harness (no seat, no CLI changes):
+4.6 As the agent user, render the csi-spl harness for the desk root (no seat,
+no CLI changes):
 
 ```bash
-bash <csi-spl checkout>/csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat
+SPOOL_ROOT=<desk spool root> SPOOL_ORCHESTRATOR_ID=<ORC-ID> bash <csi-spl checkout>/csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --no-hooks
 ```
 
-4.5 Add the tmux line the installer printed to the box user's `~/.tmux.conf`,
+4.7 Add the tmux line the installer printed to the box user's `~/.tmux.conf`,
 replacing the frozen engine's `agent-status.conf` line.
 
-4.6 Proof: one `QWN` and one `CLE` spawn through the new `/qwen-spawn` and
-`/claude-spawn`, a spool message each way, a `/tmux-close-window`.
+4.8 After the flip: the orchestrator spawns one small real agent through the
+new `/claude-spawn` and completes a round trip. Any failure: section 5.
 
-4.7 Rewrite the frozen engine's FROZEN.md per its §1.4 (retired: the box runs
+4.9 Rewrite the frozen engine's FROZEN.md per its §1.4 (retired: the box runs
 the csi-spl harness), landed with `frozen-exception: <csi-spl sha>`.
 
 ## 5. Rollback (one line, as the agent user)
@@ -69,3 +108,8 @@ the csi-spl harness), landed with `frozen-exception: <csi-spl sha>`.
 ```bash
 cd ~/.claude && for f in commands/*.md skills/*/SKILL.md; do grep -q 'spool-install: sha256=' "$f" && rm -f "$f"; done; cp -a .pre-048-<ts>/*.md commands/ && cp -a .pre-048-<ts>/{agent-msg,exit-clean,kill-your-self} skills/
 ```
+
+The orchestrator's side needs no rollback step of its own: `agent-send.sh`
+reaches older agents through the frozen engine's own sender, so going back to
+calling that sender directly is always safe. Agents spawned by the csi-spl
+harness in between stay reachable through `agent-send.sh` (or `spool-send.sh`).

@@ -35,13 +35,14 @@ agent), and how "done" is proven.
 
 ### 1.3 Start the window
 
-`spawn-window.sh` allocates the next free `CLE-nn`, claims its spool dir,
+`spawn-window.sh` allocates the next free `CLE-nn`, claims its spool dir in
+the shared spool root (so it and its orchestrator `{{ORCHESTRATOR_ID}}` read one mailbox),
 creates a git worktree `<repo>-wt/<ID>` on a branch off the trunk, and starts
 claude in a DETACHED window. It prints `<ID> <PANE>`. The last argument is the
 branch slug.
 
 ```bash
-bash {{HARNESS_DIR}}/scripts/spawn-window.sh claude auto <repo-dir> <brief-file> <short-slug>
+SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNESS_DIR}}/scripts/spawn-window.sh claude auto <repo-dir> <brief-file> <short-slug>
 ```
 
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
@@ -58,11 +59,20 @@ tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#
 
 ## 2. Message a running CLE-nn
 
-The message is a file in the agent's spool inbox; the pane line is only the
-doorbell. Exit codes below 10 all mean it WAS delivered.
+`agent-send.sh` reaches the agent through the mailbox it was spawned with
+(the spool for this harness, the older markdown inbox during a switch-over),
+so the same command works for every live agent. The message is a file; the
+pane line is only the doorbell, and a non-zero exit after `via:` still means
+it was delivered unless the script says "nothing delivered".
 
 ```bash
-bash {{HARNESS_DIR}}/scripts/spool-send.sh --from <YOUR-ID> --to CLE-nn --kind task --body-file <message-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> CLE-nn --kind task --file <message-file>
+```
+
+Reports sent to you, not seen yet:
+
+```bash
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR-ID>
 ```
 
 ## 3. Claude Code specifics

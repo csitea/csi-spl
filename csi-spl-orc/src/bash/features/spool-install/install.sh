@@ -54,8 +54,8 @@
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
-#      SPOOL_ROOT / SPOOL_AGENT_CEILING - rendered into the skills (defaults
-#      /var/spool-hub and 40)
+#      SPOOL_ROOT / SPOOL_AGENT_CEILING / SPOOL_ORCHESTRATOR_ID - rendered into
+#      the skills (defaults /var/spool-hub, 40 and CLE-00)
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
@@ -372,11 +372,11 @@ if [ "$SKILLS" = 1 ]; then
     plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
   else
     python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
-      "$HARNESS_DIR" "${SPOOL_ROOT:-/var/spool-hub}" "${SPOOL_AGENT_CEILING:-40}" <<'EOF_PY' || die 6 "cannot render the harness skills"
+      "$HARNESS_DIR" "${SPOOL_ROOT:-/var/spool-hub}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-CLE-00}" <<'EOF_PY' || die 6 "cannot render the harness skills"
 import hashlib, os, re, sys
-assets, home, qwen, force, harness, root, ceiling = sys.argv[1:]
+assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:]
 MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
-subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling}
+subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling, "ORCHESTRATOR_ID": orc}
 def render(src):
     t = open(src).read()
     t = re.sub(r"\{\{([A-Z_]+)\}\}", lambda m: subst[m.group(1)], t)

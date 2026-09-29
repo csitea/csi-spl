@@ -44,6 +44,8 @@ the reference does it:
 | `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
+| `scripts/agent-send.sh` | one send command for every live agent: the spool for this harness's agents, the older markdown inbox (through its own sender, `SPOOL_LEGACY_SEND`) for agents spawned before a switch-over (specs/048) |
+| `scripts/agent-inbox.sh` | the reports an orchestrator has not seen yet, from its spool inbox and (with `SPOOL_LEGACY_INBOX_ROOT`) the older agents' outboxes |
 | `scripts/tmux-close-window.sh` | closes an agent's window by id, now or after it exits (`--defer`); never guesses the active window |
 | `assets/commands/*.md`, `assets/skills/*/SKILL.md` | the slash commands and skills; `spool-install/install.sh` renders them into `~/.claude` (and `~/.qwen/skills`) |
 | `assets/tmux-agent-status.conf` | window-access keys for a fleet; the installer prints its `source-file` line |
@@ -64,6 +66,7 @@ box.
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |
 | `SPOOL_BOX_TAG` | empty. When set, window names read `<tag>: <ID>` |
 | `SPOOL_ORCHESTRATOR_ID` | `CLE-00`. Spawned agents report to this id |
+| `SPOOL_LEGACY_INBOX_ROOT` `SPOOL_LEGACY_SEND` | unset. During a switch-over: the older markdown message root and its sender; `agent-send.sh` / `agent-inbox.sh` use them for agents spawned before it |
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
 | `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |
 | `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` | `600` / `1200` — the bounds on the pane line (`specs/028/contracts/poke-line.md`) |

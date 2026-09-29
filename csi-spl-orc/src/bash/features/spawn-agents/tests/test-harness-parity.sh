@@ -56,8 +56,8 @@ for k in claude grok agy qwen; do
 done
 
 # --- 3. placeholders ----------------------------------------------------------------
-eq "3. the templates use only HARNESS_DIR, SPOOL_ROOT, AGENT_CEILING" "" \
-  "$(grep -rhoE '\{\{[A-Za-z_]+\}\}' "$T_FEAT/assets" | sort -u | grep -vxE '\{\{(HARNESS_DIR|SPOOL_ROOT|AGENT_CEILING)\}\}' | tr '\n' ' ')"
+eq "3. the templates use only HARNESS_DIR, SPOOL_ROOT, AGENT_CEILING, ORCHESTRATOR_ID" "" \
+  "$(grep -rhoE '\{\{[A-Za-z_]+\}\}' "$T_FEAT/assets" | sort -u | grep -vxE '\{\{(HARNESS_DIR|SPOOL_ROOT|AGENT_CEILING|ORCHESTRATOR_ID)\}\}' | tr '\n' ' ')"
 
 # --- 4. the frozen reference ------------------------------------------------------------
 if [ -n "${HARNESS_REF_DIR:-}" ]; then

@@ -178,7 +178,18 @@ jobs:
       # its own env: in its `if`, so it lives at job level)
       HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
     steps:
+      # fetch-depth 0: do_release_version pushes the v<X.Y.Z> tag from HERE. On
+      # a shallow clone git cannot prove the remote already holds this commit's
+      # objects, so the tag push RE-SENDS the commit's tree -- including the
+      # .github/workflows/* blobs -- and GITHUB_TOKEN is refused ("refusing to
+      # allow a GitHub App to create or update workflow file"), which the mint
+      # then mis-reported as "vX.Y.Z was taken". A full clone sends only the ref
+      # (the remote has every object), so the push carries no workflow blob and
+      # is allowed. The hub deploy (20) already checks out full for its own
+      # reason and mints fine; this makes 30 match. (SPL-1194 / CLE-001 P0.)
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Read this env's values from cnf
         id: cfg

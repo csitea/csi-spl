@@ -19,10 +19,20 @@ ROOT=$(cd "$(dirname "$0")/../../../.." && pwd)
 CNF="$ROOT/csi-spl-cnf/csi-spl/${ENV}.env.json"
 [[ -f "$CNF" ]] || { echo "FATAL missing $CNF — run ENV=$ENV ./run -a do_tpl_gen in csi-spl-iac" >&2; exit 1; }
 
-SITE_ID=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["steps"]["019-firebase-static-site"]["site_id"])' "$CNF")
-SERVICE=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["hub"]["service_name"])' "$CNF")
-REGION=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["gcp"]["gcp_region"])' "$CNF")
-FQDN=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["dns"]["fqdn"])' "$CNF")
+# Four values, one python3: re-parsing the same JSON in four separate spawns
+# was ~82 ms; one read that prints all four is ~25 ms. Command substitution
+# (not process substitution) keeps set -e fail-fast on a missing key. Order
+# matches the reads below.
+_CNF_VALS=$(python3 - "$CNF" <<'PY'
+import json, sys
+e = json.load(open(sys.argv[1]))["env"]
+print(e["steps"]["019-firebase-static-site"]["site_id"])
+print(e["hub"]["service_name"])
+print(e["gcp"]["gcp_region"])
+print(e["dns"]["fqdn"])
+PY
+)
+{ IFS= read -r SITE_ID; IFS= read -r SERVICE; IFS= read -r REGION; IFS= read -r FQDN; } <<<"$_CNF_VALS"
 [[ -n "$FQDN" ]] || { echo "FATAL env.dns.fqdn is empty in $CNF" >&2; exit 1; }
 OUT="${OUT:-$ROOT/csi-spl-wui/firebase.json}"
 # the generated bundle the CSP hashes are taken from (never guessed)

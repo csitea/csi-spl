@@ -86,8 +86,9 @@
       </template>
     </ClientOnly>
     <!-- Renders only for a human who ticked "Debug pane" in Settings →
-         Appearance (session claim `diagnostics_enabled`); for everyone else the v-if inside contributes
-         no markup at all. <ClientOnly> keeps it out of the prerendered bundle. -->
+         Appearance (session claim `diagnostics_enabled`). SPL-1201: the gate is
+         the outer v-if below, so everyone else neither downloads the async
+         chunk nor mounts the panel. <ClientOnly> keeps it out of the prerender. -->
     <ClientOnly>
       <ErrorSnackbar />
     </ClientOnly>
@@ -96,7 +97,7 @@
       <LazyMoveUndoToast v-if="move.toast.value" />
     </ClientOnly>
     <ClientOnly>
-      <DebugPanel />
+      <DebugPanel v-if="debugAllowed" />
     </ClientOnly>
   </div>
 </template>
@@ -105,8 +106,14 @@
 import { usePaneFocus } from '~/stores/pane-focus'
 /* which pane the reader selected last decides where the Omnibox line goes */
 const paneFocus = usePaneFocus()
-import DebugPanel from '@/components/common/DebugPanel.vue'
+/* SPL-1201: the debug pane is off for all but the rare human who ticked
+   "Debug pane" (session claim diagnostics_enabled). Statically imported it
+   rode in the shell chunk every reader downloads; async + gated on the same
+   claim useErrorJournal reads, its chunk loads only for that human. */
+const DebugPanel = defineAsyncComponent(() => import('@/components/common/DebugPanel.vue'))
 import ErrorSnackbar from '@/components/common/ErrorSnackbar.vue'
+import { useSessionStore } from '~/stores/session'
+import { debugPanelVisibleFor } from '~/composables/debugAudience.mjs'
 import TopBar from '@/components/TopBar.vue'
 import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
 import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
@@ -126,6 +133,10 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 
 const topic = useTopicStore()
+/* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
+   so its chunk is fetched only for a human who turned it on. */
+const session = useSessionStore()
+const debugAllowed = computed(() => session.state === 'in' && debugPanelVisibleFor(session.claims ?? null))
 /* 050: the collapsed state of the 3 vertical panels (shared Pinia store, also
    read by each panel's PaneCollapseToggle). Hydrated from localStorage on mount
    below; the shell is ClientOnly so there is no SSR read. */

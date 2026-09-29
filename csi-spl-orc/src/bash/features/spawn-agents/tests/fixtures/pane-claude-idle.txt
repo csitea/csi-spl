@@ -1,0 +1,7 @@
+  prior output with a redirect > /tmp/out
+  and a quote:
+> this is a markdown blockquote, not a prompt
+────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────
+  bypass permissions

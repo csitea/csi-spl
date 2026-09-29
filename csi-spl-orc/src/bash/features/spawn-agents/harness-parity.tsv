@@ -58,7 +58,7 @@ scripts/next-agent-id.sh	ported	scripts/next-agent-id.sh
 scripts/normalize-acls.sh	excluded	box maintenance of shared checkouts (ACLs), not part of an agent harness
 scripts/outbox-watch.sh	replaced	scripts/agent-inbox.sh
 scripts/pane-poke-selftest.sh	excluded	one-box diagnostic of the old poke path, replaced by the spool-notify tests
-scripts/pane-scan.sh	deferred	SPL-1160
+scripts/pane-scan.sh	ported	scripts/pane-scan.sh
 scripts/restore-agy.sh	deferred	SPL-1160
 scripts/restore-claude-plain.sh	deferred	SPL-1160
 scripts/restore-claude.sh	deferred	SPL-1160
@@ -79,11 +79,11 @@ scripts/tmux-close-window.sh	ported	scripts/tmux-close-window.sh
 scripts/tmux-sort-windows.sh	deferred	SPL-1160
 scripts/trust-workdir.sh	ported	scripts/trust-workdir.sh
 tests/fixtures/fake-spawn-claude.sh	deferred	SPL-1160
-tests/fixtures/pane-agy-idle.txt	deferred	SPL-1160
-tests/fixtures/pane-agy-typed.txt	deferred	SPL-1160
-tests/fixtures/pane-claude-dim.txt	deferred	SPL-1160
-tests/fixtures/pane-claude-idle.txt	deferred	SPL-1160
-tests/fixtures/pane-grok-idle.txt	deferred	SPL-1160
+tests/fixtures/pane-agy-idle.txt	ported	tests/fixtures/pane-agy-idle.txt
+tests/fixtures/pane-agy-typed.txt	ported	tests/fixtures/pane-agy-typed.txt
+tests/fixtures/pane-claude-dim.txt	ported	tests/fixtures/pane-claude-dim.txt
+tests/fixtures/pane-claude-idle.txt	ported	tests/fixtures/pane-claude-idle.txt
+tests/fixtures/pane-grok-idle.txt	ported	tests/fixtures/pane-grok-idle.txt
 tests/run-all.sh	replaced	tests/run-all-tests.sh
 tests/test-agent-name-through-symlink.sh	replaced	tests/test-hygiene.sh
 tests/test-agent-top.sh	ported	tests/test-agent-top.sh
@@ -104,7 +104,7 @@ tests/test-next-agent-id.sh	ported	tests/test-next-agent-id.sh
 tests/test-normalize-acls-git-clean.sh	excluded	tests an excluded piece (normalize-acls)
 tests/test-normalize-acls.sh	excluded	tests an excluded piece (normalize-acls)
 tests/test-outbox-watch.sh	replaced	tests/test-agent-send.sh
-tests/test-pane-scan.sh	deferred	SPL-1160
+tests/test-pane-scan.sh	ported	tests/test-pane-scan.sh
 tests/test-riname.sh	replaced	tests/test-spawn-window-riname.sh
 tests/test-spawn-parity.sh	replaced	tests/test-spawn-dry-run.sh
 tests/test-spawn-window-pane-id.sh	replaced	tests/test-spawn-window-riname.sh

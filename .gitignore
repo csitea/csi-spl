@@ -43,3 +43,6 @@ __pycache__/
 **/.output/
 **/.pnpm-store/
 *.log
+
+# standalone backups (README: Backup, restore and upgrade) hold the tenant root key
+/backup-*/

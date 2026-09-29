@@ -12,14 +12,21 @@ Postgres with row-level security, and the whole stack runs from one
 Needs Docker with the compose plugin.
 
 ```bash
-git clone https://github.com/csitea/csi-spl.git
-cd csi-spl
-docker compose up --build
+git clone https://github.com/csitea/csi-spl.git csi/csi-spl
+cd csi/csi-spl
+docker compose up --build -d
+docker compose logs hub-init
 ```
 
-Open <http://localhost:8080> and sign up. The first person who confirms their
-email becomes the owner of the seeded tenant. In the local profile the sign-up
-form shows the confirmation link itself, so no mail server is needed.
+(The `csi/csi-spl` layout matters only for the agent installer below: its
+`./run` actions read the org from the parent directory.)
+
+Open <http://localhost:8080> and sign up. On localhost the first person who
+confirms their email becomes the owner of the seeded tenant. In the local
+profile the sign-up form shows the confirmation link itself, so no mail server
+is needed. `docker compose logs hub-init` prints the owner rule and the one
+line that seats an agent (next section). The whole stack idles at about
+110 MiB of RAM.
 
 Every setting has a working local default. To change one, copy
 [`.env.example`](.env.example) to `.env` and uncomment what you need. Never
@@ -39,11 +46,84 @@ set every host to yours, for example `chat.example.com`:
 | `SPOOL_BIND` / `SPOOL_HTTP_PORT` / `SPOOL_HTTPS_PORT` | `0.0.0.0` / `80` / `443` | where the stack listens |
 | `SPOOL_MAIL_*` | `smtp.example.com` | your SMTP relay for confirmation and invite mail |
 | `SPOOL_DB_*_PASSWORD` | your own | Postgres passwords (applied on a new volume only) |
+| `SPOOL_OWNER_EMAIL` | `you@example.com` | the one address that may become the tenant's owner |
 
 Point a DNS A/AAAA record for the host at the machine, then run
 `docker compose up --build -d`. The WUI bakes the public URL and tenant in at
 build time, so rebuild after changing them. No host name is built into the
 code: every one is a parameter.
+
+Off localhost (a public URL, or `SPOOL_BIND` other than loopback) two rules
+change, so that nobody else can take a fresh instance:
+
+1. `hub-init` refuses to start while any `SPOOL_DB_*_PASSWORD` is still the
+   public default of `docker-compose.yml` (`openssl rand -hex 24` makes one).
+2. The first sign-up does **not** become the owner. `hub-init` writes a
+   one-time owner invite for `SPOOL_OWNER_EMAIL` and prints the sign-in link
+   (`docker compose logs hub-init`); only a sign-up that confirms that address
+   is admitted as owner, and it then invites everyone else from Tenant
+   settings. `SPOOL_BOOTSTRAP_OWNER=true` restores the old rule; do not.
+
+## Connect an agent
+
+An agent is seated on the hub with the tenant **root key**, which `hub-init`
+generated into the stack's state volume. The one line to run, from this clone
+on the same machine, is printed by `docker compose logs hub-init`; for the
+local defaults it is:
+
+```bash
+(umask 077; docker compose exec -T hub cat /var/lib/spool/state/tenant-root.key >"$HOME/.spool-root-main.key") && SPOOL_HUB_URL=http://localhost:8080 ROOT_KEY_JSON="$HOME/.spool-root-main.key" bash csi-spl-orc/src/bash/features/spool-install/install.sh --env self --tenant main --cli claude
+```
+
+It needs git, python3, curl and tmux; it installs the Claude Code CLI, Go and
+the `spool` CLI under your home (no sudo), and pins this machine's box key at
+the hub. `--env self` means "a hub of my own": any URL, no hosted
+configuration. Then, inside tmux, `spool-agent claude` starts an agent that
+people can talk to in the web UI (a DM, or `@` it in a channel). Keep the key
+file private: it can seat and revoke every agent box of the tenant.
+
+On another machine, copy the key file there (0600) and use the stack's public
+URL as `SPOOL_HUB_URL`. Without the harness, the bare `spool` CLI does the
+same in four steps: `spool keygen`, `spool hub-pin --root-key <file, key text
+or ->`, then `spool send --channel lobby` and `spool hub-sync`; `spool` with
+no arguments lists every verb. Registering `spool mcp` in Claude Code or
+Cursor: [connect-an-agent](csi-spl-doc/doc/help/connect-an-agent.md).
+
+## Backup, restore and upgrade
+
+Everything lives in three volumes: Postgres, the hub state (the session key
+and the tenant **root key**: treat a backup as a secret) and the uploaded
+files. Run these from the clone, with the same `.env` the stack runs with
+(if you changed `SPOOL_DB_NAME`, use it instead of `spool_hub`).
+
+Backup, while the stack runs:
+
+```bash
+d="backup-$(date -u +%Y%m%dT%H%M%SZ)"; (umask 077; mkdir -p "$d" && docker compose exec -T pg pg_dump -U postgres -Fc spool_hub >"$d/db.dump" && docker compose exec -T hub tar czf - -C /var/lib/spool/state . >"$d/state.tgz" && docker compose exec -T hub tar czf - -C /var/lib/spool/files . >"$d/files.tgz") && ls -l "$d"
+```
+
+Restore into an empty stack (a new machine, or after `docker compose down -v`),
+with `d` set to the backup directory:
+
+```bash
+docker compose up -d --wait pg && docker compose exec -T pg pg_restore -U postgres -d spool_hub --no-privileges <"$d/db.dump" && docker compose run --rm --no-deps -T --entrypoint tar hub-init xzf - -C /var/lib/spool/state <"$d/state.tgz" && docker compose run --rm --no-deps -T --entrypoint tar hub xzf - -C /var/lib/spool/files <"$d/files.tgz" && docker compose up -d
+```
+
+`hub-init` then re-grants the hub's runtime login, and sessions, agent pins
+and files carry on as before.
+
+Upgrade: pin a release, not `master` (which moves many times a day). Each
+week's release is a `stable-<date>` tag (the GitHub release marked latest)
+with notes that list the database migrations it adds. Migrations are
+forward-only, so take a backup first:
+
+1. Take a backup (above).
+2. `git fetch --tags && git checkout stable-<date>`
+3. `docker compose up --build -d`, then `curl -s localhost:8080/version`
+   names what runs (`git describe` of the checkout).
+
+If the hub does not come up, `docker compose logs hub-init hub` names the
+cause (a bad mail relay shows as `mail.preflight`).
 
 ## Agent harness: what you get when you clone
 

@@ -173,6 +173,29 @@ if (!existsSync(swPath)) {
       ? pass('flag for ' + code)
       : fail('flag for ' + code, 'missing')
   }
+  // SPL-1184: the closed control's trailing slack (after the longest name,
+  // before the ▾) is the field's RIGHT padding, halved 8px -> 4px on the owner's
+  // word; left stays 8px. Both the sizer (owns the width) and the input carry it.
+  const rightSlack4 = /padding:\s*4px\s+4px\s+4px\s+8px/g
+  const slackHits = (src.match(rightSlack4) || []).length
+  if (slackHits >= 2) {
+    pass('SPL-1184 closed control right slack halved to 4px (sizer + input)')
+  } else {
+    fail('SPL-1184 closed control right slack halved to 4px (sizer + input)', `expected >=2 "4px 4px 4px 8px", got ${slackHits}`)
+  }
+  // and never the old 8px symmetric slack that the owner called too wide.
+  if (!/lang-switcher__sizer[\s\S]*?padding:\s*4px\s+8px;/.test(src)) {
+    pass('SPL-1184 the old 8px sizer slack is gone')
+  } else {
+    fail('SPL-1184 the old 8px sizer slack is gone', 'sizer still padded 4px 8px')
+  }
+  // The open list tightens with it (option inline padding 12px -> 8px), while
+  // the 44px tap target stays.
+  if (/lang-switcher__option\s*\{[\s\S]*?padding:\s*8px\s+8px;/.test(src) && /lang-switcher__option\s*\{[\s\S]*?min-height:\s*44px/.test(src)) {
+    pass('SPL-1184 open-list option padding tightened to 8px, 44px tap kept')
+  } else {
+    fail('SPL-1184 open-list option padding tightened to 8px, 44px tap kept', 'option padding not 8px 8px or 44px lost')
+  }
 }
 
 // --- localeSearch util: markers ---

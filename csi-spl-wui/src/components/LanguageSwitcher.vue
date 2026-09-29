@@ -40,8 +40,8 @@
           the LONGEST name's — never the current selection's — and it neither
           jumps between languages nor clips any of the 19. `size="1"` keeps the
           input's own intrinsic width out of the grid track; the sizers own it.
-          The input's right padding (8px ≈ 2mm) is the only slack the owner
-          allows after the longest name before the ▾.
+          The field's right padding (SPL-1184: 4px ≈ 1mm, halved from 8px on the
+          owner's word) is the only slack after the longest name before the ▾.
         -->
         <span class="lang-switcher__field">
           <ComboboxInput
@@ -305,7 +305,11 @@ async function onSelect(loc: LocaleEntry | null) {
   visibility: hidden;
   pointer-events: none;
   white-space: nowrap;
-  padding: 4px 8px;
+  /* SPL-1184: the trailing slack after the name is the right padding; halved
+     from 8px to 4px on the owner's word. Left stays 8px so the flag/name keep
+     their breathing room from the border. The sizer owns the field width, so
+     this is what actually narrows the closed control's gap before the ▾. */
+  padding: 4px 4px 4px 8px;
   font-size: 0.875rem;
   font-family: inherit;
   line-height: 1.3;
@@ -326,7 +330,9 @@ async function onSelect(loc: LocaleEntry | null) {
   width: 100%;
   min-width: 0;
   min-height: 36px;
-  padding: 4px 8px;
+  /* SPL-1184: match the sizer's 4px right slack so the caret/value line up with
+     the halved gap; left stays 8px. */
+  padding: 4px 4px 4px 8px;
   font-size: 0.875rem;
   font-family: inherit;
   line-height: 1.3;
@@ -387,7 +393,10 @@ async function onSelect(loc: LocaleEntry | null) {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 8px 12px;
+  /* SPL-1184: the matching open-list slack, tightened with the closed control
+     (inline padding 12px -> 8px) so the drop-down reads as tight as the field
+     it opens from. min-height keeps the 44px tap target. */
+  padding: 8px 8px;
   font-size: 0.875rem;
   line-height: 1.3;
   color: var(--color-fg);

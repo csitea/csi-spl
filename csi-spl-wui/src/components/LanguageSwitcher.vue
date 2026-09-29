@@ -34,19 +34,37 @@
         {{ t('nav.lang_label') }}
       </ComboboxLabel>
       <div class="lang-switcher__control">
-        <ComboboxInput
-          class="lang-switcher__input"
-          data-test="lang-switcher-input"
-          :display-value="displayLocale"
-          :placeholder="t('nav.lang_search_placeholder')"
-          :aria-label="t('nav.lang_label')"
-          :title="t('nav.lang_note')"
-          autocomplete="off"
-          @change="onQueryChange"
-          @focus="onFocus"
-          @mouseup="onMouseUp"
-          @blur="onBlur"
-        />
+        <!--
+          The field grid-stacks the visible input over one hidden sizer per
+          locale (endonym + flag), so the closed control's intrinsic width is
+          the LONGEST name's — never the current selection's — and it neither
+          jumps between languages nor clips any of the 19. `size="1"` keeps the
+          input's own intrinsic width out of the grid track; the sizers own it.
+          The input's right padding (8px ≈ 2mm) is the only slack the owner
+          allows after the longest name before the ▾.
+        -->
+        <span class="lang-switcher__field">
+          <ComboboxInput
+            class="lang-switcher__input"
+            data-test="lang-switcher-input"
+            size="1"
+            :display-value="displayLocale"
+            :placeholder="t('nav.lang_search_placeholder')"
+            :aria-label="t('nav.lang_label')"
+            :title="t('nav.lang_note')"
+            autocomplete="off"
+            @change="onQueryChange"
+            @focus="onFocus"
+            @mouseup="onMouseUp"
+            @blur="onBlur"
+          />
+          <span
+            v-for="loc in availableLocales"
+            :key="`sizer-${loc.code}`"
+            class="lang-switcher__sizer"
+            aria-hidden="true"
+          >{{ loc.flag }} {{ loc.name }}</span>
+        </span>
         <ComboboxButton
           class="lang-switcher__button"
           data-test="lang-switcher-button"
@@ -252,7 +270,9 @@ async function onSelect(loc: LocaleEntry | null) {
   position: relative;
   min-width: 0;
   max-width: 100%;
-  width: 11.5rem;
+  /* Shrink-wrap to the longest locale name (via the sizers) instead of a
+     fixed 11.5rem, which left a wide dead gap after short names. */
+  width: max-content;
 }
 .lang-switcher__control {
   display: flex;
@@ -263,6 +283,26 @@ async function onSelect(loc: LocaleEntry | null) {
   border-radius: var(--radius-sm);
   background-color: var(--color-surface);
   overflow: hidden;
+}
+/* Grid cell shared by the visible input and every hidden sizer, so the track
+   width is the widest locale label and the input just fills it. */
+.lang-switcher__field {
+  display: inline-grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lang-switcher__field > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.lang-switcher__sizer {
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 4px 8px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  line-height: 1.3;
 }
 .lang-switcher__control:hover {
   border-color: var(--color-accent);
@@ -275,7 +315,7 @@ async function onSelect(loc: LocaleEntry | null) {
 }
 .lang-switcher__input {
   border-radius: var(--radius-sm);
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   min-height: 36px;
   padding: 4px 8px;
@@ -315,8 +355,11 @@ async function onSelect(loc: LocaleEntry | null) {
   z-index: 40;
   inset-inline-end: 0;
   top: calc(100% + 4px);
-  width: max(100%, 12rem);
-  max-width: 18rem;
+  /* Fit the widest row (flag + name + code); never wider, and at least as
+     wide as the closed control. */
+  width: max-content;
+  min-width: 100%;
+  max-width: min(18rem, calc(100vw - 16px));
   max-height: min(16rem, 50vh);
   margin: 0;
   padding: 4px 0;

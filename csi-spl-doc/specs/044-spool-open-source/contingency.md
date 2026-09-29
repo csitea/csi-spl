@@ -122,8 +122,18 @@ ENV=dev ./run -a do_gcp_backup_env
 `do_gcp_backup_env` (read-only) writes the tf state, the DNS zones, the relay + files buckets, the registry
 tags and a `pg_dump` of the hub DB to a 0700 local dir. Its `secrets/` sub-dir holds the **compromised**
 values: keep it for the post-mortem, never feed it back. Take `ENV=dev ./run -a do_gcp_audit_iam` too (the
-before-picture). A standing daily copy of the 045 dumps OUT of the project is **GAP** T077; without it the RPO
-of §4.1 holds only if this step ran.
+before-picture).
+
+The standing daily copy OUT of the project (T077) is iac step `046-gcs-offsite-backups`: every 045 dump and
+every 050 file lands in `gs://csi-spl-bkp-<env>` in the separate project `csi-spl-bkp`, which §3.2 never
+destroys; the env SA may only add to it (spec 029 §6.6.2). Before §3.2, top it up and read what it holds:
+
+```bash
+ENV=dev DRY_RUN=0 ./run -a do_spl_backup_offsite
+```
+
+It is live once the owner has bootstrapped `csi-spl-bkp` (spec 029 §6.6.2, still pending on 2026-09-29);
+until then it says "not enabled yet" and the RPO of §4.1 holds only if the `do_gcp_backup_env` copy ran.
 
 ### 3.2 Destroy
 
@@ -182,22 +192,39 @@ dev completes §3 through §6.1, then prd starts at §3.1.
 
 ## 4. Restore the data
 
-### 4.1 RPO: 24 hours
+### 4.1 RPO: 24 hours (21.6 h measured)
 
 Source: workflow `45_db-backup.yml` runs once a day (`cron: '17 5 * * *'`; its own comment: GitHub's
 scheduler is best-effort, "treat this as once a day"), each run exporting one dump with `do_spl_db_backup`
 and proving it restores with `do_spl_db_backup_verify` (spec 029 FR-007). So the newest dump is at most ~24 h
 old, plus the scheduler's drift. If §3.1 ran, the `pg_dump` it took is newer and is the one to restore: the
-RPO is then the time since §3.1.
+RPO is then the time since §3.1. Measured 2026-09-29 03:06Z: the newest prd dump was 77 617 s (21.6 h) old.
 
 ### 4.2 Restore
 
-The dump to restore is the §3.1 local copy, or the newest object of the OLD 045 bucket copied out before §3.2.
-There is no spool-shaped restore action: `do_gcp_import_to_cloudsql` exists (iac) but is a csi-rel port that
-reads `<env>.env.json` keys and secret names this estate does not have, and it drops the app database first.
-**GAP** T078: `do_spl_db_restore` (a dump into the new 040 instance as the schema owner, RLS-safe, then the
-`do_spl_db_backup_verify` comparison against it). Until T078, the restore is the owner's out-of-band
-`gcloud sql import sql` of the dump, recorded in the post-mortem.
+The dump to restore is the newest one in the off-project bucket (`BACKUP_SOURCE=bkp`, the default once 046 is
+live), or the §3.1 copy. `do_spl_db_restore` imports it **as the schema owner** into the re-created 040
+instance (after `do_spl_db_bootstrap` + `do_spl_db_owner_split` have made the logins, and while the database
+holds no table: the action refuses to merge into data), then compares every table against what it restored.
+Rehearse into a throwaway first:
+
+```bash
+ENV=dev TARGET=database:spool_restore_drill DRY_RUN=0 ./run -a do_spl_db_restore
+```
+
+```bash
+ENV=dev TARGET=env DRY_RUN=0 ./run -a do_spl_db_restore
+```
+
+prd adds `ALLOW_PRD_RESTORE=1` to the second line. The user files, into the new 050 bucket (no-clobber):
+
+```bash
+ENV=dev TARGET=env DRY_RUN=0 ./run -a do_spl_files_restore
+```
+
+Do not fall back to a bare `gcloud sql import sql`: without `--user=<schema owner>` it dies on the dump's
+`ALTER DEFAULT PRIVILEGES FOR ROLE` (measured on dev 2026-09-29, spec 029 §6.6.3). `do_gcp_import_to_cloudsql`
+(iac) is a csi-rel port with the wrong cnf keys and it drops the app database first; do not use it.
 
 ### 4.3 RTO estimate: ~3-4 hours per environment, unmeasured
 
@@ -208,11 +235,12 @@ re-created 050 and re-applied 030 only. The estimate is built from the parts tha
 |---|---|---|
 | domain mapping certificate | ~15-20 min before a new host serves | spec 026 spec.md ("A self-serve tenant stayed dark for ~15-20 minutes") |
 | 12 step rows x (render + plan + owner read + provision) | ~10 min each, ~2 h | estimate, not measured |
-| DB restore of a dump of 428 656 B (dev) / 156 676 B (prd) | minutes | spec 029 tasks.md T052 sizes |
+| DB restore (`do_spl_db_restore`, 8-10 MB dumps) | **51 s** prd -> container, **86 s** dev -> Cloud SQL throwaway DB | measured 2026-09-29, spec 029 §6.6.3 |
+| files restore (`do_spl_files_restore`) | **20 s** prd (323 objects, 55 MB), 16 s dev | measured 2026-09-29, spec 029 §6.6.3 |
 | desks, DNS, WUI, e2e (§5, §6.1) | ~1 h | estimate, not measured |
 
-So ~3-4 h for dev, the same again for prd: about **a working day** end to end. T079 is a timed dev drill that
-replaces this estimate with a measurement.
+So ~3-4 h for dev, the same again for prd: about **a working day** end to end. The data leg is now measured
+and is minutes; the re-create leg is still the estimate. T079 is a timed dev drill that replaces it.
 
 ## 5. Re-seat the fleet and the hosts
 
@@ -282,8 +310,8 @@ That is why the runners are hardened **before** the flip to public, not after an
 | T074 | rotate the hub runtime DB password | 2.4 |
 | T075 | rotate the session key and the box-wui key on purpose | 2.6 |
 | T076 | `do_oss_runners_remove`: every runner off every repo and out of the org runner group | 2.8 |
-| T077 | a daily copy of the 045 dumps OUT of the project | 3.1, 4.1 |
-| T078 | `do_spl_db_restore` into a new 040 instance | 4.2 |
+| T077 | a daily copy of the 045 dumps OUT of the project - **code landed** (iac 046, `do_spl_backup_offsite`); live after the owner's `csi-spl-bkp` bootstrap | 3.1, 4.1 |
+| ~~T078~~ | ~~`do_spl_db_restore` into a new 040 instance~~ - **done**, plus `do_spl_files_restore` | 4.2 |
 | T079 | a timed destroy/re-create drill on dev that measures the RTO | 4.3 |
 
 ## 9. The actions, as grepped
@@ -317,6 +345,10 @@ Command: `git grep -n '^<name>()'` on tree `ca60cfc7`, one line each (n = 1 grep
 | `do_spl_lb_absent_check` | `csi-spl-orc/src/bash/run/spl-lb-absent-check.func.sh:18` |
 | `do_spl_db_backup` | `csi-spl-orc/src/bash/run/spl-db-backup.func.sh:34` |
 | `do_spl_db_backup_verify` | `csi-spl-orc/src/bash/run/spl-db-backup-verify.func.sh:32` |
+| `do_spl_db_restore` | `csi-spl-orc/src/bash/run/spl-db-restore.func.sh:46` (tree `8da3cde0`) |
+| `do_spl_files_restore` | `csi-spl-orc/src/bash/run/spl-files-restore.func.sh:31` (tree `8da3cde0`) |
+| `do_spl_backup_offsite` | `csi-spl-orc/src/bash/run/spl-backup-offsite.func.sh:27` (tree `8da3cde0`) |
+| `do_gcp_bkp_state_bucket_create` | `csi-spl-iac/src/bash/run/gcp-bkp-state-bucket-create.func.sh:20` (tree `8da3cde0`) |
 | `do_gcp_import_to_cloudsql` (legacy, see §4.2) | `csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh:9` |
 | `do_spl_desk_pin` | `csi-spl-orc/src/bash/run/spl-desk-pin.func.sh:36` |
 | `do_spl_cloud_pin_box_wui` | `csi-spl-orc/src/bash/run/spl-cloud-pin-box-wui.func.sh:28` |
@@ -332,4 +364,4 @@ Make targets, `git grep -n '^do-tf-plan:\|^do-provision:\|^do-deprovision:\|^do-
 `csi-spl-orc/src/make/tf-tasks.func.mk:10` (`do-tf-plan`), `:45` (`do-provision`), `:87` (`do-deprovision`);
 `csi-spl-orc/src/make/generate-config-for-step.func.mk:12`.
 
-<!-- version: 1.0.0 · updated: 2026-09-28 -->
+<!-- version: 1.1.0 · updated: 2026-09-29 -->

@@ -85,6 +85,6 @@ by the owner. No decision needed; none of them runs against GCP without the owne
 | [ ] T074 | Rotate the hub runtime DB password (`do_spl_db_owner_split` rotates only the owner's) | §2.4 |
 | [ ] T075 | Rotate the session key and the box-wui key on purpose (the seed actions mint only into an empty slot) | §2.6 |
 | [ ] T076 | `do_oss_runners_remove`: every self-hosted runner off every repo and out of the org runner group (`do_oss_runners_move` only moves) | §2.8 |
-| [ ] T077 | A daily copy of the 045 dumps OUT of the project (the 045 bucket dies with the project) | §3.1, §4.1 |
-| [ ] T078 | `do_spl_db_restore`: a dump into a new 040 instance as the schema owner, RLS-safe, then the `do_spl_db_backup_verify` comparison (`do_gcp_import_to_cloudsql` is a csi-rel port with this estate's wrong cnf keys and secret names) | §4.2 |
-| [ ] T079 | A timed destroy/re-create drill on dev that replaces the RTO estimate with a measurement | §4.3 |
+| [ ] T077 | A daily copy of the 045 dumps OUT of the project (the 045 bucket dies with the project). **Code landed 8da3cde0** (iac 046 + `do_spl_backup_offsite` in workflow 45, files too); live waits on the owner's `ENV=bkp` bootstrap of `csi-spl-bkp` (spec 029 §6.6.2) | §3.1, §4.1 |
+| [x] T078 | **Done 6e9f4b52 + 8da3cde0, proven 2026-09-29** (spec 029 §6.6.3; plus `do_spl_files_restore`). Was: `do_spl_db_restore`: a dump into a new 040 instance as the schema owner, RLS-safe, then the `do_spl_db_backup_verify` comparison (`do_gcp_import_to_cloudsql` is a csi-rel port with this estate's wrong cnf keys and secret names) | §4.2 |
+| [ ] T079 | A timed destroy/re-create drill on dev that replaces the RTO estimate with a measurement. The DATA leg is measured (DB 51-86 s, files 16-20 s, spec 029 §6.6.3); the re-create leg is not | §4.3 |

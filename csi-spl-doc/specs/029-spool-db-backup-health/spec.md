@@ -422,10 +422,81 @@ postgres container, the per-table comparison against the live database, and
 the key removal. The daily schedule exercises exactly this, so the first
 unattended 05:17 UTC run has already been rehearsed with a real dispatch.
 
+## 6.6 Off the project, and restored (2026-09-29, CLE-35096)
+
+The spec 044 contingency runbook (`044-spool-open-source/contingency.md`) found the gap §4.1 names but §4.3
+did not close: the 045 bucket lives **in the same project** as the instance, so the owner's contingency
+policy ("destroy the infra and re-create") destroys every dump with it. The owner approved fixing it
+("4. yes", 2026-09-29).
+
+### 6.6.1 What is backed up today, measured
+
+Read-only as each env's project SA, 2026-09-29 ~03:00Z (n = 1 read per env; `gcloud storage du -s`,
+`gcloud storage ls -l`, `gcloud sql instances describe`, `gcloud sql backups list`):
+
+| env | 045 dumps | size | newest dump | 050 files | Cloud SQL automated |
+|---|---|---|---|---|---|
+| dev | 13 objects, 30 d lifecycle, 7 d soft delete, no versioning | 27.5 MB | `spool-20260928T053052Z.sql.gz` 8.4 MB | 54 objects, 3.4 MB | on, 7 kept, PITR on, last SUCCESSFUL 2026-09-28 |
+| prd | 13 objects, same | 27.3 MB | `spool-20260928T053236Z.sql.gz` 9.6 MB | 323 objects, 55.1 MB | on, 7 kept, PITR on, last SUCCESSFUL 2026-09-28 |
+
+Nothing else is backed up: the cnf is git, the tf state is in `csi-spl-<env>-tfstate` (same project),
+secrets are re-seeded by the runbook §2 actions, not restored.
+
+### 6.6.2 Off-project: iac `046-gcs-offsite-backups`
+
+One bucket per env, `gs://csi-spl-bkp-<env>`, in a **dedicated project `csi-spl-bkp`**. Not the "relay
+projects": there are none, the relay SAs live inside `csi-spl-<env>` (the key files' `project_id`), so they
+die with the env. Not the other env's project either: the runbook destroys both envs.
+
+| property | value | why |
+|---|---|---|
+| versioning | on | a replaced object keeps its old version |
+| retention policy | 30 d, **unlocked** | nobody deletes or overwrites an object younger than 30 d; a lock is irreversible, the owner's own call |
+| soft delete | 30 d | a delete is recoverable |
+| lifecycle | delete at 90 d, noncurrent at 30 d | 3x the 045 retention, bounded bill |
+| env SA grant | `objectCreator` + `legacyBucketReader` | add objects and list names; **cannot read, overwrite or delete** |
+| reader | the `csi-spl-bkp` SA only | restores read as it (`spl_bkp_gcloud`) |
+| terraform | per env through the tf-runner, as the bkp SA (`steps.046.tf_key_project` in `do_tf_init`), state in `csi-spl-bkp-tfstate` | the record of the bucket must not die with the env either |
+
+Daily copy: workflow 45 runs `do_spl_backup_offsite` after the verify: a bucket-to-bucket
+`gcloud storage rsync --no-clobber` (inside Google, no byte on the runner) of `045/<env>/` to `<env>/db/` and
+of the 050 bucket to `<env>/files/`, and then the verdict is a NAME check (every source name in the copy),
+not rsync's exit code. Until cnf `steps.046.copy_enabled` is true it logs why and exits 0.
+
+**Pending the owner** (repo rule: the project bootstrap is the human's, and this box holds neither the owner
+login nor the billing id): `ENV=bkp GCP_BILLING_ACCOUNT_ID=<id> DRY_RUN=0 ./run -a do_gcp_000_bootstrap_gcp_env`.
+After it: `do_gcp_bkp_state_bucket_create`, 046 plan + provision per env, `copy_enabled: true`, the first
+copy, and a restore read back from `csi-spl-bkp` (spec 044 T077).
+
+### 6.6.3 Restore, proven
+
+`do_spl_db_restore` (ENV, `BACKUP_URI` or latest, `BACKUP_SOURCE` env|bkp, `TARGET` local |
+`database:spool_restore_<x>` | env; DRY_RUN default; `TARGET=env` refused while the DB holds a table, and
+on prd without `ALLOW_PRD_RESTORE=1`) and `do_spl_files_restore` (`SOURCE` bkp|env, `TARGET` local|env,
+no-clobber, same prd flag). Measured 2026-09-29, n = 1 each, tree `6e9f4b52` / `8da3cde0`:
+
+| run | restored | vs live (read-only) | RPO (dump age) | RTO |
+|---|---|---|---|---|
+| prd latest dump -> local throwaway container | 36 tables, 14 856 rows | every live table present and non-empty where live is | 77 617 s (21.6 h) | 51 s |
+| dev latest dump -> throwaway DB `spool_restore_drill` on `csi-spl-dev-pg` (`gcloud sql import`), dropped after | 36 tables, 12 586 rows | same | 78 021 s (21.7 h) | 86 s |
+| prd files -> local throwaway dir | 323 objects, 55 058 640 B | every name present | - | 20 s |
+| dev files -> local throwaway dir | 54 objects, 3 369 308 B (= bucket `du`) | every name present | - | 16 s |
+
+The first dev import FAILED, which is the finding: `gcloud sql import` as the default user dies on the dump's
+`ALTER DEFAULT PRIVILEGES FOR ROLE spool_hub` ("permission denied to change default privileges"), and the
+export carries no `OWNER TO`, so objects belong to the importer. The action therefore imports **as the
+schema owner** (`--user=` cnf `hub.db_owner_user`), which reproduces the live owner/runtime layout. An
+out-of-band `gcloud sql import sql` without `--user` - the runbook's fallback until now - would have failed
+in a real disaster.
+
+RPO: the daily dump (05:17 UTC) makes it <= ~24 h plus scheduler drift (21.6 h measured at 03:06Z).
+RTO of the DATA: ~1.5 min for the DB, well under a minute for the files. The RTO of the whole estate is
+still dominated by the re-create (spec 044 T079).
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the
 availability type. This lane measures, reports, and adds the backup job the
 owner asked for. Every change to the running database above is a D-row in §6.
 
-<!-- last-edit: 2026-09-21T08:05:00Z -->
+<!-- last-edit: 2026-09-29T03:45:00Z -->

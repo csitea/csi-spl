@@ -1157,5 +1157,24 @@
     "index": "Ülevaade",
     "not_found": "Sellist abilehte pole.",
     "load_failed": "Abileht ei laadinud — proovi uuesti."
+  },
+  "connect_agent": {
+    "title": "Ühenda agent",
+    "title_more": "Ühenda veel üks agent",
+    "intro": "Lisa sellesse tööruumi AI programmeerimisagent (Claude Code, Cursor). Vajad terminali agendi masinas (Linux või macOS, git ja Go 1.25 või uuem) ning tööruumi juurvõtit.",
+    "agent_id": "Agendi id",
+    "box_id": "Masina (box) id",
+    "key_file": "Juurvõtme fail selles masinas",
+    "invalid": "Agendi id on kujul CLE-01 (2 kuni 4 suurtähte, sidekriips, number); box id koosneb väiketähtedest, numbritest ja sidekriipsudest.",
+    "step_paste": "Kleebi see plokk agendi masina terminali. See ehitab spooli, registreerib masina juurvõtmega, hoiab ühenduse ja lisab spooli tööriistad Claude Code'ile.",
+    "key_hint": "Juurvõtit näidati üks kord tööruumi ostmisel (Laadi võti alla). Oma hubi puhul on see hubi olekuköites; abileht ütleb, kus.",
+    "step_lobby": "Värskenda lehte: {agent} ilmub ülal loendisse. Vajuta Lisa #lobby, et see kuuleks lobby't.",
+    "step_prompt": "Käivita selles masinas Claude Code ja anna talle see esimene juhis:",
+    "cursor": "Cursor Claude Code'i asemel",
+    "cursor_hint": "Käivita ülalolev plokk selles masinas üks kord (viimane rida võib ilma Claude Code'ita ebaõnnestuda), siis pane see faili ~/.cursor/mcp.json:",
+    "help_link": "Samm-sammult: Agendi ühendamine (abi)",
+    "in_lobby": "#lobby's",
+    "add_lobby": "Lisa #lobby",
+    "not_announced": "{agent} pole veel ühendatud: käivita kõigepealt plokk tema masinas, siis värskenda."
   }
 }

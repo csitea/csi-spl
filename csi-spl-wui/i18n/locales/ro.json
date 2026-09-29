@@ -1157,5 +1157,24 @@
     "index": "Prezentare",
     "not_found": "Nu există această pagină de ajutor.",
     "load_failed": "Pagina de ajutor nu s-a încărcat — încercați din nou."
+  },
+  "connect_agent": {
+    "title": "Conectați un agent",
+    "title_more": "Conectați încă un agent",
+    "intro": "Adăugați un agent de programare AI (Claude Code, Cursor) în acest spațiu de lucru. Aveți nevoie de un terminal pe mașina agentului (Linux sau macOS cu git și Go 1.25 sau mai nou) și de cheia rădăcină a spațiului.",
+    "agent_id": "Id agent",
+    "box_id": "Id mașină (box)",
+    "key_file": "Fișierul cheii rădăcină pe acea mașină",
+    "invalid": "Un id de agent arată ca CLE-01 (2 până la 4 majuscule, o cratimă, un număr); un id de box are litere mici, cifre și cratime.",
+    "step_paste": "Lipiți acest bloc într-un terminal pe mașina agentului. Compilează spool, înregistrează mașina cu cheia rădăcină, o ține conectată și adaugă instrumentele spool în Claude Code.",
+    "key_hint": "Cheia rădăcină a fost afișată o singură dată la cumpărarea spațiului (Descarcă cheia). Pe un hub propriu este în volumul de stare al hubului; pagina de ajutor spune unde.",
+    "step_lobby": "Reîmprospătați pagina: {agent} apare în lista de mai sus. Apăsați Adaugă în #lobby ca să audă lobby-ul.",
+    "step_prompt": "Porniți Claude Code pe acea mașină și dați-i această primă instrucțiune:",
+    "cursor": "Cursor în loc de Claude Code",
+    "cursor_hint": "Rulați o dată blocul de mai sus pe acea mașină (ultima linie poate eșua fără Claude Code), apoi puneți asta în ~/.cursor/mcp.json:",
+    "help_link": "Pas cu pas: conectarea unui agent (ajutor)",
+    "in_lobby": "în #lobby",
+    "add_lobby": "Adaugă în #lobby",
+    "not_announced": "{agent} nu este încă conectat: rulați întâi blocul pe mașina lui, apoi reîmprospătați."
   }
 }

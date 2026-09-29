@@ -1,7 +1,11 @@
 <!-- Tenant settings -> Agents (specs/046 §4.3): the agents seated in the
      tenant with their online state (GET /v1/view/roster), and the fallback
      responder list (SPL-997): the first online one takes a human post no
-     other agent hears. tenant.settings. -->
+     other agent hears. tenant.settings.
+     W12 (spec 047, SPL-1166): "Connect an agent" - the block to paste on the
+     agent's machine (open while none is seated), and per seated agent an
+     "Add to #lobby" (POST /v1/channels/lobby/agents), so the agent hears the
+     tenant's lobby without a detour through the channel's properties. -->
 <template>
   <SettingsSection id="tenant-agents" :title="t('tenant_settings.agents_title')" data-test="tenant-settings-agents">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -14,8 +18,19 @@
           <code class="ts-row__main">{{ s.id }}</code>
           <span class="muted ts-row__sub">{{ s.box }}</span>
           <span class="ts-row__state" data-test="tenant-agent-state">{{ s.online ? t('tenant_settings.online') : t('tenant_settings.offline') }}</span>
+          <span v-if="lobby[s.id + '@' + s.box] === 'ok'" class="ts-row__state ts-ok" data-test="tenant-agent-lobby-ok">{{ t('connect_agent.in_lobby') }}</span>
+          <button
+            v-else
+            type="button"
+            class="btn ghost ts-row__btn"
+            :disabled="lobby[s.id + '@' + s.box] === 'busy'"
+            data-test="tenant-agent-lobby-add"
+            @click="addToLobby(s)"
+          >{{ t('connect_agent.add_lobby') }}</button>
         </li>
       </ul>
+      <p v-if="lobbyError" class="ts-error" role="alert" data-test="tenant-agent-lobby-error">{{ lobbyError }}</p>
+      <ConnectAgentGuide class="ts-connect" :tenant="tenantId" :hub-url="hubUrl" :open="!seats.length" />
     </template>
   </SettingsSection>
 
@@ -86,6 +101,8 @@
 
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
+import ConnectAgentGuide from '~/components/ConnectAgentGuide.vue'
+import { boxHubUrl } from '~/utils/connect-agent.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '~/utils/tenant-settings.mjs'
@@ -96,6 +113,26 @@ const session = useSessionStore()
 
 type Seat = { id: string, box: string, online: boolean }
 const seats = ref<Seat[]>([])
+const tenantId = ref('')
+const config = useRuntimeConfig()
+const hubUrl = computed(() => boxHubUrl(String(config.public.apiBase || ''), import.meta.client ? window.location.origin : '', tenantId.value))
+/* per seat (id@box): '' | 'busy' | 'ok' */
+const lobby = ref<Record<string, string>>({})
+const lobbyError = ref('')
+
+async function addToLobby(s: Seat) {
+  const k = s.id + '@' + s.box
+  lobbyError.value = ''
+  lobby.value = { ...lobby.value, [k]: 'busy' }
+  try {
+    await api.addChannelAgent('lobby', s.id, s.box)
+    lobby.value = { ...lobby.value, [k]: 'ok' }
+  } catch (e) {
+    lobby.value = { ...lobby.value, [k]: '' }
+    const token = (e as { token?: string })?.token || ''
+    lobbyError.value = token === 'not_a_member' ? t('connect_agent.not_announced', { agent: s.id }) : t(tenantSettingsErrorKey(e))
+  }
+}
 const responders = ref<string[]>([])
 const saved = ref<string[]>([])
 const max = ref(20)
@@ -123,6 +160,7 @@ async function load() {
     out.sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id) || a.box.localeCompare(b.box))
     seats.value = out
     const s = normalizeTenantSettings(settings)
+    tenantId.value = s.tenantId
     responders.value = s.responders.slice()
     saved.value = s.responders.slice()
     max.value = s.maxResponders
@@ -178,6 +216,9 @@ watch(() => session.state, (st) => {
 .ts-row__sub { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; }
 .ts-row__state { font-size: 0.8125rem; color: var(--color-muted); }
 .ts-row__n { width: 2ch; color: var(--color-muted); }
+.ts-row__btn { flex: none; padding: 2px 10px; font-size: 0.8125rem; }
+.ts-ok { color: var(--color-ok); }
+.ts-connect { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .ts-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); }
 .ts-dot--on { background: var(--color-ok); }
 .ts-hint { margin: 0 0 10px; }

@@ -1157,5 +1157,24 @@
     "index": "Overview",
     "not_found": "There is no such help page.",
     "load_failed": "The help page did not load — try again."
+  },
+  "connect_agent": {
+    "title": "Connect an agent",
+    "title_more": "Connect another agent",
+    "intro": "Seat an AI coding agent (Claude Code, Cursor) in this workspace. You need a terminal on the agent's machine (Linux or macOS with git and Go 1.25 or newer) and the workspace root key.",
+    "agent_id": "Agent id",
+    "box_id": "Machine (box) id",
+    "key_file": "Root key file on that machine",
+    "invalid": "An agent id looks like CLE-01 (2 to 4 capital letters, a dash, a number); a box id is lowercase letters, digits and dashes.",
+    "step_paste": "Paste this block into a terminal on the agent's machine. It builds spool, seats the machine with the root key, keeps it connected and adds the spool tools to Claude Code.",
+    "key_hint": "The root key was shown once when the workspace was bought (Download key). On a self-hosted hub it is in the hub's state volume; the help page says where.",
+    "step_lobby": "Refresh this page: {agent} appears in the list above. Press Add to #lobby so it hears the lobby.",
+    "step_prompt": "Start Claude Code on that machine and give it this first instruction:",
+    "cursor": "Cursor instead of Claude Code",
+    "cursor_hint": "Run the block above once on that machine (its last line may fail without Claude Code), then put this in ~/.cursor/mcp.json:",
+    "help_link": "Step by step: Connect an agent (help)",
+    "in_lobby": "in #lobby",
+    "add_lobby": "Add to #lobby",
+    "not_announced": "{agent} is not connected yet: run the block on its machine first, then refresh."
   }
 }

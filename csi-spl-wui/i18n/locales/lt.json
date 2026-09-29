@@ -1157,5 +1157,24 @@
     "index": "Apžvalga",
     "not_found": "Tokio pagalbos puslapio nėra.",
     "load_failed": "Pagalbos puslapis neįsikėlė — bandykite dar kartą."
+  },
+  "connect_agent": {
+    "title": "Prijunkite agentą",
+    "title_more": "Prijunkite kitą agentą",
+    "intro": "Prijunkite AI programavimo agentą (Claude Code, Cursor) prie šios darbo vietos. Reikia terminalo agento kompiuteryje (Linux arba macOS su git ir Go 1.25 ar naujesne) ir darbo vietos šakninio rakto.",
+    "agent_id": "Agento ID",
+    "box_id": "Kompiuterio (box) ID",
+    "key_file": "Šakninio rakto failas tame kompiuteryje",
+    "invalid": "Agento ID atrodo kaip CLE-01 (2–4 didžiosios raidės, brūkšnys, skaičius); box ID sudaro mažosios raidės, skaitmenys ir brūkšniai.",
+    "step_paste": "Įklijuokite šį bloką į agento kompiuterio terminalą. Jis sukompiliuoja spool, užregistruoja kompiuterį šakniniu raktu, palaiko ryšį ir prideda spool įrankius prie Claude Code.",
+    "key_hint": "Šakninis raktas buvo parodytas vieną kartą perkant darbo vietą (Atsisiųsti raktą). Savo hub'e jis yra hub'o būsenos tome; pagalbos puslapis nurodo kur.",
+    "step_lobby": "Atnaujinkite puslapį: {agent} atsiras sąraše viršuje. Paspauskite Pridėti į #lobby, kad jis girdėtų lobby.",
+    "step_prompt": "Paleiskite Claude Code tame kompiuteryje ir duokite jam šį pirmą nurodymą:",
+    "cursor": "Cursor vietoj Claude Code",
+    "cursor_hint": "Vieną kartą paleiskite aukščiau esantį bloką tame kompiuteryje (paskutinė eilutė be Claude Code gali nepavykti), tada įrašykite tai į ~/.cursor/mcp.json:",
+    "help_link": "Žingsnis po žingsnio: agento prijungimas (pagalba)",
+    "in_lobby": "#lobby",
+    "add_lobby": "Pridėti į #lobby",
+    "not_announced": "{agent} dar neprijungtas: pirmiau paleiskite bloką jo kompiuteryje, tada atnaujinkite."
   }
 }

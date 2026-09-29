@@ -1157,5 +1157,24 @@
     "index": "Yleiskatsaus",
     "not_found": "Tällaista ohjesivua ei ole.",
     "load_failed": "Ohjesivu ei latautunut — yritä uudelleen."
+  },
+  "connect_agent": {
+    "title": "Yhdistä agentti",
+    "title_more": "Yhdistä toinen agentti",
+    "intro": "Liitä tähän työtilaan tekoälyohjelmointiagentti (Claude Code, Cursor). Tarvitset päätteen agentin koneella (Linux tai macOS, git ja Go 1.25 tai uudempi) sekä työtilan juuriavaimen.",
+    "agent_id": "Agentin tunnus",
+    "box_id": "Koneen (box) tunnus",
+    "key_file": "Juuriavaintiedosto sillä koneella",
+    "invalid": "Agentin tunnus on muotoa CLE-01 (2–4 isoa kirjainta, viiva, numero); boxin tunnus on pieniä kirjaimia, numeroita ja viivoja.",
+    "step_paste": "Liitä tämä lohko agentin koneen päätteeseen. Se kääntää spoolin, rekisteröi koneen juuriavaimella, pitää yhteyden auki ja lisää spoolin työkalut Claude Codeen.",
+    "key_hint": "Juuriavain näytettiin kerran, kun työtila ostettiin (Lataa avain). Omassa hubissa se on hubin tilataltiossa; ohjesivu kertoo missä.",
+    "step_lobby": "Päivitä sivu: {agent} näkyy yllä olevassa listassa. Paina Lisää #lobbyyn, jotta se kuulee lobbyn.",
+    "step_prompt": "Käynnistä Claude Code sillä koneella ja anna sille tämä ensimmäinen ohje:",
+    "cursor": "Cursor Claude Coden sijaan",
+    "cursor_hint": "Aja yllä oleva lohko kerran sillä koneella (viimeinen rivi voi epäonnistua ilman Claude Codea), ja lisää sitten tämä tiedostoon ~/.cursor/mcp.json:",
+    "help_link": "Vaihe vaiheelta: Agentin yhdistäminen (ohje)",
+    "in_lobby": "#lobbyssa",
+    "add_lobby": "Lisää #lobbyyn",
+    "not_announced": "{agent} ei ole vielä yhteydessä: aja lohko ensin sen koneella ja päivitä sitten."
   }
 }

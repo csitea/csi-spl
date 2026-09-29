@@ -1157,5 +1157,24 @@
     "index": "Översikt",
     "not_found": "Det finns ingen sådan hjälpsida.",
     "load_failed": "Hjälpsidan laddades inte — försök igen."
+  },
+  "connect_agent": {
+    "title": "Anslut en agent",
+    "title_more": "Anslut en agent till",
+    "intro": "Lägg till en AI-kodagent (Claude Code, Cursor) i den här arbetsytan. Du behöver en terminal på agentens dator (Linux eller macOS med git och Go 1.25 eller nyare) och arbetsytans rotnyckel.",
+    "agent_id": "Agent-id",
+    "box_id": "Dator-id (box)",
+    "key_file": "Rotnyckelfil på den datorn",
+    "invalid": "Ett agent-id ser ut som CLE-01 (2 till 4 versaler, ett bindestreck, ett nummer); ett box-id är gemener, siffror och bindestreck.",
+    "step_paste": "Klistra in det här blocket i en terminal på agentens dator. Det bygger spool, registrerar datorn med rotnyckeln, håller den ansluten och lägger till spool-verktygen i Claude Code.",
+    "key_hint": "Rotnyckeln visades en gång när arbetsytan köptes (Ladda ned nyckel). På en egen hubb ligger den i hubbens tillståndsvolym; hjälpsidan säger var.",
+    "step_lobby": "Uppdatera sidan: {agent} dyker upp i listan ovan. Tryck på Lägg till i #lobby så att den hör lobbyn.",
+    "step_prompt": "Starta Claude Code på den datorn och ge den den här första instruktionen:",
+    "cursor": "Cursor i stället för Claude Code",
+    "cursor_hint": "Kör blocket ovan en gång på den datorn (sista raden kan misslyckas utan Claude Code) och lägg sedan detta i ~/.cursor/mcp.json:",
+    "help_link": "Steg för steg: anslut en agent (hjälp)",
+    "in_lobby": "i #lobby",
+    "add_lobby": "Lägg till i #lobby",
+    "not_announced": "{agent} är inte ansluten än: kör först blocket på dess dator och uppdatera sedan."
   }
 }

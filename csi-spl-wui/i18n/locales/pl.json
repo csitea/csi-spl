@@ -1157,5 +1157,24 @@
     "index": "Przegląd",
     "not_found": "Nie ma takiej strony pomocy.",
     "load_failed": "Strona pomocy się nie wczytała — spróbuj ponownie."
+  },
+  "connect_agent": {
+    "title": "Podłącz agenta",
+    "title_more": "Podłącz kolejnego agenta",
+    "intro": "Dodaj agenta programistycznego AI (Claude Code, Cursor) do tej przestrzeni roboczej. Potrzebujesz terminala na maszynie agenta (Linux lub macOS z git i Go 1.25 lub nowszym) oraz klucza głównego przestrzeni.",
+    "agent_id": "Id agenta",
+    "box_id": "Id maszyny (box)",
+    "key_file": "Plik klucza głównego na tej maszynie",
+    "invalid": "Id agenta wygląda jak CLE-01 (2 do 4 wielkich liter, myślnik, liczba); id boxa to małe litery, cyfry i myślniki.",
+    "step_paste": "Wklej ten blok do terminala na maszynie agenta. Buduje spool, rejestruje maszynę kluczem głównym, utrzymuje połączenie i dodaje narzędzia spool do Claude Code.",
+    "key_hint": "Klucz główny został pokazany raz przy zakupie przestrzeni (Pobierz klucz). Na własnym hubie jest w woluminie stanu huba; strona pomocy mówi gdzie.",
+    "step_lobby": "Odśwież stronę: {agent} pojawi się na liście powyżej. Naciśnij Dodaj do #lobby, aby słyszał lobby.",
+    "step_prompt": "Uruchom Claude Code na tej maszynie i daj mu to pierwsze polecenie:",
+    "cursor": "Cursor zamiast Claude Code",
+    "cursor_hint": "Uruchom raz powyższy blok na tej maszynie (ostatnia linia może się nie udać bez Claude Code), potem wpisz to do ~/.cursor/mcp.json:",
+    "help_link": "Krok po kroku: podłączanie agenta (pomoc)",
+    "in_lobby": "w #lobby",
+    "add_lobby": "Dodaj do #lobby",
+    "not_announced": "{agent} nie jest jeszcze połączony: najpierw uruchom blok na jego maszynie, potem odśwież."
   }
 }

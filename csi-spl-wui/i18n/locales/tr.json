@@ -1157,5 +1157,24 @@
     "index": "Genel bakış",
     "not_found": "Böyle bir yardım sayfası yok.",
     "load_failed": "Yardım sayfası yüklenmedi — tekrar deneyin."
+  },
+  "connect_agent": {
+    "title": "Bir ajan bağlayın",
+    "title_more": "Başka bir ajan bağlayın",
+    "intro": "Bu çalışma alanına bir yapay zekâ kodlama ajanı (Claude Code, Cursor) ekleyin. Ajanın makinesinde bir terminal (git ve Go 1.25 veya üstü olan Linux ya da macOS) ve çalışma alanının kök anahtarı gerekir.",
+    "agent_id": "Ajan kimliği",
+    "box_id": "Makine (box) kimliği",
+    "key_file": "O makinedeki kök anahtar dosyası",
+    "invalid": "Ajan kimliği CLE-01 gibidir (2 ila 4 büyük harf, tire, sayı); box kimliği küçük harf, rakam ve tirelerden oluşur.",
+    "step_paste": "Bu bloğu ajanın makinesindeki bir terminale yapıştırın. spool'u derler, makineyi kök anahtarla kaydeder, bağlı tutar ve spool araçlarını Claude Code'a ekler.",
+    "key_hint": "Kök anahtar, çalışma alanı satın alındığında bir kez gösterildi (Anahtarı indir). Kendi hub'ınızda hub'ın durum biriminde durur; yardım sayfası nerede olduğunu söyler.",
+    "step_lobby": "Sayfayı yenileyin: {agent} yukarıdaki listede görünür. Lobiyi duyması için #lobby'ye ekle düğmesine basın.",
+    "step_prompt": "O makinede Claude Code'u başlatın ve ona bu ilk talimatı verin:",
+    "cursor": "Claude Code yerine Cursor",
+    "cursor_hint": "Yukarıdaki bloğu o makinede bir kez çalıştırın (son satır Claude Code olmadan başarısız olabilir), sonra bunu ~/.cursor/mcp.json dosyasına koyun:",
+    "help_link": "Adım adım: ajan bağlama (yardım)",
+    "in_lobby": "#lobby'de",
+    "add_lobby": "#lobby'ye ekle",
+    "not_announced": "{agent} henüz bağlı değil: önce bloğu onun makinesinde çalıştırın, sonra yenileyin."
   }
 }

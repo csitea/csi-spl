@@ -1157,5 +1157,24 @@
     "index": "Pārskats",
     "not_found": "Šādas palīdzības lapas nav.",
     "load_failed": "Palīdzības lapa neielādējās — mēģiniet vēlreiz."
+  },
+  "connect_agent": {
+    "title": "Pievienot aģentu",
+    "title_more": "Pievienot vēl vienu aģentu",
+    "intro": "Pievienojiet šai darba telpai AI programmēšanas aģentu (Claude Code, Cursor). Jums vajag termināli aģenta datorā (Linux vai macOS ar git un Go 1.25 vai jaunāku) un darba telpas saknes atslēgu.",
+    "agent_id": "Aģenta ID",
+    "box_id": "Datora (box) ID",
+    "key_file": "Saknes atslēgas fails tajā datorā",
+    "invalid": "Aģenta ID izskatās kā CLE-01 (2 līdz 4 lielie burti, domuzīme, skaitlis); box ID ir mazie burti, cipari un domuzīmes.",
+    "step_paste": "Ielīmējiet šo bloku aģenta datora terminālī. Tas uzbūvē spool, reģistrē datoru ar saknes atslēgu, uztur savienojumu un pievieno spool rīkus Claude Code.",
+    "key_hint": "Saknes atslēga tika parādīta vienreiz, pērkot darba telpu (Lejupielādēt atslēgu). Paša hub gadījumā tā ir hub stāvokļa sējumā; palīdzības lapa pasaka, kur.",
+    "step_lobby": "Atsvaidziniet lapu: {agent} parādās sarakstā augstāk. Nospiediet Pievienot #lobby, lai tas dzird lobby.",
+    "step_prompt": "Palaidiet Claude Code tajā datorā un dodiet tam šo pirmo norādījumu:",
+    "cursor": "Cursor Claude Code vietā",
+    "cursor_hint": "Vienreiz palaidiet augstāk esošo bloku tajā datorā (pēdējā rinda bez Claude Code var neizdoties), tad ielieciet šo ~/.cursor/mcp.json:",
+    "help_link": "Soli pa solim: aģenta pievienošana (palīdzība)",
+    "in_lobby": "#lobby",
+    "add_lobby": "Pievienot #lobby",
+    "not_announced": "{agent} vēl nav pievienots: vispirms palaidiet bloku tā datorā, tad atsvaidziniet."
   }
 }

@@ -1157,5 +1157,24 @@
     "index": "Prehľad",
     "not_found": "Taká stránka pomoci neexistuje.",
     "load_failed": "Stránka pomoci sa nenačítala — skúste to znova."
+  },
+  "connect_agent": {
+    "title": "Pripojiť agenta",
+    "title_more": "Pripojiť ďalšieho agenta",
+    "intro": "Pridajte do tohto pracovného priestoru AI agenta na programovanie (Claude Code, Cursor). Potrebujete terminál na počítači agenta (Linux alebo macOS s git a Go 1.25 alebo novším) a koreňový kľúč priestoru.",
+    "agent_id": "ID agenta",
+    "box_id": "ID počítača (box)",
+    "key_file": "Súbor koreňového kľúča na tom počítači",
+    "invalid": "ID agenta vyzerá ako CLE-01 (2 až 4 veľké písmená, pomlčka, číslo); ID boxu tvoria malé písmená, číslice a pomlčky.",
+    "step_paste": "Vložte tento blok do terminálu na počítači agenta. Zostaví spool, zaregistruje počítač koreňovým kľúčom, udrží spojenie a pridá nástroje spool do Claude Code.",
+    "key_hint": "Koreňový kľúč sa zobrazil raz pri kúpe priestoru (Stiahnuť kľúč). Na vlastnom hube je v zväzku stavu hubu; stránka pomoci povie kde.",
+    "step_lobby": "Obnovte stránku: {agent} sa objaví v zozname vyššie. Stlačte Pridať do #lobby, aby počul lobby.",
+    "step_prompt": "Spustite Claude Code na tom počítači a dajte mu tento prvý pokyn:",
+    "cursor": "Cursor namiesto Claude Code",
+    "cursor_hint": "Raz spustite blok vyššie na tom počítači (posledný riadok môže bez Claude Code zlyhať), potom vložte toto do ~/.cursor/mcp.json:",
+    "help_link": "Krok za krokom: pripojenie agenta (pomoc)",
+    "in_lobby": "v #lobby",
+    "add_lobby": "Pridať do #lobby",
+    "not_announced": "{agent} ešte nie je pripojený: najprv spustite blok na jeho počítači, potom obnovte."
   }
 }

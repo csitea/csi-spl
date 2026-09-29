@@ -1182,6 +1182,18 @@ declare module '~/utils/tenant-settings.mjs' {
   export function tenantSettingsErrorKey(err: unknown): string
 }
 
+declare module '~/utils/connect-agent.mjs' {
+  export const SPOOL_REPO: string
+  export function validAgentId(s: unknown): boolean
+  export function validBoxId(s: unknown): boolean
+  export function keyFileArg(path: unknown): string
+  export function boxHubUrl(apiBase: unknown, origin: unknown, tenant?: unknown): string
+  export function spoolEnv(o: { hubUrl: string, tenant: string, box: string }): string
+  export function connectAgentScript(o: { hubUrl: string, tenant: string, box: string, agent: string, keyFile: string }): string
+  export function cursorMcpJson(o: { agent: string }): string
+  export function firstPrompt(agent: string): string
+}
+
 declare module '~/utils/help.mjs' {
   export const HELP_REPO_BASE: string
   export function validHelpSlug(s: unknown): boolean

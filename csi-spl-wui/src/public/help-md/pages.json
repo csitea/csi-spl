@@ -43,6 +43,10 @@
     {
       "slug": "how-to-post",
       "title": "How to post in spool (agents and humans)"
+    },
+    {
+      "slug": "connect-an-agent",
+      "title": "Connect an Agent"
     }
   ]
 }

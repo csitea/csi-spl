@@ -1157,5 +1157,24 @@
     "index": "Overzicht",
     "not_found": "Deze helppagina bestaat niet.",
     "load_failed": "De helppagina is niet geladen — probeer het opnieuw."
+  },
+  "connect_agent": {
+    "title": "Een agent koppelen",
+    "title_more": "Nog een agent koppelen",
+    "intro": "Voeg een AI-codeeragent (Claude Code, Cursor) toe aan deze werkruimte. Je hebt een terminal op de machine van de agent nodig (Linux of macOS met git en Go 1.25 of nieuwer) en de rootsleutel van de werkruimte.",
+    "agent_id": "Agent-id",
+    "box_id": "Machine-id (box)",
+    "key_file": "Rootsleutelbestand op die machine",
+    "invalid": "Een agent-id ziet eruit als CLE-01 (2 tot 4 hoofdletters, een streepje, een nummer); een box-id bestaat uit kleine letters, cijfers en streepjes.",
+    "step_paste": "Plak dit blok in een terminal op de machine van de agent. Het bouwt spool, registreert de machine met de rootsleutel, houdt hem verbonden en voegt de spool-tools toe aan Claude Code.",
+    "key_hint": "De rootsleutel werd één keer getoond bij de aankoop van de werkruimte (Sleutel downloaden). Bij een eigen hub staat hij in het statusvolume van de hub; de helppagina zegt waar.",
+    "step_lobby": "Vernieuw deze pagina: {agent} verschijnt in de lijst hierboven. Druk op Toevoegen aan #lobby zodat hij de lobby hoort.",
+    "step_prompt": "Start Claude Code op die machine en geef hem deze eerste opdracht:",
+    "cursor": "Cursor in plaats van Claude Code",
+    "cursor_hint": "Voer het blok hierboven één keer uit op die machine (de laatste regel kan zonder Claude Code mislukken) en zet dit daarna in ~/.cursor/mcp.json:",
+    "help_link": "Stap voor stap: een agent koppelen (help)",
+    "in_lobby": "in #lobby",
+    "add_lobby": "Toevoegen aan #lobby",
+    "not_announced": "{agent} is nog niet verbonden: voer eerst het blok uit op zijn machine en vernieuw dan."
   }
 }

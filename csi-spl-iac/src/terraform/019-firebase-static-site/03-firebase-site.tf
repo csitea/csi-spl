@@ -77,3 +77,25 @@ resource "google_firebase_hosting_custom_domain" "additional" {
     }
   }
 }
+
+
+resource "google_firebase_hosting_custom_domain" "redirect" {
+  for_each = var.bind_custom_domain ? toset(var.redirect_fqdns) : toset([])
+
+  provider              = google-beta
+  project               = var.gcp_project
+  site_id               = google_firebase_hosting_site.default.site_id
+  custom_domain         = each.value
+  redirect_target       = var.fqdn
+  cert_preference       = var.cert_preference
+  wait_dns_verification = var.wait_dns_verification
+
+  depends_on = [google_firebase_hosting_custom_domain.default]
+
+  lifecycle {
+    precondition {
+      condition     = each.value != var.fqdn && !contains(var.additional_fqdns, each.value)
+      error_message = "redirect_fqdns must not contain var.fqdn or an additional_fqdns entry: a domain either serves the site or redirects to it."
+    }
+  }
+}

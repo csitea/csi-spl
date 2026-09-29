@@ -15,4 +15,11 @@ wait_dns_verification = false
 {%- set ns.extra = ns.extra + [t ~ "." ~ dns["fqdn"]] %}
 {%- endfor %}
 additional_fqdns = {{ ns.extra | tojson }}
+{#- owner 2026-09-29 (e802196b): env.dns.redirect_hosts (e.g. www) are custom
+    domains that 301-redirect to the fqdn; their A + TXT are 025's #}
+{%- set rd = namespace(list=[]) %}
+{%- for h in (dns.get("redirect_hosts") or []) %}
+{%- set rd.list = rd.list + [h ~ "." ~ dns["fqdn"]] %}
+{%- endfor %}
+redirect_fqdns = {{ rd.list | tojson }}
 bind_custom_domain = {{ steps["019-firebase-static-site"].get("bind_custom_domain", false) | tojson }}

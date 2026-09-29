@@ -13,5 +13,10 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
     (019), as the apex: A 199.36.158.100 + TXT hosting-site=<site> #}
 {%- set ns.recs = ns.recs + [{"name": t, "type": "A", "rrdatas": ["199.36.158.100"]}, {"name": t, "type": "TXT", "rrdatas": ["\"hosting-site=" ~ ORG ~ "-" ~ APP ~ "-" ~ ENV ~ "-site\""]}] %}
 {%- endfor %}
+{%- for h in (dns.get("redirect_hosts") or []) %}
+{#- owner 2026-09-29 (e802196b): a redirect host (019 redirect_fqdns) is a
+    Firebase custom domain too: the same A + TXT hosting-site as a tenant host #}
+{%- set ns.recs = ns.recs + [{"name": h, "type": "A", "rrdatas": ["199.36.158.100"]}, {"name": h, "type": "TXT", "rrdatas": ["\"hosting-site=" ~ ORG ~ "-" ~ APP ~ "-" ~ ENV ~ "-site\""]}] %}
+{%- endfor %}
 cloud_run_mapping_records = {{ ns.recs | tojson }}
 fqdn = {{ dns["fqdn"] | tojson }}

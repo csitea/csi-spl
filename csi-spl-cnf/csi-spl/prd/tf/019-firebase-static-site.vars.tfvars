@@ -9,4 +9,5 @@ site_id = "csi-spl-prd-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
 additional_fqdns = ["leiden.spool-hub.ai", "csi-rel.spool-hub.ai", "csitea.spool-hub.ai", "luka.spool-hub.ai", "ora-cam.spool-hub.ai", "pas-psf.spool-hub.ai", "spool.spool-hub.ai", "e2e.spool-hub.ai", "bnc-cpt.spool-hub.ai"]
+redirect_fqdns = ["www.spool-hub.ai"]
 bind_custom_domain = true

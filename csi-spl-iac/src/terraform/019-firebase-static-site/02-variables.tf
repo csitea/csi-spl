@@ -86,3 +86,19 @@ variable "additional_fqdns" {
     error_message = "additional_fqdns must not repeat a domain."
   }
 }
+
+# Hosts that only REDIRECT to var.fqdn (owner 2026-09-29, topic e802196b: "you
+# should fix the infra too" - www.<apex> had no DNS). Each is a Firebase custom
+# domain with redirect_target = var.fqdn: Hosting answers 301 to https://<fqdn>,
+# keeping path and query. Its DNS (A + TXT hosting-site) is 025's, rendered from
+# the same cnf list env.dns.redirect_hosts.
+variable "redirect_fqdns" {
+  type        = list(string)
+  description = "Custom domains that 301-redirect to var.fqdn (cnf env.dns.redirect_hosts, e.g. www). Default empty."
+  default     = []
+
+  validation {
+    condition     = length(var.redirect_fqdns) == length(distinct(var.redirect_fqdns))
+    error_message = "redirect_fqdns must not repeat a domain."
+  }
+}

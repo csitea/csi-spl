@@ -72,12 +72,51 @@ var (
 	builtAt = "unknown"
 )
 
+// usage names every verb run() dispatches (specs/047 W17: a stranger found
+// hub-pin / hub-sync only in the Go source). TestUsageNamesEveryVerb keeps it
+// in step with the switch below.
+const usage = `usage: spool <verb> [flags]      (spool <verb> -h lists a verb's flags)
+
+on a box (an agent's machine):
+  keygen              make this box's signing key (prints the PUBLIC key)
+  pin                 pin a box key locally; with --root-key also at the hub
+  send                send a message (hub mode: --channel posts a new topic)
+  recv                read this box's inbox
+  put-file, put-dir   store a file / a directory as a blob
+  get-file, get-dir   fetch a blob to a path
+  tail                follow the local spool
+  mcp                 serve the spool tools over MCP on stdio (--as <agent>)
+  issue               list, get, create, update, comment, label, delete issues
+  edit, delete        edit or delete a message this box sent
+
+a box and its hub ($SPOOL_HUB_URL):
+  hub-pin             pin (or --revoke) a box key at the hub, signed by the
+                      tenant root key: --root-key <file | key text | - = stdin>
+  hub-sync            one session: push the outbox, pull the inbox
+  hub-run             the same, held open until signalled (the box sidecar)
+  hub-tail            print a topic from the hub (--follow keeps printing)
+  hub-get-file        fetch a file by id from the hub into the local blob store
+
+running a hub:
+  serve               run the hub (configured by SPOOL_HUB_* env vars)
+  migrate             apply the schema migrations
+  root-keygen         make a tenant root key pair (private key 0600, never printed)
+  hub-tenant          create a tenant with its root public key
+  hub-tenant-billing  set a tenant's billing status
+  hub-invite          invite an email address into a tenant
+  hub-invite-mail     send (or resend) an invite's mail
+  version             print the version
+`
+
 func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: spool <keygen|pin|send|recv|put-file|put-dir|get-file|get-dir|tail|mcp|version> ...")
-		return 1
+	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		fmt.Fprint(os.Stderr, usage)
+		if len(args) == 0 {
+			return 1
+		}
+		return 0
 	}
 	cmd, rest := args[0], args[1:]
 
@@ -177,7 +216,7 @@ func cmdPin(cfg *config.Config, args []string) int {
 	pub := fs.String("pubkey", "", "base64 box public key")
 	force := fs.Bool("force", false, "replace an existing different pin")
 	revoke := fs.Bool("revoke", false, "remove the local pin and DELETE /v1/pins when a root key is set")
-	rootKey := fs.String("root-key", cfg.TenantRootKey, "tenant root private key (POST/DELETE /v1/pins); default $SPOOL_TENANT_ROOT_KEY")
+	rootKey := fs.String("root-key", cfg.TenantRootKey, "tenant root private key (POST/DELETE /v1/pins): a file, the key text, or - for stdin; default $SPOOL_TENANT_ROOT_KEY")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}

@@ -19,8 +19,8 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// PinArgs are the inputs of spool-pin. RootKey is a path to the tenant root
-// private key (--root-key / $SPOOL_TENANT_ROOT_KEY). HTTP is an optional
+// PinArgs are the inputs of spool-pin. RootKey is the tenant root private key
+// (--root-key / $SPOOL_TENANT_ROOT_KEY) as ReadRootKey takes it. HTTP is an optional
 // client (tests inject the in-process hub transport).
 type PinArgs struct {
 	Box, PubKey, RootKey string
@@ -54,19 +54,48 @@ func Pin(cfg *config.Config, in PinArgs) error {
 	return err
 }
 
-// PublishPin POSTs or DELETEs /v1/pins signed by the tenant root key at RootKey.
-// It does not touch the local pin file (hub-pin). The private key is never sent.
-func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
-	if cfg.HubURL == "" || !msg.ValidBoxID(in.Box) || in.RootKey == "" || (in.PubKey == "") != in.Revoke {
-		return nil, fmt.Errorf("$SPOOL_HUB_URL, --box, --root-key and exactly one of --pubkey / --revoke are required")
+// ReadRootKey resolves --root-key (specs/047 W17): "-" reads the key from
+// stdin, an existing file is read, and anything else must be the base64 key
+// text itself, pasted from wherever the tenant admin keeps it. An error never
+// echoes the value, which may be the key.
+func ReadRootKey(v string, stdin io.Reader) (ed25519.PrivateKey, error) {
+	var raw []byte
+	var err error
+	src := "the --root-key text"
+	switch {
+	case v == "-":
+		src = "the root key on stdin"
+		raw, err = io.ReadAll(io.LimitReader(stdin, 4<<10))
+	case fileExists(v):
+		src = v
+		raw, err = os.ReadFile(v)
+	default:
+		raw = []byte(v)
 	}
-	raw, err := os.ReadFile(in.RootKey)
 	if err != nil {
 		return nil, err
 	}
 	priv, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
 	if err != nil || len(priv) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("%s is not a base64 ed25519 private key", in.RootKey)
+		return nil, fmt.Errorf("%s is not a base64 ed25519 private key (nor a readable file)", src)
+	}
+	return priv, nil
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+// PublishPin POSTs or DELETEs /v1/pins signed by the tenant root key RootKey.
+// It does not touch the local pin file (hub-pin). The private key is never sent.
+func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
+	if cfg.HubURL == "" || !msg.ValidBoxID(in.Box) || in.RootKey == "" || (in.PubKey == "") != in.Revoke {
+		return nil, fmt.Errorf("$SPOOL_HUB_URL, --box, --root-key and exactly one of --pubkey / --revoke are required")
+	}
+	priv, err := ReadRootKey(in.RootKey, os.Stdin)
+	if err != nil {
+		return nil, err
 	}
 	// Sub-second ts: the hub requires each pin op to be later than the last one
 	// (004 pin-semantics §5), so two ops in one second must still order.

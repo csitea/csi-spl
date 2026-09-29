@@ -607,7 +607,7 @@ func cmdHubPin(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("hub-pin", flag.ContinueOnError)
 	box := fs.String("box", "", "box id")
 	pubkey := fs.String("pubkey", "", "base64 box public key (not with --revoke)")
-	rootKey := fs.String("root-key", cfg.TenantRootKey, "path to the tenant root private key (default $SPOOL_TENANT_ROOT_KEY)")
+	rootKey := fs.String("root-key", cfg.TenantRootKey, "the tenant root private key: a file, the key text, or - for stdin (default $SPOOL_TENANT_ROOT_KEY)")
 	force := fs.Bool("force", false, "replace a different existing key")
 	revoke := fs.Bool("revoke", false, "revoke the box's pin")
 	if err := fs.Parse(args); err != nil {

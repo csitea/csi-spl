@@ -200,8 +200,33 @@ function decodeEntities(s) {
   })
 }
 
+/* The attribute and close-tag matchers are built from a FIXED, tiny name set
+   (cellAttrs asks for style/align/colspan/rowspan; the close matcher for the
+   HTML_DROP tags), so compile each once and reuse it. A table cell hit
+   `new RegExp` four times per cell — pure recompilation on the hot path. The
+   patterns carry no `g` flag, so `.exec` keeps no state and reuse is safe. */
+const ATTR_RE = new Map()
+function attrRe(name) {
+  let re = ATTR_RE.get(name)
+  if (!re) {
+    re = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i')
+    ATTR_RE.set(name, re)
+  }
+  return re
+}
+
+const CLOSE_RE = new Map()
+function closeRe(name) {
+  let re = CLOSE_RE.get(name)
+  if (!re) {
+    re = new RegExp(`</${name}\\s*>`, 'i')
+    CLOSE_RE.set(name, re)
+  }
+  return re
+}
+
 function attrOf(attrs, name) {
-  const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i').exec(attrs)
+  const m = attrRe(name).exec(attrs)
   return m ? (m[1] ?? m[2] ?? m[3] ?? '') : ''
 }
 
@@ -237,7 +262,7 @@ export function htmlTableNodes(html) {
     if (m[2] === undefined) continue
     const name = m[2].toLowerCase()
     if (!m[1] && HTML_DROP.has(name)) {
-      const c = new RegExp(`</${name}\\s*>`, 'i').exec(s.slice(last))
+      const c = closeRe(name).exec(s.slice(last))
       last = c ? last + c.index + c[0].length : s.length
       re.lastIndex = last
       continue

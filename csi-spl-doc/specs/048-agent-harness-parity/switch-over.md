@@ -43,11 +43,16 @@ orchestrator has not seen yet: its spool inbox (`*.json`) and, with
 moved; a seen-mark per id makes the next call show only newer reports
 (`--peek` leaves the mark).
 
-3.3 **One spool root.** New agents must share the orchestrator's mailbox, so
-the csi-spl harness spawns into the orchestrator's desk root:
-`SPOOL_ROOT=<box user home>/.local/share/csi-spl/cloud/prd/desk/t1/box-desk/spool`,
-`SPOOL_ORCHESTRATOR_ID=<ORC-ID>`. The rendered launcher commands carry both
-(install.sh renders `{{SPOOL_ROOT}}` and `{{ORCHESTRATOR_ID}}` from the env).
+3.3 **One spool root: `/var/spool-hub`**, the harness default. It is mode
+2770, group `spool-agents`, which holds both the box user and the agent user,
+so an agent running as the agent user and the orchestrator share it. The
+desk's own root (`<box user home>/.local/share/csi-spl/cloud/<env>/desk/...`)
+is NOT usable for this: it is 0700 to the box user because it holds the box
+key (measured 2026-09-29), so an agent could neither read its inbox nor
+answer there. The orchestrator gets a mailbox in it once
+(`next-agent-id.sh --claim <ORC-ID>`, done for CLE-001 on 2026-09-29), spawns
+with `SPOOL_ORCHESTRATOR_ID=<ORC-ID>`, and reads reports with
+`agent-inbox.sh --as <ORC-ID>`. Its desk seat (the web UI leg) is unchanged.
 
 3.4 Tests: `tests/test-agent-send.sh` (29 checks: both routes, an old agent
 with a desk spool dir still goes legacy, pass-through exit codes, no mailbox
@@ -63,6 +68,20 @@ with a desk spool dir still goes legacy, pass-through exit codes, no mailbox
 - an older agent (spawned by the frozen engine) reached through
   `agent-send.sh` (via legacy), poke shown in its pane
 
+PROOF RUN 2026-09-29 (n=1 each, trunk `49e0401a`, this box's tmux server):
+- throwaway `CLE-9048` spawned by the csi-spl `spawn-window.sh claude` into
+  `/var/spool-hub` as the agent user, orchestrator CLE-001: it sent
+  `hello from CLE-9048` at 06:02:19Z; `agent-send.sh --from CLE-001 CLE-9048`
+  printed `via: spool (CLE-9048 is in /var/spool-hub/registry.tsv)`,
+  `poke: %202`, rc 0 at 06:02:26Z; it answered `pong 3e775b3b...` on the SAME
+  task at 06:02:35Z; `agent-inbox.sh --as CLE-001` listed both (`new: 2
+  spool`); closed with `tmux-close-window.sh --agent CLE-9048`
+- an older agent (CLE-35090, spawned by the frozen engine):
+  `agent-send.sh --from CLE-001 CLE-35090` printed `via: legacy`, the frozen
+  sender wrote the `.md` file and poked the pane ("prompt verified clear"),
+  rc 0, and the agent read it. The frozen sender still writes the sender as
+  `CLE-01` for `CLE-001` (its two-digit normalising, unchanged from today)
+
 4.2 Parity green on the trunk tree the box will run:
 
 ```bash
@@ -76,7 +95,7 @@ in the blocker topic; wait for its confirmation. Quiet window: after 19:00Z.
 reads to `agent-inbox.sh`, with this env in its session:
 
 ```bash
-export SPOOL_ROOT=<desk spool root> SPOOL_ORCHESTRATOR_ID=<ORC-ID> SPOOL_LEGACY_INBOX_ROOT=<legacy message root> SPOOL_LEGACY_SEND=<frozen engine>/ysg-box-orc/src/bash/features/spawn-agents/scripts/inbox-send.sh
+export SPOOL_ROOT=/var/spool-hub SPOOL_ORCHESTRATOR_ID=<ORC-ID> SPOOL_LEGACY_INBOX_ROOT=<legacy message root> SPOOL_LEGACY_SEND=<frozen engine>/ysg-box-orc/src/bash/features/spawn-agents/scripts/inbox-send.sh
 ```
 
 4.5 As the agent user, move the frozen engine's rendered commands and skills
@@ -91,7 +110,7 @@ ts=$(date -u +%Y%m%dT%H%M%SZ); mkdir -p ~/.claude/.pre-048-$ts && cd ~/.claude &
 no CLI changes):
 
 ```bash
-SPOOL_ROOT=<desk spool root> SPOOL_ORCHESTRATOR_ID=<ORC-ID> bash <csi-spl checkout>/csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --no-hooks
+SPOOL_ROOT=/var/spool-hub SPOOL_ORCHESTRATOR_ID=<ORC-ID> bash <csi-spl checkout>/csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --no-hooks
 ```
 
 4.7 Add the tmux line the installer printed to the box user's `~/.tmux.conf`,

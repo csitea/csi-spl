@@ -7,12 +7,20 @@ function when(m) {
   return String((m && (m.received_at || m.ts)) || '')
 }
 
+/* Decorate-sort-undecorate: each row's sort keys (`when`/`activityOf` and the
+   msg_id) are computed ONCE, not re-derived on every one of the O(n log n)
+   comparisons. localeCompare and the msg_id tie-break are unchanged, so the
+   order is identical - only the per-comparison string coercion is dropped. */
+
 /** Newest first; ties broken by msg_id so the order is stable. */
 export function newestFirst(messages) {
-  return (messages || []).slice().sort((a, b) => {
-    const c = when(b).localeCompare(when(a))
-    return c !== 0 ? c : String(b.msg_id || '').localeCompare(String(a.msg_id || ''))
-  })
+  return (messages || [])
+    .map((m) => ({ m, k: when(m), id: String(m.msg_id || '') }))
+    .sort((a, b) => {
+      const c = b.k.localeCompare(a.k)
+      return c !== 0 ? c : b.id.localeCompare(a.id)
+    })
+    .map((d) => d.m)
 }
 
 /**
@@ -28,10 +36,13 @@ export function activityOf(row) {
 
 /** Newest ACTIVITY first (activityOf); ties broken by msg_id so it is stable. */
 export function newestActivityFirst(rows) {
-  return (rows || []).slice().sort((a, b) => {
-    const c = activityOf(b).localeCompare(activityOf(a))
-    return c !== 0 ? c : String(b.msg_id || '').localeCompare(String(a.msg_id || ''))
-  })
+  return (rows || [])
+    .map((row) => ({ row, k: activityOf(row), id: String(row.msg_id || '') }))
+    .sort((a, b) => {
+      const c = b.k.localeCompare(a.k)
+      return c !== 0 ? c : b.id.localeCompare(a.id)
+    })
+    .map((d) => d.row)
 }
 
 /** The first `count` rows of a newest-first list, and whether older ones remain. */

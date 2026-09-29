@@ -172,7 +172,8 @@
         "generic": "Kažkas nepavyko — bandykite dar kartą."
       }
     },
-    "notifications": "Pranešimai"
+    "notifications": "Pranešimai",
+    "per_tenant_note": "Šie nustatymai taikomi {tenant}."
   },
   "auth": {
     "error": {

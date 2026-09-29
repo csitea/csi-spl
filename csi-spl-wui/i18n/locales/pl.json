@@ -172,7 +172,8 @@
         "generic": "Coś poszło nie tak — spróbuj ponownie."
       }
     },
-    "notifications": "Powiadomienia"
+    "notifications": "Powiadomienia",
+    "per_tenant_note": "Te ustawienia dotyczą {tenant}."
   },
   "auth": {
     "error": {

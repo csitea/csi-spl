@@ -172,7 +172,8 @@
         "generic": "Нешто тргна наопаку — обидете се повторно."
       }
     },
-    "notifications": "Известувања"
+    "notifications": "Известувања",
+    "per_tenant_note": "Овие поставки важат за {tenant}."
   },
   "auth": {
     "error": {

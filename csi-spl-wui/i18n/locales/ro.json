@@ -172,7 +172,8 @@
         "generic": "Ceva nu a mers bine — încercați din nou."
       }
     },
-    "notifications": "Notificări"
+    "notifications": "Notificări",
+    "per_tenant_note": "Aceste setări se aplică pentru {tenant}."
   },
   "auth": {
     "error": {

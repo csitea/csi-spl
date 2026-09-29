@@ -172,7 +172,8 @@
         "generic": "Bir şeyler ters gitti — tekrar deneyin."
       }
     },
-    "notifications": "Bildirimler"
+    "notifications": "Bildirimler",
+    "per_tenant_note": "Bu ayarlar {tenant} için geçerlidir."
   },
   "auth": {
     "error": {

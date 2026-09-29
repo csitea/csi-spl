@@ -172,7 +172,8 @@
         "generic": "Nešto nije u redu — pokušajte ponovo."
       }
     },
-    "notifications": "Обавештења"
+    "notifications": "Обавештења",
+    "per_tenant_note": "Ова подешавања важе за {tenant}."
   },
   "auth": {
     "error": {

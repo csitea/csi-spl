@@ -172,7 +172,8 @@
         "generic": "Algo salió mal — inténtalo de nuevo."
       }
     },
-    "notifications": "Notificaciones"
+    "notifications": "Notificaciones",
+    "per_tenant_note": "Estos ajustes se aplican a {tenant}."
   },
   "auth": {
     "error": {

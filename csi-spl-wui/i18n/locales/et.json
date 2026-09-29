@@ -172,7 +172,8 @@
         "generic": "Midagi läks valesti — proovi uuesti."
       }
     },
-    "notifications": "Teavitused"
+    "notifications": "Teavitused",
+    "per_tenant_note": "Need seaded kehtivad {tenant} kohta."
   },
   "auth": {
     "error": {

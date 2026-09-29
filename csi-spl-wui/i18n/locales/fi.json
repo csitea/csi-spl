@@ -172,7 +172,8 @@
         "generic": "Jokin meni pieleen — yritä uudelleen."
       }
     },
-    "notifications": "Ilmoitukset"
+    "notifications": "Ilmoitukset",
+    "per_tenant_note": "Nämä asetukset koskevat työtilaa {tenant}."
   },
   "auth": {
     "error": {

@@ -172,7 +172,8 @@
         "generic": "Något gick fel — försök igen."
       }
     },
-    "notifications": "Aviseringar"
+    "notifications": "Aviseringar",
+    "per_tenant_note": "De här inställningarna gäller {tenant}."
   },
   "auth": {
     "error": {

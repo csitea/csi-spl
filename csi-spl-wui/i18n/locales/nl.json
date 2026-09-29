@@ -172,7 +172,8 @@
         "generic": "Er is iets misgegaan — probeer het opnieuw."
       }
     },
-    "notifications": "Meldingen"
+    "notifications": "Meldingen",
+    "per_tenant_note": "Deze instellingen gelden voor {tenant}."
   },
   "auth": {
     "error": {

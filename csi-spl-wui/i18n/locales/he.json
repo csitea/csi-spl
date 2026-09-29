@@ -172,7 +172,8 @@
         "generic": "משהו השתבש — נסו שוב."
       }
     },
-    "notifications": "התראות"
+    "notifications": "התראות",
+    "per_tenant_note": "ההגדרות האלה חלות על {tenant}."
   },
   "auth": {
     "error": {

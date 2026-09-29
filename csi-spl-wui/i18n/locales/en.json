@@ -172,7 +172,8 @@
         "generic": "Something went wrong — try again."
       }
     },
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "per_tenant_note": "These settings apply to {tenant}."
   },
   "auth": {
     "error": {

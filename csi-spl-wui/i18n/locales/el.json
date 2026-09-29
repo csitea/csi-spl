@@ -172,7 +172,8 @@
         "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά."
       }
     },
-    "notifications": "Ειδοποιήσεις"
+    "notifications": "Ειδοποιήσεις",
+    "per_tenant_note": "Αυτές οι ρυθμίσεις ισχύουν για {tenant}."
   },
   "auth": {
     "error": {

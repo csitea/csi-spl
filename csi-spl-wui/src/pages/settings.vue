@@ -16,7 +16,12 @@
     </header>
     <div class="feed-body settings-page" data-test="settings">
       <p v-if="session.state === 'loading'" class="muted">{{ t('common.loading') }}</p>
-      <div v-else-if="signedIn" class="settings-layout" :class="{ 'settings-layout--list': !active }">
+      <template v-else-if="signedIn">
+        <!-- CLE-35099: these settings are PER TENANT (rdb 0078). Say which
+             tenant they apply to when the person belongs to more than one. -->
+        <p v-if="perTenantNote" class="settings-tenant-note" data-test="settings-tenant-note">{{ perTenantNote }}</p>
+      </template>
+      <div v-if="signedIn" class="settings-layout" :class="{ 'settings-layout--list': !active }">
         <nav class="settings-nav" :aria-label="t('settings.nav_label')" data-test="settings-nav">
           <ul>
             <li v-for="s in SETTINGS_SECTIONS" :key="s.id">
@@ -42,12 +47,22 @@
 import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { SETTINGS_SECTIONS, settingsSectionOf } from '~/utils/settings-nav.mjs'
+import { fixedTenantOption, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 
 const session = useSessionStore()
 const route = useRoute()
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
+/* CLE-35099: the settings are per tenant (rdb 0078). Name the tenant they
+   apply to, but only for a person in more than one (canSwitch): for a single
+   tenant it is noise. */
+const perTenantNote = computed(() => {
+  if (!signedIn.value) return ''
+  if (!tenantSwitchOptions(session.claims).canSwitch) return ''
+  const label = fixedTenantOption(session.claims).label
+  return label ? t('settings.per_tenant_note', { tenant: label }) : ''
+})
 const active = computed(() => settingsSectionOf(route.path))
 const stack = useMobileStack()
 /* on a phone the open section names the page; the desktop keeps "Settings" */
@@ -108,6 +123,16 @@ stack.rightPanel(
   background: var(--color-selected);
   border-inline-start-color: var(--focus-ring);
   font-weight: 600;
+}
+/* CLE-35099: the per-tenant scope banner — a quiet, full-width line above the
+   sections. */
+.settings-tenant-note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-bg-2);
+  color: var(--color-muted);
+  font-size: 0.9rem;
 }
 .settings-content { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 /* SPL-993: phones and small tablets. /settings is the list, full width, one

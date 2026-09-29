@@ -172,7 +172,8 @@
         "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
       }
     },
-    "notifications": "Paziņojumi"
+    "notifications": "Paziņojumi",
+    "per_tenant_note": "Šie iestatījumi attiecas uz {tenant}."
   },
   "auth": {
     "error": {

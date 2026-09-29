@@ -172,7 +172,8 @@
         "generic": "Niečo sa pokazilo — skúste to znova."
       }
     },
-    "notifications": "Upozornenia"
+    "notifications": "Upozornenia",
+    "per_tenant_note": "Tieto nastavenia platia pre {tenant}."
   },
   "auth": {
     "error": {

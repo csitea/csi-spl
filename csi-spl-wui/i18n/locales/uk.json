@@ -172,7 +172,8 @@
         "generic": "Щось пішло не так — спробуйте ще раз."
       }
     },
-    "notifications": "Сповіщення"
+    "notifications": "Сповіщення",
+    "per_tenant_note": "Ці налаштування застосовуються до {tenant}."
   },
   "auth": {
     "error": {

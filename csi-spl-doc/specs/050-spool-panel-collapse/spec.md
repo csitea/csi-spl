@@ -1,7 +1,7 @@
 # Feature Specification: Collapse / expand triangles on the vertical panels
 
-**Feature ID**: `050-spool-panel-collapse` · **Milestone**: M3 · **Status**: SPEC — awaiting owner answers
-**Created**: 2026-09-29 · **Lane**: CLE-35101 (panel-triangles, WUI) · **Ticket**: CLE-35101
+**Feature ID**: `050-spool-panel-collapse` · **Milestone**: M3 · **Status**: ANSWERED — implementing
+**Created**: 2026-09-29 · **Lane**: CLE-35101 (panel-triangles, WUI) · **Ticket**: CLE-35101 · **Issue**: SPL-1186
 **Authority**: this file. It touches `layouts/default.vue`, a new toggle component, and reuses
 `SPL-1133` (`close_buttons`, the Win/Mac corner) and the pane-width plumbing of `usePaneWidths` /
 `PaneDivider.vue`. Persistence coordinates with `046-spool-tenant-settings` / CLE-35099
@@ -33,63 +33,74 @@ prd t1 `#spool-hub-devel` topic `d2c03bc9-dc38-4e60-a071-674fabcafeae`, 2026-09-
 | phones (≤ 820 px) | `composables/useMobileStack.ts` | one panel at a time; no side-by-side, so no collapse triangles |
 | e2e | `csi-spl-wui/tests/e2e/*.test.mjs` (puppeteer) | e.g. `close-buttons.test.mjs`, `channel-order.test.mjs` |
 
-## 3. Design (pending the owner's answers in §6)
+## 3. Design (owner's answers folded in — d2c03bc9, 2026-09-29 14:31–14:36Z)
 
-### 3.1 Which panels collapse
-The middle feed (`.spool-main`) is the primary content and has no outer edge — it always fills the
-space the side panels release. So the triangles live on the **two side panels**: the left
-`ChannelSidebar` and the right topic pane. (Owner Q1.)
+### 3.1 Which panels collapse — **all three** (Q1)
+The owner: "the 3 big vertical panels, in the channels view: the channels, the topic panel and the
+threads panel." So each of the three gets a triangle: the left **channels** sidebar, the middle
+**topic** feed (`.spool-main`), and the right **threads** pane. The middle is included by explicit
+request; when collapsed it yields its space to the neighbours.
 
-### 3.2 Collapsed state
-A panel collapses to a **thin strip** (~14 px) that still holds the triangle, so re-opening is
-always discoverable and the triangle never has to jump onto a neighbour. Collapsing gives the
-released width to the middle feed; expanding restores the last dragged width. (Owner Q2.)
+### 3.2 Collapsed state — **thin strip** (Q2)
+A panel collapses to a **thin strip** (~14 px) that still holds the triangle, so re-opening is always
+discoverable and the triangle never jumps onto a neighbour. Expanding restores the last width.
 
-### 3.3 Triangle placement & direction
-- The triangle sits in the panel's **top corner**, in the SAME corner as the close X: `close_buttons
-  = mac` → top-left, `windows` → top-right (reuse `closeButtonShown`). (Owner Q3 for the corner.)
-- Direction points the way the panel will move:
-  - Left sidebar: open shows ◀ (collapse toward the left edge); collapsed shows ▶ (expand from the left).
-  - Right pane: open shows ▶ (collapse toward the right edge); collapsed shows ◀ (expand).
-  - RTL (Hebrew, `<html dir="rtl">`): the glyph mirrors with `dir` — see §3.6.
+### 3.3 Triangle placement & direction — **bottom corner** (Q3 + correction)
+- The triangle sits in the panel's **bottom** corner (owner correction: "at the bottom of the panels
+  not on the top"), on the side the Win/Mac setting dictates: `close_buttons = mac` → bottom-**left**,
+  `windows` → bottom-**right** (reuse `closeButtonShown`, the same left/right rule as the close X, only
+  anchored to the bottom).
+- Direction, taken literally from the owner ("point to either close or open the panel to left or from
+  left, and in Hebrew the other direction"), **uniform across all three panels**:
+  - open → **◀** (close, the panel goes to the left)
+  - collapsed strip → **▶** (open, the panel comes from the left)
+  - RTL (Hebrew, `<html dir="rtl">`): mirrored — open **▶**, collapsed **◀**.
 
-### 3.4 The right pane: triangle vs the existing X
-The triangle **collapses** (hides the pane to its strip but KEEPS the topic loaded; re-open restores
-it) — a different action from the X, which **closes** (clears the topic store). Recommend keeping
-both, side by side. (Owner Q4.)
+### 3.4 The threads pane: triangle vs the existing X — **keep both** (Q4, my default; owner may flip)
+The top **X closes** the thread (clears the topic store); the bottom **triangle collapses** it to the
+strip but keeps the topic loaded (re-open restores it). At opposite ends they never collide. Posted to
+the owner that I proceed with keep-both unless he wants the triangle to replace the X.
 
-### 3.5 Persistence
-Collapsed state persisted so it survives a reload, alongside the pane widths. Recommend following
-whatever CLE-35099 lands for PaneDivider persistence (per-tenant on the account), so the panel layout
-travels with the person. Until then it rides the existing `spool.pane-widths` localStorage shape.
-(Owner Q5.)
+### 3.5 Persistence — **remembered** (Q5)
+The collapsed state is persisted so it survives a reload. Storage split agreed with CLE-35099
+(SPL-1182): they own the divider widths (`pane_sizes`, moving to `tenant_memberships.settings` per
+person+tenant); I own the collapsed flags under the sibling key **`pane_collapsed`**, value
+`{channels:bool, topic:bool, threads:bool}`. To stay fully decoupled while SPL-1182 lands, I keep
+`pane_collapsed` in its own module + localStorage key `spool.pane-collapsed` now, shaped so CLE-35099
+lifts it to the account with no reshape. No edits to `pane-widths.mjs` / `usePaneWidths.ts` /
+`PaneDivider.vue`.
 
-### 3.6 RTL
-There is no full RTL layout today (the sidebar does not move to the right in Hebrew). So for now RTL
-only **mirrors the triangle glyph** via `dir`, matching the existing `<html dir="rtl">`. A full
-mirrored pane order (sidebar on the right in Hebrew) is a larger change, out of scope unless the
-owner wants it. (Owner Q6.)
+### 3.6 RTL — **no special layout** (Q6)
+The owner: "no special layout for it required — continue with the current setup." So RTL only
+**mirrors the triangle glyph** via `dir` (§3.3), matching the existing `<html dir="rtl">`. The panes
+keep their left-to-right order in Hebrew, as today.
 
-### 3.7 Keyboard + aria
-Each triangle is a real `<button aria-expanded="true|false">` with an `aria-label`
-(`Collapse sidebar` / `Expand sidebar`, `Collapse thread` / `Expand thread`), reachable by Tab and
-Enter/Space. Optional shortcut (Owner Q7).
+### 3.7 Keyboard + aria — **no shortcut** (Q7)
+No keyboard shortcut for now (owner). Each triangle is still a real `<button aria-expanded>` with an
+`aria-label`, reachable by Tab + Enter/Space.
 
-### 3.8 Phones (≤ 820 px)
-Excluded: the mobile stack shows one panel at a time, so there is nothing to collapse. The triangles
-render only in the desktop/tablet shell.
+### 3.8 Phones (≤ 820 px) — excluded
+The mobile stack shows one panel at a time, so there is nothing to collapse. The triangles render only
+in the desktop/tablet shell.
 
 ## 4. Acceptance (e2e, puppeteer)
-1. Desktop shell: a triangle in the top corner of the left sidebar and of the open right pane, in the
-   corner the `close_buttons` claim dictates (mac vs windows).
-2. Click collapses the panel to its strip and gives the width to the feed; `aria-expanded=false`.
+1. Desktop shell: a triangle in the **bottom** corner of each of the 3 panels, on the side the
+   `close_buttons` claim dictates (mac = left, windows = right).
+2. Click collapses the panel to its strip; `aria-expanded=false`; the glyph flips ◀→▶.
 3. Click again restores the previous width; `aria-expanded=true`.
-4. Collapsed state survives a reload (persistence).
-5. RTL snapshot: with `he` locale the glyph mirrors (only if §3.6 stays glyph-only).
+4. Collapsed state survives a reload (localStorage `spool.pane-collapsed`).
+5. RTL: with `he` locale the glyph mirrors (▶ open / ◀ collapsed).
 
 ## 5. Out of scope
-- Collapsing the middle feed. - A full RTL pane reorder. - Phone (≤ 820 px) collapse.
-- Changing PaneDivider persistence itself (CLE-35099 owns it).
+- A full RTL pane reorder. - Phone (≤ 820 px) collapse. - Moving `pane_collapsed` to the account
+  (CLE-35099's SPL-1182 lifts it later). - Changing PaneDivider persistence itself (CLE-35099 owns it).
 
-## 6. Open questions to the owner (posted as one blocker in `d2c03bc9`)
-See the blocker message; answers land back in this file's §3 before any code.
+## 6. Owner answers (verbatim, d2c03bc9)
+1. "the 3 big vertical panels … the channels, the topic panel and the threads panel"
+2. "collapse = thin strip"
+3. "Mac = top-left, Windows = top-right yes" + "actually the triangle should be at the bottom of the
+   panels not on the top" → bottom-left (mac) / bottom-right (windows)
+4. (pending; proceeding with keep-both — X closes, triangle collapses)
+5. "the collapsed state should be remembered"
+6. "no special layout for it required … continue with the current setup"
+7. "no keyboard shortcut for now needed"

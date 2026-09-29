@@ -592,6 +592,7 @@ declare module '~/utils/topic-archive.mjs' {
   }
   export const TOPIC_ADMIN_ROLES: readonly string[]
   export function isTopicCard(msg: unknown): boolean
+  export function openingCardId(messages: unknown, fallbackId?: string): string
   export function mayChangeTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function topicFrameDrops(frame: unknown): string[]
   export function topicFrameTasks(frame: unknown, lobbyTaskId?: string): string[]

@@ -10,6 +10,7 @@ import {
   archivedRow,
   isTopicCard,
   mayChangeTopic,
+  openingCardId,
   topicErrorKey,
   topicFrameDrops,
   topicFrameTasks,
@@ -93,6 +94,22 @@ describe('errors and the Archive rows', () => {
     assert.equal(topicErrorKey({ token: 'not_a_card' }), 'feed.topic_delete.error_not_card')
     assert.equal(topicErrorKey({ token: 'not_a_card' }, 'archive'), 'archive.error_not_card')
     assert.equal(topicErrorKey(new Error('x'), 'archive'), 'archive.error')
+  })
+  it('opening card is the earliest is_parent 1 row, not a later one', () => {
+    // The e802196b shape: the oldest row is a channel reply, then agent cards.
+    const msgs = [
+      { msg_id: 'r0', is_parent: 0 },
+      { msg_id: 'card1', is_parent: 1 },
+      { msg_id: 'r1', is_parent: 0 },
+      { msg_id: 'card2', is_parent: 1 },
+    ]
+    assert.equal(openingCardId(msgs, 'card2'), 'card1')
+    // A normal topic: the opener is first.
+    assert.equal(openingCardId([{ msg_id: 'a', is_parent: 1 }, { msg_id: 'b', is_parent: 0 }], 'a'), 'a')
+    // No card at all -> the fallback (the clicked id).
+    assert.equal(openingCardId([{ msg_id: 'r0', is_parent: 0 }], 'r0'), 'r0')
+    assert.equal(openingCardId([], 'x'), 'x')
+    assert.equal(openingCardId(null, 'y'), 'y')
   })
   it('an archived card is one line of its body, its reply count and whether it may be deleted', () => {
     const r = archivedRow({ msg_id: 'm1', task_id: 't1', channel: 'dev', replies: 3, can_delete: true, archived_at: '2026-09-26T20:00:00Z',

@@ -323,7 +323,7 @@
     <LazyTopicDeleteDialog
       v-if="topicDeleteOpen"
       v-model:open="topicDeleteOpen"
-      :msg-id="String(msg.msg_id || '')"
+      :msg-id="topicDeleteMsgId || String(msg.msg_id || '')"
       @deleted="onTopicDeleted"
     />
     <!-- SPL-1001: the menu's Delete asks first; mounted only when picked -->
@@ -367,7 +367,7 @@ import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
-import { mayChangeTopic, topicErrorKey } from '~/utils/topic-archive.mjs'
+import { mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
@@ -540,15 +540,33 @@ function onMenuDelete() {
   msgDeleteOpen.value = true
 }
 
+/* SPL topic-archive: the hub acts only on a topic's OPENING card (spec 041 §2);
+   a later is_parent 1 line (an agent's, in a topic whose opener is gone) is
+   refused 409 not_a_card. This card menu shows on every is_parent 1 line, so
+   resolve the task's opening card first and act on THAT - clicking any card of
+   a topic then archives / deletes the topic. Falls back to this card. */
+async function topicOpenerId(): Promise<string> {
+  const own = String(props.msg.msg_id || '')
+  const task = String(props.msg.task_id || '')
+  if (!task) return own
+  try {
+    const page = await parentDeps.api.getTopic(task, { limit: 30 })
+    return openingCardId(page?.messages, own)
+  } catch {
+    return own
+  }
+}
+
 /** SPL-983: archive the topic. The card leaves every feed here at once; the
     hub's topic_archived frame tells the other tabs. */
 async function onMenuArchive() {
   closeMenu()
-  const id = String(props.msg.msg_id || '')
-  if (!id || removing.value) return
+  if (removing.value) return
   removing.value = true
   editError.value = ''
   try {
+    const id = await topicOpenerId()
+    if (!id) return
     await parentDeps.api.archiveTopic(id, true)
     dropEverywhere(id)
     emit('deleted', props.msg)
@@ -559,8 +577,9 @@ async function onMenuArchive() {
   }
 }
 
-function onMenuDeleteTopic() {
+async function onMenuDeleteTopic() {
   closeMenu()
+  topicDeleteMsgId.value = await topicOpenerId()
   topicDeleteOpen.value = true
 }
 
@@ -771,6 +790,9 @@ const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEvery
 const access = useAccessStore()
 const showTopicActions = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
 const topicDeleteOpen = ref(false)
+// The opening card the delete dialog acts on: resolved from the clicked card's
+// task (topicOpenerId) so a non-opener card still deletes the topic.
+const topicDeleteMsgId = ref('')
 const msgDeleteOpen = ref(false)
 
 /*

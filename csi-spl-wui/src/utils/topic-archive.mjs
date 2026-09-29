@@ -23,6 +23,26 @@ export function isTopicCard(msg) {
 }
 
 /**
+ * The topic's opening card among `messages` (a getTopic page, oldest first):
+ * the earliest level-1 row, the row the hub treats as the opener (spec 041 §2
+ * / resolveCard). A LATER is_parent 1 line - an agent's level-1 line in a
+ * topic whose opener is gone - is not the opener and the hub refuses it
+ * (409 not_a_card), so the card menu resolves to this id before it archives or
+ * deletes, and acting on any card of a topic clears the topic. Falls back to
+ * fallbackId when no row is a card.
+ * @param {Array<{msg_id?: string, is_parent?: number}>} messages
+ * @param {string} [fallbackId]
+ * @returns {string}
+ */
+export function openingCardId(messages, fallbackId = '') {
+  const rows = Array.isArray(messages) ? messages : []
+  for (const m of rows) {
+    if (m && m.msg_id && m.is_parent !== 0) return String(m.msg_id)
+  }
+  return String(fallbackId || '')
+}
+
+/**
  * The viewer may archive / delete this card: its author, the tenant owner or
  * an admin. `me` is utils/access.mjs normalizeMe (null = not loaded yet: then
  * only the author test answers, so a menu never offers what the hub refuses).

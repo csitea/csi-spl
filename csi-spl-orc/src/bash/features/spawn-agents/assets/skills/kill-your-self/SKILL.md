@@ -16,6 +16,13 @@ This is an alias of `/exit-clean`; the two follow the same steps.
 
 ## 1. Land the work
 
+Start with the read-only discovery: your id, unread spool mail, what git
+holds unpushed, and the spec tasks.md files to tick. It changes nothing.
+
+```bash
+bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh
+```
+
 Everything finished is committed with explicit pathspecs and on the trunk
 (fetch, rebase, push, then confirm with `git merge-base --is-ancestor HEAD
 origin/<trunk>`). Tick the spec's `tasks.md` in the same commit as the work.

@@ -160,6 +160,23 @@ func viewLimit(r *http.Request) int {
 
 func rfc(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
+// parseTriBool applies a "true"/"false"/absent query flag to dst, writing 400
+// and returning false on anything else. It replaces a per-request
+// map[string]*bool literal that existed only to loop over two flags.
+func parseTriBool(w http.ResponseWriter, v, name string, dst *bool) bool {
+	switch v {
+	case "":
+	case "true":
+		*dst = true
+	case "false":
+		*dst = false
+	default:
+		writeErr(w, http.StatusBadRequest, "bad_json", name+" must be true or false")
+		return false
+	}
+	return true
+}
+
 // ---- handlers ------------------------------------------------------------------
 
 type viewBox struct {
@@ -310,11 +327,11 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return
 	}
-	out := []viewChannel{}
+	out := make([]viewChannel, 0, len(rows))
 	for _, c := range rows {
 		out = append(out, s.toViewChannel(c))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
+	writeJSON(w, http.StatusOK, channelsBody{Channels: out})
 }
 
 // parseReadMarks reads the read=<channel>~<cursor> marks, keyed by the
@@ -420,6 +437,24 @@ type viewTopic struct {
 	MessagesNext *string    `json:"messages_next,omitempty"`
 }
 
+// Typed envelopes for the hottest view reads (channels, topics, one topic
+// page), instead of map[string]any: json encodes a struct through a cached
+// field encoder with no map allocation and no per-key interface boxing.
+type channelsBody struct {
+	Channels []viewChannel `json:"channels"`
+}
+
+type topicsBody struct {
+	Topics []viewTopic `json:"topics"`
+	Next   *string     `json:"next"`
+}
+
+type topicBody struct {
+	TaskID   string    `json:"task_id"`
+	Messages []viewMsg `json:"messages"`
+	Next     *string   `json:"next"`
+}
+
 // perTopicMax caps per_topic: a page of viewLimitMax topics at this many
 // messages each is the most one read returns.
 const perTopicMax = 50
@@ -428,17 +463,9 @@ func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t stor
 	q := r.URL.Query()
 	sq := store.TopicQuery{Channel: store.NormalizeChannel(q.Get("channel")), Agent: q.Get("agent"),
 		Roots: true, NoIssues: true, Limit: viewLimit(r) + 1, Now: s.o.Now()} // specs/039: issue talk stays in its issue
-	for name, dst := range map[string]*bool{"roots": &sq.Roots, "dm": &sq.DM} {
-		switch q.Get(name) {
-		case "":
-		case "true":
-			*dst = true
-		case "false":
-			*dst = false
-		default:
-			writeErr(w, http.StatusBadRequest, "bad_json", name+" must be true or false")
-			return
-		}
+	// No map[string]*bool literal per request: parse the two tri-state flags directly.
+	if !parseTriBool(w, q.Get("roots"), "roots", &sq.Roots) || !parseTriBool(w, q.Get("dm"), "dm", &sq.DM) {
+		return
 	}
 	if p := q.Get("peer"); p != "" { // DMs: an agent id or <id>@<box> (view-v1 §4.3)
 		id, box, _ := strings.Cut(p, "@")
@@ -540,14 +567,14 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		c := encCursor(rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID)
 		next = &c
 	}
-	out := []viewTopic{}
+	out := make([]viewTopic, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, topicView(row))
 	}
 	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"topics": out, "next": next})
+	writeJSON(w, http.StatusOK, topicsBody{Topics: out, Next: next})
 }
 
 // inlineMessages fills each topic's newest per messages (per_topic=,
@@ -730,7 +757,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"task_id": task, "messages": viewMsgs(rows, react), "next": next})
+	writeJSON(w, http.StatusOK, topicBody{TaskID: task, Messages: viewMsgs(rows, react), Next: next})
 }
 
 // topicReader is the read door of one topic (rdb 0028, privacy.go): it
@@ -816,7 +843,7 @@ func (s *Server) rowReactions(ctx context.Context, tenant string, rows []store.V
 
 // viewMsgs is the §4.4 message list of rows, with their reactions.
 func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []viewMsg {
-	out := []viewMsg{}
+	out := make([]viewMsg, 0, len(rows))
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent,

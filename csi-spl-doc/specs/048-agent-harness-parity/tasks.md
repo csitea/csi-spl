@@ -32,8 +32,24 @@ per spool issue (epic SPL-1152, prd t1).
       (tmux-close-window, the tmux status badge, ...)
 - [x] T006 SPL-1157 README section "Agent harness: what you get when you clone"
       (root README) and the spawn-agents README layout + "Not ported (yet)"
-- [ ] T007 SPL-1158 proof: a throwaway HOME runs the installer `--dry-run` and
-      for real; spawn commands work for every CLI installable without credentials
+- [x] T007 SPL-1158 proof: a clean `node:22-bookworm` container, a new user
+      with an empty HOME, a fresh clone of the PUBLIC repo from GitHub,
+      2026-09-28/29, n=2:
+      - run 1 at `2283df22`: `--dry-run --cli claude,grok,agy,qwen --no-seat`
+        rc 0, HOME unchanged. The real run installed claude 2.1.284 and grok
+        1.0.41, then the agy vendor URL returned a non-script body once
+        ("cannot execute binary file") and the run died there (rc 4) before
+        qwen and the skills. Fixed in `d31691ea`: a failed CLI is named, the
+        rest still runs, exit 4 at the end; a non-script installer is refused
+        (test-install 53 PASS). The same URL served the script 3/3 afterwards
+      - run 2 at `d31691ea`: dry run rc 0; real run rc 0: claude 2.1.284, grok
+        1.0.41, agy 1.2.13, qwen 0.24.6 (npm, 4 vendored rg made executable),
+        Go + yq downloaded, spool 1.1.3 built, 20 skill/command files rendered
+        (10 in ~/.claude, 10 in ~/.qwen/skills), the tmux line printed; a
+        re-run wrote 0 of 20. `spawn-window.sh <kind> auto` for all four in a
+        private tmux server: CLE-01, GRK-01, AGY-01, QWN-01 each rc 0 and each
+        CLI up at its own sign-in screen (credentials are the user's step);
+        `test-harness-parity.sh` from the clone 42 PASS
 - [ ] T008 SPL-1159 switch this box over to the csi-spl harness (announce
       first, rollback line), then retire the reference's FROZEN.md (§1.4)
       PLANNED in `switch-over.md` (measured refs, steps, rollback line).

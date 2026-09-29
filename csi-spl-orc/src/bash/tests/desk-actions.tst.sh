@@ -415,7 +415,7 @@ done
 for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORITY=9" "do_spl_issue_create ISSUE_PRIORITY=0" "do_spl_issue_create ISSUE_LEVEL=6" "do_spl_issue_create ISSUE_LEVEL=0" \
            "do_spl_issue_create ISSUE_STATUS=doing" "do_spl_issue_update ISSUE_REF=nope" "do_spl_issue_update ISSUE_REF=SPL-7" \
            "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0" "do_spl_issue_delete ISSUE_REF=nope" "do_spl_issue_delete ISSUE_REF=" \
-           "do_spl_issue_create ISSUE_EPIC=" "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one"; do
+           "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one"; do
   read -r a kv <<<"$bad"
   title=ISSUE_NONE=1; epic=ISSUE_NONE2=1 # an update with no field set is a refusal too
   [[ $a == do_spl_issue_create ]] && title=ISSUE_TITLE=t && epic=ISSUE_EPIC=SPL-1
@@ -427,6 +427,14 @@ for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORIT
   fi
 done
 [[ ! -s "$T/issue.log" ]] && pass "CONTROL no refused call reached spool" || fail "a refused call ran spool: $(cat "$T/issue.log")"
+# W16 (spec 047): an issue needs no epic; the action sends it without one.
+if SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+     ISSUE_TITLE=lone DRY_RUN=0 >"$T/o" 2>&1 && [[ -s "$T/issue.log" ]] && ! grep -q -- '--epic' "$T/issue.log"; then
+  pass "do_spl_issue_create files an issue without an epic"
+else
+  fail "do_spl_issue_create without an epic: $(cat "$T/o") $(cat "$T/issue.log")"
+fi
+: >"$T/issue.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_TITLE='Rotate the key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=2 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?

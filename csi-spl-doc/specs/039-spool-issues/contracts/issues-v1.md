@@ -61,12 +61,14 @@ A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created
 
 Any subset of `title, description, status, priority, level, assignee, labels,
 deadline, parent, epic, kind`; unknown fields are refused (`bad_json`). Create
-needs `title`, and `epic` (or `parent`) unless `kind` is `epic`. In a PATCH an absent (or null) field is left alone; `deadline ""`,
+needs `title`; `epic` (or `parent`) is optional since W16 (spec 047): an issue
+without one stands alone at level 2 and may take subtasks. In a PATCH an absent (or null) field is left alone; `deadline ""`,
 `parent ""`, `assignee ""`, `labels []` clear. `deadline` is RFC 3339 with a
 zone and is stored UTC. Refusals: `bad_issue` (shape / range, the detail names
 the field), `unknown_label`, `unknown_parent` (absent or a cycle),
 `bad_assignee` (not a member, not a roster agent), and the epic rule (§8):
-`epic_required` 400, `bad_epic` 400, `epic_has_issues` 409.
+`bad_epic` 400, `epic_has_issues` 409 (`epic_required` is no longer sent since
+W16).
 
 ## 4. List filters
 
@@ -142,7 +144,7 @@ bugs, tasks, etc.) and those could have subtasks in the third level".
   parent; `epic: <key>` must name a level-1 row; `parent: <key>` takes a
   level-1 row or a level-2 issue (making a subtask). The `epic` label on a
   create still makes an epic (the form rdb 0049 used).
-- Refusals: `epic_required` (no parent), `bad_epic` (a level-1 row with a
+- Refusals: `bad_epic` (a level-1 row with a
   parent, a fourth level, a level-2 issue with subtasks moved under an issue,
   `epic` naming a non-level-1 row), `epic_has_issues` (a level-1 row with
   issues made kind issue).

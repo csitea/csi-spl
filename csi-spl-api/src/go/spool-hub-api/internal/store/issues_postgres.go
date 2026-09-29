@@ -68,7 +68,7 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, w
 			return err
 		default:
 			r.parentOK = true
-			r.parentLevel2 = !r.parent.IsEpic() && (Issue{Kind: grand}).IsEpic()
+			r.parentLevel2 = !r.parent.IsEpic() && (r.parent.Parent == 0 || (Issue{Kind: grand}).IsEpic())
 		}
 	}
 	if !rule {
@@ -258,6 +258,26 @@ func (s *Postgres) IssuePrefix(ctx context.Context, tenant string) (string, erro
 	if errors.Is(err, pgx.ErrNoRows) {
 		return IssuePrefixDefault, nil
 	}
+	return p, err
+}
+
+func (s *Postgres) SetIssuePrefix(ctx context.Context, tenant, prefix string) (string, error) {
+	p, err := CheckIssuePrefix(prefix)
+	if err != nil {
+		return "", err
+	}
+	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var ok bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)`, tenant).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return ErrNotFound
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO issue_counters (tenant_id, prefix) VALUES ($1, $2)
+			ON CONFLICT (tenant_id) DO UPDATE SET prefix = EXCLUDED.prefix`, tenant, p)
+		return err
+	})
 	return p, err
 }
 

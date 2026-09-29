@@ -96,7 +96,9 @@ const (
 // and it is an epic.
 const IssueEpicLabel = "epic"
 
-// ErrEpicRequired: a non-epic issue without a parent epic.
+// ErrEpicRequired: a non-epic issue without a parent epic. No longer
+// returned since W16 (spec 047, SPL-1175): an issue may stand alone at
+// level 2. Kept so older callers that map it still compile.
 var ErrEpicRequired = errors.New("issue needs a parent epic")
 
 // ErrBadEpic: the parent is neither a level-1 row nor a level-2 issue (or
@@ -153,13 +155,13 @@ func (i Issue) IsEpic() bool { return i.Kind == IssueKindEpic || i.Kind == Issue
 type treeRefs struct {
 	parent       Issue
 	parentOK     bool // the parent row exists
-	parentLevel2 bool // the parent is an issue whose own parent is level 1
+	parentLevel2 bool // the parent is a level-2 issue: under a level-1 row, or under none (W16)
 	hasChildren  bool // some issue names this one as its parent
 	wasEpic      bool // the row was level 1 before this update
 }
 
 // treeLevel is the level the tree gives i (rdb 0056), shared by both drivers.
-// A non-epic row with no parent (only rows older than the tree rule) is 2.
+// A non-epic row with no parent is 2 (W16: an issue needs no epic).
 func treeLevel(i Issue, r treeRefs) int {
 	switch {
 	case i.IsEpic():
@@ -205,7 +207,7 @@ func treeRule(i Issue, r treeRefs) error {
 	}
 	switch {
 	case i.Parent == 0:
-		return ErrEpicRequired
+		return nil // level 2 without an epic (W16, spec 047)
 	case !r.parentOK:
 		return ErrUnknownParent
 	case r.parent.IsEpic():
@@ -290,6 +292,11 @@ type Issues interface {
 	ListIssues(ctx context.Context, tenantID string) ([]Issue, error)
 	// IssuePrefix is the tenant's key prefix (IssuePrefixDefault when unset).
 	IssuePrefix(ctx context.Context, tenantID string) (string, error)
+	// SetIssuePrefix changes the prefix every key of the tenant renders with
+	// (W16, spec 047); numbers stay. Upper-cased first; ErrInvalidIssue when
+	// it is not 1..10 of A-Z0-9 starting with a letter, ErrNotFound for an
+	// unknown tenant. Answers the stored prefix.
+	SetIssuePrefix(ctx context.Context, tenantID, prefix string) (string, error)
 	// ListIssueLabels is the catalogue sorted by name.
 	ListIssueLabels(ctx context.Context, tenantID string) ([]IssueLabel, error)
 	// CreateIssueLabel adds one; ErrConflict when the id exists.
@@ -551,7 +558,7 @@ func (m *memIssues) refsOK(i *Issue, rule, wasEpic bool, want int) error {
 	r.parentOK = r.parentOK && i.Parent != 0
 	if r.parentOK && !r.parent.IsEpic() {
 		g, ok := m.rows[i.TenantID][r.parent.Parent]
-		r.parentLevel2 = ok && r.parent.Parent != 0 && g.IsEpic()
+		r.parentLevel2 = r.parent.Parent == 0 || (ok && g.IsEpic())
 	}
 	if !rule {
 		return setLevel(i, r, want)
@@ -690,6 +697,30 @@ func (s *Memory) IssuePrefix(_ context.Context, tenant string) (string, error) {
 	defer s.mu.Unlock()
 	s.iss.init()
 	return s.iss.prefixOf(tenant), nil
+}
+
+// CheckIssuePrefix upper-cases p and checks it (the rdb 0047 CHECK).
+func CheckIssuePrefix(p string) (string, error) {
+	p = strings.ToUpper(strings.TrimSpace(p))
+	if !issuePrefixRe.MatchString(p) {
+		return "", invalidIssue("prefix is 1..10 of A-Z and 0-9, starting with a letter")
+	}
+	return p, nil
+}
+
+func (s *Memory) SetIssuePrefix(_ context.Context, tenant, prefix string) (string, error) {
+	p, err := CheckIssuePrefix(prefix)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tenants[tenant]; !ok {
+		return "", ErrNotFound
+	}
+	s.iss.init()
+	s.iss.prefix[tenant] = p
+	return p, nil
 }
 
 func (s *Memory) ListIssueLabels(_ context.Context, tenant string) ([]IssueLabel, error) {

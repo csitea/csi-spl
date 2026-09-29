@@ -34,6 +34,9 @@ type tenantSettingsBody struct {
 	DefaultLocale string   `json:"default_locale"`
 	Responders    []string `json:"responders"`
 	MaxResponders int      `json:"max_responders"`
+	// IssuePrefix is the key prefix of the tenant's issues (W16, spec 047);
+	// "" when this hub's store keeps no issues.
+	IssuePrefix string `json:"issue_prefix"`
 }
 
 func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t store.Tenant, ts store.TenantSettings, fb store.Fallbacks) {
@@ -50,8 +53,15 @@ func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t s
 	if resp == nil {
 		resp = []string{}
 	}
+	var prefix string
+	if is, ok := s.o.Store.(store.Issues); ok {
+		if prefix, err = is.IssuePrefix(r.Context(), t.ID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "tenant settings unavailable")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, tenantSettingsBody{TenantID: t.ID, DisplayName: cfg.DisplayName,
-		DefaultLocale: cfg.DefaultLocale, Responders: resp, MaxResponders: store.MaxResponders})
+		DefaultLocale: cfg.DefaultLocale, Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix})
 }
 
 // GET /v1/tenant/settings
@@ -67,7 +77,7 @@ func (s *Server) handleTenantSettings(w http.ResponseWriter, r *http.Request) {
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 
-// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?}
+// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?}
 func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.TenantSettings)
 	if !ok {
@@ -81,6 +91,7 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		DisplayName   *string   `json:"display_name"`
 		DefaultLocale *string   `json:"default_locale"`
 		Responders    *[]string `json:"responders"`
+		IssuePrefix   *string   `json:"issue_prefix"`
 	}
 	if !decodeMembers(w, r, &body) {
 		return
@@ -104,6 +115,17 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	is, hasIssues := s.o.Store.(store.Issues)
+	if body.IssuePrefix != nil {
+		if !hasIssues {
+			writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no issues")
+			return
+		}
+		if _, err := store.CheckIssuePrefix(*body.IssuePrefix); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_setting", "issue_prefix is 1..10 of A-Z and 0-9, starting with a letter")
+			return
+		}
+	}
 	if body.DisplayName != nil || body.DefaultLocale != nil {
 		err := ts.SetTenantConfig(r.Context(), t.ID, store.TenantConfigPatch{DisplayName: body.DisplayName, DefaultLocale: body.DefaultLocale})
 		switch {
@@ -121,8 +143,15 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	if body.IssuePrefix != nil {
+		if _, err := is.SetIssuePrefix(r.Context(), t.ID, *body.IssuePrefix); err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "issue prefix not saved")
+			return
+		}
+	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Bool("name", body.DisplayName != nil).
-		Bool("locale", body.DefaultLocale != nil).Bool("responders", body.Responders != nil).Msg("tenant.settings_changed")
+		Bool("locale", body.DefaultLocale != nil).Bool("responders", body.Responders != nil).
+		Bool("issue_prefix", body.IssuePrefix != nil).Msg("tenant.settings_changed")
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 

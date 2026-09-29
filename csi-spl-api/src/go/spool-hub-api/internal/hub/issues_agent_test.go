@@ -64,8 +64,8 @@ func TestAgentIssues(t *testing.T) {
 		t.Fatalf("agent epic: %v %v", err, out)
 	}
 	readType(t, watcher, "issue")
-	if _, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"no epic"}`)}); hubErr(err) != "epic_required" {
-		t.Fatalf("agent issue without an epic: %v", err)
+	if _, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"no such epic","epic":"SPL-9"}`)}); hubErr(err) != "unknown_parent" {
+		t.Fatalf("agent issue under an unknown epic: %v", err)
 	}
 	out, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(
 		`{"epic":"SPL-1","title":"Rotate the relay key","description":"spec: ...","priority":2,"level":2,"assignee":"CLE-07","labels":["infra"],"deadline":"2026-10-02T09:00:00Z"}`)})

@@ -34,6 +34,7 @@ existed only as csi-spl-orc actions, this is what a browser could already reach:
 | fallback responders (SPL-997) | `do_spl_tenant_responders` | none | `GET/PATCH /v1/tenant/settings` |
 | tenant display name (SPL-959) | `do_spl_tenant_display_name` | none | `GET/PATCH /v1/tenant/settings` |
 | default locale | none (no column) | none | rdb `0074`, `GET/PATCH /v1/tenant/settings` |
+| issue key prefix (W16, spec 047) | none | none | `issue_counters.prefix` (rdb 0047), `GET/PATCH /v1/tenant/settings` `issue_prefix` |
 | every channel, private ones too | - | `GET /v1/view/channels` (the caller's own only) | `GET /v1/tenant/channels` |
 | a channel's no-fallback flag | `do_spl_channel_fallback` | none | `PATCH /v1/tenant/channels/{ch}` |
 | archive a channel | - | `DELETE /v1/channels/{ch}` (creator only) | `DELETE /v1/tenant/channels/{ch}` |
@@ -57,7 +58,7 @@ biz_owner (biz_owner holds `billing.manage`, admin does not: `025` §3.4 rule 2)
 | route | permission | extra rule |
 |---|---|---|
 | `GET /v1/tenant/settings` | `tenant.settings` | - |
-| `PATCH /v1/tenant/settings` | `tenant.settings` | responder ids are agent ids, at most 20 |
+| `PATCH /v1/tenant/settings` | `tenant.settings` | responder ids are agent ids, at most 20; `issue_prefix` 1..10 of A-Z0-9 starting with a letter (upper-cased), every key re-renders, numbers stay |
 | `GET /v1/tenant/channels` | `tenant.settings` | private channels the caller is not in are listed too |
 | `PATCH /v1/tenant/channels/{ch}` | `tenant.settings` | - |
 | `DELETE /v1/tenant/channels/{ch}` | `tenant.settings` | a default channel is refused (409) |

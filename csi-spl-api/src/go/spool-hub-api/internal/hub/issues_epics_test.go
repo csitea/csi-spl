@@ -76,8 +76,10 @@ func TestIssueEpics(t *testing.T) {
 	if up := issueOf(t, out); code != 200 || up["kind"] != "epic" || up["parent"] != "" || up["epic"] != "" {
 		t.Fatalf("issue -> epic: %d %v", code, out)
 	}
-	// ...and back, under an epic; kind issue without one is refused.
-	if code, out := patch("SPL-6", map[string]any{"kind": "issue"}); code != 400 || out["error"] != "epic_required" {
+	// ...and back: kind issue without an epic stands alone at level 2
+	// (W16, spec 047), then moves under an epic.
+	code, out = patch("SPL-6", map[string]any{"kind": "issue"})
+	if up := issueOf(t, out); code != 200 || up["kind"] != "issue" || up["epic"] != "" || up["level"] != float64(2) {
 		t.Fatalf("epic -> issue without an epic: %d %v", code, out)
 	}
 	code, out = patch("SPL-6", map[string]any{"kind": "issue", "epic": "SPL-1"})

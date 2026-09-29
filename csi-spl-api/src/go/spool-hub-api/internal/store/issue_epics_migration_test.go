@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,8 +61,10 @@ func TestMigration0049EpicBackfill(t *testing.T) {
 	if _, err := pg.UpdateIssue(ctx, a, 1, IssuePatch{Title: ptr("orphan, still editable")}, "HUM-1", time.Now()); err != nil {
 		t.Fatalf("title edit on a pre-rule orphan: %v", err)
 	}
-	if _, err := pg.UpdateIssue(ctx, a, 2, IssuePatch{Labels: &[]string{}}, "HUM-1", time.Now()); !errors.Is(err, ErrBadEpic) {
-		t.Fatalf("label edit on a pre-rule orphan: %v", err)
+	// Since W16 (spec 047) row 1 is a lone level-2 issue, so row 2 under it
+	// is a valid subtask and the rule lets the edit through.
+	if got, err := pg.UpdateIssue(ctx, a, 2, IssuePatch{Labels: &[]string{}}, "HUM-1", time.Now()); err != nil || got.Level != 3 {
+		t.Fatalf("label edit on a row under a lone issue: %+v %v", got, err)
 	}
 	run := func() {
 		t.Helper()

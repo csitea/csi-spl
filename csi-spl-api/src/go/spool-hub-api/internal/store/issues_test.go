@@ -148,6 +148,47 @@ func TestIssues(t *testing.T) {
 // SPL-18 (rdb 0053): three levels. Level 1 is kind epic or feature and has
 // no parent; level 2 hangs under level 1; level 3 (a subtask) hangs under a
 // level-2 issue and has no children. A level-1 row with issues stays level 1.
+// W16 (spec 047): the prefix is set before and after the first issue; the
+// numbers stay and only the rendered key changes.
+func TestSetIssuePrefix(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			is := s.(Issues)
+			tn := uid("ip-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+				t.Fatal(err)
+			}
+			if p, err := is.SetIssuePrefix(ctx, tn, "ops"); err != nil || p != "OPS" {
+				t.Fatalf("before any issue: %q %v", p, err)
+			}
+			one, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "first", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			if err != nil || one.Number != 1 || IssueKey(one.Prefix, one.Number) != "OPS-1" {
+				t.Fatalf("first issue: %+v %v", one, err)
+			}
+			if _, err := is.SetIssuePrefix(ctx, tn, "AC2"); err != nil {
+				t.Fatal(err)
+			}
+			two, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "second", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			if err != nil || IssueKey(two.Prefix, two.Number) != "AC2-2" {
+				t.Fatalf("after a rename: %+v %v", two, err)
+			}
+			if got, err := is.GetIssue(ctx, tn, 1); err != nil || got.Prefix != "AC2" {
+				t.Fatalf("old issue renders the new prefix: %+v %v", got, err)
+			}
+			for _, bad := range []string{"", "9X", "A_B", "ABCDEFGHIJK"} {
+				if _, err := is.SetIssuePrefix(ctx, tn, bad); !errors.Is(err, ErrInvalidIssue) {
+					t.Errorf("prefix %q: %v, want ErrInvalidIssue", bad, err)
+				}
+			}
+			if _, err := is.SetIssuePrefix(ctx, uid("none-"), "X"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown tenant: %v", err)
+			}
+		})
+	}
+}
+
 func TestIssueEpicRule(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -169,8 +210,16 @@ func TestIssueEpicRule(t *testing.T) {
 			mk := func(parent int, kind string) (Issue, error) {
 				return is.CreateIssue(ctx, Issue{TenantID: tn, Title: "i", Parent: parent, Kind: kind, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			}
-			if _, err := mk(0, ""); !errors.Is(err, ErrEpicRequired) {
-				t.Fatalf("no parent: %v", err)
+			// W16 (spec 047): an issue needs no epic; it stands at level 2
+			// and takes subtasks like any level-2 issue.
+			lone, err := mk(0, "")
+			if err != nil || lone.Level != 2 || lone.Parent != 0 || lone.IsEpic() {
+				t.Fatalf("no parent: %+v %v", lone, err)
+			}
+			if ls, err := mk(lone.Number, ""); err != nil || ls.Level != 3 {
+				t.Fatalf("subtask of a lone issue: %+v %v", ls, err)
+			} else if _, err := mk(ls.Number, ""); !errors.Is(err, ErrBadEpic) {
+				t.Fatalf("a fourth level under a lone issue: %v", err)
 			}
 			if _, err := mk(e1, IssueKindFeature); !errors.Is(err, ErrBadEpic) {
 				t.Fatalf("feature with a parent: %v", err)
@@ -201,8 +250,12 @@ func TestIssueEpicRule(t *testing.T) {
 			if got, err := is.UpdateIssue(ctx, tn, other.Number, IssuePatch{Parent: ptrInt(l2.Number)}, "HUM-1", now); err != nil || got.Parent != l2.Number || got.Level != 3 {
 				t.Fatalf("leaf becomes a subtask: %+v %v", got, err)
 			}
-			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Parent: ptrInt(0)}, "HUM-1", now); !errors.Is(err, ErrEpicRequired) {
-				t.Fatalf("clear the parent: %v", err)
+			// W16: clearing the parent leaves a lone level-2 issue; it moves back.
+			if got, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Parent: ptrInt(0)}, "HUM-1", now); err != nil || got.Level != 2 || got.Parent != 0 {
+				t.Fatalf("clear the parent: %+v %v", got, err)
+			}
+			if got, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Parent: ptrInt(l2.Number)}, "HUM-1", now); err != nil || got.Level != 3 {
+				t.Fatalf("back under its issue: %+v %v", got, err)
 			}
 			// Kind changes: a level-1 row with issues keeps its level; an
 			// empty one may become an issue under a level-1 row; an issue with

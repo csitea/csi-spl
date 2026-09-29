@@ -116,7 +116,6 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		{map[string]any{"title": "x", "assignee": "HUM-999999"}, 400, "bad_assignee"},
 		{map[string]any{"title": "x", "assignee": "GRK-404"}, 400, "bad_assignee"},
 		{map[string]any{"title": "x", "parent": "SPL-99"}, 400, "unknown_parent"},
-		{map[string]any{"title": "x"}, 400, "epic_required"},
 		{map[string]any{"title": "x", "epic": "SPL-2"}, 400, "bad_epic"},
 		{map[string]any{"title": "x", "epic": "SPL-1", "parent": "SPL-2"}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "epic": "SPL-1", "kind": "story"}, 400, "bad_issue"},

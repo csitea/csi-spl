@@ -80,7 +80,7 @@ func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
 		{&f.label, "label", "list: label ids, comma separated"},
 		{&f.deadline, "deadline", "RFC 3339 with a zone; empty clears on update"},
 		{&f.parent, "parent", "the parent: an epic / feature, or a level-2 issue (the new one is its subtask); list: comma list"},
-		{&f.epic, "epic", "the parent epic's key (SPL-18: every issue has one); list: comma list"},
+		{&f.epic, "epic", "the parent epic's key (optional since W16: an issue may stand alone); list: comma list"},
 		{&f.kind, "kind", "epic | feature | issue (create / update); list: epic,feature,issue,subtask"},
 		{&f.before, "deadline-before", "list: RFC 3339"},
 		{&f.after, "deadline-after", "list: RFC 3339"},

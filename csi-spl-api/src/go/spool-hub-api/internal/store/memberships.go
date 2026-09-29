@@ -3,10 +3,12 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Membership is one tenant a human belongs to (rdb 0006 tenant_memberships).
@@ -98,30 +100,75 @@ func membershipLess(a, b Membership) bool {
 
 // Memberships reads under the operator scope: tenant_memberships is FORCE
 // RLS (rdb 0014) and this read crosses tenants on purpose.
+//
+// The per-tenant settings override (rdb 0078) rides this list so GET /session
+// reads it with no extra round trip (CLE-35099). The list is CRITICAL (the
+// tenant switcher, the active-tenant selection); the override is OPTIONAL. So a
+// failure to read the settings column — most importantly `undefined_column`
+// before 0078 is applied — falls back to the list WITHOUT the override rather
+// than losing the whole list (the SPL-1179 tenant-dropdown regression: the code
+// shipped before the migration, the failed column read emptied the list, and
+// the switcher showed only the active tenant). The override then falls back to
+// the humans-row global, as it does whenever a tenant has none.
 func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membership, error) {
+	// asOperator is called HERE (via the closure): the tenant list is the one
+	// operator-scoped read of this route (TestOperatorScopeCallers keys the
+	// allow-list on the enclosing method). withSettings folds in the rdb 0078
+	// override; on undefined_column (0078 not applied) it retries without it so
+	// the list survives (SPL-1179).
+	withSettings := true
 	var out []Membership
-	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
-			COALESCE(tn.sort_order, 0), m.settings
-			FROM tenant_memberships m
-			JOIN humans h ON h.human_id = m.human_id
-			JOIN tenants tn ON tn.tenant_id = m.tenant_id
-			WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
-			ORDER BY tn.sort_order NULLS LAST, m.tenant_id`, humanID)
-		if err != nil {
+	run := func() error {
+		out = out[:0]
+		return s.asOperator(ctx, func(tx pgx.Tx) error {
+			return scanMemberships(ctx, tx, humanID, withSettings, &out)
+		})
+	}
+	err := run()
+	if err != nil && isUndefinedColumn(err) {
+		withSettings = false
+		err = run()
+	}
+	return out, err
+}
+
+// isUndefinedColumn reports a Postgres undefined_column error (SQLSTATE 42703),
+// the shape of a read of a column a migration has not added yet.
+func isUndefinedColumn(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "42703"
+}
+
+// scanMemberships runs the membership list into out; withSettings folds in the
+// rdb 0078 override column (nil Settings otherwise).
+func scanMemberships(ctx context.Context, tx pgx.Tx, humanID string, withSettings bool, out *[]Membership) error {
+	settingsCol := "NULL::jsonb"
+	if withSettings {
+		settingsCol = "m.settings"
+	}
+	rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
+		COALESCE(tn.sort_order, 0), `+settingsCol+`
+		FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id
+		JOIN tenants tn ON tn.tenant_id = m.tenant_id
+		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
+		ORDER BY tn.sort_order NULLS LAST, m.tenant_id`, humanID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m Membership
+		var settings []byte
+		if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &settings); err != nil {
 			return err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var m Membership
-			if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &m.Settings); err != nil {
-				return err
-			}
-			out = append(out, m)
+		if withSettings {
+			m.Settings = settings
 		}
-		return rows.Err()
-	})
-	return out, err
+		*out = append(*out, m)
+	}
+	return rows.Err()
 }
 
 func (s *Memory) TouchMembership(_ context.Context, humanID, tenant string, at time.Time) error {

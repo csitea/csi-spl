@@ -177,7 +177,11 @@ describe('wiring', () => {
   it('the panel is a v-if, client-only and last in the layout', () => {
     assert.ok(read('src/components/common/DebugPanel.vue').includes('v-if="visible"'))
     const layout = read('src/layouts/default.vue')
-    assert.ok(/<ClientOnly>\s*<DebugPanel \/>\s*<\/ClientOnly>\s*<\/div>\s*<\/template>/.test(layout))
+    /* SPL-1201: the layout now ALSO gates the (async) panel with an outer
+       v-if on the same claim, so its chunk loads only for a granted human.
+       The invariants this guard protects — client-only, last in the layout —
+       are unchanged; the added gate only strengthens them. */
+    assert.ok(/<ClientOnly>\s*<DebugPanel v-if="[^"]+" \/>\s*<\/ClientOnly>\s*<\/div>\s*<\/template>/.test(layout))
   })
 
   it('the journal plugin is client-only and only observes', () => {

@@ -76,11 +76,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # cache: on this HOSTED runner GOCACHE/GOMODCACHE start empty every run,
+      # so the suite's go build/test compiled the std lib + deps cold each time
+      # (~21 s, measured 2026-09-29). setup-go's cache, keyed on go.sum, restores
+      # them; only changed packages recompile (~1.5 s warm). The self-hosted
+      # 10_ci-quality jobs keep cache:false on purpose -- their runner HOME
+      # persists, so GOCACHE is already warm and actions/cache would only add a
+      # 490 MB upload.
       - name: Set up Go (version from go.mod)
         uses: actions/setup-go@v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: false
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
 
       - name: Download Go modules (the suite runs with GOPROXY=off)
         working-directory: csi-spl-api/src/go/spool-hub-api
@@ -301,12 +309,16 @@ jobs:
             exit 1
           fi
 
+      # cache: keyed on go.sum, restores the cold ~21 s std-lib+deps compile to
+      # ~1.5 s on a hit (measured 2026-09-29) -- this hosted runner is cold each
+      # run, unlike the persistent-HOME self-hosted 10_ci-quality box.
       - name: Set up Go (only to build a new image)
         if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: false
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
 
       - name: Build + push the hub image (do_build_push_hub_image)
         if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'

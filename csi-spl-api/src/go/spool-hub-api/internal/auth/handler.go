@@ -418,14 +418,18 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
-	active := "" // the request's active tenant (SPL-959 page host, else `t`)
-	if _, t, err := h.ActiveTenant(r, ""); err == nil {
-		active = t
-	}
-	ctx := h.withSettings(r.Context(), s, active) // one settings read for the whole answer (SPL-1100)
+	// Read the human's memberships ONCE (rdb 0078 carries each tenant's settings
+	// override on it): the per-tenant overlay and the tenants list both read
+	// from this, so the overlay costs no extra round trip. The tenant for the
+	// overlay is the SPL-959 page host, else the session `t` — from the request,
+	// no round trip; a non-member tenant yields no override (falls back to the
+	// global), and sessionTenants resolves the validated active tenant for the claim.
+	roles := h.memberRoles(r.Context(), s)
+	override := overrideFromRoles(roles, h.requestTenant(r, s))
+	ctx := h.withSettings(r.Context(), s, override) // one settings read for the whole answer (SPL-1100)
 	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(ctx, s)}
 	out.Name = h.shownName(ctx, s)
-	h.sessionTenants(r, &out)
+	h.sessionTenants(r, &out, roles)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
 		if loc, err := h.settings(ctx, s.HumanID).PreferredLocale(ctx, s.HumanID); err != nil {

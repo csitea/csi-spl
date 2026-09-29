@@ -533,8 +533,9 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string) loginResp {
 	// The login binds sess.Tenant (the ?tenant= of the flow, else the sole
 	// membership), so the answer carries THAT tenant's per-tenant settings
-	// (rdb 0078) with no second probe.
-	ctx = n.h.withSettings(ctx, sess, sess.Tenant) // one settings read for the whole answer (SPL-1100)
+	// (rdb 0078) with no second probe. Cold path: read the override directly.
+	override := n.h.membershipOverride(ctx, sess.HumanID, sess.Tenant)
+	ctx = n.h.withSettings(ctx, sess, override) // one settings read for the whole answer (SPL-1100)
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
 	return loginResp{Session: claims, Redirect: safeRedirect(redirect),

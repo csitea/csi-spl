@@ -20,6 +20,10 @@ type TenantRole struct {
 	// LastActiveAt is when the human last switched into this tenant
 	// (specs/026 §6); nil = never.
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
+	// Settings is the per-tenant settings override jsonb (rdb 0078), raw and
+	// internal (never serialised): GET /session overlays the active tenant's
+	// from this list, which it already reads, so no extra round trip (CLE-35099).
+	Settings []byte `json:"-"`
 }
 
 // TenantToucher records the tenant a human switched into (specs/026 §6,
@@ -266,21 +270,53 @@ func (h *Handler) bindTenant(ctx context.Context, s *Session) {
 	}
 }
 
-// sessionTenants fills GET session's active_tenant + tenants (specs/026 §3).
-// Errors leave them null / empty: the session answer never fails on them.
-func (h *Handler) sessionTenants(r *http.Request, out *sessionResp) {
+// memberRoles reads the human's memberships (rdb 0078 carries each tenant's
+// settings override on the row); nil on no human, no store, or a read error.
+// GET /session reads them once and reuses them for the tenants list AND the
+// per-tenant settings overlay (CLE-35099), so the overlay costs no round trip.
+func (h *Handler) memberRoles(ctx context.Context, s Session) []TenantRole {
+	if s.HumanID == "" || h.members == nil {
+		return nil
+	}
+	tl, ok := h.members.(TenantLister)
+	if !ok {
+		return nil
+	}
+	roles, err := tl.Tenants(ctx, s.HumanID)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("auth.session tenants")
+		return nil
+	}
+	return roles
+}
+
+// sessionTenants fills GET session's active_tenant + tenants (specs/026 §3)
+// from the memberships GET /session already read. Errors leave them null /
+// empty: the session answer never fails on them.
+func (h *Handler) sessionTenants(r *http.Request, out *sessionResp, roles []TenantRole) {
 	out.Tenants = []TenantRole{}
 	if out.HumanID == "" || h.members == nil {
 		return
 	}
-	if tl, ok := h.members.(TenantLister); ok {
-		if ts, err := tl.Tenants(r.Context(), out.HumanID); err == nil && ts != nil {
-			out.Tenants = ts
-		}
+	if roles != nil {
+		out.Tenants = roles
 	}
 	if _, t, err := h.ActiveTenant(r, ""); err == nil {
 		out.ActiveTenant = &t
 	}
+}
+
+// requestTenant is a CHEAP tenant guess for the per-tenant settings overlay
+// (rdb 0078): the SPL-959 page host, else the session `t` claim — both from the
+// request, no membership round trip. It is not authorization: a wrong guess
+// (a tenant the human is not a member of) yields no override, so the read falls
+// back to the global. The validated active tenant (for the claim and for a
+// preferences WRITE) is ActiveTenant.
+func (h *Handler) requestTenant(r *http.Request, s Session) string {
+	if p := h.pageTenantOf(r); p != "" {
+		return p
+	}
+	return s.Tenant
 }
 
 // pageTenantOf is the tenant the request's WUI page host names (SPL-959), ""

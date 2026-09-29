@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -105,6 +106,37 @@ func TestMembershipSettings(t *testing.T) {
 			// No membership: write is ErrNotFound.
 			if err := ms.SetMembershipSettings(ctx, b, t2, map[string]any{"preferred_theme": "dark"}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("write with no membership: %v", err)
+			}
+
+			// CLE-35099: the memberships list carries each tenant's settings, so
+			// GET /session overlays with no extra round trip. a's t1 membership
+			// now holds message_order + issues_sort (theme was cleared above).
+			ml, ok := s.(MembershipLister)
+			if !ok {
+				t.Skip("no membership lister")
+			}
+			mems, err := ml.Memberships(ctx, a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var t1Raw []byte
+			for _, m := range mems {
+				if m.TenantID == t1 {
+					t1Raw = m.Settings
+				}
+			}
+			if len(t1Raw) == 0 {
+				t.Fatalf("t1 membership carries no settings: %q", t1Raw)
+			}
+			var carried auth.MembershipSettings
+			if err := json.Unmarshal(t1Raw, &carried); err != nil {
+				t.Fatalf("decode carried settings: %v", err)
+			}
+			if carried.MessageOrder == nil || *carried.MessageOrder != "newest-last" || carried.IssuesSort == nil {
+				t.Fatalf("carried override missing fields: %+v", carried)
+			}
+			if carried.Theme != nil {
+				t.Fatalf("cleared theme still carried: %v", *carried.Theme)
 			}
 		})
 	}

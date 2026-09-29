@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -18,6 +19,10 @@ type Membership struct {
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 	// SortOrder is the tenant's place in the drop box (rdb 0049); 0 = unset.
 	SortOrder int `json:"-"`
+	// Settings is the per-tenant settings override jsonb (rdb 0078), raw; nil
+	// when none. It rides this list so GET /session overlays it with no extra
+	// round trip (CLE-35099): the tenants list is already read there.
+	Settings []byte `json:"-"`
 }
 
 // MembershipLister lists every tenant a human belongs to (specs/026 §3: the
@@ -63,6 +68,15 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 				at := m.lastActive
 				ms.LastActiveAt = &at
 			}
+			if len(m.settings) > 0 {
+				obj := make(map[string]json.RawMessage, len(m.settings))
+				for sk, sv := range m.settings {
+					obj[sk] = sv
+				}
+				if b, err := json.Marshal(obj); err == nil {
+					ms.Settings = b
+				}
+			}
 			out = append(out, ms)
 		}
 	}
@@ -88,7 +102,7 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 	var out []Membership
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
-			COALESCE(tn.sort_order, 0)
+			COALESCE(tn.sort_order, 0), m.settings
 			FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
 			JOIN tenants tn ON tn.tenant_id = m.tenant_id
@@ -100,7 +114,7 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 		defer rows.Close()
 		for rows.Next() {
 			var m Membership
-			if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder); err != nil {
+			if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &m.Settings); err != nil {
 				return err
 			}
 			out = append(out, m)

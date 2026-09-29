@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 )
 
@@ -162,27 +163,55 @@ type settingsKey struct{}
 // answer and never kept: a setting changed a moment ago is read fresh by the
 // next GET /session (diagnosticsGrant's rule 1).
 //
-// tenant is the request's active tenant (auth.ActiveTenant: the page host under
-// SPL-959, else the session `t`), "" before one resolves. When it is set and
-// the store can read a per-tenant override (rdb 0078), that override is applied
-// over the global values, so the same fields carry the tenant's value. A
-// failed override read is ignored: the answer keeps the global (spec 023).
-func (h *Handler) withSettings(ctx context.Context, s Session, tenant string) context.Context {
+// override is the active tenant's per-tenant override (rdb 0078), already
+// decoded — applied over the global values so the same fields carry the
+// tenant's value. GET /session decodes it from the tenants list it already
+// reads (no extra round trip); the cold native login reads it directly. The
+// zero override leaves the globals.
+func (h *Handler) withSettings(ctx context.Context, s Session, override MembershipSettings) context.Context {
 	sr, ok := h.prefs.(SettingsReader)
 	if !ok || s.HumanID == "" {
 		return ctx
 	}
 	v, err := sr.HumanSettings(ctx, s.HumanID)
-	if err == nil && tenant != "" {
-		if mr, ok := h.prefs.(MembershipSettingsReader); ok {
-			if o, oerr := mr.MembershipSettings(ctx, s.HumanID, tenant); oerr == nil {
-				v = v.Overlay(o)
-			} else {
-				h.log.Warn().Err(oerr).Str("tenant", tenant).Msg("auth membership settings overlay")
+	if err == nil {
+		v = v.Overlay(override)
+	}
+	return context.WithValue(ctx, settingsKey{}, &settingsSnapshot{human: s.HumanID, s: v, err: err})
+}
+
+// overrideFromRoles decodes the per-tenant override for tenant from a tenants
+// list GET /session already read (rdb 0078). The zero override when the tenant
+// is unset, absent, or has none — the read then keeps the global.
+func overrideFromRoles(roles []TenantRole, tenant string) MembershipSettings {
+	if tenant == "" {
+		return MembershipSettings{}
+	}
+	for _, r := range roles {
+		if r.TenantID == tenant && len(r.Settings) > 0 {
+			var o MembershipSettings
+			if json.Unmarshal(r.Settings, &o) == nil {
+				return o
 			}
 		}
 	}
-	return context.WithValue(ctx, settingsKey{}, &settingsSnapshot{human: s.HumanID, s: v, err: err})
+	return MembershipSettings{}
+}
+
+// membershipOverride reads one tenant's override directly (rdb 0078), for the
+// cold native login answer (GET /session uses overrideFromRoles instead).
+func (h *Handler) membershipOverride(ctx context.Context, humanID, tenant string) MembershipSettings {
+	if tenant == "" || humanID == "" {
+		return MembershipSettings{}
+	}
+	if mr, ok := h.prefs.(MembershipSettingsReader); ok {
+		if o, err := mr.MembershipSettings(ctx, humanID, tenant); err == nil {
+			return o
+		} else {
+			h.log.Warn().Err(err).Str("tenant", tenant).Msg("auth membership settings overlay")
+		}
+	}
+	return MembershipSettings{}
 }
 
 // settings is the reader for humanID: the request's snapshot when it holds

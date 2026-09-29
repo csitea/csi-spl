@@ -160,8 +160,21 @@ watch(kb, async () => {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  /* Both axes centred (restores the pre-0c8a68d6 place-items:center). In a
+     column flex justify-content is the vertical axis and align-items the
+     horizontal one, so the fixed-width card needs align-items to sit centred
+     instead of pinned to the start (left). `safe` keeps it top/left-anchored
+     rather than clipped when the content is taller/wider than the body — e.g.
+     a phone with the on-screen keyboard open. */
   justify-content: safe center;
-  padding: 24px;
+  align-items: safe center;
+  /* The card sits at the true viewport centre. The bar is in flow and eats
+     --top-bar-h off the top, so an equal amount below it keeps the centre on
+     the viewport middle (not the middle of the strip under the bar). `safe`
+     falls back to the start, so once the card is taller than the room it
+     top-aligns clear of the bar rather than being clipped. Phones drop this
+     in the media queries below (keyboard-aware, top-aligned). */
+  padding: 24px 24px calc(24px + var(--top-bar-h));
   min-width: 0;
   min-height: 0;
   max-width: 100%;

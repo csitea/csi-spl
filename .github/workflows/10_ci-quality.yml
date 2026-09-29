@@ -83,10 +83,16 @@ jobs:
       # runner has PostgreSQL server binaries; the emulator image is pulled
       # here, and the skip check below turns a skip into a failure.
       - name: Cache the fake-gcs emulator image
-        # Docker Hub resets the connection now and then (run 36148403827):
-        # retry, then fall back to the runner's cached copy with a warning.
+        # The tag is pinned, so a copy already on this persistent self-hosted
+        # runner is the right one: use it and touch no network. A docker pull of
+        # an image that is already present is still a ~2.5 s Docker Hub round
+        # trip (measured 2026-09-29; inspect is ~0.05 s), and Docker Hub resets
+        # the connection now and then (run 36148403827). Only pull when it is
+        # genuinely absent (a fresh runner), retrying, then falling back to any
+        # cached copy with a warning.
         run: |
           img=fsouza/fake-gcs-server:1.52.2
+          docker image inspect "$img" >/dev/null 2>&1 && { echo "using the cached $img"; exit 0; }
           for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
           docker image inspect "$img" >/dev/null 2>&1 \
             && { echo "::warning::docker pull $img failed 3x; using the cached image"; exit 0; }
@@ -477,10 +483,15 @@ jobs:
 
       # checkout-fake-buy SKIPs its live part without a CACHED image.
       - name: Cache the Postgres image
-        # Docker Hub resets the connection now and then (run 36148403827):
-        # retry, then fall back to the runner's cached copy with a warning.
+        # A copy already on this persistent self-hosted runner works for the
+        # test (it needs a postgres:16-alpine, and the test never pulls), so use
+        # it and touch no network: a docker pull of a present image is still a
+        # ~2.5 s Docker Hub round trip (measured 2026-09-29) and Docker Hub
+        # resets the connection now and then (run 36148403827). Only pull when
+        # it is genuinely absent (a fresh runner), then fall back to the cache.
         run: |
           img=postgres:16-alpine
+          docker image inspect "$img" >/dev/null 2>&1 && { echo "using the cached $img"; exit 0; }
           for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
           docker image inspect "$img" >/dev/null 2>&1 \
             && { echo "::warning::docker pull $img failed 3x; using the cached image"; exit 0; }

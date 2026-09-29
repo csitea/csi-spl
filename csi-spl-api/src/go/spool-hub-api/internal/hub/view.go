@@ -171,15 +171,34 @@ type viewBox struct {
 	Agents      []string `json:"agents"`
 }
 
+// rosterBody is GET /v1/view/roster (view-v1 §4.1). A typed envelope, not a
+// map[string]any: json encodes a struct through a cached field encoder with no
+// map allocation and no per-key interface boxing.
+type rosterBody struct {
+	Boxes  []viewBox   `json:"boxes"`
+	Humans []viewHuman `json:"humans"`
+}
+
 func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	rs, err := s.readRoster(r.Context(), t.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
 		return
 	}
-	out := []viewBox{}
-	for _, b := range rs.Boxes {
-		v := viewBox{BoxID: b.BoxID, PubKey: base64.StdEncoding.EncodeToString(b.PubKey), Revoked: b.Revoked, Agents: b.Agents}
+	// Online presence for every box under ONE hub-mutex hold (map reads only),
+	// so the mutex that also guards routing is not taken once per box and never
+	// held across the base64 / time formatting below.
+	online := make([]bool, len(rs.Boxes))
+	s.mu.Lock()
+	for i, b := range rs.Boxes {
+		if !b.Revoked {
+			online[i] = s.boxes[[2]string{t.ID, b.BoxID}] != nil
+		}
+	}
+	s.mu.Unlock()
+	out := make([]viewBox, 0, len(rs.Boxes))
+	for i, b := range rs.Boxes {
+		v := viewBox{BoxID: b.BoxID, PubKey: base64.StdEncoding.EncodeToString(b.PubKey), Revoked: b.Revoked, Agents: b.Agents, Online: online[i]}
 		if v.Agents == nil {
 			v.Agents = []string{}
 		}
@@ -187,14 +206,9 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 			at := rfc(b.LastHelloAt)
 			v.LastHelloAt = &at
 		}
-		if !b.Revoked {
-			s.mu.Lock()
-			v.Online = s.boxes[[2]string{t.ID, b.BoxID}] != nil
-			s.mu.Unlock()
-		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"boxes": out, "humans": viewHumans(rs)})
+	writeJSON(w, http.StatusOK, rosterBody{Boxes: out, Humans: viewHumans(rs)})
 }
 
 // readRoster is the roster's three reads: in ONE store call when the store
@@ -236,7 +250,7 @@ type viewHuman struct {
 // on this same tenant host, null = draw the deterministic default. Members
 // of this tenant only; a store without the 010 tables lists none.
 func viewHumans(rs store.Roster) []viewHuman {
-	out := []viewHuman{}
+	out := make([]viewHuman, 0, len(rs.Avatars))
 	names := map[string]string{}
 	owners := map[string]bool{}
 	for _, m := range rs.Members {

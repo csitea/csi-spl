@@ -471,9 +471,11 @@ watch(signedIn, (v) => { if (!v) close(false) })
     overflow-wrap: anywhere;
   }
   .user-menu__item { min-height: 48px; }
-  /* async child: its root does not carry this scope id, hence :deep */
-  .user-menu__pref :deep(.lang-switcher) { flex: 0 1 14rem; min-width: 0; }
-  .user-menu__pref :deep(.lang-switcher__combobox) { width: 100%; }
+  /* async child: its root does not carry this scope id, hence :deep.
+     Content-sized (SPL-1184): the control shrink-wraps to the longest locale
+     name, capped at 14rem, shrinkable on a phone. No width:100% force — it
+     defeated the control's max-content width and left a dead gap. */
+  .user-menu__pref :deep(.lang-switcher) { flex: 0 1 auto; min-width: 0; max-width: 14rem; }
   .user-menu__pref-label { flex: 0 0 auto; }
 }
 </style>

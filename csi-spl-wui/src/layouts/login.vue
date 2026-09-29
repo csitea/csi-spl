@@ -146,13 +146,13 @@ watch(kb, async () => {
 /* The title keeps its full name. The language control gives up width on a
    phone so the two never collide or push the page sideways. */
 .login-bar :deep(.lang-switcher) {
-  flex: 0 1 16rem;
-  width: 100%;
+  /* Content-sized (the control shrink-wraps to the longest locale name,
+     SPL-1184); it may still give up width on a phone, capped at 16rem. Do NOT
+     force width:100% here — that overrode the control's own max-content width
+     and left a wide dead gap after the language name. */
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 16rem;
-}
-.login-bar :deep(.lang-switcher__combobox) {
-  width: 100%;
 }
 .login-body {
   position: relative;

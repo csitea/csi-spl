@@ -277,6 +277,10 @@ async function onSelect(loc: LocaleEntry | null) {
 .lang-switcher__control {
   display: flex;
   align-items: stretch;
+  /* The bordered box hugs its content (the field sized to the longest name +
+     the chevron), so even a container that forces the combobox wide cannot
+     open a gap inside the control. */
+  width: max-content;
   min-width: 0;
   max-width: 100%;
   border: 1px solid var(--color-border);
@@ -359,10 +363,11 @@ async function onSelect(loc: LocaleEntry | null) {
   z-index: 40;
   inset-inline-end: 0;
   top: calc(100% + 4px);
-  /* Fit the widest row (flag + name + code); never wider, and at least as
-     wide as the closed control. */
+  /* Fit the widest row (flag + name + code) and no wider. NO min-width:100%
+     here: place-popover.mjs switches the panel to position:fixed and pins its
+     width via lockWidth, but a percentage min-width would then resolve against
+     the viewport (100vw) and blow the list full-width. */
   width: max-content;
-  min-width: 100%;
   max-width: min(18rem, calc(100vw - 16px));
   max-height: min(16rem, 50vh);
   margin: 0;

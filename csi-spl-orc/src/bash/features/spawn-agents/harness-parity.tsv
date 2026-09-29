@@ -46,7 +46,7 @@ run/trust-workdir.func.sh	replaced	scripts/trust-workdir.sh
 scripts/agent-name.sh	replaced	lib/agent-state.inc.sh
 scripts/agent-state.inc.sh	replaced	lib/agent-state.inc.sh
 scripts/agent-top.sh	ported	scripts/agent-top.sh
-scripts/agent-watch.sh	deferred	SPL-1160
+scripts/agent-watch.sh	ported	scripts/agent-watch.sh
 scripts/git-mode-churn.sh	excluded	box maintenance of shared checkouts (mode-bit churn), not part of an agent harness
 scripts/hydrate-worktree.sh	excluded	box maintenance (pnpm store hydration of a new worktree)
 scripts/inbox-send.sh	replaced	scripts/agent-send.sh

@@ -42,7 +42,13 @@ esac
 STUB
 chmod +x "$T/stub/gcloud"
 
-PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };'
+# These checks stub the ENV 045 bucket, so they pin the default BACKUP_SOURCE to
+# env by forcing cnf copy_enabled=false. The shipped cnf carries copy_enabled=true
+# since the bkp project was bootstrapped (CLE-35114, 2026-09-29), which would flip
+# the default to bkp (spl-db-restore.func.sh:55) and reach for the csi-spl-bkp key
+# this hermetic stub does not have. The bkp read-back is proven live, not here.
+PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };
+eval "$(declare -f do_spl_cloud_cnf | sed 1s/do_spl_cloud_cnf/_orig_cnf/)"; do_spl_cloud_cnf(){ _orig_cnf || return 1; yq -i ".env.steps.\"046-gcs-offsite-backups\".copy_enabled = false" "$SPL_CNF"; };'
 # the proxy is the cloud; here it answers the two reads the action makes
 PROXY='spl_via_proxy(){ case "$1" in _spl_db_restore_table_count) echo "${STUB_TABLES:-0}" ;; *) printf "messages 5\ntenants 2\n" ;; esac; };'
 

@@ -47,6 +47,10 @@ chmod +x "$T/stub/gcloud"
 
 PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };'
 ENABLE='eval "$(declare -f do_spl_cloud_cnf | sed 1s/do_spl_cloud_cnf/_orig_cnf/)"; do_spl_cloud_cnf(){ _orig_cnf || return 1; yq -i ".env.steps.\"046-gcs-offsite-backups\".copy_enabled = true" "$SPL_CNF"; };'
+# The shipped cnf carries copy_enabled=true since the bkp project was bootstrapped
+# (CLE-35114, 2026-09-29), so the disabled-path checks force it false themselves
+# rather than leaning on the live value - symmetric to ENABLE, and hermetic.
+DISABLE='eval "$(declare -f do_spl_cloud_cnf | sed 1s/do_spl_cloud_cnf/_orig_cnf/)"; do_spl_cloud_cnf(){ _orig_cnf || return 1; yq -i ".env.steps.\"046-gcs-offsite-backups\".copy_enabled = false" "$SPL_CNF"; };'
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" T="$T" \
@@ -61,11 +65,11 @@ reset() { : >"$T/calls.log"; rm -f "$T/dst-db" "$T/dst-files"; }
 
 # --- 1. disabled -----------------------------------------------------------------
 reset
-o=$(SNIPPET="$PIN do_spl_backup_offsite" in_orc DRY_RUN=0 2>&1); rc=$?
+o=$(SNIPPET="$PIN $DISABLE do_spl_backup_offsite" in_orc DRY_RUN=0 2>&1); rc=$?
 (( rc == 0 )) && pass "copy_enabled=false: exit 0 (workflow 45 stays green)" || fail "disabled rc=$rc: $o"
 grep -q 'not enabled yet' <<<"$o" && pass "it says why nothing was copied" || fail "disabled text: $o"
 grep -q 'storage' "$T/calls.log" && fail "disabled still touched storage" || pass "disabled: no storage call"
-SNIPPET="$PIN do_spl_backup_offsite" in_orc SPL_OFFSITE_REQUIRED=1 >/dev/null 2>&1
+SNIPPET="$PIN $DISABLE do_spl_backup_offsite" in_orc SPL_OFFSITE_REQUIRED=1 >/dev/null 2>&1
 (( $? == 2 )) && pass "SPL_OFFSITE_REQUIRED=1: disabled is exit 2" || fail "required did not exit 2"
 
 # --- 2. enabled, dry run -------------------------------------------------------------

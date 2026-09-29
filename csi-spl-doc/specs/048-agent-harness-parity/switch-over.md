@@ -146,6 +146,12 @@ FLIP RUN 2026-09-29 (n=1, trunk `2db3a7fe`):
   - the frozen copy's badge loop (pid 1372) stopped, the snippet sourced: the
     new loop runs from the csi-spl checkout on the same pidfile; 2 passes, 0
     window names changed
+  - 2026-09-29 14:42Z, the window sorter too (SPL-1160 `693b85af`): a dry
+    run of the csi-spl sorter against the live server wanted 0 swaps (it
+    agrees with the frozen one); the snippet now carries the four sort hooks
+    and prefix+S; `~/.tmux.conf`'s `window-sort.conf` line is commented out
+    (backup `~/.tmux.conf.bak-048-20260929T144209Z`); after several
+    hook-firing passes: 0 swaps wanted, no attached client moved
 - 4.8 round trip through the rendered command: `CLE-35098` (auto id) sent
   CLE-001 a hello at 12:20:33Z, `agent-send.sh` went via spool with a pane
   poke, it answered pong on the same task at 12:20:51Z, `agent-inbox.sh`
@@ -164,6 +170,12 @@ badge loop):
 
 ```bash
 cp -p ~/.tmux.conf.bak-048-20260929T123211Z ~/.tmux.conf && kill "$(cat /tmp/agent-top-badge-loop.pid)"; rm -f /tmp/agent-top-badge-loop.pid; tmux source-file ~/.tmux/agent-status.conf
+```
+
+The window sorter, as the box user:
+
+```bash
+cp -p ~/.tmux.conf.bak-048-20260929T144209Z ~/.tmux.conf && tmux source-file ~/.tmux/window-sort.conf
 ```
 
 The orchestrator's side needs no rollback step of its own: `agent-send.sh`

@@ -63,12 +63,13 @@ per spool issue (epic SPL-1152, prd t1).
       CLE-001's confirm; CONFIRMED by CLE-001 at 11:23Z for 19:00Z. FLIPPED
       2026-09-29 12:19Z on the owner's order (switch-over.md "FLIP RUN"):
       20 files rendered, post-flip round trip CLE-35098 <-> CLE-001 green;
-      tmux snippet kept until agent-top is ported (SPL-1160)
+      tmux line switched 12:32Z once agent-top was ported (SPL-1160)
 - [ ] T009 SPL-1160 port the rows marked `deferred` in `harness-parity.tsv`.
       DONE so far: agent-top (fleet view, status line, badge loop) +
       lib/agent-state.inc.sh, same states/badges/name format as the frozen
       copy, same pidfile; the tmux snippet carries it (test-agent-top 22 PASS;
       live read-only comparison with the frozen copy: 8/8 rows, same states,
-      identical status line). Still open:
+      identical status line); LIVE on this box's tmux since 12:32Z.
+      Still open:
       the fleet views (agent-top, pane-scan, badges), restore-*, the spawn
       chains/tasks, the kill-your-self report. None is needed to spawn or talk

@@ -310,6 +310,9 @@ else
     { echo "# spool-agent defaults, written by spool-install; edit freely"
       printf 'SPOOL_ENV=%q\nSPOOL_TENANT=%q\nSPOOL_BOX=%q\n' "$ENVN" "$TENANT" "$BOX"
       if [ -n "${SPOOL_HUB_URL:-}" ]; then printf 'SPOOL_HUB_URL=%q\n' "$SPOOL_HUB_URL"; fi
+      # Lines this installer does not own (agent-top's SPOOL_BOX_TAG,
+      # SPOOL_ORCHESTRATOR_ID, ...) survive a re-run.
+      if [ -r "$CFG" ]; then grep -vE '^(# spool-agent defaults|SPOOL_ENV=|SPOOL_TENANT=|SPOOL_BOX=|SPOOL_HUB_URL=)' "$CFG" || true; fi
     } >"$CFG.tmp" && mv -f "$CFG.tmp" "$CFG" ) || die 7 "cannot write $CFG"
   cat >"$SHIM.tmp" <<EOF
 #!/usr/bin/env bash

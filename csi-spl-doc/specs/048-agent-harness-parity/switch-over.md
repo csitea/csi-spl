@@ -131,9 +131,21 @@ FLIP RUN 2026-09-29 (n=1, trunk `2db3a7fe`):
   rendered `/claude-spawn` runs `SPOOL_ROOT=/var/spool-hub
   SPOOL_ORCHESTRATOR_ID=CLE-001 ... spawn-window.sh`; the running session
   listed the new skills without a restart
-- 4.7 NOT applied, on purpose: the box's current tmux snippet carries the same
-  window keys PLUS the agent-top status line, which is not ported yet
-  (SPL-1160); swapping would only lose the status line. Revisit with SPL-1160
+- 4.7 first held back (agent-top was not ported), then DONE 2026-09-29 12:32Z
+  once it was (`ebf90cd8`, SPL-1160):
+  - the box user's `~/.config/spool-agent/env` gives agent-top
+    `SPOOL_ROOT=/var/spool-hub`, `SPOOL_ORCHESTRATOR_ID=CLE-001`,
+    `SPOOL_LEGACY_INBOX_ROOT=<legacy message root>`, `SPOOL_BOX_TAG=<tag>`
+    (tmux run-shell starts it with a bare environment)
+  - the snippet rendered to `~/.local/share/spool-agent/tmux-agent-status.conf`;
+    the one `source-file` line in `~/.tmux.conf` points at it (backup
+    `~/.tmux.conf.bak-048-20260929T123211Z`)
+  - checks before the swap: the status line from both copies identical
+    (`agents 9 >0 ?0 !8 .1 orc=0`), and the new badge rules wanted 0 renames
+    on the 9 live window names
+  - the frozen copy's badge loop (pid 1372) stopped, the snippet sourced: the
+    new loop runs from the csi-spl checkout on the same pidfile; 2 passes, 0
+    window names changed
 - 4.8 round trip through the rendered command: `CLE-35098` (auto id) sent
   CLE-001 a hello at 12:20:33Z, `agent-send.sh` went via spool with a pane
   poke, it answered pong on the same task at 12:20:51Z, `agent-inbox.sh`
@@ -145,6 +157,13 @@ FLIP RUN 2026-09-29 (n=1, trunk `2db3a7fe`):
 
 ```bash
 cd ~/.claude && for f in commands/*.md skills/*/SKILL.md; do grep -q 'spool-install: sha256=' "$f" && rm -f "$f"; done; cp -a .pre-048-20260929T121954Z/*.md commands/ && cp -a .pre-048-20260929T121954Z/{agent-msg,exit-clean,kill-your-self} skills/
+```
+
+The tmux line, as the box user (restores the frozen copy's status line and
+badge loop):
+
+```bash
+cp -p ~/.tmux.conf.bak-048-20260929T123211Z ~/.tmux.conf && kill "$(cat /tmp/agent-top-badge-loop.pid)"; rm -f /tmp/agent-top-badge-loop.pid; tmux source-file ~/.tmux/agent-status.conf
 ```
 
 The orchestrator's side needs no rollback step of its own: `agent-send.sh`

@@ -152,6 +152,10 @@ grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" && [[ -x "$
 CFG="$H/.config/spool-agent/env"
 [[ "$(stat -c %a "$CFG")" == 600 ]] && grep -qx 'SPOOL_ENV=prd' "$CFG" && grep -qx 'SPOOL_TENANT=t9' "$CFG" && grep -qx 'SPOOL_BOX=box-ext' "$CFG" &&
   pass "3. the config holds env/tenant/box, mode 0600" || fail "3. config: $(cat "$CFG")"
+echo 'SPOOL_BOX_TAG=keep' >>"$CFG"
+ARGS=(--cli none --no-seat --env prd --tenant t9 --box box-ext); inst
+grep -qx 'SPOOL_BOX_TAG=keep' "$CFG" && [[ "$(grep -c '^SPOOL_ENV=' "$CFG")" == 1 ]] &&
+  pass "3. a re-run keeps a config line it does not own, and writes its own once" || fail "3. config re-run: $(cat "$CFG")"
 [[ -x "$H/.local/bin/spool-agent" ]] && grep -q 'written by spool-install' "$H/.local/bin/spool-agent" &&
   pass "3. spool-agent is on <prefix>/bin" || fail "3. no shim"
 grep -q "not on your PATH" "$T/o" && pass "3. a <prefix>/bin off PATH is named" || fail "3. no PATH hint"

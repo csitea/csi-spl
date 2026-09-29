@@ -40,6 +40,10 @@ export interface SessionClaims {
   close_buttons?: string | null
   /** SPL-1132 Issues sheet column widths: column -> px; null = never sized (automatic layout). */
   issues_columns?: Record<string, number> | null
+  /** SPL-1181 Issues list default sort: {col, dir}; null = never picked (priority ascending). */
+  issues_sort?: { col: string, dir: string } | null
+  /** SPL-1182 The two vertical dividers' widths as window fractions; null = never dragged (default layout). */
+  pane_sizes?: Record<string, number> | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -138,6 +142,16 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, issues_columns: cols }
   }
 
+  /** SPL-1181: mirror the Issues default sort (optimistic; reverted on a failed save). */
+  function setIssuesSort(sort: { col: string, dir: string } | null) {
+    if (claims.value) claims.value = { ...claims.value, issues_sort: sort }
+  }
+
+  /** SPL-1182: mirror the divider widths (optimistic; reverted on a failed save). */
+  function setPaneSizes(sizes: Record<string, number> | null) {
+    if (claims.value) claims.value = { ...claims.value, pane_sizes: sizes }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -151,5 +165,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, logout }
 })

@@ -78,21 +78,47 @@ export function sortFromQuery(q = {}) {
   return SHEET_COLUMNS.includes(col) && (dir === 'asc' || dir === 'desc') ? { col, dir } : { col: '', dir: '' }
 }
 
+/**
+ * SPL-1181: the product default sort of the Issues list — priority ascending
+ * (1 at the top), with the stable secondary order updated, newest first. A
+ * person may override it PER TENANT (issues_sort, rdb 0078); with no override
+ * the list opens with this.
+ */
+export const DEFAULT_SORT = { col: 'priority', dir: 'asc' }
+
 /** The `sort=` sent to the hub for a sheet sort (the hub orders what it can). */
 export function hubSort(s) {
-  return s && HUB_SORTS.has(s.col) ? s.col : 'updated'
+  if (s && s.col) return HUB_SORTS.has(s.col) ? s.col : 'updated'
+  return DEFAULT_SORT.col // no explicit sort = the product default (priority)
 }
 
 const keyNum = (k) => Number(String(k || '').replace(/^\D+-/, '')) || 0
 
 /**
+ * The Issues list's default order (SPL-1181): priority ascending, ties broken
+ * by updated newest-first, then the newest key. Kept separate from the
+ * explicit-column sortSheet so a header sort is unchanged.
+ */
+function defaultSort(rows) {
+  const upd = (i) => Date.parse(i.updated_at || '') || 0
+  return (rows || []).slice().sort((x, y) => {
+    const a = Number(x.priority) || 99
+    const b = Number(y.priority) || 99
+    if (a !== b) return a - b
+    const u = upd(y) - upd(x)
+    return u !== 0 ? u : keyNum(y.key) - keyNum(x.key)
+  })
+}
+
+/**
  * The sheet's rows in a column's order. `name(id)` reads an assignee's shown
  * name, `labelName(id)` a label's. An empty cell sorts last either way; ties
- * keep the newest key first. No column = the default order.
+ * keep the newest key first. No column = the default order (priority
+ * ascending, SPL-1181).
  */
 export function sortSheet(list, s = { col: '', dir: '' }, { name = (x) => x, labelName = (x) => x } = {}) {
   const rows = (list || []).slice()
-  if (!s || !s.col) return sortIssues(rows, 'updated')
+  if (!s || !s.col) return defaultSort(rows)
   const sign = s.dir === 'desc' ? -1 : 1
   const text = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
   const cell = (i) => {

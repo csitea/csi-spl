@@ -4,7 +4,7 @@
 // to the default (Updated, newest first); the sort lives in ?sort=&dir=.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { nextSort, sortFromQuery, hubSort, sortSheet, SHEET_COLUMNS } from '../../src/utils/issues-view.mjs'
+import { nextSort, sortFromQuery, hubSort, sortSheet, SHEET_COLUMNS, DEFAULT_SORT } from '../../src/utils/issues-view.mjs'
 
 const mk = (n, o = {}) => ({ key: `SPL-${n}`, title: `t${n}`, status: 'todo', priority: 3, level: 2, assignee: '', labels: [], deadline: '', updated_at: `2026-09-2${n}T10:00:00Z`, ...o })
 const keys = (l) => l.map((i) => i.key)
@@ -27,9 +27,15 @@ describe('the sheet sort', () => {
   it('asks the hub only for a sort it knows', () => {
     assert.equal(hubSort({ col: 'deadline', dir: 'asc' }), 'deadline')
     assert.equal(hubSort({ col: 'title', dir: 'asc' }), 'updated')
-    assert.equal(hubSort({ col: '', dir: '' }), 'updated')
+    // SPL-1181: no explicit sort = the product default, priority.
+    assert.equal(hubSort({ col: '', dir: '' }), 'priority')
   })
-  it('default: newest update first', () => {
+  it('default sort is priority ascending, ties by updated newest-first (SPL-1181)', () => {
+    assert.deepEqual(DEFAULT_SORT, { col: 'priority', dir: 'asc' })
+    // priority wins: 1 at the top, then 2, then 3.
+    const l = [mk(1, { priority: 3 }), mk(2, { priority: 1 }), mk(3, { priority: 2 })]
+    assert.deepEqual(keys(sortSheet(l)), ['SPL-2', 'SPL-3', 'SPL-1'])
+    // equal priority: newest update first (the stable secondary order).
     assert.deepEqual(keys(sortSheet([mk(1), mk(3), mk(2)])), ['SPL-3', 'SPL-2', 'SPL-1'])
   })
   it('each column sorts both ways; empty cells last either way', () => {

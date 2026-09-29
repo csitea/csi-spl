@@ -865,9 +865,18 @@ const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
-/* owner, topics e65c0f60 + e00da93b: one flat list, sorted by a header click;
-   the default is Updated, newest first. The sort lives in ?sort=&dir=. */
-const sheetSort = ref(sortFromQuery(route.query as Record<string, unknown>))
+/* owner, topics e65c0f60 + e00da93b + 3a589b54: one flat list, sorted by a
+   header click; the sort lives in ?sort=&dir=. With no ?sort= the list opens
+   with the person's PER-TENANT default (issues_sort claim, SPL-1181), else the
+   product default (priority ascending, applied by sortSheet/hubSort). */
+function initialSort(): { col: string, dir: string } {
+  const q = sortFromQuery(route.query as Record<string, unknown>)
+  if (q.col) return q
+  const stored = session.claims?.issues_sort
+  if (stored && stored.col && stored.dir) return sortFromQuery({ sort: stored.col, dir: stored.dir })
+  return { col: '', dir: '' }
+}
+const sheetSort = ref(initialSort())
 const statusF = ref('')
 const statusOpen = ref(false)
 const priorityF = ref('')

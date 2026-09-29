@@ -392,6 +392,27 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { issues_columns: obj }, 'PUT')
     },
     /**
+     * SPL-1181: the Issues list default sort, kept PER TENANT
+     * (tenant_memberships.settings, rdb 0078). Sends ONLY that key: {col, dir}
+     * or null to clear (the default is then priority ascending). 200 → ok;
+     * 400 unsupported_issues_sort; 401; 409 = no human.
+     */
+    saveIssuesSort(sort) {
+      const v = sort && sort.col && sort.dir ? { col: String(sort.col), dir: String(sort.dir) } : null
+      return post('/preferences', { issues_sort: v }, 'PUT')
+    },
+    /**
+     * SPL-1182: the two vertical dividers' widths, kept PER TENANT
+     * (tenant_memberships.settings, rdb 0078). Sends ONLY that key: an object
+     * of divider -> window fraction, or null / {} to clear (the default
+     * layout). One save per drag end. 200 → ok; 400 unsupported_pane_sizes;
+     * 401; 409 = no human.
+     */
+    savePaneSizes(sizes) {
+      const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null
+      return post('/preferences', { pane_sizes: obj }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

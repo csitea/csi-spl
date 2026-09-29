@@ -28,8 +28,10 @@ per spool issue (epic SPL-1152, prd t1).
       with qwen, ~/.qwen/skills; sha256 marker: untouched = rewritten, hand
       edit = kept and named (`--force-skills` + backup), foreign = never
       touched; `--no-skills`. Check: `test-install.sh` 50 PASS
-- [ ] T005 SPL-1156 port the missing box scripts the manifest marks `ported`
-      (tmux-close-window, the tmux status badge, ...)
+- [x] T005 SPL-1156 port the missing box scripts the manifest marks `ported`:
+      `tmux-close-window.sh` onto the spool resolver and
+      `assets/tmux-agent-status.conf` (`94db833f`; test-tmux-close-window 15
+      PASS; used live on 2026-09-29 to close the throwaway CLE-9048)
 - [x] T006 SPL-1157 README section "Agent harness: what you get when you clone"
       (root README) and the spawn-agents README layout + "Not ported (yet)"
 - [x] T007 SPL-1158 proof: a clean `node:22-bookworm` container, a new user
@@ -58,7 +60,7 @@ per spool issue (epic SPL-1152, prd t1).
       proved on this box (`59b6356d`: throwaway CLE-9048 round trip with
       CLE-001 via /var/spool-hub, an old-engine agent reached via legacy).
       OPEN: the flip itself (4.5-4.8), proposed 2026-09-29 19:00Z, waiting for
-      CLE-001's confirm
+      CLE-001's confirm; CONFIRMED by CLE-001 at 11:23Z for 19:00Z
 - [ ] T009 SPL-1160 port the rows marked `deferred` in `harness-parity.tsv`:
       the fleet views (agent-top, pane-scan, badges), restore-*, the spawn
       chains/tasks, the kill-your-self report. None is needed to spawn or talk

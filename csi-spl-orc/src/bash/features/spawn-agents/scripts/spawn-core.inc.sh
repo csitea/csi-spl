@@ -235,7 +235,7 @@ spawn_main() {
   _sp_idl="${SPAWN_RESUME_ID,,}"; _sp_idl="${_sp_idl//_/ }"
   # The resume stub carries the same permission flags as the launch. A grok
   # resumed without them falls back to whatever config.toml says; claude's
-  # own restore in the box engine already repeats --dangerously-skip-permissions.
+  # own restore in the box engine repeats its own permission mode (auto for claude).
   RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${_sp_cli} ${SPAWN_PERM_FLAGS} ${SPAWN_RESUME_FLAG} "
   _sp_plan restore "${RESTORE}<${SPAWN_RESUME_ID}>'"
 

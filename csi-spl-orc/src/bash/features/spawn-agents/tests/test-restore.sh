@@ -36,7 +36,7 @@ git -C "$T_TMP/main" branch -M master
 git -C "$T_TMP/main" worktree add -q -b CLE-10-x "$T_TMP/wt" master
 echo brief >"$T_TMP/brief.md"
 out="$(r claude CLE-10 "$T_TMP/wt" sid-a "$T_TMP/brief.md")"
-has "2. claude resumes by session, named after the id" "'claude' --name 'CLE-10' --resume sid-a --dangerously-skip-permissions" "$out"
+has "2. claude resumes by session, named after the id" "'claude' --name 'CLE-10' --resume sid-a --permission-mode auto" "$out"
 has "2. a lane worktree gets the worker kick" "tear down this worktree" "$out"
 has "2. ... re-pointing at the brief" "Re-read your task brief at $T_TMP/brief.md" "$out"
 has "2. a main checkout on master gets the neutral kick" "implies NO git step" "$(r claude CLE-11 "$T_TMP/main" sid-b)"

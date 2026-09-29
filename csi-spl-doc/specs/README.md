@@ -135,6 +135,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `046-spool-tenant-settings/` | Tenant settings for admins and biz_owners: the Settings layout behind a bottom-left icon; Members (users CRUD: invite, create, role, name/locale, disable, remove), Agents + fallback responders, Channels (no-fallback, archive), General (display name, default locale); permission table first | M3 | CLE-35069 (SPL-1037, epic 43) |
 | `047-spool-deployability/` | Deployability and taking spool-hub into use: a stranger self-hosting (compose, own GCP) vs buying a tenant, measured; ranked blockers, benchmark targets, a two-wave plan and the owner decisions (`deployability-analysis.md`) | M3 | CLE-35078 (SPL-57) |
 | `048-agent-harness-parity/` | The agent harness for claude, agy, grok and qwen, fully in csi-spl so anyone cloning gets it: csi-spl canonical (the box engine frozen), a parity manifest + drift test, qwen as the fourth kind, skills/commands rendered by the installer | M3 | CLE-35090 (epic SPL-1152) |
+| `049-spool-auth-facebook/` | Sign in with Facebook: the 010 client and Meta data-deletion/deauthorize callbacks proven against Graph-shaped tests, a deletion status page, public /privacy and /terms, a per-tenant method policy (planned) and the owner's Meta console runbook | M3 | CLE-35097 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is

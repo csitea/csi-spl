@@ -18,7 +18,7 @@
       data-test="file-preview"
       :aria-label="file.name"
       @click="viewerOpen = true"
-    ><img :src="previewUrl" :alt="file.name"></button>
+    ><img :src="previewUrl" :alt="file.name" decoding="async" loading="lazy"></button>
     <span v-else class="file-kind" :data-kind="kind.kind" data-test="file-kind">
       <UiIcon :name="kind.icon" :size="28" />
       <span v-if="kind.ext" class="file-kind__ext">{{ kind.ext }}</span>

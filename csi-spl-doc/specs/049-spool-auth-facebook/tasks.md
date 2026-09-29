@@ -24,8 +24,8 @@
 
 ## Phase 5 — Live (blocked on the owner: `owner-runbook.md`)
 
-- [ ] T050 Owner: `owner-runbook.md` §2–§6, then the App ID and the secret (file or Secret Manager).
-- [ ] T051 dev: App ID in `dev.env.yaml`, seed, list `facebook`, render, 030 apply, a real sign-in with a test Facebook account (SC-F2).
+- [x] T050 Owner (2026-09-29): Meta app `spool-hub`, App ID 913022908351919, published. Secret handed over by file. Check: Graph `oauth/access_token?grant_type=client_credentials` with the App ID + secret -> app token OK, app name spool-hub (control: made-up App ID -> 101 Invalid Client ID). Open: App domains reads `spool-hub..ai` (typo, owner to fix).
+- [~] T051 dev: App ID + `google,facebook` in cnf (`3587d960`); secret versions seeded dev + prd (sha256 verified); 030 applied on the owner's go (1 added, 1 changed; it also shipped SPL-1126/1128/1129). Check: `curl -s https://dev.spool-hub.ai/api/v1/auth/providers` -> google, facebook; the start redirect carries client_id 913022908351919 + the dev callback; Meta callbacks answer 400 to a bad signed_request. Missing: a real sign-in. Facebook answered "Feature Unavailable ... updating additional details for this app" (13:20Z; Meta-side processing after publish), and no callback reached the hub.
 - [ ] T052 prd: the same after T051.
 
 <!-- version: 0.1.0 · updated: 2026-09-29 · last-edit: 2026-09-29T05:00:00Z -->

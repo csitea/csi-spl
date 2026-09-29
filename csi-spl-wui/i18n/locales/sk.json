@@ -575,7 +575,8 @@
       "error": "Téma sa neodstránila. Skúste to znova.",
       "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca.",
       "archive_hint": "Archivácia ju iba skryje a dá sa vrátiť späť.",
-      "archive": "Archivovať namiesto toho"
+      "archive": "Archivovať namiesto toho",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Odstrániť túto správu?",
@@ -1055,7 +1056,8 @@
     "error": "Téma sa nezmenila. Skúste to znova.",
     "unarchive": "Obnoviť z archívu",
     "delete": "Odstrániť",
-    "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca."
+    "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Neupovedomení, nemôžu to čítať: {ids}",

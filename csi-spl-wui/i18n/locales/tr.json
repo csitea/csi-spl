@@ -575,7 +575,8 @@
       "error": "Konu silinemedi. Tekrar deneyin.",
       "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir.",
       "archive_hint": "Arşivlemek yalnızca gizler ve geri alınabilir.",
-      "archive": "Bunun yerine arşivle"
+      "archive": "Bunun yerine arşivle",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Bu mesaj silinsin mi?",
@@ -1055,7 +1056,8 @@
     "error": "Konu değiştirilemedi. Tekrar deneyin.",
     "unarchive": "Arşivden çıkar",
     "delete": "Sil",
-    "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir."
+    "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Bildirilmedi, bunu okuyamıyorlar: {ids}",

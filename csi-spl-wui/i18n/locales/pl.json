@@ -575,7 +575,8 @@
       "error": "Nie usunięto tematu. Spróbuj ponownie.",
       "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić.",
       "archive_hint": "Archiwizacja tylko go ukrywa i można ją cofnąć.",
-      "archive": "Zarchiwizuj zamiast tego"
+      "archive": "Zarchiwizuj zamiast tego",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Usunąć tę wiadomość?",
@@ -1055,7 +1056,8 @@
     "error": "Nie zmieniono tematu. Spróbuj ponownie.",
     "unarchive": "Przywróć z archiwum",
     "delete": "Usuń",
-    "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić."
+    "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Nie powiadomiono, nie mają dostępu do tego: {ids}",

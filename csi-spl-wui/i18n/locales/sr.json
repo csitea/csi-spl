@@ -575,7 +575,8 @@
       "error": "Тема није обрисана. Покушајте поново.",
       "error_forbidden": "Само аутор, власник или администратор може ово да уради.",
       "archive_hint": "Архивирање је само сакрива и може се опозвати.",
-      "archive": "Архивирај уместо тога"
+      "archive": "Архивирај уместо тога",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Обрисати ову поруку?",
@@ -1055,7 +1056,8 @@
     "error": "Тема није промењена. Покушајте поново.",
     "unarchive": "Врати из архиве",
     "delete": "Обриши",
-    "error_forbidden": "Само аутор, власник или администратор може ово да уради."
+    "error_forbidden": "Само аутор, власник или администратор може ово да уради.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Нису обавештени, немају приступ овоме: {ids}",

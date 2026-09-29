@@ -575,7 +575,8 @@
       "error": "Tēma netika dzēsta. Mēģiniet vēlreiz.",
       "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators.",
       "archive_hint": "Arhivēšana to tikai paslēpj, un to var atsaukt.",
-      "archive": "Arhivēt tā vietā"
+      "archive": "Arhivēt tā vietā",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Dzēst šo ziņu?",
@@ -1055,7 +1056,8 @@
     "error": "Tēma netika mainīta. Mēģiniet vēlreiz.",
     "unarchive": "Atjaunot no arhīva",
     "delete": "Dzēst",
-    "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators."
+    "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Nav paziņots, viņi to nevar lasīt: {ids}",

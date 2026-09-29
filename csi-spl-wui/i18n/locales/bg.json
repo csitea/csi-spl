@@ -575,7 +575,8 @@
       "error": "Темата не беше изтрита. Опитайте отново.",
       "error_forbidden": "Само авторът, собственикът или администратор може да направи това.",
       "archive_hint": "Архивирането само я скрива и може да бъде отменено.",
-      "archive": "Архивирай вместо това"
+      "archive": "Архивирай вместо това",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Да се изтрие ли това съобщение?",
@@ -1055,7 +1056,8 @@
     "error": "Темата не беше променена. Опитайте отново.",
     "unarchive": "Разархивирай",
     "delete": "Изтрий",
-    "error_forbidden": "Само авторът, собственикът или администратор може да направи това."
+    "error_forbidden": "Само авторът, собственикът или администратор може да направи това.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Не са уведомени, нямат достъп до това: {ids}",

@@ -575,7 +575,8 @@
       "error": "Ämnet raderades inte. Försök igen.",
       "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta.",
       "archive_hint": "Arkivering döljer det i stället och kan ångras.",
-      "archive": "Arkivera i stället"
+      "archive": "Arkivera i stället",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Ta bort det här meddelandet?",
@@ -1055,7 +1056,8 @@
     "error": "Ämnet ändrades inte. Försök igen.",
     "unarchive": "Återställ från arkiv",
     "delete": "Radera",
-    "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta."
+    "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Inte meddelade, de kan inte läsa detta: {ids}",

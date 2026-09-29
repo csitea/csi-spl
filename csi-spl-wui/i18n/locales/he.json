@@ -575,7 +575,8 @@
       "error": "הנושא לא נמחק. נסו שוב.",
       "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים לעשות זאת.",
       "archive_hint": "העברה לארכיון רק מסתירה אותו, ואפשר לבטל אותה.",
-      "archive": "להעביר לארכיון במקום"
+      "archive": "להעביר לארכיון במקום",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "למחוק את ההודעה הזו?",
@@ -1055,7 +1056,8 @@
     "error": "הנושא לא השתנה. נסו שוב.",
     "unarchive": "הוצאה מהארכיון",
     "delete": "מחיקה",
-    "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים לעשות זאת."
+    "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים לעשות זאת.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "לא נשלחה הודעה, אין להם גישה לזה: {ids}",

@@ -69,6 +69,10 @@ export function topicFrameTasks(frame, lobbyTaskId = '') {
 export function topicErrorKey(e, scope = 'feed.topic_delete') {
   const tok = e && typeof e === 'object' && 'token' in e ? String(e.token || '') : ''
   if (tok === 'not_allowed' || tok === 'forbidden') return `${scope}.error_forbidden`
+  // 409 not_a_card: the caller acted on a level-1 line that is not the topic's
+  // opening card (spec 041 §2). Retrying will never pass, so name the reason
+  // rather than the generic "try again" - point them at the opening card.
+  if (tok === 'not_a_card') return `${scope}.error_not_card`
   return `${scope}.error`
 }
 

@@ -575,7 +575,8 @@
       "error": "Тему не видалено. Спробуйте ще раз.",
       "error_forbidden": "Це може зробити лише автор, власник або адміністратор.",
       "archive_hint": "Архівування лише приховує її, і його можна скасувати.",
-      "archive": "Архівувати натомість"
+      "archive": "Архівувати натомість",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Видалити це повідомлення?",
@@ -1055,7 +1056,8 @@
     "error": "Тему не змінено. Спробуйте ще раз.",
     "unarchive": "Повернути з архіву",
     "delete": "Видалити",
-    "error_forbidden": "Це може зробити лише автор, власник або адміністратор."
+    "error_forbidden": "Це може зробити лише автор, власник або адміністратор.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Не повідомлено, вони не мають доступу до цього: {ids}",

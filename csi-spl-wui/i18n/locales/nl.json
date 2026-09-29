@@ -575,7 +575,8 @@
       "error": "Het onderwerp is niet verwijderd. Probeer het opnieuw.",
       "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen.",
       "archive_hint": "Archiveren verbergt het alleen en kan ongedaan worden gemaakt.",
-      "archive": "Liever archiveren"
+      "archive": "Liever archiveren",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Dit bericht verwijderen?",
@@ -1055,7 +1056,8 @@
     "error": "Het onderwerp is niet gewijzigd. Probeer het opnieuw.",
     "unarchive": "Uit archief halen",
     "delete": "Verwijderen",
-    "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen."
+    "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Niet ingelicht, zij kunnen dit niet lezen: {ids}",

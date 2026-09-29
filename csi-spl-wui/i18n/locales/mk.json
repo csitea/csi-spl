@@ -575,7 +575,8 @@
       "error": "Темата не беше избришана. Обидете се повторно.",
       "error_forbidden": "Само авторот, сопственикот или администратор може да го направи ова.",
       "archive_hint": "Архивирањето само ја крие и може да се поништи.",
-      "archive": "Архивирај наместо тоа"
+      "archive": "Архивирај наместо тоа",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Да се избрише оваа порака?",
@@ -1055,7 +1056,8 @@
     "error": "Темата не беше променета. Обидете се повторно.",
     "unarchive": "Врати од архива",
     "delete": "Избриши",
-    "error_forbidden": "Само авторот, сопственикот или администратор може да го направи ова."
+    "error_forbidden": "Само авторот, сопственикот или администратор може да го направи ова.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Не се известени, немаат пристап до ова: {ids}",

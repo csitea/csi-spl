@@ -90,6 +90,8 @@ describe('errors and the Archive rows', () => {
   it('a refusal reads as the role sentence, anything else as the retry one', () => {
     assert.equal(topicErrorKey({ token: 'not_allowed' }), 'feed.topic_delete.error_forbidden')
     assert.equal(topicErrorKey({ token: 'forbidden' }, 'archive'), 'archive.error_forbidden')
+    assert.equal(topicErrorKey({ token: 'not_a_card' }), 'feed.topic_delete.error_not_card')
+    assert.equal(topicErrorKey({ token: 'not_a_card' }, 'archive'), 'archive.error_not_card')
     assert.equal(topicErrorKey(new Error('x'), 'archive'), 'archive.error')
   })
   it('an archived card is one line of its body, its reply count and whether it may be deleted', () => {

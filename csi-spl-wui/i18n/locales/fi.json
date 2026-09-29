@@ -575,7 +575,8 @@
       "error": "Aihetta ei poistettu. Yritä uudelleen.",
       "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän.",
       "archive_hint": "Arkistointi vain piilottaa sen, ja sen voi perua.",
-      "archive": "Arkistoi sen sijaan"
+      "archive": "Arkistoi sen sijaan",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Poistetaanko tämä viesti?",
@@ -1055,7 +1056,8 @@
     "error": "Aihetta ei muutettu. Yritä uudelleen.",
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
-    "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän."
+    "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Ei ilmoitettu, he eivät voi lukea tätä: {ids}",

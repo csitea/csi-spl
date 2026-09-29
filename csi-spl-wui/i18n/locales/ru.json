@@ -575,7 +575,8 @@
       "error": "Тема не удалена. Попробуйте ещё раз.",
       "error_forbidden": "Это может сделать только автор, владелец или администратор.",
       "archive_hint": "Архивирование только скрывает её, и его можно отменить.",
-      "archive": "Архивировать вместо этого"
+      "archive": "Архивировать вместо этого",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Удалить это сообщение?",
@@ -1055,7 +1056,8 @@
     "error": "Тема не изменена. Попробуйте ещё раз.",
     "unarchive": "Вернуть из архива",
     "delete": "Удалить",
-    "error_forbidden": "Это может сделать только автор, владелец или администратор."
+    "error_forbidden": "Это может сделать только автор, владелец или администратор.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Не уведомлены, у них нет доступа к этому: {ids}",

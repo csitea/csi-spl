@@ -575,7 +575,8 @@
       "error": "Tema neištrinta. Bandykite dar kartą.",
       "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius.",
       "archive_hint": "Archyvavimas ją tik paslepia ir gali būti atšauktas.",
-      "archive": "Archyvuoti vietoj to"
+      "archive": "Archyvuoti vietoj to",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Ištrinti šią žinutę?",
@@ -1055,7 +1056,8 @@
     "error": "Tema nepakeista. Bandykite dar kartą.",
     "unarchive": "Grąžinti iš archyvo",
     "delete": "Ištrinti",
-    "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius."
+    "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Nepranešta, jie negali to skaityti: {ids}",

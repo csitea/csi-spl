@@ -575,7 +575,8 @@
       "error": "No se eliminó el tema. Inténtalo de nuevo.",
       "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo.",
       "archive_hint": "Archivar solo lo oculta y se puede deshacer.",
-      "archive": "Archivar en su lugar"
+      "archive": "Archivar en su lugar",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "¿Eliminar este mensaje?",
@@ -1055,7 +1056,8 @@
     "error": "No se cambió el tema. Inténtalo de nuevo.",
     "unarchive": "Desarchivar",
     "delete": "Eliminar",
-    "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo."
+    "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "No avisados, no pueden leer esto: {ids}",

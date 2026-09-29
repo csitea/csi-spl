@@ -575,7 +575,8 @@
       "error": "Subiectul nu a fost șters. Încearcă din nou.",
       "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta.",
       "archive_hint": "Arhivarea doar îl ascunde și poate fi anulată.",
-      "archive": "Arhivează în schimb"
+      "archive": "Arhivează în schimb",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Ștergeți acest mesaj?",
@@ -1055,7 +1056,8 @@
     "error": "Subiectul nu a fost modificat. Încearcă din nou.",
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
-    "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta."
+    "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Nu au fost anunțați, nu pot citi asta: {ids}",

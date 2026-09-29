@@ -575,7 +575,8 @@
       "error": "Could not delete the topic. Try again.",
       "error_forbidden": "Only the author, the owner or an admin may do this.",
       "archive_hint": "Archive hides it instead and can be undone.",
-      "archive": "Archive instead"
+      "archive": "Archive instead",
+      "error_not_card": "This is not the topic's opening card. Delete the topic from its first card."
     },
     "msg_delete": {
       "title": "Delete this message?",
@@ -1055,7 +1056,8 @@
     "error": "Could not change the topic. Try again.",
     "unarchive": "Unarchive",
     "delete": "Delete",
-    "error_forbidden": "Only the author, the owner or an admin may do this."
+    "error_forbidden": "Only the author, the owner or an admin may do this.",
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
   },
   "mention": {
     "not_told": "Not told, they cannot read this: {ids}",

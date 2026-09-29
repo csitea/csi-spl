@@ -43,17 +43,49 @@ func compressJSON(next http.Handler) http.Handler {
 	})
 }
 
-// acceptsGzip reports whether an Accept-Encoding list takes gzip (q > 0).
+// acceptsGzip reports whether an Accept-Encoding list takes gzip (q > 0). It
+// runs on every non-HEAD, non-upgrade request, so it scans the header in place:
+// strings.Split + ReplaceAll allocated a slice and a string per call for a
+// check that never needs either.
 func acceptsGzip(values []string) bool {
 	for _, v := range values {
-		for _, part := range strings.Split(v, ",") {
-			name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+		for len(v) > 0 {
+			part := v
+			if i := strings.IndexByte(v, ','); i >= 0 {
+				part, v = v[:i], v[i+1:]
+			} else {
+				v = ""
+			}
+			name, params, _ := strings.Cut(part, ";")
 			if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
 				continue
 			}
-			q := strings.ReplaceAll(strings.TrimSpace(params), " ", "")
-			return q != "q=0" && q != "q=0.0" && q != "q=0.00" && q != "q=0.000"
+			return !qIsZero(params)
 		}
+	}
+	return false
+}
+
+// qIsZero reports whether an Accept-Encoding parameter list quotes a zero
+// quality (q=0 in any of its written forms), ignoring spaces — the old
+// ReplaceAll compare without the allocation. `switch string(buf[:n])` is a
+// compiler special case that does not heap-allocate the key.
+func qIsZero(params string) bool {
+	var buf [8]byte
+	n := 0
+	for i := 0; i < len(params); i++ {
+		if params[i] == ' ' {
+			continue
+		}
+		if n >= len(buf) {
+			return false // longer than "q=0.000" — not a zero-quality form
+		}
+		buf[n] = params[i]
+		n++
+	}
+	switch string(buf[:n]) {
+	case "q=0", "q=0.0", "q=0.00", "q=0.000":
+		return true
 	}
 	return false
 }

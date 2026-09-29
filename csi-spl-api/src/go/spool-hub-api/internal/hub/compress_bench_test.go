@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -68,5 +69,38 @@ func TestCompressJSONChunkingKeepsTheBody(t *testing.T) {
 		if !bytes.Equal(got, big) {
 			t.Fatalf("chunks %v: %d bytes back, want %d identical", chunks, len(got), len(big))
 		}
+	}
+}
+
+// acceptsGzipOld is the pre-perf parser (strings.Split + ReplaceAll), kept only
+// so BenchmarkAcceptsGzip shows the allocations this change removes.
+func acceptsGzipOld(values []string) bool {
+	for _, v := range values {
+		for _, part := range strings.Split(v, ",") {
+			name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+			if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
+				continue
+			}
+			q := strings.ReplaceAll(strings.TrimSpace(params), " ", "")
+			return q != "q=0" && q != "q=0.0" && q != "q=0.00" && q != "q=0.000"
+		}
+	}
+	return false
+}
+
+// benchAcceptEncoding is a realistic browser Accept-Encoding with gzip last.
+var benchAcceptEncoding = []string{"br;q=1.0, deflate;q=0.8, gzip;q=0.5"}
+
+func BenchmarkAcceptsGzipOld(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = acceptsGzipOld(benchAcceptEncoding)
+	}
+}
+
+func BenchmarkAcceptsGzipNew(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = acceptsGzip(benchAcceptEncoding)
 	}
 }

@@ -646,10 +646,19 @@ func topicView(row store.TopicRow) viewTopic {
 	for _, k := range row.Kinds {
 		v.Kinds[k]++
 	}
-	seen := map[string]bool{}
+	// Dedup the (small) party list by scanning what is kept, not with a
+	// throwaway map[string]bool allocated for every one of up to 50 topics on a
+	// topics page.
+	v.Participants = make([]string, 0, len(row.Parties))
 	for _, p := range row.Parties {
-		if !seen[p] {
-			seen[p] = true
+		dup := false
+		for _, q := range v.Participants {
+			if q == p {
+				dup = true
+				break
+			}
+		}
+		if !dup {
 			v.Participants = append(v.Participants, p)
 		}
 	}

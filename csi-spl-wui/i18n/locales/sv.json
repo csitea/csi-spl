@@ -1126,10 +1126,13 @@
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
+    "issue_prefix": "Prefix för ärendenyckel",
+    "issue_prefix_hint": "Varje ärendenyckel lyder {prefix}-12. En ändring byter namn på alla nycklar i den här tenanten; numren står kvar. 1 till 10 bokstäver eller siffror, börjar med en bokstav.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
       "bad_setting": "The name must be one line of at most 200 characters.",
+      "bad_prefix": "Prefixet är 1 till 10 bokstäver eller siffror och börjar med en bokstav.",
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",

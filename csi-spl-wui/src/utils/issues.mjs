@@ -153,8 +153,8 @@ function mockErr(status, token) {
  * held in memory for the tab. `now` is injectable for tests.
  */
 export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOString() } = {}) {
-  /* SPL-18: every issue has a parent epic; the tab starts with the "random"
-     epic rdb 0049 gives every tenant, SPL-1 */
+  /* the tab starts with the "random" epic rdb 0049 gave every tenant, SPL-1;
+     since W16 (spec 047) an issue may also stand alone at level 2 */
   let last = 1
   let issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
     task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
@@ -194,12 +194,13 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     }
     const was = find(i.key)
     if (was && isTopKind(was.kind) && kids) throw mockErr(409, 'epic_has_issues')
-    if (!i.parent) throw mockErr(400, 'epic_required')
+    if (!i.parent) return /* W16: a lone level-2 issue */
     const parent = find(i.parent)
     if (!parent) throw mockErr(400, 'unknown_parent')
     if (isTopKind(parent.kind)) return
-    const grand = find(parent.parent)
-    if (!grand || !isTopKind(grand.kind) || kids) throw mockErr(400, 'bad_epic')
+    /* a subtask: its parent is level 2, under a level-1 row or under none */
+    const grand = parent.parent ? find(parent.parent) : null
+    if ((parent.parent && (!grand || !isTopKind(grand.kind))) || kids) throw mockErr(400, 'bad_epic')
   }
   /* hub checkEpicField: `epic` names a level-1 row; `parent` also takes a level-2 issue */
   const epicField = (b) => {
@@ -212,7 +213,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   const view = (i) => {
     if (isTopKind(i.kind)) return { ...i, epic: '', level: 1 }
     const p = find(i.parent)
-    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent, level: 3 }
+    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent || '', level: 3 }
     return { ...i, kind: 'issue', epic: i.parent, level: 2 }
   }
   /* hub setLevel: a level in the body is only checked against the tree's */

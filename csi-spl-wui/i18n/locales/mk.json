@@ -1126,10 +1126,13 @@
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
+    "issue_prefix": "Префикс на клучот на задачата",
+    "issue_prefix_hint": "Секој клуч на задача изгледа како {prefix}-12. Промената ги преименува сите клучеви во овој тенант; броевите остануваат. Од 1 до 10 букви или цифри, почнува со буква.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
       "bad_setting": "The name must be one line of at most 200 characters.",
+      "bad_prefix": "Префиксот е од 1 до 10 букви или цифри и почнува со буква.",
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",

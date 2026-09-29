@@ -1126,10 +1126,13 @@
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
+    "issue_prefix": "Prefiks klucza zadania",
+    "issue_prefix_hint": "Każdy klucz zadania ma postać {prefix}-12. Zmiana przemianowuje wszystkie klucze w tym tenancie; numery zostają. Od 1 do 10 liter lub cyfr, zaczyna się literą.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
       "bad_setting": "The name must be one line of at most 200 characters.",
+      "bad_prefix": "Prefiks ma od 1 do 10 liter lub cyfr i zaczyna się literą.",
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",

@@ -171,9 +171,18 @@ describe('SPL-18 epics', async () => {
     assert.equal(epicProgress({ total: 1, canceled: 1 }), 0)
     assert.equal(epicProgress({}), 0)
   })
+  it('W16 (spec 047): an issue needs no epic, and a lone one takes subtasks', () => {
+    const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-29T09:00:00Z' })
+    const lone = hub.create({ title: 'x' }).issue
+    assert.equal(lone.level, 2)
+    assert.equal(lone.epic, '')
+    const step = hub.create({ title: 'step', parent: lone.key }).issue
+    assert.equal(step.kind, 'subtask')
+    assert.equal(step.level, 3)
+    assert.throws(() => hub.create({ title: 'deeper', parent: step.key }), (e) => e.token === 'bad_epic')
+  })
   it('the mock hub keeps the rule and answers the summary', () => {
     const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T09:00:00Z' })
-    assert.throws(() => hub.create({ title: 'x' }), (e) => e.token === 'epic_required')
     const a = hub.create({ title: 'a', epic: 'SPL-1', status: 'done' }).issue
     assert.throws(() => hub.create({ title: 'b', epic: a.key }), (e) => e.token === 'bad_epic')
     const e = hub.create({ title: 'E', kind: 'epic' }).issue

@@ -17,7 +17,15 @@ export function normalizeTenantSettings(body) {
     defaultLocale: str(b.default_locale),
     responders: (Array.isArray(b.responders) ? b.responders : []).filter((r) => typeof r === 'string' && r),
     maxResponders: Number.isInteger(b.max_responders) && b.max_responders > 0 ? b.max_responders : 20,
+    /* W16 (spec 047): '' when the hub keeps no issues (the field hides) */
+    issuePrefix: str(b.issue_prefix),
   }
+}
+
+/** The issue key prefix as the hub stores it (upper-cased), or '' when the hub would refuse it. */
+export function issuePrefixOf(s) {
+  const v = String(s || '').trim().toUpperCase()
+  return /^[A-Z][A-Z0-9]{0,9}$/.test(v) ? v : ''
 }
 
 /** A GET /v1/tenant/channels body → rows with safe types, default channels first, then by name. */

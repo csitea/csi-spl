@@ -2,7 +2,7 @@
 // gates (strict, not fail-open), the section-of-path reader, the body
 // readers, the responder id rule, the mock hub rules.
 // Run: node tests/unit/tenant-settings.test.mjs
-import { moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '../../src/utils/tenant-settings.mjs'
+import { issuePrefixOf, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '../../src/utils/tenant-settings.mjs'
 import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } from '../../src/utils/tenant-settings-nav.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
@@ -34,6 +34,15 @@ ok('CONTROL: an unknown section', tenantSettingsSectionOf('/tenant-settings/bill
 
 const s = normalizeTenantSettings({ tenant_id: 't1', display_name: 'Acme', default_locale: 'fi', responders: ['CLE-01', 3, ''], max_responders: 20 })
 ok('settings reader', s.tenantId === 't1' && s.displayName === 'Acme' && s.defaultLocale === 'fi' && s.responders.join() === 'CLE-01' && s.maxResponders === 20)
+ok('W16 settings reader: the issue prefix', s.issuePrefix === '' && normalizeTenantSettings({ issue_prefix: 'ACME' }).issuePrefix === 'ACME')
+ok('W16 prefix rule: upper-cased, 1..10 of A-Z0-9 from a letter', issuePrefixOf(' ops ') === 'OPS' && issuePrefixOf('A1') === 'A1' &&
+  issuePrefixOf('1A') === '' && issuePrefixOf('A-B') === '' && issuePrefixOf('ABCDEFGHIJK') === '' && issuePrefixOf('') === '')
+{
+  const mt = createMockTenant()
+  ok('W16 mock: the prefix starts at SPL', mt.settings().issue_prefix === 'SPL')
+  ok('W16 mock: a prefix is saved upper-cased', mt.patch({ issue_prefix: 'acme' }).issue_prefix === 'ACME')
+  ok('W16 mock: a bad prefix is refused', throws(() => mt.patch({ issue_prefix: '9x' }), 'bad_setting'))
+}
 ok('settings reader survives junk', normalizeTenantSettings(null).responders.length === 0 && normalizeTenantSettings(null).maxResponders === 20)
 
 const rows = normalizeTenantChannels({ channels: [

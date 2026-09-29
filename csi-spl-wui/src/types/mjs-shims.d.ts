@@ -1171,11 +1171,12 @@ declare module '~/utils/tenant-settings-nav.mjs' {
 }
 
 declare module '~/utils/tenant-settings.mjs' {
-  export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number }
+  export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string }
   export type TenantChannel = { channel: string, name: string, description: string, visibility: 'default' | 'members', members: number, agents: number, messages: number, noFallback: boolean, createdBy: string, lastTs: string, archivable: boolean }
   export function normalizeTenantSettings(body: unknown): TenantSettings
   export function normalizeTenantChannels(body: unknown): TenantChannel[]
   export function validResponderId(s: unknown): boolean
+  export function issuePrefixOf(s: unknown): string
   export function moveItem<T>(list: T[], i: number, delta: number): T[]
   export function tenantSettingsErrorKey(err: unknown): string
 }

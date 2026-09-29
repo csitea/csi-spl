@@ -3,7 +3,7 @@
  * module so spool-client loads it only in a mock build (dynamic import): the
  * initial chunk stays inside the 027 budget.
  */
-import { validResponderId } from './tenant-settings.mjs'
+import { issuePrefixOf, validResponderId } from './tenant-settings.mjs'
 
 
 function mockErr(status, token) {
@@ -14,7 +14,7 @@ function mockErr(status, token) {
 }
 
 export function createMockTenant() {
-  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'] }
+  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL' }
   const channels = [
     { channel: 'lobby', name: 'lobby', visibility: 'default', members: 0, agents: 2, messages: 40, no_fallback: false, archivable: false },
     { channel: 'alerts', name: 'alerts', visibility: 'default', members: 0, agents: 1, messages: 3, no_fallback: false, archivable: false },
@@ -31,6 +31,11 @@ export function createMockTenant() {
         cfg.display_name = n
       }
       if (p.default_locale !== undefined) cfg.default_locale = String(p.default_locale)
+      if (p.issue_prefix !== undefined) {
+        const v = issuePrefixOf(p.issue_prefix)
+        if (!v) throw mockErr(400, 'bad_setting')
+        cfg.issue_prefix = v
+      }
       if (p.responders !== undefined) {
         if (!p.responders.every(validResponderId)) throw mockErr(400, 'bad_responder')
         cfg.responders = [...new Set(p.responders)]

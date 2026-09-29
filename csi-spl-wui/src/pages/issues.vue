@@ -242,7 +242,7 @@
               <td data-col="updated" />
               <td class="issues-c-act">
                 <span class="issues-newrow__acts">
-                  <button type="button" class="issues-iconbtn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" :aria-label="t('issues.create')" :title="t('issues.create')" @click="createIssue">
+                  <button type="button" class="issues-iconbtn" data-test="issues-create" :disabled="busy || !draft.title.trim()" :aria-label="t('issues.create')" :title="t('issues.create')" @click="createIssue">
                     <UiIcon name="check" :size="16" />
                   </button>
                   <button type="button" class="issues-iconbtn" data-test="issues-newrow-cancel" :aria-label="t('common.cancel')" :title="t('common.cancel')" @click="cancelCreate">
@@ -642,7 +642,7 @@
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
       <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
       <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
-      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
+      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
       <!-- SPL-18 level 3: a level-2 issue's subtasks, in the right pane -->
       <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
         <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
@@ -1432,7 +1432,7 @@ const menuOptions = computed(() => {
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
-  if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
+  if (kind === 'epic') return [{ value: '', label: t('issues.no_epic'), hint }, ...epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))]
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: `${n} ${t(levelKey(n))}`, hint }))
   /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
   if (kind === 'move-epic') return epics.value.filter((e) => e.key !== menu.value?.key).map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
@@ -1506,7 +1506,7 @@ function onTitle(ev: Event) {
 /* the submit key in the description: a new issue is created, an existing
    one's text is already saved by IssueDescription */
 function onDescriptionSubmit() {
-  if (creating.value && !busy.value && draft.title.trim() && (isTopKind(draft.kind) || draft.epic)) void createIssue()
+  if (creating.value && !busy.value && draft.title.trim()) void createIssue()
 }
 function onDescriptionDraft(value: string) {
   if (creating.value) draft.description = value
@@ -1618,7 +1618,6 @@ async function addLabel() {
 async function createIssue() {
   const title = draft.title.trim()
   if (!title || busy.value) return
-  if (!isTopKind(draft.kind) && !draft.epic) { saveError.value = 'issues.err_epic_required'; return }
   busy.value = true
   saveError.value = ''
   const body: Record<string, unknown> = {
@@ -1632,7 +1631,7 @@ async function createIssue() {
   /* The label and parent forms work on every hub since 0.7.0 (issues-v1 §8:
      the epic label makes an epic, parent is the epic). */
   if (isTopKind(draft.kind)) body.kind = draft.kind
-  else body.parent = draft.epic
+  else if (draft.epic) body.parent = draft.epic /* W16: no epic = a lone level-2 issue */
   const deadline = localInputToDeadline(draft.deadlineLocal)
   if (deadline) body.deadline = deadline
   try {

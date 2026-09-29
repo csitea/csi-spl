@@ -26,6 +26,8 @@
 #      rewrites nothing; a hand edit is kept and named, --force-skills
 #      replaces it with a backup; a foreign same-named file is never touched;
 #      the tmux snippet lands in <data>; --no-skills renders nothing
+#  11. a vendor URL that returns no script: that CLI is named, never run, the
+#      other CLIs and the harness still install, and the run exits 4
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -283,6 +285,17 @@ ARGS=(--cli none --no-seat --force-skills); inst; rc=$?
 rm -rf "$H/.claude/commands"
 ARGS=(--cli none --no-seat --no-skills); inst
 [[ ! -e "$H/.claude/commands" ]] && pass "10. --no-skills renders nothing" || fail "10. --no-skills rendered"
+
+# --- 11. one vendor's bad day ---------------------------------------------------------------------
+printf '\x7fELF-not-a-script' >"$T/www/agy-binary"
+sed -i 's#  https://vendor.test/agy)    f=agy-install.sh ;;#  https://vendor.test/agy)    f=agy-install.sh ;;\n  https://vendor.test/agybin) f=agy-binary ;;#' "$T/stub/curl"
+rm -f "$H/.local/bin/agy"; rm -rf "$H/.claude/commands"; : >"$T/vendor.log"; : >"$T/npm.log"
+ARGS=(--cli agy,qwen --no-seat); inst SPOOL_INSTALL_URL_AGY=https://vendor.test/agybin; rc=$?
+[[ $rc -eq 4 ]] && grep -q 'agybin did not return a script' "$T/o" && grep -q 'not installed: agy' "$T/o" &&
+  pass "11. a non-script installer is refused, named, and the run exits 4" || fail "11. rc $rc $(cat "$T/o")"
+! grep -q 'vendor-agy ran' "$T/vendor.log" && [[ ! -e "$H/.local/bin/agy" ]] && pass "11. ... and never run" || fail "11. it ran"
+grep -q '^npm install' "$T/npm.log" && [[ -r "$H/.claude/commands/qwen-spawn.md" ]] &&
+  pass "11. qwen and the harness still install after it" || fail "11. later steps skipped: $(cat "$T/o")"
 
 # --- 8. a foreign spool-agent ------------------------------------------------------------------------------------
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"

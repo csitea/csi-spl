@@ -59,7 +59,7 @@
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
-# missing, 4 an agent CLI did not install, 5 the seat failed, 6 the toolchain
+# missing, 4 an agent CLI did not install (every other step still ran), 5 the seat failed, 6 the toolchain
 # or the spool build failed, 7 a file in the way is not ours.
 set -uo pipefail
 
@@ -188,6 +188,12 @@ cli_path() {  # the installed binary, or nothing
   for p in "$BIN/$1" "$HOME/.local/bin/$1" "$HOME/.grok/bin/$1"; do [ -x "$p" ] && { echo "$p"; return; }; done
 }
 QWEN_PKG="${SPOOL_INSTALL_NPM_QWEN:-@qwen-code/qwen-code@latest}"
+# One vendor's bad day must not cost the user the other CLIs, the toolchain
+# and the harness (measured 2026-09-28: a transient binary body from one
+# vendor URL stopped a clean install before qwen and the skills). A failed
+# CLI is named, the run goes on, and it exits 4 at the end.
+CLI_FAILED=()
+cli_fail() { say "FAIL $*"; CLI_FAILED+=("$1"); }
 # qwen: npm into the user prefix (no sudo), then the vendored ripgrep gets its
 # execute bit - the 0.24.6 tarball ships it without one and every session
 # then warns "Ripgrep not available ... EACCES".
@@ -195,11 +201,11 @@ qwen_install() {
   local have="$1" rg
   if [ "$DRY" = 1 ]; then plan "npm install --prefix $PREFIX -g $QWEN_PKG${have:+ (have $have)}, then chmod +x its vendored rg"; return 0; fi
   say "installing the latest qwen (npm $QWEN_PKG into $PREFIX)"
-  "$NPM" install --prefix "$PREFIX" -g "$QWEN_PKG" >&2 || die 4 "npm install of $QWEN_PKG failed"
+  "$NPM" install --prefix "$PREFIX" -g "$QWEN_PKG" >&2 || { cli_fail qwen "npm install of $QWEN_PKG failed"; return 0; }
   for rg in "$PREFIX"/lib/node_modules/@qwen-code/qwen-code/vendor/ripgrep/*/rg; do
     [ -f "$rg" ] && [ ! -x "$rg" ] && chmod +x "$rg" && say "qwen: made $rg executable"
   done
-  have="$(cli_path qwen)"; [ -n "$have" ] || die 4 "npm installed $QWEN_PKG but no qwen binary is on PATH or in $BIN"
+  have="$(cli_path qwen)"; [ -n "$have" ] || { cli_fail qwen "npm installed $QWEN_PKG but no qwen binary is on PATH or in $BIN"; return 0; }
   say "qwen: $have ($("$have" --version 2>/dev/null | head -1))"
 }
 for c in "${CLI_LIST[@]}"; do
@@ -214,12 +220,15 @@ for c in "${CLI_LIST[@]}"; do
   fi
   if [ "$DRY" = 1 ]; then plan "install the latest $c: bash <($url)${have:+ (have $have)}"; continue; fi
   tmp="$(mktemp)"
-  fetch "$url" "$tmp" || { rm -f "$tmp"; die 4 "cannot download the $c installer from $url"; }
+  fetch "$url" "$tmp" || { rm -f "$tmp"; cli_fail "$c" "cannot download the $c installer from $url"; continue; }
+  # An installer is a script: a body that does not start with #! (an HTML
+  # error page, a binary) is refused rather than handed to bash.
+  [ "$(head -c 2 "$tmp")" = "#!" ] || { rm -f "$tmp"; cli_fail "$c" "$url did not return a script: retry later, or set SPOOL_INSTALL_URL_$(printf %s "$c" | tr "[:lower:]" "[:upper:]")"; continue; }
   say "installing the latest $c ($url)"
   if [ "$c" = grok ]; then mkdir -p "$BIN"; GROK_BIN_DIR="$BIN" bash "$tmp" >&2; rc=$?; else bash "$tmp" >&2; rc=$?; fi
   rm -f "$tmp"
-  [ "$rc" -eq 0 ] || die 4 "the $c installer failed (rc $rc)"
-  have="$(cli_path "$c")"; [ -n "$have" ] || die 4 "the $c installer ran but no $c binary is on PATH or in $BIN"
+  [ "$rc" -eq 0 ] || { cli_fail "$c" "the $c installer failed (rc $rc)"; continue; }
+  have="$(cli_path "$c")"; [ -n "$have" ] || { cli_fail "$c" "the $c installer ran but no $c binary is on PATH or in $BIN"; continue; }
   say "$c: $have ($("$have" --version 2>/dev/null | head -1))"
 done
 
@@ -438,4 +447,5 @@ if [ "$SEAT" = 1 ]; then
   fi
 fi
 [ "$DRY" = 1 ] && say "DRY RUN - nothing changed"
+[ "${#CLI_FAILED[@]}" -eq 0 ] || die 4 "not installed: ${CLI_FAILED[*]} (every other step ran; re-run install.sh --cli ${CLI_FAILED[*]// /,} to retry)"
 exit 0

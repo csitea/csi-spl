@@ -569,16 +569,34 @@ func issueEntities(ctx context.Context, is store.Issues, tenant string, q *searc
 // reads (the log itself is trimmed to HumanEventsKeep rows).
 const searchEventScan = 500
 
-// handleSearchOperators is search-v1 §6: the grammar as data.
-func (s *Server) handleSearchOperators(w http.ResponseWriter, _ *http.Request, _ store.Tenant) {
-	type ty struct {
-		Type    search.Type `json:"type"`
-		Group   string      `json:"group"`
-		Aliases []string    `json:"aliases"`
-	}
-	types := []ty{}
+// searchOperatorType is one row of the grammar's type table (search-v1 §6).
+type searchOperatorType struct {
+	Type    search.Type `json:"type"`
+	Group   string      `json:"group"`
+	Aliases []string    `json:"aliases"`
+}
+
+// searchOperatorsBody is the whole grammar-as-data answer. A typed struct, not
+// map[string]any, so its json encode neither allocates a map nor boxes values.
+type searchOperatorsBody struct {
+	Version   string               `json:"version"`
+	Types     []searchOperatorType `json:"types"`
+	Operators []search.Operator    `json:"operators"`
+}
+
+// The grammar is compiled in: search.Types, search.Operators and StatusDoc
+// (which reads the fixed store.IssueStatuses list, set once at init) never
+// change while the process runs. So the payload is built once, not rebuilt on
+// every GET /v1/view/search/operators — the WUI reads it on each search open.
+var (
+	searchOperatorsOnce sync.Once
+	searchOperatorsData searchOperatorsBody
+)
+
+func buildSearchOperators() {
+	types := make([]searchOperatorType, 0, len(search.Types))
 	for _, t := range search.Types {
-		types = append(types, ty{t, t.Group(), search.Aliases(t)})
+		types = append(types, searchOperatorType{t, t.Group(), search.Aliases(t)})
 	}
 	ops := make([]search.Operator, len(search.Operators))
 	copy(ops, search.Operators)
@@ -587,8 +605,14 @@ func (s *Server) handleSearchOperators(w http.ResponseWriter, _ *http.Request, _
 			ops[i].Aliases = []string{}
 		}
 		if ops[i].Name == search.OpStatus {
-			ops[i].Doc = search.StatusDoc() // the store's current workflow, never a stale list
+			ops[i].Doc = search.StatusDoc()
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"version": search.Version, "types": types, "operators": ops})
+	searchOperatorsData = searchOperatorsBody{Version: search.Version, Types: types, Operators: ops}
+}
+
+// handleSearchOperators is search-v1 §6: the grammar as data.
+func (s *Server) handleSearchOperators(w http.ResponseWriter, _ *http.Request, _ store.Tenant) {
+	searchOperatorsOnce.Do(buildSearchOperators)
+	writeJSON(w, http.StatusOK, searchOperatorsData)
 }

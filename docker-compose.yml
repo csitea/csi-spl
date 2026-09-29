@@ -42,10 +42,12 @@ services:
 
   hub-init:
     build: &hub-build
-      context: ./csi-spl-api
-      dockerfile: src/docker/hub.Dockerfile
-      additional_contexts:
-        rdb: ./csi-spl-rdb
+      # the repo root, so the build can read the version off .git (W6);
+      # src/docker/hub.Dockerfile.dockerignore narrows what is sent
+      context: .
+      dockerfile: csi-spl-api/src/docker/hub.Dockerfile
+      args:
+        SPOOL_VERSION: ${SPOOL_VERSION:-}
     image: spool-hub:local
     command: ["init"]
     environment:
@@ -116,9 +118,10 @@ services:
 
   web:
     build:
-      context: ./csi-spl-wui
-      dockerfile: src/docker/wui.Dockerfile
+      context: .
+      dockerfile: csi-spl-wui/src/docker/wui.Dockerfile
       args:
+        SPOOL_VERSION: ${SPOOL_VERSION:-}
         SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
         SPOOL_TENANT: ${SPOOL_TENANT:-main}
         SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}

@@ -1,0 +1,11 @@
+# hub.Dockerfile's context is the repo root (specs/047 W6: .git gives the
+# version); send the builder only what the image is made of
+*
+!.version
+!.git
+!csi-spl-api/src/go/spool-hub-api
+!csi-spl-api/src/docker/hub-entrypoint.sh
+!csi-spl-rdb/src/sql/postgres/spool-hub
+!csi-spl-rdb/src/sql/postgres/spool-hub-roles
+**/*_test.go
+**/testdata

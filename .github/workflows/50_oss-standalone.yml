@@ -42,7 +42,10 @@ jobs:
       SPOOL_HTTP_PORT: "8080"
       SPOOL_PUBLIC_URL: http://localhost:8080
     steps:
+      # full history + tags: the images stamp `git describe` (spec 047 W6)
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: docker compose up --build (no .env, the documented defaults)
         run: docker compose up --build --detach
@@ -60,6 +63,19 @@ jobs:
           echo
           curl -fsS -o /dev/null -w 'WUI / -> %{http_code}\n' http://localhost:8080/
           docker compose ps --all
+
+      # spec 047 W6: a self-built stack reports the checkout's version, not
+      # the 0.1.0-dev / .version placeholders
+      - name: The hub and the WUI report git describe
+        run: |
+          set -euo pipefail
+          want="$(git describe --tags --match 'v[0-9]*')"
+          got="$(curl -fsS http://localhost:8080/version | jq -r .version)"
+          echo "git describe: $want   hub /version: $got"
+          [[ "$got" == "${want#v}" ]] || { echo "::error::hub /version is '$got', want '${want#v}'"; exit 1; }
+          n="$(curl -fsS http://localhost:8080/ | grep -c "v${want#v}" || true)"
+          echo "WUI index.html lines naming v${want#v}: $n"
+          [[ "$n" -ge 1 ]] || { echo "::error::the WUI bundle does not carry v${want#v}"; exit 1; }
 
       - name: Set up Node
         uses: actions/setup-node@v4

@@ -89,8 +89,23 @@ spl_release_mint() {
       git -C "$dir" tag -f "v$next" "$sha" >/dev/null 2>&1
       echo "$next"; return 0
     fi
-    do_log "INFO v$next was taken by another deploy (attempt $i): $(tail -1 <<<"$out")" >&2
-    sleep "$((RANDOM % 3))"
+    # The push failed. A real race leaves v$next NOW on the remote (another lane
+    # claimed it) -- retry and take the next number. Anything else is NOT a race
+    # (v$next still absent): a rejected ref keeps failing, so surface it and stop
+    # pretending it was "taken". Either way print git's WHOLE stderr: the old
+    # code kept only the last line ("failed to push some refs"), hiding the
+    # reason above it -- e.g. a shallow checkout re-sending a .github/workflows
+    # blob that GITHUB_TOKEN is refused ("refusing to allow a GitHub App to
+    # create or update workflow file"). (SPL-1194 / CLE-001 P0.)
+    if git -C "$dir" ls-remote --tags "$remote" "refs/tags/v$next" 2>/dev/null | grep -q "refs/tags/v$next$"; then
+      do_log "INFO v$next was claimed by another deploy (attempt $i), taking the next. git said:" >&2
+      do_log "$(sed 's/^/    /' <<<"$out")" >&2
+      sleep "$((RANDOM % 3))"
+      continue
+    fi
+    do_log "FATAL push of tag v$next to $remote was REJECTED and v$next does not exist there -- this is not a lost race. git said:" >&2
+    do_log "$(sed 's/^/    /' <<<"$out")" >&2
+    return 1
   done
   do_log "FATAL could not claim a version tag on $remote after 10 attempts" >&2
   return 1

@@ -161,5 +161,38 @@ env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/w" PATH="$T/shim:$PATH" RACE_DONE="$T/ra
 out_ok "$T/gh14" && fail "CONTROL: the pre-fix library wrote a clean GITHUB_OUTPUT, so this test proves nothing" \
   || pass "CONTROL: the pre-fix library under the same race writes a GITHUB_OUTPUT GitHub refuses ($(tr '\n' '|' <"$T/gh14" | cut -c1-70))"
 
+# --- 11. a non-race REJECTION surfaces git's stderr and fails fast ----------
+# SPL-1194 / CLE-001 P0: a shallow WUI deploy's tag push was refused by
+# GITHUB_TOKEN ("refusing to allow a GitHub App to create or update workflow
+# file"), and the mint HID git's stderr behind "was taken by another deploy"
+# and retried 10x. Now: when v$next stays absent (not a lost race) the mint
+# prints the WHOLE stderr and stops. A git shim rejects the tag push WITHOUT
+# creating the tag; a passthrough for everything else.
+mkdir -p "$T/rej"
+cat >"$T/rej/git" <<EOF3
+#!/bin/sh
+case " \$* " in *" push "*refs/tags/v*)
+  echo " ! [remote rejected] (refusing to allow a GitHub App to create or update workflow file .github/workflows/30_wui-build-deploy.yml without workflows permission)" >&2
+  echo "error: failed to push some refs to 'origin'" >&2
+  exit 1 ;;
+esac
+exec "$real_git" "\$@"
+EOF3
+chmod +x "$T/rej/git"
+c16=$(commit sixteen); git -C "$T/w" push -q origin HEAD:refs/heads/master
+: >"$T/rej.err"; rc=0
+PATH="$T/rej:$PATH" lib spl_release_mint "$T/w" "$c16" 1.1.0 origin >"$T/rej.out" 2>"$T/rej.err" || rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'refusing to allow a GitHub App' "$T/rej.err" \
+   && grep -q 'was REJECTED' "$T/rej.err" && ! grep -q 'taken by another deploy' "$T/rej.err"; then
+  pass "a non-race push rejection surfaces git's real stderr and fails (not mislabelled 'taken')"
+else
+  fail "rejection path: rc=$rc err=$(tr '\n' '|' <"$T/rej.err" | cut -c1-180)"
+fi
+# CONTROL: the SAME commit with a normal git (no shim) mints cleanly, proving
+# it is the rejection that fails it above, not the commit.
+got=$(mint "$c16" 1.1.0)
+[[ "$got" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] && pass "CONTROL: the same commit mints a version once the push is not rejected ($got)" \
+  || fail "CONTROL: normal mint of c16 gave '$got'"
+
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

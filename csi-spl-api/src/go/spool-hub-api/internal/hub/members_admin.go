@@ -17,7 +17,7 @@ import (
 // permission per request; the WUI hiding the section is convenience only.
 
 // InviteMailer mails the invitation of a stored (tenant, email) invite and
-// answers the invitemail outcome ("sent", "rate_limited", ...). locale is the
+// answers the invitemail outcome ("sent", "logged", "rate_limited", ...). locale is the
 // inviter's WUI locale ("" = the hub default).
 type InviteMailer func(ctx context.Context, tenant, email, locale string) (string, error)
 

@@ -122,7 +122,8 @@ func TestSendLocaleAndLogSink(t *testing.T) {
 	r.invite(t, who, time.Hour)
 	r.d.Locale, r.d.Delivers = "en", false
 	res, err := Send(context.Background(), r.d, "t1", who)
-	if err != nil || res.Delivered || res.Locale != "en" || res.SignInURL != "https://example.com/en/login?tenant=t1" {
+	// 047 W13: a sink that reaches no inbox answers "logged", never "sent"
+	if err != nil || res.Delivered || res.Outcome != Logged || res.Locale != "en" || res.SignInURL != "https://example.com/en/login?tenant=t1" {
 		t.Fatalf("en / log sink: %+v %v", res, err)
 	}
 }

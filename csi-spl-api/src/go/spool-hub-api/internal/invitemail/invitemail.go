@@ -29,9 +29,13 @@ import (
 
 // Outcomes beyond the store's claim outcomes.
 const (
-	// Sent: the relay accepted the message (Delivered says whether the
-	// transport reaches an inbox; "log" does not).
+	// Sent: the relay accepted the message and the transport reaches an
+	// inbox (smtp).
 	Sent = "sent"
+	// Logged: the message was rendered and handed to a sink that reaches no
+	// inbox (transport "log"): nothing was delivered, so the answer must not
+	// read "sent" (047 W13). The mail slot is used all the same.
+	Logged = "logged"
 	// SendFailed: the relay refused; the claim was released.
 	SendFailed = "send_failed"
 )
@@ -156,7 +160,10 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 		return res, fmt.Errorf("invitemail: relay: %w", err)
 	}
 	res.Outcome, res.Delivered, res.MailCount = Sent, d.Delivers, c.PrevMailCount+1
-	log.Info().Str("outcome", Sent).Bool("delivered", d.Delivers).Str("locale", msg.Locale).
+	if !d.Delivers {
+		res.Outcome = Logged
+	}
+	log.Info().Str("outcome", res.Outcome).Bool("delivered", d.Delivers).Str("locale", msg.Locale).
 		Str("message_id", msg.MessageID).Int("mail_count", res.MailCount).Msg("invite.mail_sent")
 	return res, nil
 }

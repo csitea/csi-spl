@@ -191,7 +191,7 @@ echo "ok   - spool hub-invite: invite for an existing tenant, unknown tenant ref
 echo "$inv" | grep -q '"outcome":"skipped_no_relay"' || { echo "FAIL - hub-invite without a relay: $inv"; exit 1; }
 MAILENV=(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MAIL_TRANSPORT=log SPOOL_HUB_AUTH_APP_URL=https://app.example.com SPOOL_HUB_DEFAULT_LOCALE=bg)
 inv="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email Mem@Example.com --role member 2>"$WORK/inv.log")"
-echo "$inv" | grep -q '"outcome":"sent"' && echo "$inv" | grep -q '"delivered":false' &&
+echo "$inv" | grep -q '"outcome":"logged"' && echo "$inv" | grep -q '"delivered":false' &&
   echo "$inv" | grep -q '"sign_in_url":"https://app.example.com/login?tenant=t-invite"' ||
   { echo "FAIL - hub-invite log transport: $inv"; exit 1; }
 if grep -qi 'mem@example.com' "$WORK/inv.log" || ! grep -q '"message":"invite.mail_sent"' "$WORK/inv.log"; then
@@ -200,13 +200,13 @@ fi
 rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com 2>/dev/null)" || rc=$?
 [ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"rate_limited"' || { echo "FAIL - resend in the gap: rc=$rc $out"; exit 1; }
 out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com --min-gap 0s --locale en 2>/dev/null)" &&
-  echo "$out" | grep -q '"outcome":"sent"' && echo "$out" | grep -q '"locale":"en"' && echo "$out" | grep -q '"mail_count":2' ||
+  echo "$out" | grep -q '"outcome":"logged"' && echo "$out" | grep -q '"locale":"en"' && echo "$out" | grep -q '"mail_count":2' ||
   { echo "FAIL - resend after the gap: $out"; exit 1; }
 rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email nobody@example.com 2>/dev/null)" || rc=$?
 [ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"not_found"' || { echo "FAIL - resend unknown invite: rc=$rc $out"; exit 1; }
 out="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email nm@example.com --no-mail 2>/dev/null)" &&
   echo "$out" | grep -q '"outcome":"skipped_no_mail_flag"' || { echo "FAIL - --no-mail: $out"; exit 1; }
-echo "ok   - 010 FR-016: invite mail sent once (log transport), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
+echo "ok   - 010 FR-016: invite mail logged once (log transport answers logged, not sent: 047 W13), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
 
 # 017 T029: the M1 demo runs as the RUNTIME role (DML grants only, as the
 # cloud hub after do_spl_db_owner_split); the hub's own startup check must

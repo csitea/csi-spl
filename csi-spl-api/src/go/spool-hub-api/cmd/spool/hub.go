@@ -542,7 +542,7 @@ func cmdHubInviteMail(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	if res.Outcome != invitemail.Sent {
+	if res.Outcome != invitemail.Sent && res.Outcome != invitemail.Logged {
 		return 3
 	}
 	return 0

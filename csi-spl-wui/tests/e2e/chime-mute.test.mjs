@@ -48,15 +48,30 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/** Record every sound the page could make: oscillators and alerts. */
+/** Record every sound the page could make: oscillators and alerts.
+ *  SPL-1221: the fake AudioContext models AudioParam (value + setValueAtTime +
+ *  exponential/linearRampToValueAtTime) and ctx.close, so notify.mjs playSound()
+ *  motifs (051: the chosen sound is a scheduled envelope, default `chirp`) run
+ *  to osc.start() instead of throwing on the first ramp. It still records one
+ *  { kind: 'osc' } per oscillator started, so "note ON plays" is unchanged. */
 function recorders() {
   window.__sounds = []
+  const param = (v = 0) => ({
+    value: v,
+    setValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    linearRampToValueAtTime() {},
+  })
   class FakeCtx {
     constructor() { this.currentTime = 0; this.destination = {} }
     createOscillator() {
-      return { frequency: {}, connect() {}, start: () => window.__sounds.push({ kind: 'osc' }), stop() {} }
+      return {
+        type: 'sine', frequency: param(), connect() {}, onended: null,
+        start: () => window.__sounds.push({ kind: 'osc' }), stop() {},
+      }
     }
-    createGain() { return { gain: {}, connect() {} } }
+    createGain() { return { gain: param(), connect() {} } }
+    close() { return Promise.resolve() }
   }
   window.AudioContext = FakeCtx
   function FakeNotification(title, opts) { window.__sounds.push({ kind: 'alert', silent: Boolean(opts && opts.silent) }) }

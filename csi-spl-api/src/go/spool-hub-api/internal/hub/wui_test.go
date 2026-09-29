@@ -475,6 +475,15 @@ func bodyOf(t *testing.T, f map[string]any) string {
 	return s
 }
 
+// fromBoxOf is the hub-envelope from_box of a message frame: what the WUI keys
+// a DM peer by (dm:<id>@<box>).
+func fromBoxOf(t *testing.T, f map[string]any) string {
+	t.Helper()
+	env, _ := f["env"].(map[string]any)
+	s, _ := env["from_box"].(string)
+	return s
+}
+
 // 013 US7 (wui-live-ws v0.5): subscribe {peer} follows a DM, new roots
 // included; a member socket never receives a DM it is not party to.
 func TestWUIPeerSubscribeDM(t *testing.T) {
@@ -558,4 +567,35 @@ func TestWUIAllSubscribe(t *testing.T) {
 	wsjson.Write(context.Background(), b, map[string]any{"type": "send", "task_id": "5b4c3d2e-1f0a-4b9c-8d3e-0f1a2b3c4d5e", "channel": "lobby", "body": "later"}) //nolint:errcheck
 	readType(t, b, "ack")
 	quiet(t, a, "after unsubscribe all")
+}
+
+// TestWUIDMHumanSenderReachesRecipient is the owner's report (prd t1 dd88348d):
+// a human->human DM must raise the recipient's new-message sign "the same way
+// it works, agent to person now". A candidate was that the recipient never
+// receives the live event for a human sender (fan-out to box-wui only for agent
+// senders). It does: a human's browser send is box-wui-enveloped (wuiEnvelope),
+// so the recipient's live frame carries from_box box-wui - the exact box the
+// rail labels a human peer with (BROWSER_BOX), so the WUI keys the badge
+// dm:<id>@box-wui, the same shape an agent's dm:<id>@box-desk takes. The WUI
+// key parity itself is pinned in tests/unit/{notify,list-order}.test.mjs.
+func TestWUIDMHumanSenderReachesRecipient(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	a := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	b := dialMember(t, e, tid, "HUM-2", "HUM-2")
+	wsjson.Write(context.Background(), b, map[string]any{"type": "subscribe", "all": true}) //nolint:errcheck
+	if f := readType(t, b, "subscribed"); f["all"] != true {
+		t.Fatalf("all subscribed %v", f)
+	}
+	// A human (member A) DMs member B. B, following `all` and party to it,
+	// receives the live frame - the delivery half the owner reported missing.
+	dmSend(a, "6c5d4e3f-2a1b-4c9d-8e0f-1a2b3c4d5e6f", "HUM-2", "human to human")
+	readType(t, a, "ack")
+	f := readType(t, b, "message")
+	if got := bodyOf(t, f); got != "human to human" {
+		t.Fatalf("recipient DM body %q", got)
+	}
+	if got := fromBoxOf(t, f); got != "box-wui" {
+		t.Fatalf("human sender from_box = %q, want box-wui (else the rail keys dm:<id>@<box> wrong)", got)
+	}
 }

@@ -53,9 +53,12 @@ per spool issue (epic SPL-1152, prd t1).
 - [ ] T008 SPL-1159 switch this box over to the csi-spl harness (announce
       first, rollback line), then retire the reference's FROZEN.md (§1.4)
       PLANNED in `switch-over.md` (measured refs, steps, rollback line).
-      BLOCKED on the owner (spool blocker, prd t1 #spool-hub-devel,
-      2026-09-28): the fleet orchestrator still uses the markdown inbox, the
-      csi-spl harness the spool mailbox; recommended order = orchestrator first
+      Owner answered A (2026-09-29): orchestrator first. Built:
+      `agent-send.sh` + `agent-inbox.sh` (`49e0401a`, test-agent-send 29 PASS);
+      proved on this box (`59b6356d`: throwaway CLE-9048 round trip with
+      CLE-001 via /var/spool-hub, an old-engine agent reached via legacy).
+      OPEN: the flip itself (4.5-4.8), proposed 2026-09-29 19:00Z, waiting for
+      CLE-001's confirm
 - [ ] T009 SPL-1160 port the rows marked `deferred` in `harness-parity.tsv`:
       the fleet views (agent-top, pane-scan, badges), restore-*, the spawn
       chains/tasks, the kill-your-self report. None is needed to spawn or talk

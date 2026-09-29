@@ -16,7 +16,7 @@
 # @description sidecar was running at all). Idempotent: a desk that is already
 # @description down is OK, not an error.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_AGENT (optional) - the agent asking; refused while other agents share the sidecar
@@ -39,7 +39,7 @@ spl_desk_seated() {
 
 do_spl_desk_down() {
   do_require_bin python3 || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"

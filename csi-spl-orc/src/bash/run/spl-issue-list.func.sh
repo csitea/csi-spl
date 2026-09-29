@@ -5,7 +5,7 @@
 # @description assigned to the agent itself, open (not done / diss),
 # @description Linear's priority order. Read-only, but like every desk action
 # @description it calls the hub only with DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_ASSIGNEE (optional) - default me; any id, none, or '' for everyone

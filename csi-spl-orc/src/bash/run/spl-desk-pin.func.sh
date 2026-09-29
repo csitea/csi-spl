@@ -19,34 +19,36 @@
 # @description ROOT_KEY_JSON. Prints one JSON line; nothing secret (the root
 # @description key goes through a 0600 scratch file, removed).
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd; or self - a self-hosted hub at
+# @param   SPOOL_HUB_URL, any host, no cnf (specs/047 W4, do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant slug
 # @param DESK_BOX (optional) - default box-desk
-# @param ROOT_KEY_JSON (optional) - the tenant's 0600 create JSON (root_private_key)
+# @param ROOT_KEY_JSON (optional) - the tenant's 0600 create JSON (root_private_key),
+# @param   or a 0600 bare base64 key file (the compose stack's tenant-root.key)
 # @param BOX_PUBKEY (optional) - admin mode: the base64 box public key to pin
 # @param PIN_REVOKE (optional) - 1: admin mode revokes DESK_BOX's pin (needs
 # @param   ROOT_KEY_JSON; the box's owner re-runs the installer to be pinned again)
-# @param SPOOL_HUB_URL (optional) - when set it must equal the cnf hub
-# @param   (https://<env.dns.api_fqdn>): a mismatch is refused, because the
-# @param   desk would run against the cnf hub anyway
+# @param SPOOL_HUB_URL (optional) - dev / prd: when set it must equal the cnf
+# @param   hub (https://<env.dns.api_fqdn>): a mismatch is refused, because the
+# @param   desk would run against the cnf hub anyway. ENV=self: the hub itself
+# @param   (required on the first run, saved for later ones)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice DRY_RUN=0 ./run -a do_spl_desk_pin
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice BOX_PUBKEY=<b64> ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
+# @example ENV=self SPOOL_HUB_URL=http://localhost:8080 TENANT_ID=main DESK_BOX=box-alice ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
 #------------------------------------------------------------------------------
 do_spl_desk_pin() {
   do_require_bin python3 yq || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" rkj="${ROOT_KEY_JSON:-}" other="${BOX_PUBKEY:-}"
   local revoke="${PIN_REVOKE:-0}"
   [[ "$revoke" == 0 || "$revoke" == 1 ]] || { do_log "FATAL PIN_REVOKE must be 0 or 1, got: '$revoke'"; return 1; }
   spl_desk_validate "$tenant" "$box" CLE-0 || return 1
-  local hub d
-  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
-  if [[ -n "${SPOOL_HUB_URL:-}" && "${SPOOL_HUB_URL%/}" != "$hub" ]]; then
-    do_log "FATAL SPOOL_HUB_URL=$SPOOL_HUB_URL but the $ENV cnf hub is $hub: pick the ENV whose hub that is"; return 1
+  local hub="$SPL_HUB_URL" d
+  if [[ "$ENV" != self && -n "${SPOOL_HUB_URL:-}" && "${SPOOL_HUB_URL%/}" != "$hub" ]]; then
+    do_log "FATAL SPOOL_HUB_URL=$SPOOL_HUB_URL but the $ENV cnf hub is $hub: pick the ENV whose hub that is, or ENV=self for a self-hosted hub"; return 1
   fi
   if [[ -n "$other" ]]; then
     [[ "$other" =~ ^[A-Za-z0-9+/]{43}=$ ]] || { do_log "FATAL BOX_PUBKEY is not a base64 ed25519 public key"; return 1; }
@@ -101,11 +103,12 @@ do_spl_desk_pin() {
   else
     local out
     if ! out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-sync 2>&1)"; then
-      local admin="ENV=$ENV TENANT_ID=$tenant DESK_BOX=$box BOX_PUBKEY=$pub ROOT_KEY_JSON=<the tenant create JSON> DRY_RUN=0 ./run -a do_spl_desk_pin"
+      local selfhub=""; [[ "$ENV" == self ]] && selfhub=" SPOOL_HUB_URL=$hub"
+      local admin="ENV=$ENV$selfhub TENANT_ID=$tenant DESK_BOX=$box BOX_PUBKEY=$pub ROOT_KEY_JSON=<the tenant create JSON or root key file> DRY_RUN=0 ./run -a do_spl_desk_pin"
       spl_desk_pin_json "$ENV" "$tenant" "$hub" "$box" "$pub" "$d" 0 "$admin"
       do_log "WARN $box is not pinned under $tenant yet (hub said: $(printf '%s' "$out" | tail -n 1 | cut -c1-200))"
       do_log "WARN ask a tenant admin to run: $admin"
-      do_log "WARN or, without this repo: SPOOL_HUB_URL=$hub SPOOL_TENANT=$tenant spool hub-pin --box $box --pubkey $pub --root-key <root private key file>"
+      do_log "WARN or, without this repo: SPOOL_HUB_URL=$hub SPOOL_TENANT=$tenant spool hub-pin --box $box --pubkey $pub --root-key <root private key: a file, the key text, or - for stdin>"
       return 3
     fi
   fi
@@ -137,8 +140,8 @@ spl_desk_pin_hub() {
   local d="$1" box="$2" tenant="$3" hub="$4" pub="$5" rkj="$6" key out rc=0
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
   key="$(umask 077 && mktemp)" || return 1
-  python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
-    "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
+  spl_root_key_to_file "$rkj" "$key" ||
+    { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)"; return 1; }
   local -a what=(--pubkey "$pub"); [[ -n "$pub" ]] || what=(--revoke)
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" "${what[@]}" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"

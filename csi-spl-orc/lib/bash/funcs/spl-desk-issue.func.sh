@@ -8,14 +8,13 @@
 spl_desk_issue() {
   local op="$1"; shift
   do_require_bin python3 yq || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local hub d
-  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then
     do_log "INFO DRY_RUN would: spool issue $op --as $agent $* (box $box, tenant $tenant, $hub)"

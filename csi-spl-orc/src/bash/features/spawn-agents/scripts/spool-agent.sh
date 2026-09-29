@@ -23,7 +23,8 @@
 #
 # Options:
 #   --as <ID>          the agent id (^[A-Z]{2,4}-[0-9]+$)
-#   --env dev|prd|dev,prd  default: every env with this desk on the box
+#   --env dev|prd|dev,prd|self  default: every env with this desk on the box
+#                      (self: a self-hosted hub, seated by install.sh --env self)
 #   --tenant <slug>    default t1
 #   --box <box>        default box-desk
 #   --no-mirror        seat the agent but post nothing (<seat>/.no-mirror)
@@ -84,7 +85,7 @@ case "$CLI" in
   *) echo "spool-agent: the CLI must be claude, grok, agy or qwen, got '$CLI'" >&2; exit 2 ;;
 esac
 [ -z "$OPERATOR" ] || [[ "$OPERATOR" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { echo "spool-agent: --operator must be a HUM-n id" >&2; exit 2; }
-[ -z "$ENVN" ] || [[ "$ENVN" =~ ^(dev|prd|dev,prd|prd,dev)$ ]] || { echo "spool-agent: --env must be dev, prd or dev,prd" >&2; exit 2; }
+[ -z "$ENVN" ] || [[ "$ENVN" =~ ^(dev|prd|self|dev,prd|prd,dev)$ ]] || { echo "spool-agent: --env must be dev, prd, dev,prd or self (a self-hosted hub)" >&2; exit 2; }
 [[ "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spool-agent: bad --tenant '$TENANT'" >&2; exit 2; }
 [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || { echo "spool-agent: bad --box '$BOX'" >&2; exit 2; }
 if [ "$BACKFILL" = 1 ] && [ "$KIND" != claude ]; then
@@ -103,7 +104,7 @@ seat_root_of() {
   else printf '%s' "$BOX_HOME/.local/share/csi-spl/cloud/$1/desk/$TENANT/$BOX"; fi
 }
 if [ -z "$ENVN" ]; then
-  _envs="dev prd"
+  _envs="dev prd self"
   [ -n "${SPOOL_AGENT_DESK_ROOT:-}" ] && [[ "$SPOOL_AGENT_DESK_ROOT" != *%ENV%* ]] && _envs=dev
   for e in $_envs; do
     if [ "$(id -un)" = "$BOX_USER" ]; then test -d "$(seat_root_of $e)" && ENVN="${ENVN:+$ENVN,}$e"

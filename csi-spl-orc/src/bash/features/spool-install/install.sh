@@ -31,7 +31,9 @@
 #
 # Options:
 #   --cli <list>      comma list of claude,grok,agy,qwen, or none (default claude)
-#   --env dev|prd     the hub environment (default $SPOOL_ENV, else dev)
+#   --env dev|prd|self  the hub environment (default $SPOOL_ENV, else dev);
+#                     self = your own hub at SPOOL_HUB_URL, any host - e.g. the
+#                     docker compose stack of this repo (specs/047 W4)
 #   --tenant <slug>   the tenant (default $SPOOL_TENANT)
 #   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
 #   --no-seat         skip step 5 (no hub needed)
@@ -43,8 +45,11 @@
 #   --dry-run         print the plan; change nothing
 #
 # Env: SPOOL_HUB_URL - required unless --no-seat; the hub URL, no default.
+#      With --env dev|prd it must be that env's hub; with --env self it is
+#      any hub (http://localhost:8080 for the compose stack on this machine).
 #      A re-run takes env / tenant / box / hub from ~/.config/spool-agent/env
-#      ROOT_KEY_JSON - the tenant's 0600 create JSON: pin the box yourself
+#      ROOT_KEY_JSON - the tenant's 0600 create JSON, or a 0600 file with the
+#      bare root key (the compose stack's tenant-root.key): pin the box yourself
 #      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
@@ -112,7 +117,7 @@ if [ "$UPDATE" = 1 ] && [ "$DRY" = 0 ]; then
 fi
 
 # ── 0. arguments and base tools ──────────────────────────────────────────────
-[[ "$ENVN" =~ ^(dev|prd)$ ]] || die 2 "--env must be dev or prd, got '$ENVN'"
+[[ "$ENVN" =~ ^(dev|prd|self)$ ]] || die 2 "--env must be dev, prd or self (a self-hosted hub), got '$ENVN'"
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
 for c in "${CLI_LIST[@]}"; do
@@ -423,7 +428,7 @@ if [ "$SEAT" = 1 ]; then
       admin="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["admin_cmd"])')"
       pub="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["box_pubkey"])')"
       say "seat PENDING: $BOX is not pinned in $TENANT yet. Send your tenant admin this ONE line:"
-      echo "SPOOL_HUB_URL=$SPOOL_HUB_URL SPOOL_TENANT=$TENANT spool hub-pin --box $BOX --pubkey $pub --root-key <root private key file>"
+      echo "SPOOL_HUB_URL=$SPOOL_HUB_URL SPOOL_TENANT=$TENANT spool hub-pin --box $BOX --pubkey $pub --root-key <root private key: a file, the key text, or - for stdin>"
       say "(or, from their clone of this repo: $admin)"
       say "then re-run install.sh: it picks the pin up."
     else

@@ -5,7 +5,7 @@
 # @description pane, never a card in #tasks. `spool issue comment --as <agent>
 # @description --ref <key>`. Prints one JSON line (the comment's msg_id and the
 # @description issue's task_id). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_REF - required: the issue key, e.g. SPL-12

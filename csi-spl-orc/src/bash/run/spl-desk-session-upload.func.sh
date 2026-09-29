@@ -17,7 +17,7 @@
 # @description Prints one JSON line (agent, human, task_id, msg_id, bytes,
 # @description redaction counts). The markdown stays in the seat's .mirror/
 # @description dir (0600). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent id whose session is uploaded
 # @param SESSION_TOKEN - required: a string only this agent's transcript holds
@@ -34,7 +34,7 @@
 #------------------------------------------------------------------------------
 do_spl_desk_session_upload() {
   do_require_bin python3 yq || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
@@ -46,8 +46,7 @@ do_spl_desk_session_upload() {
 
   local feat; feat="$(spl_desk_mirror_scripts)"
   local hub d adir
-  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"; adir="$d/spool/$agent"
   if (( dry )); then
     do_log "INFO DRY_RUN would: export $agent's transcript (the one holding '$token') as $auser, redacted"

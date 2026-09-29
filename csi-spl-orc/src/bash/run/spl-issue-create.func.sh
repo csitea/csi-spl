@@ -5,7 +5,7 @@
 # @description to Issues, talk stays in topics. `spool issue create --as
 # @description <agent>` through the desk box. Prints one JSON line with the new
 # @description issue (its key, e.g. SPL-12). Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
 # @param ISSUE_TITLE - required: the title

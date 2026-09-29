@@ -193,7 +193,7 @@ grep -q "^pin ENV=dev TENANT_ID=t1 DESK_BOX=box-ext SPOOL_HUB_URL=$HUB ROOT_KEY_
   pass "6. do_spl_desk_pin gets env/tenant/box/hub/root key and the tools PATH" || fail "6. seat env: $(cat "$T/seat.log")"
 inst SPOOL_HUB_URL=$HUB STUB_SEAT=pending; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'seat PENDING' "$T/o" &&
-  grep -qx "SPOOL_HUB_URL=$HUB SPOOL_TENANT=t1 spool hub-pin --box box-ext --pubkey PUBKEY= --root-key <root private key file>" "$T/o" &&
+  grep -qx "SPOOL_HUB_URL=$HUB SPOOL_TENANT=t1 spool hub-pin --box box-ext --pubkey PUBKEY= --root-key <root private key: a file, the key text, or - for stdin>" "$T/o" &&
   pass "6. pending: exit 0 and the one hub-pin line for the admin" || fail "6. pending: rc $rc $(cat "$T/o")"
 inst SPOOL_HUB_URL=$HUB STUB_SEAT=down; rc=$?
 [[ $rc -eq 5 ]] && grep -q 'hub down' "$T/o" && pass "6. a failed seat exits 5 with the reason" || fail "6. failure: rc $rc $(cat "$T/o")"
@@ -204,6 +204,14 @@ ARGS=(--cli none); inst; rc=$?
   pass "6. a bare re-run seats with the saved tenant / box / hub" || fail "6. bare re-run: rc $rc $(cat "$T/o" "$T/seat.log")"
 ARGS=(--cli none --tenant t2); inst SPOOL_BOX=box-env; grep -q "TENANT_ID=t2 DESK_BOX=box-env " "$T/seat.log" &&
   pass "6. an option and the environment win over the saved config" || fail "6. precedence: $(tail -1 "$T/seat.log")"
+# specs/047 W4: a self-hosted hub - any URL, ENV=self handed to do_spl_desk_pin
+: >"$T/seat.log"
+ARGS=(--cli none --env self --tenant main --box box-ext); inst SPOOL_HUB_URL=http://localhost:18478 ROOT_KEY_JSON=/k/root.key; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'seated: box-ext is pinned in main (self)' "$T/o" &&
+  grep -q "^pin ENV=self TENANT_ID=main DESK_BOX=box-ext SPOOL_HUB_URL=http://localhost:18478 ROOT_KEY_JSON=/k/root.key DRY_RUN=0" "$T/seat.log" &&
+  pass "6. --env self seats against any hub URL (ENV=self to do_spl_desk_pin)" || fail "6. self: rc $rc $(cat "$T/o" "$T/seat.log")"
+ARGS=(--cli none --env qa --tenant main --box box-ext); inst SPOOL_HUB_URL=http://localhost:18478; rc=$?
+[[ $rc -eq 2 ]] && pass "6. CONTROL: --env qa is refused (exit 2)" || fail "6. --env qa: rc $rc"
 
 # --- 7. re-run -------------------------------------------------------------------------------------------------
 : >"$T/net.log"; : >"$T/vendor.log"

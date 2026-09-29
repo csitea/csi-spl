@@ -20,7 +20,7 @@
 # @description Prints one JSON line (env, tenant, box, agent, the edit result:
 # @description msg_id, task_id, from, revision). No secret is read.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent that wrote the message (the edit is
 # @param   refused locally when the stored author is someone else)
@@ -33,7 +33,7 @@
 #------------------------------------------------------------------------------
 do_spl_desk_edit() {
   do_require_bin python3 yq || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
@@ -52,8 +52,7 @@ do_spl_desk_edit() {
   fi
 
   local hub d
-  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then
     do_log "INFO DRY_RUN would: edit $id (written by $agent) on $box in $tenant with a new body${body_file:+ from $body_file}"

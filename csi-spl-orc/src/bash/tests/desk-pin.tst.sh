@@ -12,6 +12,9 @@
 #   6. admin mode (BOX_PUBKEY): pins the given key, writes no local state
 #   6b. PIN_REVOKE=1 revokes; with a pubkey or a bad value it is refused
 #   7. SPOOL_HUB_URL that is not the cnf hub is refused
+#   8. ENV=self (specs/047 W4): any hub URL, no cnf; saved and reused; a
+#      different URL, a URL with a path, or none at all is refused; a bare
+#      base64 root key file (the compose stack's tenant-root.key) pins
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -134,5 +137,38 @@ in_orc TENANT_ID=t1 DESK_BOX=box-ext DRY_RUN=0 SPOOL_HUB_URL=https://hub.example
   fail "7. a SPOOL_HUB_URL other than the cnf hub was accepted" || pass "7. a SPOOL_HUB_URL other than the cnf hub is refused"
 in_orc TENANT_ID=t1 DESK_BOX=box-ext DRY_RUN=0 SPOOL_HUB_URL="$HUB/" >"$T/o" 2>&1 &&
   pass "7. the cnf hub (trailing slash) is accepted" || fail "7. cnf hub refused: $(cat "$T/o")"
+
+# --- 8. ENV=self: a self-hosted hub ----------------------------------------------------------
+SELF="$T/state/self"; SH=http://localhost:18478
+: >"$T/calls.log"
+in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-ext DRY_RUN=0 >"$T/o" 2>&1 &&
+  fail "8. ENV=self with no SPOOL_HUB_URL was accepted" || { grep -q 'ENV=self needs SPOOL_HUB_URL' "$T/o" && pass "8. ENV=self with no hub URL is refused" || fail "8. no url: $(cat "$T/o")"; }
+for bad in "http://localhost:18478/api" "ftp://x" "localhost:18478"; do
+  in_orc ENV=self SPL_STATE_DIR="$SELF" SPOOL_HUB_URL="$bad" TENANT_ID=main DESK_BOX=box-ext DRY_RUN=0 >"$T/o" 2>&1 &&
+    fail "8. SPOOL_HUB_URL '$bad' was accepted" || pass "8. SPOOL_HUB_URL '$bad' is refused"
+done
+[[ ! -s "$T/calls.log" ]] && pass "8. no refusal called spool" || fail "8. a refusal called: $(cat "$T/calls.log")"
+rm -f "$T/pinned-at-hub"
+in_orc ENV=self SPL_STATE_DIR="$SELF" SPOOL_HUB_URL="$SH/" TENANT_ID=main DESK_BOX=box-ext DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 ]] && grep -q "^spool hub-sync root=$SELF/desk/main/box-ext/spool box=box-ext hub=$SH tenant=main" "$T/calls.log" &&
+  pass "8. ENV=self asks the given hub (any host, http, trailing slash dropped); pending = exit 3" || fail "8. self check: rc $rc $(cat "$T/o" "$T/calls.log")"
+grep -q "ENV=self SPOOL_HUB_URL=$SH TENANT_ID=main DESK_BOX=box-ext BOX_PUBKEY=" "$T/o" &&
+  pass "8. the self admin line names the hub" || fail "8. admin line: $(cat "$T/o")"
+[[ "$(cat "$SELF/hub-url")" == "$SH" ]] && pass "8. the hub URL is saved in the self state dir" || fail "8. saved: $(cat "$SELF/hub-url" 2>&1)"
+: >"$T/calls.log"; touch "$T/pinned-at-hub"
+in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-ext DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -s "$SELF/desk/main/box-ext/pinned" ]] && grep -q "hub=$SH " "$T/calls.log" &&
+  pass "8. a re-run with no SPOOL_HUB_URL uses the saved hub" || fail "8. saved re-run: rc $rc $(cat "$T/o" "$T/calls.log")"
+in_orc ENV=self SPL_STATE_DIR="$SELF" SPOOL_HUB_URL=https://chat.example.org TENANT_ID=main DESK_BOX=box-ext DRY_RUN=0 >"$T/o" 2>&1 &&
+  fail "8. CONTROL: a second hub URL on the same self state was accepted" || { grep -q "seated at $SH" "$T/o" && pass "8. CONTROL: a different hub URL is refused (the keys are pinned at the saved one)" || fail "8. other hub: $(cat "$T/o")"; }
+rm -f "$T/pinned-at-hub"; : >"$T/calls.log"; : >"$T/rootseen"
+BARE="$(python3 -c 'import base64,os; print(base64.b64encode(os.urandom(64)).decode())')"
+( umask 077; printf '%s\n' "$BARE" >"$T/tenant-root.key"; printf 'not a key\n' >"$T/junk.key" )
+in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-own DRY_RUN=0 ROOT_KEY_JSON="$T/tenant-root.key" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -s "$SELF/desk/main/box-own/pinned" ]] && grep -qx "$BARE" "$T/rootseen" && grep -q "^spool hub-pin --box box-own .* --root-key " "$T/calls.log" &&
+  pass "8. a bare base64 root key file pins the box (ENV=self)" || fail "8. bare key: rc $rc $(cat "$T/o" "$T/calls.log")"
+grep -qF "$BARE" "$T/o" "$T/calls.log" && fail "8. the bare root key leaked into output / argv" || pass "8. the bare root key is in neither output nor argv"
+in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-own3 DRY_RUN=0 ROOT_KEY_JSON="$T/junk.key" >"$T/o" 2>&1 &&
+  fail "8. CONTROL: a file that is neither JSON nor a key was accepted" || pass "8. CONTROL: a file that is neither JSON nor a key is refused"
 
 [[ $fails -eq 0 ]] && echo "OK desk-pin: all passed" || { echo "FAILED desk-pin: $fails"; exit 1; }

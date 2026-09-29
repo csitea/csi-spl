@@ -24,7 +24,8 @@
 # @description The sidecar is a plain background process: it dies with the box.
 # @description Stop it with do_spl_desk_down; re-run this action to restart it.
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self for a self-hosted hub (SPOOL_HUB_URL,
+# @param   no cnf: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant slug the agent is seated in
 # @param DESK_AGENT - required: the agent id of the pane, ^[A-Z]{2,4}-[0-9]+$
 # @param ROOT_KEY_JSON - required on the FIRST run of a desk (the 0600 JSON
@@ -48,13 +49,13 @@
 # @param   flag is only read at exec
 # @param DESK_WAIT_SECS (optional) - roster wait, default 30 (hub-run rescans every 10s)
 # @param DESK_WUI_URL (optional) - the WUI origin for the printed DM URL,
-# @param   default https://<env.dns.fqdn>
+# @param   default https://<env.dns.fqdn> (ENV=self: the hub URL, the compose stack's one origin)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_desk_up
 #------------------------------------------------------------------------------
 do_spl_desk_up() {
   do_require_bin python3 yq flock || return 1
-  do_spl_cloud_cnf || return 1
+  do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
@@ -63,8 +64,7 @@ do_spl_desk_up() {
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL DESK_WAIT_SECS must be a whole number, got: '$wait'"; return 1; }
 
   local hub d
-  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local notify="${DESK_NOTIFY_CMD-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}"
   [[ "$notify" == off || -x "$notify" ]] || { do_log "FATAL DESK_NOTIFY_CMD '$notify' is not executable (use 'off' for no terminal leg)"; return 1; }
@@ -72,7 +72,7 @@ do_spl_desk_up() {
   [[ "$poke" == 0 || "$poke" == 1 ]] || { do_log "FATAL DESK_POKE must be 0 or 1, got: '$poke'"; return 1; }
   [[ "$boxpoke" == 0 || "$boxpoke" == 1 ]] || { do_log "FATAL DESK_BOX_POKE must be 0 or 1, got: '$boxpoke'"; return 1; }
 
-  local wui="${DESK_WUI_URL:-https://$SPL_FQDN}"
+  local wui="${DESK_WUI_URL:-$SPL_WUI_URL}"
   if (( dry )); then
     do_log "INFO DRY_RUN would: keygen + hub-pin $box under $tenant at $hub (first run only; state $d)"
     do_log "INFO DRY_RUN would: seat $agent on $box and start a spool hub-run sidecar with SPOOL_NOTIFY_CMD=$notify"
@@ -172,8 +172,8 @@ spl_desk_pin() {
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
   pub="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
   key="$(umask 077 && mktemp)" || return 1
-  python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
-    "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
+  spl_root_key_to_file "$rkj" "$key" ||
+    { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)"; return 1; }
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"
   (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }

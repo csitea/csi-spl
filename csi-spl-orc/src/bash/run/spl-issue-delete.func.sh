@@ -6,7 +6,7 @@
 # @description hub refuses any other with forbidden); a member or admin deletes
 # @description from the WUI. Prints one JSON line (the issue as it was).
 # @description Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id), the issue's creator
 # @param ISSUE_REF - required: the issue key, e.g. SPL-12

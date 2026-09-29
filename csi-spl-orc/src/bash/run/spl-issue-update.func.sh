@@ -6,7 +6,7 @@
 # @description deadline, parent, labels). Typical: ISSUE_STATUS=wip
 # @description when work starts, in_review / done when it lands. Prints one
 # @description JSON line with the issue. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev or prd
+# @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_REF - required: the issue key, e.g. SPL-12

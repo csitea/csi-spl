@@ -114,6 +114,75 @@ do_spl_cloud_cnf() {
     SPL_SQL_PROXY_IMAGE SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_DB_ROLES_SQL
 }
 
+# do_spl_desk_cnf: the desk actions' resolver (specs/047 W4). It sets
+# SPL_HUB_URL (the hub a desk box talks to), SPL_WUI_URL (where a human opens
+# a DM), SPL_STATE_DIR and SPL_ORG_APP.
+#   ENV=dev|prd   the estate: do_spl_cloud_cnf, hub https://<env.dns.api_fqdn>
+#   ENV=self      a self-hosted hub (the root docker-compose.yml, or any other
+#                 spool hub): NO cnf and no cloud. SPOOL_HUB_URL is the hub;
+#                 the first run saves it as <state>/hub-url, later runs read it
+#                 back, and a different SPOOL_HUB_URL is refused (the box key
+#                 is pinned at the saved hub). State: <data>/<org>-<app>/cloud/self
+do_spl_desk_cnf() {
+  if [[ "${ENV:-}" != self ]]; then
+    do_spl_cloud_cnf || return 1
+    SPL_HUB_URL="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+    [[ "$SPL_HUB_URL" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+    SPL_WUI_URL="https://$SPL_FQDN"
+    export SPL_HUB_URL SPL_WUI_URL
+    return 0
+  fi
+  local proj_base
+  proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
+  [[ "$proj_base" =~ ^([a-z]+)-([a-z]+)-orc$ ]] || {
+    do_log "FATAL cannot read <org>-<app> from $PROJ_PATH (expected <org>-<app>-orc)"; return 1; }
+  SPL_ORG_APP="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+  SPL_STATE_DIR="${SPL_STATE_DIR:-$HOME/.local/share/$SPL_ORG_APP/cloud/self}"
+  mkdir -p "$SPL_STATE_DIR" && chmod 700 "$SPL_STATE_DIR" || return 1
+  local saved="" want="${SPOOL_HUB_URL:-}"
+  [[ -s "$SPL_STATE_DIR/hub-url" ]] && saved="$(head -n 1 "$SPL_STATE_DIR/hub-url")"
+  want="${want%/}"
+  if [[ -z "$want" ]]; then
+    [[ -n "$saved" ]] || { do_log "FATAL ENV=self needs SPOOL_HUB_URL (the self-hosted hub, e.g. https://chat.example.org or http://localhost:8080); none is saved in $SPL_STATE_DIR/hub-url yet"; return 1; }
+    want="$saved"
+  fi
+  [[ "$want" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] ||
+    { do_log "FATAL SPOOL_HUB_URL must be http(s)://<host>[:<port>] with no path, got: '$want'"; return 1; }
+  if [[ -n "$saved" && "$saved" != "$want" ]]; then
+    do_log "FATAL this self-hosted desk is seated at $saved, not $want: its box keys are pinned there. Use that hub, or another SPL_STATE_DIR for a second one"
+    return 1
+  fi
+  [[ -n "$saved" ]] || printf '%s\n' "$want" >"$SPL_STATE_DIR/hub-url" || return 1
+  SPL_HUB_URL="$want"
+  SPL_WUI_URL="$want"
+  SPL_FQDN="${want#*://}"; SPL_FQDN="${SPL_FQDN%%:*}"
+  SPL_CNF="$SPL_STATE_DIR/self.env.yaml"
+  # the few readers of $SPL_CNF on the desk path find the hub here too
+  printf 'env:\n  name: self\n  dns:\n    fqdn: "%s"\n' "$SPL_FQDN" >"$SPL_CNF" || return 1
+  export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_FQDN SPL_HUB_URL SPL_WUI_URL
+}
+
+# spl_root_key_to_file <ROOT_KEY_JSON> <out>: the tenant root private key out
+# of ROOT_KEY_JSON into <out> (a 0600 scratch file the caller removes). It
+# takes the create JSON (field root_private_key) that do_spl_tenant_create and
+# the checkout claim write, or a bare base64 key file such as the compose
+# stack's tenant-root.key (specs/047 W4). Never prints the key.
+spl_root_key_to_file() {
+  python3 - "$1" "$2" <<'EOF_PY' 2>/dev/null
+import base64, json, sys
+raw = open(sys.argv[1]).read().strip()
+try:
+    key = json.loads(raw)["root_private_key"].strip()
+except (ValueError, KeyError, TypeError, AttributeError):
+    key = raw  # a bare key file: it must BE a key, not any text
+    if len(base64.b64decode(key, validate=True)) != 64:
+        sys.exit(1)
+if not key:
+    sys.exit(1)
+open(sys.argv[2], "w").write(key + "\n")
+EOF_PY
+}
+
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise
 spl_dry_run() {
   local d="${DRY_RUN:-1}"

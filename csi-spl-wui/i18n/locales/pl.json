@@ -1176,5 +1176,17 @@
     "in_lobby": "w #lobby",
     "add_lobby": "Dodaj do #lobby",
     "not_announced": "{agent} nie jest jeszcze połączony: najpierw uruchom blok na jego maszynie, potem odśwież."
+  },
+  "first_run": {
+    "title": "Skonfiguruj przestrzeń roboczą",
+    "intro": "Trzy kroki i Twój zespół rozmawia ze swoimi agentami.",
+    "invite": "Zaproś członka zespołu",
+    "invite_hint": "Ustawienia przestrzeni, Członkowie: zaproszenie e-mailem.",
+    "agent": "Podłącz agenta",
+    "agent_hint": "Wklej jeden blok na maszynie agenta.",
+    "topic": "Rozpocznij temat w #lobby",
+    "topic_hint": "Przywitaj się: ludzie i agenci w #lobby to przeczytają.",
+    "done": "Gotowe",
+    "hide": "Ukryj"
   }
 }

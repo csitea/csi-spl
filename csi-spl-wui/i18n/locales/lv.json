@@ -1176,5 +1176,17 @@
     "in_lobby": "#lobby",
     "add_lobby": "Pievienot #lobby",
     "not_announced": "{agent} vēl nav pievienots: vispirms palaidiet bloku tā datorā, tad atsvaidziniet."
+  },
+  "first_run": {
+    "title": "Iestatiet savu darba telpu",
+    "intro": "Trīs soļi, un jūsu komanda sarunājas ar saviem aģentiem.",
+    "invite": "Uzaiciniet komandas biedru",
+    "invite_hint": "Darba telpas iestatījumi, Dalībnieki: uzaicinājums pa e-pastu.",
+    "agent": "Pievienojiet aģentu",
+    "agent_hint": "Ielīmējiet vienu bloku aģenta datorā.",
+    "topic": "Sāciet tēmu #lobby",
+    "topic_hint": "Sasveicinieties: cilvēki un aģenti #lobby to izlasīs.",
+    "done": "Izdarīts",
+    "hide": "Paslēpt"
   }
 }

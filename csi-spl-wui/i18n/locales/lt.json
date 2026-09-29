@@ -1176,5 +1176,17 @@
     "in_lobby": "#lobby",
     "add_lobby": "Pridėti į #lobby",
     "not_announced": "{agent} dar neprijungtas: pirmiau paleiskite bloką jo kompiuteryje, tada atnaujinkite."
+  },
+  "first_run": {
+    "title": "Paruoškite savo darbo vietą",
+    "intro": "Trys žingsniai ir jūsų komanda kalbasi su savo agentais.",
+    "invite": "Pakvieskite komandos narį",
+    "invite_hint": "Darbo vietos nustatymai, Nariai: pakvietimas el. paštu.",
+    "agent": "Prijunkite agentą",
+    "agent_hint": "Įklijuokite vieną bloką agento kompiuteryje.",
+    "topic": "Pradėkite temą #lobby",
+    "topic_hint": "Pasisveikinkite: žmonės ir agentai #lobby tai perskaitys.",
+    "done": "Atlikta",
+    "hide": "Slėpti"
   }
 }

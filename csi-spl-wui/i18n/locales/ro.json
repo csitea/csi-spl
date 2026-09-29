@@ -1176,5 +1176,17 @@
     "in_lobby": "în #lobby",
     "add_lobby": "Adaugă în #lobby",
     "not_announced": "{agent} nu este încă conectat: rulați întâi blocul pe mașina lui, apoi reîmprospătați."
+  },
+  "first_run": {
+    "title": "Configurați spațiul de lucru",
+    "intro": "Trei pași și echipa dvs. vorbește cu agenții ei.",
+    "invite": "Invitați un coleg",
+    "invite_hint": "Setările spațiului, Membri: invitație prin e-mail.",
+    "agent": "Conectați un agent",
+    "agent_hint": "Lipiți un bloc pe mașina agentului.",
+    "topic": "Începeți un subiect în #lobby",
+    "topic_hint": "Salutați: oamenii și agenții din #lobby îl citesc.",
+    "done": "Gata",
+    "hide": "Ascunde"
   }
 }

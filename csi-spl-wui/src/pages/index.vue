@@ -13,6 +13,8 @@
       </div>
       <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
       <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="viewer.loadTopics()" />
+      <!-- W15 (spec 047): the next 3 steps for whoever may set the tenant up -->
+      <FirstRunChecklist v-if="firstRunCandidate" :tenant="firstRunTenant" :topics="viewer.topics.length" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.topics.length === 0" class="muted">
         {{ tr('pages.index.empty') }}
       </p>
@@ -92,12 +94,22 @@ import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { useAccessStore } from '~/stores/access'
+import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 
 const viewer = useViewerStore()
 const channel = useChannelStore()
 const topicStore = useTopicStore()
 const session = useSessionStore()
 const api = useSpoolApi()
+/* W15 (spec 047): the first-run checklist, a lazy chunk loaded only for a
+   viewer who may open Tenant settings (an admin or the business owner) */
+const FirstRunChecklist = defineAsyncComponent(() => import('~/components/FirstRunChecklist.vue'))
+const access = useAccessStore()
+watch(() => api.mock || String(session.state) === 'in', (on) => { if (on) void access.load() }, { immediate: true })
+const firstRunTenant = computed(() => String(session.claims?.t || api.tenant || ''))
+const firstRunCandidate = computed(() => (api.mock || String(session.state) === 'in') && !viewer.loading &&
+  !viewer.error && tenantSettingsVisible(access.me, { mock: api.mock }))
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
 /* a phone prints the row's time on the viewer's own clock, only

@@ -1176,5 +1176,17 @@
     "in_lobby": "in #lobby",
     "add_lobby": "Add to #lobby",
     "not_announced": "{agent} is not connected yet: run the block on its machine first, then refresh."
+  },
+  "first_run": {
+    "title": "Set up your workspace",
+    "intro": "Three steps, and your team and its agents are talking.",
+    "invite": "Invite a teammate",
+    "invite_hint": "Tenant settings, Members: Invite by email.",
+    "agent": "Connect an agent",
+    "agent_hint": "Paste one block on the agent's machine.",
+    "topic": "Start a topic in #lobby",
+    "topic_hint": "Say hello: the people and agents in #lobby read it.",
+    "done": "Done",
+    "hide": "Hide"
   }
 }

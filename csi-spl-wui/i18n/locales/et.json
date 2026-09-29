@@ -1176,5 +1176,17 @@
     "in_lobby": "#lobby's",
     "add_lobby": "Lisa #lobby",
     "not_announced": "{agent} pole veel ühendatud: käivita kõigepealt plokk tema masinas, siis värskenda."
+  },
+  "first_run": {
+    "title": "Seadista oma tööruum",
+    "intro": "Kolm sammu ja su meeskond suhtleb oma agentidega.",
+    "invite": "Kutsu tiimikaaslane",
+    "invite_hint": "Tööruumi seaded, Liikmed: kutse e-postiga.",
+    "agent": "Ühenda agent",
+    "agent_hint": "Kleebi üks plokk agendi masinasse.",
+    "topic": "Alusta teemat #lobby's",
+    "topic_hint": "Ütle tere: #lobby inimesed ja agendid loevad seda.",
+    "done": "Tehtud",
+    "hide": "Peida"
   }
 }

@@ -1176,5 +1176,17 @@
     "in_lobby": "v #lobby",
     "add_lobby": "Pridať do #lobby",
     "not_announced": "{agent} ešte nie je pripojený: najprv spustite blok na jeho počítači, potom obnovte."
+  },
+  "first_run": {
+    "title": "Nastavte pracovný priestor",
+    "intro": "Tri kroky a váš tím sa rozpráva so svojimi agentmi.",
+    "invite": "Pozvite kolegu",
+    "invite_hint": "Nastavenia priestoru, Členovia: pozvánka e-mailom.",
+    "agent": "Pripojte agenta",
+    "agent_hint": "Vložte jeden blok na počítač agenta.",
+    "topic": "Začnite tému v #lobby",
+    "topic_hint": "Pozdravte: ľudia a agenti v #lobby si to prečítajú.",
+    "done": "Hotovo",
+    "hide": "Skryť"
   }
 }

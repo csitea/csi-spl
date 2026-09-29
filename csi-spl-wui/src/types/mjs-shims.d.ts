@@ -1194,6 +1194,14 @@ declare module '~/utils/connect-agent.mjs' {
   export function firstPrompt(agent: string): string
 }
 
+declare module '~/utils/first-run.mjs' {
+  export type FirstRunStep = { id: 'invite' | 'agent' | 'topic', to: string, done: boolean }
+  export const FIRST_RUN_STEPS: { id: string, to: string }[]
+  export function firstRunHiddenKey(tenant: unknown): string
+  export function firstRunSteps(o?: { members?: number | null, invites?: number | null, roster?: Record<string, string[]> | null, topics?: number }): FirstRunStep[]
+  export function firstRunVisible(o: { canSetUp: boolean, hidden: boolean, steps: FirstRunStep[] }): boolean
+}
+
 declare module '~/utils/help.mjs' {
   export const HELP_REPO_BASE: string
   export function validHelpSlug(s: unknown): boolean

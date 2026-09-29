@@ -1176,5 +1176,17 @@
     "in_lobby": "#lobby'de",
     "add_lobby": "#lobby'ye ekle",
     "not_announced": "{agent} henüz bağlı değil: önce bloğu onun makinesinde çalıştırın, sonra yenileyin."
+  },
+  "first_run": {
+    "title": "Çalışma alanınızı kurun",
+    "intro": "Üç adımda ekibiniz ve ajanları konuşmaya başlar.",
+    "invite": "Bir ekip arkadaşı davet edin",
+    "invite_hint": "Çalışma alanı ayarları, Üyeler: e-postayla davet.",
+    "agent": "Bir ajan bağlayın",
+    "agent_hint": "Ajanın makinesine tek bir blok yapıştırın.",
+    "topic": "#lobby'de bir konu başlatın",
+    "topic_hint": "Merhaba deyin: #lobby'deki kişiler ve ajanlar okur.",
+    "done": "Tamam",
+    "hide": "Gizle"
   }
 }

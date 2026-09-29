@@ -1176,5 +1176,17 @@
     "in_lobby": "en #lobby",
     "add_lobby": "Añadir a #lobby",
     "not_announced": "{agent} aún no está conectado: ejecuta primero el bloque en su máquina y recarga."
+  },
+  "first_run": {
+    "title": "Configura tu espacio de trabajo",
+    "intro": "Tres pasos y tu equipo ya habla con sus agentes.",
+    "invite": "Invita a un compañero",
+    "invite_hint": "Ajustes del espacio, Miembros: invitar por correo.",
+    "agent": "Conecta un agente",
+    "agent_hint": "Pega un bloque en la máquina del agente.",
+    "topic": "Empieza un tema en #lobby",
+    "topic_hint": "Saluda: las personas y los agentes de #lobby lo leen.",
+    "done": "Hecho",
+    "hide": "Ocultar"
   }
 }

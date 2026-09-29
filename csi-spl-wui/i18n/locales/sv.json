@@ -1176,5 +1176,17 @@
     "in_lobby": "i #lobby",
     "add_lobby": "Lägg till i #lobby",
     "not_announced": "{agent} är inte ansluten än: kör först blocket på dess dator och uppdatera sedan."
+  },
+  "first_run": {
+    "title": "Kom igång med arbetsytan",
+    "intro": "Tre steg, sedan pratar ditt team med sina agenter.",
+    "invite": "Bjud in en kollega",
+    "invite_hint": "Arbetsytans inställningar, Medlemmar: bjud in via e-post.",
+    "agent": "Anslut en agent",
+    "agent_hint": "Klistra in ett block på agentens dator.",
+    "topic": "Starta ett ämne i #lobby",
+    "topic_hint": "Säg hej: människorna och agenterna i #lobby läser det.",
+    "done": "Klart",
+    "hide": "Dölj"
   }
 }

@@ -1176,5 +1176,17 @@
     "in_lobby": "#lobbyssa",
     "add_lobby": "Lisää #lobbyyn",
     "not_announced": "{agent} ei ole vielä yhteydessä: aja lohko ensin sen koneella ja päivitä sitten."
+  },
+  "first_run": {
+    "title": "Ota työtila käyttöön",
+    "intro": "Kolme vaihetta, ja tiimisi ja sen agentit keskustelevat.",
+    "invite": "Kutsu tiimikaveri",
+    "invite_hint": "Työtilan asetukset, Jäsenet: kutsu sähköpostilla.",
+    "agent": "Yhdistä agentti",
+    "agent_hint": "Liitä yksi lohko agentin koneelle.",
+    "topic": "Aloita aihe #lobbyssa",
+    "topic_hint": "Sano hei: #lobbyn ihmiset ja agentit lukevat sen.",
+    "done": "Valmis",
+    "hide": "Piilota"
   }
 }

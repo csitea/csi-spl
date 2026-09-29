@@ -1176,5 +1176,17 @@
     "in_lobby": "in #lobby",
     "add_lobby": "Toevoegen aan #lobby",
     "not_announced": "{agent} is nog niet verbonden: voer eerst het blok uit op zijn machine en vernieuw dan."
+  },
+  "first_run": {
+    "title": "Richt je werkruimte in",
+    "intro": "Drie stappen en je team praat met zijn agents.",
+    "invite": "Nodig een teamgenoot uit",
+    "invite_hint": "Werkruimte-instellingen, Leden: uitnodigen per e-mail.",
+    "agent": "Koppel een agent",
+    "agent_hint": "Plak één blok op de machine van de agent.",
+    "topic": "Begin een onderwerp in #lobby",
+    "topic_hint": "Zeg hallo: de mensen en agents in #lobby lezen het.",
+    "done": "Klaar",
+    "hide": "Verbergen"
   }
 }

@@ -284,18 +284,20 @@ async function onSelect(loc: LocaleEntry | null) {
   background-color: var(--color-surface);
   overflow: hidden;
 }
-/* Grid cell shared by the visible input and every hidden sizer, so the track
-   width is the widest locale label and the input just fills it. */
+/* The field's width is the widest locale label: the hidden sizers sit in the
+   grid flow and size the single track, while the visible input is taken OUT of
+   track sizing (absolute) and just overlays the cell — otherwise its width:100%
+   feeds back into the auto track and inflates it. flex:0 so it never grows to
+   fill spare row space, which would re-open the gap the fix closes. */
 .lang-switcher__field {
+  position: relative;
   display: inline-grid;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.lang-switcher__field > * {
-  grid-area: 1 / 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 .lang-switcher__sizer {
+  grid-area: 1 / 1;
+  min-width: 0;
   visibility: hidden;
   pointer-events: none;
   white-space: nowrap;
@@ -315,6 +317,8 @@ async function onSelect(loc: LocaleEntry | null) {
 }
 .lang-switcher__input {
   border-radius: var(--radius-sm);
+  position: absolute;
+  inset: 0;
   width: 100%;
   min-width: 0;
   min-height: 36px;

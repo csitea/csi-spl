@@ -1,0 +1,66 @@
+# 55 release: the weekly stable release (spec 047 W10, SPL-1170).
+#
+# Every hub / WUI deploy mints a v<X.Y.Z> tag (do_release_version): ~5 an
+# hour on 2026-09-28, so a v-tag is a BUILD, not a release, and a self-hoster
+# had nothing to pin but a trunk that moves under them (047 section 4.5).
+# Once a week this job cuts a stable-<YYYY-MM-DD> tag on the commit the prd
+# hub RUNS (its /version, host from cnf) and publishes a GitHub release with
+# generated notes: the commits since the last stable by kind, the DB
+# migrations added (forward-only: dump first) and the upgrade steps. The
+# newest stable is the release marked "latest"; there is no moving `stable`
+# tag, because a tag never moves without --force.
+#
+# Nothing new since the last stable (prd still runs it) = no release, green.
+# A red run here is the alert that no release was cut this week.
+#
+# GitHub-hosted, no secret: GITHUB_TOKEN with contents: write pushes the tag
+# and creates the release. No GCP identity: /version is a public GET.
+#
+# Local equivalent (dry run, prints the notes):
+#   STABLE_FROM_ENV=prd ./csi-spl-orc/run -a do_release_stable
+
+name: "55 release: weekly stable"
+
+on:
+  schedule:
+    # Mondays 06:41 UTC. GitHub's scheduler is best-effort, so "once a week".
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '1 = print the notes only, 0 = cut the release'
+        type: choice
+        required: false
+        default: '0'
+        options: ['0', '1']
+
+concurrency:
+  group: release-stable
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # push the stable-<date> tag + create the release
+
+jobs:
+  cut:
+    name: Cut the stable release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # fetch-depth 0: the notes walk the history since the last stable tag
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: do_release_stable
+        env:
+          STABLE_FROM_ENV: prd
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || '0' }}
+          GH_TOKEN: ${{ github.token }}
+          STABLE_NOTES_FILE: ${{ runner.temp }}/stable-notes.md
+        run: |
+          set -euo pipefail
+          ./csi-spl-orc/run -a do_release_stable
+          { echo "## Stable release (DRY_RUN=$DRY_RUN)"; echo
+            if [[ -s "$STABLE_NOTES_FILE" ]]; then cat "$STABLE_NOTES_FILE"; else echo "Nothing cut: see the log."; fi
+          } >> "$GITHUB_STEP_SUMMARY"

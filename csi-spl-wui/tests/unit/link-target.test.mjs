@@ -1,12 +1,12 @@
 // SPL-951: internal links stay in this tab; only another origin opens a new one.
 // The dev origin viewed from production is external, because the origins differ.
-import { describe, it } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { classifyHref, followSameTabLink, linkOpen, NEW_TAB_REL, sameTabPath } from '../../src/utils/link-target.mjs'
+import { classifyHref, followSameTabLink, linkOpen, NEW_TAB_REL, sameTabPath, setLinkSite } from '../../src/utils/link-target.mjs'
 import { markdownToHtml, renderMarkdown, treeToHtml } from '../../src/utils/markdown.mjs'
 import { bodyToHtml, parseBody } from '../../src/utils/code-blocks.mjs'
 
@@ -212,12 +212,88 @@ describe('tenant hosts (SPL-959)', () => {
   it('a cross-host internal link is left to the browser (full navigation, same tab)', () => {
     assert.equal(sameTabPath(NORTHWIND + '/issues', PAGE), null)
   })
-  it('CONTROLS: api host, other env, nested label, http, and tenant hosts off', () => {
-    for (const href of ['https://api.app.example/x', DEV_LINK, 'https://northwind.dev.app.example/x', 'http://northwind.app.example/x']) {
+  it('CONTROLS: api host, other env, nested label, and tenant hosts off', () => {
+    for (const href of ['https://api.app.example/x', DEV_LINK, 'https://northwind.dev.app.example/x']) {
       assert.equal(classifyHref(href, PRD, PRD).internal, false, href)
     }
     assert.equal(classifyHref(NORTHWIND + '/x', PRD, '').internal, false)
     assert.equal(classifyHref(NORTHWIND + '/x', PRD).internal, false) // setLinkSite never called
     assert.equal(classifyHref(NORTHWIND + '/x', DEV, DEV).internal, false) // a prd tenant seen from dev
+  })
+})
+
+// SPL-951 regression (CLE-001 topic e802196b): www.<fqdn> is a product host
+// the owner means as this site, but "www" is a reserved tenant label and www
+// has no DNS yet, so it was classed external (new tab) and could not load. A
+// www or http link to a product host is now internal AND rewritten to the
+// canonical https apex/tenant URL, so it loads even before any www record.
+describe('www and http product links (SPL-951 regression)', () => {
+  const APEX = PRD // https://app.example
+  const NORTHWIND = 'https://northwind.app.example'
+  // sameTabPath reads the module-global site (set in prod by tenant-host-boot);
+  // set it for this block so the click-path test sees the tenant hosts on.
+  before(() => setLinkSite(APEX))
+  after(() => setLinkSite(''))
+  it('www.<apex> is internal and rewritten to the https apex', () => {
+    const c = classifyHref('https://www.app.example/issues?issue=SPL-3', APEX, APEX)
+    assert.equal(c.internal, true)
+    assert.equal(c.href, 'https://app.example/issues?issue=SPL-3')
+  })
+  it('www.<tenant>.<apex> is internal and rewritten to the https tenant host', () => {
+    const c = classifyHref('https://www.northwind.app.example/x', APEX, APEX)
+    assert.equal(c.internal, true)
+    assert.equal(c.href, NORTHWIND + '/x')
+  })
+  it('an http product link is internal and upgraded to https', () => {
+    const apex = classifyHref('http://app.example/issues', APEX, APEX)
+    assert.equal(apex.internal, true)
+    assert.equal(apex.href, 'https://app.example/issues')
+    const nw = classifyHref('http://northwind.app.example/x', APEX, APEX)
+    assert.equal(nw.internal, true)
+    assert.equal(nw.href, NORTHWIND + '/x')
+  })
+  it('http+www together normalise to the https product host', () => {
+    const c = classifyHref('http://www.app.example/x', APEX, APEX)
+    assert.equal(c.internal, true)
+    assert.equal(c.href, 'https://app.example/x')
+  })
+  it('a plain click on a www product link stays in this tab (rewritten path)', () => {
+    // from the apex page, the rewritten href is the same origin -> SPA nav
+    assert.equal(sameTabPath('https://www.app.example/issues', PRD + '/channel/lobby'), '/issues')
+    assert.equal(sameTabPath('http://app.example/issues', PRD + '/channel/lobby'), '/issues')
+  })
+  it('every render path emits the rewritten apex href for a www product link', () => {
+    // the rendered paths read the module-global site (set in prod by
+    // tenant-host-boot.mjs); the direct classifyHref tests pass it explicitly.
+    setLinkSite(APEX)
+    try {
+      // markdown link
+      const mdHtml = renderMarkdown(`[go](https://www.app.example/issues?issue=SPL-3)`, PRD)
+      opens(mdHtml, 'https://app.example/issues?issue=SPL-3', { internal: true })
+      // auto-linked bare "www.app.example/x" in a message body
+      const bodyHtml = bodyToHtml('see www.app.example/issues for more', PRD)
+      opens(bodyHtml, 'https://app.example/issues', { internal: true })
+      // an http product link in a message body
+      const httpHtml = bodyToHtml('http://app.example/issues here', PRD)
+      opens(httpHtml, 'https://app.example/issues', { internal: true })
+    } finally {
+      setLinkSite('')
+    }
+  })
+
+  it('CONTROLS: a foreign www/http host is still external and left as written', () => {
+    const ext = classifyHref('https://www.example.com/x', APEX, APEX)
+    assert.equal(ext.internal, false)
+    assert.equal(ext.href, 'https://www.example.com/x')
+    const httpExt = classifyHref('http://example.com/x', APEX, APEX)
+    assert.equal(httpExt.internal, false)
+    assert.equal(httpExt.href, 'http://example.com/x')
+    // a different port is a different service, never the site
+    assert.equal(classifyHref('https://app.example:8443/x', APEX, APEX).internal, false)
+    assert.equal(classifyHref('http://app.example:8443/x', APEX, APEX).internal, false)
+    // the other env: www.<apex> seen from dev is not dev's site
+    assert.equal(classifyHref('https://www.app.example/x', DEV, DEV).internal, false)
+    // tenant hosts off: only the exact same origin is internal
+    assert.equal(classifyHref('https://www.app.example/x', APEX, '').internal, false)
   })
 })

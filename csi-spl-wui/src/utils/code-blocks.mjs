@@ -468,7 +468,11 @@ function partsHtml(parts, origin) {
       const open = linkOpen(p.href, origin)
       if (!open) return esc(p.text)
       const extra = open.internal ? '' : ` target="_blank" rel="${open.rel}"`
-      return `<a class="msg-link" href="${esc(p.href)}"${extra}>${esc(p.text)}</a>`
+      // an internal link may be rewritten to its canonical https product URL
+      // (SPL-951 regression: a www or http link to this site); an external
+      // link keeps the href exactly as written.
+      const href = open.internal ? open.href : p.href
+      return `<a class="msg-link" href="${esc(href)}"${extra}>${esc(p.text)}</a>`
     }
     return esc(p.text).replace(/\n/g, '<br>')
   }).join('')

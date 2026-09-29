@@ -328,7 +328,11 @@ export function treeToHtml(nodes, origin) {
       if (!open) return treeToHtml(n.children, origin)
     }
     const allowed = ATTRS[n.tag] || new Set()
-    let attrs = Object.entries(n.attrs || {})
+    // an internal link may be rewritten to the canonical https product URL
+    // (SPL-951 regression: a www or http link to this site), so the anchor
+    // carries the URL that actually loads; an external link is left as written.
+    const outAttrs = open && open.internal ? { ...n.attrs, href: open.href } : n.attrs
+    let attrs = Object.entries(outAttrs || {})
       .filter(([k]) => allowed.has(k))
       .map(([k, v]) => ` ${k}="${esc(v)}"`)
       .join('')

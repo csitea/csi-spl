@@ -7,7 +7,7 @@
     <a
       v-else-if="p.type === 'link'"
       class="msg-link"
-      :href="p.href"
+      :href="hrefOf(p.href)"
       :target="openOf(p.href).target"
       :rel="openOf(p.href).rel"
       @click.stop="onLink($event, p.href)"
@@ -52,6 +52,15 @@ function openOf(href?: string): { target?: string, rel?: string } {
   const open = linkOpen(href, originNow())
   if (!open || open.internal) return {}
   return { target: open.target, rel: open.rel }
+}
+
+/* The href the anchor carries: an internal www or http link to this site is
+   rewritten to its canonical https product URL (SPL-951 regression), so it
+   loads even before any www DNS exists; an external link is left as written. */
+function hrefOf(href?: string): string | undefined {
+  if (!href) return href
+  const open = linkOpen(href, originNow())
+  return open && open.internal ? open.href : href
 }
 
 function onLink(e: MouseEvent, href?: string) {

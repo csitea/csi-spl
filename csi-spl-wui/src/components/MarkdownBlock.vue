@@ -99,11 +99,15 @@ function node(n: MdNode, inCode = false): VNodeChild {
     const origin = import.meta.client ? window.location.origin : ''
     const open = linkOpen(n.attrs.href, origin)
     if (!open) return kids
+    // an internal link may be rewritten to its canonical https product URL
+    // (SPL-951 regression: a www or http link to this site loads); an external
+    // link keeps the href as written.
+    const href = open.internal ? open.href : n.attrs.href
     const anchor: Record<string, unknown> = {
       class: 'msg-link',
-      href: n.attrs.href,
+      href,
       title: n.attrs.title,
-      onClick: (e: MouseEvent) => onLink(e, n.attrs.href),
+      onClick: (e: MouseEvent) => onLink(e, href),
       onDblclick: stop,
       onKeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') e.stopPropagation() },
     }

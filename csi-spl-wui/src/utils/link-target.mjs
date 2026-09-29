@@ -8,6 +8,12 @@
  * Also internal (SPL-959): a tenant host of THIS env, https://<tenant>.<fqdn>
  * or the apex https://<fqdn> (setLinkSite, tenant-host-core.mjs isTenantHostOf).
  * Same tab; another host is a full page load, the browser's own navigation.
+ * A product host reached the wrong way is normalised before the rule decides
+ * (SPL-951 regression, CLE-001 topic e802196b): a leading "www." label is
+ * dropped ("www" is a reserved tenant label, and www has no DNS yet) and an
+ * http link is forced to https, so www.<fqdn>, www.<tenant>.<fqdn> and an
+ * http link to a product host are internal AND their href is REWRITTEN to the
+ * canonical https apex/tenant origin, so they load even before any www record.
  * External: every other http(s) URL, and mailto. A new tab, with
  * rel="noopener noreferrer nofollow". The other env is external: the dev
  * origin viewed from production differs, and the reverse, and "dev" is no
@@ -70,6 +76,29 @@ function originOf(pageOrigin) {
 }
 
 /**
+ * The canonical https product URL a link points at, or null when the link is
+ * not one of THIS env's hosts (SPL-951 regression, CLE-001 topic e802196b).
+ * A leading "www." label is dropped and the scheme is forced to https, then
+ * isTenantHostOf decides: www.<fqdn>, www.<tenant>.<fqdn>, http://<fqdn> and
+ * http://<tenant>.<fqdn> all resolve to the canonical https apex/tenant URL.
+ * A port is left in place, so isTenantHostOf rejects it (a different port is a
+ * different service, not the site). A non-product host returns null and the
+ * caller keeps the URL exactly as written.
+ */
+function productHttpsUrl(u, site) {
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+  let canon
+  try {
+    canon = new URL(u.href)
+  } catch {
+    return null
+  }
+  canon.protocol = 'https:'
+  canon.hostname = u.hostname.toLowerCase().replace(/^www\./, '')
+  return isTenantHostOf(canon.href, site) ? canon : null
+}
+
+/**
  * null when href must not be an anchor. Otherwise the canonical href
  * (absolute http(s)/mailto as URL.href, relative as the author wrote it)
  * and whether a plain click stays on this page.
@@ -95,8 +124,12 @@ export function classifyHref(raw, pageOrigin, site = linkSite) {
     if (u.protocol === 'mailto:') return { href: u.href, internal: false }
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
     const origin = originOf(pageOrigin)
-    const same = origin !== '' && u.origin === origin
-    return { href: u.href, internal: same || (origin !== '' && isTenantHostOf(u.href, site) && isTenantHostOf(origin, site)) }
+    if (origin !== '' && u.origin === origin) return { href: u.href, internal: true }
+    if (origin !== '' && isTenantHostOf(origin, site)) {
+      const canon = productHttpsUrl(u, site)
+      if (canon) return { href: canon.href, internal: true }
+    }
+    return { href: u.href, internal: false }
   }
 
   if (!safeRelative(s)) return null

@@ -138,7 +138,9 @@ describe('MessageBody.vue renders a link part', () => {
 
   it('an anchor uses the shared target: external gets a new tab and no opener', () => {
     assert.match(src, /<a\s[^>]*v-else-if="p\.type === 'link'"/)
-    assert.match(src, /:href="p\.href"/)
+    // SPL-951 regression: the href goes through hrefOf so a www/http link to
+    // this site is rewritten to its canonical https URL before it renders.
+    assert.match(src, /:href="hrefOf\(p\.href\)"/)
     assert.match(src, /link-target\.mjs/)
     assert.match(src, /followSameTabLink/)
     assert.match(src, /class="msg-link"/)

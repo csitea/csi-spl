@@ -633,7 +633,15 @@
     "title_mention": "{from} sizden bahsetti",
     "title_other": "{from}",
     "chime_on": "Ses açık",
-    "chime_off": "Ses kapalı"
+    "chime_off": "Ses kapalı",
+    "sound_label": "Bildirim sesi",
+    "sound_hint": "Yeni bir mesajın çaldığı ses. Her birini duymak için oynata basın.",
+    "sound_preview": "Oynat",
+    "sound_plain": "Basit bip",
+    "sound_pop": "Baloncuk patlaması",
+    "sound_chirp": "Yükselen cıvıltı",
+    "sound_marimba": "Marimba tıngırtısı",
+    "sound_boing": "Çizgi film boing"
   },
   "verbosity": {
     "label": "Konu ayrıntı düzeyi",

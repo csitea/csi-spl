@@ -633,7 +633,15 @@
     "title_mention": "{from} heeft je vermeld",
     "title_other": "{from}",
     "chime_on": "Geluid aan",
-    "chime_off": "Geluid uit"
+    "chime_off": "Geluid uit",
+    "sound_label": "Meldingsgeluid",
+    "sound_hint": "Het geluid dat een nieuw bericht speelt. Druk op afspelen om elk te horen.",
+    "sound_preview": "Afspelen",
+    "sound_plain": "Gewone piep",
+    "sound_pop": "Bubbelplop",
+    "sound_chirp": "Stijgend getjilp",
+    "sound_marimba": "Marimba-tik",
+    "sound_boing": "Cartoon-boing"
   },
   "verbosity": {
     "label": "Detailniveau van onderwerpen",

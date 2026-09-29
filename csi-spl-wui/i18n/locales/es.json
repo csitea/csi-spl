@@ -633,7 +633,15 @@
     "title_mention": "{from} te ha mencionado",
     "title_other": "{from}",
     "chime_on": "Sonido activado",
-    "chime_off": "Sonido desactivado"
+    "chime_off": "Sonido desactivado",
+    "sound_label": "Sonido de notificación",
+    "sound_hint": "El sonido que reproduce un mensaje nuevo. Pulsa reproducir para oír cada uno.",
+    "sound_preview": "Reproducir",
+    "sound_plain": "Pitido simple",
+    "sound_pop": "Burbuja pop",
+    "sound_chirp": "Trino ascendente",
+    "sound_marimba": "Toque de marimba",
+    "sound_boing": "Boing de dibujos"
   },
   "verbosity": {
     "label": "Nivel de detalle del tema",

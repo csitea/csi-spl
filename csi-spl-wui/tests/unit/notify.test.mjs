@@ -25,6 +25,14 @@ import {
   toggleMutedChannel,
   MUTED_CHANNELS_KEY,
   playChime,
+  playSound,
+  SOUND_LIBRARY,
+  SOUND_NAMES,
+  DEFAULT_SOUND,
+  normalizeSound,
+  loadChimeSound,
+  saveChimeSound,
+  CHIME_SOUND_KEY,
 } from '../../src/utils/notify.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -144,10 +152,12 @@ describe('notify escalation', () => {
     const calls = store.match(/new Notification\([^)]*\)/g) || []
     assert.ok(calls.length >= 1)
     for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value\)/)
-    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,120}playChime\(\)/)
-    /* CLE-35075: the beep lives in notify.mjs playChime; only the gated store path calls it */
-    const chimes = execSync(`grep -rlE "playChime\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
-    assert.deepEqual(chimes, ['src/stores/notification.ts', 'src/utils/notify.mjs'])
+    /* 051: the ping plays the reader's chosen sound, still gated on the note */
+    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,140}playSound\(sound\.value\)/)
+    /* CLE-35075/051: the synth lives in notify.mjs; the gated store path plays
+       it, and the Settings picker previews it. Nowhere else. */
+    const sounds = execSync(`grep -rlE "playSound\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
+    assert.deepEqual(sounds, ['src/pages/settings/notifications.vue', 'src/stores/notification.ts', 'src/utils/notify.mjs'])
     assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
     /* nothing else in src makes a sound: add it to this list AND gate it on the note */
     const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
@@ -172,6 +182,85 @@ describe('notify escalation', () => {
     c.osc.onended()
     assert.equal(c.closed, true, 'closed when the beep ends')
     assert.equal(playChime(undefined), false, 'no Web Audio: nothing')
+  })
+
+  /* 051: a richer fake than the playChime one — it records every oscillator's
+     schedule so a multi-segment, gliding, enveloped sound can be checked. */
+  class SynthCtx {
+    constructor() { this.closed = false; this.currentTime = 2; this.destination = {}; this.oscs = [] }
+    createOscillator() {
+      const o = {
+        type: 'sine', frequency: { value: 0, ramps: [], setValueAtTime(v, t) { this.value = v; this.setAt = [v, t] }, exponentialRampToValueAtTime(v, t) { this.ramps.push([v, t]) } },
+        connect: () => {}, start: (t) => { o.startAt = t }, stop: (t) => { o.stopAt = t },
+      }
+      this.oscs.push(o); return o
+    }
+    createGain() { return { gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: () => {} } }
+    close() { this.closed = true; return Promise.resolve() }
+  }
+
+  it('051: the sound library is code-only, has fun options, and a non-plain default', () => {
+    assert.deepEqual(SOUND_NAMES, Object.keys(SOUND_LIBRARY))
+    for (const n of ['plain', 'pop', 'chirp', 'marimba', 'boing']) assert.ok(SOUND_NAMES.includes(n), n)
+    assert.ok(SOUND_NAMES.includes(DEFAULT_SOUND))
+    assert.notEqual(DEFAULT_SOUND, 'plain', 'a fresh device gets a fun sound, not the beep')
+    // every segment is a synthesised tone, never a file url
+    for (const spec of Object.values(SOUND_LIBRARY)) {
+      assert.ok(Array.isArray(spec.segs) && spec.segs.length >= 1)
+      for (const s of spec.segs) {
+        assert.equal(typeof s.f, 'number')
+        assert.equal(typeof s.dur, 'number')
+        assert.equal(typeof s.gain, 'number')
+        assert.equal('src' in s || 'url' in s, false)
+      }
+    }
+  })
+
+  it('051: normalizeSound / loadChimeSound / saveChimeSound round-trip and fall back', () => {
+    assert.equal(normalizeSound('pop'), 'pop')
+    assert.equal(normalizeSound('nope'), DEFAULT_SOUND)
+    assert.equal(normalizeSound(undefined), DEFAULT_SOUND)
+    const store = memoryStore()
+    assert.equal(loadChimeSound(store), DEFAULT_SOUND, 'default before any save')
+    saveChimeSound('marimba', store)
+    assert.equal(store.getItem(CHIME_SOUND_KEY), 'marimba')
+    assert.equal(loadChimeSound(store), 'marimba')
+    saveChimeSound('bogus', store)
+    assert.equal(loadChimeSound(store), DEFAULT_SOUND, 'a bad stored value reads as the default')
+    assert.equal(isSoundPrefKey(CHIME_SOUND_KEY), true, 'a sound change in another tab re-hydrates')
+  })
+
+  it('051: playSound plays every library sound and closes its context on the last note', () => {
+    const asCtor = (inst) => function () { return inst }
+    for (const name of SOUND_NAMES) {
+      const ctx = new SynthCtx()
+      assert.equal(playSound(name, asCtor(ctx)), true, name)
+      assert.equal(ctx.oscs.length, SOUND_LIBRARY[name].segs.length, name)
+      for (const o of ctx.oscs) assert.equal(typeof o.stopAt, 'number', `${name}: scheduled a stop`)
+      assert.equal(ctx.closed, false, `${name}: open while it sounds`)
+      // the last-ending oscillator closes the context
+      const last = ctx.oscs.reduce((a, b) => (b.stopAt >= a.stopAt ? b : a))
+      assert.equal(typeof last.onended, 'function', `${name}: last note closes the ctx`)
+      last.onended()
+      assert.equal(ctx.closed, true, `${name}: closed when the sound ends`)
+    }
+    assert.equal(playSound('chirp', undefined), false, 'no Web Audio: nothing')
+    // an unknown name still plays (the default), it does not throw
+    assert.equal(playSound('nope', SynthCtx), true)
+  })
+
+  it('051: Settings -> Notifications is the sound picker, each option playable, all sounds i18n-keyed', () => {
+    const vue = readFileSync(join(WUI, 'src/pages/settings/notifications.vue'), 'utf8')
+    assert.match(vue, /data-test="settings-notify-sound"/)
+    assert.match(vue, /role="radiogroup"/)
+    assert.match(vue, /playSound\(name\)/)
+    assert.match(vue, /notes\.sound = name/)
+    assert.match(vue, /notify\.sound_label/)
+    assert.match(vue, /notify\.sound_hint/)
+    assert.match(vue, /notify\.sound_preview/)
+    const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))
+    for (const n of SOUND_NAMES) assert.equal(typeof en.notify[`sound_${n}`], 'string', `en label for ${n}`)
+    assert.equal(typeof en.notify.sound_label, 'string')
   })
 
   it('NotificationCenter and the notification store do not import mock-data', () => {

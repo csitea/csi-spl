@@ -633,7 +633,15 @@
     "title_mention": "{from} v-a menționat",
     "title_other": "{from}",
     "chime_on": "Sunet activat",
-    "chime_off": "Sunet dezactivat"
+    "chime_off": "Sunet dezactivat",
+    "sound_label": "Sunet de notificare",
+    "sound_hint": "Sunetul redat de un mesaj nou. Apasă redare pentru a auzi fiecare.",
+    "sound_preview": "Redare",
+    "sound_plain": "Bip simplu",
+    "sound_pop": "Poc de bulă",
+    "sound_chirp": "Ciripit ascendent",
+    "sound_marimba": "Bătaie de marimbă",
+    "sound_boing": "Boing de desene"
   },
   "verbosity": {
     "label": "Nivel de detaliu al temei",

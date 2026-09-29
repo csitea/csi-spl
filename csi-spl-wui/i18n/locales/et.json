@@ -633,7 +633,15 @@
     "title_mention": "{from} mainis sind",
     "title_other": "{from}",
     "chime_on": "Heli sees",
-    "chime_off": "Heli väljas"
+    "chime_off": "Heli väljas",
+    "sound_label": "Teavituse heli",
+    "sound_hint": "Heli, mida uus sõnum esitab. Vajuta esita, et igaüht kuulata.",
+    "sound_preview": "Esita",
+    "sound_plain": "Tavaline piiks",
+    "sound_pop": "Mulli plaks",
+    "sound_chirp": "Tõusev siristus",
+    "sound_marimba": "Marimba plõks",
+    "sound_boing": "Multika boing"
   },
   "verbosity": {
     "label": "Teema detailsus",

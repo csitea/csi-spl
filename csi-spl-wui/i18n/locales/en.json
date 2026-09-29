@@ -633,7 +633,15 @@
     "title_mention": "{from} mentioned you",
     "title_other": "{from}",
     "chime_on": "Chime on",
-    "chime_off": "Chime off"
+    "chime_off": "Chime off",
+    "sound_label": "Notification sound",
+    "sound_hint": "The sound a new message plays. Press play to hear each one.",
+    "sound_preview": "Play",
+    "sound_plain": "Plain beep",
+    "sound_pop": "Bubble pop",
+    "sound_chirp": "Rising chirp",
+    "sound_marimba": "Marimba blip",
+    "sound_boing": "Cartoon boing"
   },
   "verbosity": {
     "label": "Topic verbosity",

@@ -633,7 +633,15 @@
     "title_mention": "{from} vás spomenul(a)",
     "title_other": "{from}",
     "chime_on": "Zvuk zapnutý",
-    "chime_off": "Zvuk vypnutý"
+    "chime_off": "Zvuk vypnutý",
+    "sound_label": "Zvuk upozornenia",
+    "sound_hint": "Zvuk, ktorý prehrá nová správa. Stlačte prehrať a vypočujte si každý.",
+    "sound_preview": "Prehrať",
+    "sound_plain": "Jednoduché pípnutie",
+    "sound_pop": "Prasknutie bubliny",
+    "sound_chirp": "Stúpajúce cvrlikanie",
+    "sound_marimba": "Cinknutie marimby",
+    "sound_boing": "Kreslené boing"
   },
   "verbosity": {
     "label": "Podrobnosť témy",

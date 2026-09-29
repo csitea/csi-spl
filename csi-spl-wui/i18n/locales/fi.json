@@ -633,7 +633,15 @@
     "title_mention": "{from} mainitsi sinut",
     "title_other": "{from}",
     "chime_on": "Äänimerkki päällä",
-    "chime_off": "Äänimerkki pois"
+    "chime_off": "Äänimerkki pois",
+    "sound_label": "Ilmoitusääni",
+    "sound_hint": "Ääni, jonka uusi viesti soittaa. Kuuntele kukin painamalla toista.",
+    "sound_preview": "Toista",
+    "sound_plain": "Tavallinen piippaus",
+    "sound_pop": "Kuplan poksahdus",
+    "sound_chirp": "Nouseva viserrys",
+    "sound_marimba": "Marimba-helähdys",
+    "sound_boing": "Sarjakuvamainen boing"
   },
   "verbosity": {
     "label": "Aiheen yksityiskohtaisuus",

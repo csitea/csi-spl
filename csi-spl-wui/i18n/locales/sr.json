@@ -633,7 +633,15 @@
     "title_mention": "{from} vas je pomenuo/la",
     "title_other": "{from}",
     "chime_on": "Звук укључен",
-    "chime_off": "Звук искључен"
+    "chime_off": "Звук искључен",
+    "sound_label": "Звук обавештења",
+    "sound_hint": "Звук који пушта нова порука. Притисните пусти да чујете сваки.",
+    "sound_preview": "Пусти",
+    "sound_plain": "Обичан бип",
+    "sound_pop": "Пуцкетање мехурића",
+    "sound_chirp": "Растући цвркут",
+    "sound_marimba": "Звук маримбе",
+    "sound_boing": "Цртани боинг"
   },
   "verbosity": {
     "label": "Detaljnost teme",

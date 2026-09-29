@@ -13,7 +13,9 @@ import {
   previewUnread,
   shouldPing,
   loadMutedChannels,
-  playChime,
+  playSound,
+  loadChimeSound,
+  saveChimeSound,
 } from '~/utils/notify.mjs'
 import {
   cursorFromChannel,
@@ -49,6 +51,8 @@ type Msg = {
 export const useNotificationStore = defineStore('notification', () => {
   const permission = ref('unsupported')
   const chime = ref(false)
+  /** 051: which sound the chime plays, per device (dd88348d) */
+  const sound = ref('')
   /** the reader's on/off choice for browser alerts (the bell) */
   const alertsEnabled = ref(true)
   const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
@@ -71,6 +75,7 @@ export const useNotificationStore = defineStore('notification', () => {
   if (import.meta.client) {
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
     chime.value = loadChime()
+    sound.value = loadChimeSound()
     alertsEnabled.value = loadAlerts()
     /* SPL-998: a second tab kept the switch it loaded and went on beeping */
     window.addEventListener('storage', (e) => {
@@ -82,11 +87,15 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!import.meta.client) return
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
     chime.value = loadChime()
+    sound.value = loadChimeSound()
     alertsEnabled.value = loadAlerts()
   }
 
   watch(chime, (v) => {
     if (import.meta.client) saveChime(Boolean(v))
+  })
+  watch(sound, (v) => {
+    if (import.meta.client && v) saveChimeSound(String(v))
   })
   watch(alertsEnabled, (v) => {
     if (import.meta.client) saveAlerts(Boolean(v))
@@ -106,8 +115,8 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function ping(title: string, body: string) {
     if (chime.value && import.meta.client) {
-      /* the same beep; its AudioContext closes when it ends (CLE-35075) */
-      playChime()
+      /* 051: the reader's chosen sound; its AudioContext closes when it ends (CLE-35075) */
+      playSound(sound.value)
     }
     if (alertsOn.value && typeof Notification !== 'undefined') {
       try {
@@ -196,6 +205,7 @@ export const useNotificationStore = defineStore('notification', () => {
   return {
     permission,
     chime,
+    sound,
     alertsEnabled,
     alertsOn,
     toggleAlerts,

@@ -633,7 +633,15 @@
     "title_mention": "{from} nämnde dig",
     "title_other": "{from}",
     "chime_on": "Ljud på",
-    "chime_off": "Ljud av"
+    "chime_off": "Ljud av",
+    "sound_label": "Aviseringsljud",
+    "sound_hint": "Ljudet som ett nytt meddelande spelar. Tryck på spela för att höra varje.",
+    "sound_preview": "Spela",
+    "sound_plain": "Enkelt pip",
+    "sound_pop": "Bubbelpop",
+    "sound_chirp": "Stigande kvitter",
+    "sound_marimba": "Marimba-plink",
+    "sound_boing": "Tecknat boing"
   },
   "verbosity": {
     "label": "Detaljnivå i ämnet",

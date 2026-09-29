@@ -633,7 +633,15 @@
     "title_mention": "{from} jūs pieminēja",
     "title_other": "{from}",
     "chime_on": "Skaņa ieslēgta",
-    "chime_off": "Skaņa izslēgta"
+    "chime_off": "Skaņa izslēgta",
+    "sound_label": "Paziņojuma skaņa",
+    "sound_hint": "Skaņa, ko atskaņo jauns ziņojums. Nospiediet atskaņot, lai dzirdētu katru.",
+    "sound_preview": "Atskaņot",
+    "sound_plain": "Vienkāršs pīkstiens",
+    "sound_pop": "Burbuļa paukšķis",
+    "sound_chirp": "Augoša čivināšana",
+    "sound_marimba": "Marimbas skaņa",
+    "sound_boing": "Multfilmu boing"
   },
   "verbosity": {
     "label": "Tēmas detalizācija",

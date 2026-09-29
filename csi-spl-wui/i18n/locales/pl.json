@@ -633,7 +633,15 @@
     "title_mention": "{from} wspomina o Tobie",
     "title_other": "{from}",
     "chime_on": "Dźwięk włączony",
-    "chime_off": "Dźwięk wyłączony"
+    "chime_off": "Dźwięk wyłączony",
+    "sound_label": "Dźwięk powiadomienia",
+    "sound_hint": "Dźwięk odtwarzany przez nową wiadomość. Naciśnij odtwórz, aby usłyszeć każdy.",
+    "sound_preview": "Odtwórz",
+    "sound_plain": "Zwykły sygnał",
+    "sound_pop": "Bąbelkowy pyk",
+    "sound_chirp": "Rosnący ćwierk",
+    "sound_marimba": "Brzdęk marimby",
+    "sound_boing": "Kreskówkowe boing"
   },
   "verbosity": {
     "label": "Szczegółowość tematu",

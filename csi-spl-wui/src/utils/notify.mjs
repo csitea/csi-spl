@@ -6,6 +6,9 @@
 import { storageGet, storageGetJson, storageSet, storageSetJson } from './prefs.mjs'
 
 export const CHIME_KEY = 'spool.chime'
+/* 051: which sound the chime plays, per device (owner dd88348d: "the beep
+   sound is too plain. Could it be something more funny"). */
+export const CHIME_SOUND_KEY = 'spool.chime-sound'
 export const MENTION_RE = /@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b/g
 
 export function normalizeChannel(name) {
@@ -139,9 +142,10 @@ export function notificationOptions(body, chime) {
   return { body: String(body || ''), silent: !chime }
 }
 
-/** SPL-998: another tab flipped the note or the bell (a `storage` event; null = cleared). */
+/** SPL-998: another tab flipped the note or the bell (a `storage` event; null = cleared).
+ *  051: a sound change in another tab counts too. */
 export function isSoundPrefKey(key) {
-  return key === CHIME_KEY || key === ALERTS_KEY || key === null
+  return key === CHIME_KEY || key === ALERTS_KEY || key === CHIME_SOUND_KEY || key === null
 }
 
 /* owner, 2026-09-26: the bell is an ON/OFF switch, not just the browser's
@@ -169,32 +173,106 @@ export function previewUnread(n) {
 }
 
 /**
- * The 880 Hz chime, 120 ms at gain 0.04. Each ping made a new AudioContext
- * and never closed it: every context keeps an audio rendering thread and
- * its buffers alive for the life of the tab, one more per alert (CLE-35075).
- * The same beep, and the context is closed when the oscillator ends.
- *
- * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
- * @returns {boolean} whether a beep was started
+ * 051: the sound the chime plays. Each is a short motif of one or more
+ * oscillator segments, all generated in code — no audio files, no licensing,
+ * nothing bundled (distribution hygiene). A segment:
+ *   { type?, f, to?, dur, gain, at?, env? }
+ * `type` is the oscillator wave (default sine); `f` the frequency; `to` an
+ * exponential glide target over the segment; `dur` its length in seconds;
+ * `gain` its peak; `at` a start offset from the motif's start; `env` a quick
+ * attack/decay envelope (a bare gain clicks, an envelope pops or rings).
+ * `plain` is the pre-051 880 Hz beep, kept as an explicit choice.
  */
-export function playChime(Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
+export const SOUND_LIBRARY = {
+  plain: { segs: [{ f: 880, dur: 0.12, gain: 0.04 }] },
+  pop: { segs: [{ f: 520, to: 150, dur: 0.1, gain: 0.07, env: true }] },
+  chirp: { segs: [
+    { f: 620, dur: 0.07, gain: 0.05, env: true },
+    { f: 990, dur: 0.09, gain: 0.05, env: true, at: 0.075 },
+  ] },
+  marimba: { segs: [
+    { type: 'triangle', f: 523, dur: 0.2, gain: 0.06, env: true },
+    { type: 'triangle', f: 1046, dur: 0.14, gain: 0.02, env: true },
+  ] },
+  boing: { segs: [{ type: 'sawtooth', f: 400, to: 130, dur: 0.24, gain: 0.05, env: true }] },
+}
+
+/** The sound names, in the order Settings lists them. */
+export const SOUND_NAMES = Object.keys(SOUND_LIBRARY)
+
+/** The default a fresh device gets (dd88348d: fun, not the plain beep). */
+export const DEFAULT_SOUND = 'chirp'
+
+/** A stored name that is not in the library falls back to the default. */
+export function normalizeSound(name) {
+  return SOUND_NAMES.includes(String(name)) ? String(name) : DEFAULT_SOUND
+}
+
+export function loadChimeSound(store) {
+  return normalizeSound(storageGet(CHIME_SOUND_KEY, DEFAULT_SOUND, store))
+}
+
+export function saveChimeSound(name, store) {
+  return storageSet(CHIME_SOUND_KEY, normalizeSound(name), store)
+}
+
+/**
+ * Play a named sound. One AudioContext per call, closed when its last
+ * oscillator ends — a context keeps an audio thread and buffers alive for the
+ * life of the tab otherwise, one more per alert (CLE-35075).
+ *
+ * @param {string} name a key of SOUND_LIBRARY (unknown => DEFAULT_SOUND)
+ * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
+ * @returns {boolean} whether the sound was started
+ */
+export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
   if (typeof Ctx !== 'function') return false
+  const spec = SOUND_LIBRARY[name] || SOUND_LIBRARY[DEFAULT_SOUND]
   let ctx = null
   try {
     ctx = new Ctx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.frequency.value = 880
-    gain.gain.value = 0.04
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.onended = () => { void Promise.resolve(ctx.close()).catch(() => {}) }
-    osc.start()
-    osc.stop(ctx.currentTime + 0.12)
+    const t0 = ctx.currentTime
+    let last = null
+    let lastStop = t0
+    for (const s of spec.segs) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      if (s.type) osc.type = s.type
+      const start = t0 + (s.at || 0)
+      const stop = start + s.dur
+      if (s.to) {
+        osc.frequency.setValueAtTime(s.f, start)
+        osc.frequency.exponentialRampToValueAtTime(s.to, stop)
+      } else {
+        osc.frequency.value = s.f
+      }
+      if (s.env) {
+        gain.gain.setValueAtTime(0.0001, start)
+        gain.gain.exponentialRampToValueAtTime(s.gain, start + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.0001, stop)
+      } else {
+        gain.gain.value = s.gain
+      }
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(start)
+      osc.stop(stop)
+      if (stop >= lastStop) { lastStop = stop; last = osc }
+    }
+    if (last) last.onended = () => { void Promise.resolve(ctx.close()).catch(() => {}) }
     return true
   } catch {
     /* autoplay policies */
     if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {})
     return false
   }
+}
+
+/**
+ * The pre-051 880 Hz beep, kept for back-compat: `playSound('plain', …)`.
+ * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
+ * @returns {boolean} whether a beep was started
+ */
+export function playChime(Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
+  return playSound('plain', Ctx)
 }

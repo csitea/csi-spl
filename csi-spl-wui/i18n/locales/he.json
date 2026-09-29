@@ -633,7 +633,15 @@
     "title_mention": "{from} הזכיר/ה אתכם",
     "title_other": "{from}",
     "chime_on": "צליל פעיל",
-    "chime_off": "צליל כבוי"
+    "chime_off": "צליל כבוי",
+    "sound_label": "צליל התראה",
+    "sound_hint": "הצליל שהודעה חדשה משמיעה. לחצו על נגן כדי לשמוע כל אחד.",
+    "sound_preview": "נגן",
+    "sound_plain": "ציפצוף רגיל",
+    "sound_pop": "פקיעת בועה",
+    "sound_chirp": "ציוץ עולה",
+    "sound_marimba": "נקישת מרימבה",
+    "sound_boing": "בואינג מצויר"
   },
   "verbosity": {
     "label": "רמת פירוט הנושא",

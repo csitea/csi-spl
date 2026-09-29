@@ -418,7 +418,7 @@ for src, dst in jobs:
     wrote += 1
 print("spool-install: skills: %d written, %d already current" % (wrote, same), file=sys.stderr)
 EOF_PY
-    mkdir -p "$DATA" && cp -f "$HARNESS_DIR/assets/tmux-agent-status.conf" "$DATA/tmux-agent-status.conf" ||
+    mkdir -p "$DATA" && sed "s#{{HARNESS_DIR}}#$HARNESS_DIR#g" "$HARNESS_DIR/assets/tmux-agent-status.conf" >"$DATA/tmux-agent-status.conf" ||
       die 6 "cannot copy the tmux snippet to $DATA"
     say "tmux: add this line to ~/.tmux.conf for the window-access keys:  source-file $DATA/tmux-agent-status.conf"
   fi

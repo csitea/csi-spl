@@ -48,7 +48,8 @@ the reference does it:
 | `scripts/agent-inbox.sh` | the reports an orchestrator has not seen yet, from its spool inbox and (with `SPOOL_LEGACY_INBOX_ROOT`) the older agents' outboxes |
 | `scripts/tmux-close-window.sh` | closes an agent's window by id, now or after it exits (`--defer`); never guesses the active window |
 | `assets/commands/*.md`, `assets/skills/*/SKILL.md` | the slash commands and skills; `spool-install/install.sh` renders them into `~/.claude` (and `~/.qwen/skills`) |
-| `assets/tmux-agent-status.conf` | window-access keys for a fleet; the installer prints its `source-file` line |
+| `scripts/agent-top.sh`, `lib/agent-state.inc.sh` | the fleet view (`agent-top.sh`), the tmux status line (`--status-line`: `agents N  >busy ?waiting !ended .idle`) and the window badges (`--badge-loop`); reads both the spool and, with `SPOOL_LEGACY_INBOX_ROOT`, the older markdown mailbox |
+| `assets/tmux-agent-status.conf` | the status line, the badge loop and the window-access keys for a fleet; the installer fills in this checkout's path and prints its `source-file` line |
 | `harness-parity.tsv` | where every file of the frozen box engine's feature went (specs/048) |
 | `tests/run-all-tests.sh` | every test. Each one uses a throwaway root and a private tmux server |
 
@@ -187,8 +188,7 @@ These exit codes mean nothing was delivered:
 `harness-parity.tsv` lists every file of the frozen box engine's feature and
 where it went: `ported`, `replaced` by a spool-native piece, `excluded` (box
 maintenance, one-off scripts) or `deferred` to a spool issue. The deferred
-ones today: the fleet views (agent-top, pane-scan, badges), the restore
-scripts, the spawn chains and task wrappers, the kill-your-self report.
+ones today: pane-scan and agent-watch, the restore scripts, the spawn chains and task wrappers, the kill-your-self report.
 `tests/test-harness-parity.sh` keeps the list honest and checks that all four
 kinds have every piece; with `HARNESS_REF_DIR` it also fails on any
 reference file without a row.

@@ -43,9 +43,9 @@ run/spawn-grok.func.sh	replaced	scripts/spawn-grok.sh
 run/spawn-qwen.func.sh	replaced	scripts/spawn-qwen.sh
 run/spawn-window.func.sh	replaced	scripts/spawn-window.sh
 run/trust-workdir.func.sh	replaced	scripts/trust-workdir.sh
-scripts/agent-name.sh	replaced	lib/spool-env.inc.sh
-scripts/agent-state.inc.sh	deferred	SPL-1160
-scripts/agent-top.sh	deferred	SPL-1160
+scripts/agent-name.sh	replaced	lib/agent-state.inc.sh
+scripts/agent-state.inc.sh	replaced	lib/agent-state.inc.sh
+scripts/agent-top.sh	ported	scripts/agent-top.sh
 scripts/agent-watch.sh	deferred	SPL-1160
 scripts/git-mode-churn.sh	excluded	box maintenance of shared checkouts (mode-bit churn), not part of an agent harness
 scripts/hydrate-worktree.sh	excluded	box maintenance (pnpm store hydration of a new worktree)
@@ -86,9 +86,9 @@ tests/fixtures/pane-claude-idle.txt	deferred	SPL-1160
 tests/fixtures/pane-grok-idle.txt	deferred	SPL-1160
 tests/run-all.sh	replaced	tests/run-all-tests.sh
 tests/test-agent-name-through-symlink.sh	replaced	tests/test-hygiene.sh
-tests/test-agent-top.sh	deferred	SPL-1160
+tests/test-agent-top.sh	ported	tests/test-agent-top.sh
 tests/test-agent-winch.sh	deferred	SPL-1160
-tests/test-badge-canonical.sh	deferred	SPL-1160
+tests/test-badge-canonical.sh	replaced	tests/test-agent-top.sh
 tests/test-box-doctor.sh	replaced	lib/spool-env.inc.sh
 tests/test-box-env-base-dirs.sh	replaced	lib/spool-env.inc.sh
 tests/test-box-env-multi-box.sh	replaced	lib/spool-env.inc.sh

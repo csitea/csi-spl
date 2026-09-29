@@ -270,7 +270,9 @@ ARGS=(--cli none --no-seat); inst; rc=$?
 [[ $rc -eq 0 ]] && diff -r "$T/claude.before" "$H/.claude" >/dev/null && grep -q 'skills: 0 written' "$T/o" &&
   pass "10. a re-run rewrites nothing" || fail "10. re-run: rc $rc $(grep skills "$T/o")"
 [[ -r "$H/.local/share/spool-agent/tmux-agent-status.conf" ]] && grep -q 'source-file .*tmux-agent-status.conf' "$T/o" &&
-  pass "10. the tmux snippet lands in <data> and the source-file line is printed" || fail "10. tmux: $(cat "$T/o")"
+  grep -qF "bash $(cd "$TEST_DIR/../../spawn-agents" && pwd)/scripts/agent-top.sh --status-line" "$H/.local/share/spool-agent/tmux-agent-status.conf" &&
+  ! grep -q '{{' "$H/.local/share/spool-agent/tmux-agent-status.conf" &&
+  pass "10. the tmux snippet lands in <data> with this checkout's agent-top, and the source-file line is printed" || fail "10. tmux: $(cat "$T/o")"
 echo "my own line" >>"$CMD/riname.md"
 printf 'mine, not the installer'"'"'s\n' >"$CMD/tmux-close-window.md"
 ARGS=(--cli none --no-seat); inst; rc=$?

@@ -31,6 +31,9 @@ echo "ok   - go vet clean"
 echo "== go test -race =="
 ( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
 
+echo "== standalone hub-init rules (047 W9, W18) =="
+bash "$HERE/hub-entrypoint.tst.sh"
+
 echo "== reference-hygiene gate =="
 bash "$HERE/no-ysg-box-ref.tst.sh"
 bash "$HERE/no-baked-host.tst.sh"

@@ -96,6 +96,11 @@ jobs:
       - name: Browser proof - sign up, confirm, sign in, post, reload
         run: BASE="$SPOOL_PUBLIC_URL" OUT="$RUNNER_TEMP/standalone-proof" node csi-spl-wui/tests/e2e/standalone-live.proof.mjs
 
+      # spec 047 W9 + W18: off localhost the default DB passwords are refused
+      # and nobody claims the tenant by signing up first (control included)
+      - name: Public profile - default passwords refused, owner by invite only
+        run: bash csi-spl-api/src/bash/tests/standalone-public.proof.sh
+
       - name: Stack logs (on failure)
         if: failure()
         run: docker compose logs --no-color --tail 200

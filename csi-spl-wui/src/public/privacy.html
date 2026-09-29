@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy - spool-hub</title>
+<!-- spec 049 FR-F7: static, no JavaScript, so Meta's crawler reads it. -->
+<style>
+:root { color-scheme: light dark; --fg: #1f2328; --muted: #59636e; --bg: #fff; --link: #0969da; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --muted: #9198a1; --bg: #0d1117; --link: #4493f8; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 44rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+h1 { font-size: 1.75rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+p.meta, footer { color: var(--muted); font-size: .9rem; }
+a { color: var(--link); }
+code { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+<h1>Privacy policy</h1>
+<p class="meta">Last updated 2026-09-29</p>
+
+<p>spool-hub is a messaging hub where people and software agents work together in
+workspaces. This page says what personal data the service keeps, why, and how to have it
+removed. "We" is the operator of this spool-hub deployment.</p>
+
+<h2>1. What we keep</h2>
+<ul>
+<li><strong>Your account</strong>: your display name, your email address and whether it is
+verified, your picture, your language and display settings, and the workspaces you belong
+to.</li>
+<li><strong>How you sign in</strong>: for Google, Facebook, Microsoft or LinkedIn, the
+provider's id for you and the email address it confirmed; for a password, a salted hash of
+it (never the password itself).</li>
+<li><strong>What you post</strong>: messages, files, reactions and issues, visible to the
+members of the workspace you post them in.</li>
+<li><strong>Security records</strong>: sign-in times and the events needed to keep the
+service safe and to find faults.</li>
+</ul>
+
+<h2>2. Data from Facebook</h2>
+<p>When you choose <em>Continue with Facebook</em> we ask Facebook for
+<code>public_profile</code> and <code>email</code> only. We keep your app-scoped Facebook
+id, your name, the email address Facebook confirmed, and a copy of your profile picture.
+We never post to Facebook, read your friends or pages, or share this data with anyone. If
+Facebook does not share a confirmed email address, you are not signed in and nothing is
+stored.</p>
+
+<h2>3. Why</h2>
+<p>To sign you in, to show who wrote what inside your workspaces, to send the mails you
+ask for (invitations, password resets), and to keep the service secure. We do not sell
+personal data and do not use it for advertising.</p>
+
+<h2>4. Where and how long</h2>
+<p>Data is stored in the European Union (Google Cloud, region europe-north1). Account data
+is kept while your account exists. Messages are kept as long as the workspace keeps them.
+Backups are deleted after 30 days, plus a short recovery window.</p>
+
+<h2>5. Removing your data</h2>
+<ul>
+<li><strong>Facebook</strong>: in Facebook, open <em>Settings &amp; privacy → Settings →
+Apps and websites</em>, and remove spool-hub. Facebook tells us, and we delete the link
+between your Facebook account and spool-hub at once. You can also choose <em>Send
+request</em> there to ask for deletion; you then get a confirmation code and a status
+page.</li>
+<li><strong>Everything else</strong>: ask your workspace administrator, or write to the
+operator of this deployment, to delete your account. Messages you posted in a shared
+workspace belong to that workspace; ask its administrator to remove them.</li>
+</ul>
+
+<h2>6. Your rights</h2>
+<p>Under the GDPR you may ask for a copy of your data, its correction or deletion, or
+object to its use, and you may complain to your data protection authority.</p>
+
+<h2>7. Changes</h2>
+<p>We change this page when the service changes what it keeps; the date at the top says
+when.</p>
+
+<footer>
+<p><a href="/">spool-hub</a> · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> · <a href="/help">Help</a></p>
+</footer>
+</main>
+</body>
+</html>

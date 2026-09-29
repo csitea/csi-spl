@@ -378,11 +378,31 @@ func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "pins unavailable")
 		return
 	}
-	out := wire.PinList{Pins: []wire.PinEntry{}}
+	out := wire.PinList{Pins: make([]wire.PinEntry, 0, len(pins))}
 	for _, p := range pins {
 		out.Pins = append(out.Pins, wire.PinEntry{BoxID: p.BoxID, PubKey: base64.StdEncoding.EncodeToString(p.PubKey)})
 	}
-	writeJSON(w, http.StatusOK, out)
+	// A box polls this authorized_keys list on a timer and it rarely changes, so
+	// a conditional read (If-None-Match) answers 304 with no body when it has
+	// not. The ETag is the weak hash of the exact JSON (etag.go), so a 304 is
+	// only ever sent for bytes the caller already holds — it can never hide a
+	// pin the box would otherwise install.
+	body, err := json.Marshal(out)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "pins unavailable")
+		return
+	}
+	etag := bodyETag(body)
+	h := w.Header()
+	h.Set("ETag", etag)
+	h.Set("Cache-Control", "private, no-cache")
+	if etagMatch(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	h.Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(body) //nolint:errcheck // the client went away; nothing to answer
 }
 
 // POST /v1/pins: pin a box pubkey, signed by the tenant root key.

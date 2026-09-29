@@ -393,6 +393,12 @@ type sessionResp struct {
 	// IssuesColumns is the Issues sheet's column widths (SPL-1132), column
 	// -> px, null when never sized (the WUI then keeps its automatic layout).
 	IssuesColumns map[string]int `json:"issues_columns"`
+	// IssuesSort is the Issues list default sort (CLE-35099), null when never
+	// picked (the WUI then sorts priority ascending, 1 at the top).
+	IssuesSort *IssuesSort `json:"issues_sort"`
+	// PaneSizes is the two vertical dividers' widths as fractions of the
+	// window (CLE-35099, SPL-1182), null when never dragged (default layout).
+	PaneSizes map[string]float64 `json:"pane_sizes"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -412,7 +418,11 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
-	ctx := h.withSettings(r.Context(), s) // one settings read for the whole answer (SPL-1100)
+	active := "" // the request's active tenant (SPL-959 page host, else `t`)
+	if _, t, err := h.ActiveTenant(r, ""); err == nil {
+		active = t
+	}
+	ctx := h.withSettings(r.Context(), s, active) // one settings read for the whole answer (SPL-1100)
 	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(ctx, s)}
 	out.Name = h.shownName(ctx, s)
 	h.sessionTenants(r, &out)
@@ -431,6 +441,8 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.IssuesView = h.viewPref(ctx, s, PrefIssuesView)
 		out.CloseButtons = h.viewPref(ctx, s, PrefCloseButtons)
 		out.IssuesColumns = h.issueColumns(ctx, s)
+		out.IssuesSort = h.issuesSort(ctx, s)
+		out.PaneSizes = h.paneSizes(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -795,6 +807,8 @@ type preferencesReq struct {
 	IssuesView         json.RawMessage `json:"issues_view"`
 	CloseButtons       json.RawMessage `json:"close_buttons"`
 	IssuesColumns      json.RawMessage `json:"issues_columns"`
+	IssuesSort         json.RawMessage `json:"issues_sort"`
+	PaneSizes          json.RawMessage `json:"pane_sizes"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
@@ -850,10 +864,12 @@ type prefsIn struct {
 	loc, name, theme, key                               string
 	diag                                                bool
 	rail                                                []string
-	view                                                map[string]string // layout key -> value, "" = null
-	cols                                                map[string]int    // issues_columns, nil = null
+	view                                                map[string]string  // layout key -> value, "" = null
+	cols                                                map[string]int     // issues_columns, nil = null
+	sort                                                *IssuesSort        // issues_sort, nil = null (CLE-35099)
+	panes                                               map[string]float64 // pane_sizes, nil = null (CLE-35099)
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
-	hasCols                                             bool
+	hasCols, hasSort, hasPanes                          bool
 }
 
 // parsePreferences validates the whole body before anything is written. A
@@ -874,8 +890,14 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.cols, p.hasCols, code, detail = parseIssueColumns(req.IssuesColumns); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null) or issues_columns (column -> px or null) is required"
+	if p.sort, p.hasSort, code, detail = parseIssuesSort(req.IssuesSort); code != "" {
+		return p, code, detail
+	}
+	if p.panes, p.hasPanes, code, detail = parsePaneSizes(req.PaneSizes); code != "" {
+		return p, code, detail
+	}
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null) or pane_sizes (divider -> fraction or null) is required"
 	}
 	if rawLoc != "" && rawLoc != "null" {
 		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
@@ -983,7 +1005,118 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 		func(e *zerolog.Event) *zerolog.Event { return e.Int("issues_columns", len(p.cols)) }) {
 		return nil, false
 	}
+	// Per-tenant scoping (rdb 0078): write the same values to the active
+	// tenant's membership override, so a change in one tenant never moves the
+	// others (spec 023 addendum). The humans-row writes above stay the global
+	// fallback for a tenant with no override yet and for the sign-in page.
+	// issues_sort and pane_sizes have no humans column: they live ONLY here.
+	if !h.storeMembershipPrefs(w, r, hum, p, out) {
+		return nil, false
+	}
 	return out, true
+}
+
+// storeMembershipPrefs writes the per-tenant override for the request's active
+// tenant (rdb 0078). It is a no-op when the store cannot keep one, or when no
+// tenant is active (the sign-in page: only the global was written). A write
+// failure fails the request, so issues_sort / pane_sizes (kept nowhere else)
+// are never echoed as stored when they were not. It also adds those two to out.
+func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, hum string, p prefsIn, out map[string]any) bool {
+	mw, ok := h.prefs.(MembershipSettingsWriter)
+	if !ok {
+		return true
+	}
+	_, tenant, err := h.ActiveTenant(r, "")
+	if err != nil || tenant == "" {
+		// No active tenant: the per-tenant-only settings cannot be kept. The WUI
+		// only sends them inside a tenant, so this is the sign-in edge.
+		if p.hasSort || p.hasPanes {
+			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes with no active tenant, not stored")
+		}
+		return true
+	}
+	patch := p.membershipPatch()
+	if len(patch) == 0 {
+		return true
+	}
+	if err := mw.SetMembershipSettings(r.Context(), hum, tenant, patch); err != nil {
+		h.log.Error().Err(err).Str("human_id", hum).Str("tenant", tenant).Msg("auth.preferences membership write")
+		writeErr(w, http.StatusInternalServerError, "internal", "settings not stored")
+		return false
+	}
+	h.log.Info().Str("human_id", hum).Str("tenant", tenant).Int("keys", len(patch)).Msg("auth.preferences_set_tenant")
+	if p.hasSort {
+		out["issues_sort"] = p.sort
+	}
+	if p.hasPanes {
+		out["pane_sizes"] = p.panes
+	}
+	return true
+}
+
+// membershipPatch is the per-tenant override to write (rdb 0078): the present
+// keys of p, a nil value clearing that key (the read then falls back to the
+// global). display_name is not here — it stays per human.
+func (p prefsIn) membershipPatch() map[string]any {
+	patch := map[string]any{}
+	if p.hasLoc {
+		patch["preferred_locale"] = nullable(p.loc)
+	}
+	if p.hasTheme {
+		patch["preferred_theme"] = nullable(p.theme)
+	}
+	if p.hasKey {
+		patch["submit_key"] = nullable(p.key)
+	}
+	if p.hasRail {
+		patch["rail_order"] = nilSlice(p.rail)
+	}
+	if p.hasDiag {
+		patch["diagnostics_enabled"] = p.diag
+	}
+	for k, v := range p.view {
+		patch[k] = nullable(v)
+	}
+	if p.hasCols {
+		patch["issues_columns"] = nilMap(p.cols)
+	}
+	if p.hasSort {
+		patch["issues_sort"] = nilSort(p.sort)
+	}
+	if p.hasPanes {
+		patch["pane_sizes"] = nilFloatMap(p.panes)
+	}
+	return patch
+}
+
+// nilSlice / nilMap / nilFloatMap / nilSort answer a cleared setting as JSON
+// null (the SQL merge strips it), so the read falls back to the global.
+func nilSlice(v []string) any {
+	if v == nil {
+		return nil
+	}
+	return v
+}
+
+func nilMap(v map[string]int) any {
+	if v == nil {
+		return nil
+	}
+	return v
+}
+
+func nilFloatMap(v map[string]float64) any {
+	if v == nil {
+		return nil
+	}
+	return v
+}
+
+func nilSort(v *IssuesSort) any {
+	if v == nil {
+		return nil
+	}
+	return v
 }
 
 // nullable answers a cleared setting ("") as JSON null.

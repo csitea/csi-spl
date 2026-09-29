@@ -413,6 +413,10 @@ type loginResp struct {
 	CloseButtons *string `json:"close_buttons"`
 	// IssuesColumns as GET /session answers it (SPL-1132), null when unset.
 	IssuesColumns map[string]int `json:"issues_columns"`
+	// IssuesSort as GET /session answers it (CLE-35099), null when unset.
+	IssuesSort *IssuesSort `json:"issues_sort"`
+	// PaneSizes as GET /session answers it (CLE-35099, SPL-1182), null when unset.
+	PaneSizes map[string]float64 `json:"pane_sizes"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -527,7 +531,10 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 // the credential's name, as every other claim of it) and carries the
 // person's preferences.
 func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string) loginResp {
-	ctx = n.h.withSettings(ctx, sess) // one settings read for the whole answer (SPL-1100)
+	// The login binds sess.Tenant (the ?tenant= of the flow, else the sole
+	// membership), so the answer carries THAT tenant's per-tenant settings
+	// (rdb 0078) with no second probe.
+	ctx = n.h.withSettings(ctx, sess, sess.Tenant) // one settings read for the whole answer (SPL-1100)
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
 	return loginResp{Session: claims, Redirect: safeRedirect(redirect),
@@ -535,7 +542,7 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
 		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
 		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), CloseButtons: n.h.viewPref(ctx, sess, PrefCloseButtons),
-		IssuesColumns: n.h.issueColumns(ctx, sess)}
+		IssuesColumns: n.h.issueColumns(ctx, sess), IssuesSort: n.h.issuesSort(ctx, sess), PaneSizes: n.h.paneSizes(ctx, sess)}
 }
 
 type emailReq struct {

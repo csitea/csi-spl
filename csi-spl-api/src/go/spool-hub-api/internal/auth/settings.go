@@ -9,6 +9,11 @@ import (
 // POST /login answer carry, read in ONE store call (SPL-1100). Before, those
 // answers read the humans row once per setting: nine round trips to Cloud SQL
 // for one row.
+//
+// It holds the GLOBAL humans-row values; the per-tenant override (rdb 0078,
+// CLE-35099) is applied over it by Overlay before the answer reads it, so the
+// same fields carry the tenant's value when one is set (spec 023 addendum
+// per-tenant-settings.md).
 type HumanSettings struct {
 	Locale, Theme, SubmitKey, DisplayName string
 	// RailOrder is nil when never reordered.
@@ -18,6 +23,107 @@ type HumanSettings struct {
 	// IssueColumns is nil when the Issues sheet was never sized (SPL-1132).
 	IssueColumns map[string]int
 	Diagnostics  bool
+	// IssuesSort is the Issues list default sort (CLE-35099), nil when never
+	// picked (the product default is then priority ascending).
+	IssuesSort *IssuesSort
+	// PaneSizes is the two vertical dividers' widths as fractions of the
+	// window (CLE-35099, SPL-1182), nil when never dragged.
+	PaneSizes map[string]float64
+}
+
+// IssuesSort is a person's default sort of the Issues list (CLE-35099): the
+// column and the direction. Col is one of IssuesSortColumns, Dir one of
+// IssuesSortDirs. The product default (a nil IssuesSort) is priority ascending
+// (1 at the top), tie-broken by the hub's stable secondary order (updated,
+// newest first).
+type IssuesSort struct {
+	Col string `json:"col"`
+	Dir string `json:"dir"`
+}
+
+// MembershipSettings is a person's PER-TENANT override of HumanSettings
+// (rdb 0078, tenant_memberships.settings). A nil pointer / nil map field = no
+// override for that setting in this tenant, so the read falls back to the
+// humans-row global, then the product default (spec 023 addendum). It is the
+// decoded form of the settings jsonb column; display_name and the avatar are
+// NOT here (they stay per human).
+type MembershipSettings struct {
+	Locale           *string            `json:"preferred_locale,omitempty"`
+	Theme            *string            `json:"preferred_theme,omitempty"`
+	SubmitKey        *string            `json:"submit_key,omitempty"`
+	RailOrder        []string           `json:"rail_order,omitempty"`
+	MessageOrder     *string            `json:"message_order,omitempty"`
+	ComposerPosition *string            `json:"composer_position,omitempty"`
+	IssuesView       *string            `json:"issues_view,omitempty"`
+	CloseButtons     *string            `json:"close_buttons,omitempty"`
+	IssueColumns     map[string]int     `json:"issues_columns,omitempty"`
+	Diagnostics      *bool              `json:"diagnostics_enabled,omitempty"`
+	IssuesSort       *IssuesSort        `json:"issues_sort,omitempty"`
+	PaneSizes        map[string]float64 `json:"pane_sizes,omitempty"`
+}
+
+// Overlay returns b with every set field of the per-tenant override o applied
+// over it (rdb 0078). A nil override field leaves the global value. The
+// ViewPrefs map is copied so the caller's snapshot is not shared-mutated.
+func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
+	if o.Locale != nil {
+		b.Locale = *o.Locale
+	}
+	if o.Theme != nil {
+		b.Theme = *o.Theme
+	}
+	if o.SubmitKey != nil {
+		b.SubmitKey = *o.SubmitKey
+	}
+	if o.RailOrder != nil {
+		b.RailOrder = o.RailOrder
+	}
+	vp := make(map[string]string, len(b.ViewPrefs)+len(ViewPrefs))
+	for k, v := range b.ViewPrefs {
+		vp[k] = v
+	}
+	if o.MessageOrder != nil {
+		vp[PrefMessageOrder] = *o.MessageOrder
+	}
+	if o.ComposerPosition != nil {
+		vp[PrefComposerPosition] = *o.ComposerPosition
+	}
+	if o.IssuesView != nil {
+		vp[PrefIssuesView] = *o.IssuesView
+	}
+	if o.CloseButtons != nil {
+		vp[PrefCloseButtons] = *o.CloseButtons
+	}
+	b.ViewPrefs = vp
+	if o.IssueColumns != nil {
+		b.IssueColumns = o.IssueColumns
+	}
+	if o.Diagnostics != nil {
+		b.Diagnostics = *o.Diagnostics
+	}
+	if o.IssuesSort != nil {
+		b.IssuesSort = o.IssuesSort
+	}
+	if o.PaneSizes != nil {
+		b.PaneSizes = o.PaneSizes
+	}
+	return b
+}
+
+// MembershipSettingsReader is an optional extension of Preferences: a store
+// that reads a human's per-tenant override (rdb 0078). Without it, settings
+// stay global (every tenant shows the humans-row value). An unknown membership
+// is an empty MembershipSettings and a nil error (no override → fall back).
+type MembershipSettingsReader interface {
+	MembershipSettings(ctx context.Context, humanID, tenant string) (MembershipSettings, error)
+}
+
+// MembershipSettingsWriter is an optional extension of Preferences: a store
+// that writes a human's per-tenant override (rdb 0078). patch holds only the
+// keys being changed; a nil value clears that key (the read then falls back to
+// the global). An unknown membership is ErrNoHuman.
+type MembershipSettingsWriter interface {
+	SetMembershipSettings(ctx context.Context, humanID, tenant string, patch map[string]any) error
 }
 
 // SettingsReader is an optional extension of Preferences: a store that reads
@@ -55,12 +161,27 @@ type settingsKey struct{}
 // and hands them to every reader of this answer through ctx. It is taken per
 // answer and never kept: a setting changed a moment ago is read fresh by the
 // next GET /session (diagnosticsGrant's rule 1).
-func (h *Handler) withSettings(ctx context.Context, s Session) context.Context {
+//
+// tenant is the request's active tenant (auth.ActiveTenant: the page host under
+// SPL-959, else the session `t`), "" before one resolves. When it is set and
+// the store can read a per-tenant override (rdb 0078), that override is applied
+// over the global values, so the same fields carry the tenant's value. A
+// failed override read is ignored: the answer keeps the global (spec 023).
+func (h *Handler) withSettings(ctx context.Context, s Session, tenant string) context.Context {
 	sr, ok := h.prefs.(SettingsReader)
 	if !ok || s.HumanID == "" {
 		return ctx
 	}
 	v, err := sr.HumanSettings(ctx, s.HumanID)
+	if err == nil && tenant != "" {
+		if mr, ok := h.prefs.(MembershipSettingsReader); ok {
+			if o, oerr := mr.MembershipSettings(ctx, s.HumanID, tenant); oerr == nil {
+				v = v.Overlay(o)
+			} else {
+				h.log.Warn().Err(oerr).Str("tenant", tenant).Msg("auth membership settings overlay")
+			}
+		}
+	}
 	return context.WithValue(ctx, settingsKey{}, &settingsSnapshot{human: s.HumanID, s: v, err: err})
 }
 
@@ -71,6 +192,17 @@ func (h *Handler) settings(ctx context.Context, humanID string) settingReader {
 		return snap
 	}
 	return h.prefs
+}
+
+// settingsSnap is the request's overlaid HumanSettings for humanID (withSettings),
+// present only when the read succeeded. The settings with no per-column reader
+// on the store — issues_sort, pane_sizes (rdb 0078) — are read from here, so
+// they carry the per-tenant override with no extra store round trip.
+func (h *Handler) settingsSnap(ctx context.Context, humanID string) (HumanSettings, bool) {
+	if snap, ok := ctx.Value(settingsKey{}).(*settingsSnapshot); ok && snap.human == humanID && snap.err == nil {
+		return snap.s, true
+	}
+	return HumanSettings{}, false
 }
 
 func (p *settingsSnapshot) PreferredLocale(context.Context, string) (string, error) {

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -23,10 +24,11 @@ type memHuman struct {
 
 type memMember struct {
 	role, admittedBy string
-	since            time.Time // tenant_memberships.created_at
-	lastActive       time.Time // last_active_at (rdb 0044); zero = never switched into
-	channelOrder     []string  // channel_order (rdb 0073); nil = never set
-	disabled         bool      // disabled_at (rdb 0074): suspended in this tenant
+	since            time.Time                  // tenant_memberships.created_at
+	lastActive       time.Time                  // last_active_at (rdb 0044); zero = never switched into
+	channelOrder     []string                   // channel_order (rdb 0073); nil = never set
+	settings         map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
+	disabled         bool                       // disabled_at (rdb 0074): suspended in this tenant
 }
 
 // memIdent is one human_identities row: which human the (provider, subject)

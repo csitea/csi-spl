@@ -79,9 +79,18 @@ jobs:
       # job 108199695609). Keep it in the runner's tool cache, which persists.
       - name: pnpm store in the runner tool cache (persists across jobs)
         run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
+      # cache: this job is ubuntu-latest, where RUNNER_TOOL_CACHE is wiped every
+      # run (the "persists" above is a self-hosted-only property, and 30 is
+      # hosted), so pnpm re-fetched all ~720 packages each run. setup-node's
+      # pnpm cache (actions/cache), keyed on the lockfile, persists the store
+      # across hosted runs: cold install ~6.5 s -> warm ~1.2 s (measured
+      # 2026-09-29). Self-hosted 10_ci-quality is unaffected -- its store dir
+      # genuinely persists and it uses no actions/cache.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:unit
       - run: pnpm run typecheck
@@ -215,9 +224,14 @@ jobs:
       # job 108199695609). Keep it in the runner's tool cache, which persists.
       - name: pnpm store in the runner tool cache (persists across jobs)
         run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
+      # cache: ubuntu-latest wipes RUNNER_TOOL_CACHE each run, so setup-node's
+      # pnpm cache (actions/cache, keyed on the lockfile) is what persists the
+      # store here: cold install ~6.5 s -> warm ~1.2 s (measured 2026-09-29).
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: csi-spl-wui
 

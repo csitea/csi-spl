@@ -385,9 +385,12 @@ watch(signedIn, (v) => { if (!v) close(false) })
   box-shadow: 0 0 0 2px var(--color-danger);
 }
 .user-menu__acting {
-  position: absolute;
-  top: calc(100% + 3px);
-  inset-inline-end: 0;
+  /* fixed like BuildUpdateBar: an absolute pill sits in the top bar's stacking
+     context and the shell paints over it. Fixed + a high z floats it above the
+     shell, just under the avatar (12px = the top bar's inline padding). */
+  position: fixed;
+  top: calc(var(--top-bar-h) + 2px);
+  inset-inline-end: 12px;
   z-index: calc(var(--z-banner) + 10);
   display: inline-flex;
   align-items: center;

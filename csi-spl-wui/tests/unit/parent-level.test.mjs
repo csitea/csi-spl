@@ -192,7 +192,7 @@ describe('the last selected pane decides the level', () => {
       assert.equal(omniboxReplyTaskId({ tab, selectedTaskId: T, paneVisible, lastPane: 'middle' }), T)
     })
   }
-  it('SPL-996 B: `@someone` first is the explicit new topic, pane open or not', () => {
+  it('SPL-996 B: an addressed task dispatch is the explicit new topic, pane open or not', () => {
     assert.equal(startsNewTopic('@CLE-001 please look'), true)
     assert.equal(startsNewTopic('  @HUM-10 hi'), true)
     assert.equal(startsNewTopic('ask @CLE-001 later'), false)
@@ -200,6 +200,21 @@ describe('the last selected pane decides the level', () => {
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: true }), '')
     assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@CLE-001 x') }), 1)
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, namedTopicId: U, paneVisible: true, newTopic: true }), U)
+  })
+  /* e09a72f7 (owner): a leading `@` that addresses no task is an ordinary
+     message and replies into the open thread - it does NOT start a new topic.
+     The owner typed `@test` in a thread and every one became its own topic. */
+  it('a leading @ that addresses no task is NOT a new topic (e09a72f7)', () => {
+    assert.equal(startsNewTopic('@test'), false)
+    assert.equal(startsNewTopic('@test hello there'), false)
+    assert.equal(startsNewTopic('@CLE-07'), false) /* a bare mention is a note, not a dispatch */
+    assert.equal(startsNewTopic('@notanid something'), false)
+    assert.equal(startsNewTopic(''), false)
+    /* the real dispatch still starts one */
+    assert.equal(startsNewTopic('@CLE-07 review the patch'), true)
+    /* so in an open pane, `@test` replies into it (is_parent 0), a dispatch does not */
+    assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@test'), replyTaskId: T }), 0)
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: startsNewTopic('@test') }), T)
   })
   it('`in: <title>` still names the topic when the middle was selected last', () => {
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, namedTopicId: U, lastPane: 'middle' }), U)

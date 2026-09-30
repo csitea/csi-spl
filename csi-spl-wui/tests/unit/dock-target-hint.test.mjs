@@ -25,9 +25,12 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.deepEqual(dockTargetHint({ reply: false, target: '#alerts' }, 'hello'), { mode: 'new', target: '#alerts' })
   })
 
-  it('`@someone` first is the explicit new topic even with a thread open (SPL-996 B), and the hint follows the text', () => {
+  it('an addressed task dispatch is the explicit new topic with a thread open (SPL-996 B); the hint follows the text', () => {
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@CLE-07 look').mode, 'new')
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, 'ping @CLE-07').mode, 'thread')
+    /* e09a72f7: a leading @ that addresses no task stays a thread reply */
+    assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@test').mode, 'thread')
+    assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@CLE-07').mode, 'thread')
   })
 
   it('an open issue on a phone: every line is a comment on it, `@someone` first too', () => {

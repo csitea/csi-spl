@@ -14,6 +14,8 @@
  * Omnibox does not read them.
  */
 
+import { parseMention } from './channel-feed.mjs'
+
 /**
  * The task a send from this page should hang off, or '' for a new one.
  * Reads a topic store's public shape, so it is the same rule on every page
@@ -65,13 +67,21 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
 }
 
 /**
- * SPL-996 B: a line that opens with `@someone` is the explicit "new topic",
- * even while a topic is open. An `@` later in the line is a mention inside
- * the reply.
+ * SPL-996 B: a line that DISPATCHES a task to an addressed agent
+ * (`@CLE-07 do X`) is the explicit "new topic", even while a topic is open.
+ *
+ * e09a72f7 (owner): it must be a real dispatch, not merely a leading `@`. The
+ * owner typed `@test` inside an open thread and every one became its own topic
+ * instead of a reply. Plain text that happens to start with `@` (`@test`), a
+ * BARE mention with nothing after it (`@CLE-07`), a lone `@`, and an `@` later
+ * in the line address no task, so they are ordinary messages and reply into
+ * the open thread. parseMention is the single source of what "addresses a
+ * task" is — kind 'task' only for `@<ID> <instructions>` — so this follows it,
+ * and the two can never drift apart. Leading whitespace is ignored.
  * @param {unknown} text
  */
 export function startsNewTopic(text) {
-  return /^\s*@[A-Za-z0-9_][\w.@-]*/.test(String(text || ''))
+  return parseMention(String(text || '').replace(/^\s+/, '')).kind === 'task'
 }
 
 /**

@@ -189,7 +189,8 @@
       "email_unverified": "У вашего аккаунта у этого провайдера нет подтверждённой почты — попробуйте другой.",
       "not_allowed": "У этого аккаунта пока нет доступа — попросите приглашение у своего администратора.",
       "unavailable": "Вход сейчас недоступен.",
-      "failed": "Не удалось войти."
+      "failed": "Не удалось войти.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Неверная почта или пароль.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Слишком много попыток — попробуйте через {m} мин.",
       "password_too_short_min": "Пароль слишком короткий — используйте не менее {min} символов.",
       "check_form": "Проверьте форму и попробуйте ещё раз.",
-      "generic": "Что-то пошло не так — попробуйте ещё раз."
+      "generic": "Что-то пошло не так — попробуйте ещё раз.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Перейти ко входу",
     "signed_out_view": "{link}, чтобы читать и отправлять сообщения.",

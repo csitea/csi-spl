@@ -189,7 +189,8 @@
       "email_unverified": "Sinu kontol selle teenusepakkuja juures pole kinnitatud e-posti — proovi mõnda teist.",
       "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi oma administraatorilt kutset.",
       "unavailable": "Sisselogimine pole praegu saadaval.",
-      "failed": "Sisselogimine ebaõnnestus."
+      "failed": "Sisselogimine ebaõnnestus.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "E-post või parool on vale.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Liiga palju katseid — proovi {m} minuti pärast uuesti.",
       "password_too_short_min": "See parool on liiga lühike — kasuta vähemalt {min} märki.",
       "check_form": "Kontrolli vormi ja proovi uuesti.",
-      "generic": "Midagi läks valesti — proovi uuesti."
+      "generic": "Midagi läks valesti — proovi uuesti.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Mine sisselogimisse",
     "signed_out_view": "{link}, et sõnumeid lugeda ja saata.",

@@ -189,7 +189,8 @@
       "email_unverified": "Contul dvs. nu are un e-mail verificat la acest furnizor — încercați altul.",
       "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație administratorului dvs.",
       "unavailable": "Autentificarea nu este disponibilă momentan.",
-      "failed": "Autentificarea a eșuat."
+      "failed": "Autentificarea a eșuat.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "E-mailul sau parola sunt greșite.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Prea multe încercări — încercați din nou peste {m} minute.",
       "password_too_short_min": "Parola este prea scurtă — folosiți cel puțin {min} caractere.",
       "check_form": "Verificați formularul și încercați din nou.",
-      "generic": "Ceva nu a mers bine — încercați din nou."
+      "generic": "Ceva nu a mers bine — încercați din nou.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Mergi la autentificare",
     "signed_out_view": "{link} pentru a citi și trimite mesaje.",

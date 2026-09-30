@@ -189,7 +189,8 @@
       "email_unverified": "Jūsų paskyra pas šį paslaugos teikėją neturi patvirtinto el. pašto — pabandykite kitą.",
       "not_allowed": "Ši paskyra čia dar neturi prieigos — paprašykite savo administratoriaus pakvietimo.",
       "unavailable": "Prisijungimas šiuo metu neprieinamas.",
-      "failed": "Prisijungti nepavyko."
+      "failed": "Prisijungti nepavyko.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Neteisingas el. paštas arba slaptažodis.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Per daug bandymų — bandykite dar kartą po {m} min.",
       "password_too_short_min": "Slaptažodis per trumpas — naudokite bent {min} simbolius.",
       "check_form": "Patikrinkite formą ir bandykite dar kartą.",
-      "generic": "Kažkas nutiko ne taip — bandykite dar kartą."
+      "generic": "Kažkas nutiko ne taip — bandykite dar kartą.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Eiti į prisijungimą",
     "signed_out_view": "{link}, kad galėtumėte skaityti ir siųsti žinutes.",

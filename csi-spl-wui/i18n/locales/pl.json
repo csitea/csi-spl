@@ -189,7 +189,8 @@
       "email_unverified": "Twoje konto u tego dostawcy nie ma zweryfikowanego e-maila — wybierz innego.",
       "not_allowed": "To konto nie ma tu jeszcze dostępu — poproś swojego administratora o zaproszenie.",
       "unavailable": "Logowanie jest teraz niedostępne.",
-      "failed": "Logowanie nie powiodło się."
+      "failed": "Logowanie nie powiodło się.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Zbyt wiele prób — spróbuj ponownie za {m} min.",
       "password_too_short_min": "To hasło jest za krótkie — użyj co najmniej {min} znaków.",
       "check_form": "Sprawdź formularz i spróbuj ponownie.",
-      "generic": "Coś poszło nie tak — spróbuj ponownie."
+      "generic": "Coś poszło nie tak — spróbuj ponownie.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Przejdź do logowania",
     "signed_out_view": "{link}, aby czytać i wysyłać wiadomości.",

@@ -189,7 +189,8 @@
       "email_unverified": "Ditt konto har ingen verifierad e-postadress hos den här leverantören — prova en annan.",
       "not_allowed": "Det här kontot har ingen åtkomst här ännu — be din administratör om en inbjudan.",
       "unavailable": "Inloggning är inte tillgänglig just nu.",
-      "failed": "Inloggningen misslyckades."
+      "failed": "Inloggningen misslyckades.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Fel e-postadress eller lösenord.",
@@ -209,7 +210,8 @@
       "retry_minutes": "För många försök — försök igen om {m} minuter.",
       "password_too_short_min": "Lösenordet är för kort — använd minst {min} tecken.",
       "check_form": "Kontrollera formuläret och försök igen.",
-      "generic": "Något gick fel — försök igen."
+      "generic": "Något gick fel — försök igen.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Gå till inloggning",
     "signed_out_view": "{link} för att läsa och skicka meddelanden.",

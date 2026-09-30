@@ -189,7 +189,8 @@
       "email_unverified": "Ο λογαριασμός σας σε αυτόν τον πάροχο δεν έχει επαληθευμένο email — δοκιμάστε άλλον.",
       "not_allowed": "Αυτός ο λογαριασμός δεν έχει ακόμη πρόσβαση εδώ — ζητήστε πρόσκληση από τον διαχειριστή σας.",
       "unavailable": "Η σύνδεση δεν είναι διαθέσιμη αυτή τη στιγμή.",
-      "failed": "Η σύνδεση απέτυχε."
+      "failed": "Η σύνδεση απέτυχε.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Λάθος email ή κωδικός.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Πάρα πολλές προσπάθειες — δοκιμάστε ξανά σε {m} λεπτά.",
       "password_too_short_min": "Ο κωδικός είναι πολύ σύντομος — χρησιμοποιήστε τουλάχιστον {min} χαρακτήρες.",
       "check_form": "Ελέγξτε τη φόρμα και δοκιμάστε ξανά.",
-      "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά."
+      "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Μετάβαση στη σύνδεση",
     "signed_out_view": "{link} για να διαβάζετε και να στέλνετε μηνύματα.",

@@ -189,7 +189,8 @@
       "email_unverified": "Váš účet u tohto poskytovateľa nemá overený e-mail — skúste iného.",
       "not_allowed": "Tento účet tu zatiaľ nemá prístup — požiadajte svojho správcu o pozvánku.",
       "unavailable": "Prihlásenie momentálne nie je k dispozícii.",
-      "failed": "Prihlásenie zlyhalo."
+      "failed": "Prihlásenie zlyhalo.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "E-mail alebo heslo je nesprávne.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Príliš veľa pokusov — skúste to znova o {m} min.",
       "password_too_short_min": "Heslo je príliš krátke — použite aspoň {min} znakov.",
       "check_form": "Skontrolujte formulár a skúste to znova.",
-      "generic": "Niečo sa pokazilo — skúste to znova."
+      "generic": "Niečo sa pokazilo — skúste to znova.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Prejsť na prihlásenie",
     "signed_out_view": "{link}, aby ste mohli čítať a posielať správy.",

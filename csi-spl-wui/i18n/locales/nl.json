@@ -189,7 +189,8 @@
       "email_unverified": "Je account heeft bij deze provider geen geverifieerd e-mailadres — probeer een andere.",
       "not_allowed": "Dit account heeft hier nog geen toegang — vraag je beheerder om een uitnodiging.",
       "unavailable": "Inloggen is op dit moment niet beschikbaar.",
-      "failed": "Inloggen mislukt."
+      "failed": "Inloggen mislukt.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "E-mailadres of wachtwoord is onjuist.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Te veel pogingen — probeer het over {m} minuten opnieuw.",
       "password_too_short_min": "Dat wachtwoord is te kort — gebruik minstens {min} tekens.",
       "check_form": "Controleer het formulier en probeer het opnieuw.",
-      "generic": "Er ging iets mis — probeer het opnieuw."
+      "generic": "Er ging iets mis — probeer het opnieuw.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Naar inloggen",
     "signed_out_view": "{link} om berichten te lezen en te versturen.",

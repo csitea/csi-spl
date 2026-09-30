@@ -189,7 +189,8 @@
       "email_unverified": "Вашата сметка кај овој провајдер нема потврдена е-пошта — пробајте друг.",
       "not_allowed": "Оваа сметка сè уште нема пристап тука — побарајте покана од вашиот администратор.",
       "unavailable": "Најавата моментално не е достапна.",
-      "failed": "Најавата не успеа."
+      "failed": "Најавата не успеа.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Е-поштата или лозинката се погрешни.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Премногу обиди — обидете се повторно за {m} минути.",
       "password_too_short_min": "Таа лозинка е прекратка — користете најмалку {min} знаци.",
       "check_form": "Проверете го формуларот и обидете се повторно.",
-      "generic": "Нешто тргна наопаку — обидете се повторно."
+      "generic": "Нешто тргна наопаку — обидете се повторно.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Оди на најава",
     "signed_out_view": "{link} за да читате и испраќате пораки.",

@@ -17,6 +17,7 @@ const ERRORS = {
   exchange_failed: 'The provider could not confirm you — try again.',
   email_unverified: 'Your account has no verified email with this provider — try another.',
   not_allowed: 'This account has no access here yet — ask your admin for an invite.',
+  invite_expired: 'Your invitation has expired — ask your admin to send a new one.',
   unavailable: 'Sign-in is unavailable right now.',
 }
 
@@ -25,6 +26,7 @@ const NATIVE_ERRORS = {
   invalid_credentials: 'Email or password is wrong.',
   email_unverified: 'Confirm your email first — we can send the link again.',
   not_allowed: 'This account has no access here yet — ask your admin for an invite.',
+  invite_expired: 'Your invitation has expired — ask your admin to send a new one.',
   verification_token_invalid: 'That link is not valid any more.',
   verification_token_expired: 'That link expired — we can send a new one.',
   reset_token_invalid: 'That reset link is not valid any more — ask for a new one.',

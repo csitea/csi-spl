@@ -30,11 +30,11 @@ function same(label, key, english) {
 }
 
 console.log('auth-i18n-keys')
-for (const c of ['cancelled', 'invalid_state', 'exchange_failed', 'email_unverified', 'not_allowed', 'unavailable', 'weird', '']) {
+for (const c of ['cancelled', 'invalid_state', 'exchange_failed', 'email_unverified', 'not_allowed', 'invite_expired', 'unavailable', 'weird', '']) {
   same('authError ' + JSON.stringify(c), authErrorKey(c), authErrorMessage(c))
 }
 const outs = [
-  { error: 'invalid_credentials' }, { error: 'email_unverified' }, { error: 'not_allowed' },
+  { error: 'invalid_credentials' }, { error: 'email_unverified' }, { error: 'not_allowed' }, { error: 'invite_expired' },
   { error: 'verification_token_invalid' }, { error: 'verification_token_expired' }, { error: 'reset_token_invalid' },
   { error: 'email_delivery_unavailable' }, { error: 'rate_limited' }, { error: 'rate_limited', retryAfter: 30 },
   { error: 'rate_limited', retryAfter: 300 }, { error: 'unauthenticated' }, { error: 'unavailable' }, { error: 'network' },

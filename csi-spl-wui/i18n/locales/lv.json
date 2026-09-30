@@ -189,7 +189,8 @@
       "email_unverified": "Jūsu kontam šajā pakalpojumā nav apstiprināta e-pasta — izmēģiniet citu.",
       "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet savam administratoram uzaicinājumu.",
       "unavailable": "Pieteikšanās pašlaik nav pieejama.",
-      "failed": "Pieteikšanās neizdevās."
+      "failed": "Pieteikšanās neizdevās.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Nepareizs e-pasts vai parole.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Pārāk daudz mēģinājumu — mēģiniet vēlreiz pēc {m} minūtēm.",
       "password_too_short_min": "Parole ir pārāk īsa — izmantojiet vismaz {min} rakstzīmes.",
       "check_form": "Pārbaudiet veidlapu un mēģiniet vēlreiz.",
-      "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
+      "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Uz pieteikšanos",
     "signed_out_view": "{link}, lai lasītu un sūtītu ziņas.",

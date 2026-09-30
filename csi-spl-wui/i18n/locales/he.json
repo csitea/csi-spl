@@ -189,7 +189,8 @@
       "email_unverified": "לחשבון שלכם אין אימייל מאומת אצל ספק זה — נסו ספק אחר.",
       "not_allowed": "לחשבון זה עדיין אין גישה כאן — בקשו הזמנה ממנהל המערכת שלכם.",
       "unavailable": "ההתחברות אינה זמינה כרגע.",
-      "failed": "ההתחברות נכשלה."
+      "failed": "ההתחברות נכשלה.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "האימייל או הסיסמה שגויים.",
@@ -209,7 +210,8 @@
       "retry_minutes": "יותר מדי ניסיונות — נסו שוב בעוד {m} דקות.",
       "password_too_short_min": "הסיסמה קצרה מדי — השתמשו בלפחות {min} תווים.",
       "check_form": "בדקו את הטופס ונסו שוב.",
-      "generic": "משהו השתבש — נסו שוב."
+      "generic": "משהו השתבש — נסו שוב.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "מעבר להתחברות",
     "signed_out_view": "{link} כדי לקרוא ולשלוח הודעות.",

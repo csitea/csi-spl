@@ -189,7 +189,8 @@
       "email_unverified": "Your account has no verified email with this provider — try another.",
       "not_allowed": "This account has no access here yet — ask your admin for an invite.",
       "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "failed": "Sign-in failed.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Email or password is wrong.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Too many attempts — try again in {m} minutes.",
       "password_too_short_min": "That password is too short — use at least {min} characters.",
       "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "generic": "Something went wrong — try again.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Go to sign in",
     "signed_out_view": "{link} to read and send messages.",

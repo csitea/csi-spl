@@ -189,7 +189,8 @@
       "email_unverified": "Tu cuenta no tiene un correo verificado con este proveedor — prueba con otro.",
       "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación a tu administrador.",
       "unavailable": "El inicio de sesión no está disponible ahora mismo.",
-      "failed": "No se pudo iniciar sesión."
+      "failed": "No se pudo iniciar sesión.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "El correo o la contraseña no son correctos.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Demasiados intentos — inténtalo de nuevo en {m} minutos.",
       "password_too_short_min": "Esa contraseña es demasiado corta — usa al menos {min} caracteres.",
       "check_form": "Revisa el formulario e inténtalo de nuevo.",
-      "generic": "Algo salió mal — inténtalo de nuevo."
+      "generic": "Algo salió mal — inténtalo de nuevo.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Ir a iniciar sesión",
     "signed_out_view": "{link} para leer y enviar mensajes.",

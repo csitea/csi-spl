@@ -189,7 +189,8 @@
       "email_unverified": "Tililläsi ei ole vahvistettua sähköpostiosoitetta tällä palveluntarjoajalla — kokeile toista.",
       "not_allowed": "Tällä tilillä ei ole vielä pääsyä tänne — pyydä kutsu ylläpitäjältäsi.",
       "unavailable": "Kirjautuminen ei ole juuri nyt käytettävissä.",
-      "failed": "Kirjautuminen epäonnistui."
+      "failed": "Kirjautuminen epäonnistui.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Sähköposti tai salasana on väärin.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Liian monta yritystä — yritä uudelleen {m} minuutin kuluttua.",
       "password_too_short_min": "Salasana on liian lyhyt — käytä vähintään {min} merkkiä.",
       "check_form": "Tarkista lomake ja yritä uudelleen.",
-      "generic": "Jokin meni pieleen — yritä uudelleen."
+      "generic": "Jokin meni pieleen — yritä uudelleen.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Siirry kirjautumaan",
     "signed_out_view": "{link}, niin voit lukea ja lähettää viestejä.",

@@ -189,7 +189,8 @@
       "email_unverified": "Vaš nalog kod ovog dobavljača nema potvrđen imejl — probajte drugi.",
       "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od svog administratora.",
       "unavailable": "Prijava trenutno nije dostupna.",
-      "failed": "Prijava nije uspela."
+      "failed": "Prijava nije uspela.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "native_error": {
       "invalid_credentials": "Imejl ili lozinka nisu ispravni.",
@@ -209,7 +210,8 @@
       "retry_minutes": "Previše pokušaja — pokušajte ponovo za {m} min.",
       "password_too_short_min": "Ta lozinka je prekratka — koristite najmanje {min} znakova.",
       "check_form": "Proverite formular i pokušajte ponovo.",
-      "generic": "Nešto je pošlo naopako — pokušajte ponovo."
+      "generic": "Nešto je pošlo naopako — pokušajte ponovo.",
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
     },
     "go_to_sign_in": "Idi na prijavu",
     "signed_out_view": "{link} da biste čitali i slali poruke.",

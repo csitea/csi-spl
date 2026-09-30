@@ -1,0 +1,56 @@
+# DAST against the DEV environment only (never prd). Two jobs:
+#   headers  - do_sec_headers: verifies HSTS / X-Content-Type-Options /
+#              Referrer-Policy / CSP|X-Frame-Options on https://dev.spool-hub.ai,
+#              with a negative control (a header-less local mock must be flagged).
+#              Read-only, one request. Self-hosted (uses the ./run harness).
+#   zap      - OWASP ZAP baseline (passive) against dev, conservative + bounded so
+#              it stays well under the owner's 5 req/s dev cap. Report-only for the
+#              first iteration (findings triaged via .zap/rules.tsv, then flip
+#              fail_action). Runs on GitHub-hosted ubuntu (needs Docker); it only
+#              reaches the PUBLIC dev URL and uses no repo secrets.
+#
+# Owner-go (topic 875651f8): ZAP against dev.spool-hub.ai only, <=5 req/s, never
+# prd. Schedule + workflow_dispatch only -- never on a fleet push.
+name: "68 sec: DAST (headers + ZAP) vs dev"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "53 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-dast-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  headers:
+    name: "sec: security headers vs dev"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: security-headers (control + dev)
+        working-directory: csi-spl-iac
+        env:
+          SEC_HEADERS_URL: https://dev.spool-hub.ai
+        run: ./run -a do_sec_headers
+
+  zap:
+    name: "sec: OWASP ZAP baseline vs dev"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: ZAP baseline (passive, bounded, dev only)
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
+        with:
+          target: https://dev.spool-hub.ai
+          rules_file_name: .zap/rules.tsv
+          allow_issue_writing: false
+          fail_action: false
+          cmd_options: '-T 5 -z "-config spider.maxChildren=10 -config spider.maxDepth=5 -config spider.threadCount=2"'

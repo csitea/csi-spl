@@ -66,8 +66,8 @@ jobs:
       run:
         working-directory: csi-spl-wui
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: csi-spl-wui/package.json
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
@@ -86,7 +86,7 @@ jobs:
       # across hosted runs: cold install ~6.5 s -> warm ~1.2 s (measured
       # 2026-09-29). Self-hosted 10_ci-quality is unaffected -- its store dir
       # genuinely persists and it uses no actions/cache.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -106,7 +106,7 @@ jobs:
       envs: ${{ steps.targets.outputs.envs }}
       any: ${{ steps.targets.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           sparse-checkout: csi-spl-cnf
       - id: targets
@@ -187,7 +187,7 @@ jobs:
       # ("refusing to allow a GitHub App to create or update workflow file").
       # Creating the tag via the API writes no workflow content and is allowed.
       # (CLE-77788 / CLE-001 P0.)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -223,7 +223,7 @@ jobs:
           echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: csi-spl-wui/package.json
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
@@ -238,7 +238,7 @@ jobs:
       # cache: ubuntu-latest wipes RUNNER_TOOL_CACHE each run, so setup-node's
       # pnpm cache (actions/cache, keyed on the lockfile) is what persists the
       # store here: cold install ~6.5 s -> warm ~1.2 s (measured 2026-09-29).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -298,13 +298,13 @@ jobs:
       - name: Authenticate to Google Cloud (project key)
         id: auth_key
         if: env.HAS_KEY == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
 
       - name: Authenticate to Google Cloud (WIF alternative)
         if: steps.auth_key.outcome != 'success'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ vars[format('GCP_FIREBASE_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}

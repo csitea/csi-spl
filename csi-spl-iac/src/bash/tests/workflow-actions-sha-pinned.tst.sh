@@ -21,8 +21,10 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # Files not yet enforced (owned by another lane / awaiting a go this round).
-PENDING=("20_hub-build-deploy.yml" "30_wui-build-deploy.yml")
-is_pending() { local b; for b in "${PENDING[@]}"; do [[ "$1" == "$b" ]] && return 0; done; return 1; }
+# 20/30 are now pinned and enforced (CLE-77788 cleared them after its release-tag
+# fix landed + both deploys proved green); nothing is pending.
+PENDING=()
+is_pending() { local b; for b in ${PENDING[@]+"${PENDING[@]}"}; do [[ "$1" == "$b" ]] && return 0; done; return 1; }
 
 # Print any external `uses:` whose ref is not a 40-hex SHA, one "file:line: ref"
 # per finding. Local (./…) and docker:// refs are not tag-pinnable here.

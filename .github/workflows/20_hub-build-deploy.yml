@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # cache: on this HOSTED runner GOCACHE/GOMODCACHE start empty every run,
       # so the suite's go build/test compiled the std lib + deps cold each time
@@ -84,7 +84,7 @@ jobs:
       # persists, so GOCACHE is already warm and actions/cache would only add a
       # 490 MB upload.
       - name: Set up Go (version from go.mod)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true
@@ -189,7 +189,7 @@ jobs:
       HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
       WIF_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0  # the forward guard reads origin/master
 
@@ -283,20 +283,20 @@ jobs:
 
       - name: Authenticate to Google Cloud (project key)
         if: steps.guard.outputs.ok == 'true' && env.HAS_KEY == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
 
       - name: Authenticate to Google Cloud (WIF alternative)
         if: steps.guard.outputs.ok == 'true' && env.HAS_KEY != 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ env.DEPLOY_SA }}
 
       - name: Set up Cloud SDK
         if: steps.guard.outputs.ok == 'true'
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Is the image already in the registry?
         id: img
@@ -322,7 +322,7 @@ jobs:
       # run, unlike the persistent-HOME self-hosted 10_ci-quality box.
       - name: Set up Go (only to build a new image)
         if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true

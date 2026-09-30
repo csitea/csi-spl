@@ -1,0 +1,60 @@
+# JS security lint (eslint + eslint-plugin-security) over the WUI plain-JS.
+# Same runner rule as 15_sec-deps-secrets.yml: self-hosted (spool-ci). eslint +
+# the plugin are installed pinned into a throwaway dir; a missing tool fails the
+# action. The gate uses the curated .eslint-security.config.mjs against
+# .eslint-security-baseline.txt so only NEW findings redden trunk.
+#
+# Path-scoped push: runs on master only when WUI JS, the config, the baseline,
+# the action or this file changes. Weekly schedule + workflow_dispatch.
+name: "63 sec: eslint-plugin-security (WUI JS)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "59 3 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "csi-spl-wui/src/**/*.mjs"
+      - "csi-spl-wui/src/**/*.js"
+      - ".eslint-security.config.mjs"
+      - ".eslint-security-baseline.txt"
+      - "csi-spl-iac/src/bash/run/sec-eslint.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-eslint.tst.sh"
+      - ".github/workflows/63_eslint-security.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-eslint-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  eslint-security:
+    name: "sec: eslint-plugin-security (WUI .mjs)"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      # Version-pinned into a throwaway dir; the flat config imports the plugin
+      # from there (do_sec_eslint copies the checked-in config beside it).
+      - name: Install eslint 9 + eslint-plugin-security 3
+        run: |
+          set -euo pipefail
+          es="$RUNNER_TEMP/es"
+          mkdir -p "$es"
+          ( cd "$es" && npm install --no-save --no-audit --no-fund \
+              eslint@9.13.0 eslint-plugin-security@3.0.1 )
+          "$es/node_modules/.bin/eslint" --version
+          echo "SEC_ESLINT_DIR=$es" >> "$GITHUB_ENV"
+
+      - name: eslint-plugin-security (control + scan vs baseline)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_eslint

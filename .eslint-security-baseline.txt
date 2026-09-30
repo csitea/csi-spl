@@ -1,0 +1,15 @@
+# eslint-plugin-security baseline for the WUI plain-JS (.mjs/.js).
+# Consumed by do_sec_eslint (SEC_ESLINT) and .github/workflows/63_eslint-security.yml.
+#
+# Format: <ruleId>|<file relative to repo root>|<count>
+# The gate runs the curated .eslint-security.config.mjs over csi-spl-wui/src, counts
+# messages per (rule, file), and FAILS if any exceeds its baseline count or is not
+# listed -- a NEW finding reddens the gate while the triaged one below stays green.
+# Counts, not line numbers, so ordinary edits do not churn.
+#
+# Triage: the only remaining finding under the curated ruleset is
+# detect-bidi-characters in mention-autocomplete.mjs, which is a DELIBERATE
+# bidi-control character class in a regex that STRIPS bidi controls from names
+# (the WUI's own anti-trojan-source defense: "bidi controls must not reorder the
+# field around a name") -- the code defends against bidi, it is not vulnerable.
+security/detect-bidi-characters|csi-spl-wui/src/utils/mention-autocomplete.mjs|7

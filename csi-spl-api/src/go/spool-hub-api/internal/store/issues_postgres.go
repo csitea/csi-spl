@@ -252,22 +252,37 @@ func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, b
 	return out, pgIssueErr(err)
 }
 
-// cascadeStamp walks the subtree rooted at number (parent_number, at most three
-// levels but the CTE is general) and stamps `set` on the target and every
-// descendant that still satisfies `live` (the where clause of a row eligible to
-// be touched, e.g. "deleted_at IS NULL"), all in one statement so the whole
+// cascadeOp is one archive / delete / unarchive of a subtree (SPL-1039: the
+// values of a cascadeStamp call belong together, so they ride one struct).
+//   live    - the WHERE predicate of a row eligible to be touched ("deleted_at
+//             IS NULL"), used for the target, its children check and the walk
+//   set     - the SET clause ($3 = now, $4 = by)
+//   cascade - true takes the whole subtree; false refuses a live parent
+type cascadeOp struct {
+	tenant  string
+	number  int
+	by      string
+	now     time.Time
+	live    string
+	set     string
+	cascade bool
+}
+
+// cascadeStamp walks the subtree rooted at op.number (parent_number, at most
+// three levels but the CTE is general) and stamps op.set on the target and every
+// descendant that still satisfies op.live, all in one statement so the whole
 // epic or feature moves together (SPL-1226). `out` is filled with the target
 // row as it was; the returned numbers are the descendants also touched (target
 // excluded), sorted. ErrNotFound when the target is not eligible.
-func (s *Postgres) cascadeStamp(ctx context.Context, tenant string, number int, by string, now time.Time, live, set string, cascade bool, out *Issue) ([]int, error) {
+func (s *Postgres) cascadeStamp(ctx context.Context, op cascadeOp, out *Issue) ([]int, error) {
 	var kids []int
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		prefix, err := txPrefix(ctx, tx, tenant)
+	err := s.inTenant(ctx, op.tenant, func(tx pgx.Tx) error {
+		prefix, err := txPrefix(ctx, tx, op.tenant)
 		if err != nil {
 			return err
 		}
 		row, err := scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
-			WHERE tenant_id = $1 AND number = $2 AND `+live+` FOR UPDATE`, tenant, number), tenant, prefix)
+			WHERE tenant_id = $1 AND number = $2 AND `+op.live+` FOR UPDATE`, op.tenant, op.number), op.tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -275,25 +290,25 @@ func (s *Postgres) cascadeStamp(ctx context.Context, tenant string, number int, 
 			return err
 		}
 		*out = row
-		if !cascade {
+		if !op.cascade {
 			var has bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues
-				WHERE tenant_id = $1 AND parent_number = $2 AND `+live+`)`, tenant, number).Scan(&has); err != nil {
+				WHERE tenant_id = $1 AND parent_number = $2 AND `+op.live+`)`, op.tenant, op.number).Scan(&has); err != nil {
 				return err
 			}
 			if has {
 				return ErrIssueHasChildren
 			}
-			_, err := tx.Exec(ctx, `UPDATE issues SET `+set+` WHERE tenant_id = $1 AND number = $2`, tenant, number, now, by)
+			_, err := tx.Exec(ctx, `UPDATE issues SET `+op.set+` WHERE tenant_id = $1 AND number = $2`, op.tenant, op.number, op.now, op.by)
 			return err
 		}
 		rows, err := tx.Query(ctx, `WITH RECURSIVE tree AS (
-				SELECT number FROM issues WHERE tenant_id = $1 AND number = $2 AND `+live+`
+				SELECT number FROM issues WHERE tenant_id = $1 AND number = $2 AND `+op.live+`
 				UNION ALL
 				SELECT c.number FROM issues c JOIN tree t ON c.parent_number = t.number
-					WHERE c.tenant_id = $1 AND `+live+`)
-			UPDATE issues SET `+set+` WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)
-			RETURNING number`, tenant, number, now, by)
+					WHERE c.tenant_id = $1 AND `+op.live+`)
+			UPDATE issues SET `+op.set+` WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)
+			RETURNING number`, op.tenant, op.number, op.now, op.by)
 		if err != nil {
 			return err
 		}
@@ -303,7 +318,7 @@ func (s *Postgres) cascadeStamp(ctx context.Context, tenant string, number int, 
 			if err := rows.Scan(&n); err != nil {
 				return err
 			}
-			if n != number {
+			if n != op.number {
 				kids = append(kids, n)
 			}
 		}
@@ -325,28 +340,31 @@ func sortInts(a []int) {
 }
 
 func (s *Postgres) DeleteIssueCascade(ctx context.Context, tenant string, number int, by string, now time.Time) (Issue, []int, error) {
-	now = now.UTC().Truncate(time.Microsecond)
 	var out Issue
-	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
-		"deleted_at IS NULL AND archived_at IS NULL", "deleted_at = $3, deleted_by = $4", true, &out)
+	kids, err := s.cascadeStamp(ctx, cascadeOp{
+		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
+		live: "deleted_at IS NULL AND archived_at IS NULL", set: "deleted_at = $3, deleted_by = $4", cascade: true,
+	}, &out)
 	return out, kids, err
 }
 
 func (s *Postgres) ArchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
-	now = now.UTC().Truncate(time.Microsecond)
 	var out Issue
-	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
-		"deleted_at IS NULL AND archived_at IS NULL", "archived_at = $3, archived_by = $4", cascade, &out)
+	kids, err := s.cascadeStamp(ctx, cascadeOp{
+		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
+		live: "deleted_at IS NULL AND archived_at IS NULL", set: "archived_at = $3, archived_by = $4", cascade: cascade,
+	}, &out)
 	return out, kids, err
 }
 
 func (s *Postgres) UnarchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
-	now = now.UTC().Truncate(time.Microsecond)
 	var out Issue
 	// Unarchive clears both stamps and refreshes the audit columns, which also
 	// keeps cascadeStamp's one shape (the $3 = now, $4 = by placeholders).
-	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
-		"deleted_at IS NULL AND archived_at IS NOT NULL", "archived_at = NULL, archived_by = NULL, updated_at = $3, updated_by = $4", cascade, &out)
+	kids, err := s.cascadeStamp(ctx, cascadeOp{
+		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
+		live: "deleted_at IS NULL AND archived_at IS NOT NULL", set: "archived_at = NULL, archived_by = NULL, updated_at = $3, updated_by = $4", cascade: cascade,
+	}, &out)
 	return out, kids, err
 }
 

@@ -128,26 +128,9 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	var grant *memMember
 	var inv *memInvite
 	if tenant != "" {
-		if _, ok := s.tenants[tenant]; !ok {
-			return "", ErrNotAdmitted
-		}
-		_, member := h.members[[2]string{tenant, hum}]
-		switch {
-		case (known || linked) && member:
-		default:
-			if i, ok := h.invites[[2]string{tenant, id.Email}]; ok && id.Email != "" && !i.accepted && now.Before(i.ExpiresAt) {
-				inv = i
-				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
-					orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
-			} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
-				grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
-			} else {
-				return "", ErrNotAdmitted
-			}
-			// A new membership is a new user seat (009 D-3); refuse over cap.
-			if c := s.tenants[tenant].SeatsUsers; c > 0 && h.memberCount(tenant) >= c {
-				return "", ErrSeatQuota
-			}
+		var err error
+		if grant, inv, err = s.admitToTenant(tenant, hum, id.Email, known || linked, p, now); err != nil {
+			return "", err
 		}
 	}
 	if !known {
@@ -176,6 +159,36 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		inv.accepted = true
 	}
 	return hum, nil
+}
+
+// admitToTenant decides the tenant grant for an already-resolved human without
+// writing anything: an open matching invite (its role and provenance), else the
+// bootstrap owner, else a refusal. resolved is (known || linked): a resolved
+// human that is already a member needs no grant. A new membership is a new user
+// seat (009 D-3), refused over the tenant cap.
+func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p AdmitPolicy, now time.Time) (*memMember, *memInvite, error) {
+	if _, ok := s.tenants[tenant]; !ok {
+		return nil, nil, ErrNotAdmitted
+	}
+	h := &s.hum
+	if _, member := h.members[[2]string{tenant, hum}]; resolved && member {
+		return nil, nil, nil
+	}
+	var grant *memMember
+	var inv *memInvite
+	if i, ok := h.invites[[2]string{tenant, email}]; ok && email != "" && !i.accepted && now.Before(i.ExpiresAt) {
+		inv = i
+		grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
+			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
+	} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
+		grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
+	} else {
+		return nil, nil, ErrNotAdmitted
+	}
+	if c := s.tenants[tenant].SeatsUsers; c > 0 && h.memberCount(tenant) >= c {
+		return nil, nil, ErrSeatQuota
+	}
+	return grant, inv, nil
 }
 
 func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, error) {

@@ -64,6 +64,7 @@ in_orc() {
   : >"$T/calls.log"; : >"$T/stdin"
   env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUMAN_ID -u EMAIL \
     -u TENANT_ID -u MEMBER_ROLE -u ORDERED_BY -u ORDERED_VIA -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
+    -u CREATE_HUMAN -u DISPLAY_NAME -u PASSWORD_FILE \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" \
     ENV=dev SNIPPET="$snip" "$@" bash -c '
@@ -104,6 +105,23 @@ in_orc 'do_spl_tenant_member_add' ENV=prd TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROL
   && pass "1. prd DRY_RUN names the prd connection and calls no cloud" \
   || fail "1. prd dry: rc=$rc $(cat "$T/out")"
 
+# --- 1b. CREATE_HUMAN provisioning DRY_RUN (CLE-77781) ------------------------
+in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=office@example.com DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 ORDERED_BY=HUM-10 DRY_RUN=1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
+  && grep -q "DRY_RUN would PROVISION office@example.com ('FirstName LastName') on t1 as biz_owner" "$T/out" \
+  && grep -q 'links to the same human' "$T/out" \
+  && pass "1b. CREATE_HUMAN DRY_RUN: provision plan, no cloud" \
+  || fail "1b. create dry: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
+
+# a 0600 password file: the DRY_RUN names the credential but never the password.
+printf 'a-secret-pw' >"$T/pw"; chmod 600 "$T/pw"
+in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=office@example.com DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 PASSWORD_FILE="$T/pw" ORDERED_BY=HUM-10 DRY_RUN=1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
+  && grep -q 'native email+password credential' "$T/out" \
+  && ! grep -q 'a-secret-pw' "$T/out" \
+  && pass "1b. CREATE_HUMAN+PASSWORD_FILE DRY_RUN: names the credential, never the password" \
+  || fail "1b. create+pw dry: rc=$rc $(cat "$T/out")"
+
 # --- 2. bad input, before any call --------------------------------------------
 base=(TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer ORDERED_BY=HUM-10)
 refuse() {
@@ -124,6 +142,14 @@ refuse "bad MEMBER_ROLE" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE='Dev!' ORDERED_
 refuse "bad ORDERED_BY" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer ORDERED_BY=nobody DRY_RUN=0
 refuse "missing ORDERED_BY on DRY_RUN=0 (CLE-77778 provenance)" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer DRY_RUN=0
 refuse "DRY_RUN=2" "${base[@]}" DRY_RUN=2
+# CREATE_HUMAN provisioning refusals (CLE-77781), each before any cloud call.
+printf 'x' >"$T/pw644"; chmod 644 "$T/pw644"
+refuse "CREATE_HUMAN=1 without EMAIL" TENANT_ID=t1 DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "CREATE_HUMAN=1 with HUMAN_ID (no email)" TENANT_ID=t1 HUMAN_ID=HUM-4 DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "CREATE_HUMAN=1 without DISPLAY_NAME" TENANT_ID=t1 EMAIL=office@example.com MEMBER_ROLE=biz_owner CREATE_HUMAN=1 ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "PASSWORD_FILE without CREATE_HUMAN" TENANT_ID=t1 EMAIL=office@example.com MEMBER_ROLE=biz_owner PASSWORD_FILE="$T/pw" ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "PASSWORD_FILE not 0600" TENANT_ID=t1 EMAIL=office@example.com DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=1 PASSWORD_FILE="$T/pw644" ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "CREATE_HUMAN=2 (not 0/1)" TENANT_ID=t1 EMAIL=office@example.com DISPLAY_NAME='FirstName LastName' MEMBER_ROLE=biz_owner CREATE_HUMAN=2 ORDERED_BY=HUM-10 DRY_RUN=0
 in_orc 'do_spl_tenant_member_add' ENV=stg "${base[@]}" DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. ENV=stg refused before any call" || fail "2. ENV=stg: rc=$rc $(cat "$T/out")"
 

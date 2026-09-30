@@ -75,6 +75,12 @@ async function launch() {
 }
 
 // One signed-in owner: the hub's auth routes only (display-name.test.mjs).
+// specs/054 made the mock signed-OUT by default and its GET /session no longer
+// touches the network (auth-client.mjs), so the `session` stub below is only
+// consulted against a real BASE_URL; in the mock bundle the browser opts into a
+// signed-in owner through localStorage instead (seedMockSession, act-as.test.mjs).
+// The `events`/`preferences` stubs still ride the network in mock mode.
+const MOCK_SESSION = JSON.stringify({ hum: 'HUM-1', name: 'FirstName LastName', email: 'person@example.com', t: 'mock' })
 const puts = []
 const json = (status, body) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
 let signedOut = false
@@ -112,6 +118,16 @@ function answer(req) {
 
 async function page(browser, vp) {
   const p = await browser.newPage()
+  // Opt into the signed-in mock owner before any page script runs, so the first
+  // session probe reads it (specs/054). The keyboard checks want the signed-out
+  // login screen — they raise `signedOut` before creating their page, and here
+  // clear the key so the shared localStorage cannot leak a session into them.
+  await p.evaluateOnNewDocument((session) => {
+    try {
+      if (session) localStorage.setItem('spool.mock.session', session)
+      else localStorage.removeItem('spool.mock.session')
+    } catch { /* storage may be blocked on the very first document */ }
+  }, signedOut ? '' : MOCK_SESSION)
   await p.setViewport({ width: vp.w, height: vp.h, isMobile: vp.mobile, hasTouch: vp.mobile, deviceScaleFactor: 1 })
   await p.setRequestInterception(true)
   p.on('request', (req) => {

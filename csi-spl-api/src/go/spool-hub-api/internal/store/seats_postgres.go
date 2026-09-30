@@ -53,8 +53,9 @@ func (s *Postgres) botSeatGate(ctx context.Context, tx pgx.Tx, tenant, box strin
 
 func (s *Postgres) CountMembers(ctx context.Context, tenant string) (int, error) {
 	var n int
-	err := s.queryRowTenant(ctx, tenant, `SELECT count(*) FROM tenant_memberships WHERE tenant_id = $1`,
-		[]any{tenant}, &n)
+	err := s.queryRowTenant(ctx, tenant, `SELECT count(*) FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id
+		WHERE m.tenant_id = $1 AND NOT h.technical`, []any{tenant}, &n)
 	return n, err
 }
 

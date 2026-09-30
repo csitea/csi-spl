@@ -171,8 +171,9 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	}
 	if capUsers > 0 {
 		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships WHERE tenant_id = $1`,
-			tenant).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
+			JOIN humans h ON h.human_id = m.human_id
+			WHERE m.tenant_id = $1 AND NOT h.technical`, tenant).Scan(&n); err != nil {
 			return err
 		}
 		if n >= capUsers {

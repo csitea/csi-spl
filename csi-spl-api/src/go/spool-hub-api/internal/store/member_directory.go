@@ -151,7 +151,7 @@ func listMembersRead(tenant string, out *[]Member) tenantRead {
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
 		LEFT JOIN tenant_invites ti ON ti.tenant_id = m.tenant_id AND ti.accepted_by = m.human_id
 		LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
-		WHERE m.tenant_id = $1 ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
+		WHERE m.tenant_id = $1 AND NOT h.technical ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var m Member
 		var seen, invitedOn *time.Time
 		var orderedBy, orderedVia *string

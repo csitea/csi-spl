@@ -425,7 +425,7 @@ func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntr
 	out := []HumanEntry{}
 	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.display_name, ''), coalesce(h.avatar_file_id, '')
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`, []any{tenant}, func(rows pgx.Rows) error {
+		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND NOT h.technical`, []any{tenant}, func(rows pgx.Rows) error {
 		var e HumanEntry
 		if err := rows.Scan(&e.HumanID, &e.DisplayName, &e.AvatarFileID); err != nil {
 			return err

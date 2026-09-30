@@ -18,6 +18,7 @@ import (
 // it is added here with its reason, i.e. until someone has reviewed it.
 var operatorCallers = map[string]string{
 	"Sweep":              "retention sweeper (hub goroutine), global by design; no route",
+	"SweepClones":        "act-as clone expiry (hub sweeper goroutine), global by design; no route",
 	"SetTenantHost":      "tenant host reconciler (operator action / hub-tenant); no route",
 	"Memberships":        "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",
 	"HoldCheckout":       "POST /v1/checkout: the tenant does not exist yet (slug hold)",

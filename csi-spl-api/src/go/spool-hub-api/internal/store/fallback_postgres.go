@@ -118,6 +118,54 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 	return out, err
 }
 
+// ReescalatablePosts finds posts that WERE escalated but the responder never
+// acted on: a fallback row whose last attempt is before escalatedBefore, fewer
+// than maxAttempts attempts, and still no reply in the topic (SPL-1225 miss
+// fix, prd t1 4b0ba40a). The relay re-poke + rotates the responder for these.
+// Unlike UnansweredPosts this REQUIRES a fallback row and reads its attempts.
+func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
+	var out []Queued
+	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, f.agent_id FROM messages m
+		JOIN fallback_deliveries f ON f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id
+		WHERE m.tenant_id = $1 AND m.received_at < $3
+		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
+		  AND f.delivered_at < $2 AND f.attempts < $5
+		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
+		  AND NOT EXISTS (SELECT 1 FROM channels c
+		                  WHERE c.tenant_id = m.tenant_id AND c.channel_id = m.channel AND c.no_fallback)
+		  AND NOT EXISTS (SELECT 1 FROM messages r
+		                  WHERE r.tenant_id = m.tenant_id AND r.task_id = m.task_id
+		                    AND r.received_at > m.received_at
+		                    AND r.from_box <> 'box-wui'
+		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')
+		ORDER BY f.delivered_at, m.msg_id LIMIT $4`, []any{tenant, escalatedBefore, until, limit, maxAttempts},
+		func(rows pgx.Rows) error {
+			var q Queued
+			if err := rows.Scan(&q.MsgID, &q.Env, &q.LastAgent); err != nil {
+				return err
+			}
+			out = append(out, q)
+			return nil
+		})
+	return out, err
+}
+
+// BumpFallback records a RE-escalation of a post that already has a fallback
+// row: it advances delivered_at, increments attempts and rewrites the target
+// (box, agent) — but only while attempts is still under maxAttempts, so two
+// hub processes racing a re-escalation hand it out once. Reports whether this
+// call won the bump.
+func (s *Postgres) BumpFallback(ctx context.Context, d FallbackDelivery, maxAttempts int) (bool, error) {
+	tag, err := s.execTenant(ctx, d.TenantID, `UPDATE fallback_deliveries
+		SET delivered_at = $3, attempts = attempts + 1, box_id = $4, agent_id = $5
+		WHERE tenant_id = $1 AND msg_id = $2 AND attempts < $6 AND delivered_at < $3`,
+		d.TenantID, d.MsgID, d.DeliveredAt, d.Box, d.Agent, maxAttempts)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (s *Postgres) ChannelFallbacks(ctx context.Context, tenant, channel string, since time.Time) (FallbackSummary, error) {
 	var out FallbackSummary
 	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, box_id, agent_id, delivered_at,

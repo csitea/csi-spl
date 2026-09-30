@@ -275,6 +275,77 @@ func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	}
 }
 
+// SPL-1225 miss fix (prd t1 4b0ba40a): a post escalated to a responder that
+// never acted on it (its poke was refused and dropped) must be RE-escalated to
+// the NEXT responder, not left in permanent silence on the first. The first
+// responder is poked at post time; a ReescalateEvery later, with no reply, the
+// SECOND responder is poked (a fresh inbox on another box - the whole list is
+// reached). CONTROL: re-escalation is capped and does not run away.
+func TestReescalateRotatesToTheWholeResponderList(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(nil)
+	const grace = 1 * time.Second
+	const reEvery = 2 * time.Second
+	const reMax = 4
+	var clock atomic.Int64
+	e := newEnv(t, func(o *hub.Options) {
+		fallbackOpts(o, key, true)
+		o.UnansweredGrace = grace
+		o.ReescalateEvery = reEvery
+		o.ReescalateMax = reMax
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(clock.Load())) }
+	})
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	e.pinKey(tid, hub.WUIBox, pub)
+	if err := e.st.(store.Fallbacks).SetTenantResponders(ctx, tid, []string{"CLE-001", "CLE-002"}); err != nil {
+		t.Fatal(err)
+	}
+	deskA := e.box(tid, "box-desk", "CLE-001") // first responder (a pane that never acts)
+	pokesA := pokeLog(t, deskA)
+	e.pin(tid, deskA)
+	sa, err := deskA.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sa.Close()
+	deskB := e.box(tid, "box-b", "CLE-002") // standing second responder, a free pane
+	pokesB := pokeLog(t, deskB)
+	e.pin(tid, deskB)
+	sb, err := deskB.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.Close()
+	human := "HUM-google-sub-1@" + tid
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "mobile",
+		Name: "mobile", CreatedBy: human, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.AddChannelHumans(ctx, tid, "mobile", []string{human}, human, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ws := dialMember(t, e, tid, "Owner", human)
+	m1, task := "4b0ba40a-1a2b-4c3d-8e4f-5a6b7c8d9e0f", "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d"
+	threadFrame(t, ws, m1, task, "mobile", 1, "it should be possible to upload an image")
+	// Post time: the first responder is poked (the immediate fallback).
+	eventually(t, "first responder poked", func() bool { return len(pokesA()) == 1 && len(pokesB()) == 0 })
+	// A re-escalate interval later with no reply: the SECOND responder is poked.
+	clock.Store(int64(grace + reEvery + time.Second))
+	e.srv.Relay(ctx)
+	eventually(t, "second responder poked", func() bool { return len(pokesB()) == 1 })
+	// CONTROL: the whole list is reached (each responder once); re-escalation
+	// rotates back to the first but that inbox already has it, so it does not
+	// runaway - both responders sit at exactly one poke, capped.
+	for i := 0; i < 3; i++ {
+		clock.Store(clock.Load() + int64(reEvery+time.Second))
+		e.srv.Relay(ctx)
+		time.Sleep(30 * time.Millisecond)
+	}
+	if a, b := len(pokesA()), len(pokesB()); a != 1 || b != 1 {
+		t.Fatalf("re-escalation did not settle at one poke per responder: A=%d B=%d", a, b)
+	}
+}
+
 // With the fallback switched off, the owner's case reaches nobody (the
 // control for the first test: the delivery is this feature's doing).
 func TestFallbackOffReachesNobody(t *testing.T) {

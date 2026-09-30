@@ -51,6 +51,7 @@ func (s *Memory) RecordFallback(_ context.Context, d FallbackDelivery) error {
 	s.fb.init()
 	k := [2]string{d.TenantID, d.MsgID}
 	if _, ok := s.fb.delivered[k]; !ok {
+		d.Attempts = 1
 		s.fb.delivered[k] = d
 	}
 	return nil
@@ -64,7 +65,24 @@ func (s *Memory) ClaimFallback(_ context.Context, d FallbackDelivery) (bool, err
 	if _, ok := s.fb.delivered[k]; ok {
 		return false, nil
 	}
+	d.Attempts = 1
 	s.fb.delivered[k] = d
+	return true, nil
+}
+
+func (s *Memory) BumpFallback(_ context.Context, d FallbackDelivery, maxAttempts int) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fb.init()
+	k := [2]string{d.TenantID, d.MsgID}
+	cur, ok := s.fb.delivered[k]
+	if !ok || cur.Attempts >= maxAttempts || !cur.DeliveredAt.Before(d.DeliveredAt) {
+		return false, nil
+	}
+	cur.Attempts++
+	cur.DeliveredAt = d.DeliveredAt
+	cur.Box, cur.Agent = d.Box, d.Agent
+	s.fb.delivered[k] = cur
 	return true, nil
 }
 
@@ -157,6 +175,55 @@ func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until 
 	out := make([]Queued, len(ms))
 	for i, m := range ms {
 		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
+	}
+	return out, nil
+}
+
+func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fb.init()
+	var ms []*Message
+	for k, m := range s.messages {
+		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
+			!m.ReceivedAt.Before(until) {
+			continue
+		}
+		d, ok := s.fb.delivered[k]
+		if !ok || !d.DeliveredAt.Before(escalatedBefore) || d.Attempts >= maxAttempts {
+			continue
+		}
+		if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
+			continue
+		}
+		if m.Channel != "" && s.fb.off[[2]string{tenant, m.Channel}] {
+			continue
+		}
+		answered := false
+		for _, r := range s.messages {
+			if r.TenantID == tenant && r.TaskID == m.TaskID && r.ReceivedAt.After(m.ReceivedAt) &&
+				r.FromBox != "box-wui" && !strings.HasPrefix(r.FromID, "HUM-") && !strings.HasPrefix(r.FromID, "GST-") {
+				answered = true
+				break
+			}
+		}
+		if !answered {
+			ms = append(ms, m)
+		}
+	}
+	sort.Slice(ms, func(i, j int) bool {
+		di, dj := s.fb.delivered[[2]string{tenant, ms[i].MsgID}], s.fb.delivered[[2]string{tenant, ms[j].MsgID}]
+		if !di.DeliveredAt.Equal(dj.DeliveredAt) {
+			return di.DeliveredAt.Before(dj.DeliveredAt)
+		}
+		return ms[i].MsgID < ms[j].MsgID
+	})
+	if len(ms) > limit {
+		ms = ms[:limit]
+	}
+	out := make([]Queued, len(ms))
+	for i, m := range ms {
+		out[i] = Queued{MsgID: m.MsgID, Env: m.Env, LastAgent: s.fb.delivered[[2]string{tenant, m.MsgID}].Agent}
 	}
 	return out, nil
 }

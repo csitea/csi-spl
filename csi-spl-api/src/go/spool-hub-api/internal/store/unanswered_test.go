@@ -104,3 +104,72 @@ func TestUnansweredPosts(t *testing.T) {
 		})
 	}
 }
+
+// SPL-1225 miss fix (prd t1 4b0ba40a): a post that WAS escalated but stayed
+// unanswered is re-escalatable once its last attempt is old enough, until the
+// attempts cap. BumpFallback advances it and counts the attempt.
+func TestReescalatablePosts(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			tid := newTenant(t, s)
+			fb := s.(Fallbacks)
+			t0 := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
+			post := humanPost(tid, uuid4(), "devel", "anyone?", t0)
+			if _, err := s.InsertMessage(ctx, post); err != nil {
+				t.Fatal(err)
+			}
+			rec := FallbackDelivery{TenantID: tid, MsgID: post.MsgID, Channel: "devel", Box: "box-desk", Agent: "CLE-001", DeliveredAt: t0.Add(2 * time.Minute)}
+			if won, err := fb.ClaimFallback(ctx, rec); err != nil || !won {
+				t.Fatalf("claim: won=%v err=%v", won, err)
+			}
+			until := time.Now().UTC()
+			const maxAtt = 3
+			// Not yet re-escalatable: last attempt is newer than escalatedBefore.
+			if got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(time.Minute), until, maxAtt, 20); err != nil || len(got) != 0 {
+				t.Fatalf("too-recent attempt must not re-escalate: got %d err %v", len(got), err)
+			}
+			// Due once escalatedBefore passes the attempt.
+			got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(5*time.Minute), until, maxAtt, 20)
+			if err != nil || len(got) != 1 || got[0].MsgID != post.MsgID {
+				t.Fatalf("want the post re-escalatable: got %d err %v", len(got), err)
+			}
+			// Bump to attempt 2, then 3; the 3rd bump reaches the cap.
+			for att := 2; att <= maxAtt; att++ {
+				won, err := fb.BumpFallback(ctx, FallbackDelivery{TenantID: tid, MsgID: post.MsgID, Box: "box-desk", Agent: "CLE-001", DeliveredAt: t0.Add(time.Duration(att) * 3 * time.Minute)}, maxAtt)
+				if err != nil || !won {
+					t.Fatalf("bump to %d: won=%v err=%v", att, won, err)
+				}
+			}
+			// CONTROL: at the cap, no more re-escalation and no more bumps.
+			if got, err := fb.ReescalatablePosts(ctx, tid, until, until, maxAtt, 20); err != nil || len(got) != 0 {
+				t.Fatalf("capped post must not re-escalate: got %d err %v", len(got), err)
+			}
+			if won, err := fb.BumpFallback(ctx, FallbackDelivery{TenantID: tid, MsgID: post.MsgID, Box: "box-desk", Agent: "CLE-001", DeliveredAt: until}, maxAtt); err != nil || won {
+				t.Fatalf("bump past the cap must not win: won=%v err=%v", won, err)
+			}
+			// CONTROL: an answered post is never re-escalatable.
+			ins := humanPost(tid, uuid4(), "devel", "help?", t0)
+			ans := ins
+			if _, err := s.InsertMessage(ctx, ans); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fb.ClaimFallback(ctx, FallbackDelivery{TenantID: tid, MsgID: ans.MsgID, Channel: "devel", Box: "box-desk", Agent: "CLE-001", DeliveredAt: t0}); err != nil {
+				t.Fatal(err)
+			}
+			reply := agentReply(tid, ans.TaskID, t0.Add(time.Second))
+			if _, err := s.InsertMessage(ctx, reply); err != nil {
+				t.Fatal(err)
+			}
+			got, err = fb.ReescalatablePosts(ctx, tid, until, until, maxAtt, 20)
+			for _, q := range got {
+				if q.MsgID == ans.MsgID {
+					t.Fatalf("an answered post must not be re-escalatable")
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

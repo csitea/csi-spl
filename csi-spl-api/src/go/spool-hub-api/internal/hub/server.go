@@ -58,6 +58,12 @@ type Options struct {
 	// the relay sweep, whatever the (stale) roster says about who is online.
 	// 0 = off. See relay.go escalateUnanswered and store.UnansweredPosts.
 	UnansweredGrace time.Duration
+	// ReescalateEvery / ReescalateMax (SPL-1225 miss fix): a post escalated but
+	// still unanswered is re-escalated (re-poke + rotate the responder) this
+	// long after its last attempt, up to ReescalateMax attempts total. 0 /
+	// <2 = off. See relay.go reescalate and store.ReescalatablePosts.
+	ReescalateEvery time.Duration
+	ReescalateMax   int
 
 	RetentionAlerts   time.Duration
 	RetentionChannels time.Duration

@@ -152,6 +152,10 @@ func parentBit(n int) int {
 type Queued struct {
 	MsgID string
 	Env   []byte
+	// LastAgent is only set by ReescalatablePosts (SPL-1225 miss fix): the
+	// agent the last escalation attempt went to, so the re-escalation rotates
+	// PAST it. "" for every other producer.
+	LastAgent string
 }
 
 // SweepResult counts what a retention sweep changed.

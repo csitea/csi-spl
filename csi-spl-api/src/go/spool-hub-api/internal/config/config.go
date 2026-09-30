@@ -265,6 +265,13 @@ type Hub struct {
 	// the backstop against a post reaching no live agent AND no fallback.
 	// 0 = off. Requires Fallback.
 	UnansweredGrace time.Duration `env:"SPOOL_HUB_UNANSWERED_GRACE" envDefault:"120s"`
+	// SPL-1225 miss fix (prd t1 4b0ba40a): a post escalated but still unanswered
+	// (its poke was refused and dropped) is re-escalated - re-poked, rotating to
+	// the next responder / any awake agent - REESCALATE_EVERY after its last
+	// attempt, up to REESCALATE_MAX attempts total, so one refused poke to a
+	// busy responder is not permanent silence. MAX < 2 = off.
+	ReescalateEvery time.Duration `env:"SPOOL_HUB_REESCALATE_EVERY" envDefault:"120s"`
+	ReescalateMax   int           `env:"SPOOL_HUB_REESCALATE_MAX" envDefault:"5"`
 
 	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`

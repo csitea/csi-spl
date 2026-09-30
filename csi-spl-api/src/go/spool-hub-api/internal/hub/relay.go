@@ -105,7 +105,7 @@ func (s *Server) Relay(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, false)
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, false, false, "")
 		}
 	}
 	s.escalateUnanswered(ctx, fb, ids, now)
@@ -141,7 +141,37 @@ func (s *Server) escalateUnanswered(ctx context.Context, fb store.Fallbacks, ten
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, true)
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, true, false, "")
+		}
+	}
+	s.reescalate(ctx, fb, tenants, now)
+}
+
+// reescalate re-fires a post that WAS escalated but the responder never acted
+// on (SPL-1225 miss fix, prd t1 4b0ba40a): its last attempt is older than
+// ReescalateEvery, it is still unanswered, and it has fewer than ReescalateMax
+// attempts. Each re-fire re-pokes and rotates the responder. Off when
+// ReescalateEvery is 0 or ReescalateMax < 2.
+func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []string, now time.Time) {
+	if s.o.ReescalateEvery <= 0 || s.o.ReescalateMax < 2 {
+		return
+	}
+	for _, tenant := range tenants {
+		posts, err := fb.ReescalatablePosts(ctx, tenant, now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay reescalatable posts")
+			continue
+		}
+		for _, p := range posts {
+			env, err := wire.ParseEnvelope(p.Env)
+			if err != nil {
+				continue
+			}
+			m, err := env.Inner()
+			if err != nil {
+				continue
+			}
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, true, true, p.LastAgent)
 		}
 	}
 }

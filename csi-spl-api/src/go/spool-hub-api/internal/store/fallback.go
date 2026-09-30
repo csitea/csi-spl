@@ -19,6 +19,9 @@ type FallbackDelivery struct {
 	Box         string
 	Agent       string
 	DeliveredAt time.Time
+	// Attempts is how many times this post has been escalated (SPL-1225 miss
+	// fix): 1 on the first, incremented by each BumpFallback re-escalation.
+	Attempts int
 }
 
 // FallbackSummary is a channel's fallback deliveries since some instant: how
@@ -69,6 +72,17 @@ type Fallbacks interface {
 	// any later message in the same task from a sender that is not the human
 	// browser (from_box <> box-wui and from_id not a HUM-/GST- id).
 	UnansweredPosts(ctx context.Context, tenantID string, since, until time.Time, limit int) ([]Queued, error)
+	// ReescalatablePosts lists posts that WERE escalated (have a fallback row)
+	// whose last attempt is before escalatedBefore, with fewer than maxAttempts
+	// attempts, received before until, and still no reply in the topic. The
+	// relay re-poke + rotates the responder for these so one refused poke to a
+	// busy responder is not permanent silence (SPL-1225 miss fix, 4b0ba40a).
+	ReescalatablePosts(ctx context.Context, tenantID string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error)
+	// BumpFallback records a re-escalation: advances delivered_at, increments
+	// attempts and rewrites the target, only while attempts < maxAttempts (the
+	// claim that hands a re-escalation out once across hub processes). Reports
+	// whether this call won the bump.
+	BumpFallback(ctx context.Context, d FallbackDelivery, maxAttempts int) (bool, error)
 	// ChannelFallbacks summarises the channel's fallback deliveries at or
 	// after since ("" channel = the DMs).
 	ChannelFallbacks(ctx context.Context, tenantID, channelID string, since time.Time) (FallbackSummary, error)

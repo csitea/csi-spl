@@ -77,7 +77,7 @@ func (s *Server) agentOnline(tenant, box, agent string, roster map[string][]stri
 // tenant's responder list comes first, in its order; then the longest-online
 // box, and on it the lowest agent id. An agent on a box whose reader would
 // refuse the envelope's inner version (0 = do not check) is skipped.
-func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[string][]string, boxes []fallbackBox, innerV int) (fallbackBox, string, bool) {
+func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[string][]string, boxes []fallbackBox, innerV int, avoid string) (fallbackBox, string, bool) {
 	usable := boxes[:0:0]
 	for _, b := range boxes {
 		if innerV == 0 || b.x.accepts(innerV) {
@@ -87,6 +87,10 @@ func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[str
 	if len(usable) == 0 {
 		return fallbackBox{}, "", false
 	}
+	// avoid (SPL-1225 miss fix) is the agent the last escalation attempt went
+	// to; a re-escalation rotates PAST it, to the next responder / any awake
+	// agent, so the re-delivery is a NEW inbox (a new poke, a fresh pane) and
+	// not a no-op the sidecar dedupes.
 	if fb, ok := s.o.Store.(store.Fallbacks); ok {
 		list, err := fb.TenantResponders(ctx, tenant)
 		if err != nil {
@@ -94,7 +98,7 @@ func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[str
 		}
 		for _, id := range list {
 			for _, b := range usable {
-				if isAgent(id) && contains(roster[b.box], id) {
+				if id != avoid && isAgent(id) && contains(roster[b.box], id) {
 					return b, id, true
 				}
 			}
@@ -104,7 +108,7 @@ func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[str
 		agents := append([]string(nil), roster[b.box]...)
 		sort.Strings(agents)
 		for _, a := range agents {
-			if isAgent(a) {
+			if a != avoid && isAgent(a) {
 				return b, a, true
 			}
 		}
@@ -140,7 +144,7 @@ func fallbackWhere(channel, to string) string {
 // it was meant for is online (FR-030..FR-034). channel is the post's stored
 // channel ("" = a DM). Called once, after the post's own deliveries exist.
 func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message) {
-	s.fallbackPost(ctx, tenant, channel, env, m, false, false)
+	s.fallbackPost(ctx, tenant, channel, env, m, false, false, false, "")
 }
 
 // recipientOnline reports whether any agent the post was meant for is online:
@@ -183,7 +187,13 @@ func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, en
 // already been proven unheard by the ground truth (no reply in its topic past
 // the grace), so it always goes to the responder. It is always CLAIMED first,
 // like a swept post, for the same one-delivery guarantee.
-func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept, escalate bool) {
+//
+// reescalate = the SPL-1225 miss fix (prd t1 4b0ba40a): a post that WAS
+// escalated but the responder never acted on (its poke was refused and
+// dropped). It bumps the existing fallback row (attempts+1) instead of
+// claiming a new one, re-poking and rotating to the next responder / any awake
+// agent, so one refused poke to a busy responder is not permanent silence.
+func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept, escalate, reescalate bool, avoid string) {
 	if !s.o.Fallback || env.FromBox != WUIBox || !strings.HasPrefix(m.From, "HUM-") {
 		return
 	}
@@ -214,7 +224,7 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	if err != nil {
 		return
 	}
-	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon))
+	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), avoid)
 	if !ok {
 		log.Info().Msg("fallback: no online agent takes this post")
 		return
@@ -224,7 +234,16 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	rec := store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID, Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}
 	fb, hasFB := s.o.Store.(store.Fallbacks)
 	claim := swept || escalate
-	if claim && hasFB {
+	switch {
+	case reescalate && hasFB:
+		switch won, err := fb.BumpFallback(ctx, rec, s.o.ReescalateMax); {
+		case err != nil:
+			log.Error().Err(err).Msg("fallback re-escalate")
+			return
+		case !won: // capped, or another hub process bumped it
+			return
+		}
+	case claim && hasFB:
 		switch won, err := fb.ClaimFallback(ctx, rec); {
 		case err != nil:
 			log.Error().Err(err).Msg("fallback claim")
@@ -243,13 +262,13 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	} else {
 		log.Error().Err(err).Str("box", b.box).Msg("fallback delivery row")
 	}
-	if hasFB && !claim {
+	if hasFB && !claim && !reescalate {
 		if err := fb.RecordFallback(ctx, rec); err != nil {
 			log.Error().Err(err).Msg("fallback record")
 		}
 	}
 	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
-		Bool("swept", swept).Bool("escalate", escalate).Msg("fallback delivered")
+		Bool("swept", swept).Bool("escalate", escalate).Bool("reescalate", reescalate).Msg("fallback delivered")
 }
 
 // channelFallback is the members answer's `fallback` (FR-035): who a post
@@ -287,7 +306,7 @@ func (s *Server) fallbackInfo(ctx context.Context, tenant, channel string, agent
 	}
 	if boxes := s.fallbackBoxes(tenant); len(boxes) > 0 {
 		if roster, err := s.o.Store.Roster(ctx, tenant); err == nil {
-			if b, id, ok := s.fallbackPick(ctx, tenant, roster, boxes, 0); ok {
+			if b, id, ok := s.fallbackPick(ctx, tenant, roster, boxes, 0, ""); ok {
 				out.ID, out.Box = id, b.box
 			}
 		}

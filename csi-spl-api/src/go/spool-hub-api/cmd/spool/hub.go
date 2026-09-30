@@ -201,6 +201,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,
 		Fallback:        hc.Fallback,
 		UnansweredGrace: hc.UnansweredGrace,
+		ReescalateEvery: hc.ReescalateEvery,
+		ReescalateMax:   hc.ReescalateMax,
 		AllowTextOnly:   hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,

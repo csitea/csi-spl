@@ -46,7 +46,29 @@ Every message row features a dedicated action menu. You can access it by clickin
 | **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | — |
 | **Merge with Previous** | Combines this message into the preceding message in the same thread. | — |
 | **Merge with Next** | Combines this message into the following message in the same thread. | — |
+| **Make it a topic** | Promotes a thread reply into a topic of its own. | — |
+| **Move to channel…** / **Move to topic…** | Moves a topic to another channel, or a reply to another topic. | — |
+| **Merge into…** | Merges this whole topic into another topic. | — |
 | **Delete Message** | Removes the message from the active feed and thread. | — |
+
+### 2.1 Reorganising topics and messages
+
+Three actions move a conversation to where it belongs. Each is on the **⋮** menu
+and also has a drag gesture, and each can be reversed with the **Undo** that
+appears after it:
+
+- **Promote a reply to a topic** — pick **Make it a topic** on a thread reply, or
+  drag the message onto the **Topics** list. It leaves the thread and opens as its
+  own topic. **Undo** puts it back.
+- **Merge a topic into another** — pick **Merge into…** and choose the target, or
+  drag one topic card onto another. Every message from both topics ends up in the
+  target, ordered by time; the emptied topic disappears. **Undo** unmerges it.
+- **Move a message** — pick **Move to channel…** (for a whole topic) or **Move to
+  topic…** (for a single reply), or drag it to the destination. **Undo** moves it
+  back.
+
+Only the message's author, the workspace owner or an admin may reorganise it, and
+a direct message or the lobby cannot give or take a topic.
 
 ---
 

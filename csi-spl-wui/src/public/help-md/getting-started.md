@@ -6,7 +6,7 @@ This guide walks you through signing in, setting up your environment, understand
 
 ## 1. Accessing Your Workspace
 
-Spool is organized around isolated tenant workspaces. There is one address to sign in at:
+Spool is organized around isolated workspaces. There is one address to sign in at:
 
 ```text
 https://{{site}}
@@ -14,11 +14,11 @@ https://{{site}}
 
 A self-hosted install has its own address instead (for example `https://chat.example.org`); your administrator gives it to you. You do not need a per-workspace address: after you sign in, Spool opens the workspace your account belongs to, and if you belong to several, the workspace picker in the top bar switches between them.
 
-If the sign-in page says **"This account has no access here yet — ask your admin for an invite."**, your account exists but no workspace has invited it. Ask your workspace's admin to invite the email address you signed in with (Tenant settings -> Members -> Invite), then sign in again.
+If the sign-in page says **"This account has no access here yet — ask your admin for an invite."**, your account exists but no workspace has invited it. Ask your workspace's admin to invite the email address you signed in with (Workspace settings -> Members -> Invite), then sign in again.
 
 Help is always one click away: the **?** icon at the foot of the left panel opens these pages.
 
-Each tenant is strictly isolated: conversations, channels, cryptographic keys, and AI agent workers never cross workspace boundaries.
+Each workspace is strictly isolated: conversations, channels, cryptographic keys, and AI agent workers never cross workspace boundaries.
 
 ---
 
@@ -52,11 +52,11 @@ If your organization prefers direct email credentials:
 
 ## 3. Understanding User Roles (RBAC)
 
-Every member within a tenant workspace is assigned an explicit role governing permissions across channels, messaging, and system settings:
+Every member within a workspace is assigned an explicit role governing permissions across channels, messaging, and system settings:
 
 | Role | Permissions & Responsibilities | Typical Assignee |
 |---|---|---|
-| **Product Owner** | Full system governance, billing configuration, tenant deletion, and global defaults. | Project leads, company owners |
+| **Product Owner** | Full system governance, billing configuration, workspace deletion, and global defaults. | Project leads, company owners |
 | **Biz Owner** | Business administrative rights, plan management, and member invitations. | Operations, managers |
 | **Admin** | Channel management (creation, deletion, archiving), member moderation (muting, blocking, removal), and role assignment. | Team leads, administrators |
 | **Developer** | Standard user access: send messages, start topics, command AI agents, upload files, create custom channels, and generate Ed25519 API keys. | Software engineers, contributors |

@@ -41,7 +41,7 @@ Pinned at the very top of the screen across the entire viewport, the **Top Bar**
 4. **Language Switcher**: Instant dropdown supporting 19 languages. Changes take effect immediately without reloading the page.
 5. **User Menu**:
    - Displays your profile avatar, display name, member ID (`HUM-*`), and your role in the current workspace.
-   - Links directly to **Settings** (`/settings`), and — for workspace admins — **Tenant settings** (`/tenant-settings`).
+   - Links directly to **Settings** (`/settings`), and — for workspace admins — **Workspace settings** (`/tenant-settings`).
    - Offers one-click **Sign out**.
    - See [User Settings & Key Management](./user-settings.md) for everything the settings screen holds.
 
@@ -60,8 +60,8 @@ start with these **seven tabs**, in this order:
 |---|---|
 | **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). |
 | **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence indicators and unread pips. |
-| **Issues (`issues`)** | The tracked-work list — the tenant's issues, with priority, level, deadline and assignee columns. |
-| **Topics (`topics`)** | Global index of all conversation threads across the tenant, sorted by most recent activity. |
+| **Issues (`issues`)** | The tracked-work list — the workspace's issues, with priority, level, deadline and assignee columns. |
+| **Topics (`topics`)** | Global index of all conversation threads across the workspace, sorted by most recent activity. |
 | **Flow (`flow`)** | A unified chronological stream combining recent channels, DMs, and topics in a single activity list. |
 | **Archive (`archive`)** | Channels and topics that have been archived out of the active lists. |
 | **Events (`events`)** | Your own activity log. |

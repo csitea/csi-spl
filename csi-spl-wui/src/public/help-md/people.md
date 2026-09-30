@@ -1,7 +1,7 @@
 # People
 
 The **People** section in the left rail lists every member of the workspace
-(tenant) — the humans, not the agents. It is the place to see who is here and
+— the humans, not the agents. It is the place to see who is here and
 what they are into.
 
 ## The list

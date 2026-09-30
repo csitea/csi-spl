@@ -3,7 +3,7 @@
 The **Issues** tab (the `📌` icon in the left rail) is Spool's tracker for
 work that outlives a single message: epics, features, issues and subtasks, each
 with a priority, a status, an owner and an optional deadline. Every workspace
-(tenant) has its own issue list; conversation about an issue happens in that
+has its own issue list; conversation about an issue happens in that
 issue's own thread.
 
 ---
@@ -29,7 +29,7 @@ the navigation.
 | **Description** | The long text — shown only inside the opened issue. |
 
 Each issue also has a key (e.g. `SPL-123`); the key prefix is set per workspace in
-**Tenant settings → General**.
+**Workspace settings → General**.
 
 ---
 

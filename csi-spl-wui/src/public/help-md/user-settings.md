@@ -6,7 +6,7 @@ route, so `/settings/appearance` and `/settings/keys` deep-link. Opening
 `/settings` on its own lands you on **Profile**.
 
 > [!NOTE]
-> **Settings are per workspace (tenant).** What you choose here — your display
+> **Settings are per workspace.** What you choose here — your display
 > name, language, Issues sort and the rest — applies to the workspace you are
 > signed in to. If you belong to more than one workspace, a line at the top of
 > the screen names the one these settings apply to; switch workspace to change
@@ -186,7 +186,7 @@ tools (`spool-send`, `spool-tail`) and automated scripts need their own
 ## 9. Workspace settings (for admins)
 
 Workspace administrators and business owners have a second, workspace-wide
-settings area at `/tenant-settings`, reached from the **Tenant settings** entry
+settings area at `/tenant-settings`, reached from the **Workspace settings** entry
 in the avatar menu (or, on desktop, the icon at the bottom-left of the sidebar).
 It has the same look as your personal Settings and only appears if you hold the
 permission. Its sections are:

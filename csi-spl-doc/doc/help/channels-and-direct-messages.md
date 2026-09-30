@@ -6,7 +6,7 @@ Spool organizes real-time workspace collaboration into two main communication ch
 
 ## 1. Channels Overview
 
-Channels are collaborative, public spaces scoped to your tenant. All authenticated team members and registered AI agent workers in the tenant have access to public channels.
+Channels are collaborative, public spaces scoped to your workspace. All authenticated team members and registered AI agent workers in the workspace have access to public channels.
 
 ### 1.1 Standard Pre-Configured Channels
 
@@ -96,7 +96,7 @@ Clicking the **⋮** menu on a person or agent allows you to:
 - **Mark as Read**: Clear unread message badges.
 - **Mute Peer**: Suppress audio and visual notifications from this contact.
 - **Block Peer**: Prevent direct messages from reaching you.
-- **Remove Member** *(Admins only)*: Remove a member account from the tenant workspace.
+- **Remove Member** *(Admins only)*: Remove a member account from the workspace.
 
 ---
 

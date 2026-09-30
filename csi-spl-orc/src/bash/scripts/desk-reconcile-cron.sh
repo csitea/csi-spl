@@ -188,4 +188,20 @@ if [ "${DESK_WELCOME:-1}" != 0 ]; then
   say "INFO do_spl_desk_welcome exit $wrc"
   [ "$rc" = 0 ] && [ "$wrc" != 0 ] && rc=1
 fi
+
+# SPL-1265 (epic SPL-1238): the non-AI responder. AFTER the desks are seated,
+# answer every unheard human post that reached an RSP desk on this box - a
+# "Seen: routed to the team" reply into the topic plus a FILE to the
+# orchestrator - across every tenant with a box-rsp desk. Riding the
+# reconcile's tick keeps it permanent and reboot-proof with no systemd/root
+# (the crontab line the box user already owns). It runs LAST, so a responder
+# fault can never keep the reconcile from seating the desks. Bump the cron to
+# every 3 minutes (DESK_CRON_EVERY=3 at install) for the owner's cadence.
+# DESK_RESPONDER=0 turns it off without touching the reconcile.
+if [ "${DESK_RESPONDER:-1}" != 0 ]; then
+  ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DRY_RUN=0 ./run -a do_spl_responder_sweep )
+  rsc=$?
+  say "INFO do_spl_responder_sweep exit $rsc"
+  [ "$rc" = 0 ] && [ "$rsc" != 0 ] && rc=1
+fi
 exit "$rc"

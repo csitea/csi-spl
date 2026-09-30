@@ -106,6 +106,16 @@ func TestStartClone(t *testing.T) {
 	if err != nil || got.TargetName == "" || got.TargetHum != target {
 		t.Fatalf("Clone target name/hum = %q/%q %v", got.TargetName, got.TargetHum, err)
 	}
+	// specs/054 §9 CONTROL: the clone has NO human_identities, so no provider
+	// (password, Google, keys…) can ever authenticate as it — the only session
+	// for it is the one the act-as handler mints.
+	var ids int
+	if err := pg.pool.QueryRow(ctx, `SELECT count(*) FROM human_identities WHERE human_id = $1`, cl.CloneHum).Scan(&ids); err != nil {
+		t.Fatal(err)
+	}
+	if ids != 0 {
+		t.Errorf("clone has %d human_identities, want 0 (nothing may sign in as it)", ids)
+	}
 }
 
 // TestStartCloneNotMember: cloning a non-member is refused, nothing minted.
@@ -138,8 +148,19 @@ func TestStopClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// a message the clone authored while acting (specs/054 §4 step 2: kept on stop)
+	m := msgFor(tid, uuid4(), "box-a", now, now, "env-"+tid)
+	m.FromID, m.Channel = cl.CloneHum, "lobby"
+	if _, err := pg.InsertMessage(ctx, m); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.StopClone(ctx, tid, cl.CloneHum, "stop", now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
+	}
+	// specs/054 §9 CONTROL (owner default, §8 Q2 "keep"): the clone's messages
+	// survive the stop — only its memberships and sign-in are removed.
+	if ok, err := pg.HasMessage(ctx, tid, m.MsgID); err != nil || !ok {
+		t.Errorf("clone's message after stop: ok=%v err=%v, want kept", ok, err)
 	}
 	if r, err := pg.MemberRole(ctx, cl.CloneHum, tid); err == nil && r != "" {
 		t.Errorf("stopped clone still resolves role %q", r)

@@ -54,8 +54,16 @@ sign-out. Backend defaults to the `§8` recommendations, kept configurable, pend
 - also fixed a pre-existing TDZ (copied-before-init) that crashed the member-edit pane, caught by the
   `users-admin` e2e - `fa54e491`
 
-## Open (owner, `spec.md` §8)
+## Owner decisions (topic 18597eaa)
 
-1. DMs visible to the clone? (built: **no** — private channels excluded; flip = `CloneStart.IncludeDMs`).
+- [x] **DMs visible to the clone? NO** (owner, verbatim: "no of course"). Enforced in the HUB, not only the
+      UI: `GET /v1/view/topics?dm=true` and `?peer=` return **403** for a clone reader (`readerIsActAsClone`,
+      store-based); the read door already drops every DM the reader is not an end of, and a clone is an end
+      of none, so DM topic reads, search previews and files are all unreachable. `TestActAsCloneCannotReadDM`
+      (Postgres) is the control; the WUI hides the DM rail tab + empties its peers while acting, e2e-asserted -
+      `ffaed5c0` (hub), `fa970f36` (wui)
+
+## Still open (owner, `spec.md` §8)
+
 2. Keep the clone's messages at expiry? (built: **keep**, marked test).
 3. Expiry length? (built: **60 min** — `hub.DefaultActAsTTL`).

@@ -44,6 +44,22 @@ func TestMembersAdminAPI(t *testing.T) {
 	}
 	mu.Unlock()
 
+	// CLE-77780: no_mail stores the invite but sends no mail (the admin sends it
+	// with an explicit click). CONTROL: the mailer is not called. Revoked right
+	// after so the invite listing below still sees only `pending`.
+	silent := "silent-" + tid + "@example.com"
+	if code, body := call(t, e, tid, http.MethodPost, "/v1/members/invites", admin, map[string]any{"email": silent, "role": rbac.Tester, "no_mail": true}); code != http.StatusCreated || body["mail"] != "not_sent" {
+		t.Fatalf("no_mail invite: %d %v", code, body)
+	}
+	mu.Lock()
+	if len(mailed) != 1 {
+		t.Fatalf("no_mail still mailed: %v", mailed)
+	}
+	mu.Unlock()
+	if code, _ := call(t, e, tid, http.MethodDelete, "/v1/members/invites?email="+url.QueryEscape(silent), admin, nil); code != http.StatusNoContent {
+		t.Fatalf("no_mail cleanup revoke: %d", code)
+	}
+
 	revoke := "/v1/members/invites?email=" + url.QueryEscape(pending)
 	for _, role := range rbac.RoleIDs {
 		if role == rbac.Admin || role == rbac.BizOwner { // specs/046: both manage members

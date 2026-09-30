@@ -252,6 +252,10 @@ func (s *Server) handleMemberInvite(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Role     string `json:"role"`
 		TTLHours int    `json:"ttl_hours"`
+		// NoMail stores the invite without sending its mail (CLE-77780, owner
+		// 2026-09-30: no mail goes out on the owner's behalf without a click).
+		// The admin then sends it explicitly from the Users pane.
+		NoMail bool `json:"no_mail"`
 	}
 	if !decodeMembers(w, r, &body) {
 		return
@@ -282,8 +286,11 @@ func (s *Server) handleMemberInvite(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "invite not stored")
 	default:
 		email := strings.ToLower(strings.TrimSpace(body.Email))
-		mailed := s.mailInvite(r, t.ID, email)
-		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("role", role).Str("mail", mailed).Msg("member.invited")
+		mailed := "not_sent"
+		if !body.NoMail {
+			mailed = s.mailInvite(r, t.ID, email)
+		}
+		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("role", role).Str("mail", mailed).Bool("no_mail", body.NoMail).Msg("member.invited")
 		writeJSON(w, http.StatusCreated, map[string]any{"tenant_id": t.ID, "email": email,
 			"role": role, "invited_by": a.HumanID, "expires_at": rfc(in.ExpiresAt), "mail": mailed})
 	}

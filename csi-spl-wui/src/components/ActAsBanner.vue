@@ -51,31 +51,46 @@ async function stop() {
 </script>
 
 <style scoped>
+/* A SLIM one-line strip (owner 18597eaa: "this stripe is too big"): ~26 px
+   high, small text centred, the Stop a small button pinned right. Same place
+   (directly under the top bar, so it never covers the avatar menu), the same
+   warning colour so it stays unmistakable, and fixed — it overlays, never
+   pushing the layout by more than its own height. */
 .actas-bar {
   position: fixed;
-  /* Directly under the top bar — a full-width, unmistakable strip that never
-     covers the avatar menu (whose "Stop acting as X" is the same action). */
   top: var(--top-bar-h);
   left: 0;
   right: 0;
   z-index: calc(var(--z-banner) + 10);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   box-sizing: border-box;
-  padding: 0.375rem 0.875rem;
-  border-bottom: 2px solid var(--color-accent);
-  /* A warm, unmistakable strip so an admin always knows they are a clone. */
+  min-height: 26px;
+  padding: 2px 0.5rem;
+  border-bottom: 1px solid var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
   color: var(--color-fg);
-  box-shadow: var(--focus-3d);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.3;
 }
-.actas-bar__text { min-width: 0; overflow-wrap: anywhere; }
-.actas-bar__stop { flex: none; min-height: 2.25rem; }
-@media (pointer: coarse) {
-  .actas-bar__stop { min-height: 2.75rem; }
+/* the message takes the width and centres; one line, ellipsis if it can't fit */
+.actas-bar__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* a small link-style button at the right — overrides .btn's tall min-height */
+.actas-bar__stop {
+  flex: none;
+  min-height: 0;
+  padding: 1px 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border-radius: var(--radius-sm);
 }
 </style>

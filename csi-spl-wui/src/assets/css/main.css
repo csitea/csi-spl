@@ -1171,20 +1171,26 @@ html.pane-dragging * {
 /* the focus ring itself is the ONE global :focus-visible treatment below in
    main.css (var(--focus-ring)); no per-button outline here (focus-tokens) */
 /* The triangle, drawn with borders so it stays crisp and flips with logical
-   direction. Open state points to inline-start (◀ in LTR = "close to the
-   left"); the collapsed strip points to inline-end (▶ = "open from the left").
-   RTL swaps inline-start/end, so Hebrew gets the mirrored arrow for free.
-   Border widths are 20% bigger than the original 5px/7px (SPL-1186). */
+   direction. The direction is decided in ONE place (PaneCollapseToggle +
+   utils/pane-collapse.mjs arrowPointsEnd) and handed to CSS as a class: the
+   arrow points the way the panel will MOVE when clicked (owner, prd t1 topic
+   80e40aca). --point-start points ◀ (toward inline-start), --point-end points
+   ▶ (toward inline-end); RTL swaps inline-start/end, so Hebrew gets the mirror
+   for free. Border widths are 20% bigger than the original 5px/7px (SPL-1186).
+   A colored inline-END border makes the arrow point to inline-START, and vice
+   versa. */
 .pane-collapse__tri {
   width: 0;
   height: 0;
   border-block: 6px solid transparent;
+}
+.pane-collapse--point-start .pane-collapse__tri {
   border-inline-end: 8.4px solid currentColor;
   border-inline-start: 0;
 }
-.pane-collapse--collapsed .pane-collapse__tri {
-  border-inline-end: 0;
+.pane-collapse--point-end .pane-collapse__tri {
   border-inline-start: 8.4px solid currentColor;
+  border-inline-end: 0;
 }
 
 @media (min-width: 821px) {

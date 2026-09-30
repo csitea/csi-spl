@@ -11,7 +11,8 @@ import {
   normalizeCollapsed,
   collapseSide,
   fillerPane,
-  pointsRight,
+  collapseDir,
+  arrowPointsEnd,
   loadCollapsed,
   saveCollapsed,
 } from '../../src/utils/pane-collapse.mjs'
@@ -44,10 +45,34 @@ describe('collapseSide (mirrors the close X corner, SPL-1133)', () => {
   })
 })
 
-describe('pointsRight (open ◀ / collapsed ▶ in LTR; CSS mirrors RTL)', () => {
-  it('the glyph points right only when the panel is collapsed', () => {
-    assert.equal(pointsRight(false), false) // open → points left (close)
-    assert.equal(pointsRight(true), true) // collapsed → points right (open)
+describe('collapseDir (the edge each panel recedes to; owner topic 80e40aca)', () => {
+  it('channels always to start, threads always to end, topic follows its toggle corner', () => {
+    assert.equal(collapseDir('channels', 'start'), 'start')
+    assert.equal(collapseDir('channels', 'end'), 'start') // leading panel, fixed
+    assert.equal(collapseDir('threads', 'start'), 'end')
+    assert.equal(collapseDir('threads', 'end'), 'end') // trailing panel, fixed
+    assert.equal(collapseDir('topic', 'start'), 'start') // mac corner
+    assert.equal(collapseDir('topic', 'end'), 'end') // windows corner
+    assert.equal(collapseDir('topic'), 'start') // default mac
+  })
+})
+
+describe('arrowPointsEnd (arrow points the way the panel MOVES; CSS mirrors RTL)', () => {
+  it('the LEFT panel (channels) points ◀ open, ▶ collapsed', () => {
+    assert.equal(arrowPointsEnd(false, 'channels'), false) // open → ◀ toward the left edge it collapses to
+    assert.equal(arrowPointsEnd(true, 'channels'), true) // collapsed → ▶ back to expand
+  })
+  it('the RIGHT panel (threads) is the mirror — ▶ open, ◀ collapsed (owner topic 80e40aca)', () => {
+    assert.equal(arrowPointsEnd(false, 'threads'), true) // open → ▶ toward the right edge it collapses to
+    assert.equal(arrowPointsEnd(true, 'threads'), false) // collapsed → ◀ back to expand
+  })
+  it('the MIDDLE panel (topic) follows its toggle corner', () => {
+    // mac (start corner): like a left panel
+    assert.equal(arrowPointsEnd(false, 'topic', 'start'), false)
+    assert.equal(arrowPointsEnd(true, 'topic', 'start'), true)
+    // windows (end corner): like a right panel
+    assert.equal(arrowPointsEnd(false, 'topic', 'end'), true)
+    assert.equal(arrowPointsEnd(true, 'topic', 'end'), false)
   })
 })
 

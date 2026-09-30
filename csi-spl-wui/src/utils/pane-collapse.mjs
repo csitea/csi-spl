@@ -70,13 +70,37 @@ export function fillerPane(collapsed, topicOpen) {
 }
 
 /**
- * The triangle points left when open (close, ◀) and right when collapsed
- * (open, ▶) — the LTR base; RTL mirrors it in CSS. Returns true when the glyph
- * points right for the current state.
- * @param {boolean} collapsed
+ * The logical edge a panel collapses TOWARD (owner, prd t1 topic 80e40aca:
+ * "the arrows pointer should point to the direction of the collapse or the
+ * expansion of the control"). In logical terms so RTL mirrors for free:
+ * - channels is the leading panel  → it always recedes to inline-'start';
+ * - threads  is the trailing panel → it always recedes to inline-'end';
+ * - topic    is the middle panel, pinned to no shell edge, so it recedes to the
+ *   corner its own toggle sits in (`side`, the Win/Mac close_buttons rule).
+ * @param {'channels'|'topic'|'threads'} pane
+ * @param {'start'|'end'} [side] the toggle corner (collapseSide), for topic
+ * @returns {'start'|'end'}
  */
-export function pointsRight(collapsed) {
-  return collapsed === true
+export function collapseDir(pane, side) {
+  if (pane === 'channels') return 'start'
+  if (pane === 'threads') return 'end'
+  return side === 'end' ? 'end' : 'start'
+}
+
+/**
+ * Which way the collapse triangle points, as a logical direction: true = it
+ * points toward inline-END (▶ in LTR, ◀ in RTL), false = toward inline-START.
+ * The arrow points the way the control will MOVE when clicked — toward the
+ * collapse edge while open, back toward where it expands while collapsed.
+ * ONE rule for every pane; the CSS just renders the two directions.
+ * @param {boolean} collapsed
+ * @param {'channels'|'topic'|'threads'} pane
+ * @param {'start'|'end'} [side] the toggle corner (collapseSide), for topic
+ */
+export function arrowPointsEnd(collapsed, pane, side) {
+  const dir = collapseDir(pane, side)
+  /* open: point toward the collapse edge; collapsed: point back to expand */
+  return collapsed === true ? dir === 'start' : dir === 'end'
 }
 
 /** Read the persisted collapsed map from a Storage-like object. */

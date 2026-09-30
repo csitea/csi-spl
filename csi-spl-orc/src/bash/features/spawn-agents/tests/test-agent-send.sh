@@ -28,8 +28,13 @@ printf '%s\n' "\$*" >>"$T_TMP/legacy.log"
 exit "\${FAKE_LEGACY_RC:-0}"
 EOF
 mkdir -p "$SPOOL_LEGACY_INBOX_ROOT/CLE-08/inbox" "$SPOOL_LEGACY_INBOX_ROOT/CLE-08/outbox"
-for id in CLE-01 CLE-07; do mkdir -p "$SPOOL_ROOT/$id"/{inbox,outbox,archive}; done
+# CLE-001 (the orchestrator) and CLE-01 are DIFFERENT ids: both registered so a
+# leading-zero id is not silently width-normalised onto the other's mailbox.
+for id in CLE-01 CLE-07 CLE-001 CLE-77798; do mkdir -p "$SPOOL_ROOT/$id"/{inbox,outbox,archive}; done
 printf 'CLE-07\tclaude\t%%9\t/x\t20260101T000000Z\n' >"$SPOOL_ROOT/registry.tsv"
+printf 'CLE-001\tclaude\t%%1\t/x\t20260101T000000Z\n' >>"$SPOOL_ROOT/registry.tsv"
+printf 'CLE-01\tclaude\t%%2\t/x\t20260101T000000Z\n' >>"$SPOOL_ROOT/registry.tsv"
+printf 'CLE-77798\tclaude\t%%3\t/x\t20260101T000000Z\n' >>"$SPOOL_ROOT/registry.tsv"
 mkdir -p "$SPOOL_ROOT/CLE-08"/{inbox,outbox,archive}      # the desk seated the old agent too
 t_tmux
 P7="$(t_window 'tbox: CLE-07 new harness' 'sleep 600')"
@@ -45,6 +50,23 @@ has "1. the pane is poked" "poke: $P7 (CLE-07)" "$out"
 echo "from a file" >"$T_TMP/m.md"
 bash "$SEND" --from CLE-01 CLE-07 --file "$T_TMP/m.md" --no-poke >/dev/null 2>&1; eq "1. --file works (rc 0)" 0 "$?"
 eq "1. two messages in the inbox" 2 "$(ls "$SPOOL_ROOT/CLE-07/inbox/"*.json | wc -l)"
+
+# --- 1b. a leading-zero id keeps every digit (CLE-001 != CLE-01) ----------------
+# The old normalisation reparsed "001" as decimal 1 and printed "CLE-01", so the
+# orchestrator CLE-001's mail was refused ("no mailbox for CLE-01") or delivered
+# to a different agent. Send to CLE-001, CLE-01 and CLE-77798 as three controls.
+bash "$SEND" --from CLE-77798 CLE-001 --no-poke to the orchestrator >/dev/null 2>&1
+eq "1b. CLE-001 is not width-normalised to CLE-01 (rc 0)" 0 "$?"
+eq "1b. the message lands in CLE-001's own inbox" 1 "$(ls "$SPOOL_ROOT/CLE-001/inbox/"*.json 2>/dev/null | wc -l)"
+eq "1b. ... and NOT in the different id CLE-01's inbox" 0 "$(ls "$SPOOL_ROOT/CLE-01/inbox/"*.json 2>/dev/null | wc -l)"
+bash "$SEND" --from CLE-001 CLE-01 --no-poke to the two-digit id >/dev/null 2>&1
+eq "1b. CLE-01 stays CLE-01 (rc 0)" 0 "$?"
+eq "1b. ... reaching CLE-01, still one in CLE-001" 1 "$(ls "$SPOOL_ROOT/CLE-01/inbox/"*.json 2>/dev/null | wc -l)"
+eq "1b. ... CLE-001 unchanged at one" 1 "$(ls "$SPOOL_ROOT/CLE-001/inbox/"*.json 2>/dev/null | wc -l)"
+bash "$SEND" --from CLE-001 CLE-77798 --no-poke a wide id is verbatim >/dev/null 2>&1
+eq "1b. a wide id (CLE-77798) is delivered verbatim" 1 "$(ls "$SPOOL_ROOT/CLE-77798/inbox/"*.json 2>/dev/null | wc -l)"
+# leave CLE-01's inbox clean: section 4 reads it as a fresh mailbox
+rm -f "$SPOOL_ROOT/CLE-01/inbox/"*.json
 
 # --- 2. legacy -----------------------------------------------------------------
 out="$(bash "$SEND" --from CLE-01 CLE-08 --subject s1 --file "$T_TMP/m.md" 2>&1)"; rc=$?

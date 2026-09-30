@@ -172,14 +172,19 @@ fi
 
 # --- helpers ---------------------------------------------------------------
 
-# Normalise an agent id: cle-7 -> CLE-07.
+# Normalise an agent id: cle-7 -> CLE-07. Pad a SHORT number up to 2 digits, but
+# NEVER reformat the width of an id that is already >=2 digits -- CLE-001 and
+# CLE-01 are DIFFERENT ids, and re-parsing "001" as a decimal (10#001=1) then
+# printing %02d gave "CLE-01", so an agent like CLE-001 closing its own window
+# resolved the wrong (or no) target.
 norm_id() {
   local t p n
   t="$(printf '%s' "${1:-}" | tr '[:lower:]' '[:upper:]' | tr -d ' ')"
   if printf '%s' "$t" | grep -qE '^[A-Z]+-?[0-9]+$'; then
     p="$(printf '%s' "$t" | grep -oE '^[A-Z]+')"
     n="$(printf '%s' "$t" | grep -oE '[0-9]+$')"
-    printf '%s-%02d' "$p" "$((10#$n))"
+    while [ "${#n}" -lt 2 ]; do n="0$n"; done
+    printf '%s-%s' "$p" "$n"
     return 0
   fi
   return 1

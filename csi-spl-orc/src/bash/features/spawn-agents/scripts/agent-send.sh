@@ -60,9 +60,16 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$TO" ] || usage
-# cle-7 -> CLE-07, the way the frozen engine's sender normalises it
+# cle-7 -> CLE-07, the way the frozen engine's sender normalises it: uppercase
+# the prefix and pad a SHORT number up to 2 digits. NEVER reformat the width of
+# an id that is already >=2 digits -- CLE-001 and CLE-01 are DIFFERENT ids, and
+# re-parsing "001" as a decimal (10#001=1) then printing %02d gave "CLE-01",
+# routing the orchestrator CLE-001's mail to the wrong (or a missing) mailbox.
 if [[ "$TO" =~ ^([A-Za-z]{2,4})-?([0-9]+)$ ]]; then
-  TO="$(printf '%s-%02d' "$(printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')" "$((10#${BASH_REMATCH[2]}))")"
+  _pfx="$(printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')"
+  _num="${BASH_REMATCH[2]}"
+  while [ "${#_num}" -lt 2 ]; do _num="0$_num"; done
+  TO="${_pfx}-${_num}"
 fi
 spool_valid_id "$TO" || exit 2
 if [ -n "$FILE" ]; then

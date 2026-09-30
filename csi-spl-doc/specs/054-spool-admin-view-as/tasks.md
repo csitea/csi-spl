@@ -34,17 +34,23 @@ sign-out. Backend defaults to the `§8` recommendations, kept configurable, pend
 
 ## WUI
 
-- [x] T010 Entry point: the admin Members pane (`UserEditPane.vue`) shows "Act as {name}" for holders of
-      `members.impersonate` on a manageable, non-self member; a full reload lands as the clone - `e014ecb9`
-- [x] T011 `ActAsBanner.vue`: a permanent sticky "Acting as {X} (test clone) — Stop" strip, top of every
-      route, z above the top bar, not dismissible; Stop = the sign-out - `e014ecb9`
+- [x] T010 Entry point (owner 18597eaa): **avatar menu → "Act as…"** directly above Sign out (admins),
+      opening a small `ActAsPicker.vue` UiDialog with a searchable member drop-down (ceiling-filtered) +
+      Act as / Cancel. The Settings → Members pane keeps its own "Act as {name}" as a second way - `e5f7fc2b`,`e014ecb9`
+- [x] T011 `ActAsBanner.vue`: a permanent full-width "Acting as {X} (test clone) — Stop" strip below the
+      top bar (so it never covers the avatar menu), not dismissible; Stop = the sign-out - `e014ecb9`,`e5f7fc2b`
 - [x] T012 Avatar menu: a "Stop acting as {X}" row above Sign out, `session.stopActingAs()` (exit + logout
       → login page) - `e014ecb9`
+- [x] i18n: all new strings translated into every one of the 19 locales (no English placeholders) - `e5f7fc2b`
 
 ## e2e
 
-- [ ] T020 browser: start → act (a permission-gated action visibly behaves as the target) →
-      **Stop acting** → **login page** → normal admin login.
+- [x] T020 `tests/e2e/act-as.test.mjs` (browser): avatar menu "Act as…" above Sign out → picker dialog →
+      ceiling-filtered drop-down → confirm → "Acting as X" banner → menu shows "Stop acting as X" →
+      Stop → login page → banner gone. Opt-in mock (`act-as-mock.mjs`) stands in for the hub's cookie
+      swap, so the other 42 specs are untouched. Full `pnpm run test:e2e` run before push - `e5f7fc2b`
+- also fixed a pre-existing TDZ (copied-before-init) that crashed the member-edit pane, caught by the
+  `users-admin` e2e - `fa54e491`
 
 ## Open (owner, `spec.md` §8)
 

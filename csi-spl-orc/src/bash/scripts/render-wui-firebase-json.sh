@@ -207,6 +207,16 @@ doc = {
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},
+      # CLE-77803: an old tab still on the previous deploy asks for its own
+      # build's app manifest (/_nuxt/builds/meta/<old-id>.json). That build's
+      # files are gone, so without this the request falls to the SPA catch-all
+      # below and gets 200 index HTML; Nuxt then parses HTML as its manifest and
+      # logs "Received malformed app manifest" (prd human_events 2026-09-30).
+      # Firebase rewrites are first-match-wins and terminal, and a rewrite whose
+      # destination file does not exist answers 404 — the clean signal Nuxt reads
+      # as "build outdated" so the tab reloads into the live build. The current
+      # build's files still serve at the static layer, before any rewrite.
+      {"source": "/_nuxt/builds/**", "destination": "/__stale-nuxt-build-404__"},
       {"source": "**", "destination": "/200.html"},
     ],
   }

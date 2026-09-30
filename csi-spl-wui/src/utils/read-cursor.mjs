@@ -51,6 +51,33 @@ export function markReadAt(cursors, key, msg) {
   return next
 }
 
+/**
+ * CLE-77804 (topic 1e7d56b8): the "New messages" divider. Given the read
+ * cursor as it was when the feed was opened (the frozen boundary) and the
+ * feed's messages, the msg_id of the chronologically-FIRST message the reader
+ * has not seen — where the divider goes — or '' when there is nothing new or
+ * the channel was never read (no boundary: we do not flag a whole fresh feed).
+ */
+export function firstUnreadId(messages, cursor) {
+  if (!cursor || !cursor.ts) return ''
+  let best = null
+  for (const m of messages || []) {
+    if (!isUnread(m, cursor)) continue
+    const ts = when(m)
+    const id = String((m && m.msg_id) || '')
+    if (!best || ts < best.ts || (ts === best.ts && id < best.id)) best = { ts, id }
+  }
+  return best ? best.id : ''
+}
+
+/** How many of `messages` are unread vs the frozen boundary (the "N new" count). */
+export function countUnread(messages, cursor) {
+  if (!cursor || !cursor.ts) return 0
+  let n = 0
+  for (const m of messages || []) if (isUnread(m, cursor)) n++
+  return n
+}
+
 /** Cursor at a hub channel row's newest message (view-v1 §4.2 last_ts / last_cursor). */
 export function cursorFromChannel(row) {
   if (!row || !row.last_ts) return null

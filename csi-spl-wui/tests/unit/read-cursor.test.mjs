@@ -12,6 +12,8 @@ import {
   readParams,
   unreadFromChannels,
   readMap,
+  firstUnreadId,
+  countUnread,
 } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -79,6 +81,34 @@ describe('unread from stored cursors (gap A2, channels-v1 §5.2)', () => {
     assert.deepEqual(unreadFromChannels([
       { channel: 'lobby', unread: 2 }, { channel_id: 'alerts', unread: 0 }, { channel: 'tasks' },
     ]), { 'ch:lobby': 2, 'ch:alerts': 0 })
+  })
+})
+
+describe('New-messages divider boundary (CLE-77804)', () => {
+  const msgs = [
+    { msg_id: 'a', ts: '2026-09-19T05:00:00Z' },
+    { msg_id: 'b', ts: '2026-09-19T06:00:00Z' },
+    { msg_id: 'c', ts: '2026-09-19T07:00:00Z' },
+  ]
+  it('first unread is the earliest message after the frozen boundary', () => {
+    const cur = { ts: '2026-09-19T05:00:00Z', id: 'a' }
+    assert.equal(firstUnreadId(msgs, cur), 'b')
+    assert.equal(countUnread(msgs, cur), 2)
+  })
+  it('order of the array does not matter — it picks by timestamp', () => {
+    const cur = { ts: '2026-09-19T06:00:00Z', id: 'b' }
+    assert.equal(firstUnreadId([...msgs].reverse(), cur), 'c')
+    assert.equal(countUnread([...msgs].reverse(), cur), 1)
+  })
+  it('nothing new once the boundary is at the newest', () => {
+    const cur = { ts: '2026-09-19T07:00:00Z', id: 'c' }
+    assert.equal(firstUnreadId(msgs, cur), '')
+    assert.equal(countUnread(msgs, cur), 0)
+  })
+  it('a never-read feed (no boundary) draws no divider', () => {
+    assert.equal(firstUnreadId(msgs, null), '')
+    assert.equal(firstUnreadId(msgs, { ts: '', id: '' }), '')
+    assert.equal(countUnread(msgs, null), 0)
   })
 })
 

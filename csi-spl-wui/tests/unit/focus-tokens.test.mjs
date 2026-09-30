@@ -105,10 +105,13 @@ describe('focus + selection tokens', () => {
     }
   })
 
-  it('the selected rail tab is ringed all the way round, not barred on one side', () => {
+  it('CLE-77812 (owner a3c2cf08): the selected rail tab is RAISED, not ringed — no ring colour of its own', () => {
     const rule = MAIN.match(/\.sidebar-tab\[aria-selected="true"\]\s*\{([^}]*)\}/)
     assert.ok(rule, 'a rule of its own for the selected rail tab')
-    assert.match(rule[1], /box-shadow:\s*inset 0 0 0 var\(--select-bar-w\) var\(--focus-ring\)/)
+    /* the owner removed the ring box: no var(--focus-ring) on the selected tab now */
+    assert.doesNotMatch(rule[1], /var\(--focus-ring\)/, 'the selected rail tab still draws a ring box')
+    /* it reads raised instead, via the theme-aware drop shadow token */
+    assert.match(rule[1], /box-shadow:[^}]*var\(--focus-3d\)/, 'the selected rail tab is not raised')
   })
 
   it('the selected marker is the SAME colour as the focus ring, so a selected + focused row shows one', () => {
@@ -160,15 +163,16 @@ describe('focus + selection tokens', () => {
     assert.match(rule[1], /font-weight:\s*[6-9]\d\d/, 'the selected row is bolder')
     /* the raise is the theme-aware drop shadow token, so every theme gets it */
     assert.match(rule[1], /box-shadow:[^;]*var\(--focus-3d\)/, 'the selected row is raised with var(--focus-3d)')
-    /* the one-colour marker bar still leads the box-shadow stack */
-    assert.match(rule[1], /box-shadow:\s*\n?\s*inset var\(--select-bar-w\) 0 0 var\(--focus-ring\)/)
-    /* the bevel is flat rgba (no token) so it adds no second ring colour */
+    /* it keeps the darker fill */
+    assert.match(rule[1], /background:\s*var\(--color-selected\)/, 'the selected row keeps the darker fill')
+    /* owner a3c2cf08 removed the left accent bar: no ring colour on the row now */
+    assert.doesNotMatch(rule[1], /var\(--focus-ring\)/, 'the selected row still draws the left bar')
     const ringColours = new Set(
       [...rule[1].matchAll(/box-shadow:([^;]*);/g)]
         .flatMap((decl) => [...decl[1].matchAll(/var\((--[a-z0-9-]+)\)/g)].map((v) => v[1]))
         .filter((v) => !['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--radius'].includes(v)),
     )
-    assert.deepEqual([...ringColours], ['--focus-ring'], 'more than one ring colour on the selected row')
+    assert.deepEqual([...ringColours], [], 'the selected row must carry no ring colour now')
   })
 
   it('no stylesheet takes an outline away on focus without putting something back', () => {

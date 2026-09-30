@@ -37,8 +37,10 @@ sign-out. Backend defaults to the `§8` recommendations, kept configurable, pend
 - [x] T010 Entry point (owner 18597eaa): **avatar menu → "Act as…"** directly above Sign out (admins),
       opening a small `ActAsPicker.vue` UiDialog with a searchable member drop-down (ceiling-filtered) +
       Act as / Cancel. The Settings → Members pane keeps its own "Act as {name}" as a second way - `e5f7fc2b`,`e014ecb9`
-- [x] T011 `ActAsBanner.vue`: a permanent full-width "Acting as {X} (test clone) — Stop" strip below the
-      top bar (so it never covers the avatar menu), not dismissible; Stop = the sign-out - `e014ecb9`,`e5f7fc2b`
+- [x] T011 Acting-as indicator (owner 18597eaa, iterated: full-width band → slim band → **pill under the
+      avatar**): a ~20px "Acting as {X} · Stop" pill fixed under the avatar (top-right), a 1px danger-colour
+      accent border + a red "Stop" link, plus a **warning ring on the avatar** while acting. Rendered in
+      `UserMenu.vue`; the old full-width `ActAsBanner.vue` is deleted - `cf92c427`,`f7eb8dc9`
 - [x] T012 Avatar menu: a "Stop acting as {X}" row above Sign out, `session.stopActingAs()` (exit + logout
       → login page) - `e014ecb9`
 - [x] i18n: all new strings translated into every one of the 19 locales (no English placeholders) - `e5f7fc2b`

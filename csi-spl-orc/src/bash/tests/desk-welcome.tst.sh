@@ -151,4 +151,22 @@ python3 "$PROJ_ROOT/src/bash/scripts/desk-welcome-text.py" --check >"$T/o" 2>&1 
 w="$(awk -F'\t' '{ n = split($3, x, /[ \t]+/); if (n > m) m = n } END { print m }' "$POSTS")"
 (( w <= 33 )) && pass "10. the longest posted text is $w words" || fail "10. a post has $w words"
 
+# 12. CLE-77778: the first greeter (slot 0) carries the provenance footer,
+#     outside the cheerful text; the others do not. Run last: the footer's own
+#     newlines make that post span lines in the TSV, so it is kept off the
+#     aggregate checks above. A member with no invite provenance gets no footer.
+ADMITS="$T/a12"; : >"$POSTS"
+printf '{"tenant":"t1","human":"HUM-40","at":4000,"name":"Ada Prov","locale":"","test":false,"invited_on":"2026-09-25","ordered_by_name":"Grace Owner","ordered_via":"CLE-34967"}\n' >"$ADMITS"
+run DRY_RUN=0
+[[ "$(grep -c 'invited 2026-09-25 by Grace Owner (via CLE-34967)' "$POSTS")" == 1 ]] &&
+  pass "12. exactly one greeter carries the provenance footer" || fail "12. provenance footer: $(cat "$POSTS")"
+[[ "$(grep -c 'Ada Prov' "$POSTS")" == 3 ]] &&
+  pass "12. all three greeters still welcome the person" || fail "12. prov posts: $(cat "$POSTS")"
+
+ADMITS="$T/a12b"; : >"$POSTS"
+admit t1 HUM-41 4100 'No Prov' '' >"$ADMITS"
+run DRY_RUN=0
+[[ "$(grep -c 'invited' "$POSTS")" == 0 && "$(grep -c 'No Prov' "$POSTS")" == 3 ]] &&
+  pass "12. a member with no invite provenance gets no footer" || fail "12. no-prov: $(cat "$POSTS")"
+
 (( fails == 0 )) && echo "=== all desk-welcome.tst.sh assertions" || { echo "FAIL: $fails assertion(s)"; exit 1; }

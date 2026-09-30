@@ -103,11 +103,12 @@ do_spl_desk_welcome() {
   done
 
   local line tenant human at name locale base D greeted=0 failed=0
+  local invon ordname ordvia prov
   local -a live=() plan=()
   mapfile -t live < <(spl_desk_live_agents)
   # \x1f, not a tab: a tab is IFS whitespace, so an empty locale would
   # collapse and shift the fields after it.
-  while IFS=$'\x1f' read -r tenant human at name locale istest; do
+  while IFS=$'\x1f' read -r tenant human at name locale istest invon ordname ordvia; do
     [[ -n "$tenant" ]] || continue
     [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$human" =~ ^HUM-[0-9]+$ && "$at" =~ ^[0-9]+$ ]] ||
       { do_log "WARN skipping a malformed admit row: $tenant $human $at"; continue; }
@@ -131,6 +132,18 @@ do_spl_desk_welcome() {
       fi
     fi
     mapfile -t plan <"$D/plan"
+    # CLE-77778: the provenance footer answers "who invited this person, and
+    # when" right in #lobby. Only the FIRST greeter (slot 0) carries it, so the
+    # up-to-three welcomes are not each stamped; it sits OUTSIDE the cheerful
+    # 33-word body (a factual line, not counted against desk-welcome-text.py's
+    # cap). Blank when the member did not come through an invite.
+    prov=""
+    if [[ -n "$invon" || -n "$ordname" ]]; then
+      prov="invited"
+      [[ -n "$invon" ]] && prov+=" $invon"
+      [[ -n "$ordname" ]] && prov+=" by $ordname"
+      [[ -n "$ordvia" ]] && prov+=" (via $ordvia)"
+    fi
     local i bot body out mid n all=1
     for i in "${!plan[@]}"; do
       bot="${plan[$i]}"
@@ -145,6 +158,7 @@ do_spl_desk_welcome() {
       body="$(python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/desk-welcome-text.py" \
         --locale "$locale" --default-locale "$deflocale" --slot "$i" --seed "$tenant/$human" --name "$name")" ||
         { do_log "FAIL $tenant/$human: no welcome text"; all=0; failed=$((failed + 1)); continue; }
+      [[ $i -eq 0 && -n "$prov" ]] && body+=$'\n\n'"$prov"
       date -u +%FT%TZ >"$D/$bot.claim"
       if out="$(spl_desk_welcome_post "$tenant" "$box" "$bot" "$body" 2>&1)"; then
         mid="$(grep -o '"msg_id": *"[0-9a-f-]*"' <<<"$out" | head -n 1 | grep -o '[0-9a-f-]\{36\}')"
@@ -175,8 +189,11 @@ for l in sys.stdin:
         continue
     r = json.loads(l)
     name = " ".join(str(r.get("name") or "").split())
+    ordname = " ".join(str(r.get("ordered_by_name") or "").split())
+    ordvia = " ".join(str(r.get("ordered_via") or "").split())
     print("\x1f".join([r["tenant"], r["human"], str(r["at"]), name, r.get("locale") or "",
-                     "1" if r.get("test") else "0"]))
+                     "1" if r.get("test") else "0",
+                     str(r.get("invited_on") or ""), ordname, ordvia]))
 ')
   do_log "OK welcome run over ${tenants[*]} in $ENV: $greeted greeting(s) posted, $failed refused"
   (( failed == 0 ))
@@ -212,8 +229,12 @@ spl_desk_welcome_post() {
 
 # spl_desk_welcome_admits "<tenant ...>" <hours>: one JSON line per membership
 # of those tenants younger than <hours> whose human is not disabled -
-# {tenant, human, at (epoch s), name, locale, test}. The name is the display
-# name, else the email's local part; the email itself never leaves this query.
+# {tenant, human, at (epoch s), name, locale, test, invited_on, ordered_by_name,
+# ordered_via}. The name is the display name, else the email's local part; the
+# email itself never leaves this query. The provenance (CLE-77778, rdb 0084) is
+# the invite this member accepted (accepted_by = human_id): invited_on is its
+# date, ordered_by_name the orderer's display name (else the HUM-* id), all ''
+# when the member did not come through an invite.
 # test: an @example.com address (every harness and proof account uses one), or
 # e2e / proof in the address or the display name (the m3-e2e accounts).
 spl_desk_welcome_admits() {
@@ -238,9 +259,14 @@ SELECT json_build_object(
          'locale', coalesce(h.preferred_locale, ''),
          'test',   (coalesce(h.email, '') LIKE '%@example.com'
                     OR coalesce(h.email, '') ~* '(e2e|proof)'
-                    OR coalesce(h.display_name, '') ~* '(e2e|proof)'))
+                    OR coalesce(h.display_name, '') ~* '(e2e|proof)'),
+         'invited_on', coalesce(to_char(ti.created_at, 'YYYY-MM-DD'), ''),
+         'ordered_by_name', coalesce(nullif(btrim(ho.display_name), ''), ti.ordered_by, ''),
+         'ordered_via', coalesce(ti.ordered_via, ''))
   FROM tenant_memberships m
   JOIN humans h USING (human_id)
+  LEFT JOIN tenant_invites ti ON ti.tenant_id = m.tenant_id AND ti.accepted_by = m.human_id
+  LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
  WHERE m.tenant_id = ANY (string_to_array(:'tenants', ' '))
    AND m.created_at > now() - make_interval(hours => :'hours'::int)
    AND h.disabled_at IS NULL

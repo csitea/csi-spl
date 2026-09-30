@@ -466,6 +466,7 @@
     "send_failed_timeout": "Nije poslato — hub nije odgovorio na vreme. Vaš tekst je i dalje tu.",
     "send_retry": "Pokušajte ponovo",
     "send_failed_empty": "Nema šta da se pošalje — samo pominjanje nije poruka. Dodajte tekst ili priložite datoteku.",
+    "send_failed_session_expired": "Није послато — ваша сесија је истекла. Пријавите се поново; ваш текст је сачуван.",
     "camera": "Фотографиши",
     "target_thread": "Одговор у отвореној нити",
     "target_new": "Нова тема у {target}",

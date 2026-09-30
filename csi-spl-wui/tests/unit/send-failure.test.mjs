@@ -49,6 +49,8 @@ describe('classifying a failed send', () => {
     assert.equal(sendFailureKey(new Error('who knows')), 'composer.send_failed')
     assert.equal(sendFailureKey(undefined), 'composer.send_failed')
     assert.equal(sendFailureKey(emptySendError()), 'composer.send_failed_empty')
+    /* CLE-77795: an upload that could not get a token even after a redial */
+    assert.equal(sendFailureKey({ token: 'session_expired' }), 'composer.send_failed_session_expired')
   })
 })
 
@@ -116,13 +118,13 @@ describe('the send path cannot lose text silently any more', () => {
     assert.doesNotMatch(tail, /newId\(/)
   })
 
-  it('all 19 locales carry the three failure lines and the retry label', () => {
+  it('all 19 locales carry the failure lines and the retry label', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
     assert.equal(files.length, 19)
     for (const code of files) {
       const c = JSON.parse(readFileSync(join(dir, `${code}.json`), 'utf8')).composer
-      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_failed_empty', 'send_retry']) {
+      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_failed_empty', 'send_failed_session_expired', 'send_retry']) {
         assert.equal(typeof c[k], 'string', `${code}: composer.${k} missing`)
         assert.ok(c[k].trim().length > 0, `${code}: composer.${k} empty`)
       }

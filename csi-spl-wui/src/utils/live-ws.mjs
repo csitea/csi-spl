@@ -200,11 +200,46 @@ export function createLiveClient({
   let allSub = 0
   const queue = []
   const pending = new Map()
+  /* Each waiter is { resolve, reject, timer }: a fresh upload token is asked
+     for over the socket (requestToken) or by redialling onto the live revision
+     (redialForToken, CLE-77795); both time out rather than hang a stuck tab. */
   const tokenWaiters = []
 
   function setState(s) {
     state = s
     onState(s)
+  }
+
+  /** A welcome or a token frame carries a fresh upload token: hand it to every waiter. */
+  function resolveTokens(f) {
+    while (tokenWaiters.length) {
+      const w = tokenWaiters.shift()
+      clearTimer(w.timer)
+      w.resolve(f)
+    }
+  }
+
+  /** The session is gone (signed out): fail the waiters so the caller can say so. */
+  function rejectTokens(err) {
+    while (tokenWaiters.length) {
+      const w = tokenWaiters.shift()
+      clearTimer(w.timer)
+      w.reject(err)
+    }
+  }
+
+  /** Queue a token waiter that `kick` prods, and that rejects after ackTimeoutMs. */
+  function awaitToken(kick) {
+    return new Promise((resolve, reject) => {
+      const w = { resolve, reject, timer: null }
+      w.timer = setTimer(() => {
+        const i = tokenWaiters.indexOf(w)
+        if (i >= 0) tokenWaiters.splice(i, 1)
+        reject(Object.assign(new Error('token refresh timed out'), { token: 'timeout' }))
+      }, ackTimeoutMs)
+      tokenWaiters.push(w)
+      kick()
+    })
   }
 
   function raw(obj) {
@@ -281,6 +316,8 @@ export function createLiveClient({
         if (closedByUs || state !== 'reconnecting') return
         if (out === true) {
           setState('signed_out')
+          /* an upload waiting for a fresh token will never get one now */
+          rejectTokens(Object.assign(new Error('signed out'), { token: 'signed_out' }))
           return
         }
         retry()
@@ -299,6 +336,9 @@ export function createLiveClient({
         if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
         flush()
         onWelcome(f)
+        /* the welcome carries a fresh upload token minted on THIS (live)
+           revision — resolve any redial/token waiter with it (CLE-77795). */
+        resolveTokens(f)
         if (dropped) {
           dropped = false
           onReconnected(f, { cursors: Object.fromEntries(cursors) })
@@ -313,7 +353,7 @@ export function createLiveClient({
         return
       case FRAMES.token:
         onToken(f)
-        while (tokenWaiters.length) tokenWaiters.shift()(f)
+        resolveTokens(f)
         return
       case FRAMES.message: {
         const m = messageFromFrame(f)
@@ -457,10 +497,28 @@ export function createLiveClient({
     },
     /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
     requestToken() {
-      return new Promise((resolve) => {
-        tokenWaiters.push(resolve)
+      return awaitToken(() => {
         if (state === 'open') raw({ type: FRAMES.token })
         else queue.push({ type: FRAMES.token })
+      })
+    },
+    /**
+     * CLE-77795: POST /v1/files answered 401 'door' — the process serving REST
+     * does not know our upload token. A hub redeploy (or a Cloud Run recycle)
+     * leaves this socket on the drained revision, which keeps ponging, so the
+     * token looks fresh to us yet the LIVE revision that now answers REST never
+     * minted it. Drop the socket so the reconnect lands on the live revision and
+     * resolve with its welcome upload token — the browser twin of the box
+     * client's session probe (redeploy_test.go). Signed out → the waiter rejects.
+     */
+    redialForToken() {
+      return awaitToken(() => {
+        queue.push({ type: FRAMES.token })
+        if (ws && (state === 'open' || state === 'connecting')) {
+          try { ws.close() } catch { /* onclose drives the reconnect */ }
+        } else if (state !== 'reconnecting') {
+          connect()
+        }
       })
     },
     /**

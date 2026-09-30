@@ -82,6 +82,42 @@ describe('live-ws contract rules (003 wui-live-ws 0.1.0)', () => {
     assert.equal((await p).upload_token, 'u2')
     assert.equal(got.length, 1)
   })
+
+  // CLE-77795: after a hub redeploy the socket sits on the drained revision, so
+  // a token request over it would re-mint on the dead process. redialForToken
+  // drops the socket, and the reconnect's welcome (on the live revision) carries
+  // the fresh token.
+  it('redialForToken drops the socket and resolves with the reconnect welcome token', async () => {
+    const t = manualTimers()
+    const { FakeWS, sockets } = fakeWs()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, random: () => 1 })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome', upload_token: 'u1', upload_token_expires_at: 'x' })
+    const p = c.redialForToken()
+    assert.equal(sockets.length, 1) // the reconnect is only scheduled, not dialled yet
+    const reconnect = t.timers.findIndex((timer) => !timer.done && timer.ms !== 10000)
+    t.fire(reconnect)
+    assert.equal(sockets.length, 2) // redialled onto a new socket
+    sockets[1].open(); sockets[1].recv({ type: 'welcome', upload_token: 'u2', upload_token_expires_at: 'y' })
+    assert.equal((await p).upload_token, 'u2')
+  })
+
+  it('redialForToken rejects when the session is signed out', async () => {
+    const t = manualTimers()
+    const { FakeWS, sockets } = fakeWs()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer, isSignedOut: async () => true })
+    c.connect()
+    // never opened: two refused dials drive the signed-out probe
+    sockets[0].close()
+    const p = c.redialForToken()
+    // exhaust refused dials so probeThenRetry runs and parks signed_out
+    for (let i = 0; i < REFUSED_PROBE_AFTER + 1 && i < t.timers.length; i++) {
+      const idx = t.timers.findIndex((timer) => !timer.done && timer.ms !== 10000)
+      if (idx < 0) break
+      t.fire(idx)
+      if (sockets.length > 1) sockets.at(-1).close()
+    }
+    await assert.rejects(p, (e) => e.token === 'signed_out' || e.token === 'timeout')
+  })
 })
 
 describe('live-ws client', () => {

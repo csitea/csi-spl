@@ -466,6 +466,7 @@
     "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
     "send_retry": "Bandyti dar kartą",
     "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
+    "send_failed_session_expired": "Neišsiųsta — jūsų sesija baigėsi. Prisijunkite iš naujo; jūsų tekstas išsaugotas.",
     "camera": "Fotografuoti",
     "target_thread": "Atsakymas atviroje gijoje",
     "target_new": "Nauja tema: {target}",

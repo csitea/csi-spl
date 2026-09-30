@@ -58,7 +58,8 @@ describe('cause 2: a picked File is not a wire value', () => {
     const s = store()
     assert.match(s, /async function toFileRefs\(/)
     assert.match(s, /f instanceof Blob/)
-    assert.match(s, /api\.uploadFile\(f, await live\.freshUploadToken\(\)\)/)
+    /* CLE-77795: upload via the shared helper that redials + retries once on a 401 'door' */
+    assert.match(s, /uploadWithFreshToken\(api, live, f\)/)
     assert.match(s, /files: await toFileRefs\(files\)/)
   })
 
@@ -72,7 +73,7 @@ describe('cause 2: a picked File is not a wire value', () => {
   /* stores/live.ts is where this shape was already right; if it ever stops
      being the reference, this test is reading a fossil */
   it('CONTROL: stores/live.ts still uploads the same way', () => {
-    assert.match(src('src/stores/live.ts'), /api\.uploadFile\(f, await live\.freshUploadToken\(\)\)/)
+    assert.match(src('src/stores/live.ts'), /uploadWithFreshToken\(api, live, f\)/)
   })
 })
 

@@ -204,6 +204,7 @@ declare module '~/utils/live-ws.mjs' {
     subscribeAll(): void
     unsubscribeAll(): void
     requestToken(): Promise<Record<string, unknown>>
+    redialForToken(): Promise<Record<string, unknown>>
     send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
   }
 }

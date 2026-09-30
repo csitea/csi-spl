@@ -72,6 +72,9 @@ export function sendFailureKey(err) {
     case 'closed': return 'composer.send_failed_closed'
     case 'timeout': return 'composer.send_failed_timeout'
     case 'empty': return 'composer.send_failed_empty'
+    /* CLE-77795: an upload could not get a valid token even after a redial —
+       the member session itself is gone. Tell the reader to sign in again. */
+    case 'session_expired': return 'composer.send_failed_session_expired'
     default: return 'composer.send_failed'
   }
 }

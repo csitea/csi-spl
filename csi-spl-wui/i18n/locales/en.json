@@ -466,6 +466,7 @@
     "send_failed_timeout": "Not sent — the hub did not answer in time. Your text is still here.",
     "send_retry": "Try again",
     "send_failed_empty": "Nothing to send — a mention on its own is not a message. Add some text, or attach a file.",
+    "send_failed_session_expired": "Not sent — your session expired. Sign in again; your text is still here.",
     "camera": "Take a photo",
     "target_thread": "Replying in the open thread",
     "target_new": "New topic in {target}",

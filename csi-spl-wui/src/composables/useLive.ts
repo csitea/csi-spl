@@ -145,13 +145,24 @@ export function useLive() {
     return live
   }
 
-  /** Upload token for POST /v1/files, refreshed via {type:"token"} when stale (5 min TTL). */
-  async function freshUploadToken(): Promise<string> {
+  /**
+   * Upload token for POST /v1/files, refreshed via {type:"token"} when stale
+   * (5 min TTL). `force` (CLE-77795) skips the freshness cache and redials onto
+   * the live revision — the caller uses it after a 401 'door', where the token
+   * looks fresh to us but the process now answering REST never minted it (a hub
+   * redeploy). Returns '' when no token can be got (signed out / socket gone),
+   * which the upload retry turns into the "session expired" prompt.
+   */
+  async function freshUploadToken(force = false): Promise<string> {
     const client = ensure()
     if (!client) return ''
-    if (uploadToken.value && !tokenStale(uploadTokenExpiresAt.value)) return uploadToken.value
-    const f = await client.requestToken() as Record<string, unknown>
-    return typeof f.upload_token === 'string' ? f.upload_token : uploadToken.value
+    if (!force && uploadToken.value && !tokenStale(uploadTokenExpiresAt.value)) return uploadToken.value
+    try {
+      const f = (force ? await client.redialForToken() : await client.requestToken()) as Record<string, unknown>
+      return typeof f.upload_token === 'string' ? f.upload_token : uploadToken.value
+    } catch {
+      return ''
+    }
   }
 
   function onMessage(fn: Listener) {

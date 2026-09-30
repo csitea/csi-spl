@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useMentionPoke } from '~/composables/useMentionPoke'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import {
   applyChannelFrame,
   belongsTo,
@@ -351,7 +352,7 @@ export const useChannelStore = defineStore('channel', () => {
     for (const f of files || []) {
       if (typeof Blob !== 'undefined' && f instanceof Blob) {
         const live = useLive()
-        const up = await api.uploadFile(f, await live.freshUploadToken()) as { file_id: string, sha256: string, bytes: number }
+        const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: (f as File).name })
       } else if (f) {
         refs.push(f as FileRef)

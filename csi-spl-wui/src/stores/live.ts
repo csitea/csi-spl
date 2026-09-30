@@ -8,6 +8,7 @@ import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, wind
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
@@ -241,7 +242,7 @@ function setup(key: 'main' | 'pane') {
     try {
       const refs: FileRef[] = []
       for (const f of files) {
-        const up = await api.uploadFile(f, await live.freshUploadToken()) as { file_id: string, sha256: string, bytes: number }
+        const up = await uploadWithFreshToken(api, live, f) as { file_id: string, sha256: string, bytes: number }
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
       const parsed = parseMention(body)

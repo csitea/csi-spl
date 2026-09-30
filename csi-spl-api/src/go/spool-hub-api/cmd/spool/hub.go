@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -541,6 +542,74 @@ func cmdHubTenantBilling(args []string) int {
 // It then mails the invitation once (010 FR-016) through the relay named by
 // SPOOL_HUB_MAIL_* (transport none = no mail, said in the JSON); --no-mail
 // skips it.
+// cmdHubProvisionMember seats a member by email for a person who has never
+// signed in (CLE-77781, "added, not invited"). With --password-stdin it also
+// creates a native email+password credential from a password read on STDIN
+// (never argv/env: one trailing newline is stripped, empty is refused), email
+// pre-verified so no mail is sent. Idempotent. store.ProvisionMember does the
+// one-transaction work; a later Google/native sign-in links to this human.
+func cmdHubProvisionMember(args []string) int {
+	fs := flag.NewFlagSet("hub-provision-member", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "tenant id")
+	email := fs.String("email", "", "the member's email (lower-cased)")
+	name := fs.String("name", "", "the member's display name")
+	role := fs.String("role", "", "a role id (specs/025): "+strings.Join(rbac.RoleIDs, "|")+"; legacy owner|member map to biz_owner|developer")
+	orderedBy := fs.String("ordered-by", "", "the human who ordered this seat (a HUM-* id, CLE-77778 provenance)")
+	orderedVia := fs.String("ordered-via", "", "the agent or channel that carried the order, e.g. [terminal] (optional)")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	pwStdin := fs.Bool("password-stdin", false, "read a native password from STDIN (one trailing newline stripped, empty refused); the member gets a verified email+password credential, no mail")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if !msg.ValidTenantID(*tenant) || *email == "" || *role == "" || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid slug), --email, --role and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	pwHash := ""
+	if *pwStdin {
+		raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4096))
+		if err != nil {
+			return fail(fmt.Errorf("read password from stdin: %w", err))
+		}
+		pw := strings.TrimSuffix(string(raw), "\n") // exactly one trailing newline
+		if pw == "" {
+			return fail(fmt.Errorf("--password-stdin was set but STDIN was empty"))
+		}
+		// Argon2id at the deployed floor (native_config minArgon2*): the stored
+		// PHC string carries its own params, so login verifies regardless.
+		pwHash, err = auth.HashPassword(pw, auth.Argon2Params{MemoryKiB: 19456, Iterations: 2})
+		if err != nil {
+			return fail(fmt.Errorf("hash password: %w", err))
+		}
+	}
+	ctx := context.Background()
+	st, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	now := time.Now().UTC()
+	hum, created, err := st.ProvisionMember(ctx, store.ProvisionInput{
+		Tenant: *tenant, Email: *email, DisplayName: *name, Role: rbac.Legacy(strings.TrimSpace(*role)),
+		OrderedBy: *orderedBy, OrderedVia: *orderedVia, PasswordHash: pwHash}, now)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return fail(fmt.Errorf("tenant %s does not exist", *tenant))
+		}
+		if errors.Is(err, store.ErrUnknownRole) {
+			return fail(fmt.Errorf("role %q is not a role of tenant %s", *role, *tenant))
+		}
+		return fail(err)
+	}
+	out := map[string]any{"tenant": *tenant, "email": strings.ToLower(strings.TrimSpace(*email)),
+		"human_id": hum, "role": rbac.Legacy(strings.TrimSpace(*role)), "created_human": created,
+		"credential": *pwStdin, "status": "provisioned"}
+	if *orderedBy != "" {
+		out["ordered_by"] = *orderedBy
+	}
+	fmt.Println(action.JSON(out))
+	return 0
+}
+
 func cmdHubInvite(args []string) int {
 	fs := flag.NewFlagSet("hub-invite", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")

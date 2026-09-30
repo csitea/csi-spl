@@ -65,37 +65,82 @@ _pp_pnpm() {
   return 1
 }
 
+# A suite can HANG (tf-steps render is network-bound and has hung an agent for
+# hours). Every part runs under a hard timeout so the hook can never block a
+# push forever: `timeout` returns 124, which the runner reports as a FAIL named
+# "TIMED OUT", never a hang.
+_pp_timeout="${PRE_PUSH_PART_TIMEOUT:-600}"
+# hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
 _pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
-_pp_part_api()     { bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"; }
-_pp_part_iac()     { bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"; }
+_pp_part_api()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"; }
+_pp_part_iac()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"; }
 _pp_part_wui() {
   local wui="$1/csi-spl-wui" pn
   [[ -d "$wui" ]] || { do_log "WARN pre-push: no csi-spl-wui at $wui -- skipping the WUI gate"; return 0; }
   pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin) -- cannot run the WUI gate"; return 1; }
-  ( cd "$wui" || exit 1
+  timeout -k 10 "$_pp_timeout" bash -c '
+    cd "$1/csi-spl-wui" || exit 1
     export PATH="$HOME/.local/bin:$PATH"
     if [[ ! -d node_modules ]]; then
       echo "pre-push: WUI node_modules absent (fresh worktree) -- pnpm install --frozen-lockfile"
-      "$pn" install --frozen-lockfile || exit 1
+      "$2" install --frozen-lockfile || exit 1
     fi
-    "$pn" run test:unit || exit 1
-    "$pn" run typecheck  || exit 1
-  )
+    "$2" run test:unit || exit 1
+    "$2" run typecheck  || exit 1
+  ' _ "$1" "$pn"
 }
 
-# Run one part, timing it and recording PASS/FAIL into the parallel arrays.
-_pp_run() {  # <label> <fn> [args...]
-  local label="$1"; shift
+# A single origin/master worktree, built lazily on the first failure and reused,
+# so a FAILED part can be re-run against trunk: a failure that ALSO fails on
+# trunk is pre-existing (someone else's red) and must NOT block this push -- that
+# is the mutual-hook deadlock that stopped a fix from ever landing.
+_PP_BASE_WT=""
+_pp_baseline_tree() {  # <tree> <base>
+  [[ -n "$_PP_BASE_WT" ]] && { printf '%s' "$_PP_BASE_WT"; return 0; }
+  git -C "$1" rev-parse --verify -q "$2^{commit}" >/dev/null 2>&1 || return 1
+  local tmp; tmp="$(mktemp -d 2>/dev/null)" || return 1
+  if git -C "$1" worktree add --detach -q "$tmp" "$2" >/dev/null 2>&1; then
+    _PP_BASE_WT="$tmp"; printf '%s' "$tmp"; return 0
+  fi
+  rmdir "$tmp" 2>/dev/null; return 1
+}
+_pp_baseline_cleanup() {  # <tree>
+  [[ -n "$_PP_BASE_WT" ]] || return 0
+  git -C "$1" worktree remove --force "$_PP_BASE_WT" >/dev/null 2>&1 || rm -rf "$_PP_BASE_WT"
+  _PP_BASE_WT=""
+}
+
+# Run one part against the working tree; on failure, re-run it against the
+# baseline (origin/master) and only BLOCK when it passes there -- a failure that
+# also exists on trunk is reported (WARN) but never blocks, so a fix can land on
+# a red trunk (no mutual-hook deadlock). rc 124 is a timeout, reported as such.
+_pp_run() {  # <label> <fn> <tree> <base>
+  local label="$1" fn="$2" tree="$3" base="$4"
   local start="$SECONDS" rc=0
   do_log "INFO pre-push: ==> $label"
-  "$@" || rc=$?
+  "$fn" "$tree" || rc=$?
   local el=$((SECONDS - start))
-  _PP_NAMES+=("$label"); _PP_SECS+=("$el")
   if [[ "$rc" -eq 0 ]]; then
-    _PP_STAT+=("PASS"); do_log "INFO pre-push: PASS $label (${el}s)"
+    _PP_NAMES+=("$label"); _PP_STAT+=("PASS"); _PP_SECS+=("$el")
+    do_log "INFO pre-push: PASS $label (${el}s)"
+    return 0
+  fi
+  local note="rc=$rc"; [[ "$rc" -eq 124 || "$rc" -eq 137 ]] && note="TIMED OUT after ${_pp_timeout}s"
+  # Pre-existing on trunk? Re-run the SAME part against origin/master.
+  local bwt brc=0
+  if bwt="$(_pp_baseline_tree "$tree" "$base")"; then
+    do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base to see if it is your break or trunk's"
+    "$fn" "$bwt" || brc=$?
   else
-    _PP_STAT+=("FAIL"); _PP_FAILED=$((_PP_FAILED + 1))
-    do_log "FATAL pre-push: FAIL $label (rc=$rc, ${el}s)"
+    do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as NEW"
+    brc=0
+  fi
+  if [[ "$brc" -ne 0 ]]; then
+    _PP_NAMES+=("$label (PRE-EXISTING on $base)"); _PP_STAT+=("WARN"); _PP_SECS+=("$el")
+    do_log "WARN pre-push: $label fails on your tree AND on $base ($note) -- pre-existing trunk failure, NOT blocking your push"
+  else
+    _PP_NAMES+=("$label"); _PP_STAT+=("FAIL"); _PP_SECS+=("$el"); _PP_FAILED=$((_PP_FAILED + 1))
+    do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
   fi
   return 0
 }
@@ -152,9 +197,9 @@ do_check_pre_push() {
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
   local _PP_FAILED=0
 
-  [[ "$sel_hygiene" == 1 ]] && _pp_run "distribution-hygiene" _pp_part_hygiene "$tree"
-  [[ "$sel_iac" == 1 ]] && _pp_run "csi-spl-iac suite" _pp_part_iac "$tree"
-  [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui unit + typecheck" _pp_part_wui "$tree"
+  [[ "$sel_hygiene" == 1 ]] && _pp_run "distribution-hygiene" _pp_part_hygiene "$tree" "$base"
+  [[ "$sel_iac" == 1 ]] && _pp_run "csi-spl-iac suite" _pp_part_iac "$tree" "$base"
+  [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui unit + typecheck" _pp_part_wui "$tree" "$base"
   if [[ "$sel_api" == 1 ]]; then
     if _pp_pg_available; then
       do_log "INFO pre-push: hub-pg will RUN (local initdb or cached postgres:16-alpine present)"
@@ -164,8 +209,10 @@ do_check_pre_push() {
         _PP_NAMES+=("hub-pg coverage (PRE_PUSH_REQUIRE_PG)"); _PP_STAT+=("FAIL"); _PP_SECS+=("0"); _PP_FAILED=$((_PP_FAILED + 1))
       fi
     fi
-    _pp_run "csi-spl-api suite (gofmt, vet, race, hub-pg, hub-gcs)" _pp_part_api "$tree"
+    _pp_run "csi-spl-api suite (gofmt, vet, race, hub-pg, hub-gcs)" _pp_part_api "$tree" "$base"
   fi
+
+  _pp_baseline_cleanup "$tree"
 
   echo ""
   echo "==================== pre-push summary (mode=$mode) ===================="

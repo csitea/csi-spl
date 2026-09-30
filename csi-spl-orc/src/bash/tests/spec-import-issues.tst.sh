@@ -269,6 +269,46 @@ raise SystemExit(0 if ok else 1)
 PY
 [[ $? -eq 0 ]] && pass "missing-epic guidance" || fail "missing-epic guidance"
 
+# The epic heading is cleaned of git-spec boilerplate; a spec with no task rows
+# is never MISSING and never auto-created (an empty epic helps no one).
+python3 - <<PY
+import importlib.util, tempfile, os
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+ok = True
+with tempfile.TemporaryDirectory() as tmp:
+    d = Path(tmp) / "001-x"; d.mkdir()
+    (d / "spec.md").write_text("# Feature Specification: GCP Infrastructure Bootstrap\n")
+    if mod._heading_of(d) != "GCP Infrastructure Bootstrap":
+        print("FAIL: heading not cleaned:", mod._heading_of(d)); ok = False
+    else:
+        print("PASS: heading boilerplate stripped")
+    d2 = Path(tmp) / "012-y"; d2.mkdir()
+    (d2 / "spec.md").write_text("# Re-platform onto csi-rel (fork-morph)\n")
+    if mod._heading_of(d2) != "Re-platform onto csi-rel (fork-morph)":
+        print("FAIL: non-boilerplate heading changed:", mod._heading_of(d2)); ok = False
+    else:
+        print("PASS: a plain heading is left as is")
+# a spec with 0 parsed rows is not MISSING and not in the create list
+plan = {"specs": [
+    {"spec": "002", "dir": "002-empty", "heading": "Empty", "parsed": 0, "t_parsed": 0, "subtasks": 0, "pinned": ""},
+], "items": []}
+listed = {"result": {"epics": [], "issues": [], "labels": []}}
+if mod.missing_epics(plan, listed) != []:
+    print("FAIL: an empty spec was queued for an epic", mod.missing_epics(plan, listed)); ok = False
+else:
+    print("PASS: an empty spec gets no auto-epic")
+with tempfile.TemporaryDirectory() as t2:
+    rec = mod.reconcile(plan, listed, Path(t2) / "desc")
+    if rec["missing_epics"]:
+        print("FAIL: empty spec flagged MISSING", rec["missing_epics"]); ok = False
+    else:
+        print("PASS: empty spec not flagged MISSING")
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "heading clean + empty-spec skip" || fail "heading clean + empty-spec skip"
+
 # Epic-scoped read (SPL-963): the importer must NOT list the whole tenant (a big
 # done set closes the hub socket). It reads the epics, scopes the child list to
 # THIS plan's epics, and merges. select_epic_refs picks only the wanted specs'

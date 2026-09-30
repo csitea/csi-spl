@@ -343,7 +343,11 @@ def _heading_of(directory: Path) -> str:
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.startswith("#"):
-                return line.lstrip("#").strip()
+                head = line.lstrip("#").strip()
+                # Drop the git-spec boilerplate so the epic title reads clean:
+                # 'Feature Specification: GCP Bootstrap' -> 'GCP Bootstrap'.
+                head = re.sub(r"^(?:Feature Specification|Feature Spec|Spec|Tasks)\s*:\s*", "", head, flags=re.I)
+                return head or directory.name
     return directory.name
 
 
@@ -474,7 +478,7 @@ def missing_epics(plan: dict, list_doc: dict) -> list:
     assigned = _assign_epics(plan, issues)
     out = []
     for row in plan.get("specs", []):
-        if row["dir"] not in assigned:
+        if row["dir"] not in assigned and row.get("parsed", 0) > 0:
             out.append((row["spec"], row.get("heading") or row["dir"]))
     return out
 
@@ -561,12 +565,13 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
     known = {}
     rows = {s["dir"]: dict(s, create=0, update=0, unchanged=0, missing_epic=False, epic="") for s in plan["specs"]}
     missing = []
-    # Flag every plan spec that has no 'Spec NNN' epic — including one with no
-    # task rows — so the report and SPEC_IMPORT_CREATE_EPIC agree, in spec order.
+    # Flag a plan spec that has task rows but no 'Spec NNN' epic, in spec order,
+    # so the report and SPEC_IMPORT_CREATE_EPIC agree. A spec with no tasks needs
+    # no epic, so it is never MISSING and never auto-created.
     for s in plan["specs"]:
         d = s["dir"]
         rows[d]["epic"] = epics.get(d) or ""
-        if d not in epics:
+        if d not in epics and s.get("parsed", 0) > 0:
             rows[d]["missing_epic"] = True
             if d not in missing:
                 missing.append(d)

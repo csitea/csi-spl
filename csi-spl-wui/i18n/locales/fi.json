@@ -1339,7 +1339,8 @@
     "no_interests": "Ei vielä kiinnostuksen kohteita.",
     "online": "Linjoilla",
     "offline": "Poissa",
-    "message": "Viesti"
+    "message": "Viesti",
+    "remove": "Poista työtilasta"
   },
   "agents": {
     "none": "Ei vielä agentteja.",

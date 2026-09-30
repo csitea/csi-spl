@@ -35,6 +35,28 @@ export function accessAllows(me, perm) {
   return me.permissions.includes(perm)
 }
 
+/** The permission that invites and removes tenant members (hub rbac.MembersInvite). */
+export const MEMBERS_INVITE = 'members.invite'
+
+/**
+ * CLE-77799 (owner topic 1fc29f99: "the admin of a tenant should be able to
+ * remove members from the people section"): whether the reader may remove the
+ * viewed person from the workspace, for the People card's "Remove from
+ * workspace" action. It needs members.invite (fails open like accessAllows —
+ * the hub's 403 is the control), and never offers it on the reader themselves
+ * or on the tenant's last owner. The hub re-checks role coverage, the self rule
+ * and the last-owner rule on the DELETE (internal/hub member removal).
+ * @param {{ permissions?: string[] } | null} me normalizeMe() output
+ * @param {{ targetId?: string, selfId?: string, targetIsOwner?: boolean, ownerCount?: number }} ctx
+ */
+export function canRemoveMember(me, { targetId, selfId, targetIsOwner = false, ownerCount = 0 } = {}) {
+  const target = String(targetId || '')
+  if (!target) return false
+  if (selfId && target === String(selfId)) return false
+  if (targetIsOwner && Number(ownerCount) <= 1) return false
+  return accessAllows(me, MEMBERS_INVITE)
+}
+
 /** i18n key of a role's label, '' for none; an unknown (phase-2 custom) role has no key. */
 export function roleLabelKey(role) {
   return ROLE_IDS.includes(role) ? `role.${role}` : ''

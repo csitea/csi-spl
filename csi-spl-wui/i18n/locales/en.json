@@ -1339,7 +1339,8 @@
     "no_interests": "No interests yet.",
     "online": "Online",
     "offline": "Offline",
-    "message": "Message"
+    "message": "Message",
+    "remove": "Remove from workspace"
   },
   "agents": {
     "none": "No agents yet.",

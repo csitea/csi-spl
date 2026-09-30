@@ -1339,7 +1339,8 @@
     "no_interests": "Aún no hay intereses.",
     "online": "En línea",
     "offline": "Desconectado",
-    "message": "Mensaje"
+    "message": "Mensaje",
+    "remove": "Quitar del espacio de trabajo"
   },
   "agents": {
     "none": "Aún no hay agentes.",

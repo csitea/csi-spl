@@ -1339,7 +1339,8 @@
     "no_interests": "Zatiaľ žiadne záujmy.",
     "online": "Online",
     "offline": "Offline",
-    "message": "Správa"
+    "message": "Správa",
+    "remove": "Odstrániť z pracovného priestoru"
   },
   "agents": {
     "none": "Zatiaľ žiadni agenti.",

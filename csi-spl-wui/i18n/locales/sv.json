@@ -1339,7 +1339,8 @@
     "no_interests": "Inga intressen ännu.",
     "online": "Online",
     "offline": "Offline",
-    "message": "Meddelande"
+    "message": "Meddelande",
+    "remove": "Ta bort från arbetsytan"
   },
   "agents": {
     "none": "Inga agenter ännu.",

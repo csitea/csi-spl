@@ -1339,7 +1339,8 @@
     "no_interests": "Huve veel pole.",
     "online": "Võrgus",
     "offline": "Võrgust väljas",
-    "message": "Sõnum"
+    "message": "Sõnum",
+    "remove": "Eemalda tööruumist"
   },
   "agents": {
     "none": "Agente veel pole.",

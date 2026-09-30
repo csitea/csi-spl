@@ -1339,7 +1339,8 @@
     "no_interests": "Pomėgių dar nėra.",
     "online": "Prisijungęs",
     "offline": "Atsijungęs",
-    "message": "Žinutė"
+    "message": "Žinutė",
+    "remove": "Pašalinti iš darbo srities"
   },
   "agents": {
     "none": "Agentų dar nėra.",

@@ -1339,7 +1339,8 @@
     "no_interests": "Henüz ilgi alanı yok.",
     "online": "Çevrimiçi",
     "offline": "Çevrimdışı",
-    "message": "Mesaj"
+    "message": "Mesaj",
+    "remove": "Çalışma alanından kaldır"
   },
   "agents": {
     "none": "Henüz ajan yok.",

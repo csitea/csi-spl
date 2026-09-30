@@ -1339,7 +1339,8 @@
     "no_interests": "Încă nu există interese.",
     "online": "Online",
     "offline": "Offline",
-    "message": "Mesaj"
+    "message": "Mesaj",
+    "remove": "Elimină din spațiul de lucru"
   },
   "agents": {
     "none": "Încă nu există agenți.",

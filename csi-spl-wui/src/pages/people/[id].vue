@@ -38,18 +38,42 @@
         </section>
         <div v-if="!isSelf" class="person-card__actions">
           <button type="button" class="btn" data-test="person-message" @click="message">{{ t('people.message') }}</button>
+          <!-- CLE-77799 (owner 1fc29f99): a tenant admin/owner removes a member
+               from here, reusing the tenant-settings member-removal path
+               (DELETE /v1/members/<id>). Hidden for the reader, for the last
+               owner and for anyone without members.invite; the hub is the
+               authority (self / last-owner / role-coverage re-checked). -->
+          <button v-if="canRemove" type="button" class="btn person-card__remove" data-test="person-remove" @click="confirmOpen = true">{{ t('people.remove') }}</button>
         </div>
+        <p v-if="removeError" class="person-card__error" role="alert" data-test="person-remove-error">{{ removeError }}</p>
       </div>
     </div>
+
+    <UiDialog :open="confirmOpen" size="md" :title="t('users.remove_confirm_title')" @update:open="confirmOpen = $event">
+      <p data-test="person-remove-text">{{ t('users.remove_confirm', { name: personName }) }}</p>
+      <template #footer>
+        <button type="button" class="btn ghost" data-test="person-remove-cancel" @click="confirmOpen = false">{{ t('common.cancel') }}</button>
+        <button type="button" class="btn person-remove-danger" :disabled="removing" data-test="person-remove-ok" @click="removeMember">{{ t('people.remove') }}</button>
+      </template>
+    </UiDialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiDialog from '~/components/UiDialog.vue'
 import { useRosterStore } from '~/stores/roster'
+import { useAccessStore } from '~/stores/access'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useHumanNames } from '~/composables/useHumanNames'
+import { canRemoveMember } from '~/utils/access.mjs'
+import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 
 const route = useRoute()
 const roster = useRosterStore()
+const access = useAccessStore()
+const api = useSpoolApi()
+const names = useHumanNames()
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -60,13 +84,45 @@ const interests = computed(() => String(detail.value.interests || '').trim())
 const online = computed(() => roster.isOnline(humanId.value, 'box-wui'))
 const isSelf = computed(() => roster.self?.id === humanId.value)
 const lastSeen = computed(() => (detail.value.last_seen ? isoDateTime(detail.value.last_seen) : t('people.never_seen')))
+const personName = computed(() => names.label(humanId.value, 'box-wui') || humanId.value)
+
+/* CLE-77799: the "Remove from workspace" action, for tenant admins/owners only
+   (members.invite), never on the reader or the last owner. The hub re-checks. */
+const canRemove = computed(() => canRemoveMember(access.me, {
+  targetId: humanId.value,
+  selfId: roster.self?.id,
+  targetIsOwner: isOwner.value,
+  ownerCount: roster.owners.length,
+}))
+const confirmOpen = ref(false)
+const removing = ref(false)
+const removeError = ref('')
 
 /* the roster is already loaded for the DM list; refresh once so a deep link
-   straight to this card (no sidebar visited yet) still has the detail. */
-onMounted(() => { if (!roster.humansDetail[humanId.value]) void roster.refresh() })
+   straight to this card (no sidebar visited yet) still has the detail. The
+   reader's role/permission (for the remove action) is read once here too. */
+onMounted(() => {
+  if (!roster.humansDetail[humanId.value]) void roster.refresh()
+  void access.load()
+})
 
 function message() {
   void navigateTo(localePath('/dm/' + encodeURIComponent(humanId.value + '@box-wui')))
+}
+
+async function removeMember() {
+  if (removing.value) return
+  removing.value = true
+  removeError.value = ''
+  try {
+    await api.removeTenantUser(humanId.value)
+    confirmOpen.value = false
+    await navigateTo(localePath('/people'))
+  } catch (e) {
+    removeError.value = t(userErrorKey(e))
+  } finally {
+    removing.value = false
+  }
 }
 </script>
 
@@ -86,7 +142,11 @@ function message() {
 .person-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .person-card__interests h3 { margin: 0 0 6px; font-size: 0.9rem; }
 .person-card__interestsText { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.person-card__actions { display: flex; gap: 8px; }
+.person-card__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* CLE-77799: the destructive Remove action, in the danger token (light + dark). */
+.person-card__remove { color: var(--color-danger); border-color: var(--color-danger); }
+.person-remove-danger { color: var(--color-danger); border-color: var(--color-danger); }
+.person-card__error { margin: 8px 0 0; color: var(--color-danger); overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .person-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .person-card__facts dd + dt { margin-top: 8px; }

@@ -1105,6 +1105,22 @@
     "set_deadline": "Aseta määräaika",
     "shortcuts": "C uusi tehtävä. Nuolet siirtävät solujen välillä, Enter muokkaa (avainsarakkeessa avaa), Esc peruu, Tab siirtyy eteenpäin. J ja K siirtävät. S tila. P prioriteetti. A vastuuhenkilö. L tunniste."
   },
+  "issues_menu": {
+    "label": "Tehtävän toiminnot",
+    "open": "Avaa",
+    "status": "Tila…",
+    "assign": "Vastuuhenkilö…",
+    "archive": "Arkistoi",
+    "archiving": "Arkistoidaan…",
+    "delete": "Poista",
+    "archive_title": "Arkistoidaanko {key}?",
+    "delete_title": "Poistetaanko {key}?",
+    "archive_cascade_title": "Arkistoidaanko {key} ja sen {count} tehtävää?",
+    "delete_cascade_title": "Poistetaanko {key} ja sen {count} tehtävää?",
+    "archive_body": "Se siirtyy arkistoon. Voit palauttaa sen myöhemmin.",
+    "archive_cascade_body": "Tämä arkistoi {count} tehtävää ja niiden alitehtävät. Voit palauttaa ne.",
+    "delete_cascade_body": "Tämä poistaa {count} tehtävää ja niiden alitehtävät."
+  },
   "issues_views": {
     "label": "Näkymä",
     "list": "Lista",

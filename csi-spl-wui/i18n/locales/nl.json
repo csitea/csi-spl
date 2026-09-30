@@ -1105,6 +1105,22 @@
     "set_deadline": "Deadline instellen",
     "shortcuts": "C nieuw issue. Pijltjes gaan tussen cellen, Enter bewerkt (op de sleutel opent), Esc annuleert, Tab gaat verder. J en K bewegen. S status. P prioriteit. A toegewezene. L label."
   },
+  "issues_menu": {
+    "label": "Taakacties",
+    "open": "Openen",
+    "status": "Status…",
+    "assign": "Toegewezen…",
+    "archive": "Archiveren",
+    "archiving": "Archiveren…",
+    "delete": "Verwijderen",
+    "archive_title": "{key} archiveren?",
+    "delete_title": "{key} verwijderen?",
+    "archive_cascade_title": "{key} en de {count} taken archiveren?",
+    "delete_cascade_title": "{key} en de {count} taken verwijderen?",
+    "archive_body": "De taak gaat naar het archief. Je kunt hem later herstellen.",
+    "archive_cascade_body": "Hiermee worden {count} taken en hun subtaken gearchiveerd. Je kunt ze herstellen.",
+    "delete_cascade_body": "Hiermee worden {count} taken en hun subtaken verwijderd."
+  },
   "issues_views": {
     "label": "Weergave",
     "list": "Lijst",

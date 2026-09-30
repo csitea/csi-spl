@@ -1105,6 +1105,22 @@
     "set_deadline": "Ustaw termin",
     "shortcuts": "C nowe zgłoszenie. Strzałki przechodzą między komórkami, Enter edytuje (na kluczu otwiera), Esc anuluje, Tab przechodzi dalej. J i K przesuwają. S status. P priorytet. A osoba przypisana. L etykieta."
   },
+  "issues_menu": {
+    "label": "Działania zadania",
+    "open": "Otwórz",
+    "status": "Status…",
+    "assign": "Przypisany…",
+    "archive": "Archiwizuj",
+    "archiving": "Archiwizowanie…",
+    "delete": "Usuń",
+    "archive_title": "Zarchiwizować {key}?",
+    "delete_title": "Usunąć {key}?",
+    "archive_cascade_title": "Zarchiwizować {key} i jego {count} zadań?",
+    "delete_cascade_title": "Usunąć {key} i jego {count} zadań?",
+    "archive_body": "Zostanie przeniesione do archiwum. Można je później przywrócić.",
+    "archive_cascade_body": "Spowoduje to zarchiwizowanie {count} zadań i ich podzadań. Można je przywrócić.",
+    "delete_cascade_body": "Spowoduje to usunięcie {count} zadań i ich podzadań."
+  },
   "issues_views": {
     "label": "Widok",
     "list": "Lista",

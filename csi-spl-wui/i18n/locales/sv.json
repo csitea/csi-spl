@@ -1105,6 +1105,22 @@
     "set_deadline": "Ange deadline",
     "shortcuts": "C nytt ärende. Pilarna flyttar mellan celler, Enter redigerar (på nyckeln öppnar), Esc avbryter, Tab går vidare. J och K flyttar. S status. P prioritet. A ansvarig. L etikett."
   },
+  "issues_menu": {
+    "label": "Åtgärder för ärende",
+    "open": "Öppna",
+    "status": "Status…",
+    "assign": "Tilldelad…",
+    "archive": "Arkivera",
+    "archiving": "Arkiverar…",
+    "delete": "Ta bort",
+    "archive_title": "Arkivera {key}?",
+    "delete_title": "Ta bort {key}?",
+    "archive_cascade_title": "Arkivera {key} och dess {count} ärenden?",
+    "delete_cascade_title": "Ta bort {key} och dess {count} ärenden?",
+    "archive_body": "Det flyttas till arkivet. Du kan återställa det senare.",
+    "archive_cascade_body": "Detta arkiverar {count} ärenden och deras deluppgifter. Du kan återställa dem.",
+    "delete_cascade_body": "Detta tar bort {count} ärenden och deras deluppgifter."
+  },
   "issues_views": {
     "label": "Vy",
     "list": "Lista",

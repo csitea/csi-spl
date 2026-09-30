@@ -1105,6 +1105,22 @@
     "set_deadline": "Set deadline",
     "shortcuts": "C new issue. Arrows move between cells, Enter edits (on the key it opens), Esc cancels, Tab moves on. J and K move. S status. P priority. A assignee. L label."
   },
+  "issues_menu": {
+    "label": "Issue actions",
+    "open": "Open",
+    "status": "Status…",
+    "assign": "Assignee…",
+    "archive": "Archive",
+    "archiving": "Archiving…",
+    "delete": "Delete",
+    "archive_title": "Archive {key}?",
+    "delete_title": "Delete {key}?",
+    "archive_cascade_title": "Archive {key} and its {count} issues?",
+    "delete_cascade_title": "Delete {key} and its {count} issues?",
+    "archive_body": "It moves to the archive. You can restore it later.",
+    "archive_cascade_body": "This archives {count} issues and their subtasks. You can restore them.",
+    "delete_cascade_body": "This deletes {count} issues and their subtasks."
+  },
   "issues_views": {
     "label": "View",
     "list": "List",

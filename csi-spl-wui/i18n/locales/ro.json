@@ -1105,6 +1105,22 @@
     "set_deadline": "Setează termenul",
     "shortcuts": "C problemă nouă. Săgețile trec între celule, Enter editează (pe cheie deschide), Esc anulează, Tab trece mai departe. J și K mută. S stare. P prioritate. A responsabil. L etichetă."
   },
+  "issues_menu": {
+    "label": "Acțiuni sarcină",
+    "open": "Deschide",
+    "status": "Stare…",
+    "assign": "Responsabil…",
+    "archive": "Arhivează",
+    "archiving": "Se arhivează…",
+    "delete": "Șterge",
+    "archive_title": "Arhivezi {key}?",
+    "delete_title": "Ștergi {key}?",
+    "archive_cascade_title": "Arhivezi {key} și cele {count} sarcini ale sale?",
+    "delete_cascade_title": "Ștergi {key} și cele {count} sarcini ale sale?",
+    "archive_body": "Se mută în arhivă. O poți restaura mai târziu.",
+    "archive_cascade_body": "Aceasta arhivează {count} sarcini și subsarcinile lor. Le poți restaura.",
+    "delete_cascade_body": "Aceasta șterge {count} sarcini și subsarcinile lor."
+  },
   "issues_views": {
     "label": "Vizualizare",
     "list": "Listă",

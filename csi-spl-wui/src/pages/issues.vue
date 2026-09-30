@@ -313,8 +313,13 @@
                 :data-priority="issue.priority"
                 :data-level="issue.level"
                 :data-selected="cursorKey === issue.key ? 'true' : 'false'"
-                @click="choose(issue)"
+                @click="onRowActivate(issue)"
                 @keydown.enter.self.prevent="choose(issue)"
+                @contextmenu="onRowContext(issue, $event)"
+                @pointerdown="onRowPointerDown(issue, $event)"
+                @pointermove="rowPress.move($event)"
+                @pointerup="rowPress.up()"
+                @pointercancel="rowPress.cancel()"
                 @dragstart="onRowDragStart($event, issue)"
                 @dragend="onRowDragEnd"
               >
@@ -432,7 +437,12 @@
               :data-key="issue.key"
               :data-priority="issue.priority"
               :data-selected="cursorKey === issue.key ? 'true' : 'false'"
-              @click="choose(issue)"
+              @click="onRowActivate(issue)"
+              @contextmenu="onRowContext(issue, $event)"
+              @pointerdown="onRowPointerDown(issue, $event)"
+              @pointermove="rowPress.move($event)"
+              @pointerup="rowPress.up()"
+              @pointercancel="rowPress.cancel()"
             >
               <span class="issues-card__top">
                 <span class="issues-key" data-test="issues-card-key">{{ issue.key }}</span>
@@ -745,6 +755,33 @@
       <p class="issues-del-title">{{ delTarget ? delTarget.title : '' }}</p>
       <p>{{ t('issues_crud.delete_body') }}</p>
     </UiConfirm>
+    <!-- SPL-1226: the right-click / long-press context menu, shared with the
+         epics sidebar; the page owns the actions -->
+    <IssueRowMenu
+      :open="Boolean(ctxTarget)"
+      :x="ctxPoint.x"
+      :y="ctxPoint.y"
+      :items="ctxItems"
+      @close="closeCtxMenu"
+      @choose="onCtxChoose"
+    />
+    <!-- SPL-1226: archive / delete a whole epic or feature, stating the count -->
+    <UiConfirm
+      :open="Boolean(actConfirm)"
+      :title="actConfirm ? t(actConfirmTitleKey, { key: actConfirm.target.key, count: actConfirm.count }) : ''"
+      testid="issues-cascade"
+      :confirm-label="t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive' : 'issues_crud.delete')"
+      :busy-label="t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archiving' : 'issues_crud.deleting')"
+      :busy="actBusy"
+      :error="actError"
+      :body-attrs="{ 'data-key': actConfirm ? actConfirm.target.key : '', 'data-count': actConfirm ? String(actConfirm.count) : '0' }"
+      @update:open="onActConfirmOpen"
+      @confirm="runAction"
+    >
+      <p class="issues-del-title">{{ actConfirm ? actConfirm.target.title : '' }}</p>
+      <p v-if="actConfirm && actConfirm.count > 0">{{ t(actConfirm.action === 'archive' ? 'issues_menu.archive_cascade_body' : 'issues_menu.delete_cascade_body', { count: actConfirm.count }) }}</p>
+      <p v-else>{{ t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive_body' : 'issues_crud.delete_body') }}</p>
+    </UiConfirm>
     <!-- SPL-992: on a phone every picker is a bottom sheet over a scrim -->
     <div v-if="menu && phone" class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="menu = null" />
     <!-- SPL-1027: over the issue modal the picker rides above the backdrop -->
@@ -813,6 +850,9 @@ import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { useIssueColumns } from '~/composables/useIssueColumns'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, saveColWidths, withColWidth } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
+import { createLongPress } from '~/utils/touch-ui.mjs'
+import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
+import type { IssueMenuItem } from '~/components/IssueRowMenu.vue'
 import {
   ISSUE_LEVELS,
   ISSUE_PRIORITIES,
@@ -919,6 +959,12 @@ const deadlineEditKey = ref('')
 const delTarget = ref<Issue | null>(null)
 const delBusy = ref(false)
 const delError = ref('')
+/* SPL-1226: the right-click / long-press context menu (shared with the epics
+   sidebar) and its cascade archive/delete confirm */
+const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu } = useIssueMenu()
+const actConfirm = ref<{ target: IssueMenuTarget, action: 'archive' | 'delete', count: number } | null>(null)
+const actBusy = ref(false)
+const actError = ref('')
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
   assignee: '', labels: [] as string[], deadlineLocal: '',
@@ -1784,6 +1830,104 @@ async function confirmDelete() {
     delBusy.value = false
   }
 }
+
+/* ---- SPL-1226: the right-click / long-press context menu ------------------ */
+function issueTarget(i: Issue): IssueMenuTarget {
+  return { key: i.key, kind: i.kind, level: i.level, title: i.title, top: isTopKind(i.kind) }
+}
+/* one long-press machine for every row; the row it fired on is remembered on
+   pointerdown (createLongPress only reports the point) */
+let pressTarget: IssueMenuTarget | null = null
+const rowPress = createLongPress({ onPress: (x, y) => { if (pressTarget) openCtxMenu(pressTarget, x, y) } })
+function onRowContext(issue: Issue, ev: MouseEvent) {
+  ev.preventDefault()
+  ev.stopPropagation()
+  openCtxMenu(issueTarget(issue), ev.clientX, ev.clientY)
+}
+function onRowPointerDown(issue: Issue, ev: PointerEvent) { pressTarget = issueTarget(issue); rowPress.down(ev) }
+/* the click the finger sends when a long-press lifts must not also open the row */
+function onRowActivate(issue: Issue) { if (rowPress.takeClick()) return; choose(issue) }
+
+const ctxItems = computed<IssueMenuItem[]>(() => {
+  const tg = ctxTarget.value
+  if (!tg) return []
+  const items: IssueMenuItem[] = [{ id: 'open', icon: 'open', labelKey: 'issues_menu.open' }]
+  if (!tg.top) {
+    items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
+    items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
+  }
+  items.push({ id: 'archive', icon: 'archive', labelKey: 'issues_menu.archive' })
+  items.push({ id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true })
+  return items
+})
+function onCtxChoose(id: string) {
+  const tg = ctxTarget.value
+  if (!tg) return
+  const pt = { ...ctxPoint.value }
+  if (id === 'open') {
+    if (tg.top) { void router.push({ query: { ...route.query, epic: tg.key } }); return }
+    const issue = issues.value.find((i) => i.key === tg.key)
+    if (issue) choose(issue)
+    return
+  }
+  if (id === 'status' || id === 'assign') {
+    const issue = issues.value.find((i) => i.key === tg.key)
+    if (!issue) return
+    openMenu(id === 'status' ? 'status' : 'assign', issue)
+    menuPos.value = { top: pt.y, left: Math.max(8, Math.min(pt.x, window.innerWidth - 240)) }
+    return
+  }
+  if (id === 'archive' || id === 'delete') askAction(id, tg)
+}
+/* the count the confirm states: for an epic / feature the issues under it, else
+   the subtasks held under it. Counted from the loaded list (immediate, in step
+   with what is shown); the epics summary is a fallback for when the list is
+   filtered to another epic (the summary read is debounced, so it can lag). */
+function descendantCount(tg: IssueMenuTarget): number {
+  if (tg.top) {
+    const inList = issues.value.filter((i) => i.epic === tg.key).length
+    return Math.max(inList, epics.value.find((e) => e.key === tg.key)?.total || 0)
+  }
+  return issues.value.filter((i) => i.parent === tg.key).length
+}
+function askAction(action: 'archive' | 'delete', tg: IssueMenuTarget) {
+  closeCtxMenu()
+  actError.value = ''
+  actConfirm.value = { target: tg, action, count: descendantCount(tg) }
+}
+function onActConfirmOpen(open: boolean) {
+  if (!open && !actBusy.value) actConfirm.value = null
+}
+async function runAction() {
+  const c = actConfirm.value
+  if (!c || actBusy.value) return
+  actBusy.value = true
+  actError.value = ''
+  /* a level-1 row (or one with children) takes its subtree with it */
+  const cascade = c.target.top || c.count > 0
+  try {
+    const res = c.action === 'archive'
+      ? await withSessionRetry(api, () => api.archiveIssue(c.target.key, { cascade }))
+      : await withSessionRetry(api, () => api.deleteIssue(c.target.key, { cascade }))
+    const gone = new Set<string>([c.target.key, ...((res.descendants as string[] | undefined) || [])])
+    issues.value = issues.value.filter((i) => !gone.has(i.key))
+    subtasks.value = subtasks.value.filter((i) => !gone.has(i.key))
+    refreshEpics()
+    if (detail.value && gone.has(detail.value.key)) closeDetail()
+    if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
+    actConfirm.value = null
+  } catch (e) {
+    actError.value = t(deleteErrKey(e as { status?: number, token?: string }))
+  } finally {
+    actBusy.value = false
+  }
+}
+const actConfirmTitleKey = computed(() => {
+  const c = actConfirm.value
+  if (!c) return ''
+  if (c.count > 0) return c.action === 'archive' ? 'issues_menu.archive_cascade_title' : 'issues_menu.delete_cascade_title'
+  return c.action === 'archive' ? 'issues_menu.archive_title' : 'issues_menu.delete_title'
+})
 
 /* the page's own copy of the comments; the card already told the stores */
 function onCommentEdited(row: SpoolMessage) {

@@ -19,6 +19,12 @@
       :data-key="e.key"
       :title="`${e.key} ${e.title}`"
       :to="localePath({ path: '/issues', query: { epic: e.key } })"
+      @contextmenu="onEpicContext(e, $event)"
+      @pointerdown="onEpicPointerDown(e, $event)"
+      @pointermove="epicPress.move($event)"
+      @pointerup="epicPress.up()"
+      @pointercancel="epicPress.cancel()"
+      @click="onEpicClick($event)"
     >
       <span class="epic-row__title"><i class="epic-row__kind" :data-kind="e.kind || 'epic'" :title="t('issues.kind_' + (e.kind || 'epic'))" />{{ e.title }}</span>
       <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
@@ -29,12 +35,33 @@
 </template>
 
 <script setup lang="ts">
+import { createLongPress } from '~/utils/touch-ui.mjs'
+import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
+
 type EpicRow = { key: string, kind?: string, title: string, status: string, total: number, done: number, canceled: number }
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const localePath = useLocalePath()
 const issueEpics = useState<EpicRow[]>('issue-epics', () => [])
+
+/* SPL-1226: right-click / long-press an epic or feature to archive or delete it
+   (with its whole subtree). The Issues page renders the shared menu; this panel
+   only opens it. */
+const { openAt: openCtxMenu } = useIssueMenu()
+function epicTarget(e: EpicRow): IssueMenuTarget {
+  return { key: e.key, kind: e.kind || 'epic', level: 1, title: e.title, top: true }
+}
+let pressTarget: IssueMenuTarget | null = null
+const epicPress = createLongPress({ onPress: (x, y) => { if (pressTarget) openCtxMenu(pressTarget, x, y) } })
+function onEpicContext(e: EpicRow, ev: MouseEvent) {
+  ev.preventDefault()
+  ev.stopPropagation()
+  openCtxMenu(epicTarget(e), ev.clientX, ev.clientY)
+}
+function onEpicPointerDown(e: EpicRow, ev: PointerEvent) { pressTarget = epicTarget(e); epicPress.down(ev) }
+/* the click a long-press lifts must not also navigate to the epic's list */
+function onEpicClick(ev: MouseEvent) { if (epicPress.takeClick()) { ev.preventDefault(); ev.stopPropagation() } }
 const epicQuery = computed(() => {
   const q = route.query.epic
   const raw = Array.isArray(q) ? q[0] : q

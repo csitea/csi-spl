@@ -1105,6 +1105,22 @@
     "set_deadline": "Nustatyti terminą",
     "shortcuts": "C nauja užduotis. Rodyklės juda tarp langelių, Enter redaguoja (ant rakto atidaro), Esc atšaukia, Tab eina toliau. J ir K juda. S būsena. P prioritetas. A vykdytojas. L žyma."
   },
+  "issues_menu": {
+    "label": "Užduoties veiksmai",
+    "open": "Atidaryti",
+    "status": "Būsena…",
+    "assign": "Priskirta…",
+    "archive": "Archyvuoti",
+    "archiving": "Archyvuojama…",
+    "delete": "Ištrinti",
+    "archive_title": "Archyvuoti {key}?",
+    "delete_title": "Ištrinti {key}?",
+    "archive_cascade_title": "Archyvuoti {key} ir jos {count} užduotis?",
+    "delete_cascade_title": "Ištrinti {key} ir jos {count} užduotis?",
+    "archive_body": "Ji perkeliama į archyvą. Vėliau galėsite ją atkurti.",
+    "archive_cascade_body": "Bus archyvuota {count} užduočių ir jų papildomos užduotys. Galėsite jas atkurti.",
+    "delete_cascade_body": "Bus ištrinta {count} užduočių ir jų papildomos užduotys."
+  },
   "issues_views": {
     "label": "Rodinys",
     "list": "Sąrašas",

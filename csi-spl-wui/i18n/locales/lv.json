@@ -1105,6 +1105,22 @@
     "set_deadline": "Iestatīt termiņu",
     "shortcuts": "C jauns uzdevums. Bultiņas pārvietojas starp šūnām, Enter rediģē (uz atslēgas atver), Esc atceļ, Tab iet tālāk. J un K pārvietojas. S statuss. P prioritāte. A izpildītājs. L birka."
   },
+  "issues_menu": {
+    "label": "Uzdevuma darbības",
+    "open": "Atvērt",
+    "status": "Statuss…",
+    "assign": "Atbildīgais…",
+    "archive": "Arhivēt",
+    "archiving": "Arhivē…",
+    "delete": "Dzēst",
+    "archive_title": "Arhivēt {key}?",
+    "delete_title": "Dzēst {key}?",
+    "archive_cascade_title": "Arhivēt {key} un tā {count} uzdevumus?",
+    "delete_cascade_title": "Dzēst {key} un tā {count} uzdevumus?",
+    "archive_body": "Tas tiek pārvietots uz arhīvu. Vēlāk to var atjaunot.",
+    "archive_cascade_body": "Tiks arhivēti {count} uzdevumi un to apakšuzdevumi. Tos var atjaunot.",
+    "delete_cascade_body": "Tiks dzēsti {count} uzdevumi un to apakšuzdevumi."
+  },
   "issues_views": {
     "label": "Skats",
     "list": "Saraksts",

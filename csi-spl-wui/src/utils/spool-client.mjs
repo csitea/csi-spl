@@ -1562,10 +1562,20 @@ export function createSpoolClient({
         body: JSON.stringify(patch),
       })
     },
-    /** issues-v1 §1 (SPL-1027): the soft delete → `{ issue }` as it was; 403 forbidden, 409 issue_has_children. */
-    async deleteIssue(ref) {
-      if (mock) return issuesMock().remove(ref)
-      return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}`, { method: 'DELETE' })
+    /** issues-v1 §1 (SPL-1027 / SPL-1226): the soft delete → `{ issue, descendants }`
+     *  as it was; 403 forbidden, 409 issue_has_children. With `{ cascade: true }`
+     *  a whole epic or feature and all of its descendants go in one call. */
+    async deleteIssue(ref, { cascade = false } = {}) {
+      if (mock) return issuesMock().remove(ref, cascade)
+      const q = cascade ? '?cascade=1' : ''
+      return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}${q}`, { method: 'DELETE' })
+    },
+    /** SPL-1226: soft-archive an issue → `{ issue, descendants }`; with
+     *  `{ cascade: true }` the whole epic / feature and its descendants. */
+    async archiveIssue(ref, { cascade = false } = {}) {
+      if (mock) return issuesMock().archive(ref, cascade)
+      const q = cascade ? '?cascade=1' : ''
+      return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/archive${q}`, { method: 'POST' })
     },
     /** issues-v1 §1: a new label in the tenant's catalogue → `{ label }`; 409 label_exists. */
     async createIssueLabel({ name = '', color = '' } = {}) {

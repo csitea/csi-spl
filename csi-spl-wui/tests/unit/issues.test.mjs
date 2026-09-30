@@ -392,6 +392,29 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
     const client = readFileSync(new URL('../../src/utils/spool-client.mjs', import.meta.url), 'utf8')
     assert.match(page, /<UiConfirm[\s\S]*?testid="issues-delete"/)
     assert.match(page, /api\.deleteIssue\(issue\.key\)/)
-    assert.match(client, /async deleteIssue\(ref\) \{[\s\S]*?method: 'DELETE'/)
+    assert.match(client, /async deleteIssue\(ref[^)]*\) \{[\s\S]*?method: 'DELETE'/)
+  })
+  it('SPL-1226: cascade archive/delete client + mock', () => {
+    const client = readFileSync(new URL('../../src/utils/spool-client.mjs', import.meta.url), 'utf8')
+    // the client passes ?cascade=1 through to the hub on both verbs
+    assert.match(client, /async deleteIssue\(ref, \{ cascade = false \} = \{\}\)/)
+    assert.match(client, /async archiveIssue\(ref, \{ cascade = false \} = \{\}\)[\s\S]*?\/archive/)
+    const m = createMockIssues({ me: 'HUM-1' })
+    const epic = m.create({ title: 'Epic', kind: 'epic' }).issue
+    const child = m.create({ title: 'Child', epic: epic.key }).issue
+    const sub = m.create({ title: 'Sub', parent: child.key }).issue
+    // without cascade a parent with a child is refused
+    assert.throws(() => m.remove(epic.key), (e) => e.status === 409 && e.token === 'issue_has_children')
+    // cascade delete takes the whole subtree and names the descendants
+    const res = m.remove(epic.key, true)
+    assert.equal(res.issue.key, epic.key)
+    assert.equal(res.descendants.length, 2)
+    assert.ok(res.descendants.includes(child.key) && res.descendants.includes(sub.key))
+    assert.equal(m.list().issues.some((i) => [epic.key, child.key, sub.key].includes(i.key)), false)
+    // archive cascades the same way
+    const e2 = m.create({ title: 'Epic2', kind: 'epic' }).issue
+    m.create({ title: 'C2', epic: e2.key })
+    assert.equal(m.archive(e2.key, true).descendants.length, 1)
+    assert.equal(m.list().issues.some((i) => i.key === e2.key), false)
   })
 })

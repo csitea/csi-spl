@@ -1105,6 +1105,22 @@
     "set_deadline": "Son tarih belirle",
     "shortcuts": "C yeni kayıt. Oklar hücreler arasında gezer, Enter düzenler (anahtarda açar), Esc iptal eder, Tab ilerler. J ve K gezer. S durum. P öncelik. A atanan. L etiket."
   },
+  "issues_menu": {
+    "label": "Görev işlemleri",
+    "open": "Aç",
+    "status": "Durum…",
+    "assign": "Atanan…",
+    "archive": "Arşivle",
+    "archiving": "Arşivleniyor…",
+    "delete": "Sil",
+    "archive_title": "{key} arşivlensin mi?",
+    "delete_title": "{key} silinsin mi?",
+    "archive_cascade_title": "{key} ve ona bağlı {count} görev arşivlensin mi?",
+    "delete_cascade_title": "{key} ve ona bağlı {count} görev silinsin mi?",
+    "archive_body": "Arşive taşınır. Daha sonra geri yükleyebilirsiniz.",
+    "archive_cascade_body": "Bu, {count} görevi ve alt görevlerini arşivler. Bunları geri yükleyebilirsiniz.",
+    "delete_cascade_body": "Bu, {count} görevi ve alt görevlerini siler."
+  },
   "issues_views": {
     "label": "Görünüm",
     "list": "Liste",

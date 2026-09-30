@@ -168,8 +168,13 @@ export function applyIssueFrame(list, frame) {
   if (f.type !== 'issue' || !f.issue) return list
   const next = normalizeIssue(f.issue)
   if (!next.key) return list
-  /* SPL-1027: the hub's soft delete - the row leaves every open tab */
-  if (f.op === 'delete') return (list || []).filter((i) => i.key !== next.key)
+  /* SPL-1027 / SPL-1226: the hub's soft delete or archive - the row and every
+     descendant the frame names leave every open tab (op archive hides it as a
+     delete does; the frame's descendants are the cascade of a whole epic). */
+  if (f.op === 'delete' || f.op === 'archive') {
+    const drop = new Set([next.key, ...(Array.isArray(f.descendants) ? f.descendants : [])])
+    return (list || []).filter((i) => !drop.has(i.key))
+  }
   const out = (list || []).slice()
   const at = out.findIndex((i) => i.key === next.key)
   if (at < 0) out.push(next)

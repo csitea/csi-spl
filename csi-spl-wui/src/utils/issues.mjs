@@ -163,6 +163,18 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     const n = Number(String(ref || '').replace(/^[A-Za-z][A-Za-z0-9]*-/, ''))
     return issues.find((i) => i.number === n)
   }
+  /* SPL-1226: the keys of every descendant of key (its children, then theirs). */
+  const subtree = (key) => {
+    const out = []
+    const queue = [key]
+    while (queue.length) {
+      const p = queue.shift()
+      for (const c of issues) {
+        if (c.parent === p) { out.push(c.key); queue.push(c.key) }
+      }
+    }
+    return out
+  }
   const apply = (i, b, by) => {
     const out = { ...i }
     for (const k of ['title', 'description', 'status', 'priority', 'assignee', 'labels', 'deadline']) {
@@ -266,13 +278,28 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       issues = issues.map((x) => (x.key === i.key ? next : x))
       return { issue: view(next) }
     },
-    /* SPL-1027: the hub's soft delete - gone from every read, a parent with a live child refused */
-    remove(ref) {
+    /* SPL-1027 / SPL-1226: the hub's soft delete. Without cascade a parent with
+       a live child is refused; with it the whole epic / feature and its
+       descendants go, and the answer names them. */
+    remove(ref, cascade = false) {
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
-      if (issues.some((x) => x.parent === i.key)) throw mockErr(409, 'issue_has_children')
-      issues = issues.filter((x) => x.key !== i.key)
-      return { issue: view(i) }
+      const kids = subtree(i.key)
+      if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
+      const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
+      issues = issues.filter((x) => !gone.has(x.key))
+      return { issue: view(i), descendants: cascade ? kids : [] }
+    },
+    /* SPL-1226: archive - for the mock (no archived store) it hides the row the
+       same way a delete does, and names the cascade. */
+    archive(ref, cascade = false) {
+      const i = find(ref)
+      if (!i) throw mockErr(404, 'not_found')
+      const kids = subtree(i.key)
+      if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
+      const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
+      issues = issues.filter((x) => !gone.has(x.key))
+      return { issue: view(i), descendants: cascade ? kids : [] }
     },
     label({ name = '', color = '' } = {}) {
       const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)

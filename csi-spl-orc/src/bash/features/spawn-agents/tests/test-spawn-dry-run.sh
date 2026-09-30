@@ -73,5 +73,12 @@ has "git: closing steps present" "INTEGRATION / CLOSING STEPS" "$prompt"
 has "git: scope control present" "SCOPE + COLLISION CONTROL" "$prompt"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
+# SPL-1253: the deploy-gate footer rides every git-repo brief.
+has "git: deploy-gate footer names the pre-push command" "./run -a do_check_pre_push" "$prompt"
+has "git: deploy-gate footer requires Postgres, not memory" "must run on POSTGRES" "$prompt"
+has "git: deploy-gate footer names the audited override" "SPL_PREPUSH_OVERRIDE=1" "$prompt"
+has "git: deploy-gate footer forbids a working-around of a refused prd mutation" "do_spl_desk_up" "$prompt"
+# ... and NOT on a non-git session (checked at the top loop).
+hasnt "claude: no deploy-gate footer outside a repo" "DEPLOY-GATE (SPL-1250" "$(cat "$T_TMP/plan-claude/prompt.txt")"
 
 t_done

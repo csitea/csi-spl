@@ -14,10 +14,10 @@ duplicate issues).
 - [x] T006 Checkov terraform IaC gate against .checkov.baseline with a negative control - `38d9b0c4`
 - [x] T008 shellcheck gate on the iac + orc + cnf bash trees at error level with a negative control, plus 4 shebang fixes - `2b20de32`
 - [x] T009 hadolint gate on every Dockerfile at error level with a negative control (.hadolint.yaml) - `81016b84`
-- [ ] T001 CodeQL SAST for Go, SARIF to GitHub code scanning (60_codeql.yml, security-extended)
-- [ ] T002 CodeQL SAST for JS/TS, SARIF to GitHub code scanning (60_codeql.yml)
-- [ ] T010 ESLint security plugin gate on the WUI JS with a negative control
-- [ ] T011 OWASP ZAP baseline DAST + security-headers check against dev.spool-hub.ai only, read-only, <=5 req/s, never prd (owner-go granted)
+- [x] T001 CodeQL SAST for Go, SARIF to GitHub code scanning (60_codeql.yml, security-extended) - `0b9e0bd2`
+- [x] T002 CodeQL SAST for JS/TS, SARIF to GitHub code scanning (60_codeql.yml) - `0b9e0bd2`
+- [x] T010 ESLint security plugin gate on the WUI JS with a negative control - `8bb5b1f1`
+- [x] T011 OWASP ZAP baseline DAST + security-headers check against dev.spool-hub.ai only, read-only, <=5 req/s, never prd (owner-go granted) - `0b9e0bd2`
 
 Dropped: **tfsec** (spec item #7) — deprecated (aquasecurity redirects to Trivy) and cannot parse the
 tree's terraform `import` blocks (hard parse error). Superseded by T006 Checkov + CLE-77789 #16

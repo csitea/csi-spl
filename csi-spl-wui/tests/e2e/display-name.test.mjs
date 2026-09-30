@@ -101,6 +101,21 @@ const server = await startServer()
 const browser = await launch()
 try {
   const p = await browser.newPage()
+  // specs/054: the mock is signed-OUT by default and its GET /session no longer
+  // rides the network (auth-client.mjs), so the `session` stub above only serves
+  // a real BASE_URL. In the mock bundle we opt into a signed-in owner through
+  // localStorage; the display name rides a control key (spool.mock.name) so the
+  // reload's probe reads the persisted name (kept in step with hub.name below).
+  await p.evaluateOnNewDocument(() => {
+    try {
+      const nm = localStorage.getItem('spool.mock.name')
+      localStorage.setItem('spool.mock.session', JSON.stringify({
+        v: 1, p: 'password', sub: 'person@example.com', email: 'person@example.com',
+        name: nm === null ? 'Old Name' : nm, hum: 'HUM-4', t: 't1',
+        active_tenant: 't1', tenants: [{ tenant_id: 't1', role: 'owner' }],
+      }))
+    } catch { /* opaque origin on the very first document */ }
+  })
   await p.setRequestInterception(true)
   p.on('request', (req) => {
     const a = answer(req)
@@ -135,7 +150,9 @@ try {
   const m1 = await menuName(p)
   ok('6 the user menu shows the new name without a reload', m1 === 'New Name', { m1 })
 
-  // 4. a reload asks the hub again
+  // 4. a reload asks the hub again — the opt-in mock session reads the saved
+  //    name from the control key (the network /session stub is bypassed in mock)
+  await p.evaluate((nm) => localStorage.setItem('spool.mock.name', nm), hub.name).catch(() => {})
   await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(FIELD, { visible: true, timeout: NAV_TIMEOUT })
   const v2 = await p.$eval(FIELD, (e) => e.value)

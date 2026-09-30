@@ -48,8 +48,11 @@ describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon'
     assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; \}/)
     assert.match(vue, /\.msg-reactions \{\s*display: inline-flex;\s*flex-wrap: wrap;/)
   })
-  it('a chip shows its count from 2 people on, and its tooltip names who reacted', () => {
+  it('a chip shows its count from 2 people on, and its tooltip names the emoji then who reacted', () => {
     assert.match(vue, /<span v-if="chip\.showCount" class="msg-reaction__n">\{\{ chip\.count \}\}<\/span>/)
-    assert.match(vue, /:title="chipWho\(chip\.actors\)"/)
+    /* da0c0e98: the title now leads with what the emoji represents ("Fire · Ann") */
+    assert.match(vue, /:title="chipTitle\(chip\)"/)
+    assert.match(vue, /function chipTitle/)
+    assert.match(vue, /const name = emojiLabel\(chip\.emoji\)/)
   })
 })

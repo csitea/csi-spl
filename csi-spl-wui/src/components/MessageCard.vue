@@ -135,6 +135,7 @@
                 :data-emoji="chip.emoji"
                 :data-count="chip.count"
                 :data-mine="chip.mine ? 'true' : undefined"
+                :title="chipTitle(chip)"
               >
                 <span>{{ chip.emoji }}</span>
                 <span v-if="chip.showCount" class="msg-reaction__n">{{ chip.count }}</span>
@@ -166,8 +167,8 @@
             :data-emoji="chip.emoji"
             :data-count="chip.count"
             :data-mine="chip.mine ? 'true' : undefined"
-            :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: chip.emoji }) : t('feed.emoji.chip', { emoji: chip.emoji, n: chip.count })"
-            :title="chipWho(chip.actors)"
+            :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: emojiLabel(chip.emoji) }) : t('feed.emoji.chip', { emoji: emojiLabel(chip.emoji), n: chip.count })"
+            :title="chipTitle(chip)"
             :disabled="busy || !msg.msg_id || !!msg.pending"
             @click.stop="onReact(chip.emoji)"
           >
@@ -378,7 +379,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
-import { reactionChips } from '~/utils/emoji.mjs'
+import { reactionChips, emojiName } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
@@ -917,11 +918,21 @@ const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
 function chipWho(actors: string[]) {
   return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
 }
+/** The short, plain name of a reaction glyph (owner da0c0e98: hover names it). */
+function emojiLabel(emoji: string) {
+  return emojiName(emoji, t)
+}
+/** A chip's title: what the emoji represents, then who reacted ("Fire · Ann"). */
+function chipTitle(chip: { emoji: string, actors: string[] }) {
+  const who = chipWho(chip.actors)
+  const name = emojiLabel(chip.emoji)
+  return who ? `${name} · ${who}` : name
+}
 /* SPL-1007: a phone draws the chips inside Add emoji; its name reads them out */
 const phoneChips = computed(() => mobile.value && chips.value.length > 0 && !titleOnly.value)
 const emojiBtnName = computed(() => [t('feed.emoji.add'), ...chips.value.map((c) => (c.mine
-  ? t('feed.emoji.mine', { emoji: c.emoji })
-  : t('feed.emoji.chip', { emoji: c.emoji, n: c.count })))].join(', '))
+  ? t('feed.emoji.mine', { emoji: emojiLabel(c.emoji) })
+  : t('feed.emoji.chip', { emoji: emojiLabel(c.emoji), n: c.count })))].join(', '))
 
 function openPickerFromButton(ev: MouseEvent) {
   const btn = ev.currentTarget

@@ -693,8 +693,11 @@ declare module '~/utils/msg-edit.mjs' {
 
 declare module '~/utils/emoji.mjs' {
   export const EMOJI_CHOICES: string[]
+  export const EMOJI_NAME_SLUG: Record<string, string>
   export function validEmoji(s: string): boolean
   export function canonicalEmoji(s: string): string
+  export function emojiNameKey(emoji: string): string
+  export function emojiName(emoji: string, t?: (key: string) => string): string
   export function normalizeReactions(list: unknown): { emoji: string, actors: string[] }[]
   export function reactionChips(list: unknown, me?: string): { emoji: string, count: number, showCount: boolean, actors: string[], mine: boolean }[]
   export function reactionOp(list: unknown, emoji: string, me?: string): 'add' | 'remove'

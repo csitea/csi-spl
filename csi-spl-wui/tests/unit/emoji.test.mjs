@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyReactions, canonicalEmoji, normalizeReactions, reactionChips, reactionOp, validEmoji, EMOJI_CHOICES } from '../../src/utils/emoji.mjs'
+import { applyReactions, canonicalEmoji, normalizeReactions, reactionChips, reactionOp, validEmoji, EMOJI_CHOICES, EMOJI_NAME_SLUG, emojiName, emojiNameKey } from '../../src/utils/emoji.mjs'
 import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { mergeById } from '../../src/utils/feed.mjs'
 
@@ -45,6 +45,43 @@ describe('emoji reactions', () => {
     assert.equal(new Set(bare).size, EMOJI_CHOICES.length, 'a glyph is listed twice')
     for (const e of EMOJI_CHOICES) assert.equal(canonicalEmoji(e), e)
     for (const cols of [8, 6, 12, 16]) assert.equal(EMOJI_CHOICES.length % cols, 0, `${cols} columns leave a hole`)
+  })
+
+  /* owner, prd t1 da0c0e98: "add on hover what each emoji represents ... some
+     kind of simple text". Every glyph has a short name; the i18n key carries
+     the localized word (i18n-parity pins all 19 locales carry it). */
+  it('names every glyph, and only picker glyphs, via feed.emoji.name.<slug>', () => {
+    /* every choice has a name slug, and the slugs are unique */
+    for (const e of EMOJI_CHOICES) assert.ok(EMOJI_NAME_SLUG[canonicalEmoji(e)], `no name slug for ${e}`)
+    assert.equal(Object.keys(EMOJI_NAME_SLUG).length, EMOJI_CHOICES.length)
+    assert.equal(new Set(Object.values(EMOJI_NAME_SLUG)).size, EMOJI_CHOICES.length)
+    /* the leaders the owner asked for by name */
+    assert.equal(EMOJI_NAME_SLUG['✅'], 'check')
+    assert.equal(EMOJI_NAME_SLUG['🔥'], 'fire')
+    /* the key format, and both ❤️ spellings resolve to the one name */
+    assert.equal(emojiNameKey('✅'), 'feed.emoji.name.check')
+    assert.equal(emojiNameKey('❤'), 'feed.emoji.name.heart')
+    assert.equal(emojiNameKey('❤️'), 'feed.emoji.name.heart')
+    /* not a picker glyph: no name (a guess would be a lie) */
+    assert.equal(emojiNameKey('😠'), '')
+    assert.equal(emojiNameKey('hello'), '')
+  })
+
+  it('emojiName reads the localized word through t, falls back to the glyph', () => {
+    const t = (k) => ({ 'feed.emoji.name.check': 'Done', 'feed.emoji.name.fire': 'Fire' }[k] || k)
+    assert.equal(emojiName('✅', t), 'Done')
+    assert.equal(emojiName('🔥', t), 'Fire')
+    /* no t, or an unknown glyph: the glyph itself, never an empty label */
+    assert.equal(emojiName('✅'), '✅')
+    assert.equal(emojiName('😠', t), '😠')
+  })
+
+  it('en carries a non-empty name for every slug', () => {
+    const names = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8')).feed.emoji.name
+    for (const slug of Object.values(EMOJI_NAME_SLUG)) {
+      assert.equal(typeof names[slug], 'string', `en missing name ${slug}`)
+      assert.ok(names[slug].trim().length > 0, `en empty name ${slug}`)
+    }
   })
 
   it('maps the other spelling of a glyph onto the picker spelling', () => {

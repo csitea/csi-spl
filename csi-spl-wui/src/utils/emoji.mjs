@@ -49,6 +49,44 @@ export function validEmoji(s) {
 }
 
 /**
+ * A short, plain name for each picker glyph, keyed by a stable slug; the i18n
+ * key `feed.emoji.name.<slug>` carries the localized word (owner, prd t1
+ * da0c0e98: "add on hover what each emoji represents ... some kind of simple
+ * text"). Every EMOJI_CHOICES glyph has one, so the picker and the reaction
+ * chips can name what a reaction means on hover and to a screen reader.
+ * emoji-name-map.tst pins that the two lists stay in lock-step.
+ */
+export const EMOJI_NAME_SLUG = {
+  '✅': 'check', '🔥': 'fire', '😀': 'grin', '😁': 'beam', '😂': 'joy',
+  '🤣': 'rofl', '😆': 'laugh', '😅': 'phew', '🙂': 'smile', '😉': 'wink',
+  '😊': 'blush', '😇': 'angel', '😍': 'hearteyes', '😎': 'cool', '😜': 'cheeky',
+  '🥳': 'party', '🤗': 'hug', '🤔': 'thinking', '😐': 'neutral', '😕': 'confused',
+  '😬': 'grimace', '🙄': 'eyeroll', '😴': 'sleepy', '😢': 'sad', '😭': 'crying',
+  '😱': 'shock', '😡': 'angry', '🤯': 'mindblown', '👍': 'like', '👎': 'dislike',
+  '👏': 'applause', '🙌': 'praise', '🙏': 'thanks', '👋': 'wave', '💪': 'strong',
+  '👌': 'ok', '🤝': 'deal', '👀': 'eyes', '❤️': 'heart', '🎉': 'celebrate',
+  '✨': 'sparkle', '❌': 'no', '⭐': 'star', '💯': 'hundred', '🚀': 'ship',
+  '💡': 'idea', '🎯': 'target', '🐛': 'bug',
+}
+
+/** The i18n key that names a glyph, or '' when it is not a picker glyph. */
+export function emojiNameKey(emoji) {
+  const slug = EMOJI_NAME_SLUG[canonicalEmoji(emoji)]
+  return slug ? `feed.emoji.name.${slug}` : ''
+}
+
+/**
+ * The localized short name of a glyph, for a tooltip / aria-label, via a
+ * translate function `t`. Falls back to the glyph itself when it is not a
+ * known choice (naming an unknown glyph would be a guess) or when no `t` is
+ * given.
+ */
+export function emojiName(emoji, t) {
+  const key = emojiNameKey(emoji)
+  return key && typeof t === 'function' ? String(t(key)) : String(emoji || '')
+}
+
+/**
  * The wire shape: [{ emoji, actors: [id, ...] }], emoji order kept, empty
  * actors dropped. Anything else becomes [].
  */

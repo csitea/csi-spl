@@ -24,16 +24,24 @@
           type="button"
           class="emoji-picker__glyph"
           :data-emoji="emoji"
-          :aria-label="emoji"
+          :title="nameOf(emoji)"
+          :aria-label="nameOf(emoji)"
           @click.stop="choose(emoji)"
+          @touchstart.passive="onHoldStart(emoji)"
+          @touchend="onHoldEnd"
+          @touchmove.passive="onHoldCancel"
+          @touchcancel.passive="onHoldCancel"
         >{{ emoji }}</button>
       </div>
+      <!-- da0c0e98: on touch there is no hover, so a long-press names the glyph
+           (title/aria-label serve the mouse and the screen reader). -->
+      <div v-if="held" class="emoji-picker__name" data-testid="emoji-name" aria-hidden="true">{{ held }}</div>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { EMOJI_CHOICES } from '~/utils/emoji.mjs'
+import { EMOJI_CHOICES, emojiName } from '~/utils/emoji.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 
@@ -44,6 +52,33 @@ const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const choices = EMOJI_CHOICES
 const sheet = usePhone()
+
+/** The short, plain name of a glyph, for the tooltip and the screen reader. */
+function nameOf(emoji: string): string {
+  return emojiName(emoji, t)
+}
+
+/* Long-press to read a glyph's name on touch (no hover there). The press
+   names it; the ensuing click still adds the reaction, so reading a name and
+   picking it are the same gesture held a little longer. */
+const held = ref('')
+let holdTimer: ReturnType<typeof setTimeout> | null = null
+function clearHold() {
+  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null }
+}
+function onHoldStart(emoji: string) {
+  clearHold()
+  holdTimer = setTimeout(() => { held.value = nameOf(emoji) }, 350)
+}
+function onHoldEnd() {
+  clearHold()
+  /* keep the name up a breath after the finger lifts, then clear it */
+  if (held.value) setTimeout(() => { held.value = '' }, 900)
+}
+function onHoldCancel() {
+  clearHold()
+  held.value = ''
+}
 /* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
 useMobileStack().overlay(() => props.open, () => emit('close'))
 
@@ -79,7 +114,7 @@ async function onOpenChange(v: boolean) {
    opening is usually the mount itself, not a change of `open` */
 watch(() => props.open, onOpenChange)
 onMounted(() => { if (props.open) void onOpenChange(true) })
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer, true))
+onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDocPointer, true); clearHold() })
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {
@@ -159,5 +194,19 @@ function choose(emoji: string) {
 .emoji-picker__glyph:focus-visible {
   background: var(--color-surface-hover);
   outline: none;
+}
+/* da0c0e98: the long-press name on touch. A sticky footer strip inside the
+   sheet, so it never spills past the picker or covers the finger's glyph. */
+.emoji-picker__name {
+  position: sticky;
+  bottom: 0;
+  margin-top: 4px;
+  padding: 6px 8px;
+  text-align: center;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-bg-2, var(--color-surface));
+  border-top: 1px solid var(--color-border-strong, var(--color-border));
 }
 </style>

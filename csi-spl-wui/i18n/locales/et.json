@@ -1342,11 +1342,15 @@
     "online": "Võrgus",
     "offline": "Võrgust väljas",
     "message": "Sõnum",
-    "remove": "Eemalda tööruumist"
+    "remove": "Eemalda tööruumist",
+    "remove_hint": "Eemaldab selle inimese sellest tööruumist. Tema konto ja sõnumid jäävad alles.",
+    "remove_confirm_title": "Eemaldada tööruumist?",
+    "remove_confirm": "{name} kaotab juurdepääsu tööruumile {tenant}. Konto, teised tööruumid ja sõnumid jäävad alles."
   },
   "activity": {
     "title": "Tegevuslogi",
     "open": "Tegevuslogi",
+    "open_hint": "Vaadake selle inimese sisselogimisi, rollimuudatusi ja muud tegevust siin.",
     "none": "Tegevust veel pole.",
     "loading": "Laadimine…",
     "filter_all": "Kõik",

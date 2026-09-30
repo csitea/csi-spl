@@ -1342,11 +1342,15 @@
     "online": "Linjoilla",
     "offline": "Poissa",
     "message": "Viesti",
-    "remove": "Poista työtilasta"
+    "remove": "Poista työtilasta",
+    "remove_hint": "Poistaa tämän henkilön tästä työtilasta. Tili ja viestit säilyvät.",
+    "remove_confirm_title": "Poistetaanko työtilasta?",
+    "remove_confirm": "{name} menettää pääsyn työtilaan {tenant}. Tili, muut työtilat ja viestit säilyvät."
   },
   "activity": {
     "title": "Toimintaloki",
     "open": "Toimintaloki",
+    "open_hint": "Katso tämän henkilön kirjautumiset, roolimuutokset ja muu toiminta täältä.",
     "none": "Ei vielä toimintaa.",
     "loading": "Ladataan…",
     "filter_all": "Kaikki",

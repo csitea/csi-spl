@@ -1342,11 +1342,15 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Wiadomość",
-    "remove": "Usuń z przestrzeni roboczej"
+    "remove": "Usuń z przestrzeni",
+    "remove_hint": "Usuwa tę osobę z tej przestrzeni roboczej. Jej konto i wiadomości pozostają.",
+    "remove_confirm_title": "Usunąć z przestrzeni?",
+    "remove_confirm": "{name} traci dostęp do {tenant}. Konto, inne przestrzenie i wiadomości pozostają."
   },
   "activity": {
     "title": "Dziennik aktywności",
     "open": "Dziennik aktywności",
+    "open_hint": "Zobacz tutaj logowania, zmiany ról i inną aktywność tej osoby.",
     "none": "Brak aktywności.",
     "loading": "Ładowanie…",
     "filter_all": "Wszystkie",

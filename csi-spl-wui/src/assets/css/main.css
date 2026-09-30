@@ -540,6 +540,34 @@ html.pane-dragging * {
   color: var(--color-fg);
   border: 1px solid var(--color-border);
 }
+/* CLE-77799 (owner 6da1d88e: "the delete button ... is also unreadable"): the
+   ONE readable destructive button, in every theme. A plain .btn is accent-
+   filled, so danger-coloured TEXT on it is unreadable — a danger button MUST
+   own its background. Filled `.btn.danger` is white (--color-danger-fg) on
+   --color-danger (WCAG AA); `.btn.ghost.danger` is the secondary: danger text
+   and outline on transparent, filling on hover/focus. Use these, never
+   danger text on a bare .btn. */
+.btn.danger {
+  background: var(--color-danger);
+  color: var(--color-danger-fg);
+  border: 0;
+}
+.btn.danger:not(:disabled):hover,
+.btn.danger:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--color-danger) 82%, #000);
+  color: var(--color-danger-fg);
+}
+.btn.ghost.danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+.btn.ghost.danger:not(:disabled):hover,
+.btn.ghost.danger:not(:disabled):focus-visible {
+  background: var(--color-danger);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger);
+}
 /* Compact icon-only control. Accessible name lives on aria-label + title.
    Hit area is at least 32×32 (touch). */
 .icon-btn {

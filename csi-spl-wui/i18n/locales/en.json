@@ -1342,11 +1342,15 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Message",
-    "remove": "Remove from workspace"
+    "remove": "Remove from tenant",
+    "remove_hint": "Remove this person from this workspace. Their account and messages stay.",
+    "remove_confirm_title": "Remove from tenant?",
+    "remove_confirm": "{name} loses access to {tenant}. Their account, other tenants and messages stay."
   },
   "activity": {
     "title": "Activity log",
     "open": "Activity log",
+    "open_hint": "See this person's sign-ins, role changes and other activity in this workspace.",
     "none": "No activity yet.",
     "loading": "Loading…",
     "filter_all": "All",

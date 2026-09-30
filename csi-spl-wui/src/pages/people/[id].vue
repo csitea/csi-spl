@@ -36,32 +36,34 @@
           <p v-if="interests" class="person-card__interestsText" data-test="person-interests">{{ interests }}</p>
           <p v-else class="muted" data-test="person-interests-empty">{{ t('people.no_interests') }}</p>
         </section>
-        <div v-if="!isSelf" class="person-card__actions">
-          <button type="button" class="btn" data-test="person-message" @click="message">{{ t('people.message') }}</button>
-          <!-- CLE-77799 (owner 1fc29f99): a tenant admin/owner removes a member
-               from here, reusing the tenant-settings member-removal path
-               (DELETE /v1/members/<id>). Hidden for the reader, for the last
-               owner and for anyone without members.invite; the hub is the
-               authority (self / last-owner / role-coverage re-checked). -->
-          <button v-if="canRemove" type="button" class="btn person-card__remove" data-test="person-remove" @click="confirmOpen = true">{{ t('people.remove') }}</button>
+        <!-- CLE-77799 (owner 6da1d88e): one action row, same-size buttons with
+             icon + label + a tooltip each. Message is the primary; Activity log
+             (admin-only, audit.read) and Remove (admin-only) are secondary
+             ghost buttons, Remove in a readable danger style (outline red text,
+             not red-on-red). Removal reuses DELETE /v1/members/<id>; the hub
+             re-checks self / last-owner / role-coverage and is the authority. -->
+        <div v-if="hasActions" class="person-card__actions">
+          <button v-if="!isSelf" type="button" class="btn person-card__act" data-test="person-message" :title="t('people.message')" @click="message">
+            <UiIcon name="messages" :size="16" /><span>{{ t('people.message') }}</span>
+          </button>
+          <button v-if="canSeeActivity" type="button" class="btn ghost person-card__act" data-test="person-activity-open" :title="t('activity.open_hint')" @click="activityOpen = true">
+            <UiIcon name="history" :size="16" /><span>{{ t('activity.open') }}</span>
+          </button>
+          <button v-if="canRemove" type="button" class="btn ghost danger person-card__act" data-test="person-remove" :title="t('people.remove_hint')" @click="confirmOpen = true">
+            <UiIcon name="trash" :size="16" /><span>{{ t('people.remove') }}</span>
+          </button>
         </div>
         <p v-if="removeError" class="person-card__error" role="alert" data-test="person-remove-error">{{ removeError }}</p>
-        <!-- CLE-77799 (owner 1fc29f99): the admin-only Activity log for this
-             person (sign-in / sign-out, invites, role changes, removal, act-as).
-             audit.read; the hub is the authority. -->
-        <div v-if="canSeeActivity" class="person-card__actions">
-          <button type="button" class="btn" data-test="person-activity-open" @click="activityOpen = true">{{ t('activity.open') }}</button>
-        </div>
       </div>
     </div>
 
     <PersonActivityDialog v-model:open="activityOpen" :human-id="humanId" />
 
-    <UiDialog :open="confirmOpen" size="md" :title="t('users.remove_confirm_title')" @update:open="confirmOpen = $event">
-      <p data-test="person-remove-text">{{ t('users.remove_confirm', { name: personName }) }}</p>
+    <UiDialog :open="confirmOpen" size="md" :title="t('people.remove_confirm_title')" @update:open="confirmOpen = $event">
+      <p data-test="person-remove-text">{{ t('people.remove_confirm', { name: personName, tenant: tenantName }) }}</p>
       <template #footer>
         <button type="button" class="btn ghost" data-test="person-remove-cancel" @click="confirmOpen = false">{{ t('common.cancel') }}</button>
-        <button type="button" class="btn person-remove-danger" :disabled="removing" data-test="person-remove-ok" @click="removeMember">{{ t('people.remove') }}</button>
+        <button type="button" class="btn danger" :disabled="removing" data-test="person-remove-ok" @click="removeMember">{{ t('people.remove') }}</button>
       </template>
     </UiDialog>
   </div>
@@ -77,6 +79,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { canRemoveMember } from '~/utils/access.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { useTenantSwitch } from '~/composables/useTenantSwitch'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -85,6 +88,8 @@ const api = useSpoolApi()
 const names = useHumanNames()
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
+/* the current tenant's display name, for the removal confirm (owner 6da1d88e). */
+const { name: tenantName } = useTenantSwitch()
 
 const humanId = computed(() => decodeURIComponent(String(route.params.id || '')))
 const detail = computed(() => roster.humansDetail[humanId.value] || { owner: false, interests: '', last_seen: '' })
@@ -110,6 +115,8 @@ const removeError = ref('')
 /* CLE-77799: the admin-only Activity log (audit.read), a dialog off the card. */
 const canSeeActivity = computed(() => access.can('audit.read'))
 const activityOpen = ref(false)
+/* the action row shows only when there is at least one action for this reader. */
+const hasActions = computed(() => !isSelf.value || canSeeActivity.value || canRemove.value)
 
 /* the roster is already loaded for the DM list; refresh once so a deep link
    straight to this card (no sidebar visited yet) still has the detail. The
@@ -155,10 +162,11 @@ async function removeMember() {
 .person-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .person-card__interests h3 { margin: 0 0 6px; font-size: 0.9rem; }
 .person-card__interestsText { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.person-card__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-/* CLE-77799: the destructive Remove action, in the danger token (light + dark). */
-.person-card__remove { color: var(--color-danger); border-color: var(--color-danger); }
-.person-remove-danger { color: var(--color-danger); border-color: var(--color-danger); }
+/* CLE-77799 (owner 6da1d88e): one action row, clear of the pane divider, with
+   same-size icon+label buttons. Message is the primary; Activity log and Remove
+   are secondary (ghost); Remove is the shared readable danger style. */
+.person-card__actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.person-card__act { display: inline-flex; align-items: center; gap: 6px; }
 .person-card__error { margin: 8px 0 0; color: var(--color-danger); overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .person-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }

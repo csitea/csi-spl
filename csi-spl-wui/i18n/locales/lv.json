@@ -1342,11 +1342,15 @@
     "online": "Tiešsaistē",
     "offline": "Bezsaistē",
     "message": "Ziņa",
-    "remove": "Noņemt no darbvietas"
+    "remove": "Noņemt no darbvietas",
+    "remove_hint": "Noņem šo personu no šīs darbvietas. Viņa konts un ziņojumi paliek.",
+    "remove_confirm_title": "Noņemt no darbvietas?",
+    "remove_confirm": "{name} zaudē piekļuvi {tenant}. Konts, citas darbvietas un ziņojumi paliek."
   },
   "activity": {
     "title": "Aktivitāšu žurnāls",
     "open": "Aktivitāšu žurnāls",
+    "open_hint": "Skatiet šīs personas pieteikšanās, lomu izmaiņas un citas darbības šeit.",
     "none": "Vēl nav aktivitāšu.",
     "loading": "Ielādē…",
     "filter_all": "Visi",

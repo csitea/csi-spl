@@ -1342,11 +1342,15 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Bericht",
-    "remove": "Uit werkruimte verwijderen"
+    "remove": "Uit werkruimte verwijderen",
+    "remove_hint": "Verwijdert deze persoon uit deze werkruimte. Hun account en berichten blijven.",
+    "remove_confirm_title": "Uit werkruimte verwijderen?",
+    "remove_confirm": "{name} verliest toegang tot {tenant}. Hun account, andere werkruimtes en berichten blijven."
   },
   "activity": {
     "title": "Activiteitenlogboek",
     "open": "Activiteitenlogboek",
+    "open_hint": "Bekijk hier de aanmeldingen, rolwijzigingen en andere activiteit van deze persoon.",
     "none": "Nog geen activiteit.",
     "loading": "Laden…",
     "filter_all": "Alle",

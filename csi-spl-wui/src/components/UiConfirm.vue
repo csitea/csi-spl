@@ -22,7 +22,7 @@
         >{{ t('common.cancel') }}</button>
         <button
           type="button"
-          class="btn ui-confirm__danger"
+          class="btn ghost danger"
           :disabled="busy || disabled"
           :data-testid="`${testid}-confirm`"
           @click="emit('confirm')"
@@ -84,16 +84,8 @@ const { t } = useI18n({ useScope: 'global' })
   gap: 6px;
   min-width: 104px;
 }
-.ui-confirm__danger {
-  background: transparent;
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-}
-.ui-confirm__danger:not(:disabled):hover,
-.ui-confirm__danger:not(:disabled):focus-visible {
-  background: var(--color-danger);
-  color: var(--color-danger-fg);
-}
+/* the destructive button uses the shared .btn.ghost.danger (main.css,
+   CLE-77799) so every confirm reads the same and stays WCAG-AA in each theme. */
 .ui-confirm__actions .btn:disabled { opacity: 0.6; cursor: default; }
 /* a phone: the buttons stack full width, Delete above Cancel (the thumb's
    nearest reach, at the bottom, is the safe one) */

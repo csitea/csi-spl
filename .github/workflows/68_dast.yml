@@ -1,7 +1,8 @@
 # DAST against the DEV environment only (never prd). Two jobs:
 #   headers  - do_sec_headers: verifies HSTS / X-Content-Type-Options /
-#              Referrer-Policy / CSP|X-Frame-Options on https://dev.spool-hub.ai,
-#              with a negative control (a header-less local mock must be flagged).
+#              Referrer-Policy / CSP|X-Frame-Options on the dev WUI host
+#              (dev.<BASE_DOMAIN>, derived from cnf), with a negative control
+#              (a header-less local mock must be flagged).
 #              Read-only, one request. Self-hosted (uses the ./run harness).
 #   zap      - OWASP ZAP baseline (passive) against dev, conservative + bounded so
 #              it stays well under the owner's 5 req/s dev cap. Report-only for the
@@ -9,7 +10,7 @@
 #              fail_action). Runs on GitHub-hosted ubuntu (needs Docker); it only
 #              reaches the PUBLIC dev URL and uses no repo secrets.
 #
-# Owner-go (topic 875651f8): ZAP against dev.spool-hub.ai only, <=5 req/s, never
+# Owner-go (topic 875651f8): ZAP against the dev WUI host only, <=5 req/s, never
 # prd. Schedule + workflow_dispatch only -- never on a fleet push.
 name: "68 sec: DAST (headers + ZAP) vs dev"
 
@@ -32,10 +33,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # SEC_HEADERS_URL is left unset: do_sec_headers derives the dev host from
+      # cnf (env.dns.BASE_DOMAIN), so no host literal lives in this workflow.
       - name: security-headers (control + dev)
         working-directory: csi-spl-iac
-        env:
-          SEC_HEADERS_URL: https://dev.spool-hub.ai
         run: ./run -a do_sec_headers
 
   zap:
@@ -46,10 +47,19 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Derive the dev target from cnf so the host literal lives ONLY in
+      # csi-spl-cnf (env.dns.BASE_DOMAIN); dev serves dev.<BASE_DOMAIN>.
+      - name: Derive dev target from cnf
+        id: tgt
+        run: |
+          set -euo pipefail
+          d=$(awk '/^[[:space:]]*BASE_DOMAIN:/{print $2; exit}' csi-spl-cnf/csi-spl/all.env.yaml)
+          [ -n "$d" ] || { echo "::error::could not read env.dns.BASE_DOMAIN from cnf"; exit 1; }
+          echo "url=https://dev.$d" >> "$GITHUB_OUTPUT"
       - name: ZAP baseline (passive, bounded, dev only)
         uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
-          target: https://dev.spool-hub.ai
+          target: ${{ steps.tgt.outputs.url }}
           rules_file_name: .zap/rules.tsv
           allow_issue_writing: false
           fail_action: false

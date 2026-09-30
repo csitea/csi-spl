@@ -88,8 +88,9 @@ set -e
 
 # --- the workflow actually invokes the action -------------------------------
 if [[ -f "$WF" ]]; then
-  grep -qF 'do_sec_headers' "$WF" && grep -qF 'dev.spool-hub.ai' "$WF" \
-    && pass "68_dast.yml runs the headers check against dev" || fail "68_dast.yml missing do_sec_headers/dev target"
+  grep -qF 'do_sec_headers' "$WF" && grep -qE 'BASE_DOMAIN|dev\.' "$WF" \
+    && pass "68_dast.yml runs the headers check against the dev host (derived from cnf)" \
+    || fail "68_dast.yml missing do_sec_headers/dev target"
 else
   fail "no workflow at $WF"
 fi

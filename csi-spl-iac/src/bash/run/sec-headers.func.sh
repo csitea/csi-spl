@@ -6,9 +6,11 @@
 # @description control first: a local mock that omits headers MUST be flagged. A
 # @description check that passes the mock proves nothing and the action fails
 # @description closed. Read-only, one request (well under the 5 req/s dev cap).
-# @param SEC_HEADERS_URL (optional) - target; default https://dev.spool-hub.ai
+# @param SEC_HEADERS_URL (optional) - target; default the dev WUI host derived
+# @param        from cnf: https://<env.dns.env_subdomain>.<env.dns.BASE_DOMAIN>
+# @param        (csi-spl-cnf/csi-spl/all.env.yaml), so no host literal lives here.
 # @param SEC_HEADERS_SKIP_SCAN (optional) - 1 to run only the control (local dev)
-# @example SEC_HEADERS_URL=https://dev.spool-hub.ai ./run -a do_sec_headers
+# @example SEC_HEADERS_URL=https://dev.<host> ./run -a do_sec_headers
 #------------------------------------------------------------------------------
 
 _SEC_HEADERS_REQUIRED=(
@@ -22,6 +24,24 @@ _SEC_HEADERS_FRAME_ANY=("content-security-policy" "x-frame-options")
 _sec_headers_need() {
   command -v "$1" >/dev/null 2>&1 && return 0
   do_log "FATAL $1 is not on PATH -- the check proved nothing"
+  return 1
+}
+
+# The dev WUI host, derived from cnf so the domain literal lives ONLY in
+# csi-spl-cnf (env.dns.BASE_DOMAIN). Convention: dev serves dev.<BASE_DOMAIN>.
+# Prints the https URL, or nothing if cnf cannot be read.
+_sec_headers_default_url() {
+  local base="${APP_PATH:-}" cnf="" dom
+  for cnf in "$base/../csi-spl-cnf/csi-spl/all.env.yaml" \
+             "$base/csi-spl-cnf/csi-spl/all.env.yaml" \
+             "${SEC_HEADERS_CNF:-}"; do
+    [[ -n "$cnf" && -f "$cnf" ]] || continue
+    if command -v yq >/dev/null 2>&1; then
+      dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$cnf" 2>/dev/null)
+    fi
+    [[ -z "${dom:-}" ]] && dom=$(sed -n 's/^[[:space:]]*BASE_DOMAIN:[[:space:]]*//p' "$cnf" | head -1 | tr -d '"'"'"' ')
+    [[ -n "${dom:-}" ]] && { printf 'https://dev.%s\n' "$dom"; return 0; }
+  done
   return 1
 }
 
@@ -65,7 +85,6 @@ PY
 do_sec_headers() {
   _sec_headers_need curl || return 1
   _sec_headers_need python3 || return 1
-  local url="${SEC_HEADERS_URL:-https://dev.spool-hub.ai}"
 
   # --- control: a mock omitting headers must be flagged ----------------------
   local pm port pid script
@@ -84,6 +103,14 @@ do_sec_headers() {
   if [[ "${SEC_HEADERS_SKIP_SCAN:-0}" == 1 ]]; then
     do_log "INFO SEC_HEADERS_SKIP_SCAN=1 -- control only (no live request)"
     return 0
+  fi
+
+  # The scan target (only needed here): explicit SEC_HEADERS_URL or the dev host
+  # derived from cnf, so no host literal lives in this action.
+  local url="${SEC_HEADERS_URL:-$(_sec_headers_default_url)}"
+  if [[ -z "$url" ]]; then
+    do_log "FATAL no SEC_HEADERS_URL and could not derive the dev host from cnf (env.dns.BASE_DOMAIN)"
+    return 1
   fi
 
   # --- scan: the deployed target --------------------------------------------

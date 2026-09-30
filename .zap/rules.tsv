@@ -1,4 +1,4 @@
-# OWASP ZAP baseline rule triage for dev.spool-hub.ai (68_dast.yml).
+# OWASP ZAP baseline rule triage for the dev WUI host (68_dast.yml).
 # Tab-separated: <ruleId>\t<WARN|IGNORE|FAIL>\t<comment>
 # Empty of overrides for the first iteration: ZAP defaults apply and the job is
 # report-only (fail_action: false). After the first dispatch run, triage each

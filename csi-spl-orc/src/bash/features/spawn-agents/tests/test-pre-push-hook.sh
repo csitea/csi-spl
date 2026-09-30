@@ -91,5 +91,21 @@ eq "6. main untouched" "" "$(git -C "$MAIN" config --get core.hooksPath 2>/dev/n
 bash "$INSTALL" "$ROOT/wtA" >/dev/null 2>&1; eq "7. installer is idempotent" 0 "$?"
 bash "$INSTALL" "$ROOT/not-a-repo-$$" >/dev/null 2>&1; eq "8. non-git dir -> exit 2" 2 "$?"
 
+# 9. the core.bare landmine: a repo carrying core.bare=true in its COMMON config
+#    must NOT become bare when the installer enables extensions.worktreeConfig.
+MB="$ROOT/barelm"
+git -C . init -q "$MB" >/dev/null 2>&1 || git init -q "$MB"
+git -C "$MB" commit -q --allow-empty -m init
+mkdir -p "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks"
+install -m 0755 "$HOOK" "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
+git -C "$MB" config core.bare true          # plant the latent misconfiguration
+git -C "$MB" worktree add -q "$ROOT/wtLM" -b wtLM >/dev/null 2>&1
+bash "$INSTALL" "$ROOT/wtLM" >/dev/null 2>&1; eq "9. installer on a core.bare=true repo -> exit 0" 0 "$?"
+eq "9. the MAIN checkout is still a work tree (not misdetected bare)" true \
+  "$(git -C "$MB" rev-parse --is-inside-work-tree 2>/dev/null)"
+git -C "$MB" status --porcelain >/dev/null 2>&1; eq "9. ... and status works there" 0 "$?"
+eq "9. the linked worktree got its hook" "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks" \
+  "$(git -C "$ROOT/wtLM" config --get core.hooksPath 2>/dev/null)"
+
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

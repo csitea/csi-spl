@@ -35,6 +35,29 @@ hooks_dir="$repo/csi-spl-orc/src/bash/features/spawn-agents/hooks"
 [ -x "$hooks_dir/pre-push" ] \
   || { echo "install-pre-push-hook: no executable hook at $hooks_dir/pre-push" >&2; exit 1; }
 
+# Enabling extensions.worktreeConfig makes git read core.bare / core.worktree
+# PER WORKTREE. If a repo carries core.bare=true in its COMMON config (a latent
+# misconfiguration git ignored for the main checkout while the extension was
+# off), turning the extension on makes git treat the non-bare MAIN checkout as
+# bare -- `status` / `merge --ff-only` then fail there. Git's documented
+# migration is to pin those settings in the MAIN worktree's own config.worktree.
+# Do it here, idempotently, so enabling the extension is always safe.
+main_wt="$(git -C "$wt" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}')"
+
 git -C "$wt" config extensions.worktreeConfig true
+
+# A genuinely non-bare main worktree has a .git entry at its root; a bare repo
+# does not. Once core.bare=true is honoured, `worktree list` reports the main as
+# "bare", so it cannot be the signal -- the .git entry is. Pin core.bare=false
+# in the main worktree's own config.worktree only when the main is really
+# non-bare, or `status` / `merge --ff-only` there break.
+if [ -n "$main_wt" ] && [ -e "$main_wt/.git" ] \
+   && [ "$(git -C "$wt" config --get core.bare 2>/dev/null)" = true ]; then
+  git -C "$main_wt" config --worktree core.bare false
+  cw="$(git -C "$wt" config --get core.worktree 2>/dev/null || true)"
+  [ -n "$cw" ] && git -C "$main_wt" config --worktree core.worktree "$cw"
+  echo "install-pre-push-hook: migrated core.bare=false into the main worktree ($main_wt) config.worktree"
+fi
+
 git -C "$wt" config --worktree core.hooksPath "$hooks_dir"
 echo "install-pre-push-hook: $wt -> core.hooksPath=$hooks_dir (worktree-local)"

@@ -1159,7 +1159,10 @@
     "archive_body": "Det flyttas till arkivet. Du kan återställa det senare.",
     "archive_cascade_body": "Detta arkiverar {count} ärenden och deras deluppgifter. Du kan återställa dem.",
     "delete_cascade_body": "Detta tar bort {count} ärenden och deras deluppgifter.",
-    "err_unavailable": "Detta kräver den uppdaterade servern. Försök igen om en stund."
+    "err_unavailable": "Detta kräver den uppdaterade servern. Försök igen om en stund.",
+    "copy_link": "Kopiera länk",
+    "epic_actions": "Åtgärder för {key}",
+    "select_epic": "Öppna ett epos eller en funktion för att agera på det"
   },
   "issues_views": {
     "label": "Vy",

@@ -1159,7 +1159,10 @@
     "archive_body": "Ji perkeliama į archyvą. Vėliau galėsite ją atkurti.",
     "archive_cascade_body": "Bus archyvuota {count} užduočių ir jų papildomos užduotys. Galėsite jas atkurti.",
     "delete_cascade_body": "Bus ištrinta {count} užduočių ir jų papildomos užduotys.",
-    "err_unavailable": "Tam reikia atnaujinto serverio. Pabandykite dar kartą po akimirkos."
+    "err_unavailable": "Tam reikia atnaujinto serverio. Pabandykite dar kartą po akimirkos.",
+    "copy_link": "Kopijuoti nuorodą",
+    "epic_actions": "Veiksmai: {key}",
+    "select_epic": "Atverkite epiką ar funkciją, kad galėtumėte su ja dirbti"
   },
   "issues_views": {
     "label": "Rodinys",

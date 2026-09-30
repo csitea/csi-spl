@@ -1159,7 +1159,10 @@
     "archive_body": "Arşive taşınır. Daha sonra geri yükleyebilirsiniz.",
     "archive_cascade_body": "Bu, {count} görevi ve alt görevlerini arşivler. Bunları geri yükleyebilirsiniz.",
     "delete_cascade_body": "Bu, {count} görevi ve alt görevlerini siler.",
-    "err_unavailable": "Bu, güncellenmiş sunucuyu gerektirir. Lütfen birazdan tekrar deneyin."
+    "err_unavailable": "Bu, güncellenmiş sunucuyu gerektirir. Lütfen birazdan tekrar deneyin.",
+    "copy_link": "Bağlantıyı kopyala",
+    "epic_actions": "{key} için eylemler",
+    "select_epic": "Üzerinde işlem yapmak için bir epik veya özellik açın"
   },
   "issues_views": {
     "label": "Görünüm",

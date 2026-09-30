@@ -1159,7 +1159,10 @@
     "archive_body": "Se mută în arhivă. O poți restaura mai târziu.",
     "archive_cascade_body": "Aceasta arhivează {count} sarcini și subsarcinile lor. Le poți restaura.",
     "delete_cascade_body": "Aceasta șterge {count} sarcini și subsarcinile lor.",
-    "err_unavailable": "Aceasta necesită serverul actualizat. Încearcă din nou într-o clipă."
+    "err_unavailable": "Aceasta necesită serverul actualizat. Încearcă din nou într-o clipă.",
+    "copy_link": "Copiază linkul",
+    "epic_actions": "Acțiuni pentru {key}",
+    "select_epic": "Deschide un epic sau o funcționalitate pentru a acționa asupra ei"
   },
   "issues_views": {
     "label": "Vizualizare",

@@ -1159,7 +1159,10 @@
     "archive_body": "Presunie sa do archívu. Neskôr ju možno obnoviť.",
     "archive_cascade_body": "Týmto sa archivuje {count} úloh a ich podúlohy. Možno ich obnoviť.",
     "delete_cascade_body": "Týmto sa odstráni {count} úloh a ich podúlohy.",
-    "err_unavailable": "Vyžaduje to aktualizovaný server. Skúste to o chvíľu znova."
+    "err_unavailable": "Vyžaduje to aktualizovaný server. Skúste to o chvíľu znova.",
+    "copy_link": "Kopírovať odkaz",
+    "epic_actions": "Akcie pre {key}",
+    "select_epic": "Otvorte epik alebo funkciu, aby ste s ňou mohli pracovať"
   },
   "issues_views": {
     "label": "Zobrazenie",

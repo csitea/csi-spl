@@ -1159,7 +1159,10 @@
     "archive_body": "Se mueve al archivo. Puedes restaurarla más tarde.",
     "archive_cascade_body": "Esto archiva {count} incidencias y sus subtareas. Puedes restaurarlas.",
     "delete_cascade_body": "Esto elimina {count} incidencias y sus subtareas.",
-    "err_unavailable": "Esto requiere el servidor actualizado. Inténtalo de nuevo en un momento."
+    "err_unavailable": "Esto requiere el servidor actualizado. Inténtalo de nuevo en un momento.",
+    "copy_link": "Copiar enlace",
+    "epic_actions": "Acciones para {key}",
+    "select_epic": "Abre un épico o una función para actuar sobre él"
   },
   "issues_views": {
     "label": "Vista",

@@ -40,6 +40,25 @@
           </button>
         </div>
         <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
+        <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
+             title row next to the view toggle + Clear filters. It acts on the
+             epic/feature being viewed (?epic=); disabled with a tooltip when the
+             view is not filtered to one. Same menu component as the row's
+             right-click, so Copy link / Archive / Delete behave identically. -->
+        <button
+          v-if="!phone"
+          type="button"
+          class="btn ghost issues-head__menu"
+          data-test="issues-epic-menu"
+          :aria-disabled="selectedEpic ? undefined : 'true'"
+          :data-disabled="selectedEpic ? undefined : 'true'"
+          :aria-haspopup="'menu'"
+          :aria-label="selectedEpic ? t('issues_menu.epic_actions', { key: epicF }) : t('issues_menu.select_epic')"
+          :title="selectedEpic ? t('issues_menu.epic_actions', { key: epicF }) : t('issues_menu.select_epic')"
+          @click="openEpicMenu($event)"
+        >
+          <UiIcon name="menu" :size="16" />
+        </button>
       </header>
       <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
@@ -763,7 +782,7 @@
       :x="ctxPoint.x"
       :y="ctxPoint.y"
       :items="ctxItems"
-      @close="closeCtxMenu"
+      @close="onCtxClose"
       @choose="onCtxChoose"
     />
     <!-- SPL-1226: archive / delete a whole epic or feature, stating the count -->
@@ -845,6 +864,7 @@ import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useCardClip } from '~/composables/useCardClip'
+import { useCopyText } from '~/composables/useCopyText'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
@@ -968,6 +988,11 @@ const delError = ref('')
 /* SPL-1226: the right-click / long-press context menu (shared with the epics
    sidebar) and its cascade archive/delete confirm */
 const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu } = useIssueMenu()
+/* owner b82f3853: the same menu opened from the title-row button, not a
+   right-click. Then it omits "Open" (the epic is already the view) and it
+   right-aligns under the button. */
+const ctxFromButton = ref(false)
+const { copy: copyText } = useCopyText()
 const actConfirm = ref<{ target: IssueMenuTarget, action: 'archive' | 'delete', count: number } | null>(null)
 const actBusy = ref(false)
 const actError = ref('')
@@ -987,6 +1012,16 @@ const epicF = computed(() => {
   return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
 })
 const epicTitle = computed(() => epics.value.find((e) => e.key === epicF.value)?.title || '')
+/* owner b82f3853: the epic/feature the view is filtered to (?epic=), as a menu
+   target for the title-row actions button. null when the view is not filtered
+   to one epic - then the button is disabled with a tooltip. A level-1 top row;
+   the kind comes from the epics summary (epic vs feature), defaulting to epic. */
+const selectedEpic = computed<IssueMenuTarget | null>(() => {
+  const key = epicF.value
+  if (!key) return null
+  const e = epics.value.find((x) => x.key === key)
+  return { key, kind: e?.kind || 'epic', level: 1, title: e?.title || key, top: true }
+})
 function epicLabel(key: string) {
   const e = epics.value.find((x) => x.key === key)
   return e ? `${e.key} ${e.title}` : key
@@ -1857,7 +1892,10 @@ function onRowActivate(issue: Issue) { if (rowPress.takeClick()) return; choose(
 const ctxItems = computed<IssueMenuItem[]>(() => {
   const tg = ctxTarget.value
   if (!tg) return []
-  const items: IssueMenuItem[] = [{ id: 'open', icon: 'open', labelKey: 'issues_menu.open' }]
+  const items: IssueMenuItem[] = []
+  /* from the title-row button the epic is already the open view - no "Open" */
+  if (!ctxFromButton.value) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
+  items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
   if (!tg.top) {
     items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
     items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
@@ -1866,10 +1904,29 @@ const ctxItems = computed<IssueMenuItem[]>(() => {
   items.push({ id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true })
   return items
 })
+/* owner b82f3853: the title-row actions button opens the same menu, targeting
+   the epic/feature the view is filtered to, right-aligned under the button. */
+function openEpicMenu(ev: MouseEvent) {
+  const tg = selectedEpic.value
+  if (!tg) return
+  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  ctxFromButton.value = true
+  openCtxMenu(tg, Math.max(8, r.right - 176), r.bottom + 4)
+}
+function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false }
+/* the shareable link for a menu target: an epic/feature opens its filtered
+   view (?epic=), a plain issue deep-links itself (?issue=) */
+function issueLinkFor(tg: IssueMenuTarget): string {
+  const q = tg.top ? `?epic=${encodeURIComponent(tg.key)}` : `?issue=${encodeURIComponent(tg.key)}`
+  const rel = `/issues${q}`
+  if (import.meta.client) { try { return new URL(rel, window.location.origin).href } catch { /* fall through */ } }
+  return rel
+}
 function onCtxChoose(id: string) {
   const tg = ctxTarget.value
   if (!tg) return
   const pt = { ...ctxPoint.value }
+  if (id === 'copy') { void copyText(issueLinkFor(tg), tg.key); return }
   if (id === 'open') {
     if (tg.top) { void router.push({ query: { ...route.query, epic: tg.key } }); return }
     const issue = issues.value.find((i) => i.key === tg.key)
@@ -2317,6 +2374,12 @@ onUnmounted(() => {
    right after the toggle with the normal header gap. */
 .issues-head__views { margin-inline-start: 49px; }
 .issues-head__clear { flex: 0 0 auto; }
+/* owner b82f3853: the epic/feature actions button (three-line menu glyph). It
+   stays enabled-looking but dims and blocks its click when nothing is selected,
+   so the tooltip explaining why still shows on hover (a real [disabled] button
+   suppresses the title). */
+.issues-head__menu { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
+.issues-head__menu[data-disabled='true'] { opacity: .45; cursor: default; }
 /* SPL-978: Material-style round + (accent fill, elevation, hover lift, press ripple) */
 .issues-fab {
   position: relative;

@@ -1159,7 +1159,10 @@
     "archive_body": "Tas tiek pārvietots uz arhīvu. Vēlāk to var atjaunot.",
     "archive_cascade_body": "Tiks arhivēti {count} uzdevumi un to apakšuzdevumi. Tos var atjaunot.",
     "delete_cascade_body": "Tiks dzēsti {count} uzdevumi un to apakšuzdevumi.",
-    "err_unavailable": "Tam nepieciešams atjaunināts serveris. Lūdzu, mēģiniet vēlreiz pēc brīža."
+    "err_unavailable": "Tam nepieciešams atjaunināts serveris. Lūdzu, mēģiniet vēlreiz pēc brīža.",
+    "copy_link": "Kopēt saiti",
+    "epic_actions": "Darbības ar {key}",
+    "select_epic": "Atveriet eposu vai funkciju, lai ar to darbotos"
   },
   "issues_views": {
     "label": "Skats",

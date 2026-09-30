@@ -1159,7 +1159,10 @@
     "archive_body": "It moves to the archive. You can restore it later.",
     "archive_cascade_body": "This archives {count} issues and their subtasks. You can restore them.",
     "delete_cascade_body": "This deletes {count} issues and their subtasks.",
-    "err_unavailable": "This needs the updated server. Please try again in a moment."
+    "err_unavailable": "This needs the updated server. Please try again in a moment.",
+    "copy_link": "Copy link",
+    "epic_actions": "Actions for {key}",
+    "select_epic": "Open an epic or feature to act on it"
   },
   "issues_views": {
     "label": "View",

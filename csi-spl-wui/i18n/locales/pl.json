@@ -1159,7 +1159,10 @@
     "archive_body": "Zostanie przeniesione do archiwum. Można je później przywrócić.",
     "archive_cascade_body": "Spowoduje to zarchiwizowanie {count} zadań i ich podzadań. Można je przywrócić.",
     "delete_cascade_body": "Spowoduje to usunięcie {count} zadań i ich podzadań.",
-    "err_unavailable": "To wymaga zaktualizowanego serwera. Spróbuj ponownie za chwilę."
+    "err_unavailable": "To wymaga zaktualizowanego serwera. Spróbuj ponownie za chwilę.",
+    "copy_link": "Kopiuj link",
+    "epic_actions": "Akcje dla {key}",
+    "select_epic": "Otwórz epik lub funkcję, aby wykonać na niej działanie"
   },
   "issues_views": {
     "label": "Widok",

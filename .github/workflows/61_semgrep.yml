@@ -1,0 +1,52 @@
+# SAST (Semgrep). Same runner rule as 15_sec-deps-secrets.yml: self-hosted
+# (spool-ci). Semgrep is installed pinned into a throwaway venv; a missing tool
+# fails the action. The gate uses the p/golang + p/javascript + p/owasp-top-ten
+# rulesets against .semgrep-baseline.txt so only NEW findings redden trunk.
+#
+# Heavy tool: schedule + workflow_dispatch + path-scoped push (Go + WUI src).
+name: "61 sec: semgrep (SAST)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "47 3 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "csi-spl-api/src/go/spool-hub-api/**"
+      - "csi-spl-wui/src/**"
+      - ".semgrep-baseline.txt"
+      - "csi-spl-iac/src/bash/run/sec-semgrep.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-semgrep.tst.sh"
+      - ".github/workflows/61_semgrep.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-semgrep-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  semgrep:
+    name: "sec: semgrep (p/golang, p/javascript, p/owasp-top-ten)"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Version-pinned into a throwaway venv (large dep tree; version is the pin).
+      - name: Install semgrep 1.178.0
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/semgrep-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --disable-pip-version-check --quiet semgrep==1.178.0
+          "$venv/bin/semgrep" --version
+          echo "$venv/bin" >> "$GITHUB_PATH"
+
+      - name: semgrep (control + scan vs baseline)
+        working-directory: csi-spl-iac
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: ./run -a do_sec_semgrep

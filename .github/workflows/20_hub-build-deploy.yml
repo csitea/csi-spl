@@ -114,6 +114,7 @@ jobs:
     name: Determine deploy targets
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       envs: ${{ steps.targets.outputs.envs }}
       any: ${{ steps.targets.outputs.any }}

@@ -70,6 +70,7 @@ jobs:
   targets:
     name: Which envs can be asked
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       envs: ${{ steps.t.outputs.envs }}
       any: ${{ steps.t.outputs.any }}

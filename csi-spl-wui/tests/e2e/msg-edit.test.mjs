@@ -57,6 +57,20 @@ const THEIR_TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const BOT_MSG = '33333333-3333-4333-8333-333333333333'
 const BOT_TASK = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
+/* specs/054: the lde mock is signed-OUT by default, so .spool-shell never
+ * mounts until a browser opts into a mock session (utils/mock; the same
+ * localStorage key act-as/close-buttons set). HUM-1 is the author of OWN_MSG and
+ * a plain member — the owner's "a regular member edits her own message and her
+ * topic title" (SPL-1291). Set once per page after the first load; it is
+ * same-origin localStorage, so it survives the later page.goto navigations. */
+const MOCK_SESSION = { hum: 'HUM-1', name: 'Member', email: 'member@example.com', t: 'mock' }
+async function openLobbyShell(page) {
+  await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
+  await page.evaluate((s) => { try { localStorage.setItem('spool.mock.session', JSON.stringify(s)) } catch { /* private mode */ } }, MOCK_SESSION)
+  await page.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+}
+
 if (OUT) mkdirSync(OUT, { recursive: true })
 
 const results = []
@@ -232,8 +246,7 @@ try {
 
   const vp = { name: 'desktop 1280x800', width: 1280, height: 800 }
   await setPageViewport(page, vp)
-  await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
-  await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await openLobbyShell(page)
   await applyViewport(page, vp)
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
   await sleep(600)
@@ -407,8 +420,7 @@ try {
   /* author-only, no time window (message-edit-v1 §4): the hub answers 403
      not_author / 409 not_editable for one of these, so offering the shortcut
      would open an editor that cannot save */
-  await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
-  await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await openLobbyShell(page)
   await drive(page, 'openTask', THEIR_TASK)
   await sleep(1500)
   const theirFocused = await focusRow(page, THEIR_MSG, '[data-test=topic-section]')
@@ -460,8 +472,7 @@ try {
    * which re-opens the editor on the bot root after the swap, reproducing the
    * un-keyed card's behaviour without editing src/.
    */
-  await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
-  await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await openLobbyShell(page)
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
   await sleep(600)
   const ownRow2 = await rowFromStore(page, OWN_MSG)

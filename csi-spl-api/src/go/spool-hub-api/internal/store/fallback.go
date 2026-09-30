@@ -56,6 +56,19 @@ type Fallbacks interface {
 	// holds a tenant's boxes sweeps them: the process a post was stored on
 	// may hold none of them.
 	UnheardPosts(ctx context.Context, tenantID string, since, until time.Time, limit int) ([]Queued, error)
+	// UnansweredPosts lists signed browser posts by a person (from_box
+	// box-wui, from HUM-*) received in [since, until) that NO agent replied
+	// to in their topic and no fallback took, oldest first, at most limit
+	// (SPL-1225). Unlike UnheardPosts it does NOT care whether an agent box
+	// was "sent" the frame: a channel post is marked sent the instant it is
+	// relayed to the shared box-desk, whose roster names every agent that
+	// ever had a dir there - alive or long dead - so "sent" and "an agent is
+	// online" both read true while no live agent acts. The ground truth that
+	// survives a stale roster is a REPLY in the topic; its absence past the
+	// grace is what escalates the post to the tenant's responder. A reply is
+	// any later message in the same task from a sender that is not the human
+	// browser (from_box <> box-wui and from_id not a HUM-/GST- id).
+	UnansweredPosts(ctx context.Context, tenantID string, since, until time.Time, limit int) ([]Queued, error)
 	// ChannelFallbacks summarises the channel's fallback deliveries at or
 	// after since ("" channel = the DMs).
 	ChannelFallbacks(ctx context.Context, tenantID, channelID string, since time.Time) (FallbackSummary, error)

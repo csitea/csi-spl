@@ -258,6 +258,13 @@ type Hub struct {
 	// (hub/relay.go): a post stored by another process or revision reaches
 	// its agents within a tick, not at the box's next hello. 0 = off.
 	QueueRelay time.Duration `env:"SPOOL_HUB_QUEUE_RELAY" envDefault:"5s"`
+	// SPL-1225: the relay also escalates a signed human post that no agent
+	// replied to in its topic within this grace to the tenant's responder,
+	// regardless of what the (stale, dir-derived) box-desk roster says about
+	// who is "online". The fast live/queue path still delivers first; this is
+	// the backstop against a post reaching no live agent AND no fallback.
+	// 0 = off. Requires Fallback.
+	UnansweredGrace time.Duration `env:"SPOOL_HUB_UNANSWERED_GRACE" envDefault:"120s"`
 
 	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`

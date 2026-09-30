@@ -105,7 +105,43 @@ func (s *Server) Relay(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true)
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, false)
+		}
+	}
+	s.escalateUnanswered(ctx, fb, ids, now)
+}
+
+// unansweredWindow is how far back the SPL-1225 escalation sweep looks. It is
+// wider than relaySweepWindow because an unanswered post is a slow failure,
+// not a lost frame: a post that sat silent while the hub was briefly down must
+// still be caught when it comes back. The per-msg fallback_deliveries claim
+// keeps a caught post from being escalated twice, so a wide window is cheap.
+const unansweredWindow = 60 * time.Minute
+
+// escalateUnanswered is the SPL-1225 safety net: a signed human post that no
+// agent replied to in its topic within UnansweredGrace goes to the tenant's
+// responder, whatever the roster claims about who is "online". Off when
+// UnansweredGrace is 0.
+func (s *Server) escalateUnanswered(ctx context.Context, fb store.Fallbacks, tenants []string, now time.Time) {
+	if s.o.UnansweredGrace <= 0 {
+		return
+	}
+	for _, tenant := range tenants {
+		posts, err := fb.UnansweredPosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.UnansweredGrace), relaySweepMax)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay unanswered posts")
+			continue
+		}
+		for _, p := range posts {
+			env, err := wire.ParseEnvelope(p.Env)
+			if err != nil {
+				continue
+			}
+			m, err := env.Inner()
+			if err != nil {
+				continue
+			}
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, true, true)
 		}
 	}
 }

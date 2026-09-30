@@ -53,6 +53,11 @@ type Options struct {
 	// ONE online fallback agent of the tenant (fallback.go). Zero = off, so a
 	// rig that does not ask for it sees no extra frame.
 	Fallback bool
+	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
+	// in its topic within this grace is escalated to the tenant's responder by
+	// the relay sweep, whatever the (stale) roster says about who is online.
+	// 0 = off. See relay.go escalateUnanswered and store.UnansweredPosts.
+	UnansweredGrace time.Duration
 
 	RetentionAlerts   time.Duration
 	RetentionChannels time.Duration

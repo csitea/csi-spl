@@ -140,14 +140,23 @@ func fallbackWhere(channel, to string) string {
 // it was meant for is online (FR-030..FR-034). channel is the post's stored
 // channel ("" = a DM). Called once, after the post's own deliveries exist.
 func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message) {
-	s.fallbackPost(ctx, tenant, channel, env, m, false)
+	s.fallbackPost(ctx, tenant, channel, env, m, false, false)
 }
 
 // fallbackPost is fallback; swept = the relay's sweep of a post another hub
 // process stored (relay.go, SPL-1004). A swept post is CLAIMED before its
 // frame is written, so two processes that both hold boxes of the tenant hand
 // it out once.
-func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept bool) {
+//
+// escalate = the SPL-1225 unanswered-post sweep (relay.go). It reuses this
+// delivery machinery but SKIPS the "is any agent online" gates: those gates
+// read the stored roster, which names every agent that ever had a dir on the
+// shared box-desk - a long-dead agent still reads "online" - so they suppress
+// the fallback for exactly the posts that most need it. An escalated post has
+// already been proven unheard by the ground truth (no reply in its topic past
+// the grace), so it always goes to the responder. It is always CLAIMED first,
+// like a swept post, for the same one-delivery guarantee.
+func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept, escalate bool) {
 	if !s.o.Fallback || env.FromBox != WUIBox || !strings.HasPrefix(m.From, "HUM-") {
 		return
 	}
@@ -171,19 +180,21 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 		log.Error().Err(err).Msg("fallback roster")
 		return
 	}
-	if env.ToBox != WUIBox && s.agentOnline(tenant, env.ToBox, m.To, roster) {
-		return
-	}
-	if channel != "" {
-		members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
-		if err != nil {
-			log.Error().Err(err).Msg("fallback channel members")
+	if !escalate {
+		if env.ToBox != WUIBox && s.agentOnline(tenant, env.ToBox, m.To, roster) {
 			return
 		}
-		for box, agents := range members {
-			for _, a := range agents {
-				if s.agentOnline(tenant, box, a, roster) {
-					return
+		if channel != "" {
+			members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
+			if err != nil {
+				log.Error().Err(err).Msg("fallback channel members")
+				return
+			}
+			for box, agents := range members {
+				for _, a := range agents {
+					if s.agentOnline(tenant, box, a, roster) {
+						return
+					}
 				}
 			}
 		}
@@ -201,7 +212,8 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	now := s.o.Now()
 	rec := store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID, Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}
 	fb, hasFB := s.o.Store.(store.Fallbacks)
-	if swept && hasFB {
+	claim := swept || escalate
+	if claim && hasFB {
 		switch won, err := fb.ClaimFallback(ctx, rec); {
 		case err != nil:
 			log.Error().Err(err).Msg("fallback claim")
@@ -220,12 +232,13 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	} else {
 		log.Error().Err(err).Str("box", b.box).Msg("fallback delivery row")
 	}
-	if hasFB && !swept {
+	if hasFB && !claim {
 		if err := fb.RecordFallback(ctx, rec); err != nil {
 			log.Error().Err(err).Msg("fallback record")
 		}
 	}
-	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).Bool("swept", swept).Msg("fallback delivered")
+	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
+		Bool("swept", swept).Bool("escalate", escalate).Msg("fallback delivered")
 }
 
 // channelFallback is the members answer's `fallback` (FR-035): who a post

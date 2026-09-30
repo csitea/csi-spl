@@ -114,6 +114,53 @@ func (s *Memory) UnheardPosts(_ context.Context, tenant string, since, until tim
 	return out, nil
 }
 
+func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fb.init()
+	var ms []*Message
+	for k, m := range s.messages {
+		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
+			m.ReceivedAt.Before(since) || !m.ReceivedAt.Before(until) {
+			continue
+		}
+		if _, ok := s.fb.delivered[k]; ok {
+			continue
+		}
+		if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
+			continue // a DM to a person
+		}
+		if m.Channel != "" && s.fb.off[[2]string{tenant, m.Channel}] {
+			continue
+		}
+		answered := false
+		for _, r := range s.messages {
+			if r.TenantID == tenant && r.TaskID == m.TaskID && r.ReceivedAt.After(m.ReceivedAt) &&
+				r.FromBox != "box-wui" && !strings.HasPrefix(r.FromID, "HUM-") && !strings.HasPrefix(r.FromID, "GST-") {
+				answered = true
+				break
+			}
+		}
+		if !answered {
+			ms = append(ms, m)
+		}
+	}
+	sort.Slice(ms, func(i, j int) bool {
+		if !ms[i].ReceivedAt.Equal(ms[j].ReceivedAt) {
+			return ms[i].ReceivedAt.Before(ms[j].ReceivedAt)
+		}
+		return ms[i].MsgID < ms[j].MsgID
+	})
+	if len(ms) > limit {
+		ms = ms[:limit]
+	}
+	out := make([]Queued, len(ms))
+	for i, m := range ms {
+		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
+	}
+	return out, nil
+}
+
 func (s *Memory) ChannelFallbacks(_ context.Context, tenant, channel string, since time.Time) (FallbackSummary, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

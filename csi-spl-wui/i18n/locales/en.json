@@ -1407,7 +1407,7 @@
     "no_agents": "No agents on this box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
+    "acting_as": "Acting as {name}",
     "stop": "Stop",
     "start": "Act as {name}",
     "dialog_title": "Act as a member",

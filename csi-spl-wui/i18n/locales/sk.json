@@ -1407,7 +1407,7 @@
     "no_agents": "Na tomto boxe nie sú žiadni agenti."
   },
   "act_as": {
-    "acting_as": "Konáte ako {name} (testovací klon)",
+    "acting_as": "Konáte ako {name}",
     "stop": "Zastaviť",
     "start": "Konať ako {name}",
     "dialog_title": "Konať ako člen",

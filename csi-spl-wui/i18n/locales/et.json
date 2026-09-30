@@ -1407,7 +1407,7 @@
     "no_agents": "Sellel boxil pole agente."
   },
   "act_as": {
-    "acting_as": "Tegutsete kasutajana {name} (testkloon)",
+    "acting_as": "Tegutsete kasutajana {name}",
     "stop": "Peata",
     "start": "Tegutse kasutajana {name}",
     "dialog_title": "Tegutse liikmena",

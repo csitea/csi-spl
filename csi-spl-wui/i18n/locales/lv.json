@@ -1407,7 +1407,7 @@
     "no_agents": "Uz šī box nav aģentu."
   },
   "act_as": {
-    "acting_as": "Darbojaties kā {name} (testa klons)",
+    "acting_as": "Darbojaties kā {name}",
     "stop": "Apturēt",
     "start": "Darboties kā {name}",
     "dialog_title": "Darboties kā dalībnieks",

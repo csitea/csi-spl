@@ -1407,7 +1407,7 @@
     "no_agents": "Brak agentów na tym boxie."
   },
   "act_as": {
-    "acting_as": "Działasz jako {name} (klon testowy)",
+    "acting_as": "Działasz jako {name}",
     "stop": "Zatrzymaj",
     "start": "Działaj jako {name}",
     "dialog_title": "Działaj jako członek",

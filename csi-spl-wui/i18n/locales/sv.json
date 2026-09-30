@@ -1407,7 +1407,7 @@
     "no_agents": "Inga agenter på denna box."
   },
   "act_as": {
-    "acting_as": "Agerar som {name} (testklon)",
+    "acting_as": "Agerar som {name}",
     "stop": "Stoppa",
     "start": "Agera som {name}",
     "dialog_title": "Agera som en medlem",

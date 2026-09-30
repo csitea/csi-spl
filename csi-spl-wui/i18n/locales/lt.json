@@ -1407,7 +1407,7 @@
     "no_agents": "Šiame boxe nėra agentų."
   },
   "act_as": {
-    "acting_as": "Veikiate kaip {name} (bandomasis klonas)",
+    "acting_as": "Veikiate kaip {name}",
     "stop": "Stabdyti",
     "start": "Veikti kaip {name}",
     "dialog_title": "Veikti kaip narys",

@@ -1407,7 +1407,7 @@
     "no_agents": "Tässä boxissa ei ole agentteja."
   },
   "act_as": {
-    "acting_as": "Toimit käyttäjänä {name} (testikloonina)",
+    "acting_as": "Toimit käyttäjänä {name}",
     "stop": "Lopeta",
     "start": "Toimi käyttäjänä {name}",
     "dialog_title": "Toimi jäsenenä",

@@ -1407,7 +1407,7 @@
     "no_agents": "Bu box'ta ajan yok."
   },
   "act_as": {
-    "acting_as": "{name} olarak hareket ediyorsunuz (test klonu)",
+    "acting_as": "{name} olarak hareket ediyorsunuz",
     "stop": "Durdur",
     "start": "{name} olarak hareket et",
     "dialog_title": "Bir üye olarak hareket et",

@@ -27,13 +27,23 @@
         @click="toggle"
         @keydown="onTriggerKey"
       >
-        <span class="user-menu__avatar" :class="'user-menu__avatar--' + (ownPic ? 'member' : mode)" aria-hidden="true">
+        <span class="user-menu__avatar" :class="['user-menu__avatar--' + (ownPic ? 'member' : mode), { 'user-menu__avatar--acting': actingAs }]" aria-hidden="true">
           <img v-if="ownPic" class="spool-avatar" data-test="user-menu-picture" :src="ownPic" :width="32" :height="32" :style="{ width: '32px', height: '32px' }" alt="" draggable="false" @error="ownPic = ''">
           <SpoolAvatar v-else-if="mode === 'member'" :id="me.hum" :size="32" />
           <template v-else-if="mode === 'initials'">{{ initials }}</template>
           <UiIcon v-else name="user" :size="20" />
         </span>
       </button>
+      <!-- specs/054 (owner 18597eaa): a slim "Acting as X · Stop" line directly
+           under the avatar, warning colour as a thin accent — not a full-width
+           band. Shown only while acting. -->
+      <div v-if="actingAs" class="user-menu__acting" data-test="actas-banner" role="status">
+        <span class="user-menu__acting-text">{{ t('act_as.acting_as', { name: actingAs.targetName }) }}</span>
+        <span class="user-menu__acting-sep" aria-hidden="true">·</span>
+        <button type="button" class="user-menu__acting-stop" data-test="actas-stop" @click="stopActing">
+          {{ t('act_as.stop') }}
+        </button>
+      </div>
       <div
         v-if="open"
         class="user-menu__scrim"
@@ -368,6 +378,57 @@ watch(signedIn, (v) => { if (!v) close(false) })
   min-width: var(--tap, 44px);
   min-height: var(--tap, 44px);
 }
+/* specs/054: while acting as a member the avatar wears a thin warning ring, and
+   a slim "Acting as X · Stop" pill sits directly under it (owner 18597eaa: one
+   slim line under the avatar, not a full-width band). */
+.user-menu__avatar--acting {
+  box-shadow: 0 0 0 2px var(--color-danger);
+}
+.user-menu__acting {
+  position: absolute;
+  top: calc(100% + 3px);
+  inset-inline-end: 0;
+  z-index: calc(var(--z-banner) + 10);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(72vw, 260px);
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--focus-3d);
+}
+.user-menu__acting-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-menu__acting-sep {
+  flex: none;
+  color: var(--color-muted);
+}
+.user-menu__acting-stop {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  color: var(--color-danger);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.user-menu__acting-stop:hover { text-decoration: none; }
 .user-menu__trigger,
 .user-menu__signin {
   appearance: none;

@@ -1407,7 +1407,7 @@
     "no_agents": "Geen agents op deze box."
   },
   "act_as": {
-    "acting_as": "Handelen als {name} (testkloon)",
+    "acting_as": "Handelen als {name}",
     "stop": "Stoppen",
     "start": "Handelen als {name}",
     "dialog_title": "Handelen als lid",

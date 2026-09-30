@@ -5,8 +5,6 @@
   <LazyTenantNotMember v-if="tenantNotMember.tenant" />
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
-  <!-- specs/054: the "Acting as X" banner while this session is an act-as clone -->
-  <ActAsBanner />
 </template>
 
 <script setup lang="ts">

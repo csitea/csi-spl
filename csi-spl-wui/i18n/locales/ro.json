@@ -1407,7 +1407,7 @@
     "no_agents": "Niciun agent pe acest box."
   },
   "act_as": {
-    "acting_as": "Acționezi ca {name} (clonă de test)",
+    "acting_as": "Acționezi ca {name}",
     "stop": "Oprește",
     "start": "Acționează ca {name}",
     "dialog_title": "Acționează ca membru",

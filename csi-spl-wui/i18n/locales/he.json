@@ -1407,7 +1407,7 @@
     "no_agents": "אין סוכנים על ה-box הזה."
   },
   "act_as": {
-    "acting_as": "פועל בתור {name} (קלון בדיקה)",
+    "acting_as": "פועל בתור {name}",
     "stop": "עצור",
     "start": "פעל בתור {name}",
     "dialog_title": "פעל בתור חבר",

@@ -15,11 +15,14 @@ textarea {
 
 :root {
   --top-bar-h: 58px; /* SPL-977: +6 px */
-  /* The resting omnibox, drag handle included, sits 2px inside the bar on
-     both edges. The bar's own border is the bottom 1px of --top-bar-h, so
-     the bottom padding is 1px and that 1px plus the border is the 2px. */
-  --top-bar-inset-top: 2px;
-  --top-bar-inset-bottom: 1px;
+  /* The resting omnibox, drag handle included, sits inside the bar on both
+     edges. Topic 10a5a3e2 (owner): the omnibox is a bit smaller vertically,
+     1 mm (~4px) off the top and 1 mm (~4px) off the bottom — so the top inset
+     grows 2 -> 6px and the bottom inset (which, with the bar's own bottom
+     border, made the original 2px gap) grows 1 -> 5px. --omnibox-rest tracks
+     these, so the resting field shrinks 8px (54 -> 46) and stays centred. */
+  --top-bar-inset-top: 6px;
+  --top-bar-inset-bottom: 5px;
   --top-bar-border: 1px;
   --omnibox-rest: calc(var(--top-bar-h) - var(--top-bar-inset-top) - var(--top-bar-inset-bottom) - var(--top-bar-border));
   --omnibox-go: 42px;
@@ -876,8 +879,9 @@ html.pane-dragging * {
   background: var(--color-composer);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  /* 36px line + 10px handle lane + 2px border = --omnibox-rest (48px). */
-  padding: 0 8px 10px;
+  /* 36px line + 8px handle lane + 2px border = --omnibox-rest (46px)
+     after topic 10a5a3e2 trimmed 1 mm off the top and bottom. */
+  padding: 0 8px 8px;
 }
 .omnibox-field { display: contents; }
 .composer.omnibox--global textarea {
@@ -890,6 +894,12 @@ html.pane-dragging * {
   padding-inline-end: 28px;
   overflow-y: auto;
   resize: none;
+}
+/* Topic 10a5a3e2 (owner): the omnibox onclick (focus) border is 1px, not the
+   2px every other field gets. Scoped, and !important to beat the one-place
+   :focus-visible rule that also carries !important. */
+.composer.omnibox--global textarea:focus-visible {
+  outline-width: 1px !important;
 }
 .composer.omnibox--global .composer-row {
   flex: 0 0 auto;
@@ -1021,8 +1031,10 @@ html.pane-dragging * {
    -------------------------------------------------------------------------- */
 /* SPL-1186 (owner, topic d2c03bc9): the triangles are 20% bigger, the channels
    (left-most) triangle sits 0.9 cm (~34px @96dpi) further into the panel, all
-   three sit 1 mm (~4px) higher, and the hover/press 3D effect is stronger. */
-.spool-shell { --pane-strip-w: 16px; --pane-collapse-shift: 34px; }
+   three sit 1 mm (~4px) higher, and the hover/press 3D effect is stronger.
+   Topic 10a5a3e2 (owner): the channels triangle moves a further 2 mm (~8px)
+   to the right, so the shift is 34 + 8 = 42px. */
+.spool-shell { --pane-strip-w: 16px; --pane-collapse-shift: 42px; }
 
 .pane-collapse {
   position: absolute;

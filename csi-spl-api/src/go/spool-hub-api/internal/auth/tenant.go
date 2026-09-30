@@ -246,11 +246,16 @@ func (h *Handler) switchTenant(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, h.sessionCookie(tok, maxAge))
 	h.log.Info().Str("hum", s.HumanID).Str("from", from).Str("tenant", req.Tenant).Msg("auth.tenant_switch")
-	// The answer is what GET session would say with the new cookie.
+	// The answer is what GET session would say with the new cookie. This is a
+	// REQUEST cookie read back internally by h.session, not a Set-Cookie sent to
+	// the browser (that already went out at sessionCookie above with HttpOnly +
+	// Secure) -- Secure/HttpOnly have no meaning on a Cookie request header, so
+	// set the header directly rather than build an http.Cookie the SAST rules
+	// (cookie-missing-secure / -httponly) then flag as an insecure Set-Cookie.
+	// SPL-1285/1287.
 	r2 := r.Clone(ctx)
 	r2.Header = r.Header.Clone()
-	r2.Header.Del("Cookie")
-	r2.AddCookie(&http.Cookie{Name: h.cfg.CookieName, Value: tok})
+	r2.Header.Set("Cookie", h.cfg.CookieName+"="+tok)
 	h.session(w, r2)
 }
 

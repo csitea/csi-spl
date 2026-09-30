@@ -30,13 +30,15 @@ do_spl_spec_import_issues() {
   local interval="${SPEC_IMPORT_INTERVAL:-0.25}"
   local limit="${SPEC_IMPORT_LIMIT:-0}"
   local only="${SPEC_IMPORT_SPECS:-}"
+  local -a onlyarg=()
+  [[ -n "$only" ]] && onlyarg=(--only "$only")
   [[ -f "$py" ]] || { do_log "FATAL spec-import parser is missing: $py"; return 1; }
   [[ -d "$specs" ]] || { do_log "FATAL SPEC_DIR is not a directory: $specs"; return 1; }
   [[ "$interval" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$interval'"; return 1; }
   [[ "$limit" =~ ^[0-9]+$ ]] || { do_log "FATAL SPEC_IMPORT_LIMIT must be a number, got: '$limit'"; return 1; }
 
   if [[ "${SPEC_IMPORT_OFFLINE:-0}" == 1 ]]; then
-    python3 "$py" report --specs "$specs"
+    python3 "$py" report --specs "$specs" "${onlyarg[@]}"
     return $?
   fi
 
@@ -49,24 +51,13 @@ do_spl_spec_import_issues() {
   # shellcheck disable=SC2064
   trap "rm -rf '$work'" RETURN
 
-  python3 "$py" parse --specs "$specs" --out "$work/plan.json" || return 1
-  if [[ -n "$only" ]]; then
-    SPEC_IMPORT_SPECS="$only" python3 - "$work/plan.json" <<'PY' || return 1
-import json, os, sys
-path = sys.argv[1]
-doc = json.load(open(path, encoding="utf-8"))
-want = {p for p in os.environ["SPEC_IMPORT_SPECS"].replace(" ", "").split(",") if p}
-doc["specs"] = [s for s in doc["specs"] if s["spec"] in want]
-doc["items"] = [i for i in doc["items"] if i["spec"] in want]
-json.dump(doc, open(path, "w", encoding="utf-8"), ensure_ascii=False)
-PY
-  fi
+  python3 "$py" parse --specs "$specs" "${onlyarg[@]}" --out "$work/plan.json" || return 1
 
   do_log "INFO listing issues (read-only) so an existing [NNN id] is updated, never duplicated"
   (
     DRY_RUN=0
     ISSUE_ASSIGNEE=
-    ISSUE_STATUS=backlog,todo,in_progress,in_review,done,canceled
+    ISSUE_STATUS=eval,todo,wip,diss,blocked,onhold,qas,done
     ISSUE_SORT=number
     unset ISSUE_LABEL ISSUE_EPIC ISSUE_KIND ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
     do_spl_issue_list

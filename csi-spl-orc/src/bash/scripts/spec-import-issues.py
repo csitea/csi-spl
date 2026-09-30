@@ -3,10 +3,10 @@
 
 One record per task entry. Title is "[NNN <id>] <first sentence>" (sentence
 capped at 120 characters). Description is the entry text plus a Source line.
-Status: Implemented / [x] -> done, Partial / [~] -> in_progress, Planned / [ ]
--> backlog, Superseded / Retired -> canceled. A fix or defect is label bug;
-every other task is label task. An indented checklist under a task is a
-subtask (label subtask).
+Status is the hub's own set (eval|todo|wip|diss|blocked|onhold|qas|done):
+Implemented / [x] -> done, Partial / [~] -> wip, Planned / [ ] -> eval,
+Superseded / Retired -> diss. A fix or defect is label bug; every other task
+is label task. An indented checklist under a task is a subtask (label subtask).
 
 Id shapes: T001, T005a, D1, P1, P2-1, US1, 1.2, OA-01, and a struck-through
 ~~T033~~. A table is the task list when the file has no checklist or heading
@@ -41,23 +41,30 @@ STATUS_MARK = re.compile(
 )
 BUG = re.compile(r"\b(bug|defect|regression)\b|^(fix|correct|repair)\b", re.I)
 
+# Statuses are the hub's own set (store.IssueStatuses, rdb 0055): a task speaks
+# the hub vocabulary end to end, so the read-only list filter, the create/update
+# calls and the idempotence comparison all agree. eval is the first-set backlog,
+# wip is in-progress, diss (discard) is the closest to superseded / retired.
 WORD = {
     "implemented": "done",
     "done": "done",
-    "partial": "in_progress",
-    "planned": "backlog",
-    "superseded": "canceled",
-    "retired": "canceled",
-    "dropped": "canceled",
+    "partial": "wip",
+    "planned": "eval",
+    "superseded": "diss",
+    "retired": "diss",
+    "dropped": "diss",
 }
-BOX = {"x": "done", "X": "done", " ": "backlog", "~": "in_progress"}
+BOX = {"x": "done", "X": "done", " ": "eval", "~": "wip"}
 CASE = {
     "pass": "done",
-    "fail": "in_progress",
-    "unverified": "in_progress",
-    "pending": "backlog",
-    "manual": "backlog",
+    "fail": "wip",
+    "unverified": "wip",
+    "pending": "eval",
+    "manual": "eval",
 }
+# The hub's status vocabulary (mirror of store.IssueStatuses); the parser never
+# emits anything outside this set.
+HUB_STATUSES = ("eval", "todo", "wip", "diss", "blocked", "onhold", "qas", "done")
 
 
 def _word(raw: str) -> str | None:
@@ -77,9 +84,9 @@ def cell_status(cell: str) -> str | None:
     if not s:
         return None
     if any(w in s for w in ("superseded", "retired", "dropped", "canceled", "cancelled", "not ours")):
-        return "canceled"
+        return "diss"
     if "partial" in s or "in progress" in s or "in_progress" in s:
-        return "in_progress"
+        return "wip"
     if (
         s.startswith("done")
         or "implemented" in s
@@ -89,7 +96,7 @@ def cell_status(cell: str) -> str | None:
     ):
         return "done"
     if any(w in s for w in ("planned", "deferred", "pending", "owner decision", "open")):
-        return "backlog"
+        return "eval"
     return None
 
 
@@ -240,7 +247,7 @@ def _checklist(lines, i, m, spec, source, add) -> int:
     add(Item(spec, tid, "task", status, sentence, text, source, ""))
     for sid, sbox, srest in subs:
         stext = srest.strip() or sid
-        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "backlog"), first_sentence(stext), stext, source, tid))
+        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "eval"), first_sentence(stext), stext, source, tid))
     return i
 
 
@@ -272,12 +279,12 @@ def _heading(lines, i, m, spec, source, add) -> int:
         body.append(line.rstrip())
         i += 1
     text = "\n".join(body).strip()
-    status = explicit_status(text) or "backlog"
+    status = explicit_status(text) or "eval"
     sentence = first_sentence((rest + "\n" + "\n".join(body[1:])).strip() or text)
     add(Item(spec, tid, "task", status, sentence, text, source, ""))
     for sid, sbox, srest in subs:
         stext = srest.strip() or sid
-        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "backlog"), first_sentence(stext), stext, source, tid))
+        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "eval"), first_sentence(stext), stext, source, tid))
     return i
 
 
@@ -302,7 +309,7 @@ def _table(lines, i, spec, source, add, seen, override_status) -> int:
                 title_cell = cells[title_at] if title_at < len(cells) else ""
                 sentence = first_sentence(re.sub(r"[*_`]", "", title_cell))
                 body = "| " + " | ".join(cells) + " |"
-                add(Item(spec, raw_id, "task", status or "backlog", sentence, body, source, ""))
+                add(Item(spec, raw_id, "task", status or "eval", sentence, body, source, ""))
         i += 1
     return i
 
@@ -321,7 +328,7 @@ def parse_cases(text: str, spec: str, source: str) -> list:
             continue
         seen.add(tid)
         body = "\t".join(cells[:7])
-        items.append(Item(spec, tid, "task", CASE.get(status, "backlog"), first_sentence(title), body, source, ""))
+        items.append(Item(spec, tid, "task", CASE.get(status, "eval"), first_sentence(title), body, source, ""))
     return items
 
 
@@ -640,11 +647,23 @@ def offline_doc(plan: dict) -> dict:
     }
 
 
+def filter_specs(doc: dict, only: str) -> dict:
+    """Keep only the specs whose number is in the comma list `only` (NNN,NNN).
+    The one place SPEC_IMPORT_SPECS is honoured, so offline and live agree."""
+    want = {p for p in only.replace(" ", "").split(",") if p}
+    if not want:
+        return doc
+    doc["specs"] = [s for s in doc["specs"] if s["spec"] in want]
+    doc["items"] = [i for i in doc["items"] if i["spec"] in want]
+    return doc
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="parse git-spec tasks into issue records")
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("parse")
     a.add_argument("--specs", type=Path, required=True)
+    a.add_argument("--only", default="")
     a.add_argument("--out", type=Path)
     b = sub.add_parser("reconcile")
     b.add_argument("--plan", type=Path, required=True)
@@ -653,11 +672,12 @@ def main(argv: list[str]) -> int:
     b.add_argument("--out", type=Path, required=True)
     c = sub.add_parser("report")
     c.add_argument("--specs", type=Path)
+    c.add_argument("--only", default="")
     c.add_argument("--ops", type=Path)
     c.add_argument("--out", type=Path)
     args = p.parse_args(argv)
     if args.cmd == "parse":
-        doc = parse_tree(args.specs)
+        doc = filter_specs(parse_tree(args.specs), args.only)
         text = json.dumps(doc, ensure_ascii=False)
         if args.out:
             args.out.write_text(text, encoding="utf-8")
@@ -671,7 +691,7 @@ def main(argv: list[str]) -> int:
         args.out.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return 0
     if args.specs:
-        doc = offline_doc(parse_tree(args.specs))
+        doc = offline_doc(filter_specs(parse_tree(args.specs), args.only))
     else:
         doc = json.loads(args.ops.read_text(encoding="utf-8"))
     text = report_md(doc)

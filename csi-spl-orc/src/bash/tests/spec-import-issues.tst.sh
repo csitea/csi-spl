@@ -49,18 +49,18 @@ def need(key, status, label, title_has, parent=""):
 
 rc = 0
 rc |= need(("001-sample-checklist", "T001"), "done", "task", "Copy the runner from the donor.")
-rc |= need(("001-sample-checklist", "T002"), "in_progress", "task", "The gate is half done.")
-rc |= need(("001-sample-checklist", "T003"), "backlog", "task", "nothing built yet.")
+rc |= need(("001-sample-checklist", "T002"), "wip", "task", "The gate is half done.")
+rc |= need(("001-sample-checklist", "T003"), "eval", "task", "nothing built yet.")
 rc |= need(("001-sample-checklist", "T004"), "done", "bug", "Fix the stale comment")
-rc |= need(("001-sample-checklist", "T004.s1"), "backlog", "subtask", "Remove the comment itself.", "T004")
+rc |= need(("001-sample-checklist", "T004.s1"), "eval", "subtask", "Remove the comment itself.", "T004")
 rc |= need(("001-sample-checklist", "T004.s2"), "done", "subtask", "Confirm the render is clean.", "T004")
-rc |= need(("001-sample-checklist", "T005"), "canceled", "task", "the old door is not built.")
-rc |= need(("001-sample-checklist", "T040"), "in_progress", "task", "The box is unticked")
+rc |= need(("001-sample-checklist", "T005"), "diss", "task", "the old door is not built.")
+rc |= need(("001-sample-checklist", "T040"), "wip", "task", "The box is unticked")
 rc |= need(("026-sample-mixed", "T001"), "done", "task", "publish the contract before building")
-rc |= need(("026-sample-mixed", "T010"), "canceled", "task", "retire the old column")
+rc |= need(("026-sample-mixed", "T010"), "diss", "task", "retire the old column")
 rc |= need(("026-sample-mixed", "T020"), "done", "task", "phase two switch")
 rc |= need(("026-sample-mixed", "P2-1"), "done", "task", "phase 2 hub switch")
-rc |= need(("026-sample-mixed", "T030"), "backlog", "task", "owner decision on the tier")
+rc |= need(("026-sample-mixed", "T030"), "eval", "task", "owner decision on the tier")
 prose = [i for i in doc["items"] if "Highlighting" in i["title"] or i["id"].startswith("T004.s") and "Highlighting" in i["description"] and i["kind"] == "subtask"]
 # the prose bullet stays in T004's description and is not its own issue
 if any(i["kind"] == "subtask" and "Highlighting" in i["title"] for i in doc["items"]):
@@ -75,8 +75,8 @@ else:
 # idempotent plan: an existing identical issue is not created again
 t001 = items[("001-sample-checklist", "T001")]
 listed = {"result": {"issues": [
-    {"key": "SPL-19", "title": "Spec 001 - sample checklist", "labels": ["epic"], "parent": "", "status": "in_progress", "description": ""},
-    {"key": "SPL-20", "title": "Spec 026 - sample mixed", "labels": ["epic"], "parent": "", "status": "in_progress", "description": ""},
+    {"key": "SPL-19", "title": "Spec 001 - sample checklist", "labels": ["epic"], "parent": "", "status": "wip", "description": ""},
+    {"key": "SPL-20", "title": "Spec 026 - sample mixed", "labels": ["epic"], "parent": "", "status": "wip", "description": ""},
     {"key": "SPL-90", "title": t001["title"], "labels": ["task"], "parent": "SPL-19", "status": t001["status"], "description": t001["description"]},
     {"key": "SPL-91", "title": items[("001-sample-checklist", "T003")]["title"], "labels": ["task"], "parent": "SPL-19",
      "status": "done", "description": items[("001-sample-checklist", "T003")]["description"]},
@@ -155,7 +155,7 @@ for it in items:
     if key in seen:
         print("FAIL: duplicate", key); ok = False
     seen.add(key)
-    if it["status"] not in ("backlog", "todo", "in_progress", "in_review", "done", "canceled"):
+    if it["status"] not in mod.HUB_STATUSES:
         print("FAIL: bad status", key, it["status"]); ok = False
     if not it["title"].startswith("[" + it["spec"] + " "):
         print("FAIL: title", it["title"]); ok = False
@@ -176,6 +176,37 @@ do_log() { printf '%s\n' "$*"; }
 source "$PROJ_ROOT/src/bash/run/spl-spec-import-issues.func.sh"
 off=$(SPEC_IMPORT_OFFLINE=1 SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
 [[ "$off" == *"| 001 |"* && "$off" == *"| 026 |"* && "$off" == *"Sample titles:"* ]] && pass "offline action prints the table" || { fail "offline action"; printf '%s\n' "$off" | head -n 20; }
+
+# SPEC_IMPORT_SPECS filters the OFFLINE run too (it used to be ignored, planning
+# every spec — a "056 only" run would then have created ~1000 issues).
+off1=$(SPEC_IMPORT_OFFLINE=1 SPEC_IMPORT_SPECS=026 SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
+[[ "$off1" == *"| 026 |"* && "$off1" != *"| 001 |"* ]] && pass "offline honours SPEC_IMPORT_SPECS" || { fail "offline SPEC_IMPORT_SPECS ignored"; printf '%s\n' "$off1" | head -n 20; }
+
+# The same filter on the LIVE dry-run path (parse --only), where the plan.json
+# is built: only the wanted spec's rows survive.
+onlyj=$(python3 "$PY" parse --specs "$FIX" --only 026)
+python3 - "$onlyj" <<'PY'
+import json, sys
+doc = json.loads(sys.argv[1])
+specs = {s["spec"] for s in doc["specs"]}
+items = {i["spec"] for i in doc["items"]}
+if specs == {"026"} and items == {"026"} and doc["items"]:
+    print("PASS: parse --only 026 keeps only 026")
+    sys.exit(0)
+print("FAIL: parse --only leaked", specs, items); sys.exit(1)
+PY
+[[ $? -eq 0 ]] && pass "live filter parse --only" || fail "live filter parse --only"
+
+# A planted first-set status name must fail the suite: the read-only issue list
+# and the create/update calls speak the hub's set (eval|todo|wip|diss|...), so a
+# legacy name (backlog/in_progress/in_review/canceled) in the action or emitted
+# by the parser is a regression.
+if grep -Eq 'ISSUE_STATUS=[^#]*\b(backlog|in_progress|in_review|canceled)\b' \
+     "$PROJ_ROOT/src/bash/run/spl-spec-import-issues.func.sh"; then
+  fail "action's ISSUE_STATUS carries a legacy status name"
+else
+  pass "action's ISSUE_STATUS is the hub's current set"
+fi
 
 # An empty ref must not shift the columns. Tab would collapse it; the
 # action separates fields with a unit separator for that reason.

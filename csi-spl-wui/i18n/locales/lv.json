@@ -1345,7 +1345,7 @@
     "remove": "Noņemt no darbvietas",
     "remove_hint": "Noņem šo personu no šīs darbvietas. Viņa konts un ziņojumi paliek.",
     "remove_confirm_title": "Noņemt no darbvietas?",
-    "remove_confirm": "{name} zaudē piekļuvi {tenant}. Konts, citas darbvietas un ziņojumi paliek."
+    "remove_confirm": "{name} zaudē piekļuvi šai darbvietai. Konts, citas darbvietas un ziņojumi paliek."
   },
   "activity": {
     "title": "Aktivitāšu žurnāls",

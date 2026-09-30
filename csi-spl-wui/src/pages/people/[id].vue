@@ -60,7 +60,7 @@
     <PersonActivityDialog v-model:open="activityOpen" :human-id="humanId" />
 
     <UiDialog :open="confirmOpen" size="md" :title="t('people.remove_confirm_title')" @update:open="confirmOpen = $event">
-      <p data-test="person-remove-text">{{ t('people.remove_confirm', { name: personName, tenant: tenantName }) }}</p>
+      <p data-test="person-remove-text">{{ t('people.remove_confirm', { name: personName }) }}</p>
       <template #footer>
         <button type="button" class="btn ghost" data-test="person-remove-cancel" @click="confirmOpen = false">{{ t('common.cancel') }}</button>
         <button type="button" class="btn danger" :disabled="removing" data-test="person-remove-ok" @click="removeMember">{{ t('people.remove') }}</button>
@@ -79,7 +79,6 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { canRemoveMember } from '~/utils/access.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { useTenantSwitch } from '~/composables/useTenantSwitch'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -88,8 +87,6 @@ const api = useSpoolApi()
 const names = useHumanNames()
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
-/* the current tenant's display name, for the removal confirm (owner 6da1d88e). */
-const { name: tenantName } = useTenantSwitch()
 
 const humanId = computed(() => decodeURIComponent(String(route.params.id || '')))
 const detail = computed(() => roster.humansDetail[humanId.value] || { owner: false, interests: '', last_seen: '' })

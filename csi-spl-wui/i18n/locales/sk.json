@@ -1342,10 +1342,10 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Správa",
-    "remove": "Odstrániť z priestoru",
+    "remove": "Odstrániť z pracovného priestoru",
     "remove_hint": "Odstráni túto osobu z tohto pracovného priestoru. Jej účet a správy zostávajú.",
-    "remove_confirm_title": "Odstrániť z priestoru?",
-    "remove_confirm": "{name} stráca prístup k {tenant}. Účet, ostatné priestory a správy zostávajú."
+    "remove_confirm_title": "Odstrániť z pracovného priestoru?",
+    "remove_confirm": "{name} stráca prístup k tomuto pracovnému priestoru. Účet, ostatné pracovné priestory a správy zostávajú."
   },
   "activity": {
     "title": "Denník aktivity",

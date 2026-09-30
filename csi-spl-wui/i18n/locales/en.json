@@ -1342,10 +1342,10 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Message",
-    "remove": "Remove from tenant",
+    "remove": "Remove from workspace",
     "remove_hint": "Remove this person from this workspace. Their account and messages stay.",
-    "remove_confirm_title": "Remove from tenant?",
-    "remove_confirm": "{name} loses access to {tenant}. Their account, other tenants and messages stay."
+    "remove_confirm_title": "Remove from workspace?",
+    "remove_confirm": "{name} loses access to this workspace. Their account, other workspaces and messages stay."
   },
   "activity": {
     "title": "Activity log",

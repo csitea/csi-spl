@@ -1342,10 +1342,10 @@
     "online": "En línea",
     "offline": "Desconectado",
     "message": "Mensaje",
-    "remove": "Quitar del espacio",
+    "remove": "Quitar del espacio de trabajo",
     "remove_hint": "Quita a esta persona de este espacio de trabajo. Su cuenta y sus mensajes se conservan.",
-    "remove_confirm_title": "¿Quitar del espacio?",
-    "remove_confirm": "{name} pierde el acceso a {tenant}. Su cuenta, otros espacios y sus mensajes se conservan."
+    "remove_confirm_title": "¿Quitar del espacio de trabajo?",
+    "remove_confirm": "{name} pierde el acceso a este espacio de trabajo. Su cuenta, otros espacios de trabajo y sus mensajes se conservan."
   },
   "activity": {
     "title": "Registro de actividad",

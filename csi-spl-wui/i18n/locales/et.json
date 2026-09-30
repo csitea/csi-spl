@@ -1345,7 +1345,7 @@
     "remove": "Eemalda tööruumist",
     "remove_hint": "Eemaldab selle inimese sellest tööruumist. Tema konto ja sõnumid jäävad alles.",
     "remove_confirm_title": "Eemaldada tööruumist?",
-    "remove_confirm": "{name} kaotab juurdepääsu tööruumile {tenant}. Konto, teised tööruumid ja sõnumid jäävad alles."
+    "remove_confirm": "{name} kaotab juurdepääsu sellele tööruumile. Konto, teised tööruumid ja sõnumid jäävad alles."
   },
   "activity": {
     "title": "Tegevuslogi",

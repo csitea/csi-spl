@@ -1345,7 +1345,7 @@
     "remove": "Poista työtilasta",
     "remove_hint": "Poistaa tämän henkilön tästä työtilasta. Tili ja viestit säilyvät.",
     "remove_confirm_title": "Poistetaanko työtilasta?",
-    "remove_confirm": "{name} menettää pääsyn työtilaan {tenant}. Tili, muut työtilat ja viestit säilyvät."
+    "remove_confirm": "{name} menettää pääsyn tähän työtilaan. Tili, muut työtilat ja viestit säilyvät."
   },
   "activity": {
     "title": "Toimintaloki",

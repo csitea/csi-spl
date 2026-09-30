@@ -1345,7 +1345,7 @@
     "remove": "Uit werkruimte verwijderen",
     "remove_hint": "Verwijdert deze persoon uit deze werkruimte. Hun account en berichten blijven.",
     "remove_confirm_title": "Uit werkruimte verwijderen?",
-    "remove_confirm": "{name} verliest toegang tot {tenant}. Hun account, andere werkruimtes en berichten blijven."
+    "remove_confirm": "{name} verliest toegang tot deze werkruimte. Hun account, andere werkruimtes en berichten blijven."
   },
   "activity": {
     "title": "Activiteitenlogboek",

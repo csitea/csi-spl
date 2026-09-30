@@ -1345,7 +1345,7 @@
     "remove": "Ta bort från arbetsytan",
     "remove_hint": "Tar bort den här personen från den här arbetsytan. Kontot och meddelandena finns kvar.",
     "remove_confirm_title": "Ta bort från arbetsytan?",
-    "remove_confirm": "{name} förlorar åtkomst till {tenant}. Kontot, andra arbetsytor och meddelanden finns kvar."
+    "remove_confirm": "{name} förlorar åtkomst till den här arbetsytan. Kontot, andra arbetsytor och meddelanden finns kvar."
   },
   "activity": {
     "title": "Aktivitetslogg",

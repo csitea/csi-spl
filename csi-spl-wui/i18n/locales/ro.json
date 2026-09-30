@@ -1342,10 +1342,10 @@
     "online": "Online",
     "offline": "Offline",
     "message": "Mesaj",
-    "remove": "Elimină din spațiu",
+    "remove": "Elimină din spațiul de lucru",
     "remove_hint": "Elimină această persoană din acest spațiu de lucru. Contul și mesajele rămân.",
-    "remove_confirm_title": "Eliminați din spațiu?",
-    "remove_confirm": "{name} pierde accesul la {tenant}. Contul, celelalte spații și mesajele rămân."
+    "remove_confirm_title": "Eliminați din spațiul de lucru?",
+    "remove_confirm": "{name} pierde accesul la acest spațiu de lucru. Contul, celelalte spații de lucru și mesajele rămân."
   },
   "activity": {
     "title": "Jurnal de activitate",

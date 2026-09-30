@@ -1342,10 +1342,10 @@
     "online": "Çevrimiçi",
     "offline": "Çevrimdışı",
     "message": "Mesaj",
-    "remove": "Alandan kaldır",
+    "remove": "Çalışma alanından kaldır",
     "remove_hint": "Bu kişiyi bu çalışma alanından kaldırır. Hesabı ve mesajları kalır.",
-    "remove_confirm_title": "Alandan kaldırılsın mı?",
-    "remove_confirm": "{name} artık {tenant} alanına erişemez. Hesabı, diğer alanlar ve mesajlar kalır."
+    "remove_confirm_title": "Çalışma alanından kaldırılsın mı?",
+    "remove_confirm": "{name} artık bu çalışma alanına erişemez. Hesabı, diğer çalışma alanları ve mesajlar kalır."
   },
   "activity": {
     "title": "Etkinlik günlüğü",

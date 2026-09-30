@@ -1342,10 +1342,10 @@
     "online": "Prisijungęs",
     "offline": "Atsijungęs",
     "message": "Žinutė",
-    "remove": "Pašalinti iš srities",
+    "remove": "Pašalinti iš darbo srities",
     "remove_hint": "Pašalina šį asmenį iš šios darbo srities. Jo paskyra ir žinutės lieka.",
-    "remove_confirm_title": "Pašalinti iš srities?",
-    "remove_confirm": "{name} praranda prieigą prie {tenant}. Paskyra, kitos sritys ir žinutės lieka."
+    "remove_confirm_title": "Pašalinti iš darbo srities?",
+    "remove_confirm": "{name} praranda prieigą prie šios darbo srities. Paskyra, kitos darbo sritys ir žinutės lieka."
   },
   "activity": {
     "title": "Veiklos žurnalas",

@@ -1,0 +1,50 @@
+# IaC scan (Checkov) of the terraform tree. Same runner rule as
+# 15_sec-deps-secrets.yml: self-hosted (spool-ci). Checkov is installed pinned
+# into a throwaway venv; a missing tool fails the action. The gate is against the
+# checked-in .checkov.baseline so only NEW misconfig reddens trunk.
+#
+# Path-scoped push: runs on master only when terraform, the baseline, the action
+# or this file changes. Weekly schedule + workflow_dispatch.
+name: "65 sec: checkov (terraform IaC)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "35 4 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "csi-spl-iac/src/terraform/**"
+      - "csi-spl-iac/src/bash/run/sec-checkov.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-checkov.tst.sh"
+      - ".github/workflows/65_iac-checkov.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-checkov-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checkov:
+    name: "sec: checkov terraform"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Version-pinned into a throwaway venv (checkov has a large dep tree; a
+      # per-package sha pin is impractical, so the version is the pin).
+      - name: Install checkov 3.3.21
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/checkov-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --disable-pip-version-check --quiet checkov==3.3.21
+          "$venv/bin/checkov" --version
+          echo "$venv/bin" >> "$GITHUB_PATH"
+
+      - name: checkov (control + scan vs baseline)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_checkov

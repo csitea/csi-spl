@@ -1,0 +1,123 @@
+{
+    "failed_checks": [
+        {
+            "file": "/000-gcp-remote-bucket/03-state-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.tfstate",
+                    "check_ids": [
+                        "CKV_GCP_62"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/017-github-wif-deploy/03-github-wif.tf",
+            "findings": [
+                {
+                    "resource": "google_iam_workload_identity_pool_provider.github",
+                    "check_ids": [
+                        "CKV_GCP_125"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/020-gcp-relay-bucket/03-relay-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.relay",
+                    "check_ids": [
+                        "CKV_GCP_62",
+                        "CKV_GCP_78"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/025-gcp-dns-zone/03-dns-zone.tf",
+            "findings": [
+                {
+                    "resource": "google_dns_managed_zone.env",
+                    "check_ids": [
+                        "CKV_GCP_16"
+                    ]
+                },
+                {
+                    "resource": "google_dns_managed_zone.sub",
+                    "check_ids": [
+                        "CKV_GCP_16"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/028-gcp-artifact-registry/03-docker-repository.tf",
+            "findings": [
+                {
+                    "resource": "google_artifact_registry_repository.hub",
+                    "check_ids": [
+                        "CKV_GCP_84"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/040-cloud-sql-postgres/03-cloud-sql.tf",
+            "findings": [
+                {
+                    "resource": "google_sql_database_instance.hub",
+                    "check_ids": [
+                        "CKV2_GCP_13",
+                        "CKV_GCP_108",
+                        "CKV_GCP_109",
+                        "CKV_GCP_110",
+                        "CKV_GCP_111",
+                        "CKV_GCP_51",
+                        "CKV_GCP_52",
+                        "CKV_GCP_53",
+                        "CKV_GCP_54",
+                        "CKV_GCP_6",
+                        "CKV_GCP_60",
+                        "CKV_GCP_79"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/045-gcs-db-backups/03-backups-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.db_backups",
+                    "check_ids": [
+                        "CKV_GCP_62",
+                        "CKV_GCP_78"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/046-gcs-offsite-backups/03-offsite-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.offsite",
+                    "check_ids": [
+                        "CKV_GCP_62"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/050-gcs-files/03-files-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.files",
+                    "check_ids": [
+                        "CKV_GCP_62",
+                        "CKV_GCP_78"
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -41,7 +41,7 @@ def need(key, status, label, title_has, parent=""):
         print(f"FAIL: {key} title length"); ok = False
     if it["parent_id"] != parent:
         print(f"FAIL: {key} parent {it['parent_id']!r} != {parent!r}"); ok = False
-    if "Source: csi-spl-doc/specs/" not in it["description"]:
+    if "Source: fixtures/spec-import/" not in it["description"]:
         print(f"FAIL: {key} description has no Source line"); ok = False
     if ok:
         print(f"PASS: {key[1]} {status} {label}")
@@ -168,6 +168,40 @@ if ok:
 raise SystemExit(0 if ok else 1)
 PY
 [[ $? -eq 0 ]] && pass "real-tree smoke" || fail "real-tree smoke"
+
+# A foreign spec tree may wrap the id in bold and lead with an [FR-nnn] tag:
+# `- [X] **T001** [FR-009] text` (pas-psf). The id must still be captured and
+# the tag dropped from the title; the Source line names that tree's doc repo.
+python3 - <<PY
+import importlib.util
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+text = "\n".join([
+    "# Tasks: Framework hardening",
+    "## Phase 1",
+    "- [X] **T001** [FR-009] Fork the runner from the donor.",
+    "- [ ] **T006** [n/a] No task here yet.",
+    "- [~] **T007a** [FR-001, FR-012] Half-built work in flight.",
+])
+items = {i.tid: i for i in mod.parse_tasks(text, "007", "pas-psf-doc/specs/007-x/tasks.md")}
+ok = True
+for tid, status, has in (("T001", "done", "Fork the runner"), ("T006", "eval", "No task"), ("T007a", "wip", "Half-built work")):
+    it = items.get(tid)
+    if not it:
+        print(f"FAIL: bold id {tid} not parsed"); ok = False; continue
+    if it.status != status:
+        print(f"FAIL: {tid} status {it.status} != {status}"); ok = False
+    if not it.title.startswith(f"[007 {tid}] "):
+        print(f"FAIL: {tid} title {it.title!r}"); ok = False
+    if "**" in it.title or "[FR" in it.title or "[n/a]" in it.title:
+        print(f"FAIL: {tid} title keeps markup/tag {it.title!r}"); ok = False
+    if has not in it.title:
+        print(f"FAIL: {tid} title lacks {has!r}: {it.title!r}"); ok = False
+if ok:
+    print("PASS: bold-wrapped ids parse, markup and [tag] stripped from the title")
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "bold id parsing" || fail "bold id parsing"
 
 # Epic-scoped read (SPL-963): the importer must NOT list the whole tenant (a big
 # done set closes the hub socket). It reads the epics, scopes the child list to

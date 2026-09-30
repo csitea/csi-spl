@@ -26,9 +26,12 @@ TITLE_SENTENCE_MAX = 120
 TITLE_MAX = 255
 DESC_MAX = 20000
 ID_RE = r"(?:T\d+[a-z]?|US\d+|D\d+|P\d+(?:-\d+)?|OA-\d+|\d+\.\d+)"
-CHECK = re.compile(rf"^- \[([ xX~])\]\s+(?:~~)?({ID_RE})(?:~~)?\s*(.*)$")
-HEAD = re.compile(rf"^(#{{2,4}})\s+(?:~~)?({ID_RE})(?:~~)?\s*(.*)$")
-NEST = re.compile(rf"^(\s+)-\s+\[([ xX~])\]\s+(?:~~)?(?:({ID_RE})(?:~~)?\b\s*)?(.*)$")
+# A task id may be wrapped in bold or strikethrough — `**T001**` (pas-psf) or
+# `~~T033~~` (a dropped csi-spl task). EMPH swallows either, on both sides.
+EMPH = r"(?:\*\*|~~)?"
+CHECK = re.compile(rf"^- \[([ xX~])\]\s+{EMPH}({ID_RE}){EMPH}\s*(.*)$")
+HEAD = re.compile(rf"^(#{{2,4}})\s+{EMPH}({ID_RE}){EMPH}\s*(.*)$")
+NEST = re.compile(rf"^(\s+)-\s+\[([ xX~])\]\s+{EMPH}(?:({ID_RE}){EMPH}\s*)?(.*)$")
 ROW = re.compile(r"^\|(.+)\|\s*$")
 SPEC_DIR = re.compile(r"^(\d{3})-")
 EPIC_TITLE = re.compile(r"^Spec\s+(\d{3})\b")
@@ -102,7 +105,8 @@ def cell_status(cell: str) -> str | None:
 
 def first_sentence(text: str) -> str:
     s = " ".join(text.replace("\n", " ").split())
-    s = re.sub(r"^(?:\[[A-Za-z0-9_.-]+\]\s*)+", "", s)
+    # Drop leading requirement tags: [FR-009], [n/a], [FR-001, FR-012] (pas-psf).
+    s = re.sub(r"^(?:\[[^\]]*\]\s*)+", "", s)
     s = re.sub(r"^[\s\-\u2014\u2013:]+", "", s).strip()
     s = re.sub(
         r"^(?:\*\*)?(?:Implemented|Partial|Planned|Superseded|Retired)(?:\*\*)?\s*[\-\u2014\u2013:]*\s*",
@@ -363,6 +367,11 @@ def parse_tree(specs: Path) -> dict:
     items = []
     if not specs.is_dir():
         raise SystemExit(f"specs dir is not a directory: {specs}")
+    # The Source line names the doc repo this tree lives in, derived from the
+    # SPEC_DIR (…/<doc-repo>/specs) — csi-spl-doc/specs here, pas-psf-doc/specs
+    # for that tree — never hardcoded to one repo.
+    base = specs.resolve()
+    src_root = f"{base.parent.name}/{base.name}"
     for d in sorted(p for p in specs.iterdir() if p.is_dir()):
         m = SPEC_DIR.match(d.name)
         if not m:
@@ -371,10 +380,10 @@ def parse_tree(specs: Path) -> dict:
         tasks = d / "tasks.md"
         cases = d / "cases.tsv"
         if tasks.is_file():
-            rel = f"csi-spl-doc/specs/{d.name}/tasks.md"
+            rel = f"{src_root}/{d.name}/tasks.md"
             found = parse_tasks(tasks.read_text(encoding="utf-8"), spec, rel)
         elif cases.is_file():
-            rel = f"csi-spl-doc/specs/{d.name}/cases.tsv"
+            rel = f"{src_root}/{d.name}/cases.tsv"
             found = parse_cases(cases.read_text(encoding="utf-8"), spec, rel)
         else:
             found = []

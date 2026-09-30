@@ -7,13 +7,14 @@ import "strings"
 // product actually offers and not an arbitrary string. TestEmojiChoicesMatchWUI
 // fails when the two lists differ. Six full rows of eight, each glyph once
 // (SPL-1002). Order (owner, prd t1 da0c0e98): ✅ in the top-left cell, 🔥 next
-// to it, the rest unchanged - kept in lock-step with EMOJI_CHOICES.
+// to it; and (topic c2c4b527) 👀 third, the rest unchanged - kept in lock-step
+// with EMOJI_CHOICES.
 var emojiChoices = []string{
-	"✅", "🔥", "😀", "😁", "😂", "🤣", "😆", "😅",
-	"🙂", "😉", "😊", "😇", "😍", "😎", "😜", "🥳",
-	"🤗", "🤔", "😐", "😕", "😬", "🙄", "😴", "😢",
-	"😭", "😱", "😡", "🤯", "👍", "👎", "👏", "🙌",
-	"🙏", "👋", "💪", "👌", "🤝", "👀", "❤️", "🎉",
+	"✅", "🔥", "👀", "😀", "😁", "😂", "🤣", "😆",
+	"😅", "🙂", "😉", "😊", "😇", "😍", "😎", "😜",
+	"🥳", "🤗", "🤔", "😐", "😕", "😬", "🙄", "😴",
+	"😢", "😭", "😱", "😡", "🤯", "👍", "👎", "👏",
+	"🙌", "🙏", "👋", "💪", "👌", "🤝", "❤️", "🎉",
 	"✨", "❌", "⭐", "💯", "🚀", "💡", "🎯", "🐛",
 }
 

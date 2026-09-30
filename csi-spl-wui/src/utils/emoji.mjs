@@ -14,15 +14,18 @@
  *
  * Order (owner, prd t1 da0c0e98): the two reactions people reach for most lead
  * the grid - ✅ in the top-left cell, 🔥 next to its right - and everything
- * else keeps the order it had. The hub copy (internal/hub/emoji.go) is kept
- * in lock-step; TestEmojiChoicesMatchWUI compares the two lists in order.
+ * else keeps the order it had. Owner (topic c2c4b527, CLE-77812): 👀 (eyes) is
+ * the THIRD cell now, so it moves up from row 5; the glyphs between it and the
+ * lead shift one place right and nothing falls off the end (still 48, 🐛 last).
+ * The hub copy (internal/hub/emoji.go) is kept in lock-step;
+ * TestEmojiChoicesMatchWUI compares the two lists in order.
  */
 export const EMOJI_CHOICES = [
-  '✅', '🔥', '😀', '😁', '😂', '🤣', '😆', '😅',
-  '🙂', '😉', '😊', '😇', '😍', '😎', '😜', '🥳',
-  '🤗', '🤔', '😐', '😕', '😬', '🙄', '😴', '😢',
-  '😭', '😱', '😡', '🤯', '👍', '👎', '👏', '🙌',
-  '🙏', '👋', '💪', '👌', '🤝', '👀', '❤️', '🎉',
+  '✅', '🔥', '👀', '😀', '😁', '😂', '🤣', '😆',
+  '😅', '🙂', '😉', '😊', '😇', '😍', '😎', '😜',
+  '🥳', '🤗', '🤔', '😐', '😕', '😬', '🙄', '😴',
+  '😢', '😭', '😱', '😡', '🤯', '👍', '👎', '👏',
+  '🙌', '🙏', '👋', '💪', '👌', '🤝', '❤️', '🎉',
   '✨', '❌', '⭐', '💯', '🚀', '💡', '🎯', '🐛',
 ]
 

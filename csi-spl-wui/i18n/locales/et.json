@@ -179,6 +179,15 @@
       "hint": "Järjekord, milles loend avaneb. Veeru päisele klõpsamine sordib vaate ümber — see on ainult vaikeväärtus.",
       "asc": "Kasvav (1 esimesena)",
       "desc": "Kahanev"
+    },
+    "interests": {
+      "label": "Huvid",
+      "hint": "Lühike märkus selle kohta, mis sulle huvi pakub — kuvatakse sinu kaardil jaotises Inimesed. Kuni 1000 tähemärki.",
+      "placeholder": "nt Go, Postgres, mägirattasõit",
+      "invalid": "Kuni 1000 tähemärki, ilma juhtmärkideta.",
+      "save": "Salvesta",
+      "saved": "Salvestatud.",
+      "failed": "Salvestamine ebaõnnestus — proovi uuesti."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Klõpsake kanalit, et see avada. Rea menüü kopeerib lingi või märgib selle loetuks. Lohistage rida, et seada järjekord; uus kanal jääb seatud ridade alla.",
-      "direct_messages": "Klõpsake inimest või botti, et avada vestlus. Menüü saab blokeerida, vaigistada või kinnitada, ja administraator saab ka eemaldada. Lohistage rida, et seada järjekord; uus inimene jääb seatud ridade alla."
+      "direct_messages": "Klõpsake inimest või botti, et avada vestlus. Menüü saab blokeerida, vaigistada või kinnitada, ja administraator saab ka eemaldada. Lohistage rida, et seada järjekord; uus inimene jääb seatud ridade alla.",
+      "people": "Klõpsa inimesel, et näha paremal tema kaarti — huvid, roll ja millal teda viimati nähti. Lohista sektsiooni ikooni, et määrata, kus Inimesed asub.",
+      "agents": "Klõpsa agendil, et näha, mis see on — Claude, Antigravity, Grok või Qwen — millisel boxil see töötab ja kas on võrgus. Lohista sektsiooni ikooni, et määrata, kus Agendid asub."
     },
     "row_menu": {
       "label": "Menüü: {name}",
@@ -431,7 +442,9 @@
     "events": "Sündmuste logi",
     "issues": "Probleemid",
     "epics": "Eepikud ja funktsioonid",
-    "archive": "Arhiiv"
+    "archive": "Arhiiv",
+    "people": "Inimesed",
+    "agents": "Agendid"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Ütle tere: #lobby inimesed ja agendid loevad seda.",
     "done": "Tehtud",
     "hide": "Peida"
+  },
+  "people": {
+    "none": "Inimesi veel pole.",
+    "empty": "Vali inimene, et näha tema kaarti.",
+    "owner": "Omanik",
+    "member": "Liige",
+    "role": "Roll",
+    "last_seen": "Viimati nähtud",
+    "never_seen": "Mitte kunagi",
+    "interests": "Huvid",
+    "no_interests": "Huve veel pole.",
+    "online": "Võrgus",
+    "offline": "Võrgust väljas",
+    "message": "Sõnum"
+  },
+  "agents": {
+    "none": "Agente veel pole.",
+    "empty": "Vali agent, et näha tema kaarti.",
+    "kind": "Liik",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agent"
+    }
   }
 }

@@ -514,6 +514,77 @@
         <h2>{{ t('sidebar.events') }}</h2>
         <NuxtLink class="nav-row" data-testid="sidebar-events-open" :to="localePath('/events')">{{ t('events.title') }}</NuxtLink>
       </div>
+      <!-- CLE-77794: People - every tenant member. The list is here; the chosen
+           person's card (avatar, role, last seen, interests) opens in the
+           middle pane at /people/<id>, like a DM feed. -->
+      <div
+        v-if="tab === 'people' || tabsWarm"
+        v-show="tab === 'people'"
+        id="sidebar-panel-people"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-people"
+        data-testid="sidebar-panel-people"
+      >
+        <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-people" aria-describedby="sidebar-help-people-tip">
+          {{ t('sidebar.people') }}
+          <span id="sidebar-help-people-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.people') }}</span>
+        </h2>
+        <div class="sidebar-scroll">
+          <p v-if="memberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
+          <div v-for="p in memberRows" :key="p.id" class="nav-row">
+            <NuxtLink
+              class="nav-item"
+              :class="{ active: peopleOpen === p.id }"
+              :aria-current="peopleOpen === p.id ? 'true' : undefined"
+              :data-key="p.id"
+              :data-online="p.online ? '1' : '0'"
+              :to="localePath('/people/' + encodeURIComponent(p.id))"
+            >
+              <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
+              <span class="dot" :class="{ on: p.online }" />
+              <HumanName class="label" :id="p.id" :box="p.box" />
+              <span v-if="p.self" class="muted people-row__tag">{{ t('sidebar.you') }}</span>
+              <span v-else-if="p.owner" class="muted people-row__tag">{{ t('people.owner') }}</span>
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+      <!-- CLE-77794: Agents - the tenant's agents, their kind shown plainly
+           (Claude / Antigravity / Grok / Qwen, from the id prefix). The card at
+           /agents/<id@box> shows the kind, box and liveness. -->
+      <div
+        v-if="tab === 'agents' || tabsWarm"
+        v-show="tab === 'agents'"
+        id="sidebar-panel-agents"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-agents"
+        data-testid="sidebar-panel-agents"
+      >
+        <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-agents" aria-describedby="sidebar-help-agents-tip">
+          {{ t('sidebar.agents') }}
+          <span id="sidebar-help-agents-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.agents') }}</span>
+        </h2>
+        <div class="sidebar-scroll">
+          <p v-if="agentRows.length === 0" class="muted topic-empty">{{ t('agents.none') }}</p>
+          <div v-for="a in agentRows" :key="a.label" class="nav-row">
+            <NuxtLink
+              class="nav-item"
+              :class="{ active: agentOpen === a.label }"
+              :aria-current="agentOpen === a.label ? 'true' : undefined"
+              :data-key="a.label"
+              :data-online="a.online ? '1' : '0'"
+              :to="localePath('/agents/' + encodeURIComponent(a.label))"
+            >
+              <UiIcon name="bot" :size="20" />
+              <span class="dot" :class="{ on: a.online }" />
+              <span class="label">{{ a.id }}</span>
+              <span class="muted agent-row__kind" data-testid="agent-kind">{{ t(a.kindKey) }}</span>
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
     <div class="sidebar-foot">
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
@@ -621,7 +692,8 @@ import { isNewer } from '~/utils/build-watch.mjs'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { AGENTS_TAB, ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
@@ -637,7 +709,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -797,6 +869,10 @@ async function selectTab(next: SideTab) {
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
+  /* CLE-77794: People / Agents land on their index (the "pick someone" card in
+     the middle pane); a click on a row then opens /people/<id> or /agents/<id>. */
+  if (next === PEOPLE_TAB && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
+  if (next === AGENTS_TAB && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
@@ -813,7 +889,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB) sidePane.setCurrent(id)
+  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB) sidePane.setCurrent(id)
   if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
@@ -868,6 +944,24 @@ const peers = computed(() => pinRows(
     .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
   pinnedPeers.value,
 ))
+/* CLE-77794: People lists every tenant member (the reader too, marked "you");
+   Agents lists every non-human agent on the roster, its kind from the id
+   prefix. Both read the same roster the DM list does, so no extra fetch. */
+const memberRows = computed(() => roster.people
+  .filter((p) => isHumanId(p.id))
+  .map((p) => ({ ...p, owner: roster.owners.includes(p.id) || Boolean(roster.humansDetail[p.id]?.owner) })))
+const agentRows = computed(() => roster.people
+  .filter((p) => isAgentId(p.id))
+  .map((p) => ({ ...p, kindKey: agentKindLabelKey(p.id) })))
+/* the open card's key, so its row reads as selected (aria-current) */
+const peopleOpen = computed(() => {
+  const m = route.path.match(/\/people\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : ''
+})
+const agentOpen = computed(() => {
+  const m = route.path.match(/\/agents\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : ''
+})
 /** #feedback shows its locale name and description; a stored description wins. */
 const shownChannels = computed(() => channel.ordered.map((c) => {
   const copy = feedbackChannelCopy(c.channel_id, {
@@ -1297,6 +1391,11 @@ async function onCreate() {
 }
 .topic-empty { padding: 8px 16px; margin: 0; }
 .retention { font-size: 11px; flex-shrink: 0; }
+/* CLE-77794: the trailing tag on a People row ("you" / "Owner") and the kind
+   label on an Agent row (Claude / Antigravity / …); both shrink last so the
+   name keeps the width, and the 72px rail hides them like the DM tail. */
+.people-row__tag,
+.agent-row__kind { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" */
 .self-row { cursor: default; }

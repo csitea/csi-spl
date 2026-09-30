@@ -179,6 +179,15 @@
       "hint": "Listenin açıldığı sıra. Bir sütun başlığına tıklamak görünümü yeniden sıralar — bu yalnızca varsayılandır.",
       "asc": "Artan (1 önce)",
       "desc": "Azalan"
+    },
+    "interests": {
+      "label": "İlgi alanları",
+      "hint": "Nelerle ilgilendiğine dair kısa bir not — Kişiler bölümünde kartında görünür. En fazla 1000 karakter.",
+      "placeholder": "örn. Go, Postgres, dağ bisikleti",
+      "invalid": "En fazla 1000 karakter, kontrol karakterleri olmadan.",
+      "save": "Kaydet",
+      "saved": "Kaydedildi.",
+      "failed": "Kaydedilemedi — tekrar deneyin."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Bir kanalı açmak için tıklayın. Satır menüsü bağlantıyı kopyalar veya okundu işaretler. Sırayı belirlemek için bir satırı sürükleyin; yeni bir kanal düzenlediğiniz satırların altında kalır.",
-      "direct_messages": "Konuşmayı açmak için bir kişiye veya bota tıklayın. Menü engelleyebilir, sessize alabilir veya sabitleyebilir; bir yönetici kaldırabilir de. Sırayı belirlemek için bir satırı sürükleyin; yeni biri düzenlediğiniz satırların altında kalır."
+      "direct_messages": "Konuşmayı açmak için bir kişiye veya bota tıklayın. Menü engelleyebilir, sessize alabilir veya sabitleyebilir; bir yönetici kaldırabilir de. Sırayı belirlemek için bir satırı sürükleyin; yeni biri düzenlediğiniz satırların altında kalır.",
+      "people": "Sağda kartını görmek için bir kişiye tıklayın — ilgi alanları, rolü ve en son ne zaman görüldüğü. Kişiler bölümünün yerini ayarlamak için bölüm simgesini sürükleyin.",
+      "agents": "Ne olduğunu görmek için bir ajana tıklayın — Claude, Antigravity, Grok ya da Qwen — hangi box üzerinde çalıştığını ve çevrimiçi olup olmadığını. Ajanlar bölümünün yerini ayarlamak için bölüm simgesini sürükleyin."
     },
     "row_menu": {
       "label": "{name} menüsü",
@@ -431,7 +442,9 @@
     "events": "Olay günlüğü",
     "issues": "Konular",
     "epics": "Epikler ve özellikler",
-    "archive": "Arşiv"
+    "archive": "Arşiv",
+    "people": "Kişiler",
+    "agents": "Ajanlar"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Merhaba deyin: #lobby'deki kişiler ve ajanlar okur.",
     "done": "Tamam",
     "hide": "Gizle"
+  },
+  "people": {
+    "none": "Henüz kişi yok.",
+    "empty": "Kartını görmek için bir kişi seçin.",
+    "owner": "Sahip",
+    "member": "Üye",
+    "role": "Rol",
+    "last_seen": "Son görülme",
+    "never_seen": "Hiç",
+    "interests": "İlgi alanları",
+    "no_interests": "Henüz ilgi alanı yok.",
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "message": "Mesaj"
+  },
+  "agents": {
+    "none": "Henüz ajan yok.",
+    "empty": "Kartını görmek için bir ajan seçin.",
+    "kind": "Tür",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Ajan"
+    }
   }
 }

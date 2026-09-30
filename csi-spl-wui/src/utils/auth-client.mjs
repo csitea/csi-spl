@@ -351,6 +351,16 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
     },
     /**
+     * CLE-77794: Settings → Profile "Interests" (humans.interests, rdb 0086),
+     * shown on the person's card in the People section. Sends ONLY that key:
+     * the free text, or null to clear it. 200 → `data.interests` is the stored
+     * value (null when cleared); 400 invalid_interests; 401; 409 = no human.
+     */
+    saveInterests(interests) {
+      const v = String(interests ?? '').trim()
+      return post('/preferences', { interests: v === '' ? null : v }, 'PUT')
+    },
+    /**
      * keep the palette pick on the account (humans.preferred_theme,
      * the field an operator sets with do_spl_human_theme). Sends ONLY that
      * key. 200 → ok; 400 unsupported_theme; 401 = no session; 409 = no human.

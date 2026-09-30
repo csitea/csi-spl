@@ -179,6 +179,15 @@
       "hint": "Secība, kādā saraksts tiek atvērts. Noklikšķinot uz kolonnas galvenes, skats tiek pārkārtots — šī ir tikai noklusējuma vērtība.",
       "asc": "Augoša (1 augšā)",
       "desc": "Dilstoša"
+    },
+    "interests": {
+      "label": "Intereses",
+      "hint": "Īsa piezīme par to, kas jūs interesē — redzama jūsu kartītē sadaļā Cilvēki. Līdz 1000 rakstzīmēm.",
+      "placeholder": "piem. Go, Postgres, kalnu riteņbraukšana",
+      "invalid": "Līdz 1000 rakstzīmēm, bez vadības rakstzīmēm.",
+      "save": "Saglabāt",
+      "saved": "Saglabāts.",
+      "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Noklikšķiniet kanālu, lai to atvērtu. Rindas izvēlne kopē saiti vai atzīmē kā lasītu. Velciet rindu, lai iestatītu secību; jauns kanāls paliek zem sakārtotajām rindām.",
-      "direct_messages": "Noklikšķiniet personu vai botu, lai atvērtu sarunu. Izvēlne var bloķēt, apklusināt vai piespraust, un administrators var arī noņemt. Velciet rindu, lai iestatītu secību; jauns cilvēks paliek zem sakārtotajām rindām."
+      "direct_messages": "Noklikšķiniet personu vai botu, lai atvērtu sarunu. Izvēlne var bloķēt, apklusināt vai piespraust, un administrators var arī noņemt. Velciet rindu, lai iestatītu secību; jauns cilvēks paliek zem sakārtotajām rindām.",
+      "people": "Noklikšķiniet uz personas, lai pa labi redzētu tās kartīti — intereses, lomu un kad pēdējo reizi redzēta. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Cilvēki.",
+      "agents": "Noklikšķiniet uz aģenta, lai redzētu, kas tas ir — Claude, Antigravity, Grok vai Qwen — uz kura box tas darbojas un vai ir tiešsaistē. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Aģenti."
     },
     "row_menu": {
       "label": "Izvēlne: {name}",
@@ -431,7 +442,9 @@
     "events": "Notikumu žurnāls",
     "issues": "Problēmas",
     "epics": "Episki un funkcijas",
-    "archive": "Arhīvs"
+    "archive": "Arhīvs",
+    "people": "Cilvēki",
+    "agents": "Aģenti"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Sasveicinieties: cilvēki un aģenti #lobby to izlasīs.",
     "done": "Izdarīts",
     "hide": "Paslēpt"
+  },
+  "people": {
+    "none": "Vēl nav cilvēku.",
+    "empty": "Atlasiet personu, lai redzētu tās kartīti.",
+    "owner": "Īpašnieks",
+    "member": "Dalībnieks",
+    "role": "Loma",
+    "last_seen": "Pēdējo reizi redzēts",
+    "never_seen": "Nekad",
+    "interests": "Intereses",
+    "no_interests": "Vēl nav interešu.",
+    "online": "Tiešsaistē",
+    "offline": "Bezsaistē",
+    "message": "Ziņa"
+  },
+  "agents": {
+    "none": "Vēl nav aģentu.",
+    "empty": "Atlasiet aģentu, lai redzētu tā kartīti.",
+    "kind": "Veids",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Aģents"
+    }
   }
 }

@@ -33,12 +33,15 @@
       {{ t('settings.picture_hint') }}
     </p>
     <DisplayNameSetting />
+    <!-- CLE-77794: your interests, shown on your card in the People section. -->
+    <InterestsSetting />
   </SettingsSection>
 </template>
 
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import DisplayNameSetting from '~/components/DisplayNameSetting.vue'
+import InterestsSetting from '~/components/InterestsSetting.vue'
 import { useSessionStore } from '~/stores/session'
 import { avatarMode, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 

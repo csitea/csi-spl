@@ -59,6 +59,14 @@
     {
       "slug": "events",
       "title": "Events"
+    },
+    {
+      "slug": "people",
+      "title": "People"
+    },
+    {
+      "slug": "agents",
+      "title": "Agents"
     }
   ]
 }

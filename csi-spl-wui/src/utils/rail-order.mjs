@@ -26,6 +26,14 @@ export const RAIL_TABS = Object.freeze([
   /* the personal Event log (owner, topic 4335f075); last by default
      since 2026-09-27 (topic 116646c8 left it out of the named order). */
   Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
+  /* CLE-77794 (owner 2026-09-30, topic 1fc29f99): People lists every member
+     with their interests on the right; Agents lists the tenant's agents with
+     their kind (Claude / Antigravity / Grok / Qwen). Both reorder and collapse
+     like the rest; a stored order from before them is drawn with the two
+     appended (parseRailOrder), and the hub's IsRailOrder + rdb 0087 admit the
+     nine. */
+  Object.freeze({ id: 'people', icon: 'users', labelKey: 'sidebar.people' }),
+  Object.freeze({ id: 'agents', icon: 'bot', labelKey: 'sidebar.agents' }),
 ])
 
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))

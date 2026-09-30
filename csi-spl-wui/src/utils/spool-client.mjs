@@ -1006,8 +1006,17 @@ export function createSpoolClient({
       return normalizeOperators(await live('/v1/view/search/operators'))
     },
     async listRoster() {
-      if (mock) return { roster: state.roster, online: state.online, me: state.me }
-      return rosterFromView(await live('/v1/view/roster'))
+      // CLE-77794: the People/Agents sections read the per-member detail
+      // (interests, last_seen, owner) and the per-box detail (online,
+      // last_hello_at) alongside the mapped roster. rosterFromView stays the
+      // pure mapper; the raw humans[]/boxes[] ride along unchanged.
+      if (mock) return { roster: state.roster, online: state.online, me: state.me, humans: state.humans || [], boxes: state.boxes || [] }
+      const body = await live('/v1/view/roster')
+      return {
+        ...rosterFromView(body),
+        humans: Array.isArray(body && body.humans) ? body.humans : [],
+        boxes: Array.isArray(body && body.boxes) ? body.boxes : [],
+      }
     },
     /**
      * The view-v1 §4.1 roster body as the hub sent it (`humans` included):

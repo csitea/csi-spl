@@ -11,6 +11,12 @@ export const useRosterStore = defineStore('roster', () => {
   const online = ref<string[]>([])
   /** view-v1 §4.1 owner:true - the business owner(s) #feedback offers to @. */
   const owners = ref<string[]>([])
+  /** CLE-77794: per-member detail for the People info card (view-v1 §4.1
+   *  humans[]): owner flag, free-text interests and last_seen, keyed HUM-*. */
+  const humansDetail = ref<Record<string, HumanDetail>>({})
+  /** CLE-77794: per-box detail for the Agents info card (view-v1 §4.1
+   *  boxes[]): online + last_hello_at, keyed by box_id. */
+  const boxes = ref<Record<string, BoxDetail>>({})
   /** The mock tenant answers with its own `me`; live, the socket's welcome does. */
   const me = ref({ id: '', box: BROWSER_BOX })
 
@@ -44,11 +50,29 @@ export const useRosterStore = defineStore('roster', () => {
       online?: string[]
       me?: { id: string, box: string }
       owners?: string[]
+      humans?: Array<HumanDetail & { human_id?: string }>
+      boxes?: Array<BoxDetail & { box_id?: string }>
     }
     if (data.roster) roster.value = data.roster
     if (data.online) online.value = mergeSnapshotOnline(online.value, data.online, roster.value)
     if (data.me) me.value = data.me
     if (Array.isArray(data.owners)) owners.value = data.owners
+    if (Array.isArray(data.humans)) {
+      const byId: Record<string, HumanDetail> = {}
+      for (const h of data.humans) {
+        const id = String((h && h.human_id) || '')
+        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
+      }
+      humansDetail.value = byId
+    }
+    if (Array.isArray(data.boxes)) {
+      const byBox: Record<string, BoxDetail> = {}
+      for (const b of data.boxes) {
+        const id = String((b && b.box_id) || '')
+        if (id) byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || '') }
+      }
+      boxes.value = byBox
+    }
   }
 
   function isOnline(id: string, box?: string) {
@@ -56,5 +80,21 @@ export const useRosterStore = defineStore('roster', () => {
     return online.value.includes(label) || online.value.includes(id)
   }
 
-  return { roster, online, owners, me, self, people, peers, refresh, isOnline, applyFrame }
+  return { roster, online, owners, humansDetail, boxes, me, self, people, peers, refresh, isOnline, applyFrame }
 })
+
+/** view-v1 §4.1 humans[] detail the People card reads (CLE-77794). */
+export interface HumanDetail {
+  owner: boolean
+  /** humans.interests (rdb 0086), "" when none. */
+  interests: string
+  /** tenant_memberships.last_active_at (RFC3339), "" when never. */
+  last_seen: string
+}
+
+/** view-v1 §4.1 boxes[] detail the Agents card reads (CLE-77794). */
+export interface BoxDetail {
+  online: boolean
+  /** boxes.last_hello_at (RFC3339), "" when the box never announced. */
+  last_hello_at: string
+}

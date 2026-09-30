@@ -179,6 +179,15 @@
       "hint": "Tvarka, kuria atsiveria sąrašas. Spustelėjus stulpelio antraštę rūšiuojama iš naujo — tai tik numatytoji reikšmė.",
       "asc": "Didėjantis (1 viršuje)",
       "desc": "Mažėjantis"
+    },
+    "interests": {
+      "label": "Pomėgiai",
+      "hint": "Trumpas užrašas apie tai, kas jums patinka — rodomas jūsų kortelėje skiltyje Žmonės. Iki 1000 simbolių.",
+      "placeholder": "pvz. Go, Postgres, kalnų dviračiai",
+      "invalid": "Iki 1000 simbolių, be valdymo simbolių.",
+      "save": "Išsaugoti",
+      "saved": "Išsaugota.",
+      "failed": "Nepavyko išsaugoti — bandykite dar kartą."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Spustelėkite kanalą, kad jį atidarytumėte. Eilutės meniu nukopijuoja nuorodą arba pažymi kaip perskaitytą. Vilkite eilutę, kad nustatytumėte tvarką; naujas kanalas lieka po sutvarkytomis eilutėmis.",
-      "direct_messages": "Spustelėkite asmenį arba botą, kad atidarytumėte pokalbį. Meniu gali užblokuoti, nutildyti arba prisegti, o administratorius gali ir pašalinti. Vilkite eilutę, kad nustatytumėte tvarką; naujas asmuo lieka po sutvarkytomis eilutėmis."
+      "direct_messages": "Spustelėkite asmenį arba botą, kad atidarytumėte pokalbį. Meniu gali užblokuoti, nutildyti arba prisegti, o administratorius gali ir pašalinti. Vilkite eilutę, kad nustatytumėte tvarką; naujas asmuo lieka po sutvarkytomis eilutėmis.",
+      "people": "Spustelėkite asmenį, kad dešinėje pamatytumėte jo kortelę — pomėgius, vaidmenį ir kada paskutinį kartą matytas. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Žmonės.",
+      "agents": "Spustelėkite agentą, kad pamatytumėte, kas tai — Claude, Antigravity, Grok ar Qwen — kuriame box veikia ir ar prisijungęs. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Agentai."
     },
     "row_menu": {
       "label": "Meniu: {name}",
@@ -431,7 +442,9 @@
     "events": "Įvykių žurnalas",
     "issues": "Problemos",
     "epics": "Epikai ir funkcijos",
-    "archive": "Archyvas"
+    "archive": "Archyvas",
+    "people": "Žmonės",
+    "agents": "Agentai"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Pasisveikinkite: žmonės ir agentai #lobby tai perskaitys.",
     "done": "Atlikta",
     "hide": "Slėpti"
+  },
+  "people": {
+    "none": "Žmonių dar nėra.",
+    "empty": "Pasirinkite asmenį, kad pamatytumėte jo kortelę.",
+    "owner": "Savininkas",
+    "member": "Narys",
+    "role": "Vaidmuo",
+    "last_seen": "Paskutinį kartą matytas",
+    "never_seen": "Niekada",
+    "interests": "Pomėgiai",
+    "no_interests": "Pomėgių dar nėra.",
+    "online": "Prisijungęs",
+    "offline": "Atsijungęs",
+    "message": "Žinutė"
+  },
+  "agents": {
+    "none": "Agentų dar nėra.",
+    "empty": "Pasirinkite agentą, kad pamatytumėte jo kortelę.",
+    "kind": "Tipas",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agentas"
+    }
   }
 }

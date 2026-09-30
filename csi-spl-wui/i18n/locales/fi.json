@@ -179,6 +179,15 @@
       "hint": "Järjestys, jossa luettelo avautuu. Sarakeotsikon napsautus lajittelee näkymän silti uudelleen — tämä on vain oletus.",
       "asc": "Nouseva (1 ensin)",
       "desc": "Laskeva"
+    },
+    "interests": {
+      "label": "Kiinnostuksen kohteet",
+      "hint": "Lyhyt kuvaus siitä, mikä sinua kiinnostaa — näkyy kortissasi Ihmiset-osiossa. Enintään 1000 merkkiä.",
+      "placeholder": "esim. Go, Postgres, maastopyöräily",
+      "invalid": "Enintään 1000 merkkiä, ilman ohjausmerkkejä.",
+      "save": "Tallenna",
+      "saved": "Tallennettu.",
+      "failed": "Tallennus epäonnistui — yritä uudelleen."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Avaa kanava napsauttamalla sitä. Rivin valikko kopioi linkin tai merkitsee kanavan luetuksi. Vedä riviä, niin järjestys säilyy; uusi kanava jää järjestämiesi rivien alle.",
-      "direct_messages": "Avaa keskustelu napsauttamalla henkilöä tai bottia. Valikko voi estää, mykistää tai kiinnittää, ja ylläpitäjä voi myös poistaa. Vedä riviä, niin järjestys säilyy; uusi tulokas jää järjestämiesi rivien alle."
+      "direct_messages": "Avaa keskustelu napsauttamalla henkilöä tai bottia. Valikko voi estää, mykistää tai kiinnittää, ja ylläpitäjä voi myös poistaa. Vedä riviä, niin järjestys säilyy; uusi tulokas jää järjestämiesi rivien alle.",
+      "people": "Napsauta henkilöä nähdäksesi oikealla hänen korttinsa — kiinnostuksen kohteet, roolin ja milloin hänet nähtiin viimeksi. Vedä osion kuvaketta asettaaksesi Ihmiset-osion paikan.",
+      "agents": "Napsauta agenttia nähdäksesi mikä se on — Claude, Antigravity, Grok vai Qwen — millä boxilla se on ja onko se linjoilla. Vedä osion kuvaketta asettaaksesi Agentit-osion paikan."
     },
     "row_menu": {
       "label": "Valikko: {name}",
@@ -431,7 +442,9 @@
     "events": "Tapahtumaloki",
     "issues": "Asiat",
     "epics": "Eepokset ja ominaisuudet",
-    "archive": "Arkisto"
+    "archive": "Arkisto",
+    "people": "Ihmiset",
+    "agents": "Agentit"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Sano hei: #lobbyn ihmiset ja agentit lukevat sen.",
     "done": "Valmis",
     "hide": "Piilota"
+  },
+  "people": {
+    "none": "Ei vielä ihmisiä.",
+    "empty": "Valitse henkilö nähdäksesi kortin.",
+    "owner": "Omistaja",
+    "member": "Jäsen",
+    "role": "Rooli",
+    "last_seen": "Viimeksi nähty",
+    "never_seen": "Ei koskaan",
+    "interests": "Kiinnostuksen kohteet",
+    "no_interests": "Ei vielä kiinnostuksen kohteita.",
+    "online": "Linjoilla",
+    "offline": "Poissa",
+    "message": "Viesti"
+  },
+  "agents": {
+    "none": "Ei vielä agentteja.",
+    "empty": "Valitse agentti nähdäksesi kortin.",
+    "kind": "Tyyppi",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agentti"
+    }
   }
 }

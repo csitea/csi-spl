@@ -179,6 +179,15 @@
       "hint": "Kolejność, w jakiej otwiera się lista. Kliknięcie nagłówka kolumny nadal sortuje widok — to tylko wartość domyślna.",
       "asc": "Rosnąco (1 na górze)",
       "desc": "Malejąco"
+    },
+    "interests": {
+      "label": "Zainteresowania",
+      "hint": "Krótka notatka o tym, co Cię interesuje — pokazywana na Twojej karcie w sekcji Osoby. Do 1000 znaków.",
+      "placeholder": "np. Go, Postgres, kolarstwo górskie",
+      "invalid": "Do 1000 znaków, bez znaków sterujących.",
+      "save": "Zapisz",
+      "saved": "Zapisano.",
+      "failed": "Nie udało się zapisać — spróbuj ponownie."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Kliknij kanał, aby go otworzyć. Menu wiersza kopiuje łącze albo oznacza jako przeczytane. Przeciągnij wiersz, aby ustalić kolejność; nowy kanał zostaje pod ułożonymi wierszami.",
-      "direct_messages": "Kliknij osobę albo bota, aby otworzyć rozmowę. Menu może zablokować, wyciszyć albo przypiąć, a administrator może też usunąć. Przeciągnij wiersz, aby ustalić kolejność; ktoś nowy zostaje pod ułożonymi wierszami."
+      "direct_messages": "Kliknij osobę albo bota, aby otworzyć rozmowę. Menu może zablokować, wyciszyć albo przypiąć, a administrator może też usunąć. Przeciągnij wiersz, aby ustalić kolejność; ktoś nowy zostaje pod ułożonymi wierszami.",
+      "people": "Kliknij osobę, aby po prawej zobaczyć jej kartę — zainteresowania, rolę i kiedy była ostatnio widziana. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Osoby.",
+      "agents": "Kliknij agenta, aby zobaczyć, czym jest — Claude, Antigravity, Grok czy Qwen — na jakim boxie działa i czy jest online. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Agenci."
     },
     "row_menu": {
       "label": "Menu dla {name}",
@@ -431,7 +442,9 @@
     "events": "Dziennik zdarzeń",
     "issues": "Zgłoszenia",
     "epics": "Epiki i funkcje",
-    "archive": "Archiwum"
+    "archive": "Archiwum",
+    "people": "Osoby",
+    "agents": "Agenci"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Przywitaj się: ludzie i agenci w #lobby to przeczytają.",
     "done": "Gotowe",
     "hide": "Ukryj"
+  },
+  "people": {
+    "none": "Brak osób.",
+    "empty": "Wybierz osobę, aby zobaczyć jej kartę.",
+    "owner": "Właściciel",
+    "member": "Członek",
+    "role": "Rola",
+    "last_seen": "Ostatnio widziany",
+    "never_seen": "Nigdy",
+    "interests": "Zainteresowania",
+    "no_interests": "Brak zainteresowań.",
+    "online": "Online",
+    "offline": "Offline",
+    "message": "Wiadomość"
+  },
+  "agents": {
+    "none": "Brak agentów.",
+    "empty": "Wybierz agenta, aby zobaczyć jego kartę.",
+    "kind": "Rodzaj",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agent"
+    }
   }
 }

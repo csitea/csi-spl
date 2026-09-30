@@ -214,7 +214,9 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const EVENTS_TAB: 'events'
   export const ISSUES_TAB: 'issues'
   export const ARCHIVE_TAB: 'archive'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | null
+  export const PEOPLE_TAB: 'people'
+  export const AGENTS_TAB: 'agents'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]
@@ -424,6 +426,7 @@ declare module '~/utils/auth-client.mjs' {
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
+    saveInterests(interests: string): Promise<NativeResult>
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>

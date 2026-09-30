@@ -88,6 +88,16 @@ export const UI_ICON_PATHS = {
     "M22 21v-2a4 4 0 0 0-3-3.87",
     "M16 3.13a4 4 0 0 1 0 7.75",
   ],
+  // CLE-77794: the Agents rail section (lucide bot) - an agent is a bot, told
+  // apart from the People (users) section at a glance.
+  bot: [
+    "M12 8V4H8",
+    "M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z",
+    "M2 14h2",
+    "M20 14h2",
+    "M15 13v2",
+    "M9 13v2",
+  ],
   // the tenant drop box's glyph (lucide building-2), in place of
   // the visible "Tenant" caption.
   building: [

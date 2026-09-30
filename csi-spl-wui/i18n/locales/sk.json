@@ -179,6 +179,15 @@
       "hint": "Poradie, v ktorom sa zoznam otvára. Kliknutie na hlavičku stĺpca preusporiada zobrazenie — toto je len predvolené.",
       "asc": "Vzostupne (1 hore)",
       "desc": "Zostupne"
+    },
+    "interests": {
+      "label": "Záujmy",
+      "hint": "Krátka poznámka o tom, čo vás zaujíma — zobrazí sa na vašej karte v sekcii Ľudia. Najviac 1000 znakov.",
+      "placeholder": "napr. Go, Postgres, horská cyklistika",
+      "invalid": "Najviac 1000 znakov, bez riadiacich znakov.",
+      "save": "Uložiť",
+      "saved": "Uložené.",
+      "failed": "Nepodarilo sa uložiť — skúste to znova."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Kliknite kanál, aby ste ho otvorili. Menu riadka skopíruje odkaz alebo ho označí ako prečítaný. Potiahnite riadok, aby ste nastavili poradie; nový kanál zostane pod usporiadanými riadkami.",
-      "direct_messages": "Kliknite osobu alebo bota, aby ste otvorili rozhovor. Menu môže blokovať, stíšiť alebo pripnúť a správca môže aj odstrániť. Potiahnite riadok, aby ste nastavili poradie; niekto nový zostane pod usporiadanými riadkami."
+      "direct_messages": "Kliknite osobu alebo bota, aby ste otvorili rozhovor. Menu môže blokovať, stíšiť alebo pripnúť a správca môže aj odstrániť. Potiahnite riadok, aby ste nastavili poradie; niekto nový zostane pod usporiadanými riadkami.",
+      "people": "Kliknite na osobu, aby ste vpravo videli jej kartu — záujmy, rolu a kedy bola naposledy videná. Potiahnutím ikony sekcie určíte, kde je sekcia Ľudia.",
+      "agents": "Kliknite na agenta, aby ste videli, čo to je — Claude, Antigravity, Grok alebo Qwen — na ktorom boxe beží a či je online. Potiahnutím ikony sekcie určíte, kde je sekcia Agenti."
     },
     "row_menu": {
       "label": "Menu pre {name}",
@@ -431,7 +442,9 @@
     "events": "Denník udalostí",
     "issues": "Úlohy",
     "epics": "Epiky a funkcie",
-    "archive": "Archív"
+    "archive": "Archív",
+    "people": "Ľudia",
+    "agents": "Agenti"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Pozdravte: ľudia a agenti v #lobby si to prečítajú.",
     "done": "Hotovo",
     "hide": "Skryť"
+  },
+  "people": {
+    "none": "Zatiaľ žiadni ľudia.",
+    "empty": "Vyberte osobu, aby ste videli jej kartu.",
+    "owner": "Vlastník",
+    "member": "Člen",
+    "role": "Rola",
+    "last_seen": "Naposledy videný",
+    "never_seen": "Nikdy",
+    "interests": "Záujmy",
+    "no_interests": "Zatiaľ žiadne záujmy.",
+    "online": "Online",
+    "offline": "Offline",
+    "message": "Správa"
+  },
+  "agents": {
+    "none": "Zatiaľ žiadni agenti.",
+    "empty": "Vyberte agenta, aby ste videli jeho kartu.",
+    "kind": "Druh",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agent"
+    }
   }
 }

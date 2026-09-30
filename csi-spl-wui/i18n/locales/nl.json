@@ -179,6 +179,15 @@
       "hint": "De volgorde waarin de lijst opent. Klikken op een kolomkop sorteert een weergave opnieuw — dit is alleen de standaard.",
       "asc": "Oplopend (1 eerst)",
       "desc": "Aflopend"
+    },
+    "interests": {
+      "label": "Interesses",
+      "hint": "Een korte notitie over waar je van houdt — te zien op je kaart in de sectie Personen. Maximaal 1000 tekens.",
+      "placeholder": "bijv. Go, Postgres, mountainbiken",
+      "invalid": "Maximaal 1000 tekens, zonder stuurtekens.",
+      "save": "Opslaan",
+      "saved": "Opgeslagen.",
+      "failed": "Opslaan mislukt — probeer het opnieuw."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Klik een kanaal om het te openen. Het rijmenu kopieert de link of markeert het als gelezen. Sleep een rij om de volgorde vast te zetten; een nieuw kanaal blijft onder de rijen die u ordende.",
-      "direct_messages": "Klik een persoon of een bot om het gesprek te openen. Het menu kan blokkeren, dempen of vastzetten, en een beheerder kan ook verwijderen. Sleep een rij om de volgorde vast te zetten; iemand nieuws blijft onder de rijen die u ordende."
+      "direct_messages": "Klik een persoon of een bot om het gesprek te openen. Het menu kan blokkeren, dempen of vastzetten, en een beheerder kan ook verwijderen. Sleep een rij om de volgorde vast te zetten; iemand nieuws blijft onder de rijen die u ordende.",
+      "people": "Klik op een persoon om rechts zijn kaart te zien — interesses, rol en wanneer die voor het laatst online was. Sleep het sectiepictogram om te bepalen waar Personen staat.",
+      "agents": "Klik op een agent om te zien wat het is — Claude, Antigravity, Grok of Qwen — op welke box die draait en of die online is. Sleep het sectiepictogram om te bepalen waar Agents staat."
     },
     "row_menu": {
       "label": "Menu voor {name}",
@@ -431,7 +442,9 @@
     "events": "Gebeurtenissenlogboek",
     "issues": "Kwesties",
     "epics": "Epics en features",
-    "archive": "Archief"
+    "archive": "Archief",
+    "people": "Personen",
+    "agents": "Agents"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Zeg hallo: de mensen en agents in #lobby lezen het.",
     "done": "Klaar",
     "hide": "Verbergen"
+  },
+  "people": {
+    "none": "Nog geen personen.",
+    "empty": "Kies een persoon om de kaart te zien.",
+    "owner": "Eigenaar",
+    "member": "Lid",
+    "role": "Rol",
+    "last_seen": "Laatst gezien",
+    "never_seen": "Nooit",
+    "interests": "Interesses",
+    "no_interests": "Nog geen interesses.",
+    "online": "Online",
+    "offline": "Offline",
+    "message": "Bericht"
+  },
+  "agents": {
+    "none": "Nog geen agents.",
+    "empty": "Kies een agent om de kaart te zien.",
+    "kind": "Soort",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agent"
+    }
   }
 }

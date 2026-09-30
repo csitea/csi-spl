@@ -179,6 +179,15 @@
       "hint": "Ordningen som listan öppnas i. Ett klick på en kolumnrubrik sorterar om vyn ändå — det här är bara standardvärdet.",
       "asc": "Stigande (1 först)",
       "desc": "Fallande"
+    },
+    "interests": {
+      "label": "Intressen",
+      "hint": "En kort notis om vad du gillar — visas på ditt kort i sektionen Personer. Upp till 1000 tecken.",
+      "placeholder": "t.ex. Go, Postgres, mountainbike",
+      "invalid": "Upp till 1000 tecken, utan styrtecken.",
+      "save": "Spara",
+      "saved": "Sparat.",
+      "failed": "Kunde inte spara — försök igen."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Klicka en kanal för att öppna den. Radens meny kopierar länken eller markerar den som läst. Dra en rad för att sätta ordningen; en ny kanal stannar under raderna du ordnade.",
-      "direct_messages": "Klicka en person eller en bot för att öppna samtalet. Menyn kan blockera, tysta eller fästa, och en administratör kan också ta bort. Dra en rad för att sätta ordningen; någon ny stannar under raderna du ordnade."
+      "direct_messages": "Klicka en person eller en bot för att öppna samtalet. Menyn kan blockera, tysta eller fästa, och en administratör kan också ta bort. Dra en rad för att sätta ordningen; någon ny stannar under raderna du ordnade.",
+      "people": "Klicka på en person för att se kortet till höger — intressen, roll och när personen senast sågs. Dra sektionsikonen för att bestämma var Personer ligger.",
+      "agents": "Klicka på en agent för att se vad det är — Claude, Antigravity, Grok eller Qwen — vilken box den kör på och om den är online. Dra sektionsikonen för att bestämma var Agenter ligger."
     },
     "row_menu": {
       "label": "Meny för {name}",
@@ -431,7 +442,9 @@
     "events": "Händelselogg",
     "issues": "Ärenden",
     "epics": "Epics och funktioner",
-    "archive": "Arkiv"
+    "archive": "Arkiv",
+    "people": "Personer",
+    "agents": "Agenter"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Säg hej: människorna och agenterna i #lobby läser det.",
     "done": "Klart",
     "hide": "Dölj"
+  },
+  "people": {
+    "none": "Inga personer ännu.",
+    "empty": "Välj en person för att se kortet.",
+    "owner": "Ägare",
+    "member": "Medlem",
+    "role": "Roll",
+    "last_seen": "Senast sedd",
+    "never_seen": "Aldrig",
+    "interests": "Intressen",
+    "no_interests": "Inga intressen ännu.",
+    "online": "Online",
+    "offline": "Offline",
+    "message": "Meddelande"
+  },
+  "agents": {
+    "none": "Inga agenter ännu.",
+    "empty": "Välj en agent för att se kortet.",
+    "kind": "Typ",
+    "box": "Box",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agent"
+    }
   }
 }

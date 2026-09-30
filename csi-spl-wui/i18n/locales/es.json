@@ -179,6 +179,15 @@
       "hint": "El orden en que se abre la lista. Pulsar una cabecera de columna reordena la vista; esto es solo el valor predeterminado.",
       "asc": "Ascendente (1 primero)",
       "desc": "Descendente"
+    },
+    "interests": {
+      "label": "Intereses",
+      "hint": "Una breve nota sobre lo que te interesa; se muestra en tu ficha en la sección Personas. Hasta 1000 caracteres.",
+      "placeholder": "p. ej. Go, Postgres, ciclismo de montaña",
+      "invalid": "Hasta 1000 caracteres, sin caracteres de control.",
+      "save": "Guardar",
+      "saved": "Guardado.",
+      "failed": "No se pudo guardar — inténtalo de nuevo."
     }
   },
   "auth": {
@@ -396,7 +405,9 @@
     "flow": "Flow",
     "help": {
       "channels": "Pulse un canal para abrirlo. El menú de la fila copia el enlace o lo marca como leído. Arrastre una fila para fijar el orden; un canal nuevo queda debajo de las filas que ordenó.",
-      "direct_messages": "Pulse una persona o un bot para abrir la conversación. El menú puede bloquear, silenciar o fijar, y un administrador también puede quitar. Arrastre una fila para fijar el orden; alguien nuevo queda debajo de las filas que ordenó."
+      "direct_messages": "Pulse una persona o un bot para abrir la conversación. El menú puede bloquear, silenciar o fijar, y un administrador también puede quitar. Arrastre una fila para fijar el orden; alguien nuevo queda debajo de las filas que ordenó.",
+      "people": "Haz clic en una persona para ver su ficha —sus intereses, su rol y cuándo se le vio por última vez— a la derecha. Arrastra el icono de la sección para colocar Personas donde quieras.",
+      "agents": "Haz clic en un agente para ver qué es —Claude, Antigravity, Grok o Qwen—, en qué equipo se ejecuta y si está conectado. Arrastra el icono de la sección para colocar Agentes donde quieras."
     },
     "row_menu": {
       "label": "Menú de {name}",
@@ -431,7 +442,9 @@
     "events": "Registro de eventos",
     "issues": "Incidencias",
     "epics": "Épicas y funcionalidades",
-    "archive": "Archivo"
+    "archive": "Archivo",
+    "people": "Personas",
+    "agents": "Agentes"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -1257,5 +1270,32 @@
     "topic_hint": "Saluda: las personas y los agentes de #lobby lo leen.",
     "done": "Hecho",
     "hide": "Ocultar"
+  },
+  "people": {
+    "none": "Aún no hay personas.",
+    "empty": "Selecciona una persona para ver su ficha.",
+    "owner": "Propietario",
+    "member": "Miembro",
+    "role": "Rol",
+    "last_seen": "Última vez",
+    "never_seen": "Nunca",
+    "interests": "Intereses",
+    "no_interests": "Aún no hay intereses.",
+    "online": "En línea",
+    "offline": "Desconectado",
+    "message": "Mensaje"
+  },
+  "agents": {
+    "none": "Aún no hay agentes.",
+    "empty": "Selecciona un agente para ver su ficha.",
+    "kind": "Tipo",
+    "box": "Equipo",
+    "kinds": {
+      "claude": "Claude",
+      "antigravity": "Antigravity",
+      "grok": "Grok",
+      "qwen": "Qwen",
+      "agent": "Agente"
+    }
   }
 }

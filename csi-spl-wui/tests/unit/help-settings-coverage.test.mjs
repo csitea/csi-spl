@@ -35,6 +35,8 @@ const RAIL_HELP = {
   flow: { slug: 'channels-and-direct-messages', word: 'flow' },
   archive: { slug: 'archive', word: 'archive' },
   events: { slug: 'events', word: 'event' },
+  people: { slug: 'people', word: 'people' },
+  agents: { slug: 'agents', word: 'agent' },
 }
 
 let failed = 0

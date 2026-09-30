@@ -22,6 +22,23 @@ export const MOCK_ROSTER = {
 
 export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'HUM-1@box-wui']
 
+/* CLE-77794: the People section's per-member detail (view-v1 §4.1 humans[]):
+   owner flag, free-text interests and last_seen. No display_name here (the card
+   draws the id via HumanName) and no personal names (dist hygiene). */
+export const MOCK_HUMANS = [
+  { human_id: 'HUM-1', owner: true, interests: 'Go, Postgres, mountain biking', last_seen: T0 },
+  { human_id: 'HUM-2', interests: 'Type systems, tea gardens' },
+  { human_id: 'HUM-12' },
+  { human_id: 'HUM-3', interests: 'Distributed systems, trail running' },
+]
+
+/* CLE-77794: the Agents section's per-box detail (view-v1 §4.1 boxes[]):
+   online and last_hello_at, so the card can show a box's liveness. */
+export const MOCK_BOXES = [
+  { box_id: 'box-a', online: true, last_hello_at: T0, agents: ['CLE-07', 'GRK-03'] },
+  { box_id: 'box-b', online: false, last_hello_at: T0, agents: ['CLE-07', 'AGY-02'] },
+]
+
 function msg(partial) {
   return {
     v: 1,
@@ -141,6 +158,8 @@ export function cloneMock() {
     channels: MOCK_CHANNELS.map((c) => ({ ...c })),
     roster: JSON.parse(JSON.stringify(MOCK_ROSTER)),
     online: MOCK_ONLINE.slice(),
+    humans: MOCK_HUMANS.map((h) => ({ ...h })),
+    boxes: MOCK_BOXES.map((b) => ({ ...b, agents: b.agents.slice() })),
     messages: MOCK_MESSAGES.map((m) => ({ ...m, files: (m.files || []).map((f) => ({ ...f })) })),
   }
 }

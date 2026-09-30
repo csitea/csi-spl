@@ -279,8 +279,8 @@
     "loading": "Laddar planen…",
     "not_on_sale": "Spooler säljs inte just nu.",
     "unsupported": "Kassan är inte öppen på den här sidan ännu — försök igen senare.",
-    "price": "En tenant: {price}",
-    "tenant_name": "Tenantnamn",
+    "price": "En arbetsyta: {price}",
+    "tenant_name": "Arbetsytans namn",
     "email": "E-post — hit skickar vi hämtningslänken",
     "submit": "Fortsätt till betalning",
     "fake_note": "Testmiljö: inga pengar dras.",
@@ -293,7 +293,7 @@
     "success": {
       "waiting": "Väntar på att betalningen bekräftas…",
       "claimed": "Den här nyckeln har redan hämtats — på den här sidan eller via länken i e-postmeddelandet. Hubben sparar den inte.",
-      "expired": "Tiden för att hämta nyckeln har gått ut — kontakta supporten för att få en ny nyckel till tenanten.",
+      "expired": "Tiden för att hämta nyckeln har gått ut — kontakta supporten för att få en ny nyckel till arbetsytan.",
       "none": "Den här webbläsarfliken har inget köp. Använd hämtningslänken i e-postmeddelandet vi skickade.",
       "failed": "Betalningen slutfördes inte. Ingen spool skapades.",
       "cancelled": "Betalningen avbröts. Ingen spool skapades.",
@@ -302,7 +302,7 @@
     "claim": {
       "claiming": "Hämtar din nyckel…",
       "claimed": "Den här nyckeln har redan hämtats — på bekräftelsesidan eller via den här länken. Hubben sparar den inte.",
-      "expired": "Länken har gått ut — kontakta supporten för att få en ny nyckel till tenanten."
+      "expired": "Länken har gått ut — kontakta supporten för att få en ny nyckel till arbetsytan."
     },
     "key": {
       "warning_once": "Det här är enda gången nyckeln visas. Den skickas inte via e-post och hubben sparar den inte.",
@@ -320,8 +320,8 @@
       "not_found": "Vi hittar inte det här köpet.",
       "not_paid": "Betalningen är inte bekräftad ännu.",
       "claimed": "Den här nyckeln har redan hämtats — på bekräftelsesidan eller via länken i e-postmeddelandet.",
-      "claim_expired": "Tiden för att hämta nyckeln har gått ut — kontakta supporten för att få en ny nyckel till tenanten.",
-      "conflict": "Tenanten har fått en ny nyckel under tiden — kontakta supporten.",
+      "claim_expired": "Tiden för att hämta nyckeln har gått ut — kontakta supporten för att få en ny nyckel till arbetsytan.",
+      "conflict": "Arbetsytan har fått en ny nyckel under tiden — kontakta supporten.",
       "bad_link": "Länken är ofullständig — öppna länken i e-postmeddelandet igen.",
       "not_fake_checkout": "Det här köpet är inte ett testköp.",
       "not_pending": "Det här köpet är stängt.",
@@ -358,10 +358,10 @@
   },
   "viewer": {
     "error": {
-      "no_tenant": "Ingen tenant vald — öppna visningen med {query}.",
-      "api_host": "Hubbens URL är API-värden; läsning från en tenant kräver {host} ({env_var} med {tenant}).",
+      "no_tenant": "Ingen arbetsyta vald — öppna visningen med {query}.",
+      "api_host": "Hubbens URL är API-värden; läsning från en arbetsyta kräver {host} ({env_var} med {tenant}).",
       "no_base": "NUXT_PUBLIC_API_BASE saknas eller är ogiltig.",
-      "unknown_tenant": "Okänd tenant för den här värden.",
+      "unknown_tenant": "Okänd arbetsyta för den här värden.",
       "not_found": "Hittades inte.",
       "load_failed": "inläsningen misslyckades"
     }
@@ -370,11 +370,11 @@
     "loading": "Laddar Spool…"
   },
   "sidebar": {
-    "tenant": "Hyresgäst",
-    "tenant_hint": "Hyresgäst: {name}. En hyresgäst är en organisations arbetsyta — dess kanaler, ämnen, medlemmar och agenter.",
-    "tenant_hint_one": "Du är medlem bara i den här hyresgästen.",
-    "tenant_hint_switch": "Välj en annan hyresgäst här för att byta till den.",
-    "tenant_switch_failed": "Det gick inte att byta hyresgäst. Försök igen.",
+    "tenant": "Arbetsyta",
+    "tenant_hint": "Arbetsyta: {name}. En arbetsyta är en organisations eget utrymme — dess kanaler, ämnen, medlemmar och agenter.",
+    "tenant_hint_one": "Du är bara medlem i den här arbetsytan.",
+    "tenant_hint_switch": "Välj en annan arbetsyta här för att byta till den.",
+    "tenant_switch_failed": "Det gick inte att byta arbetsyta. Försök igen.",
     "channels": "Kanaler",
     "direct_messages": "Direktmeddelanden",
     "new_channel_placeholder": "ny kanal",
@@ -761,8 +761,8 @@
     "light_red": "Ljusröd"
   },
   "view_token": {
-    "need_member": "Den här tenantens ämnen kräver inloggning som medlem.",
-    "need_member_or_token": "Den här tenantens ämnen kräver inloggning som medlem eller en visningstoken.",
+    "need_member": "Den här arbetsytans ämnen kräver inloggning som medlem.",
+    "need_member_or_token": "Den här arbetsytans ämnen kräver inloggning som medlem eller en visningstoken.",
     "placeholder": "visningstoken",
     "label": "Visningstoken",
     "use": "Använd"
@@ -784,7 +784,7 @@
     "message_placeholder": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "feed_label": "{target}, nyaste först",
     "index": {
-      "subtitle": "skrivskyddad · per tenant",
+      "subtitle": "skrivskyddad · per arbetsyta",
       "empty": "Inga ämnen ännu.",
       "messages": "{n} meddelande | {n} meddelanden",
       "older": "Äldre"
@@ -843,7 +843,7 @@
       "topics": "Ämnen",
       "files": "Filer",
       "messages": "Meddelanden",
-      "tenants": "Hyresgäster",
+      "tenants": "Arbetsytor",
       "events": "Händelselogg",
       "issues": "Ärenden"
     },
@@ -852,7 +852,7 @@
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",
-    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (deploy*) för samma sak. type:tenant och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. status:, priority:, assignee: och label: söker ärenden.",
+    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (deploy*) för samma sak. type:workspace (type:tenant fungerar fortfarande) och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. status:, priority:, assignee: och label: söker ärenden.",
     "help_operators": "Operatorer",
     "current_tenant": "Nuvarande",
     "op": {
@@ -862,7 +862,7 @@
       "channel": "En kanal, samma som in",
       "is": "Sort, närvaro eller en återkallad pin",
       "has": "En fil eller ett kodblock",
-      "type": "Meddelanden, ämnen, filer, personer, kanaler, hyresgäster eller loggen",
+      "type": "Meddelanden, ämnen, filer, personer, kanaler, arbetsytor eller loggen",
       "kind": "Samma som type",
       "before": "Före en dag eller en ålder",
       "after": "Från en dag eller inom en ålder",
@@ -871,7 +871,7 @@
       "topic": "Ett ämne, via dess id",
       "title": "Ord i ämnets titel",
       "subject": "Samma som title",
-      "name": "Namnet på en hyresgäst, kanal, person, fil eller låda",
+      "name": "Namnet på en arbetsyta, kanal, person, fil eller låda",
       "filename": "Ett bilagenamn",
       "ext": "En bilageändelse",
       "larger": "Större än en storlek",
@@ -910,7 +910,7 @@
       "agents_none": "No agents",
       "settings_tab": "Settings",
       "everyone_can_invite": "everyone can invite new members",
-      "invite_empty": "They have to be a member of the tenant first.",
+      "invite_empty": "They have to be a member of the workspace first.",
       "invite": "Invite",
       "invite_person": "Invite a person",
       "invite_agent": "Invite an agent",
@@ -942,12 +942,12 @@
   },
   "users": {
     "title": "Användare",
-    "sidebar_hint": "Bjud in personer till den här klienten, ändra deras roll eller ta bort dem.",
+    "sidebar_hint": "Bjud in personer till den här arbetsytan, ändra deras roll eller ta bort dem.",
     "members": "Medlemmar ({n})",
     "invites": "Väntande inbjudningar ({n})",
     "no_invites": "Inga väntande inbjudningar.",
     "loading": "Läser in användare…",
-    "forbidden": "Bara en administratör för den här klienten kan hantera användare.",
+    "forbidden": "Bara en administratör för den här arbetsytan kan hantera användare.",
     "invite": "Bjud in",
     "invite_title": "Bjud in en användare",
     "email": "E-post",
@@ -979,15 +979,15 @@
     "edit_title_invite": "Väntande inbjudan",
     "error": {
       "forbidden": "Din roll tillåter inte detta.",
-      "last_admin": "Detta är klientens sista administratör. Gör någon annan till administratör först.",
-      "last_owner": "Detta är klientens sista affärsägare.",
+      "last_admin": "Detta är arbetsytans sista administratör. Gör någon annan till administratör först.",
+      "last_owner": "Detta är arbetsytans sista affärsägare.",
       "self": "Du kan inte ta bort dig själv. Be en annan administratör.",
       "bad_email": "Ange en giltig e-postadress.",
-      "bad_role": "Den rollen finns inte i den här klienten.",
+      "bad_role": "Den rollen finns inte i den här arbetsytan.",
       "role_changed": "Någon ändrade användaren under tiden. Listan lästes in igen; försök igen.",
       "not_found": "Användaren eller inbjudan finns inte längre. Listan lästes in igen.",
       "generic": "Det gick inte. Försök igen.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Den här personen finns i andra arbetsytor också: bara de kan ändra sitt namn och språk.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list."
     },
@@ -997,11 +997,11 @@
     "never": "never",
     "language": "Language",
     "save_profile": "Save name and language",
-    "profile_hint": "Only for a person who is in this tenant alone; everyone else edits their own profile.",
+    "profile_hint": "Bara för en person som finns i enbart den här arbetsytan; alla andra redigerar sin egen profil.",
     "profile_saved": "Saved.",
-    "suspend": "Disable in this tenant",
+    "suspend": "Inaktivera i den här arbetsytan",
     "restore": "Enable again",
-    "suspended_notice": "Disabled: the person keeps their account but cannot open this tenant.",
+    "suspended_notice": "Inaktiverad: personen behåller sitt konto men kan inte öppna den här arbetsytan.",
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopiera inbjudningslänk",
@@ -1133,8 +1133,8 @@
     "show_rendered": "Visa formaterat"
   },
   "tenant_host": {
-    "not_member": "Du är inte medlem i hyresgästen {tenant}.",
-    "open_mine": "Öppna min hyresgäst",
+    "not_member": "Du är inte medlem i arbetsytan {tenant}.",
+    "open_mine": "Öppna min arbetsyta",
     "preparing": "Adressen till din arbetsyta {host} förbereds — vanligtvis cirka 30 minuter efter betalningen. Den här sidan öppnar den så snart den svarar."
   },
   "picker": {
@@ -1232,15 +1232,15 @@
     "add_in": "Nytt ärende i {name}"
   },
   "tenant_settings": {
-    "title": "Tenant settings",
-    "nav_label": "Tenant settings sections",
-    "forbidden": "Only an admin or the business owner of this tenant can open its settings.",
+    "title": "Arbetsytans inställningar",
+    "nav_label": "Avsnitt i arbetsytans inställningar",
+    "forbidden": "Bara en administratör eller affärsägaren för den här arbetsytan kan öppna dess inställningar.",
     "members": "Members",
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
-    "agents_title": "Agents in this tenant",
-    "agents_empty": "No agent is seated in this tenant yet.",
+    "agents_title": "Agenter i den här arbetsytan",
+    "agents_empty": "Ingen agent är placerad i den här arbetsytan ännu.",
     "online": "online",
     "offline": "offline",
     "responders_title": "Fallback responders",
@@ -1254,7 +1254,7 @@
     "add": "Add",
     "save": "Save",
     "saved": "Saved.",
-    "channels_title": "Channels of this tenant",
+    "channels_title": "Kanaler i den här arbetsytan",
     "col_channel": "Channel",
     "col_visibility": "Visibility",
     "col_members": "Members",
@@ -1272,13 +1272,13 @@
     "archive_confirm": "#{name} disappears for every member. Its messages are kept.",
     "archived": "#{name} archived.",
     "general_title": "General",
-    "display_name": "Tenant name",
-    "display_name_hint": "Shown in the tenant switcher and the tab title. Empty shows the id ({id}).",
+    "display_name": "Arbetsytans namn",
+    "display_name_hint": "Visas i arbetsytans väljare och flikens titel. Tomt visar id:t ({id}).",
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Prefix för ärendenyckel",
-    "issue_prefix_hint": "Varje ärendenyckel lyder {prefix}-12. En ändring byter namn på alla nycklar i den här tenanten; numren står kvar. 1 till 10 bokstäver eller siffror, börjar med en bokstav.",
+    "issue_prefix_hint": "Varje ärendenyckel lyder {prefix}-12. En ändring byter namn på alla nycklar i den här arbetsytan; numren står kvar. 1 till 10 bokstäver eller siffror, börjar med en bokstav.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
@@ -1287,11 +1287,11 @@
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Den här personen finns i andra arbetsytor också: bara de kan ändra sitt namn och språk.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
-      "last_admin": "This is the tenant's last admin.",
-      "last_owner": "This is the tenant's last business owner.",
+      "last_admin": "Det här är arbetsytans sista administratör.",
+      "last_owner": "Det här är arbetsytans sista affärsägare.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }

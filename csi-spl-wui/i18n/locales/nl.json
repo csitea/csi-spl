@@ -279,8 +279,8 @@
     "loading": "Abonnement laden…",
     "not_on_sale": "Spools zijn op dit moment niet te koop.",
     "unsupported": "Afrekenen is op deze pagina nog niet mogelijk — probeer het later opnieuw.",
-    "price": "Eén tenant: {price}",
-    "tenant_name": "Naam van de tenant",
+    "price": "Eén werkruimte: {price}",
+    "tenant_name": "Naam van de werkruimte",
     "email": "E-mail — hierheen sturen we de ophaallink",
     "submit": "Verder naar betalen",
     "fake_note": "Testomgeving: er wordt geen geld overgemaakt.",
@@ -293,7 +293,7 @@
     "success": {
       "waiting": "Wachten tot de betaling is bevestigd…",
       "claimed": "Deze sleutel is al opgehaald — op deze pagina of via de gemailde link. De hub bewaart hem niet.",
-      "expired": "De ophaaltermijn is verstreken — neem contact op met support om de tenant een nieuwe sleutel te geven.",
+      "expired": "De ophaaltermijn is verstreken — neem contact op met support om de werkruimte een nieuwe sleutel te geven.",
       "none": "Dit browsertabblad bevat geen bestelling. Gebruik de ophaallink uit de e-mail die we je hebben gestuurd.",
       "failed": "De betaling is niet voltooid. Er is geen spool aangemaakt.",
       "cancelled": "De betaling is geannuleerd. Er is geen spool aangemaakt.",
@@ -302,7 +302,7 @@
     "claim": {
       "claiming": "Je sleutel wordt opgehaald…",
       "claimed": "Deze sleutel is al opgehaald — op de bevestigingspagina of via deze link. De hub bewaart hem niet.",
-      "expired": "Deze link is verlopen — neem contact op met support om de tenant een nieuwe sleutel te geven."
+      "expired": "Deze link is verlopen — neem contact op met support om de werkruimte een nieuwe sleutel te geven."
     },
     "key": {
       "warning_once": "Dit is de enige keer dat deze sleutel wordt getoond. Hij wordt niet gemaild en de hub bewaart hem niet.",
@@ -320,8 +320,8 @@
       "not_found": "We kunnen deze bestelling niet vinden.",
       "not_paid": "De betaling is nog niet bevestigd.",
       "claimed": "Deze sleutel is al opgehaald — op de bevestigingspagina of via de gemailde link.",
-      "claim_expired": "De ophaaltermijn is verstreken — neem contact op met support om de tenant een nieuwe sleutel te geven.",
-      "conflict": "Deze tenant heeft intussen een nieuwe sleutel gekregen — neem contact op met support.",
+      "claim_expired": "De ophaaltermijn is verstreken — neem contact op met support om de werkruimte een nieuwe sleutel te geven.",
+      "conflict": "Deze werkruimte heeft intussen een nieuwe sleutel gekregen — neem contact op met support.",
       "bad_link": "Deze link is onvolledig — open de link uit de e-mail opnieuw.",
       "not_fake_checkout": "Deze bestelling is geen testbestelling.",
       "not_pending": "Deze bestelling is afgesloten.",
@@ -358,10 +358,10 @@
   },
   "viewer": {
     "error": {
-      "no_tenant": "Geen tenant geselecteerd — open de viewer met {query}.",
-      "api_host": "De hub-URL is de API-host; tenant-leesacties hebben {host} nodig ({env_var} met {tenant}).",
+      "no_tenant": "Geen werkruimte geselecteerd — open de viewer met {query}.",
+      "api_host": "De hub-URL is de API-host; werkruimte-leesacties hebben {host} nodig ({env_var} met {tenant}).",
       "no_base": "NUXT_PUBLIC_API_BASE ontbreekt of is ongeldig.",
-      "unknown_tenant": "Onbekende tenant voor deze host.",
+      "unknown_tenant": "Onbekende werkruimte voor deze host.",
       "not_found": "Niet gevonden.",
       "load_failed": "laden mislukt"
     }
@@ -370,11 +370,11 @@
     "loading": "Spool laden…"
   },
   "sidebar": {
-    "tenant": "Huurder",
-    "tenant_hint": "Huurder: {name}. Een huurder is de werkruimte van één organisatie — de eigen kanalen, onderwerpen, leden en agenten.",
-    "tenant_hint_one": "Je bent alleen lid van deze huurder.",
-    "tenant_hint_switch": "Kies hier een andere huurder om daarnaar te wisselen.",
-    "tenant_switch_failed": "Wisselen van huurder is mislukt. Probeer het opnieuw.",
+    "tenant": "Werkruimte",
+    "tenant_hint": "Werkruimte: {name}. Een werkruimte is de eigen omgeving van één organisatie — de eigen kanalen, onderwerpen, leden en agenten.",
+    "tenant_hint_one": "Je bent alleen lid van deze werkruimte.",
+    "tenant_hint_switch": "Kies hier een andere werkruimte om daarnaar te wisselen.",
+    "tenant_switch_failed": "Wisselen van werkruimte is mislukt. Probeer het opnieuw.",
     "channels": "Kanalen",
     "direct_messages": "Directe berichten",
     "new_channel_placeholder": "nieuw kanaal",
@@ -761,8 +761,8 @@
     "light_red": "Lichtrood"
   },
   "view_token": {
-    "need_member": "Voor de onderwerpen van deze tenant moet een lid inloggen.",
-    "need_member_or_token": "Voor de onderwerpen van deze tenant moet een lid inloggen of is een leestoken nodig.",
+    "need_member": "Voor de onderwerpen van deze werkruimte moet een lid inloggen.",
+    "need_member_or_token": "Voor de onderwerpen van deze werkruimte moet een lid inloggen of is een leestoken nodig.",
     "placeholder": "leestoken",
     "label": "Leestoken",
     "use": "Gebruiken"
@@ -784,7 +784,7 @@
     "message_placeholder": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "feed_label": "{target}, nieuwste eerst",
     "index": {
-      "subtitle": "alleen-lezen · binnen de tenant",
+      "subtitle": "alleen-lezen · werkruimte-gebonden",
       "empty": "Nog geen onderwerpen.",
       "messages": "{n} bericht | {n} berichten",
       "older": "Ouder"
@@ -843,7 +843,7 @@
       "topics": "Onderwerpen",
       "files": "Bestanden",
       "messages": "Berichten",
-      "tenants": "Huurders",
+      "tenants": "Werkruimten",
       "events": "Gebeurtenissenlogboek",
       "issues": "Kwesties"
     },
@@ -852,7 +852,7 @@
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",
-    "help_content": "Woorden komen overeen met de tekst; accenten en hoofdletters doen er niet toe. Het woord dat je typt komt overeen met het begin van langere woorden; zet * aan het eind van een ander woord (deploy*) voor hetzelfde. type:tenant en type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam. status:, priority:, assignee: en label: zoeken kwesties.",
+    "help_content": "Woorden komen overeen met de tekst; accenten en hoofdletters doen er niet toe. Het woord dat je typt komt overeen met het begin van langere woorden; zet * aan het eind van een ander woord (deploy*) voor hetzelfde. type:workspace (type:tenant werkt nog steeds) en type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam. status:, priority:, assignee: en label: zoeken kwesties.",
     "help_operators": "Operatoren",
     "current_tenant": "Huidige",
     "op": {
@@ -862,7 +862,7 @@
       "channel": "Een kanaal, hetzelfde als in",
       "is": "Soort, aanwezigheid of een ingetrokken pin",
       "has": "Een bestand of een codeblok",
-      "type": "Berichten, onderwerpen, bestanden, mensen, kanalen, huurders of het log",
+      "type": "Berichten, onderwerpen, bestanden, mensen, kanalen, werkruimten of het log",
       "kind": "Hetzelfde als type",
       "before": "Vóór een dag of een leeftijd",
       "after": "Vanaf een dag, of binnen een leeftijd",
@@ -871,7 +871,7 @@
       "topic": "Eén onderwerp, op id",
       "title": "Woorden in de titel van het onderwerp",
       "subject": "Hetzelfde als title",
-      "name": "De naam van een huurder, kanaal, persoon, bestand of doos",
+      "name": "De naam van een werkruimte, kanaal, persoon, bestand of doos",
       "filename": "Naam van een bijlage",
       "ext": "Extensie van een bijlage",
       "larger": "Groter dan een grootte",
@@ -910,7 +910,7 @@
       "agents_none": "No agents",
       "settings_tab": "Settings",
       "everyone_can_invite": "everyone can invite new members",
-      "invite_empty": "They have to be a member of the tenant first.",
+      "invite_empty": "They have to be a member of the workspace first.",
       "invite": "Invite",
       "invite_person": "Invite a person",
       "invite_agent": "Invite an agent",
@@ -942,12 +942,12 @@
   },
   "users": {
     "title": "Gebruikers",
-    "sidebar_hint": "Nodig mensen uit voor deze tenant, wijzig hun rol of verwijder ze.",
+    "sidebar_hint": "Nodig mensen uit voor deze werkruimte, wijzig hun rol of verwijder ze.",
     "members": "Leden ({n})",
     "invites": "Openstaande uitnodigingen ({n})",
     "no_invites": "Geen openstaande uitnodigingen.",
     "loading": "Gebruikers laden…",
-    "forbidden": "Alleen een beheerder van deze tenant kan gebruikers beheren.",
+    "forbidden": "Alleen een beheerder van deze werkruimte kan gebruikers beheren.",
     "invite": "Uitnodigen",
     "invite_title": "Gebruiker uitnodigen",
     "email": "E-mail",
@@ -979,15 +979,15 @@
     "edit_title_invite": "Openstaande uitnodiging",
     "error": {
       "forbidden": "Je rol staat dit niet toe.",
-      "last_admin": "Dit is de laatste beheerder van de tenant. Maak eerst iemand anders beheerder.",
-      "last_owner": "Dit is de laatste bedrijfseigenaar van de tenant.",
+      "last_admin": "Dit is de laatste beheerder van de werkruimte. Maak eerst iemand anders beheerder.",
+      "last_owner": "Dit is de laatste bedrijfseigenaar van de werkruimte.",
       "self": "Je kunt jezelf niet verwijderen. Vraag een andere beheerder.",
       "bad_email": "Voer een geldig e-mailadres in.",
-      "bad_role": "Die rol bestaat niet in deze tenant.",
+      "bad_role": "Die rol bestaat niet in deze werkruimte.",
       "role_changed": "Iemand heeft deze gebruiker intussen gewijzigd. De lijst is opnieuw geladen; probeer het nog eens.",
       "not_found": "Deze gebruiker of uitnodiging bestaat niet meer. De lijst is opnieuw geladen.",
       "generic": "Dat lukte niet. Probeer het opnieuw.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Deze persoon zit ook in andere werkruimten: alleen zij kunnen hun naam en taal wijzigen.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list."
     },
@@ -997,11 +997,11 @@
     "never": "never",
     "language": "Language",
     "save_profile": "Save name and language",
-    "profile_hint": "Only for a person who is in this tenant alone; everyone else edits their own profile.",
+    "profile_hint": "Alleen voor een persoon die uitsluitend in deze werkruimte zit; alle anderen bewerken hun eigen profiel.",
     "profile_saved": "Saved.",
-    "suspend": "Disable in this tenant",
+    "suspend": "Uitschakelen in deze werkruimte",
     "restore": "Enable again",
-    "suspended_notice": "Disabled: the person keeps their account but cannot open this tenant.",
+    "suspended_notice": "Uitgeschakeld: de persoon behoudt zijn account maar kan deze werkruimte niet openen.",
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Uitnodigingslink kopiëren",
@@ -1133,8 +1133,8 @@
     "show_rendered": "Opgemaakt tonen"
   },
   "tenant_host": {
-    "not_member": "U bent geen lid van de huurder {tenant}.",
-    "open_mine": "Mijn huurder openen",
+    "not_member": "U bent geen lid van de werkruimte {tenant}.",
+    "open_mine": "Mijn werkruimte openen",
     "preparing": "Het adres van je werkruimte {host} wordt voorbereid — meestal ongeveer 30 minuten na de betaling. Deze pagina opent het zodra het antwoordt."
   },
   "picker": {
@@ -1232,15 +1232,15 @@
     "add_in": "Nieuw issue in {name}"
   },
   "tenant_settings": {
-    "title": "Tenant settings",
-    "nav_label": "Tenant settings sections",
-    "forbidden": "Only an admin or the business owner of this tenant can open its settings.",
+    "title": "Werkruimte-instellingen",
+    "nav_label": "Secties van de werkruimte-instellingen",
+    "forbidden": "Alleen een beheerder of de bedrijfseigenaar van deze werkruimte kan de instellingen openen.",
     "members": "Members",
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
-    "agents_title": "Agents in this tenant",
-    "agents_empty": "No agent is seated in this tenant yet.",
+    "agents_title": "Agents in deze werkruimte",
+    "agents_empty": "Er is nog geen agent actief in deze werkruimte.",
     "online": "online",
     "offline": "offline",
     "responders_title": "Fallback responders",
@@ -1254,7 +1254,7 @@
     "add": "Add",
     "save": "Save",
     "saved": "Saved.",
-    "channels_title": "Channels of this tenant",
+    "channels_title": "Kanalen van deze werkruimte",
     "col_channel": "Channel",
     "col_visibility": "Visibility",
     "col_members": "Members",
@@ -1272,13 +1272,13 @@
     "archive_confirm": "#{name} disappears for every member. Its messages are kept.",
     "archived": "#{name} archived.",
     "general_title": "General",
-    "display_name": "Tenant name",
-    "display_name_hint": "Shown in the tenant switcher and the tab title. Empty shows the id ({id}).",
+    "display_name": "Naam van de werkruimte",
+    "display_name_hint": "Getoond in de werkruimtekiezer en de tabbladtitel. Leeg toont het id ({id}).",
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Voorvoegsel van de issuesleutel",
-    "issue_prefix_hint": "Elke issuesleutel luidt {prefix}-12. Wijzigen hernoemt elke sleutel in deze tenant; de nummers blijven. 1 tot 10 letters of cijfers, beginnend met een letter.",
+    "issue_prefix_hint": "Elke issuesleutel luidt {prefix}-12. Wijzigen hernoemt elke sleutel in deze werkruimte; de nummers blijven. 1 tot 10 letters of cijfers, beginnend met een letter.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
@@ -1287,11 +1287,11 @@
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Deze persoon zit ook in andere werkruimten: alleen zij kunnen hun naam en taal wijzigen.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
-      "last_admin": "This is the tenant's last admin.",
-      "last_owner": "This is the tenant's last business owner.",
+      "last_admin": "Dit is de laatste beheerder van de werkruimte.",
+      "last_owner": "Dit is de laatste bedrijfseigenaar van de werkruimte.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }

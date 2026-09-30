@@ -273,7 +273,7 @@ describe('sidebar.tenant is translated in every locale', () => {
   it('every non-English value differs from English', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(src('i18n/locales/en.json')).sidebar.tenant
-    assert.equal(en, 'Tenant')
+    assert.equal(en, 'Workspace')
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''))
     assert.equal(codes.length, 19)
     for (const code of codes) {

@@ -250,7 +250,7 @@ describe('the Properties dialog', () => {
       assert.equal(p.people_tab, 'People', f)
       assert.equal(p.agents_tab, 'Agents', f)
       assert.equal(p.agents_none, 'No agents', f)
-      assert.equal(p.invite_empty, 'They have to be a member of the tenant first.', f)
+      assert.equal(p.invite_empty, 'They have to be a member of the workspace first.', f)
       assert.equal(p.invite, 'Invite', f)
       assert.equal(p.invite_person, 'Invite a person', f)
       assert.equal(p.invite_agent, 'Invite an agent', f)

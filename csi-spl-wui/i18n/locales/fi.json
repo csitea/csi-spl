@@ -279,8 +279,8 @@
     "loading": "Ladataan tilausta…",
     "not_on_sale": "Spooleja ei ole juuri nyt myynnissä.",
     "unsupported": "Kassa ei ole vielä avoinna tällä sivulla — yritä myöhemmin uudelleen.",
-    "price": "Yksi tenantti: {price}",
-    "tenant_name": "Tenantin nimi",
+    "price": "Yksi työtila: {price}",
+    "tenant_name": "Työtilan nimi",
     "email": "Sähköposti — tähän lähetämme noutolinkin",
     "submit": "Jatka maksuun",
     "fake_note": "Testiympäristö: rahaa ei siirry.",
@@ -293,7 +293,7 @@
     "success": {
       "waiting": "Odotetaan maksun vahvistusta…",
       "claimed": "Tämä avain on jo noudettu — tältä sivulta tai sähköpostin linkistä. Hub ei säilytä sitä.",
-      "expired": "Noutoaika on päättynyt — ota yhteyttä tukeen, jotta tenantille luodaan uusi avain.",
+      "expired": "Noutoaika on päättynyt — ota yhteyttä tukeen, jotta työtilalle luodaan uusi avain.",
       "none": "Tällä selainvälilehdellä ei ole tilausta. Käytä lähettämämme sähköpostin noutolinkkiä.",
       "failed": "Maksua ei suoritettu loppuun. Spoolia ei luotu.",
       "cancelled": "Maksu peruttiin. Spoolia ei luotu.",
@@ -302,7 +302,7 @@
     "claim": {
       "claiming": "Noudetaan avaintasi…",
       "claimed": "Tämä avain on jo noudettu — onnistumissivulta tai tästä linkistä. Hub ei säilytä sitä.",
-      "expired": "Linkki on vanhentunut — ota yhteyttä tukeen, jotta tenantille luodaan uusi avain."
+      "expired": "Linkki on vanhentunut — ota yhteyttä tukeen, jotta työtilalle luodaan uusi avain."
     },
     "key": {
       "warning_once": "Tämä avain näytetään vain tämän kerran. Sitä ei lähetetä sähköpostitse, eikä hub säilytä sitä.",
@@ -320,8 +320,8 @@
       "not_found": "Tilausta ei löydy.",
       "not_paid": "Maksua ei ole vielä vahvistettu.",
       "claimed": "Tämä avain on jo noudettu — onnistumissivulta tai sähköpostin linkistä.",
-      "claim_expired": "Noutoaika on päättynyt — ota yhteyttä tukeen, jotta tenantille luodaan uusi avain.",
-      "conflict": "Tenantille luotiin sillä välin uusi avain — ota yhteyttä tukeen.",
+      "claim_expired": "Noutoaika on päättynyt — ota yhteyttä tukeen, jotta työtilalle luodaan uusi avain.",
+      "conflict": "Työtilalle luotiin sillä välin uusi avain — ota yhteyttä tukeen.",
       "bad_link": "Linkki on puutteellinen — avaa sähköpostin linkki uudelleen.",
       "not_fake_checkout": "Tämä tilaus ei ole testitilaus.",
       "not_pending": "Tämä tilaus on suljettu.",
@@ -358,10 +358,10 @@
   },
   "viewer": {
     "error": {
-      "no_tenant": "Tenanttia ei ole valittu — avaa näkymä parametrilla {query}.",
-      "api_host": "Hubin URL on API-isäntä; tenantin lukeminen vaatii {host} ({env_var} arvolla {tenant}).",
+      "no_tenant": "Työtilaa ei ole valittu — avaa näkymä parametrilla {query}.",
+      "api_host": "Hubin URL on API-isäntä; työtilan lukeminen vaatii {host} ({env_var} arvolla {tenant}).",
       "no_base": "NUXT_PUBLIC_API_BASE puuttuu tai on virheellinen.",
-      "unknown_tenant": "Tuntematon tenantti tälle isännälle.",
+      "unknown_tenant": "Tuntematon työtila tälle isännälle.",
       "not_found": "Ei löytynyt.",
       "load_failed": "lataus epäonnistui"
     }
@@ -370,11 +370,11 @@
     "loading": "Ladataan Spoolia…"
   },
   "sidebar": {
-    "tenant": "Vuokralainen",
-    "tenant_hint": "Vuokralainen: {name}. Vuokralainen on yhden organisaation työtila — sen kanavat, aiheet, jäsenet ja agentit.",
-    "tenant_hint_one": "Olet vain tämän vuokralaisen jäsen.",
-    "tenant_hint_switch": "Valitse tästä toinen vuokralainen vaihtaaksesi siihen.",
-    "tenant_switch_failed": "Vuokralaisen vaihto epäonnistui. Yritä uudelleen.",
+    "tenant": "Työtila",
+    "tenant_hint": "Työtila: {name}. Työtila on yhden organisaation oma tila — sen kanavat, aiheet, jäsenet ja agentit.",
+    "tenant_hint_one": "Olet vain tämän työtilan jäsen.",
+    "tenant_hint_switch": "Valitse tästä toinen työtila vaihtaaksesi siihen.",
+    "tenant_switch_failed": "Työtilan vaihto epäonnistui. Yritä uudelleen.",
     "channels": "Kanavat",
     "direct_messages": "Yksityisviestit",
     "new_channel_placeholder": "uusi kanava",
@@ -761,8 +761,8 @@
     "light_red": "Vaalea punainen"
   },
   "view_token": {
-    "need_member": "Tämän tenantin aiheet vaativat jäsenkirjautumisen.",
-    "need_member_or_token": "Tämän tenantin aiheet vaativat jäsenkirjautumisen tai katselutunnisteen.",
+    "need_member": "Tämän työtilan aiheet vaativat jäsenkirjautumisen.",
+    "need_member_or_token": "Tämän työtilan aiheet vaativat jäsenkirjautumisen tai katselutunnisteen.",
     "placeholder": "katselutunniste",
     "label": "Katselutunniste",
     "use": "Käytä"
@@ -784,7 +784,7 @@
     "message_placeholder": "Viesti kohteeseen {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "feed_label": "{target}, uusimmat ensin",
     "index": {
-      "subtitle": "vain luku · tenanttikohtainen",
+      "subtitle": "vain luku · työtilaan rajattu",
       "empty": "Ei vielä aiheita.",
       "messages": "{n} viesti | {n} viestiä",
       "older": "Vanhemmat"
@@ -843,7 +843,7 @@
       "topics": "Aiheet",
       "files": "Tiedostot",
       "messages": "Viestit",
-      "tenants": "Vuokralaiset",
+      "tenants": "Työtilat",
       "events": "Tapahtumaloki",
       "issues": "Asiat"
     },
@@ -852,7 +852,7 @@
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",
-    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:tenant ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. status:, priority:, assignee: ja label: hakevat asioita.",
+    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:workspace (type:tenant toimii edelleen) ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. status:, priority:, assignee: ja label: hakevat asioita.",
     "help_operators": "Operaattorit",
     "current_tenant": "Nykyinen",
     "op": {
@@ -862,7 +862,7 @@
       "channel": "Kanava, sama kuin in",
       "is": "Laji, läsnäolo tai peruttu pin",
       "has": "Tiedosto tai koodilohko",
-      "type": "Viestit, aiheet, tiedostot, ihmiset, kanavat, vuokralaiset tai tapahtumaloki",
+      "type": "Viestit, aiheet, tiedostot, ihmiset, kanavat, työtilat tai tapahtumaloki",
       "kind": "Sama kuin type",
       "before": "Ennen päivää tai ikää",
       "after": "Päivästä alkaen tai ikkunassa",
@@ -871,7 +871,7 @@
       "topic": "Yksi aihe tunnisteella",
       "title": "Sanat aiheen otsikossa",
       "subject": "Sama kuin title",
-      "name": "Vuokralaisen, kanavan, ihmisen, tiedoston tai laatikon nimi",
+      "name": "Työtilan, kanavan, ihmisen, tiedoston tai laatikon nimi",
       "filename": "Liitteen nimi",
       "ext": "Liitteen pääte",
       "larger": "Suurempi kuin koko",
@@ -910,7 +910,7 @@
       "agents_none": "No agents",
       "settings_tab": "Settings",
       "everyone_can_invite": "everyone can invite new members",
-      "invite_empty": "They have to be a member of the tenant first.",
+      "invite_empty": "They have to be a member of the workspace first.",
       "invite": "Invite",
       "invite_person": "Invite a person",
       "invite_agent": "Invite an agent",
@@ -942,12 +942,12 @@
   },
   "users": {
     "title": "Käyttäjät",
-    "sidebar_hint": "Kutsu ihmisiä tähän vuokralaiseen, vaihda heidän roolinsa tai poista heidät.",
+    "sidebar_hint": "Kutsu ihmisiä tähän työtilaan, vaihda heidän roolinsa tai poista heidät.",
     "members": "Jäsenet ({n})",
     "invites": "Avoimet kutsut ({n})",
     "no_invites": "Ei avoimia kutsuja.",
     "loading": "Ladataan käyttäjiä…",
-    "forbidden": "Vain tämän vuokralaisen ylläpitäjä voi hallita käyttäjiä.",
+    "forbidden": "Vain tämän työtilan ylläpitäjä voi hallita käyttäjiä.",
     "invite": "Kutsu",
     "invite_title": "Kutsu käyttäjä",
     "email": "Sähköposti",
@@ -979,15 +979,15 @@
     "edit_title_invite": "Avoin kutsu",
     "error": {
       "forbidden": "Roolisi ei salli tätä.",
-      "last_admin": "Tämä on vuokralaisen viimeinen ylläpitäjä. Tee ensin joku toinen ylläpitäjäksi.",
-      "last_owner": "Tämä on vuokralaisen viimeinen liiketoiminnan omistaja.",
+      "last_admin": "Tämä on työtilan viimeinen ylläpitäjä. Tee ensin joku toinen ylläpitäjäksi.",
+      "last_owner": "Tämä on työtilan viimeinen liiketoiminnan omistaja.",
       "self": "Et voi poistaa itseäsi. Pyydä toista ylläpitäjää.",
       "bad_email": "Anna kelvollinen sähköpostiosoite.",
-      "bad_role": "Tätä roolia ei ole tässä vuokralaisessa.",
+      "bad_role": "Tätä roolia ei ole tässä työtilassa.",
       "role_changed": "Joku muutti tätä käyttäjää sillä välin. Lista ladattiin uudelleen; yritä uudelleen.",
       "not_found": "Tätä käyttäjää tai kutsua ei enää ole. Lista ladattiin uudelleen.",
       "generic": "Se ei onnistunut. Yritä uudelleen.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Tämä henkilö on myös muissa työtiloissa: vain hän itse voi muuttaa nimensä ja kielensä.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list."
     },
@@ -997,11 +997,11 @@
     "never": "never",
     "language": "Language",
     "save_profile": "Save name and language",
-    "profile_hint": "Only for a person who is in this tenant alone; everyone else edits their own profile.",
+    "profile_hint": "Vain henkilölle, joka on ainoastaan tässä työtilassa; muut muokkaavat omaa profiiliaan.",
     "profile_saved": "Saved.",
-    "suspend": "Disable in this tenant",
+    "suspend": "Poista käytöstä tässä työtilassa",
     "restore": "Enable again",
-    "suspended_notice": "Disabled: the person keeps their account but cannot open this tenant.",
+    "suspended_notice": "Poistettu käytöstä: henkilö säilyttää tilinsä mutta ei voi avata tätä työtilaa.",
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopioi kutsulinkki",
@@ -1133,8 +1133,8 @@
     "show_rendered": "Näytä muotoiltuna"
   },
   "tenant_host": {
-    "not_member": "Et ole vuokralaisen {tenant} jäsen.",
-    "open_mine": "Avaa oma vuokralainen",
+    "not_member": "Et ole työtilan {tenant} jäsen.",
+    "open_mine": "Avaa oma työtila",
     "preparing": "Työtilasi osoitetta {host} valmistellaan — yleensä noin 30 minuuttia maksun jälkeen. Tämä sivu avaa sen heti, kun se vastaa."
   },
   "picker": {
@@ -1232,15 +1232,15 @@
     "add_in": "Uusi tehtävä tilaan {name}"
   },
   "tenant_settings": {
-    "title": "Tenant settings",
-    "nav_label": "Tenant settings sections",
-    "forbidden": "Only an admin or the business owner of this tenant can open its settings.",
+    "title": "Työtilan asetukset",
+    "nav_label": "Työtilan asetusosiot",
+    "forbidden": "Vain tämän työtilan ylläpitäjä tai liiketoiminnan omistaja voi avata sen asetukset.",
     "members": "Members",
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
-    "agents_title": "Agents in this tenant",
-    "agents_empty": "No agent is seated in this tenant yet.",
+    "agents_title": "Agentit tässä työtilassa",
+    "agents_empty": "Tässä työtilassa ei ole vielä yhtään agenttia.",
     "online": "online",
     "offline": "offline",
     "responders_title": "Fallback responders",
@@ -1254,7 +1254,7 @@
     "add": "Add",
     "save": "Save",
     "saved": "Saved.",
-    "channels_title": "Channels of this tenant",
+    "channels_title": "Tämän työtilan kanavat",
     "col_channel": "Channel",
     "col_visibility": "Visibility",
     "col_members": "Members",
@@ -1272,13 +1272,13 @@
     "archive_confirm": "#{name} disappears for every member. Its messages are kept.",
     "archived": "#{name} archived.",
     "general_title": "General",
-    "display_name": "Tenant name",
-    "display_name_hint": "Shown in the tenant switcher and the tab title. Empty shows the id ({id}).",
+    "display_name": "Työtilan nimi",
+    "display_name_hint": "Näkyy työtilan valitsimessa ja välilehden otsikossa. Tyhjä näyttää tunnuksen ({id}).",
     "default_locale": "Default language",
     "default_locale_hint": "The language of the invitation mail when the inviter's own is not known.",
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Tiketin avaimen etuliite",
-    "issue_prefix_hint": "Jokainen tiketin avain on muotoa {prefix}-12. Muutos nimeää uudelleen kaikki tämän tenantin avaimet; numerot pysyvät. 1–10 kirjainta tai numeroa, alkaa kirjaimella.",
+    "issue_prefix_hint": "Jokainen tiketin avain on muotoa {prefix}-12. Muutos nimeää uudelleen kaikki tämän työtilan avaimet; numerot pysyvät. 1–10 kirjainta tai numeroa, alkaa kirjaimella.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",
@@ -1287,11 +1287,11 @@
       "bad_responder": "Enter an agent id such as CLE-01.",
       "channel_public": "A default channel cannot be archived.",
       "unknown_channel": "This channel no longer exists. The list was reloaded.",
-      "shared_account": "This person is in other tenants too: only they can change their name and language.",
+      "shared_account": "Tämä henkilö on myös muissa työtiloissa: vain hän itse voi muuttaa nimensä ja kielensä.",
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
-      "last_admin": "This is the tenant's last admin.",
-      "last_owner": "This is the tenant's last business owner.",
+      "last_admin": "Tämä on työtilan viimeinen ylläpitäjä.",
+      "last_owner": "Tämä on työtilan viimeinen liiketoiminnan omistaja.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
     }

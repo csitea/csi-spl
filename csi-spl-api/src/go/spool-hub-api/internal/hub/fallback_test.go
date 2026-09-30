@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -208,11 +209,14 @@ func TestFallbackNotSentWhenAMemberIsOnline(t *testing.T) {
 // escalated, and a second sweep does not deliver it twice.
 func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	pub, key, _ := ed25519.GenerateKey(nil)
-	grace := 40 * time.Millisecond
+	const grace = 2 * time.Second
+	// A mutable clock crosses the grace deterministically, without a wall-clock
+	// sleep whose timing raced the sweep (relay_test.go uses the same pattern).
+	var clockOffset atomic.Int64
 	e := newEnv(t, func(o *hub.Options) {
 		fallbackOpts(o, key, true)
 		o.UnansweredGrace = grace
-		o.Now = time.Now
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(clockOffset.Load())) }
 	})
 	tid, _ := e.tenant()
 	ctx := context.Background()
@@ -254,19 +258,18 @@ func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	m1, task := "4c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f", "2a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d"
 	threadFrame(t, ws, m1, task, "staffed", 1, "please pick this up")
 	eventually(t, "GRK-36 got it the ordinary way", func() bool { return strings.Join(inboxIDs(t, b, "GRK-36"), ",") == m1 })
-	// CONTROL: GRK-36 reads online, so nothing is escalated yet.
-	time.Sleep(100 * time.Millisecond)
-	e.srv.Relay(ctx) // inside the grace: still nobody
+	// CONTROL: inside the grace, and with GRK-36 "online", nothing is escalated.
+	e.srv.Relay(ctx)
 	if n := len(inbox(t, desk, "CLE-001")); n != 0 || len(pokes()) != 0 {
 		t.Fatalf("escalated inside the grace: CLE-001 inbox %d pokes %v", n, pokes())
 	}
-	// past the grace, no reply in the topic: escalate to the responder.
-	time.Sleep(grace)
+	// Cross the grace by advancing the clock: the post now reads older than
+	// UnansweredGrace with no reply in the topic, so the sweep escalates it.
+	clockOffset.Store(int64(grace + time.Second))
 	e.srv.Relay(ctx)
 	eventually(t, "CLE-001 got the escalation", func() bool { return strings.Join(inboxIDs(t, desk, "CLE-001"), ",") == m1 })
-	// dedup: another tick delivers nothing new.
+	// dedup: another tick delivers nothing new (the fallback is claimed once).
 	e.srv.Relay(ctx)
-	time.Sleep(100 * time.Millisecond)
 	if n := len(inbox(t, desk, "CLE-001")); n != 1 {
 		t.Fatalf("CLE-001 inbox %d, want exactly 1 (the escalation is claimed once)", n)
 	}

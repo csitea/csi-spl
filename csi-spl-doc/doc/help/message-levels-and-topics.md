@@ -39,7 +39,7 @@ LEVEL 2: THE THREAD REPLY LINES (is_parent = 0)
 
 A **Level 1 message** is the genesis of a conversation:
 
-- **Where it appears**: Rendered as a distinct message card in the Middle Pane feed (e.g. `#lobby`, `#tasks`, `#feature-auth`, or Direct Messages).
+- **Where it appears**: Rendered as a distinct message card in the Middle Pane feed (e.g. `#lobby`, `#feedback`, `#alerts`, or Direct Messages).
 - **How it is created**:
   - Type a message in the Top Omnibox when the Right Thread Pane is closed.
   - OR type a message in the Top Omnibox when the Middle Pane was clicked last.
@@ -102,4 +102,4 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-09-30 -->

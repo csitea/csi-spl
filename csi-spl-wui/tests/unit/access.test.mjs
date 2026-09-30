@@ -1,6 +1,6 @@
 // specs/025 FR-006/FR-008: the WUI's reading of GET /v1/view/me.
 // Run: node tests/unit/access.test.mjs
-import { accessAllows, canRemoveMember, normalizeMe, roleLabelKey, ROLE_IDS } from '../../src/utils/access.mjs'
+import { accessAllows, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -30,6 +30,14 @@ ok('never the last owner', !canRemoveMember(admin, { targetId: 'HUM-2', selfId: 
 ok('an owner among several may be removed', canRemoveMember(admin, { targetId: 'HUM-2', selfId: 'HUM-1', targetIsOwner: true, ownerCount: 2 }))
 ok('no target id: no action', !canRemoveMember(admin, { targetId: '', selfId: 'HUM-1' }))
 ok('fails open when the role is unknown (mock/old hub), hub is the control', canRemoveMember(null, { targetId: 'HUM-3', selfId: 'HUM-1' }))
+// specs/054: the act-as banner state parsed from GET /v1/view/me.
+ok('members.impersonate is the act-as permission', MEMBERS_IMPERSONATE === 'members.impersonate')
+ok('no act_as: normal session, null (no banner)', normalizeMe({ human_id: 'HUM-1', role: 'admin' }).actAs === null)
+const cloneMe = normalizeMe({ human_id: 'HUM-9', role: 'developer', act_as: { target_hum: 'HUM-3', target_name: 'FirstName LastName', expires_at: '2026-09-30T12:00:00Z' } })
+ok('act_as parsed for a clone session', cloneMe.actAs && cloneMe.actAs.targetHum === 'HUM-3' && cloneMe.actAs.targetName === 'FirstName LastName')
+ok('normalizeActAs: null on junk / missing target', normalizeActAs(null) === null && normalizeActAs({}) === null && normalizeActAs({ target_hum: '' }) === null)
+ok('normalizeActAs: name falls back to the hum id', normalizeActAs({ target_hum: 'HUM-3' }).targetName === 'HUM-3')
+
 const s = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', s.ok, s.why)
 

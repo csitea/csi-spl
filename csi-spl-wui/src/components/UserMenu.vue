@@ -113,6 +113,21 @@
               <span>{{ t('tenant_settings.title') }}</span>
             </NuxtLink>
           </li>
+          <!-- specs/054: end the act-as clone (sign-out), above Sign out -->
+          <li v-if="actingAs" role="none">
+            <button
+              ref="itemActAsStop"
+              role="menuitem"
+              tabindex="-1"
+              type="button"
+              class="user-menu__item"
+              data-test="user-menu-stop-acting"
+              @click="stopActing"
+            >
+              <UiIcon name="log-out" :size="18" />
+              <span>{{ t('user_menu.stop_acting_as', { name: actingAs.targetName }) }}</span>
+            </button>
+          </li>
           <li role="none">
             <button
               ref="item1"
@@ -172,6 +187,9 @@ const menuId = 'user-menu-panel'
 
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const tenantSettingsShown = computed(() => signedIn.value && tenantSettingsVisible(access.me))
+// specs/054: while this session is an act-as clone, the menu offers "Stop
+// acting as X" above Sign out (the same exit as the banner).
+const actingAs = computed(() => access.me?.actAs ?? null)
 // specs/025 FR-008: the member's role in the active tenant, under the name.
 watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
 const me = computed(() => userIdentity(session.claims))
@@ -202,9 +220,10 @@ const trigger = ref<HTMLButtonElement | null>(null)
 const item0 = ref<{ $el: HTMLElement } | null>(null)
 const item1 = ref<HTMLButtonElement | null>(null)
 const itemTenant = ref<{ $el: HTMLElement } | null>(null)
+const itemActAsStop = ref<HTMLButtonElement | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, itemTenant.value?.$el, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemTenant.value?.$el, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
@@ -282,6 +301,11 @@ function onMenuKey(e: KeyboardEvent) {
 async function signOut() {
   close(false)
   await session.logout()
+}
+
+async function stopActing() {
+  close(false)
+  await session.stopActingAs()
 }
 
 function onDocPointer(e: PointerEvent) {

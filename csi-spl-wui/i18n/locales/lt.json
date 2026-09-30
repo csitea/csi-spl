@@ -352,7 +352,8 @@
     "method_password": "El. paštas ir slaptažodis",
     "method_unknown": "Nežinoma",
     "method_named": "{name}",
-    "role": "Vaidmuo: {role}"
+    "role": "Vaidmuo: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "Box ID",
     "no_people": "Šiame boxe nėra žmonių.",
     "no_agents": "Šiame boxe nėra agentų."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

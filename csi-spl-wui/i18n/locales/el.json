@@ -352,7 +352,8 @@
     "method_password": "Email και κωδικός",
     "method_unknown": "Άγνωστο",
     "method_named": "{name}",
-    "role": "Ρόλος: {role}"
+    "role": "Ρόλος: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "ID του box",
     "no_people": "Κανένα άτομο σε αυτό το box.",
     "no_agents": "Κανένας πράκτορας σε αυτό το box."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

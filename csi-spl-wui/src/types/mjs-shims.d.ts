@@ -1163,7 +1163,10 @@ declare module '~/utils/channel-order-edit.mjs' {
 declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
   export const MEMBERS_INVITE: 'members.invite'
-  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null }
+  export const MEMBERS_IMPERSONATE: 'members.impersonate'
+  export type ActAs = { targetHum: string, targetName: string, expiresAt: string }
+  export function normalizeActAs(a: unknown): ActAs | null
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
   export function canRemoveMember(
     me: { permissions?: string[] | null } | null | undefined,

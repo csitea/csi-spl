@@ -106,6 +106,17 @@
           </button>
           <small class="muted">{{ t('users.profile_hint') }}</small>
         </form>
+        <!-- specs/054: act as this member (a read-and-verify clone session) -->
+        <button
+          v-if="canActAs"
+          type="button"
+          class="btn"
+          :disabled="busy"
+          data-test="users-pane-act-as"
+          @click="actAs"
+        >
+          {{ t('act_as.start', { name: member.displayName || member.humanId }) }}
+        </button>
         <button
           v-if="member.manageable"
           type="button"
@@ -204,7 +215,9 @@
 import UiDialog from '~/components/UiDialog.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { roleLabelKey } from '~/utils/access.mjs'
+import { useAuthClient } from '~/composables/useAuthClient'
+import { useAccessStore } from '~/stores/access'
+import { roleLabelKey, MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { inviteLink, memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
@@ -223,6 +236,14 @@ const emit = defineEmits<{
 
 const { t, te, locale } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
+const auth = useAuthClient()
+const access = useAccessStore()
+const localePath = useLocalePath()
+
+// specs/054: offer "Act as" for a member the reader may impersonate. The hub
+// enforces the permission AND the strict role ceiling; `manageable && !you`
+// mirrors it in the UI (a peer/owner is neither manageable nor a valid target).
+const canActAs = computed(() => Boolean(member.value && member.value.manageable && !member.value.you && access.can(MEMBERS_IMPERSONATE)))
 
 const mode = computed(() => (props.creating ? 'new' : props.row?.kind || 'none'))
 const member = computed(() => (!props.creating && props.row?.kind === 'member' ? props.row as UserMember : null))
@@ -334,6 +355,19 @@ function saveRole() {
     await api.setTenantUserRole(m.humanId, memberRole.value, m.role)
     emit('changed', m.key)
     notice.value = t('users.role_saved')
+  })
+}
+
+// specs/054: start acting as this member. On success THIS browser's cookie is
+// the clone, so a full reload re-inits every store as the clone and the
+// "Acting as X" banner shows. The hub 403s a target above the ceiling.
+function actAs() {
+  const m = member.value
+  if (!m) return
+  void run(async () => {
+    const res = await auth.actAsStart(m.humanId)
+    if (!res.ok) throw { token: res.error || 'unavailable' }
+    if (import.meta.client) window.location.assign(localePath('/lobby'))
   })
 }
 

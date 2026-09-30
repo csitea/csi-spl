@@ -421,6 +421,19 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     switchTenant(tenant) {
       return post('/tenant', { tenant: String(tenant || '') })
     },
+    /**
+     * specs/054: start acting as a member. 200 → this browser's cookie is now
+     * the clone (data = { clone_hum, target, expires_at }); 403 forbidden /
+     * not_member (the ceiling); 401 = no session.
+     */
+    actAsStart(humanId) {
+      return post('/act-as', { human_id: String(humanId || '') })
+    },
+    /** specs/054: stop acting (sign-out of the clone). 204 → the cookie is cleared. */
+    async actAsExit() {
+      const res = await call('/act-as/exit', { method: 'POST' })
+      return res.status === 204 || res.ok
+    },
     async logout() {
       const res = await call('/logout', { method: 'POST' })
       return res.status === 204 || res.ok

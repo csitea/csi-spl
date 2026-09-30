@@ -26,8 +26,28 @@ export function normalizeMe(body) {
     tenantOwner: b.tenant_owner === true,
     permissions: Array.isArray(b.permissions) ? b.permissions.filter((p) => typeof p === 'string') : null,
     channelOrder: Array.isArray(b.channel_order) ? normalizeChannelOrder(b.channel_order) : null,
+    actAs: normalizeActAs(b.act_as),
   }
 }
+
+/**
+ * specs/054: the act-as state of THIS session. Non-null only when the hub says
+ * the session is a temporary clone, so the WUI shows the "Acting as X" banner.
+ * { targetHum, targetName, expiresAt } or null.
+ */
+export function normalizeActAs(a) {
+  if (!a || typeof a !== 'object') return null
+  const targetHum = typeof a.target_hum === 'string' ? a.target_hum : ''
+  if (!targetHum) return null
+  return {
+    targetHum,
+    targetName: (typeof a.target_name === 'string' && a.target_name) ? a.target_name : targetHum,
+    expiresAt: typeof a.expires_at === 'string' ? a.expires_at : '',
+  }
+}
+
+/** The permission to start an act-as clone (hub rbac.MembersImpersonate, specs/054). */
+export const MEMBERS_IMPERSONATE = 'members.impersonate'
 
 /** Whether the UI should offer an action needing perm (fails open, see above). */
 export function accessAllows(me, perm) {

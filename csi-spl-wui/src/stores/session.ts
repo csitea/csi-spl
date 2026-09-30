@@ -165,5 +165,15 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, logout }
+  /**
+   * specs/054: "Stop acting as X" — the owner's rule is a sign-out, not a
+   * silent switch back. End the clone, then clear the cookie and land on the
+   * login page (logout); the admin signs in normally.
+   */
+  async function stopActingAs() {
+    await auth.actAsExit()
+    await logout()
+  }
+
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, logout, stopActingAs }
 })

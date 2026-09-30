@@ -352,7 +352,8 @@
     "method_password": "E-post och lösenord",
     "method_unknown": "Okänd",
     "method_named": "{name}",
-    "role": "Roll: {role}"
+    "role": "Roll: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "Box-id",
     "no_people": "Inga personer på denna box.",
     "no_agents": "Inga agenter på denna box."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

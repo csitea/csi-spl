@@ -352,7 +352,8 @@
     "method_password": "Email and password",
     "method_unknown": "Unknown",
     "method_named": "{name}",
-    "role": "Role: {role}"
+    "role": "Role: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "Box id",
     "no_people": "No people on this box.",
     "no_agents": "No agents on this box."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

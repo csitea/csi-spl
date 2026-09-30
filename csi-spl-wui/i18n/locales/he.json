@@ -352,7 +352,8 @@
     "method_password": "אימייל וסיסמה",
     "method_unknown": "לא ידוע",
     "method_named": "{name}",
-    "role": "תפקיד: {role}"
+    "role": "תפקיד: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "מזהה box",
     "no_people": "אין אנשים על ה-box הזה.",
     "no_agents": "אין סוכנים על ה-box הזה."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

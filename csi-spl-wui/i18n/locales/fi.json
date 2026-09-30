@@ -352,7 +352,8 @@
     "method_password": "Sähköposti ja salasana",
     "method_unknown": "Tuntematon",
     "method_named": "{name}",
-    "role": "Rooli: {role}"
+    "role": "Rooli: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "Boxin tunnus",
     "no_people": "Tässä boxissa ei ole ihmisiä.",
     "no_agents": "Tässä boxissa ei ole agentteja."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

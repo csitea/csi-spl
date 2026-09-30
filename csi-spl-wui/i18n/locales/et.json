@@ -352,7 +352,8 @@
     "method_password": "E-post ja parool",
     "method_unknown": "Teadmata",
     "method_named": "{name}",
-    "role": "Roll: {role}"
+    "role": "Roll: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "Boxi ID",
     "no_people": "Sellel boxil pole inimesi.",
     "no_agents": "Sellel boxil pole agente."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

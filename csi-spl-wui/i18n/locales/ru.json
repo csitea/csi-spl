@@ -352,7 +352,8 @@
     "method_password": "Эл. почта и пароль",
     "method_unknown": "Неизвестно",
     "method_named": "{name}",
-    "role": "Роль: {role}"
+    "role": "Роль: {role}",
+    "stop_acting_as": "Stop acting as {name}"
   },
   "viewer": {
     "error": {
@@ -1394,5 +1395,10 @@
     "id": "ID box",
     "no_people": "На этом box нет людей.",
     "no_agents": "На этом box нет агентов."
+  },
+  "act_as": {
+    "acting_as": "Acting as {name} (test clone)",
+    "stop": "Stop",
+    "start": "Act as {name}"
   }
 }

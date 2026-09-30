@@ -63,6 +63,20 @@ try {
   const p = await browser.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
+  // specs/054: the mock is signed-OUT by default and its GET /session no longer
+  // rides the network (auth-client.mjs), so the `session` stub below only serves
+  // a real BASE_URL. In the mock bundle we opt into a signed-in owner through
+  // localStorage; the corner side (W1) reads close_buttons off the claims, so it
+  // rides a control key that load() keeps in sync with the fake hub's `stored`.
+  await p.evaluateOnNewDocument(() => {
+    try {
+      const cb = localStorage.getItem('spool.mock.close_buttons')
+      localStorage.setItem('spool.mock.session', JSON.stringify({
+        hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1',
+        close_buttons: cb === null || cb === 'null' ? null : cb,
+      }))
+    } catch { /* opaque origin on the very first document */ }
+  })
   const cors = { 'access-control-allow-origin': new URL(server.base).origin, 'access-control-allow-credentials': 'true' }
   await p.setRequestInterception(true)
   p.on('request', (req) => {
@@ -81,6 +95,10 @@ try {
 
   const load = async (path) => {
     await setPageViewport(p, DESKTOP)
+    // keep the opt-in mock session's close_buttons in step with the fake hub's
+    // stored value so the next document's probe carries it (same-origin
+    // localStorage survives the navigation; no-ops on about:blank).
+    await p.evaluate((cb) => localStorage.setItem('spool.mock.close_buttons', cb === null ? 'null' : cb), stored ?? null).catch(() => {})
     await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await applyViewport(p, DESKTOP)
     await p.waitForSelector('[data-test=top-bar]', { timeout: NAV_TIMEOUT })

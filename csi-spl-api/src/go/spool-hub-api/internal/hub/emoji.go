@@ -6,14 +6,15 @@ import "strings"
 // EMOJI_CHOICES). The hub accepts only these, so a reaction is one glyph the
 // product actually offers and not an arbitrary string. TestEmojiChoicesMatchWUI
 // fails when the two lists differ. Six full rows of eight, each glyph once
-// (SPL-1002).
+// (SPL-1002). Order (owner, prd t1 da0c0e98): ✅ in the top-left cell, 🔥 next
+// to it, the rest unchanged - kept in lock-step with EMOJI_CHOICES.
 var emojiChoices = []string{
-	"😀", "😁", "😂", "🤣", "😆", "😅", "🙂", "😉",
-	"😊", "😇", "😍", "😎", "😜", "🥳", "🤗", "🤔",
-	"😐", "😕", "😬", "🙄", "😴", "😢", "😭", "😱",
-	"😡", "🤯", "👍", "👎", "👏", "🙌", "🙏", "👋",
-	"💪", "👌", "🤝", "👀", "🔥", "❤️", "🎉", "✨",
-	"✅", "❌", "⭐", "💯", "🚀", "💡", "🎯", "🐛",
+	"✅", "🔥", "😀", "😁", "😂", "🤣", "😆", "😅",
+	"🙂", "😉", "😊", "😇", "😍", "😎", "😜", "🥳",
+	"🤗", "🤔", "😐", "😕", "😬", "🙄", "😴", "😢",
+	"😭", "😱", "😡", "🤯", "👍", "👎", "👏", "🙌",
+	"🙏", "👋", "💪", "👌", "🤝", "👀", "❤️", "🎉",
+	"✨", "❌", "⭐", "💯", "🚀", "💡", "🎯", "🐛",
 }
 
 const vs16 = "\uFE0F"

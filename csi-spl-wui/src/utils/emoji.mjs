@@ -11,14 +11,19 @@
  * by the 6, 12 and 16 columns of the phone sheet, so no grid ends in a hole.
  * No variation selector (U+FE0F) except where the glyph needs it to draw as
  * an emoji (the heart); canonicalEmoji maps the other spelling onto it.
+ *
+ * Order (owner, prd t1 da0c0e98): the two reactions people reach for most lead
+ * the grid - ✅ in the top-left cell, 🔥 next to its right - and everything
+ * else keeps the order it had. The hub copy (internal/hub/emoji.go) is kept
+ * in lock-step; TestEmojiChoicesMatchWUI compares the two lists in order.
  */
 export const EMOJI_CHOICES = [
-  '😀', '😁', '😂', '🤣', '😆', '😅', '🙂', '😉',
-  '😊', '😇', '😍', '😎', '😜', '🥳', '🤗', '🤔',
-  '😐', '😕', '😬', '🙄', '😴', '😢', '😭', '😱',
-  '😡', '🤯', '👍', '👎', '👏', '🙌', '🙏', '👋',
-  '💪', '👌', '🤝', '👀', '🔥', '❤️', '🎉', '✨',
-  '✅', '❌', '⭐', '💯', '🚀', '💡', '🎯', '🐛',
+  '✅', '🔥', '😀', '😁', '😂', '🤣', '😆', '😅',
+  '🙂', '😉', '😊', '😇', '😍', '😎', '😜', '🥳',
+  '🤗', '🤔', '😐', '😕', '😬', '🙄', '😴', '😢',
+  '😭', '😱', '😡', '🤯', '👍', '👎', '👏', '🙌',
+  '🙏', '👋', '💪', '👌', '🤝', '👀', '❤️', '🎉',
+  '✨', '❌', '⭐', '💯', '🚀', '💡', '🎯', '🐛',
 ]
 
 const CHOICE = new Set(EMOJI_CHOICES)

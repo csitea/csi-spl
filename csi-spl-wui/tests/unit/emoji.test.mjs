@@ -26,6 +26,18 @@ describe('emoji reactions', () => {
     assert.equal(validEmoji('🤯'), true)
   })
 
+  /* owner, prd t1 da0c0e98: "the check emoji should be in the top left, next
+     on the right should be the fire emoji". The rest keep their order, so the
+     grid still holds every glyph once. The hub copy follows (cross-check below). */
+  it('leads with ✅ then 🔥, the rest unchanged (da0c0e98)', () => {
+    assert.equal(EMOJI_CHOICES[0], '✅')
+    assert.equal(EMOJI_CHOICES[1], '🔥')
+    /* the two leaders were pulled from the middle; nothing else moved relative
+       to its neighbours - the tail still ends 🎯 then 🐛 */
+    assert.deepEqual(EMOJI_CHOICES.slice(-2), ['🎯', '🐛'])
+    assert.equal(new Set(EMOJI_CHOICES).size, 48)
+  })
+
   /* SPL-1002 (owner, topic 9c10b31f): "the angry emoji is displayed twice"
      and "2 empty emoji places" */
   it('offers every glyph once, even across U+FE0F spellings, in full rows', () => {

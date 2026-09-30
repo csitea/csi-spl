@@ -47,6 +47,18 @@
     {
       "slug": "connect-an-agent",
       "title": "Connect an Agent"
+    },
+    {
+      "slug": "issues",
+      "title": "Issues & Tracked Work"
+    },
+    {
+      "slug": "archive",
+      "title": "Archive"
+    },
+    {
+      "slug": "events",
+      "title": "Events"
     }
   ]
 }

@@ -20,7 +20,22 @@ import { TENANT_SETTINGS_SECTIONS } from '../../src/utils/tenant-settings-nav.mj
 import { SOUND_NAMES } from '../../src/utils/notify.mjs'
 import { SUBMIT_KEYS } from '../../src/utils/submit-key.mjs'
 import { CLOSE_BUTTONS } from '../../src/utils/view-prefs.mjs'
+import { RAIL_TABS } from '../../src/utils/rail-order.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+
+/* Every left-rail tab must be explained by a help page. The map names the page
+   (a slug in doc/help) and a keyword that page must contain; a RAIL_TABS id with
+   NO entry here fails, so a new tab cannot ship without a help page + mapping.
+   Several tabs share one page (channels/dm/flow → channels-and-direct-messages). */
+const RAIL_HELP = {
+  channels: { slug: 'channels-and-direct-messages', word: 'channel' },
+  dm: { slug: 'channels-and-direct-messages', word: 'direct message' },
+  issues: { slug: 'issues', word: 'issue' },
+  topics: { slug: 'message-levels-and-topics', word: 'topic' },
+  flow: { slug: 'channels-and-direct-messages', word: 'flow' },
+  archive: { slug: 'archive', word: 'archive' },
+  events: { slug: 'events', word: 'event' },
+}
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -92,6 +107,24 @@ if (!existsSync(page)) {
      checks above discriminate rather than always passing. */
   ok('CONTROL an unknown section route is absent', !md.includes('/settings/bogus-section'))
   ok('CONTROL a real section route is present', md.includes(`/settings/${SETTINGS_SECTIONS[0].id}`))
+
+  /* every left-rail tab has a help page that names it */
+  for (const tab of RAIL_TABS) {
+    const map = RAIL_HELP[tab.id]
+    if (!map) {
+      ok(`rail tab "${tab.id}" has a help page`, false,
+        `RAIL_TABS has "${tab.id}" but no RAIL_HELP mapping — add a help page and map it`)
+      continue
+    }
+    const p = join(HELP_SRC, `${map.slug}.md`)
+    const has = existsSync(p) && readFileSync(p, 'utf8').toLowerCase().includes(map.word)
+    ok(`rail tab "${tab.id}" is documented in ${map.slug}.md`, has,
+      `${map.slug}.md is missing or never mentions "${map.word}" for the "${tab.id}" tab`)
+  }
+  /* CONTROL: an id that is not a rail tab has no mapping obligation */
+  ok('CONTROL RAIL_HELP has no stray non-tab entries',
+    Object.keys(RAIL_HELP).every((id) => RAIL_TABS.some((t) => t.id === id)),
+    `RAIL_HELP maps ids that are not RAIL_TABS: ${Object.keys(RAIL_HELP).filter((id) => !RAIL_TABS.some((t) => t.id === id)).join(', ')}`)
 }
 
 const suite = runsInUnitSuite(import.meta.url)

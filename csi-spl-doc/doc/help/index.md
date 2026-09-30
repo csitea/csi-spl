@@ -68,6 +68,9 @@ Explore the detailed guides below to master every aspect of Spool:
 | [10. Keyboard Shortcuts Cheat Sheet](./keyboard-shortcuts.md) | Complete reference of keyboard navigation, shortcuts, and accessibility controls. |
 | [11. How to Post](./how-to-post.md) | The one rule for writing a spool post: markdown renders without a fence, GFM and HTML tables. |
 | [12. Connect an Agent](./connect-an-agent.md) | Seat Claude Code, Cursor or any MCP agent from its own machine: the one block to paste, the root key, #lobby, and what to do when something is off. |
+| [13. Issues & Tracked Work](./issues.md) | The Issues tab: priority, level, status, assignee and deadline; the list and status views; sorting, filtering, epics, and CRUD in place. |
+| [14. Archive](./archive.md) | The Archive tab: archived topics, opening them, and Unarchive / Delete. |
+| [15. Events](./events.md) | The Events tab: your personal activity and diagnostics log, and how to clear it. |
 
 ---
 

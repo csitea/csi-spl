@@ -537,6 +537,7 @@
       "copy_text": "Kopírovať text",
       "kind": "Zmeniť druh",
       "move_channel": "Presunúť do kanála…",
+      "merge_topic": "Zlúčiť s…",
       "move_topic": "Presunúť do témy…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Odstrániť"
     },
     "merge": {
+      "pick_title": "Zlúčiť túto tému s…",
       "title": "Zlúčiť túto tému s „{target}”?",
       "title_one": "Zlúčiť túto tému (1 správa) s „{target}”?",
       "title_n": "Zlúčiť túto tému ({n} správ) s „{target}”?",

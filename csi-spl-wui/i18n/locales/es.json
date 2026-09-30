@@ -537,6 +537,7 @@
       "copy_text": "Copiar texto",
       "kind": "Cambiar tipo",
       "move_channel": "Mover a un canal…",
+      "merge_topic": "Combinar con…",
       "move_topic": "Mover a un tema…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Eliminar"
     },
     "merge": {
+      "pick_title": "Combinar este tema con…",
       "title": "¿Combinar este tema con «{target}»?",
       "title_one": "¿Combinar este tema (1 mensaje) con «{target}»?",
       "title_n": "¿Combinar este tema ({n} mensajes) con «{target}»?",

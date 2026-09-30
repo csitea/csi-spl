@@ -537,6 +537,7 @@
       "copy_text": "Kopioi teksti",
       "kind": "Vaihda tyyppi",
       "move_channel": "Siirrä kanavalle…",
+      "merge_topic": "Yhdistä toiseen…",
       "move_topic": "Siirrä aiheeseen…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Poista"
     },
     "merge": {
+      "pick_title": "Yhdistä tämä aihe aiheeseen…",
       "title": "Yhdistetäänkö tämä aihe aiheeseen ”{target}”?",
       "title_one": "Yhdistetäänkö tämä aihe (1 viesti) aiheeseen ”{target}”?",
       "title_n": "Yhdistetäänkö tämä aihe ({n} viestiä) aiheeseen ”{target}”?",

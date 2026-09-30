@@ -23,6 +23,10 @@ describe('msgMenuItems', () => {
     assert.deepEqual(msgMenuItems({ editable: true, mergePrev: true }).map((i) => i.id), ['open', 'copy', 'edit', 'merge-prev', 'delete'])
     assert.deepEqual(msgMenuItems({ editable: false, mergePrev: true, mergeNext: true }).map((i) => i.id), ['open', 'copy'])
   })
+  it('714c7028: a topic card offers Merge into… beside Move to channel…', () => {
+    assert.deepEqual(msgMenuItems({ moveChannel: true, mergeTopic: true, topic: true }).map((i) => i.id), ['open', 'copy', 'move-channel', 'merge-topic', 'archive', 'delete-topic'])
+    assert.equal(msgMenuItems({ moveChannel: true }).map((i) => i.id).includes('merge-topic'), false, 'no merge entry without mergeTopic')
+  })
 
   it('offers only open and copy link when the viewer cannot edit', () => {
     assert.deepEqual(msgMenuItems({ editable: false }).map((i) => i.id), ['open', 'copy'])
@@ -160,7 +164,7 @@ describe('every locale names the message actions', () => {
   it('translates edit and delete, and keeps the same keys', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
-    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'kind', 'label', 'merge_next', 'merge_prev', 'move_channel', 'move_topic', 'open', 'open_parent', 'reply', 'unarchive'])
+    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_parent', 'reply', 'unarchive'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -180,6 +184,7 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.kind, en.kind, code)
       assert.notEqual(row.move_channel, en.move_channel, code) // SPL-1024
       assert.notEqual(row.move_topic, en.move_topic, code)
+      assert.notEqual(row.merge_topic, en.merge_topic, code) // 714c7028
     }
   })
 })

@@ -537,6 +537,7 @@
       "copy_text": "Kopēt tekstu",
       "kind": "Mainīt veidu",
       "move_channel": "Pārvietot uz kanālu…",
+      "merge_topic": "Apvienot ar…",
       "move_topic": "Pārvietot uz tēmu…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Dzēst"
     },
     "merge": {
+      "pick_title": "Apvienot šo tēmu ar…",
       "title": "Vai apvienot šo tēmu ar “{target}”?",
       "title_one": "Vai apvienot šo tēmu (1 ziņa) ar “{target}”?",
       "title_n": "Vai apvienot šo tēmu ({n} ziņas) ar “{target}”?",

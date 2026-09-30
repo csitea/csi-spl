@@ -537,6 +537,7 @@
       "copy_text": "Kopiuj tekst",
       "kind": "Zmień rodzaj",
       "move_channel": "Przenieś do kanału…",
+      "merge_topic": "Scal z…",
       "move_topic": "Przenieś do tematu…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Usuń"
     },
     "merge": {
+      "pick_title": "Scal ten temat z…",
       "title": "Scalić ten temat z „{target}”?",
       "title_one": "Scalić ten temat (1 wiadomość) z „{target}”?",
       "title_n": "Scalić ten temat ({n} wiadomości) z „{target}”?",

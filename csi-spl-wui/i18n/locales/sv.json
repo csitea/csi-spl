@@ -537,6 +537,7 @@
       "copy_text": "Kopiera text",
       "kind": "Ändra typ",
       "move_channel": "Flytta till kanal…",
+      "merge_topic": "Slå ihop med…",
       "move_topic": "Flytta till ämne…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Ta bort"
     },
     "merge": {
+      "pick_title": "Slå ihop det här ämnet med…",
       "title": "Slå ihop det här ämnet med ”{target}”?",
       "title_one": "Slå ihop det här ämnet (1 meddelande) med ”{target}”?",
       "title_n": "Slå ihop det här ämnet ({n} meddelanden) med ”{target}”?",

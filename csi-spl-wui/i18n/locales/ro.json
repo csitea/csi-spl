@@ -537,6 +537,7 @@
       "copy_text": "Copiază textul",
       "kind": "Schimbă tipul",
       "move_channel": "Mută în canal…",
+      "merge_topic": "Îmbină cu…",
       "move_topic": "Mută în subiect…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Șterge"
     },
     "merge": {
+      "pick_title": "Îmbină acest subiect cu…",
       "title": "Îmbini acest subiect cu „{target}”?",
       "title_one": "Îmbini acest subiect (1 mesaj) cu „{target}”?",
       "title_n": "Îmbini acest subiect ({n} mesaje) cu „{target}”?",

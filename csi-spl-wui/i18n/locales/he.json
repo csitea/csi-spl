@@ -537,6 +537,7 @@
       "copy_text": "העתק טקסט",
       "kind": "שנה סוג",
       "move_channel": "העברה לערוץ…",
+      "merge_topic": "מזג אל…",
       "move_topic": "העברה לנושא…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "מחיקה"
     },
     "merge": {
+      "pick_title": "מזג נושא זה אל…",
       "title": "למזג נושא זה אל ”{target}”?",
       "title_one": "למזג נושא זה (הודעה 1) אל ”{target}”?",
       "title_n": "למזג נושא זה ({n} הודעות) אל ”{target}”?",

@@ -537,6 +537,7 @@
       "copy_text": "Tekst kopiëren",
       "kind": "Soort wijzigen",
       "move_channel": "Verplaatsen naar kanaal…",
+      "merge_topic": "Samenvoegen met…",
       "move_topic": "Verplaatsen naar onderwerp…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Verwijderen"
     },
     "merge": {
+      "pick_title": "Voeg dit onderwerp samen met…",
       "title": "Dit onderwerp samenvoegen met ”{target}”?",
       "title_one": "Dit onderwerp (1 bericht) samenvoegen met ”{target}”?",
       "title_n": "Dit onderwerp ({n} berichten) samenvoegen met ”{target}”?",

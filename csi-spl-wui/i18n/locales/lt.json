@@ -537,6 +537,7 @@
       "copy_text": "Kopijuoti tekstą",
       "kind": "Keisti tipą",
       "move_channel": "Perkelti į kanalą…",
+      "merge_topic": "Sujungti su…",
       "move_topic": "Perkelti į temą…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Ištrinti"
     },
     "merge": {
+      "pick_title": "Sujungti šią temą su…",
       "title": "Sujungti šią temą su „{target}“?",
       "title_one": "Sujungti šią temą (1 žinutė) su „{target}“?",
       "title_n": "Sujungti šią temą ({n} žinučių) su „{target}“?",

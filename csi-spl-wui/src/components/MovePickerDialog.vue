@@ -57,7 +57,8 @@ type Row = { id: string, label: string, hint: string }
 
 const props = defineProps<{
   open: boolean
-  mode: 'channel' | 'topic'
+  /** 714c7028: 'merge' lists topics like 'topic', but a pick opens the merge confirm */
+  mode: 'channel' | 'topic' | 'merge'
   msg: SpoolMessage
   /** the topic the reply is in now (topic mode): never offered */
   topicTask?: string
@@ -73,7 +74,7 @@ const loading = ref(false)
 const busy = ref(false)
 const topics = ref<{ task_id: string, channel?: string | null, subject?: string, last_ts?: string }[]>([])
 
-const title = computed(() => t(props.mode === 'channel' ? 'feed.move.channel_title' : 'feed.move.topic_title'))
+const title = computed(() => t(props.mode === 'channel' ? 'feed.move.channel_title' : props.mode === 'merge' ? 'feed.merge.pick_title' : 'feed.move.topic_title'))
 
 /* the cards of the channel on screen are known at once; the hub's topic list adds the rest */
 const heldCards = computed(() => channel.newestFirst.map((m) => ({
@@ -90,6 +91,7 @@ const rows = computed<Row[]>(() => {
       .filter((c) => !q || c.channel_id.includes(q) || c.name.toLowerCase().includes(q))
       .map((c) => ({ id: c.channel_id, label: c.name, hint: '' }))
   }
+  // In merge mode the source is a topic card: never offer its own topic.
   const exclude = [props.topicTask || '', String(props.msg.task_id || ''), String(props.msg.msg_id || '')]
   return moveTopicChoices([...heldCards.value, ...topics.value], {
     channels: channel.channels,
@@ -100,7 +102,7 @@ const rows = computed<Row[]>(() => {
 })
 
 async function load() {
-  if (props.mode !== 'topic') return
+  if (props.mode === 'channel') return
   loading.value = true
   try {
     const page = await withSessionRetry(api, () => api.listTopics({ limit: 50 }))
@@ -120,6 +122,7 @@ async function pick(row: Row) {
   emit('update:open', false)
   const id = String(props.msg.msg_id || '')
   if (props.mode === 'channel') await move.run({ kind: 'topic', msgId: id, toChannel: row.id })
+  else if (props.mode === 'merge') move.askMerge({ msgId: id, toTask: row.id, sourceTitle: '', targetTitle: row.label })
   else await move.run({ kind: 'message', msgId: id, toTask: row.id }, row.label)
   busy.value = false
 }

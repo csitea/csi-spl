@@ -32,8 +32,8 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
  * unchanged.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
@@ -55,6 +55,8 @@ export function msgMenuItems(opts = {}) {
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
   if (o.moveChannel) items.push({ id: 'move-channel', icon: 'move', labelKey: 'feed.msg_menu.move_channel' })
+  // 714c7028: a topic card can also MERGE its whole topic into another topic.
+  if (o.mergeTopic) items.push({ id: 'merge-topic', icon: 'merge', labelKey: 'feed.msg_menu.merge_topic' })
   if (o.moveTopic) items.push({ id: 'move-topic', icon: 'move', labelKey: 'feed.msg_menu.move_topic' })
   if (o.topic) {
     items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })

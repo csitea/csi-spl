@@ -291,6 +291,7 @@
       :topic="showTopicActions"
       :kind="kindSettable"
       :move-channel="canMoveTopic"
+      :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
@@ -309,6 +310,7 @@
       @kind="onMenuKind"
       @move-channel="openMovePicker('channel')"
       @move-topic="openMovePicker('topic')"
+      @merge-topic="openMovePicker('merge')"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
     <LazyMovePickerDialog
@@ -819,7 +821,7 @@ const dropOver = computed(() => {
   const o = move.over.value
   return Boolean(o && o.kind === 'card' && o.ok && o.id === String(props.msg.task_id || ''))
 })
-const movePicker = ref<'' | 'channel' | 'topic'>('')
+const movePicker = ref<'' | 'channel' | 'topic' | 'merge'>('')
 
 function moveDrag(): MoveDrag {
   const m = props.msg
@@ -876,7 +878,7 @@ function onHandleUp(ev: PointerEvent) {
 }
 onBeforeUnmount(() => handle.cancel())
 
-function openMovePicker(mode: 'channel' | 'topic') {
+function openMovePicker(mode: 'channel' | 'topic' | 'merge') {
   closeMenu()
   movePicker.value = mode
 }

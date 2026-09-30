@@ -537,6 +537,7 @@
       "copy_text": "Kopeeri tekst",
       "kind": "Muuda liiki",
       "move_channel": "Teisalda kanalisse…",
+      "merge_topic": "Liida teemaga…",
       "move_topic": "Teisalda teemasse…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Kustuta"
     },
     "merge": {
+      "pick_title": "Liida see teema teemaga…",
       "title": "Kas liita see teema teemaga „{target}”?",
       "title_one": "Kas liita see teema (1 sõnum) teemaga „{target}”?",
       "title_n": "Kas liita see teema ({n} sõnumit) teemaga „{target}”?",

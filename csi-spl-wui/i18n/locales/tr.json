@@ -537,6 +537,7 @@
       "copy_text": "Metni kopyala",
       "kind": "Türü değiştir",
       "move_channel": "Kanala taşı…",
+      "merge_topic": "Şununla birleştir…",
       "move_topic": "Konuya taşı…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Sil"
     },
     "merge": {
+      "pick_title": "Bu konuyu şununla birleştir…",
       "title": "Bu konu „{target}” ile birleştirilsin mi?",
       "title_one": "Bu konu (1 ileti) „{target}” ile birleştirilsin mi?",
       "title_n": "Bu konu ({n} ileti) „{target}” ile birleştirilsin mi?",

@@ -537,6 +537,7 @@
       "copy_text": "Copy text",
       "kind": "Change kind",
       "move_channel": "Move to channel…",
+      "merge_topic": "Merge into…",
       "move_topic": "Move to topic…"
     },
     "emoji": {
@@ -586,6 +587,7 @@
       "confirm": "Delete"
     },
     "merge": {
+      "pick_title": "Merge this topic into…",
       "title": "Merge this topic into “{target}”?",
       "title_one": "Merge this topic (1 message) into “{target}”?",
       "title_n": "Merge this topic ({n} messages) into “{target}”?",

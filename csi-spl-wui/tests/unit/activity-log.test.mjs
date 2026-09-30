@@ -3,7 +3,7 @@
 // Run: node tests/unit/activity-log.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { ACTIVITY_KINDS, cloneActivityRows, filterActivity, sortActivity } from '../../src/utils/activity-log.mjs'
+import { ACTIVITY_KINDS, cloneActivityRows, filterActivity, memberActivityRows, sortActivity } from '../../src/utils/activity-log.mjs'
 
 const CLONES = [
   { target_hum: 'HUM-2', created_by: 'HUM-1', role: 'developer', created_at: '2026-09-20T09:00:00Z', ended_at: '2026-09-20T09:20:00Z', end_reason: 'stop' },
@@ -38,6 +38,28 @@ describe('cloneActivityRows', () => {
     const ended = rows.find((r) => r.kind === 'act_as_ended')
     assert.equal(started.detail, 'tester')
     assert.equal(ended.detail, 'expired')
+  })
+})
+
+describe('memberActivityRows', () => {
+  it('maps the hub rows (by -> actor), dropping timeless/kindless ones', () => {
+    const rows = memberActivityRows([
+      { at: '2026-09-21T10:00:00Z', kind: 'role_changed', detail: 'tester', by: 'HUM-1' },
+      { at: '2026-09-22T08:00:00Z', kind: 'sign_in', detail: 'google', ip: '203.0.113.0/24' },
+      { kind: 'sign_out' }, // no time -> dropped
+      { at: '2026-09-23T08:00:00Z' }, // no kind -> dropped
+    ])
+    assert.equal(rows.length, 2)
+    const roleRow = rows.find((r) => r.kind === 'role_changed')
+    assert.equal(roleRow.actor, 'HUM-1')
+    assert.equal(roleRow.detail, 'tester')
+    const signin = rows.find((r) => r.kind === 'sign_in')
+    assert.equal(signin.actor, '')
+    assert.equal(signin.ip, '203.0.113.0/24')
+  })
+  it('tolerates junk', () => {
+    assert.deepEqual(memberActivityRows(null), [])
+    assert.deepEqual(memberActivityRows([null, {}]), [])
   })
 })
 

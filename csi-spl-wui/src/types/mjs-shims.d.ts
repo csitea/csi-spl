@@ -77,6 +77,7 @@ declare module '~/utils/spool-client.mjs' {
     setTenantUserRole(humanId: string, role: string, fromRole?: string): Promise<unknown>
     removeTenantUser(humanId: string): Promise<null>
     auditClones(): Promise<Array<{ clone_hum?: string, target_hum?: string, created_by?: string, role?: string, created_at?: string, expires_at?: string, ended_at?: string | null, end_reason?: string }>>
+    memberActivity(humanId: string): Promise<Array<{ at?: string, kind?: string, detail?: string, by?: string, ip?: string }>>
     revokeTenantInvite(email: string): Promise<null>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean }): Promise<null>
     getTenantSettings(): Promise<unknown>

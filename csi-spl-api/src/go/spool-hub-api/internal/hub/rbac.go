@@ -319,6 +319,8 @@ func (s *Server) handleMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Str("role", role).Msg("member.role_changed")
+	// CLE-77799: the durable per-person audit row for the Activity log.
+	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "role_changed", Detail: role})
 	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "human_id": target, "role": role})
 }
 
@@ -337,6 +339,8 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Msg("member.removed")
+	// CLE-77799: the durable per-person audit row for the Activity log.
+	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "removed"})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -353,7 +357,8 @@ func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/me", s.handleViewMe)
 	mux.HandleFunc("GET /v1/members", s.handleMemberList)
-	mux.HandleFunc("GET /v1/audit/clones", s.handleAuditClones) // specs/054
+	mux.HandleFunc("GET /v1/audit/clones", s.handleAuditClones)                   // specs/054
+	mux.HandleFunc("GET /v1/members/{human_id}/activity", s.handleMemberActivity) // CLE-77799
 	mux.HandleFunc("POST /v1/members/invites", s.handleMemberInvite)
 	mux.HandleFunc("DELETE /v1/members/invites", s.handleInviteRevoke)
 	mux.HandleFunc("PUT /v1/members/{human_id}/role", s.handleMemberRole)

@@ -52,6 +52,24 @@ export function cloneActivityRows(clones, targetHum) {
 }
 
 /**
+ * The hub's per-member audit rows (GET /v1/members/{id}/activity) as activity
+ * rows: membership events (role change, removal) and auth events (sign-in with
+ * method, sign-out, session expiry). The hub already shaped them; this just
+ * renames `by` -> actor and drops anything without a time.
+ * @param {Array<{ at?: string, kind?: string, detail?: string, by?: string, ip?: string }>} events
+ * @returns {ActivityRow[]}
+ */
+export function memberActivityRows(events) {
+  /** @type {ActivityRow[]} */
+  const out = []
+  for (const e of Array.isArray(events) ? events : []) {
+    if (!e || !e.at || !e.kind) continue
+    out.push({ at: String(e.at), kind: String(e.kind), detail: String(e.detail || ''), actor: String(e.by || ''), ip: String(e.ip || '') })
+  }
+  return out
+}
+
+/**
  * A copy sorted by a column ('at' or 'kind'), ascending or descending. String
  * compare (RFC3339 sorts correctly as text); ties keep input order (stable).
  * @param {ActivityRow[]} rows

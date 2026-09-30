@@ -17,15 +17,16 @@ import (
 // could choose. A new asOperator caller fails TestOperatorScopeCallers until
 // it is added here with its reason, i.e. until someone has reviewed it.
 var operatorCallers = map[string]string{
-	"Sweep":              "retention sweeper (hub goroutine), global by design; no route",
-	"SweepClones":        "act-as clone expiry (hub sweeper goroutine), global by design; no route",
-	"SetTenantHost":      "tenant host reconciler (operator action / hub-tenant); no route",
-	"Memberships":        "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",
-	"HoldCheckout":       "POST /v1/checkout: the tenant does not exist yet (slug hold)",
-	"checkoutAsOperator": "GetCheckout / CheckoutByProviderRef: unguessable checkout id or a verified webhook's provider ref",
-	"ApplyPayment":       "verified payment webhook (signature checked before the store)",
-	"SetClaimLink":       "paid webhook / claim mail, keyed by the checkout id",
-	"ClaimCheckout":      "POST /v1/checkout/claim: checkout id + the claim secret's hash",
+	"Sweep":               "retention sweeper (hub goroutine), global by design; no route",
+	"SweepClones":         "act-as clone expiry (hub sweeper goroutine), global by design; no route",
+	"SweepMemberActivity": "Activity-log auth-row retention sweep (hub sweeper goroutine), global by design; no route",
+	"SetTenantHost":       "tenant host reconciler (operator action / hub-tenant); no route",
+	"Memberships":         "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",
+	"HoldCheckout":        "POST /v1/checkout: the tenant does not exist yet (slug hold)",
+	"checkoutAsOperator":  "GetCheckout / CheckoutByProviderRef: unguessable checkout id or a verified webhook's provider ref",
+	"ApplyPayment":        "verified payment webhook (signature checked before the store)",
+	"SetClaimLink":        "paid webhook / claim mail, keyed by the checkout id",
+	"ClaimCheckout":       "POST /v1/checkout/claim: checkout id + the claim secret's hash",
 }
 
 // TestOperatorScopeCallers: the set of functions in this package that call

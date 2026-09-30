@@ -876,6 +876,18 @@ export function createSpoolClient({
       }
       return live('/v1/audit/clones')
     },
+    /**
+     * GET /v1/members/{id}/activity (CLE-77799): one member's audit trail —
+     * membership events (role change, removal) and auth events (sign-in with
+     * method, sign-out, session expiry), newest first. Readable by the tenant's
+     * admins/owners (audit.read) or by the member themself; the hub is the
+     * authority. The act-as trail rides GET /v1/audit/clones and is merged by
+     * the caller. The mock records no server events, so it answers [].
+     */
+    async memberActivity(humanId) {
+      if (mock) return []
+      return live(`/v1/members/${encodeURIComponent(String(humanId || ''))}/activity`)
+    },
     /** DELETE /v1/members/invites?email=: revoke a pending invite. */
     async revokeTenantInvite(email) {
       const e = String(email || '').trim()

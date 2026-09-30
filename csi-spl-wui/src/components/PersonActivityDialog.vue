@@ -58,7 +58,7 @@
 import UiDialog from '~/components/UiDialog.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { cloneActivityRows, filterActivity, sortActivity } from '~/utils/activity-log.mjs'
+import { cloneActivityRows, filterActivity, memberActivityRows, sortActivity } from '~/utils/activity-log.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 
@@ -115,8 +115,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const clones = await api.auditClones()
-    rows.value = cloneActivityRows(clones, props.humanId)
+    /* two sources, merged: the act-as trail (GET /v1/audit/clones, CLE-77797,
+       filtered to this person) and the member's own audit rows — membership +
+       auth events (GET /v1/members/<id>/activity). Sort happens in `shown`. */
+    const [clones, events] = await Promise.all([api.auditClones(), api.memberActivity(props.humanId)])
+    rows.value = [...cloneActivityRows(clones, props.humanId), ...memberActivityRows(events)]
   } catch (e) {
     error.value = t(userErrorKey(e))
   } finally {

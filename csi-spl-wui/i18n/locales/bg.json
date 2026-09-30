@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Нови съобщения",
+    "unread_jump": "{n} нови",
+    "unread_jump_label": "Към първото непрочетено съобщение"
   },
   "topic": {
     "title": "Тема",

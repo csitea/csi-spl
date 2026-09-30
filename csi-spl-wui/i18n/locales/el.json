@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Νέα μηνύματα",
+    "unread_jump": "{n} νέα",
+    "unread_jump_label": "Μετάβαση στο πρώτο μη αναγνωσμένο μήνυμα"
   },
   "topic": {
     "title": "Θέμα",

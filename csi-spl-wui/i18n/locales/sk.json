@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Nové správy",
+    "unread_jump": "{n} nových",
+    "unread_jump_label": "Prejsť na prvú neprečítanú správu"
   },
   "topic": {
     "title": "Téma",

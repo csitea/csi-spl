@@ -46,6 +46,9 @@ export default defineNuxtPlugin(() => {
   function markActive() {
     const c = ctx()
     if (!c.activeKey) return
+    /* CLE-77804: freeze the New-messages divider boundary at the real open,
+       before markChannelRead/markRead advances the cursor past the unread. */
+    notes.enterFeed(c.activeKey)
     const id = c.activeKey.startsWith('ch:') ? c.activeKey.slice(3) : ''
     const row = id ? channel.channels.find((r) => r.channel_id === id) : undefined
     if (row && row.last_cursor) notes.markChannelRead(c.activeKey, row)

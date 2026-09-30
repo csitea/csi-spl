@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Uued sõnumid",
+    "unread_jump": "{n} uut",
+    "unread_jump_label": "Liigu esimese lugemata sõnumi juurde"
   },
   "topic": {
     "title": "Teema",

@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Nya meddelanden",
+    "unread_jump": "{n} nya",
+    "unread_jump_label": "Gå till det första olästa meddelandet"
   },
   "topic": {
     "title": "Ämne",

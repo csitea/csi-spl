@@ -6,7 +6,7 @@
       :status="online ? 'on' : 'off'"
       :status-text="online ? t('pages.dm.online') : t('pages.dm.offline_queued')"
     />
-    <MessageFeed :label="t('pages.feed_label', { target: peer })" />
+    <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" />
   </div>
 </template>
 
@@ -26,6 +26,7 @@ import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibo
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
+import { useNotificationStore } from '~/stores/notification'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -68,10 +69,15 @@ const { releaseStaleTopic } = useTopicFeedClose({
 /* the shell reads (channels + roster) belong to the plugin's createShellBootstrap
    (once per app). This page only selects the open DM: mock hydrates immediately,
    live waits for a member session — same predicate as onSession. */
+/* CLE-77804: the read cursor this DM had when it was opened (frozen in the store
+   by markRead), for the "New messages" divider (topic 1e7d56b8). */
+const notes = useNotificationStore()
+const feedBoundary = computed(() => notes.boundary['dm:' + peer.value] || null)
 watch([peer, () => session.state], async ([p, st]) => {
   topicFeedReady.value = false
   if (!p) return
   if (!api.mock && String(st) !== 'in') return
+  notes.enterFeed('dm:' + p) /* freeze the divider boundary before the read */
   await channel.selectDm(p)
   if (peer.value !== p) return
   topicFeedReady.value = true

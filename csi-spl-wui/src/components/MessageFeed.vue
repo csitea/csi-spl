@@ -19,6 +19,7 @@
       :search="channel.search"
       :last-live="channel.lastLive"
       :count-for="channel.repliesFor"
+      :unread-boundary="boundary"
       always-topic
       clickable
       open-button
@@ -43,7 +44,9 @@ import { moveBlocked } from '~/utils/move.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /* 013 on /channel and /dm (X3): the lobby's LiveFeed over the channel store, newest first. */
-defineProps<{ label: string }>()
+/* CLE-77804: the page snapshots the read cursor at open (before markRead advances
+   it) and passes it here so LiveFeed can draw the New-messages divider. */
+defineProps<{ label: string, boundary?: { ts: string, id: string } | null }>()
 const channel = useChannelStore()
 const topic = useTopicStore()
 

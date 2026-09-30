@@ -127,6 +127,26 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
+  /**
+   * CLE-77804 (topic 1e7d56b8): the read cursor a feed had when it was opened,
+   * frozen so LiveFeed can draw the "New messages" divider while markRead
+   * advances the live cursor and clears the rail badge. A feed's page calls
+   * enterFeed(key) once as it opens — BEFORE selectChannel/markRead move the
+   * cursor — and reads boundary[key]. `enteredKey` is a plain (non-reactive,
+   * non-hydrated) marker so the freeze happens exactly once per open on the
+   * client: the many markReads a single open fires (the page watch re-runs as
+   * the session settles, plus the live plugin) never move it, and a genuine
+   * re-open of another feed re-freezes.
+   */
+  const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
+  let enteredKey = ''
+  function enterFeed(key: string) {
+    if (!key || key === enteredKey) return
+    enteredKey = key
+    const c = loadCursors()[key]
+    boundary.value = { ...boundary.value, [key]: c ? { ts: String(c.ts || ''), id: String(c.id || '') } : null }
+  }
+
   function markRead(key: string, msg?: Msg | null) {
     if (!key) return
     saveCursors(markReadAt(loadCursors(), key, msg || undefined))
@@ -211,6 +231,8 @@ export const useNotificationStore = defineStore('notification', () => {
     toggleAlerts,
     unread,
     mentions,
+    boundary,
+    enterFeed,
     requestPush,
     ping,
     ingest,

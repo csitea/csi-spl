@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Uudet viestit",
+    "unread_jump": "{n} uutta",
+    "unread_jump_label": "Siirry ensimmäiseen lukemattomaan viestiin"
   },
   "topic": {
     "title": "Aihe",

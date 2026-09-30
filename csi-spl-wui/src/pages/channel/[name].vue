@@ -1,7 +1,7 @@
 <template>
   <div class="feed-col" data-pane="msgs">
     <FeedHeader :title="'#' + titleName" />
-    <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
+    <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" :boundary="feedBoundary" />
   </div>
 </template>
 
@@ -45,6 +45,11 @@ const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
 }, storedDescription.value))
 const titleName = computed(() => feedbackCopy.value ? feedbackCopy.value.name : name.value)
 
+/* CLE-77804 (topic 1e7d56b8): the read cursor this channel had when it was
+   opened (frozen in the store by markRead, so no snapshot can race it), for the
+   "New messages" divider at the first message the reader had not seen. */
+const feedBoundary = computed(() => notes.boundary['ch:' + normalizeChannel(name.value)] || null)
+
 /* a live row carries the hub cursor, so the next read= counts from here */
 function markRead(n: string) {
   const row = channel.channels.find((c) => c.channel_id === n)
@@ -67,6 +72,7 @@ const { releaseStaleTopic } = useTopicFeedClose({
 watch([name, () => session.state], async ([n, st]) => {
   topicFeedReady.value = false
   if (!api.mock && String(st) !== 'in') return
+  notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)
   markRead(n)
   if (name.value !== n) return

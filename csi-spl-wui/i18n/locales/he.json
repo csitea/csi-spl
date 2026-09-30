@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "הודעות חדשות",
+    "unread_jump": "{n} חדשות",
+    "unread_jump_label": "מעבר להודעה הראשונה שלא נקראה"
   },
   "topic": {
     "title": "נושא",

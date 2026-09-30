@@ -20,6 +20,7 @@
         :search="store.search"
         :last-live="store.lastLive"
         :current-task-id="store.taskId"
+        :unread-boundary="unreadBoundary"
         clickable
         open-button
         clip
@@ -66,6 +67,9 @@ const people = useHumanNames()
 const api = useSpoolApi()
 const session = useSessionStore()
 const notes = useNotificationStore()
+/* CLE-77804: the lobby read cursor at open, frozen in the store by the
+   markRead('ch:lobby') in onMounted, so LiveFeed draws the New-messages divider. */
+const unreadBoundary = computed(() => notes.boundary['ch:lobby'] || null)
 const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
@@ -137,6 +141,7 @@ useOmniboxTarget({
 })
 
 onMounted(() => {
+  notes.enterFeed('ch:lobby') /* freeze the divider boundary before markRead */
   notes.markRead('ch:lobby')
 })
 

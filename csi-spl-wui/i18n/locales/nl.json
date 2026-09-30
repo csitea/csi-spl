@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Nieuwe berichten",
+    "unread_jump": "{n} nieuw",
+    "unread_jump_label": "Ga naar het eerste ongelezen bericht"
   },
   "topic": {
     "title": "Onderwerp",

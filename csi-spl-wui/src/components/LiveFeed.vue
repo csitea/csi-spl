@@ -15,6 +15,10 @@
       <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
         ↑ {{ t('feed.new_pill', { n: pill }) }}
       </button>
+      <!-- CLE-77804: jump to the New-messages divider when it is scrolled away. -->
+      <button v-if="showUnreadJump" class="btn new-pill" type="button" :aria-label="t('feed.unread_jump_label')" data-testid="unread-jump" @click="jumpToUnread">
+        ↑ {{ t('feed.unread_jump', { n: newCount }) }}
+      </button>
     </div>
     <!-- Newest last (topic c6994436): Load more for older rows sits ABOVE the
          first row, where the older rows go. -->
@@ -31,36 +35,56 @@
       </button>
     </div>
     <TransitionGroup :name="newestLast ? 'append' : 'prepend'" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
-      <MessageCard
-        v-for="(m, i) in shown"
-        :key="m.msg_id"
-        :msg="m"
-        :posinset="i + 1"
-        :setsize="hasOlder ? -1 : shown.length"
-        :topic-link="openable(m)"
-        :count="countFor ? countFor(String(m.task_id || '')) : 0"
-        :always-topic="alwaysTopic"
-        :clickable="clickable"
-        :selected="isSelected(m)"
-        :since-ms="sinceMs"
-        :editable="canEdit(m)"
-        :merge-prev="mergeTarget(m, 'previous')"
-        :merge-next="mergeTarget(m, 'next')"
-        :current-task-id="currentTaskId"
-        :clip-mode="clipModeFor()"
-        :topic-menu="openButton"
-        :move-ctx="moveCtx"
-        :class="{ pending: m.pending }"
-        :data-key="m.msg_id"
-        :data-pending="m.pending ? 'true' : undefined"
-        @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
-        @edited="(row: SpoolMessage) => $emit('edited', row)"
-        @deleted="(row: SpoolMessage) => $emit('deleted', row)"
-        @reacted="(update: ReactionUpdate) => $emit('reacted', update)"
-      />
+      <!-- CLE-77804 (topic 1e7d56b8): feedItems interleaves the "New messages"
+           divider with the rows so each iteration renders exactly ONE keyed
+           element (the key lives on the <template>, as Vue requires). The
+           divider marks where the unread block starts: newest-last reads top to
+           bottom so it sits BEFORE the earliest unread; newest-first has the
+           unread at the top, so it sits AFTER it. -->
+      <template v-for="it in feedItems" :key="it.key">
+        <div
+          v-if="it.divider"
+          class="new-divider"
+          data-testid="new-divider"
+          role="separator"
+          :aria-label="t('feed.unread_divider')"
+        >
+          <span class="new-divider__label">{{ t('feed.unread_divider') }}</span>
+        </div>
+        <MessageCard
+          v-else-if="it.msg"
+          :msg="it.msg"
+          :posinset="it.i + 1"
+          :setsize="hasOlder ? -1 : shown.length"
+          :topic-link="openable(it.msg)"
+          :count="countFor ? countFor(String(it.msg.task_id || '')) : 0"
+          :always-topic="alwaysTopic"
+          :clickable="clickable"
+          :selected="isSelected(it.msg)"
+          :since-ms="sinceMs"
+          :editable="canEdit(it.msg)"
+          :merge-prev="mergeTarget(it.msg, 'previous')"
+          :merge-next="mergeTarget(it.msg, 'next')"
+          :current-task-id="currentTaskId"
+          :clip-mode="clipModeFor()"
+          :topic-menu="openButton"
+          :move-ctx="moveCtx"
+          :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
+          :data-key="it.msg.msg_id"
+          :data-pending="it.msg.pending ? 'true' : undefined"
+          :data-unread="isNew(it.msg) ? 'true' : undefined"
+          @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
+          @edited="(row: SpoolMessage) => $emit('edited', row)"
+          @deleted="(row: SpoolMessage) => $emit('deleted', row)"
+          @reacted="(update: ReactionUpdate) => $emit('reacted', update)"
+        />
+      </template>
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
     <div v-if="newestLast" class="new-pill-wrap new-pill-wrap--bottom">
+      <button v-if="showUnreadJump" class="btn new-pill" type="button" :aria-label="t('feed.unread_jump_label')" data-testid="unread-jump" @click="jumpToUnread">
+        ↓ {{ t('feed.unread_jump', { n: newCount }) }}
+      </button>
       <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
         ↓ {{ t('feed.new_pill', { n: pill }) }}
       </button>
@@ -90,6 +114,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu.mjs'
 import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
@@ -135,6 +160,11 @@ const props = defineProps<{
   clipPane?: CardClipPane
   /** SPL-1024: a thread whose rows may be moved to another topic (the right pane). */
   moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null
+  /** CLE-77804 (topic 1e7d56b8): the read cursor frozen when this feed was
+      opened. Messages after it are "new": the divider goes before the first,
+      they carry a fading highlight, and a "N new" button jumps to the divider.
+      null / undefined (a never-read feed, or a pane that opts out) shows none. */
+  unreadBoundary?: { ts: string, id: string } | null
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -158,6 +188,101 @@ const { pill, jump, hold } = useScrollAnchor(
   () => props.holdScroll !== true || newestLast.value,
   () => newestLast.value,
 )
+
+/* CLE-77804: the New-messages divider. `firstNewId` is the earliest message the
+   reader had not seen when the feed opened (the boundary is frozen by the page,
+   so it stays put while markRead advances the live cursor and clears the badge).
+   isNew() drives the fading highlight; newCount the jump button. */
+const firstNewId = computed(() => (props.unreadBoundary ? firstUnreadId(shown.value, props.unreadBoundary) : ''))
+const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value, props.unreadBoundary) : 0))
+function isNew(m: SpoolMessage) {
+  return Boolean(props.unreadBoundary) && isUnread(m, props.unreadBoundary)
+}
+
+/* The rows with the divider interleaved (one keyed element per iteration). */
+type FeedItem = { key: string, divider?: true, msg?: SpoolMessage, i: number }
+const feedItems = computed<FeedItem[]>(() => {
+  const out: FeedItem[] = []
+  const fid = firstNewId.value
+  shown.value.forEach((m, i) => {
+    const card: FeedItem = { key: String(m.msg_id), msg: m, i }
+    const divider: FeedItem = { key: '__new-divider__', divider: true, i: -1 }
+    if (fid && m.msg_id === fid) {
+      if (newestLast.value) out.push(divider, card)
+      else out.push(card, divider)
+    } else {
+      out.push(card)
+    }
+  })
+  return out
+})
+
+/* The jump button shows only while the divider is off screen (scrolled away).
+   Visibility is measured on scroll with getBoundingClientRect — deliberately
+   not an observer (load-more-30 keeps the feed free of auto-load-on-scroll). */
+const dividerVisible = ref(false)
+const showUnreadJump = computed(() => newCount.value > 0 && !pill.value && !dividerVisible.value)
+function dividerEl(): HTMLElement | null {
+  return root.value?.querySelector<HTMLElement>('[data-testid="new-divider"]') || null
+}
+function measureDivider() {
+  const el = dividerEl()
+  if (!el) {
+    dividerVisible.value = false
+    return
+  }
+  const scroller = el.closest<HTMLElement>('.feed-body')
+  if (!scroller) {
+    dividerVisible.value = true
+    return
+  }
+  const er = el.getBoundingClientRect()
+  const sr = scroller.getBoundingClientRect()
+  dividerVisible.value = er.bottom > sr.top && er.top < sr.bottom
+}
+function onFeedScroll() {
+  if (firstNewId.value) measureDivider()
+}
+
+function jumpToUnread() {
+  const el = dividerEl()
+  const scroller = el?.closest<HTMLElement>('.feed-body')
+  if (!scroller) return
+  hold()
+  /* newest-last: the unread block starts at the divider, read down from there.
+     newest-first: the unread sit at the top of the feed — go up to them. */
+  if (newestLast.value && el) scrollRowToTop(scroller, el)
+  else scroller.scrollTo({ top: 0, behavior: 'auto' })
+}
+
+/* On open (a new boundary, once the rows are in) land at the first unread: for
+   newest-last that means scrolling the divider to the top (the feed otherwise
+   opens at its bottom); newest-first already opens at the top where the newest
+   unread are. hold() stops the newest-last bottom glue so this scroll wins, the
+   same way a #msg deep link does. Then measure whether the divider is on
+   screen for the jump button. */
+let dividerDone = ''
+watch(() => props.unreadBoundary, () => { dividerDone = '' })
+watch(() => [firstNewId.value, props.rows.length] as const, async ([id]) => {
+  await nextTick()
+  if (id && id !== dividerDone) {
+    dividerDone = id
+    const el = dividerEl()
+    const scroller = el?.closest<HTMLElement>('.feed-body')
+    if (el && scroller && newestLast.value) {
+      hold()
+      scrollRowToTop(scroller, el)
+    }
+  }
+  measureDivider()
+}, { immediate: true })
+
+onMounted(() => {
+  if (typeof document !== 'undefined') document.addEventListener('scroll', onFeedScroll, { capture: true, passive: true })
+})
+onUnmounted(() => {
+  if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
+})
 
 const announce = computed(() => {
   const m = props.lastLive

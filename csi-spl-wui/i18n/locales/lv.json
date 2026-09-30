@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Jauni ziņojumi",
+    "unread_jump": "{n} jauni",
+    "unread_jump_label": "Pāriet uz pirmo nelasīto ziņojumu"
   },
   "topic": {
     "title": "Tēma",

@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "New messages",
+    "unread_jump": "{n} new",
+    "unread_jump_label": "Jump to the first unread message"
   },
   "topic": {
     "title": "Topic",

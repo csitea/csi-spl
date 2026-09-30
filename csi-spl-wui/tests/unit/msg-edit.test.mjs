@@ -447,7 +447,10 @@ describe('CLE-3446 — an edit never rides across onto another row', () => {
 
   it('topic messages render through LiveFeed, which keys every card by msg_id', () => {
     const feed = src('src/components/LiveFeed.vue')
-    assert.match(feed, /:key="m\.msg_id"/)
+    /* CLE-77804: the New-messages divider is interleaved, so each iteration
+       renders one keyed element off feedItems; a card's key is still its msg_id. */
+    assert.match(feed, /:key="it\.key"/)
+    assert.match(feed, /key: String\(m\.msg_id\), msg: m/)
     for (const rel of PANES) {
       const tpl = src(rel)
       assert.match(tpl, /<LiveFeed/, rel)

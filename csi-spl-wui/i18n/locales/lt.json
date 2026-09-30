@@ -710,7 +710,10 @@
     "promote": {
       "done": "New topic created",
       "undone": "Promote undone"
-    }
+    },
+    "unread_divider": "Naujos žinutės",
+    "unread_jump": "{n} naujų",
+    "unread_jump_label": "Pereiti prie pirmos neperskaitytos žinutės"
   },
   "topic": {
     "title": "Tema",

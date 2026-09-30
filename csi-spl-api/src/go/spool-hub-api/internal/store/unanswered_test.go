@@ -14,7 +14,7 @@ import (
 // humanPost is one signed browser post by a person into a channel.
 func humanPost(tenant, task, channel, body string, at time.Time) Message {
 	return Message{
-		TenantID: tenant, MsgID: uuid4(), TaskID: task, Channel: channel,
+		TenantID: tenant, MsgID: uuid4(), TaskID: task, Channel: channel, TS: at,
 		FromBox: "box-wui", FromID: "HUM-google-sub-10", ToBox: "box-wui", ToID: "ALL-0",
 		Kind: "note", Body: body, Files: []byte(`[]`), Msg: []byte(`{"v":1}`),
 		EnvSig: "sig", Env: []byte(`{"env":1}`),
@@ -41,21 +41,23 @@ func TestUnansweredPosts(t *testing.T) {
 				}
 				return m
 			}
+			// task_id is a UUID column on Postgres, so every topic id is a uuid4.
+			taskUnheard, taskAnswered, taskDM, taskAgent, taskFresh := uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
 
 			// (1) a human channel post nobody answered -> unanswered.
-			unheard := ins(humanPost(tid, "task-unheard", "devel", "anyone there?", base))
+			unheard := ins(humanPost(tid, taskUnheard, "devel", "anyone there?", base))
 
 			// (2) CONTROL: a human post an agent replied to in the topic.
-			answered := ins(humanPost(tid, "task-answered", "devel", "help?", base.Add(time.Second)))
-			ins(agentReply(tid, "task-answered", base.Add(2*time.Second)))
+			answered := ins(humanPost(tid, taskAnswered, "devel", "help?", base.Add(time.Second)))
+			ins(agentReply(tid, taskAnswered, base.Add(2*time.Second)))
 
 			// (3) CONTROL: a human DM to a person never falls back.
-			dm := humanPost(tid, "task-dm", "", "hey", base.Add(3*time.Second))
+			dm := humanPost(tid, taskDM, "", "hey", base.Add(3*time.Second))
 			dm.ToBox, dm.ToID = "box-wui", "HUM-google-sub-27"
 			ins(dm)
 
 			// (4) CONTROL: an agent's own channel post is not a human post.
-			ins(agentReply(tid, "task-agent-only", base.Add(4*time.Second)))
+			ins(agentReply(tid, taskAgent, base.Add(4*time.Second)))
 
 			got, err := s.(Fallbacks).UnansweredPosts(ctx, tid, base.Add(-time.Minute), time.Now().UTC(), 20)
 			if err != nil {
@@ -91,7 +93,7 @@ func TestUnansweredPosts(t *testing.T) {
 			}
 
 			// (6) the grace: a post newer than `until` is not yet due.
-			ins(humanPost(tid, "task-fresh", "devel", "just now", time.Now().UTC()))
+			ins(humanPost(tid, taskFresh, "devel", "just now", time.Now().UTC()))
 			got, err = s.(Fallbacks).UnansweredPosts(ctx, tid, base.Add(-time.Minute), time.Now().UTC().Add(-30*time.Second), 20)
 			if err != nil {
 				t.Fatal(err)

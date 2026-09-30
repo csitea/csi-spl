@@ -273,7 +273,6 @@ declare module '~/utils/channel-feed.mjs' {
   export function headerRecipientOf(msg: unknown): { id: string, box: string } | null
   export function formatElapsed(sec: number): string
   export function formatTopicTs(ts: string, originMs?: number): string
-  export function renderBody(src: string): string
   export function channelSlug(name: string): string
   export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string
   export function retentionDays(row: { channel_id?: string, channel?: string, retention_days?: number }): number
@@ -705,6 +704,15 @@ declare module '~/utils/msg-edit.mjs' {
   export function revisionOf(msg: unknown): number
   export function applyEdit<T>(rows: T[], edited: unknown): T[]
   export function editFailureKey(err: unknown): string
+}
+
+declare module '~/utils/msg-apply.mjs' {
+  export function applyEdit<T>(rows: T[], edited: unknown): T[]
+}
+
+declare module '~/utils/bidi.mjs' {
+  export const BIDI_CLASS: string
+  export function stripBidiControls(s: unknown): string
 }
 
 declare module '~/utils/emoji.mjs' {

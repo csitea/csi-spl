@@ -12,7 +12,9 @@ import {
   topicsFromMessages,
 } from '../../src/utils/view-api.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
-import { renderBody } from '../../src/utils/channel-feed.mjs'
+// channel-feed's renderBody was bodyToHtml(src) and had no app caller; it went
+// (027 perf budget) so channel-feed no longer pulls the renderer into first paint
+import { bodyToHtml as renderBody } from '../../src/utils/code-blocks.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 
 const T = '33330000-0000-4000-8000-000000009001'

@@ -11,7 +11,6 @@ import {
   topicMessages,
   topicsFromMessages,
 } from './view-api.mjs'
-import { SEARCH_OPERATORS, searchApiQuery } from './search.mjs'
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 /* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
@@ -1039,11 +1038,17 @@ export function createSpoolClient({
       // The result half loads on the first search, never on the first paint (027 budget).
       const { mockSearch, normalizeSearchResponse } = await import('./search-results.mjs')
       if (mock) return normalizeSearchResponse(mockSearch(state.messages, q))
+      // 027 budget: the search grammar (search.mjs + its mention autocomplete)
+      // rides the first search, not the initial chunk.
+      const { searchApiQuery } = await import('./search.mjs')
       return normalizeSearchResponse(await live(`/v1/view/search?${searchApiQuery({ q, cursor, limit, sort })}`))
     },
     /** search-v1 §6 grammar-as-data → the autocomplete catalogue. */
     async searchOperators() {
-      if (mock) return SEARCH_OPERATORS
+      if (mock) {
+        const { SEARCH_OPERATORS } = await import('./search.mjs')
+        return SEARCH_OPERATORS
+      }
       const { normalizeOperators } = await import('./search-results.mjs')
       return normalizeOperators(await live('/v1/view/search/operators'))
     },

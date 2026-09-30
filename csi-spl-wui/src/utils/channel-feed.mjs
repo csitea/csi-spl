@@ -1,6 +1,6 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
-import { bodyToHtml, stripBidiControls } from './code-blocks.mjs'
+import { stripBidiControls } from './bidi.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 import { isUnread } from './read-cursor.mjs'
 
@@ -336,15 +336,6 @@ export function formatTopicTs(ts, originMs) {
   if (!Number.isFinite(origin)) return abs
   const sec = Math.max(0, Math.floor((origin - d.getTime()) / 1000))
   return abs + ' sent ' + formatElapsed(sec)
-}
-
-/**
- * Escaped HTML of a body (``` blocks, `inline`, **bold**, @mentions). The feed
- * renders parseBody through MessageBody.vue instead; this string form stays
- * for callers that need one.
- */
-export function renderBody(src) {
-  return bodyToHtml(src)
 }
 
 /** Hub channel slug (channels-v1 §5.1: ^[a-z0-9][a-z0-9-]{0,63}$). */

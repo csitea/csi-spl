@@ -8,16 +8,21 @@
 //
 // Client-only: there is no session on the server and nothing to ship.
 import { getErrors, subscribeErrors } from '@/composables/errorJournal.mjs'
-import { bindShipperToJournal, createEventShipper, createEventsClient } from '~/utils/event-log.mjs'
 import { useSessionStore } from '~/stores/session'
 
 export default defineNuxtPlugin(() => {
   if (!import.meta.client) return
   const session = useSessionStore()
-  const shipper = createEventShipper({
-    client: createEventsClient({ base: useAuthBase() }),
-    session: () => session.state,
+  // 027 budget: the shipper (event-log.mjs) never renders and only observes,
+  // so it rides a lazy chunk loaded after boot rather than the initial chunk.
+  // The journal buffers every error until then, so bindShipperToJournal ships
+  // the backlog and none is lost.
+  void import('~/utils/event-log.mjs').then(({ bindShipperToJournal, createEventShipper, createEventsClient }) => {
+    const shipper = createEventShipper({
+      client: createEventsClient({ base: useAuthBase() }),
+      session: () => session.state,
+    })
+    bindShipperToJournal(shipper, { getErrors, subscribeErrors })
+    watch(() => session.state, () => shipper.sessionChanged())
   })
-  bindShipperToJournal(shipper, { getErrors, subscribeErrors })
-  watch(() => session.state, () => shipper.sessionChanged())
 })

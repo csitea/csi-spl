@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } from '~/utils/card-clip.mjs'
 import { takeEarlySession } from '~/utils/early-session.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
@@ -155,6 +154,9 @@ export const useSessionStore = defineStore('session', () => {
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
+      /* 027 budget: card-clip (and file-preview behind it) is only needed on
+         sign-out here, so it is not part of the initial chunk */
+      const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')
       clearCardClipSession()
       const d = readCardClipDefault() as 'titles' | 'rows' | 'full'
       useState(CARD_CLIP_KEY, () => d).value = d

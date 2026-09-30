@@ -30,7 +30,7 @@ import {
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
-import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'

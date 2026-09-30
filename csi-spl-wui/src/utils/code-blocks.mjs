@@ -27,6 +27,7 @@
  * Pure: node tests import this file directly.
  */
 import { classifyHref, linkOpen } from './link-target.mjs'
+import { BIDI_CLASS } from './bidi.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -152,20 +153,11 @@ export function tokenize(src, { openAnywhere = false } = {}) {
  * they stay text. A URL may not start glued to a word, a slash, a dot, a
  * colon or an @, so `javascript:https://…` and `x//www.…` stay text too.
  */
-/**
- * Bidi embedding / override / isolate controls (U+202A..U+202E, U+2066..U+2069)
- * and the ALM/LRM/RLM marks (the hub refuses the same set, 323c76e5).
- * They are invisible and reorder the text around them,
- * so "evil.example/\u202egpj.doog" reads as another address: a link
- * ends before one, and a display name drops them (stripBidiControls).
- */
-const BIDI_CLASS = String.raw`\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069`
-const BIDI_RE = new RegExp(`[${BIDI_CLASS}]`, 'g')
-
-/** The string without bidi controls: for one-line labels such as display names. */
-export function stripBidiControls(s) {
-  return String(s ?? '').replace(BIDI_RE, '')
-}
+// Bidi controls (BIDI_CLASS, stripBidiControls) live in bidi.mjs so a
+// first-paint caller (channel-feed.mjs) can strip a display name without
+// pulling this whole markdown renderer into the initial chunk (027 budget).
+// Re-exported here so existing importers of code-blocks keep working.
+export { stripBidiControls } from './bidi.mjs'
 
 const URL_SRC = String.raw`(?<![\w/.:@-])(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/|[Ww][Ww][Ww]\.)[^\s<>\x60${BIDI_CLASS}]+`
 const EMAIL_SRC = String.raw`(?<![\w.%+/:@-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`

@@ -15,7 +15,9 @@ import {
   parseBody,
   tokenize,
 } from '../../src/utils/code-blocks.mjs'
-import { renderBody } from '../../src/utils/channel-feed.mjs'
+// channel-feed's renderBody was bodyToHtml(src) and had no app caller; it went
+// (027 perf budget) so channel-feed no longer pulls the renderer into first paint
+const renderBody = (src) => bodyToHtml(src)
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const code = (text, lang = '', closed = true) => ({ type: 'code', text, lang, closed })

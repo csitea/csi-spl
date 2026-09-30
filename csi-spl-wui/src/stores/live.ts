@@ -9,7 +9,7 @@ import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
-import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 

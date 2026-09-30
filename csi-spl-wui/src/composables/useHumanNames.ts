@@ -1,5 +1,4 @@
 import { effectScope } from 'vue'
-import { forgetRosterRead, loadHumanNames } from '~/utils/avatar.mjs'
 import { personLabel } from '~/utils/channel-feed.mjs'
 import { sameNames } from '~/utils/display-name.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -27,8 +26,13 @@ export function useHumanNames() {
     /* a mount while a read is on its way shares it; a forced read never
        joins an older one, it starts after forgetting the cached roster */
     if (inFlight && !force) return inFlight
-    if (force) forgetRosterRead()
-    const p = loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
+    /* 027 budget: the roster reader (avatar.mjs) rides a lazy chunk; the
+       read is async anyway, so nothing on first paint waits for it */
+    const p = import('~/utils/avatar.mjs')
+      .then(({ forgetRosterRead, loadHumanNames }) => {
+        if (force) forgetRosterRead()
+        return loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
+      })
       .then((got: Record<string, string>) => { if (!sameNames(got, names.value)) names.value = got })
     const run = p.finally(() => { if (inFlight === run) inFlight = null })
     inFlight = run

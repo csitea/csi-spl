@@ -41,16 +41,21 @@ export function createMockDirectory(now = () => new Date()) {
         roles: MOCK_ROLES.map((id) => ({ id, grantable: id !== 'biz_owner' })),
       }
     },
-    invite(email, role) {
+    invite(email, role, { noMail } = {}) {
       const e = String(email || '').trim().toLowerCase()
       if (!looksLikeEmail(e)) throw mockErr(400, 'bad_email')
       const r = role || 'developer'
       if (!MOCK_ROLES.includes(r)) throw mockErr(400, 'bad_role')
       if (r === 'biz_owner') throw mockErr(403, 'forbidden')
       const at = now()
+      // CLE-77780: no_mail stores the invite with mail_count 0 and sends nothing;
+      // a mailing (re)send simulates a working relay and bumps the count, so the
+      // 'mailed' state and the Send/Resend label can be exercised in the mock.
+      const prev = invites.find((i) => i.email === e)
+      const mailCount = noMail ? 0 : ((prev?.mail_count || 0) + 1)
       invites = invites.filter((i) => i.email !== e)
-      invites.push({ email: e, role: r, invited_by: you, created_at: at.toISOString(), expires_at: new Date(at.getTime() + 7 * 864e5).toISOString() })
-      return { email: e, role: r, mail: 'not_configured' }
+      invites.push({ email: e, role: r, invited_by: you, created_at: at.toISOString(), expires_at: new Date(at.getTime() + 7 * 864e5).toISOString(), mail_count: mailCount })
+      return { email: e, role: r, mail: noMail ? 'not_sent' : 'sent' }
     },
     setRole(id, role) {
       const m = find(id)

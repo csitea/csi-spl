@@ -40,7 +40,10 @@ describe('the pending-invite pane', () => {
     assert.match(pane, /navigator\.clipboard\.writeText\(link\)/)
   })
   it('only the hub answer "sent" reads as mailed ("logged" does not)', () => {
-    assert.equal((pane.match(/res\?\.mail === 'sent' \? t\('users\.invited'/g) || []).length, 2)
+    // CLE-77780: the create no longer mails (no mail without a click), so only
+    // the explicit Send/Resend button (sendMail) reads the 'sent' outcome — one
+    // occurrence, not the previous two (create + resend).
+    assert.equal((pane.match(/res\?\.mail === 'sent' \? t\('users\.invited'/g) || []).length, 1)
   })
   it('every locale words the button and the hint, with the {email} slot', () => {
     const dir = join(WUI, 'i18n/locales')

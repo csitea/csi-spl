@@ -73,7 +73,7 @@ declare module '~/utils/spool-client.mjs' {
     setChannelOrder(ids: string[]): Promise<{ channel_order: string[] | null }>
     removeMember(humanId: string): Promise<null>
     listTenantUsers(): Promise<unknown>
-    inviteTenantUser(opts: { email: string, role?: string, locale?: string }): Promise<{ email?: string, role?: string, mail?: string } | null>
+    inviteTenantUser(opts: { email: string, role?: string, locale?: string, noMail?: boolean }): Promise<{ email?: string, role?: string, mail?: string } | null>
     setTenantUserRole(humanId: string, role: string, fromRole?: string): Promise<unknown>
     removeTenantUser(humanId: string): Promise<null>
     auditClones(): Promise<Array<{ clone_hum?: string, target_hum?: string, created_by?: string, role?: string, created_at?: string, expires_at?: string, ended_at?: string | null, end_reason?: string }>>

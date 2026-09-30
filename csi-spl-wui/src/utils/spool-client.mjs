@@ -853,10 +853,14 @@ export function createSpoolClient({
       if (mock) return (await dir()).list()
       return live('/v1/members')
     },
-    /** POST /v1/members/invites: invite + invitation mail. `locale` rides as X-Locale for the mail. */
-    async inviteTenantUser({ email, role, locale } = {}) {
-      const body = { email: String(email || '').trim(), ...(role ? { role: String(role) } : {}) }
-      if (mock) return (await dir()).invite(body.email, body.role)
+    /**
+     * POST /v1/members/invites: store the invite, and mail it unless noMail
+     * (CLE-77780: no mail without an explicit click). `locale` rides as
+     * X-Locale for the mail.
+     */
+    async inviteTenantUser({ email, role, locale, noMail } = {}) {
+      const body = { email: String(email || '').trim(), ...(role ? { role: String(role) } : {}), ...(noMail ? { no_mail: true } : {}) }
+      if (mock) return (await dir()).invite(body.email, body.role, { noMail: Boolean(noMail) })
       return live('/v1/members/invites', {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(locale ? { 'x-locale': String(locale) } : {}) },

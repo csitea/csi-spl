@@ -959,6 +959,7 @@
     "email": "Correo electrónico",
     "role": "Rol",
     "send_invite": "Enviar invitación",
+    "send_invite_email": "Enviar invitación",
     "invited": "Invitación enviada a {email}.",
     "invite_saved_no_mail": "Invitación guardada para {email}. No se envió ningún correo de invitación.",
     "you": "tú",

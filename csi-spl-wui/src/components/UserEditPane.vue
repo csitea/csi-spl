@@ -170,14 +170,16 @@
           {{ copied ? t('common.copied') : t('users.copy_link') }}
         </button>
         <small v-if="linkOf(invite)" class="muted users-note" data-test="users-pane-copy-link-hint">{{ t('users.copy_link_hint', { email: invite.email }) }}</small>
+        <!-- CLE-77780: the ONE way an invite's mail goes out, always on a click.
+             "Send the invite email" until it has been mailed, then "Resend". -->
         <button
           type="button"
           class="btn"
           :disabled="busy"
-          data-test="users-pane-resend"
-          @click="resend"
+          :data-test="invite.mailCount > 0 ? 'users-pane-resend' : 'users-pane-send-mail'"
+          @click="sendMail"
         >
-          {{ t('users.resend') }}
+          {{ invite.mailCount > 0 ? t('users.resend') : t('users.send_invite_email') }}
         </button>
         <button
           type="button"
@@ -349,9 +351,11 @@ function sendInvite() {
     return
   }
   void run(async () => {
-    const res = await api.inviteTenantUser({ email: addr, role: inviteRole.value, locale: String(locale.value) })
+    // CLE-77780: creating an invite never mails it. The owner does not want mail
+    // sent on his behalf without a click; the admin sends it from this pane.
+    await api.inviteTenantUser({ email: addr, role: inviteRole.value, locale: String(locale.value), noMail: true })
     const sent = addr.toLowerCase()
-    carry = res?.mail === 'sent' ? t('users.invited', { email: sent }) : t('users.invite_saved_no_mail', { email: sent })
+    carry = t('users.invite_saved_no_mail', { email: sent })
     notice.value = carry
     emit('changed', 'i:' + sent)
   })
@@ -403,7 +407,10 @@ function toggleSuspend() {
   })
 }
 
-function resend() {
+// CLE-77780: the explicit "Send the invite email" / "Resend" action — the only
+// way an invite's mail goes out, always on a click. The mail rides the current
+// invite; a 'sent' outcome says the relay took it, else it was stored only.
+function sendMail() {
   const i = invite.value
   if (!i) return
   void run(async () => {

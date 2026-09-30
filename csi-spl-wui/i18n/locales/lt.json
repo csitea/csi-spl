@@ -959,6 +959,7 @@
     "email": "El. paštas",
     "role": "Vaidmuo",
     "send_invite": "Siųsti kvietimą",
+    "send_invite_email": "Siųsti kvietimą",
     "invited": "Kvietimas išsiųstas adresu {email}.",
     "invite_saved_no_mail": "Kvietimas išsaugotas adresui {email}. Kvietimo laiškas neišsiųstas.",
     "you": "jūs",

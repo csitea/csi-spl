@@ -142,6 +142,18 @@ try {
   ok('10c Copy invite link copies <origin>/login?tenant=<the tenant>', /^http:\/\/127\.0\.0\.1:\d+\/login\?tenant=[a-z0-9-]+$/.test(link) && clip === link &&
     /copied/i.test(await text(p, '[data-test=users-pane-copy-link]')), { link, clip })
 
+  // 6b. CLE-77780: the create never mails (no mail without a click). An unmailed
+  // invite shows "Send the invite email"; clicking it sends the mail and the
+  // button becomes "Resend" (distinct actions, both explicit).
+  await p.click(row('i:e2e-invitee@example.com'))
+  await p.waitForSelector('[data-test=users-pane-send-mail]', { visible: true, timeout: 5000 })
+  await p.click('[data-test=users-pane-send-mail]')
+  await sleep(300)
+  const sentNotice = await text(p, '[data-test=users-pane-notice]')
+  ok('10d Send the invite email mails it and the button turns into Resend',
+    /sent/i.test(sentNotice) && Boolean(await p.$('[data-test=users-pane-resend]')) && !(await p.$('[data-test=users-pane-send-mail]')),
+    { sentNotice })
+
   // 7. revoke, confirmed
   await p.click(row('i:e2e-invitee@example.com'))
   await p.waitForSelector('[data-test=users-pane-revoke]', { visible: true, timeout: 5000 })

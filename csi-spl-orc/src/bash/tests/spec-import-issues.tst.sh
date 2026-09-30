@@ -227,6 +227,48 @@ raise SystemExit(0 if ok else 1)
 PY
 [[ $? -eq 0 ]] && pass "extra labels" || fail "extra labels"
 
+# needed_labels covers any tag, not just task/bug/subtask, so a live create of a
+# SPEC_IMPORT_LABELS-tagged issue can register the label first; missing_epics and
+# the report name what to create and how.
+python3 - <<PY
+import importlib.util
+from pathlib import Path
+import tempfile
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+ok = True
+plan = {"specs": [
+    {"spec": "001", "dir": "001-alpha", "heading": "Alpha feature", "parsed": 1, "t_parsed": 1, "subtasks": 0, "pinned": ""},
+    {"spec": "002", "dir": "002-beta", "heading": "Beta feature", "parsed": 1, "t_parsed": 1, "subtasks": 0, "pinned": ""},
+], "items": [
+    {"spec": "001", "dir": "001-alpha", "id": "T001", "key": "001-alpha/T001", "kind": "task",
+     "status": "done", "title": "[001 T001] a task", "labels": ["task", "security"],
+     "description": "x\n\nSource: pas-psf-doc/specs/001-alpha/tasks.md", "parent_id": ""},
+]}
+# only spec 001 has an epic; 002 is missing
+listed = {"result": {"epics": [{"key": "SPL-9", "title": "Spec 001 - Alpha feature"}],
+    "issues": [{"key": "SPL-9", "title": "Spec 001 - Alpha feature", "labels": ["epic"], "parent": "", "status": "wip"}],
+    "labels": [{"id": "epic"}]}}
+miss = mod.missing_epics(plan, listed)
+if miss != [("002", "Beta feature")]:
+    print("FAIL: missing_epics", miss); ok = False
+else:
+    print("PASS: missing_epics names the spec without an epic + its heading")
+with tempfile.TemporaryDirectory() as tmp:
+    rec = mod.reconcile(plan, listed, Path(tmp) / "desc")
+    if "security" not in rec["needed_labels"]:
+        print("FAIL: needed_labels drops the SPEC_IMPORT_LABELS tag", rec["needed_labels"]); ok = False
+    else:
+        print("PASS: needed_labels carries the extra tag (security)")
+    report = mod.report_md(rec)
+    if 'ISSUE_KIND=epic ISSUE_TITLE="Spec 002 - Beta feature"' in report and "SPEC_IMPORT_CREATE_EPIC=1" in report:
+        print("PASS: report prints the create-epic command + the CREATE_EPIC hint")
+    else:
+        print("FAIL: report missing the epic-create guidance"); ok = False
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "missing-epic guidance" || fail "missing-epic guidance"
+
 # Epic-scoped read (SPL-963): the importer must NOT list the whole tenant (a big
 # done set closes the hub socket). It reads the epics, scopes the child list to
 # THIS plan's epics, and merges. select_epic_refs picks only the wanted specs'

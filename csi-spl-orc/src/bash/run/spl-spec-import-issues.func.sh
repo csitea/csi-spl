@@ -19,6 +19,9 @@
 # @param SPEC_IMPORT_SPECS (optional) - comma list of NNN to limit the run
 # @param SPEC_IMPORT_LABELS (optional) - comma list of extra labels put on every
 # @param SPEC_IMPORT_LABELS   issue this import creates or updates (e.g. security)
+# @param SPEC_IMPORT_CREATE_EPIC (optional) - 1 creates a 'Spec NNN - <heading>'
+# @param SPEC_IMPORT_CREATE_EPIC   epic for any of this plan's specs that lacks
+# @param SPEC_IMPORT_CREATE_EPIC   one (live run only); default 0 leaves it MISSING
 # @param SPEC_IMPORT_LIMIT (optional) - max writes this run (0 = all)
 # @param SPEC_IMPORT_INTERVAL (optional) - seconds between writes, default 0.25
 # @param SPEC_IMPORT_OUT (optional) - where the markdown report is written
@@ -66,16 +69,44 @@ do_spl_spec_import_issues() {
   # response is bounded by a single spec, so it never breaks the socket, and an
   # existing [NNN id] is still found so it is updated, never duplicated.
   local all_status=eval,todo,wip,diss,blocked,onhold,qas,done
+  _spl_spec_list_epics() {
+    (
+      DRY_RUN=0
+      ISSUE_ASSIGNEE=
+      ISSUE_KIND=epic
+      ISSUE_STATUS="$all_status"
+      ISSUE_SORT=number
+      unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
+      do_spl_issue_list
+    ) >"$work/epics.out"
+  }
   do_log "INFO listing epics (read-only) to scope the child list to this plan's specs"
-  (
-    DRY_RUN=0
-    ISSUE_ASSIGNEE=
-    ISSUE_KIND=epic
-    ISSUE_STATUS="$all_status"
-    ISSUE_SORT=number
-    unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
-    do_spl_issue_list
-  ) >"$work/epics.out" || { do_log "FATAL the epic list failed"; return 1; }
+  _spl_spec_list_epics || { do_log "FATAL the epic list failed"; return 1; }
+
+  # SPEC_IMPORT_CREATE_EPIC=1: create the 'Spec NNN - <heading>' epic for any of
+  # this plan's specs that has none, then re-list. The importer never invents an
+  # epic on its own (a dry run and the default leave it MISSING and print the
+  # exact do_spl_issue_create command in the report instead).
+  if [[ "${SPEC_IMPORT_CREATE_EPIC:-0}" == 1 ]] && (( dry == 0 )); then
+    local mspec mhead ecreated=0
+    while IFS=$'\t' read -r mspec mhead; do
+      [[ -n "$mspec" ]] || continue
+      (
+        DRY_RUN=0
+        unset ISSUE_LABELS ISSUE_PARENT ISSUE_STATUS ISSUE_DESCRIPTION_FILE ISSUE_REF ISSUE_EPIC
+        ISSUE_KIND=epic
+        ISSUE_TITLE="Spec $mspec - $mhead"
+        export ISSUE_KIND ISSUE_TITLE
+        do_spl_issue_create
+      ) >/dev/null || { do_log "FATAL could not create epic 'Spec $mspec'"; return 1; }
+      do_log "INFO created epic: Spec $mspec - $mhead"
+      ecreated=$((ecreated + 1))
+    done < <(python3 "$py" missingepics --plan "$work/plan.json" --list "$work/epics.out")
+    if (( ecreated > 0 )); then
+      do_log "INFO created $ecreated epic(s); re-listing"
+      _spl_spec_list_epics || { do_log "FATAL the epic re-list failed"; return 1; }
+    fi
+  fi
 
   local -a lists=("$work/epics.out") epicrefs=()
   mapfile -t epicrefs < <(python3 "$py" epics --plan "$work/plan.json" --list "$work/epics.out")

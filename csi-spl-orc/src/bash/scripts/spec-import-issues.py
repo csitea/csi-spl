@@ -466,6 +466,19 @@ def select_epic_refs(plan: dict, list_doc: dict) -> list:
     return refs
 
 
+def missing_epics(plan: dict, list_doc: dict) -> list:
+    """The plan spec dirs that have no 'Spec NNN - ...' epic yet, as
+    (spec, heading) — what SPEC_IMPORT_CREATE_EPIC creates. Same epic->dir
+    matching reconcile uses, so a dir that shares a number is judged on its own."""
+    issues, _ = _issues_from_list(list_doc)
+    assigned = _assign_epics(plan, issues)
+    out = []
+    for row in plan.get("specs", []):
+        if row["dir"] not in assigned:
+            out.append((row["spec"], row.get("heading") or row["dir"]))
+    return out
+
+
 def merge_lists(paths: list) -> dict:
     """One list reply from several epic-scoped ones: the first is the base
     (it carries prefix / epics / labels / channel); the rest add their issues,
@@ -548,6 +561,15 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
     known = {}
     rows = {s["dir"]: dict(s, create=0, update=0, unchanged=0, missing_epic=False, epic="") for s in plan["specs"]}
     missing = []
+    # Flag every plan spec that has no 'Spec NNN' epic — including one with no
+    # task rows — so the report and SPEC_IMPORT_CREATE_EPIC agree, in spec order.
+    for s in plan["specs"]:
+        d = s["dir"]
+        rows[d]["epic"] = epics.get(d) or ""
+        if d not in epics:
+            rows[d]["missing_epic"] = True
+            if d not in missing:
+                missing.append(d)
     for item in plan["items"]:
         spec, tid = item["spec"], item["id"]
         directory = item["dir"]
@@ -625,10 +647,15 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
             samples.append(op["title"])
         if len(samples) == 5:
             break
+    # Every label a non-skip op will write and the catalogue lacks — task / bug /
+    # subtask AND any SPEC_IMPORT_LABELS tag (e.g. security). First-seen order.
     needed = []
-    for name in ("task", "bug", "subtask"):
-        if name not in labels_have and any(name in op["labels"] for op in ops if op["action"] != "skip"):
-            needed.append(name)
+    for op in ops:
+        if op["action"] == "skip":
+            continue
+        for name in op["labels"]:
+            if name not in labels_have and name not in needed:
+                needed.append(name)
     kept = [r for r in rows.values() if not r["missing_epic"]]
     totals = {
         "parsed": sum(r["parsed"] for r in kept),
@@ -672,8 +699,15 @@ def report_md(doc: dict) -> str:
     for s in doc.get("samples") or []:
         lines.append(f"- {s}")
     if doc.get("missing_epics"):
+        rows_by_dir = {r.get("dir"): r for r in (doc.get("rows") or [])}
         lines.append("")
         lines.append("No epic titled 'Spec NNN' for: " + ", ".join(doc["missing_epics"]))
+        lines.append("Create it first (then re-run), or re-run with SPEC_IMPORT_CREATE_EPIC=1:")
+        for d in doc["missing_epics"]:
+            r = rows_by_dir.get(d, {})
+            spec = r.get("spec") or d[:3]
+            heading = r.get("heading") or d
+            lines.append(f'- ISSUE_KIND=epic ISSUE_TITLE="Spec {spec} - {heading}" ./run -a do_spl_issue_create')
     lines.append("")
     if doc.get("epic_rule"):
         lines.append("Hub list carries the epic rule: every filed parent is the spec epic. Subtasks are deferred until a task can be a parent.")
@@ -760,7 +794,16 @@ def main(argv: list[str]) -> int:
     g = sub.add_parser("mergelists")
     g.add_argument("--out", type=Path, required=True)
     g.add_argument("lists", nargs="+")
+    m = sub.add_parser("missingepics")
+    m.add_argument("--plan", type=Path, required=True)
+    m.add_argument("--list", type=Path, required=True)
     args = p.parse_args(argv)
+    if args.cmd == "missingepics":
+        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        listed = _json_line(args.list)
+        for spec, heading in missing_epics(plan, listed):
+            print(f"{spec}\t{heading}")
+        return 0
     if args.cmd == "epics":
         plan = json.loads(args.plan.read_text(encoding="utf-8"))
         listed = _json_line(args.list)

@@ -59,11 +59,23 @@ func dispatchAgent(to, body string) string {
 	if !strings.HasPrefix(b, "@") {
 		return ""
 	}
-	id := b[1:]
-	if i := strings.IndexAny(id, " \t\r\n"); i >= 0 {
-		id = id[:i]
+	rest := b[1:]
+	id, after := rest, ""
+	if i := strings.IndexAny(rest, " \t\r\n"); i >= 0 {
+		id, after = rest[:i], rest[i:]
 	}
 	id = strings.TrimRight(id, ",:;")
+	// e09a72f7 (owner): a BARE @AGENT with no instructions after it is a
+	// mention, not a command. Dispatching it would 404 an offline agent
+	// (unknown_agent) and drop the person's message, which read to the owner as
+	// "a message that starts with @ cannot be sent" - the WUI now sends a bare
+	// mention as a note (channel-feed parseMention) with the @id kept in the
+	// body, and this is where that body used to be force-dispatched. Only
+	// "@AGENT <instructions>" commands the box; a bare mention posts as a normal
+	// message and the mention poke (spec 042 K3) still notifies the agent.
+	if strings.TrimSpace(after) == "" {
+		return ""
+	}
 	if isAgent(id) {
 		return id
 	}

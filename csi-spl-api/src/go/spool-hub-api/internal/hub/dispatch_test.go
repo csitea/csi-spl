@@ -193,6 +193,58 @@ func TestWUIDispatchSignedDeliveryVerifiesAgainstPin(t *testing.T) {
 	}
 }
 
+// e09a72f7 (owner): a BARE @AGENT (nothing after it) is a mention, not a
+// command. It must POST as a normal message - never dispatch, never
+// unknown_agent - so "a message that starts with @" is not refused at the hub.
+// The WUI sends a bare mention as a note with the @id kept in the body (the
+// send-path fix), and this is where that body used to be force-dispatched and
+// 404'd for an offline agent. Only "@AGENT <instructions>" commands the box.
+func TestWUIDispatchBareMentionPosts(t *testing.T) {
+	_, key, _ := ed25519.GenerateKey(nil)
+	e := dispatchEnv(t, true, key)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "CLE-07")
+	e.pin(tid, a)
+	if err := e.st.SetRoster(ctx, tid, "box-a", []string{"CLE-07"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	// box-wui pinned with the hub's own key, so signing never blocks a post
+	if err := e.st.PutPin(ctx, tid, hub.WUIBox, key.Public().(ed25519.PublicKey), true, time.Now().Add(time.Hour), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	m := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
+
+	posts := func(id, body string) {
+		t.Helper()
+		f := sendFrame(t, m, id, "task", body, "")
+		if f["type"] != "ack" {
+			t.Fatalf("%q must post, got %v", body, f)
+		}
+		if tb, ok := f["to_box"]; ok && tb != "" {
+			t.Fatalf("%q must NOT dispatch (to_box=%v)", body, tb)
+		}
+		if has, _ := e.st.HasMessage(ctx, tid, id); !has {
+			t.Fatalf("%q was not stored", body)
+		}
+		if q, _ := e.st.QueuedFor(ctx, tid, "box-a", time.Now()); len(q) != 0 {
+			t.Fatalf("%q was dispatched to box-a: %+v", body, q)
+		}
+	}
+	// a bare mention of a live agent, of an offline/unknown agent, and a
+	// non-agent @word all POST as ordinary messages
+	posts("00000000-0000-4000-8000-000000000001", "@CLE-07")
+	posts("00000000-0000-4000-8000-000000000002", "@CLE-07  ") // only trailing space after the id
+	posts("00000000-0000-4000-8000-000000000003", "@ZZZ-404")  // an offline/unknown agent, bare
+	posts("00000000-0000-4000-8000-000000000004", "@test")     // not an agent id at all
+
+	// CONTROL: instructions after the agent DO command it (queued for box-a).
+	ack := sendFrame(t, m, "00000000-0000-4000-8000-000000000005", "task", "@CLE-07 run tests", "")
+	if ack["type"] != "ack" || ack["to_box"] != "box-a" {
+		t.Fatalf("@CLE-07 <instructions> must dispatch to box-a, got %v", ack)
+	}
+}
+
 // 014 T014 controls: each refusal answers its token and stores nothing.
 func TestWUIDispatchRefusals(t *testing.T) {
 	_, key, _ := ed25519.GenerateKey(nil)

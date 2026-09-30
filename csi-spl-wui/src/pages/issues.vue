@@ -2374,11 +2374,14 @@ onUnmounted(() => {
    right after the toggle with the normal header gap. */
 .issues-head__views { margin-inline-start: 49px; }
 .issues-head__clear { flex: 0 0 auto; }
-/* owner b82f3853: the epic/feature actions button (three-line menu glyph). It
+/* owner b82f3853: the epic/feature actions button (three-line menu glyph).
+   "not next to it, but just 5 mm right from the screen edge" - it sits at the
+   inline END of the title row, ~5 mm (19px @96dpi) from the content's right
+   edge; margin-inline-* are logical, so RTL mirrors it to the left edge. It
    stays enabled-looking but dims and blocks its click when nothing is selected,
    so the tooltip explaining why still shows on hover (a real [disabled] button
    suppresses the title). */
-.issues-head__menu { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
+.issues-head__menu { flex: 0 0 auto; margin-inline-start: auto; margin-inline-end: 19px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
 .issues-head__menu[data-disabled='true'] { opacity: .45; cursor: default; }
 /* SPL-978: Material-style round + (accent fill, elevation, hover lift, press ripple) */
 .issues-fab {

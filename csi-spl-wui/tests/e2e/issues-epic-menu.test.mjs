@@ -75,23 +75,45 @@ try {
   const on = await p.$eval('[data-test=issues-epic-menu]', (el) => el.getAttribute('data-disabled'))
   ok('3 the actions button is enabled on the epic-filtered view', on === null || on === undefined, { disabled: on })
 
+  // owner b82f3853: the button sits ~5 mm (19px) from the RIGHT edge of the
+  // title-row content, not next to List / By status / Clear filters. Measure
+  // the gap from the button's right edge to the header content's right edge.
+  const pos = await p.$eval('[data-test=issues-epic-menu]', (el) => {
+    const head = el.closest('.issues-head')
+    const cs = getComputedStyle(head)
+    const headRight = head.getBoundingClientRect().right - parseFloat(cs.paddingRight || '0')
+    const b = el.getBoundingClientRect()
+    const clear = document.querySelector('[data-test=issues-filter-clear]')?.getBoundingClientRect()
+    return { gapFromRight: Math.round(headRight - b.right), gapFromClear: clear ? Math.round(b.left - clear.right) : null }
+  })
+  ok('4 the button sits ~19px (5 mm) from the content right edge, well clear of Clear filters',
+    Math.abs(pos.gapFromRight - 19) <= 6 && (pos.gapFromClear === null || pos.gapFromClear > 40), pos)
+  const shot = process.env.SHOT_DIR || '/tmp'
+  await p.screenshot({ path: `${shot}/CLE-77800-title-row-1440.png` })
+
   // 3) the button opens the shared menu, targeting the epic: copy / archive /
   //    delete, but no Open (already the view) and no per-issue status / assign
   await p.click('[data-test=issues-epic-menu]')
   await p.waitForSelector('[data-test=issues-ctxmenu]', { visible: true, timeout: 5000 })
+  const menuGeo = await p.$eval('[data-test=issues-ctxmenu]', (el) => {
+    const b = el.getBoundingClientRect(); const cs = getComputedStyle(el)
+    return { vis: cs.visibility, z: cs.zIndex, onscreen: b.left >= 0 && b.top >= 0 && b.right <= innerWidth + 1 && b.bottom <= innerHeight + 1 }
+  })
+  await p.screenshot({ path: `${shot}/CLE-77800-menu-open-1440.png` })
+  ok('5 the menu opens visible, on-screen, above the sheet (z>=1000)', menuGeo.vis === 'visible' && menuGeo.onscreen && Number(menuGeo.z) >= 1000, menuGeo)
   const items = await p.$$eval('[data-test=issues-ctxmenu] [role=menuitem]', (els) => els.map((e) => e.getAttribute('data-test')))
-  ok('4 the button menu offers copy, archive, delete - not open / status / assign',
+  ok('6 the button menu offers copy, archive, delete - not open / status / assign',
     ['issues-ctxmenu-copy', 'issues-ctxmenu-archive', 'issues-ctxmenu-delete'].every((k) => items.includes(k))
     && !items.includes('issues-ctxmenu-open') && !items.includes('issues-ctxmenu-status') && !items.includes('issues-ctxmenu-assign'), items)
 
-  // 4) Copy link closes the menu without a page error (clipboard itself is an
-  //    insecure-origin fallback in headless; the wiring is what we prove)
+  // Copy link closes the menu without a page error (clipboard itself is an
+  // insecure-origin fallback in headless; the wiring is what we prove)
   await p.click('[data-test=issues-ctxmenu-copy]')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-ctxmenu]'), { timeout: 3000 }).catch(() => {})
-  ok('5 Copy link runs and closes the menu', !(await menuUp(p)))
+  ok('7 Copy link runs and closes the menu', !(await menuUp(p)))
 
-  // 5) Archive the epic from the button: the confirm states the child count and
-  //    the cascade removes the child row from the filtered list
+  // Archive the epic from the button: the confirm states the child count and
+  // the cascade removes the child row from the filtered list
   await p.click('[data-test=issues-epic-menu]')
   await p.waitForSelector('[data-test=issues-ctxmenu-archive]', { visible: true, timeout: 5000 })
   await p.click('[data-test=issues-ctxmenu-archive]')
@@ -100,10 +122,19 @@ try {
   await p.click('[data-testid=issues-cascade-confirm]')
   await p.waitForFunction((k) => !document.querySelector(`[data-test=issues-row][data-key="${k}"]`), { timeout: 5000 }, child).catch(() => {})
   const gone = !(await p.$(`[data-test=issues-row][data-key="${child}"]`))
-  ok('6 archiving the epic from the button states its count and cascades to the child', Number(count) >= 1 && gone, { count, gone })
+  ok('8 archiving the epic from the button states its count and cascades to the child', Number(count) >= 1 && gone, { count, gone })
+
+  // a phone keeps the desktop-only title-row controls hidden; the header must
+  // still render without the button and without breaking (owner: measure phone)
+  await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  await p.goto(server.base + '/issues?epic=SPL-1', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.screenshot({ path: `${shot}/CLE-77800-phone-390.png` })
+  const onPhone = await p.$('[data-test=issues-epic-menu]').then(Boolean)
+  ok('9 the desktop-only actions button does not render on a phone', !onPhone)
 
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
-  ok('7 no page errors', mine.length === 0, mine)
+  ok('10 no page errors', mine.length === 0, mine)
 } finally {
   await browser.close()
   await server.stop()

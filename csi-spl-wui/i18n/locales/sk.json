@@ -1342,6 +1342,32 @@
     "message": "Správa",
     "remove": "Odstrániť z pracovného priestoru"
   },
+  "activity": {
+    "title": "Denník aktivity",
+    "open": "Denník aktivity",
+    "none": "Zatiaľ žiadna aktivita.",
+    "loading": "Načítava sa…",
+    "filter_all": "Všetky",
+    "filter_clear": "Vymazať filter",
+    "col": {
+      "at": "Kedy",
+      "event": "Udalosť",
+      "detail": "Podrobnosti",
+      "by": "Kým",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as spustený",
+      "act_as_ended": "Act-as ukončený",
+      "invited": "Pozvaný",
+      "invite_accepted": "Pozvánka prijatá",
+      "role_changed": "Rola zmenená",
+      "removed": "Odstránený",
+      "sign_in": "Prihlásený",
+      "sign_out": "Odhlásený",
+      "session_expiry": "Relácia vypršala"
+    }
+  },
   "agents": {
     "none": "Zatiaľ žiadni agenti.",
     "empty": "Vyberte agenta, aby ste videli jeho kartu.",

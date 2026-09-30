@@ -1342,6 +1342,32 @@
     "message": "Mensaje",
     "remove": "Quitar del espacio de trabajo"
   },
+  "activity": {
+    "title": "Registro de actividad",
+    "open": "Registro de actividad",
+    "none": "Aún no hay actividad.",
+    "loading": "Cargando…",
+    "filter_all": "Todos",
+    "filter_clear": "Borrar filtro",
+    "col": {
+      "at": "Cuándo",
+      "event": "Evento",
+      "detail": "Detalles",
+      "by": "Por",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as iniciado",
+      "act_as_ended": "Act-as finalizado",
+      "invited": "Invitado",
+      "invite_accepted": "Invitación aceptada",
+      "role_changed": "Rol cambiado",
+      "removed": "Eliminado",
+      "sign_in": "Inició sesión",
+      "sign_out": "Cerró sesión",
+      "session_expiry": "Sesión expirada"
+    }
+  },
   "agents": {
     "none": "Aún no hay agentes.",
     "empty": "Selecciona un agente para ver su ficha.",

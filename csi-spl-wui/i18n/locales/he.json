@@ -1342,6 +1342,32 @@
     "message": "הודעה",
     "remove": "הסר ממרחב העבודה"
   },
+  "activity": {
+    "title": "יומן פעילות",
+    "open": "יומן פעילות",
+    "none": "אין עדיין פעילות.",
+    "loading": "טוען…",
+    "filter_all": "הכול",
+    "filter_clear": "נקה סינון",
+    "col": {
+      "at": "מתי",
+      "event": "אירוע",
+      "detail": "פרטים",
+      "by": "על ידי",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as התחיל",
+      "act_as_ended": "Act-as הסתיים",
+      "invited": "הוזמן",
+      "invite_accepted": "ההזמנה התקבלה",
+      "role_changed": "התפקיד שונה",
+      "removed": "הוסר",
+      "sign_in": "התחבר",
+      "sign_out": "התנתק",
+      "session_expiry": "ההפעלה פגה"
+    }
+  },
   "agents": {
     "none": "אין עדיין סוכנים.",
     "empty": "בחרו סוכן כדי לראות את הכרטיס שלו.",

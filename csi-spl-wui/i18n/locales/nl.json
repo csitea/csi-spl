@@ -1342,6 +1342,32 @@
     "message": "Bericht",
     "remove": "Uit werkruimte verwijderen"
   },
+  "activity": {
+    "title": "Activiteitenlogboek",
+    "open": "Activiteitenlogboek",
+    "none": "Nog geen activiteit.",
+    "loading": "Laden…",
+    "filter_all": "Alle",
+    "filter_clear": "Filter wissen",
+    "col": {
+      "at": "Wanneer",
+      "event": "Gebeurtenis",
+      "detail": "Details",
+      "by": "Door",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as gestart",
+      "act_as_ended": "Act-as beëindigd",
+      "invited": "Uitgenodigd",
+      "invite_accepted": "Uitnodiging geaccepteerd",
+      "role_changed": "Rol gewijzigd",
+      "removed": "Verwijderd",
+      "sign_in": "Aangemeld",
+      "sign_out": "Afgemeld",
+      "session_expiry": "Sessie verlopen"
+    }
+  },
   "agents": {
     "none": "Nog geen agents.",
     "empty": "Kies een agent om de kaart te zien.",

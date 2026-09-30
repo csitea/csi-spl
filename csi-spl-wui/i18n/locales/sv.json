@@ -1342,6 +1342,32 @@
     "message": "Meddelande",
     "remove": "Ta bort från arbetsytan"
   },
+  "activity": {
+    "title": "Aktivitetslogg",
+    "open": "Aktivitetslogg",
+    "none": "Ingen aktivitet ännu.",
+    "loading": "Läser in…",
+    "filter_all": "Alla",
+    "filter_clear": "Rensa filter",
+    "col": {
+      "at": "När",
+      "event": "Händelse",
+      "detail": "Detaljer",
+      "by": "Av",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as startad",
+      "act_as_ended": "Act-as avslutad",
+      "invited": "Inbjuden",
+      "invite_accepted": "Inbjudan accepterad",
+      "role_changed": "Roll ändrad",
+      "removed": "Borttagen",
+      "sign_in": "Inloggad",
+      "sign_out": "Utloggad",
+      "session_expiry": "Sessionen upphörde"
+    }
+  },
   "agents": {
     "none": "Inga agenter ännu.",
     "empty": "Välj en agent för att se kortet.",

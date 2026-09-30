@@ -1342,6 +1342,32 @@
     "message": "Mesaj",
     "remove": "Elimină din spațiul de lucru"
   },
+  "activity": {
+    "title": "Jurnal de activitate",
+    "open": "Jurnal de activitate",
+    "none": "Încă nicio activitate.",
+    "loading": "Se încarcă…",
+    "filter_all": "Toate",
+    "filter_clear": "Șterge filtrul",
+    "col": {
+      "at": "Când",
+      "event": "Eveniment",
+      "detail": "Detalii",
+      "by": "De",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as început",
+      "act_as_ended": "Act-as încheiat",
+      "invited": "Invitat",
+      "invite_accepted": "Invitație acceptată",
+      "role_changed": "Rol schimbat",
+      "removed": "Eliminat",
+      "sign_in": "Autentificat",
+      "sign_out": "Deconectat",
+      "session_expiry": "Sesiune expirată"
+    }
+  },
   "agents": {
     "none": "Încă nu există agenți.",
     "empty": "Alege un agent pentru a-i vedea fișa.",

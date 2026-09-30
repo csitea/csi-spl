@@ -1342,6 +1342,32 @@
     "message": "Sõnum",
     "remove": "Eemalda tööruumist"
   },
+  "activity": {
+    "title": "Tegevuslogi",
+    "open": "Tegevuslogi",
+    "none": "Tegevust veel pole.",
+    "loading": "Laadimine…",
+    "filter_all": "Kõik",
+    "filter_clear": "Tühjenda filter",
+    "col": {
+      "at": "Millal",
+      "event": "Sündmus",
+      "detail": "Üksikasjad",
+      "by": "Kelle poolt",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as alustatud",
+      "act_as_ended": "Act-as lõpetatud",
+      "invited": "Kutsutud",
+      "invite_accepted": "Kutse vastu võetud",
+      "role_changed": "Roll muudetud",
+      "removed": "Eemaldatud",
+      "sign_in": "Sisse logitud",
+      "sign_out": "Välja logitud",
+      "session_expiry": "Seanss aegus"
+    }
+  },
   "agents": {
     "none": "Agente veel pole.",
     "empty": "Vali agent, et näha tema kaarti.",

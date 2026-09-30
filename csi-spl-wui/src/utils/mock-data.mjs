@@ -43,6 +43,14 @@ export const MOCK_BOXES = [
   { box_id: 'box-desk', online: true, last_hello_at: T0, agents: ['CLE-11'] },
 ]
 
+/* CLE-77799: the act-as audit trail (GET /v1/audit/clones, specs/054 §7) the
+   People-card Activity log reads. HUM-2 was acted-as twice (one ended, one
+   live); the shape matches the hub's cloneAudit. */
+export const MOCK_CLONES = [
+  { clone_hum: 'HUM-2#c2', target_hum: 'HUM-2', created_by: 'HUM-1', role: 'developer', created_at: '2026-09-20T09:00:00Z', expires_at: '2026-09-20T10:00:00Z', ended_at: '2026-09-20T09:20:00Z', end_reason: 'stop' },
+  { clone_hum: 'HUM-2#c1', target_hum: 'HUM-2', created_by: 'HUM-1', role: 'developer', created_at: '2026-09-18T12:00:00Z', expires_at: '2026-09-18T13:00:00Z', ended_at: null, end_reason: '' },
+]
+
 function msg(partial) {
   return {
     v: 1,

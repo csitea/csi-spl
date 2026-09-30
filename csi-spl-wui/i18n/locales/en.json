@@ -1342,6 +1342,32 @@
     "message": "Message",
     "remove": "Remove from workspace"
   },
+  "activity": {
+    "title": "Activity log",
+    "open": "Activity log",
+    "none": "No activity yet.",
+    "loading": "Loading…",
+    "filter_all": "All",
+    "filter_clear": "Clear filter",
+    "col": {
+      "at": "When",
+      "event": "Event",
+      "detail": "Details",
+      "by": "By",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as started",
+      "act_as_ended": "Act-as ended",
+      "invited": "Invited",
+      "invite_accepted": "Invite accepted",
+      "role_changed": "Role changed",
+      "removed": "Removed",
+      "sign_in": "Signed in",
+      "sign_out": "Signed out",
+      "session_expiry": "Session expired"
+    }
+  },
   "agents": {
     "none": "No agents yet.",
     "empty": "Select an agent to see its card.",

@@ -1342,6 +1342,32 @@
     "message": "Viesti",
     "remove": "Poista työtilasta"
   },
+  "activity": {
+    "title": "Toimintaloki",
+    "open": "Toimintaloki",
+    "none": "Ei vielä toimintaa.",
+    "loading": "Ladataan…",
+    "filter_all": "Kaikki",
+    "filter_clear": "Tyhjennä suodatin",
+    "col": {
+      "at": "Milloin",
+      "event": "Tapahtuma",
+      "detail": "Tiedot",
+      "by": "Tekijä",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as aloitettu",
+      "act_as_ended": "Act-as päättyi",
+      "invited": "Kutsuttu",
+      "invite_accepted": "Kutsu hyväksytty",
+      "role_changed": "Rooli muutettu",
+      "removed": "Poistettu",
+      "sign_in": "Kirjautui sisään",
+      "sign_out": "Kirjautui ulos",
+      "session_expiry": "Istunto vanheni"
+    }
+  },
   "agents": {
     "none": "Ei vielä agentteja.",
     "empty": "Valitse agentti nähdäksesi kortin.",

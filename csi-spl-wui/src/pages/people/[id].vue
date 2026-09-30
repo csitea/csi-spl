@@ -46,8 +46,16 @@
           <button v-if="canRemove" type="button" class="btn person-card__remove" data-test="person-remove" @click="confirmOpen = true">{{ t('people.remove') }}</button>
         </div>
         <p v-if="removeError" class="person-card__error" role="alert" data-test="person-remove-error">{{ removeError }}</p>
+        <!-- CLE-77799 (owner 1fc29f99): the admin-only Activity log for this
+             person (sign-in / sign-out, invites, role changes, removal, act-as).
+             audit.read; the hub is the authority. -->
+        <div v-if="canSeeActivity" class="person-card__actions">
+          <button type="button" class="btn" data-test="person-activity-open" @click="activityOpen = true">{{ t('activity.open') }}</button>
+        </div>
       </div>
     </div>
+
+    <PersonActivityDialog v-model:open="activityOpen" :human-id="humanId" />
 
     <UiDialog :open="confirmOpen" size="md" :title="t('users.remove_confirm_title')" @update:open="confirmOpen = $event">
       <p data-test="person-remove-text">{{ t('users.remove_confirm', { name: personName }) }}</p>
@@ -61,6 +69,7 @@
 
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
+import PersonActivityDialog from '~/components/PersonActivityDialog.vue'
 import { useRosterStore } from '~/stores/roster'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -97,6 +106,10 @@ const canRemove = computed(() => canRemoveMember(access.me, {
 const confirmOpen = ref(false)
 const removing = ref(false)
 const removeError = ref('')
+
+/* CLE-77799: the admin-only Activity log (audit.read), a dialog off the card. */
+const canSeeActivity = computed(() => access.can('audit.read'))
+const activityOpen = ref(false)
 
 /* the roster is already loaded for the DM list; refresh once so a deep link
    straight to this card (no sidebar visited yet) still has the detail. The

@@ -1342,6 +1342,32 @@
     "message": "Ziņa",
     "remove": "Noņemt no darbvietas"
   },
+  "activity": {
+    "title": "Aktivitāšu žurnāls",
+    "open": "Aktivitāšu žurnāls",
+    "none": "Vēl nav aktivitāšu.",
+    "loading": "Ielādē…",
+    "filter_all": "Visi",
+    "filter_clear": "Notīrīt filtru",
+    "col": {
+      "at": "Kad",
+      "event": "Notikums",
+      "detail": "Detaļas",
+      "by": "Kas",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as sākts",
+      "act_as_ended": "Act-as beidzies",
+      "invited": "Uzaicināts",
+      "invite_accepted": "Ielūgums pieņemts",
+      "role_changed": "Loma mainīta",
+      "removed": "Noņemts",
+      "sign_in": "Pieteicās",
+      "sign_out": "Atteicās",
+      "session_expiry": "Sesija beidzās"
+    }
+  },
   "agents": {
     "none": "Vēl nav aģentu.",
     "empty": "Atlasiet aģentu, lai redzētu tā kartīti.",

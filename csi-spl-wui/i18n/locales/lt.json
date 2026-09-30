@@ -1342,6 +1342,32 @@
     "message": "Žinutė",
     "remove": "Pašalinti iš darbo srities"
   },
+  "activity": {
+    "title": "Veiklos žurnalas",
+    "open": "Veiklos žurnalas",
+    "none": "Veiklos dar nėra.",
+    "loading": "Įkeliama…",
+    "filter_all": "Visi",
+    "filter_clear": "Išvalyti filtrą",
+    "col": {
+      "at": "Kada",
+      "event": "Įvykis",
+      "detail": "Išsami informacija",
+      "by": "Kas",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as pradėtas",
+      "act_as_ended": "Act-as baigtas",
+      "invited": "Pakviestas",
+      "invite_accepted": "Kvietimas priimtas",
+      "role_changed": "Vaidmuo pakeistas",
+      "removed": "Pašalintas",
+      "sign_in": "Prisijungė",
+      "sign_out": "Atsijungė",
+      "session_expiry": "Sesija baigėsi"
+    }
+  },
   "agents": {
     "none": "Agentų dar nėra.",
     "empty": "Pasirinkite agentą, kad pamatytumėte jo kortelę.",

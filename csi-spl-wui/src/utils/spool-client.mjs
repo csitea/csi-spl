@@ -863,6 +863,19 @@ export function createSpoolClient({
       if (mock) return (await dir()).remove(id)
       return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
+    /**
+     * GET /v1/audit/clones (specs/054 §7, CLE-77797): the tenant's act-as
+     * trail, newest first. CLE-77799 reads it for the People-card Activity log
+     * and filters it to one person (target_hum) client-side. audit.read only;
+     * a 403 is left to the caller. The mock answers a small fixed trail.
+     */
+    async auditClones() {
+      if (mock) {
+        const { MOCK_CLONES } = await import('./mock-data.mjs')
+        return MOCK_CLONES.map((c) => ({ ...c }))
+      }
+      return live('/v1/audit/clones')
+    },
     /** DELETE /v1/members/invites?email=: revoke a pending invite. */
     async revokeTenantInvite(email) {
       const e = String(email || '').trim()

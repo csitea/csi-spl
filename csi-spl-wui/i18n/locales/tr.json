@@ -1342,6 +1342,32 @@
     "message": "Mesaj",
     "remove": "Çalışma alanından kaldır"
   },
+  "activity": {
+    "title": "Etkinlik günlüğü",
+    "open": "Etkinlik günlüğü",
+    "none": "Henüz etkinlik yok.",
+    "loading": "Yükleniyor…",
+    "filter_all": "Tümü",
+    "filter_clear": "Filtreyi temizle",
+    "col": {
+      "at": "Ne zaman",
+      "event": "Olay",
+      "detail": "Ayrıntılar",
+      "by": "Yapan",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as başladı",
+      "act_as_ended": "Act-as bitti",
+      "invited": "Davet edildi",
+      "invite_accepted": "Davet kabul edildi",
+      "role_changed": "Rol değişti",
+      "removed": "Kaldırıldı",
+      "sign_in": "Giriş yaptı",
+      "sign_out": "Çıkış yaptı",
+      "session_expiry": "Oturum sona erdi"
+    }
+  },
   "agents": {
     "none": "Henüz ajan yok.",
     "empty": "Kartını görmek için bir ajan seçin.",

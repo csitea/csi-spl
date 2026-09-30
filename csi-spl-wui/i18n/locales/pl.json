@@ -1342,6 +1342,32 @@
     "message": "Wiadomość",
     "remove": "Usuń z przestrzeni roboczej"
   },
+  "activity": {
+    "title": "Dziennik aktywności",
+    "open": "Dziennik aktywności",
+    "none": "Brak aktywności.",
+    "loading": "Ładowanie…",
+    "filter_all": "Wszystkie",
+    "filter_clear": "Wyczyść filtr",
+    "col": {
+      "at": "Kiedy",
+      "event": "Zdarzenie",
+      "detail": "Szczegóły",
+      "by": "Przez",
+      "ip": "IP"
+    },
+    "kinds": {
+      "act_as_started": "Act-as rozpoczęty",
+      "act_as_ended": "Act-as zakończony",
+      "invited": "Zaproszony",
+      "invite_accepted": "Zaproszenie przyjęte",
+      "role_changed": "Rola zmieniona",
+      "removed": "Usunięty",
+      "sign_in": "Zalogowano",
+      "sign_out": "Wylogowano",
+      "session_expiry": "Sesja wygasła"
+    }
+  },
   "agents": {
     "none": "Brak agentów.",
     "empty": "Wybierz agenta, aby zobaczyć jego kartę.",

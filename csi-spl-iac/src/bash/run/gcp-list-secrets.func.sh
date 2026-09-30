@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # @description List the Secret Manager secrets of each environment: names and
 # @description metadata only, never a value (no `versions access` is run).

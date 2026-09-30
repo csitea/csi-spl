@@ -1,0 +1,61 @@
+# Bash static analysis (shellcheck). Same runner rule as 15_sec-deps-secrets.yml:
+# self-hosted (spool-ci). The tool is installed in the job and verified against a
+# pinned sha256; a missing tool fails the action -- nothing here skips. The gate
+# is error-level over the iac + orc + cnf bash trees.
+#
+# Path-scoped push: on master it runs only when a shell script, the action or
+# this file changes (the fleet pushes ~10x/hour and a ref-scoped concurrency
+# group cancels every pending run but the newest). Weekly schedule + dispatch.
+name: "67 sec: shellcheck (bash)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "23 4 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "**/*.sh"
+      - "csi-spl-iac/src/bash/run/sec-shellcheck.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-shellcheck.tst.sh"
+      - ".github/workflows/67_shellcheck.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-shellcheck-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  shellcheck:
+    name: "sec: shellcheck iac + orc + cnf bash"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Pinned tarball + sha256. A download that does not match the pin fails
+      # closed rather than running an unknown tool.
+      - name: Install shellcheck 0.10.0
+        run: |
+          set -euo pipefail
+          v=0.10.0; dir="$RUNNER_TOOL_CACHE/shellcheck/$v"
+          sha=6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87
+          if [[ ! -x "$dir/shellcheck" ]]; then
+            mkdir -p "$dir"
+            tgz="$RUNNER_TEMP/shellcheck.tar.xz"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
+              -o "$tgz" \
+              "https://github.com/koalaman/shellcheck/releases/download/v$v/shellcheck-v$v.linux.x86_64.tar.xz"
+            echo "$sha  $tgz" | sha256sum -c -
+            tar -xJf "$tgz" -C "$RUNNER_TEMP" "shellcheck-v$v/shellcheck"
+            mv "$RUNNER_TEMP/shellcheck-v$v/shellcheck" "$dir/shellcheck"
+            chmod +x "$dir/shellcheck"
+          fi
+          "$dir/shellcheck" --version | head -3
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: shellcheck (control + scan)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_shellcheck

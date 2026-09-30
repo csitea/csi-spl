@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # usage: do_resolve_oap ORG, do_resolve_oap APP, do_resolve_oap PROJ
 # Resolves ORG, APP, PROJ from the environment or the directory structure.
 # If already set (e.g. from GitHub Actions vars via Terraform step 120), use as-is

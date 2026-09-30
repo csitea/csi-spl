@@ -166,7 +166,7 @@ func (h *Handler) tenantURL(id string) string {
 	if err != nil || u.Host == "" {
 		return ""
 	}
-	s, err := invitemail.SignInURL(u.Scheme+"://"+u.Host, "", "", id)
+	s, err := invitemail.SignInURL(u.Scheme+"://"+u.Host, "", "", id, false)
 	if err != nil {
 		return ""
 	}

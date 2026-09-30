@@ -74,8 +74,12 @@ type Result struct {
 }
 
 // SignInURL is <app>[/<locale>]/login?tenant=<tenant>: the WUI serves the
-// default locale unprefixed (prefix_except_default).
-func SignInURL(appURL, locale, defaultLocale, tenant string) (string, error) {
+// default locale unprefixed (prefix_except_default). When toLobby is set it
+// appends &redirect=[/<locale>]/lobby so the invitee lands in #lobby after
+// sign-in (CLE-77780): the login page honours ?redirect=<path> (safeRedirect),
+// in the invitee's locale. The paid-tenant flow (payments) passes false: its
+// buyer keeps the bare sign-in URL.
+func SignInURL(appURL, locale, defaultLocale, tenant string, toLobby bool) (string, error) {
 	u, err := url.Parse(strings.TrimRight(strings.TrimSpace(appURL), "/"))
 	if err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return "", fmt.Errorf("app URL must be a bare origin, got %q", appURL)
@@ -84,11 +88,16 @@ func SignInURL(appURL, locale, defaultLocale, tenant string) (string, error) {
 	if u.Scheme != "https" && !(u.Scheme == "http" && (host == "localhost" || host == "127.0.0.1" || strings.HasSuffix(host, ".localhost"))) {
 		return "", fmt.Errorf("app URL must be https (http only for loopback), got %q", appURL)
 	}
-	path := "/login"
+	path, lobby := "/login", "/lobby"
 	if locale != "" && locale != defaultLocale {
 		path = "/" + locale + "/login"
+		lobby = "/" + locale + "/lobby"
 	}
-	return u.Scheme + "://" + u.Host + path + "?tenant=" + url.QueryEscape(tenant), nil
+	out := u.Scheme + "://" + u.Host + path + "?tenant=" + url.QueryEscape(tenant)
+	if toLobby {
+		out += "&redirect=" + url.QueryEscape(lobby)
+	}
+	return out, nil
 }
 
 func messageID(appURL string) string {
@@ -124,7 +133,7 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	if loc == "" {
 		loc = mail.FallbackLocale
 	}
-	signIn, err := SignInURL(d.AppURL, loc, d.DefaultLocale, tenant)
+	signIn, err := SignInURL(d.AppURL, loc, d.DefaultLocale, tenant, true)
 	if err != nil {
 		return res, err
 	}

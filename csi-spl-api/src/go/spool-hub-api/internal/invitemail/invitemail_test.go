@@ -60,7 +60,7 @@ func TestSendOpenInviteOnceThenRateLimited(t *testing.T) {
 	m := msgs[0]
 	// the hub default locale (bg), unprefixed sign-in URL, lower-cased address
 	if m.To != "invitee@example.com" || m.Locale != "bg" || m.Template != mail.TemplateTenantInvite ||
-		res.SignInURL != "https://example.com/login?tenant=t1" || !strings.Contains(m.TextBody, res.SignInURL) ||
+		res.SignInURL != "https://example.com/login?tenant=t1&redirect=%2Flobby" || !strings.Contains(m.TextBody, res.SignInURL) ||
 		!strings.Contains(m.TextBody, "2026-09-26 16:00 UTC") || !strings.HasSuffix(m.MessageID, ".tenant_invite@example.com>") {
 		t.Fatalf("message: %+v / %+v", m, res)
 	}
@@ -123,24 +123,24 @@ func TestSendLocaleAndLogSink(t *testing.T) {
 	r.d.Locale, r.d.Delivers = "en", false
 	res, err := Send(context.Background(), r.d, "t1", who)
 	// 047 W13: a sink that reaches no inbox answers "logged", never "sent"
-	if err != nil || res.Delivered || res.Outcome != Logged || res.Locale != "en" || res.SignInURL != "https://example.com/en/login?tenant=t1" {
+	if err != nil || res.Delivered || res.Outcome != Logged || res.Locale != "en" || res.SignInURL != "https://example.com/en/login?tenant=t1&redirect=%2Fen%2Flobby" {
 		t.Fatalf("en / log sink: %+v %v", res, err)
 	}
 }
 
 func TestSignInURL(t *testing.T) {
 	for _, c := range []struct{ app, loc, want string }{
-		{"https://spool-hub.example/", "bg", "https://spool-hub.example/login?tenant=t1"},
-		{"https://dev.spool-hub.example", "fi", "https://dev.spool-hub.example/fi/login?tenant=t1"},
-		{"http://localhost:3000", "bg", "http://localhost:3000/login?tenant=t1"},
+		{"https://spool-hub.example/", "bg", "https://spool-hub.example/login?tenant=t1&redirect=%2Flobby"},
+		{"https://dev.spool-hub.example", "fi", "https://dev.spool-hub.example/fi/login?tenant=t1&redirect=%2Ffi%2Flobby"},
+		{"http://localhost:3000", "bg", "http://localhost:3000/login?tenant=t1&redirect=%2Flobby"},
 	} {
-		if got, err := SignInURL(c.app, c.loc, "bg", "t1"); err != nil || got != c.want {
+		if got, err := SignInURL(c.app, c.loc, "bg", "t1", true); err != nil || got != c.want {
 			t.Errorf("%s: %q %v", c.app, got, err)
 		}
 	}
 	// CONTROL: plain http to a real host, a path or a query are refused.
 	for _, bad := range []string{"http://spool-hub.example", "https://x.example/app", "https://x.example?a=1", "", "spool-hub.example"} {
-		if _, err := SignInURL(bad, "bg", "bg", "t1"); err == nil {
+		if _, err := SignInURL(bad, "bg", "bg", "t1", true); err == nil {
 			t.Errorf("accepted %q", bad)
 		}
 	}

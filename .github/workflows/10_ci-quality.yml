@@ -78,6 +78,13 @@ jobs:
         working-directory: csi-spl-api/src/go/spool-hub-api
         run: go mod download
 
+      # Supply-chain integrity: every downloaded module's content must match
+      # go.sum. A tampered module in the cache/proxy makes `go mod verify` exit
+      # non-zero, failing the gate before any build/test runs the code.
+      - name: Verify module checksums (go mod verify)
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod verify
+
       # The GCS gate SKIPS (exit 0) without a cached emulator image, and the
       # Postgres gate SKIPS without server binaries or a cached image. The
       # runner has PostgreSQL server binaries; the emulator image is pulled

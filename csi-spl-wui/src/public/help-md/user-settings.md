@@ -1,106 +1,211 @@
 # User Settings & Key Management
 
-Spool provides a centralized, GitHub-style settings panel (governed by Specification `023-spool-user-settings-keys`) for customizing your personal profile, display appearance, workspace language, cryptographic keys, and security preferences.
+Spool keeps your personal preferences in a GitHub-style settings screen: a left
+list of sections, the selected section on the right. Each section is its own
+route, so `/settings/appearance` and `/settings/keys` deep-link. Opening
+`/settings` on its own lands you on **Profile**.
+
+> [!NOTE]
+> **Settings are per workspace (tenant).** What you choose here — your display
+> name, language, Issues sort and the rest — applies to the workspace you are
+> signed in to. If you belong to more than one workspace, a line at the top of
+> the screen names the one these settings apply to; switch workspace to change
+> another one.
 
 ---
 
-## 1. Accessing Settings
+## 1. Opening Settings
 
-To open settings:
-1. Click your **User Avatar** in the top-right corner of the application frame.
-2. Select **Settings** from the dropdown menu (or navigate directly to `/settings`).
+1. Click your **avatar** in the top-right corner of the app (a member shows
+   their picture or a generated identicon).
+2. Choose **Settings** from the menu, or navigate directly to `/settings`.
 
-On desktop, settings are displayed with a left navigation sidebar; on mobile screens (`< 720px`), the navigation folds into a clean, horizontal pill strip above the content.
-
----
-
-## 2. Profile Settings (`/settings/profile`)
-
-The **Profile** section displays your registered identity in the workspace:
-
-- **Display Name**: Your full name as provided by your identity provider or registration form.
-- **Member ID**: Your tenant-unique human identifier (e.g. `HUM-01`). AI agents and system logs reference this identifier when addressing messages to you.
-- **Email Address**: Your registered email address.
-- **Workspace Role**: Indicates your assigned RBAC role (e.g. `Product Owner`, `Developer`, `Admin`).
-- **Profile Picture**: Your custom avatar from your identity provider or your deterministic identicon.
+On a phone (screens `≤ 820px`) `/settings` is the list of sections and a
+section opens full width on its own; the top-bar chevron, a right swipe or the
+browser Back returns you to the list. On a phone the avatar menu itself also
+carries the language, theme and notification controls, so you can reach them
+without leaving the current screen.
 
 ---
 
-## 3. Appearance & Font Scaling (`/settings/appearance`)
+## 2. Profile (`/settings/profile`)
 
-Comfort during long coding sessions is essential. Spool provides fine-grained visual customization:
+The **Profile** section shows who you are in the workspace:
 
-### 3.1 Theme Selection
-- **Dark Mode**: High-contrast, dark background palette reducing eye fatigue.
-- **Light Mode**: Clean, bright presentation optimized for daylight environments.
-- **System Sync**: Automatically matches your operating system's light/dark schedule.
+- **Display Name**: the name shown on your messages and in the member list.
+- **Email**: your registered email address.
+- **Member ID**: your workspace-unique human identifier (e.g. `HUM-01`). Agents
+  and system logs address you by this id.
+- **Workspace**: the id of the workspace these settings apply to.
+- **Picture**: your identity-provider picture, or a deterministic identicon when
+  you have none. It is not edited here.
 
-### 3.2 Font Size Controls (5 Levels)
-Spool includes a 5-step font scaling slider with instant live preview:
+You can change one field — your **Display name**. Type a new name (1–200
+characters, a single line) and **Save**; the lists and message cards pick it up
+without a reload.
 
-| Level | Scale | Best Suited For |
-|---|---|---|
-| **Compact** | `14px` | High-density information display; multiple windows on smaller monitors. |
-| **Standard** | `15px` | Standard UI scaling. |
-| **Comfortable (Default)** | `16px` | **Recommended**. Enhanced readability for long-form discussions and code diffs. |
-| **Large** | `17px` | High-DPI screens or users who prefer larger text without zooming the browser. |
-| **Extra Large** | `18px` | Maximum legibility from a distance. |
-
-> [!TIP]
-> Font scaling adjustments take effect immediately across all three panes and persist in your browser's `localStorage`.
+> Your workspace **role** (e.g. Product Owner, Developer, Admin) is shown under
+> your name in the avatar menu, not on this page.
 
 ---
 
-## 4. Language Selection (`/settings/language`)
+## 3. Language (`/settings/language`)
 
-Spool is fully localized across **19 global languages**:
+Spool ships its interface in **19 languages**. Pick yours from the searchable
+list and press **Save**:
 
 | Language | Code | Language | Code |
 |---|---|---|---|
-| English | `en` | Turkish | `tr` |
-| German (*Deutsch*) | `de` | Arabic (*العربية*) | `ar` |
-| French (*Français*) | `fr` | Persian (*فارسی*) | `fa` |
-| Spanish (*Español*) | `es` | Hebrew (*עברית*) | `he` |
-| Italian (*Italiano*) | `it` | Hindi (*हिन्दी*) | `hi` |
-| Dutch (*Nederlands*) | `nl` | Chinese Simplified (*简体中文*) | `zh-CN` |
-| Polish (*Polski*) | `pl` | Japanese (*日本語*) | `ja` |
-| Russian (*Русский*) | `ru` | Korean (*한국어*) | `ko` |
-| Ukrainian (*Українська*) | `uk` | Vietnamese (*Tiếng Việt*) | `vi` |
-| Indonesian (*Bahasa Indonesia*) | `id` | — | — |
+| English | `en` | Latvian (*Latviešu*) | `lv` |
+| Bulgarian (*Български*) | `bg` | Lithuanian (*Lietuvių*) | `lt` |
+| Estonian (*Eesti*) | `et` | Macedonian (*Македонски*) | `mk` |
+| Finnish (*Suomi*) | `fi` | Polish (*Polski*) | `pl` |
+| Greek (*Ελληνικά*) | `el` | Romanian (*Română*) | `ro` |
+| Hebrew (*עברית*) | `he` | Russian (*Русский*) | `ru` |
+| Dutch (*Nederlands*) | `nl` | Serbian (*Srpski*) | `sr` |
+| Slovak (*Slovenčina*) | `sk` | Spanish (*Español*) | `es` |
+| Swedish (*Svenska*) | `sv` | Turkish (*Türkçe*) | `tr` |
+| Ukrainian (*Українська*) | `uk` | — | — |
 
-Selecting a language persists your choice to browser cookies and syncs with your user profile in the hub database (`humans.preferred_locale`), ensuring that wherever you sign in, Spool greets you in your preferred language.
+Saving does two things: it stores your choice on the hub (so the hub mails you
+in that language and greets you in it the next time you sign in) and it switches
+the interface on the spot — the page re-rendering in the chosen language is your
+confirmation. Hebrew renders right-to-left.
 
 ---
 
-## 5. Cryptographic Keys (`/settings/keys`)
+## 4. Appearance (`/settings/appearance`)
 
-For software engineers, DevOps specialists, and automated script runners, Spool supports **client-side cryptographic key management** using Ed25519 signatures.
+### 4.1 Theme
+A palette-icon picker opens a list of the **seven themes**; each option shows its
+own background and accent swatch:
 
-### 5.1 Why Generate a Key?
-While the web browser signs messages automatically through a virtual server key (`box-wui`), command-line tools (`spool-send`, `spool-tail`) and automated scripts require an Ed25519 keypair to interact directly with the hub.
+- **Dark** (default)
+- **Light**
+- **Light Violet**, **Light Green**, **Light Yellow**, **Light Orange**,
+  **Light Red** — light themes with different accent hues.
 
-### 5.2 Generating Keypairs in Browser
-1. Navigate to **Settings > Keys**.
-2. Click **Generate New Keypair**.
-3. Spool uses the browser's native Web Cryptography API to generate an Ed25519 keypair locally on your machine.
-4. **Download Private Key**: Click **Download Private Key (`.key`)**. 
+Your choice is kept in this browser and, when you are signed in, on your account.
+
+### 4.2 Font size
+A five-step size control — five **A** samples as radio buttons, flanked by **−**
+and **+** — scales every text size in the app (arrow keys move between the
+levels). The **Comfortable** middle level is the default. The size is remembered
+per browser.
+
+### 4.3 List density
+Choose how much of each message the lists show: just **titles**, a few **rows**,
+or the **full** text. This is the default for new lists; a single list can still
+be expanded or collapsed on its own.
+
+### 4.4 Debug pane
+A checkbox that shows or hides the diagnostics panel at the bottom of the app.
+The switch is kept on the hub for your account, so it follows you between
+browsers.
+
+---
+
+## 5. Behaviour (`/settings/behaviour`)
+
+### 5.1 Text fields (Enter behaviour)
+Choose what **Enter** does in every multi-line field:
+
+- **Enter sends** the message.
+- **Enter adds a line** and **Ctrl/Cmd + Enter** sends.
+
+### 5.2 Left panel order
+The left-rail icons in your own order. Reorder them by dragging a row's grip
+(mouse or touch) or with the up / down buttons; **Reset** returns to the
+default. This is the same order as dragging the icons in the rail itself, so a
+change in either place shows up in the other at once.
+
+### 5.3 Message order
+**Newest first** (top) or **newest last** (bottom) in every message feed and
+thread.
+
+### 5.4 Omnibox position
+The omnibox in the **top** bar, or docked at the **bottom** (on tablets and
+computers).
+
+### 5.5 Close buttons
+Where a pane's close button sits: **Mac style** (top left, the default) or
+**Windows style** (top right).
+
+### 5.6 Issues: default sort
+The column and direction the **Issues** list opens in — column
+(**priority**, **level**, **deadline**, **updated** or **created**) and
+direction (**ascending** or **descending**). With nothing chosen the default is
+**priority ascending** (priority 1 at the top). Clicking a column header still
+re-sorts the current view; this only sets what Issues opens with. This one is
+kept per workspace.
+
+---
+
+## 6. Notifications (`/settings/notifications`)
+
+The same controls as the bell at the foot of the left pane, so the two always
+agree:
+
+- **Enable browser alerts**: turns on desktop notifications. Browser alerts are
+  a permission of *this* browser, so the browser asks you to allow them.
+- **Chime**: a checkbox for the sound that plays with a notification.
+- **Sound**: pick the chime — **plain**, **pop**, **chirp** (default),
+  **marimba** or **boing** — each with a **Preview** button that plays it.
+  The chime and its sound are kept per browser.
+
+---
+
+## 7. Sign-in & security (`/settings/security`)
+
+- **Signed in with**: the method your session used (email & password, or an
+  identity provider).
+- **Change password**: for accounts that sign in with email and password, enter
+  your current password and a new one (stored hashed with argon2id). Accounts
+  that sign in through an identity provider manage their password there.
+- **Sign out** of this browser.
+
+---
+
+## 8. Keys (`/settings/keys`)
+
+The web app signs your messages for you with a server key, but command-line
+tools (`spool-send`, `spool-tail`) and automated scripts need their own
+**Ed25519** keypair.
+
+1. Go to **Settings → Keys** and click **Generate New Keypair**. The browser's
+   native Web Crypto API generates the keypair locally on your machine.
+2. **Download the private key** (`.key`).
    > [!CAUTION]
-   > The private key is never transmitted to or stored on the Spool server. Save it securely on your local machine (e.g. `~/.spool/keys/user.key` with permissions `0600`).
-5. **Upload Public Key**: Click **Upload Public Key (`.pub`)** to register your public key on the hub.
-6. The key's SHA-256 fingerprint will appear in your registered keys list. You can revoke it at any time if compromised.
+   > The private key never reaches the Spool server. Save it securely on your
+   > own machine (e.g. `~/.spool/keys/user.key`, permissions `0600`).
+3. **Upload the public key** (`.pub`) to register it on the hub. Its SHA-256
+   fingerprint appears in your key list, and you can revoke it at any time.
 
 ---
 
-## 6. Security Settings (`/settings/security`)
+## 9. Workspace settings (for admins)
 
-For accounts using native email and password authentication:
-- **Change Password**: Enter your current password and supply a new password (hashed with argon2id).
-- **Active Sessions**: Inspect currently authenticated browser sessions and terminate unneeded connections.
+Workspace administrators and business owners have a second, workspace-wide
+settings area at `/tenant-settings`, reached from the **Tenant settings** entry
+in the avatar menu (or, on desktop, the icon at the bottom-left of the sidebar).
+It has the same look as your personal Settings and only appears if you hold the
+permission. Its sections are:
+
+- **Members**: the users of the workspace — invite, edit and manage them (the
+  same list as the Users screen).
+- **Agents**: the AI agents seated in the workspace and their online state, the
+  fallback-responder order, and a *Connect an agent* block to paste on an
+  agent's machine.
+- **Channels**: every channel of the workspace (including private ones), with
+  visibility, member and agent counts, the no-fallback flag, and Archive.
+- **General**: the workspace display name, its default language (used for invite
+  mail), and the issue-key prefix.
 
 ---
 
 ## Next Steps
 
-To learn how human developers orchestrate and command AI coding agents, continue to [Collaborating with AI Agents](./agent-collaboration.md).
+To learn how human developers orchestrate and command AI coding agents, continue
+to [Collaborating with AI Agents](./agent-collaboration.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-09-30 -->

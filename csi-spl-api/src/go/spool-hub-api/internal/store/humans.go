@@ -60,6 +60,10 @@ var (
 
 var roleRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 
+// humanIDRe is the HUM-* id shape (rdb 0006), reused to validate an invite's
+// ordered_by (rdb 0084).
+var humanIDRe = regexp.MustCompile(`^HUM-[0-9]+$`)
+
 // normalizeRole maps a legacy 010 name and checks the id shape; "" = def.
 func normalizeRole(role, def string) (string, error) {
 	role = rbac.Legacy(strings.TrimSpace(role))
@@ -104,6 +108,14 @@ type Invite struct {
 	Role      string
 	InvitedBy string // owner HUM-* or AdmittedOperator
 	ExpiresAt time.Time
+	// OrderedBy is the human who ordered the invite (a HUM-* id), or "" when
+	// unknown (the historic operator rows, rdb 0084). For a WUI/API admin
+	// invite it equals InvitedBy; for an operator CLI invite it is the person
+	// who asked for it.
+	OrderedBy string
+	// OrderedVia is the agent or channel that carried the order, e.g.
+	// "CLE-34967" or "[terminal]"; "" when there was none.
+	OrderedVia string
 }
 
 // Humans is the store side of registration and membership. Memory and
@@ -296,6 +308,14 @@ func normalizeInvite(in *Invite) error {
 	}
 	if in.InvitedBy == "" || in.ExpiresAt.IsZero() {
 		return errors.New("invite needs invited_by and expires_at")
+	}
+	in.OrderedBy = strings.TrimSpace(in.OrderedBy)
+	in.OrderedVia = strings.TrimSpace(in.OrderedVia)
+	if in.OrderedBy != "" && !humanIDRe.MatchString(in.OrderedBy) {
+		return errors.New("invite ordered_by must be a HUM-* id")
+	}
+	if len(in.OrderedVia) > 64 {
+		return errors.New("invite ordered_via is at most 64 chars")
 	}
 	return nil
 }

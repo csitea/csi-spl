@@ -35,6 +35,13 @@ type memberRow struct {
 	// Manageable: the caller's role covers this member's (025 §3.4 rule 2)
 	// and it is not the caller. The hub re-checks on every write.
 	Manageable bool `json:"manageable"`
+	// Provenance of the invite this member accepted (CLE-77778, rdb 0084):
+	// who ordered it, that human's display name, via which agent, and when.
+	// All "" / null when the member did not come through an invite.
+	OrderedBy     string  `json:"ordered_by"`
+	OrderedByName string  `json:"ordered_by_name"`
+	OrderedVia    string  `json:"ordered_via"`
+	InvitedOn     *string `json:"invited_on"`
 }
 
 type inviteRow struct {
@@ -45,6 +52,11 @@ type inviteRow struct {
 	ExpiresAt string `json:"expires_at"`
 	Expired   bool   `json:"expired"`
 	MailCount int    `json:"mail_count"`
+	// Provenance (CLE-77778, rdb 0084): who ordered this invite, that human's
+	// display name, and via which agent. "" when unknown (historic operator).
+	OrderedBy     string `json:"ordered_by"`
+	OrderedByName string `json:"ordered_by_name"`
+	OrderedVia    string `json:"ordered_via"`
 }
 
 type roleRow struct {
@@ -94,16 +106,22 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 	for _, m := range ms {
 		row := memberRow{HumanID: m.HumanID, DisplayName: m.DisplayName, Email: m.Email,
 			Role: m.Role, Since: rfc(m.Since), Disabled: m.Disabled, Suspended: m.Suspended, You: m.HumanID == a.HumanID,
-			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role])}
+			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role]),
+			OrderedBy:  m.OrderedBy, OrderedByName: m.OrderedByName, OrderedVia: m.OrderedVia}
 		if !m.LastSeen.IsZero() {
 			at := rfc(m.LastSeen)
 			row.LastSeen = &at
+		}
+		if !m.InvitedOn.IsZero() {
+			at := rfc(m.InvitedOn)
+			row.InvitedOn = &at
 		}
 		out.Members = append(out.Members, row)
 	}
 	for _, in := range ins {
 		out.Invites = append(out.Invites, inviteRow{Email: in.Email, Role: in.Role, InvitedBy: in.InvitedBy,
-			CreatedAt: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt), Expired: !now.Before(in.ExpiresAt), MailCount: in.MailCount})
+			CreatedAt: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt), Expired: !now.Before(in.ExpiresAt), MailCount: in.MailCount,
+			OrderedBy: in.OrderedBy, OrderedByName: in.OrderedByName, OrderedVia: in.OrderedVia})
 	}
 	// System roles in the spec's order, then any tenant role by id.
 	seen := map[string]bool{}

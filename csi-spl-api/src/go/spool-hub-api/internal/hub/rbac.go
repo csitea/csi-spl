@@ -251,7 +251,10 @@ func (s *Server) handleMemberInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.o.Now().UTC()
-	in := store.Invite{TenantID: t.ID, Email: body.Email, Role: role, InvitedBy: a.HumanID, ExpiresAt: now.Add(ttl)}
+	// CLE-77778: the WUI/API admin invite records the signed-in admin as the
+	// orderer too (ordered_via stays empty — there is no agent in this path).
+	in := store.Invite{TenantID: t.ID, Email: body.Email, Role: role, InvitedBy: a.HumanID,
+		ExpiresAt: now.Add(ttl), OrderedBy: a.HumanID}
 	switch err := h.PutInvite(r.Context(), in, now); {
 	case errors.Is(err, store.ErrUnknownRole):
 		writeErr(w, http.StatusBadRequest, "bad_role", "not a role of this tenant")

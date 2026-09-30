@@ -243,14 +243,17 @@ func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) erro
 	if err := normalizeInvite(&in); err != nil {
 		return err
 	}
-	tag, err := s.execTenant(ctx, in.TenantID, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
-		SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
+	tag, err := s.execTenant(ctx, in.TenantID, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at, ordered_by, ordered_via)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
 		ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by,
 			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL,
-			mail_count = 0`,
-		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt)
+			mail_count = 0, ordered_by = EXCLUDED.ordered_by, ordered_via = EXCLUDED.ordered_via`,
+		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt, nullIfEmpty(in.OrderedBy), nullIfEmpty(in.OrderedVia))
 	if isFKViolation(err, "tenant_invites_role_fk") {
 		return ErrUnknownRole
+	}
+	if isFKViolation(err, "tenant_invites_ordered_by_fkey") {
+		return ErrNotFound
 	}
 	if err != nil {
 		return err

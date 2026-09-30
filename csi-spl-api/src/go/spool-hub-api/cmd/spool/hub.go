@@ -476,6 +476,8 @@ func cmdHubInvite(args []string) int {
 	role := fs.String("role", store.RoleTenantOwner, "a role id (specs/025): "+strings.Join(rbac.RoleIDs, "|")+"; legacy owner|member map to biz_owner|developer")
 	ttl := fs.Duration("ttl", 7*24*time.Hour, "how long the invite stays open")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	orderedBy := fs.String("ordered-by", "", "the human who ordered this invite (a HUM-* id, CLE-77778); recorded as provenance")
+	orderedVia := fs.String("ordered-via", "", "the agent or channel that carried the order, e.g. CLE-34967 (optional)")
 	noMail := fs.Bool("no-mail", false, "write the invite only, send no invitation email")
 	mf := inviteMailFlags(fs)
 	if err := fs.Parse(args); err != nil {
@@ -491,10 +493,11 @@ func cmdHubInvite(args []string) int {
 	}
 	defer st.Close()
 	now := time.Now().UTC()
-	in := store.Invite{TenantID: *tenant, Email: *email, Role: *role, InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(*ttl)}
+	in := store.Invite{TenantID: *tenant, Email: *email, Role: *role, InvitedBy: store.AdmittedOperator,
+		ExpiresAt: now.Add(*ttl), OrderedBy: *orderedBy, OrderedVia: *orderedVia}
 	if err := st.PutInvite(ctx, in, now); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return fail(fmt.Errorf("tenant %s does not exist", *tenant))
+			return fail(fmt.Errorf("tenant %s does not exist (or --ordered-by names no human)", *tenant))
 		}
 		if errors.Is(err, store.ErrUnknownRole) {
 			return fail(fmt.Errorf("role %q is not a role of tenant %s", *role, *tenant))
@@ -502,6 +505,12 @@ func cmdHubInvite(args []string) int {
 		return fail(err)
 	}
 	out := map[string]any{"tenant": *tenant, "role": rbac.Legacy(*role), "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}
+	if in.OrderedBy != "" {
+		out["ordered_by"] = in.OrderedBy
+	}
+	if in.OrderedVia != "" {
+		out["ordered_via"] = in.OrderedVia
+	}
 	if *noMail {
 		out["mail"] = map[string]any{"outcome": "skipped_no_mail_flag"}
 		fmt.Println(action.JSON(out))

@@ -29,6 +29,10 @@ type memMember struct {
 	channelOrder     []string                   // channel_order (rdb 0073); nil = never set
 	settings         map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
 	disabled         bool                       // disabled_at (rdb 0074): suspended in this tenant
+	// Provenance copied from the accepted invite (rdb 0084), mirroring the
+	// Postgres read that joins tenant_invites on accepted_by.
+	orderedBy, orderedVia string
+	invitedOn             time.Time
 }
 
 // memIdent is one human_identities row: which human the (provider, subject)
@@ -133,7 +137,8 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		default:
 			if i, ok := h.invites[[2]string{tenant, id.Email}]; ok && id.Email != "" && !i.accepted && now.Before(i.ExpiresAt) {
 				inv = i
-				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now}
+				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
+					orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
 			} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
 				grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
 			} else {

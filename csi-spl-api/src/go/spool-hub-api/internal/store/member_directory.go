@@ -27,6 +27,14 @@ type Member struct {
 	Suspended bool
 	// LastSeen: tenant_memberships.last_active_at; zero = never.
 	LastSeen time.Time
+	// Provenance of the invite this member accepted (rdb 0084), read by
+	// joining tenant_invites on accepted_by = human_id. All zero when the
+	// member did not come through an invite (bootstrap, or an operator seat
+	// with no invite) or the invite predates 0084.
+	OrderedBy     string    // the human who ordered the invite, a HUM-* id
+	OrderedByName string    // that human's display name, "" when none/unknown
+	OrderedVia    string    // the agent/channel that carried the order
+	InvitedOn     time.Time // tenant_invites.created_at of the accepted invite
 }
 
 // PendingInvite is one invite nobody has accepted yet (expired ones too:
@@ -35,6 +43,8 @@ type PendingInvite struct {
 	Invite
 	CreatedAt time.Time
 	MailCount int
+	// OrderedByName is OrderedBy's display name (rdb 0084), "" when none.
+	OrderedByName string
 }
 
 // MemberDirectory is implemented by Memory and Postgres.
@@ -62,9 +72,15 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 		if k[0] != tenant {
 			continue
 		}
-		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive}
+		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
+			OrderedBy: m.orderedBy, OrderedVia: m.orderedVia, InvitedOn: m.invitedOn}
 		if hm, ok := s.hum.humans[k[1]]; ok {
 			row.DisplayName, row.Email, row.Disabled = hm.name, hm.email, hm.disabled
+		}
+		if m.orderedBy != "" {
+			if ho, ok := s.hum.humans[m.orderedBy]; ok {
+				row.OrderedByName = ho.name
+			}
 		}
 		out = append(out, row)
 	}
@@ -84,7 +100,13 @@ func (s *Memory) ListInvites(_ context.Context, tenant string) ([]PendingInvite,
 	out := []PendingInvite{}
 	for k, in := range s.hum.invites {
 		if k[0] == tenant && !in.accepted {
-			out = append(out, PendingInvite{Invite: in.Invite, CreatedAt: in.createdAt, MailCount: in.mailCount})
+			p := PendingInvite{Invite: in.Invite, CreatedAt: in.createdAt, MailCount: in.mailCount}
+			if in.OrderedBy != "" {
+				if ho, ok := s.hum.humans[in.OrderedBy]; ok {
+					p.OrderedByName = ho.name
+				}
+			}
+			out = append(out, p)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -121,16 +143,30 @@ func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, er
 // listMembersRead is ListMembers' statement, shared with ViewRoster's batch.
 func listMembersRead(tenant string, out *[]Member) tenantRead {
 	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), m.role,
-			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at
+			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at,
+			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via, ti.created_at
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
+		LEFT JOIN tenant_invites ti ON ti.tenant_id = m.tenant_id AND ti.accepted_by = m.human_id
+		LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
 		WHERE m.tenant_id = $1 ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var m Member
-		var seen *time.Time
-		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen); err != nil {
+		var seen, invitedOn *time.Time
+		var orderedBy, orderedVia *string
+		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen,
+			&orderedBy, &m.OrderedByName, &orderedVia, &invitedOn); err != nil {
 			return err
 		}
 		if seen != nil {
 			m.LastSeen = seen.UTC()
+		}
+		if orderedBy != nil {
+			m.OrderedBy = *orderedBy
+		}
+		if orderedVia != nil {
+			m.OrderedVia = *orderedVia
+		}
+		if invitedOn != nil {
+			m.InvitedOn = invitedOn.UTC()
 		}
 		*out = append(*out, m)
 		return nil
@@ -139,12 +175,22 @@ func listMembersRead(tenant string, out *[]Member) tenantRead {
 
 func (s *Postgres) ListInvites(ctx context.Context, tenant string) ([]PendingInvite, error) {
 	out := []PendingInvite{}
-	err := s.queryTenant(ctx, tenant, `SELECT tenant_id, email, role, invited_by, expires_at, created_at, mail_count
-		FROM tenant_invites WHERE tenant_id = $1 AND accepted_at IS NULL ORDER BY created_at, email`,
+	err := s.queryTenant(ctx, tenant, `SELECT ti.tenant_id, ti.email, ti.role, ti.invited_by, ti.expires_at, ti.created_at, ti.mail_count,
+			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via
+		FROM tenant_invites ti LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
+		WHERE ti.tenant_id = $1 AND ti.accepted_at IS NULL ORDER BY ti.created_at, ti.email`,
 		[]any{tenant}, func(rows pgx.Rows) error {
 			var p PendingInvite
-			if err := rows.Scan(&p.TenantID, &p.Email, &p.Role, &p.InvitedBy, &p.ExpiresAt, &p.CreatedAt, &p.MailCount); err != nil {
+			var orderedBy, orderedVia *string
+			if err := rows.Scan(&p.TenantID, &p.Email, &p.Role, &p.InvitedBy, &p.ExpiresAt, &p.CreatedAt, &p.MailCount,
+				&orderedBy, &p.OrderedByName, &orderedVia); err != nil {
 				return err
+			}
+			if orderedBy != nil {
+				p.OrderedBy = *orderedBy
+			}
+			if orderedVia != nil {
+				p.OrderedVia = *orderedVia
 			}
 			out = append(out, p)
 			return nil

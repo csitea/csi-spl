@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { reactive, ref, nextTick } from 'vue'
 
-import { bootTenantHost, hostAnswers } from '../../src/utils/tenant-host-boot.mjs'
+import { activeElsewhere, bootTenantHost, hostAnswers } from '../../src/utils/tenant-host-boot.mjs'
 import { classifyHref } from '../../src/utils/link-target.mjs'
 
 const SITE = 'https://app.example'
@@ -108,6 +108,18 @@ describe('tenant-host boot', () => {
     r.hostsDown.clear()
     await r.timers.shift().fn()
     assert.deepEqual(r.replaced, ['https://w1paid1.app.example/'])
+  })
+  it('047 B5: right after a native sign-in the claims name t but no tenants list - t is the home', async () => {
+    const r = rig(SITE + '/', { claims: { t: 'b5paid1' }, down: ['b5paid1.app.example'] })
+    await settle()
+    assert.deepEqual(r.notMember.value, { tenant: 'b5paid1', home: '', pending: 'b5paid1.app.example' })
+  })
+  it('activeElsewhere: t only without a tenants list; CONTROL: the page tenant, a list or a bad id give nothing', () => {
+    assert.equal(activeElsewhere({ t: 'b5paid1' }, 't1'), 'b5paid1')
+    assert.equal(activeElsewhere({ t: 't1' }, 't1'), '')
+    assert.equal(activeElsewhere({ t: 'b5paid1', tenants: [{ tenant_id: 't1' }] }, 't1'), '')
+    assert.equal(activeElsewhere({ t: 'Bad Id!' }, 't1'), '')
+    assert.equal(activeElsewhere(null, 't1'), '')
   })
   it('CONTROL: a hop to the apex tenant is never probed (the apex always answers)', async () => {
     const r = rig('https://globex.app.example/', { claims: { tenants: [{ tenant_id: 't1' }] } })

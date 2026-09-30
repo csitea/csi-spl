@@ -21,7 +21,7 @@
  * reloads an open tab (SPL-1006 build watch), and the retry then gets through.
  */
 import { watch } from 'vue'
-import { apiBaseFor } from './tenant.mjs'
+import { apiBaseFor, validTenant } from './tenant.mjs'
 import { setLinkSite } from './link-target.mjs'
 import { homeTenant, oldLinkId, tenantParamHop, tenantUrl } from './tenant-host.mjs'
 
@@ -46,6 +46,21 @@ export async function hostAnswers(url, fetchFn = globalThis.fetch) {
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+/**
+ * The session's active tenant `t` when it is not the page's and the claims
+ * carry no `tenants` list. A native sign-in adopts the login answer's claims,
+ * which name `t` but not the list (GET /session adds it), so right after a
+ * buyer signs in on the apex homeTenant() has nothing to go on (measured on
+ * dev 2026-09-30, b5paid1: t=b5paid1, tenants=[]). A list, when present, is
+ * the authority: then this answers ''.
+ */
+export function activeElsewhere(claims, page) {
+  const c = claims && typeof claims === 'object' ? claims : {}
+  if (Array.isArray(c.tenants) && c.tenants.length) return ''
+  const t = typeof c.t === 'string' ? c.t.trim() : ''
+  return validTenant(t) && t !== page ? t : ''
 }
 
 export function bootTenantHost({ pub, page, session, notMember, win = window, fetchFn = globalThis.fetch, pollMs = PENDING_POLL_MS }) {
@@ -111,7 +126,7 @@ export function bootTenantHost({ pub, page, session, notMember, win = window, fe
           return
         }
       }
-      const home = homeTenant(session.claims, page)
+      const home = homeTenant(session.claims, page) || activeElsewhere(session.claims, page)
       if (!home) return
       if (page === apex) {
         await hopWhenReady(tenantUrl(home, site, apex, '/'), home)

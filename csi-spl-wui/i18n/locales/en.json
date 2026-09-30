@@ -1170,7 +1170,12 @@
     "unarchive": "Unarchive",
     "delete": "Delete",
     "error_forbidden": "Only the author, the owner or an admin may do this.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Archived",
+      "action": "Undo",
+      "error": "Could not change the topic. Try again."
+    }
   },
   "mention": {
     "not_told": "Not told, they cannot read this: {ids}",

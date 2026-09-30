@@ -96,6 +96,10 @@
     <ClientOnly>
       <LazyMoveUndoToast v-if="move.toast.value" />
     </ClientOnly>
+    <!-- SPL-1264: "Archived · Undo"; its chunk loads on the first archive only -->
+    <ClientOnly>
+      <LazyArchiveUndoToast v-if="archiveUndo.toast.value" />
+    </ClientOnly>
     <!-- 714c7028: "Merge topic (N messages) into Y?"; loads when a topic is dropped on a topic -->
     <ClientOnly>
       <LazyMergeConfirmDialog v-if="move.mergeAsk.value" />
@@ -135,6 +139,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
 
 const topic = useTopicStore()
 /* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
@@ -176,6 +181,8 @@ const live = useLive()
 const { dropEverywhere } = useMessageEdit()
 /* SPL-1024: another tab's topic_moved / message_moved frame moves the rows here too */
 const move = useMove()
+/* SPL-1264: the "Archived · Undo" snackbar this tab shows after archiving a card */
+const archiveUndo = useArchiveUndo()
 let offDeleted = () => {}
 let offTopic = () => {}
 /* SPL-996: a focusin chooses a pane only right after the reader's own

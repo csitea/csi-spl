@@ -1170,7 +1170,12 @@
     "unarchive": "Arşivden çıkar",
     "delete": "Sil",
     "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arşivlendi",
+      "action": "Geri al",
+      "error": "Konu değiştirilemedi. Tekrar deneyin."
+    }
   },
   "mention": {
     "not_told": "Bildirilmedi, bunu okuyamıyorlar: {ids}",

@@ -8,6 +8,7 @@
 // row never offers what the hub would refuse. Nothing is read for a row whose
 // menu is never opened.
 import { noteError } from '@/composables/errorJournal.mjs'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -24,6 +25,7 @@ export function useTopicRowActions() {
   const live = useLive()
   const viewer = useViewerStore()
   const { dropEverywhere } = useMessageEdit()
+  const archiveUndo = useArchiveUndo()
   const i18n = useNuxtApp().$i18n
   const rows = ref<Record<string, RowState>>({})
 
@@ -80,6 +82,8 @@ export function useTopicRowActions() {
     try {
       await api.archiveTopic(row.msgId, true)
       drop([task, row.msgId], [row.msgId])
+      /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
+      archiveUndo.offerUndo(row.msgId)
     } catch (e) {
       noteError({ source: 'topic-archive', name: 'TopicArchive', message: i18n.t(topicErrorKey(e, 'archive')), error: e })
     }

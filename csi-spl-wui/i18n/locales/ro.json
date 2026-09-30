@@ -1170,7 +1170,12 @@
     "unarchive": "Scoate din arhivă",
     "delete": "Șterge",
     "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arhivat",
+      "action": "Anulează",
+      "error": "Subiectul nu a fost modificat. Încearcă din nou."
+    }
   },
   "mention": {
     "not_told": "Nu au fost anunțați, nu pot citi asta: {ids}",

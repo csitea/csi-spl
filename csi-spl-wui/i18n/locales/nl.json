@@ -1170,7 +1170,12 @@
     "unarchive": "Uit archief halen",
     "delete": "Verwijderen",
     "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Gearchiveerd",
+      "action": "Ongedaan maken",
+      "error": "Het onderwerp is niet gewijzigd. Probeer het opnieuw."
+    }
   },
   "mention": {
     "not_told": "Niet ingelicht, zij kunnen dit niet lezen: {ids}",

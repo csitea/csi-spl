@@ -1170,7 +1170,12 @@
     "unarchive": "הוצאה מהארכיון",
     "delete": "מחיקה",
     "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים לעשות זאת.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "הועבר לארכיון",
+      "action": "ביטול",
+      "error": "הנושא לא השתנה. נסו שוב."
+    }
   },
   "mention": {
     "not_told": "לא נשלחה הודעה, אין להם גישה לזה: {ids}",

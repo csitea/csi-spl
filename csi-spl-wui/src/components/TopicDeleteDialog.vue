@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
@@ -44,6 +45,7 @@ const props = withDefaults(
 const emit = defineEmits<{ 'update:open': [boolean], deleted: [{ msg_ids: string[], task_ids: string[] }] }>()
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
+const archiveUndo = useArchiveUndo()
 const busy = ref(false)
 const error = ref('')
 const replies = ref<number | null>(null)
@@ -102,6 +104,8 @@ async function archive() {
     await api.archiveTopic(props.msgId, true)
     emit('update:open', false)
     emit('deleted', { msg_ids: [props.msgId], task_ids: [] })
+    /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
+    archiveUndo.offerUndo(props.msgId)
   } catch (e) {
     error.value = t(topicErrorKey(e, 'archive'))
   } finally {

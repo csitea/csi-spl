@@ -1170,7 +1170,12 @@
     "unarchive": "Återställ från arkiv",
     "delete": "Radera",
     "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arkiverat",
+      "action": "Ångra",
+      "error": "Ämnet ändrades inte. Försök igen."
+    }
   },
   "mention": {
     "not_told": "Inte meddelade, de kan inte läsa detta: {ids}",

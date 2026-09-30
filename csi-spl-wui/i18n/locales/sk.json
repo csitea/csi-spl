@@ -1170,7 +1170,12 @@
     "unarchive": "Obnoviť z archívu",
     "delete": "Odstrániť",
     "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Archivované",
+      "action": "Späť",
+      "error": "Téma sa nezmenila. Skúste to znova."
+    }
   },
   "mention": {
     "not_told": "Neupovedomení, nemôžu to čítať: {ids}",

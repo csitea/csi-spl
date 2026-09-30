@@ -1170,7 +1170,12 @@
     "unarchive": "Palauta arkistosta",
     "delete": "Poista",
     "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arkistoitu",
+      "action": "Kumoa",
+      "error": "Aihetta ei muutettu. Yritä uudelleen."
+    }
   },
   "mention": {
     "not_told": "Ei ilmoitettu, he eivät voi lukea tätä: {ids}",

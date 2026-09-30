@@ -1170,7 +1170,12 @@
     "unarchive": "Atjaunot no arhīva",
     "delete": "Dzēst",
     "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arhivēta",
+      "action": "Atsaukt",
+      "error": "Tēma netika mainīta. Mēģiniet vēlreiz."
+    }
   },
   "mention": {
     "not_told": "Nav paziņots, viņi to nevar lasīt: {ids}",

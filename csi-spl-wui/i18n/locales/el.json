@@ -1170,7 +1170,12 @@
     "unarchive": "Επαναφορά από αρχείο",
     "delete": "Διαγραφή",
     "error_forbidden": "Μόνο ο συντάκτης, ο κάτοχος ή ένας διαχειριστής μπορεί να το κάνει.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Αρχειοθετήθηκε",
+      "action": "Αναίρεση",
+      "error": "Το θέμα δεν άλλαξε. Δοκιμάστε ξανά."
+    }
   },
   "mention": {
     "not_told": "Δεν ειδοποιήθηκαν, δεν έχουν πρόσβαση σε αυτό: {ids}",

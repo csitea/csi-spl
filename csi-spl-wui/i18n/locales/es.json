@@ -1170,7 +1170,12 @@
     "unarchive": "Desarchivar",
     "delete": "Eliminar",
     "error_forbidden": "Solo el autor, el propietario o un administrador puede hacerlo.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Archivado",
+      "action": "Deshacer",
+      "error": "No se cambió el tema. Inténtalo de nuevo."
+    }
   },
   "mention": {
     "not_told": "No avisados, no pueden leer esto: {ids}",

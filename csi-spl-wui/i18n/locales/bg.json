@@ -1170,7 +1170,12 @@
     "unarchive": "Разархивирай",
     "delete": "Изтрий",
     "error_forbidden": "Само авторът, собственикът или администратор може да направи това.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Архивирана",
+      "action": "Отмени",
+      "error": "Темата не беше променена. Опитайте отново."
+    }
   },
   "mention": {
     "not_told": "Не са уведомени, нямат достъп до това: {ids}",

@@ -1170,7 +1170,12 @@
     "unarchive": "Taasta arhiivist",
     "delete": "Kustuta",
     "error_forbidden": "Seda saab teha ainult autor, omanik või administraator.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Arhiveeritud",
+      "action": "Võta tagasi",
+      "error": "Teemat ei muudetud. Proovi uuesti."
+    }
   },
   "mention": {
     "not_told": "Ei teavitatud, nad ei saa seda lugeda: {ids}",

@@ -1170,7 +1170,12 @@
     "unarchive": "Врати од архива",
     "delete": "Избриши",
     "error_forbidden": "Само авторот, сопственикот или администратор може да го направи ова.",
-    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card."
+    "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",
+    "undo": {
+      "done": "Архивирана",
+      "action": "Врати",
+      "error": "Темата не беше променета. Обидете се повторно."
+    }
   },
   "mention": {
     "not_told": "Не се известени, немаат пристап до ова: {ids}",

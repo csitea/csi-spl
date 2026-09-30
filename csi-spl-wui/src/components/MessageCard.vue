@@ -376,6 +376,7 @@ import { mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-arch
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -575,6 +576,8 @@ async function onMenuArchive() {
     await parentDeps.api.archiveTopic(id, true)
     dropEverywhere(id)
     emit('deleted', props.msg)
+    /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
+    archiveUndo.offerUndo(id)
   } catch (e) {
     editError.value = topicErrorKey(e, 'archive')
   } finally {
@@ -810,6 +813,7 @@ const msgDeleteOpen = ref(false)
  * row under the pointer is found by useMove (one row lit at a time).
  */
 const move = useMove()
+const archiveUndo = useArchiveUndo()
 const lobbyTask = useLive().lobbyTaskId
 const canMoveTopic = computed(() => Boolean(props.topicMenu) && mayMoveTopic(props.msg, editorId.value, access.me, lobbyTask.value))
 const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && mayMoveMessage(props.msg, editorId.value, access.me, {

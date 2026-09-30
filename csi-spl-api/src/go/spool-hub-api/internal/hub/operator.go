@@ -111,6 +111,16 @@ func validOperatorInvitedBy(v string) (string, bool) {
 // POST /v1/operator/invites {tenant, email, role?, ttl_hours?, invited_by?,
 // ordered_by?, ordered_via?, locale?, no_mail?}: create (or replace) the
 // invite and mail it from the hub. 201 with the mail outcome.
+// operatorInviteTTL maps ttl_hours to the invite lifetime: 0 means the
+// default, anything below 1 h or above inviteTTLMax is refused.
+func operatorInviteTTL(hours int) (time.Duration, bool) {
+	if hours == 0 {
+		return inviteTTLDefault, true
+	}
+	ttl := time.Duration(hours) * time.Hour
+	return ttl, hours > 0 && ttl <= inviteTTLMax
+}
+
 func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.operatorAuth(w, r); !ok {
 		return
@@ -157,11 +167,8 @@ func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_ordered_by", "ordered_by must be a HUM-* id")
 		return
 	}
-	ttl := time.Duration(body.TTLHours) * time.Hour
-	switch {
-	case body.TTLHours == 0:
-		ttl = inviteTTLDefault
-	case body.TTLHours < 0 || ttl > inviteTTLMax:
+	ttl, ok := operatorInviteTTL(body.TTLHours)
+	if !ok {
 		writeErr(w, http.StatusBadRequest, "bad_json", "ttl_hours must be 1..720")
 		return
 	}

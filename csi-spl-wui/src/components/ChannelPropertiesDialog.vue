@@ -421,6 +421,11 @@ function rosterOf(data: unknown): Record<string, string[]> | undefined {
   return bag as Record<string, string[]>
 }
 
+// immediate: SPL-1204 gates this dialog behind v-if in the sidebar, so it now
+// mounts with open already true (channel_id and open are set in the same tick).
+// Without immediate the false->true transition happens before this watcher
+// exists, so the load never fires and People stays on "Loading…" (the invite
+// regression). The guard below makes immediate a no-op when open is false.
 watch(() => props.open, async (isOpen) => {
   if (!isOpen) return
   const my = ++ticket
@@ -470,7 +475,7 @@ watch(() => props.open, async (isOpen) => {
   } finally {
     if (my === ticket) loaded.value = true
   }
-})
+}, { immediate: true })
 
 /** The chosen display name, else the bare HUM id (no box). */
 function personLabel(id: unknown) {

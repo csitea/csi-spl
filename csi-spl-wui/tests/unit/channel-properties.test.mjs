@@ -177,6 +177,19 @@ describe('the Properties dialog', () => {
     assert.match(sidebar, /<ChannelPropertiesDialog/)
   })
 
+  // SPL-1233 regression: SPL-1204 gates the dialog behind v-if in the sidebar,
+  // so it now mounts with open already true. The member load lives in a
+  // watch(() => props.open) which never sees a false->true transition after
+  // mount, so it MUST be immediate or People stays on "Loading…" and nobody can
+  // be invited. This test pins both halves together so neither can drift back.
+  it('mounts already-open (sidebar v-if) so the member-load watcher is immediate', () => {
+    assert.match(sidebar, /<ChannelPropertiesDialog\s+v-if="propertiesChannel\.channel_id"/)
+    assert.match(
+      dialog,
+      /watch\(\(\) => props\.open, async[\s\S]*?api\.listChannelMembers\(props\.channelId\)[\s\S]*?\}, \{ immediate: true \}\)/,
+    )
+  })
+
   it('About shows the name and the description and has no text input', () => {
     const about = dialog.slice(dialog.indexOf('data-testid="channel-about"'), dialog.indexOf('data-testid="channel-people"'))
     assert.match(about, /data-testid="channel-about-name"/)

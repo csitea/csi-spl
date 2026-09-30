@@ -72,18 +72,20 @@ describe('composer growth', () => {
   // (the content size), which also beats max-height. The omnibox is a
   // one-line slot (min-height:0, max-height:100%) so a ``` block or file
   // chips overflow it downward and the shell does not move.
-  // The resting field, drag handle included, is the bar minus 2px at the
-  // top and 2px at the bottom. The bar's border is that bottom 1px, so the
-  // padding under the field is 1px. The handle lives in the field's bottom
-  // padding, and the buttons match the field instead of growing with it.
-  it('the resting omnibox fills the bar with 2px above and 2px below', () => {
-    assert.match(css, /--top-bar-inset-top:\s*2px/)
-    assert.match(css, /--top-bar-inset-bottom:\s*1px/)
+  // Topic 10a5a3e2 (owner): the omnibox is 1 mm (~4px) smaller vertically at
+  // the top and 1 mm at the bottom, so the top inset is 6px and the bottom
+  // inset 5px (the bar's border is the bottom 1px of it). --omnibox-rest tracks
+  // both, so the resting field is 46px (was 54); its handle lane is trimmed
+  // 10 -> 8px to match. The handle lives in the field's bottom padding, and the
+  // buttons match the field instead of growing with it.
+  it('the resting omnibox is 1mm smaller top and bottom (topic 10a5a3e2)', () => {
+    assert.match(css, /--top-bar-inset-top:\s*6px/)
+    assert.match(css, /--top-bar-inset-bottom:\s*5px/)
     assert.match(css, /--top-bar-border:\s*1px/)
     assert.match(css, /--omnibox-rest:\s*calc\(var\(--top-bar-h\) - var\(--top-bar-inset-top\) - var\(--top-bar-inset-bottom\) - var\(--top-bar-border\)\)/)
     const field = ruleBody(css, '.composer.omnibox--global .omnibox-field')
     assert.match(field, /min-height:\s*var\(--omnibox-rest\)/)
-    assert.match(field, /padding:\s*0 8px 10px/)
+    assert.match(field, /padding:\s*0 8px 8px/)
     const grip = ruleBody(css, '.composer.omnibox--global .omnibox-resize')
     assert.match(grip, /position:\s*absolute/)
     assert.match(grip, /height:\s*8px/)

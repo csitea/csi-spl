@@ -730,9 +730,13 @@ func (s *Server) routeIssues(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/issues", s.handleCreateIssue)
 	mux.HandleFunc("PATCH /v1/issues/{ref}", s.handlePatchIssue)
 	mux.HandleFunc("DELETE /v1/issues/{ref}", s.handleDeleteIssue)
+	mux.HandleFunc("POST /v1/issues/{ref}/archive", s.handleArchiveIssue)
+	mux.HandleFunc("POST /v1/issues/{ref}/unarchive", s.handleUnarchiveIssue)
 	mux.HandleFunc("POST /v1/issue-labels", s.handleCreateIssueLabel)
 	mux.HandleFunc("OPTIONS /v1/issues", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}", s.issuesPreflight)
+	mux.HandleFunc("OPTIONS /v1/issues/{ref}/archive", s.issuesPreflight)
+	mux.HandleFunc("OPTIONS /v1/issues/{ref}/unarchive", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issue-labels", s.issuesPreflight)
 }
 
@@ -841,8 +845,32 @@ func (s *Server) mayDeleteIssue(ctx context.Context, tenant, hum string, i store
 	return s.allowed(ctx, hum, tenant, rbac.TenantSettings)
 }
 
-// handleDeleteIssue is the soft delete of rdb 0071: 200 {issue} as it was,
-// then an `issue` frame with op delete to every tab of the tenant.
+// cascadeParam reads ?cascade=1 (or true): the caller asked to take the whole
+// epic or feature down with its descendants (SPL-1226). Anything else is false.
+func cascadeParam(r *http.Request) bool {
+	switch r.URL.Query().Get("cascade") {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// descendantKeys renders the descendant numbers a cascade touched as keys, so
+// the fanout frame can name every row the tabs must drop (or restore) besides
+// the target. prefix is the target's, and every issue of a tenant shares it.
+func descendantKeys(prefix string, nums []int) []string {
+	keys := make([]string, 0, len(nums))
+	for _, n := range nums {
+		keys = append(keys, store.IssueKey(prefix, n))
+	}
+	return keys
+}
+
+// handleDeleteIssue is the soft delete of rdb 0071: 200 {issue, descendants} as
+// it was, then an `issue` frame with op delete to every tab of the tenant. With
+// ?cascade=1 (SPL-1226) it deletes a whole epic or feature and all of its
+// descendants in one transaction; without it, a live issue with children is
+// still refused (issue_has_children), the behaviour before cascade.
 func (s *Server) handleDeleteIssue(w http.ResponseWriter, r *http.Request) {
 	t, actor, ok := s.issueWriter(w, r)
 	if !ok {
@@ -871,7 +899,13 @@ func (s *Server) handleDeleteIssue(w http.ResponseWriter, r *http.Request) {
 		writeForbidden(w, rbac.TenantSettings, "only the member who created "+cur.Key()+" or an admin may delete it")
 		return
 	}
-	out, err := is.DeleteIssue(r.Context(), t.ID, n, actor, s.o.Now())
+	var out store.Issue
+	var kids []int
+	if cascadeParam(r) {
+		out, kids, err = is.DeleteIssueCascade(r.Context(), t.ID, n, actor, s.o.Now())
+	} else {
+		out, err = is.DeleteIssue(r.Context(), t.ID, n, actor, s.o.Now())
+	}
 	if ie := storeIssueErr(err); ie != nil {
 		if ie.status == http.StatusInternalServerError {
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Int("number", n).Msg("issue delete")
@@ -880,8 +914,98 @@ func (s *Server) handleDeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := toIssueJSON(out, s.storeGetter(r.Context(), t.ID))
-	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "delete", "issue": body})
-	writeJSON(w, http.StatusOK, map[string]any{"issue": body})
+	keys := descendantKeys(out.Prefix, kids)
+	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "delete", "issue": body, "descendants": keys})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": body, "descendants": keys})
+}
+
+// handleArchiveIssue is the soft archive of rdb 0084 (SPL-1226): 200
+// {issue, descendants}, then an `issue` frame with op archive to every tab.
+// ?cascade=1 archives a whole epic or feature and its descendants in one
+// transaction; without it a live issue with children is refused. Authority is
+// the delete rule (mayDeleteIssue): the creator or an admin.
+func (s *Server) handleArchiveIssue(w http.ResponseWriter, r *http.Request) {
+	t, actor, ok := s.issueWriter(w, r)
+	if !ok {
+		return
+	}
+	is, ie := s.issueStore()
+	if ie != nil {
+		writeIssueErr(w, ie)
+		return
+	}
+	n, ok := store.ParseIssueRef(r.PathValue("ref"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "not_found", "no such issue")
+		return
+	}
+	cur, err := is.GetIssue(r.Context(), t.ID, n)
+	if ie := storeIssueErr(err); ie != nil {
+		writeIssueErr(w, ie)
+		return
+	}
+	hum := actor
+	if hum == "wui" {
+		hum = ""
+	}
+	if !s.mayDeleteIssue(r.Context(), t.ID, hum, cur) {
+		writeForbidden(w, rbac.TenantSettings, "only the member who created "+cur.Key()+" or an admin may archive it")
+		return
+	}
+	out, kids, err := is.ArchiveIssue(r.Context(), t.ID, n, actor, s.o.Now(), cascadeParam(r))
+	if ie := storeIssueErr(err); ie != nil {
+		if ie.status == http.StatusInternalServerError {
+			s.o.Log.Error().Err(err).Str("tenant", t.ID).Int("number", n).Msg("issue archive")
+		}
+		writeIssueErr(w, ie)
+		return
+	}
+	body := toIssueJSON(out, s.storeGetter(r.Context(), t.ID))
+	keys := descendantKeys(out.Prefix, kids)
+	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "archive", "issue": body, "descendants": keys})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": body, "descendants": keys})
+}
+
+// handleUnarchiveIssue restores an archived issue (rdb 0084). Because an
+// archived issue is hidden from every read, its row cannot be fetched to run
+// the creator rule, so the authority here is tenant.settings (admin / owner).
+// ?cascade=1 restores its archived descendants too. It fans out op create so
+// the tabs re-add the target; a client with descendants refetches the list.
+func (s *Server) handleUnarchiveIssue(w http.ResponseWriter, r *http.Request) {
+	t, actor, ok := s.issueWriter(w, r)
+	if !ok {
+		return
+	}
+	hum := actor
+	if hum == "wui" {
+		hum = ""
+	}
+	if hum != "" && !s.allowed(r.Context(), hum, t.ID, rbac.TenantSettings) {
+		writeForbidden(w, rbac.TenantSettings, "only an admin may restore an archived issue")
+		return
+	}
+	is, ie := s.issueStore()
+	if ie != nil {
+		writeIssueErr(w, ie)
+		return
+	}
+	n, ok := store.ParseIssueRef(r.PathValue("ref"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "not_found", "no such issue")
+		return
+	}
+	out, kids, err := is.UnarchiveIssue(r.Context(), t.ID, n, actor, s.o.Now(), cascadeParam(r))
+	if ie := storeIssueErr(err); ie != nil {
+		if ie.status == http.StatusInternalServerError {
+			s.o.Log.Error().Err(err).Str("tenant", t.ID).Int("number", n).Msg("issue unarchive")
+		}
+		writeIssueErr(w, ie)
+		return
+	}
+	body := toIssueJSON(out, s.storeGetter(r.Context(), t.ID))
+	keys := descendantKeys(out.Prefix, kids)
+	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "create", "issue": body, "descendants": keys})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": body, "descendants": keys})
 }
 
 // createIssueLabel is the one label path (browser and agent).

@@ -347,3 +347,118 @@ func TestIssuesDelete(t *testing.T) {
 		t.Fatalf("non-member delete: %d", code)
 	}
 }
+
+// TestIssuesCascade: archiving / deleting a whole epic with ?cascade=1 takes
+// its descendants with it and the frame names them; the control is that without
+// cascade a parent with a live child is still refused (SPL-1226, rdb 0084).
+func TestIssuesCascade(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	admin := seat(t, e, tid, rbac.Admin)
+	watcher := dialMember(t, e, tid, "Cass", dev)
+	mk := func(who string, body map[string]any) string {
+		t.Helper()
+		code, out := call(t, e, tid, http.MethodPost, "/v1/issues", who, body)
+		if code != http.StatusCreated {
+			t.Fatalf("create %v: %d %v", body, code, out)
+		}
+		readType(t, watcher, "issue")
+		return issueOf(t, out)["key"].(string)
+	}
+	epic := mk(dev, map[string]any{"title": "Epic", "kind": "epic"})
+	parent := mk(dev, map[string]any{"title": "Parent", "epic": epic})
+	sub := mk(dev, map[string]any{"title": "Sub", "parent": parent})
+
+	live := func() []string {
+		t.Helper()
+		code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues", dev, nil)
+		if code != http.StatusOK {
+			t.Fatalf("list: %d %v", code, out)
+		}
+		return issueKeys(out)
+	}
+
+	// Control: archiving the epic without cascade is refused while it has a
+	// child - the subtree stays, exactly as a non-cascade delete does.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues/"+epic+"/archive", dev, nil); code != http.StatusConflict || out["error"] != "issue_has_children" {
+		t.Fatalf("non-cascade archive of a parent: %d %v", code, out)
+	}
+	if len(live()) != 3 {
+		t.Fatalf("after the refused archive: want 3 live, got %v", live())
+	}
+
+	// Cascade archive: 200, the frame names the two descendants, and all three
+	// leave the list.
+	code, out := call(t, e, tid, http.MethodPost, "/v1/issues/"+epic+"/archive?cascade=1", dev, nil)
+	if code != http.StatusOK {
+		t.Fatalf("cascade archive: %d %v", code, out)
+	}
+	if got := descOf(t, out); len(got) != 2 {
+		t.Fatalf("archive descendants: %v", got)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "archive" || len(descFrame(f)) != 2 {
+		t.Fatalf("archive frame %v", f)
+	}
+	if got := live(); len(got) != 0 {
+		t.Fatalf("after cascade archive: want none live, got %v", got)
+	}
+	if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/issues/"+sub, dev, nil); code != http.StatusNotFound {
+		t.Fatalf("archived sub still readable: %d", code)
+	}
+
+	// Unarchive (admin only) with cascade restores the subtree.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues/"+epic+"/unarchive", dev, nil); code != http.StatusForbidden {
+		t.Fatalf("dev unarchive: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues/"+epic+"/unarchive?cascade=1", admin, nil); code != http.StatusOK {
+		t.Fatalf("admin cascade unarchive: %d %v", code, out)
+	}
+	readType(t, watcher, "issue")
+	if got := live(); len(got) != 3 {
+		t.Fatalf("after unarchive: want 3 live, got %v", got)
+	}
+
+	// Cascade delete: 200, the frame names the descendants, all gone for good.
+	code, out = call(t, e, tid, http.MethodDelete, "/v1/issues/"+epic+"?cascade=1", admin, nil)
+	if code != http.StatusOK {
+		t.Fatalf("cascade delete: %d %v", code, out)
+	}
+	if got := descOf(t, out); len(got) != 2 {
+		t.Fatalf("delete descendants: %v", got)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "delete" || len(descFrame(f)) != 2 {
+		t.Fatalf("delete frame %v", f)
+	}
+	if got := live(); len(got) != 0 {
+		t.Fatalf("after cascade delete: want none live, got %v", got)
+	}
+	for _, k := range []string{epic, parent, sub} {
+		if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/issues/"+k, admin, nil); code != http.StatusNotFound {
+			t.Fatalf("deleted %s still readable: %d", k, code)
+		}
+	}
+}
+
+// descOf reads the "descendants" array of a {issue, descendants} response.
+func descOf(t *testing.T, out map[string]any) []string {
+	t.Helper()
+	raw, _ := out["descendants"].([]any)
+	keys := make([]string, 0, len(raw))
+	for _, v := range raw {
+		keys = append(keys, v.(string))
+	}
+	return keys
+}
+
+// descFrame reads the "descendants" array off a fanout frame.
+func descFrame(f map[string]any) []string {
+	raw, _ := f["descendants"].([]any)
+	keys := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			keys = append(keys, s)
+		}
+	}
+	return keys
+}

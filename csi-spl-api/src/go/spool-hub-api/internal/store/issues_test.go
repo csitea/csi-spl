@@ -341,6 +341,83 @@ func TestParseIssueRef(t *testing.T) {
 func ptr(s string) *string { return &s }
 func ptrInt(n int) *int    { return &n }
 
+// rdb 0084 (SPL-1226): archiving or deleting a whole epic / feature takes its
+// descendants with it in one call; the control is that WITHOUT cascade a live
+// parent with children is refused (children stay, the behaviour before), and
+// unarchive restores the whole subtree.
+func TestIssuesCascade(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			is := s.(Issues)
+			tn := uid("cas-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+				t.Fatal(err)
+			}
+			e := testEpic(t, is, tn, now) // level 1
+			child, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "feature work", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: e}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "a subtask", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: child.Number}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if child.Level != 2 || sub.Level != 3 {
+				t.Fatalf("levels: child=%d sub=%d", child.Level, sub.Level)
+			}
+
+			// Control: a non-cascade archive of the epic is refused while it has
+			// a live child - children stay, exactly as today's delete does.
+			if _, _, err := is.ArchiveIssue(ctx, tn, e, "HUM-1", now, false); !errors.Is(err, ErrIssueHasChildren) {
+				t.Fatalf("non-cascade archive of a parent: want ErrIssueHasChildren, got %v", err)
+			}
+			if list, _ := is.ListIssues(ctx, tn); len(list) != 3 {
+				t.Fatalf("after the refused archive: want 3 live issues, got %d", len(list))
+			}
+
+			// Cascade archive: the epic and every descendant leave the reads.
+			got, kids, err := is.ArchiveIssue(ctx, tn, e, "HUM-2", now, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Number != e || len(kids) != 2 {
+				t.Fatalf("cascade archive: target=%d kids=%v", got.Number, kids)
+			}
+			if list, _ := is.ListIssues(ctx, tn); len(list) != 0 {
+				t.Fatalf("after cascade archive: want 0 live issues, got %d", len(list))
+			}
+			for _, n := range []int{e, child.Number, sub.Number} {
+				if _, err := is.GetIssue(ctx, tn, n); !errors.Is(err, ErrNotFound) {
+					t.Fatalf("archived %d still readable: %v", n, err)
+				}
+			}
+
+			// Unarchive with cascade brings the whole subtree back.
+			if _, ukids, err := is.UnarchiveIssue(ctx, tn, e, "HUM-2", now, true); err != nil || len(ukids) != 2 {
+				t.Fatalf("cascade unarchive: kids=%v err=%v", ukids, err)
+			}
+			if list, _ := is.ListIssues(ctx, tn); len(list) != 3 {
+				t.Fatalf("after unarchive: want 3 live issues, got %d", len(list))
+			}
+
+			// Cascade delete: the epic and every descendant become 404 for good.
+			del, dkids, err := is.DeleteIssueCascade(ctx, tn, e, "HUM-3", now)
+			if err != nil || del.Number != e || len(dkids) != 2 {
+				t.Fatalf("cascade delete: target=%d kids=%v err=%v", del.Number, dkids, err)
+			}
+			if list, _ := is.ListIssues(ctx, tn); len(list) != 0 {
+				t.Fatalf("after cascade delete: want 0 live issues, got %d", len(list))
+			}
+			// A deleted subtree does not unarchive back.
+			if _, _, err := is.UnarchiveIssue(ctx, tn, e, "HUM-3", now, true); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unarchive of a deleted issue: want ErrNotFound, got %v", err)
+			}
+		})
+	}
+}
+
 // NoIssues hides an issue's discussion topic from a topic list (specs/039):
 // the probe must bite on both drivers, and leave every other topic.
 func TestIssueTopicsHidden(t *testing.T) {

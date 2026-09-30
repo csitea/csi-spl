@@ -60,7 +60,7 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, w
 		var grand string
 		err := tx.QueryRow(ctx, `SELECT p.kind, COALESCE(p.parent_number, 0), COALESCE(g.kind, '')
 			FROM issues p LEFT JOIN issues g ON g.tenant_id = p.tenant_id AND g.number = p.parent_number
-			WHERE p.tenant_id = $1 AND p.number = $2 AND p.deleted_at IS NULL FOR SHARE OF p`,
+			WHERE p.tenant_id = $1 AND p.number = $2 AND p.deleted_at IS NULL AND p.archived_at IS NULL FOR SHARE OF p`,
 			i.TenantID, i.Parent).Scan(&r.parent.Kind, &r.parent.Parent, &grand)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
@@ -75,7 +75,7 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, w
 		return setLevel(i, r, want)
 	}
 	if i.Number != 0 {
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL)`,
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL AND archived_at IS NULL)`,
 			i.TenantID, i.Number).Scan(&r.hasChildren); err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			return err
 		}
 		cur, err := scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
-			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
+			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -190,7 +190,7 @@ func (s *Postgres) GetIssue(ctx context.Context, tenant string, number int) (Iss
 		if err != nil {
 			return err
 		}
-		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL`,
+		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL AND archived_at IS NULL`,
 			tenant, number), tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -206,7 +206,7 @@ func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, erro
 	err := s.queryTenantBatch(ctx, tenant,
 		tenantRead{sql: `SELECT prefix FROM issue_counters WHERE tenant_id = $1`, args: []any{tenant},
 			each: func(r pgx.Rows) error { return r.Scan(&prefix) }},
-		tenantRead{sql: `SELECT ` + issueCols + ` FROM issues WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY number DESC`, args: []any{tenant},
+		tenantRead{sql: `SELECT ` + issueCols + ` FROM issues WHERE tenant_id = $1 AND deleted_at IS NULL AND archived_at IS NULL ORDER BY number DESC`, args: []any{tenant},
 			each: func(r pgx.Rows) error {
 				i, err := scanIssue(r, tenant, "")
 				out = append(out, i)
@@ -230,7 +230,7 @@ func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, b
 			return err
 		}
 		out, err = scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
-			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
+			WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`, tenant, number), tenant, prefix)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -238,7 +238,7 @@ func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, b
 			return err
 		}
 		var kids bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL)`,
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL AND archived_at IS NULL)`,
 			tenant, number).Scan(&kids); err != nil {
 			return err
 		}
@@ -250,6 +250,104 @@ func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, b
 		return err
 	})
 	return out, pgIssueErr(err)
+}
+
+// cascadeStamp walks the subtree rooted at number (parent_number, at most three
+// levels but the CTE is general) and stamps `set` on the target and every
+// descendant that still satisfies `live` (the where clause of a row eligible to
+// be touched, e.g. "deleted_at IS NULL"), all in one statement so the whole
+// epic or feature moves together (SPL-1226). `out` is filled with the target
+// row as it was; the returned numbers are the descendants also touched (target
+// excluded), sorted. ErrNotFound when the target is not eligible.
+func (s *Postgres) cascadeStamp(ctx context.Context, tenant string, number int, by string, now time.Time, live, set string, cascade bool, out *Issue) ([]int, error) {
+	var kids []int
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		prefix, err := txPrefix(ctx, tx, tenant)
+		if err != nil {
+			return err
+		}
+		row, err := scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
+			WHERE tenant_id = $1 AND number = $2 AND `+live+` FOR UPDATE`, tenant, number), tenant, prefix)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		*out = row
+		if !cascade {
+			var has bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues
+				WHERE tenant_id = $1 AND parent_number = $2 AND `+live+`)`, tenant, number).Scan(&has); err != nil {
+				return err
+			}
+			if has {
+				return ErrIssueHasChildren
+			}
+			_, err := tx.Exec(ctx, `UPDATE issues SET `+set+` WHERE tenant_id = $1 AND number = $2`, tenant, number, now, by)
+			return err
+		}
+		rows, err := tx.Query(ctx, `WITH RECURSIVE tree AS (
+				SELECT number FROM issues WHERE tenant_id = $1 AND number = $2 AND `+live+`
+				UNION ALL
+				SELECT c.number FROM issues c JOIN tree t ON c.parent_number = t.number
+					WHERE c.tenant_id = $1 AND `+live+`)
+			UPDATE issues SET `+set+` WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)
+			RETURNING number`, tenant, number, now, by)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var n int
+			if err := rows.Scan(&n); err != nil {
+				return err
+			}
+			if n != number {
+				kids = append(kids, n)
+			}
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, pgIssueErr(err)
+	}
+	sortInts(kids)
+	return kids, nil
+}
+
+func sortInts(a []int) {
+	for i := 1; i < len(a); i++ {
+		for j := i; j > 0 && a[j-1] > a[j]; j-- {
+			a[j-1], a[j] = a[j], a[j-1]
+		}
+	}
+}
+
+func (s *Postgres) DeleteIssueCascade(ctx context.Context, tenant string, number int, by string, now time.Time) (Issue, []int, error) {
+	now = now.UTC().Truncate(time.Microsecond)
+	var out Issue
+	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
+		"deleted_at IS NULL AND archived_at IS NULL", "deleted_at = $3, deleted_by = $4", true, &out)
+	return out, kids, err
+}
+
+func (s *Postgres) ArchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
+	now = now.UTC().Truncate(time.Microsecond)
+	var out Issue
+	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
+		"deleted_at IS NULL AND archived_at IS NULL", "archived_at = $3, archived_by = $4", cascade, &out)
+	return out, kids, err
+}
+
+func (s *Postgres) UnarchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
+	now = now.UTC().Truncate(time.Microsecond)
+	var out Issue
+	// Unarchive clears both stamps and refreshes the audit columns, which also
+	// keeps cascadeStamp's one shape (the $3 = now, $4 = by placeholders).
+	kids, err := s.cascadeStamp(ctx, tenant, number, by, now,
+		"deleted_at IS NULL AND archived_at IS NOT NULL", "archived_at = NULL, archived_by = NULL, updated_at = $3, updated_by = $4", cascade, &out)
+	return out, kids, err
 }
 
 func (s *Postgres) IssuePrefix(ctx context.Context, tenant string) (string, error) {

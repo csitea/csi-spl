@@ -306,6 +306,25 @@ type Issues interface {
 	// as absent. ErrNotFound for no such (live) issue, ErrIssueHasChildren
 	// while a live issue names it as parent.
 	DeleteIssue(ctx context.Context, tenantID string, number int, by string, now time.Time) (Issue, error)
+	// DeleteIssueCascade soft-deletes an issue AND every live descendant
+	// (its features, issues and subtasks) in one transaction (rdb 0084,
+	// SPL-1226). Answers the target row as it was and the numbers of the
+	// descendants also deleted (target excluded). ErrNotFound for no such
+	// live issue.
+	DeleteIssueCascade(ctx context.Context, tenantID string, number int, by string, now time.Time) (Issue, []int, error)
+	// ArchiveIssue soft-archives one (rdb 0084): archived_at / archived_by
+	// are stamped and, like a delete, every read, patch and parent lookup
+	// then treats it as absent; unarchive clears both. cascade also archives
+	// every live descendant in the same transaction. Answers the target as it
+	// was and the numbers of the descendants also archived (target excluded).
+	// ErrNotFound for no such live, unarchived issue; ErrIssueHasChildren when
+	// cascade is false and a live issue names it as parent.
+	ArchiveIssue(ctx context.Context, tenantID string, number int, by string, now time.Time, cascade bool) (Issue, []int, error)
+	// UnarchiveIssue clears archived_at / archived_by, restoring an archived
+	// issue (rdb 0084). cascade also restores every archived descendant.
+	// Answers the target as it was (archived) and the descendant numbers also
+	// restored. ErrNotFound for no such archived issue.
+	UnarchiveIssue(ctx context.Context, tenantID string, number int, by string, now time.Time, cascade bool) (Issue, []int, error)
 }
 
 func invalidIssue(format string, a ...any) error {
@@ -502,11 +521,12 @@ func checkLabel(l *IssueLabel) error {
 
 // memIssues is Memory's copy of rdb 0047, guarded by Memory.mu.
 type memIssues struct {
-	gone   map[string]map[int]Issue // soft-deleted rows (rdb 0071)
-	last   map[string]int
-	prefix map[string]string
-	rows   map[string]map[int]Issue
-	labels map[string]map[string]IssueLabel
+	gone     map[string]map[int]Issue // soft-deleted rows (rdb 0071)
+	archived map[string]map[int]Issue // soft-archived rows (rdb 0084)
+	last     map[string]int
+	prefix   map[string]string
+	rows     map[string]map[int]Issue
+	labels   map[string]map[string]IssueLabel
 }
 
 func (m *memIssues) init() {
@@ -514,6 +534,7 @@ func (m *memIssues) init() {
 		m.last, m.prefix = map[string]int{}, map[string]string{}
 		m.rows, m.labels = map[string]map[int]Issue{}, map[string]map[string]IssueLabel{}
 		m.gone = map[string]map[int]Issue{}
+		m.archived = map[string]map[int]Issue{}
 	}
 }
 
@@ -532,6 +553,11 @@ func (m *memIssues) isTask(tenant, taskID string) bool {
 		}
 	}
 	for _, r := range m.gone[tenant] { // a deleted issue's topic stays out of lists
+		if r.TaskID == taskID {
+			return true
+		}
+	}
+	for _, r := range m.archived[tenant] { // an archived issue's topic stays out too
 		if r.TaskID == taskID {
 			return true
 		}
@@ -690,6 +716,97 @@ func (s *Memory) DeleteIssue(_ context.Context, tenant string, number int, _ str
 	s.iss.gone[tenant][number] = row
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), nil
+}
+
+// memSubtree returns the numbers of every descendant of number in src (its
+// children, then theirs), target excluded, breadth first.
+func memSubtree(src map[int]Issue, number int) []int {
+	var out []int
+	queue := []int{number}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		for n, c := range src {
+			if c.Parent == p {
+				out = append(out, n)
+				queue = append(queue, n)
+			}
+		}
+	}
+	sort.Ints(out)
+	return out
+}
+
+func (s *Memory) DeleteIssueCascade(_ context.Context, tenant string, number int, _ string, _ time.Time) (Issue, []int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	row, ok := s.iss.rows[tenant][number]
+	if !ok {
+		return Issue{}, nil, ErrNotFound
+	}
+	kids := memSubtree(s.iss.rows[tenant], number)
+	if s.iss.gone[tenant] == nil {
+		s.iss.gone[tenant] = map[int]Issue{}
+	}
+	for _, n := range append([]int{number}, kids...) {
+		s.iss.gone[tenant][n] = s.iss.rows[tenant][n]
+		delete(s.iss.rows[tenant], n)
+	}
+	row.Prefix = s.iss.prefixOf(tenant)
+	return copyIssue(row), kids, nil
+}
+
+func (s *Memory) ArchiveIssue(_ context.Context, tenant string, number int, _ string, _ time.Time, cascade bool) (Issue, []int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	row, ok := s.iss.rows[tenant][number]
+	if !ok {
+		return Issue{}, nil, ErrNotFound
+	}
+	var kids []int
+	if cascade {
+		kids = memSubtree(s.iss.rows[tenant], number)
+	} else {
+		for _, c := range s.iss.rows[tenant] {
+			if c.Parent == number {
+				return Issue{}, nil, ErrIssueHasChildren
+			}
+		}
+	}
+	if s.iss.archived[tenant] == nil {
+		s.iss.archived[tenant] = map[int]Issue{}
+	}
+	for _, n := range append([]int{number}, kids...) {
+		s.iss.archived[tenant][n] = s.iss.rows[tenant][n]
+		delete(s.iss.rows[tenant], n)
+	}
+	row.Prefix = s.iss.prefixOf(tenant)
+	return copyIssue(row), kids, nil
+}
+
+func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, _ string, _ time.Time, cascade bool) (Issue, []int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	row, ok := s.iss.archived[tenant][number]
+	if !ok {
+		return Issue{}, nil, ErrNotFound
+	}
+	var kids []int
+	if cascade {
+		kids = memSubtree(s.iss.archived[tenant], number)
+	}
+	if s.iss.rows[tenant] == nil {
+		s.iss.rows[tenant] = map[int]Issue{}
+	}
+	for _, n := range append([]int{number}, kids...) {
+		s.iss.rows[tenant][n] = s.iss.archived[tenant][n]
+		delete(s.iss.archived[tenant], n)
+	}
+	row.Prefix = s.iss.prefixOf(tenant)
+	return copyIssue(row), kids, nil
 }
 
 func (s *Memory) IssuePrefix(_ context.Context, tenant string) (string, error) {

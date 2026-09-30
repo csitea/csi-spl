@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: specs/024 -- the tenant host reconcile (40) stays inside the
-#          owner's rules: PAUSED (owner 2026-09-19 16:43Z, tenant from
-#          identity), so dispatch only and NO schedule; one run per env
+#          owner's rules: REVIVED (owner option A 2026-09-30, 047 B5), so a
+#          schedule every 15 min plus dispatch; one run per env
 #          (concurrency group per env, never cancelled mid-apply); dev before
 #          prd (max-parallel 1, matrix order); only the existing per-env key
 #          secrets GCP_KEY_CSI_SPL_<ENV> are read; terraform only through the
 #          orc make targets (no terraform binary / setup-terraform / host
 #          tf run); the apply is gated on open rows and runs the named action;
 #          the action it names exists in csi-spl-orc.
-#          CONTROL: a copy with a planted extra secret and a host terraform
-#          step is reported by the same checks.
+#          CONTROL: a copy with the schedule removed, a planted extra secret
+#          and a host terraform step is reported by the same checks.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +30,8 @@ raw = open(p).read()
 w = yaml.safe_load(raw)
 on = w.get(True) or w.get("on")
 bad = []
-if on.get("schedule") or "workflow_dispatch" not in on: bad.append("paused: must be dispatch only, no schedule")
+sched = [str(x.get("cron", "")) for x in (on.get("schedule") or [])]
+if sched != ["7,22,37,52 * * * *"] or "workflow_dispatch" not in on: bad.append("revived: must run every 15 min (7,22,37,52) plus dispatch, no schedule found")
 j = w["jobs"]["reconcile"]
 c = j.get("concurrency") or {}
 if "matrix.environment" not in str(c.get("group", "")) or c.get("cancel-in-progress") is not False:
@@ -51,7 +52,7 @@ PY
 }
 
 out=$(check "$WF")
-[[ -z "$out" ]] && pass "40 keeps the rules (paused: dispatch only, per-env concurrency, dev->prd, key secrets only, make path only, gated named action)" ||
+[[ -z "$out" ]] && pass "40 keeps the rules (revived: every 15 min + dispatch, per-env concurrency, dev->prd, key secrets only, make path only, gated named action)" ||
   fail "40: $out"
 grep -q '^do_spl_tenant_host_reconcile()' "$APP_ROOT/csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh" &&
   pass "the named action exists in csi-spl-orc" || fail "do_spl_tenant_host_reconcile is missing"
@@ -60,13 +61,13 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 python3 - "$WF" "$T/bad.yml" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-s = s.replace("on:\n  workflow_dispatch:", "on:\n  schedule:\n    - cron: \"*/10 * * * *\"\n  workflow_dispatch:", 1)
+s = s.replace("  schedule:\n    - cron: \"7,22,37,52 * * * *\"\n", "", 1)
 s = s.replace("      - name: Drop the keys", "      - name: planted\n        env:\n          X: ${{ secrets.OTHER_TOKEN }}\n        run: terraform apply -auto-approve\n\n      - name: Drop the keys", 1)
 open(sys.argv[2], "w").write(s)
 PY
 out=$(check "$T/bad.yml")
 grep -q 'another secret' <<<"$out" && grep -q 'host terraform' <<<"$out" && grep -q 'no schedule' <<<"$out" &&
-  pass "CONTROL: a re-added schedule, a planted secret and a host terraform step are all reported" || fail "CONTROL missed: $out"
+  pass "CONTROL: a removed schedule, a planted secret and a host terraform step are all reported" || fail "CONTROL missed: $out"
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

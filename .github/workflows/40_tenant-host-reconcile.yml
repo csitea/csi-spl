@@ -1,10 +1,14 @@
 # 40 cd: tenant host reconcile (specs/024).
 #
-# PAUSED - owner direction change 2026-09-19 16:43Z: csi-spl moves to "tenant
-# from identity" (one API host; the tenant comes from the signed-in session or
-# the box's pinned key; no DNS per tenant). The schedule is REMOVED and the
-# workflow is disabled in GitHub; it runs only if someone re-enables it AND
-# dispatches it. Superseded by the tenant-from-identity lane (spec 024 §0).
+# REVIVED - owner option A, 2026-09-30 (topic bea3a4e6, 047 B5, SPL-1161): a
+# paid tenant gets its host <tenant>.<fqdn> automatically (SPL-959 made every
+# tenant its host; paused 2026-09-19 for "tenant from identity", which SPL-959
+# reversed). Every 15 min: nothing open = the job ends after one read; an open
+# row = one 019 + 025 apply (Firebase custom domain + A/TXT) through the make
+# path, then the cert wait, the probe and tenant_hosts -> ready. The WUI says
+# "your address is being prepared" meanwhile (utils/tenant-host-boot.mjs).
+# The schedule runs only while the workflow is ENABLED in GitHub: enabling it
+# (`gh workflow enable 40_tenant-host-reconcile.yml`) is the owner's go.
 #
 # Owner decision 2026-09-19: with no load balancer there is no wildcard, so
 # every tenant host <tenant>.<fqdn> is one Cloud Run domain mapping (iac 032)
@@ -35,6 +39,8 @@
 name: "40 cd: tenant host reconcile"
 
 on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       environment:

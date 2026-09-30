@@ -143,6 +143,33 @@ func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire
 	s.fallbackPost(ctx, tenant, channel, env, m, false, false)
 }
 
+// recipientOnline reports whether any agent the post was meant for is online:
+// the DM's addressee, or a member agent of the channel. A members read error
+// counts as online, so the caller HOLDS the ordinary fallback on a transient
+// store error rather than sending a duplicate. Extracted from fallbackPost so
+// it reads as one gate (SPL-1036).
+func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, roster map[string][]string) bool {
+	if env.ToBox != WUIBox && s.agentOnline(tenant, env.ToBox, m.To, roster) {
+		return true
+	}
+	if channel == "" {
+		return false
+	}
+	members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("channel", channel).Msg("fallback channel members")
+		return true
+	}
+	for box, agents := range members {
+		for _, a := range agents {
+			if s.agentOnline(tenant, box, a, roster) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // fallbackPost is fallback; swept = the relay's sweep of a post another hub
 // process stored (relay.go, SPL-1004). A swept post is CLAIMED before its
 // frame is written, so two processes that both hold boxes of the tenant hand
@@ -180,24 +207,8 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 		log.Error().Err(err).Msg("fallback roster")
 		return
 	}
-	if !escalate {
-		if env.ToBox != WUIBox && s.agentOnline(tenant, env.ToBox, m.To, roster) {
-			return
-		}
-		if channel != "" {
-			members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
-			if err != nil {
-				log.Error().Err(err).Msg("fallback channel members")
-				return
-			}
-			for box, agents := range members {
-				for _, a := range agents {
-					if s.agentOnline(tenant, box, a, roster) {
-						return
-					}
-				}
-			}
-		}
+	if !escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster) {
+		return
 	}
 	canon, err := env.Marshal()
 	if err != nil {

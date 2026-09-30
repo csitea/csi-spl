@@ -251,6 +251,10 @@ type Store interface {
 	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
 	Moves
 
+	// Merge a whole topic into another topic (topic_merge.go, 714c7028): the
+	// move columns carry the home, so no schema of its own.
+	TopicMerge
+
 	// Emoji reactions on a stored message (rdb 0037). The message may be
 	// is_parent 0 or 1; the reaction does not care which.
 	MessageReactions

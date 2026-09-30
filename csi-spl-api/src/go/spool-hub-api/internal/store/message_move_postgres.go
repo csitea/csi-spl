@@ -23,16 +23,19 @@ func (s *Postgres) TaskCard(ctx context.Context, tenant, task string, now time.T
 	}
 	var c TaskCard
 	var channel *string
-	var isParent int
+	// The card is the EARLIEST is_parent=1 row, not the earliest row overall
+	// (CLE-35107, and the merge that demotes an older opener into this task,
+	// 714c7028): a topic whose oldest row is a reply or a merged-in message
+	// still resolves its card. prd t1 control e802196b.
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `SELECT m.msg_id::text, m.channel, m.received_at, m.is_parent,
+		return tx.QueryRow(ctx, `SELECT m.msg_id::text, m.channel, m.received_at,
 				EXISTS (SELECT 1 FROM issues i WHERE i.tenant_id = m.tenant_id AND i.task_id = m.task_id)
 			FROM messages m
-			WHERE m.tenant_id = $1 AND m.task_id = $2::uuid AND m.expires_at > $3
+			WHERE m.tenant_id = $1 AND m.task_id = $2::uuid AND m.expires_at > $3 AND m.is_parent = 1
 			ORDER BY m.received_at, m.msg_id LIMIT 1`, tenant, task, now).
-			Scan(&c.MsgID, &channel, &c.ReceivedAt, &isParent, &c.IssueTopic)
+			Scan(&c.MsgID, &channel, &c.ReceivedAt, &c.IssueTopic)
 	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && isParent != 1) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return TaskCard{}, ErrNotFound
 	}
 	if err != nil {

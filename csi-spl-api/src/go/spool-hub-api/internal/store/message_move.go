@@ -100,14 +100,18 @@ func markRow(m *Message, toChannel, by string, at time.Time, homeTask bool) {
 func (s *Memory) TaskCard(_ context.Context, tenant, task string, now time.Time) (TaskCard, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// The card is the EARLIEST is_parent=1 row, not the earliest row overall
+	// (CLE-35107, and the merge that demotes an older opener into this task,
+	// 714c7028): a topic whose oldest row is a reply or a merged-in message
+	// still resolves its card. prd t1 control e802196b.
 	var first *Message
 	for k, m := range s.messages {
-		if k[0] == tenant && m.TaskID == task && m.ExpiresAt.After(now) &&
+		if k[0] == tenant && m.TaskID == task && m.ExpiresAt.After(now) && parentBit(m.IsParent) == 1 &&
 			(first == nil || newer(first.ReceivedAt, first.MsgID, m.ReceivedAt, m.MsgID)) {
 			first = m
 		}
 	}
-	if first == nil || parentBit(first.IsParent) != 1 {
+	if first == nil {
 		return TaskCard{}, ErrNotFound
 	}
 	return TaskCard{MsgID: first.MsgID, Channel: first.Channel, ReceivedAt: first.ReceivedAt,

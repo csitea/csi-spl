@@ -529,13 +529,18 @@ func TestPreferencesRailOrder(t *testing.T) {
 		t.Fatalf("legacy six: %d %s", got.code, got.raw)
 	}
 	// CLE-77794: the seven with archive (a WUI cached before People/Agents) still
-	// stores, and the full nine (People + Agents) is a valid new order.
-	legacy7 := `["agents","people","events","archive","flow","topics","issues","channels","dm"]`
+	// stores, and the nine (People + Agents) stores as a legacy order too.
+	legacy9 := `["agents","people","events","archive","flow","topics","issues","channels","dm"]`
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["dm","channels","issues","topics","flow","archive","events"]}`); got.code != http.StatusOK {
 		t.Fatalf("legacy seven: %d %s", got.code, got.raw)
 	}
-	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy7+`}`); got.code != http.StatusOK {
-		t.Fatalf("nine tabs: %d %s", got.code, got.raw)
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy9+`}`); got.code != http.StatusOK {
+		t.Fatalf("legacy nine: %d %s", got.code, got.raw)
+	}
+	// CLE-77799: the full ten (People + Agents + Boxes) is a valid new order.
+	ten := `["boxes","agents","people","events","archive","flow","topics","issues","channels","dm"]`
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+ten+`}`); got.code != http.StatusOK {
+		t.Fatalf("ten tabs: %d %s", got.code, got.raw)
 	}
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusOK || got.body["rail_order"] != nil {
 		t.Fatalf("clear: %d %s", got.code, got.raw)

@@ -26,6 +26,10 @@ describe('tabForPath', () => {
     assert.equal(tabForPath('/fi'), 'topics')
     assert.equal(tabForPath('/t/abc'), 'topics')
     assert.equal(tabForPath('/fi/t/abc'), 'topics')
+    /* CLE-77799: Boxes is a list-then-card tab like People / Agents */
+    assert.equal(tabForPath('/boxes'), 'boxes')
+    assert.equal(tabForPath('/boxes/box-a'), 'boxes')
+    assert.equal(tabForPath('/fi/boxes/box-wui'), 'boxes')
   })
 
   it('lobby, search and settings keep the reader\'s current tab', () => {

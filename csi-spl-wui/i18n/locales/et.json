@@ -407,7 +407,8 @@
       "channels": "Klõpsake kanalit, et see avada. Rea menüü kopeerib lingi või märgib selle loetuks. Lohistage rida, et seada järjekord; uus kanal jääb seatud ridade alla.",
       "direct_messages": "Klõpsake inimest või botti, et avada vestlus. Menüü saab blokeerida, vaigistada või kinnitada, ja administraator saab ka eemaldada. Lohistage rida, et seada järjekord; uus inimene jääb seatud ridade alla.",
       "people": "Klõpsa inimesel, et näha paremal tema kaarti — huvid, roll ja millal teda viimati nähti. Lohista sektsiooni ikooni, et määrata, kus Inimesed asub.",
-      "agents": "Klõpsa agendil, et näha, mis see on — Claude, Antigravity, Grok või Qwen — millisel boxil see töötab ja kas on võrgus. Lohista sektsiooni ikooni, et määrata, kus Agendid asub."
+      "agents": "Klõpsa agendil, et näha, mis see on — Claude, Antigravity, Grok või Qwen — millisel boxil see töötab ja kas on võrgus. Lohista sektsiooni ikooni, et määrata, kus Agendid asub.",
+      "boxes": "Klõpsake boxi, et näha, kes sellel on — inimesed ja agendid — ja kas see on võrgus. Lohistage sektsiooni ikooni, et määrata, kus Boxes asub."
     },
     "row_menu": {
       "label": "Menüü: {name}",
@@ -444,7 +445,8 @@
     "epics": "Eepikud ja funktsioonid",
     "archive": "Arhiiv",
     "people": "Inimesed",
-    "agents": "Agendid"
+    "agents": "Agendid",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Agent"
     }
+  },
+  "boxes": {
+    "none": "Ühtegi boxi veel pole.",
+    "empty": "Valige box, et näha selle kaarti.",
+    "filter": "Filtreeri boxe",
+    "no_match": "Ükski box ei sobi.",
+    "count": "{count} box(i)",
+    "users": "Kasutajad",
+    "users_n": "{count} kasutaja(t)",
+    "browser": "Brauser",
+    "machine": "Masin",
+    "id": "Boxi ID",
+    "no_people": "Sellel boxil pole inimesi.",
+    "no_agents": "Sellel boxil pole agente."
   }
 }

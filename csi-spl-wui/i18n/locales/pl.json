@@ -407,7 +407,8 @@
       "channels": "Kliknij kanał, aby go otworzyć. Menu wiersza kopiuje łącze albo oznacza jako przeczytane. Przeciągnij wiersz, aby ustalić kolejność; nowy kanał zostaje pod ułożonymi wierszami.",
       "direct_messages": "Kliknij osobę albo bota, aby otworzyć rozmowę. Menu może zablokować, wyciszyć albo przypiąć, a administrator może też usunąć. Przeciągnij wiersz, aby ustalić kolejność; ktoś nowy zostaje pod ułożonymi wierszami.",
       "people": "Kliknij osobę, aby po prawej zobaczyć jej kartę — zainteresowania, rolę i kiedy była ostatnio widziana. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Osoby.",
-      "agents": "Kliknij agenta, aby zobaczyć, czym jest — Claude, Antigravity, Grok czy Qwen — na jakim boxie działa i czy jest online. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Agenci."
+      "agents": "Kliknij agenta, aby zobaczyć, czym jest — Claude, Antigravity, Grok czy Qwen — na jakim boxie działa i czy jest online. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Agenci.",
+      "boxes": "Kliknij box, aby zobaczyć, kto na nim jest — osoby i agenci — i czy jest online. Przeciągnij ikonę sekcji, aby ustawić, gdzie znajduje się Boxes."
     },
     "row_menu": {
       "label": "Menu dla {name}",
@@ -444,7 +445,8 @@
     "epics": "Epiki i funkcje",
     "archive": "Archiwum",
     "people": "Osoby",
-    "agents": "Agenci"
+    "agents": "Agenci",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Agent"
     }
+  },
+  "boxes": {
+    "none": "Brak boxów.",
+    "empty": "Wybierz box, aby zobaczyć jego kartę.",
+    "filter": "Filtruj boxy",
+    "no_match": "Żaden box nie pasuje.",
+    "count": "{count} box(ów)",
+    "users": "Użytkownicy",
+    "users_n": "{count} użytkownik(ów)",
+    "browser": "Przeglądarka",
+    "machine": "Maszyna",
+    "id": "ID boxa",
+    "no_people": "Brak osób na tym boxie.",
+    "no_agents": "Brak agentów na tym boxie."
   }
 }

@@ -16,11 +16,14 @@ export const MOCK_CHANNELS = [
 export const MOCK_ROSTER = {
   'box-a': ['CLE-07', 'GRK-03'],
   'box-b': ['CLE-07', 'AGY-02'],
+  // CLE-77799: a third machine box, so the Boxes section shows more than one
+  // (owner: "later on we will have more boxes than the current one box").
+  'box-desk': ['CLE-11'],
   // HUM-1 is the viewer; the others are tenant members to invite.
   'box-wui': ['HUM-1', 'HUM-2', 'HUM-12', 'HUM-3'],
 }
 
-export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'HUM-1@box-wui']
+export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'CLE-11@box-desk', 'HUM-1@box-wui']
 
 /* CLE-77794: the People section's per-member detail (view-v1 §4.1 humans[]):
    owner flag, free-text interests and last_seen. No display_name here (the card
@@ -37,6 +40,7 @@ export const MOCK_HUMANS = [
 export const MOCK_BOXES = [
   { box_id: 'box-a', online: true, last_hello_at: T0, agents: ['CLE-07', 'GRK-03'] },
   { box_id: 'box-b', online: false, last_hello_at: T0, agents: ['CLE-07', 'AGY-02'] },
+  { box_id: 'box-desk', online: true, last_hello_at: T0, agents: ['CLE-11'] },
 ]
 
 function msg(partial) {

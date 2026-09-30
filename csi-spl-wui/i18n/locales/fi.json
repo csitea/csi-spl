@@ -407,7 +407,8 @@
       "channels": "Avaa kanava napsauttamalla sitä. Rivin valikko kopioi linkin tai merkitsee kanavan luetuksi. Vedä riviä, niin järjestys säilyy; uusi kanava jää järjestämiesi rivien alle.",
       "direct_messages": "Avaa keskustelu napsauttamalla henkilöä tai bottia. Valikko voi estää, mykistää tai kiinnittää, ja ylläpitäjä voi myös poistaa. Vedä riviä, niin järjestys säilyy; uusi tulokas jää järjestämiesi rivien alle.",
       "people": "Napsauta henkilöä nähdäksesi oikealla hänen korttinsa — kiinnostuksen kohteet, roolin ja milloin hänet nähtiin viimeksi. Vedä osion kuvaketta asettaaksesi Ihmiset-osion paikan.",
-      "agents": "Napsauta agenttia nähdäksesi mikä se on — Claude, Antigravity, Grok vai Qwen — millä boxilla se on ja onko se linjoilla. Vedä osion kuvaketta asettaaksesi Agentit-osion paikan."
+      "agents": "Napsauta agenttia nähdäksesi mikä se on — Claude, Antigravity, Grok vai Qwen — millä boxilla se on ja onko se linjoilla. Vedä osion kuvaketta asettaaksesi Agentit-osion paikan.",
+      "boxes": "Napsauta boxia nähdäksesi, ketkä ovat siinä — ihmiset ja agentit — ja onko se verkossa. Vedä osion kuvaketta asettaaksesi, missä Boxes on."
     },
     "row_menu": {
       "label": "Valikko: {name}",
@@ -444,7 +445,8 @@
     "epics": "Eepokset ja ominaisuudet",
     "archive": "Arkisto",
     "people": "Ihmiset",
-    "agents": "Agentit"
+    "agents": "Agentit",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Agentti"
     }
+  },
+  "boxes": {
+    "none": "Ei vielä boxeja.",
+    "empty": "Valitse box nähdäksesi sen kortin.",
+    "filter": "Suodata boxeja",
+    "no_match": "Yksikään box ei täsmää.",
+    "count": "{count} box(ia)",
+    "users": "Käyttäjät",
+    "users_n": "{count} käyttäjä(ä)",
+    "browser": "Selain",
+    "machine": "Kone",
+    "id": "Boxin tunnus",
+    "no_people": "Tässä boxissa ei ole ihmisiä.",
+    "no_agents": "Tässä boxissa ei ole agentteja."
   }
 }

@@ -73,6 +73,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [15. Events](./events.md) | The Events tab: your personal activity and diagnostics log, and how to clear it. |
 | [16. People](./people.md) | The People tab: every workspace member, their card with role, last seen and interests, and how to set your own interests. |
 | [17. Agents](./agents.md) | The Agents tab: the workspace's agents, their kind (Claude, Antigravity, Grok, Qwen), box and liveness. |
+| [18. Boxes](./boxes.md) | The Boxes tab: the workspace's boxes (machines and the browser box), their liveness, and the people and agents seated on each. |
 
 ---
 

@@ -407,7 +407,8 @@
       "channels": "Faceți clic pe un canal ca să-l deschideți. Meniul rândului copiază legătura sau îl marchează ca citit. Trageți un rând ca să fixați ordinea; un canal nou rămâne sub rândurile aranjate.",
       "direct_messages": "Faceți clic pe o persoană sau un bot ca să deschideți conversația. Meniul poate bloca, amuți sau fixa, iar un administrator poate și elimina. Trageți un rând ca să fixați ordinea; cineva nou rămâne sub rândurile aranjate.",
       "people": "Dă clic pe o persoană pentru a-i vedea fișa în dreapta — interese, rol și când a fost văzută ultima dată. Trage pictograma secțiunii pentru a stabili unde stă Persoane.",
-      "agents": "Dă clic pe un agent pentru a vedea ce este — Claude, Antigravity, Grok sau Qwen — pe ce box rulează și dacă este online. Trage pictograma secțiunii pentru a stabili unde stă Agenți."
+      "agents": "Dă clic pe un agent pentru a vedea ce este — Claude, Antigravity, Grok sau Qwen — pe ce box rulează și dacă este online. Trage pictograma secțiunii pentru a stabili unde stă Agenți.",
+      "boxes": "Faceți clic pe un box pentru a vedea cine este pe el — persoanele și agenții — și dacă este online. Trageți pictograma secțiunii pentru a stabili unde stă Boxes."
     },
     "row_menu": {
       "label": "Meniu pentru {name}",
@@ -444,7 +445,8 @@
     "epics": "Epice și funcționalități",
     "archive": "Arhivă",
     "people": "Persoane",
-    "agents": "Agenți"
+    "agents": "Agenți",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Agent"
     }
+  },
+  "boxes": {
+    "none": "Încă niciun box.",
+    "empty": "Selectați un box pentru a vedea fișa.",
+    "filter": "Filtrați boxes",
+    "no_match": "Niciun box nu se potrivește.",
+    "count": "{count} box(uri)",
+    "users": "Utilizatori",
+    "users_n": "{count} utilizator(i)",
+    "browser": "Browser",
+    "machine": "Mașină",
+    "id": "ID box",
+    "no_people": "Niciun om pe acest box.",
+    "no_agents": "Niciun agent pe acest box."
   }
 }

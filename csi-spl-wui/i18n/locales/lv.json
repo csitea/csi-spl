@@ -407,7 +407,8 @@
       "channels": "Noklikšķiniet kanālu, lai to atvērtu. Rindas izvēlne kopē saiti vai atzīmē kā lasītu. Velciet rindu, lai iestatītu secību; jauns kanāls paliek zem sakārtotajām rindām.",
       "direct_messages": "Noklikšķiniet personu vai botu, lai atvērtu sarunu. Izvēlne var bloķēt, apklusināt vai piespraust, un administrators var arī noņemt. Velciet rindu, lai iestatītu secību; jauns cilvēks paliek zem sakārtotajām rindām.",
       "people": "Noklikšķiniet uz personas, lai pa labi redzētu tās kartīti — intereses, lomu un kad pēdējo reizi redzēta. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Cilvēki.",
-      "agents": "Noklikšķiniet uz aģenta, lai redzētu, kas tas ir — Claude, Antigravity, Grok vai Qwen — uz kura box tas darbojas un vai ir tiešsaistē. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Aģenti."
+      "agents": "Noklikšķiniet uz aģenta, lai redzētu, kas tas ir — Claude, Antigravity, Grok vai Qwen — uz kura box tas darbojas un vai ir tiešsaistē. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Aģenti.",
+      "boxes": "Noklikšķiniet uz box, lai redzētu, kas uz tā ir — cilvēki un aģenti — un vai tas ir tiešsaistē. Velciet sadaļas ikonu, lai norādītu, kur atrodas Boxes."
     },
     "row_menu": {
       "label": "Izvēlne: {name}",
@@ -444,7 +445,8 @@
     "epics": "Episki un funkcijas",
     "archive": "Arhīvs",
     "people": "Cilvēki",
-    "agents": "Aģenti"
+    "agents": "Aģenti",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Aģents"
     }
+  },
+  "boxes": {
+    "none": "Vēl nav neviena box.",
+    "empty": "Atlasiet box, lai redzētu tā karti.",
+    "filter": "Filtrēt boxes",
+    "no_match": "Neviens box neatbilst.",
+    "count": "{count} box(es)",
+    "users": "Lietotāji",
+    "users_n": "{count} lietotājs(-i)",
+    "browser": "Pārlūks",
+    "machine": "Iekārta",
+    "id": "Box ID",
+    "no_people": "Uz šī box nav cilvēku.",
+    "no_agents": "Uz šī box nav aģentu."
   }
 }

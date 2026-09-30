@@ -330,6 +330,15 @@ export const UI_ICON_PATHS = {
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.
   "chevron-left": ["m15 18-6-6 6-6"],
   grip: [{ d: "M9 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }],
+  // Boxes (CLE-77799): a rack server, two stacked units with a status LED
+  // (lucide server). The rectangles are drawn as rounded-rect paths (no <rect>,
+  // path-only for SSR) and the LEDs are filled discs so they survive at 18px.
+  server: [
+    "M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
+    "M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z",
+    { d: "M6 4.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+    { d: "M6 16.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

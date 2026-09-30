@@ -31,6 +31,11 @@ export const PEOPLE_TAB = 'people'
  *  GRK / QWN); the card is /agents/<id>. A reorderable rail tab. */
 export const AGENTS_TAB = 'agents'
 
+/** Boxes (CLE-77799): the tenant's boxes (machines + the browser box), their
+ *  liveness and who is seated on each; the card is /boxes/<box_id>. A
+ *  reorderable rail tab. */
+export const BOXES_TAB = 'boxes'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
@@ -46,7 +51,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -59,6 +64,7 @@ export function tabForPath(path) {
   if (p === '/archive') return ARCHIVE_TAB
   if (p === '/people' || p.startsWith('/people/')) return PEOPLE_TAB
   if (p === '/agents' || p.startsWith('/agents/')) return AGENTS_TAB
+  if (p === '/boxes' || p.startsWith('/boxes/')) return BOXES_TAB
   return null
 }
 

@@ -37,6 +37,7 @@ const RAIL_HELP = {
   events: { slug: 'events', word: 'event' },
   people: { slug: 'people', word: 'people' },
   agents: { slug: 'agents', word: 'agent' },
+  boxes: { slug: 'boxes', word: 'box' },
 }
 
 let failed = 0

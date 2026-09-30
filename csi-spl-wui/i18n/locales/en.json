@@ -407,7 +407,8 @@
       "channels": "Click a channel to open it. The menu on a row copies its link or marks it read. Drag a row to set the order; a new channel stays below the rows you arranged.",
       "direct_messages": "Click a person or a bot to open the conversation. The menu can block, mute, or pin them, and an admin can remove them. Drag a row to set the order; someone new stays below the rows you arranged.",
       "people": "Click a person to see their card — interests, role and when they were last seen — on the right. Drag the section icon to set where People sits.",
-      "agents": "Click an agent to see what it is — Claude, Antigravity, Grok or Qwen — the box it runs on and whether it is online. Drag the section icon to set where Agents sits."
+      "agents": "Click an agent to see what it is — Claude, Antigravity, Grok or Qwen — the box it runs on and whether it is online. Drag the section icon to set where Agents sits.",
+      "boxes": "Click a box to see who is on it — the people and agents seated there — and whether it is online. Drag the section icon to set where Boxes sits."
     },
     "row_menu": {
       "label": "Menu for {name}",
@@ -444,7 +445,8 @@
     "epics": "Epics and features",
     "archive": "Archive",
     "people": "People",
-    "agents": "Agents"
+    "agents": "Agents",
+    "boxes": "Boxes"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -1351,5 +1353,19 @@
       "qwen": "Qwen",
       "agent": "Agent"
     }
+  },
+  "boxes": {
+    "none": "No boxes yet.",
+    "empty": "Select a box to see its card.",
+    "filter": "Filter boxes",
+    "no_match": "No boxes match.",
+    "count": "{count} box(es)",
+    "users": "Users",
+    "users_n": "{count} user(s)",
+    "browser": "Browser",
+    "machine": "Machine",
+    "id": "Box id",
+    "no_people": "No people on this box.",
+    "no_agents": "No agents on this box."
   }
 }

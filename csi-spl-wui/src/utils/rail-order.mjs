@@ -34,6 +34,14 @@ export const RAIL_TABS = Object.freeze([
      nine. */
   Object.freeze({ id: 'people', icon: 'users', labelKey: 'sidebar.people' }),
   Object.freeze({ id: 'agents', icon: 'bot', labelKey: 'sidebar.agents' }),
+  /* CLE-77799 (owner 2026-09-30, topic 1fc29f99: "we should have a boxes
+     section as well ... and later on we will have more boxes than the current
+     one box"): Boxes lists the tenant's boxes (machines and the browser box),
+     their liveness and who is seated on each — the people AND the agents that
+     use it, each linked to their People / Agents card. Reorders and collapses
+     like the rest; a stored order from before it is drawn with Boxes appended
+     (parseRailOrder), and the hub's IsRailOrder + rdb 0089 admit the ten. */
+  Object.freeze({ id: 'boxes', icon: 'server', labelKey: 'sidebar.boxes' }),
 ])
 
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))

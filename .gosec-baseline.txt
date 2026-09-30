@@ -1,0 +1,32 @@
+# gosec high-severity baseline for the hub Go module (csi-spl-api/src/go/spool-hub-api).
+# Consumed by do_sec_gosec (SEC_GOSEC) and .github/workflows/62_gosec.yml.
+#
+# Format: <rule_id>|<file relative to the module>|<count>
+# The gate runs gosec at HIGH severity, counts findings per (rule, file), and
+# FAILS if any (rule, file) exceeds its baseline count or is not listed — i.e. a
+# NEW high-severity finding (new rule, new file, or an extra occurrence) reddens
+# the gate, while the triaged legacy findings below keep it green today. Counts,
+# not line numbers, so ordinary edits do not churn the baseline. Every gosec rule
+# stays ACTIVE (nothing is globally excluded); regenerate with
+# `SEC_GOSEC_WRITE_BASELINE=1 ./run -a do_sec_gosec` after a triaged change.
+#
+# Triage (gosec 2.22.4, HIGH severity), all in hub-lane code (CLE-77790 does not
+# edit csi-spl-api; fixing/annotating these is a hub-lane follow-up):
+#   G101 x4 (idp/native/oidc/wire): entropy false positives on OAuth/field-name
+#         string constants ("token"/"secret"/URL paths), not real credentials.
+#   G115 x5 (hub/password/pubkey): int->uintNN conversions on bounded values
+#         (key sizes, lengths); gosec's integer-overflow rule is FP-prone.
+#   G402 x1 (mail): SMTP TLS config — review as a hub-lane item (likely a
+#         STARTTLS/min-version default), tracked, not a new finding.
+#   G404 x1 (hubclient/flush): math/rand for non-cryptographic jitter/backoff.
+# A NEW occurrence of ANY of these rules (or any other gosec rule) anywhere not
+# already counted here fails the gate.
+G101|internal/auth/idp.go|1
+G101|internal/auth/native.go|1
+G101|internal/auth/oidc.go|1
+G101|internal/wire/wire.go|1
+G115|cmd/spool/hub.go|2
+G115|internal/auth/password.go|1
+G115|internal/sign/pubkey.go|2
+G402|internal/mail/mail.go|1
+G404|internal/hubclient/flush.go|1

@@ -1,0 +1,71 @@
+# Go SAST (gosec). Same runner rule as 15_sec-deps-secrets.yml: self-hosted
+# (spool-ci). gosec compiles the hub module, so Go is set up first. The tool is
+# installed in the job and verified against a pinned sha256; a missing tool fails
+# the action. The gate is HIGH severity against .gosec-baseline.txt.
+#
+# Path-scoped push: runs on master only when hub Go, the baseline, the action or
+# this file changes. Weekly schedule + workflow_dispatch.
+name: "62 sec: gosec (Go SAST)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "29 4 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "csi-spl-api/src/go/spool-hub-api/**"
+      - ".gosec-baseline.txt"
+      - "csi-spl-iac/src/bash/run/sec-gosec.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-gosec.tst.sh"
+      - ".github/workflows/62_gosec.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-gosec-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gosec:
+    name: "sec: gosec high-severity (hub Go)"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      # Pinned prebuilt binary + sha256. A download that does not match the pin
+      # fails closed rather than running an unknown tool.
+      - name: Install gosec 2.22.4
+        run: |
+          set -euo pipefail
+          v=2.22.4; dir="$RUNNER_TOOL_CACHE/gosec/$v"
+          sha=2a7f67f720c20cb6922857fb474c095872ce4ec0364d1783347800bf0d5f22bf
+          if [[ ! -x "$dir/gosec" ]]; then
+            mkdir -p "$dir"
+            tgz="$RUNNER_TEMP/gosec.tar.gz"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
+              -o "$tgz" \
+              "https://github.com/securego/gosec/releases/download/v$v/gosec_${v}_linux_amd64.tar.gz"
+            echo "$sha  $tgz" | sha256sum -c -
+            tar -xzf "$tgz" -C "$dir" gosec
+            chmod +x "$dir/gosec"
+          fi
+          "$dir/gosec" --version | head -3
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: gosec (control + scan vs baseline)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_gosec

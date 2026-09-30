@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Tėvas turi būti epikas, o epikas neturi tėvo.",
     "err_epic_has_issues": "Pirmiausia perkelkite šio epiko užduotis į kitą epiką.",
     "kind_feature": "Funkcija",
+    "kind_toggle": "Perjungti tarp epiko ir funkcijos",
     "subtasks": "Použduotys",
     "add_subtask": "Pridėti použduotį",
     "subtask_placeholder": "Naujos použduoties pavadinimas",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Užduoties veiksmai",
+    "edit": "Redaguoti",
     "open": "Atidaryti",
     "status": "Būsena…",
     "assign": "Priskirta…",

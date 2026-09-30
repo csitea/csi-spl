@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Ylätason on oltava eepos, eikä eepoksella ole ylätasoa.",
     "err_epic_has_issues": "Siirrä tämän eepoksen tiketit ensin toiseen eepokseen.",
     "kind_feature": "Ominaisuus",
+    "kind_toggle": "Vaihda eepoksen ja ominaisuuden välillä",
     "subtasks": "Alitehtävät",
     "add_subtask": "Lisää alitehtävä",
     "subtask_placeholder": "Uuden alitehtävän otsikko",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Tehtävän toiminnot",
+    "edit": "Muokkaa",
     "open": "Avaa",
     "status": "Tila…",
     "assign": "Vastuuhenkilö…",

@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Rodič musí byť epik a epik nemá rodiča.",
     "err_epic_has_issues": "Najprv presuňte úlohy tohto epiku do iného epiku.",
     "kind_feature": "Funkcia",
+    "kind_toggle": "Prepnúť medzi epikom a funkciou",
     "subtasks": "Podúlohy",
     "add_subtask": "Pridať podúlohu",
     "subtask_placeholder": "Názov novej podúlohy",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Akcie úlohy",
+    "edit": "Upraviť",
     "open": "Otvoriť",
     "status": "Stav…",
     "assign": "Priradený…",

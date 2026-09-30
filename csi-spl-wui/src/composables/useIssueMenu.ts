@@ -17,6 +17,15 @@ export type IssueMenuTarget = {
 
 const target = ref<IssueMenuTarget | null>(null)
 const point = ref({ x: 0, y: 0 })
+/**
+ * CLE-77816 (owner, topic 4365c545): "there is no edit epic/feature on the
+ * issues interface … it should be in the right-click menu". The Epics sidebar
+ * only opens the menu, so a double-click there (or the menu's Edit item)
+ * hands the target to the page, which owns the issue dialog. A bumped seq
+ * re-fires even when the same epic is asked for twice in a row.
+ */
+const editRequest = ref<{ target: IssueMenuTarget, seq: number } | null>(null)
+let editSeq = 0
 
 export function useIssueMenu() {
   function openAt(t: IssueMenuTarget, x: number, y: number) {
@@ -26,5 +35,10 @@ export function useIssueMenu() {
   function close() {
     target.value = null
   }
-  return { target, point, openAt, close }
+  /* ask the Issues page to open the shared dialog on this epic / feature */
+  function requestEdit(t: IssueMenuTarget) {
+    editSeq += 1
+    editRequest.value = { target: t, seq: editSeq }
+  }
+  return { target, point, openAt, close, editRequest, requestEdit }
 }

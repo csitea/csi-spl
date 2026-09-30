@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Üst öge bir epik olmalı ve epiğin üst ögesi olmaz.",
     "err_epic_has_issues": "Önce bu epiğin işlerini başka bir epiğe taşıyın.",
     "kind_feature": "Özellik",
+    "kind_toggle": "Epik ve özellik arasında geçiş yap",
     "subtasks": "Alt işler",
     "add_subtask": "Alt iş ekle",
     "subtask_placeholder": "Yeni alt işin başlığı",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Görev işlemleri",
+    "edit": "Düzenle",
     "open": "Aç",
     "status": "Durum…",
     "assign": "Atanan…",

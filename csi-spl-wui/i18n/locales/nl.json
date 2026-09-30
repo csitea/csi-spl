@@ -1117,6 +1117,7 @@
     "err_bad_epic": "De ouder moet een epic zijn, en een epic heeft geen ouder.",
     "err_epic_has_issues": "Verplaats eerst de issues van deze epic naar een andere epic.",
     "kind_feature": "Feature",
+    "kind_toggle": "Wisselen tussen epic en feature",
     "subtasks": "Subtaken",
     "add_subtask": "Subtaak toevoegen",
     "subtask_placeholder": "Titel van de nieuwe subtaak",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Taakacties",
+    "edit": "Bewerken",
     "open": "Openen",
     "status": "Status…",
     "assign": "Toegewezen…",

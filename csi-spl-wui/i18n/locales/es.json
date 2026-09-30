@@ -1117,6 +1117,7 @@
     "err_bad_epic": "El padre debe ser una épica, y una épica no tiene padre.",
     "err_epic_has_issues": "Mueve antes las incidencias de esta épica a otra épica.",
     "kind_feature": "Funcionalidad",
+    "kind_toggle": "Cambiar entre épica y funcionalidad",
     "subtasks": "Subtareas",
     "add_subtask": "Añadir subtarea",
     "subtask_placeholder": "Título de la nueva subtarea",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Acciones de incidencia",
+    "edit": "Editar",
     "open": "Abrir",
     "status": "Estado…",
     "assign": "Asignado…",

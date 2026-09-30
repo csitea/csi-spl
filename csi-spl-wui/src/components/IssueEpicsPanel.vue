@@ -25,6 +25,7 @@
       @pointerup="epicPress.up()"
       @pointercancel="epicPress.cancel()"
       @click="onEpicClick($event)"
+      @dblclick="onEpicEdit(e, $event)"
     >
       <span class="epic-row__title"><i class="epic-row__kind" :data-kind="e.kind || 'epic'" :title="t('issues.kind_' + (e.kind || 'epic'))" />{{ e.title }}</span>
       <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
@@ -48,9 +49,17 @@ const issueEpics = useState<EpicRow[]>('issue-epics', () => [])
 /* SPL-1226: right-click / long-press an epic or feature to archive or delete it
    (with its whole subtree). The Issues page renders the shared menu; this panel
    only opens it. */
-const { openAt: openCtxMenu } = useIssueMenu()
+const { openAt: openCtxMenu, requestEdit } = useIssueMenu()
 function epicTarget(e: EpicRow): IssueMenuTarget {
   return { key: e.key, kind: e.kind || 'epic', level: 1, title: e.title, top: true }
+}
+/* CLE-77816: a double-click opens the epic / feature in the issue dialog.
+   The first click already navigated to its list (?epic=); the page opens the
+   shared dialog on top, so you land on the epic and can edit it at once. */
+function onEpicEdit(e: EpicRow, ev: MouseEvent) {
+  ev.preventDefault()
+  ev.stopPropagation()
+  requestEdit(epicTarget(e))
 }
 let pressTarget: IssueMenuTarget | null = null
 const epicPress = createLongPress({ onPress: (x, y) => { if (pressTarget) openCtxMenu(pressTarget, x, y) } })

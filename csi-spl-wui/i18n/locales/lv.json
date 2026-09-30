@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Vecākam jābūt episkam, un episkam nav vecāka.",
     "err_epic_has_issues": "Vispirms pārvietojiet šī episka uzdevumus uz citu episku.",
     "kind_feature": "Funkcija",
+    "kind_toggle": "Pārslēgt starp episku un funkciju",
     "subtasks": "Apakšuzdevumi",
     "add_subtask": "Pievienot apakšuzdevumu",
     "subtask_placeholder": "Jaunā apakšuzdevuma nosaukums",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Uzdevuma darbības",
+    "edit": "Rediģēt",
     "open": "Atvērt",
     "status": "Statuss…",
     "assign": "Atbildīgais…",

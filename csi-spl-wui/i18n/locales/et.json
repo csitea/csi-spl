@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Vanem peab olema eepik ja eepikul pole vanemat.",
     "err_epic_has_issues": "Vii selle eepiku ülesanded esmalt teise eepikusse.",
     "kind_feature": "Funktsioon",
+    "kind_toggle": "Vaheta eepiku ja funktsiooni vahel",
     "subtasks": "Alamülesanded",
     "add_subtask": "Lisa alamülesanne",
     "subtask_placeholder": "Uue alamülesande pealkiri",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Ülesande toimingud",
+    "edit": "Muuda",
     "open": "Ava",
     "status": "Olek…",
     "assign": "Määratud…",

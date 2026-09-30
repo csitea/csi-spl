@@ -1117,6 +1117,7 @@
     "err_bad_epic": "The parent must be an epic, and an epic has no parent.",
     "err_epic_has_issues": "Move this epic's issues to another epic first.",
     "kind_feature": "Feature",
+    "kind_toggle": "Switch between epic and feature",
     "subtasks": "Subtasks",
     "add_subtask": "Add subtask",
     "subtask_placeholder": "New subtask title",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Issue actions",
+    "edit": "Edit",
     "open": "Open",
     "status": "Status…",
     "assign": "Assignee…",

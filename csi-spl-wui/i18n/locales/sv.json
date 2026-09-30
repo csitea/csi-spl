@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Föräldern måste vara en epic, och en epic har ingen förälder.",
     "err_epic_has_issues": "Flytta först den här epicens ärenden till en annan epic.",
     "kind_feature": "Funktion",
+    "kind_toggle": "Växla mellan epic och funktion",
     "subtasks": "Delaktiviteter",
     "add_subtask": "Lägg till delaktivitet",
     "subtask_placeholder": "Titel på den nya delaktiviteten",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Åtgärder för ärende",
+    "edit": "Redigera",
     "open": "Öppna",
     "status": "Status…",
     "assign": "Tilldelad…",

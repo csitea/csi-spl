@@ -674,7 +674,8 @@
                  without a sheet gets a button, SPL-992) -->
             <div class="issues-prow">
               <span class="issues-prow__k">{{ t('issues.field_level') }}</span>
-              <button v-if="phone && !creating" type="button" class="issues-pctl" data-test="issues-level-btn" :data-level="form.level" @click="openMenu('level', detailOrDraft(), $event)">
+              <!-- CLE-77816: a level-1 row's level is fixed (1); no sheet, read-only -->
+              <button v-if="phone && !creating && !isTopKind(form.kind)" type="button" class="issues-pctl" data-test="issues-level-btn" :data-level="form.level" @click="openMenu('level', detailOrDraft(), $event)">
                 <span class="issues-level">{{ levelShort(form.level) }}</span>
               </button>
               <span v-else class="issues-pval" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
@@ -690,12 +691,17 @@
                 <span v-else class="issues-pctl__v">{{ t('issues.no_assignee') }}</span>
               </button>
             </div>
-            <!-- Kind. Editable while creating (SPL cycle epic/feature/issue),
-                 read-only once the tree fixes it -->
+            <!-- Kind. Editable while creating (SPL cycle epic/feature/issue).
+                 CLE-77816: a level-1 row (epic / feature) stays editable in the
+                 dialog - a button toggles the two; a level-2/3 issue is fixed
+                 by the tree, so it is read-only. -->
             <div class="issues-prow">
               <span class="issues-prow__k">{{ t('issues.field_kind') }}</span>
               <button v-if="creating" type="button" class="issues-pctl" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
                 <span class="issues-pctl__v">{{ t('issues.kind_' + draft.kind) }}</span>
+              </button>
+              <button v-else-if="detail && isTopKind(form.kind)" type="button" class="issues-pctl" data-test="issues-kind" :data-kind="form.kind" :title="t('issues.kind_toggle')" @click="editKind">
+                <span class="issues-pctl__v">{{ t('issues.kind_' + form.kind) }}</span>
               </button>
               <span v-else class="issues-pval" data-test="issues-kind" :data-kind="form.kind">
                 <span class="issues-pctl__v">{{ t('issues.kind_' + form.kind) }}</span>
@@ -1039,7 +1045,7 @@ const delBusy = ref(false)
 const delError = ref('')
 /* SPL-1226: the right-click / long-press context menu (shared with the epics
    sidebar) and its cascade archive/delete confirm */
-const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu } = useIssueMenu()
+const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu, editRequest } = useIssueMenu()
 /* owner b82f3853: the same menu opened from the title-row button, not a
    right-click. Then it omits "Open" (the epic is already the view) and it
    right-aligns under the button. */
@@ -1086,6 +1092,14 @@ function epicTitleOf(key: string) {
 }
 function toggleKind() {
   draft.kind = draft.kind === 'issue' ? 'epic' : draft.kind === 'epic' ? 'feature' : 'issue'
+}
+/* CLE-77816: a level-1 row (epic / feature) toggles between the two while it is
+   open in the dialog; both are level 1, so the tree is untouched. Kind is not
+   editable to `issue` here (that would move it in the tree - level does that). */
+function editKind() {
+  const d = detail.value
+  if (!d || !isTopKind(d.kind)) return
+  void save(d.key, { kind: d.kind === 'epic' ? 'feature' : 'epic' })
 }
 /* SPL-18 level 3: the open issue's subtasks (parent=), re-read after a
    frame that names it and after a subtask is added */
@@ -1963,6 +1977,10 @@ const ctxItems = computed<IssueMenuItem[]>(() => {
   const tg = ctxTarget.value
   if (!tg) return []
   const items: IssueMenuItem[] = []
+  /* CLE-77816 (owner, topic 4365c545): Edit is the first item everywhere the
+     menu opens - it opens the same issue dialog (epic / feature included), so
+     the open-issue's own header menu does not repeat it. */
+  if (!ctxOverModal.value) items.push({ id: 'edit', icon: 'edit', labelKey: 'issues_menu.edit' })
   /* from the title-row button the epic is already the open view - no "Open" */
   if (!ctxFromButton.value) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
   items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
@@ -1997,6 +2015,21 @@ function openDetailMenu(ev: MouseEvent) {
   openCtxMenu(issueTarget(detail.value), Math.max(8, r.right - 176), r.bottom + 4)
 }
 function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false; ctxOverModal.value = false }
+/* CLE-77816 (owner, topic 4365c545): Edit opens the same issue dialog for the
+   target - an epic / feature edits like an issue. A held row opens straight
+   away; an epic (often not in the kind=issue list) is fetched first, the same
+   path openParent uses. */
+async function editTarget(tg: IssueMenuTarget) {
+  onCtxClose()
+  const held = issues.value.find((i) => i.key === tg.key)
+  if (held) { choose(held); return }
+  try {
+    const data = await withSessionRetry(api, () => api.getIssue(tg.key))
+    choose(normalizeIssue(data.issue))
+  } catch (e) {
+    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+  }
+}
 /* the shareable link for a menu target: an epic/feature opens its filtered
    view (?epic=), a plain issue deep-links itself (?issue=) */
 function issueLinkFor(tg: IssueMenuTarget): string {
@@ -2009,6 +2042,7 @@ function onCtxChoose(id: string) {
   const tg = ctxTarget.value
   if (!tg) return
   const pt = { ...ctxPoint.value }
+  if (id === 'edit') { void editTarget(tg); return }
   if (id === 'copy') { void copyText(issueLinkFor(tg), tg.key); return }
   if (id === 'open') {
     if (tg.top) { void router.push({ query: { ...route.query, epic: tg.key } }); return }
@@ -2338,6 +2372,9 @@ watch(detail, (issue) => {
   void loadComments(issue)
   void loadSubtasks(issue)
 })
+/* CLE-77816: the Epics sidebar double-click asks the page to open the dialog on
+   an epic / feature (the sidebar owns no dialog). seq re-fires the same key. */
+watch(editRequest, (req) => { if (req) void editTarget(req.target) })
 watch(() => {
   const q = route.query.issue
   const raw = Array.isArray(q) ? q[0] : q

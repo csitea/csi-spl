@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Părintele trebuie să fie un epic, iar un epic nu are părinte.",
     "err_epic_has_issues": "Mută mai întâi problemele acestui epic în alt epic.",
     "kind_feature": "Funcționalitate",
+    "kind_toggle": "Comută între epic și funcționalitate",
     "subtasks": "Subsarcini",
     "add_subtask": "Adaugă subsarcină",
     "subtask_placeholder": "Titlul noii subsarcini",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Acțiuni sarcină",
+    "edit": "Editează",
     "open": "Deschide",
     "status": "Stare…",
     "assign": "Responsabil…",

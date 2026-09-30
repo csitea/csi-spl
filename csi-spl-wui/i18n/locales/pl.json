@@ -1117,6 +1117,7 @@
     "err_bad_epic": "Rodzic musi być epikiem, a epik nie ma rodzica.",
     "err_epic_has_issues": "Najpierw przenieś zadania tego epiku do innego epiku.",
     "kind_feature": "Funkcja",
+    "kind_toggle": "Przełącz między epikiem a funkcją",
     "subtasks": "Podzadania",
     "add_subtask": "Dodaj podzadanie",
     "subtask_placeholder": "Tytuł nowego podzadania",
@@ -1216,6 +1217,7 @@
   },
   "issues_menu": {
     "label": "Działania zadania",
+    "edit": "Edytuj",
     "open": "Otwórz",
     "status": "Status…",
     "assign": "Przypisany…",

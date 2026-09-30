@@ -26,7 +26,7 @@
         :data-kind="k"
         @click.stop="choose(k)"
       >
-        <KindBadge :kind="k" />
+        <KindGlyph :kind="k" />
         <span>{{ t('feed.kind.' + k) }}</span>
       </button>
     </div>

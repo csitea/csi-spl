@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import type { Rollup } from "vite"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
@@ -165,6 +166,31 @@ const VENDOR_CHUNKS: Array<[string, RegExp]> = [
   // Translation ENGINE only; locale messages keep their own lazy chunk.
   ["vendor-i18n", /^(?:vue-i18n|@intlify\/.+)$/],
 ]
+
+// ── Circular-import guard (CLE-77804) ─────────────────────────────────────
+// A circular import between two of OUR modules is how a code-split chunk gets
+// a temporal-dead-zone crash in the minified build: the browser evaluates one
+// chunk, reaches a top-level reference into a second chunk that has not run
+// yet, and throws `ReferenceError: Cannot access 'X' before initialization`
+// (surfaced to the error journal as source "vue"). Rollup sees these cycles at
+// build time but only warns; make an app-source cycle FAIL the build so the
+// class never reaches production again. node_modules-only cycles stay warnings
+// (we do not own them).
+function isAppModule(id: string): boolean {
+  return !id.includes("node_modules") && (id.includes("/src/") || id.includes("/.nuxt/"))
+}
+const onwarnFailAppCycles: Rollup.WarningHandlerWithDefault = (warning, warn) => {
+  if (warning.code === "CIRCULAR_DEPENDENCY") {
+    const ids = (warning as { ids?: readonly string[], cycle?: readonly string[] }).ids
+      ?? (warning as { cycle?: readonly string[] }).cycle
+      ?? []
+    if (ids.some(isAppModule)) {
+      const where = ids.map((p) => p.replace(/.*\/(src|\.nuxt)\//, "$1/")).join(" -> ")
+      throw new Error(`Circular import in app code (TDZ risk, CLE-77804): ${where}`)
+    }
+  }
+  warn(warning)
+}
 
 /** Map a module id to its long-lived vendor chunk, or undefined to let Rollup decide. */
 function vendorChunk(id: string): string | undefined {
@@ -352,6 +378,7 @@ export default defineNuxtConfig({
       build: {
         rollupOptions: {
           output: { manualChunks: vendorChunk },
+          onwarn: onwarnFailAppCycles,
         },
         sourcemap: process.env.NUXT_CLIENT_SOURCEMAP === "true",
       },

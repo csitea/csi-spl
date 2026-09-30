@@ -26,7 +26,9 @@ describe('pickers mount only while open', () => {
       assert.match(src, /onMounted\(\(\) => \{ if \(props\.open\) void onOpenChange\(true\) \}\)/)
       assert.match(src, /watch\(\(\) => props\.open, onOpenChange\)/)
       assert.match(src, /document\.addEventListener\('pointerdown', onDocPointer, true\)/)
-      assert.match(src, /onBeforeUnmount\(\(\) => document\.removeEventListener\('pointerdown', onDocPointer, true\)\)/)
+      /* the outside-click listener is removed on unmount; a picker may also run
+         its own cleanup in the same hook (EmojiPicker clears its long-press timer) */
+      assert.match(src, /onBeforeUnmount\(\(\) => \{?\s*document\.removeEventListener\('pointerdown', onDocPointer, true\)/)
     })
   }
 })

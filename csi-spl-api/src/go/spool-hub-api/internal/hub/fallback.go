@@ -144,7 +144,7 @@ func fallbackWhere(channel, to string) string {
 // it was meant for is online (FR-030..FR-034). channel is the post's stored
 // channel ("" = a DM). Called once, after the post's own deliveries exist.
 func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message) {
-	s.fallbackPost(ctx, tenant, channel, env, m, false, false, false, "")
+	s.fallbackPost(ctx, tenant, channel, env, m, escalation{})
 }
 
 // recipientOnline reports whether any agent the post was meant for is online:
@@ -193,7 +193,16 @@ func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, en
 // dropped). It bumps the existing fallback row (attempts+1) instead of
 // claiming a new one, re-poking and rotating to the next responder / any awake
 // agent, so one refused poke to a busy responder is not permanent silence.
-func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, swept, escalate, reescalate bool, avoid string) {
+// escalation is fallbackPost's mode: swept = a relay sweep of another
+// process's post (claim first); escalate = the SPL-1225 unanswered sweep (skip
+// the online gates); reescalate = the miss-fix re-fire (bump the row, rotate
+// past avoid). The zero value is the immediate post-time fallback.
+type escalation struct {
+	swept, escalate, reescalate bool
+	avoid                       string
+}
+
+func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, esc escalation) {
 	if !s.o.Fallback || env.FromBox != WUIBox || !strings.HasPrefix(m.From, "HUM-") {
 		return
 	}
@@ -217,14 +226,14 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 		log.Error().Err(err).Msg("fallback roster")
 		return
 	}
-	if !escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster) {
+	if !esc.escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster) {
 		return
 	}
 	canon, err := env.Marshal()
 	if err != nil {
 		return
 	}
-	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), avoid)
+	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), esc.avoid)
 	if !ok {
 		log.Info().Msg("fallback: no online agent takes this post")
 		return
@@ -233,9 +242,9 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	now := s.o.Now()
 	rec := store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID, Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}
 	fb, hasFB := s.o.Store.(store.Fallbacks)
-	claim := swept || escalate
+	claim := esc.swept || esc.escalate
 	switch {
-	case reescalate && hasFB:
+	case esc.reescalate && hasFB:
 		switch won, err := fb.BumpFallback(ctx, rec, s.o.ReescalateMax); {
 		case err != nil:
 			log.Error().Err(err).Msg("fallback re-escalate")
@@ -262,13 +271,13 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	} else {
 		log.Error().Err(err).Str("box", b.box).Msg("fallback delivery row")
 	}
-	if hasFB && !claim && !reescalate {
+	if hasFB && !claim && !esc.reescalate {
 		if err := fb.RecordFallback(ctx, rec); err != nil {
 			log.Error().Err(err).Msg("fallback record")
 		}
 	}
 	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
-		Bool("swept", swept).Bool("escalate", escalate).Bool("reescalate", reescalate).Msg("fallback delivered")
+		Bool("swept", esc.swept).Bool("escalate", esc.escalate).Bool("reescalate", esc.reescalate).Msg("fallback delivered")
 }
 
 // channelFallback is the members answer's `fallback` (FR-035): who a post

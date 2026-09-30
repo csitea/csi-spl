@@ -189,7 +189,11 @@ try {
     await p.mouse.click(spot.x, spot.y)
     await sleep(300)
   }, true)
-  await desktopCase(browser, 4, 'topic open, the line starts with @someone (explicit new topic)', async () => {}, false, '@CLE-07 ')
+  await desktopCase(browser, 4, 'topic open, the line dispatches a task (@CLE-07 …, explicit new topic)', async () => {}, false, '@CLE-07 ')
+  /* e09a72f7 (owner): a leading @ that addresses no task (@test) is an ordinary
+     message and replies into the open topic - it must NOT become its own topic.
+     The owner typed @test in a thread and each one opened a new topic. */
+  await desktopCase(browser, 5, 'topic open, a leading @ that addresses no task (@test) replies into it', async () => {}, true, '@test ')
   await phoneCase(browser, 360, 740)
   await phoneCase(browser, 820, 1180)
 } finally {

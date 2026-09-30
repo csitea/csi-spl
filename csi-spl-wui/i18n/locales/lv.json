@@ -393,7 +393,8 @@
       "channel_exists": "Šāds kanāls jau pastāv (vai nosaukums ir rezervēts).",
       "bad_channel": "Izmantojiet mazos burtus, ciparus un domuzīmes (līdz 64).",
       "view_door": "Piesakieties, lai izveidotu kanālu.",
-      "fallback": "kanāls netika izveidots"
+      "fallback": "kanāls netika izveidots",
+      "channel_archived": "That name belongs to an archived channel."
     },
     "channel_name_required": "nepieciešams kanāla nosaukums",
     "create_channel_title": "Jauns kanāls",
@@ -430,7 +431,8 @@
       "properties": "Properties",
       "delete_channel": "Dzēst kanālu",
       "move_up": "Pārvietot augšup",
-      "move_down": "Pārvietot lejup"
+      "move_down": "Pārvietot lejup",
+      "archive_channel": "Arhivēt kanālu"
     },
     "channel_order_failed": "Neizdevās saglabāt kanālu secību ({token}).",
     "delete_channel": {
@@ -450,7 +452,18 @@
     "archive": "Arhīvs",
     "people": "Cilvēki",
     "agents": "Aģenti",
-    "boxes": "Boxes"
+    "boxes": "Boxes",
+    "archive_channel": {
+      "title": "Archive #{name}?",
+      "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
+      "confirm": "Archive channel",
+      "busy": "Archiving…",
+      "error_forbidden": "Only the member who created this channel can archive it.",
+      "error_default": "A default channel cannot be archived.",
+      "error_gone": "This channel no longer exists.",
+      "error_fallback": "The channel was not archived. Try again."
+    },
+    "create_channel_unarchive": "Unarchive #{slug}"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",

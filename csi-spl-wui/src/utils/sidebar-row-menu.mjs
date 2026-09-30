@@ -14,7 +14,7 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
  * A Channels row (SPL-1034) offers Move up / Move down, each only when there
  * is a neighbour that way (not on the first / last row).
  *
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, moveUp?: boolean, moveDown?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, archivable?: boolean, moveUp?: boolean, moveDown?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
  */
 /** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete' | 'chevron-up' | 'chevron-down', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
@@ -33,6 +33,8 @@ export function rowMenuItems(unread, opts = {}) {
     if (o.moveUp) items.push({ id: 'move-up', icon: 'chevron-up', labelKey: 'sidebar.row_menu.move_up' })
     if (o.moveDown) items.push({ id: 'move-down', icon: 'chevron-down', labelKey: 'sidebar.row_menu.move_down' })
     if (o.properties) items.push({ id: 'properties', icon: 'settings', labelKey: 'sidebar.row_menu.properties' })
+    /* rdb 0092: its creator only (canDeleteChannel); a confirm, then hide + reserve */
+    if (o.archivable) items.push({ id: 'archive-channel', icon: 'archive', labelKey: 'sidebar.row_menu.archive_channel' })
     /* SPL-72: its creator only (canDeleteChannel); opens a confirm, never deletes at once */
     if (o.deletable) items.push({ id: 'delete', icon: 'trash', labelKey: 'sidebar.row_menu.delete_channel' })
   }

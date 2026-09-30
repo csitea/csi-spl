@@ -393,7 +393,8 @@
       "channel_exists": "Tento kanál už existuje (alebo je názov rezervovaný).",
       "bad_channel": "Použite malé písmená, číslice a pomlčky (max. 64).",
       "view_door": "Ak chcete vytvoriť kanál, prihláste sa.",
-      "fallback": "kanál nebol vytvorený"
+      "fallback": "kanál nebol vytvorený",
+      "channel_archived": "That name belongs to an archived channel."
     },
     "channel_name_required": "názov kanála je povinný",
     "create_channel_title": "Nový kanál",
@@ -430,7 +431,8 @@
       "properties": "Properties",
       "delete_channel": "Odstrániť kanál",
       "move_up": "Posunúť nahor",
-      "move_down": "Posunúť nadol"
+      "move_down": "Posunúť nadol",
+      "archive_channel": "Archivovať kanál"
     },
     "channel_order_failed": "Poradie kanálov sa nepodarilo uložiť ({token}).",
     "delete_channel": {
@@ -450,7 +452,18 @@
     "archive": "Archív",
     "people": "Ľudia",
     "agents": "Agenti",
-    "boxes": "Boxes"
+    "boxes": "Boxes",
+    "archive_channel": {
+      "title": "Archive #{name}?",
+      "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
+      "confirm": "Archive channel",
+      "busy": "Archiving…",
+      "error_forbidden": "Only the member who created this channel can archive it.",
+      "error_default": "A default channel cannot be archived.",
+      "error_gone": "This channel no longer exists.",
+      "error_fallback": "The channel was not archived. Try again."
+    },
+    "create_channel_unarchive": "Unarchive #{slug}"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",

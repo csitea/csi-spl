@@ -85,6 +85,8 @@ const props = defineProps<{
   channel?: boolean
   properties?: boolean
   deletable?: boolean
+  /** rdb 0092: a channel its creator may archive (hide + reserve the name) */
+  archivable?: boolean
   /** SPL-1034: a Channels row that may go up / down one place */
   moveUp?: boolean
   moveDown?: boolean
@@ -107,6 +109,7 @@ const emit = defineEmits<{
   pin: []
   properties: []
   delete: []
+  archiveChannel: []
   archive: []
   deleteTopic: []
   moveUp: []
@@ -133,6 +136,7 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   channel: props.channel,
   properties: props.properties,
   deletable: props.deletable,
+  archivable: props.archivable,
   moveUp: props.moveUp,
   moveDown: props.moveDown,
   topicArchive: props.topicArchive,
@@ -264,6 +268,8 @@ function choose(id: string) {
     emit('properties')
   } else if (id === 'delete') {
     emit('delete')
+  } else if (id === 'archive-channel') {
+    emit('archiveChannel')
   } else if (id === 'archive') {
     emit('archive')
   } else if (id === 'delete-topic') {

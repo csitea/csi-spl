@@ -156,6 +156,20 @@ export const useChannelStore = defineStore('channel', () => {
     addChannel({ type: 'channel_deleted', channel: id })
   }
 
+  /** rdb 0092: archive a channel, then drop the row here at once. */
+  async function archiveChannel(id: string) {
+    await withSessionRetry(api, () => api.archiveChannel(id))
+    addChannel({ type: 'channel_deleted', channel: id })
+  }
+
+  /** rdb 0092: unarchive a channel; the row comes back with the hub's answer. */
+  async function unarchiveChannel(id: string) {
+    const row = await withSessionRetry(api, () => api.unarchiveChannel(id))
+    if (row && row.channel_id) {
+      addChannel({ type: 'channel', ...row })
+    }
+  }
+
   /**
    * the last DM per peer, so the DM list is ordered by activity on
    * the first paint too (live frames keep it fresh afterwards). A hub without
@@ -473,6 +487,8 @@ export const useChannelStore = defineStore('channel', () => {
     noteLive,
     addChannel,
     deleteChannel,
+    archiveChannel,
+    unarchiveChannel,
     loadDmActivity,
     active,
     peer,

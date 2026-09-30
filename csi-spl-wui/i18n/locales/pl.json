@@ -393,7 +393,8 @@
       "channel_exists": "Ten kanał już istnieje (lub nazwa jest zarezerwowana).",
       "bad_channel": "Użyj małych liter, cyfr i myślników (maks. 64).",
       "view_door": "Zaloguj się, aby utworzyć kanał.",
-      "fallback": "nie utworzono kanału"
+      "fallback": "nie utworzono kanału",
+      "channel_archived": "That name belongs to an archived channel."
     },
     "channel_name_required": "nazwa kanału jest wymagana",
     "create_channel_title": "Nowy kanał",
@@ -430,7 +431,8 @@
       "properties": "Properties",
       "delete_channel": "Usuń kanał",
       "move_up": "Przenieś w górę",
-      "move_down": "Przenieś w dół"
+      "move_down": "Przenieś w dół",
+      "archive_channel": "Zarchiwizuj kanał"
     },
     "channel_order_failed": "Nie udało się zapisać kolejności kanałów ({token}).",
     "delete_channel": {
@@ -450,7 +452,18 @@
     "archive": "Archiwum",
     "people": "Osoby",
     "agents": "Agenci",
-    "boxes": "Boxes"
+    "boxes": "Boxes",
+    "archive_channel": {
+      "title": "Archive #{name}?",
+      "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
+      "confirm": "Archive channel",
+      "busy": "Archiving…",
+      "error_forbidden": "Only the member who created this channel can archive it.",
+      "error_default": "A default channel cannot be archived.",
+      "error_gone": "This channel no longer exists.",
+      "error_fallback": "The channel was not archived. Try again."
+    },
+    "create_channel_unarchive": "Unarchive #{slug}"
   },
   "composer": {
     "biz_owner": "właściciel firmy",

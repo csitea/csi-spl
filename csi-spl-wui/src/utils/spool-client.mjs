@@ -84,6 +84,7 @@ async function pool(items, n, job) {
 
 const CHANNEL_ERRORS = {
   channel_exists: (slug) => `#${slug} already exists`,
+  channel_archived: (slug) => `#${slug} is reserved: an archived channel has this name`,
   bad_channel: (slug) => `"${slug}" is not a valid channel name (a-z, 0-9, "-", max 64)`,
 }
 
@@ -631,7 +632,36 @@ export function createSpoolClient({
     if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} is a default channel: it cannot be deleted`)
     if (row.created_by !== state.me.id) throw memberError(403, 'forbidden', 'forbidden')
     state.channels = state.channels.filter((c) => c.channel_id !== id)
+    delete state.memberships[id]
+    if (state.archivedChannels) delete state.archivedChannels[id]
     return null
+  }
+
+  function mockArchiveChannel(channel) {
+    const id = normalizeChannelId(channel)
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    const members = state.memberships[id] || []
+    if (!isPublicChannel(id) && !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} is a default channel: it cannot be archived`)
+    if (row.created_by !== state.me.id) throw memberError(403, 'forbidden', 'forbidden')
+    state.archivedChannels = state.archivedChannels || {}
+    state.archivedChannels[id] = { ...row, members: [...members] }
+    state.channels = state.channels.filter((c) => c.channel_id !== id)
+    return null
+  }
+
+  function mockUnarchiveChannel(channel) {
+    const id = normalizeChannelId(channel)
+    const kept = state.archivedChannels && state.archivedChannels[id]
+    if (!kept) throw memberError(404, 'unknown_channel', `no archived channel ${channel} in this tenant`)
+    const { members, ...row } = kept
+    if (!state.channels.some((c) => c.channel_id === id)) state.channels.push(row)
+    state.memberships[id] = members || [state.me.id]
+    delete state.archivedChannels[id]
+    return row
   }
 
   function mockSetOpen(channel, flag) {
@@ -1495,6 +1525,9 @@ export function createSpoolClient({
       if (!slug) throw Object.assign(new Error('channel id required'), { status: 400, token: 'bad_channel' })
       const about = String(description || '').trim().slice(0, 500)
       if (mock) {
+        if (state.archivedChannels && state.archivedChannels[slug]) {
+          throw memberError(409, 'channel_archived', 'reserved: an archived channel has this name')
+        }
         const row = { channel_id: slug, name: name || slug, created_by: state.me.id }
         if (about) row.description = about
         if (!state.channels.some((c) => c.channel_id === slug)) {
@@ -1605,13 +1638,36 @@ export function createSpoolClient({
       }
     },
     /**
-     * SPL-72, channels-v1 §5.4: the creator soft-deletes a channel. 204.
-     * 404 unknown_channel (not a member), 409 channel_public, 403 forbidden.
+     * SPL-72, channels-v1 §5.4: the creator HARD-deletes a channel (rdb 0092),
+     * so the name is free again. 204. 404 unknown_channel (not a member),
+     * 409 channel_public, 403 forbidden.
      */
     async deleteChannel(channel) {
       if (mock) return mockDeleteChannel(channel)
       await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}`, { method: 'DELETE' })
       return null
+    },
+    /**
+     * rdb 0092: the creator archives a channel - it is hidden, its slug stays
+     * reserved, and its topics move to the Archive view. PUT .../archive, 204.
+     * 404 unknown_channel, 409 channel_public, 403 forbidden. Reversible by
+     * unarchiveChannel.
+     */
+    async archiveChannel(channel) {
+      if (mock) return mockArchiveChannel(channel)
+      await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/archive`, { method: 'PUT' })
+      return null
+    },
+    /**
+     * rdb 0092: bring an archived channel back (channels.manage). PUT
+     * .../unarchive, 200 {channel,...}. 404 when no archived channel by that
+     * name.
+     */
+    async unarchiveChannel(channel) {
+      if (mock) return mockUnarchiveChannel(channel)
+      const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/unarchive`, { method: 'PUT' })
+      const [row] = channelsFromView({ channels: [data || { channel: normalizeChannelId(channel) }] })
+      return row
     },
     /**
      * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload

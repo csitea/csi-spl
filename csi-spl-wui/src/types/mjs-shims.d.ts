@@ -113,8 +113,12 @@ declare module '~/utils/spool-client.mjs' {
     removeChannelMember(channel: string, humanId: string): Promise<null>
     removeChannelAgent(channel: string, agentId: string, box: string): Promise<null>
     setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
-    /** SPL-72: the creator deletes a channel (soft, channels-v1 §5.4). */
+    /** SPL-72: the creator hard-deletes a channel; the name is freed (rdb 0092). */
     deleteChannel(channel: string): Promise<null>
+    /** rdb 0092: the creator archives a channel (hidden, slug reserved). */
+    archiveChannel(channel: string): Promise<null>
+    /** rdb 0092: bring an archived channel back. */
+    unarchiveChannel(channel: string): Promise<import('./spool').ChannelRow>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     deleteMessage(msgId: string): Promise<null>

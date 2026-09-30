@@ -225,6 +225,7 @@
       :channel="true"
       :properties="showProperties(c.channel_id)"
       :deletable="deletableChannel(c.channel_id)"
+      :archivable="deletableChannel(c.channel_id)"
       :muted="isChannelMuted(c.channel_id)"
       :move-up="channelIndex > 0"
       :move-down="channelIndex < channelRows.length - 1"
@@ -236,6 +237,7 @@
       @mute="toggleChannelMute(c.channel_id)"
       @properties="openProperties(c.channel_id)"
       @delete="askDeleteChannel(c.channel_id)"
+      @archive-channel="askArchiveChannel(c.channel_id)"
       @move-up="stepChannel(c.channel_id, -1)"
       @move-down="stepChannel(c.channel_id, 1)"
     />
@@ -291,6 +293,14 @@
           <small class="muted">{{ t('sidebar.create_channel_description_hint') }}</small>
         </label>
         <p v-if="createError" class="create-error" role="alert" data-testid="create-channel-error">{{ createError }}</p>
+        <button
+          v-if="archivedSlug"
+          type="button"
+          class="btn ghost"
+          data-testid="create-channel-unarchive"
+          :disabled="creating"
+          @click="unarchiveFromCreate"
+        >{{ t('sidebar.create_channel_unarchive', { slug: archivedSlug }) }}</button>
       </form>
       <template #footer>
         <div class="create-channel-form__actions">
@@ -312,6 +322,14 @@
       :channel-id="deleteTarget.channel_id"
       :name="deleteTarget.name"
       @deleted="onChannelDeleted"
+    />
+    <!-- rdb 0092: Archive channel, its creator only, always behind this confirm -->
+    <LazyChannelArchiveDialog
+      v-if="archiveTarget.channel_id"
+      v-model:open="archiveOpen"
+      :channel-id="archiveTarget.channel_id"
+      :name="archiveTarget.name"
+      @archived="onChannelArchived"
     />
     <!-- SPL-986: a topic row's Delete, the card's own confirm (specs/041 §3.5) -->
     <LazyTopicDeleteDialog
@@ -407,6 +425,7 @@
             :channel="true"
             :properties="showProperties(row.id)"
             :deletable="deletableChannel(row.id)"
+            :archivable="deletableChannel(row.id)"
             :muted="isChannelMuted(row.id)"
             :open="rowMenu === 'flow:ch:' + row.id"
             @toggle="toggleRowMenu('flow:ch:' + row.id)"
@@ -416,6 +435,7 @@
             @mute="toggleChannelMute(row.id)"
             @properties="openProperties(row.id)"
             @delete="askDeleteChannel(row.id)"
+            @archive-channel="askArchiveChannel(row.id)"
           />
           </div>
           <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:dm:' + row.label)">
@@ -1346,6 +1366,18 @@ function askDeleteChannel(id: string) {
   deleteTarget.value = { channel_id: id, name: String(row?.name || id) }
   deleteOpen.value = true
 }
+/* rdb 0092: Archive channel - the creator only, same door as delete. The
+   confirm is LazyChannelArchiveDialog. */
+const archiveOpen = ref(false)
+const archiveTarget = ref({ channel_id: '', name: '' })
+function askArchiveChannel(id: string) {
+  const row = shownChannels.value.find((c) => c.channel_id === id)
+  archiveTarget.value = { channel_id: id, name: String(row?.name || id) }
+  archiveOpen.value = true
+}
+function onChannelArchived(id: string) {
+  onChannelDeleted(id) // an archived channel drops from the sidebar just like a deleted one
+}
 /* the open channel is gone: leave it for #lobby rather than show a 404 page */
 function leaveDeleted(id: string) {
   if (channel.active === id) void navigateTo(localePath('/channel/lobby'))
@@ -1369,9 +1401,30 @@ onBeforeUnmount(() => { offChannel?.() })
 function createCopy(e: unknown) {
   const tok = (e && typeof e === 'object' && 'token' in e) ? String((e as { token?: unknown }).token || '') : ''
   if (tok === 'channel_exists') return t('sidebar.create_error.channel_exists')
+  if (tok === 'channel_archived') return t('sidebar.create_error.channel_archived')
   if (tok === 'bad_channel') return t('sidebar.create_error.bad_channel')
   if (tok === 'view_door') return t('sidebar.create_error.view_door')
   return e instanceof Error ? e.message : t('sidebar.create_error.fallback')
+}
+
+/* rdb 0092: when the name is reserved by an ARCHIVED channel, the create error
+   offers to unarchive it (channels.manage) instead of only refusing. */
+const archivedSlug = ref('')
+async function unarchiveFromCreate() {
+  const id = archivedSlug.value
+  if (!id || creating.value) return
+  creating.value = true
+  createError.value = ''
+  try {
+    await channel.unarchiveChannel(id)
+    archivedSlug.value = ''
+    createOpen.value = false
+    await navigateTo(localePath('/channel/' + id))
+  } catch (e) {
+    createError.value = createCopy(e)
+  } finally {
+    creating.value = false
+  }
 }
 
 async function onCreate() {
@@ -1379,6 +1432,7 @@ async function onCreate() {
   if (!name || creating.value) return
   creating.value = true
   createError.value = ''
+  archivedSlug.value = ''
   try {
     const row = await channel.createChannel(name, descMp.encode(newDescription.value).trim())
     /* close first: the dialog restores focus to the + it was opened from, and
@@ -1387,6 +1441,8 @@ async function onCreate() {
     await navigateTo(localePath('/channel/' + row.channel_id))
   } catch (e) {
     createError.value = createCopy(e)
+    const tok = (e && typeof e === 'object' && 'token' in e) ? String((e as { token?: unknown }).token || '') : ''
+    if (tok === 'channel_archived') archivedSlug.value = slug.value
   } finally {
     creating.value = false
   }

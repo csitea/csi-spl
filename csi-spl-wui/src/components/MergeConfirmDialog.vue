@@ -17,7 +17,7 @@
     @update:open="onOpen"
     @confirm="confirm"
   >
-    <p data-testid="merge-confirm-body" :data-count="count ?? ''">
+    <p data-testid="merge-confirm-text" :data-count="count ?? ''">
       {{ count === null ? t('common.loading') : t('feed.merge.body') }}
     </p>
   </UiConfirm>

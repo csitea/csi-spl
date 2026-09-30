@@ -68,6 +68,18 @@ describe('channel-feed', () => {
     assert.equal(note.to, '@channel')
   })
 
+  it('a bare @mention is a sendable note, not an empty task (e09a72f7)', () => {
+    /* nothing after the id: it mentions someone, it does not dispatch a task.
+       It keeps the mention as its body so the send path never sees it empty. */
+    assert.deepEqual(parseMention('@CLE-07'), { to: '@channel', kind: 'note', body: '@CLE-07' })
+    assert.deepEqual(parseMention('@HUM-10  '), { to: '@channel', kind: 'note', body: '@HUM-10  ' })
+    assert.deepEqual(parseMention('@CLE-3994@box-desk'), { to: '@channel', kind: 'note', body: '@CLE-3994@box-desk' })
+    /* unknown / non-id text after @ was always a plain note and still is */
+    assert.equal(parseMention('@unknown hi').body, '@unknown hi')
+    assert.equal(parseMention('@ hi').body, '@ hi')
+    assert.equal(parseMention('@').body, '@')
+  })
+
   it('formats bytes and initials', () => {
     assert.equal(formatBytes(2048), '2.0 KiB')
     assert.equal(initials('CLE-07'), 'CL')

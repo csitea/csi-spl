@@ -26,7 +26,15 @@ export function replyCount(messages, taskId) {
 export function parseMention(text) {
   const raw = String(text || '')
   const m = raw.match(/^@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b\s*([\s\S]*)$/)
-  if (!m) return { to: '@channel', kind: 'note', body: raw }
+  /* A leading `@ID` FOLLOWED BY TEXT dispatches a task to that id; the text is
+     the body. A BARE mention (nothing after it) is not a task - it is a message
+     that mentions someone - so it stays a channel note with the mention itself
+     as the body. Stripping a bare `@CLE-00` to an empty body was the whole of
+     "a message that starts with @ cannot be sent" (owner, prd t1 e09a72f7): the
+     empty-send guard then refused the very row the person meant to post. The
+     mention is still resolved either way - mentionPoke scans the raw text and
+     DMs the addressee - so only the body changes, never the poke. */
+  if (!m || !m[2].trim()) return { to: '@channel', kind: 'note', body: raw }
   return { to: m[1], kind: 'task', body: m[2] }
 }
 

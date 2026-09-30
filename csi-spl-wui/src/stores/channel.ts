@@ -385,10 +385,11 @@ export const useChannelStore = defineStore('channel', () => {
     }
     const channelNow = channelId || active.value
     if (channelNow) frame.channel = channelNow
-    /* `@CLE-00` alone parses to a task frame with an EMPTY body.
-       The composer cannot catch it - it only sees the text before the
-       mention is stripped - so the refusal lives here, where the real
-       payload is known. An empty row reads exactly like a lost one. */
+    /* The last point that knows the real payload: an empty box with no files
+       is refused here, where parseMention has already run, because an empty
+       row reads exactly like a lost one. A bare `@CLE-00` is NOT empty - it
+       keeps the mention as its body (channel-feed parseMention, e09a72f7) and
+       sends. */
     if (isEmptySend(frame.body, frame.files)) throw emptySendError()
     /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
     frame.msg_id = newId() || undefined

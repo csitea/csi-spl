@@ -56,9 +56,10 @@ describe('classifying a failed send', () => {
 
 /* CLE-3434 found this in the dev hub's own store: a row at 12:45:42Z with
    body = "". The composer refuses an empty BOX, but the live path then runs
-   parseMention() over the text, and `@CLE-00` alone strips to nothing - so a
-   task frame with an empty body reached the hub. To the next reader an empty
-   row is indistinguishable from the lost message this lane is about. */
+   parseMention() over the text. A truly empty box still cannot send; a bare
+   `@CLE-00` (e09a72f7) is no longer stripped to nothing - it keeps the mention
+   as its body and sends. The guard only ever refuses a row with no text AND no
+   files, which to the next reader is indistinguishable from a lost message. */
 describe('an empty send never reaches the hub', () => {
   it('text-only, files-only and both are all real messages', () => {
     assert.equal(isEmptySend('hello'), false)
@@ -66,13 +67,15 @@ describe('an empty send never reaches the hub', () => {
     assert.equal(isEmptySend('hello', [{ name: 'a.pdf' }]), false)
   })
 
-  it('nothing, whitespace, and what a mention-only line parses down to are not', () => {
+  it('nothing and whitespace are empty; a bare mention is a real message', () => {
     assert.equal(isEmptySend('', []), true)
     assert.equal(isEmptySend('   \n\t ', []), true)
     assert.equal(isEmptySend(null, undefined), true)
     assert.equal(isEmptySend(undefined, null), true)
-    /* the real case: parseMention('@CLE-00') -> { to: 'CLE-00', body: '' } */
-    assert.equal(isEmptySend(parseMention('@CLE-00').body, []), true)
+    /* e09a72f7: a bare `@CLE-00` used to strip to '' and be refused - it now
+       keeps the mention as its body and sends (a message that mentions someone) */
+    assert.equal(isEmptySend(parseMention('@CLE-00').body, []), false)
+    assert.equal(parseMention('@CLE-00').body, '@CLE-00')
     assert.equal(isEmptySend(parseMention('@CLE-00 hi').body, []), false)
   })
 

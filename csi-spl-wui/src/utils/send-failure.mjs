@@ -83,14 +83,15 @@ export function sendFailureKey(err) {
  * CLE-3433, found by CLE-3434 in the dev hub's own store: a row written at
  * 12:45:42Z with `body = ""`. The composer refuses an empty box, but it
  * measures the text the human typed - and the live send path then runs
- * parseMention() over it, which strips a leading `@CLE-07` and can leave
- * NOTHING behind. Type `@CLE-00` and press Enter and a task frame with an
- * empty body reaches the hub.
+ * parseMention() over it. A truly empty box (nothing typed, or whitespace)
+ * still has no payload once parsed.
  *
  * To the next reader an empty row is indistinguishable from the lost one
  * this whole lane is about, so it is refused at the last point that knows
  * the real payload: after the mention is parsed, before the frame is sent.
- * Files alone are a legitimate message, so they satisfy it.
+ * Files alone are a legitimate message, so they satisfy it; and a bare
+ * `@CLE-00` (e09a72f7) is no longer stripped to nothing - it keeps the
+ * mention as its body and sends, so it never reaches this guard.
  */
 export function isEmptySend(body, files) {
   const hasText = String(body == null ? '' : body).trim().length > 0

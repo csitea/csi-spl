@@ -74,6 +74,12 @@ _pp_timeout="${PRE_PUSH_PART_TIMEOUT:-600}"
 _pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
 _pp_part_api()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"; }
 _pp_part_iac()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"; }
+# The payment-vendor gate READS csi-spl-wui (it greps it) but LIVES in the api
+# suite, so a WUI-only change used to skip it and a vendor word ("stripe") in a
+# .vue comment reached trunk and failed hub deploy 20 twice. It is a fast,
+# tree-relative grep, so run it whenever WUI changed -- selected by the tree it
+# reads, not the tree it lives in.
+_pp_part_wui_vendor() { bash "$1/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh"; }
 _pp_part_wui() {
   local wui="$1/csi-spl-wui" pn
   [[ -d "$wui" ]] || { do_log "WARN pre-push: no csi-spl-wui at $wui -- skipping the WUI gate"; return 0; }
@@ -182,7 +188,7 @@ do_check_pre_push() {
 
   local parts="hygiene"
   [[ "$sel_iac" == 1 ]] && parts+=" iac"
-  [[ "$sel_wui" == 1 ]] && parts+=" wui"
+  [[ "$sel_wui" == 1 ]] && parts+=" wui wui-vendor"
   [[ "$sel_api" == 1 ]] && parts+=" api"
 
   # A machine-readable plan line (also the whole of PLAN mode's output).
@@ -199,6 +205,7 @@ do_check_pre_push() {
 
   [[ "$sel_hygiene" == 1 ]] && _pp_run "distribution-hygiene" _pp_part_hygiene "$tree" "$base"
   [[ "$sel_iac" == 1 ]] && _pp_run "csi-spl-iac suite" _pp_part_iac "$tree" "$base"
+  [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui payment-vendor gate" _pp_part_wui_vendor "$tree" "$base"
   [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui unit + typecheck" _pp_part_wui "$tree" "$base"
   if [[ "$sel_api" == 1 ]]; then
     if _pp_pg_available; then

@@ -52,14 +52,14 @@ reset_tree() { git -C "$T" checkout -q -- . 2>/dev/null; git -C "$T" clean -fdq 
 
 # 1. FULL -> every gated part
 p="$(PP_MODE=full plan)"
-{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" wui && ! has "$p" orc && ! has "$p" cnf; } \
-  && pass "1. FULL selects hygiene api iac wui only" || fail "1. FULL selects hygiene api iac wui only" "$p"
+{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" wui && has "$p" wui-vendor && ! has "$p" orc && ! has "$p" cnf; } \
+  && pass "1. FULL selects hygiene api iac wui wui-vendor" || fail "1. FULL selects hygiene api iac wui wui-vendor" "$p"
 
-# 2. only WUI
+# 2. only WUI -> the WUI parts INCLUDING the payment-vendor gate (which reads WUI)
 echo a >"$T/csi-spl-wui/a.ts"; git -C "$T" add -A; git -C "$T" commit -qm wui
 p="$(plan)"
-{ has "$p" hygiene && has "$p" wui && ! has "$p" api && ! has "$p" iac; } \
-  && pass "2. FAST wui-only -> hygiene+wui" || fail "2. FAST wui-only -> hygiene+wui" "$p"
+{ has "$p" hygiene && has "$p" wui && has "$p" wui-vendor && ! has "$p" api && ! has "$p" iac; } \
+  && pass "2. FAST wui-only -> hygiene+wui+wui-vendor" || fail "2. FAST wui-only -> hygiene+wui+wui-vendor" "$p"
 git -C "$T" reset -q --hard base; git -C "$T" commit -q --allow-empty -m head
 
 # 3. only API
@@ -101,5 +101,24 @@ p="$(plan)"
 has "$p" api && pass "8. an untracked api file selects api" || fail "8. an untracked api file selects api" "$p"
 rm -f "$T/csi-spl-api/new.go"
 
-echo "-- check-pre-push.tst.sh: $((8 - fails))/8 passed"
+# 9. functional control: the payment-vendor gate (run on a WUI change) REFUSES a
+#    planted vendor word in a WUI file -- the "stripe" that FAST used to miss.
+APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+VT="$APP_ROOT/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh"
+if [ -r "$VT" ]; then
+  T2=$(mktemp -d)
+  mkdir -p "$T2/csi-spl-api/src/bash/tests" "$T2/csi-spl-wui/src/utils" "$T2/csi-spl-wui/tests/unit" "$T2/csi-spl-wui/components"
+  cp "$VT" "$T2/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh"
+  : >"$T2/csi-spl-wui/src/utils/card-element.mjs"
+  : >"$T2/csi-spl-wui/tests/unit/card-element.test.mjs"
+  echo "<!-- card ui -->" >"$T2/csi-spl-wui/components/Ok.vue"
+  _pp_part_wui_vendor "$T2" >/dev/null 2>&1 && pass "9. vendor gate passes a clean WUI" || fail "9. vendor gate passes a clean WUI"
+  printf '<!-- stripe payment -->\n' >"$T2/csi-spl-wui/components/Bad.vue"
+  _pp_part_wui_vendor "$T2" >/dev/null 2>&1 && fail "9. vendor gate REFUSES a planted vendor word in WUI" || pass "9. vendor gate refuses a planted 'stripe' in a WUI file"
+  rm -rf "$T2"
+else
+  fail "9. cannot find the real no-payment-vendor-wui.tst.sh at $VT"
+fi
+
+echo "-- check-pre-push.tst.sh: $fails failed"
 [[ "$fails" -eq 0 ]]

@@ -1,5 +1,5 @@
 # IaC scan (Checkov) of the terraform tree. Same runner rule as
-# 15_sec-deps-secrets.yml: self-hosted (spool-ci). Checkov is installed pinned
+# 15_sec-deps-secrets.yml: GitHub-hosted (ubuntu-latest). Checkov is installed pinned
 # into a throwaway venv; a missing tool fails the action. The gate is against the
 # checked-in .checkov.baseline so only NEW misconfig reddens trunk.
 #
@@ -24,12 +24,12 @@ permissions:
 
 concurrency:
   group: sec-checkov-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   checkov:
     name: "sec: checkov terraform"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

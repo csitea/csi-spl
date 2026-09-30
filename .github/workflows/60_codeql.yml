@@ -1,7 +1,7 @@
 # SAST (CodeQL) for Go and JS/TS. Results upload to GitHub code scanning (free
 # for this public repo) rather than reddening the deploy gate, so CodeQL findings
 # surface in the Security tab and PR checks. Same runner rule as the other sec
-# workflows: self-hosted (spool-ci). Heavy analysis -> weekly schedule +
+# workflows: GitHub-hosted (ubuntu-latest). Heavy analysis -> weekly schedule +
 # workflow_dispatch (not every fleet push).
 #
 # Acceptance/control: the analysis completes and uploads a non-empty SARIF for
@@ -19,12 +19,12 @@ permissions:
 
 concurrency:
   group: sec-codeql-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   analyze:
     name: "sec: CodeQL analyze (${{ matrix.language }})"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read

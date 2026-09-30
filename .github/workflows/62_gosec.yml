@@ -1,5 +1,5 @@
-# Go SAST (gosec). Same runner rule as 15_sec-deps-secrets.yml: self-hosted
-# (spool-ci). gosec compiles the hub module, so Go is set up first. The tool is
+# Go SAST (gosec). Same runner rule as 15_sec-deps-secrets.yml: GitHub-hosted
+# (ubuntu-latest). gosec compiles the hub module, so Go is set up first. The tool is
 # installed in the job and verified against a pinned sha256; a missing tool fails
 # the action. The gate is HIGH severity against .gosec-baseline.txt.
 #
@@ -25,12 +25,12 @@ permissions:
 
 concurrency:
   group: sec-gosec-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   gosec:
     name: "sec: gosec high-severity (hub Go)"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

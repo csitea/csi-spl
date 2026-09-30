@@ -1,5 +1,5 @@
-# SAST (Semgrep). Same runner rule as 15_sec-deps-secrets.yml: self-hosted
-# (spool-ci). Semgrep is installed pinned into a throwaway venv; a missing tool
+# SAST (Semgrep). Same runner rule as 15_sec-deps-secrets.yml: GitHub-hosted
+# (ubuntu-latest). Semgrep is installed pinned into a throwaway venv; a missing tool
 # fails the action. The gate uses the p/golang + p/javascript + p/owasp-top-ten
 # rulesets against .semgrep-baseline.txt so only NEW findings redden trunk.
 #
@@ -25,12 +25,12 @@ permissions:
 
 concurrency:
   group: sec-semgrep-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   semgrep:
     name: "sec: semgrep (p/golang, p/javascript, p/owasp-top-ten)"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -14,18 +14,23 @@ on:
       - 'csi-spl-iac/src/terraform/**'
       - '.trivyignore.yaml'
       - '.github/workflows/70_supply-chain.yml'
+  schedule:
+    - cron: '23 3 * * *'
 
 permissions:
   contents: read
 
+# Only the newest sha's scan matters.
 concurrency:
   group: sec-supply-chain-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   iac:
     name: "sec: trivy config (terraform IaC)"
-    runs-on: [self-hosted, spool-ci]
+    # GitHub-hosted: public repo, no box state needed; keeps the self-hosted
+    # runners free for deploys.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

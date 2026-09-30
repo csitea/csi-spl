@@ -1,5 +1,5 @@
 # JS security lint (eslint + eslint-plugin-security) over the WUI plain-JS.
-# Same runner rule as 15_sec-deps-secrets.yml: self-hosted (spool-ci). eslint +
+# Same runner rule as 15_sec-deps-secrets.yml: GitHub-hosted (ubuntu-latest). eslint +
 # the plugin are installed pinned into a throwaway dir; a missing tool fails the
 # action. The gate uses the curated .eslint-security.config.mjs against
 # .eslint-security-baseline.txt so only NEW findings redden trunk.
@@ -28,12 +28,12 @@ permissions:
 
 concurrency:
   group: sec-eslint-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   eslint-security:
     name: "sec: eslint-plugin-security (WUI .mjs)"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

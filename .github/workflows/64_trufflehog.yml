@@ -1,5 +1,5 @@
 # Secret scan, second opinion (TruffleHog). Same runner rule as
-# 15_sec-deps-secrets.yml: self-hosted (spool-ci). Gitleaks (15) does the
+# 15_sec-deps-secrets.yml: GitHub-hosted (ubuntu-latest). Gitleaks (15) does the
 # every-push regex scan over full history; this adds VERIFIED (live) secret
 # detection over the working tree. The tool is installed in the job and verified
 # against a pinned sha256; a missing tool fails the action.
@@ -21,12 +21,12 @@ permissions:
 
 concurrency:
   group: sec-trufflehog-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   trufflehog:
     name: "sec: trufflehog verified secrets"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

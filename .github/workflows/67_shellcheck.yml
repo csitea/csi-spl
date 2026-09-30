@@ -1,5 +1,5 @@
 # Bash static analysis (shellcheck). Same runner rule as 15_sec-deps-secrets.yml:
-# self-hosted (spool-ci). The tool is installed in the job and verified against a
+# GitHub-hosted (ubuntu-latest). The tool is installed in the job and verified against a
 # pinned sha256; a missing tool fails the action -- nothing here skips. The gate
 # is error-level over the iac + orc + cnf bash trees.
 #
@@ -25,12 +25,12 @@ permissions:
 
 concurrency:
   group: sec-shellcheck-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   shellcheck:
     name: "sec: shellcheck iac + orc + cnf bash"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { useMove } from '~/composables/useMove'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { moveErrorKey } from '~/utils/move-apply.mjs'
+import { mergeErrorKey } from '~/utils/move-apply.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -52,7 +52,7 @@ async function load(msgId: string) {
     // The whole topic moves: the card plus its replies.
     count.value = Math.max(1, (Math.max(0, Number(size?.replies) || 0)) + 1)
   } catch (e) {
-    error.value = t(moveErrorKey(e))
+    error.value = t(mergeErrorKey(e))
     count.value = 1
   }
 }

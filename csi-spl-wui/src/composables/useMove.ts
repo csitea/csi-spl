@@ -122,10 +122,12 @@ export function useMove() {
     return title ? i18n.t('feed.move.done_topic', { title }) : i18n.t('feed.move.done_topic_plain')
   }
 
-  async function fail(e: unknown) {
+  async function fail(e: unknown, kind: string = '') {
     const token = (e as { token?: string } | null)?.token
-    const { moveErrorKey } = await loadApply()
-    noteError({ source: 'move', name: 'Move', message: i18n.t(moveErrorKey(e)), code: token, error: e })
+    const m = await loadApply()
+    const merge = kind === 'merge' || kind === 'merge-undo'
+    const key = merge ? m.mergeErrorKey(e) : m.moveErrorKey(e)
+    noteError({ source: 'move', name: merge ? 'Merge' : 'Move', message: i18n.t(key), code: token, error: e })
   }
 
   /** Move / merge; `title` names the target topic in the toast (a channel names itself). */
@@ -137,7 +139,7 @@ export function useMove() {
       show(doneText(req, answer, title), backOf(req, answer))
       return true
     } catch (e) {
-      await fail(e)
+      await fail(e, req.kind)
       return false
     }
   }
@@ -153,7 +155,7 @@ export function useMove() {
       show(i18n.t(t.undo.kind === 'merge-undo' ? 'feed.merge.undone' : 'feed.move.undone'), null)
     } catch (e) {
       dismiss()
-      await fail(e)
+      await fail(e, t.undo.kind)
     }
   }
 

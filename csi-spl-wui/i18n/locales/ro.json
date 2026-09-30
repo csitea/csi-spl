@@ -597,7 +597,17 @@
       "the_topic": "subiectul",
       "done": "Îmbinat cu „{title}”",
       "done_plain": "Îmbinat cu subiectul",
-      "undone": "Îmbinare anulată"
+      "undone": "Îmbinare anulată",
+      "error": "Îmbinarea a eșuat. Încearcă din nou.",
+      "error_unavailable": "Îmbinarea nu e încă disponibilă aici — încearcă în curând.",
+      "error_forbidden": "Doar autorul, proprietarul sau un administrator poate îmbina asta.",
+      "error_same_place": "Este deja acolo.",
+      "error_not_a_card": "Ținta nu este un subiect.",
+      "error_cycle": "Un subiect nu se poate îmbina cu el însuși.",
+      "error_not_found": "Subiectul acela nu mai există.",
+      "error_lobby": "Lobby-ul nu poate lua sau da un subiect.",
+      "error_not_in_channel": "Un mesaj direct nu poate fi îmbinat.",
+      "error_issue_topic": "Discuția unei probleme rămâne cu problema."
     },
     "move": {
       "channel_title": "Mută acest subiect într-un canal",

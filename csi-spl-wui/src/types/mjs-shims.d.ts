@@ -576,6 +576,7 @@ declare module '~/utils/move-apply.mjs' {
   export function moveLeavesTask(frame: unknown, taskId: string | null | undefined): string[]
   export function moveJoinsTask(frame: unknown, taskId: string | null | undefined): boolean
   export function moveErrorKey(e: unknown): string
+  export function mergeErrorKey(e: unknown): string
   export function queryTasks(query: unknown): string[]
   export function movedChannelFor(rows: unknown, current: string | null | undefined): string
   export function moveTopicChoices(topics: unknown, opts?: { channels?: unknown[], exclude?: string[], query?: string, lobbyTaskId?: string }): { task_id: string, channel: string, title: string, last_ts: string }[]

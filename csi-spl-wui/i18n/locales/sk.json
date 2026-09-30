@@ -597,7 +597,17 @@
       "the_topic": "téma",
       "done": "Zlúčené s „{title}”",
       "done_plain": "Zlúčené s témou",
-      "undone": "Zlúčenie vrátené späť"
+      "undone": "Zlúčenie vrátené späť",
+      "error": "Zlúčenie zlyhalo. Skúste znova.",
+      "error_unavailable": "Zlúčenie tu ešte nie je dostupné — skúste o chvíľu.",
+      "error_forbidden": "Zlúčiť môže len autor, vlastník alebo správca.",
+      "error_same_place": "Už je tam.",
+      "error_not_a_card": "Cieľ nie je téma.",
+      "error_cycle": "Tému nemožno zlúčiť samu so sebou.",
+      "error_not_found": "Táto téma už neexistuje.",
+      "error_lobby": "Lobby nemôže vziať ani dať tému.",
+      "error_not_in_channel": "Priamu správu nemožno zlúčiť.",
+      "error_issue_topic": "Diskusia k úlohe zostáva pri úlohe."
     },
     "move": {
       "channel_title": "Presunúť túto tému do kanála",

@@ -597,7 +597,17 @@
       "the_topic": "el tema",
       "done": "Combinado con «{title}»",
       "done_plain": "Combinado con el tema",
-      "undone": "Combinación deshecha"
+      "undone": "Combinación deshecha",
+      "error": "No se pudo combinar. Inténtalo de nuevo.",
+      "error_unavailable": "Combinar aún no está disponible aquí — inténtalo en breve.",
+      "error_forbidden": "Solo el autor, el propietario o un administrador puede combinar esto.",
+      "error_same_place": "Ya está ahí.",
+      "error_not_a_card": "El destino no es un tema.",
+      "error_cycle": "Un tema no puede combinarse consigo mismo.",
+      "error_not_found": "Ese tema ya no existe.",
+      "error_lobby": "El vestíbulo no puede tomar ni dar un tema.",
+      "error_not_in_channel": "Un mensaje directo no se puede combinar.",
+      "error_issue_topic": "La discusión de una incidencia se queda con su incidencia."
     },
     "move": {
       "channel_title": "Mover este tema a un canal",

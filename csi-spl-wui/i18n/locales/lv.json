@@ -597,7 +597,17 @@
       "the_topic": "tēma",
       "done": "Apvienots ar “{title}”",
       "done_plain": "Apvienots ar tēmu",
-      "undone": "Apvienošana atsaukta"
+      "undone": "Apvienošana atsaukta",
+      "error": "Neizdevās apvienot. Mēģiniet vēlreiz.",
+      "error_unavailable": "Apvienošana šeit vēl nav pieejama — mēģiniet drīz.",
+      "error_forbidden": "Apvienot var tikai autors, īpašnieks vai administrators.",
+      "error_same_place": "Tā jau ir tur.",
+      "error_not_a_card": "Mērķis nav tēma.",
+      "error_cycle": "Tēmu nevar apvienot ar sevi.",
+      "error_not_found": "Šīs tēmas vairs nav.",
+      "error_lobby": "Vestibils nevar ņemt vai dot tēmu.",
+      "error_not_in_channel": "Tiešo ziņu nevar apvienot.",
+      "error_issue_topic": "Uzdevuma diskusija paliek pie uzdevuma."
     },
     "move": {
       "channel_title": "Pārvietot šo tēmu uz kanālu",

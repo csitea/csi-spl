@@ -597,7 +597,17 @@
       "the_topic": "ämnet",
       "done": "Sammanslaget med ”{title}”",
       "done_plain": "Sammanslaget med ämnet",
-      "undone": "Sammanslagning ångrad"
+      "undone": "Sammanslagning ångrad",
+      "error": "Kunde inte slå ihop. Försök igen.",
+      "error_unavailable": "Sammanslagning är inte tillgänglig här ännu — försök snart igen.",
+      "error_forbidden": "Bara författaren, ägaren eller en admin kan slå ihop detta.",
+      "error_same_place": "Det är redan där.",
+      "error_not_a_card": "Målet är inte ett ämne.",
+      "error_cycle": "Ett ämne kan inte slås ihop med sig självt.",
+      "error_not_found": "Det ämnet finns inte längre.",
+      "error_lobby": "Lobbyn kan inte ta eller ge ett ämne.",
+      "error_not_in_channel": "Ett direktmeddelande kan inte slås ihop.",
+      "error_issue_topic": "Ett ärendes diskussion stannar med ärendet."
     },
     "move": {
       "channel_title": "Flytta det här ämnet till en kanal",

@@ -597,7 +597,17 @@
       "the_topic": "the topic",
       "done": "Merged into “{title}”",
       "done_plain": "Merged into the topic",
-      "undone": "Merge undone"
+      "undone": "Merge undone",
+      "error": "Could not merge. Try again.",
+      "error_unavailable": "Merge isn’t available here yet — try again shortly.",
+      "error_forbidden": "Only the author, the owner or an admin may merge this.",
+      "error_same_place": "It is already there.",
+      "error_not_a_card": "The target is not a topic.",
+      "error_cycle": "A topic cannot merge into itself.",
+      "error_not_found": "That topic is not there any more.",
+      "error_lobby": "The lobby cannot take or give a topic.",
+      "error_not_in_channel": "A direct message cannot be merged.",
+      "error_issue_topic": "An issue’s discussion stays with its issue."
     },
     "move": {
       "channel_title": "Move this topic to a channel",

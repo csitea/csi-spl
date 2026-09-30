@@ -597,7 +597,17 @@
       "the_topic": "teema",
       "done": "Liidetud teemaga „{title}”",
       "done_plain": "Liidetud teemaga",
-      "undone": "Liitmine võeti tagasi"
+      "undone": "Liitmine võeti tagasi",
+      "error": "Liitmine ebaõnnestus. Proovi uuesti.",
+      "error_unavailable": "Liitmine pole siin veel saadaval — proovi peagi uuesti.",
+      "error_forbidden": "Ainult autor, omanik või administraator saab seda liita.",
+      "error_same_place": "See on juba seal.",
+      "error_not_a_card": "Sihtmärk pole teema.",
+      "error_cycle": "Teemat ei saa iseendaga liita.",
+      "error_not_found": "Seda teemat pole enam.",
+      "error_lobby": "Fuajee ei saa teemat võtta ega anda.",
+      "error_not_in_channel": "Otsesõnumit ei saa liita.",
+      "error_issue_topic": "Probleemi arutelu jääb probleemi juurde."
     },
     "move": {
       "channel_title": "Teisalda see teema kanalisse",

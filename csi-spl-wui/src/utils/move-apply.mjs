@@ -185,6 +185,23 @@ export function moveErrorKey(e) {
   return 'feed.move.error'
 }
 
+/**
+ * The catalogue key for a refused or failed MERGE (714c7028): merge-specific
+ * wording, plus one extra case - a 404 with NO hub token is the endpoint not
+ * being there yet (the WUI shipped ahead of the hub). That must read as "not
+ * available yet", never a silent nothing (prd t1 493564b7: the hub served the
+ * merge UI before it served POST /merge-topic).
+ */
+export function mergeErrorKey(e) {
+  const o = e && typeof e === 'object' ? e : {}
+  const tok = 'token' in o ? String(o.token || '') : ''
+  const status = Number(o.status || 0)
+  if (tok === 'not_allowed' || tok === 'forbidden') return 'feed.merge.error_forbidden'
+  if (['lobby', 'not_in_channel', 'issue_topic', 'same_place', 'not_a_card', 'cycle', 'not_found'].includes(tok)) return `feed.merge.error_${tok}`
+  if (!tok && status === 404) return 'feed.merge.error_unavailable'
+  return 'feed.merge.error'
+}
+
 /** The task ids an old channel URL can name: ?topic=, ?thread=, then ?in= (the parent of a message-rooted topic). */
 export function queryTasks(query) {
   const q = query && typeof query === 'object' ? query : {}

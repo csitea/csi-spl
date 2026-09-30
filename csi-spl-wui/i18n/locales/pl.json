@@ -597,7 +597,17 @@
       "the_topic": "temat",
       "done": "Scalono z „{title}”",
       "done_plain": "Scalono z tematem",
-      "undone": "Cofnięto scalanie"
+      "undone": "Cofnięto scalanie",
+      "error": "Nie udało się scalić. Spróbuj ponownie.",
+      "error_unavailable": "Scalanie nie jest tu jeszcze dostępne — spróbuj za chwilę.",
+      "error_forbidden": "Scalić może tylko autor, właściciel lub administrator.",
+      "error_same_place": "Już tam jest.",
+      "error_not_a_card": "Cel nie jest tematem.",
+      "error_cycle": "Temat nie może scalić się sam ze sobą.",
+      "error_not_found": "Tego tematu już nie ma.",
+      "error_lobby": "Lobby nie może wziąć ani oddać tematu.",
+      "error_not_in_channel": "Wiadomości bezpośredniej nie można scalić.",
+      "error_issue_topic": "Dyskusja zgłoszenia zostaje przy zgłoszeniu."
     },
     "move": {
       "channel_title": "Przenieś ten temat do kanału",

@@ -597,7 +597,17 @@
       "the_topic": "het onderwerp",
       "done": "Samengevoegd met ”{title}”",
       "done_plain": "Samengevoegd met het onderwerp",
-      "undone": "Samenvoegen ongedaan gemaakt"
+      "undone": "Samenvoegen ongedaan gemaakt",
+      "error": "Samenvoegen mislukt. Probeer opnieuw.",
+      "error_unavailable": "Samenvoegen is hier nog niet beschikbaar — probeer het zo opnieuw.",
+      "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder mag dit samenvoegen.",
+      "error_same_place": "Het staat er al.",
+      "error_not_a_card": "Het doel is geen onderwerp.",
+      "error_cycle": "Een onderwerp kan niet met zichzelf worden samengevoegd.",
+      "error_not_found": "Dat onderwerp bestaat niet meer.",
+      "error_lobby": "De lobby kan geen onderwerp nemen of geven.",
+      "error_not_in_channel": "Een direct bericht kan niet worden samengevoegd.",
+      "error_issue_topic": "De discussie van een issue blijft bij het issue."
     },
     "move": {
       "channel_title": "Dit onderwerp naar een kanaal verplaatsen",

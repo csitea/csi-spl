@@ -5,7 +5,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { isMergeCardDropTarget } from '../../src/utils/move.mjs'
-import { mergeFrame, mergeFrameFromAnswer, applyMergeToStores } from '../../src/utils/move-apply.mjs'
+import { mergeFrame, mergeFrameFromAnswer, applyMergeToStores, mergeErrorKey } from '../../src/utils/move-apply.mjs'
 import { topicFrameRows, topicFrameTasks } from '../../src/utils/topic-archive.mjs'
 
 const card = (o) => ({ msg_id: 'c2', task_id: 't2', is_parent: 1, channel: 'ops', ...o })
@@ -67,6 +67,19 @@ describe('a merge applied to the stores on screen', () => {
     applyMergeToStores({ type: 'topic_unmerged', msg_id: 'c1', task_id: 't1', from_task: 't2', channel: 'devel', from_channel: 'ops', msg_ids: ['c1', 'r1'] }, { pane })
     assert.deepEqual(dropped, ['c1', 'r1'])
     assert.equal(applyMergeToStores({ type: 'topic_moved', msg_id: 'c1' }, { pane }), null, 'control: a move frame is not a merge')
+  })
+})
+
+describe('mergeErrorKey - a merge failure names MERGE, and a missing endpoint is not silent', () => {
+  it('a 404 with no hub token = the endpoint is not deployed yet', () => {
+    assert.equal(mergeErrorKey({ status: 404 }), 'feed.merge.error_unavailable')
+    assert.equal(mergeErrorKey(new Error('x')), 'feed.merge.error')
+  })
+  it('the hub tokens map to merge-specific keys', () => {
+    assert.equal(mergeErrorKey({ status: 403, token: 'not_allowed' }), 'feed.merge.error_forbidden')
+    assert.equal(mergeErrorKey({ status: 409, token: 'cycle' }), 'feed.merge.error_cycle')
+    assert.equal(mergeErrorKey({ status: 404, token: 'not_found' }), 'feed.merge.error_not_found')
+    assert.equal(mergeErrorKey({ status: 409, token: 'same_place' }), 'feed.merge.error_same_place')
   })
 })
 

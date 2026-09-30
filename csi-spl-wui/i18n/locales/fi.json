@@ -597,7 +597,17 @@
       "the_topic": "aihe",
       "done": "Yhdistetty aiheeseen ”{title}”",
       "done_plain": "Yhdistetty aiheeseen",
-      "undone": "Yhdistäminen kumottu"
+      "undone": "Yhdistäminen kumottu",
+      "error": "Yhdistäminen epäonnistui. Yritä uudelleen.",
+      "error_unavailable": "Yhdistäminen ei ole vielä käytettävissä — yritä pian uudelleen.",
+      "error_forbidden": "Vain tekijä, omistaja tai ylläpitäjä voi yhdistää tämän.",
+      "error_same_place": "Se on jo siellä.",
+      "error_not_a_card": "Kohde ei ole aihe.",
+      "error_cycle": "Aihetta ei voi yhdistää itseensä.",
+      "error_not_found": "Aihetta ei ole enää.",
+      "error_lobby": "Aula ei voi ottaa tai antaa aihetta.",
+      "error_not_in_channel": "Yksityisviestiä ei voi yhdistää.",
+      "error_issue_topic": "Ongelman keskustelu pysyy ongelman mukana."
     },
     "move": {
       "channel_title": "Siirrä tämä aihe kanavalle",

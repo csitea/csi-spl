@@ -597,7 +597,17 @@
       "the_topic": "tema",
       "done": "Sujungta su „{title}“",
       "done_plain": "Sujungta su tema",
-      "undone": "Sujungimas atšauktas"
+      "undone": "Sujungimas atšauktas",
+      "error": "Nepavyko sujungti. Bandykite dar kartą.",
+      "error_unavailable": "Sujungimas čia dar neprieinamas — bandykite netrukus.",
+      "error_forbidden": "Sujungti gali tik autorius, savininkas arba administratorius.",
+      "error_same_place": "Jau ten yra.",
+      "error_not_a_card": "Taikinys nėra tema.",
+      "error_cycle": "Tema negali būti sujungta su savimi.",
+      "error_not_found": "Tos temos nebėra.",
+      "error_lobby": "Vestibiulis negali paimti ar duoti temos.",
+      "error_not_in_channel": "Tiesioginės žinutės sujungti negalima.",
+      "error_issue_topic": "Užduoties diskusija lieka su užduotimi."
     },
     "move": {
       "channel_title": "Perkelti šią temą į kanalą",

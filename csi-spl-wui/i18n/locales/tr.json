@@ -597,7 +597,17 @@
       "the_topic": "konu",
       "done": "„{title}” ile birleştirildi",
       "done_plain": "Konuyla birleştirildi",
-      "undone": "Birleştirme geri alındı"
+      "undone": "Birleştirme geri alındı",
+      "error": "Birleştirilemedi. Tekrar deneyin.",
+      "error_unavailable": "Birleştirme burada henüz kullanılamıyor — birazdan tekrar deneyin.",
+      "error_forbidden": "Bunu yalnızca yazar, sahip veya yönetici birleştirebilir.",
+      "error_same_place": "Zaten orada.",
+      "error_not_a_card": "Hedef bir konu değil.",
+      "error_cycle": "Bir konu kendisiyle birleştirilemez.",
+      "error_not_found": "O konu artık yok.",
+      "error_lobby": "Lobi bir konu alamaz veya veremez.",
+      "error_not_in_channel": "Doğrudan mesaj birleştirilemez.",
+      "error_issue_topic": "Bir sorunun tartışması sorununda kalır."
     },
     "move": {
       "channel_title": "Bu konuyu bir kanala taşı",

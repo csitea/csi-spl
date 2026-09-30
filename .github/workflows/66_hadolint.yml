@@ -2,12 +2,28 @@
 # self-hosted (spool-ci). The tool is installed in the job and verified against
 # a pinned sha256; a missing tool fails the action -- nothing here skips.
 # The gate is error-level only (.hadolint.yaml); warnings/info are reported.
+#
+# Trigger is path-scoped: on master it runs only when a Dockerfile, the config,
+# the action or this file changes. The fleet pushes to master ~10x/hour and a
+# ref-scoped concurrency group cancels every pending run but the newest, so an
+# unfiltered push trigger would almost never actually execute. A weekly schedule
+# catches drift; workflow_dispatch runs it on demand.
 name: "66 sec: hadolint (Dockerfiles)"
 
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: "17 4 * * 1"
   push:
     branches: [master]
+    paths:
+      - "**/Dockerfile"
+      - "**/Dockerfile.*"
+      - "**/*.dockerfile"
+      - ".hadolint.yaml"
+      - "csi-spl-iac/src/bash/run/sec-hadolint.func.sh"
+      - "csi-spl-iac/src/bash/tests/sec-hadolint.tst.sh"
+      - ".github/workflows/66_hadolint.yml"
 
 permissions:
   contents: read

@@ -39,6 +39,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
+	"google.golang.org/api/idtoken"
 )
 
 // Serve limits of the hub process. The blob cache is sized for one 512 MiB
@@ -161,6 +162,18 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	}
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
+	// CLE-77780: the operator invite routes let the box create/mail invites
+	// FROM the hub (no box SMTP). Off unless SPOOL_HUB_OPERATOR_EMAILS is set.
+	opEmails, opAud, err := operatorInviteConfig()
+	if err != nil {
+		return opts, err
+	}
+	if len(opEmails) > 0 {
+		opts.OperatorEmails, opts.OperatorAudience = opEmails, opAud
+		opts.OperatorVerify = googleOperatorVerify
+		opts.OperatorMail = operatorMailer(hc, log, st, pmc, ac.AppURL)
+		log.Info().Int("operator_emails", len(opEmails)).Bool("operator_mail", opts.OperatorMail != nil).Msg("operator invite routes")
+	}
 	return opts, nil
 }
 
@@ -340,18 +353,71 @@ func wirePayments(opts *hub.Options, hc *config.Hub, log zerolog.Logger, st stor
 // same relay and invitemail.Send as `spool hub-invite` (010 FR-016); nil when
 // the store, the relay or the app URL cannot send one.
 func inviteMailer(hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, appURL string) hub.InviteMailer {
+	om := operatorMailer(hc, log, st, pmc, appURL)
+	if om == nil {
+		return nil
+	}
+	return func(ctx context.Context, tenant, email, locale string) (string, error) {
+		res, err := om(ctx, tenant, email, locale)
+		return res.Outcome, err
+	}
+}
+
+// operatorMailer is the invite mailer that returns the full result
+// (message_id, delivered): the operator route (CLE-77780) and the shell proof
+// need delivered:true, not just the outcome word. It sends through the same
+// relay and invitemail.Send as the WUI/CLI invite. nil when the store, the
+// relay or the app URL cannot send one.
+func operatorMailer(hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, appURL string) hub.OperatorMailer {
 	im, ok := st.(store.InviteMails)
 	if !ok || pmc.Transport == mail.TransportNone || appURL == "" {
 		return nil
 	}
 	ilog := log.With().Str("component", "invitemail").Logger()
 	sender, delivers := pmc.Sender(log), pmc.Delivers()
-	return func(ctx context.Context, tenant, email, locale string) (string, error) {
-		res, err := invitemail.Send(ctx, invitemail.Deps{Store: im, Sender: sender, Delivers: delivers, Log: ilog,
+	return func(ctx context.Context, tenant, email, locale string) (invitemail.Result, error) {
+		return invitemail.Send(ctx, invitemail.Deps{Store: im, Sender: sender, Delivers: delivers, Log: ilog,
 			AppURL: appURL, Locale: locale, DefaultLocale: hc.DefaultLocale,
 			Limits: store.InviteMailLimits{MinGap: invitemail.DefaultMinGap, MaxSends: invitemail.DefaultMaxSends}}, tenant, email)
-		return res.Outcome, err
 	}
+}
+
+// googleOperatorVerify validates a Google-signed ID token minted by the env
+// service account and returns its verified email (CLE-77780). The audience
+// binds the token to this hub; the issuer must be Google. It is the production
+// hub.OperatorVerify; tests pass a seam.
+func googleOperatorVerify(ctx context.Context, token, audience string) (string, error) {
+	p, err := idtoken.Validate(ctx, token, audience)
+	if err != nil {
+		return "", err
+	}
+	if iss, _ := p.Claims["iss"].(string); iss != "https://accounts.google.com" && iss != "accounts.google.com" {
+		return "", fmt.Errorf("operator: unexpected token issuer %q", iss)
+	}
+	email, _ := p.Claims["email"].(string)
+	verified, _ := p.Claims["email_verified"].(bool)
+	if email == "" || !verified {
+		return "", fmt.Errorf("operator: token carries no verified email")
+	}
+	return strings.ToLower(email), nil
+}
+
+// operatorInviteConfig reads the operator invite surface cnf (CLE-77780):
+// SPOOL_HUB_OPERATOR_EMAILS (space/comma-separated service-account emails) and
+// SPOOL_HUB_OPERATOR_AUDIENCE (the id-token audience the hub expects, its own
+// URL). An empty emails list leaves the routes off. Audience is required when
+// emails are set, so a token is always bound to this hub.
+func operatorInviteConfig() (emails []string, audience string, err error) {
+	for _, f := range strings.FieldsFunc(os.Getenv("SPOOL_HUB_OPERATOR_EMAILS"), func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
+		if f = strings.TrimSpace(f); f != "" {
+			emails = append(emails, strings.ToLower(f))
+		}
+	}
+	audience = strings.TrimSpace(os.Getenv("SPOOL_HUB_OPERATOR_AUDIENCE"))
+	if len(emails) > 0 && audience == "" {
+		return nil, "", fmt.Errorf("SPOOL_HUB_OPERATOR_EMAILS is set but SPOOL_HUB_OPERATOR_AUDIENCE is empty (the id-token audience the hub expects)")
+	}
+	return emails, audience, nil
 }
 
 // serveUntilDone binds, serves until ctx ends or the server fails, then

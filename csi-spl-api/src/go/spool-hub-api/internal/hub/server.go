@@ -127,6 +127,18 @@ type Options struct {
 	// InviteMail mails the invitation after POST /v1/members/invites stored
 	// it (010 FR-016 via invitemail.Send); nil = the invite is stored, no mail.
 	InviteMail InviteMailer
+	// Operator invite surface (CLE-77780, operator.go): the box operator
+	// creates/mails/revokes invites FROM the hub, so no box dials SMTP. The
+	// routes act only when OperatorEmails is non-empty AND OperatorVerify is
+	// set (else they answer 404). OperatorEmails is the allow-list of Google
+	// service-account emails (the env SA) whose verified id token authorises a
+	// call; OperatorAudience is the token audience the hub expects (the hub's
+	// own URL; "" skips the audience check). OperatorVerify validates a bearer
+	// token and OperatorMail sends the invite mail with the full result.
+	OperatorEmails   []string
+	OperatorAudience string
+	OperatorVerify   OperatorVerify
+	OperatorMail     OperatorMailer
 }
 
 // Server is one hub process.
@@ -271,6 +283,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	s.routeChannelMembers(mux)
 	s.routeMembers(mux)
+	s.routeOperator(mux)       // CLE-77780: backend invite create/mail/revoke
 	s.routeTenantSettings(mux) // specs/046
 	s.routeIssues(mux)         // specs/039
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)

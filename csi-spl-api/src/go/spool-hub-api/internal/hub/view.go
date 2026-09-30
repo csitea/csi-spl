@@ -258,8 +258,17 @@ type viewHuman struct {
 	DisplayName *string `json:"display_name"`
 	// Owner marks a business owner (role biz_owner): the member the WUI
 	// always offers in the #feedback @ picker, online or not (owner,
-	// 2026-09-25). Omitted for everyone else; never exposes any other role.
+	// 2026-09-25). Omitted for everyone else; the roster never exposes any
+	// other role (TestViewRosterHumanOwnerFlag), so the People card shows only
+	// this coarse owner/member distinction, not the RBAC role.
 	Owner bool `json:"owner,omitempty"`
+	// Interests is the member's free-text interests (humans.interests, rdb
+	// 0086); omitted when none. Every tenant member reads it (People card).
+	Interests *string `json:"interests,omitempty"`
+	// LastSeen is when the member last switched into this tenant
+	// (tenant_memberships.last_active_at); omitted when never. Like the online
+	// flag it is presence, not a role, so it is not covered by the role guard.
+	LastSeen *string `json:"last_seen,omitempty"`
 }
 
 // viewHumans lists the tenant's member HUM-* with the stored IdP picture
@@ -270,11 +279,13 @@ func viewHumans(rs store.Roster) []viewHuman {
 	out := make([]viewHuman, 0, len(rs.Avatars))
 	names := map[string]string{}
 	owners := map[string]bool{}
+	byID := make(map[string]store.Member, len(rs.Members))
 	for _, m := range rs.Members {
 		names[m.HumanID] = strings.TrimSpace(m.DisplayName)
 		if m.Role == rbac.BizOwner && !m.Disabled {
 			owners[m.HumanID] = true
 		}
+		byID[m.HumanID] = m
 	}
 	for id, fid := range rs.Avatars {
 		v := viewHuman{HumanID: id}
@@ -286,6 +297,15 @@ func viewHumans(rs store.Roster) []viewHuman {
 			v.DisplayName = &n
 		}
 		v.Owner = owners[id]
+		if m, ok := byID[id]; ok {
+			if s := strings.TrimSpace(m.Interests); s != "" {
+				v.Interests = &s
+			}
+			if !m.LastSeen.IsZero() {
+				at := rfc(m.LastSeen)
+				v.LastSeen = &at
+			}
+		}
 		out = append(out, v)
 	}
 	/* newest member first, by the HUM-<n> the hub hands out in order

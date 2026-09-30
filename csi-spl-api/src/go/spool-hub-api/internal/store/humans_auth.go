@@ -345,6 +345,25 @@ func (a AuthHooks) SetDisplayName(ctx context.Context, humanID, name string) err
 	return err
 }
 
+// Interests is the human's free-text interests (rdb 0086); an unknown human is
+// auth.ErrNoHuman.
+func (a AuthHooks) Interests(ctx context.Context, humanID string) (string, error) {
+	v, err := a.H.Interests(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return v, err
+}
+
+// SetInterests stores it ("" clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetInterests(ctx context.Context, humanID, interests string) error {
+	err := a.H.SetInterests(ctx, humanID, interests)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // IdentityLocale is the picked locale of the human behind one sign-in.
 func (a AuthHooks) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
 	return a.H.IdentityLocale(ctx, provider, subject)

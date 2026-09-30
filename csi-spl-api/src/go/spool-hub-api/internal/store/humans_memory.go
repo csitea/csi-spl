@@ -11,6 +11,7 @@ import (
 
 type memHuman struct {
 	name, email string
+	interests   string            // interests (rdb 0086, CLE-77794); "" = none
 	avatar      string            // file_id
 	locale      string            // preferred_locale (rdb 0017)
 	theme       string            // preferred_theme (rdb 0057); light is the light-blue palette
@@ -467,6 +468,29 @@ func (s *Memory) DisplayName(_ context.Context, humanID string) (string, error) 
 		return "", ErrNotFound
 	}
 	return hm.name, nil
+}
+
+func (s *Memory) SetInterests(_ context.Context, humanID, interests string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.interests = interests
+	return nil
+}
+
+func (s *Memory) Interests(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.interests, nil
 }
 
 func (s *Memory) SetDiagnosticsEnabled(_ context.Context, humanID string, on bool) error {

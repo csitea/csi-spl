@@ -483,6 +483,32 @@ func (s *Postgres) DisplayName(ctx context.Context, humanID string) (string, err
 	return name, err
 }
 
+// SetInterests stores the human's free-text interests (rdb 0086). "" stores
+// NULL so an unset field reads back as "". Hub-wide, like SetDisplayName.
+func (s *Postgres) SetInterests(ctx context.Context, humanID, interests string) error {
+	var v any
+	if interests != "" {
+		v = interests
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET interests = $2 WHERE human_id = $1`, humanID, v)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) Interests(ctx context.Context, humanID string) (string, error) {
+	var v string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(interests, '') FROM humans WHERE human_id = $1`, humanID).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return v, err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET diagnostics_enabled = $2 WHERE human_id = $1`, humanID, on)

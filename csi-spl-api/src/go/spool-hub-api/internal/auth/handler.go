@@ -135,6 +135,12 @@ type Preferences interface {
 	// SetDisplayName stores name, already admitted by ValidDisplayName.
 	// Unknown human = ErrNoHuman.
 	SetDisplayName(ctx context.Context, humanID, name string) error
+	// Interests is the human's free-text interests (humans.interests, rdb
+	// 0086, CLE-77794), "" when none. An unknown human is ErrNoHuman.
+	Interests(ctx context.Context, humanID string) (string, error)
+	// SetInterests stores it ("" clears it), already admitted by
+	// ValidInterests. Unknown human = ErrNoHuman.
+	SetInterests(ctx context.Context, humanID, interests string) error
 }
 
 // FederatedLookup tells the forgot-password route that an address it holds no
@@ -643,6 +649,34 @@ func nameRune(c rune) bool {
 	return true
 }
 
+// MaxInterestsLen bounds humans.interests (rdb 0086's CHECK), counted in
+// characters, not bytes.
+const MaxInterestsLen = 1000
+
+// ValidInterests admits the free-text interests a human types in Settings ->
+// Profile (CLE-77794): the trimmed text, up to MaxInterestsLen characters. It
+// is multi-line (newlines and tabs are kept, unlike a display name), but the
+// other control and bidi-override runes ValidDisplayName refuses are refused
+// here too. "" (nothing typed, or all whitespace) is valid and clears it.
+func ValidInterests(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", true
+	}
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > MaxInterestsLen {
+		return "", false
+	}
+	for _, c := range s {
+		if c == '\n' || c == '\t' {
+			continue
+		}
+		if !nameRune(c) {
+			return "", false
+		}
+	}
+	return s, true
+}
+
 // avatar answers the signed-in human's own stored IdP picture:
 // 200 + the image, 401 without a session, 404 when there is none. The type
 // comes from the bytes (fetchAvatar admitted only png/jpeg/gif/webp), the
@@ -765,20 +799,26 @@ func IsViewPref(key, value string) bool {
 }
 
 // RailTabs are the reorderable left-rail entries (SPL-979) in their default
-// order: channels, direct messages, issues, topics, flow, archive (SPL-983)
-// and the event log last (owner 2026-09-27, topic 116646c8) (the admin-only Users tab stays last and is not one of
-// them). The DB check humans_rail_order_check (rdb 0063, 0064) admits their
-// permutations and the legacy ones of the first six.
-var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events"}
+// order: channels, direct messages, issues, topics, flow, archive (SPL-983),
+// the event log (owner 2026-09-27, topic 116646c8), and People and Agents last
+// (CLE-77794) (the admin-only Users tab stays last and is not one of them). The
+// DB check humans_rail_order_check (rdb 0063, 0064, 0087) admits their
+// permutations and the legacy ones of the first six or seven.
+var RailTabs = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents"}
 
-// legacyRailTabs is RailTabs before SPL-983 added archive: an order stored
+// legacyRailTabs6 is RailTabs before SPL-983 added archive: an order stored
 // then (or sent by a WUI still cached from then) holds exactly these six.
-var legacyRailTabs = []string{"channels", "dm", "issues", "topics", "flow", "events"}
+var legacyRailTabs6 = []string{"channels", "dm", "issues", "topics", "flow", "events"}
+
+// legacyRailTabs7 is RailTabs before CLE-77794 added People and Agents: the six
+// plus archive. A WUI cached from then holds exactly these seven; the current
+// WUI appends the two new tabs (parseRailOrder), so a save carries all nine.
+var legacyRailTabs7 = []string{"channels", "dm", "issues", "topics", "flow", "archive", "events"}
 
 // IsRailOrder reports whether order holds every RailTabs id exactly once, or
-// every legacyRailTabs id exactly once (the WUI appends archive to it).
+// every legacy set once (the WUI appends the tabs added since to it).
 func IsRailOrder(order []string) bool {
-	return isPermutation(order, RailTabs) || isPermutation(order, legacyRailTabs)
+	return isPermutation(order, RailTabs) || isPermutation(order, legacyRailTabs6) || isPermutation(order, legacyRailTabs7)
 }
 
 func isPermutation(order, of []string) bool {
@@ -817,6 +857,7 @@ type preferencesReq struct {
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
 	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
 	DisplayName        json.RawMessage `json:"display_name"`
+	Interests          json.RawMessage `json:"interests"`
 	SubmitKey          json.RawMessage `json:"submit_key"`
 	RailOrder          json.RawMessage `json:"rail_order"`
 	MessageOrder       json.RawMessage `json:"message_order"`
@@ -879,6 +920,7 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 // present (a present null clears the setting: the value is then "").
 type prefsIn struct {
 	loc, name, theme, key                               string
+	interests                                           string // humans.interests (rdb 0086), "" = null / clear
 	diag                                                bool
 	rail                                                []string
 	view                                                map[string]string  // layout key -> value, "" = null
@@ -886,6 +928,7 @@ type prefsIn struct {
 	sort                                                *IssuesSort        // issues_sort, nil = null (CLE-35099)
 	panes                                               map[string]float64 // pane_sizes, nil = null (CLE-35099)
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
+	hasInterests                                        bool
 	hasCols, hasSort, hasPanes                          bool
 }
 
@@ -896,10 +939,12 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
 	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
 	rawName := strings.TrimSpace(string(req.DisplayName))
+	rawInterests := strings.TrimSpace(string(req.Interests))
 	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
 	rawKey := strings.TrimSpace(string(req.SubmitKey))
 	rawRail := strings.TrimSpace(string(req.RailOrder))
 	p.hasLoc, p.hasDiag, p.hasName = rawLoc != "", rawDiag != "", rawName != ""
+	p.hasInterests = rawInterests != ""
 	p.hasTheme, p.hasKey, p.hasRail = rawTheme != "", rawKey != "", rawRail != ""
 	if p.view, code, detail = parseViewPrefs(req); code != "" {
 		return p, code, detail
@@ -913,8 +958,8 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.panes, p.hasPanes, code, detail = parsePaneSizes(req.PaneSizes); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null) or pane_sizes (divider -> fraction or null) is required"
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null) or pane_sizes (divider -> fraction or null) is required"
 	}
 	if rawLoc != "" && rawLoc != "null" {
 		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
@@ -936,6 +981,19 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 		if !ok {
 			return p, ErrCodeInvalidDisplayName, "display_name must be 1 to 200 characters on one line, without control characters"
 		}
+	}
+	// interests: a present null clears it (p.interests stays ""); any other
+	// value must be ValidInterests. Unlike display_name, "" is a valid clear.
+	if rawInterests != "" && rawInterests != "null" {
+		var raw string
+		if json.Unmarshal(req.Interests, &raw) != nil {
+			return p, "invalid_interests", "interests must be text or null"
+		}
+		s, ok := ValidInterests(raw)
+		if !ok {
+			return p, "invalid_interests", "interests must be at most 1000 characters, without control characters"
+		}
+		p.interests = s
 	}
 	if rawTheme != "" && rawTheme != "null" {
 		if json.Unmarshal(req.PreferredTheme, &p.theme) != nil || !IsTheme(p.theme) {
@@ -996,6 +1054,14 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 	if p.hasName && !set(h.prefs.SetDisplayName(ctx, hum, p.name), "display_name", p.name,
 		func(e *zerolog.Event) *zerolog.Event {
 			return e.Int("display_name_len", utf8.RuneCountInString(p.name))
+		}) {
+		return nil, false
+	}
+	// interests is global (humans.interests, rdb 0086), like display_name; it is
+	// NOT a per-tenant membership override. "" clears it, so it is nullable.
+	if p.hasInterests && !set(h.prefs.SetInterests(ctx, hum, p.interests), "interests", nullable(p.interests),
+		func(e *zerolog.Event) *zerolog.Event {
+			return e.Int("interests_len", utf8.RuneCountInString(p.interests))
 		}) {
 		return nil, false
 	}

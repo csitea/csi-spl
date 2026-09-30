@@ -207,6 +207,12 @@ type Humans interface {
 	SetDisplayName(ctx context.Context, humanID, name string) error
 	// DisplayName returns it, "" when none, or ErrNotFound.
 	DisplayName(ctx context.Context, humanID string) (string, error)
+	// SetInterests records the human's free-text interests (rdb 0086,
+	// CLE-77794), one the auth layer's ValidInterests admitted, or "" to clear
+	// it. Unknown human = ErrNotFound. Shown in the People section's info card.
+	SetInterests(ctx context.Context, humanID, interests string) error
+	// Interests returns it, "" when none, or ErrNotFound.
+	Interests(ctx context.Context, humanID string) (string, error)
 	// FederatedAccount lists the providers, other than ProviderNative, whose
 	// VERIFIED identity carries email on a human that is not disabled, sorted,
 	// plus that human's picked locale ("" when none). An address nobody signs

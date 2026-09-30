@@ -31,6 +31,7 @@ type fakePrefs struct {
 	cols  map[string]map[string]int // SPL-1132 issues_columns, nil until first set
 	diag  map[string]bool           // CLE-34963 "Debug pane", nil until first set
 	name  map[string]string         // CLE-34968 display name, nil until first set
+	inter map[string]string         // CLE-77794 interests, nil until first set
 	fail  error                     // non-nil: DiagnosticsEnabled answers it
 }
 
@@ -218,6 +219,28 @@ func (p *fakePrefs) SetDisplayName(_ context.Context, hum, name string) error {
 		p.name = map[string]string{}
 	}
 	p.name[hum] = name
+	return nil
+}
+
+func (p *fakePrefs) Interests(_ context.Context, hum string) (string, error) {
+	if !p.known(hum) {
+		return "", auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.inter[hum], nil
+}
+
+func (p *fakePrefs) SetInterests(_ context.Context, hum, interests string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.inter == nil {
+		p.inter = map[string]string{}
+	}
+	p.inter[hum] = interests
 	return nil
 }
 
@@ -505,6 +528,15 @@ func TestPreferencesRailOrder(t *testing.T) {
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy+`}`); got.code != http.StatusOK {
 		t.Fatalf("legacy six: %d %s", got.code, got.raw)
 	}
+	// CLE-77794: the seven with archive (a WUI cached before People/Agents) still
+	// stores, and the full nine (People + Agents) is a valid new order.
+	legacy7 := `["agents","people","events","archive","flow","topics","issues","channels","dm"]`
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["dm","channels","issues","topics","flow","archive","events"]}`); got.code != http.StatusOK {
+		t.Fatalf("legacy seven: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy7+`}`); got.code != http.StatusOK {
+		t.Fatalf("nine tabs: %d %s", got.code, got.raw)
+	}
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusOK || got.body["rail_order"] != nil {
 		t.Fatalf("clear: %d %s", got.code, got.raw)
 	}
@@ -575,6 +607,34 @@ func TestPreferencesViewPrefs(t *testing.T) {
 	if auth.ViewPrefs[auth.PrefMessageOrder][0] != "newest-first" || auth.ViewPrefs[auth.PrefComposerPosition][0] != "top" ||
 		auth.ViewPrefs[auth.PrefIssuesView][0] != "list" {
 		t.Fatalf("defaults drifted: %v", auth.ViewPrefs)
+	}
+}
+
+// CLE-77794: a human's free-text interests is kept on the account (humans.interests):
+// the PUT stores and echoes it, null clears it, and a too-long or control-laden
+// value is refused with invalid_interests. It is global (humans row), not a
+// per-tenant override, so the WUI reads it from /v1/view/roster, not the claim.
+func TestPreferencesInterests(t *testing.T) {
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	got := r.call(t, c, http.MethodPut, "preferences", `{"interests":"Go, Postgres, mountain biking"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["interests"] != "Go, Postgres, mountain biking" {
+		t.Fatalf("put interests: %d %s", got.code, got.raw)
+	}
+	// null clears it back to none (echoed as null).
+	if got = r.call(t, c, http.MethodPut, "preferences", `{"interests":null}`); got.code != http.StatusOK || got.body["interests"] != nil || len(got.body) != 1 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	// over MaxInterestsLen, and a control character, are both refused.
+	long := `{"interests":"` + strings.Repeat("x", auth.MaxInterestsLen+1) + `"}`
+	for _, body := range []string{long, `{"interests":"a\u0007b"}`, `{"interests":7}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "invalid_interests" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got := r.call(t, nil, http.MethodPut, "preferences", `{"interests":"x"}`); got.code != http.StatusUnauthorized {
+		t.Fatalf("no session: %d %s", got.code, got.raw)
 	}
 }
 

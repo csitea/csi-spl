@@ -19,9 +19,12 @@ type Member struct {
 	HumanID     string
 	DisplayName string
 	Email       string
-	Role        string
-	Since       time.Time // tenant_memberships.created_at
-	Disabled    bool      // the account (humans.disabled_at), every tenant
+	// Interests is the member's free-text interests (humans.interests, rdb
+	// 0086, CLE-77794), "" when none. Shown in the People section's info card.
+	Interests string
+	Role      string
+	Since     time.Time // tenant_memberships.created_at
+	Disabled  bool      // the account (humans.disabled_at), every tenant
 	// Suspended: this membership only (tenant_memberships.disabled_at, rdb
 	// 0074, specs/046).
 	Suspended bool
@@ -75,7 +78,7 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
 			OrderedBy: m.orderedBy, OrderedVia: m.orderedVia, InvitedOn: m.invitedOn}
 		if hm, ok := s.hum.humans[k[1]]; ok {
-			row.DisplayName, row.Email, row.Disabled = hm.name, hm.email, hm.disabled
+			row.DisplayName, row.Email, row.Disabled, row.Interests = hm.name, hm.email, hm.disabled, hm.interests
 		}
 		if m.orderedBy != "" {
 			if ho, ok := s.hum.humans[m.orderedBy]; ok {
@@ -142,7 +145,7 @@ func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, er
 
 // listMembersRead is ListMembers' statement, shared with ViewRoster's batch.
 func listMembersRead(tenant string, out *[]Member) tenantRead {
-	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), m.role,
+	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), coalesce(h.interests, ''), m.role,
 			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at,
 			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via, ti.created_at
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
@@ -152,7 +155,7 @@ func listMembersRead(tenant string, out *[]Member) tenantRead {
 		var m Member
 		var seen, invitedOn *time.Time
 		var orderedBy, orderedVia *string
-		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen,
+		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Interests, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen,
 			&orderedBy, &m.OrderedByName, &orderedVia, &invitedOn); err != nil {
 			return err
 		}

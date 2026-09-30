@@ -136,11 +136,27 @@ The vertical borders separating Pane 1, Pane 2, and Pane 3 are interactive, acce
 
 Each of the three panels carries a small **triangle** in its bottom corner. Click
 it to collapse that panel to a thin strip and reclaim the space for the others;
-click again to expand it back. An open panel's triangle points inward (◀) to
-close; a collapsed strip's points outward (▶) to open. The corner it sits in
-follows the same **Mac / Windows** rule as the close button (your **Settings →
-Behaviour → Close buttons** choice), and mirrors in right-to-left languages.
-Which panels you have collapsed is remembered on this device.
+click again to expand it back. Which panels you have collapsed is remembered on
+this device.
+
+**The triangle always points the way its panel will move when you click it.**
+While a panel is open, the triangle points toward the edge it will collapse to;
+once collapsed, the strip's triangle points back toward the space it will expand
+into. So the left **channels** panel points ◀ to collapse and ▶ to re-open, and
+the right **thread** panel is its mirror — ▶ to collapse and ◀ to re-open.
+
+The middle **messages** panel points whichever way it actually docks, and that
+depends on what else is collapsed. In particular, when **both** the messages and
+the thread panels are collapsed they sit side by side against the right edge, so
+**both their triangles point ◀** — the way each one expands. The two strips are
+kept clearly apart with a small gap, and each is a comfortable click target with
+a tooltip naming what it re-opens (for example "Expand messages" and "Expand
+thread").
+
+The corner the triangle sits in follows the same **Mac / Windows** rule as the
+close button (your **Settings → Behaviour → Close buttons** choice), and every
+triangle mirrors in right-to-left languages such as Hebrew. This layout is the
+same in every workspace.
 
 ---
 
@@ -160,4 +176,4 @@ Spool adapts gracefully to different screen sizes:
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+<!-- version: 1.1.1 · updated: 2026-09-30 -->

@@ -56,6 +56,44 @@ discoverable and the triangle never jumps onto a neighbour. Expanding restores t
   - collapsed strip → **▶** (open, the panel comes from the left)
   - RTL (Hebrew, `<html dir="rtl">`): mirrored — open **▶**, collapsed **◀**.
 
+> **Superseded — see §3.3.1.** The "uniform ◀/▶" rule above was the first cut. The owner then asked
+> (prd t1 topic 80e40aca) that each triangle "point to the direction of the collapse or the expansion
+> of the control". CLE-77809 made the glyph point the way the panel *moves*; CLE-77815 made that
+> direction derive from the panel's **actual docked position** instead of the Win/Mac corner, fixing
+> the both-collapsed case. §3.3.1 is the current rule.
+
+### 3.3.1 Triangle direction — the current rule (CLE-77809, CLE-77815)
+
+The glyph points the way the panel will **move** when clicked: while **open** it points toward the edge
+it will collapse (dock) to; while **collapsed** the strip points back toward the space it expands into.
+The corner from §3.3 still decides only *where the toggle sits*, no longer its direction.
+
+The dock edge is derived from the panel's **actual position** in the flex row `[channels · topic ·
+threads]`, not from the corner rule. The **filler** pane (`fillerPane`) takes the slack, so every other
+panel packs to the edge *away* from it:
+
+- **channels** is the leading panel → always docks to inline-**start** (points ◀ open, ▶ collapsed);
+- **threads** is the trailing panel → always docks to inline-**end** (points ▶ open, ◀ collapsed);
+- **topic** (middle) docks to inline-**start** when the filler is to its right (an open thread pane),
+  and to inline-**end** when the filler is to its left (the thread pane closed or itself collapsed).
+
+The bug this fixed (owner topic 80e40aca): with **messages + thread both collapsed** the channels pane
+fills and both strips sit on the right, so both must point **◀**; the old corner rule made the middle
+strip point ▶ into the edge. The two collapsed strips are also widened to a ≥24 px hit target and given
+a gap + hairline seam so they no longer crowd, each keeping a panel-naming tooltip ("Expand messages" /
+"Expand thread").
+
+- **Helper (pure, framework-free):** `csi-spl-wui/src/utils/pane-collapse.mjs`
+  - `collapseDir(pane, collapsed, topicOpen)` → the dock edge (`'start'|'end'`);
+  - `arrowPointsEnd(collapsed, pane, collapsedMap, topicOpen)` → the glyph direction (true = ▶ / inline-end);
+  - `fillerPane(collapsed, topicOpen)` → the pane that absorbs the slack.
+- **Consumed by** `components/PaneCollapseToggle.vue` (reads the shared `pane-collapse` store + the
+  topic/live stores for `topicOpen`); CSS renders `--point-start` / `--point-end`, RTL-mirrored via
+  logical borders.
+- **Tests:** the full `2^3` collapsed-state × `topicOpen` matrix in
+  `csi-spl-wui/tests/unit/pane-collapse.test.mjs`, and the both-collapsed browser case at 1440 & 2560
+  (case **B**) in `csi-spl-wui/tests/e2e/panel-collapse.test.mjs`.
+
 ### 3.4 The threads pane: triangle vs the existing X — **keep both** (Q4, my default; owner may flip)
 The top **X closes** the thread (clears the topic store); the bottom **triangle collapses** it to the
 strip but keeps the topic loaded (re-open restores it). At opposite ends they never collide. Posted to

@@ -70,9 +70,9 @@ L="$ROOT/l5"
 ( cd "$NS" && env SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
 eq "5. not the spool tree -> exit 0 (fail-open)" 0 "$?"
 
-# --- installer isolation -----------------------------------------------------
-# The installer resolves the hooks dir from the common git dir's parent, so the
-# throwaway main checkout needs the real hook payload at that path.
+# --- installer: config-free common-hooks-dir install -------------------------
+# It installs ONE hook in the common hooks dir and writes NO git config, so the
+# whole extensions.worktreeConfig / core.bare landmine is gone.
 MAIN="$ROOT/main"
 git -C . init -q "$MAIN" >/dev/null 2>&1 || git init -q "$MAIN"
 git -C "$MAIN" commit -q --allow-empty -m init
@@ -82,35 +82,37 @@ git -C "$MAIN" worktree add -q "$ROOT/wtA" -b wtA >/dev/null 2>&1
 git -C "$MAIN" worktree add -q "$ROOT/wtB" -b wtB >/dev/null 2>&1
 
 bash "$INSTALL" "$ROOT/wtA" >/dev/null 2>&1; eq "6. installer on wtA -> exit 0" 0 "$?"
-hp="$(git -C "$ROOT/wtA" config --get core.hooksPath 2>/dev/null)"
-[ "$hp" = "$MAIN/csi-spl-orc/src/bash/features/spawn-agents/hooks" ] \
-  && pass "6. wtA core.hooksPath set" || fail "6. wtA core.hooksPath set" "$hp"
-eq "6. wtB untouched" "" "$(git -C "$ROOT/wtB" config --get core.hooksPath 2>/dev/null)"
-eq "6. main untouched" "" "$(git -C "$MAIN" config --get core.hooksPath 2>/dev/null)"
+# the hook lands in the COMMON hooks dir, pointing at the shared payload
+dest="$MAIN/.git/hooks/pre-push"
+[ -e "$dest" ] && [ "$(readlink -f "$dest")" = "$(readlink -f "$MAIN/csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push")" ] \
+  && pass "6. common hooks dir has the pre-push hook" || fail "6. common hooks dir has the pre-push hook" "$(readlink "$dest" 2>/dev/null)"
+# every linked worktree resolves hooks to that same common dir
+eq "6. wtA resolves hooks to the common dir" "$MAIN/.git/hooks" "$(git -C "$ROOT/wtA" rev-parse --git-path hooks 2>/dev/null)"
 
-bash "$INSTALL" "$ROOT/wtA" >/dev/null 2>&1; eq "7. installer is idempotent" 0 "$?"
+# 7. CONTROL: the installer writes NO git config (no worktreeConfig, no
+#    core.bare / core.worktree churn) -- the poison bug class is impossible.
+eq "7. installer does NOT enable extensions.worktreeConfig" "" \
+  "$(git config -f "$MAIN/.git/config" --get extensions.worktreeConfig 2>/dev/null)"
+eq "7. installer leaves no core.worktree in the common config" "" \
+  "$(git config -f "$MAIN/.git/config" --get core.worktree 2>/dev/null)"
+[ ! -e "$MAIN/.git/config.worktree" ] && pass "7. no per-worktree config.worktree written" || fail "7. no per-worktree config.worktree written"
+
+bash "$INSTALL" "$ROOT/wtA" >/dev/null 2>&1; eq "8. installer is idempotent" 0 "$?"
 bash "$INSTALL" "$ROOT/not-a-repo-$$" >/dev/null 2>&1; eq "8. non-git dir -> exit 2" 2 "$?"
 
-# 9. the core.bare landmine: a repo carrying core.bare=true in its COMMON config
-#    must NOT become bare when the installer enables extensions.worktreeConfig.
+# 9. CONTROL: a repo carrying core.bare=true in its COMMON config is UNAFFECTED
+#    by the installer -- it never enables worktreeConfig, so it cannot flip the
+#    main checkout to bare. The main stays exactly as it was.
 MB="$ROOT/barelm"
 git -C . init -q "$MB" >/dev/null 2>&1 || git init -q "$MB"
 git -C "$MB" commit -q --allow-empty -m init
 mkdir -p "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks"
 install -m 0755 "$HOOK" "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
-git -C "$MB" config core.bare true          # plant the latent misconfiguration
 git -C "$MB" worktree add -q "$ROOT/wtLM" -b wtLM >/dev/null 2>&1
-bash "$INSTALL" "$ROOT/wtLM" >/dev/null 2>&1; eq "9. installer on a core.bare=true repo -> exit 0" 0 "$?"
-eq "9. the MAIN checkout is still a work tree (not misdetected bare)" true \
-  "$(git -C "$MB" rev-parse --is-inside-work-tree 2>/dev/null)"
-git -C "$MB" status --porcelain >/dev/null 2>&1; eq "9. ... and status works there" 0 "$?"
-eq "9. the linked worktree got its hook" "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks" \
-  "$(git -C "$ROOT/wtLM" config --get core.hooksPath 2>/dev/null)"
-
-# 10. CONTROL: the installer NEVER leaves core.worktree in the COMMON config
-#     (it would point every worktree at one tree). It was clean before; still is.
-eq "10. installer leaves no core.worktree in the common config" "" \
-  "$(git config -f "$MB/.git/config" --get core.worktree 2>/dev/null)"
+bash "$INSTALL" "$ROOT/wtLM" >/dev/null 2>&1; eq "9. installer on any repo -> exit 0" 0 "$?"
+eq "9. it did NOT enable worktreeConfig (no bare landmine)" "" \
+  "$(git config -f "$MB/.git/config" --get extensions.worktreeConfig 2>/dev/null)"
+[ -e "$MB/.git/hooks/pre-push" ] && pass "9. the common hook is installed" || fail "9. the common hook is installed"
 
 # 11. the hook REFUSES when the common config is poisoned with core.worktree
 git -C "$REPO" config core.worktree /somewhere/else

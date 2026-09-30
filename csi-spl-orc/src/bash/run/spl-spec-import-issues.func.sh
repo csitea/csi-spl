@@ -17,6 +17,8 @@
 # @param DESK_AGENT - required on a live run: the seated agent id
 # @param SPEC_DIR (optional) - specs root; default $APP_PATH/csi-spl-doc/specs
 # @param SPEC_IMPORT_SPECS (optional) - comma list of NNN to limit the run
+# @param SPEC_IMPORT_LABELS (optional) - comma list of extra labels put on every
+# @param SPEC_IMPORT_LABELS   issue this import creates or updates (e.g. security)
 # @param SPEC_IMPORT_LIMIT (optional) - max writes this run (0 = all)
 # @param SPEC_IMPORT_INTERVAL (optional) - seconds between writes, default 0.25
 # @param SPEC_IMPORT_OUT (optional) - where the markdown report is written
@@ -30,8 +32,11 @@ do_spl_spec_import_issues() {
   local interval="${SPEC_IMPORT_INTERVAL:-0.25}"
   local limit="${SPEC_IMPORT_LIMIT:-0}"
   local only="${SPEC_IMPORT_SPECS:-}"
-  local -a onlyarg=()
+  local -a onlyarg=() parsearg=()
   [[ -n "$only" ]] && onlyarg=(--only "$only")
+  parsearg=("${onlyarg[@]}")
+  local extra="${SPEC_IMPORT_LABELS:-}"
+  [[ -n "$extra" ]] && parsearg+=(--extra-labels "$extra")
   [[ -f "$py" ]] || { do_log "FATAL spec-import parser is missing: $py"; return 1; }
   [[ -d "$specs" ]] || { do_log "FATAL SPEC_DIR is not a directory: $specs"; return 1; }
   [[ "$interval" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$interval'"; return 1; }
@@ -51,7 +56,7 @@ do_spl_spec_import_issues() {
   # shellcheck disable=SC2064
   trap "rm -rf '$work'" RETURN
 
-  python3 "$py" parse --specs "$specs" "${onlyarg[@]}" --out "$work/plan.json" || return 1
+  python3 "$py" parse --specs "$specs" "${parsearg[@]}" --out "$work/plan.json" || return 1
 
   # Read-only listing, EPIC-SCOPED (SPL-963, CLE-001 2026-09-30). The hub filters
   # in memory and returns every match in one frame, so a whole-tenant list of the

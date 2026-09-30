@@ -203,6 +203,30 @@ raise SystemExit(0 if ok else 1)
 PY
 [[ $? -eq 0 ]] && pass "bold id parsing" || fail "bold id parsing"
 
+# SPEC_IMPORT_LABELS tags every issue on top of task/bug/subtask, in the plan,
+# so reconcile's needed_labels and the create call both carry it, deduped.
+python3 - <<PY
+import importlib.util
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+doc = {"specs": [], "items": [
+    {"labels": ["task"]}, {"labels": ["bug"]}, {"labels": ["task", "security"]},
+]}
+mod.add_labels(doc, "security, ")
+ok = True
+if doc["items"][0]["labels"] != ["task", "security"]:
+    print("FAIL: task not tagged", doc["items"][0]["labels"]); ok = False
+if doc["items"][1]["labels"] != ["bug", "security"]:
+    print("FAIL: bug not tagged", doc["items"][1]["labels"]); ok = False
+if doc["items"][2]["labels"] != ["task", "security"]:
+    print("FAIL: existing security duplicated", doc["items"][2]["labels"]); ok = False
+if mod.add_labels({"items": [{"labels": ["task"]}]}, "")["items"][0]["labels"] != ["task"]:
+    print("FAIL: empty SPEC_IMPORT_LABELS changed labels"); ok = False
+print("PASS: extra labels tag every issue, deduped, empty is a no-op") if ok else None
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "extra labels" || fail "extra labels"
+
 # Epic-scoped read (SPL-963): the importer must NOT list the whole tenant (a big
 # done set closes the hub socket). It reads the epics, scopes the child list to
 # THIS plan's epics, and merges. select_epic_refs picks only the wanted specs'

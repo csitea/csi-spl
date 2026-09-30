@@ -722,12 +722,27 @@ def filter_specs(doc: dict, only: str) -> dict:
     return doc
 
 
+def add_labels(doc: dict, extra: str) -> dict:
+    """Append the SPEC_IMPORT_LABELS (comma list) to every item, deduped and
+    order-preserving. Done in the plan so reconcile's needed_labels, the label
+    catalogue and the create call all carry the tag, and a re-run backfills it."""
+    tags = [t for t in (x.strip() for x in extra.split(",")) if t]
+    if not tags:
+        return doc
+    for item in doc["items"]:
+        for t in tags:
+            if t not in item["labels"]:
+                item["labels"].append(t)
+    return doc
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="parse git-spec tasks into issue records")
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("parse")
     a.add_argument("--specs", type=Path, required=True)
     a.add_argument("--only", default="")
+    a.add_argument("--extra-labels", default="")
     a.add_argument("--out", type=Path)
     b = sub.add_parser("reconcile")
     b.add_argument("--plan", type=Path, required=True)
@@ -757,7 +772,7 @@ def main(argv: list[str]) -> int:
         args.out.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
         return 0
     if args.cmd == "parse":
-        doc = filter_specs(parse_tree(args.specs), args.only)
+        doc = add_labels(filter_specs(parse_tree(args.specs), args.only), args.extra_labels)
         text = json.dumps(doc, ensure_ascii=False)
         if args.out:
             args.out.write_text(text, encoding="utf-8")

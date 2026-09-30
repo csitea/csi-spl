@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +32,18 @@ const ProviderNative = auth.ProviderPassword
 // ErrNotAdmitted refuses a sign-in to a tenant: not a member, no matching
 // invite, and no bootstrap (FR-012). Nothing was written.
 var ErrNotAdmitted = errors.New("not admitted to tenant")
+
+// ErrInviteExpired is the special case of ErrNotAdmitted where the ONLY reason
+// admission failed is that this address has a pending (never-accepted) invite
+// to this tenant whose expires_at has passed. The sign-in is still refused and
+// nothing is written, but the caller can tell an invited-but-lapsed person
+// (who needs a fresh invite) from a stranger (who needs an invite at all), so
+// the login page shows "your invitation expired" instead of the blank
+// not_allowed both cases used to share (CLE-77781, topic db1d0b6f). It WRAPS
+// ErrNotAdmitted: every existing `errors.Is(err, ErrNotAdmitted)` still holds,
+// so a caller that does not care about the reason is unchanged; one that does
+// checks ErrInviteExpired first.
+var ErrInviteExpired = fmt.Errorf("%w: invite expired", ErrNotAdmitted)
 
 // Membership roles (tenant_memberships.role) are rows since rdb 0021
 // (specs/025): any role_id visible to the tenant. These two are the ones the

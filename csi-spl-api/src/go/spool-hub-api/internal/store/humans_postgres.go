@@ -206,6 +206,23 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 			return nil
 		}
 	}
+	// No usable invite and no bootstrap. If the address DOES have a pending
+	// invite that has merely lapsed, say so distinctly (ErrInviteExpired) so the
+	// sign-in page can tell the person to ask for a fresh one, rather than the
+	// blank not_allowed a stranger gets. The UPDATE above only matched
+	// expires_at > now, so an unaccepted row with expires_at <= now is exactly
+	// the expired case (CLE-77781).
+	if email != "" {
+		var expired bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_invites
+			WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND expires_at <= $3)`,
+			tenant, email, now).Scan(&expired); err != nil {
+			return err
+		}
+		if expired {
+			return ErrInviteExpired
+		}
+	}
 	return ErrNotAdmitted
 }
 

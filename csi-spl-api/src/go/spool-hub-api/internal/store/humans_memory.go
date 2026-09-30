@@ -163,9 +163,11 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 
 // admitToTenant decides the tenant grant for an already-resolved human without
 // writing anything: an open matching invite (its role and provenance), else the
-// bootstrap owner, else a refusal. resolved is (known || linked): a resolved
-// human that is already a member needs no grant. A new membership is a new user
-// seat (009 D-3), refused over the tenant cap.
+// bootstrap owner, else a pending-but-lapsed invite is ErrInviteExpired (distinct
+// so the login page can say "ask for a fresh invite", CLE-77781/SPL-1229), else
+// a plain refusal. resolved is (known || linked): a resolved human that is
+// already a member needs no grant. A new membership is a new user seat (009
+// D-3), refused over the tenant cap.
 func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p AdmitPolicy, now time.Time) (*memMember, *memInvite, error) {
 	if _, ok := s.tenants[tenant]; !ok {
 		return nil, nil, ErrNotAdmitted
@@ -182,6 +184,9 @@ func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p Admit
 			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
 	} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
 		grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
+	} else if i, ok := h.invites[[2]string{tenant, email}]; ok && email != "" && !i.accepted && !now.Before(i.ExpiresAt) {
+		// A pending invite that merely lapsed: distinct from a stranger.
+		return nil, nil, ErrInviteExpired
 	} else {
 		return nil, nil, ErrNotAdmitted
 	}

@@ -31,12 +31,16 @@ const RoutePrefix = "/api/v1/auth/"
 
 // Callback failure codes, the ?auth_error= the WUI login page renders.
 const (
-	ErrCodeCancelled   = "cancelled"
-	ErrCodeState       = "invalid_state"
-	ErrCodeExchange    = "exchange_failed"
-	ErrCodeUnverified  = "email_unverified"
-	ErrCodeNotAllowed  = "not_allowed"
-	ErrCodeUnavailable = "unavailable"
+	ErrCodeCancelled  = "cancelled"
+	ErrCodeState      = "invalid_state"
+	ErrCodeExchange   = "exchange_failed"
+	ErrCodeUnverified = "email_unverified"
+	ErrCodeNotAllowed = "not_allowed"
+	// ErrCodeInviteExpired: the address had a pending invite to the tenant that
+	// has lapsed — a fresh invite is needed, told apart from not_allowed so the
+	// login page can say so (CLE-77781, SPL-1229).
+	ErrCodeInviteExpired = "invite_expired"
+	ErrCodeUnavailable   = "unavailable"
 	// ErrCodeInvalidDisplayName: PUT preferences display_name is not a name
 	// ValidDisplayName admits.
 	ErrCodeInvalidDisplayName = "invalid_display_name"
@@ -52,6 +56,11 @@ type Registrar interface {
 
 // ErrNotAllowed from a Registrar refuses the sign-in with auth_error=not_allowed.
 var ErrNotAllowed = errors.New("auth: sign-in not allowed")
+
+// ErrInviteExpired from a Registrar refuses the sign-in with
+// auth_error=invite_expired: the address is invited but the invite lapsed
+// (CLE-77781, SPL-1229). Distinct from ErrNotAllowed so the copy differs.
+var ErrInviteExpired = errors.New("auth: invitation expired")
 
 // Membership answers whether a registered human may read a tenant (spec 010
 // T013, store-backed, owned by the hub). A session proves who signed in, never
@@ -342,6 +351,10 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {
 		hum, err := h.reg.Register(r.Context(), id, st.Tenant)
+		if errors.Is(err, ErrInviteExpired) {
+			h.fail(w, r, p, st.Redirect, ErrCodeInviteExpired, "invite expired")
+			return
+		}
 		if errors.Is(err, ErrNotAllowed) {
 			h.fail(w, r, p, st.Redirect, ErrCodeNotAllowed, "registrar refused")
 			return

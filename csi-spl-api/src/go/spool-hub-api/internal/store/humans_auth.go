@@ -48,6 +48,12 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	}
 	hum, err := a.H.Admit(ctx, Identity{Provider: id.Provider, Subject: id.Subject, Email: id.Email, Name: id.Name},
 		tenant, a.Policy, now().UTC())
+	// An invited address whose invite lapsed: distinct code so the login page
+	// says "ask for a fresh invite" (CLE-77781, SPL-1229). Checked before
+	// ErrNotAdmitted — the two are different sentinels, order is just clarity.
+	if errors.Is(err, ErrInviteExpired) {
+		return "", auth.ErrInviteExpired
+	}
 	// A new seat over the M4 cap (009 D-6): the redirect has no status, so it
 	// is not_allowed, and nothing was written.
 	if errors.Is(err, ErrNotAdmitted) || errors.Is(err, ErrSeatQuota) {

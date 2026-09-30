@@ -512,6 +512,11 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 	}
 	hum, err := n.h.reg.Register(ctx, Identity{Provider: ProviderPassword, Subject: sess.Email, Email: sess.Email,
 		Name: cred.DisplayName}, sess.Tenant)
+	if errors.Is(err, ErrInviteExpired) {
+		n.log.Warn().Str("email", digest(sess.Email)).Str("tenant", sess.Tenant).Msg("auth.native_login_invite_expired")
+		writeErr(w, http.StatusForbidden, ErrCodeInviteExpired, "invite expired")
+		return false
+	}
 	if errors.Is(err, ErrNotAllowed) {
 		n.log.Warn().Str("email", digest(sess.Email)).Str("tenant", sess.Tenant).Msg("auth.native_login_not_allowed")
 		writeErr(w, http.StatusForbidden, ErrCodeNotAllowed, "registrar refused")

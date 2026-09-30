@@ -1098,7 +1098,11 @@ html.pane-dragging * {
    three sit 1 mm (~4px) higher, and the hover/press 3D effect is stronger.
    Topic 10a5a3e2 (owner): the channels triangle moves a further 2 mm (~8px)
    to the right, so the shift is 34 + 8 = 42px. */
-.spool-shell { --pane-strip-w: 16px; --pane-collapse-shift: 42px; }
+/* 80e40aca (owner, prd t1): the collapsed strip is 24px, not 16px, so its
+   centred toggle is a full >=24px target (WCAG 2.5.8) and two adjacent strips
+   (messages + thread both collapsed) no longer crowd into one hard-to-hit sliver.
+   Still slim. */
+.spool-shell { --pane-strip-w: 24px; --pane-collapse-shift: 42px; }
 
 .pane-collapse {
   position: absolute;
@@ -1214,6 +1218,25 @@ html.pane-dragging * {
   .spool-shell[data-collapse-topic="1"] > .spool-main > :not(.pane-collapse),
   .spool-shell[data-collapse-threads="1"] > .topic > :not(.pane-collapse) {
     display: none !important;
+  }
+  /* 80e40aca: a hairline seam down both inline edges of every collapsed strip.
+     Where two strips sit side by side (messages + thread both collapsed) it
+     reads as a clear divider between the two separate controls; where a strip
+     meets the filler pane it separates the sliver from the content. A border
+     (not a box-shadow: the focus-tokens gate reserves box-shadow after the focus
+     section for the single --focus-ring colour); box-sizing:border-box keeps the
+     strip its --pane-strip-w width. */
+  .spool-shell[data-collapse-channels="1"] > .sidebar,
+  .spool-shell[data-collapse-topic="1"] > .spool-main,
+  .spool-shell[data-collapse-threads="1"] > .topic {
+    border-inline: 1px solid var(--color-border);
+  }
+  /* 80e40aca: when two strips sit side by side (the hidden divider leaves them
+     flush) put a real 6px gap between them so each is its own clearly separate,
+     easy-to-hit control — not one 32px sliver. The filler pane gives up the 6px. */
+  .spool-shell[data-collapse-channels="1"][data-collapse-topic="1"] > .spool-main,
+  .spool-shell[data-collapse-topic="1"][data-collapse-threads="1"] > .topic {
+    margin-inline-start: 6px;
   }
   /* the filler panel absorbs the slack. Normally the middle (.spool-main is
      already flex:1); when it collapses, the open thread pane, else the sidebar

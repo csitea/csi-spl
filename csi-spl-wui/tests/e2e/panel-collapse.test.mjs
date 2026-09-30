@@ -9,6 +9,9 @@
 //      aria-expanded flips, its content hides
 //   T  the middle (topic) feed collapses too (owner: all 3 panels)
 //   H  the thread pane collapses AND keeps its header close X (collapse != close)
+//   B  messages + thread BOTH collapsed (owner topic 80e40aca): both arrows point
+//      ◀ toward where they expand, and the two controls are separate & hittable
+//      (>=24px, a real gap, a tooltip each) — proven at 1440 and 2560
 //   P  the collapsed state survives a reload (localStorage spool.pane-collapsed)
 //   W  windows style: the toggle moves to the bottom-RIGHT corner (end side)
 //   R  Hebrew: <html dir=rtl>, the toggle still renders (the glyph mirrors via
@@ -105,6 +108,14 @@ try {
       /* the toggle centre in the bottom half + the left/right half of its pane */
       bottom: br.top + br.height / 2 > pr.top + pr.height / 2,
       left: br.left + br.width / 2 < pr.left + pr.width / 2,
+      /* which way the triangle points (the class the shared rule sets), the
+         toggle's own box size, and its title (the tooltip naming the panel) */
+      pointsEnd: btn.classList.contains('pane-collapse--point-end'),
+      btnW: Math.round(br.width),
+      btnH: Math.round(br.height),
+      btnLeft: br.left,
+      btnRight: br.right,
+      title: btn.getAttribute('title') || '',
       contentShown,
     }
   }, paneSel, toggleSel)
@@ -160,6 +171,32 @@ try {
   const xStill = await p.evaluate(() => Boolean(document.querySelector('[data-test=topic-pane-close]')))
   ok('H2 thread collapses to a strip but the topic (and its close X) stay', h.width <= 30 && h.expanded === 'false' && xStill === true, { ...h, xStill })
   await clickToggle('threads')
+
+  /* B: THE BUG (owner topic 80e40aca) — messages + thread BOTH collapsed. Both
+     strips dock to the RIGHT edge and expand LEFT, so both arrows must point ◀
+     (point-start, pointsEnd=false). The two controls must be separate & hittable:
+     >=24px targets, a real gap between them, each with a tooltip naming its panel.
+     Proven at the owner's two widths (1440 and 2560). */
+  for (const vp of [DESKTOP, { name: '2560', width: 2560, height: 1600 }]) {
+    await setPageViewport(p, vp)
+    await applyViewport(p, vp)
+    await sleep(300)
+    await clickToggle('topic')
+    await clickToggle('threads')
+    const bt = await paneState('.spool-main', '[data-test=pane-collapse-topic]')
+    const bh = await paneState('.topic', '[data-test=pane-collapse-threads]')
+    ok(`B1@${vp.name} both collapsed: the MESSAGES arrow points ◀ (toward where it expands)`, bt.expanded === 'false' && bt.pointsEnd === false, bt)
+    ok(`B2@${vp.name} both collapsed: the THREAD arrow points ◀ too (same right edge)`, bh.expanded === 'false' && bh.pointsEnd === false, bh)
+    ok(`B3@${vp.name} each control is a >=24px hit target`, bt.btnW >= 24 && bt.btnH >= 24 && bh.btnW >= 24 && bh.btnH >= 24, { messages: [bt.btnW, bt.btnH], thread: [bh.btnW, bh.btnH] })
+    ok(`B4@${vp.name} a real gap separates the two controls (no crowding)`, bh.btnLeft >= bt.btnRight + 3, { messagesRight: Math.round(bt.btnRight), threadLeft: Math.round(bh.btnLeft) })
+    ok(`B5@${vp.name} each tooltip names its panel`, /messages/i.test(bt.title) && /thread/i.test(bh.title), { messages: bt.title, thread: bh.title })
+    await shot(`${vp.name}-both-collapsed`)
+    await clickToggle('topic')
+    await clickToggle('threads')
+  }
+  await setPageViewport(p, DESKTOP)
+  await applyViewport(p, DESKTOP)
+  await sleep(300)
 
   /* P: the collapsed state survives a reload */
   await clickToggle('channels')

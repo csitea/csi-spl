@@ -25,6 +25,7 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
+command -v jq >/dev/null || { echo "SKIP: no jq"; exit 0; }
 
 DEV_SA=csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com
 DSN_PW="pw$RANDOM$RANDOM"
@@ -38,8 +39,29 @@ case "\$*" in
   "auth activate-service-account"*) for a; do [[ "\$a" == --key-file=* ]] && jq -r .client_email "\${a#*=}" >"\$CLOUDSDK_CONFIG/active"; done ;;
   "auth list"*) cat "\$CLOUDSDK_CONFIG/active" 2>/dev/null ;;
   "auth print-access-token"*) echo tok ;;
+  "auth print-identity-token"*) echo idtok ;;
   "secrets versions access"*) echo "postgres://spool_hub:$DSN_PW@/spool?host=/cloudsql/p:r:i" ;;
 esac
+exit 0
+EOF
+# curl: the hub operator route (CLE-77780). Record method+url+body; 201 create.
+cat >"$T/stub/curl" <<'EOF'
+#!/usr/bin/env bash
+out=""; data=""; url=""; method=GET
+while (( $# )); do
+  case "$1" in
+    -o) out="$2"; shift 2;;
+    --data) data="$2"; shift 2;;
+    -X) method="$2"; shift 2;;
+    -K|-m|-w|-H) shift 2;;
+    -sS) shift;;
+    http://*|https://*) url="$1"; shift;;
+    *) shift;;
+  esac
+done
+echo "curl $method $url body=$data" >>"$STUB_LOG"
+[[ -n "$out" ]] && printf '%s' '{"tenant_id":"t1","email":"x@example.com","role":"developer","invited_by":"operator","status":"invited","mail":{"outcome":"sent","message_id":"<m@x>","delivered":true}}' >"$out"
+printf '%s' "${STUB_HTTP:-201}"
 exit 0
 EOF
 # psql / spool: record argv, stdin and whether a DSN arrived (never its value)
@@ -97,8 +119,8 @@ in_orc 'do_spl_db_query' SQL='select 1' GCP_SA_KEY_FILE="$T/nokey.json" HOME="$T
 # --- 2. invite / member role ---------------------------------------------------------
 INV=(TENANT_ID=t1 INVITE_EMAIL=owner@example.com INVITE_ROLE=owner)
 in_orc 'do_spl_hub_invite' "${INV[@]}"; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would invite owner@example.com to t1 as biz_owner' "$T/out" \
-  && pass "2. hub-invite DRY_RUN: no cloud call" || fail "2. invite dry: rc=$rc $(cat "$T/calls.log")"
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'to invite owner@example.com to t1 as biz_owner' "$T/out" \
+  && pass "2. hub-invite DRY_RUN: no cloud call" || fail "2. invite dry: rc=$rc $(cat "$T/calls.log" "$T/out")"
 for bad in 'INVITE_ROLE=Admin!' "INVITE_ROLE=x' or '1" INVITE_EMAIL=nope TENANT_ID=T_1 ORDERED_BY=nobody; do
   in_orc 'do_spl_hub_invite' "${INV[@]}" ORDERED_BY=HUM-10 "$bad" DRY_RUN=0; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite $bad refused before any call" || fail "2. hub-invite $bad: rc=$rc"
@@ -107,20 +129,20 @@ done
 in_orc 'do_spl_hub_invite' "${INV[@]}" DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite refuses DRY_RUN=0 without ORDERED_BY (provenance)" \
   || fail "2. invite missing ORDERED_BY: rc=$rc $(cat "$T/calls.log")"
+# CLE-77780: create + mail through the hub operator route, not the DB proxy.
 in_orc 'do_spl_hub_invite' "${INV[@]}" ORDERED_BY=HUM-10 ORDERED_VIA=CLE-34967 DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'spool hub-invite --tenant t1 --email owner@example.com --role biz_owner --ordered-by HUM-10 --ordered-via CLE-34967 dsn=set' "$T/calls.log" \
-  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: spool hub-invite with provenance through the proxy as $DEV_SA" \
+[[ $rc -eq 0 ]] && grep -qx 'curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={"tenant":"t1","email":"owner@example.com","role":"biz_owner","ordered_by":"HUM-10","ordered_via":"CLE-34967"}' "$T/calls.log" \
+  && ! grep -qE '^(proxy-start|psql|spool )' "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: POST the operator route with provenance, no proxy/psql/spool" \
   || fail "2. invite real: rc=$rc $(cat "$T/calls.log" "$T/out")"
-grep -qF "$DSN_PW" "$T/out" "$T/calls.log" && fail "2. the DSN password leaked into output / argv" || pass "2. the DSN password is in neither output nor argv"
 
-# 025: every role id passes to the hub DB (which owns the list); default developer.
+# 025: every role id passes to the hub (which owns the list); default developer.
 for r in product_owner admin tester pure_agent; do
   in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=r@example.com INVITE_ROLE=$r ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
-  [[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email r@example.com --role $r --ordered-by HUM-10 --ordered-via  dsn=set" "$T/calls.log" \
-    && pass "2. hub-invite INVITE_ROLE=$r reaches spool as --role $r" || fail "2. hub-invite role $r: rc=$rc $(cat "$T/calls.log")"
+  [[ $rc -eq 0 ]] && grep -qx "curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={\"tenant\":\"t1\",\"email\":\"r@example.com\",\"role\":\"$r\",\"ordered_by\":\"HUM-10\"}" "$T/calls.log" \
+    && pass "2. hub-invite INVITE_ROLE=$r reaches the route body as role $r" || fail "2. hub-invite role $r: rc=$rc $(cat "$T/calls.log")"
 done
 in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=d@example.com ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email d@example.com --role developer --ordered-by HUM-10 --ordered-via  dsn=set" "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx 'curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={"tenant":"t1","email":"d@example.com","role":"developer","ordered_by":"HUM-10"}' "$T/calls.log" \
   && pass "2. hub-invite without INVITE_ROLE invites a developer" || fail "2. hub-invite default role: rc=$rc $(cat "$T/calls.log")"
 
 REV=(TENANT_ID=t1 INVITE_EMAIL=old@example.com)

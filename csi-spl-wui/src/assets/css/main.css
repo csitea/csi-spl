@@ -1060,6 +1060,26 @@ html.pane-dragging * {
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
 }
 .msg.selected { border-radius: var(--radius); }
+/* CLE-77812 (owner, topic b005eb90): the SELECTED sidebar row (a channel, and
+   every list that shares .nav-item — DMs, topics, people, agents, boxes) reads
+   BOLDER and sits a touch RAISED. The raise is the same recipe the pane
+   triangles use: the theme-aware drop shadow var(--focus-3d) (zero spread, so
+   it adds no second RING colour — the treatment still has exactly one, the
+   left bar's var(--focus-ring)) plus a 1px top-highlight / bottom-shade bevel
+   from flat rgba (not a token, so it counts as no ring). The one-colour marker
+   bar (var(--select-bar-w) in var(--focus-ring)) leads the stack, so the owner's
+   "no more than 1 colour, <= 3px" rule still holds. Tokens throughout, so light
+   AND dark themes get it; nothing changes the box size, so the row height is
+   unchanged and the hover fill (a plain var(--color-surface-hover), no raise)
+   stays clearly distinct from selected. */
+.nav-item.active {
+  font-weight: 600;
+  box-shadow:
+    inset var(--select-bar-w) 0 0 var(--focus-ring),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    var(--focus-3d);
+}
 /* The selected rail tab is a button, not a row: the ring goes all the way
    round it instead of a bar on one side. */
 .sidebar-tab[aria-selected="true"] {

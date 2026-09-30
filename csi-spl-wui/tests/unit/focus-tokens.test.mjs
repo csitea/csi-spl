@@ -153,6 +153,24 @@ describe('focus + selection tokens', () => {
     assert.match(MAIN, /\.msg\.selected/)
   })
 
+  it('CLE-77812: the selected sidebar row reads bolder and RAISED — on tokens, no extra ring colour', () => {
+    /* the .nav-item.active rule of its own (not the shared selected block) */
+    const rule = MAIN.match(/\.nav-item\.active\s*\{([^}]*)\}(?![\s\S]*\.nav-item\.active\s*\{)/)
+    assert.ok(rule, 'a .nav-item.active rule that carries the raise')
+    assert.match(rule[1], /font-weight:\s*[6-9]\d\d/, 'the selected row is bolder')
+    /* the raise is the theme-aware drop shadow token, so every theme gets it */
+    assert.match(rule[1], /box-shadow:[^;]*var\(--focus-3d\)/, 'the selected row is raised with var(--focus-3d)')
+    /* the one-colour marker bar still leads the box-shadow stack */
+    assert.match(rule[1], /box-shadow:\s*\n?\s*inset var\(--select-bar-w\) 0 0 var\(--focus-ring\)/)
+    /* the bevel is flat rgba (no token) so it adds no second ring colour */
+    const ringColours = new Set(
+      [...rule[1].matchAll(/box-shadow:([^;]*);/g)]
+        .flatMap((decl) => [...decl[1].matchAll(/var\((--[a-z0-9-]+)\)/g)].map((v) => v[1]))
+        .filter((v) => !['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--radius'].includes(v)),
+    )
+    assert.deepEqual([...ringColours], ['--focus-ring'], 'more than one ring colour on the selected row')
+  })
+
   it('no stylesheet takes an outline away on focus without putting something back', () => {
     const files = []
     const walk = (dir) => {

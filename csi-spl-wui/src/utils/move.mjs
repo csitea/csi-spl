@@ -105,13 +105,35 @@ export function isMergeCardDropTarget(drag, card, lobbyTaskId = '') {
 }
 
 /**
+ * The viewer may PROMOTE this reply into a new topic of its own (8f588edd) /
+ * is offered "Make it a topic". The same gate as Move to topic: a reply (never
+ * a card, never the opener) the viewer authored, owns or admins, in a real
+ * channel (not a DM, not the lobby).
+ */
+export function mayPromoteMessage(msg, viewerId, me, opts = {}) {
+  return mayMoveMessage(msg, viewerId, me, opts)
+}
+
+/**
+ * The topics-list background lights up (and takes the drop) for a reply being
+ * dragged = a PROMOTE (8f588edd). The reply keeps its own channel, so the drop
+ * only needs a reply drag; the hub decides the rest.
+ */
+export function isPromoteDropTarget(drag) {
+  const d = drag && typeof drag === 'object' ? drag : null
+  return Boolean(d && d.kind === 'message')
+}
+
+/**
  * The "moved from ..." note on a row, or null: a card names its home channel
- * (a topic move), a reply its home topic (a message move).
+ * (a topic move) or, when it opens a topic promoted out of another (8f588edd),
+ * its home topic; a reply names its home topic (a message move).
  */
 export function movedNote(msg) {
   const m = msg && typeof msg === 'object' ? msg : {}
   if (!m.moved_at) return null
-  if (m.moved_from_task && m.is_parent !== 1) return { kind: 'topic', task: String(m.moved_from_task) }
+  // A moved reply, or a card promoted out of another topic, names its home topic.
+  if (m.moved_from_task) return { kind: 'topic', task: String(m.moved_from_task) }
   const from = moveChan(m.moved_from_channel)
   if (from && m.is_parent !== 0 && from !== moveChan(m.channel)) return { kind: 'channel', channel: from }
   return null

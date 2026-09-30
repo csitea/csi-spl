@@ -30,7 +30,20 @@
         {{ loadingOlder ? t('feed.loading_older') : t('feed.load_more') }}
       </button>
     </div>
-    <TransitionGroup :name="newestLast ? 'append' : 'prepend'" tag="div" class="live-rows" :data-order="newestLast ? 'newest-last' : undefined">
+    <!-- 8f588edd: the topics-list background is a drop zone - a reply dragged
+         here (not onto a card) is PROMOTED into a new topic of its own. Only
+         the middle pane (openButton) offers it; a reply dropped on a card
+         still MOVES there (the card's own data-move-drop wins under the
+         pointer). -->
+    <TransitionGroup
+      :name="newestLast ? 'append' : 'prepend'"
+      tag="div"
+      class="live-rows"
+      :data-order="newestLast ? 'newest-last' : undefined"
+      :data-move-drop="openButton ? 'topics' : undefined"
+      :data-move-id="openButton && promoteDrag ? 'promote' : undefined"
+      :data-move-ok="openButton && promoteDrag ? 'true' : undefined"
+    >
       <MessageCard
         v-for="(m, i) in shown"
         :key="m.msg_id"
@@ -93,6 +106,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
+import { useMove } from '~/composables/useMove'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -139,6 +153,9 @@ const props = defineProps<{
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 const { t } = useI18n({ useScope: 'global' })
+/* 8f588edd: the topics-list background lights up while a reply is being dragged. */
+const move = useMove()
+const promoteDrag = computed(() => Boolean(move.drag.value && move.drag.value.kind === 'message'))
 const topic = useTopicStore()
 const people = useHumanNames()
 const { mode: clipMode } = useCardClip(props.clipPane)

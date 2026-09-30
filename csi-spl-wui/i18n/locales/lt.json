@@ -556,7 +556,8 @@
       "kind": "Keisti tipą",
       "move_channel": "Perkelti į kanalą…",
       "merge_topic": "Sujungti su…",
-      "move_topic": "Perkelti į temą…"
+      "move_topic": "Perkelti į temą…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "neleidžiama",
       "handle_channel": "Vilkite, kad perkeltumėte temą į kanalą",
       "handle_topic": "Vilkite, kad perkeltumėte žinutę į temą"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

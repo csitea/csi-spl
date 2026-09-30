@@ -556,7 +556,8 @@
       "kind": "Cambiar tipo",
       "move_channel": "Mover a un canal…",
       "merge_topic": "Combinar con…",
-      "move_topic": "Mover a un tema…"
+      "move_topic": "Mover a un tema…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "no permitido",
       "handle_channel": "Arrastra para mover este tema a un canal",
       "handle_topic": "Arrastra para mover este mensaje a un tema"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

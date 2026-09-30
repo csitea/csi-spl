@@ -556,7 +556,8 @@
       "kind": "Change kind",
       "move_channel": "Move to channel…",
       "merge_topic": "Merge into…",
-      "move_topic": "Move to topic…"
+      "move_topic": "Move to topic…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Add emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "not allowed",
       "handle_channel": "Drag to move this topic to a channel",
       "handle_topic": "Drag to move this message to a topic"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

@@ -556,7 +556,8 @@
       "kind": "Zmeniť druh",
       "move_channel": "Presunúť do kanála…",
       "merge_topic": "Zlúčiť s…",
-      "move_topic": "Presunúť do témy…"
+      "move_topic": "Presunúť do témy…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "nie je povolené",
       "handle_channel": "Potiahnutím presuniete tému do kanála",
       "handle_topic": "Potiahnutím presuniete správu do témy"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

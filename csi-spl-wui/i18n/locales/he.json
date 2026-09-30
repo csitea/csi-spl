@@ -556,7 +556,8 @@
       "kind": "שנה סוג",
       "move_channel": "העברה לערוץ…",
       "merge_topic": "מזג אל…",
-      "move_topic": "העברה לנושא…"
+      "move_topic": "העברה לנושא…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "הוסף אימוג'י",
@@ -705,6 +706,10 @@
       "not_allowed": "לא מותר",
       "handle_channel": "גרור כדי להעביר את הנושא לערוץ",
       "handle_topic": "גרור כדי להעביר את ההודעה לנושא"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

@@ -556,7 +556,8 @@
       "kind": "Ändra typ",
       "move_channel": "Flytta till kanal…",
       "merge_topic": "Slå ihop med…",
-      "move_topic": "Flytta till ämne…"
+      "move_topic": "Flytta till ämne…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "inte tillåtet",
       "handle_channel": "Dra för att flytta ämnet till en kanal",
       "handle_topic": "Dra för att flytta meddelandet till ett ämne"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

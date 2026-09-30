@@ -16,6 +16,8 @@ export type MoveRequest =
   | { kind: 'message', msgId: string, toTask: string }
   | { kind: 'merge', msgId: string, toTask: string }
   | { kind: 'merge-undo', msgId: string, fromTask: string, msgIds: string[] }
+  | { kind: 'promote', msgId: string }
+  | { kind: 'promote-undo', msgId: string, fromTask: string, msgIds: string[] }
 export type MoveToast = { id: number, text: string, undo: MoveRequest | null, busy: boolean }
 /* 714c7028: a topic card dropped on another topic asks to MERGE first (the
    whole source topic folds in), so the drop opens a confirm, not the move. */
@@ -55,7 +57,8 @@ export function useMove() {
     const type = (frame as { type?: string } | null)?.type
     const move = type === 'topic_moved' || type === 'message_moved'
     const merge = type === 'topic_merged' || type === 'topic_unmerged'
-    if (!move && !merge) return
+    const promote = type === 'topic_promoted' || type === 'topic_demoted'
+    if (!move && !merge && !promote) return
     const m = await loadApply()
     const getTopic = (id: string) => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 30 }))
     const f = move
@@ -63,10 +66,15 @@ export function useMove() {
         channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
         viewer: useViewerStore(), topic: useTopicStore(), getTopic,
       })
-      : m.applyMergeToStores(frame, {
-        channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
-        viewer: useViewerStore(), getTopic,
-      })
+      : merge
+        ? m.applyMergeToStores(frame, {
+          channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
+          viewer: useViewerStore(), getTopic,
+        })
+        : m.applyPromoteToStores(frame, {
+          channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
+          viewer: useViewerStore(), getTopic,
+        })
     if (f) for (const fn of movedListeners) fn(f as unknown as MoveFrame, m)
   }
 
@@ -75,6 +83,8 @@ export function useMove() {
     if (kind === 'message') return 'message_moved'
     if (kind === 'merge') return 'topic_merged'
     if (kind === 'unmerge') return 'topic_unmerged'
+    if (kind === 'promote') return 'topic_promoted'
+    if (kind === 'demote') return 'topic_demoted'
     return 'topic_moved'
   }
 
@@ -101,6 +111,8 @@ export function useMove() {
     if (req.kind === 'topic') return api.moveTopic(req.msgId, req.toChannel)
     if (req.kind === 'message') return api.moveMessage(req.msgId, req.toTask)
     if (req.kind === 'merge') return api.mergeTopic(req.msgId, req.toTask)
+    if (req.kind === 'promote') return api.promoteTopic(req.msgId)
+    if (req.kind === 'promote-undo') return api.promoteUndo(req.msgId, req.fromTask, req.msgIds)
     return api.mergeUndo(req.msgId, req.fromTask, req.msgIds)
   }
 
@@ -110,6 +122,9 @@ export function useMove() {
     if (req.kind === 'merge') {
       return undo && undo.from_task ? { kind: 'merge-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
     }
+    if (req.kind === 'promote') {
+      return undo && undo.from_task ? { kind: 'promote-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
+    }
     if (undo && undo.to_channel) return { kind: 'topic', msgId: req.msgId, toChannel: undo.to_channel }
     if (undo && undo.to_task) return { kind: 'message', msgId: req.msgId, toTask: undo.to_task }
     return null
@@ -118,6 +133,7 @@ export function useMove() {
   /** The toast line for a fresh move / merge; `title` names the target topic. */
   function doneText(req: MoveRequest, answer: MoveAnswer, title: string): string {
     if (req.kind === 'merge') return title ? i18n.t('feed.merge.done', { title }) : i18n.t('feed.merge.done_plain')
+    if (req.kind === 'promote') return i18n.t('feed.promote.done')
     if (req.kind === 'topic') return i18n.t('feed.move.done_channel', { channel: String(answer?.channel || req.toChannel) })
     return title ? i18n.t('feed.move.done_topic', { title }) : i18n.t('feed.move.done_topic_plain')
   }
@@ -126,8 +142,9 @@ export function useMove() {
     const token = (e as { token?: string } | null)?.token
     const m = await loadApply()
     const merge = kind === 'merge' || kind === 'merge-undo'
-    const key = merge ? m.mergeErrorKey(e) : m.moveErrorKey(e)
-    noteError({ source: 'move', name: merge ? 'Merge' : 'Move', message: i18n.t(key), code: token, error: e })
+    const promote = kind === 'promote' || kind === 'promote-undo'
+    const key = promote ? m.promoteErrorKey(e) : merge ? m.mergeErrorKey(e) : m.moveErrorKey(e)
+    noteError({ source: 'move', name: merge ? 'Merge' : promote ? 'Promote' : 'Move', message: i18n.t(key), code: token, error: e })
   }
 
   /** Move / merge; `title` names the target topic in the toast (a channel names itself). */
@@ -152,7 +169,7 @@ export function useMove() {
     try {
       const answer = await call(t.undo)
       await dispatch({ ...answer, type: answerFrameType(answer.kind) })
-      show(i18n.t(t.undo.kind === 'merge-undo' ? 'feed.merge.undone' : 'feed.move.undone'), null)
+      show(i18n.t(t.undo.kind === 'merge-undo' ? 'feed.merge.undone' : t.undo.kind === 'promote-undo' ? 'feed.promote.undone' : 'feed.move.undone'), null)
     } catch (e) {
       dismiss()
       await fail(e, t.undo.kind)
@@ -210,6 +227,7 @@ export function useMove() {
     if (d.kind === 'topic' && hit.kind === 'channel') void run({ kind: 'topic', msgId: d.msgId, toChannel: hit.id })
     else if (d.kind === 'topic' && hit.kind === 'card') askMerge({ msgId: d.msgId, toTask: hit.id, sourceTitle: d.title || '', targetTitle: hit.title })
     else if (d.kind === 'message' && hit.kind === 'card') void run({ kind: 'message', msgId: d.msgId, toTask: hit.id }, hit.title)
+    else if (d.kind === 'message' && hit.kind === 'topics') void run({ kind: 'promote', msgId: d.msgId })
   }
 
   return { drag, over, toast, mergeAsk, dispatch, onMoved, run, undo, dismiss, lift, track, land, askMerge, cancelMerge, confirmMerge }

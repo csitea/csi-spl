@@ -556,7 +556,8 @@
       "kind": "Zmień rodzaj",
       "move_channel": "Przenieś do kanału…",
       "merge_topic": "Scal z…",
-      "move_topic": "Przenieś do tematu…"
+      "move_topic": "Przenieś do tematu…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "niedozwolone",
       "handle_channel": "Przeciągnij, aby przenieść temat do kanału",
       "handle_topic": "Przeciągnij, aby przenieść wiadomość do tematu"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

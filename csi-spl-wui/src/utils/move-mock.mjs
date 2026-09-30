@@ -141,3 +141,58 @@ export function mockMergeTopic(state, id, body) {
     merged: rows.length, moved_by: state.me.id, moved_at: at, msg_ids: rows.map((m) => m.msg_id),
     undo: { from_task: srcTask, msg_ids: rows.map((m) => m.msg_id) } }
 }
+
+/**
+ * 8f588edd: the lde mock's promote and its undo, with the hub's refusals so the
+ * browser e2e drives the whole path (drag into the topics list, menu, undo)
+ * without a hub. A promote makes a reply the opening card of a NEW topic (a
+ * fresh task id, in the reply's own channel), its sub-thread moving with it;
+ * the undo re-seats it as a reply. The mock mints the task id the hub mints.
+ */
+export function mockPromoteTopic(state, id, body) {
+  const fail = (status, token) => Object.assign(new Error(token), { status, token })
+  const norm = (c) => String(c || '').replace(/^#/, '').toLowerCase()
+  const isLobby = (c) => norm(c) === 'lobby' || norm(c) === 'general'
+  const isCard = (m) => m.is_parent !== 0 && !m.parent_task_id
+  const at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  const mint = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'mock-' + Math.abs(Date.parse(at)).toString(16) + '-' + id.slice(0, 8))
+  const row = state.messages.find((m) => m.msg_id === id)
+  if (!row) throw fail(404, 'not_found')
+
+  if (body.undo) {
+    const ids = new Set((body.undo.msg_ids || []).map(String))
+    const home = String(row.moved_from_task || '')
+    for (const m of state.messages) {
+      if (!ids.has(String(m.msg_id))) continue
+      if (m.moved_from_task) { m.task_id = m.moved_from_task; m.parent_task_id = m.moved_from_parent || null }
+      if (m.moved_at && m.moved_from_channel) m.channel = m.moved_from_channel
+      delete m.moved_at; delete m.moved_by; delete m.moved_from_channel
+      delete m.moved_from_task; delete m.moved_from_parent
+    }
+    row.is_parent = 0
+    return { kind: 'demote', msg_id: id, task_id: home, from_task: String(body.undo.from_task || ''),
+      channel: norm(row.channel), from_channel: norm(row.channel), msg_ids: [...ids] }
+  }
+
+  const srcTask = String(row.parent_task_id || row.task_id || '')
+  if (isCard(row)) throw fail(409, 'is_card')
+  if (!row.channel) throw fail(409, 'not_in_channel')
+  if (isLobby(row.channel)) throw fail(409, 'lobby')
+  if (row.from !== state.me.id) throw fail(403, 'not_allowed')
+  const newTask = mint()
+  const fromChannel = norm(row.channel)
+  const thread = state.messages.filter((m) => m.task_id === id && m.parent_task_id === srcTask)
+  for (const m of [row, ...thread]) {
+    if (!m.moved_from_task) { m.moved_from_task = String(m.task_id || ''); m.moved_from_parent = m.parent_task_id || null }
+  }
+  if (!row.moved_from_channel) row.moved_from_channel = fromChannel
+  row.task_id = newTask
+  row.parent_task_id = null
+  row.is_parent = 1
+  row.moved_at = at
+  row.moved_by = state.me.id
+  for (const m of thread) m.parent_task_id = newTask
+  return { kind: 'promote', msg_id: id, task_id: newTask, from_task: srcTask, channel: fromChannel, from_channel: fromChannel,
+    moved_by: state.me.id, moved_at: at, received_at: row.received_at || row.ts, msg_ids: [id, ...thread.map((m) => m.msg_id)],
+    undo: { from_task: newTask, msg_ids: [id, ...thread.map((m) => m.msg_id)] } }
+}

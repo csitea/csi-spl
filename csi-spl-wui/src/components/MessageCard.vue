@@ -294,6 +294,7 @@
       :move-channel="canMoveTopic"
       :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
+      :promote-topic="canMoveMsg"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -312,6 +313,7 @@
       @move-channel="openMovePicker('channel')"
       @move-topic="openMovePicker('topic')"
       @merge-topic="openMovePicker('merge')"
+      @promote-topic="onPromote"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
     <LazyMovePickerDialog
@@ -882,6 +884,13 @@ onBeforeUnmount(() => handle.cancel())
 function openMovePicker(mode: 'channel' | 'topic' | 'merge') {
   closeMenu()
   movePicker.value = mode
+}
+
+/* 8f588edd: "Make it a topic" - the keyboard / touch way to promote this reply
+   into a new topic of its own, what the drag into the topics list does. */
+function onPromote() {
+  closeMenu()
+  void move.run({ kind: 'promote', msgId: String(props.msg.msg_id || '') })
 }
 
 /* "moved from #x" on a card, "moved from <topic>" on a reply */

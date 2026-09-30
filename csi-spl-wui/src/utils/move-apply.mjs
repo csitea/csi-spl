@@ -177,6 +177,88 @@ export function applyMergeToStores(frame, { channel, main, pane, viewer, getTopi
   return f
 }
 
+/**
+ * A topic_promoted / topic_demoted frame (8f588edd), normalized; null for
+ * anything else. `msg_ids` always includes `msg_id` (the promoted message).
+ */
+export function promoteFrame(frame) {
+  const f = frame && typeof frame === 'object' ? frame : null
+  if (!f || (f.type !== 'topic_promoted' && f.type !== 'topic_demoted')) return null
+  const msgId = String(f.msg_id || '')
+  const ids = Array.isArray(f.msg_ids) ? f.msg_ids.map(String).filter(Boolean) : []
+  if (msgId && !ids.includes(msgId)) ids.unshift(msgId)
+  return {
+    type: f.type,
+    msg_id: msgId,
+    task_id: String(f.task_id || ''),
+    from_task: String(f.from_task || ''),
+    channel: chan(f.channel),
+    from_channel: chan(f.from_channel),
+    msg_ids: ids,
+  }
+}
+
+/** The frame a successful promote answer stands for (applied at once, before the socket copy). */
+export function promoteFrameFromAnswer(answer) {
+  const a = answer && typeof answer === 'object' ? answer : {}
+  return promoteFrame({ ...a, type: a.kind === 'demote' ? 'topic_demoted' : 'topic_promoted' })
+}
+
+/**
+ * A promote (or its undo) applied to every store that can hold its rows. A
+ * promote splits one reply out of its topic into a NEW topic of the same
+ * channel, so - like a merge - the safe, idempotent reflection is to drop the
+ * moved rows from the source pane and re-READ the affected topic/channel from
+ * the hub, not to reshuffle rows by hand. Returns the normalized frame, or null
+ * for anything that is not a promote.
+ */
+export function applyPromoteToStores(frame, { channel, main, pane, viewer, getTopic } = {}) {
+  const f = promoteFrame(frame)
+  if (!f) return null
+  const ids = new Set(f.msg_ids)
+  // The undo drops the (now gone) new topic from the topics list.
+  if (viewer && Array.isArray(viewer.topics) && f.type === 'topic_demoted' && f.from_task) {
+    const next = viewer.topics.filter((r) => String((r && r.task_id) || '') !== f.from_task)
+    if (next.length !== viewer.topics.length) viewer.topics = next
+  }
+  if (channel) {
+    const here = chan(channel.active)
+    if (here && here === f.channel) void channel.catchUp()
+  }
+  for (const s of [main, pane]) {
+    if (!s || !s.taskId) continue
+    const t = String(s.taskId)
+    // the pane the rows land in (the new topic on a promote, the restored
+    // source on an undo, both f.task_id) re-reads its window; the pane they
+    // left (f.from_task) drops them.
+    if (t === f.task_id && typeof getTopic === 'function') {
+      void Promise.resolve(getTopic(t)).then((d) => {
+        if (String(s.taskId) === t) s.admit((d && d.messages) || [])
+      }).catch(() => {})
+    } else if (t === f.from_task && typeof s.drop === 'function') {
+      for (const id of ids) s.drop(id)
+    }
+  }
+  return f
+}
+
+/**
+ * The catalogue key for a refused or failed PROMOTE (8f588edd): the move
+ * wording (the hub tokens are the move tokens), plus - like a merge - a 404
+ * with NO hub token that means the endpoint is not deployed yet (the WUI
+ * shipped ahead of the hub); that must read as "not available yet", never a
+ * silent nothing.
+ */
+export function promoteErrorKey(e) {
+  const o = e && typeof e === 'object' ? e : {}
+  const tok = 'token' in o ? String(o.token || '') : ''
+  const status = Number(o.status || 0)
+  if (tok === 'not_allowed' || tok === 'forbidden') return 'feed.move.error_forbidden'
+  if (['lobby', 'not_in_channel', 'issue_topic', 'is_card', 'cycle', 'not_found'].includes(tok)) return `feed.move.error_${tok}`
+  if (!tok && status === 404) return 'feed.merge.error_unavailable'
+  return 'feed.move.error'
+}
+
 /** The catalogue key for a refused or failed move. */
 export function moveErrorKey(e) {
   const tok = e && typeof e === 'object' && 'token' in e ? String(e.token || '') : ''

@@ -556,7 +556,8 @@
       "kind": "Промени вида",
       "move_channel": "Премести в канал…",
       "merge_topic": "Сливане с…",
-      "move_topic": "Премести в тема…"
+      "move_topic": "Премести в тема…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Добави емоджи",
@@ -705,6 +706,10 @@
       "not_allowed": "не е позволено",
       "handle_channel": "Плъзнете, за да преместите темата в канал",
       "handle_topic": "Плъзнете, за да преместите съобщението в тема"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

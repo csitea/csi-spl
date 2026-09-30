@@ -1346,6 +1346,36 @@ export function createSpoolClient({
         body: JSON.stringify({ undo }),
       })
     },
+    /**
+     * 8f588edd: POST /v1/messages/{msg_id}/promote-topic {} splits a reply out
+     * of its topic into a NEW topic of its own (the hub mints the task_id, in
+     * the message's own channel). The answer carries the new `task_id` and
+     * `undo` ({ from_task: <new topic>, msg_ids }). Refusals keep the hub token
+     * (409 is_card / lobby / not_in_channel / issue_topic / cycle, 403
+     * not_allowed).
+     */
+    async promoteTopic(msgId) {
+      const id = String(msgId || '')
+      if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockPromoteTopic(state, id, {})
+      return live(`/v1/messages/${encodeURIComponent(id)}/promote-topic`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+    },
+    /** 8f588edd: the undo of a promote - {undo:{from_task,msg_ids}} re-seats the reply. */
+    async promoteUndo(msgId, fromTask, msgIds) {
+      const id = String(msgId || '')
+      const undo = { from_task: String(fromTask || ''), msg_ids: (Array.isArray(msgIds) ? msgIds : []).map(String) }
+      if (!id || !undo.from_task) throw Object.assign(new Error('msg_id and from_task required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockPromoteTopic(state, id, { undo })
+      return live(`/v1/messages/${encodeURIComponent(id)}/promote-topic`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ undo }),
+      })
+    },
     /** move-v1 §4: { msg_id, task_id, channel, is_card, can_move, moved_from_channel?, moved_from_task? }. */
     async moveInfo(msgId) {
       const id = String(msgId || '')

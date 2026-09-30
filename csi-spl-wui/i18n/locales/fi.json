@@ -556,7 +556,8 @@
       "kind": "Vaihda tyyppi",
       "move_channel": "Siirrä kanavalle…",
       "merge_topic": "Yhdistä toiseen…",
-      "move_topic": "Siirrä aiheeseen…"
+      "move_topic": "Siirrä aiheeseen…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "ei sallittu",
       "handle_channel": "Vedä siirtääksesi aiheen kanavalle",
       "handle_topic": "Vedä siirtääksesi viestin aiheeseen"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

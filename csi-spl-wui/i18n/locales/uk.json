@@ -556,7 +556,8 @@
       "kind": "Змінити вид",
       "move_channel": "Перемістити в канал…",
       "merge_topic": "Об’єднати з…",
-      "move_topic": "Перемістити в тему…"
+      "move_topic": "Перемістити в тему…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Додати емодзі",
@@ -705,6 +706,10 @@
       "not_allowed": "не дозволено",
       "handle_channel": "Перетягніть, щоб перенести тему в канал",
       "handle_topic": "Перетягніть, щоб перенести повідомлення в тему"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

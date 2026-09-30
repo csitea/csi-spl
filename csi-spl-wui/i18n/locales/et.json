@@ -556,7 +556,8 @@
       "kind": "Muuda liiki",
       "move_channel": "Teisalda kanalisse…",
       "merge_topic": "Liida teemaga…",
-      "move_topic": "Teisalda teemasse…"
+      "move_topic": "Teisalda teemasse…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "pole lubatud",
       "handle_channel": "Lohista, et teema kanalisse viia",
       "handle_topic": "Lohista, et sõnum teemasse viia"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

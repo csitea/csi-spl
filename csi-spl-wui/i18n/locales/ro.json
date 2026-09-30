@@ -556,7 +556,8 @@
       "kind": "Schimbă tipul",
       "move_channel": "Mută în canal…",
       "merge_topic": "Îmbină cu…",
-      "move_topic": "Mută în subiect…"
+      "move_topic": "Mută în subiect…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "nepermis",
       "handle_channel": "Trage pentru a muta subiectul într-un canal",
       "handle_topic": "Trage pentru a muta mesajul într-un subiect"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

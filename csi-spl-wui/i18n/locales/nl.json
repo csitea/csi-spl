@@ -556,7 +556,8 @@
       "kind": "Soort wijzigen",
       "move_channel": "Verplaatsen naar kanaal…",
       "merge_topic": "Samenvoegen met…",
-      "move_topic": "Verplaatsen naar onderwerp…"
+      "move_topic": "Verplaatsen naar onderwerp…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Emoji toevoegen",
@@ -705,6 +706,10 @@
       "not_allowed": "niet toegestaan",
       "handle_channel": "Sleep om dit onderwerp naar een kanaal te verplaatsen",
       "handle_topic": "Sleep om dit bericht naar een onderwerp te verplaatsen"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

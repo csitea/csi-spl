@@ -58,6 +58,8 @@ const props = defineProps<{
   moveTopic?: boolean
   /** 714c7028: a card the viewer may merge into another topic */
   mergeTopic?: boolean
+  /** 8f588edd: a reply the viewer may promote into a new topic of its own */
+  promoteTopic?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -79,6 +81,7 @@ const emit = defineEmits<{
   'move-channel': []
   'move-topic': []
   'merge-topic': []
+  'promote-topic': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -99,6 +102,7 @@ const items = computed(() => msgMenuItems({
   moveChannel: props.moveChannel,
   moveTopic: props.moveTopic,
   mergeTopic: props.mergeTopic,
+  promoteTopic: props.promoteTopic,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -181,6 +185,7 @@ function choose(id: string) {
   else if (id === 'move-channel') emit('move-channel')
   else if (id === 'move-topic') emit('move-topic')
   else if (id === 'merge-topic') emit('merge-topic')
+  else if (id === 'promote-topic') emit('promote-topic')
   emit('close')
 }
 </script>

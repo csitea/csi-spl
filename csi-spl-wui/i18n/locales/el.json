@@ -556,7 +556,8 @@
       "kind": "Αλλαγή είδους",
       "move_channel": "Μετακίνηση σε κανάλι…",
       "merge_topic": "Συγχώνευση με…",
-      "move_topic": "Μετακίνηση σε θέμα…"
+      "move_topic": "Μετακίνηση σε θέμα…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Προσθήκη emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "δεν επιτρέπεται",
       "handle_channel": "Σύρετε για να μετακινήσετε το θέμα σε κανάλι",
       "handle_topic": "Σύρετε για να μετακινήσετε το μήνυμα σε θέμα"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

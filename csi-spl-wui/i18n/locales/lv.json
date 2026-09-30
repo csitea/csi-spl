@@ -556,7 +556,8 @@
       "kind": "Mainīt veidu",
       "move_channel": "Pārvietot uz kanālu…",
       "merge_topic": "Apvienot ar…",
-      "move_topic": "Pārvietot uz tēmu…"
+      "move_topic": "Pārvietot uz tēmu…",
+      "promote_topic": "Make it a topic"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -705,6 +706,10 @@
       "not_allowed": "nav atļauts",
       "handle_channel": "Velciet, lai pārvietotu tēmu uz kanālu",
       "handle_topic": "Velciet, lai pārvietotu ziņu uz tēmu"
+    },
+    "promote": {
+      "done": "New topic created",
+      "undone": "Promote undone"
     }
   },
   "topic": {

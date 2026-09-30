@@ -101,7 +101,10 @@ _spawn_worktree() {
     BRANCH="$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
     [ -n "$BRANCH" ] || BRANCH="$TITLE"
     RUNDIR="$WORKTREE_DIR"
-    _sp_live && echo "INFO: reusing existing worktree ${WORKTREE_DIR}"
+    if _sp_live; then
+      echo "INFO: reusing existing worktree ${WORKTREE_DIR}"
+      bash "${_SP_DIR}/install-pre-push-hook.sh" "$WORKTREE_DIR" >/dev/null 2>&1 || true
+    fi
     _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH})"
     return 0
   fi
@@ -125,8 +128,13 @@ _spawn_worktree() {
       setfacl -R -m "u:${SPOOL_AGENT_USER}:rX" -m "d:u:${SPOOL_AGENT_USER}:rX" "$WORKTREE_DIR" 2>/dev/null
     fi
     echo "INFO: created worktree ${WORKTREE_DIR} on branch ${BRANCH} off origin/${DEFBRANCH}"
+    # SPL-1252: install the deploy-gate pre-push hook for THIS worktree only
+    # (worktree-local core.hooksPath). Non-fatal: a spawn must not fail for it.
+    bash "${_SP_DIR}/install-pre-push-hook.sh" "$WORKTREE_DIR" >/dev/null 2>&1 \
+      || echo "WARN: pre-push hook not installed for ${WORKTREE_DIR} (non-fatal)"
   fi
   _sp_plan worktree "add ${WORKTREE_DIR} -b ${BRANCH} origin/${DEFBRANCH}"
+  _sp_plan pre-push-hook "install-pre-push-hook.sh ${WORKTREE_DIR}"
   RUNDIR="$WORKTREE_DIR"
 }
 

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# pre-push (SPL-1252) — the deploy-gate pre-push hook installed per worktree by
+# the spawn harness. It runs the ONE pre-push gate (SPL-1251,
+# `do_check_pre_push` FAST) over the worktree the push comes from, so a break is
+# caught in the lane that wrote it instead of after it has stalled every deploy.
+#
+# It is deliberately FAIL-OPEN on any infrastructure doubt (not the spool tree,
+# no ./run, git it cannot read): a hook that blocks a push it cannot even reason
+# about would be worse than the gate it replaces. It REFUSES (exit 1) only when
+# the gate itself runs and fails.
+#
+# Emergency override:  SPL_PREPUSH_OVERRIDE=1 git push …   skips the gate but
+# writes an audit line, so a deliberate bypass is never silent.
+#
+# git runs this with CWD at the top of the pushing worktree and passes the
+# remote name/URL as $1/$2 and the ref list on stdin; the gate is over the whole
+# worktree, so those are only logged, not used to scope it.
+set -uo pipefail
+
+_pp_log_dir="${SPL_PREPUSH_LOG_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl}"
+_pp_log="$_pp_log_dir/pre-push.log"
+mkdir -p "$_pp_log_dir" 2>/dev/null || true
+_pp_who="${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-${USER:-$(id -un 2>/dev/null)}}}"
+_pp_now() { date -u +%FT%TZ 2>/dev/null || echo "?"; }
+_pp_logline() { printf '%s %s %s\n' "$(_pp_now)" "$_pp_who" "$*" >>"$_pp_log" 2>/dev/null || true; }
+
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$top" ] || exit 0
+head="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+run="$top/csi-spl-iac/run"
+
+# Not the spool tree (or a checkout without the gate) -> let the push through.
+if [ ! -x "$run" ]; then
+  _pp_logline "SKIP not-the-spool-tree $top (no $run)"
+  exit 0
+fi
+
+if [ "${SPL_PREPUSH_OVERRIDE:-0}" = 1 ]; then
+  _pp_logline "OVERRIDE $top HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1, gate SKIPPED"
+  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- deploy-gate SKIPPED (audited in $_pp_log)" >&2
+  exit 0
+fi
+
+# Skip when this exact working tree was already verified green. `git write-tree`
+# is stable across a rebase that only re-parents commits, so the race-retry loop
+# (rebase -> push -> rejected -> rebase -> push) does not re-run the whole gate.
+tree="$(git write-tree 2>/dev/null || true)"
+stamp="$_pp_log_dir/pre-push.green"
+if [ -n "$tree" ] && [ -f "$stamp" ] && grep -qxF "$tree" "$stamp" 2>/dev/null; then
+  echo "pre-push: tree $tree already verified green -- skipping the deploy-gate" >&2
+  _pp_logline "SKIP-GREEN $top HEAD=$head tree=$tree"
+  exit 0
+fi
+
+echo "pre-push: running the deploy-gate (do_check_pre_push, ${SPL_PREPUSH_MODE:-fast}). Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." >&2
+if ( cd "$top/csi-spl-iac" && PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" ./run -a do_check_pre_push ); then
+  if [ -n "$tree" ]; then
+    mkdir -p "$_pp_log_dir" 2>/dev/null || true
+    printf '%s\n' "$tree" >>"$stamp" 2>/dev/null || true
+  fi
+  _pp_logline "PASS $top HEAD=$head tree=$tree"
+  exit 0
+fi
+_pp_logline "REFUSE $top HEAD=$head tree=$tree -- deploy-gate FAILED"
+echo "pre-push: REFUSED -- the deploy-gate failed above. Fix it, or override once with 'SPL_PREPUSH_OVERRIDE=1 git push …' (audited in $_pp_log)." >&2
+exit 1

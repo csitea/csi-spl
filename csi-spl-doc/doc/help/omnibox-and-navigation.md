@@ -80,8 +80,9 @@ When discussing technical problems or sharing patches, Spool provides a dedicate
 1. Type three backticks (````) at the start of a line and press `Enter` or `Space`.
 2. The Omnibox enters code mode: the input switches to a monospaced editor with syntax styling.
 3. In code mode:
-   - Pressing `Enter` inserts a clean newline instead of sending the message.
-   - Pressing `Shift + Enter` or double-pressing `Enter` after code exits the fence or submits.
+   - Pressing `Enter` inserts a clean newline instead of sending the message — you type the code line by line.
+   - To send the message (code block and all), press `Ctrl + Enter` (`Cmd + Enter` on macOS).
+   - Press `Escape` to close the fence and keep typing normal text below it.
 4. Messages with code blocks are rendered in the feed with syntax highlighting, line wrapping, and protection against horizontal page overflow.
 
 ---
@@ -131,4 +132,4 @@ Network interruptions or temporary server restarts will never cause you to lose 
 
 To learn how channels, DMs, and presence work, proceed to [Channels & Direct Messages](./channels-and-direct-messages.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-09-30 -->

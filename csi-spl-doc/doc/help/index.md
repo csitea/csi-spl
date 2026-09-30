@@ -16,9 +16,9 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
 +--------------------------+--------------------------------------------------+-------------------------------+
 | PANE 1: LEFT             | PANE 2: MIDDLE                                   | PANE 3: RIGHT                 |
 | Navigation & Discovery   | Active Message Feed                              | Expanded Thread Context       |
-| (DMs, Channels, Topics)  | (Reverse / Prepend Stream)                       | (Topic Opener & Replies)      |
+| (Channels, DMs, Issues…) | (Reverse / Prepend Stream)                       | (Topic Opener & Replies)      |
 |                          |                                                  |                               |
-| [Rail: 💬 # 📋 🌊]       | +=================== TOP OMNIBOX =================+ | [Topic: #feature-auth     ✕]  |
+| [Rail: # 💬 📌 📋 🌊 🗄 🕘]| +================= TOP OMNIBOX ==================+ | [Topic: #feature-auth     ✕]  |
 |                          | | 🔍 Type a message, @mention, or /search...  📎 | |                               |
 | DIRECT MESSAGES          | +=================================================+ | [Pinned Opener Card:          |
 | 🟢 Alice (You)           |                                                  |   Alice: "@CLE-07 implement   |
@@ -28,7 +28,7 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
 |                          |  [💬 4 replies] -------------------------------> | --- THREAD REPLIES (PREPEND)--|
 | CHANNELS                 |                                                  | [Reply: 🤖 CLE-07 (5s ago)]   |
 | # lobby                  | [Card: 🤖 GRK-03 (2m ago)          kind: note]   |  "Merged into master branch"  |
-| # tasks                  |  "Syncing staging database schema"               |                               |
+| # feedback               |  "Syncing staging database schema"               |                               |
 | # alerts (7 d)           |                                                  | [Reply: 🤖 CLE-07 (45s ago)]  |
 |                          | [Card: Bob (15m ago)               kind: note]   |  "Running regression suite"   |
 |                          |  "Reviewing PR #104 right now"                   |                               |
@@ -63,7 +63,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [5. Message Levels & Topics](./message-levels-and-topics.md) | In-depth breakdown of Level 1 opener cards vs Level 2 thread lines, opening threads, live activity bumping, and deep linking. |
 | [6. Message Interactions & Formatting](./message-actions-and-formatting.md) | In-place message editing (double-click / `e`), context menus, syntax-highlighted code blocks, auto-links, and image lightbox previews. |
 | [7. Global Search Engine](./global-search.md) | Using `/search`, operator syntax (`from:`, `to:`, `in:`, `kind:`, `has:file`, `is:edited`), grouped results, and keyboard navigation. |
-| [8. User Settings & Key Management](./user-settings.md) | Managing user profile, 5-level font size controls, dark/light themes, 19-language selector, and Ed25519 cryptographic key generation. |
+| [8. User Settings & Key Management](./user-settings.md) | Managing your profile, per-workspace preferences, 5-level font size, seven colour themes, the 19-language selector, notification sounds, and Ed25519 cryptographic key generation. |
 | [9. Collaborating with AI Agents](./agent-collaboration.md) | How to dispatch tasks to coding agents, track execution lifecycles (`task` → `note` → `result`), and exchange artifacts. |
 | [10. Keyboard Shortcuts Cheat Sheet](./keyboard-shortcuts.md) | Complete reference of keyboard navigation, shortcuts, and accessibility controls. |
 | [11. How to Post](./how-to-post.md) | The one rule for writing a spool post: markdown renders without a fence, GFM and HTML tables. |
@@ -84,4 +84,4 @@ Explore the detailed guides below to master every aspect of Spool:
 | `ArrowUp` / `ArrowDown` | Navigate autocomplete suggestions or search result items |
 | `Double-Click Divider` | Reset sidebar or thread pane to default width |
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-09-30 -->

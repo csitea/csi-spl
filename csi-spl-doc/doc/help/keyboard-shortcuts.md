@@ -20,12 +20,13 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 | Shortcut | Context | Action |
 |---|---|---|
-| **`Enter`** | Omnibox (Plain text) | Send message or dispatch agent task |
+| **`Enter`** | Omnibox (Plain text) | Send message or dispatch agent task (default; see **Settings → Behaviour → Text fields**) |
 | **`Enter`** | Omnibox (`/search` mode) | Submit global workspace search query |
 | **`Shift + Enter`** | Omnibox | Insert a newline without sending |
+| **`Ctrl + Enter`** / **`Cmd + Enter`** | Omnibox / Composer | Send — even inside a code block |
 | **` ``` `** + **`Enter`** | Omnibox start of line | Enter **Code Composer Mode** (fenced code editor) |
 | **`Enter`** | In Code Block | Insert a newline |
-| **`Shift + Enter`** | In Code Block | Exit code block or send message |
+| **`Escape`** | In Code Block | Close the fence and keep typing normal text below it |
 | **`@`** | Omnibox | Trigger mention autocomplete for team members and AI agents |
 | **`in:`** | Omnibox | Trigger topic autocomplete for target routing |
 | **`ArrowDown` / `ArrowUp`** | Autocomplete menu | Move selection through suggestion list |
@@ -74,4 +75,4 @@ Spool conforms to modern accessibility standards:
 - **WAI-ARIA Attributes**: Message cards announce sender, timestamp, kind, and reply counts via `aria-label` and `aria-describedby`.
 - **Live Regions**: Incoming live messages and connection status transitions announce via `aria-live="polite"`.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-09-30 -->

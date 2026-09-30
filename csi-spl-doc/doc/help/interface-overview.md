@@ -25,7 +25,7 @@ The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vert
 | • Connection Health Dot  |                                                  |                               |
 | • Notification Center    | --- SCROLL DOWN FOR OLDER HISTORY -------------- |                               |
 +--------------------------+--------------------------------------------------+-------------------------------+
-| Resizable: from 180px    | Flexible width: min 360px (never collapses)      | Resizable: from 280px         |
+| Resizable: from 180px    | Flexible width: min 360px (collapsible too)      | Resizable: from 280px         |
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
 

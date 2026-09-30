@@ -37,7 +37,7 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
 | 🟢 HUM-alice (You)       | --- OLDER MESSAGES (SCROLL DOWN FOR HISTORY) --- |  reply to parent_task_id]     |
 +--------------------------+--------------------------------------------------+-------------------------------+
 | Width: 260px default     | Width: flex: 1 (min-width: 360px)                | Width: 380px default          |
-| (draggable 180–420px)    | (never collapses)                                | (draggable 280–560px)         |
+| (draggable 180–420px)    | (collapsible too)                                | (draggable 280–560px)         |
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
 

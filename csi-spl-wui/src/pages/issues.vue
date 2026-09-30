@@ -18,6 +18,28 @@
         <button v-show="!(phone && form)" type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate()">
           <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
+        <!-- topic e5b17522 (owner): the highlighted view-toggle buttons sit
+             ~1.5 cm (57px @96dpi) to the right of the + button, on the header
+             row (SPL-1028 list / status views). Moving them up here vacates the
+             old tools stripe below so the issues table rises by its height.
+             Desktop only; the phone keeps its own bar. -->
+        <div v-if="!phone" class="issues-views issues-head__views" role="radiogroup" :aria-label="t('issues_views.label')" data-test="issues-views">
+          <button
+            v-for="v in ISSUES_VIEWS"
+            :key="v"
+            type="button"
+            role="radio"
+            class="issues-views__opt"
+            data-test="issues-view"
+            :data-value="v"
+            :aria-checked="viewBy === v ? 'true' : 'false'"
+            @click="pickView(v)"
+          >
+            <UiIcon :name="v === 'list' ? 'list' : 'issues'" :size="16" />
+            <span>{{ t('issues_views.' + v) }}</span>
+          </button>
+        </div>
+        <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </header>
       <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
@@ -53,28 +75,11 @@
            per row in the same columns. A header click sorts by that column
            (▲, ▼, then back to Updated newest first). On a phone the table
            scrolls sideways inside its pane. -->
-      <div v-if="!phone" class="issues-tools" data-test="issues-tools">
-        <!-- SPL-1028 (owner, topic 89485c7a): Linear's views - the list (default)
-             or the same rows grouped by status; remembered per person (rdb 0072) -->
-        <div class="issues-views" role="radiogroup" :aria-label="t('issues_views.label')" data-test="issues-views">
-          <button
-            v-for="v in ISSUES_VIEWS"
-            :key="v"
-            type="button"
-            role="radio"
-            class="issues-views__opt"
-            data-test="issues-view"
-            :data-value="v"
-            :aria-checked="viewBy === v ? 'true' : 'false'"
-            @click="pickView(v)"
-          >
-            <UiIcon :name="v === 'list' ? 'list' : 'issues'" :size="16" />
-            <span>{{ t('issues_views.' + v) }}</span>
-          </button>
-        </div>
-        <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
-        <p v-if="saveError && !modalOpen" class="issues-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
-      </div>
+      <!-- topic e5b17522 (owner): the SPL-1028 view toggle (list / by status)
+           and Clear filters moved UP onto the title row; the tools stripe that
+           held them is gone so the table rises by its height. Only the list
+           error keeps a spot here, and it renders nothing unless there is one. -->
+      <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
       <div ref="scrollerEl" class="issues-scroll">
         <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
@@ -2133,6 +2138,12 @@ onUnmounted(() => {
   overflow: clip;
 }
 .issues-head { gap: 8px; }
+/* topic e5b17522 (owner): the highlighted view toggle starts ~1.5 cm (57px
+   @96dpi) to the right of the + button. The 8px header gap already sits
+   between them, so the extra margin is 57 - 8 = 49px. Clear filters then flows
+   right after the toggle with the normal header gap. */
+.issues-head__views { margin-inline-start: 49px; }
+.issues-head__clear { flex: 0 0 auto; }
 /* SPL-978: Material-style round + (accent fill, elevation, hover lift, press ripple) */
 .issues-fab {
   position: relative;

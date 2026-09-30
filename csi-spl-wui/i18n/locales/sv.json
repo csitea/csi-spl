@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Ta bort {key} och dess {count} ärenden?",
     "archive_body": "Det flyttas till arkivet. Du kan återställa det senare.",
     "archive_cascade_body": "Detta arkiverar {count} ärenden och deras deluppgifter. Du kan återställa dem.",
-    "delete_cascade_body": "Detta tar bort {count} ärenden och deras deluppgifter."
+    "delete_cascade_body": "Detta tar bort {count} ärenden och deras deluppgifter.",
+    "err_unavailable": "Detta kräver den uppdaterade servern. Försök igen om en stund."
   },
   "issues_views": {
     "label": "Vy",

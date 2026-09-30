@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Ištrinti {key} ir jos {count} užduotis?",
     "archive_body": "Ji perkeliama į archyvą. Vėliau galėsite ją atkurti.",
     "archive_cascade_body": "Bus archyvuota {count} užduočių ir jų papildomos užduotys. Galėsite jas atkurti.",
-    "delete_cascade_body": "Bus ištrinta {count} užduočių ir jų papildomos užduotys."
+    "delete_cascade_body": "Bus ištrinta {count} užduočių ir jų papildomos užduotys.",
+    "err_unavailable": "Tam reikia atnaujinto serverio. Pabandykite dar kartą po akimirkos."
   },
   "issues_views": {
     "label": "Rodinys",

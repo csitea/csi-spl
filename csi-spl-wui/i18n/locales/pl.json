@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Usunąć {key} i jego {count} zadań?",
     "archive_body": "Zostanie przeniesione do archiwum. Można je później przywrócić.",
     "archive_cascade_body": "Spowoduje to zarchiwizowanie {count} zadań i ich podzadań. Można je przywrócić.",
-    "delete_cascade_body": "Spowoduje to usunięcie {count} zadań i ich podzadań."
+    "delete_cascade_body": "Spowoduje to usunięcie {count} zadań i ich podzadań.",
+    "err_unavailable": "To wymaga zaktualizowanego serwera. Spróbuj ponownie za chwilę."
   },
   "issues_views": {
     "label": "Widok",

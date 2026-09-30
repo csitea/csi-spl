@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "¿Eliminar {key} y sus {count} incidencias?",
     "archive_body": "Se mueve al archivo. Puedes restaurarla más tarde.",
     "archive_cascade_body": "Esto archiva {count} incidencias y sus subtareas. Puedes restaurarlas.",
-    "delete_cascade_body": "Esto elimina {count} incidencias y sus subtareas."
+    "delete_cascade_body": "Esto elimina {count} incidencias y sus subtareas.",
+    "err_unavailable": "Esto requiere el servidor actualizado. Inténtalo de nuevo en un momento."
   },
   "issues_views": {
     "label": "Vista",

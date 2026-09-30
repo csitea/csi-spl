@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Poistetaanko {key} ja sen {count} tehtävää?",
     "archive_body": "Se siirtyy arkistoon. Voit palauttaa sen myöhemmin.",
     "archive_cascade_body": "Tämä arkistoi {count} tehtävää ja niiden alitehtävät. Voit palauttaa ne.",
-    "delete_cascade_body": "Tämä poistaa {count} tehtävää ja niiden alitehtävät."
+    "delete_cascade_body": "Tämä poistaa {count} tehtävää ja niiden alitehtävät.",
+    "err_unavailable": "Tämä vaatii päivitetyn palvelimen. Yritä hetken kuluttua uudelleen."
   },
   "issues_views": {
     "label": "Näkymä",

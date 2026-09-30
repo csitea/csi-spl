@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Ștergi {key} și cele {count} sarcini ale sale?",
     "archive_body": "Se mută în arhivă. O poți restaura mai târziu.",
     "archive_cascade_body": "Aceasta arhivează {count} sarcini și subsarcinile lor. Le poți restaura.",
-    "delete_cascade_body": "Aceasta șterge {count} sarcini și subsarcinile lor."
+    "delete_cascade_body": "Aceasta șterge {count} sarcini și subsarcinile lor.",
+    "err_unavailable": "Aceasta necesită serverul actualizat. Încearcă din nou într-o clipă."
   },
   "issues_views": {
     "label": "Vizualizare",

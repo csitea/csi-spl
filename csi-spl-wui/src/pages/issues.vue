@@ -1904,6 +1904,18 @@ function askAction(action: 'archive' | 'delete', tg: IssueMenuTarget) {
 function onActConfirmOpen(open: boolean) {
   if (!open && !actBusy.value) actConfirm.value = null
 }
+/* the confirm's error text. A cascade archive/delete hits endpoints a hub
+   older than SPL-1226 does not have: POST .../archive is 404/405, and
+   DELETE ?cascade=1 is ignored so a parent comes back 409 issue_has_children.
+   Both must read as "the server is not updated yet", never a silent no-op or
+   the misleading "move its issues first" (CLE-001, owner b82f3853). */
+function actErrorKey(err: { status?: number, token?: string }, cascade: boolean) {
+  const s = Number(err?.status)
+  if (s === 404 || s === 405 || s === 501) return 'issues_menu.err_unavailable'
+  if (cascade && err?.token === 'issue_has_children') return 'issues_menu.err_unavailable'
+  if (s === 403) return 'issues_crud.err_delete_forbidden'
+  return errorKey(err, 'one')
+}
 async function runAction() {
   const c = actConfirm.value
   if (!c || actBusy.value) return
@@ -1923,7 +1935,8 @@ async function runAction() {
     if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
     actConfirm.value = null
   } catch (e) {
-    actError.value = t(deleteErrKey(e as { status?: number, token?: string }))
+    /* keep the confirm open with a clear message - never a silent no-op */
+    actError.value = t(actErrorKey(e as { status?: number, token?: string }, cascade))
   } finally {
     actBusy.value = false
   }

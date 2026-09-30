@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Dzēst {key} un tā {count} uzdevumus?",
     "archive_body": "Tas tiek pārvietots uz arhīvu. Vēlāk to var atjaunot.",
     "archive_cascade_body": "Tiks arhivēti {count} uzdevumi un to apakšuzdevumi. Tos var atjaunot.",
-    "delete_cascade_body": "Tiks dzēsti {count} uzdevumi un to apakšuzdevumi."
+    "delete_cascade_body": "Tiks dzēsti {count} uzdevumi un to apakšuzdevumi.",
+    "err_unavailable": "Tam nepieciešams atjaunināts serveris. Lūdzu, mēģiniet vēlreiz pēc brīža."
   },
   "issues_views": {
     "label": "Skats",

@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "{key} ve ona bağlı {count} görev silinsin mi?",
     "archive_body": "Arşive taşınır. Daha sonra geri yükleyebilirsiniz.",
     "archive_cascade_body": "Bu, {count} görevi ve alt görevlerini arşivler. Bunları geri yükleyebilirsiniz.",
-    "delete_cascade_body": "Bu, {count} görevi ve alt görevlerini siler."
+    "delete_cascade_body": "Bu, {count} görevi ve alt görevlerini siler.",
+    "err_unavailable": "Bu, güncellenmiş sunucuyu gerektirir. Lütfen birazdan tekrar deneyin."
   },
   "issues_views": {
     "label": "Görünüm",

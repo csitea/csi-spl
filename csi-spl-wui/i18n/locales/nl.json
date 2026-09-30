@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "{key} en de {count} taken verwijderen?",
     "archive_body": "De taak gaat naar het archief. Je kunt hem later herstellen.",
     "archive_cascade_body": "Hiermee worden {count} taken en hun subtaken gearchiveerd. Je kunt ze herstellen.",
-    "delete_cascade_body": "Hiermee worden {count} taken en hun subtaken verwijderd."
+    "delete_cascade_body": "Hiermee worden {count} taken en hun subtaken verwijderd.",
+    "err_unavailable": "Dit vereist de bijgewerkte server. Probeer het zo meteen opnieuw."
   },
   "issues_views": {
     "label": "Weergave",

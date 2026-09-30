@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Kas kustutada {key} ja selle {count} ülesannet?",
     "archive_body": "See liigub arhiivi. Saad selle hiljem taastada.",
     "archive_cascade_body": "See arhiveerib {count} ülesannet ja nende alamülesanded. Saad need taastada.",
-    "delete_cascade_body": "See kustutab {count} ülesannet ja nende alamülesanded."
+    "delete_cascade_body": "See kustutab {count} ülesannet ja nende alamülesanded.",
+    "err_unavailable": "See vajab uuendatud serverit. Palun proovi hetke pärast uuesti."
   },
   "issues_views": {
     "label": "Vaade",

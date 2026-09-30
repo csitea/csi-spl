@@ -1133,7 +1133,8 @@
     "delete_cascade_title": "Odstrániť {key} a jeho {count} úloh?",
     "archive_body": "Presunie sa do archívu. Neskôr ju možno obnoviť.",
     "archive_cascade_body": "Týmto sa archivuje {count} úloh a ich podúlohy. Možno ich obnoviť.",
-    "delete_cascade_body": "Týmto sa odstráni {count} úloh a ich podúlohy."
+    "delete_cascade_body": "Týmto sa odstráni {count} úloh a ich podúlohy.",
+    "err_unavailable": "Vyžaduje to aktualizovaný server. Skúste to o chvíľu znova."
   },
   "issues_views": {
     "label": "Zobrazenie",

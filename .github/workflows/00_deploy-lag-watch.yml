@@ -108,7 +108,7 @@ jobs:
       HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
       WIF_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
     steps:
-      - uses: actions/checkout@v4   # trunk head: the cnf a deploy would roll to
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4  trunk head: the cnf a deploy would roll to
 
       # key path: the project SA gcp-002 created (<repo>-<env>@<repo>-<env>);
       # WIF path: the impersonated deploy SA
@@ -121,18 +121,18 @@ jobs:
 
       - name: Authenticate to Google Cloud (project key)
         if: env.HAS_KEY == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
 
       - name: Authenticate to Google Cloud (WIF alternative)
         if: env.HAS_KEY != 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ env.DEPLOY_SA }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: do_check_hub_deploy
         id: lag
@@ -203,7 +203,7 @@ jobs:
     steps:
       # fetch-depth 0: the check walks history between the served commit and
       # this one. On the default depth 1 every verdict is "cannot tell".
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 

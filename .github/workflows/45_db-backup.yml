@@ -119,7 +119,7 @@ jobs:
           if [[ "$HAS_KEY" != true ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::$ENV skipped: no secret GCP_KEY_CSI_SPL_${ENV^^} (iac 120)"; exit 0; fi
           echo "go=1" >>"$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.sel.outputs.go == '1'
         with:
           path: csi/csi-spl
@@ -127,7 +127,7 @@ jobs:
 
       # no auth here: the action activates the env key in its own private
       # CLOUDSDK_CONFIG and pins --account on every call
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
         if: steps.sel.outputs.go == '1'
 
       - name: psql for the restore check

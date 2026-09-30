@@ -64,10 +64,10 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Go (version from go.mod)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: false
@@ -126,10 +126,10 @@ jobs:
       run:
         working-directory: csi-spl-wui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: csi-spl-wui/package.json
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
@@ -143,7 +143,7 @@ jobs:
         run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -187,10 +187,10 @@ jobs:
       run:
         working-directory: csi-spl-wui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: csi-spl-wui/package.json
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
@@ -204,7 +204,7 @@ jobs:
         run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -347,7 +347,7 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The box is on Wi-Fi and busy: terraform (27 MB) and the google
       # providers timed out on every iac job (AggregateError on all 3 attempts,
@@ -373,7 +373,7 @@ jobs:
         id: tf1
         if: steps.localtf.outputs.found != 'true'
         continue-on-error: true
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.9.8
           terraform_wrapper: false
@@ -382,7 +382,7 @@ jobs:
         id: tf2
         if: steps.localtf.outputs.found != 'true' && steps.tf1.outcome == 'failure'
         continue-on-error: true
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.9.8
           terraform_wrapper: false
@@ -390,7 +390,7 @@ jobs:
       - name: Set up terraform 1.9.8 (attempt 3)
         id: tf3
         if: steps.localtf.outputs.found != 'true' && steps.tf1.outcome == 'failure' && steps.tf2.outcome == 'failure'
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.9.8
           terraform_wrapper: false
@@ -468,12 +468,12 @@ jobs:
       run:
         working-directory: csi/csi-spl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: csi/csi-spl
 
       - name: Set up Go (version from go.mod)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.mod
           cache: false
@@ -587,7 +587,7 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # actions/setup-python has no build for the runner's Debian 13 ("version
       # '3.12' ... was not found for Debian 13"), so the job uses the runner's
@@ -620,7 +620,7 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh
 
   # ===========================================================================
@@ -646,7 +646,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Failures per job over the last 40 runs
         working-directory: csi-spl-iac
@@ -684,7 +684,7 @@ jobs:
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Sweep
         run: |

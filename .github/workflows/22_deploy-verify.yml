@@ -56,7 +56,7 @@ jobs:
       matrix:
         environment: ${{ fromJson((github.event_name == 'workflow_dispatch' && github.event.inputs.environment != 'all') && format('["{0}"]', github.event.inputs.environment) || '["dev","prd"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Probe the acceptance endpoints (verify-hub-endpoints.sh)
         env:

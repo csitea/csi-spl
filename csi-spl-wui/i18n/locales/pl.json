@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopiuj link zaproszenia",
-    "copy_link_hint": "Link otwiera logowanie do tego obszaru roboczego; wpuszczany jest tylko {email}. Wyślij go sam, jeśli e-mail nie dotrze."
+    "copy_link_hint": "Link otwiera logowanie do tego obszaru roboczego; wpuszczany jest tylko {email}. Wyślij go sam, jeśli e-mail nie dotrze.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Dziennik zdarzeń",

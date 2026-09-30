@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopírovať odkaz pozvánky",
-    "copy_link_hint": "Odkaz otvorí prihlásenie do tohto pracovného priestoru; vpustí sa len {email}. Pošlite ho sami, ak e-mail nepríde."
+    "copy_link_hint": "Odkaz otvorí prihlásenie do tohto pracovného priestoru; vpustí sa len {email}. Pošlite ho sami, ak e-mail nepríde.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Denník udalostí",

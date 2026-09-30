@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Davet bağlantısını kopyala",
-    "copy_link_hint": "Bağlantı bu çalışma alanının giriş sayfasını açar; yalnızca {email} içeri alınır. E-posta gelmezse kendiniz gönderin."
+    "copy_link_hint": "Bağlantı bu çalışma alanının giriş sayfasını açar; yalnızca {email} içeri alınır. E-posta gelmezse kendiniz gönderin.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Olay günlüğü",

@@ -56,6 +56,15 @@
           <dd>{{ when(member.since) }}</dd>
           <dt>{{ t('users.last_seen') }}</dt>
           <dd data-test="users-pane-last-seen">{{ member.lastSeen ? when(member.lastSeen) : t('users.never') }}</dd>
+          <!-- CLE-77778: who ordered this member's invite, and when -->
+          <template v-if="member.orderedByName">
+            <dt>{{ t('users.invited_by') }}</dt>
+            <dd data-test="users-pane-ordered-by">{{ member.orderedByName }}<template v-if="member.orderedVia"> <span class="muted">{{ t('users.ordered_via') }} <code>{{ member.orderedVia }}</code></span></template></dd>
+          </template>
+          <template v-if="member.invitedOn">
+            <dt>{{ t('users.invited_on') }}</dt>
+            <dd data-test="users-pane-invited-on">{{ when(member.invitedOn) }}</dd>
+          </template>
           <template v-if="member.suspended">
             <dt>{{ t('users.status') }}</dt>
             <dd data-test="users-pane-suspended">{{ t('users.suspended') }}</dd>
@@ -126,7 +135,11 @@
           <dt>{{ t('users.role') }}</dt>
           <dd data-test="users-pane-invite-role">{{ roleName(invite.role) }}</dd>
           <dt>{{ t('users.invited_by') }}</dt>
-          <dd><code>{{ invite.invitedBy }}</code></dd>
+          <dd data-test="users-pane-invite-ordered-by">
+            <template v-if="invite.orderedByName">{{ invite.orderedByName }}</template>
+            <code v-else>{{ invite.invitedBy }}</code>
+            <template v-if="invite.orderedVia"> <span class="muted">{{ t('users.ordered_via') }} <code>{{ invite.orderedVia }}</code></span></template>
+          </dd>
           <dt>{{ t('users.expires') }}</dt>
           <dd>{{ when(invite.expiresAt) }}<template v-if="invite.expired"> · {{ t('users.expired') }}</template></dd>
         </dl>

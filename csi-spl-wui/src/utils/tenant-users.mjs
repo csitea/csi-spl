@@ -45,6 +45,11 @@ export function normalizeDirectory(body) {
     lastSeen: str(m.last_seen),
     you: m.you === true,
     manageable: m.manageable === true,
+    /* CLE-77778: the invite this member accepted — who ordered it and when */
+    orderedBy: str(m.ordered_by),
+    orderedByName: str(m.ordered_by_name),
+    orderedVia: str(m.ordered_via),
+    invitedOn: str(m.invited_on),
   }))
   const invites = (Array.isArray(b.invites) ? b.invites : []).filter((i) => i && str(i.email)).map((i) => ({
     kind: 'invite',
@@ -55,6 +60,10 @@ export function normalizeDirectory(body) {
     createdAt: str(i.created_at),
     expiresAt: str(i.expires_at),
     expired: i.expired === true,
+    /* CLE-77778: who ordered this invite (a HUM-* id / display name) and via what */
+    orderedBy: str(i.ordered_by),
+    orderedByName: str(i.ordered_by_name),
+    orderedVia: str(i.ordered_via),
     /* the list's own tenant (047 W13: the invite link names it) */
     tenant: str(b.tenant_id),
   }))

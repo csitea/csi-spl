@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Uitnodigingslink kopiëren",
-    "copy_link_hint": "De link opent de aanmeldpagina van deze werkruimte; alleen {email} wordt toegelaten. Stuur hem zelf als er geen e-mail aankomt."
+    "copy_link_hint": "De link opent de aanmeldpagina van deze werkruimte; alleen {email} wordt toegelaten. Stuur hem zelf als er geen e-mail aankomt.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Gebeurtenissenlogboek",

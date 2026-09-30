@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopeeri kutse link",
-    "copy_link_hint": "Link avab selle tööruumi sisselogimise; sisse lastakse ainult {email}. Saada see ise, kui e-kiri ei jõua kohale."
+    "copy_link_hint": "Link avab selle tööruumi sisselogimise; sisse lastakse ainult {email}. Saada see ise, kui e-kiri ei jõua kohale.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Sündmuste logi",

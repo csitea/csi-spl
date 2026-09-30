@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Copiază linkul de invitație",
-    "copy_link_hint": "Linkul deschide conectarea la acest spațiu de lucru; este admis doar {email}. Trimiteți-l dvs. dacă nu sosește niciun e-mail."
+    "copy_link_hint": "Linkul deschide conectarea la acest spațiu de lucru; este admis doar {email}. Trimiteți-l dvs. dacă nu sosește niciun e-mail.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Jurnal de evenimente",

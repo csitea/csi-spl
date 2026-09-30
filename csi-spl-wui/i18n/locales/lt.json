@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Kopijuoti kvietimo nuorodą",
-    "copy_link_hint": "Nuoroda atveria šios darbo srities prisijungimą; įleidžiamas tik {email}. Nusiųskite ją patys, jei laiškas neatkeliauja."
+    "copy_link_hint": "Nuoroda atveria šios darbo srities prisijungimą; įleidžiamas tik {email}. Nusiųskite ją patys, jei laiškas neatkeliauja.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Įvykių žurnalas",

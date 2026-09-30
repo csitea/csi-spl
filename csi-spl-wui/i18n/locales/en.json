@@ -906,7 +906,9 @@
     "restored": "Enabled again.",
     "resend": "Resend invite",
     "copy_link": "Copy invite link",
-    "copy_link_hint": "The link opens this workspace's sign-in page; only {email} is let in. Send it yourself when no email arrives."
+    "copy_link_hint": "The link opens this workspace's sign-in page; only {email} is let in. Send it yourself when no email arrives.",
+    "invited_on": "Invited on",
+    "ordered_via": "via"
   },
   "events": {
     "title": "Event log",

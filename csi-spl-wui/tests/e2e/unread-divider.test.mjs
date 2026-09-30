@@ -160,13 +160,19 @@ async function run(browser, base, width) {
   /* HUM-24 (topic 311427c6): the reader's OWN message, sent after opening, must
      NOT be flagged new nor bump the count — reproduces "I see my own messages as
      new". The signed-in reader is HUM-1; this injects one of their own rows and
-     asserts it is not counted (run last so it does not perturb the checks above). */
+     asserts it is not counted. Run in newest-first with the feed at the top, so
+     the own row (the newest) is the first card and is always rendered at every
+     width (the newest-last variant leaves it off the mobile render window). */
+  await setOrder(p, 'newest-first')
+  await sleep(700)
   await p.evaluate(() => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
     const ts = new Date(Date.parse('2026-09-18T20:00:00.000Z')).toISOString()
     s.messages = [...s.messages, { v: 1, msg_id: 'own-0', task_id: 't-own-0', is_parent: 1, ts, received_at: ts, from: 'HUM-1', from_box: 'box-wui', to: '@channel', channel: 'alerts', kind: 'note', body: 'my own reply', files: [] }]
   })
-  await sleep(600)
+  await sleep(700)
+  await p.evaluate(() => { const sc = document.querySelector('.live-feed')?.closest('.feed-body'); if (sc) sc.scrollTop = 0 })
+  await sleep(300)
   const withOwn = await layout(p)
   const ownRow = withOwn.seq.find((x) => x.t === 'card' && x.key === 'own-0')
   check(`${tag} the reader's own message is not marked unread`, Boolean(ownRow) && !ownRow.unread && withOwn.unreadCount === NEW_N, { own: ownRow, unreadCount: withOwn.unreadCount })

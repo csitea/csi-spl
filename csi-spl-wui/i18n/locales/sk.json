@@ -188,7 +188,9 @@
       "save": "Uložiť",
       "saved": "Uložené.",
       "failed": "Nepodarilo sa uložiť — skúste to znova."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopírovať odkaz pozvánky",
     "copy_link_hint": "Odkaz otvorí prihlásenie do tohto pracovného priestoru; vpustí sa len {email}. Pošlite ho sami, ak e-mail nepríde.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Denník udalostí",

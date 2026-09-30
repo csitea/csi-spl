@@ -79,7 +79,7 @@
                   <UiIcon name="user" :size="20" />
                   <span class="users-row__main">
                     <span class="users-row__name">{{ i.email }}</span>
-                    <span class="users-row__sub muted">{{ i.expired ? t('users.expired') : t('users.pending') }}</span>
+                    <span class="users-row__sub muted" data-test="users-invite-sub">{{ i.expired ? t('users.expired') : t('users.pending') }} · {{ i.mailCount > 0 ? t('users.mailed_short') : t('users.not_mailed_short') }}<template v-if="i.createdAt"> · {{ isoDate(i.createdAt) }}</template></span>
                   </span>
                   <span class="users-role" data-test="users-row-role">{{ roleName(i.role) }}</span>
                 </button>
@@ -108,6 +108,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { roleLabelKey } from '~/utils/access.mjs'
+import { isoDate } from '~/utils/date-iso.mjs'
 import { USER_PANE_SIDE, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
 import type { UserRow } from '~/utils/tenant-users.mjs'
 

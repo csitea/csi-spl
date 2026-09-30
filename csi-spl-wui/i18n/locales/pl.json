@@ -188,7 +188,9 @@
       "save": "Zapisz",
       "saved": "Zapisano.",
       "failed": "Nie udało się zapisać — spróbuj ponownie."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopiuj link zaproszenia",
     "copy_link_hint": "Link otwiera logowanie do tego obszaru roboczego; wpuszczany jest tylko {email}. Wyślij go sam, jeśli e-mail nie dotrze.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Dziennik zdarzeń",

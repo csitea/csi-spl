@@ -188,7 +188,9 @@
       "save": "Tallenna",
       "saved": "Tallennettu.",
       "failed": "Tallennus epäonnistui — yritä uudelleen."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopioi kutsulinkki",
     "copy_link_hint": "Linkki avaa tämän työtilan kirjautumisen; sisään pääsee vain {email}. Lähetä se itse, jos sähköpostia ei tule.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Tapahtumaloki",

@@ -188,7 +188,9 @@
       "save": "Salvează",
       "saved": "Salvat.",
       "failed": "Salvarea a eșuat — încercați din nou."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Copiază linkul de invitație",
     "copy_link_hint": "Linkul deschide conectarea la acest spațiu de lucru; este admis doar {email}. Trimiteți-l dvs. dacă nu sosește niciun e-mail.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Jurnal de evenimente",

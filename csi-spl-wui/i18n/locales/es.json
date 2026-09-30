@@ -188,7 +188,9 @@
       "save": "Guardar",
       "saved": "Guardado.",
       "failed": "No se pudo guardar — inténtalo de nuevo."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Copiar enlace de invitación",
     "copy_link_hint": "El enlace abre el inicio de sesión de este espacio de trabajo; solo se admite {email}. Envíalo tú si no llega ningún correo.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Registro de eventos",

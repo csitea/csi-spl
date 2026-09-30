@@ -60,6 +60,9 @@ export function normalizeDirectory(body) {
     createdAt: str(i.created_at),
     expiresAt: str(i.expires_at),
     expired: i.expired === true,
+    /* CLE-77781: how many invitation mails have gone out (0 = none sent yet,
+       e.g. a NO_MAIL operator invite). The pane shows it as mailed/not mailed. */
+    mailCount: typeof i.mail_count === 'number' && i.mail_count > 0 ? i.mail_count : 0,
     /* CLE-77778: who ordered this invite (a HUM-* id / display name) and via what */
     orderedBy: str(i.ordered_by),
     orderedByName: str(i.ordered_by_name),

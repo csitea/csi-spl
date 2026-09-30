@@ -188,7 +188,9 @@
       "save": "Запази",
       "saved": "Запазено.",
       "failed": "Неуспешно запазване — опитайте отново."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Копирай връзката за покана",
     "copy_link_hint": "Връзката отваря входа на това работно пространство; допуска се само {email}. Изпратете я сами, ако не пристигне имейл.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Дневник на събитията",

@@ -188,7 +188,9 @@
       "save": "Сохранить",
       "saved": "Сохранено.",
       "failed": "Не удалось сохранить — попробуйте ещё раз."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Скопировать ссылку приглашения",
     "copy_link_hint": "Ссылка открывает вход в это рабочее пространство; впускается только {email}. Отправьте её сами, если письмо не придёт.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Журнал событий",

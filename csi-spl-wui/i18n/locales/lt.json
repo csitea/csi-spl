@@ -188,7 +188,9 @@
       "save": "Išsaugoti",
       "saved": "Išsaugota.",
       "failed": "Nepavyko išsaugoti — bandykite dar kartą."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopijuoti kvietimo nuorodą",
     "copy_link_hint": "Nuoroda atveria šios darbo srities prisijungimą; įleidžiamas tik {email}. Nusiųskite ją patys, jei laiškas neatkeliauja.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Įvykių žurnalas",

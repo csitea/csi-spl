@@ -188,7 +188,9 @@
       "save": "Spara",
       "saved": "Sparat.",
       "failed": "Kunde inte spara — försök igen."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopiera inbjudningslänk",
     "copy_link_hint": "Länken öppnar inloggningen till den här arbetsytan; bara {email} släpps in. Skicka den själv om inget mejl kommer fram.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Händelselogg",

@@ -153,6 +153,10 @@
           </dd>
           <dt>{{ t('users.expires') }}</dt>
           <dd>{{ when(invite.expiresAt) }}<template v-if="invite.expired"> · {{ t('users.expired') }}</template></dd>
+          <dt>{{ t('users.created') }}</dt>
+          <dd data-test="users-pane-invite-created">{{ invite.createdAt ? when(invite.createdAt) : '—' }}</dd>
+          <dt>{{ t('users.mailed') }}</dt>
+          <dd data-test="users-pane-invite-mailed">{{ invite.mailCount > 0 ? t('users.mailed_yes', { n: invite.mailCount }) : t('users.mailed_no') }}</dd>
         </dl>
         <!-- 047 W13: the way in when no mail arrived (a log-only relay, spam) -->
         <button

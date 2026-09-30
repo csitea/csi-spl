@@ -188,7 +188,9 @@
       "save": "Opslaan",
       "saved": "Opgeslagen.",
       "failed": "Opslaan mislukt — probeer het opnieuw."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Uitnodigingslink kopiëren",
     "copy_link_hint": "De link opent de aanmeldpagina van deze werkruimte; alleen {email} wordt toegelaten. Stuur hem zelf als er geen e-mail aankomt.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Gebeurtenissenlogboek",

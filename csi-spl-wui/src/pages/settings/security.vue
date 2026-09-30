@@ -14,6 +14,13 @@
         {{ t('user_menu.sign_out') }}
       </button>
     </div>
+    <!-- CLE-77781: this is the person's OWN sign-in page, not the workspace's
+         people. Point admins who came here looking for members/invites at the
+         right place (Workspace settings → Members). -->
+    <p v-if="canManageMembers" class="muted settings__hint" data-test="settings-members-hint">
+      {{ t('settings.members_hint') }}
+      <NuxtLink :to="localePath('/tenant-settings/members')" data-test="settings-members-link">{{ t('settings.members_link') }}</NuxtLink>
+    </p>
   </SettingsSection>
 </template>
 
@@ -21,11 +28,19 @@
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { methodLabelKey, userIdentity } from '~/utils/user-menu.mjs'
+import { USERS_PERMISSION } from '~/utils/tenant-users.mjs'
 
 const session = useSessionStore()
+const access = useAccessStore()
+const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 const me = computed(() => userIdentity(session.claims))
+// CLE-77781: only an admin who can manage members sees the pointer to Workspace
+// settings → Members (the hub re-checks; this just hides a dead link otherwise).
+const canManageMembers = computed(() => access.can(USERS_PERMISSION))
+onMounted(() => { access.load() })
 /* the sign-in method in words, in the active locale (spec 021) */
 const method = computed(() => {
   const k = methodLabelKey(me.value.method)

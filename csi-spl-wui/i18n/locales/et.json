@@ -188,7 +188,9 @@
       "save": "Salvesta",
       "saved": "Salvestatud.",
       "failed": "Salvestamine ebaõnnestus — proovi uuesti."
-    }
+    },
+    "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
+    "members_link": "Open Members"
   },
   "auth": {
     "error": {
@@ -1011,7 +1013,13 @@
     "copy_link": "Kopeeri kutse link",
     "copy_link_hint": "Link avab selle tööruumi sisselogimise; sisse lastakse ainult {email}. Saada see ise, kui e-kiri ei jõua kohale.",
     "invited_on": "Invited on",
-    "ordered_via": "via"
+    "ordered_via": "via",
+    "created": "Created",
+    "mailed": "Mailed",
+    "mailed_yes": "Sent ({n})",
+    "mailed_no": "Not sent",
+    "mailed_short": "sent",
+    "not_mailed_short": "not sent"
   },
   "events": {
     "title": "Sündmuste logi",

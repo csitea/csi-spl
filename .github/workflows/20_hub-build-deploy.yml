@@ -247,6 +247,14 @@ jobs:
         if: steps.guard.outputs.ok == 'true'
         env:
           CNF_REF: ${{ steps.cfg.outputs.image_ref }}
+          # The mint claims the v<X.Y.Z> tag through the GitHub REST API
+          # (POST /git/refs). The default token is a GitHub App token that is
+          # refused a `git push` of a ref whose target commit touches
+          # .github/workflows/* -- and fetch-depth 0 does not cure that (the
+          # check is on the ref's target diff, not on object transfer). Creating
+          # the tag against a commit already on the remote writes no workflow
+          # content, so it needs only contents:write. (CLE-77788 / CLE-001 P0.)
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version

@@ -194,5 +194,84 @@ got=$(mint "$c16" 1.1.0)
 [[ "$got" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] && pass "CONTROL: the same commit mints a version once the push is not rejected ($got)" \
   || fail "CONTROL: normal mint of c16 gave '$got'"
 
+# --- 12. the GitHub App tag-push refusal is cured by the REST API path -------
+# CLE-77788 / CLE-001 P0: in CI the deploy runs under the default GITHUB_TOKEN
+# (a GitHub App token). GitHub refuses that token any ref update whose target
+# commit's diff touches .github/workflows/* -- and fetch-depth 0 does NOT cure
+# it, because the check is on the ref's target diff, not on object transfer.
+# The mint now claims the tag through POST /git/refs, which writes no workflow
+# content and is allowed with contents:write. These tests drive that path with
+# a curl shim so no network is touched.
+
+# 12a. owner/repo parsing across the URL forms a checkout / an agent produce
+opr() { lib spl_github_owner_repo "$1"; }
+[[ "$(opr https://github.com/csitea/csi-spl)" == csitea/csi-spl ]] && pass "owner/repo: https" || fail "owner/repo https: '$(opr https://github.com/csitea/csi-spl)'"
+[[ "$(opr https://github.com/csitea/csi-spl.git)" == csitea/csi-spl ]] && pass "owner/repo: https .git" || fail "owner/repo https .git"
+[[ "$(opr git@github.com:csitea/csi-spl.git)" == csitea/csi-spl ]] && pass "owner/repo: ssh" || fail "owner/repo ssh"
+[[ "$(opr https://x-access-token:TOK@github.com/csitea/csi-spl)" == csitea/csi-spl ]] && pass "owner/repo: token-embedded" || fail "owner/repo token-embedded"
+[[ -z "$(opr "$T/remote.git")" ]] && pass "owner/repo: a file remote is not github (empty)" || fail "owner/repo file remote: '$(opr "$T/remote.git")'"
+
+# A curl shim: it writes CURL_BODY to the -o target and prints CURL_CODE, so the
+# test drives the API return code without a network. do_require_bin is a ./run
+# builtin at runtime; stub it here.
+mkdir -p "$T/curlshim"
+cat >"$T/curlshim/curl" <<'CURLEOF'
+#!/bin/sh
+out=""; prev=""
+for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done
+[ -n "$out" ] && printf '%s' "$CURL_BODY" >"$out"
+printf '%s' "$CURL_CODE"
+CURLEOF
+chmod +x "$T/curlshim/curl"
+
+claim_api() { # <code> <body> <owner/repo> <sha> <tag> -> "rc\n<SPL_CLAIM_ERR>"
+  PATH="$T/curlshim:$PATH" CURL_CODE="$1" CURL_BODY="$2" \
+  bash -c '
+    do_log(){ echo "$*" >&2; }
+    do_require_bin(){ command -v "$1" >/dev/null; }
+    source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-release-version.func.sh"
+    spl_claim_tag_api "$1" "$2" "$3" tok; rc=$?
+    printf "%s\n%s" "$rc" "$SPL_CLAIM_ERR"' _ "$3" "$4" "$5"
+}
+
+# 12b. 201 Created -> claimed (rc 0)
+res=$(claim_api 201 '{"ref":"refs/tags/v1.2.0"}' csitea/csi-spl deadbeef v1.2.0)
+[[ "$(head -1 <<<"$res")" == 0 ]] && pass "API 201 -> tag claimed (rc 0)" || fail "API 201 rc='$(head -1 <<<"$res")'"
+
+# 12c. 422 "already exists" -> a lost race (rc 2)
+res=$(claim_api 422 '{"message":"Reference already exists"}' csitea/csi-spl deadbeef v1.2.0)
+[[ "$(head -1 <<<"$res")" == 2 ]] && pass "API 422 already-exists -> lost race (rc 2)" || fail "API 422 rc='$(head -1 <<<"$res")'"
+
+# 12d. a workflow-permission refusal -> hard fail (rc 1), body surfaced
+body='{"message":"refusing to allow a GitHub App to create or update workflow file .github/workflows/10_ci-quality.yml without workflows permission"}'
+res=$(claim_api 403 "$body" csitea/csi-spl deadbeef v1.2.0)
+if [[ "$(head -1 <<<"$res")" == 1 ]] && grep -q 'refusing to allow a GitHub App' <<<"$res"; then
+  pass "API 403 workflow refusal -> hard fail (rc 1) with the server message surfaced"
+else fail "API 403: rc='$(head -1 <<<"$res")' body='$(tail -n +2 <<<"$res" | cut -c1-80)'"; fi
+
+# 12e. ROUTING + CONTROL: the same workflow-touching commit fails on the old
+# push path (an App-token rejection) but is claimed on the new API path.
+# The rejection shim from section 11 stands in for the App token on git push.
+c17=$(commit seventeen); git -C "$T/w" push -q origin HEAD:refs/heads/master
+git -C "$T/w" remote add gh https://github.com/csitea/csi-spl
+# old path: file remote, no token -> git push, rejected by the App shim
+: >"$T/route.err"; rc=0
+PATH="$T/rej:$PATH" bash -c '
+  do_log(){ echo "$*" >&2; }
+  source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-release-version.func.sh"
+  spl_claim_tag "'"$T/w"'" "'"$c17"'" v9.9.0 origin; rc=$?; echo "$SPL_CLAIM_ERR" >&2; exit $rc' >/dev/null 2>"$T/route.err" || rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'refusing to allow a GitHub App' "$T/route.err"; then
+  pass "CONTROL old path: git push of a workflow-touching commit is refused (rc 1)"
+else fail "CONTROL old path: rc=$rc err=$(tr '\n' '|' <"$T/route.err" | cut -c1-120)"; fi
+# new path: a github remote + a token -> the REST API (curl shim 201) succeeds
+rc=0
+PATH="$T/curlshim:$PATH" GITHUB_TOKEN=tok CURL_CODE=201 CURL_BODY='{}' bash -c '
+  do_log(){ echo "$*" >&2; }
+  do_require_bin(){ command -v "$1" >/dev/null; }
+  source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-release-version.func.sh"
+  spl_claim_tag "'"$T/w"'" "'"$c17"'" v9.9.0 gh' >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 0 ]] && pass "NEW path: a github remote + a token claims the SAME commit via the REST API (rc 0)" \
+  || fail "NEW path: API claim rc=$rc"
+
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -6,6 +6,12 @@ name: "99 ops: self-hosted runner smoke"
 on:
   workflow_dispatch: {}
 
+# Least privilege: the smoke probe only checks out the tree. Without an
+# explicit block a workflow inherits the repository default token scope,
+# which can be read-write.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     name: "self-hosted runner answers"

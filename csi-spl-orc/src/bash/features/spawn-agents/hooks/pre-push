@@ -73,7 +73,13 @@ if [ -n "$tree" ] && [ -f "$stamp" ] && grep -qxF "$tree" "$stamp" 2>/dev/null; 
 fi
 
 echo "pre-push: running the deploy-gate (do_check_pre_push, ${SPL_PREPUSH_MODE:-fast}). Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." >&2
-if ( cd "$top/csi-spl-iac" && PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" ./run -a do_check_pre_push ); then
+# Scrub the env git exports to a hook (GIT_DIR, GIT_INDEX_FILE, GIT_WORK_TREE, ...):
+# the gate's tests create commits and set config in THROWAWAY repos, and an
+# inherited GIT_DIR made those land on the pushing branch and the shared config
+# (junk "head/pinned/tip" commits, core.bare=true), 2026-09-30.
+if ( cd "$top/csi-spl-iac" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
+       -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_QUARANTINE_PATH -u GIT_COMMON_DIR -u GIT_PREFIX \
+       PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" ./run -a do_check_pre_push ); then
   if [ -n "$tree" ]; then
     mkdir -p "$_pp_log_dir" 2>/dev/null || true
     printf '%s\n' "$tree" >>"$stamp" 2>/dev/null || true

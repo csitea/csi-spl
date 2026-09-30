@@ -1199,6 +1199,13 @@ export function createSpoolClient({
     async topicSize(msgId) {
       const id = String(msgId || '')
       if (mock) {
+        /* test hook (mock only): a confirm dialog reads the reply count from
+           the hub, and on prd that round-trip takes real time. e2e sets
+           `spool-mock-topic-size-delay-ms` to replay that latency window so a
+           test can prove the Delete button stays keyboard-usable while it
+           loads (TopicDeleteDialog, owner topic b6a7db19). Off by default. */
+        const delay = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('spool-mock-topic-size-delay-ms') || 0) : 0
+        if (delay > 0) await new Promise((r) => setTimeout(r, delay))
         const all = [...state.messages, ...(state.archived || [])]
         const row = all.find((m) => m.msg_id === id)
         const replies = row ? all.filter((m) => m.msg_id !== id && (m.task_id === row.task_id || m.task_id === id)).length : 0

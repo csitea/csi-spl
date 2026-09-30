@@ -11,7 +11,6 @@
     :confirm-label="t('feed.topic_delete.confirm')"
     :busy-label="t('feed.topic_delete.busy')"
     :busy="busy"
-    :disabled="replies === null"
     :error="error"
     @update:open="emit('update:open', $event)"
     @confirm="confirm"
@@ -72,6 +71,12 @@ async function load() {
 watch(() => [props.open, props.msgId], ([open]) => { if (open) void load() })
 onMounted(() => { if (props.open) void load() })
 
+/* The reply count is COSMETIC — it only shapes the title. Delete never needs
+   it (deleteTopic acts on msgId alone), so the button is NOT disabled while
+   the count loads. It used to be (`:disabled="replies === null"`), and on prd
+   latency that made the primary action briefly disabled — which also drops it
+   from UiDialog's focus trap, so a keyboard user could not Tab to it or
+   activate it with Enter / Space (owner, prd t1 topic b6a7db19). */
 async function confirm() {
   if (!props.msgId || busy.value) return
   busy.value = true

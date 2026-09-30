@@ -27,6 +27,9 @@ const (
 	TenantSettings = "tenant.settings"
 	KeysManage     = "keys.manage"
 	AuditRead      = "audit.read"
+	// MembersImpersonate is the permission to start an "act as a member"
+	// session through a temporary clone (specs/054). biz_owner and admin.
+	MembersImpersonate = "members.impersonate"
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
@@ -71,6 +74,7 @@ var Permissions = []PermissionDoc{
 	{TenantSettings, "tenant settings"},
 	{KeysManage, "tenant-level keys (box pins, the box-wui pin)"},
 	{AuditRead, "see the tenant audit trail"},
+	{MembersImpersonate, "act as a member through a temporary clone"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
@@ -79,10 +83,10 @@ var Permissions = []PermissionDoc{
 // specs/046: "the admins and the biz_owners of the tenant can CRUD users").
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
+		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate)},
 	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
 	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead)},
+		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate)},
 	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
 	{ID: Tester, Perms: sorted(TopicsRead, NotesSend)},
 	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand)},

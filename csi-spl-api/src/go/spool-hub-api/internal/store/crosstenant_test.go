@@ -133,6 +133,23 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		TaskID: uuid4(), CreatedBy: hum, Parent: testEpic(t, pg, s.tenant, now)}, now); err != nil {
 		t.Fatal(err)
 	}
+	// member_clones (rdb 0088, specs/054): a technical clone human of the
+	// seeded member and its act-as row, so the table holds a row for both
+	// tenants. humans is hub-wide (no RLS); the clone row is tenant-scoped.
+	var cloneHum string
+	if err := pg.pool.QueryRow(ctx, `INSERT INTO humans (display_name, technical, created_at)
+		VALUES ($1, true, $2) RETURNING human_id`, "clone of "+hum, now).Scan(&cloneHum); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO member_clones
+			(clone_hum, tenant_id, target_hum, created_by, role, expires_at)
+			VALUES ($1, $2, $3, $4, 'developer', $5)`,
+			cloneHum, s.tenant, hum, hum, now.Add(time.Hour))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

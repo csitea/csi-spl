@@ -107,5 +107,17 @@ git -C "$MB" status --porcelain >/dev/null 2>&1; eq "9. ... and status works the
 eq "9. the linked worktree got its hook" "$MB/csi-spl-orc/src/bash/features/spawn-agents/hooks" \
   "$(git -C "$ROOT/wtLM" config --get core.hooksPath 2>/dev/null)"
 
+# 10. CONTROL: the installer NEVER leaves core.worktree in the COMMON config
+#     (it would point every worktree at one tree). It was clean before; still is.
+eq "10. installer leaves no core.worktree in the common config" "" \
+  "$(git config -f "$MB/.git/config" --get core.worktree 2>/dev/null)"
+
+# 11. the hook REFUSES when the common config is poisoned with core.worktree
+git -C "$REPO" config core.worktree /somewhere/else
+( cd "$REPO" && bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. poisoned common core.worktree -> hook refuses (exit 1)" 1 "$?"
+# ... but the override still lets a fixer through
+( cd "$REPO" && env SPL_PREPUSH_OVERRIDE=1 bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. ... override still escapes the poison" 0 "$?"
+git -C "$REPO" config --unset-all core.worktree 2>/dev/null || true
+
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

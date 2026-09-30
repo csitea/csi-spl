@@ -61,3 +61,13 @@ fi
 
 git -C "$wt" config --worktree core.hooksPath "$hooks_dir"
 echo "install-pre-push-hook: $wt -> core.hooksPath=$hooks_dir (worktree-local)"
+
+# Guard: this installer must NEVER leave core.worktree in the COMMON config -- it
+# would point every worktree at one tree. It only ever writes core.worktree with
+# --worktree (to the main worktree's own config.worktree), so a common
+# core.worktree here would be a leak; remove it and warn rather than leave the
+# shared tree poisoned. (The control test asserts the common config is untouched.)
+if git config -f "$common/config" --get core.worktree >/dev/null 2>&1; then
+  echo "install-pre-push-hook: WARNING the COMMON config has core.worktree -- removing it (it must never be common)" >&2
+  git config -f "$common/config" --unset-all core.worktree 2>/dev/null || true
+fi

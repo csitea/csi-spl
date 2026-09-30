@@ -24,20 +24,40 @@ _pp_who="${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-${USER:-$(id -un 2>/dev/null)}}}"
 _pp_now() { date -u +%FT%TZ 2>/dev/null || echo "?"; }
 _pp_logline() { printf '%s %s %s\n' "$(_pp_now)" "$_pp_who" "$*" >>"$_pp_log" 2>/dev/null || true; }
 
+head="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+
+# Emergency override -- the universal escape hatch, first (so whoever is fixing a
+# poisoned shared config can still push the fix).
+if [ "${SPL_PREPUSH_OVERRIDE:-0}" = 1 ]; then
+  _pp_logline "OVERRIDE $PWD HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1, gate SKIPPED"
+  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- deploy-gate SKIPPED (audited in $_pp_log)" >&2
+  exit 0
+fi
+
+# Poisoned shared git config guard -- BEFORE trusting show-toplevel, because a
+# core.worktree in the COMMON config points every worktree at ONE tree (measured:
+# core.worktree=<one lane> made every lane's git read that lane's files), and it
+# would otherwise pass every check below against the WRONG tree. A main checkout
+# misdetected as bare breaks git here too.
+common="$(git rev-parse --git-common-dir 2>/dev/null)"
+if [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; then
+  _pp_logline "REFUSE $PWD -- common git config has core.worktree (poisoned shared tree)"
+  echo "pre-push: REFUSED -- the SHARED git config ($common/config) has core.worktree set; it points every worktree at one tree. Fix it ('git config -f $common/config --unset-all core.worktree') and tell the orchestrator. Override once with SPL_PREPUSH_OVERRIDE=1 only if you are the one fixing it." >&2
+  exit 1
+fi
+if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
+  _pp_logline "REFUSE $PWD -- git does not see a work tree here (bare misdetection?)"
+  echo "pre-push: REFUSED -- git does not resolve a working tree here (the shared config may have core.bare=true without the main worktree pinned false). Fix it and tell the orchestrator." >&2
+  exit 1
+fi
+
 top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -n "$top" ] || exit 0
-head="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
 run="$top/csi-spl-iac/run"
 
 # Not the spool tree (or a checkout without the gate) -> let the push through.
 if [ ! -x "$run" ]; then
   _pp_logline "SKIP not-the-spool-tree $top (no $run)"
-  exit 0
-fi
-
-if [ "${SPL_PREPUSH_OVERRIDE:-0}" = 1 ]; then
-  _pp_logline "OVERRIDE $top HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1, gate SKIPPED"
-  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- deploy-gate SKIPPED (audited in $_pp_log)" >&2
   exit 0
 fi
 

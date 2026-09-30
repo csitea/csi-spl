@@ -266,9 +266,15 @@ const error = ref('')
 const notice = ref('')
 const confirmOpen = ref(false)
 const emailEl = ref<HTMLInputElement | null>(null)
+const copied = ref(false)
 /* A sent invite reopens the pane on its new row; the notice survives that switch. */
 let carry = ''
 
+// The watch runs immediately (immediate: true), so every ref it touches must be
+// declared ABOVE it — `copied` used to sit below and threw "Cannot access
+// 'copied' before initialization" on setup, so the member-edit pane never
+// opened (pre-054; the e2e that catches it, users-admin, only runs in the
+// often-cancelled quality gate).
 watch(() => [props.row?.key, props.creating], () => {
   error.value = ''
   notice.value = carry
@@ -286,7 +292,6 @@ watch(() => [props.row?.key, props.creating], () => {
   }
 }, { immediate: true })
 
-const copied = ref(false)
 /* the sign-in page of the tenant the list came from */
 function linkOf(i: UserInvite | null) {
   return i && !i.expired && import.meta.client ? inviteLink(window.location.origin, i.tenant) : ''

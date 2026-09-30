@@ -254,10 +254,11 @@ func (s *Postgres) DeleteIssue(ctx context.Context, tenant string, number int, b
 
 // cascadeOp is one archive / delete / unarchive of a subtree (SPL-1039: the
 // values of a cascadeStamp call belong together, so they ride one struct).
-//   live    - the WHERE predicate of a row eligible to be touched ("deleted_at
-//             IS NULL"), used for the target, its children check and the walk
-//   set     - the SET clause ($3 = now, $4 = by)
-//   cascade - true takes the whole subtree; false refuses a live parent
+//
+//	live    - the WHERE predicate of a row eligible to be touched ("deleted_at
+//	          IS NULL"), used for the target, its children check and the walk
+//	set     - the SET clause ($3 = now, $4 = by)
+//	cascade - true takes the whole subtree; false refuses a live parent
 type cascadeOp struct {
 	tenant  string
 	number  int

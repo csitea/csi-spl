@@ -1,13 +1,15 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description ONE pre-push gate that runs exactly what the deploy pipeline runs
-# @description before it ships: the csi-spl-api suite that workflow 20 gates the
-# @description hub deploy on (gofmt, go vet, go test -race, hub-pg on a local
-# @description Postgres container, hub-gcs), the WUI unit tests + typecheck that
-# @description workflow 30 gates the WUI deploy on, and the csi-spl-iac /
-# @description csi-spl-orc / csi-spl-cnf suites + the distribution-hygiene sweep
-# @description that 10_ci-quality turns trunk red on. A break is then caught in
-# @description the lane that wrote it, not after it has stalled every deploy.
+# @description ONE pre-push gate that runs what the deploy pipeline blocks on
+# @description AND that runs on bare metal here: the csi-spl-api suite that
+# @description workflow 20 gates the hub deploy on (gofmt, go vet, go test
+# @description -race, hub-pg on a local Postgres container, hub-gcs), the WUI
+# @description unit tests + typecheck that workflow 30 gates the WUI deploy on,
+# @description the csi-spl-iac suite, and the distribution-hygiene sweep. A break
+# @description is then caught in the lane that wrote it, not after it has stalled
+# @description every deploy. (The csi-spl-orc / csi-spl-cnf conf-validator suites
+# @description need python/container deps absent at push time, so they are NOT
+# @description gated here -- run those through their container path.)
 # @description Each part prints PASS/FAIL with its wall time; a final table sums
 # @description them and the exit code is non-zero if any part failed.
 # @description Two modes: FAST (default) runs only the suites whose tree changed
@@ -51,22 +53,33 @@ _pp_pg_available() {
   return 1
 }
 
+# pnpm is often a user-local install (~/.local/bin) not on the minimal PATH a
+# git hook or a `sudo -u <box-user> env` shell sees, so resolve it explicitly
+# before deciding it is missing.
+_pp_pnpm() {
+  if command -v pnpm >/dev/null 2>&1; then printf 'pnpm'; return 0; fi
+  local p
+  for p in "$HOME/.local/bin/pnpm" /usr/local/bin/pnpm /usr/bin/pnpm; do
+    [[ -x "$p" ]] && { printf '%s' "$p"; return 0; }
+  done
+  return 1
+}
+
 _pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
 _pp_part_api()     { bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"; }
 _pp_part_iac()     { bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"; }
-_pp_part_orc()     { bash "$1/csi-spl-orc/src/bash/tests/run-all-tests.sh"; }
-_pp_part_cnf()     { bash "$1/csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh"; }
 _pp_part_wui() {
-  local wui="$1/csi-spl-wui"
+  local wui="$1/csi-spl-wui" pn
   [[ -d "$wui" ]] || { do_log "WARN pre-push: no csi-spl-wui at $wui -- skipping the WUI gate"; return 0; }
-  command -v pnpm >/dev/null 2>&1 || { do_log "FATAL pre-push: pnpm not found -- cannot run the WUI gate"; return 1; }
+  pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin) -- cannot run the WUI gate"; return 1; }
   ( cd "$wui" || exit 1
+    export PATH="$HOME/.local/bin:$PATH"
     if [[ ! -d node_modules ]]; then
       echo "pre-push: WUI node_modules absent (fresh worktree) -- pnpm install --frozen-lockfile"
-      pnpm install --frozen-lockfile || exit 1
+      "$pn" install --frozen-lockfile || exit 1
     fi
-    pnpm run test:unit || exit 1
-    pnpm run typecheck  || exit 1
+    "$pn" run test:unit || exit 1
+    "$pn" run typecheck  || exit 1
   )
 }
 
@@ -95,22 +108,27 @@ do_check_pre_push() {
   git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
     || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
 
-  local sel_hygiene=1 sel_api=0 sel_iac=0 sel_orc=0 sel_cnf=0 sel_wui=0
+  # The gated suites are exactly the ones a deploy is blocked on AND that run on
+  # bare metal here: distribution-hygiene, the csi-spl-api suite (workflow 20's
+  # hub-deploy gate), the csi-spl-iac suite, and the WUI unit tests + typecheck
+  # (workflow 30's wui-deploy gate). The csi-spl-orc and csi-spl-cnf suites lean
+  # on the conf-validator's python/container deps that are NOT present at push
+  # time, so gating on them would refuse pushes for an environment gap rather
+  # than a defect; run those through their container path, not this hook.
+  local sel_hygiene=1 sel_api=0 sel_iac=0 sel_wui=0
   if [[ "$mode" == full ]]; then
-    sel_api=1 sel_iac=1 sel_orc=1 sel_cnf=1 sel_wui=1
+    sel_api=1 sel_iac=1 sel_wui=1
   else
     local changed f
     if ! changed="$(_pp_changed "$tree" "$base")"; then
       do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
-      mode=full; sel_api=1 sel_iac=1 sel_orc=1 sel_cnf=1 sel_wui=1
+      mode=full; sel_api=1 sel_iac=1 sel_wui=1
     else
       while IFS= read -r f; do
         [[ -z "$f" ]] && continue
         case "$f" in
           csi-spl-api/*|csi-spl-rdb/*|.version) sel_api=1 ;;
-          csi-spl-cnf/*)                        sel_cnf=1; sel_iac=1 ;;
-          csi-spl-iac/*|.github/workflows/*)    sel_iac=1 ;;
-          csi-spl-orc/*)                        sel_orc=1 ;;
+          csi-spl-cnf/*|csi-spl-iac/*|.github/workflows/*) sel_iac=1 ;;
           csi-spl-wui/*)                        sel_wui=1 ;;
         esac
       done <<< "$changed"
@@ -118,9 +136,7 @@ do_check_pre_push() {
   fi
 
   local parts="hygiene"
-  [[ "$sel_cnf" == 1 ]] && parts+=" cnf"
   [[ "$sel_iac" == 1 ]] && parts+=" iac"
-  [[ "$sel_orc" == 1 ]] && parts+=" orc"
   [[ "$sel_wui" == 1 ]] && parts+=" wui"
   [[ "$sel_api" == 1 ]] && parts+=" api"
 
@@ -137,9 +153,7 @@ do_check_pre_push() {
   local _PP_FAILED=0
 
   [[ "$sel_hygiene" == 1 ]] && _pp_run "distribution-hygiene" _pp_part_hygiene "$tree"
-  [[ "$sel_cnf" == 1 ]] && _pp_run "csi-spl-cnf conf-validator" _pp_part_cnf "$tree"
   [[ "$sel_iac" == 1 ]] && _pp_run "csi-spl-iac suite" _pp_part_iac "$tree"
-  [[ "$sel_orc" == 1 ]] && _pp_run "csi-spl-orc suite" _pp_part_orc "$tree"
   [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui unit + typecheck" _pp_part_wui "$tree"
   if [[ "$sel_api" == 1 ]]; then
     if _pp_pg_available; then

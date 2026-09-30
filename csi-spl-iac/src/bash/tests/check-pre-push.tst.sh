@@ -4,14 +4,16 @@
 #          The heavy suites are never run here -- PRE_PUSH_PLAN=1 prints the
 #          selection and exits, so this test proves the CHANGED-INPUTS routing
 #          that FAST mode does and the FULL-mode / unknown-base behaviour.
-#   1. FULL mode -> every part
-#   2. FAST, only csi-spl-wui touched -> hygiene + wui, NOT api/iac/orc/cnf
+#   The gated suites are hygiene + api + iac + wui only (orc/cnf need container
+#   deps absent at push time, so they are deliberately NOT gated here).
+#   1. FULL mode -> every gated part (hygiene api iac wui)
+#   2. FAST, only csi-spl-wui touched -> hygiene + wui, NOT api/iac
 #   3. FAST, only csi-spl-api touched -> hygiene + api
-#   4. FAST, csi-spl-cnf touched -> cnf AND iac (cnf feeds the iac gates)
+#   4. FAST, csi-spl-cnf touched -> iac (cnf feeds the iac gates), NOT api/wui
 #   5. FAST, a .github/workflows file touched -> iac (workflow parity tests)
 #   6. FAST, only a doc touched -> hygiene alone (it always runs)
 #   7. FAST with an UNKNOWN base ref -> widens to FULL, never skips silently
-#   8. an untracked new file under a tree still selects that tree
+#   8. an untracked new file under csi-spl-api still selects api
 #   do_log and do_check_dist_hygiene are stubbed; PLAN mode returns before
 #   either would run, so the routing is all that is under test.
 #------------------------------------------------------------------------------
@@ -48,15 +50,15 @@ plan() {  # extra changed files staged relative to base, via env before call
 has()   { case " $1 " in *" $2 "*) return 0 ;; *) return 1 ;; esac; }
 reset_tree() { git -C "$T" checkout -q -- . 2>/dev/null; git -C "$T" clean -fdq >/dev/null 2>&1; }
 
-# 1. FULL -> everything
+# 1. FULL -> every gated part
 p="$(PP_MODE=full plan)"
-{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" orc && has "$p" cnf && has "$p" wui; } \
-  && pass "1. FULL selects every part" || fail "1. FULL selects every part" "$p"
+{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" wui && ! has "$p" orc && ! has "$p" cnf; } \
+  && pass "1. FULL selects hygiene api iac wui only" || fail "1. FULL selects hygiene api iac wui only" "$p"
 
 # 2. only WUI
 echo a >"$T/csi-spl-wui/a.ts"; git -C "$T" add -A; git -C "$T" commit -qm wui
 p="$(plan)"
-{ has "$p" hygiene && has "$p" wui && ! has "$p" api && ! has "$p" iac && ! has "$p" orc && ! has "$p" cnf; } \
+{ has "$p" hygiene && has "$p" wui && ! has "$p" api && ! has "$p" iac; } \
   && pass "2. FAST wui-only -> hygiene+wui" || fail "2. FAST wui-only -> hygiene+wui" "$p"
 git -C "$T" reset -q --hard base; git -C "$T" commit -q --allow-empty -m head
 
@@ -67,11 +69,11 @@ p="$(plan)"
   && pass "3. FAST api-only -> hygiene+api" || fail "3. FAST api-only -> hygiene+api" "$p"
 git -C "$T" reset -q --hard base; git -C "$T" commit -q --allow-empty -m head
 
-# 4. CNF -> cnf AND iac
+# 4. CNF -> iac (cnf feeds the iac gates), not api/wui
 echo a >"$T/csi-spl-cnf/a.yaml"; git -C "$T" add -A; git -C "$T" commit -qm cnf
 p="$(plan)"
-{ has "$p" cnf && has "$p" iac && ! has "$p" api && ! has "$p" wui; } \
-  && pass "4. FAST cnf -> cnf+iac" || fail "4. FAST cnf -> cnf+iac" "$p"
+{ has "$p" iac && ! has "$p" api && ! has "$p" wui; } \
+  && pass "4. FAST cnf -> iac" || fail "4. FAST cnf -> iac" "$p"
 git -C "$T" reset -q --hard base; git -C "$T" commit -q --allow-empty -m head
 
 # 5. a workflow file -> iac
@@ -94,10 +96,10 @@ p="$(PP_BASE=origin/does-not-exist plan)"
   && pass "7. FAST unknown-base widens to FULL" || fail "7. FAST unknown-base widens to FULL" "$p"
 
 # 8. an UNTRACKED new file still selects its tree
-echo a >"$T/csi-spl-orc/new.sh"
+mkdir -p "$T/csi-spl-api"; echo a >"$T/csi-spl-api/new.go"
 p="$(plan)"
-has "$p" orc && pass "8. an untracked orc file selects orc" || fail "8. an untracked orc file selects orc" "$p"
-rm -f "$T/csi-spl-orc/new.sh"
+has "$p" api && pass "8. an untracked api file selects api" || fail "8. an untracked api file selects api" "$p"
+rm -f "$T/csi-spl-api/new.go"
 
 echo "-- check-pre-push.tst.sh: $((8 - fails))/8 passed"
 [[ "$fails" -eq 0 ]]

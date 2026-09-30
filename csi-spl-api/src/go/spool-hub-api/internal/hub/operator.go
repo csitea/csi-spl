@@ -170,7 +170,9 @@ func (s *Server) handleOperatorInvite(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: now.Add(ttl), OrderedBy: orderedBy, OrderedVia: strings.TrimSpace(body.OrderedVia)}
 	switch err := h.PutInvite(r.Context(), in, now); {
 	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "tenant does not exist")
+		// PutInvite maps both a missing tenant and an ordered_by that names no
+		// human (the FK) onto ErrNotFound, so name both (as the CLI does).
+		writeErr(w, http.StatusNotFound, "not_found", "tenant does not exist (or ordered_by names no human)")
 	case errors.Is(err, store.ErrUnknownRole):
 		writeErr(w, http.StatusBadRequest, "bad_role", "not a role of this tenant")
 	case err != nil && strings.Contains(err.Error(), "invite email"):

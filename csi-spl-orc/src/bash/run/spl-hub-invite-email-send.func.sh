@@ -53,7 +53,14 @@ _spl_hub_invite_email_report() {
   mid="$(jq -r '.mail.message_id // ""' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
   delivered="$(jq -r '.mail.delivered // false' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
   case "$SPL_HUB_OP_STATUS" in
-    404) do_log "FATAL the hub operator route is not enabled (404): apply the operator cnf to $ENV (SPOOL_HUB_OPERATOR_* via the 030 apply)"; return 1 ;;
+    404)
+      if [[ "$SPL_HUB_OP_BODY" == *"not enabled"* ]]; then
+        do_log "FATAL the hub operator route is not enabled (404): apply the operator cnf to $ENV (SPOOL_HUB_OPERATOR_* via the 030 apply)"
+      else
+        do_log "FATAL the hub refused (404): $(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"
+      fi
+      return 1 ;;
+    400) do_log "FATAL the hub rejected the request (400): $(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null)"; return 1 ;;
     401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS and the audience $SPL_HUB_URL right? $SPL_HUB_OP_BODY"; return 1 ;;
   esac
   if [[ "$SPL_HUB_OP_STATUS" == 2* ]] && { [[ "$outcome" == sent ]] || [[ "$outcome" == logged ]]; }; then

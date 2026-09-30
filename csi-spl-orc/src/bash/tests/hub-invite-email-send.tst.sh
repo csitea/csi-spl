@@ -63,9 +63,10 @@ done
 authinfile=no
 [[ -n "$hdrfile" ]] && grep -q 'Authorization: Bearer' "$hdrfile" && authinfile=yes
 echo "curl $method $url auth_in_kfile=$authinfile body=$data" >>"$STUB_LOG"
-case "${STUB_OUTCOME:-sent}" in
-  sent)   resp='{"tenant_id":"t1","mail":{"outcome":"sent","message_id":"<m1.tenant_invite@x>","delivered":true,"to":"abc"}}';;
-  invite) resp='{"tenant_id":"t1","email":"invitee@example.com","role":"developer","invited_by":"HUM-10","status":"invited","mail":{"outcome":"sent","message_id":"<m2.tenant_invite@x>","delivered":true}}';;
+case "${STUB_HTTP:-200}::${STUB_OUTCOME:-sent}" in
+  404::*) resp='{"error":"not_found","detail":"operator routes are not enabled on this hub"}';;
+  *::sent)   resp='{"tenant_id":"t1","mail":{"outcome":"sent","message_id":"<m1.tenant_invite@x>","delivered":true,"to":"abc"}}';;
+  *::invite) resp='{"tenant_id":"t1","email":"invitee@example.com","role":"developer","invited_by":"HUM-10","status":"invited","mail":{"outcome":"sent","message_id":"<m2.tenant_invite@x>","delivered":true}}';;
   *)      resp="{\"tenant_id\":\"t1\",\"mail\":{\"outcome\":\"${STUB_OUTCOME}\",\"to\":\"abc\"}}";;
 esac
 [[ -n "$out" ]] && printf '%s' "$resp" >"$out"

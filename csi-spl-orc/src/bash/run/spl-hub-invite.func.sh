@@ -53,9 +53,20 @@ do_spl_hub_invite() {
   [[ -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this invite) is required with DRY_RUN=0 (CLE-77778 provenance)"; return 1; }
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  local body args=(tenant "$tenant" email "$email" role "$role" invited_by "$invby" ordered_by "$ordby" ordered_via "$ordvia" ttl_hours "$ttl")
-  [[ "$nomail" == 1 ]] && args+=(no_mail true)
-  body="$(spl_hub_operator_json "${args[@]}")" || { do_log "FATAL could not build the request body"; return 1; }
+  # no_mail is a JSON bool and ttl_hours a JSON number: the hub decodes strictly
+  # (DisallowUnknownFields), so a stringified "true"/"168" is a 400.
+  local body nm=false
+  [[ "$nomail" == 1 ]] && nm=true
+  body="$(jq -cn --arg tenant "$tenant" --arg email "$email" --arg role "$role" \
+      --arg invited_by "$invby" --arg ordered_by "$ordby" --arg ordered_via "$ordvia" \
+      --arg ttl "$ttl" --argjson no_mail "$nm" '
+      {tenant: $tenant, email: $email, role: $role}
+      + (if $invited_by  != "" then {invited_by:  $invited_by}  else {} end)
+      + (if $ordered_by  != "" then {ordered_by:  $ordered_by}  else {} end)
+      + (if $ordered_via != "" then {ordered_via: $ordered_via} else {} end)
+      + (if $ttl         != "" then {ttl_hours:   ($ttl|tonumber)} else {} end)
+      + (if $no_mail then {no_mail: true} else {} end)')" \
+    || { do_log "FATAL could not build the request body"; return 1; }
   spl_hub_operator_call POST /v1/operator/invites "$body" || return 1
   _spl_hub_invite_report "$tenant" "$email" "$role" "$ordby" "$ordvia"
 }
@@ -68,7 +79,14 @@ do_spl_hub_invite() {
 _spl_hub_invite_report() {
   local tenant="$1" email="$2" role="$3" ordby="$4" ordvia="$5" invby outcome mid delivered
   case "$SPL_HUB_OP_STATUS" in
-    404) do_log "FATAL the hub operator route is not enabled (404): apply the operator cnf to $ENV (SPOOL_HUB_OPERATOR_* via the 030 apply). Nothing created."; return 1 ;;
+    404)
+      if [[ "$SPL_HUB_OP_BODY" == *"not enabled"* ]]; then
+        do_log "FATAL the hub operator route is not enabled (404): apply the operator cnf to $ENV (SPOOL_HUB_OPERATOR_* via the 030 apply). Nothing created."
+      else
+        do_log "FATAL the hub refused (404): $(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null). Nothing created."
+      fi
+      return 1 ;;
+    400) do_log "FATAL the hub rejected the invite (400): $(jq -r '.detail // .error // .' <<<"$SPL_HUB_OP_BODY" 2>/dev/null). Nothing created."; return 1 ;;
     401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS and the audience $SPL_HUB_URL right? Nothing created. $SPL_HUB_OP_BODY"; return 1 ;;
   esac
   if [[ "$SPL_HUB_OP_STATUS" != 201 ]]; then

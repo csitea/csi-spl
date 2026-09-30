@@ -169,6 +169,64 @@ raise SystemExit(0 if ok else 1)
 PY
 [[ $? -eq 0 ]] && pass "real-tree smoke" || fail "real-tree smoke"
 
+# Epic-scoped read (SPL-963): the importer must NOT list the whole tenant (a big
+# done set closes the hub socket). It reads the epics, scopes the child list to
+# THIS plan's epics, and merges. select_epic_refs picks only the wanted specs'
+# epics; merge_lists unions the issue rows deduped by key.
+python3 - "$FIX_TMP" <<PY
+import importlib.util, json, os, sys
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+tmp = sys.argv[1]
+plan = json.load(open(tmp + "/plan.json"))  # fixtures: specs 001 and 026
+# a KIND=epic reply: epics summary over the whole tenant + the epic rows + labels
+epics_reply = {"op": "list", "result": {
+    "prefix": "SPL",
+    "epics": [
+        {"key": "SPL-19", "number": 19, "title": "Spec 001 - sample checklist", "status": "wip"},
+        {"key": "SPL-20", "number": 20, "title": "Spec 026 - sample mixed", "status": "wip"},
+        {"key": "SPL-77", "number": 77, "title": "Spec 099 - unrelated epic", "status": "done"},
+    ],
+    "issues": [
+        {"key": "SPL-19", "title": "Spec 001 - sample checklist", "labels": ["epic"], "parent": "", "status": "wip"},
+        {"key": "SPL-20", "title": "Spec 026 - sample mixed", "labels": ["epic"], "parent": "", "status": "wip"},
+        {"key": "SPL-77", "title": "Spec 099 - unrelated epic", "labels": ["epic"], "parent": "", "status": "done"},
+    ],
+    "labels": [{"id": "epic"}, {"id": "task"}],
+}}
+ok = True
+refs = mod.select_epic_refs(plan, epics_reply)
+if sorted(refs) != ["SPL-19", "SPL-20"]:
+    print("FAIL: select_epic_refs picked", refs, "(want the plan's epics only, not SPL-77)"); ok = False
+else:
+    print("PASS: epic scope is only this plan's specs (SPL-77/099 excluded)")
+# a narrowed plan (only 026) scopes to only SPL-20
+one = {"specs": [s for s in plan["specs"] if s["spec"] == "026"], "items": []}
+if mod.select_epic_refs(one, epics_reply) != ["SPL-20"]:
+    print("FAIL: narrowed plan scope", mod.select_epic_refs(one, epics_reply)); ok = False
+else:
+    print("PASS: a narrowed plan scopes to one epic")
+# merge_lists: base (epics reply) + a per-epic child reply, deduped by key
+child_reply = {"op": "list", "result": {"issues": [
+    {"key": "SPL-90", "title": "[001 T001] a task", "labels": ["task"], "parent": "SPL-19", "status": "done"},
+    {"key": "SPL-19", "title": "Spec 001 - sample checklist", "labels": ["epic"], "parent": "", "status": "wip"},
+]}}
+open(tmp + "/mrg-epics.json", "w").write(json.dumps(epics_reply))
+open(tmp + "/mrg-child.json", "w").write(json.dumps(child_reply))
+merged = mod.merge_lists([tmp + "/mrg-epics.json", tmp + "/mrg-child.json"])
+keys = [i["key"] for i in merged["result"]["issues"]]
+if keys.count("SPL-19") == 1 and "SPL-90" in keys and "SPL-77" in keys:
+    print("PASS: merge unions child rows and dedups the epic row")
+else:
+    print("FAIL: merge keys", keys); ok = False
+if (merged["result"].get("labels") or []) != [{"id": "epic"}, {"id": "task"}]:
+    print("FAIL: merge dropped labels", merged["result"].get("labels")); ok = False
+else:
+    print("PASS: merge keeps the base labels")
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "epic-scoped read" || fail "epic-scoped read"
+
 # offline action prints a report and does not need a hub
 # shellcheck disable=SC1091
 do_log() { printf '%s\n' "$*"; }

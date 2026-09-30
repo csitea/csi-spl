@@ -423,6 +423,61 @@ def _label_ids(doc: dict) -> set:
     return {lb.get("id") for lb in (res.get("labels") or [])}
 
 
+def _epics_of_list(doc: dict) -> list:
+    """The list reply's epics summary (always present, over the whole tenant)."""
+    res = doc.get("result", doc)
+    if isinstance(res, str):
+        res = json.loads(res)
+    return res.get("epics") or []
+
+
+def select_epic_refs(plan: dict, list_doc: dict) -> list:
+    """The epic keys to scope the read-only child list to: the epics titled
+    'Spec NNN' for the NNN in this (already filtered) plan. Reading per epic
+    keeps a big tenant's done set out of a single list response (it closes the
+    hub socket, SPL-963/CLE-001 2026-09-30). The epics summary is the source;
+    the filtered `issues` (a KIND=epic reply) is the fallback."""
+    want = {s["spec"] for s in plan.get("specs", [])}
+    refs: list[str] = []
+    seen: set[str] = set()
+
+    def take(title: str, key: str) -> None:
+        m = EPIC_TITLE.match(title or "")
+        if m and m.group(1) in want and key and key not in seen:
+            seen.add(key)
+            refs.append(key)
+
+    for e in _epics_of_list(list_doc):
+        take(e.get("title") or "", e.get("key") or "")
+    issues, _ = _issues_from_list(list_doc)
+    for i in issues:
+        labels = i.get("labels") or []
+        if "epic" in labels or i.get("kind") in ("epic", "feature") or not i.get("parent"):
+            take(i.get("title") or "", i.get("key") or "")
+    return refs
+
+
+def merge_lists(paths: list) -> dict:
+    """One list reply from several epic-scoped ones: the first is the base
+    (it carries prefix / epics / labels / channel); the rest add their issues,
+    deduped by key. Preserves the base's shape (result-wrapped or flat)."""
+    base = _json_line(Path(paths[0]))
+    res = base["result"] if isinstance(base.get("result"), dict) else base
+    issues = res.get("issues") or []
+    seen = {i.get("key") for i in issues if i.get("key")}
+    for p in paths[1:]:
+        more, _ = _issues_from_list(_json_line(Path(p)))
+        for i in more:
+            k = i.get("key")
+            if k and k in seen:
+                continue
+            if k:
+                seen.add(k)
+            issues.append(i)
+    res["issues"] = issues
+    return base
+
+
 def _assign_epics(plan: dict, issues: list) -> dict:
     """Map spec dir -> epic key. Two dirs can share a number; the epic title
     'Spec NNN - ...' goes to the dir whose heading shares its words."""
@@ -675,7 +730,23 @@ def main(argv: list[str]) -> int:
     c.add_argument("--only", default="")
     c.add_argument("--ops", type=Path)
     c.add_argument("--out", type=Path)
+    e = sub.add_parser("epics")
+    e.add_argument("--plan", type=Path, required=True)
+    e.add_argument("--list", type=Path, required=True)
+    g = sub.add_parser("mergelists")
+    g.add_argument("--out", type=Path, required=True)
+    g.add_argument("lists", nargs="+")
     args = p.parse_args(argv)
+    if args.cmd == "epics":
+        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        listed = _json_line(args.list)
+        for ref in select_epic_refs(plan, listed):
+            print(ref)
+        return 0
+    if args.cmd == "mergelists":
+        merged = merge_lists(args.lists)
+        args.out.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
+        return 0
     if args.cmd == "parse":
         doc = filter_specs(parse_tree(args.specs), args.only)
         text = json.dumps(doc, ensure_ascii=False)

@@ -53,15 +53,44 @@ do_spl_spec_import_issues() {
 
   python3 "$py" parse --specs "$specs" "${onlyarg[@]}" --out "$work/plan.json" || return 1
 
-  do_log "INFO listing issues (read-only) so an existing [NNN id] is updated, never duplicated"
+  # Read-only listing, EPIC-SCOPED (SPL-963, CLE-001 2026-09-30). The hub filters
+  # in memory and returns every match in one frame, so a whole-tenant list of the
+  # done set (thousands of rows) overruns the CLI socket ("hub unreachable: socket
+  # closed"). One small call for the epics (a handful, all statuses), then the
+  # children of each of THIS plan's epics one epic at a time, merged. Every
+  # response is bounded by a single spec, so it never breaks the socket, and an
+  # existing [NNN id] is still found so it is updated, never duplicated.
+  local all_status=eval,todo,wip,diss,blocked,onhold,qas,done
+  do_log "INFO listing epics (read-only) to scope the child list to this plan's specs"
   (
     DRY_RUN=0
     ISSUE_ASSIGNEE=
-    ISSUE_STATUS=eval,todo,wip,diss,blocked,onhold,qas,done
+    ISSUE_KIND=epic
+    ISSUE_STATUS="$all_status"
     ISSUE_SORT=number
-    unset ISSUE_LABEL ISSUE_EPIC ISSUE_KIND ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
+    unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
     do_spl_issue_list
-  ) >"$work/list.out" || { do_log "FATAL the issue list failed"; return 1; }
+  ) >"$work/epics.out" || { do_log "FATAL the epic list failed"; return 1; }
+
+  local -a lists=("$work/epics.out") epicrefs=()
+  mapfile -t epicrefs < <(python3 "$py" epics --plan "$work/plan.json" --list "$work/epics.out")
+  local ref idx=0
+  for ref in "${epicrefs[@]}"; do
+    [[ -n "$ref" ]] || continue
+    idx=$((idx + 1))
+    (
+      DRY_RUN=0
+      ISSUE_ASSIGNEE=
+      ISSUE_EPIC="$ref"
+      ISSUE_STATUS="$all_status"
+      ISSUE_SORT=number
+      unset ISSUE_LABEL ISSUE_KIND ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
+      do_spl_issue_list
+    ) >"$work/children.$idx.out" || { do_log "FATAL the issue list for epic $ref failed"; return 1; }
+    lists+=("$work/children.$idx.out")
+  done
+  do_log "INFO read $idx epic-scoped list(s); merging"
+  python3 "$py" mergelists --out "$work/list.out" "${lists[@]}" || return 1
 
   python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
   mkdir -p "$(dirname "$report")"

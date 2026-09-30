@@ -456,6 +456,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
+	// CLE-77799: the durable sign-in event for the Activity log (method password).
+	n.h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_in", ProviderPassword)
 	writeJSON(w, http.StatusOK, n.loginAnswer(ctx, sess, req.Redirect))
 }
 

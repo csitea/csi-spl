@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -19,6 +20,58 @@ type memberActivityAppender interface {
 // memberActivityLister reads one member's audit trail, newest first.
 type memberActivityLister interface {
 	ListMemberActivity(ctx context.Context, tenant, subject string) ([]store.MemberActivity, error)
+}
+
+// memberActivitySweeper prunes the aged auth rows (retention).
+type memberActivitySweeper interface {
+	SweepMemberActivity(ctx context.Context, before time.Time) (int, error)
+}
+
+// AuthActivityRetention is how long the auth rows (sign_in / sign_out /
+// session_expiry) are kept before the sweep prunes them (owner rule,
+// CLE-77799): 90 days. Membership rows (role_changed, removed) are kept.
+var AuthActivityRetention = 90 * 24 * time.Hour
+
+// authActivityAdapter implements auth.ActivityRecorder by appending sign-in /
+// sign-out events to member_activity (CLE-77799). A store with no append (the
+// memory store) makes it a no-op, so auth auditing is simply off there.
+type authActivityAdapter struct{ store store.Store }
+
+func (a authActivityAdapter) RecordAuthEvent(ctx context.Context, tenant, humanID, kind, method, ip, ua string, at time.Time) error {
+	ap, ok := a.store.(memberActivityAppender)
+	if !ok {
+		return nil
+	}
+	return ap.AppendMemberActivity(ctx, store.MemberActivity{
+		TenantID: tenant, SubjectHum: humanID, Kind: kind, Detail: method, IP: ip, UA: ua, CreatedAt: at,
+	})
+}
+
+// AuthActivityRecorder exposes the store's member_activity as an
+// auth.ActivityRecorder for wiring in cmd/spool. nil when the store cannot
+// append (auth auditing stays off, e.g. the memory store).
+func AuthActivityRecorder(st store.Store) auth.ActivityRecorder {
+	if _, ok := st.(memberActivityAppender); !ok {
+		return nil
+	}
+	return authActivityAdapter{store: st}
+}
+
+// sweepMemberActivity prunes auth rows past the retention window, on the sweep
+// tick. A store without the sweep is a no-op.
+func (s *Server) sweepMemberActivity(ctx context.Context) {
+	sw, ok := s.o.Store.(memberActivitySweeper)
+	if !ok {
+		return
+	}
+	n, err := sw.SweepMemberActivity(ctx, s.o.Now().Add(-AuthActivityRetention))
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("member_activity retention sweep")
+		return
+	}
+	if n > 0 {
+		s.o.Log.Info().Int("pruned", n).Msg("member_activity retention sweep")
+	}
 }
 
 // recordMemberActivity appends one audit row, best-effort: a failure is logged

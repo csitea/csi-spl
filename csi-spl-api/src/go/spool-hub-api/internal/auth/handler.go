@@ -180,6 +180,8 @@ type Handler struct {
 	imp        Impersonation // specs/054 act-as; nil = act-as routes off
 	now        func() time.Time
 	pageTenant func(*http.Request) string // SPL-959; nil = off
+	audit      ActivityRecorder           // CLE-77799 auth events; nil = off
+	hops       int                        // trusted proxy hops, for the audit's client IP
 }
 
 // Options are the optional collaborators.
@@ -210,6 +212,12 @@ type Options struct {
 	Impersonation Impersonation
 	HTTP          *http.Client // outbound to the IdPs; nil = 15s timeout client
 	Now           func() time.Time
+	// Audit records sign-in / sign-out events for the per-person Activity log
+	// (CLE-77799); nil = auth auditing off (e.g. the memory store).
+	Audit ActivityRecorder
+	// TrustedProxyHops is how many proxies the hub trusts, so the audit reads
+	// the real client IP (edge.ClientIP); mirrors the native config's value.
+	TrustedProxyHops int
 }
 
 // New builds the handler from a validated Config.
@@ -219,6 +227,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
 		federated: o.Federated, now: o.Now, imp: o.Impersonation,
 		defLocale: o.DefaultLocale, pageTenant: o.PageTenant,
+		audit: o.Audit, hops: o.TrustedProxyHops,
 	}
 	if h.now == nil {
 		h.now = time.Now
@@ -388,6 +397,8 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, h.sessionCookie(tok, int(h.cfg.SessionTTL.Seconds())))
 	h.log.Info().Str("provider", p).Str("subject", digest(id.Subject)).Str("tenant", st.Tenant).
 		Msg("auth.login_ok")
+	// CLE-77799: the durable sign-in event for the Activity log (method = the IdP).
+	h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_in", p)
 	http.Redirect(w, r, h.appURL(st.Redirect, nil), http.StatusFound)
 }
 
@@ -1244,7 +1255,12 @@ func (h *Handler) RequestLocale(r *http.Request) string { return i18n.FromReques
 // DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE as this handler resolved it.
 func (h *Handler) DefaultLocale() string { return h.defLocale }
 
-func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	// CLE-77799: record the sign-out before the cookie is cleared, from the
+	// session the request still carries (its human + workspace). Best-effort.
+	if sess, ok := h.SessionFromRequest(r); ok {
+		h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_out", sess.Provider)
+	}
 	http.SetCookie(w, h.sessionCookie("", -1))
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -217,13 +217,16 @@ export const useNotificationStore = defineStore('notification', () => {
     const unseen = rows.filter((m) => m && m.msg_id && !seen.has(m.msg_id))
     const hydrate = opts.hydrate === true || (unseen.length > 1 && opts.hydrate !== false)
     const cursors = hydrate ? loadCursors() : {}
+    /* CLE-77804 (HUM-24, topic 311427c6): the reader's own message is never unread. */
+    const self = String(ctx.selfId || '').split('@')[0]
+    const isOwn = (m: Msg) => Boolean(self) && String(m.from || '').split('@')[0] === self
     for (const m of unseen) {
       if (!m.msg_id) continue
       seen.add(m.msg_id)
       const key = channelKey(m, ctx)
       if (hydrate) {
         /* a (re)load: count what the stored cursor has not seen, never ping */
-        if (key !== ctx.activeKey && isUnread(m, cursors[key])) {
+        if (key !== ctx.activeKey && !isOwn(m) && isUnread(m, cursors[key])) {
           bump(key, escalateReason(m, ctx) === 'mention' ? 'mention' : null)
         }
         continue
@@ -239,6 +242,8 @@ export const useNotificationStore = defineStore('notification', () => {
         }
         continue
       }
+      /* our own echo in another channel must not raise a badge (HUM-24) */
+      if (isOwn(m)) continue
       const reason = escalateReason(m, ctx)
       bump(key, reason)
       if (shouldPing(m, ctx, loadMutedChannels())) {

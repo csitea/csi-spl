@@ -195,11 +195,18 @@ const { pill, jump, hold } = useScrollAnchor(
 /* CLE-77804: the New-messages divider. `firstNewId` is the earliest message the
    reader had not seen when the feed opened (the boundary is frozen by the page,
    so it stays put while markRead advances the live cursor and clears the badge).
-   isNew() drives the fading highlight; newCount the jump button. */
-const firstNewId = computed(() => (props.unreadBoundary ? firstUnreadId(shown.value, props.unreadBoundary) : ''))
-const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value, props.unreadBoundary) : 0))
+   isNew() drives the fading highlight; newCount the jump button. The reader's
+   OWN messages are never new (HUM-24, topic 311427c6): sending one must not
+   push it under the divider or bump the "N new" count. */
+const { viewerId } = useMessageEdit()
+function isOwn(m: SpoolMessage) {
+  const self = String(viewerId.value || '').split('@')[0]
+  return Boolean(self) && String(m.from || '').split('@')[0] === self
+}
+const firstNewId = computed(() => (props.unreadBoundary ? firstUnreadId(shown.value, props.unreadBoundary, viewerId.value) : ''))
+const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value, props.unreadBoundary, viewerId.value) : 0))
 function isNew(m: SpoolMessage) {
-  return Boolean(props.unreadBoundary) && isUnread(m, props.unreadBoundary)
+  return Boolean(props.unreadBoundary) && !isOwn(m) && isUnread(m, props.unreadBoundary)
 }
 
 /* The rows with the divider interleaved (one keyed element per iteration). */

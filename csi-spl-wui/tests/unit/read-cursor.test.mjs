@@ -113,6 +113,17 @@ describe('New-messages divider boundary (CLE-77804)', () => {
     assert.equal(firstUnreadId(msgs, { ts: '', id: '' }), '')
     assert.equal(countUnread(msgs, null), 0)
   })
+  it("the reader's own messages are never new (HUM-24, topic 311427c6)", () => {
+    const cur = { ts: '2026-09-19T05:00:00Z', id: 'a' }
+    const mixed = [
+      { msg_id: 'b', ts: '2026-09-19T06:00:00Z', from: 'HUM-1@box-wui' }, // own
+      { msg_id: 'c', ts: '2026-09-19T07:00:00Z', from: 'HUM-2' },         // someone else
+    ]
+    assert.equal(countUnread(mixed, cur, 'HUM-1'), 1)          // only c
+    assert.equal(firstUnreadId(mixed, cur, 'HUM-1'), 'c')      // the divider skips own b
+    assert.equal(countUnread(mixed, cur, 'HUM-1@box-wui'), 1)  // box-qualified self matches
+    assert.equal(countUnread(mixed, cur, ''), 2)               // no self given: both count
+  })
 })
 
 describe('per-topic unread ("2/7 >>", CLE-77804 topic 35053f95)', () => {

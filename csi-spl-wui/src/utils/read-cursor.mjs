@@ -90,10 +90,13 @@ export function topicUnread(total, cursor) {
  * has not seen — where the divider goes — or '' when there is nothing new or
  * the channel was never read (no boundary: we do not flag a whole fresh feed).
  */
-export function firstUnreadId(messages, cursor) {
+export function firstUnreadId(messages, cursor, selfId = '') {
   if (!cursor || !cursor.ts) return ''
+  const self = String(selfId || '').split('@')[0]
   let best = null
   for (const m of messages || []) {
+    /* CLE-77804 (HUM-24, topic 311427c6): the reader's own message is never new */
+    if (self && String((m && m.from) || '').split('@')[0] === self) continue
     if (!isUnread(m, cursor)) continue
     const ts = when(m)
     const id = String((m && m.msg_id) || '')
@@ -102,11 +105,15 @@ export function firstUnreadId(messages, cursor) {
   return best ? best.id : ''
 }
 
-/** How many of `messages` are unread vs the frozen boundary (the "N new" count). */
-export function countUnread(messages, cursor) {
+/** How many of `messages` are unread vs the frozen boundary (the "N new" count). Own messages never count (HUM-24). */
+export function countUnread(messages, cursor, selfId = '') {
   if (!cursor || !cursor.ts) return 0
+  const self = String(selfId || '').split('@')[0]
   let n = 0
-  for (const m of messages || []) if (isUnread(m, cursor)) n++
+  for (const m of messages || []) {
+    if (self && String((m && m.from) || '').split('@')[0] === self) continue
+    if (isUnread(m, cursor)) n++
+  }
   return n
 }
 

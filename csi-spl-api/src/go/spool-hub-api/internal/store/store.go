@@ -259,6 +259,10 @@ type Store interface {
 	// move columns carry the home, so no schema of its own.
 	TopicMerge
 
+	// Promote a thread message to a topic of its own (topic_promote.go,
+	// 8f588edd): the inverse of a merge, on the same move columns.
+	TopicPromote
+
 	// Emoji reactions on a stored message (rdb 0037). The message may be
 	// is_parent 0 or 1; the reaction does not care which.
 	MessageReactions

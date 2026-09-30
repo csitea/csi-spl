@@ -281,6 +281,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
 	s.routeMoves(mux)                                                   // specs/045 + 714c7028
+	s.routePromote(mux)                                                 // 8f588edd
 	mux.HandleFunc("PUT /v1/me/channel-order", s.handleSetChannelOrder) // SPL-1034
 	mux.HandleFunc("OPTIONS /v1/me/channel-order", s.channelOrderPreflight)
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)

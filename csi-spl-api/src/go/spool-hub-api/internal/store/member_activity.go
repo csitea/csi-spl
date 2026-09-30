@@ -44,7 +44,7 @@ func (s *Postgres) ListMemberActivity(ctx context.Context, tenant, subject strin
 	out := []MemberActivity{}
 	err := s.queryTenant(ctx, tenant, `SELECT activity_id, tenant_id, subject_hum, actor_hum, kind,
 		detail, ip, ua, created_at FROM member_activity
-		WHERE tenant_id = $1 AND subject_hum = $2 ORDER BY activity_id DESC`, []any{tenant, subject},
+		WHERE tenant_id = $1 AND subject_hum = $2 ORDER BY created_at DESC, activity_id DESC`, []any{tenant, subject},
 		func(rows pgx.Rows) error {
 			var a MemberActivity
 			if err := rows.Scan(&a.ActivityID, &a.TenantID, &a.SubjectHum, &a.ActorHum, &a.Kind,

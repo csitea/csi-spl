@@ -150,6 +150,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// member_activity (rdb 0091, CLE-77799): one audit row for the seeded
+	// member, so the every-table cross-tenant gate holds a row for both tenants.
+	if err := pg.AppendMemberActivity(ctx, MemberActivity{TenantID: s.tenant, SubjectHum: hum, ActorHum: hum, Kind: "role_changed", Detail: "developer", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

@@ -51,7 +51,7 @@ async function stop() {
 </script>
 
 <style scoped>
-/* A SLIM one-line strip (owner 18597eaa: "this stripe is too big"): ~26 px
+/* A SLIM one-line strip (owner 18597eaa: "this bar is too big"): ~26 px
    high, small text centred, the Stop a small button pinned right. Same place
    (directly under the top bar, so it never covers the avatar menu), the same
    warning colour so it stays unmistakable, and fixed — it overlays, never

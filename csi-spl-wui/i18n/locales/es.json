@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "No eres miembro del inquilino {tenant}.",
-    "open_mine": "Abrir mi inquilino"
+    "open_mine": "Abrir mi inquilino",
+    "preparing": "La dirección de tu espacio de trabajo {host} se está preparando: suele tardar unos 30 minutos tras el pago. Esta página la abrirá en cuanto responda."
   },
   "picker": {
     "open": "Abrir el calendario",

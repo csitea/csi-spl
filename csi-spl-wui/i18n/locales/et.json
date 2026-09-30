@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Te ei ole rentniku {tenant} liige.",
-    "open_mine": "Ava minu rentnik"
+    "open_mine": "Ava minu rentnik",
+    "preparing": "Sinu tööruumi aadressi {host} valmistatakse ette — tavaliselt umbes 30 minutit pärast makset. See leht avab selle kohe, kui see vastab."
   },
   "picker": {
     "open": "Ava kalender",

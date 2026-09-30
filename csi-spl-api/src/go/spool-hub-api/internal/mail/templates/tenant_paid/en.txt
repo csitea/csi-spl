@@ -3,6 +3,7 @@ Your spool hub tenant is paid and ready.
 Workspace {{.TenantID}} — sign in at:
 {{.TenantURL}}
 Sign in with {{.Email}} — that address owns the workspace.
+The workspace's own address goes live within about 30 minutes of the payment; until then the sign-in page says it is being prepared.
 
 Collect your tenant ROOT key by opening this link once:
 {{.Link}}

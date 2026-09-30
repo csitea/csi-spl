@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Du är inte medlem i hyresgästen {tenant}.",
-    "open_mine": "Öppna min hyresgäst"
+    "open_mine": "Öppna min hyresgäst",
+    "preparing": "Adressen till din arbetsyta {host} förbereds — vanligtvis cirka 30 minuter efter betalningen. Den här sidan öppnar den så snart den svarar."
   },
   "picker": {
     "open": "Öppna kalendern",

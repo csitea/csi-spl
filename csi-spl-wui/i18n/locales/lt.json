@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Jūs nesate nuomininko {tenant} narys.",
-    "open_mine": "Atidaryti mano nuomininką"
+    "open_mine": "Atidaryti mano nuomininką",
+    "preparing": "Jūsų darbo srities adresas {host} ruošiamas — paprastai apie 30 minučių po apmokėjimo. Šis puslapis jį atvers, kai tik jis atsakys."
   },
   "picker": {
     "open": "Atverti kalendorių",

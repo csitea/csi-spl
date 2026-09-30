@@ -143,7 +143,7 @@ func TestEnglishWordingUnchanged(t *testing.T) {
 		t.Fatalf("%+v", pr)
 	}
 	tp, _ := TenantPaid("a@example.com", "en", "acme", "https://example.com/login?tenant=acme", "LINK", 24*time.Hour)
-	if tp.Subject != "Your spool hub tenant acme is paid" || !strings.HasPrefix(tp.TextBody, "Your spool hub tenant is paid and ready.\n\nWorkspace acme — sign in at:\nhttps://example.com/login?tenant=acme\nSign in with a@example.com — that address owns the workspace.\n\nCollect your tenant ROOT key by opening this link once:\nLINK\n\nThe link works once and expires in 24 hours. The key is created\n") {
+	if tp.Subject != "Your spool hub tenant acme is paid" || !strings.HasPrefix(tp.TextBody, "Your spool hub tenant is paid and ready.\n\nWorkspace acme — sign in at:\nhttps://example.com/login?tenant=acme\nSign in with a@example.com — that address owns the workspace.\nThe workspace's own address goes live within about 30 minutes of the payment; until then the sign-in page says it is being prepared.\n\nCollect your tenant ROOT key by opening this link once:\nLINK\n\nThe link works once and expires in 24 hours. The key is created\n") {
 		t.Fatalf("%+v", tp)
 	}
 }

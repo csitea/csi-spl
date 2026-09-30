@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Nie jesteś członkiem dzierżawy {tenant}.",
-    "open_mine": "Otwórz moją dzierżawę"
+    "open_mine": "Otwórz moją dzierżawę",
+    "preparing": "Adres Twojego obszaru roboczego {host} jest przygotowywany — zwykle około 30 minut po płatności. Ta strona otworzy go, gdy tylko zacznie odpowiadać."
   },
   "picker": {
     "open": "Otwórz kalendarz",

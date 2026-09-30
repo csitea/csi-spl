@@ -3,6 +3,7 @@ Vaš spool hub zakupac je plaćen i spreman.
 Radni prostor {{.TenantID}} — prijavite se na:
 {{.TenantURL}}
 Prijavite se adresom {{.Email}} — ta adresa je vlasnik radnog prostora.
+Sopstvena adresa radnog prostora proradi za oko 30 minuta od plaćanja; do tada stranica za prijavu kaže da se priprema.
 
 Preuzmite ROOT ključ zakupca tako što ćete jednom otvoriti ovaj link:
 {{.Link}}

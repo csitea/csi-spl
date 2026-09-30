@@ -3,6 +3,7 @@ Váš nájomník v spool hub je zaplatený a pripravený.
 Pracovný priestor {{.TenantID}} — prihláste sa na:
 {{.TenantURL}}
 Prihláste sa adresou {{.Email}} — táto adresa je vlastníkom pracovného priestoru.
+Vlastná adresa pracovného priestoru začne fungovať približne do 30 minút od platby; dovtedy prihlasovacia stránka oznamuje, že sa pripravuje.
 
 Vyzdvihnite si ROOT kľúč nájomníka jednorazovým otvorením tohto odkazu:
 {{.Link}}

@@ -3,6 +3,7 @@ Je spool hub-tenant is betaald en klaar.
 Werkruimte {{.TenantID}} — meld je aan op:
 {{.TenantURL}}
 Meld je aan met {{.Email}} — dat adres is de eigenaar van de werkruimte.
+Het eigen adres van de werkruimte werkt binnen ongeveer 30 minuten na de betaling; tot dan meldt de aanmeldpagina dat het wordt voorbereid.
 
 Haal de ROOT-sleutel van je tenant op door deze link één keer te openen:
 {{.Link}}

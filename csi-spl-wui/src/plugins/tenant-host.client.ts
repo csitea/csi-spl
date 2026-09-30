@@ -10,7 +10,7 @@ export default defineNuxtPlugin(() => {
   if (!import.meta.client) return
   const pub = useRuntimeConfig().public
   if (String(pub.tenantHosts || '0') !== '1') return
-  const notMember = useState<{ tenant: string, home: string }>('tenant-host-not-member', () => ({ tenant: '', home: '' }))
+  const notMember = useState<{ tenant: string, home: string, pending?: string }>('tenant-host-not-member', () => ({ tenant: '', home: '', pending: '' }))
   const session = useSessionStore()
   const page = hostTenant()
   void import('~/utils/tenant-host-boot.mjs').then((m) => m.bootTenantHost({ pub, page, session, notMember }))

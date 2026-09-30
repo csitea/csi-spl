@@ -3,6 +3,7 @@ Jūsu spool hub īrnieks ir apmaksāts un gatavs.
 Darbvieta {{.TenantID}} — piesakieties:
 {{.TenantURL}}
 Piesakieties ar {{.Email}} — šī adrese ir darbvietas īpašniece.
+Darbvietas savā adrese sāk darboties aptuveni 30 minūšu laikā pēc maksājuma; līdz tam pieteikšanās lapa saka, ka tā tiek sagatavota.
 
 Saņemiet īrnieka ROOT atslēgu, vienreiz atverot šo saiti:
 {{.Link}}

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { reactive, ref, nextTick } from 'vue'
 
-import { bootTenantHost } from '../../src/utils/tenant-host-boot.mjs'
+import { bootTenantHost, hostAnswers } from '../../src/utils/tenant-host-boot.mjs'
 import { classifyHref } from '../../src/utils/link-target.mjs'
 
 const SITE = 'https://app.example'
@@ -11,12 +11,24 @@ const PUB = { siteUrl: SITE, tenant: 't1', apiBase: 'https://api.app.example' }
 const U = '0b8a6a52-6c1e-4f5e-9d1e-2c7b7f5e8a11'
 const MEMBER_T1 = { tenants: [{ tenant_id: 't1' }, { tenant_id: 'northwind' }] }
 
-function rig(href, { claims = MEMBER_T1, locateTo = '', state = 'in' } = {}) {
+function rig(href, { claims = MEMBER_T1, locateTo = '', state = 'in', down = [] } = {}) {
   const u = new URL(href)
   const replaced = []
   const fetched = []
-  const win = { location: { href, pathname: u.pathname, search: u.search, hash: u.hash, replace: (x) => replaced.push(x) } }
+  const probed = []
+  const timers = []
+  const hostsDown = new Set(down)
+  const win = {
+    location: { href, pathname: u.pathname, search: u.search, hash: u.hash, replace: (x) => replaced.push(x) },
+    setTimeout: (fn, ms) => timers.push({ fn, ms }),
+  }
   const fetchFn = async (url, opts) => {
+    if (url.endsWith('/build.json')) {
+      probed.push({ url, opts })
+      /* a host that is not provisioned yet: NXDOMAIN / refused by the CSP */
+      if (hostsDown.has(new URL(url).hostname)) throw new TypeError('Failed to fetch')
+      return { ok: true, type: 'opaque' }
+    }
     fetched.push({ url, opts })
     return locateTo
       ? { ok: true, json: async () => ({ tenant: locateTo }) }
@@ -26,14 +38,17 @@ function rig(href, { claims = MEMBER_T1, locateTo = '', state = 'in' } = {}) {
   const notMember = ref({ tenant: '', home: '' })
   const page = u.hostname === 'app.example' ? 't1' : u.hostname.split('.')[0]
   bootTenantHost({ pub: PUB, page, session, notMember, win, fetchFn })
-  return { replaced, fetched, notMember, session }
+  return { replaced, fetched, probed, timers, hostsDown, notMember, session }
 }
 const settle = async () => { for (let i = 0; i < 5; i++) { await nextTick(); await new Promise((r) => setTimeout(r, 0)) } }
 
 describe('tenant-host boot', () => {
   it('apex + ?tenant=<t> hops to t with the same path (the sign-in return)', async () => {
     const r = rig(SITE + '/issues?issue=SPL-3&tenant=northwind', { state: 'loading' })
+    await settle()
     assert.deepEqual(r.replaced, ['https://northwind.app.example/issues?issue=SPL-3'])
+    assert.equal(r.probed[0].url, 'https://northwind.app.example/build.json')
+    assert.equal(r.probed[0].opts.mode, 'no-cors')
   })
   it('apex old topic link of another tenant: locate, then that host, same path', async () => {
     const r = rig(`${SITE}/channel/general?topic=${U}`, { locateTo: 'northwind' })
@@ -59,7 +74,7 @@ describe('tenant-host boot', () => {
     const r = rig('https://globex.app.example/issues', { claims: { tenants: [{ tenant_id: 't1' }] } })
     await settle()
     assert.deepEqual(r.replaced, [])
-    assert.deepEqual(r.notMember.value, { tenant: 'globex', home: 'https://app.example/' })
+    assert.deepEqual(r.notMember.value, { tenant: 'globex', home: 'https://app.example/', pending: '' })
   })
   it('waits for the session: nothing happens while signed out', async () => {
     const r = rig('https://globex.app.example/', { claims: { tenants: [{ tenant_id: 't1' }] }, state: 'out' })
@@ -68,6 +83,41 @@ describe('tenant-host boot', () => {
     r.session.state = 'in'
     await settle()
     assert.equal(r.notMember.value.tenant, 'globex')
+  })
+  it('047 B5: a paid tenant whose host is not up yet - the sign-in return stays on the apex (login usable)', async () => {
+    const r = rig(SITE + '/login?tenant=w1paid1', { state: 'out', claims: {}, down: ['w1paid1.app.example'] })
+    await settle()
+    assert.deepEqual(r.replaced, [])
+    assert.equal(r.notMember.value.tenant, '', 'nothing covers the sign-in page while signed out')
+  })
+  it('047 B5: signed in, host not up: "being prepared", no hop into NXDOMAIN; it hops once the host answers', async () => {
+    const r = rig(SITE + '/login?tenant=w1paid1', { state: 'out', claims: {}, down: ['w1paid1.app.example'] })
+    await settle()
+    r.session.claims = { tenants: [{ tenant_id: 'w1paid1' }] }
+    r.session.state = 'in'
+    await settle()
+    assert.deepEqual(r.replaced, [])
+    assert.deepEqual(r.notMember.value, { tenant: 'w1paid1', home: '', pending: 'w1paid1.app.example' })
+    assert.equal(r.timers.length, 1)
+    assert.equal(r.timers[0].ms, 30000)
+    // still down: the retry schedules the next one
+    await r.timers.shift().fn()
+    assert.deepEqual(r.replaced, [])
+    assert.equal(r.timers.length, 1)
+    // the host is provisioned (and the CSP re-deploy admits it)
+    r.hostsDown.clear()
+    await r.timers.shift().fn()
+    assert.deepEqual(r.replaced, ['https://w1paid1.app.example/'])
+  })
+  it('CONTROL: a hop to the apex tenant is never probed (the apex always answers)', async () => {
+    const r = rig('https://globex.app.example/', { claims: { tenants: [{ tenant_id: 't1' }] } })
+    await settle()
+    assert.equal(r.probed.length, 0)
+  })
+  it('hostAnswers: a response of any kind is up; a thrown fetch or a bad url is down', async () => {
+    assert.equal(await hostAnswers('https://a.app.example/x?y=1', async (u) => { assert.equal(u, 'https://a.app.example/build.json'); return { type: 'opaque' } }), true)
+    assert.equal(await hostAnswers('https://a.app.example/', async () => { throw new TypeError('Failed to fetch') }), false)
+    assert.equal(await hostAnswers('not a url', async () => ({})), false)
   })
   it('turns the link rule on: a same-env tenant host is internal', () => {
     rig(SITE + '/', { state: 'out' })

@@ -3,6 +3,7 @@ Din spool hub-tenant är betald och klar.
 Arbetsyta {{.TenantID}} — logga in på:
 {{.TenantURL}}
 Logga in med {{.Email}} — den adressen äger arbetsytan.
+Arbetsytans egen adress går live inom cirka 30 minuter efter betalningen; fram till dess säger inloggningssidan att den förbereds.
 
 Hämta din tenants ROOT-nyckel genom att öppna den här länken en gång:
 {{.Link}}

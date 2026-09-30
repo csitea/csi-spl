@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Niste član zakupca {tenant}.",
-    "open_mine": "Otvori mog zakupca"
+    "open_mine": "Otvori mog zakupca",
+    "preparing": "Adresa vašeg radnog prostora {host} se priprema — obično oko 30 minuta posle plaćanja. Ova stranica će je otvoriti čim odgovori."
   },
   "picker": {
     "open": "Otvori kalendar",

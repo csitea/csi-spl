@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "{tenant} kiracısının üyesi değilsiniz.",
-    "open_mine": "Kiracımı aç"
+    "open_mine": "Kiracımı aç",
+    "preparing": "Çalışma alanı adresiniz {host} hazırlanıyor — genellikle ödemeden yaklaşık 30 dakika sonra. Bu sayfa, adres yanıt verir vermez onu açar."
   },
   "picker": {
     "open": "Takvimi aç",

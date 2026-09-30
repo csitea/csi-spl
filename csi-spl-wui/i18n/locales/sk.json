@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Nie ste členom nájomníka {tenant}.",
-    "open_mine": "Otvoriť môjho nájomníka"
+    "open_mine": "Otvoriť môjho nájomníka",
+    "preparing": "Adresa vášho pracovného priestoru {host} sa pripravuje — zvyčajne asi 30 minút po platbe. Táto stránka ju otvorí, hneď ako odpovie."
   },
   "picker": {
     "open": "Otvoriť kalendár",

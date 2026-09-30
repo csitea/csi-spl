@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Nu sunteți membru al chiriașului {tenant}.",
-    "open_mine": "Deschide chiriașul meu"
+    "open_mine": "Deschide chiriașul meu",
+    "preparing": "Adresa spațiului dvs. de lucru {host} este în pregătire — de obicei în jur de 30 de minute după plată. Această pagină o va deschide imediat ce răspunde."
   },
   "picker": {
     "open": "Deschide calendarul",

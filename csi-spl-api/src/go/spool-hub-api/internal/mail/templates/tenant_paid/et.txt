@@ -3,6 +3,7 @@ Sinu spool hubi rentnik on makstud ja valmis.
 Tööruum {{.TenantID}} — logi sisse aadressil:
 {{.TenantURL}}
 Logi sisse aadressiga {{.Email}} — see aadress on tööruumi omanik.
+Tööruumi oma aadress hakkab tööle umbes 30 minuti jooksul pärast makset; seni ütleb sisselogimisleht, et seda valmistatakse ette.
 
 Võta oma rentniku ROOT-võti, avades selle lingi üks kord:
 {{.Link}}

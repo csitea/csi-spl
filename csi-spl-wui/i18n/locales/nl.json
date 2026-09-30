@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "U bent geen lid van de huurder {tenant}.",
-    "open_mine": "Mijn huurder openen"
+    "open_mine": "Mijn huurder openen",
+    "preparing": "Het adres van je werkruimte {host} wordt voorbereid — meestal ongeveer 30 minuten na de betaling. Deze pagina opent het zodra het antwoordt."
   },
   "picker": {
     "open": "Kalender openen",

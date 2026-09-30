@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "Et ole vuokralaisen {tenant} jäsen.",
-    "open_mine": "Avaa oma vuokralainen"
+    "open_mine": "Avaa oma vuokralainen",
+    "preparing": "Työtilasi osoitetta {host} valmistellaan — yleensä noin 30 minuuttia maksun jälkeen. Tämä sivu avaa sen heti, kun se vastaa."
   },
   "picker": {
     "open": "Avaa kalenteri",

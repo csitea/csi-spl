@@ -1061,7 +1061,8 @@
   },
   "tenant_host": {
     "not_member": "You are not a member of the tenant {tenant}.",
-    "open_mine": "Open my tenant"
+    "open_mine": "Open my tenant",
+    "preparing": "Your workspace address {host} is being prepared — usually about 30 minutes after the payment. This page opens it as soon as it answers."
   },
   "picker": {
     "open": "Open the calendar",

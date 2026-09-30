@@ -3,6 +3,7 @@ Chiriașul dumneavoastră spool hub este plătit și gata de utilizare.
 Spațiul de lucru {{.TenantID}} — conectați-vă la:
 {{.TenantURL}}
 Conectați-vă cu {{.Email}} — această adresă este proprietarul spațiului de lucru.
+Adresa proprie a spațiului de lucru devine activă în aproximativ 30 de minute de la plată; până atunci, pagina de conectare arată că este în pregătire.
 
 Ridicați cheia ROOT a chiriașului deschizând o singură dată acest link:
 {{.Link}}

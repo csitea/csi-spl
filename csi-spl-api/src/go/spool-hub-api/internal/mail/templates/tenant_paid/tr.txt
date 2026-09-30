@@ -3,6 +3,7 @@ spool hub kiracınız ödendi ve hazır.
 Çalışma alanı {{.TenantID}} — şu adresten giriş yapın:
 {{.TenantURL}}
 {{.Email}} ile giriş yapın — bu adres çalışma alanının sahibidir.
+Çalışma alanının kendi adresi ödemeden yaklaşık 30 dakika içinde yayına girer; o zamana kadar giriş sayfası adresin hazırlandığını söyler.
 
 Kiracınızın ROOT anahtarını almak için bu bağlantıyı bir kez açın:
 {{.Link}}

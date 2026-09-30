@@ -3,6 +3,7 @@ Jūsų spool hub nuomininkas apmokėtas ir paruoštas.
 Darbo sritis {{.TenantID}} — prisijunkite adresu:
 {{.TenantURL}}
 Prisijunkite su {{.Email}} — šis adresas yra darbo srities savininkas.
+Nuosavas darbo srities adresas pradeda veikti per maždaug 30 minučių po apmokėjimo; iki tol prisijungimo puslapis praneša, kad jis ruošiamas.
 
 Atsiimkite nuomininko ROOT raktą vieną kartą atidarę šią nuorodą:
 {{.Link}}

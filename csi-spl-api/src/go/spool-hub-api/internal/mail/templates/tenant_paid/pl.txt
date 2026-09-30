@@ -3,6 +3,7 @@ Twoja dzierżawa spool hub jest opłacona i gotowa.
 Obszar roboczy {{.TenantID}} — zaloguj się pod adresem:
 {{.TenantURL}}
 Zaloguj się adresem {{.Email}} — ten adres jest właścicielem obszaru roboczego.
+Własny adres obszaru roboczego zaczyna działać w ciągu około 30 minut od płatności; do tego czasu strona logowania informuje, że jest przygotowywany.
 
 Odbierz klucz ROOT dzierżawy, otwierając ten link jeden raz:
 {{.Link}}

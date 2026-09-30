@@ -179,14 +179,14 @@ func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until 
 	return out, nil
 }
 
-func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
+func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fb.init()
 	var ms []*Message
 	for k, m := range s.messages {
 		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
-			!m.ReceivedAt.Before(until) {
+			m.ReceivedAt.Before(since) || !m.ReceivedAt.Before(until) {
 			continue
 		}
 		d, ok := s.fb.delivered[k]

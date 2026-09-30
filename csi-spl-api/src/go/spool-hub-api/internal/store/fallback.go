@@ -77,7 +77,10 @@ type Fallbacks interface {
 	// attempts, received before until, and still no reply in the topic. The
 	// relay re-poke + rotates the responder for these so one refused poke to a
 	// busy responder is not permanent silence (SPL-1225 miss fix, 4b0ba40a).
-	ReescalatablePosts(ctx context.Context, tenantID string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error)
+	// The since lower bound keeps it from digging up ANCIENT posts (an old
+	// SPL-997 fallback row on a days-old probe post) once re-escalation was
+	// added: only posts received in [since, until) are re-escalated.
+	ReescalatablePosts(ctx context.Context, tenantID string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error)
 	// BumpFallback records a re-escalation: advances delivered_at, increments
 	// attempts and rewrites the target, only while attempts < maxAttempts (the
 	// claim that hands a re-escalation out once across hub processes). Reports

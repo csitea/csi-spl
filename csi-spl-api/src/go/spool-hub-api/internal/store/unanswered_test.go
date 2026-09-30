@@ -126,13 +126,19 @@ func TestReescalatablePosts(t *testing.T) {
 			until := time.Now().UTC()
 			const maxAtt = 3
 			// Not yet re-escalatable: last attempt is newer than escalatedBefore.
-			if got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(time.Minute), until, maxAtt, 20); err != nil || len(got) != 0 {
+			if got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(-time.Minute), t0.Add(time.Minute), until, maxAtt, 20); err != nil || len(got) != 0 {
 				t.Fatalf("too-recent attempt must not re-escalate: got %d err %v", len(got), err)
 			}
 			// Due once escalatedBefore passes the attempt.
-			got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(5*time.Minute), until, maxAtt, 20)
+			got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(-time.Minute), t0.Add(5*time.Minute), until, maxAtt, 20)
 			if err != nil || len(got) != 1 || got[0].MsgID != post.MsgID {
 				t.Fatalf("want the post re-escalatable: got %d err %v", len(got), err)
+			}
+			// CONTROL (side effect fix): the age bound. The same due post is NOT
+			// re-escalated when it is older than `since` - an ancient probe post
+			// with a stale SPL-997 fallback row must never be dug up.
+			if old, err := fb.ReescalatablePosts(ctx, tid, t0.Add(time.Minute), t0.Add(5*time.Minute), until, maxAtt, 20); err != nil || len(old) != 0 {
+				t.Fatalf("a post older than the since bound must not re-escalate: got %d err %v", len(old), err)
 			}
 			// Bump to attempt 2, then 3; the 3rd bump reaches the cap.
 			for att := 2; att <= maxAtt; att++ {
@@ -142,7 +148,7 @@ func TestReescalatablePosts(t *testing.T) {
 				}
 			}
 			// CONTROL: at the cap, no more re-escalation and no more bumps.
-			if got, err := fb.ReescalatablePosts(ctx, tid, until, until, maxAtt, 20); err != nil || len(got) != 0 {
+			if got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(-time.Minute), until, until, maxAtt, 20); err != nil || len(got) != 0 {
 				t.Fatalf("capped post must not re-escalate: got %d err %v", len(got), err)
 			}
 			if won, err := fb.BumpFallback(ctx, FallbackDelivery{TenantID: tid, MsgID: post.MsgID, Box: "box-desk", Agent: "CLE-001", DeliveredAt: until}, maxAtt); err != nil || won {
@@ -161,7 +167,7 @@ func TestReescalatablePosts(t *testing.T) {
 			if _, err := s.InsertMessage(ctx, reply); err != nil {
 				t.Fatal(err)
 			}
-			got, err = fb.ReescalatablePosts(ctx, tid, until, until, maxAtt, 20)
+			got, err = fb.ReescalatablePosts(ctx, tid, t0.Add(-time.Minute), until, until, maxAtt, 20)
 			for _, q := range got {
 				if q.MsgID == ans.MsgID {
 					t.Fatalf("an answered post must not be re-escalatable")

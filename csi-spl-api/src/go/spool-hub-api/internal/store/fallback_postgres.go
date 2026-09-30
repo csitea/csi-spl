@@ -123,11 +123,11 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 // than maxAttempts attempts, and still no reply in the topic (SPL-1225 miss
 // fix, prd t1 4b0ba40a). The relay re-poke + rotates the responder for these.
 // Unlike UnansweredPosts this REQUIRES a fallback row and reads its attempts.
-func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
+func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
 	var out []Queued
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, f.agent_id FROM messages m
 		JOIN fallback_deliveries f ON f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id
-		WHERE m.tenant_id = $1 AND m.received_at < $3
+		WHERE m.tenant_id = $1 AND m.received_at >= $6 AND m.received_at < $3
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
 		  AND f.delivered_at < $2 AND f.attempts < $5
 		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
@@ -138,7 +138,7 @@ func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, escala
 		                    AND r.received_at > m.received_at
 		                    AND r.from_box <> 'box-wui'
 		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')
-		ORDER BY f.delivered_at, m.msg_id LIMIT $4`, []any{tenant, escalatedBefore, until, limit, maxAttempts},
+		ORDER BY f.delivered_at, m.msg_id LIMIT $4`, []any{tenant, escalatedBefore, until, limit, maxAttempts, since},
 		func(rows pgx.Rows) error {
 			var q Queued
 			if err := rows.Scan(&q.MsgID, &q.Env, &q.LastAgent); err != nil {

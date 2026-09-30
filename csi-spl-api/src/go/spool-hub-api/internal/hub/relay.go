@@ -157,7 +157,7 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 		return
 	}
 	for _, tenant := range tenants {
-		posts, err := fb.ReescalatablePosts(ctx, tenant, now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
+		posts, err := fb.ReescalatablePosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay reescalatable posts")
 			continue

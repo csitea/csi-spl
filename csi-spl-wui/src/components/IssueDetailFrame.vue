@@ -8,6 +8,7 @@
      Content only goes in the default slot, so neither frame knows an issue. -->
 <template>
   <UiDialog v-if="modal" :open="open" :title="title" size="lg" @update:open="onOpen">
+    <template v-if="$slots.tools" #tools><slot name="tools" /></template>
     <slot />
   </UiDialog>
   <aside v-else-if="open" v-bind="$attrs"><slot /></aside>

@@ -11,7 +11,7 @@
       v-if="open"
       ref="root"
       class="issue-menu"
-      :class="{ 'touch-sheet': sheet }"
+      :class="{ 'touch-sheet': sheet, 'issue-menu--over-modal': overModal }"
       data-testid="issue-menu"
       data-test="issues-ctxmenu"
       @keydown="onMenuKey"
@@ -51,6 +51,9 @@ const props = defineProps<{
   x: number
   y: number
   items: IssueMenuItem[]
+  /** CLE-77806: lift above the issue modal (the actions menu opened from its
+      header). The desktop popover sits at --z-overlay, below --z-modal. */
+  overModal?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -148,6 +151,8 @@ function choose(id: string) {
   box-shadow: 0 12px 32px rgb(0 0 0 / .35);
   padding: 4px 0;
 }
+/* CLE-77806: over the issue modal (opened from its header actions button) */
+.issue-menu.issue-menu--over-modal { z-index: calc(var(--z-modal) + 2); }
 .issue-menu__items { list-style: none; margin: 0; padding: 0; }
 .issue-menu__item {
   appearance: none;

@@ -584,180 +584,228 @@
       :aria-label="t('issues.title')"
       @close="closeDetail"
     >
+      <!-- CLE-77806 (owner, topic 260d2cbb): the issue's actions live in the
+           modal header (⋯ -> Copy link / Status / Assignee / Archive / Delete),
+           so Delete left the body. Desktop only; the phone header carries its own. -->
+      <template v-if="!phone && detail && !creating" #tools>
+        <button type="button" class="issues-detail__menu" data-test="issues-detail-actions" :aria-label="t('issues_menu.label')" :title="t('issues_menu.label')" aria-haspopup="menu" @click="openDetailMenu($event)">
+          <UiIcon name="menu" :size="18" />
+        </button>
+      </template>
       <div v-if="form" class="issues-detail-in" data-test="issues-detail" :data-modal="phone ? 'false' : 'true'">
       <header v-if="phone" class="issues-detail__h">
         <!-- SPL-992: level 3 on a phone - Back goes to the list, like browser Back and a swipe right -->
         <MobileBack class="issues-mback" data-test="issues-detail-back" />
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
+        <span class="issues-detail__hgap" />
+        <button v-if="detail && !creating" type="button" class="issues-detail__menu" data-test="issues-detail-actions" :aria-label="t('issues_menu.label')" :title="t('issues_menu.label')" aria-haspopup="menu" @click="openDetailMenu($event)">
+          <UiIcon name="menu" :size="20" />
+        </button>
       </header>
-      <input
-        ref="titleEl"
-        class="issues-detail__title"
-        data-test="issues-detail-title"
-        :value="form.title"
-        :placeholder="t('issues.title_placeholder')"
-        :aria-label="t('issues.title_placeholder')"
-        @input="onDraftInput($event, 'title')"
-        @change="onTitle"
-      >
-      <!-- SPL-975: rendered markdown; a click or `e` edits, a click elsewhere saves -->
-      <IssueDescription
-        ref="descEl"
-        :key="form.key || 'new'"
-        :text="form.description"
-        :save="saveDescription"
-        :keep-open="creating"
-        @draft="onDescriptionDraft"
-        @submit="onDescriptionSubmit"
-      />
-      <div class="issues-props">
-        <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
-          <span>{{ t('issues.kind_' + draft.kind) }}</span>
-        </button>
-        <button v-if="!isTopKind(form.kind) && form.kind !== 'subtask'" type="button" class="issues-prop" data-test="issues-epic" @click="openMenu('epic', detailOrDraft(), $event)">
-          <span>{{ form.epic ? epicLabel(form.epic) : t('issues.no_epic') }}</span>
-        </button>
-        <button v-if="form.kind === 'subtask' && detail" type="button" class="issues-prop" data-test="issues-parent" @click="openParent">
-          <span>{{ t('issues.parent_issue') }}: {{ detail.parent }}</span>
-        </button>
-        <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
-          <IssueGlyph :name="statusIcon(form.status)" :size="16" />
-          <span class="issues-status-host" :title="t(statusHintKey(form.status))">
-            <span class="issues-status-code">{{ statusLabel(form.status) }}</span>
-            <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(form.status)) }}</span>
-          </span>
-        </button>
-        <!-- owner, topic e0f6f074 (SPL-972): a select box, like the sheet's prio cells -->
-        <!-- SPL-992: on a phone prio and level are buttons that open a bottom sheet -->
-        <button v-if="phone" type="button" class="issues-prop" data-test="issues-priority-btn" :data-priority="form.priority" @click="openMenu('priority', detailOrDraft(), $event)">
-          <span>{{ t('issues.field_priority') }}</span> <span class="issues-prio" :class="'issues-prio--' + form.priority">{{ form.priority }}</span>
-        </button>
-        <label v-else class="issues-prop issues-prop--select">
-          <span>{{ t('issues.field_priority') }}</span>
-          <select class="issues-cell-select" data-test="issues-priority" :aria-label="t('issues.field_priority')" :value="String(form.priority)" @keydown.stop @change="onDetailPriority">
-            <option v-for="n in ISSUE_PRIORITIES" :key="'dp' + n" :value="String(n)">{{ n }}</option>
-          </select>
-        </label>
-        <!-- SPL-992: the sheet's level move (SPL-972), for a phone that has no sheet -->
-        <button v-if="phone && !creating" type="button" class="issues-prop" data-test="issues-level-btn" :data-level="form.level" @click="openMenu('level', detailOrDraft(), $event)">
-          {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
-        </button>
-        <!-- SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it, nobody picks it -->
-        <span v-else class="issues-prop issues-prop--fixed" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
-          {{ t('issues.field_level') }} <span class="issues-level">{{ levelShort(form.level) }}</span>
-        </span>
-        <button type="button" class="issues-prop" data-test="issues-assignee" @click="openMenu('assign', detailOrDraft(), $event)">
-          <SpoolAvatar v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" :size="20" />
-          <HumanName v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" />
-          <span v-else>{{ t('issues.no_assignee') }}</span>
-        </button>
-        <button type="button" class="issues-prop" data-test="issues-labels" @click="openMenu('label', detailOrDraft(), $event)">
-          <span>{{ activeLabels.length ? activeLabels.map(labelText).join(', ') : t('issues.field_labels') }}</span>
-        </button>
-        <!-- owner, topic 778ad161: a calendar (month grid) plus a 24-hour time,
-             shown and typed as YYYY-MM-DD HH:MM in every locale -->
-        <div class="issues-field" role="group" :aria-label="t('issues.field_deadline')">
-          <span>{{ t('issues.field_deadline') }}</span>
-          <DeadlinePicker
-            class="issues-deadline"
-            :model-value="form.deadline"
-            :label="t('issues.field_deadline')"
-            test-id="issues-deadline"
-            time-test-id="issues-deadline-time"
-            @update:model-value="applyDeadline"
-          />
-        </div>
-      </div>
-      <!-- SPL-1027: the opened issue can be deleted too (the same confirm as the row).
-           Not in the dialog's header: focus opens on its X, never on a delete -->
-      <button v-if="detail && !creating" type="button" class="issues-prop issues-row-delete issues-detail-del" data-test="issues-detail-delete" @click="askDelete(detail)">
-        <UiIcon name="delete" :size="16" /><span>{{ t('issues_crud.delete') }}</span>
-      </button>
-      <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
-      <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
-      <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
-      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
-      <!-- SPL-18 level 3: a level-2 issue's subtasks, in the right pane -->
-      <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
-        <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
-        <div class="issues-subs__h">
-          <h3>{{ t('issues.subtasks') }}</h3>
-          <button
-            type="button"
-            class="issues-sub-add"
-            data-test="issues-subtask-open"
-            :title="t('issues.add_subtask')"
-            :aria-label="t('issues.add_subtask')"
-            aria-haspopup="dialog"
-            @click="subtaskOpen = true"
+      <!-- CLE-77806 (owner, topic 260d2cbb): two columns above 820 px - the
+           left ~70% holds title + description + subtasks + discussion, the right
+           ~30% is the property panel (one control per row, label|value aligned).
+           On a phone the panel stacks below the description (single column). -->
+      <div class="issues-detail-cols">
+        <div class="issues-detail-main">
+          <input
+            ref="titleEl"
+            class="issues-detail__title"
+            data-test="issues-detail-title"
+            :value="form.title"
+            :placeholder="t('issues.title_placeholder')"
+            :aria-label="t('issues.title_placeholder')"
+            @input="onDraftInput($event, 'title')"
+            @change="onTitle"
           >
-            <UiIcon name="subtask-add" :size="18" />
-          </button>
-        </div>
-        <button
-          v-for="sub in subtasks"
-          :key="sub.key"
-          type="button"
-          class="issues-sub"
-          data-test="issues-subtask"
-          :data-key="sub.key"
-          :data-status="sub.status"
-          @click="choose(sub)"
-        >
-          <IssueGlyph :name="statusIcon(sub.status)" :size="14" />
-          <span class="issues-key">{{ sub.key }}</span>
-          <span class="issues-title">{{ sub.title }}</span>
-        </button>
-        <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
-             already open, so UiDialog's open watch never runs (no focus, no trap) -->
-        <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
-      </section>
-      <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
-        <!-- SPL-963: the discussion sits in the right pane and takes its titles / 5 rows / full -->
-        <div class="issues-talk__h">
-          <h3>{{ t('issues.discussion') }}</h3>
-          <LazyCardClipControl pane="thread" />
-        </div>
-        <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
-        <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
-             other one: the same header, the emoji 5px after the time, reactions,
-             the row menu, and the thread's titles / 5 rows / full clip -->
-        <MessageCard
-          v-for="c in comments"
-          :key="c.msg_id"
-          class="issues-comment"
-          data-test="issues-comment"
-          :data-clip-mode="clipMode"
-          :msg="c"
-          :clip-mode="clipMode"
-          :editable="canEdit(c)"
-          @edited="onCommentEdited"
-          @deleted="onCommentDeleted"
-          @reacted="onCommentReacted"
-        />
-        <label class="issues-field">
-          <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
-          <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
-               sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
-          <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
-          <span class="mention-anchor">
-            <textarea
-              ref="commentEl"
-              v-model="commentText"
-              data-test="issues-comment-input"
-              rows="2"
-              :placeholder="t(sk('issues_view.comment_hint'))"
-              :disabled="busy"
-              @input="commentMp.sync"
-              @click="commentMp.sync"
-              @keyup="commentMp.sync"
-              @blur="commentMp.close(); onCommentBlur()"
-              @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
+          <!-- SPL-975: rendered markdown; a click or `e` edits, a click elsewhere saves -->
+          <IssueDescription
+            ref="descEl"
+            :key="form.key || 'new'"
+            class="issues-detail-desc"
+            :text="form.description"
+            :save="saveDescription"
+            :keep-open="creating"
+            @draft="onDescriptionDraft"
+            @submit="onDescriptionSubmit"
+          />
+          <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
+          <button v-if="creating" type="button" class="btn issues-detail-create" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
+          <!-- SPL-18: a level-2 issue's subtasks -->
+          <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
+            <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
+            <div class="issues-subs__h">
+              <h3>{{ t('issues.subtasks') }}</h3>
+              <button
+                type="button"
+                class="issues-sub-add"
+                data-test="issues-subtask-open"
+                :title="t('issues.add_subtask')"
+                :aria-label="t('issues.add_subtask')"
+                aria-haspopup="dialog"
+                @click="subtaskOpen = true"
+              >
+                <UiIcon name="subtask-add" :size="18" />
+              </button>
+            </div>
+            <button
+              v-for="sub in subtasks"
+              :key="sub.key"
+              type="button"
+              class="issues-sub"
+              data-test="issues-subtask"
+              :data-key="sub.key"
+              :data-status="sub.status"
+              @click="choose(sub)"
+            >
+              <IssueGlyph :name="statusIcon(sub.status)" :size="14" />
+              <span class="issues-key">{{ sub.key }}</span>
+              <span class="issues-title">{{ sub.title }}</span>
+            </button>
+            <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
+                 already open, so UiDialog's open watch never runs (no focus, no trap) -->
+            <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
+          </section>
+          <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
+            <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
+            <div class="issues-talk__h">
+              <h3>{{ t('issues.discussion') }}</h3>
+              <LazyCardClipControl pane="thread" />
+            </div>
+            <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
+            <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
+                 other one: the same header, the emoji 5px after the time, reactions,
+                 the row menu, and the thread's titles / 5 rows / full clip -->
+            <MessageCard
+              v-for="c in comments"
+              :key="c.msg_id"
+              class="issues-comment"
+              data-test="issues-comment"
+              :data-clip-mode="clipMode"
+              :msg="c"
+              :clip-mode="clipMode"
+              :editable="canEdit(c)"
+              @edited="onCommentEdited"
+              @deleted="onCommentDeleted"
+              @reacted="onCommentReacted"
             />
-            <MentionList :picker="commentMp" placement="above" />
-          </span>
-        </label>
-      </section>
+            <label class="issues-field">
+              <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
+              <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
+                   sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
+              <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+              <span class="mention-anchor">
+                <textarea
+                  ref="commentEl"
+                  v-model="commentText"
+                  data-test="issues-comment-input"
+                  rows="2"
+                  :placeholder="t(sk('issues_view.comment_hint'))"
+                  :disabled="busy"
+                  @input="commentMp.sync"
+                  @click="commentMp.sync"
+                  @keyup="commentMp.sync"
+                  @blur="commentMp.close(); onCommentBlur()"
+                  @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
+                />
+                <MentionList :picker="commentMp" placement="above" />
+              </span>
+            </label>
+          </section>
+        </div>
+        <!-- the property panel: one property per row, label | control, aligned -->
+        <aside class="issues-detail-side" data-test="issues-detail-side">
+          <div class="issues-panel" data-test="issues-props">
+            <!-- Parent (an epic for an issue/feature, the parent for a subtask) -->
+            <div v-if="(!isTopKind(form.kind) && form.kind !== 'subtask') || (form.kind === 'subtask' && detail)" class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.parent_issue') }}</span>
+              <button v-if="!isTopKind(form.kind) && form.kind !== 'subtask'" type="button" class="issues-pctl" data-test="issues-epic" @click="openMenu('epic', detailOrDraft(), $event)">
+                <span class="issues-pctl__v">{{ form.epic ? epicLabel(form.epic) : t('issues.no_epic') }}</span>
+              </button>
+              <button v-else type="button" class="issues-pctl" data-test="issues-parent" @click="openParent">
+                <span class="issues-pctl__v">{{ detail ? detail.parent : '' }}</span>
+              </button>
+            </div>
+            <!-- Status -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_status') }}</span>
+              <button type="button" class="issues-pctl issues-pctl--status" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
+                <IssueGlyph :name="statusIcon(form.status)" :size="16" />
+                <span class="issues-status-host" :title="t(statusHintKey(form.status))">
+                  <span class="issues-status-code">{{ statusLabel(form.status) }}</span>
+                  <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(form.status)) }}</span>
+                </span>
+              </button>
+            </div>
+            <!-- Priority. owner, topic e0f6f074 (SPL-972): a select box on desktop;
+                 SPL-992: on a phone a button that opens a bottom sheet -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_priority') }}</span>
+              <button v-if="phone" type="button" class="issues-pctl" data-test="issues-priority-btn" :data-priority="form.priority" @click="openMenu('priority', detailOrDraft(), $event)">
+                <span class="issues-prio" :class="'issues-prio--' + form.priority">{{ form.priority }}</span>
+              </button>
+              <select v-else class="issues-pctl issues-cell-select" data-test="issues-priority" :aria-label="t('issues.field_priority')" :value="String(form.priority)" @keydown.stop @change="onDetailPriority">
+                <option v-for="n in ISSUE_PRIORITIES" :key="'dp' + n" :value="String(n)">{{ n }}</option>
+              </select>
+            </div>
+            <!-- Level. SPL-949: derived from the tree; nobody picks it (a phone
+                 without a sheet gets a button, SPL-992) -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_level') }}</span>
+              <button v-if="phone && !creating" type="button" class="issues-pctl" data-test="issues-level-btn" :data-level="form.level" @click="openMenu('level', detailOrDraft(), $event)">
+                <span class="issues-level">{{ levelShort(form.level) }}</span>
+              </button>
+              <span v-else class="issues-pval" data-test="issues-level" :data-level="form.level" :title="t(levelKey(form.level))">
+                <span class="issues-level">{{ levelShort(form.level) }}</span>
+              </span>
+            </div>
+            <!-- Assignee -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_assignee') }}</span>
+              <button type="button" class="issues-pctl" data-test="issues-assignee" @click="openMenu('assign', detailOrDraft(), $event)">
+                <SpoolAvatar v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" :size="20" />
+                <HumanName v-if="activeAssignee" :id="activeAssignee" :box="boxOf(activeAssignee)" />
+                <span v-else class="issues-pctl__v">{{ t('issues.no_assignee') }}</span>
+              </button>
+            </div>
+            <!-- Kind. Editable while creating (SPL cycle epic/feature/issue),
+                 read-only once the tree fixes it -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_kind') }}</span>
+              <button v-if="creating" type="button" class="issues-pctl" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
+                <span class="issues-pctl__v">{{ t('issues.kind_' + draft.kind) }}</span>
+              </button>
+              <span v-else class="issues-pval" data-test="issues-kind" :data-kind="form.kind">
+                <span class="issues-pctl__v">{{ t('issues.kind_' + form.kind) }}</span>
+              </span>
+            </div>
+            <!-- Deadline. owner, topic 778ad161: a calendar plus a 24-hour time,
+                 shown and typed as YYYY-MM-DD HH:MM in every locale -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_deadline') }}</span>
+              <DeadlinePicker
+                class="issues-deadline"
+                :model-value="form.deadline"
+                :label="t('issues.field_deadline')"
+                test-id="issues-deadline"
+                time-test-id="issues-deadline-time"
+                @update:model-value="applyDeadline"
+              />
+            </div>
+            <!-- Labels -->
+            <div class="issues-prow">
+              <span class="issues-prow__k">{{ t('issues.field_labels') }}</span>
+              <button type="button" class="issues-pctl" data-test="issues-labels" @click="openMenu('label', detailOrDraft(), $event)">
+                <span class="issues-pctl__v">{{ activeLabels.length ? activeLabels.map(labelText).join(', ') : t('issues.add_label') }}</span>
+              </button>
+            </div>
+          </div>
+          <div v-if="!creating && (form.created_by || form.updated_by)" class="issues-detail-meta">
+            <p v-if="form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
+            <p v-if="form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
+          </div>
+        </aside>
+      </div>
       </div>
     </IssueDetailFrame>
     <UiConfirm
@@ -782,6 +830,7 @@
       :x="ctxPoint.x"
       :y="ctxPoint.y"
       :items="ctxItems"
+      :over-modal="ctxOverModal"
       @close="onCtxClose"
       @choose="onCtxChoose"
     />
@@ -992,6 +1041,9 @@ const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtx
    right-click. Then it omits "Open" (the epic is already the view) and it
    right-aligns under the button. */
 const ctxFromButton = ref(false)
+/* CLE-77806: the same menu opened from the open issue's header actions button,
+   which floats over the modal - the popover has to sit above --z-modal. */
+const ctxOverModal = ref(false)
 const { copy: copyText } = useCopyText()
 const actConfirm = ref<{ target: IssueMenuTarget, action: 'archive' | 'delete', count: number } | null>(null)
 const actBusy = ref(false)
@@ -1546,13 +1598,28 @@ function openMenu(kind: string, issue: Issue, ev?: Event) {
   if (issue?.key && issue.key !== 'draft') cursorKey.value = issue.key
   const el = ev && (ev.currentTarget as HTMLElement)
   const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null
+  /* open aligned under the trigger; the real right-edge clamp runs once the
+     menu has a measured width (CLE-77806: the property panel sits near the
+     viewport's right edge, so a fixed guess over-shifted the picker there). */
   menuPos.value = {
     top: r ? r.bottom + 4 : 120,
-    left: Math.max(8, r ? Math.min(r.left, window.innerWidth - 240) : 80),
+    left: Math.max(8, r ? r.left : 80),
   }
   menu.value = { kind, key: issue?.key || '' }
   menuIndex.value = 0
   labelName.value = ''
+  void nextTick(clampMenuIntoView)
+}
+/* keep the open picker inside the viewport by its actual width, shifting left
+   only when it would truly overflow the right edge (a phone sheet is full-width
+   via CSS, so its inline left is ignored - nothing to clamp). */
+function clampMenuIntoView() {
+  if (phone.value) return
+  const el = document.querySelector('[data-test=issues-menu]') as HTMLElement | null
+  if (!el) return
+  const w = el.getBoundingClientRect().width
+  const maxLeft = window.innerWidth - 8 - w
+  if (menuPos.value.left > maxLeft) menuPos.value.left = Math.max(8, maxLeft)
 }
 function scrollSelected() {
   const scroller = scrollerEl.value
@@ -1896,7 +1963,9 @@ const ctxItems = computed<IssueMenuItem[]>(() => {
   /* from the title-row button the epic is already the open view - no "Open" */
   if (!ctxFromButton.value) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
   items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
-  if (!tg.top) {
+  /* CLE-77806: from the open issue's header menu, status and assignee already
+     have their own rows in the property panel - no need to repeat them here */
+  if (!tg.top && !ctxOverModal.value) {
     items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
     items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
   }
@@ -1913,7 +1982,18 @@ function openEpicMenu(ev: MouseEvent) {
   ctxFromButton.value = true
   openCtxMenu(tg, Math.max(8, r.right - 176), r.bottom + 4)
 }
-function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false }
+/* CLE-77806 (owner, topic 260d2cbb): the open issue's actions live in the modal
+   header (⋯), not as a Delete button in the body. It opens the same shared menu
+   - Copy link / Status / Assignee / Archive / Delete - aimed at the open issue,
+   dropped just under the button and lifted above the modal. */
+function openDetailMenu(ev: MouseEvent) {
+  if (!detail.value) return
+  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  ctxFromButton.value = true
+  ctxOverModal.value = true
+  openCtxMenu(issueTarget(detail.value), Math.max(8, r.right - 176), r.bottom + 4)
+}
+function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false; ctxOverModal.value = false }
 /* the shareable link for a menu target: an epic/feature opens its filtered
    view (?epic=), a plain issue deep-links itself (?issue=) */
 function issueLinkFor(tg: IssueMenuTarget): string {
@@ -1940,6 +2020,10 @@ function onCtxChoose(id: string) {
     menuPos.value = { top: pt.y, left: Math.max(8, Math.min(pt.x, window.innerWidth - 240)) }
     return
   }
+  /* CLE-77806: from the modal header, Delete removes the one open issue with the
+     same single-issue confirm the body's Delete button used (which refuses when
+     it still has live subtasks); Archive keeps the shared cascade path. */
+  if (id === 'delete' && ctxOverModal.value && detail.value) { askDelete(detail.value); return }
   if (id === 'archive' || id === 'delete') askAction(id, tg)
 }
 /* the count the confirm states: for an epic / feature the issues under it, else
@@ -2724,7 +2808,74 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   min-width: 0;
   padding: 12px;
 }
-.issues-detail-in[data-modal="true"] { padding: 16px 20px 20px; max-width: 880px; margin-inline: auto; box-sizing: border-box; width: 100%; }
+.issues-detail-in[data-modal="true"] { padding: 16px 20px 20px; max-width: 1040px; margin-inline: auto; box-sizing: border-box; width: 100%; }
+/* CLE-77806 (owner, topic 260d2cbb): the modal is two columns above 820 px -
+   description ~70% left, the property panel ~30% right. A phone (aside) keeps
+   the single column, so this only shapes the modal. */
+.issues-detail-in[data-modal="true"] .issues-detail-cols { display: flex; flex-direction: row; align-items: flex-start; gap: 24px; }
+.issues-detail-in[data-modal="true"] .issues-detail-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.issues-detail-in[data-modal="true"] .issues-detail-side { flex: 0 0 clamp(240px, 30%, 320px); min-width: 0; }
+.issues-detail-in[data-modal="true"] .issues-detail-side { border-inline-start: 1px solid var(--color-border); padding-inline-start: 20px; }
+/* the phone stacks: main then the panel, one column */
+.issues-detail-cols { display: flex; flex-direction: column; gap: 12px; }
+.issues-detail-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-detail-desc { min-height: 6.5rem; }
+.issues-detail-create { align-self: flex-start; }
+/* the property panel: one property per row, label | control aligned in a grid.
+   Every row uses the same track sizes, so the label edges and the control left
+   edges line up down the panel (owner: "vertically aligned"). */
+.issues-panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-prow { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; column-gap: 10px; min-width: 0; }
+.issues-prow__k { font-size: 0.75rem; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; }
+.issues-pctl, .issues-pval {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font: inherit;
+  text-align: start;
+  min-width: 0;
+}
+button.issues-pctl { cursor: pointer; }
+button.issues-pctl:hover, select.issues-pctl:hover { border-color: var(--color-border-strong); }
+button.issues-pctl:focus-visible, select.issues-pctl:focus-visible { border-color: var(--color-accent); outline: none; }
+.issues-pval { cursor: default; background: transparent; }
+.issues-pctl__v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+select.issues-pctl { appearance: auto; }
+/* the status tooltip drops under the control, like the old chip's (was .issues-prop) */
+.issues-pctl--status { position: relative; }
+.issues-pctl .issues-status-tip { left: auto; right: 0; top: calc(100% + 4px); transform: none; }
+.issues-pctl .issues-status-host { min-width: 0; overflow: hidden; }
+.issues-pctl .issues-status-code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the deadline picker fills its row's control column; the text input shrinks so
+   the calendar button always stays inside the panel */
+.issues-prow .issues-deadline { width: 100%; flex-wrap: nowrap; }
+.issues-prow .issues-deadline :deep(.dlp__text) { flex: 1 1 auto; min-width: 0; }
+.issues-detail-meta { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 2px; }
+/* CLE-77806: the header actions button (⋯), in the dialog header on desktop and
+   in the phone's top bar */
+.issues-detail__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.issues-detail__menu:hover, .issues-detail__menu:focus-visible { color: var(--color-fg); border-color: var(--color-border); outline: none; }
+.issues-detail__hgap { flex: 1 1 auto; }
 /* SPL-1027: the sheet's CRUD cells */
 .issues-c-act { width: 1%; white-space: nowrap; text-align: center; }
 .issues-cell-input {
@@ -2967,7 +3118,8 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   }
   .issues-detail__h { justify-content: flex-start; }
   .issues-detail__title { min-height: var(--tap, 44px); }
-  .issues-prop, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }
+  .issues-prop, .issues-pctl, .issues-pval, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }
+  .issues-detail__menu { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   .issues-sub-add { min-width: var(--tap, 44px); }
   /* the sheets: filters, sort and every picker */
   .issues-scrim { position: fixed; inset: 0; z-index: 38; background: rgb(0 0 0 / .4); }

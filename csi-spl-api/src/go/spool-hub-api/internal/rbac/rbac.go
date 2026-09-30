@@ -153,6 +153,18 @@ func (a Access) Covers(r Role) bool {
 	return true
 }
 
+// CoversAccess reports perms(b) ⊆ perms(a). With the strict form (a covers b
+// AND b does not cover a) it is the act-as role ceiling (specs/054): an admin
+// may clone a strictly-lower member, never a peer admin or the owner.
+func (a Access) CoversAccess(b Access) bool {
+	for p, ok := range b.Perms {
+		if ok && !a.Perms[p] {
+			return false
+		}
+	}
+	return true
+}
+
 // Source is the store side: the human's role (ErrNotMember when none) and the
 // roles visible to a tenant.
 type Source interface {

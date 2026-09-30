@@ -175,8 +175,9 @@ type Handler struct {
 	avatars    AvatarSource
 	prefs      Preferences
 	federated  FederatedLookup
-	defLocale  string  // SPOOL_HUB_DEFAULT_LOCALE (i18n)
-	native     *native // spec 015; nil = native sign-in off
+	defLocale  string        // SPOOL_HUB_DEFAULT_LOCALE (i18n)
+	native     *native       // spec 015; nil = native sign-in off
+	imp        Impersonation // specs/054 act-as; nil = act-as routes off
 	now        func() time.Time
 	pageTenant func(*http.Request) string // SPL-959; nil = off
 }
@@ -204,8 +205,11 @@ type Options struct {
 	// PageTenant names the tenant of the WUI page a request comes from (its
 	// tenant host, SPL-959); nil or "" = the session's `t` decides, as before.
 	PageTenant func(*http.Request) string
-	HTTP       *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now        func() time.Time
+	// Impersonation backs the act-as routes (specs/054); nil = they are not
+	// mounted (e.g. the memory store, which has no clone support).
+	Impersonation Impersonation
+	HTTP          *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now           func() time.Time
 }
 
 // New builds the handler from a validated Config.
@@ -213,7 +217,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
 		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
-		federated: o.Federated, now: o.Now,
+		federated: o.Federated, now: o.Now, imp: o.Impersonation,
 		defLocale: o.DefaultLocale, pageTenant: o.PageTenant,
 	}
 	if h.now == nil {
@@ -240,6 +244,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)
 	mux.HandleFunc("POST "+RoutePrefix+"tenant", h.switchTenant) // specs/026 §6
+	if h.imp != nil {
+		mux.HandleFunc("POST "+RoutePrefix+"act-as", h.startActAs)     // specs/054
+		mux.HandleFunc("POST "+RoutePrefix+"act-as/exit", h.stopActAs) // specs/054
+	}
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
 	h.registerFacebookCallbacks(mux)

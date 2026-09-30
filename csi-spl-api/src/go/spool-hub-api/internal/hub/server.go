@@ -405,6 +405,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			if r.Expired+r.Purged > 0 {
 				s.o.Log.Info().Int("expired", r.Expired).Int("purged", r.Purged).Msg("retention sweep")
 			}
+			s.sweepClones(ctx)
 		}
 	}
 }

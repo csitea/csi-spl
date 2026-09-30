@@ -335,6 +335,7 @@ func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/me", s.handleViewMe)
 	mux.HandleFunc("GET /v1/members", s.handleMemberList)
+	mux.HandleFunc("GET /v1/audit/clones", s.handleAuditClones) // specs/054
 	mux.HandleFunc("POST /v1/members/invites", s.handleMemberInvite)
 	mux.HandleFunc("DELETE /v1/members/invites", s.handleInviteRevoke)
 	mux.HandleFunc("PUT /v1/members/{human_id}/role", s.handleMemberRole)

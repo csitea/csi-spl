@@ -148,7 +148,8 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	// preferred_locale lives on the human (rdb 0017); the default
 	// locale is cnf, validated by LoadHub.
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
-		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request})
+		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request,
+		Impersonation: hub.NewActAs(st, 0, nil)}) // specs/054 act-as; nil under the memory store
 	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
 	if err := enableNativeSignIn(opts.Auth, nc, st, log); err != nil {
 		return opts, err

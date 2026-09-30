@@ -306,6 +306,72 @@ _sec_scan_images() {
   return 0
 }
 
+# A terraform file trivy config always flags: a Cloud SQL instance with a
+# public ipv4 (GCP-0017). The directory is removed by the caller.
+_sec_iac_control_dir() {
+  local d
+  d=$(mktemp -d) || return 1
+  cat >"$d/bad.tf" <<'EOF'
+resource "google_sql_database_instance" "bad" {
+  name             = "bad"
+  database_version = "POSTGRES_15"
+  region           = "europe-north1"
+  settings {
+    tier = "db-f1-micro"
+    ip_configuration {
+      ipv4_enabled = true
+    }
+  }
+}
+EOF
+  printf '%s\n' "$d"
+}
+
+# trivy config (misconfiguration scan) over the terraform. Built-in policies, no
+# vulnerability DB. HIGH,CRITICAL. Findings triaged in <root>/.trivyignore.yaml
+# (each entry justified + reported), so the gate is green today and reddens on a
+# NEW misconfiguration.
+_sec_scan_iac() {
+  local bin="${SEC_SCAN_TRIVY_BIN:-trivy}"
+  _sec_scan_need "$bin" || return 1
+  local root tfdir ignore ctl rc log
+  root=$(_sec_scan_root) || return 1
+  tfdir="$root/csi-spl-iac/src/terraform"
+  [[ -d "$tfdir" ]] || { do_log "FATAL no terraform at $tfdir -- refusing a scan that checks nothing"; return 1; }
+
+  ctl=$(_sec_iac_control_dir) || return 1
+  log=$(mktemp)
+  do_log "INFO trivy config control (want a misconfiguration id, non-zero exit)"
+  rc=0
+  SEC_SCAN_PHASE=control "$bin" config -q --severity HIGH,CRITICAL --exit-code 1 "$ctl" >"$log" 2>&1 || rc=$?
+  rm -rf "$ctl"
+  if [[ "$rc" -eq 0 ]] || ! grep -qE 'GCP-[0-9]{4}|AVD-[A-Z]+-[0-9]+' "$log"; then
+    do_log "FATAL control: trivy config named no misconfiguration (exit $rc) -- the check proved nothing"
+    sed 's/^/  /' "$log"
+    rm -f "$log"
+    return 1
+  fi
+  rm -f "$log"
+
+  local ignore_args=()
+  ignore="$root/.trivyignore.yaml"
+  [[ -f "$ignore" ]] && ignore_args=(--ignorefile "$ignore")
+  log=$(mktemp)
+  do_log "INFO trivy config --severity HIGH,CRITICAL on $tfdir"
+  rc=0
+  SEC_SCAN_PHASE=scan "$bin" config -q --severity HIGH,CRITICAL "${ignore_args[@]}" \
+    --exit-code 1 "$tfdir" >"$log" 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    do_log "INFO trivy config: no HIGH/CRITICAL misconfigurations outside the triaged ignore"
+    rm -f "$log"
+    return 0
+  fi
+  do_log "FATAL trivy config: misconfiguration(s) found (exit $rc)"
+  sed 's/^/  /' "$log"
+  rm -f "$log"
+  return 1
+}
+
 do_sec_scan() {
   local which="${SEC_SCAN:-}"
   case "$which" in
@@ -313,6 +379,7 @@ do_sec_scan() {
     wui) _sec_scan_wui ;;
     secrets) _sec_scan_secrets ;;
     images) _sec_scan_images ;;
+    iac) _sec_scan_iac ;;
     all)
       local rc=0
       _sec_scan_go || rc=1
@@ -322,7 +389,7 @@ do_sec_scan() {
       return "$rc"
       ;;
     *)
-      do_log "FATAL SEC_SCAN must be one of: go, wui, secrets, images, all"
+      do_log "FATAL SEC_SCAN must be one of: go, wui, secrets, images, iac, all"
       return 1
       ;;
   esac

@@ -1,0 +1,13 @@
+# Triaged trivy misconfiguration findings for the IaC scan (spec 056 #16).
+# Each entry is a KNOWN, reviewed finding scoped to its file, so the gate is
+# green today and a NEW misconfiguration (or the same rule in a new file) still
+# reddens. These are reported to the infra owner, not silently swallowed.
+misconfigurations:
+  # GCP-0017: google_sql_database_instance.hub has ipv4_enabled = true (a public
+  # IP). This is the hub's deliberate access path (Cloud SQL public IP +
+  # authorized networks + SSL). Reported to CLE-001/owner 2026-09-30 to confirm
+  # accept-vs-move-to-private-IP/PSC; scoped to this one file so a new public-IP
+  # instance elsewhere still fails the gate.
+  - id: GCP-0017
+    paths:
+      - "040-cloud-sql-postgres/03-cloud-sql.tf"

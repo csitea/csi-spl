@@ -222,6 +222,37 @@ set -e
   && pass "a trivy image finding fails the gate" \
   || fail "a trivy image finding did not fail (rc=$rc)"
 
+# --- iac (trivy config): the terraform dir the mode scans --------------------
+mkdir -p "$ROOT/csi-spl-iac/src/terraform/030-x"
+printf 'resource "google_x" "y" {}\n' >"$ROOT/csi-spl-iac/src/terraform/030-x/main.tf"
+
+# iac: control that names no misconfiguration fails (proved nothing)
+stub trivy 'exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=iac SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'control:' <<<"$out" \
+  && pass "CONTROL: trivy config that names no misconfiguration fails the action" \
+  || fail "CONTROL: a trivy config with no id was accepted (rc=$rc)"
+
+# iac: control fires (GCP id) then a clean scan passes
+stub trivy 'if [[ "${SEC_SCAN_PHASE:-}" == control ]]; then echo "GCP-0017 (HIGH)"; exit 1; fi; exit 0'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=iac SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && grep -q 'no HIGH/CRITICAL misconfigurations' <<<"$out" \
+  && pass "trivy config control then a clean terraform passes" \
+  || { fail "clean trivy config did not pass (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+
+# iac: a misconfiguration finding fails
+stub trivy 'if [[ "${SEC_SCAN_PHASE:-}" == control ]]; then echo "GCP-0017 (HIGH)"; exit 1; fi; echo "GCP-0059 (HIGH)"; exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=iac SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'misconfiguration' <<<"$out" \
+  && pass "a trivy config misconfiguration fails the gate" \
+  || fail "a trivy config finding did not fail (rc=$rc)"
+
 # --- the workflow actually invokes every scan --------------------------------
 if [[ -f "$WF" ]]; then
   miss=0

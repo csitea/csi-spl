@@ -25,6 +25,8 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
+# the dev hub operator-invite URL, from the single domain source (cnf), never a literal
+OPINV_URL="https://dev.api.$(yq -r '.env.dns.BASE_DOMAIN' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")/v1/operator/invites"
 command -v jq >/dev/null || { echo "SKIP: no jq"; exit 0; }
 
 DEV_SA=csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com
@@ -131,18 +133,18 @@ in_orc 'do_spl_hub_invite' "${INV[@]}" DRY_RUN=0; rc=$?
   || fail "2. invite missing ORDERED_BY: rc=$rc $(cat "$T/calls.log")"
 # CLE-77780: create + mail through the hub operator route, not the DB proxy.
 in_orc 'do_spl_hub_invite' "${INV[@]}" ORDERED_BY=HUM-10 ORDERED_VIA=CLE-34967 DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={"tenant":"t1","email":"owner@example.com","role":"biz_owner","ordered_by":"HUM-10","ordered_via":"CLE-34967"}' "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx "curl POST ${OPINV_URL} body={\"tenant\":\"t1\",\"email\":\"owner@example.com\",\"role\":\"biz_owner\",\"ordered_by\":\"HUM-10\",\"ordered_via\":\"CLE-34967\"}" "$T/calls.log" \
   && ! grep -qE '^(proxy-start|psql|spool )' "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: POST the operator route with provenance, no proxy/psql/spool" \
   || fail "2. invite real: rc=$rc $(cat "$T/calls.log" "$T/out")"
 
 # 025: every role id passes to the hub (which owns the list); default developer.
 for r in product_owner admin tester pure_agent; do
   in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=r@example.com INVITE_ROLE=$r ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
-  [[ $rc -eq 0 ]] && grep -qx "curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={\"tenant\":\"t1\",\"email\":\"r@example.com\",\"role\":\"$r\",\"ordered_by\":\"HUM-10\"}" "$T/calls.log" \
+  [[ $rc -eq 0 ]] && grep -qx "curl POST ${OPINV_URL} body={\"tenant\":\"t1\",\"email\":\"r@example.com\",\"role\":\"$r\",\"ordered_by\":\"HUM-10\"}" "$T/calls.log" \
     && pass "2. hub-invite INVITE_ROLE=$r reaches the route body as role $r" || fail "2. hub-invite role $r: rc=$rc $(cat "$T/calls.log")"
 done
 in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=d@example.com ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'curl POST https://dev.api.spool-hub.ai/v1/operator/invites body={"tenant":"t1","email":"d@example.com","role":"developer","ordered_by":"HUM-10"}' "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx "curl POST ${OPINV_URL} body={\"tenant\":\"t1\",\"email\":\"d@example.com\",\"role\":\"developer\",\"ordered_by\":\"HUM-10\"}" "$T/calls.log" \
   && pass "2. hub-invite without INVITE_ROLE invites a developer" || fail "2. hub-invite default role: rc=$rc $(cat "$T/calls.log")"
 
 REV=(TENANT_ID=t1 INVITE_EMAIL=old@example.com)

@@ -112,6 +112,46 @@ describe('who may edit — author-only, no time window (INFERRED: CLE-00 2026-09
   })
 })
 
+describe('SPL-1291 — every role edits its own; the owner and an admin edit anyone (owner HUM-10 2026-09-30)', () => {
+  const OTHER = { id: 'HUM-1', box: BROWSER_BOX } // the viewer; the row is HUM-7's
+  const theirs = (over = {}) => mine({ from: 'HUM-7', ...over })
+  const owner = { role: 'biz_owner', tenantOwner: true }
+  const admin = { role: 'admin', tenantOwner: false }
+  const member = { role: 'developer', tenantOwner: false }
+  const productOwner = { role: 'product_owner', tenantOwner: false }
+
+  it('the tenant owner and an admin may edit another member’s browser message', () => {
+    assert.equal(canEditMessage(theirs(), OTHER, owner), true)
+    assert.equal(canEditMessage(theirs(), OTHER, admin), true)
+  })
+
+  it('a non-admin, non-owner role may NOT edit another’s (developer, product_owner)', () => {
+    /* product_owner is NOT the tenant owner and holds no admin role: the
+       elevated set is biz_owner + admin, the pair topic archive/merge share. */
+    assert.equal(canEditMessage(theirs(), OTHER, member), false)
+    assert.equal(canEditMessage(theirs(), OTHER, productOwner), false)
+    assert.equal(canEditMessage(theirs(), OTHER, null), false)
+  })
+
+  it('NOT a bot: an owner/admin still cannot edit an agent or box-signed message', () => {
+    /* "of course msgs sent by bots should not be editable" — an agent message
+       is not box-wui, or its from is not a HUM- id; the hub 409s not_editable. */
+    assert.equal(canEditMessage(theirs({ from: 'CLE-07' }), OTHER, owner), false)
+    assert.equal(canEditMessage(theirs({ from_box: 'box-a' }), OTHER, admin), false)
+    assert.equal(canEditMessage(theirs({ from: 'CLE-07' }), OTHER, admin), false)
+  })
+
+  it('the elevated bypass does not resurrect a pending or id-less row', () => {
+    assert.equal(canEditMessage(theirs({ pending: true }), OTHER, owner), false)
+    assert.equal(canEditMessage(theirs({ msg_id: '' }), OTHER, admin), false)
+  })
+
+  it('own edit still works regardless of role and needs no me snapshot', () => {
+    assert.equal(canEditMessage(mine(), ME, member), true)
+    assert.equal(canEditMessage(mine(), ME), true)
+  })
+})
+
 describe('the `e` shortcut', () => {
   it('is the letter e on the focused row itself', () => {
     assert.equal(EDIT_KEY, 'e')

@@ -687,8 +687,9 @@ declare module '~/utils/msg-edit.mjs' {
   /** what the editor holds while it is open: the draft, and what Escape restores */
   export interface MsgEditState { msgId: string, original: string, draft: string }
   export const EDIT_KEY: string
+  export const EDIT_ADMIN_ROLES: readonly string[]
   export function isOwnMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
-  export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
+  export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null, me?: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean
   export function wantsDblClickEdit(ev: MouseEvent, opts?: { editable?: boolean, interactive?: boolean }): boolean
   export const DELETE_KEYS: string[]

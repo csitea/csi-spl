@@ -55,7 +55,7 @@ export function useMessageEdit() {
    * resets its own edit state when the identity changes.
    */
   function canEdit(msg: SpoolMessage | null | undefined) {
-    return canEditMessage(msg, viewer.value)
+    return canEditMessage(msg, viewer.value, access.me)
   }
 
   /**

@@ -9,6 +9,7 @@
 // share it. The snackbar itself (UndoSnackbar) owns the auto-dismiss timer.
 import { noteError } from '~/composables/errorJournal.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useViewerStore } from '~/stores/viewer'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
@@ -36,10 +37,12 @@ export function useArchiveUndo() {
     toast.value = { id: ++seq, msgId: id, busy: false }
   }
 
-  /* The archive dropped the card from every feed and list of this tab; the
-     unarchive re-reads them so the card comes back where it was. The other
-     tabs get the hub's topic_archived(archived:false) frame. */
+  /* The archive dropped the card from every feed and list of this tab
+     (useMessageEdit.dropEverywhere: the channel store, both live feeds, the
+     topic-list rows); the unarchive re-reads them so the card comes back where
+     it was. The other tabs get the hub's topic_archived(archived:false) frame. */
   async function restore() {
+    await useChannelStore().catchUp().catch(() => {})
     await useViewerStore().catchUp().catch(() => {})
     for (const key of ['main', 'pane'] as const) {
       const feed = useLiveFeed(key)

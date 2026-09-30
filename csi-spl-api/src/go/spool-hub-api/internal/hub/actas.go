@@ -21,6 +21,23 @@ type cloneReader interface {
 	Clone(ctx context.Context, tenant, clone string) (store.Clone, error)
 }
 
+// readerIsActAsClone reports whether hum is a LIVE act-as clone of tenant. The
+// owner's rule (18597eaa: "no of course"): a clone sees only the person's
+// channels and issues, NEVER their DMs, so every DM endpoint refuses it. This
+// is store-based (a live member_clones row), not session-based, so it holds
+// however the session was formed — including the hub's own read door.
+func (s *Server) readerIsActAsClone(ctx context.Context, tenant, hum string) bool {
+	if hum == "" {
+		return false
+	}
+	cr, ok := s.o.Store.(cloneReader)
+	if !ok {
+		return false
+	}
+	c, err := cr.Clone(ctx, tenant, hum)
+	return err == nil && c.EndedAt == nil
+}
+
 // actAsMe is the act-as banner state for GET /v1/view/me: non-nil only when hum
 // is a LIVE clone of tenant. A store without clone support, a non-clone, or an
 // ended clone all yield nil (no banner).

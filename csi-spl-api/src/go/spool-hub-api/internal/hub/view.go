@@ -504,6 +504,14 @@ func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t stor
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
 	}
+	// specs/054 (owner 18597eaa: "no of course"): an act-as clone never opens
+	// the person's DMs. The DM-list surfaces (dm=true, peer=<id>) refuse it; the
+	// unfiltered list already drops DMs the reader is not an end of, and a clone
+	// is an end of none.
+	if (sq.DM || q.Get("peer") != "") && s.readerIsActAsClone(r.Context(), t.ID, hum) {
+		writeErr(w, http.StatusForbidden, "actas_no_dm", "acting-as sessions cannot open direct messages")
+		return
+	}
 	if sq.DM { // dm=true is the explicit "only my DMs" filter, on top of it
 		sq.Viewer = hum
 	}

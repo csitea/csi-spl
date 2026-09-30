@@ -276,7 +276,7 @@ try {
       })
       ok(`11 ${w}: an issue opens full screen with Back, the subtask + and the discussion; no FAB over it`,
         det.full && det.back && det.subs && det.talk && det.fabHidden && det.url.includes('issue=SPL-2'), det)
-      const smallD = await smallTargets(p, '[data-test=issues-detail] .issues-props')
+      const smallD = await smallTargets(p, '[data-test=issues-detail] [data-test=issues-props]')
       ok(`12 ${w}: the pickers are >= 44 px`, smallD.length === 0, smallD)
       ok(`13 ${w}: no horizontal page scroll on the issue`, (await xScroll(p)) <= 0, await xScroll(p))
       await p.screenshot({ path: join(SHOTS, `issues-${w}-detail.png`) })

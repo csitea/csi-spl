@@ -631,89 +631,11 @@
           />
           <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
           <button v-if="creating" type="button" class="btn issues-detail-create" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
-          <!-- SPL-18: a level-2 issue's subtasks -->
-          <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
-            <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
-            <div class="issues-subs__h">
-              <h3>{{ t('issues.subtasks') }}</h3>
-              <button
-                type="button"
-                class="issues-sub-add"
-                data-test="issues-subtask-open"
-                :title="t('issues.add_subtask')"
-                :aria-label="t('issues.add_subtask')"
-                aria-haspopup="dialog"
-                @click="subtaskOpen = true"
-              >
-                <UiIcon name="subtask-add" :size="18" />
-              </button>
-            </div>
-            <button
-              v-for="sub in subtasks"
-              :key="sub.key"
-              type="button"
-              class="issues-sub"
-              data-test="issues-subtask"
-              :data-key="sub.key"
-              :data-status="sub.status"
-              @click="choose(sub)"
-            >
-              <IssueGlyph :name="statusIcon(sub.status)" :size="14" />
-              <span class="issues-key">{{ sub.key }}</span>
-              <span class="issues-title">{{ sub.title }}</span>
-            </button>
-            <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
-                 already open, so UiDialog's open watch never runs (no focus, no trap) -->
-            <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
-          </section>
-          <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
-            <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
-            <div class="issues-talk__h">
-              <h3>{{ t('issues.discussion') }}</h3>
-              <LazyCardClipControl pane="thread" />
-            </div>
-            <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
-            <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
-                 other one: the same header, the emoji 5px after the time, reactions,
-                 the row menu, and the thread's titles / 5 rows / full clip -->
-            <MessageCard
-              v-for="c in comments"
-              :key="c.msg_id"
-              class="issues-comment"
-              data-test="issues-comment"
-              :data-clip-mode="clipMode"
-              :msg="c"
-              :clip-mode="clipMode"
-              :editable="canEdit(c)"
-              @edited="onCommentEdited"
-              @deleted="onCommentDeleted"
-              @reacted="onCommentReacted"
-            />
-            <label class="issues-field">
-              <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
-              <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
-                   sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
-              <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
-              <span class="mention-anchor">
-                <textarea
-                  ref="commentEl"
-                  v-model="commentText"
-                  data-test="issues-comment-input"
-                  rows="2"
-                  :placeholder="t(sk('issues_view.comment_hint'))"
-                  :disabled="busy"
-                  @input="commentMp.sync"
-                  @click="commentMp.sync"
-                  @keyup="commentMp.sync"
-                  @blur="commentMp.close(); onCommentBlur()"
-                  @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
-                />
-                <MentionList :picker="commentMp" placement="above" />
-              </span>
-            </label>
-          </section>
         </div>
-        <!-- the property panel: one property per row, label | control, aligned -->
+        <!-- the property panel: one property per row, label | control, aligned.
+             CLE-77806: on a phone it stacks right under the description (owner:
+             "the panel stacks below the description"), before the subtasks and
+             discussion; on desktop CSS grid puts it in the right column. -->
         <aside class="issues-detail-side" data-test="issues-detail-side">
           <div class="issues-panel" data-test="issues-props">
             <!-- Parent (an epic for an issue/feature, the parent for a subtask) -->
@@ -805,6 +727,87 @@
             <p v-if="form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
           </div>
         </aside>
+        <!-- SPL-18: a level-2 issue's subtasks (left column on desktop, below the panel on a phone) -->
+        <section v-if="!creating && form.kind === 'issue'" class="issues-subs issues-detail-subs" data-test="issues-subtasks">
+          <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
+          <div class="issues-subs__h">
+            <h3>{{ t('issues.subtasks') }}</h3>
+            <button
+              type="button"
+              class="issues-sub-add"
+              data-test="issues-subtask-open"
+              :title="t('issues.add_subtask')"
+              :aria-label="t('issues.add_subtask')"
+              aria-haspopup="dialog"
+              @click="subtaskOpen = true"
+            >
+              <UiIcon name="subtask-add" :size="18" />
+            </button>
+          </div>
+          <button
+            v-for="sub in subtasks"
+            :key="sub.key"
+            type="button"
+            class="issues-sub"
+            data-test="issues-subtask"
+            :data-key="sub.key"
+            :data-status="sub.status"
+            @click="choose(sub)"
+          >
+            <IssueGlyph :name="statusIcon(sub.status)" :size="14" />
+            <span class="issues-key">{{ sub.key }}</span>
+            <span class="issues-title">{{ sub.title }}</span>
+          </button>
+          <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
+               already open, so UiDialog's open watch never runs (no focus, no trap) -->
+          <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
+        </section>
+        <section v-if="!creating && form.task_id" class="issues-talk issues-detail-talk" data-test="issues-talk">
+          <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
+          <div class="issues-talk__h">
+            <h3>{{ t('issues.discussion') }}</h3>
+            <LazyCardClipControl pane="thread" />
+          </div>
+          <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
+          <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
+               other one: the same header, the emoji 5px after the time, reactions,
+               the row menu, and the thread's titles / 5 rows / full clip -->
+          <MessageCard
+            v-for="c in comments"
+            :key="c.msg_id"
+            class="issues-comment"
+            data-test="issues-comment"
+            :data-clip-mode="clipMode"
+            :msg="c"
+            :clip-mode="clipMode"
+            :editable="canEdit(c)"
+            @edited="onCommentEdited"
+            @deleted="onCommentDeleted"
+            @reacted="onCommentReacted"
+          />
+          <label class="issues-field">
+            <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
+            <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
+                 sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
+            <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+            <span class="mention-anchor">
+              <textarea
+                ref="commentEl"
+                v-model="commentText"
+                data-test="issues-comment-input"
+                rows="2"
+                :placeholder="t(sk('issues_view.comment_hint'))"
+                :disabled="busy"
+                @input="commentMp.sync"
+                @click="commentMp.sync"
+                @keyup="commentMp.sync"
+                @blur="commentMp.close(); onCommentBlur()"
+                @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
+              />
+              <MentionList :picker="commentMp" placement="above" />
+            </span>
+          </label>
+        </section>
       </div>
       </div>
     </IssueDetailFrame>
@@ -2812,11 +2815,19 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 /* CLE-77806 (owner, topic 260d2cbb): the modal is two columns above 820 px -
    description ~70% left, the property panel ~30% right. A phone (aside) keeps
    the single column, so this only shapes the modal. */
-.issues-detail-in[data-modal="true"] .issues-detail-cols { display: flex; flex-direction: row; align-items: flex-start; gap: 24px; }
-.issues-detail-in[data-modal="true"] .issues-detail-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.issues-detail-in[data-modal="true"] .issues-detail-side { flex: 0 0 clamp(240px, 30%, 320px); min-width: 0; }
-.issues-detail-in[data-modal="true"] .issues-detail-side { border-inline-start: 1px solid var(--color-border); padding-inline-start: 20px; }
-/* the phone stacks: main then the panel, one column */
+.issues-detail-in[data-modal="true"] .issues-detail-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 30%, 320px);
+  grid-template-areas: "main side" "subs side" "talk side";
+  align-items: start;
+  column-gap: 24px;
+  row-gap: 12px;
+}
+.issues-detail-in[data-modal="true"] .issues-detail-main { grid-area: main; min-width: 0; }
+.issues-detail-in[data-modal="true"] .issues-detail-subs { grid-area: subs; min-width: 0; }
+.issues-detail-in[data-modal="true"] .issues-detail-talk { grid-area: talk; min-width: 0; }
+.issues-detail-in[data-modal="true"] .issues-detail-side { grid-area: side; min-width: 0; border-inline-start: 1px solid var(--color-border); padding-inline-start: 20px; }
+/* the phone stacks one column, in DOM order: description, panel, subtasks, discussion */
 .issues-detail-cols { display: flex; flex-direction: column; gap: 12px; }
 .issues-detail-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .issues-detail-desc { min-height: 6.5rem; }

@@ -353,7 +353,7 @@ declare module '~/utils/mention-poke.mjs' {
   export type MentionAccess =
     | { kind: 'open' }
     | { kind: 'dm', ends: string[] }
-    | { kind: 'channel', humans: string[], agents: string[] }
+    | { kind: 'channel', humans: string[], agents: string[], responders?: string[] }
     | null
   export function pokeTargets(a: { text: string, before?: string, selfId?: string, addressee?: string }): string[]
   export function pokeExcerpt(text: string): string
@@ -361,7 +361,7 @@ declare module '~/utils/mention-poke.mjs' {
   export function cardLink(origin: string, taskId: string): string
   export function issueLink(origin: string, key: string): string
   export function splitByAccess(ids: string[], access: MentionAccess): { ok: string[], refused: string[] }
-  export function channelAccess(list: { default?: boolean, members?: string[], agents?: ({ id: string } | string)[] } | null): MentionAccess
+  export function channelAccess(list: { default?: boolean, members?: string[], agents?: ({ id: string } | string)[], responders?: string[] } | null): MentionAccess
   export function topicWhere(rows: unknown[], taskId: string): { channel: string } | { ends: string[] } | null
 }
 

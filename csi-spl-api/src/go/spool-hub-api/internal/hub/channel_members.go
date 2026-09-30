@@ -173,6 +173,17 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 	}
 	if fb := s.fallbackInfo(r.Context(), t.ID, ch, list); fb != nil { // SPL-997, FR-035
 		out["fallback"] = fb
+		// CLE-77804: a tenant responder hears this channel via the fallback /
+		// escalation path (unless the channel opted out, FR-039), so it may be
+		// poked here even though it is not a member. The WUI's mention K4 was
+		// refusing @<responder> in a channel the responder is not a member of.
+		if !fb.Off {
+			if fbs, ok := s.o.Store.(store.Fallbacks); ok {
+				if resp, err := fbs.TenantResponders(r.Context(), t.ID); err == nil && len(resp) > 0 {
+					out["responders"] = resp
+				}
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -201,6 +201,36 @@ func TestFallbackNotSentWhenAMemberIsOnline(t *testing.T) {
 	}
 }
 
+// CLE-77804: the members answer lists the tenant responders so the WUI mention
+// poke can tell a responder even though it is not a member of the channel (it
+// hears the channel via the fallback path, spec 042 K4). The list is omitted
+// when the channel opted out of the fallback (FR-039), because then the
+// responder does NOT hear it and telling it would leak.
+func TestMembersListsRespondersForThePoke(t *testing.T) {
+	r := newFallbackRig(t, true, "mobile")
+	ctx := context.Background()
+	fb := r.e.st.(store.Fallbacks)
+	if err := fb.SetTenantResponders(ctx, r.tid, []string{"CLE-001", "CLE-002"}); err != nil {
+		t.Fatal(err)
+	}
+	code, out := call(t, r.e, r.tid, http.MethodGet, "/v1/channels/mobile/members", r.human, nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET members: %d %v", code, out)
+	}
+	resp, _ := out["responders"].([]any)
+	if len(resp) != 2 || resp[0] != "CLE-001" || resp[1] != "CLE-002" {
+		t.Fatalf("members responders: %v", out["responders"])
+	}
+	// The channel opts out of the fallback: no responder hears it, so the list
+	// is withheld and the poke refuses (never leaks).
+	if err := fb.SetChannelNoFallback(ctx, r.tid, "mobile", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, out := call(t, r.e, r.tid, http.MethodGet, "/v1/channels/mobile/members", r.human, nil); out["responders"] != nil {
+		t.Fatalf("opted-out channel still lists responders: %v", out["responders"])
+	}
+}
+
 // SPL-1225: an "online" member agent that never replies is exactly the case
 // TestFallbackNotSentWhenAMemberIsOnline leaves for hours - the roster says
 // online, so the immediate fallback holds, and the post sits unheard. The

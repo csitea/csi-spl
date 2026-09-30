@@ -60,9 +60,12 @@ function isHuman(id) {
  * `access` is one of
  *   { kind: 'open' }                                        - a default channel, an issue
  *   { kind: 'dm', ends: string[] }                          - only its two ends read it
- *   { kind: 'channel', humans: string[], agents: string[] } - a members-only channel
+ *   { kind: 'channel', humans: string[], agents: string[], responders?: string[] }
+ *                                                           - a members-only channel
  *   null                                                    - unknown: refuse everyone
- * Ends and agents may carry `@box`; the comparison is on the id.
+ * Ends, agents and responders may carry `@box`; the comparison is on the id.
+ * A tenant responder (CLE-77804) hears every channel it can fall back to, so it
+ * is told even when it is not a member of the channel.
  *
  * @returns {{ ok: string[], refused: string[] }}
  */
@@ -77,7 +80,7 @@ export function splitByAccess(ids, access) {
     else if (access && access.kind === 'channel') {
       may = isHuman(id)
         ? (access.humans || []).map(bare).includes(id)
-        : (access.agents || []).map(bare).includes(id)
+        : (access.agents || []).map(bare).includes(id) || (access.responders || []).map(bare).includes(id)
     }
     ;(may ? ok : refused).push(id)
   }
@@ -95,6 +98,7 @@ export function channelAccess(list) {
     kind: 'channel',
     humans: Array.isArray(list.members) ? list.members.map(String) : [],
     agents: Array.isArray(list.agents) ? list.agents.map((a) => String((a && a.id) || a || '')) : [],
+    responders: Array.isArray(list.responders) ? list.responders.map(String) : [],
   }
 }
 

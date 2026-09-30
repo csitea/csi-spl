@@ -65,6 +65,10 @@ describe('splitByAccess (K4)', () => {
     const acc = channelAccess({ default: false, members: ['HUM-1'], agents: [{ id: 'CLE-2', box: 'box-desk' }] })
     assert.deepEqual(splitByAccess(['HUM-1', 'HUM-4', 'CLE-2', 'CLE-5', 'GST-6'], acc), { ok: ['HUM-1', 'CLE-2'], refused: ['HUM-4', 'CLE-5', 'GST-6'] })
   })
+  it('a tenant responder is told even when it is not a channel member (CLE-77804)', () => {
+    const acc = channelAccess({ default: false, members: ['HUM-1'], agents: [{ id: 'CLE-2', box: 'box-desk' }], responders: ['CLE-001'] })
+    assert.deepEqual(splitByAccess(['CLE-001', 'CLE-2', 'CLE-9'], acc), { ok: ['CLE-001', 'CLE-2'], refused: ['CLE-9'] })
+  })
   it('a default channel reads as open', () => {
     assert.deepEqual(channelAccess({ default: true, members: [], agents: [] }), { kind: 'open' })
   })

@@ -346,6 +346,9 @@ function parseMemberList(data, channel) {
       return row
     }).filter((a) => a.id)
     : []
+  const responders = Array.isArray(data && data.responders)
+    ? data.responders.map((id) => String(id)).filter(Boolean)
+    : []
   return {
     channel: String((data && data.channel) || channel || ''),
     default: Boolean(data && data.default),
@@ -353,6 +356,7 @@ function parseMemberList(data, channel) {
     members_open_invite: Boolean(data && data.members_open_invite),
     created_by: String((data && data.created_by) || ''),
     agents,
+    responders,
   }
 }
 

@@ -192,7 +192,7 @@ echo "$inv" | grep -q '"outcome":"skipped_no_relay"' || { echo "FAIL - hub-invit
 MAILENV=(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MAIL_TRANSPORT=log SPOOL_HUB_AUTH_APP_URL=https://app.example.com SPOOL_HUB_DEFAULT_LOCALE=bg)
 inv="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email Mem@Example.com --role member 2>"$WORK/inv.log")"
 echo "$inv" | grep -q '"outcome":"logged"' && echo "$inv" | grep -q '"delivered":false' &&
-  echo "$inv" | grep -q '"sign_in_url":"https://app.example.com/login?tenant=t-invite"' ||
+  echo "$inv" | grep -q '"sign_in_url":"https://app.example.com/login?tenant=t-invite&redirect=%2Flobby"' ||
   { echo "FAIL - hub-invite log transport: $inv"; exit 1; }
 if grep -qi 'mem@example.com' "$WORK/inv.log" || ! grep -q '"message":"invite.mail_sent"' "$WORK/inv.log"; then
   echo "FAIL - invite mail log leaks the address or lacks the line: $(cat "$WORK/inv.log")"; exit 1

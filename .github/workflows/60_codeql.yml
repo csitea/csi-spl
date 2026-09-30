@@ -1,0 +1,61 @@
+# SAST (CodeQL) for Go and JS/TS. Results upload to GitHub code scanning (free
+# for this public repo) rather than reddening the deploy gate, so CodeQL findings
+# surface in the Security tab and PR checks. Same runner rule as the other sec
+# workflows: self-hosted (spool-ci). Heavy analysis -> weekly schedule +
+# workflow_dispatch (not every fleet push).
+#
+# Acceptance/control: the analysis completes and uploads a non-empty SARIF for
+# each language (the "Upload" step fails if analysis produced nothing); a broken
+# setup fails the job. New findings are reviewed in code scanning.
+name: "60 sec: CodeQL (Go + JS/TS)"
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "11 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-codeql-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    name: "sec: CodeQL analyze (${{ matrix.language }})"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go (version from go.mod)
+        if: matrix.language == 'go'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          category: "/language:${{ matrix.language }}"

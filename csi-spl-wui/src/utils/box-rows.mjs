@@ -14,6 +14,16 @@
 import { BROWSER_BOX } from './view-api.mjs'
 import { isAgentId, isHumanId } from './agent-kind.mjs'
 
+/**
+ * A seat on a box: one entry from peopleRows() (utils/live-follow.mjs).
+ * @typedef {{ id: string, box: string, label: string, online: boolean, self?: boolean }} Seat
+ */
+/**
+ * One box's row for the Boxes section.
+ * @typedef {{ id: string, tag: string, browser: boolean, online: boolean,
+ *   lastHello: string, people: Seat[], agents: Seat[], userCount: number }} BoxRow
+ */
+
 /** The browser pseudo-box: where a human's WUI session is seated (view-api). */
 export function isBrowserBox(id) {
   return String(id || '') === BROWSER_BOX
@@ -43,18 +53,19 @@ export function boxTag(id) {
  * first, then machine boxes before the browser box, then by id, so the rail is
  * stable as boxes come and go.
  *
- * @param {Array<{ id: string, box: string, online?: boolean }>} people peopleRows()
+ * @param {Seat[]} people peopleRows()
  * @param {Record<string, { online?: boolean, last_hello_at?: string }>} [boxesDetail]
- * @returns {Array<{ id: string, tag: string, browser: boolean, online: boolean,
- *   lastHello: string, people: object[], agents: object[], userCount: number }>}
+ * @returns {BoxRow[]}
  */
 export function boxRows(people, boxesDetail = {}) {
+  /** @type {Map<string, BoxRow>} */
   const byBox = new Map()
+  /** @param {string} box @returns {BoxRow} */
   const ensure = (box) => {
     if (!byBox.has(box)) {
-      byBox.set(box, { id: box, tag: boxTag(box), browser: isBrowserBox(box), people: [], agents: [] })
+      byBox.set(box, { id: box, tag: boxTag(box), browser: isBrowserBox(box), online: false, lastHello: '', people: [], agents: [], userCount: 0 })
     }
-    return byBox.get(box)
+    return /** @type {BoxRow} */ (byBox.get(box))
   }
   /* every box named in the detail, even one with no seat yet */
   for (const box of Object.keys(boxesDetail || {})) if (box) ensure(box)
@@ -84,8 +95,9 @@ export function boxRows(people, boxesDetail = {}) {
  * The single box's row (or a bare empty row when the roster has never named
  * it), for the /boxes/<id> card.
  * @param {string} id box_id
- * @param {Array<object>} people peopleRows()
- * @param {Record<string, object>} [boxesDetail]
+ * @param {Seat[]} people peopleRows()
+ * @param {Record<string, { online?: boolean, last_hello_at?: string }>} [boxesDetail]
+ * @returns {BoxRow}
  */
 export function boxByID(id, people, boxesDetail = {}) {
   const box = String(id || '')
@@ -97,8 +109,9 @@ export function boxByID(id, people, boxesDetail = {}) {
 /**
  * Boxes the filter keeps: a case-insensitive match on the id or the tag. An
  * empty query keeps them all.
- * @param {Array<{ id: string, tag: string }>} rows
+ * @param {BoxRow[]} rows
  * @param {string} q
+ * @returns {BoxRow[]}
  */
 export function filterBoxes(rows, q) {
   const needle = String(q || '').trim().toLowerCase()

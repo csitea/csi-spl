@@ -217,7 +217,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const ARCHIVE_TAB: 'archive'
   export const PEOPLE_TAB: 'people'
   export const AGENTS_TAB: 'agents'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | null
+  export const BOXES_TAB: 'boxes'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]
@@ -1160,8 +1161,13 @@ declare module '~/utils/channel-order-edit.mjs' {
 
 declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
+  export const MEMBERS_INVITE: 'members.invite'
   export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
+  export function canRemoveMember(
+    me: { permissions?: string[] | null } | null | undefined,
+    ctx: { targetId?: string, selfId?: string, targetIsOwner?: boolean, ownerCount?: number },
+  ): boolean
   export function roleLabelKey(role: string | null | undefined): string
 }
 

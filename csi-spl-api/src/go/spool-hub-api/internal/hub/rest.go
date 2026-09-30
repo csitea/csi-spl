@@ -268,7 +268,7 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 		return false, nil
 	}
 	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		_, box, ok := s.bearerAny(r)
+		_, box, _, ok := s.bearerAny(r)
 		if !ok || box == WUIBox {
 			return false, nil
 		}

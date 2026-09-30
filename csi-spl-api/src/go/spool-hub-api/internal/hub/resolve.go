@@ -135,8 +135,18 @@ func (s *Server) boxTenant(w http.ResponseWriter, r *http.Request) (store.Tenant
 // token was minted in, and its box. No token = 401 door; a legacy Host of
 // another tenant, or a TenantHeader naming another one = 403.
 func (s *Server) tokenTenant(w http.ResponseWriter, r *http.Request) (store.Tenant, string, bool) {
-	tenant, box, ok := s.bearerAny(r)
+	tenant, box, reason, ok := s.bearerAny(r)
 	if !ok {
+		// CLE-77795: name WHY in the log so a prd 401 on POST /v1/files is
+		// diagnosable — unknown_token is the tell-tale of a hub restart that
+		// wiped the per-process token map (the client still held a token the
+		// new process never minted), expired_token is a plain TTL lapse, and
+		// no_bearer is a call with no Authorization at all. The response body
+		// stays "door" (the WUI keys the refresh-and-retry off it).
+		s.o.Log.Warn().
+			Str("request_id", w.Header().Get("X-Request-ID")).
+			Str("method", r.Method).Str("path", r.URL.Path).Str("host", r.Host).
+			Str("reason", reason).Msg("upload token refused")
 		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token is required")
 		return store.Tenant{}, "", false
 	}
@@ -160,17 +170,22 @@ func (s *Server) tenantConsistent(w http.ResponseWriter, r *http.Request, tenant
 }
 
 // bearerAny checks the WS-issued upload token (OQ-10) and returns its tenant
-// and box.
-func (s *Server) bearerAny(r *http.Request) (string, string, bool) {
+// and box, and — when it refuses — a reason code for the log (CLE-77795):
+// no_bearer (no Authorization), unknown_token (not in the per-process map:
+// a hub restart wiped it), expired_token (a plain TTL lapse).
+func (s *Server) bearerAny(r *http.Request) (string, string, string, bool) {
 	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok || tok == "" {
-		return "", "", false
+		return "", "", "no_bearer", false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok := s.tokens[tok]
-	if !ok || s.o.Now().After(t.expires) {
-		return "", "", false
+	if !ok {
+		return "", "", "unknown_token", false
 	}
-	return t.tenant, t.box, true
+	if s.o.Now().After(t.expires) {
+		return "", "", "expired_token", false
+	}
+	return t.tenant, t.box, "", true
 }

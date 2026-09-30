@@ -931,7 +931,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 // SIGNED-IN HUMAN whose session cookie rides with it, by the same door their
 // download passes. No session in the session door = refused.
 func (s *Server) mayDeleteFile(r *http.Request, tenant, fileID string) (bool, error) {
-	if _, box, ok := s.bearerAny(r); ok && box == WUIBox {
+	if _, box, _, ok := s.bearerAny(r); ok && box == WUIBox {
 		asHuman := r.Clone(r.Context())
 		asHuman.Header.Del("Authorization")
 		return s.mayReadFile(asHuman, tenant, fileID)

@@ -14,6 +14,12 @@ import (
 // a plain sign-out — the clone session is cleared and the clone disabled; there
 // is no admin token kept in the browser while acting.
 
+// ProviderActAs marks a clone session's Provider claim (specs/054). It lets a
+// read cheaply tell an act-as session from a normal one (the WUI banner gate)
+// without a store lookup, and it is not a real IdP, so nothing can start such a
+// session through the sign-in flow.
+const ProviderActAs = "actas"
+
 // ActAsResult is what StartActAs minted.
 type ActAsResult struct {
 	CloneHum  string
@@ -99,7 +105,7 @@ func (h *Handler) startActAs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "act-as")
 		return
 	}
-	clone := Session{V: 1, Provider: "actas", Subject: res.CloneHum, HumanID: res.CloneHum, Tenant: tenant,
+	clone := Session{V: 1, Provider: ProviderActAs, Subject: res.CloneHum, HumanID: res.CloneHum, Tenant: tenant,
 		IssuedAt: h.now().Unix(), Exp: res.ExpiresAt.Unix()}
 	tok, err := signToken(h.sessionKey, clone)
 	if err != nil {

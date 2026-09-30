@@ -16,6 +16,30 @@ type clonesLister interface {
 	ListClones(ctx context.Context, tenant string) ([]store.Clone, error)
 }
 
+// cloneReader reads one clone (to tell a clone session apart, specs/054).
+type cloneReader interface {
+	Clone(ctx context.Context, tenant, clone string) (store.Clone, error)
+}
+
+// actAsMe is the act-as banner state for GET /v1/view/me: non-nil only when hum
+// is a LIVE clone of tenant. A store without clone support, a non-clone, or an
+// ended clone all yield nil (no banner).
+func (s *Server) actAsMe(ctx context.Context, tenant, hum string) *actAsMe {
+	cr, ok := s.o.Store.(cloneReader)
+	if !ok {
+		return nil
+	}
+	c, err := cr.Clone(ctx, tenant, hum)
+	if err != nil || c.EndedAt != nil {
+		return nil
+	}
+	name := c.TargetName
+	if name == "" {
+		name = c.TargetHum
+	}
+	return &actAsMe{TargetHum: c.TargetHum, TargetName: name, ExpiresAt: c.ExpiresAt.UTC().Format(time.RFC3339)}
+}
+
 // cloneAudit is one row of GET /v1/audit/clones.
 type cloneAudit struct {
 	CloneHum  string  `json:"clone_hum"`

@@ -13,15 +13,16 @@ import (
 // (who acted as whom, when, until when, and when/why it ended); it outlives the
 // clone human, which is disabled and stripped of its memberships on stop.
 type Clone struct {
-	CloneHum  string
-	TenantID  string
-	TargetHum string
-	CreatedBy string
-	Role      string
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	EndedAt   *time.Time
-	EndReason string
+	CloneHum   string
+	TenantID   string
+	TargetHum  string
+	TargetName string // the cloned member's display name, for the WUI banner
+	CreatedBy  string
+	Role       string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	EndedAt    *time.Time
+	EndReason  string
 }
 
 // CloneStart is the request to StartClone. TargetHum is the member X being
@@ -152,10 +153,12 @@ func (s *Postgres) StopClone(ctx context.Context, tenant, clone, reason string, 
 // is not a clone of tenant. Used to recognise a clone session and to gate stop.
 func (s *Postgres) Clone(ctx context.Context, tenant, clone string) (Clone, error) {
 	var c Clone
-	err := s.queryRowTenant(ctx, tenant, `SELECT clone_hum, tenant_id, target_hum, created_by, role,
-		created_at, expires_at, ended_at, coalesce(end_reason, '')
-		FROM member_clones WHERE tenant_id = $1 AND clone_hum = $2`, []any{tenant, clone},
-		&c.CloneHum, &c.TenantID, &c.TargetHum, &c.CreatedBy, &c.Role, &c.CreatedAt, &c.ExpiresAt, &c.EndedAt, &c.EndReason)
+	err := s.queryRowTenant(ctx, tenant, `SELECT mc.clone_hum, mc.tenant_id, mc.target_hum,
+		coalesce(h.display_name, ''), mc.created_by, mc.role, mc.created_at, mc.expires_at, mc.ended_at,
+		coalesce(mc.end_reason, '')
+		FROM member_clones mc LEFT JOIN humans h ON h.human_id = mc.target_hum
+		WHERE mc.tenant_id = $1 AND mc.clone_hum = $2`, []any{tenant, clone},
+		&c.CloneHum, &c.TenantID, &c.TargetHum, &c.TargetName, &c.CreatedBy, &c.Role, &c.CreatedAt, &c.ExpiresAt, &c.EndedAt, &c.EndReason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Clone{}, ErrNotFound
 	}
@@ -166,12 +169,14 @@ func (s *Postgres) Clone(ctx context.Context, tenant, clone string) (Clone, erro
 // read behind the audit.read permission).
 func (s *Postgres) ListClones(ctx context.Context, tenant string) ([]Clone, error) {
 	out := []Clone{}
-	err := s.queryTenant(ctx, tenant, `SELECT clone_hum, tenant_id, target_hum, created_by, role,
-		created_at, expires_at, ended_at, coalesce(end_reason, '')
-		FROM member_clones WHERE tenant_id = $1 ORDER BY created_at DESC, clone_hum`, []any{tenant},
+	err := s.queryTenant(ctx, tenant, `SELECT mc.clone_hum, mc.tenant_id, mc.target_hum,
+		coalesce(h.display_name, ''), mc.created_by, mc.role, mc.created_at, mc.expires_at, mc.ended_at,
+		coalesce(mc.end_reason, '')
+		FROM member_clones mc LEFT JOIN humans h ON h.human_id = mc.target_hum
+		WHERE mc.tenant_id = $1 ORDER BY mc.created_at DESC, mc.clone_hum`, []any{tenant},
 		func(rows pgx.Rows) error {
 			var c Clone
-			if err := rows.Scan(&c.CloneHum, &c.TenantID, &c.TargetHum, &c.CreatedBy, &c.Role,
+			if err := rows.Scan(&c.CloneHum, &c.TenantID, &c.TargetHum, &c.TargetName, &c.CreatedBy, &c.Role,
 				&c.CreatedAt, &c.ExpiresAt, &c.EndedAt, &c.EndReason); err != nil {
 				return err
 			}

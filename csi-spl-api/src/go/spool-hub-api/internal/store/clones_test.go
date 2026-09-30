@@ -13,7 +13,7 @@ import (
 func seatMember(t *testing.T, pg *Postgres, tenant, role string) string {
 	t.Helper()
 	ctx := context.Background()
-	hum, err := pg.Admit(ctx, Identity{Provider: "google", Subject: uid("m-")}, "", AdmitPolicy{}, time.Now())
+	hum, err := pg.Admit(ctx, Identity{Provider: "google", Subject: uid("m-"), Name: "FirstName LastName"}, "", AdmitPolicy{}, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,10 +96,15 @@ func TestStartClone(t *testing.T) {
 			t.Error("TenantHumans lists the clone")
 		}
 	}
-	// The audit trail has exactly this live clone.
+	// The audit trail has exactly this live clone, carrying the target's name
+	// for the WUI banner.
 	list, err := pg.ListClones(ctx, tid)
 	if err != nil || len(list) != 1 || list[0].CloneHum != cl.CloneHum || list[0].EndedAt != nil {
 		t.Fatalf("ListClones = %+v %v", list, err)
+	}
+	got, err := pg.Clone(ctx, tid, cl.CloneHum)
+	if err != nil || got.TargetName == "" || got.TargetHum != target {
+		t.Fatalf("Clone target name/hum = %q/%q %v", got.TargetName, got.TargetHum, err)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -86,6 +87,16 @@ type meBody struct {
 	// SPL-1034 (rdb 0073): the person's own Channels order in this tenant;
 	// null = never set (or a door-off guest).
 	ChannelOrder []string `json:"channel_order"`
+	// ActAs is set only when THIS session is an act-as clone (specs/054): it
+	// tells the WUI to show the "Acting as X — Stop" banner. null otherwise.
+	ActAs *actAsMe `json:"act_as"`
+}
+
+// actAsMe is the act-as state of a clone session (specs/054).
+type actAsMe struct {
+	TargetHum  string `json:"target_hum"`
+	TargetName string `json:"target_name"`
+	ExpiresAt  string `json:"expires_at"`
 }
 
 func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +116,13 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()
 		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
+		// Only an act-as session pays the clone lookup (its Provider marks it);
+		// a normal /v1/view/me adds no round trip (TestRoundTripsPerRequest).
+		if s.o.Auth != nil {
+			if sess, ok := s.o.Auth.SessionFromRequest(r); ok && sess.Provider == auth.ProviderActAs {
+				out.ActAs = s.actAsMe(r.Context(), t.ID, hum)
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

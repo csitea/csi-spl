@@ -88,8 +88,10 @@ func TestMergeTopic(t *testing.T) {
 					t.Fatalf("top-level reply %s after merge: %+v", id, m)
 				}
 			}
-			// A thread keeps its own task but is repointed off T onto U.
-			if x := row(x1.MsgID); x.TaskID != r1.MsgID || x.ParentTaskID != U || x.Channel != "ops" || x.Move.FromParent != T {
+			// A thread keeps its own task but is repointed off T onto U (the home
+			// parent is recorded in moved_from_parent, which GetEditable does not
+			// surface - the undo round-trip below proves it was stored).
+			if x := row(x1.MsgID); x.TaskID != r1.MsgID || x.ParentTaskID != U || x.Channel != "ops" {
 				t.Fatalf("thread after merge: %+v", x)
 			}
 			// A sub-task keeps its card bit and its own task; only its parent moves.

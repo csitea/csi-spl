@@ -119,6 +119,28 @@ function focusables(): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(sel)].filter((el) => el.offsetParent !== null || el === document.activeElement)
 }
 
+/* SPL-1234: Escape must close the dialog even when focus is NOT inside the
+   panel. onKeydown below is bound to the panel, so it only fires while focus is
+   trapped inside it; the owner saw Escape do nothing (the X still worked)
+   because focus had left the panel (teleport / async-load timing on open). A
+   window listener, live only while open, closes on Escape unless a child
+   already handled it: an open @headlessui combobox dropdown swallows its own
+   Escape (stopPropagation, so this never sees it), and any child that only
+   preventDefaults is respected via ev.defaultPrevented. When focus IS in the
+   panel, onKeydown's stopPropagation keeps this from firing too. */
+function onWindowKeydown(ev: KeyboardEvent) {
+  // Not while an IME composition is being cancelled by Escape, and not when a
+  // child (an open dropdown inside) already handled it (headlessui stops
+  // propagation so this never sees it; a preventDefault-only child is honoured).
+  if (ev.key !== 'Escape' || ev.defaultPrevented || ev.isComposing || !props.open) return
+  // Topmost only: every backdrop is teleported to <body>, so the last one in
+  // document order is the one on top; a dialog under it must ignore Escape.
+  const backdrops = [...document.querySelectorAll('.ui-dialog-backdrop')]
+  if (backdrops.length > 1 && backdrops[backdrops.length - 1] !== panelEl.value?.parentElement) return
+  ev.preventDefault()
+  close()
+}
+
 function onKeydown(ev: KeyboardEvent) {
   if (ev.key === 'Escape') {
     ev.preventDefault()
@@ -154,6 +176,8 @@ async function onOpenChange(isOpen: boolean) {
   if (!import.meta.client) return
   if (isOpen) {
     returnFocusTo = document.activeElement as HTMLElement | null
+    // SPL-1234: Escape closes wherever focus is (see onWindowKeydown)
+    window.addEventListener('keydown', onWindowKeydown)
     // the page must not scroll behind an open dialog (no-x-scroll invariant
     // included: the body keeps its width, only its scrolling stops)
     document.documentElement.style.overflow = 'hidden'
@@ -167,6 +191,7 @@ async function onOpenChange(isOpen: boolean) {
     const first = items.find((el) => el.hasAttribute('data-autofocus')) ?? items[0]
     ;(first ?? panelEl.value)?.focus()
   } else {
+    window.removeEventListener('keydown', onWindowKeydown)
     document.documentElement.style.overflow = ''
     returnFocusTo?.focus?.()
     returnFocusTo = null
@@ -177,6 +202,7 @@ watch(() => props.open, (isOpen) => { void onOpenChange(isOpen) })
 
 onUnmounted(() => {
   if (!import.meta.client) return
+  window.removeEventListener('keydown', onWindowKeydown)
   document.documentElement.style.overflow = ''
   /* a Lazy<X> dialog is unmounted by the same v-if that closes it */
   returnFocusTo?.focus?.()

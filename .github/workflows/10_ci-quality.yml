@@ -313,6 +313,7 @@ jobs:
           pnpm run test:e2e:issue-dock-comment
           pnpm run test:e2e:delete-confirm
           pnpm run test:e2e:channel-people
+          pnpm run test:e2e:channel-properties-esc
           pnpm run test:e2e:build-watch
           pnpm run test:e2e:names-not-ids
           pnpm run test:e2e:search-original

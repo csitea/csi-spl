@@ -12,6 +12,11 @@
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
 set -uo pipefail
+# Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
+# GIT_DIR/GIT_INDEX_FILE (e.g. when run through the pre-push hook) would override
+# "git -C" and land commits on the real pushing branch. The hook scrubs them; do
+# it here too so the test is safe however it is invoked.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"

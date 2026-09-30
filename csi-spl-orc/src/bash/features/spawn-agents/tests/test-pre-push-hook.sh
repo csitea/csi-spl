@@ -12,6 +12,11 @@
 #     7. idempotent (second run still 0)
 #     8. a non-git dir           -> exit 2
 set -uo pipefail
+# Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
+# GIT_DIR/GIT_INDEX_FILE (e.g. when run through the pre-push hook) would override
+# "git -C" and land commits on the real pushing branch. The hook scrubs them; do
+# it here too so the test is safe however it is invoked.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$(cd "$HERE/../scripts" && pwd)"
 HOOK="$(cd "$HERE/../hooks" && pwd)/pre-push"
@@ -120,6 +125,37 @@ git -C "$REPO" config core.worktree /somewhere/else
 # ... but the override still lets a fixer through
 ( cd "$REPO" && env SPL_PREPUSH_OVERRIDE=1 bash "$HOOK" origin file://x >/dev/null 2>&1 ); eq "11. ... override still escapes the poison" 0 "$?"
 git -C "$REPO" config --unset-all core.worktree 2>/dev/null || true
+
+# 12. REGRESSION (git-env leak): git invokes the hook with GIT_DIR/GIT_INDEX_FILE
+#     set. A gate that creates commits in a throwaway repo must NOT land them on
+#     the PUSHING branch, and must not set core.bare on it -- the hook scrubs
+#     git's env before the gate. Without the scrub, git -C in the gate is
+#     overridden by GIT_DIR and hits the pushing repo (the 2026-09-30 junk
+#     "head/pinned/tip" commits + core.bare=true).
+GR="$ROOT/leakrepo"
+git init -q "$GR"
+git -C "$GR" -c user.email=t@t -c user.name=t commit -q --allow-empty -m real1
+git -C "$GR" -c user.email=t@t -c user.name=t commit -q --allow-empty -m real2
+before="$(git -C "$GR" rev-parse HEAD)"
+mkdir -p "$GR/csi-spl-iac"
+cat >"$GR/csi-spl-iac/run" <<'EOF'
+#!/usr/bin/env bash
+# a gate that commits into its OWN throwaway repo via git -C, and sets core.bare
+# there. If git's env leaked from the hook, -C is overridden and this lands on
+# the PUSHING repo instead -- which the assertions below catch.
+tmp="$(mktemp -d)"; git init -q "$tmp"
+git -C "$tmp" -c user.email=t@example.com -c user.name=t commit --allow-empty -m throwaway 2>/dev/null || true
+git -C "$tmp" config core.bare true 2>/dev/null || true
+rm -rf "$tmp"
+exit 0
+EOF
+chmod +x "$GR/csi-spl-iac/run"
+( cd "$GR" && env GIT_DIR="$GR/.git" GIT_INDEX_FILE="$GR/.git/index" SPL_PREPUSH_LOG_DIR="$ROOT/l12" \
+    bash "$HOOK" origin file://x >/dev/null 2>&1 )
+eq "12. gate through the hook leaves the pushing branch HEAD untouched" "$before" "$(git -C "$GR" rev-parse HEAD)"
+[ "$(git -C "$GR" config --get core.bare 2>/dev/null)" != true ] \
+  && pass "12. ... and does not flip core.bare=true on the pushing repo" \
+  || fail "12. ... and does not flip core.bare=true on the pushing repo"
 
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

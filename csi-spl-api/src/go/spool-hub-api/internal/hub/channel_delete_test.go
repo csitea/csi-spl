@@ -64,18 +64,14 @@ func TestDeleteChannelCreatorOnly(t *testing.T) {
 	if code, _ := call(t, e, tid, http.MethodDelete, "/v1/channels/doomed", creator, nil); code != http.StatusNotFound {
 		t.Errorf("second DELETE: %d, want 404", code)
 	}
-	// The slug stays taken while the channel can still be restored.
-	if code, _ := call(t, e, tid, http.MethodPost, "/v1/channels", creator,
-		map[string]string{"channel": "doomed"}); code != http.StatusConflict {
-		t.Errorf("re-create a deleted slug: %d, want 409", code)
+	// THE FIX (HUM-10, topic ee21db20): a delete FREES the name - the same slug
+	// can be created again, and it inherits nothing.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels", creator,
+		map[string]string{"channel": "doomed", "name": "Doomed Again"}); code != http.StatusCreated {
+		t.Errorf("re-create a deleted slug: %d %v, want 201", code, out)
 	}
-
-	// The way back: the restore brings its members with it.
-	if err := e.st.RestoreChannel(context.Background(), tid, "doomed"); err != nil {
-		t.Fatal(err)
-	}
-	if got := listedChannels(t, e, tid, boss); !got["doomed"] {
-		t.Errorf("restored channel not listed for its member: %v", got)
+	if got := listedChannels(t, e, tid, creator); !got["doomed"] {
+		t.Errorf("re-created channel not listed for its creator: %v", got)
 	}
 }
 
@@ -121,5 +117,60 @@ func TestDeleteChannelLive(t *testing.T) {
 	}
 	if n, _ := readTopic(t, e, tid, task, "HUM-2"); n == http.StatusOK {
 		t.Errorf("the deleted channel's topic is still readable")
+	}
+}
+
+// rdb 0092: PUT /v1/channels/{c}/archive hides a channel and reserves its
+// slug (the create-conflict names it archived); PUT .../unarchive brings it
+// back. The creator archives; a member who did not create it is refused.
+func TestArchiveUnarchiveChannel(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	creator := seat(t, e, tid, "developer")
+	boss := seat(t, e, tid, "biz_owner") // a member, did not create it
+
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels", creator,
+		map[string]string{"channel": "keepme", "name": "Keep Me"}); code != http.StatusCreated {
+		t.Fatalf("create: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/keepme/members", creator,
+		map[string]string{"human_id": boss}); code != http.StatusCreated {
+		t.Fatalf("add member: %d %v", code, out)
+	}
+
+	// a default channel is never archived
+	if code, _ := call(t, e, tid, http.MethodPut, "/v1/channels/lobby/archive", creator, nil); code != http.StatusConflict {
+		t.Errorf("archive default: %d, want 409", code)
+	}
+	// a member who did not create it is refused
+	if code, _ := call(t, e, tid, http.MethodPut, "/v1/channels/keepme/archive", boss, nil); code != http.StatusForbidden {
+		t.Errorf("non-creator archive: %d, want 403", code)
+	}
+
+	// the creator archives: the channel drops off both members' lists
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/channels/keepme/archive", creator, nil); code != http.StatusNoContent {
+		t.Fatalf("creator archive: %d %v", code, out)
+	}
+	for _, who := range []string{creator, boss} {
+		if got := listedChannels(t, e, tid, who); got["keepme"] {
+			t.Errorf("%s still lists an archived channel: %v", who, got)
+		}
+	}
+	// the slug stays reserved, and the conflict says it is archived
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels", creator,
+		map[string]string{"channel": "keepme"}); code != http.StatusConflict || out["error"] != "channel_archived" {
+		t.Errorf("re-create an archived slug: %d %v, want 409 channel_archived", code, out)
+	}
+
+	// unarchive brings it back for its members
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/channels/keepme/unarchive", creator, nil); code != http.StatusOK {
+		t.Fatalf("unarchive: %d %v", code, out)
+	}
+	if got := listedChannels(t, e, tid, boss); !got["keepme"] {
+		t.Errorf("unarchived channel not listed for its member: %v", got)
+	}
+	// unarchiving a live channel is a 404 (nothing archived by that name)
+	if code, _ := call(t, e, tid, http.MethodPut, "/v1/channels/keepme/unarchive", creator, nil); code != http.StatusNotFound {
+		t.Errorf("unarchive a live channel: %d, want 404", code)
 	}
 }

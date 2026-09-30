@@ -15,7 +15,7 @@ func (s *Memory) PendingBackfills(_ context.Context, tenant, box string) ([]Back
 	s.ch.init()
 	var out []BackfillSeat
 	for k := range s.ch.invited {
-		if k[0] != tenant || k[2] != box || s.ch.gone(tenant, k[1]) {
+		if k[0] != tenant || k[2] != box || s.ch.archivedCh(tenant, k[1]) {
 			continue
 		}
 		if _, done := s.ch.backfilled[k]; done {

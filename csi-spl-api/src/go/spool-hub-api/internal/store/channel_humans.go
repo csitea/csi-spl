@@ -107,7 +107,7 @@ func (s *Memory) ChannelHumanMembers(_ context.Context, tenant, channel string) 
 	defer s.mu.Unlock()
 	s.ch.init()
 	var out []string
-	if s.ch.gone(tenant, NormalizeChannel(channel)) {
+	if s.ch.archivedCh(tenant, NormalizeChannel(channel)) {
 		return nil, nil
 	}
 	for h := range s.ch.humansLocked()[[2]string{tenant, NormalizeChannel(channel)}] {
@@ -123,7 +123,7 @@ func (s *Memory) HumanChannels(_ context.Context, tenant, human string) ([]strin
 	s.ch.init()
 	var out []string
 	for k, hs := range s.ch.humansLocked() {
-		if k[0] == tenant && hs[human] != "" && !s.ch.gone(tenant, k[1]) {
+		if k[0] == tenant && hs[human] != "" && !s.ch.archivedCh(tenant, k[1]) {
 			out = append(out, k[1])
 		}
 	}

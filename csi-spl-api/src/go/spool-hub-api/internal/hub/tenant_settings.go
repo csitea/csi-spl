@@ -266,8 +266,11 @@ func (s *Server) handlePatchTenantChannel(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "no_fallback": *body.NoFallback})
 }
 
-// DELETE /v1/tenant/channels/{channel}: archive (the 041-style soft delete
-// of DELETE /v1/channels/{channel}) without being its creator.
+// DELETE /v1/tenant/channels/{channel}: an admin archives a channel without
+// being its creator (rdb 0092). It is hidden and its slug reserved, and its
+// topics and messages move to the Archive view; PUT /v1/channels/{channel}/
+// unarchive brings it back. (A hard delete that frees the name is the
+// creator's DELETE /v1/channels/{channel}.)
 func (s *Server) handleArchiveTenantChannel(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.TenantSettings)
 	if !ok {
@@ -282,7 +285,7 @@ func (s *Server) handleArchiveTenantChannel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	members := s.channelMemberSet(r.Context(), t.ID, ch)
-	switch err := s.o.Store.DeleteChannel(r.Context(), t.ID, ch, a.HumanID, s.o.Now().UTC()); {
+	switch err := s.o.Store.ArchiveChannel(r.Context(), t.ID, ch, a.HumanID, s.o.Now().UTC()); {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
 		return

@@ -436,6 +436,17 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		CreatedBy: by, CreatedAt: s.o.Now().UTC()}
 	switch err := s.o.Store.CreateChannel(r.Context(), c); {
 	case errors.Is(err, store.ErrConflict):
+		// An archived channel keeps its slug (rdb 0092): tell the two conflicts
+		// apart so the WUI can offer to unarchive rather than only refuse.
+		if arch, found, aerr := s.o.Store.ArchivedChannel(r.Context(), t.ID, body.Channel); aerr == nil && found {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "channel_archived",
+				"detail":      "reserved: an archived channel has this name",
+				"channel":     arch.ChannelID,
+				"name":        arch.Name,
+				"archived_by": arch.ArchivedBy,
+				"archived_at": rfc(arch.ArchivedAt)})
+			return
+		}
 		writeErr(w, http.StatusConflict, "channel_exists", "channel "+body.Channel+" exists or is reserved")
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "channel not stored")

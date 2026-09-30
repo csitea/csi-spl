@@ -19,18 +19,18 @@ type memChannels struct {
 	// removed is the same key for an agent a member took out. Announce
 	// must not put that agent back into that channel.
 	removed map[[4]string]struct{}
-	// deleted holds the rows DeleteChannel took out of rows (rdb 0052).
-	// humans, subs and invited keep their entries for RestoreChannel; every
-	// read skips them through gone().
-	deleted map[[2]string]Channel
+	// archived holds the rows ArchiveChannel took out of rows (rdb 0092).
+	// humans, subs and invited keep their entries for UnarchiveChannel; every
+	// live read skips them through archivedCh().
+	archived map[[2]string]Channel
 	// backfilled is the rdb 0066 stamp per invited seat (backfill_memory.go).
 	// It survives a remove and a re-invite, as the column does.
 	backfilled map[[4]string]time.Time
 }
 
-// gone reports a soft-deleted channel of tenant. Caller holds Memory.mu.
-func (c *memChannels) gone(tenant, channel string) bool {
-	_, ok := c.deleted[[2]string{tenant, channel}]
+// archivedCh reports an archived channel of tenant. Caller holds Memory.mu.
+func (c *memChannels) archivedCh(tenant, channel string) bool {
+	_, ok := c.archived[[2]string{tenant, channel}]
 	return ok
 }
 
@@ -47,8 +47,8 @@ func (c *memChannels) init() {
 	if c.removed == nil {
 		c.removed = map[[4]string]struct{}{}
 	}
-	if c.deleted == nil {
-		c.deleted = map[[2]string]Channel{}
+	if c.archived == nil {
+		c.archived = map[[2]string]Channel{}
 	}
 	if c.backfilled == nil {
 		c.backfilled = map[[4]string]time.Time{}
@@ -77,7 +77,7 @@ func (s *Memory) CreateChannel(_ context.Context, c Channel) error {
 	}
 	s.ch.init()
 	k := [2]string{c.TenantID, c.ChannelID}
-	if _, ok := s.ch.rows[k]; ok || s.ch.gone(c.TenantID, c.ChannelID) || IsDefaultChannel(c.ChannelID) {
+	if _, ok := s.ch.rows[k]; ok || s.ch.archivedCh(c.TenantID, c.ChannelID) || IsDefaultChannel(c.ChannelID) {
 		return ErrConflict
 	}
 	s.ch.rows[k] = c
@@ -127,6 +127,8 @@ func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error
 	return ok, nil
 }
 
+// DeleteChannel HARD-deletes a channel (live or archived): its row, its
+// membership rows and its messages are all removed, so the slug is free.
 func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now time.Time) error {
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
@@ -136,32 +138,128 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 	defer s.mu.Unlock()
 	s.ch.init()
 	k := [2]string{tenant, id}
-	c, ok := s.ch.rows[k]
-	if !ok {
-		return ErrNotFound
+	c, archived := s.ch.rows[k], false
+	if _, ok := s.ch.rows[k]; !ok {
+		if c, archived = s.ch.archived[k]; !archived {
+			return ErrNotFound
+		}
 	}
-	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0052 CHECK
+	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0092 CHECK
 		return ErrConflict
 	}
-	c.DeletedAt, c.DeletedBy = now, by
 	delete(s.ch.rows, k)
-	s.ch.deleted[k] = c
+	delete(s.ch.archived, k)
+	delete(s.ch.humans, k)
+	for key := range s.ch.invited { // channel_subscriptions / backfill rows
+		if key[0] == tenant && key[1] == id {
+			delete(s.ch.invited, key)
+			delete(s.ch.removed, key)
+			delete(s.ch.backfilled, key)
+		}
+	}
+	for key := range s.ch.removed {
+		if key[0] == tenant && key[1] == id {
+			delete(s.ch.removed, key)
+		}
+	}
+	for sk, bag := range s.ch.subs {
+		if sk[0] == tenant {
+			delete(bag, id)
+		}
+	}
+	for mk, m := range s.messages { // its messages and the rows that reference them
+		if mk[0] == tenant && m.Channel == id {
+			delete(s.messages, mk)
+			delete(s.revisions, mk)
+			delete(s.kindChanges, mk)
+			delete(s.reactions, mk)
+			for dk := range s.deliveries {
+				if dk[0] == tenant && dk[1] == mk[1] {
+					delete(s.deliveries, dk)
+				}
+			}
+		}
+	}
 	return nil
 }
 
-func (s *Memory) RestoreChannel(_ context.Context, tenant, id string) error {
+// firstOfTaskLocked reports whether m is its task's opening card (no earlier
+// is_parent=1 row of the same task). Caller holds Memory.mu.
+func (s *Memory) firstOfTaskLocked(tenant string, m *Message) bool {
+	for k, o := range s.messages {
+		if k[0] == tenant && o.TaskID == m.TaskID && parentBit(o.IsParent) == 1 &&
+			newer(m.ReceivedAt, m.MsgID, o.ReceivedAt, o.MsgID) {
+			return false
+		}
+	}
+	return true
+}
+
+// ArchiveChannel hides a channel, reserves its slug and stamps its topic
+// cards (rdb 0092). The cards it stamps carry the channel's archived_at, so
+// UnarchiveChannel can tell them from cards archived on their own before.
+func (s *Memory) ArchiveChannel(_ context.Context, tenant, id, by string, now time.Time) error {
+	id = NormalizeChannel(id)
+	if IsDefaultChannel(id) {
+		return ErrConflict
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
-	k := [2]string{tenant, NormalizeChannel(id)}
-	c, ok := s.ch.deleted[k]
+	k := [2]string{tenant, id}
+	c, ok := s.ch.rows[k]
+	if !ok { // absent or already archived
+		return ErrNotFound
+	}
+	if len(c.CreatedBy) < 4 || c.CreatedBy[:4] != "HUM-" { // the 0092 CHECK
+		return ErrConflict
+	}
+	c.ArchivedAt, c.ArchivedBy = now, by
+	delete(s.ch.rows, k)
+	s.ch.archived[k] = c
+	for _, m := range s.messages {
+		if m.TenantID == tenant && m.Channel == id && parentBit(m.IsParent) == 1 &&
+			m.ArchivedAt.IsZero() && s.firstOfTaskLocked(tenant, m) {
+			m.ArchivedAt, m.ArchivedBy = now, by
+		}
+	}
+	return nil
+}
+
+// UnarchiveChannel restores the channel and only the cards this archive
+// stamped (same archived_at). Cards archived individually before keep theirs.
+func (s *Memory) UnarchiveChannel(_ context.Context, tenant, id string) error {
+	id = NormalizeChannel(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	k := [2]string{tenant, id}
+	c, ok := s.ch.archived[k]
 	if !ok {
 		return ErrNotFound
 	}
-	c.DeletedAt, c.DeletedBy = time.Time{}, ""
-	delete(s.ch.deleted, k)
+	at := c.ArchivedAt
+	c.ArchivedAt, c.ArchivedBy = time.Time{}, ""
+	delete(s.ch.archived, k)
 	s.ch.rows[k] = c
+	for _, m := range s.messages {
+		if m.TenantID == tenant && m.Channel == id && !m.ArchivedAt.IsZero() && m.ArchivedAt.Equal(at) {
+			m.ArchivedAt, m.ArchivedBy = time.Time{}, ""
+		}
+	}
 	return nil
+}
+
+func (s *Memory) ArchivedChannel(_ context.Context, tenant, id string) (Channel, bool, error) {
+	id = NormalizeChannel(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	c, ok := s.ch.archived[[2]string{tenant, id}]
+	if !ok {
+		return Channel{}, false, nil
+	}
+	return c, true, nil
 }
 
 // SetSubscriptions records one box announce.
@@ -226,7 +324,7 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 	defer s.mu.Unlock()
 	s.ch.init()
 	out := map[string][]string{}
-	if s.ch.gone(tenant, channel) {
+	if s.ch.archivedCh(tenant, channel) {
 		return out, nil
 	}
 	for k, m := range s.ch.subs {
@@ -336,7 +434,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	}
 	out := make([]ChannelStat, 0, len(by))
 	for id, st := range by {
-		if !ChannelHidden(id) && !s.ch.gone(tenant, id) { // issue discussions are not a channel; rdb 0052
+		if !ChannelHidden(id) && !s.ch.archivedCh(tenant, id) { // issue discussions are not a channel; rdb 0052
 			out = append(out, *st)
 		}
 	}

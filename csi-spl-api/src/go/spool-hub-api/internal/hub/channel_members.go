@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -38,6 +39,10 @@ func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/channels/{channel}/members/{human_id}", s.handleRemoveChannelMember)
 	mux.HandleFunc("PATCH /v1/channels/{channel}", s.handlePatchChannelInvite)
 	mux.HandleFunc("DELETE /v1/channels/{channel}", s.handleDeleteChannel)
+	mux.HandleFunc("PUT /v1/channels/{channel}/archive", s.handleArchiveChannel)
+	mux.HandleFunc("PUT /v1/channels/{channel}/unarchive", s.handleUnarchiveChannel)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}/archive", s.channelArchivePreflight)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}/unarchive", s.channelArchivePreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members/{human_id}", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents", s.channelMembersPreflight)
@@ -75,6 +80,17 @@ func (s *Server) channelInvitePreflight(w http.ResponseWriter, r *http.Request) 
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "PATCH, DELETE")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// channelArchivePreflight answers the archive / unarchive OPTIONS (PUT).
+func (s *Server) channelArchivePreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "PUT")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
@@ -452,18 +468,19 @@ func (s *Server) handlePatchChannelInvite(w http.ResponseWriter, r *http.Request
 }
 
 // DELETE /v1/channels/{channel} — the member who created the channel deletes
-// it (SPL-72, channels-v1 §5.4, rdb 0052). The creator ONLY: channelOwner,
-// the rule PATCH uses. No role widens it - a biz_owner or admin who did not
-// create the channel is refused like any other member (they keep
-// channels.manage to remove members). A channel created_by hub or wui has no
-// creator, so nobody may delete it. Refusals, in door order: not a member
-// 404 (as a missing channel), a default channel 409, not the creator 403.
+// it (SPL-72, channels-v1 §5.4). The creator ONLY: channelOwner, the rule
+// PATCH uses. No role widens it - a biz_owner or admin who did not create the
+// channel is refused like any other member (they keep channels.manage to
+// remove members). A channel created_by hub or wui has no creator, so nobody
+// may delete it. Refusals, in door order: not a member 404 (as a missing
+// channel), a default channel 409, not the creator 403.
 //
-// It is a SOFT delete: messages, members and agent seats stay and
-// do_spl_channel_restore brings the channel back; until then every read and
-// every delivery treats it as absent. The members are read BEFORE the
-// delete - afterwards the channel has none - and each of their sockets gets
-// a channel_deleted frame, so every open sidebar drops it at once.
+// It is a HARD delete (HUM-10 bug, topic ee21db20): the channels row, its
+// members, its agent seats and its messages are removed, so the slug is FREE
+// again - a new channel of the same name inherits nothing. A member who wants
+// the channel kept but hidden uses PUT .../archive instead. The members are
+// read BEFORE the delete - afterwards the channel has none - and each of their
+// sockets gets a channel_deleted frame, so every open sidebar drops it at once.
 func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
@@ -496,6 +513,88 @@ func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel deleted")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /v1/channels/{channel}/archive — the creator archives the channel
+// (SPL feature, topic 32ea1b81): it is hidden and its slug reserved, and its
+// topics and messages move to the Archive view (rdb 0092). Reversible by
+// PUT .../unarchive. Same door as delete (channelOwner): a member who did not
+// create it is refused. The members are read before the archive; each open
+// sidebar gets a channel_deleted frame and drops the row.
+func (s *Server) handleArchiveChannel(w http.ResponseWriter, r *http.Request) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	if store.ChannelPublic(ch) {
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: it cannot be archived")
+		return
+	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !channelOwner(row.CreatedBy, hum) {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the member who created #"+ch+" may archive it")
+		return
+	}
+	members := s.channelMemberSet(r.Context(), t.ID, ch)
+	switch err := s.o.Store.ArchiveChannel(r.Context(), t.ID, ch, hum, s.o.Now().UTC()); {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
+		return
+	case errors.Is(err, store.ErrConflict):
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" cannot be archived")
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "channel not archived")
+		return
+	}
+	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel archived")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /v1/channels/{channel}/unarchive — bring an archived channel back
+// (rdb 0092). channels.manage (the create-channel permission), because the
+// archived channel is invisible to the channelDoor and the person meeting the
+// "name reserved" wall on create is the one who unarchives. The channel and
+// the topics/messages this archive stamped come back; a topic archived on its
+// own before the channel archive stays archived. A `channel` frame re-adds the
+// row to every member's sidebar.
+func (s *Server) handleUnarchiveChannel(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r)
+	t, hum, ok := s.humanTenant(w, r)
+	if !ok || !s.permit(w, r, t.ID, hum, rbac.ChannelsManage) {
+		return
+	}
+	ch := store.NormalizeChannel(r.PathValue("channel"))
+	if !store.ValidChannelID(ch) {
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
+		return
+	}
+	row, found, err := s.o.Store.ArchivedChannel(r.Context(), t.ID, ch)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")
+		return
+	}
+	if !found {
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no archived channel "+r.PathValue("channel")+" in this tenant")
+		return
+	}
+	switch err := s.o.Store.UnarchiveChannel(r.Context(), t.ID, ch); {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no archived channel "+r.PathValue("channel")+" in this tenant")
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "channel not unarchived")
+		return
+	}
+	row.ArchivedAt, row.ArchivedBy = time.Time{}, ""
+	s.fanoutChannel(r.Context(), t.ID, row)
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel unarchived")
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "name": row.Name, "description": row.Description,
+		"created_by": row.CreatedBy, "created_at": rfc(row.CreatedAt), "default": false})
 }
 
 // DELETE /v1/channels/{channel}/members/{human_id} — remove one member, or

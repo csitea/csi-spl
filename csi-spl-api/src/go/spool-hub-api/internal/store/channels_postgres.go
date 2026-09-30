@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,7 @@ func (s *Postgres) Channel(ctx context.Context, tenant, id string) (Channel, err
 	id = NormalizeChannel(id)
 	var c Channel
 	err := s.queryRowTenant(ctx, tenant, `SELECT channel_id, name, description, created_by, created_at, members_open_invite
-		FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
+		FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NULL`,
 		[]any{tenant, id}, &c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if IsDefaultChannel(id) {
@@ -63,7 +64,7 @@ func (s *Postgres) SetMembersOpenInvite(ctx context.Context, tenant, id string, 
 		return ErrConflict
 	}
 	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET members_open_invite = $3
-		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`, tenant, id, open)
+		WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NULL`, tenant, id, open)
 	if err != nil {
 		return err
 	}
@@ -78,50 +79,126 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 		return true, nil
 	}
 	var ok bool
-	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL)`,
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NULL)`,
 		[]any{tenant, id}, &ok)
 	return ok, err
 }
 
-// DeleteChannel stamps the row (rdb 0052). A default channel is refused
-// before the statement; the 0052 CHECK refuses it again in the database.
+// DeleteChannel HARD-deletes a channel (HUM-10 bug, topic ee21db20): its
+// messages, then its row - channel_humans and channel_subscriptions cascade
+// (rdb 0002 + 0028) - all in one transaction, so the slug is free again. A
+// default channel is refused, and only a human-created channel (created_by
+// HUM-*) is deletable, matching the Memory store. An archived channel is
+// deletable too (the create-conflict dialog offers "delete to free the name").
 func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
 		return ErrConflict
 	}
-	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET deleted_at = $3, deleted_by = $4
-		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NULL`, tenant, id, now, by)
-	var pe interface{ SQLState() string }
-	if errors.As(err, &pe) && pe.SQLState() == "23514" { // channels_delete_human_only
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var createdBy string
+		err := tx.QueryRow(ctx, `SELECT created_by FROM channels WHERE tenant_id = $1 AND channel_id = $2 FOR UPDATE`,
+			tenant, id).Scan(&createdBy)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if !strings.HasPrefix(createdBy, "HUM-") {
+			return ErrConflict
+		}
+		// its messages (deliveries, message_revisions, message_reactions and
+		// message_kind_changes cascade off messages, as DeleteTopic relies on)
+		if _, err := tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND channel = $2`, tenant, id); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM channels WHERE tenant_id = $1 AND channel_id = $2`, tenant, id)
+		return err
+	})
+}
+
+// ArchiveChannel stamps the channels row (rdb 0092) and its topic cards. A
+// default channel is refused before the statement; the 0092 CHECK refuses it
+// again in the database. The card stamp carries the channel's archived_at so
+// UnarchiveChannel can tell it from a card archived on its own earlier.
+func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+	id = NormalizeChannel(id)
+	if IsDefaultChannel(id) {
 		return ErrConflict
 	}
-	if err != nil {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE channels SET archived_at = $3, archived_by = $4
+			WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NULL`, tenant, id, now, by)
+		var pe interface{ SQLState() string }
+		if errors.As(err, &pe) && pe.SQLState() == "23514" { // channels_archive_human_only
+			return ErrConflict
+		}
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		// its topic cards: the earliest is_parent=1 row of each task in the
+		// channel that is not already archived (scanCard's FirstOfTask shape).
+		_, err = tx.Exec(ctx, `UPDATE messages m SET archived_at = $3, archived_by = $4
+			WHERE m.tenant_id = $1 AND m.channel = $2 AND m.archived_at IS NULL AND m.is_parent = 1
+			AND NOT EXISTS (SELECT 1 FROM messages e WHERE e.tenant_id = m.tenant_id AND e.task_id = m.task_id
+				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id))`, tenant, id, now, by)
 		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	})
 }
 
-func (s *Postgres) RestoreChannel(ctx context.Context, tenant, id string) error {
-	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET deleted_at = NULL, deleted_by = NULL
-		WHERE tenant_id = $1 AND channel_id = $2 AND deleted_at IS NOT NULL`, tenant, NormalizeChannel(id))
-	if err != nil {
+// UnarchiveChannel clears the channels row and only the cards THIS archive
+// stamped (archived_at equal to the channel's), so a card archived on its own
+// before the channel archive keeps its stamp. ErrNotFound when not archived.
+func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id string) error {
+	id = NormalizeChannel(id)
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var at time.Time
+		err := tx.QueryRow(ctx, `SELECT archived_at FROM channels
+			WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NOT NULL FOR UPDATE`, tenant, id).Scan(&at)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE channels SET archived_at = NULL, archived_by = NULL
+			WHERE tenant_id = $1 AND channel_id = $2`, tenant, id); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE messages SET archived_at = NULL, archived_by = NULL
+			WHERE tenant_id = $1 AND channel = $2 AND archived_at = $3`, tenant, id, at)
 		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	})
 }
 
-// notDeleted is the predicate every membership read adds (rdb 0052): the
-// rows of a deleted channel stay for RestoreChannel and grant nothing.
+// ArchivedChannel returns an archived channel's row, ok=false when none.
+func (s *Postgres) ArchivedChannel(ctx context.Context, tenant, id string) (Channel, bool, error) {
+	id = NormalizeChannel(id)
+	var c Channel
+	var by *string
+	err := s.queryRowTenant(ctx, tenant, `SELECT channel_id, name, description, created_by, created_at, members_open_invite, archived_at, archived_by
+		FROM channels WHERE tenant_id = $1 AND channel_id = $2 AND archived_at IS NOT NULL`,
+		[]any{tenant, id}, &c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite, &c.ArchivedAt, &by)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Channel{}, false, nil
+	}
+	if err != nil {
+		return Channel{}, false, err
+	}
+	c.TenantID = tenant
+	c.ArchivedBy = deref(by)
+	return c, true, nil
+}
+
+// notArchived is the predicate every membership read adds (rdb 0092): the
+// rows of an archived channel stay for UnarchiveChannel and grant nothing.
 // $1 is the tenant; col names the channel id column of the outer row.
-func notDeleted(col string) string {
-	return `NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = ` + col + ` AND dc.deleted_at IS NOT NULL)`
+func notArchived(col string) string {
+	return `NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = ` + col + ` AND dc.archived_at IS NOT NULL)`
 }
 
 // SetSubscriptions records one box announce against channel_subscriptions.
@@ -198,7 +275,7 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 	err := s.queryTenant(ctx, tenant, `SELECT box_id, agent_id FROM channel_subscriptions
 		WHERE tenant_id = $1 AND channel_id = $2 AND origin <> 'removed'
 		AND NOT (origin = 'announce' AND channel_id = ANY($3::text[]))
-		AND `+notDeleted("channel_subscriptions.channel_id")+`
+		AND `+notArchived("channel_subscriptions.channel_id")+`
 		ORDER BY box_id, agent_id`, []any{tenant, channel, DefaultChannels},
 		func(rows pgx.Rows) error {
 			var box, agent string
@@ -230,13 +307,13 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 // channelStats collects one tenant's channel list across the batch's reads:
 // every default channel, then what each read adds.
 type channelStats struct {
-	tenant  string
-	by      map[string]*ChannelStat
-	deleted map[string]bool // rdb 0052: dropped once every read is in
+	tenant   string
+	by       map[string]*ChannelStat
+	archived map[string]bool // rdb 0092: dropped once every read is in
 }
 
 func newChannelStats(tenant string) *channelStats {
-	cs := &channelStats{tenant: tenant, by: map[string]*ChannelStat{}, deleted: map[string]bool{}}
+	cs := &channelStats{tenant: tenant, by: map[string]*ChannelStat{}, archived: map[string]bool{}}
 	for _, d := range DefaultChannels {
 		cs.get(d)
 	}
@@ -256,10 +333,10 @@ func (cs *channelStats) get(id string) *ChannelStat {
 	return st
 }
 
-// channelsRead is the created channels; a deleted one is remembered and left
+// channelsRead is the created channels; an archived one is remembered and left
 // out.
 func (cs *channelStats) channelsRead() tenantRead {
-	return tenantRead{`SELECT channel_id, name, description, created_by, created_at, members_open_invite, deleted_at IS NOT NULL FROM channels WHERE tenant_id = $1`,
+	return tenantRead{`SELECT channel_id, name, description, created_by, created_at, members_open_invite, archived_at IS NOT NULL FROM channels WHERE tenant_id = $1`,
 		[]any{cs.tenant}, func(r pgx.Rows) error {
 			var c Channel
 			var gone bool
@@ -267,7 +344,7 @@ func (cs *channelStats) channelsRead() tenantRead {
 				return err
 			}
 			if gone {
-				cs.deleted[c.ChannelID] = true
+				cs.archived[c.ChannelID] = true
 				return nil
 			}
 			st := cs.get(c.ChannelID)
@@ -359,11 +436,11 @@ func (cs *channelStats) membersRead() tenantRead {
 }
 
 // result is the list, newest activity first, without issue discussions
-// (not a channel) and deleted channels (rdb 0052).
+// (not a channel) and archived channels (rdb 0092).
 func (cs *channelStats) result() []ChannelStat {
 	out := make([]ChannelStat, 0, len(cs.by))
 	for id, st := range cs.by {
-		if !ChannelHidden(id) && !cs.deleted[id] {
+		if !ChannelHidden(id) && !cs.archived[id] {
 			out = append(out, *st)
 		}
 	}
@@ -376,7 +453,7 @@ func (cs *channelStats) result() []ChannelStat {
 func (s *Postgres) ChannelHumanMembers(ctx context.Context, tenant, channel string) ([]string, error) {
 	var out []string
 	err := s.queryTenant(ctx, tenant, `SELECT human_id FROM channel_humans
-		WHERE tenant_id = $1 AND channel_id = $2 AND `+notDeleted("channel_humans.channel_id")+` ORDER BY human_id`, []any{tenant, NormalizeChannel(channel)},
+		WHERE tenant_id = $1 AND channel_id = $2 AND `+notArchived("channel_humans.channel_id")+` ORDER BY human_id`, []any{tenant, NormalizeChannel(channel)},
 		func(rows pgx.Rows) error {
 			var h string
 			if err := rows.Scan(&h); err != nil {
@@ -402,7 +479,7 @@ func (s *Postgres) HumanChannels(ctx context.Context, tenant, human string) ([]s
 // memo batch.
 func humanChannelsRead(tenant, human string, out *[]string) tenantRead {
 	return tenantRead{sql: `SELECT channel_id FROM channel_humans
-		WHERE tenant_id = $1 AND human_id = $2 AND ` + notDeleted("channel_humans.channel_id") + ` ORDER BY channel_id`,
+		WHERE tenant_id = $1 AND human_id = $2 AND ` + notArchived("channel_humans.channel_id") + ` ORDER BY channel_id`,
 		args: []any{tenant, human}, each: func(rows pgx.Rows) error {
 			var c string
 			if err := rows.Scan(&c); err != nil {

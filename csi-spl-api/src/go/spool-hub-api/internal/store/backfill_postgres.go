@@ -13,7 +13,7 @@ func (s *Postgres) PendingBackfills(ctx context.Context, tenant, box string) ([]
 	var out []BackfillSeat
 	err := s.queryTenant(ctx, tenant, `SELECT channel_id, box_id, agent_id FROM channel_subscriptions
 		WHERE tenant_id = $1 AND box_id = $2 AND origin = 'invite' AND backfilled_at IS NULL
-		AND `+notDeleted("channel_subscriptions.channel_id")+`
+		AND `+notArchived("channel_subscriptions.channel_id")+`
 		ORDER BY channel_id, agent_id`, []any{tenant, box}, func(rows pgx.Rows) error {
 		var b BackfillSeat
 		if err := rows.Scan(&b.Channel, &b.Box, &b.Agent); err != nil {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -195,6 +196,69 @@ func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p Admit
 		return nil, nil, ErrSeatQuota
 	}
 	return grant, inv, nil
+}
+
+// ProvisionMember seats a member by email before any sign-in (CLE-77781); see
+// store.MemberProvisioner. Idempotent. The memory store keeps no credentials
+// table, so PasswordHash only seeds the (password, email) identity that native
+// login would resolve to — enough to prove linking in a memory test.
+func (s *Memory) ProvisionMember(_ context.Context, in ProvisionInput, now time.Time) (string, bool, error) {
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		return "", false, errors.New("provision: a valid email is required")
+	}
+	role, err := normalizeRole(in.Role, "")
+	if err != nil {
+		return "", false, err
+	}
+	if _, ok := memRoles()[role]; !ok {
+		return "", false, ErrUnknownRole
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tenants[in.Tenant]; !ok {
+		return "", false, ErrNotFound
+	}
+	h := &s.hum
+	h.init()
+	hum := h.verifiedHuman(email)
+	createdHuman := false
+	if hum == "" {
+		h.next++
+		hum = fmt.Sprintf("HUM-%d", h.next)
+		h.humans[hum] = &memHuman{name: in.DisplayName, email: email}
+		createdHuman = true
+	} else if hm := h.humans[hum]; hm != nil {
+		if hm.name == "" {
+			hm.name = in.DisplayName
+		}
+		if hm.email == "" {
+			hm.email = email
+		}
+	}
+	// operator identity (verified) — links a later real sign-in, never signs in.
+	if _, ok := h.identities[[2]string{ProviderOperator, email}]; !ok {
+		h.identities[[2]string{ProviderOperator, email}] = &memIdent{human: hum, email: email, verified: true}
+	}
+	if _, ok := h.members[[2]string{in.Tenant, hum}]; !ok {
+		h.members[[2]string{in.Tenant, hum}] = memMember{role: role, admittedBy: AdmittedOperator, since: now,
+			orderedBy: in.OrderedBy, orderedVia: in.OrderedVia, invitedOn: now}
+	}
+	if inv, ok := h.invites[[2]string{in.Tenant, email}]; ok && !inv.accepted {
+		inv.accepted = true
+		if inv.OrderedBy == "" {
+			inv.OrderedBy = in.OrderedBy
+		}
+		if inv.OrderedVia == "" {
+			inv.OrderedVia = in.OrderedVia
+		}
+	}
+	if in.PasswordHash != "" {
+		if _, ok := h.identities[[2]string{ProviderNative, email}]; !ok {
+			h.identities[[2]string{ProviderNative, email}] = &memIdent{human: hum, email: email, verified: true}
+		}
+	}
+	return hum, createdHuman, nil
 }
 
 func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, error) {

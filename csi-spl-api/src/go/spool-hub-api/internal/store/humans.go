@@ -131,6 +131,43 @@ type Invite struct {
 	OrderedVia string
 }
 
+// ProvisionInput seats a member by email for a person who has NEVER signed in
+// (CLE-77781, owner niba-consult: "added, not invited"). The operator asserts
+// the address; the person still proves they own it at their first real sign-in
+// (a provider-verified email, or the native password below), which LINKS to the
+// human this seats rather than minting a second one.
+type ProvisionInput struct {
+	Tenant      string
+	Email       string
+	DisplayName string
+	Role        string
+	OrderedBy   string // HUM-* who ordered the seat (rdb 0084 provenance)
+	OrderedVia  string
+	// PasswordHash, when non-empty, is a ready argon2id PHC string (the CLI
+	// hashes a password read from a file on stdin, never argv/env): the member
+	// also gets a native email+password credential, email PRE-VERIFIED so no
+	// verification mail is sent, and the (provider=password, subject=email)
+	// identity native login resolves. Postgres only — the memory store keeps no
+	// credentials table, so the memory path ignores it.
+	PasswordHash string
+}
+
+// MemberProvisioner seats a member by email before any sign-in, idempotently:
+// it creates the human (once), an 'operator' identity that carries the
+// verified address so a later real sign-in links to this human yet is itself
+// unusable to sign in, the tenant membership (admitted_by 'operator'), accepts
+// any pending invite for the address, and — with ProvisionInput.PasswordHash —
+// a native credential. Both Memory and Postgres implement it.
+type MemberProvisioner interface {
+	ProvisionMember(ctx context.Context, in ProvisionInput, now time.Time) (humanID string, createdHuman bool, err error)
+}
+
+// ProviderOperator is the identity provider of an operator-seated member (a
+// row human_identities carries so a later real sign-in with the same verified
+// address links to the same human). No sign-in path emits it, so the identity
+// can never itself sign in.
+const ProviderOperator = "operator"
+
 // Humans is the store side of registration and membership. Memory and
 // Postgres both implement it.
 type Humans interface {

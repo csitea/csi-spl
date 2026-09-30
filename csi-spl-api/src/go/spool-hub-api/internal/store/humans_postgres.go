@@ -227,6 +227,102 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	return ErrNotAdmitted
 }
 
+// ProvisionMember seats a member by email before any sign-in (CLE-77781).
+// Everything is one transaction and idempotent (ON CONFLICT DO NOTHING / the
+// invite guarded by accepted_at IS NULL), so a re-run changes nothing. The
+// address is advisory-locked like Admit so a concurrent first sign-in and this
+// cannot both mint a human. See store.MemberProvisioner for the contract.
+func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now time.Time) (string, bool, error) {
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		return "", false, errors.New("provision: a valid email is required")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	// Same address lock Admit takes, so a first sign-in of this address in
+	// flight cannot mint a second human next to the one this seats.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('@email|' || $1, 0))`, email); err != nil {
+		return "", false, err
+	}
+	// A verified identity for the address (an earlier operator row, or a real
+	// one from a prior sign-in) names the human; else mint one.
+	var hum string
+	createdHuman := false
+	err = tx.QueryRow(ctx, `SELECT i.human_id FROM human_identities i JOIN humans h ON h.human_id = i.human_id
+		WHERE i.email = $1 AND i.email_verified ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, email).Scan(&hum)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
+			VALUES (NULLIF($1, ''), $2, $3) RETURNING human_id`, in.DisplayName, email, now).Scan(&hum); err != nil {
+			return "", false, err
+		}
+		createdHuman = true
+	case err != nil:
+		return "", false, err
+	default:
+		// Seed a name only when the human has none (their own name wins).
+		if in.DisplayName != "" {
+			if _, err := tx.Exec(ctx, `UPDATE humans SET display_name = COALESCE(display_name, NULLIF($2, '')),
+				email = COALESCE(email, $3) WHERE human_id = $1`, hum, in.DisplayName, email); err != nil {
+				return "", false, err
+			}
+		}
+	}
+	// The operator identity carries the verified address so a later Google /
+	// native sign-in LINKS here (findHuman), yet cannot itself sign in.
+	if _, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)
+		VALUES ($1, $2, $3, $2, true, $4) ON CONFLICT (provider, subject) DO NOTHING`,
+		ProviderOperator, email, hum, now); err != nil {
+		return "", false, err
+	}
+	// Membership: tenant-scoped (rdb 0014), admitted_by 'operator'. An unknown
+	// role fails the rbac_roles FK (rdb 0021) and rolls the whole thing back.
+	if _, err := tx.Exec(ctx, pgScopeTenant, in.Tenant); err != nil {
+		return "", false, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by, created_at)
+		VALUES ($1, $2, $3, 'operator', $4) ON CONFLICT (tenant_id, human_id) DO NOTHING`,
+		in.Tenant, hum, in.Role, now); err != nil {
+		return "", false, err
+	}
+	// Accept any pending invite for the address (provenance coalesced), so the
+	// list shows a member, not a dangling invite.
+	if _, err := tx.Exec(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $2,
+		ordered_by = COALESCE(ordered_by, NULLIF($4, '')), ordered_via = COALESCE(ordered_via, NULLIF($5, ''))
+		WHERE tenant_id = $1 AND email = $6 AND accepted_at IS NULL`,
+		in.Tenant, hum, now, in.OrderedBy, in.OrderedVia, email); err != nil {
+		return "", false, err
+	}
+	if in.PasswordHash != "" {
+		if err := provisionCredentialTx(ctx, tx, hum, email, in.PasswordHash, in.DisplayName, now); err != nil {
+			return "", false, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", false, err
+	}
+	return hum, createdHuman, nil
+}
+
+// provisionCredentialTx writes the native email+password credential (email
+// PRE-VERIFIED so no verification mail is sent) and the (password, email)
+// identity native login resolves, so a first native login lands on hum with
+// the membership already there. Idempotent (ON CONFLICT DO NOTHING).
+func provisionCredentialTx(ctx context.Context, tx pgx.Tx, hum, email, pwHash, name string, now time.Time) error {
+	if _, err := tx.Exec(ctx, `INSERT INTO password_credentials
+		(provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at)
+		VALUES ('password', $1, $2, NULLIF($3, ''), $4, $4, $4)
+		ON CONFLICT (provider, subject) DO NOTHING`, email, pwHash, name, now); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO human_identities (provider, subject, human_id, email, email_verified, created_at)
+		VALUES ('password', $1, $2, $1, true, $3) ON CONFLICT (provider, subject) DO NOTHING`, email, hum, now)
+	return err
+}
+
 // MemberRole reads the human's role in tenant, once per request when ctx
 // carries a request memo (memo.go).
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {

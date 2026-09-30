@@ -17,6 +17,10 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+/* CLE-77794: the drawn order is parseRailOrder(claim) — a legacy stored order
+   keeps its place and the tabs added since (people, agents) are appended, so the
+   expected order tracks RAIL_IDS instead of a hardcoded list. */
+import { parseRailOrder } from '../../src/utils/rail-order.mjs'
 
 const results = []
 function check(name, pass, ev) {
@@ -44,8 +48,8 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
-const DEFAULT = ['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events']
-/* the owner's stored order on prd (humans.rail_order, measured 2026-09-27) */
+/* the owner's stored order on prd (humans.rail_order, measured 2026-09-27); a
+   legacy seven-tab claim, drawn with people + agents appended (parseRailOrder). */
 const STORED = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'archive']
 
 /** Sign in as a member; `order` undefined = never reordered (the claim is absent). */
@@ -68,7 +72,9 @@ async function run(browser, base, width, touch) {
   await p.setViewport({ width, height: 800, isMobile: touch, hasTouch: touch })
   for (const [who, order] of [['fresh user (never reordered)', undefined], ['stored order', STORED]]) {
     const tag = `${width}px ${who}`
-    const want = order ?? DEFAULT
+    /* the rail draws parseRailOrder(claim): the 9-tab default for a fresh user,
+       the stored order with people + agents appended for a legacy claim. */
+    const want = parseRailOrder(order)
     /* phones: / is the sidebar level (the rail); desktop draws it on every page */
     await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
     await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })

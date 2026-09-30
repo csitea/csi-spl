@@ -16,8 +16,6 @@
 #         string constants ("token"/"secret"/URL paths), not real credentials.
 #   G115 x5 (hub/password/pubkey): int->uintNN conversions on bounded values
 #         (key sizes, lengths); gosec's integer-overflow rule is FP-prone.
-#   G402 x1 (mail): SMTP TLS config — review as a hub-lane item (likely a
-#         STARTTLS/min-version default), tracked, not a new finding.
 #   G404 x1 (hubclient/flush): math/rand for non-cryptographic jitter/backoff.
 # A NEW occurrence of ANY of these rules (or any other gosec rule) anywhere not
 # already counted here fails the gate.
@@ -28,5 +26,4 @@ G101|internal/wire/wire.go|1
 G115|cmd/spool/hub.go|2
 G115|internal/auth/password.go|1
 G115|internal/sign/pubkey.go|2
-G402|internal/mail/mail.go|1
 G404|internal/hubclient/flush.go|1

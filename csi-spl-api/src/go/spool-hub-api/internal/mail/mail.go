@@ -171,14 +171,14 @@ func (s *SMTP) mode() string {
 // tlsConfig is a clone of the caller's TLS config with ServerName defaulted
 // to the host and at least TLS 1.2.
 func (s *SMTP) tlsConfig() *tls.Config {
-	cfg := &tls.Config{}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12} // SPL-1289: never below TLS 1.2 (gosec G402, semgrep missing-ssl-minversion).
 	if s.TLSConfig != nil {
 		cfg = s.TLSConfig.Clone()
 	}
 	if cfg.ServerName == "" {
 		cfg.ServerName = s.Host
 	}
-	if cfg.MinVersion == 0 {
+	if cfg.MinVersion == 0 { // a caller-supplied config that forgot MinVersion still floors at TLS 1.2.
 		cfg.MinVersion = tls.VersionTLS12
 	}
 	return cfg

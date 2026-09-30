@@ -17,10 +17,8 @@
 #   open-redirect x3 (auth handler + fakeidp): redirect targets; fakeidp is a
 #         test IdP; the handler one is a hub-lane review item.
 #   math-random x1 (hubclient/flush): non-crypto jitter.
-#   missing-ssl-minversion x1 (mail): SMTP TLS default, hub-lane review.
 # A NEW occurrence of any rule anywhere not already counted here fails the gate.
 go.lang.security.audit.crypto.math_random.math-random-used|csi-spl-api/src/go/spool-hub-api/internal/hubclient/flush.go|1
-go.lang.security.audit.crypto.missing-ssl-minversion.missing-ssl-minversion|csi-spl-api/src/go/spool-hub-api/internal/mail/mail.go|1
 go.lang.security.audit.net.cookie-missing-httponly.cookie-missing-httponly|csi-spl-api/src/go/spool-hub-api/internal/auth/tenant.go|1
 go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure|csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go|3
 go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure|csi-spl-api/src/go/spool-hub-api/internal/auth/tenant.go|1

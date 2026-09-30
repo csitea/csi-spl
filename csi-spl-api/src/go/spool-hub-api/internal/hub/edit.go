@@ -88,7 +88,7 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	m, pub, ok := s.editTarget(w, r, t.ID, id, from)
+	m, pub, ok := s.editTarget(w, r, t.ID, hum, id, from)
 	if !ok {
 		return
 	}
@@ -146,10 +146,10 @@ func readEditRequest(w http.ResponseWriter, r *http.Request) (id, body string, o
 }
 
 // editTarget is rules 5-7: the message exists and the reader may see it, the
-// caller is its author, and the hub can re-sign it. It answers the message
+// caller may edit it, and the hub can re-sign it. It answers the message
 // and, for a signed box-wui envelope, the key to re-sign with (nil = leave
 // the empty signature empty). false has written the refusal.
-func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, id, from string) (store.EditableMessage, ed25519.PublicKey, bool) {
+func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, hum, id, from string) (store.EditableMessage, ed25519.PublicKey, bool) {
 	m, err := s.o.Store.GetEditable(r.Context(), tenant, id, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrNotFound): // rule 5: absent, another tenant's, or past retention
@@ -163,8 +163,18 @@ func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, tenant, id, 
 	if !s.messageDoor(w, r, tenant, m) { // the read door before rule 6
 		return m, nil, false
 	}
-	if m.FromID != from { // rule 6
-		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
+	// Rule 6 (SPL-1291, owner 2026-09-30 "it MUST work for all the other roles
+	// as well"): the author edits their own message and the title of the topics
+	// they started (a title is the first line of the root message); the tenant
+	// owner and an admin edit anyone's, the same author/owner/admin rule that
+	// already governs topic archive/merge/move (041 mayChangeTopic). Every human
+	// role holds notes.send (rule 4), so this gives EVERY role its own; agents
+	// stay out via rule 7 below (a non-box-wui or box-signed envelope the hub
+	// cannot re-sign is 409 not_editable). The token stays not_author: it is the
+	// one the WUI already maps and it still means "you are not allowed to edit
+	// this one".
+	if !s.mayChangeTopic(r.Context(), tenant, hum, from, m.FromID) { // rule 6
+		writeErr(w, http.StatusForbidden, "not_author", "only the author, the tenant owner or an admin may edit this message")
 		return m, nil, false
 	}
 	// Rule 7. A from_box other than box-wui is that box's envelope: the hub

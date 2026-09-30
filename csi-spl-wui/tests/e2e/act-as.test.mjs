@@ -99,6 +99,12 @@ try {
   ok('4 after confirm, the "Acting as X" banner shows the target', /Dev One/.test(banner), { banner })
   await shot(p, 'act-as-banner.png')
 
+  // specs/054 (owner 18597eaa "no of course"): the clone never sees the
+  // person's DMs — the DM rail tab is absent while acting (the hub also 403s
+  // every DM endpoint for a clone).
+  const dmTab = await p.$('[data-testid=sidebar-tab-dm]')
+  ok('4b the DM rail tab is absent while acting', dmTab === null)
+
   // 4. while acting, the menu offers "Stop acting as X" and no "Act as…"
   await p.click('[data-test=user-menu-trigger]')
   await p.waitForSelector('[data-test=user-menu-stop-acting]', { visible: true, timeout: 5000 })

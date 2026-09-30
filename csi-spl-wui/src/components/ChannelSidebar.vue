@@ -865,6 +865,10 @@ const roster = useRosterStore()
 const session = useSessionStore()
 const access = useAccessStore()
 const api = useSpoolApi()
+// specs/054 (owner 18597eaa: "no of course"): while acting as a member the
+// clone must never see the person's DMs, so the DM rail tab and its peers are
+// hidden (the hub also 403s every DM endpoint for a clone).
+const acting = computed(() => Boolean(access.me?.actAs))
 const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
@@ -879,7 +883,9 @@ const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
-const rail = computed(() => RAIL.value)
+const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
+// specs/054: the DM tab is hidden while acting; never leave it selected.
+watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
@@ -995,11 +1001,11 @@ const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
-const peers = computed(() => pinRows(
+const peers = computed(() => (acting.value ? [] : pinRows(
   orderPeers(roster.peers, channel.dmAt)
     .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
   pinnedPeers.value,
-))
+)))
 /* CLE-77794: People lists every tenant member (the reader too, marked "you");
    Agents lists every non-human agent on the roster, its kind from the id
    prefix. Both read the same roster the DM list does, so no extra fetch. */

@@ -95,7 +95,8 @@ describe('the strip is icons, in that order', () => {
     // icon (the users CRUD is Settings -> Members) - and the settings gear
     // sits at the foot of the strip, not on the footer row by the version.
     assert.match(vue, /v-for="item in rail"/)
-    assert.match(vue, /const rail = computed\(\(\) => RAIL\.value\)/)
+    // rail is RAIL, minus the DM tab while acting as a member (specs/054)
+    assert.match(vue, /const rail = computed\(\(\) => \(acting\.value \? RAIL\.value\.filter\(\(item\) => item\.id !== 'dm'\) : RAIL\.value\)\)/)
     assert.doesNotMatch(vue, /icon: 'users'/)
     assert.doesNotMatch(vue, /data-testid="sidebar-panel-users"/)
     const strip = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))

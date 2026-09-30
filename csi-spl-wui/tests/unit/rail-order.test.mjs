@@ -140,7 +140,8 @@ describe('wiring', () => {
     assert.match(src, /useRailOrder\(\)/)
     assert.match(src, /useDragReorder<RailId>\(/)
     assert.match(src, /@pointerdown="railDrag\.down\(\$event, item\.id as RailId\)"/)
-    assert.match(src, /const rail = computed\(\(\) => RAIL\.value\)/)
+    // rail is RAIL, minus the DM tab while acting as a member (specs/054)
+    assert.match(src, /const rail = computed\(\(\) => \(acting\.value \? RAIL\.value\.filter\(\(item\) => item\.id !== 'dm'\) : RAIL\.value\)\)/)
     assert.doesNotMatch(src, /id: USERS_TAB/)
   })
   it('Settings -> Behaviour lists the same order with up / down and a reset', () => {

@@ -22,18 +22,24 @@ sign-out. Backend defaults to the `§8` recommendations, kept configurable, pend
 - [x] T005 tests: `TestActAsCeiling` (admin→developer ok; developer→x forbidden; admin→admin,
       admin→owner, →self ceiling; →non-member); `TestCoversAccess`; store `TestStartClone`
       (fidelity + exclusion), `TestStopClone`, `TestSweepClones` - `effca492`,`4e952ad4`
-- [ ] T006 GET session / `/v1/view/me`: expose the act-as state (target name, expiry, admin) so the
-      WUI can render the banner and the "Stop acting as X" copy.
-- [ ] T007 **No mail/notifications to real people as the clone** unless explicitly allowed (owner
-      safeguard): suppress outbound mail/notification when the sender is `humans.technical`.
+- [x] T006 `/v1/view/me` exposes `act_as` { target_hum, target_name, expires_at } for a clone session
+      (gated on the `actas` provider so a normal /me adds no round trip, TestRoundTripsPerRequest);
+      `store.Clone.TargetName` via a join - `f0ac16e7`
+- [x] T007 **No mail/notifications to real people as the clone** — satisfied by design, not code: the
+      only email-to-humans paths are invite mail and auth (verify/reset) mail. A clone has no identity
+      or email (no auth mail) and its role is always a strict subset of admin, so it never holds
+      `members.invite` (no invite mail); message posts go to box delivery, attributed to the visibly
+      "(test clone)"-named human, never to a person's inbox. There is no message/mention/digest→email
+      path. **If one is ever added, it MUST exclude `humans.technical` senders.**
 
 ## WUI
 
-- [ ] T010 Entry point: on the Users page / a member row, an "Act as {member}" action for holders of
-      `members.impersonate`, gated by the same ceiling (never a peer admin/owner).
-- [ ] T011 A permanent sticky banner "Acting as {X} (test clone) — Stop" (BuildUpdateBar pattern),
-      high z-index, on every route; Stop calls `/act-as/exit` then lands on `/login`.
-- [ ] T012 Avatar menu: a "Stop acting as {X}" row directly above Sign out, same action as the banner.
+- [x] T010 Entry point: the admin Members pane (`UserEditPane.vue`) shows "Act as {name}" for holders of
+      `members.impersonate` on a manageable, non-self member; a full reload lands as the clone - `e014ecb9`
+- [x] T011 `ActAsBanner.vue`: a permanent sticky "Acting as {X} (test clone) — Stop" strip, top of every
+      route, z above the top bar, not dismissible; Stop = the sign-out - `e014ecb9`
+- [x] T012 Avatar menu: a "Stop acting as {X}" row above Sign out, `session.stopActingAs()` (exit + logout
+      → login page) - `e014ecb9`
 
 ## e2e
 

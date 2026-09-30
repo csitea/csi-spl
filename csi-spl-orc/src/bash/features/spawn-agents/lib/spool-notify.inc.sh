@@ -256,6 +256,24 @@ spool_notify_has_unsent() {  # LINE
   typed="${typed%"${typed##*[![:space:]]}"}"
   [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]
 }
+
+# Given a captured (-e, colours kept) prompt line, print the REAL typed text
+# with escapes removed -- the ghost autosuggest cut away. The TUI draws its
+# suggestion DIM and parks the cursor on the suggestion's FIRST character, both
+# AFTER any real input, so the suggestion boundary is the first cursor cell
+# (reverse video, ESC[7m) or the first dim SGR. Measured on a live idle Claude
+# pane 2026-09-30: "ESC[39m❯<NBSP> ESC[7mtESC[0;2mear down the worktreeESC[0m" --
+# the dim run is ESC[0;2m (reset;dim), which the old ESC[2m-only strip missed, so
+# the whole suggestion counted as typed text and every poke to an idle agent was
+# refused. Cut at the cursor OR any dim SGR (2 as a parameter), then drop the
+# rest of the escapes. What is left after the prompt marker is the human's
+# unsent text, or empty for an idle composer.
+spool_notify_strip_ghost() {  # RAW_E_LINE
+  local esc=$'\033'
+  printf '%s' "${1:-}" \
+    | sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g"
+}
+
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
   local pane pane_tty tty_cmds last alt prompt esc=$'\033'
@@ -318,15 +336,16 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
 
   # Never type over a human's (or the agent's) unsent input: send-keys appends
   # to the input line and submits it, so the poke would carry that text with
-  # it. The TUI's own greyed-out suggestion is drawn DIM (ESC[2m) and is not
-  # input: capture WITH escapes, drop dim runs, then strip the remaining ones.
-  # One pipeline, not three: the two `$(printf | sed)` passes that followed
-  # were four more processes run one after another, where sed can just be the
-  # last stage of the capture that already runs (CLE-3435). Same three
-  # substitutions, same order.
-  last="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
-    | grep -E '❯|^> ' | tail -1 \
-    | sed -E "s/${esc}\[2m[^${esc}]*//g; s/${esc}\[[0-9;]*[A-Za-z]//g" || true)"
+  # it. But the TUI's own greyed-out AUTOSUGGEST is not input -- it is drawn dim
+  # with the cursor on its first char -- so capture WITH escapes and cut the
+  # ghost (spool_notify_strip_ghost) before deciding. When it IS empty the
+  # doorbell we type simply replaces the suggestion; Enter submits the doorbell,
+  # never the suggestion. (Old ESC[2m-only strip missed ESC[0;2m and refused
+  # every poke to an idle Claude pane -- SPL-1253 harness fix.)
+  local last_raw
+  last_raw="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
+    | grep -E '❯|^> ' | tail -1 || true)"
+  last="$(spool_notify_strip_ghost "$last_raw")"
   if spool_notify_has_unsent "$last"; then
     echo "poke: REFUSED - ${to} pane ${pane} holds unsent text; the message waits in its inbox"
     return 6

@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url'
 const dir = join(dirname(fileURLToPath(import.meta.url)), '../../i18n/locales')
 const KEYS = ['sidebar.tenant_hint', 'sidebar.tenant_hint_one', 'sidebar.tenant_hint_switch']
 const EN = {
-  'sidebar.tenant_hint': 'Tenant: {name}. A tenant is one organisation\'s workspace — its own channels, topics, members and agents.',
-  'sidebar.tenant_hint_one': 'You are a member of this tenant only.',
-  'sidebar.tenant_hint_switch': 'Pick another tenant here to switch to it.',
+  'sidebar.tenant_hint': 'Workspace: {name}. A workspace is one organisation\'s own space — its channels, topics, members and agents.',
+  'sidebar.tenant_hint_one': 'You are a member of this workspace only.',
+  'sidebar.tenant_hint_switch': 'Pick another workspace here to switch to it.',
 }
 
 function flatten(d, prefix = '') {

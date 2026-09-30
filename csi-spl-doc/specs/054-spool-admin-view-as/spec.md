@@ -1,14 +1,15 @@
-# Feature Specification: Admin "view as / sign in as" a user (impersonation)
+# Feature Specification: Admin "act as a user" via a temporary clone
 
-**Feature ID**: `054-spool-admin-view-as` · **Milestone**: M3 · **Status**: Blocked on owner (`§8`)
-**Created**: 2026-09-30 · **Lane**: ADMIN-VIEW-AS (hub + DB + WUI) · **Issue**: TBD (owner topic `18597eaa-89f9-4cf9-a3ef-ef7999659146`)
-**Authority**: this file. It extends `025-spool-tenant-rbac` (roles + permissions), `026-spool-tenant-from-identity`
-(the tenant-switch cookie re-issue it mirrors) and `046-spool-tenant-settings` (the Users page that hosts the entry point).
+**Feature ID**: `054-spool-admin-view-as` · **Milestone**: M3 · **Status**: In progress (`tasks.md`), 3 open points (`§8`)
+**Created**: 2026-09-30 · **Lane**: ADMIN-ACT-AS (hub + DB + WUI) · **Issue**: TBD (owner topic `18597eaa-89f9-4cf9-a3ef-ef7999659146`)
+**Authority**: this file. It extends `025-spool-tenant-rbac` (roles + permissions), reuses the human/membership
+model of `006`/`028`, the tenant-scope RLS of the store, and the Users page of `046-spool-tenant-settings`.
 
-> **Security-sensitive, public repo, live multi-tenant product. SPEC FIRST — nothing is built until the owner
-> answers `§8`.** This document is the design and the blocker only.
+> **Security-sensitive, public repo, live multi-tenant product.** The owner has DECIDED the mechanism (`§1`); only
+> the three narrow points in `§8` remain open. Build proceeds on the decided parts with the recommended defaults,
+> made configurable where `§8` could change them.
 
-## 1. The owner's requests, verbatim
+## 1. The owner's decision, verbatim
 
 prd t1 topic `18597eaa-89f9-4cf9-a3ef-ef7999659146` (HUM-10):
 
@@ -16,157 +17,166 @@ prd t1 topic `18597eaa-89f9-4cf9-a3ef-ef7999659146` (HUM-10):
 
 > so the Admins of the tenants should have this sign-as feature ..
 
-So: a feature for **tenant admins** (`biz_owner` / `admin` of a tenant), scoped to **their own tenant**, that lets
-them experience the product as one of their members — primarily to verify that permissions/roles behave as intended.
+> ok, then the function should be **not view-as, but act as**, that is a **new temporary user should be created /
+> cloned** so that this new **technical user will have exactly the same access to permissions and objects** as the
+> person the admin will act on
 
-## 2. What already exists (measured on trunk, `csi-spl-api/.../internal`)
+> And when all of the security context is loaded and the use cases tested, the admin should be able to **logout
+> from this person security context and then login once again** to the app via the regular login
 
-The session, RBAC and RLS model this feature must not weaken:
+So: **"Act as" via a temporary CLONE technical user.** Not view-as, not an overlay on the admin's own session.
+The admin acts inside a real, separate, throwaway identity that is a snapshot of the target; leaving it is a plain
+**sign-out** back to the login page.
+
+## 2. What already exists (measured on trunk)
+
+The model this feature builds on — nothing here is weakened:
 
 | concern | today | file |
 |---|---|---|
-| session | HMAC-signed cookie; claims `sub, email, name, hum (HUM-*), t (tenant), iat, exp` | `internal/auth/token.go` §`Session` L81 |
-| who am I | `SessionFromRequest()` verifies MAC + expiry | `internal/auth/handler.go` L1240 |
-| active tenant | `ActiveTenant()` resolves `t` claim, checks membership | `internal/auth/tenant.go` L62 |
-| tenant switch (the template) | `switchTenant()` re-issues the cookie with a new `t`, **keeps the old expiry**, refuses non-members | `internal/auth/tenant.go` L197 |
-| per-tenant role | `rbac.Access{HumanID, Role, TenantOwner, Perms}`; roles `biz_owner..regular_user` | `internal/rbac/rbac.go` L35, L119 |
-| permission guard | `Server.permit(w, r, tenant, hum, perm)` → 403 naming the missing perm | `internal/hub/rbac.go` L70 |
-| RLS | `inTenant(tenant, fn)` sets `app.tenant_id` GUC; `FORCE ROW LEVEL SECURITY` on every tenant table | `internal/store/rls.go` L18 |
-| operator (cross-tenant) | `app.rls_scope='operator'` + `operatorAuth()` bearer allowlist — **separate identity, not a tenant role** | `internal/store/rls.go` L159, `internal/hub/operator.go` L43 |
-| WUI session | `useSessionStore()` (claims), `useAccessStore()` (`/v1/view/me` role+perms), `accessAllows()` | `csi-spl-wui/src/stores/{session,access}.ts` |
-| sticky banner precedent | `BuildUpdateBar.vue` (global, high z-index) | `csi-spl-wui/src/components/BuildUpdateBar.vue` |
-| audit | permission `audit.read` exists (biz_owner/admin/product_owner); **no audit table or endpoint built yet** | `internal/rbac/rbac.go` L29 |
-| secrets never in session | password argon2 hash, reset/verify tokens (sha256), private keys (browser-only) — never leave the server | `csi-spl-rdb/.../0009,0018` |
+| a person | `humans(human_id 'HUM-<n>' via humans_seq, display_name, email, created_at, disabled_at)` — no technical flag yet | `csi-spl-rdb/.../0006_users_and_memberships.sql` |
+| how a HUM is minted | `recordIdentity()` → `INSERT INTO humans … RETURNING human_id` | `internal/store/humans_postgres.go` L129 |
+| tenant membership | `tenant_memberships(tenant_id, human_id, role, created_at, admitted_by, last_active_at)` | `.../0006`, `.../0044` |
+| RBAC role → perms | roles `biz_owner..regular_user`; `MemberRole()`, `rbac.Access{Role, Perms}`; guard `Server.permit(w,r,tenant,hum,perm)` | `internal/rbac/rbac.go`, `internal/hub/rbac.go` L70 |
+| channel membership | `channel_humans(tenant_id, channel_id, human_id, joined_at, added_by)`; `HumanChannels()`, `AddChannelHumans()` | `.../0028`, `internal/store/channel_humans.go` |
+| session | HMAC-signed cookie; `Session{Provider, Subject, Email, Name, HumanID, Tenant, IssuedAt, Exp}`; `signToken()`, `sessionCookie()` | `internal/auth/token.go`, `handler.go` L1280 |
+| how a login sets the cookie | callback → `signToken()` → `http.SetCookie(w, sessionCookie(tok, ttl))` | `internal/auth/handler.go` L375 |
+| sign-in identities | `human_identities(provider, subject, …)` — a clone gets **none**, so it cannot be signed into | `csi-spl-rdb/.../0006` |
+| RLS | `inTenant(tenant, fn)` sets `app.tenant_id`; `FORCE ROW LEVEL SECURITY` on tenant tables; `asOperator()` for cross-tenant | `internal/store/rls.go` |
+| periodic expiry hook | `Sweep(ctx, now)` under `asOperator()` (queued→expired deliveries, expired messages), chunked | `internal/store/postgres.go` L458 |
+| audit permission | `audit.read` (biz_owner/admin/product_owner) — exists; no audit table yet | `internal/rbac/rbac.go` L29 |
+| WUI session/role | `useSessionStore()`, `useAccessStore()` (`/v1/view/me`); sticky-bar precedent `BuildUpdateBar.vue` | `csi-spl-wui/src/...` |
 
-**There is no existing impersonation/view-as/act-as concept** — this is greenfield.
+There is **no existing impersonation/act-as concept** — greenfield.
 
-## 3. Two modes (the core decision, `§8` Q1)
+## 3. The clone (core)
 
-### Mode A — read-only "View as X" (**recommended**)
+When admin **Y** starts "act as" on member **X** in tenant **T**, the hub, in one transaction under the tenant scope:
 
-The admin's cookie gains a **scoped overlay**: it keeps the admin as the *actor* and adds the target's HUM as the
-*viewed* identity. Every **read** (permission eval, `/v1/view/me`, topics, roster, settings render) is evaluated as
-the **target** — so the admin sees exactly the UI and the 403s the user sees. Every **write** (any
-`POST/PUT/PATCH/DELETE`) is refused `403 view_as_read_only` by one hub middleware, keyed off the overlay claim —
-**server-side, never the WUI**. This directly answers "find out whether some permissions work" with the smallest
-possible blast radius: no side-effects can occur as the user, because no write can occur at all.
+1. **Mints a technical clone human** `C` — a fresh `HUM-*` with `humans.technical = true` (new column, `§5`),
+   `display_name = "{X's name} (test clone by {Y's name})"`, `email = NULL`. It is given **no `human_identities`
+   row**, so no provider (password, Google, keys, Microsoft…) can ever authenticate as `C`. The only way a session
+   for `C` ever exists is this endpoint.
+2. **Copies X's security context at that instant** (a snapshot, never a live link):
+   - the **tenant role** X holds in T (so `C` resolves the exact same `rbac.Access` / permissions);
+   - X's **channel memberships** (`channel_humans` rows), **minus private DMs** per `§8` Q1 (recommended: DMs not
+     copied — the clone sees channels and issues, not X's 1:1 conversations);
+   - anything else access is derived from is role + channel membership (there is no per-human scope table today),
+     so role + channels is the whole context.
+3. **Records the clone** in `member_clones` (`§6`): `clone_hum=C, tenant_id=T, target_hum=X, created_by=Y,
+   role=<snapshot>, created_at, expires_at=now+TTL`. This row is the durable **audit** of the act-as session.
+4. **Issues the browser a session cookie for `C`** — `signToken()` over `Session{HumanID:C, Tenant:T, …}` with
+   `Exp = now+TTL` — **replacing** Y's own session cookie. No token for Y is kept anywhere in the browser
+   (owner's rule). Y is now, in this browser, the clone.
 
-### Mode B — full "Sign in as X" (act as the user)
+Everything `C` does is attributed to `C`. **X's real history is never touched.** Because `C` is a real member with
+X's role, it can *act* (writes are allowed and land as `C`), which is what "act as" means — but on a throwaway
+identity, so nothing lands on X.
 
-The cookie's *effective* identity becomes the target; the admin is recorded as `acting_via`. Writes are **allowed**
-and attributed "X via admin Y". This is what the owner's second line ("sign-as feature") leans toward, and it is
-strictly more powerful — and strictly more dangerous on a live product. It needs every safeguard in `§5` plus
-**write attribution** and **outbound-side-effect suppression** (`§5.6`). Recommendation: only if the owner
-explicitly wants admins to *act*, not just *verify*; and even then, ship Mode A first (it is a subset).
+## 4. Leaving is a sign-out (owner's rule)
 
-Both modes share one mechanism (`§4`); Mode B only removes the write-guard and adds attribution + suppression.
+There is **no silent switch back** and **no admin token in the browser while acting**. Exit is
+**"Stop acting as {X}"** — offered in two places in the WUI: the sticky banner button, and the avatar menu entry
+directly above **Sign out**. It calls `POST /v1/act-as/stop`, which:
 
-## 4. Mechanism (shared)
+1. writes `member_clones.ended_at = now, end_reason = 'stop'` (the audit stop row);
+2. **ends the clone**: `humans.disabled_at = now` on `C`, deletes its `tenant_memberships` and `channel_humans`
+   rows and any live session state — **its messages are kept**, clearly marked as test (`§8` Q2, recommended
+   keep), since they already belong to the visibly-named clone;
+3. **clears the cookies** and returns a redirect to the **regular login page**.
 
-Mirror `switchTenant()` exactly — no new session infrastructure:
+The admin then **signs in normally** as themselves. The full journey the e2e must cover: **start → act → stop →
+login page → normal login.**
 
-1. `Session` gains two optional claims: `va` (viewed/acting HUM-*) and `by` (the real admin HUM-*, the actor).
-   A normal session has neither. `SessionFromRequest()` is unchanged; a new helper `EffectiveHuman(s)` returns
-   `s.HumanID` normally, `s.va` when the overlay is set, and `Actor(s)` returns `s.by`.
-2. **Start** — `POST /v1/admin/view-as {"human_id":"HUM-…"}`:
-   - resolve the admin's active tenant + role (`humanTenant`), require the new permission `members.impersonate`
-     (`§6`); refuse otherwise `403`.
-   - the target must be a **member of the same tenant** (reuse `members.Member(ctx, target, tenant)`; the same
-     opaque `403 not_member` as `switchTenant`, so no other tenant is revealed).
-   - **role ceiling** (`§8` Q5): refuse if the target is a tenant owner, or holds any permission the actor lacks
-     (a strict-subset rule ⇒ admin cannot view-as another admin or a biz_owner; biz_owner cannot view-as another
-     biz_owner). Refuse self.
-   - re-issue the cookie with `va=target, by=admin`, `t` unchanged, and a **fresh, shorter expiry** =
-     `min(oldExp, now+30m)` (`§8` Q3). Write the audit start row (`§7`).
-3. **Exit** — `POST /v1/admin/view-as/exit`: re-issue the cookie with `va`/`by` cleared and the admin's original
-   expiry restored (the actor is `by`, so exit needs no DB; the original expiry is re-derived from the live
-   membership session, or we carry `oxp` = original exp as a third claim). Write the audit stop row. One click.
-4. **Expiry**: when the overlay cookie passes its 30-min `exp`, it is simply an expired session → the admin is
-   bounced to their normal login, landing as themselves (the overlay never outlives its window).
+## 5. Safeguards (all server-side; the WUI only mirrors them)
 
-RLS is untouched: the overlay stays within the **same tenant**, so `app.tenant_id` is identical; only the
-*effective HUM* fed to permission checks changes.
+- **Who may**: permission `members.impersonate` (`§6`), held by **biz_owner and admin only**.
+- **Own tenant only**: X must be a member of Y's active tenant (same opaque `403 not_member` as tenant-switch, so
+  no other tenant is revealed). The clone lives in that one tenant; RLS is unchanged.
+- **Role ceiling**: never onto another **admin** or a **biz_owner**, never onto self. Enforced as a strict
+  permission-subset rule: Y may clone X only if X is not a tenant owner and X's permission set ⊆ Y's.
+- **Auto-expiry** `§8` Q3 (recommended **60 min**): after which the clone is disabled and removed exactly as `§4`
+  step 2 (via the `Sweep` hook, `end_reason='expired'`), and the now-expired clone cookie is a dead session that
+  lands the browser on login.
+- **No secrets/identities**: the clone has no password, no keys, no `human_identities` — nothing of X's
+  credentials is exposed or reachable, and the clone itself cannot be logged into.
+- **No outbound side-effects as a real person**: mail and notifications are **not sent to real people as the
+  clone** unless explicitly allowed. The hub recognises a clone by `humans.technical` and suppresses its outbound
+  mail/notification by default.
+- **Sticky banner + one-click stop**: a permanent high-z-index bar (the `BuildUpdateBar` pattern),
+  "**Acting as {X}** (test clone) — **Stop**", on every route, not dismissible; Stop = the sign-out of `§4`.
+- **Technical clones are excluded** from member lists, seat/billing counts and rosters (filtered on
+  `humans.technical`), so a clone never looks like a real seat.
 
-## 5. Safety (both modes)
+## 6. Data + permission (rdb `0088`, next migration)
 
-1. **Unmissable banner.** A permanent, sticky, high-z-index bar (the `BuildUpdateBar` pattern): "Viewing as
-   **{name}** — Exit". Re-renders on every route; cannot be permanently dismissed; the Exit button hits
-   `POST /v1/admin/view-as/exit`. In Mode B the bar is red and reads "Signed in as **{name}** (admin {you}) — Exit".
-2. **Auto-expiry** 30 min (`§8` Q3), independent of and never longer than the admin's own session.
-3. **One-click exit**, always reachable from the banner.
-4. **No secrets.** The overlay never exposes the target's password hash, reset/verify tokens, private keys, or
-   session — none of these are in the session or any read endpoint today, and the credential/key-management
-   endpoints (`/api/v1/auth/keys` mutations, password change, session list) are **refused under any overlay**
-   regardless of mode. Public keys (already public) are fine.
-5. **DMs / private content** (`§8` Q2): a privacy decision for the owner. Recommendation for Mode A: **redact
-   private 1:1 message bodies** — the admin sees the target's channel structure, membership and permission-gated
-   UI (enough to verify permissions) but not the substance of their private conversations.
-6. **No side-effects as the target.** Mode A: guaranteed, because no write is allowed. Mode B: outbound emails and
-   notifications are **suppressed or attributed** (never sent silently as the target); writes are attributed
-   "X via admin Y" in the stored row (`created_by=target, via_admin=actor`).
+```sql
+ALTER TABLE humans ADD COLUMN technical BOOLEAN NOT NULL DEFAULT false;  -- clones (and future bots)
 
-## 6. Permissions (first — the hub checks a permission, never a role name: `025` FR-005)
-
-Add one permission `members.impersonate` (rdb next migration). Granted to `biz_owner` and `admin` only.
-
-| permission | biz_owner | admin | product_owner | others |
-|---|---|---|---|---|
-| `members.impersonate` (new) | yes | yes | – | – |
-
-The **role ceiling** in `§4` is enforced in addition to the permission: holding `members.impersonate` lets you
-*start*, but the strict-subset check decides *whom* — never a peer admin, never an owner, never cross-tenant.
-The platform **operator** is out of scope here: it already has its own cross-tenant path (`operatorAuth`) and is
-not a tenant role; a separate operator "inspect tenant" capability, if ever wanted, is a different spec.
-
-## 7. Audit (visible to the tenant owner — `§8` Q4)
-
-New tenant-scoped table (rdb next migration), RLS `FORCE`, readable via the existing `audit.read` permission:
-
-```
-impersonation_events(
-  id, tenant_id, actor_hum, viewed_hum, mode ('view'|'act'),
-  event ('start'|'stop'), reason (nullable, optional), at timestamptz, ...
-)
+CREATE TABLE member_clones (
+  clone_hum   TEXT PRIMARY KEY,                 -- the technical HUM-* C
+  tenant_id   TEXT NOT NULL,
+  target_hum  TEXT NOT NULL,                    -- X, cloned
+  created_by  TEXT NOT NULL,                    -- admin Y
+  role        TEXT NOT NULL,                    -- snapshot of X's role at start
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL,
+  ended_at    TIMESTAMPTZ NULL,
+  end_reason  TEXT NULL CHECK (end_reason IN ('stop','expired','admin'))
+);
+-- FORCE ROW LEVEL SECURITY, tenant_id policy + operator scope (for Sweep), mirroring 0021.
 ```
 
-`GET /v1/audit/impersonation` (perm `audit.read`) lists them for the tenant owner/admin. Start and stop are logged
-now. Per-page-view logging (every route the admin viewed) is a heavier follow-up, noted not built. Whether the
-**impersonated user** is actively notified is `§8` Q4 — recommendation: the event is visible in the tenant audit,
-and the user can see the row about themselves; no active email by default.
+`member_clones` **is** the audit trail (start row on create, `ended_at`/`end_reason` on stop/expiry); rows persist
+after the clone is gone. Read via `GET /v1/audit/clones` gated by the existing **`audit.read`** permission
+(biz_owner/admin/product_owner), tenant-scoped — so the tenant owner sees who acted as whom, when.
 
-## 8. Blocker — owner questions (each with a recommended answer)
+Permission seed (same migration): add `members.impersonate`, granted to `biz_owner` and `admin`.
 
-1. **Mode.** Ship **Mode A (read-only "View as")** first — it fully answers "find out whether some permissions
-   work", cannot cause any side-effect, and is a subset of B — then add **Mode B (full "sign in as")** if you want
-   admins to *act* as the user? **Recommend: A now, B as a follow-up only if acting is required.**
-2. **The target's private DMs while viewing-as: hidden or shown?** **Recommend: hidden** (redact 1:1 bodies;
-   structure + permission UI still visible).
-3. **Auto-expiry.** **Recommend: 30 minutes**, never longer than the admin's own session.
-4. **Notify the impersonated user?** Audit is always visible to the tenant owner/admin. Additionally notify the
-   user? **Recommend: no active email by default; the audit row is visible to them** (a tenant setting could turn
-   active notification on later).
-5. **Role ceiling.** Confirm: an admin may view-as any member **except** another admin or a biz_owner; a biz_owner
-   may view-as any member except another biz_owner; never self; never cross-tenant. **Recommend: yes (strict
-   permission-subset rule).**
-6. **If Mode B is chosen:** confirm writes are attributed "**X via admin Y**" in stored rows, and outbound
-   email/notifications are **suppressed** while acting. **Recommend: yes to both.**
+| permission | biz_owner | admin | others |
+|---|---|---|---|
+| `members.impersonate` (new) | yes | yes | – |
 
-## 9. Enforcement + tests (server-side; controls)
+## 7. Endpoints (hub) + enforcement
 
-Everything is enforced in the hub, never only in the WUI. Tests (added with the build, all in
-`run-all-tests.sh` + hub-pg + WUI unit + e2e):
+| method + path | permission | does |
+|---|---|---|
+| `POST /v1/act-as {"human_id":"HUM-X"}` | `members.impersonate` + role ceiling | mint clone `C`, copy role + channels, insert `member_clones`, set `C`'s session cookie replacing Y's; body = `{clone_hum, target, expires_at}` |
+| `POST /v1/act-as/stop` | a clone session | end the clone (`§4`), clear cookies, `303` → login |
+| `GET /v1/audit/clones` | `audit.read` | list `member_clones` for the tenant (audit) |
 
-- **cross-tenant refusal**: start view-as of a non-member → `403 not_member`.
-- **role-ceiling refusal**: admin→admin, admin→biz_owner, →self → `403`.
+- Enforcement is in the hub, never only the WUI. Start validates permission, same-tenant membership, and the role
+  ceiling before minting anything.
+- A **clone session** (`HumanID` whose `humans.technical` is true) is refused at the credential/key-management
+  endpoints and has its outbound mail/notifications suppressed (`§5`).
+- The **`Sweep`** path (operator scope) is extended to expire clones whose `expires_at <= now` and `ended_at IS
+  NULL`: disable + remove exactly as stop, `end_reason='expired'`. This is the auto-expiry; no host cron.
+
+## 8. Open points — short blocker (owner), with recommendations
+
+1. **Are X's private DMs visible to the clone?** **Rec: no** — copy channels and issues only, not X's 1:1 DMs.
+2. **At expiry, keep or delete the clone's messages?** **Rec: keep**, clearly marked as test (the clone's visible
+   name already marks them; `humans.technical` lets the WUI badge them).
+3. **Expiry length?** **Rec: 60 min.**
+
+## 9. Tests (controls; all in `run-all-tests.sh` + hub-pg + WUI unit + e2e)
+
 - **permission refusal**: a member without `members.impersonate` → `403` naming the permission.
-- **write refusal (Mode A)**: every `POST/PUT/PATCH/DELETE` under an overlay cookie → `403 view_as_read_only`.
-- **secrets refusal**: key-management / password / session endpoints refused under any overlay.
-- **expiry**: an overlay cookie past 30 min is an expired session (admin lands as themselves).
-- **audit rows**: start and stop each write one `impersonation_events` row; `GET /v1/audit/impersonation` returns
-  them only to `audit.read` holders of that tenant.
-- **effective identity**: `/v1/view/me` under the overlay returns the **target's** role + permissions.
+- **cross-tenant refusal**: act-as of a non-member of Y's tenant → `403 not_member`.
+- **role-ceiling refusal**: admin→admin, admin→biz_owner, →self → `403` (nothing minted).
+- **clone fidelity**: `C` resolves exactly X's role + `rbac.Access`; `C`'s `channel_humans` = X's minus DMs.
+- **no identity**: `C` has zero `human_identities`; no provider can authenticate as `C`.
+- **attribution**: a write while acting lands as `C`, never as X; X's rows are untouched.
+- **stop = sign-out**: `POST /v1/act-as/stop` disables `C`, removes memberships, keeps `C`'s messages, clears
+  cookies, redirects to login; `member_clones.ended_at` set.
+- **expiry**: after TTL the `Sweep` disables+removes `C` (`end_reason='expired'`); the clone cookie is dead.
+- **audit**: start and stop each leave a `member_clones` row; `GET /v1/audit/clones` returns them only to
+  `audit.read` holders of that tenant.
+- **exclusion**: a clone never appears in member lists / seat counts / roster.
+- **e2e (browser)**: start → act (a permission-gated action visibly behaves as X) → **Stop acting** → **login
+  page** → normal admin login.
 
 ## 10. Out of scope
 
-Platform-operator cross-tenant inspection; per-page-view audit trail; active email notification to the user;
-Mode B unless `§8` Q1 selects it.
+Platform-operator cross-tenant inspection (separate identity, separate spec); per-page-view audit; active email
+notification to X; copying X's DMs (unless `§8` Q1 flips).

@@ -1,4 +1,4 @@
--- 0088_fallback_attempts.sql — re-escalate a post the responder never acted on
+-- 0089_fallback_attempts.sql — re-escalate a post the responder never acted on
 -- (SPL-1225 miss fix, prd t1 topic 4b0ba40a). Forward-only.
 --
 -- Measured 2026-09-30: HUM-10's #spool-hub-bugs post e2246b90 (09:44Z) WAS

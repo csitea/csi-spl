@@ -21,7 +21,7 @@
         <!-- topic e5b17522 (owner): the highlighted view-toggle buttons sit
              ~1.5 cm (57px @96dpi) to the right of the + button, on the header
              row (SPL-1028 list / status views). Moving them up here vacates the
-             old tools stripe below so the issues table rises by its height.
+             old tools row below so the issues table rises by its height.
              Desktop only; the phone keeps its own bar. -->
         <div v-if="!phone" class="issues-views issues-head__views" role="radiogroup" :aria-label="t('issues_views.label')" data-test="issues-views">
           <button
@@ -76,7 +76,7 @@
            (▲, ▼, then back to Updated newest first). On a phone the table
            scrolls sideways inside its pane. -->
       <!-- topic e5b17522 (owner): the SPL-1028 view toggle (list / by status)
-           and Clear filters moved UP onto the title row; the tools stripe that
+           and Clear filters moved UP onto the title row; the tools row that
            held them is gone so the table rises by its height. Only the list
            error keeps a spot here, and it renders nothing unless there is one. -->
       <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>

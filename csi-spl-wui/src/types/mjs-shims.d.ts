@@ -419,7 +419,7 @@ declare module '~/utils/auth-client.mjs' {
   export function authErrorKey(code: string): CopyKey | null
   export function retryAfterKey(seconds: number): CopyKey
   export function nativeErrorKey(out: Partial<NativeResult> | null): CopyKey | null
-  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string), sendLocale?: boolean }): {
+  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string), sendLocale?: boolean, mock?: boolean }): {
     loadProviders(): Promise<{ status: 'ok' | 'unavailable', reason: string, providers: string[], native: boolean }>
     register(b: { email: string, password: string, name?: string }): Promise<NativeResult>
     verifyEmail(a: { token: string; password: string }): Promise<NativeResult>

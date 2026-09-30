@@ -113,6 +113,21 @@
               <span>{{ t('tenant_settings.title') }}</span>
             </NuxtLink>
           </li>
+          <!-- specs/054 (owner 18597eaa): "Act as…" above Sign out for an admin -->
+          <li v-if="canActAs" role="none">
+            <button
+              ref="itemActAs"
+              role="menuitem"
+              tabindex="-1"
+              type="button"
+              class="user-menu__item"
+              data-test="user-menu-act-as"
+              @click="openActAs"
+            >
+              <UiIcon name="users" :size="18" />
+              <span>{{ t('user_menu.act_as') }}</span>
+            </button>
+          </li>
           <!-- specs/054: end the act-as clone (sign-out), above Sign out -->
           <li v-if="actingAs" role="none">
             <button
@@ -144,6 +159,8 @@
           </li>
         </ul>
       </div>
+      <!-- specs/054: the "Act as…" picker (teleports; open state from the menu item) -->
+      <ActAsPicker :open="actAsOpen" @update:open="actAsOpen = $event" />
     </template>
     <NuxtLink
       v-else-if="session.state !== 'loading'"
@@ -171,6 +188,7 @@ const NotificationCenter = defineAsyncComponent(() => import('@/components/Notif
 const ConnectionStatus = defineAsyncComponent(() => import('@/components/ConnectionStatus.vue'))
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
+import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
@@ -190,6 +208,10 @@ const tenantSettingsShown = computed(() => signedIn.value && tenantSettingsVisib
 // specs/054: while this session is an act-as clone, the menu offers "Stop
 // acting as X" above Sign out (the same exit as the banner).
 const actingAs = computed(() => access.me?.actAs ?? null)
+// specs/054 (owner 18597eaa): "Act as…" above Sign out for an admin who is not
+// already acting; it opens the picker dialog.
+const canActAs = computed(() => signedIn.value && !actingAs.value && access.can(MEMBERS_IMPERSONATE))
+const actAsOpen = ref(false)
 // specs/025 FR-008: the member's role in the active tenant, under the name.
 watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
 const me = computed(() => userIdentity(session.claims))
@@ -220,10 +242,11 @@ const trigger = ref<HTMLButtonElement | null>(null)
 const item0 = ref<{ $el: HTMLElement } | null>(null)
 const item1 = ref<HTMLButtonElement | null>(null)
 const itemTenant = ref<{ $el: HTMLElement } | null>(null)
+const itemActAs = ref<HTMLButtonElement | null>(null)
 const itemActAsStop = ref<HTMLButtonElement | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, itemTenant.value?.$el, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
@@ -306,6 +329,11 @@ async function signOut() {
 async function stopActing() {
   close(false)
   await session.stopActingAs()
+}
+
+function openActAs() {
+  close(false)
+  actAsOpen.value = true
 }
 
 function onDocPointer(e: PointerEvent) {

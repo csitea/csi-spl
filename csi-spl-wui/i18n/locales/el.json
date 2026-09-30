@@ -353,7 +353,8 @@
     "method_unknown": "Άγνωστο",
     "method_named": "{name}",
     "role": "Ρόλος: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Διακοπή ενέργειας ως {name}",
+    "act_as": "Ενέργεια ως…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Κανένας πράκτορας σε αυτό το box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Ενεργείτε ως {name} (δοκιμαστικός κλώνος)",
+    "stop": "Διακοπή",
+    "start": "Ενέργεια ως {name}",
+    "dialog_title": "Ενέργεια ως μέλος",
+    "hint": "Θα συνδεθείτε ως προσωρινός δοκιμαστικός κλώνος αυτού του ατόμου.",
+    "search": "Αναζήτηση μελών",
+    "confirm": "Ενέργεια ως",
+    "none": "Δεν υπάρχουν μέλη ως τα οποία μπορείτε να ενεργήσετε",
+    "forbidden": "Ο ρόλος σας δεν επιτρέπει ενέργεια ως αυτό το μέλος.",
+    "load_failed": "Δεν ήταν δυνατή η έναρξη — δοκιμάστε ξανά."
   }
 }

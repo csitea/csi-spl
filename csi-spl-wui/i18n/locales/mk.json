@@ -353,7 +353,8 @@
     "method_unknown": "Непознато",
     "method_named": "{name}",
     "role": "Улога: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Престани да дејствуваш како {name}",
+    "act_as": "Дејствувај како…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Нема агенти на овој box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Дејствувате како {name} (тест-клон)",
+    "stop": "Стоп",
+    "start": "Дејствувај како {name}",
+    "dialog_title": "Дејствувај како член",
+    "hint": "Ќе се најавите како привремен тест-клон на оваа личност.",
+    "search": "Пребарај членови",
+    "confirm": "Дејствувај како",
+    "none": "Нема членови како кои можете да дејствувате",
+    "forbidden": "Вашата улога не дозволува дејствување како овој член.",
+    "load_failed": "Не може да се започне — обидете се повторно."
   }
 }

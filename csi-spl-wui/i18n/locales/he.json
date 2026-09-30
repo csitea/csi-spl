@@ -353,7 +353,8 @@
     "method_unknown": "לא ידוע",
     "method_named": "{name}",
     "role": "תפקיד: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "הפסק לפעול בתור {name}",
+    "act_as": "פעל בתור…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "אין סוכנים על ה-box הזה."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "פועל בתור {name} (קלון בדיקה)",
+    "stop": "עצור",
+    "start": "פעל בתור {name}",
+    "dialog_title": "פעל בתור חבר",
+    "hint": "תתחבר כקלון בדיקה זמני של אדם זה.",
+    "search": "חיפוש חברים",
+    "confirm": "פעל בתור",
+    "none": "אין חברים שאפשר לפעול בתורם",
+    "forbidden": "התפקיד שלך אינו מאפשר לפעול בתור חבר זה.",
+    "load_failed": "לא ניתן להתחיל — נסה שוב."
   }
 }

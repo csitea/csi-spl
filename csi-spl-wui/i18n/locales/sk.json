@@ -353,7 +353,8 @@
     "method_unknown": "Neznáme",
     "method_named": "{name}",
     "role": "Rola: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Prestať konať ako {name}",
+    "act_as": "Konať ako…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Na tomto boxe nie sú žiadni agenti."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Konáte ako {name} (testovací klon)",
+    "stop": "Zastaviť",
+    "start": "Konať ako {name}",
+    "dialog_title": "Konať ako člen",
+    "hint": "Prihlásite sa ako dočasný testovací klon tejto osoby.",
+    "search": "Hľadať členov",
+    "confirm": "Konať ako",
+    "none": "Žiadni členovia, ako ktorí môžete konať",
+    "forbidden": "Vaša rola neumožňuje konať ako tento člen.",
+    "load_failed": "Nepodarilo sa spustiť — skúste znova."
   }
 }

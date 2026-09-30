@@ -353,7 +353,8 @@
     "method_unknown": "Okänd",
     "method_named": "{name}",
     "role": "Roll: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Sluta agera som {name}",
+    "act_as": "Agera som…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Inga agenter på denna box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Agerar som {name} (testklon)",
+    "stop": "Stoppa",
+    "start": "Agera som {name}",
+    "dialog_title": "Agera som en medlem",
+    "hint": "Du loggas in som en tillfällig testklon av den här personen.",
+    "search": "Sök medlemmar",
+    "confirm": "Agera som",
+    "none": "Inga medlemmar du kan agera som",
+    "forbidden": "Din roll tillåter inte att agera som den här medlemmen.",
+    "load_failed": "Det gick inte att starta — försök igen."
   }
 }

@@ -353,7 +353,8 @@
     "method_unknown": "Tuntematon",
     "method_named": "{name}",
     "role": "Rooli: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Lopeta toimiminen käyttäjänä {name}",
+    "act_as": "Toimi käyttäjänä…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Tässä boxissa ei ole agentteja."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Toimit käyttäjänä {name} (testikloonina)",
+    "stop": "Lopeta",
+    "start": "Toimi käyttäjänä {name}",
+    "dialog_title": "Toimi jäsenenä",
+    "hint": "Kirjaudut sisään tämän henkilön väliaikaisena testikloonina.",
+    "search": "Hae jäseniä",
+    "confirm": "Toimi käyttäjänä",
+    "none": "Ei jäseniä, joina voit toimia",
+    "forbidden": "Roolisi ei salli toimimista tämän jäsenen roolissa.",
+    "load_failed": "Aloitus ei onnistunut — yritä uudelleen."
   }
 }

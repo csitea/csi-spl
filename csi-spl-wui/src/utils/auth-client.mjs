@@ -178,7 +178,7 @@ export function startHref(provider, redirect, tenant, base = '') {
 /** in-flight GET /providers per fetch function and auth origin (loadProviders) */
 const providersInFlight = new WeakMap()
 
-export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false } = {}) {
+export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false, mock = false } = {}) {
   const root = authOrigin(base)
   // 'include': the cookie must ride a cross-origin call to the auth base; it is
   // the same as 'same-origin' when the base is ''.
@@ -286,6 +286,15 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
      * bad JSON) → 'unknown' — keep state, never treat as signed out.
      */
     async session() {
+      if (mock) {
+        // specs/054 e2e: signed-out by default; signed-in only when the act-as
+        // spec opts in (so the login specs are untouched). Live never takes this.
+        const { mockSessionGet } = await import('./act-as-mock.mjs')
+        const claims = mockSessionGet()
+        // 'unknown' with no opt-in, exactly as the pre-054 mock answered (its
+        // /session probe 404'd), so the other e2e specs are byte-for-byte the same.
+        return claims ? { state: 'in', claims } : { state: 'unknown', claims: null }
+      }
       let res
       try {
         res = await call('/session', { cache: 'no-store' })
@@ -426,15 +435,35 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
      * the clone (data = { clone_hum, target, expires_at }); 403 forbidden /
      * not_member (the ceiling); 401 = no session.
      */
-    actAsStart(humanId) {
-      return post('/act-as', { human_id: String(humanId || '') })
+    async actAsStart(humanId) {
+      const id = String(humanId || '')
+      if (mock) {
+        // OPT-IN e2e mock: record the act-as so me() reports it (the hub's
+        // cookie swap has no analogue with no hub). Live builds never take this.
+        const { mockActAsSet } = await import('./act-as-mock.mjs')
+        mockActAsSet({ target_hum: id, expires_at: '' })
+        return { ok: true, status: 200, data: { clone_hum: 'HUM-clone', target: id }, error: '', detail: '', retryAfter: 0 }
+      }
+      return post('/act-as', { human_id: id })
     },
     /** specs/054: stop acting (sign-out of the clone). 204 → the cookie is cleared. */
     async actAsExit() {
+      if (mock) {
+        const { mockActAsClear } = await import('./act-as-mock.mjs')
+        mockActAsClear()
+        return true
+      }
       const res = await call('/act-as/exit', { method: 'POST' })
       return res.status === 204 || res.ok
     },
     async logout() {
+      if (mock) {
+        // clear the opt-in mock session + any act-as so a reload is signed out
+        const { mockSessionClear, mockActAsClear } = await import('./act-as-mock.mjs')
+        mockSessionClear()
+        mockActAsClear()
+        return true
+      }
       const res = await call('/logout', { method: 'POST' })
       return res.status === 204 || res.ok
     },

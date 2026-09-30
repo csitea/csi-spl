@@ -353,7 +353,8 @@
     "method_unknown": "Nezināms",
     "method_named": "{name}",
     "role": "Loma: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Pārtraukt darboties kā {name}",
+    "act_as": "Darboties kā…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Uz šī box nav aģentu."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Darbojaties kā {name} (testa klons)",
+    "stop": "Apturēt",
+    "start": "Darboties kā {name}",
+    "dialog_title": "Darboties kā dalībnieks",
+    "hint": "Jūs pieteiksieties kā šīs personas pagaidu testa klons.",
+    "search": "Meklēt dalībniekus",
+    "confirm": "Darboties kā",
+    "none": "Nav dalībnieku, kā kuriem varētu darboties",
+    "forbidden": "Jūsu loma neļauj darboties kā šim dalībniekam.",
+    "load_failed": "Neizdevās sākt — mēģiniet vēlreiz."
   }
 }

@@ -353,7 +353,8 @@
     "method_unknown": "Nieznana",
     "method_named": "{name}",
     "role": "Rola: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Przestań działać jako {name}",
+    "act_as": "Działaj jako…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Brak agentów na tym boxie."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Działasz jako {name} (klon testowy)",
+    "stop": "Zatrzymaj",
+    "start": "Działaj jako {name}",
+    "dialog_title": "Działaj jako członek",
+    "hint": "Zalogujesz się jako tymczasowy klon testowy tej osoby.",
+    "search": "Szukaj członków",
+    "confirm": "Działaj jako",
+    "none": "Brak członków, jako którzy możesz działać",
+    "forbidden": "Twoja rola nie pozwala działać jako ten członek.",
+    "load_failed": "Nie udało się rozpocząć — spróbuj ponownie."
   }
 }

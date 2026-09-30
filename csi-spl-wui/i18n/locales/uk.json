@@ -353,7 +353,8 @@
     "method_unknown": "Невідомо",
     "method_named": "{name}",
     "role": "Роль: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Припинити діяти як {name}",
+    "act_as": "Діяти як…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "На цьому box немає агентів."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Ви дієте як {name} (тестовий клон)",
+    "stop": "Зупинити",
+    "start": "Діяти як {name}",
+    "dialog_title": "Діяти як учасник",
+    "hint": "Ви увійдете як тимчасовий тестовий клон цієї особи.",
+    "search": "Пошук учасників",
+    "confirm": "Діяти як",
+    "none": "Немає учасників, як які ви можете діяти",
+    "forbidden": "Ваша роль не дозволяє діяти як цей учасник.",
+    "load_failed": "Не вдалося почати — спробуйте ще раз."
   }
 }

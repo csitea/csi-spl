@@ -353,7 +353,8 @@
     "method_unknown": "Onbekend",
     "method_named": "{name}",
     "role": "Rol: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Stoppen met handelen als {name}",
+    "act_as": "Handelen als…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Geen agents op deze box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Handelen als {name} (testkloon)",
+    "stop": "Stoppen",
+    "start": "Handelen als {name}",
+    "dialog_title": "Handelen als lid",
+    "hint": "Je wordt aangemeld als een tijdelijke testkloon van deze persoon.",
+    "search": "Leden zoeken",
+    "confirm": "Handelen als",
+    "none": "Geen leden waarvoor je kunt handelen",
+    "forbidden": "Je rol staat niet toe om als dit lid te handelen.",
+    "load_failed": "Kon niet starten — probeer het opnieuw."
   }
 }

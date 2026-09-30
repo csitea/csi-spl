@@ -34,7 +34,10 @@ const access = useAccessStore()
 const session = useSessionStore()
 const busy = ref(false)
 
-const actAs = computed(() => access.me?.actAs ?? null)
+// Only while signed in: after the sign-out the access store's `me` lingers
+// until the next load, so gate on the session so the banner never outlives the
+// clone (e.g. on the login page the sign-out lands on).
+const actAs = computed(() => (session.state === 'in' ? access.me?.actAs : null) ?? null)
 
 async function stop() {
   if (busy.value) return
@@ -50,17 +53,17 @@ async function stop() {
 <style scoped>
 .actas-bar {
   position: fixed;
-  top: 0;
+  /* Directly under the top bar — a full-width, unmistakable strip that never
+     covers the avatar menu (whose "Stop acting as X" is the same action). */
+  top: var(--top-bar-h);
   left: 0;
   right: 0;
-  /* Above the top bar and every panel: it must never be covered. */
   z-index: calc(var(--z-banner) + 10);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   box-sizing: border-box;
-  min-height: var(--top-bar-h);
   padding: 0.375rem 0.875rem;
   border-bottom: 2px solid var(--color-accent);
   /* A warm, unmistakable strip so an admin always knows they are a clone. */

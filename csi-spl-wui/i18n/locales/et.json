@@ -353,7 +353,8 @@
     "method_unknown": "Teadmata",
     "method_named": "{name}",
     "role": "Roll: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Lõpeta tegutsemine kasutajana {name}",
+    "act_as": "Tegutse kasutajana…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Sellel boxil pole agente."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Tegutsete kasutajana {name} (testkloon)",
+    "stop": "Peata",
+    "start": "Tegutse kasutajana {name}",
+    "dialog_title": "Tegutse liikmena",
+    "hint": "Logite sisse selle inimese ajutise testkloonina.",
+    "search": "Otsi liikmeid",
+    "confirm": "Tegutse kasutajana",
+    "none": "Pole liikmeid, kellena saaksite tegutseda",
+    "forbidden": "Teie roll ei luba selle liikmena tegutseda.",
+    "load_failed": "Ei õnnestunud alustada — proovige uuesti."
   }
 }

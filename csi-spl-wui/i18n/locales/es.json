@@ -353,7 +353,8 @@
     "method_unknown": "Desconocido",
     "method_named": "{name}",
     "role": "Rol: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Dejar de actuar como {name}",
+    "act_as": "Actuar como…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "No hay agentes en este equipo."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Actuando como {name} (clon de prueba)",
+    "stop": "Detener",
+    "start": "Actuar como {name}",
+    "dialog_title": "Actuar como un miembro",
+    "hint": "Iniciarás sesión como un clon de prueba temporal de esta persona.",
+    "search": "Buscar miembros",
+    "confirm": "Actuar como",
+    "none": "No hay miembros como los que puedas actuar",
+    "forbidden": "Tu rol no permite actuar como este miembro.",
+    "load_failed": "No se pudo iniciar; inténtalo de nuevo."
   }
 }

@@ -353,7 +353,8 @@
     "method_unknown": "Unknown",
     "method_named": "{name}",
     "role": "Role: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Stop acting as {name}",
+    "act_as": "Act as…"
   },
   "viewer": {
     "error": {
@@ -1399,6 +1400,13 @@
   "act_as": {
     "acting_as": "Acting as {name} (test clone)",
     "stop": "Stop",
-    "start": "Act as {name}"
+    "start": "Act as {name}",
+    "dialog_title": "Act as a member",
+    "hint": "You'll sign in as a temporary test clone of this person.",
+    "search": "Search members",
+    "confirm": "Act as",
+    "none": "No members you can act as",
+    "forbidden": "Your role does not allow acting as this member.",
+    "load_failed": "Could not start — please try again."
   }
 }

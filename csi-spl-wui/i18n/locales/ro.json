@@ -353,7 +353,8 @@
     "method_unknown": "Necunoscut",
     "method_named": "{name}",
     "role": "Rol: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Oprește acțiunea ca {name}",
+    "act_as": "Acționează ca…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Niciun agent pe acest box."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Acționezi ca {name} (clonă de test)",
+    "stop": "Oprește",
+    "start": "Acționează ca {name}",
+    "dialog_title": "Acționează ca membru",
+    "hint": "Te vei conecta ca o clonă de test temporară a acestei persoane.",
+    "search": "Caută membri",
+    "confirm": "Acționează ca",
+    "none": "Nu există membri ca care poți acționa",
+    "forbidden": "Rolul tău nu permite acțiunea ca acest membru.",
+    "load_failed": "Nu s-a putut porni — încearcă din nou."
   }
 }

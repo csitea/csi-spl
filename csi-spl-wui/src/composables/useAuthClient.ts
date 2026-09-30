@@ -32,5 +32,7 @@ export function useAuthClient(): AuthClient & PerTenantPrefSaves {
   // hub admits the header in its CORS preflight from 0.1.10 (e586002); the
   // registration mail follows it.
   const i18n = useNuxtApp().$i18n as { locale?: unknown } | undefined
-  return createAuthClient({ base: useAuthBase(), locale: () => String(unref(i18n?.locale) || ''), sendLocale: true }) as AuthClient & PerTenantPrefSaves
+  // specs/054: the opt-in act-as mock rides the same flag as the spool API mock.
+  const mock = String(useRuntimeConfig().public.useMock) !== '0'
+  return createAuthClient({ base: useAuthBase(), locale: () => String(unref(i18n?.locale) || ''), sendLocale: true, mock }) as AuthClient & PerTenantPrefSaves
 }

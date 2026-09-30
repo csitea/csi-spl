@@ -353,7 +353,8 @@
     "method_unknown": "Bilinmiyor",
     "method_named": "{name}",
     "role": "Rol: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "{name} olarak hareketi durdur",
+    "act_as": "Biri olarak hareket et…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Bu box'ta ajan yok."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "{name} olarak hareket ediyorsunuz (test klonu)",
+    "stop": "Durdur",
+    "start": "{name} olarak hareket et",
+    "dialog_title": "Bir üye olarak hareket et",
+    "hint": "Bu kişinin geçici bir test klonu olarak oturum açacaksınız.",
+    "search": "Üye ara",
+    "confirm": "Hareket et",
+    "none": "Hareket edebileceğiniz üye yok",
+    "forbidden": "Rolünüz bu üye olarak hareket etmenize izin vermiyor.",
+    "load_failed": "Başlatılamadı — tekrar deneyin."
   }
 }

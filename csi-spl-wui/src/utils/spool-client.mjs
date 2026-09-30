@@ -781,7 +781,20 @@ export function createSpoolClient({
      * tenant. Mock / a hub without the route (404): null = unrestricted.
      */
     async me() {
-      if (mock) return null
+      if (mock) {
+        // specs/054: the OPT-IN act-as mock. Absent by default (the other e2e
+        // specs see null = unrestricted admin, unchanged). When present, report
+        // act_as as the hub would, with the target's name from the directory.
+        const { mockActAsGet } = await import('./act-as-mock.mjs')
+        const a = mockActAsGet()
+        if (!a || !a.target_hum) return null
+        let name = a.target_hum
+        try {
+          const m = (await dir()).list().members.find((x) => x.human_id === a.target_hum)
+          if (m && m.display_name) name = m.display_name
+        } catch { /* keep the id */ }
+        return { act_as: { target_hum: a.target_hum, target_name: name, expires_at: a.expires_at || '' } }
+      }
       try {
         return await live('/v1/view/me')
       } catch (e) {

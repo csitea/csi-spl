@@ -353,7 +353,8 @@
     "method_unknown": "Nežinoma",
     "method_named": "{name}",
     "role": "Vaidmuo: {role}",
-    "stop_acting_as": "Stop acting as {name}"
+    "stop_acting_as": "Nustoti veikti kaip {name}",
+    "act_as": "Veikti kaip…"
   },
   "viewer": {
     "error": {
@@ -1397,8 +1398,15 @@
     "no_agents": "Šiame boxe nėra agentų."
   },
   "act_as": {
-    "acting_as": "Acting as {name} (test clone)",
-    "stop": "Stop",
-    "start": "Act as {name}"
+    "acting_as": "Veikiate kaip {name} (bandomasis klonas)",
+    "stop": "Stabdyti",
+    "start": "Veikti kaip {name}",
+    "dialog_title": "Veikti kaip narys",
+    "hint": "Prisijungsite kaip laikinas šio asmens bandomasis klonas.",
+    "search": "Ieškoti narių",
+    "confirm": "Veikti kaip",
+    "none": "Nėra narių, kaip kurie galėtumėte veikti",
+    "forbidden": "Jūsų vaidmuo neleidžia veikti kaip šis narys.",
+    "load_failed": "Nepavyko pradėti — bandykite dar kartą."
   }
 }

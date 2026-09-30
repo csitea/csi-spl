@@ -270,7 +270,10 @@ try {
   ok('4 its own channel is never lit and says "not allowed"', byAt[A].lit.length === 0 && byAt[A].denied.some((d) => d.id === A && d.label === 'not allowed'), byAt[A])
   ok('4 #alerts under the pointer is the one lit row', byAt.alerts.lit.length === 1 && byAt.alerts.lit[0] === 'alerts', byAt.alerts)
   ok('4 the lobby is never lit', !lobbyRow || (byAt.lobby.lit.length === 0), byAt.lobby || 'no lobby row in the rail')
-  ok('4 leaving the rail clears the highlight', byAt.middle.lit.length === 0 && byAt.middle.denied.length === 0, byAt.middle)
+  /* 714c7028: leaving the rail clears every CHANNEL highlight; a topic dragged
+     over another topic's card lights THAT card as a merge target (not a rail row). */
+  const CHANS = new Set([A, B, 'alerts', 'lobby', 'general'])
+  ok('4 leaving the rail clears the channel highlight', byAt.middle.lit.every((id) => !CHANS.has(id)) && byAt.middle.denied.length === 0, byAt.middle)
   ok('4 #b under the pointer is the one lit row', byAt[B].lit.length === 1 && byAt[B].lit[0] === B, byAt[B])
   await p.mouse.up()
   const gone = await until(p, (sel) => !document.querySelector(sel), midCard(seeded.one.msg_id))
@@ -289,7 +292,9 @@ try {
   /* ---- 5. cancel: a drop outside, and Escape ------------------------------- */
   const card1b = await p.$eval(midCard(seeded.one.msg_id), (e) => { const r = e.getBoundingClientRect(); return { x: r.left + 5, y: r.top + r.height / 2, cx: r.left + r.width / 2, bottom: r.bottom } })
   const b2 = await centre(p, railRow(B))
-  const outside = await mouseDrag(p, { x: card1b.x, y: card1b.y }, [b2, { x: card1b.cx, y: card1b.bottom + 60 }])
+  /* 714c7028: the "outside" drop must miss every rail row AND every topic card
+     (a topic dropped on a card is now a merge) - the empty right pane is both. */
+  const outside = await mouseDrag(p, { x: card1b.x, y: card1b.y }, [b2, { x: 1290, y: 450 }])
   await sleep(400)
   ok('5 the drag lit #b on the way (control: the drag was live)', outside[0].lit.length === 1 && outside[0].lit[0] === B, outside[0])
   ok('5 a drop outside every row moves nothing', await inChannel(p, seeded.one.msg_id, A) && Boolean(await p.$(midCard(seeded.one.msg_id))), outside[1])

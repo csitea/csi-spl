@@ -1,0 +1,47 @@
+# Dockerfile lint (hadolint). Same runner rule as 15_sec-deps-secrets.yml:
+# self-hosted (spool-ci). The tool is installed in the job and verified against
+# a pinned sha256; a missing tool fails the action -- nothing here skips.
+# The gate is error-level only (.hadolint.yaml); warnings/info are reported.
+name: "66 sec: hadolint (Dockerfiles)"
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-hadolint-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hadolint:
+    name: "sec: hadolint every Dockerfile"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned binary + sha256. A download that does not match the pin fails
+      # closed rather than running an unknown tool.
+      - name: Install hadolint 2.12.0
+        run: |
+          set -euo pipefail
+          v=2.12.0; dir="$RUNNER_TOOL_CACHE/hadolint/$v"
+          sha=56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010
+          if [[ ! -x "$dir/hadolint" ]]; then
+            mkdir -p "$dir"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
+              -o "$dir/hadolint" \
+              "https://github.com/hadolint/hadolint/releases/download/v$v/hadolint-Linux-x86_64"
+            echo "$sha  $dir/hadolint" | sha256sum -c -
+            chmod +x "$dir/hadolint"
+          fi
+          "$dir/hadolint" --version
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: hadolint (control + scan)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_hadolint

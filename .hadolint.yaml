@@ -1,0 +1,22 @@
+# hadolint config for csi-spl. Consumed by do_sec_hadolint (SEC_HADOLINT) and by
+# .github/workflows/66_hadolint.yml, which lint every Dockerfile in the tree.
+#
+# Policy: gate on ERROR-level findings only; warnings and info are reported as
+# annotations but do NOT redden trunk. This is hadolint's recommended CI mode
+# and keeps the whole legacy tree green today while catching a NEW error class.
+#
+# Triage (hadolint 2.12.0): the only error-level rule firing on the current tree
+# is DL3004 (no sudo), and only in the LOCAL dev/CI tooling images
+# (csi-spl-orc/src/docker/{conf-validator,tf-runner,tpl-gen}), which install
+# packages for a non-root dev user and intentionally use sudo. The RUNTIME
+# images (hub, wui) contain no sudo and stay gated by every other error rule.
+# A real new error in any image (e.g. DL3020 ADD-instead-of-COPY, DL3003 cd,
+# a secret in ENV) still fails the gate. The negative control in the action
+# plants a Dockerfile hadolint must flag, so a broken/absent binary fails closed.
+#
+# The many legacy warnings (DL3018/DL3008 version pinning, DL3009 apt lists,
+# DL3042 pip cache, DL4006 pipefail) are a separate, lower-priority cleanup and
+# are intentionally left visible as annotations rather than silenced.
+failure-threshold: error
+ignored:
+  - DL3004

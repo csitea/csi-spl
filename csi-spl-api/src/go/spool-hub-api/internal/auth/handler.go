@@ -315,6 +315,7 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "state")
 		return
 	}
+	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure -- Secure = cfg.CookieSecure (env SPOOL_HUB_AUTH_COOKIE_SECURE; "true" in dev+prd cnf, "false" only for local http dev/lde). SPL-1285.
 	http.SetCookie(w, &http.Cookie{
 		Name: h.cfg.StateCookieName, Value: nonce, Path: RoutePrefix, Domain: h.cfg.CookieDomain,
 		MaxAge: int(h.cfg.StateTTL.Seconds()), HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
@@ -331,6 +332,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The state cookie is single-use: cleared on every callback outcome.
+	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure -- Secure = cfg.CookieSecure (env SPOOL_HUB_AUTH_COOKIE_SECURE; "true" in dev+prd cnf, "false" only for local http dev/lde). SPL-1285.
 	http.SetCookie(w, &http.Cookie{Name: h.cfg.StateCookieName, Value: "", Path: RoutePrefix, Domain: h.cfg.CookieDomain,
 		MaxAge: -1, HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
 	w.Header().Set("Cache-Control", "no-store")
@@ -1308,6 +1310,7 @@ func (h *Handler) SessionForTenant(r *http.Request, tenant string) (Session, err
 }
 
 func (h *Handler) sessionCookie(v string, maxAge int) *http.Cookie {
+	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure -- Secure = cfg.CookieSecure (env SPOOL_HUB_AUTH_COOKIE_SECURE; "true" in dev+prd cnf, "false" only for local http dev/lde). SPL-1285.
 	return &http.Cookie{Name: h.cfg.CookieName, Value: v, Path: "/", Domain: h.cfg.CookieDomain,
 		MaxAge: maxAge, HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode}
 }

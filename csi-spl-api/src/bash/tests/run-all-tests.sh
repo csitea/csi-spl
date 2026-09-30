@@ -44,6 +44,9 @@ bash "$HERE/no-payment-vendor-wui.tst.sh"
 echo "== no-baked-hostname gate (spec 007 T017) =="
 bash "$HERE/no-baked-hostname.tst.sh"
 
+echo "== cookie Secure cnf gate (SPL-1285: dev+prd must run Secure cookies) =="
+bash "$HERE/cookie-secure-cnf.tst.sh"
+
 echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"
 

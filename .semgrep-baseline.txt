@@ -21,7 +21,6 @@
 #   math-random x1 (hubclient/flush): non-crypto jitter.
 # A NEW occurrence of any rule anywhere not already counted here fails the gate.
 go.lang.security.audit.crypto.math_random.math-random-used|csi-spl-api/src/go/spool-hub-api/internal/hubclient/flush.go|1
-go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure|csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go|3
 go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/fakeidp/fakeidp.go|1
 go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/fakeidp/microsoft.go|1
 go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go|1

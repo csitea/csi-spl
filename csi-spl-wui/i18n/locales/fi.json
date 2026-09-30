@@ -585,6 +585,18 @@
       "body": "Se poistetaan kaikilta. Tätä ei voi perua.",
       "confirm": "Poista"
     },
+    "merge": {
+      "title": "Yhdistetäänkö tämä aihe aiheeseen ”{target}”?",
+      "title_one": "Yhdistetäänkö tämä aihe (1 viesti) aiheeseen ”{target}”?",
+      "title_n": "Yhdistetäänkö tämä aihe ({n} viestiä) aiheeseen ”{target}”?",
+      "body": "Kaikki tämän aiheen viestit siirtyvät kohteeseen aikajärjestyksessä. Aihe katoaa — voit kumota.",
+      "confirm": "Yhdistä",
+      "busy": "Yhdistetään…",
+      "the_topic": "aihe",
+      "done": "Yhdistetty aiheeseen ”{title}”",
+      "done_plain": "Yhdistetty aiheeseen",
+      "undone": "Yhdistäminen kumottu"
+    },
     "move": {
       "channel_title": "Siirrä tämä aihe kanavalle",
       "topic_title": "Siirrä tämä viesti aiheeseen",

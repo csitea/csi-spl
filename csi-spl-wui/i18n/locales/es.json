@@ -585,6 +585,18 @@
       "body": "Se elimina para todos. No se puede deshacer.",
       "confirm": "Eliminar"
     },
+    "merge": {
+      "title": "¿Combinar este tema con «{target}»?",
+      "title_one": "¿Combinar este tema (1 mensaje) con «{target}»?",
+      "title_n": "¿Combinar este tema ({n} mensajes) con «{target}»?",
+      "body": "Todos los mensajes de este tema pasan al destino en orden cronológico. El tema desaparece — puedes deshacer.",
+      "confirm": "Combinar",
+      "busy": "Combinando…",
+      "the_topic": "el tema",
+      "done": "Combinado con «{title}»",
+      "done_plain": "Combinado con el tema",
+      "undone": "Combinación deshecha"
+    },
     "move": {
       "channel_title": "Mover este tema a un canal",
       "topic_title": "Mover este mensaje a un tema",

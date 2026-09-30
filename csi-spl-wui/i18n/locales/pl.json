@@ -585,6 +585,18 @@
       "body": "Zostanie usunięta dla wszystkich. Tego nie można cofnąć.",
       "confirm": "Usuń"
     },
+    "merge": {
+      "title": "Scalić ten temat z „{target}”?",
+      "title_one": "Scalić ten temat (1 wiadomość) z „{target}”?",
+      "title_n": "Scalić ten temat ({n} wiadomości) z „{target}”?",
+      "body": "Wszystkie wiadomości z tego tematu trafią do celu w kolejności czasu. Temat zniknie — można cofnąć.",
+      "confirm": "Scal",
+      "busy": "Scalanie…",
+      "the_topic": "temat",
+      "done": "Scalono z „{title}”",
+      "done_plain": "Scalono z tematem",
+      "undone": "Cofnięto scalanie"
+    },
     "move": {
       "channel_title": "Przenieś ten temat do kanału",
       "topic_title": "Przenieś tę wiadomość do tematu",

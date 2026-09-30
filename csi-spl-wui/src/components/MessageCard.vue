@@ -368,7 +368,7 @@ import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
 import { mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
-import { isCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
+import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useLive } from '~/composables/useLive'
@@ -814,7 +814,7 @@ const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && 
 }))
 const movable = computed(() => (canMoveTopic.value || canMoveMsg.value) && !editing.value)
 const dragging = ref(false)
-const dropTarget = computed(() => Boolean(props.topicMenu) && isCardDropTarget(move.drag.value, props.msg, lobbyTask.value))
+const dropTarget = computed(() => Boolean(props.topicMenu) && (isCardDropTarget(move.drag.value, props.msg, lobbyTask.value) || isMergeCardDropTarget(move.drag.value, props.msg, lobbyTask.value)))
 const dropOver = computed(() => {
   const o = move.over.value
   return Boolean(o && o.kind === 'card' && o.ok && o.id === String(props.msg.task_id || ''))
@@ -824,7 +824,7 @@ const movePicker = ref<'' | 'channel' | 'topic'>('')
 function moveDrag(): MoveDrag {
   const m = props.msg
   return canMoveTopic.value
-    ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || '') }
+    ? { kind: 'topic', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(m.task_id || ''), channel: String(m.channel || ''), title: title.value || String(m.body || '').slice(0, 60) }
     : { kind: 'message', msgId: String(m.msg_id), taskId: String(m.task_id || ''), topicTask: String(props.moveCtx?.topic || ''), channel: String(m.channel || props.moveCtx?.channel || '') }
 }
 function onMoveKey(ev: KeyboardEvent) {

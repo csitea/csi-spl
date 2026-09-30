@@ -585,6 +585,18 @@
       "body": "Odstráni sa pre všetkých. Nedá sa to vrátiť späť.",
       "confirm": "Odstrániť"
     },
+    "merge": {
+      "title": "Zlúčiť túto tému s „{target}”?",
+      "title_one": "Zlúčiť túto tému (1 správa) s „{target}”?",
+      "title_n": "Zlúčiť túto tému ({n} správ) s „{target}”?",
+      "body": "Všetky správy tejto témy prejdú do cieľa v poradí podľa času. Téma potom zmizne — možno vrátiť späť.",
+      "confirm": "Zlúčiť",
+      "busy": "Zlučovanie…",
+      "the_topic": "téma",
+      "done": "Zlúčené s „{title}”",
+      "done_plain": "Zlúčené s témou",
+      "undone": "Zlúčenie vrátené späť"
+    },
     "move": {
       "channel_title": "Presunúť túto tému do kanála",
       "topic_title": "Presunúť túto správu do témy",

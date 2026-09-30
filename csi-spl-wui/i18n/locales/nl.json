@@ -585,6 +585,18 @@
       "body": "Het wordt voor iedereen verwijderd. Dit kan niet ongedaan worden gemaakt.",
       "confirm": "Verwijderen"
     },
+    "merge": {
+      "title": "Dit onderwerp samenvoegen met ”{target}”?",
+      "title_one": "Dit onderwerp (1 bericht) samenvoegen met ”{target}”?",
+      "title_n": "Dit onderwerp ({n} berichten) samenvoegen met ”{target}”?",
+      "body": "Alle berichten in dit onderwerp gaan op tijdvolgorde naar het doel. Het onderwerp verdwijnt daarna — je kunt dit ongedaan maken.",
+      "confirm": "Samenvoegen",
+      "busy": "Samenvoegen…",
+      "the_topic": "het onderwerp",
+      "done": "Samengevoegd met ”{title}”",
+      "done_plain": "Samengevoegd met het onderwerp",
+      "undone": "Samenvoegen ongedaan gemaakt"
+    },
     "move": {
       "channel_title": "Dit onderwerp naar een kanaal verplaatsen",
       "topic_title": "Dit bericht naar een onderwerp verplaatsen",

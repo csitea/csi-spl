@@ -38,8 +38,10 @@ export function moveHit(el, drag) {
   if (!row) return null
   const ds = row.dataset || {}
   const kind = ds.moveDrop
-  const want = drag.kind === 'message' ? 'card' : 'channel'
-  if (kind !== want || !ds.moveId) return null
+  // A reply drags onto a topic card (move-v1 §3). A topic card drags onto a
+  // channel row (a move, §2) OR onto another topic card (a MERGE, 714c7028).
+  const fits = drag.kind === 'message' ? kind === 'card' : kind === 'channel' || kind === 'card'
+  if (!fits || !ds.moveId) return null
   return { kind, id: String(ds.moveId), scope: String(ds.moveScope || ''), ok: ds.moveOk === 'true', title: String(ds.moveTitle || '') }
 }
 

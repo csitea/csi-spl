@@ -585,6 +585,18 @@
       "body": "See eemaldatakse kõigilt. Seda ei saa tagasi võtta.",
       "confirm": "Kustuta"
     },
+    "merge": {
+      "title": "Kas liita see teema teemaga „{target}”?",
+      "title_one": "Kas liita see teema (1 sõnum) teemaga „{target}”?",
+      "title_n": "Kas liita see teema ({n} sõnumit) teemaga „{target}”?",
+      "body": "Kõik selle teema sõnumid liiguvad sihtteemasse ajalises järjekorras. Teema kaob seejärel — saad tagasi võtta.",
+      "confirm": "Liida",
+      "busy": "Liidan…",
+      "the_topic": "teema",
+      "done": "Liidetud teemaga „{title}”",
+      "done_plain": "Liidetud teemaga",
+      "undone": "Liitmine võeti tagasi"
+    },
     "move": {
       "channel_title": "Teisalda see teema kanalisse",
       "topic_title": "Teisalda see sõnum teemasse",

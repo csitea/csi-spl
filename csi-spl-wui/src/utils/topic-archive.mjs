@@ -79,8 +79,14 @@ export function topicFrameDrops(frame) {
  */
 export function topicFrameTasks(frame, lobbyTaskId = '') {
   const f = frame && typeof frame === 'object' ? frame : {}
-  if (f.type !== 'topic_deleted') return []
   const lobby = String(lobbyTaskId || '')
+  // 714c7028: a merge empties the source topic (from_task) - a pane open on it
+  // has nothing left to show; the target keeps its own pane.
+  if (f.type === 'topic_merged') {
+    const from = String(f.from_task || '')
+    return from && from !== lobby ? [from] : []
+  }
+  if (f.type !== 'topic_deleted') return []
   const ids = Array.isArray(f.task_ids) ? f.task_ids.map(String) : []
   return ids.filter((id) => id && id !== lobby)
 }
@@ -201,6 +207,9 @@ export function topicFrameRows(frame, lobbyTaskId = '') {
   let ids = []
   if (f.type === 'topic_deleted') ids = [f.task_id, f.msg_id, ...(Array.isArray(f.task_ids) ? f.task_ids : [])]
   else if (f.type === 'topic_archived' && f.archived === true) ids = [f.task_id, f.msg_id]
+  // 714c7028: the merged-away source topic leaves the Topics / Flow lists (its
+  // opener is now a reply in the target); the move-apply re-read fills the rest.
+  else if (f.type === 'topic_merged') ids = [f.from_task]
   const out = []
   for (const raw of ids) {
     const id = String(raw || '')

@@ -96,6 +96,10 @@
     <ClientOnly>
       <LazyMoveUndoToast v-if="move.toast.value" />
     </ClientOnly>
+    <!-- 714c7028: "Merge topic (N messages) into Y?"; loads when a topic is dropped on a topic -->
+    <ClientOnly>
+      <LazyMergeConfirmDialog v-if="move.mergeAsk.value" />
+    </ClientOnly>
     <ClientOnly>
       <DebugPanel v-if="debugAllowed" />
     </ClientOnly>

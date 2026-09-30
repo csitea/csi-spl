@@ -134,6 +134,10 @@ declare module '~/utils/spool-client.mjs' {
     moveTopic(msgId: string, toChannel: string): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
     /** SPL-1024 move-v1 §3: move a reply (and its own thread) to another topic. */
     moveMessage(msgId: string, toTask: string): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
+    /** 714c7028: merge this card's whole topic into another topic. */
+    mergeTopic(msgId: string, toTask: string): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
+    /** 714c7028: undo a merge - put the source topic back. */
+    mergeUndo(msgId: string, fromTask: string, msgIds: string[]): Promise<import('~/utils/move-apply.mjs').MoveAnswer>
     /** SPL-1024 move-v1 §4: what the caller may do with the row. */
     moveInfo(msgId: string): Promise<{ msg_id: string, task_id: string, channel: string | null, is_card: boolean, can_move: boolean, moved_from_channel?: string, moved_from_task?: string }>
     fileUrl(fileId: string): string
@@ -528,7 +532,7 @@ declare module '~/utils/msg-menu.mjs' {
 }
 
 declare module '~/utils/move.mjs' {
-  export type MoveDrag = { kind: 'topic' | 'message', msgId: string, taskId: string, topicTask: string, channel: string }
+  export type MoveDrag = { kind: 'topic' | 'message', msgId: string, taskId: string, topicTask: string, channel: string, title?: string }
   export type MeLike = { role?: string | null, tenantOwner?: boolean } | null
   export const MOVE_BLOCKED_CHANNELS: readonly string[]
   export function moveChan(v: unknown): string
@@ -538,6 +542,7 @@ declare module '~/utils/move.mjs' {
   export function mayMoveMessage(msg: unknown, viewerId: string, me: MeLike, opts?: { openerId?: string, lobbyTaskId?: string, channel?: string | null }): boolean
   export function isChannelDropTarget(drag: MoveDrag | null, channelId: string, listed?: unknown[] | null): boolean
   export function isCardDropTarget(drag: MoveDrag | null, card: unknown, lobbyTaskId?: string): boolean
+  export function isMergeCardDropTarget(drag: MoveDrag | null, card: unknown, lobbyTaskId?: string): boolean
   export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
 }
 
@@ -561,8 +566,9 @@ declare module '~/utils/move-drag.mjs' {
 
 declare module '~/utils/move-apply.mjs' {
   export type MoveDrag = import('~/utils/move.mjs').MoveDrag
-  export type MoveFrame = { type: 'topic_moved' | 'message_moved', msg_id: string, task_id: string, from_task: string, channel: string, from_channel: string, moved: boolean, moved_by: string, moved_at: string, msg_ids: string[] }
-  export type MoveAnswer = { kind: 'topic' | 'message', msg_id: string, task_id: string, from_task?: string, channel: string, from_channel: string, moved: boolean, moved_by: string, moved_at: string, received_at?: string, msg_ids: string[], undo: { to_channel?: string, to_task?: string } }
+  export type MoveFrame = { type: 'topic_moved' | 'message_moved' | 'topic_merged' | 'topic_unmerged', msg_id: string, task_id: string, from_task: string, channel: string, from_channel: string, moved?: boolean, moved_by: string, moved_at?: string, msg_ids: string[] }
+  export type MoveAnswer = { kind: 'topic' | 'message' | 'merge' | 'unmerge', msg_id: string, task_id: string, from_task?: string, channel?: string, from_channel?: string, moved?: boolean, merged?: number, unmerged?: number, moved_by: string, moved_at?: string, received_at?: string, msg_ids: string[], undo?: { to_channel?: string, to_task?: string, from_task?: string, msg_ids?: string[] } }
+  export type MergeFrame = { type: 'topic_merged' | 'topic_unmerged', msg_id: string, task_id: string, from_task: string, channel: string, from_channel: string, msg_ids: string[] }
   export function moveChannelTargets(channels: unknown, current?: string | null): { channel_id: string, name: string }[]
   export function moveFrame(frame: unknown): MoveFrame | null
   export function moveFrameFromAnswer(answer: unknown): MoveFrame | null
@@ -574,10 +580,14 @@ declare module '~/utils/move-apply.mjs' {
   export function movedChannelFor(rows: unknown, current: string | null | undefined): string
   export function moveTopicChoices(topics: unknown, opts?: { channels?: unknown[], exclude?: string[], query?: string, lobbyTaskId?: string }): { task_id: string, channel: string, title: string, last_ts: string }[]
   export function applyMoveToStores(frame: unknown, stores: { channel?: unknown, main?: unknown, pane?: unknown, viewer?: unknown, topic?: unknown, getTopic?: (id: string) => Promise<{ messages?: unknown[] }> }): MoveFrame | null
+  export function mergeFrame(frame: unknown): MergeFrame | null
+  export function mergeFrameFromAnswer(answer: unknown): MergeFrame | null
+  export function applyMergeToStores(frame: unknown, stores: { channel?: unknown, main?: unknown, pane?: unknown, viewer?: unknown, getTopic?: (id: string) => Promise<{ messages?: unknown[] }> }): MergeFrame | null
 }
 
 declare module '~/utils/move-mock.mjs' {
   export function mockMove(state: unknown, id: string, body: { to_channel?: string, to_task?: string }): import('~/utils/move-apply.mjs').MoveAnswer
+  export function mockMergeTopic(state: unknown, id: string, body: { to_task?: string, undo?: { from_task?: string, msg_ids?: string[] } }): import('~/utils/move-apply.mjs').MoveAnswer
 }
 
 declare module '~/utils/topic-archive.mjs' {

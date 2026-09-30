@@ -112,6 +112,71 @@ export function moveJoinsTask(frame, taskId) {
   return Boolean(f && id && f.type === 'message_moved' && f.task_id === id && f.from_task !== id)
 }
 
+/**
+ * A topic_merged / topic_unmerged frame (714c7028), normalized; null for
+ * anything else. `msg_ids` always includes `msg_id` (the source opener).
+ */
+export function mergeFrame(frame) {
+  const f = frame && typeof frame === 'object' ? frame : null
+  if (!f || (f.type !== 'topic_merged' && f.type !== 'topic_unmerged')) return null
+  const msgId = String(f.msg_id || '')
+  const ids = Array.isArray(f.msg_ids) ? f.msg_ids.map(String).filter(Boolean) : []
+  if (msgId && !ids.includes(msgId)) ids.unshift(msgId)
+  return {
+    type: f.type,
+    msg_id: msgId,
+    task_id: String(f.task_id || ''),
+    from_task: String(f.from_task || ''),
+    channel: chan(f.channel),
+    from_channel: chan(f.from_channel),
+    msg_ids: ids,
+  }
+}
+
+/** The frame a successful merge answer stands for (applied at once, before the socket copy). */
+export function mergeFrameFromAnswer(answer) {
+  const a = answer && typeof answer === 'object' ? answer : {}
+  return mergeFrame({ ...a, type: a.kind === 'unmerge' ? 'topic_unmerged' : 'topic_merged' })
+}
+
+/**
+ * A merge (or its undo) applied to every store that can hold its rows. A merge
+ * folds the whole source topic into the target, so - unlike a move - the
+ * source topic disappears; the safe, idempotent way to reflect that on screen
+ * is to drop the source card and re-READ the affected topics/channel from the
+ * hub (the authoritative state), not to reshuffle rows by hand. Returns the
+ * normalized frame, or null for anything that is not a merge.
+ */
+export function applyMergeToStores(frame, { channel, main, pane, viewer, getTopic } = {}) {
+  const f = mergeFrame(frame)
+  if (!f) return null
+  const ids = new Set(f.msg_ids)
+  if (viewer && Array.isArray(viewer.topics) && f.type === 'topic_merged' && f.from_task) {
+    const next = viewer.topics.filter((r) => String((r && r.task_id) || '') !== f.from_task)
+    if (next.length !== viewer.topics.length) viewer.topics = next
+  }
+  if (channel) {
+    if (f.type === 'topic_merged') {
+      const next = channel.messages.filter((m) => !ids.has(String((m && m.msg_id) || '')))
+      if (next.length !== channel.messages.length) channel.messages = next
+    }
+    const here = chan(channel.active)
+    if (here && (here === f.channel || here === f.from_channel)) void channel.catchUp()
+  }
+  for (const s of [main, pane]) {
+    if (!s || !s.taskId) continue
+    const t = String(s.taskId)
+    if (t === f.task_id && typeof getTopic === 'function') {
+      void Promise.resolve(getTopic(t)).then((d) => {
+        if (String(s.taskId) === t) s.admit((d && d.messages) || [])
+      }).catch(() => {})
+    } else if (f.type === 'topic_unmerged' && t === f.from_task && typeof s.drop === 'function') {
+      for (const id of ids) s.drop(id)
+    }
+  }
+  return f
+}
+
 /** The catalogue key for a refused or failed move. */
 export function moveErrorKey(e) {
   const tok = e && typeof e === 'object' && 'token' in e ? String(e.token || '') : ''

@@ -28,8 +28,10 @@ describe('moveHit - the ONE row under the pointer', () => {
   it('a reply drag hits a card, carrying its title for the toast', () => {
     assert.deepEqual(moveHit(inRow({ moveDrop: 'card', moveId: 't2', moveOk: 'true', moveTitle: 'two' }), reply), { kind: 'card', id: 't2', scope: '', ok: true, title: 'two' })
   })
+  it('714c7028: a topic drag ALSO hits a card (a merge), carrying its title', () => {
+    assert.deepEqual(moveHit(inRow({ moveDrop: 'card', moveId: 't2', moveOk: 'true', moveTitle: 'two' }), topic), { kind: 'card', id: 't2', scope: '', ok: true, title: 'two' })
+  })
   it('the wrong kind of row, no row, no drag or no element is no hit', () => {
-    assert.equal(moveHit(inRow({ moveDrop: 'card', moveId: 't2', moveOk: 'true' }), topic), null, 'a topic never drops on a card')
     assert.equal(moveHit(inRow({ moveDrop: 'channel', moveId: 'ops', moveOk: 'true' }), reply), null, 'a reply never drops on a channel')
     assert.equal(moveHit(inRow(null), topic), null, 'outside every row')
     assert.equal(moveHit(inRow({ moveDrop: 'channel', moveOk: 'true' }), topic), null, 'a row without an id')

@@ -52,6 +52,9 @@ export const FRAMES = {
   /* SPL-1024 (specs/045 move-v1 §6): a topic moved to another channel, a reply to another topic. */
   topicMoved: 'topic_moved',
   messageMoved: 'message_moved',
+  /* 714c7028: a whole topic folded into another topic, and its undo. */
+  topicMerged: 'topic_merged',
+  topicUnmerged: 'topic_unmerged',
   /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
   reaction: 'message_reaction',
   /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
@@ -346,6 +349,8 @@ export function createLiveClient({
       case FRAMES.topicDeleted:
       case FRAMES.topicMoved:
       case FRAMES.messageMoved:
+      case FRAMES.topicMerged:
+      case FRAMES.topicUnmerged:
         onTopic(f)
         return
       case FRAMES.reaction: {

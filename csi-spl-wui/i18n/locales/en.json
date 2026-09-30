@@ -585,6 +585,18 @@
       "body": "It is removed for everyone. This cannot be undone.",
       "confirm": "Delete"
     },
+    "merge": {
+      "title": "Merge this topic into “{target}”?",
+      "title_one": "Merge this topic (1 message) into “{target}”?",
+      "title_n": "Merge this topic ({n} messages) into “{target}”?",
+      "body": "Every message in this topic moves into the target, ordered by time. The topic then disappears — you can undo.",
+      "confirm": "Merge",
+      "busy": "Merging…",
+      "the_topic": "the topic",
+      "done": "Merged into “{title}”",
+      "done_plain": "Merged into the topic",
+      "undone": "Merge undone"
+    },
     "move": {
       "channel_title": "Move this topic to a channel",
       "topic_title": "Move this message to a topic",

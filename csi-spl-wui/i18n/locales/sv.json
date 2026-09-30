@@ -585,6 +585,18 @@
       "body": "Det tas bort för alla. Det kan inte ångras.",
       "confirm": "Ta bort"
     },
+    "merge": {
+      "title": "Slå ihop det här ämnet med ”{target}”?",
+      "title_one": "Slå ihop det här ämnet (1 meddelande) med ”{target}”?",
+      "title_n": "Slå ihop det här ämnet ({n} meddelanden) med ”{target}”?",
+      "body": "Alla meddelanden i ämnet flyttas till målet i tidsordning. Ämnet försvinner sedan — du kan ångra.",
+      "confirm": "Slå ihop",
+      "busy": "Slår ihop…",
+      "the_topic": "ämnet",
+      "done": "Sammanslaget med ”{title}”",
+      "done_plain": "Sammanslaget med ämnet",
+      "undone": "Sammanslagning ångrad"
+    },
     "move": {
       "channel_title": "Flytta det här ämnet till en kanal",
       "topic_title": "Flytta det här meddelandet till ett ämne",

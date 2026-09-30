@@ -585,6 +585,18 @@
       "body": "Este eliminat pentru toată lumea. Acțiunea nu poate fi anulată.",
       "confirm": "Șterge"
     },
+    "merge": {
+      "title": "Îmbini acest subiect cu „{target}”?",
+      "title_one": "Îmbini acest subiect (1 mesaj) cu „{target}”?",
+      "title_n": "Îmbini acest subiect ({n} mesaje) cu „{target}”?",
+      "body": "Toate mesajele din acest subiect trec în destinație în ordine cronologică. Subiectul dispare apoi — poți anula.",
+      "confirm": "Îmbină",
+      "busy": "Se îmbină…",
+      "the_topic": "subiectul",
+      "done": "Îmbinat cu „{title}”",
+      "done_plain": "Îmbinat cu subiectul",
+      "undone": "Îmbinare anulată"
+    },
     "move": {
       "channel_title": "Mută acest subiect într-un canal",
       "topic_title": "Mută acest mesaj într-un subiect",

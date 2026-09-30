@@ -88,6 +88,23 @@ export function isCardDropTarget(drag, card, lobbyTaskId = '') {
 }
 
 /**
+ * A middle-list card lights up (and takes the drop) for a TOPIC card being
+ * dragged onto it = a MERGE (714c7028): another channel topic's card, not the
+ * dragged topic itself, not a topic inside it, not the lobby. The hub decides
+ * the rest (permissions, cycle); this only offers the drop.
+ */
+export function isMergeCardDropTarget(drag, card, lobbyTaskId = '') {
+  const d = drag && typeof drag === 'object' ? drag : null
+  if (!d || d.kind !== 'topic') return false
+  if (!isMovableTopic(card, lobbyTaskId)) return false
+  const task = String(card.task_id || '')
+  if (!task) return false
+  if (task === String(d.taskId || '') || task === String(d.topicTask || '') || task === String(d.msgId || '')) return false
+  if (String(card.msg_id || '') === String(d.msgId || '')) return false
+  return true
+}
+
+/**
  * The "moved from ..." note on a row, or null: a card names its home channel
  * (a topic move), a reply its home topic (a message move).
  */

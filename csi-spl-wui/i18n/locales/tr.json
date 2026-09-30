@@ -585,6 +585,18 @@
       "body": "Herkes için kaldırılır. Bu geri alınamaz.",
       "confirm": "Sil"
     },
+    "merge": {
+      "title": "Bu konu „{target}” ile birleştirilsin mi?",
+      "title_one": "Bu konu (1 ileti) „{target}” ile birleştirilsin mi?",
+      "title_n": "Bu konu ({n} ileti) „{target}” ile birleştirilsin mi?",
+      "body": "Bu konudaki tüm iletiler zaman sırasına göre hedefe taşınır. Konu sonra kaybolur — geri alabilirsiniz.",
+      "confirm": "Birleştir",
+      "busy": "Birleştiriliyor…",
+      "the_topic": "konu",
+      "done": "„{title}” ile birleştirildi",
+      "done_plain": "Konuyla birleştirildi",
+      "undone": "Birleştirme geri alındı"
+    },
     "move": {
       "channel_title": "Bu konuyu bir kanala taşı",
       "topic_title": "Bu mesajı bir konuya taşı",

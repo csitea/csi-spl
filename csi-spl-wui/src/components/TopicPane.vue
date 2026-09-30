@@ -127,6 +127,13 @@ const moveCtx = computed(() => (channel.active && !channel.peer
   : null))
 const offMoved = useMove().onMoved((f, m) => {
   const id = String(topic.parentTaskId || '')
+  // 714c7028: a merge / unmerge touching this pane's topic re-reads it (the rows
+  // changed task in one transaction; a hand-patch would drift).
+  const mf = m.mergeFrame(f)
+  if (mf) {
+    if (id && (mf.task_id === id || mf.from_task === id)) void catchUp()
+    return
+  }
   let rows = m.applyMoveRows(liveRows.value, f) as SpoolMessage[]
   const gone = m.moveLeavesTask(f, id)
   if (gone.length) rows = rows.filter((r) => !gone.includes(String(r.msg_id || '')))

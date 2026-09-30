@@ -1258,6 +1258,36 @@ export function createSpoolClient({
         body: JSON.stringify({ to_task: to }),
       })
     },
+    /**
+     * 714c7028: {to_task} merges a whole topic (this card's topic) into another
+     * topic, ordered by the original timestamps; the source opener becomes a
+     * reply. The answer carries `undo` ({ from_task, msg_ids }). Refusals keep
+     * the hub token (409 same_place / lobby / not_in_channel / issue_topic /
+     * not_a_card / cycle, 404 not_found, 403 not_allowed).
+     */
+    async mergeTopic(msgId, toTask) {
+      const id = String(msgId || '')
+      const to = String(toTask || '')
+      if (!id || !to) throw Object.assign(new Error('msg_id and task required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockMergeTopic(state, id, { to_task: to })
+      return live(`/v1/messages/${encodeURIComponent(id)}/merge-topic`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to_task: to }),
+      })
+    },
+    /** 714c7028: the undo of a merge - {undo:{from_task,msg_ids}} puts the topic back. */
+    async mergeUndo(msgId, fromTask, msgIds) {
+      const id = String(msgId || '')
+      const undo = { from_task: String(fromTask || ''), msg_ids: (Array.isArray(msgIds) ? msgIds : []).map(String) }
+      if (!id || !undo.from_task) throw Object.assign(new Error('msg_id and from_task required'), { status: 400, token: 'bad_json' })
+      if (mock) return (await import('./move-mock.mjs')).mockMergeTopic(state, id, { undo })
+      return live(`/v1/messages/${encodeURIComponent(id)}/merge-topic`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ undo }),
+      })
+    },
     /** move-v1 §4: { msg_id, task_id, channel, is_card, can_move, moved_from_channel?, moved_from_task? }. */
     async moveInfo(msgId) {
       const id = String(msgId || '')

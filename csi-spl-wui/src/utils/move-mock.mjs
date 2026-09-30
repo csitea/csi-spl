@@ -80,3 +80,64 @@ export function mockMove(state, id, body) {
     moved, moved_by: state.me.id, moved_at: at, received_at: row.received_at || row.ts, msg_ids: [id, ...thread.map((m) => m.msg_id)],
     undo: { to_task: fromTask } }
 }
+
+/**
+ * 714c7028: the lde mock's topic merge and its undo, with the hub's refusals so
+ * the browser e2e drives the whole path (drag, confirm, undo) without a hub. A
+ * merge folds every row of the source topic into the target task, demotes the
+ * opener to a reply and stamps the move columns; the undo puts them back and
+ * re-seats the card.
+ */
+export function mockMergeTopic(state, id, body) {
+  const fail = (status, token) => Object.assign(new Error(token), { status, token })
+  const norm = (c) => String(c || '').replace(/^#/, '').toLowerCase()
+  const isLobby = (c) => norm(c) === 'lobby' || norm(c) === 'general'
+  const isCard = (m) => m.is_parent !== 0 && !m.parent_task_id
+  const at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  const row = state.messages.find((m) => m.msg_id === id)
+  if (!row) throw fail(404, 'not_found')
+
+  if (body.undo) {
+    const ids = new Set((body.undo.msg_ids || []).map(String))
+    const from = String(body.undo.from_task || '')
+    for (const m of state.messages) {
+      if (!ids.has(String(m.msg_id))) continue
+      if (m.moved_from_task) { m.task_id = m.moved_from_task; m.parent_task_id = m.moved_from_parent || null }
+      if (m.moved_from_channel) m.channel = m.moved_from_channel
+      delete m.moved_at; delete m.moved_by; delete m.moved_from_channel
+      delete m.moved_from_task; delete m.moved_from_parent
+    }
+    row.is_parent = 1
+    return { kind: 'unmerge', msg_id: id, task_id: from, from_task: String(row.task_id || ''),
+      channel: norm(row.channel), unmerged: ids.size, moved_by: state.me.id, msg_ids: [...ids] }
+  }
+
+  const to = String(body.to_task || '')
+  const srcTask = String(row.task_id || '')
+  if (!isCard(row)) throw fail(409, 'not_a_card')
+  if (!row.channel) throw fail(409, 'not_in_channel')
+  if (isLobby(row.channel)) throw fail(409, 'lobby')
+  if (to === srcTask) throw fail(409, 'same_place')
+  const inTask = state.messages.filter((m) => m.task_id === to)
+  if (!inTask.length) throw fail(404, 'not_found')
+  const card = inTask.find(isCard)
+  if (!card) throw fail(409, 'not_a_card')
+  if (!card.channel) throw fail(409, 'not_in_channel')
+  if (isLobby(card.channel)) throw fail(409, 'lobby')
+  if (row.from !== state.me.id) throw fail(403, 'not_allowed')
+  const rows = state.messages.filter((m) => m.task_id === srcTask || m.parent_task_id === srcTask || m.task_id === id)
+  if (rows.some((m) => m.task_id === to)) throw fail(409, 'cycle')
+  const fromChannel = norm(row.channel)
+  for (const m of rows) {
+    if (!m.moved_from_task) { m.moved_from_task = String(m.task_id || ''); m.moved_from_parent = m.parent_task_id || null }
+    if (!m.moved_from_channel) m.moved_from_channel = norm(m.channel)
+    if (m.task_id === srcTask) { m.task_id = to; m.parent_task_id = null; m.is_parent = 0 }
+    else if (m.parent_task_id === srcTask) m.parent_task_id = to
+    m.channel = norm(card.channel)
+    m.moved_at = at
+    m.moved_by = state.me.id
+  }
+  return { kind: 'merge', msg_id: id, task_id: to, from_task: srcTask, channel: norm(card.channel), from_channel: fromChannel,
+    merged: rows.length, moved_by: state.me.id, moved_at: at, msg_ids: rows.map((m) => m.msg_id),
+    undo: { from_task: srcTask, msg_ids: rows.map((m) => m.msg_id) } }
+}

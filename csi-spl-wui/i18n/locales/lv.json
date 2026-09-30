@@ -585,6 +585,18 @@
       "body": "Tā tiek noņemta visiem. To nevar atsaukt.",
       "confirm": "Dzēst"
     },
+    "merge": {
+      "title": "Vai apvienot šo tēmu ar “{target}”?",
+      "title_one": "Vai apvienot šo tēmu (1 ziņa) ar “{target}”?",
+      "title_n": "Vai apvienot šo tēmu ({n} ziņas) ar “{target}”?",
+      "body": "Visas šīs tēmas ziņas pāriet uz mērķi laika secībā. Tēma tad pazūst — var atsaukt.",
+      "confirm": "Apvienot",
+      "busy": "Apvieno…",
+      "the_topic": "tēma",
+      "done": "Apvienots ar “{title}”",
+      "done_plain": "Apvienots ar tēmu",
+      "undone": "Apvienošana atsaukta"
+    },
     "move": {
       "channel_title": "Pārvietot šo tēmu uz kanālu",
       "topic_title": "Pārvietot šo ziņu uz tēmu",

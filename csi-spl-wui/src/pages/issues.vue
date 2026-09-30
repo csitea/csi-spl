@@ -711,6 +711,7 @@
           :data-clip-mode="clipMode"
           :msg="c"
           :clip-mode="clipMode"
+          :editable="canEdit(c)"
           @edited="onCommentEdited"
           @deleted="onCommentDeleted"
           @reacted="onCommentReacted"
@@ -731,7 +732,7 @@
               @input="commentMp.sync"
               @click="commentMp.sync"
               @keyup="commentMp.sync"
-              @blur="commentMp.close"
+              @blur="commentMp.close(); onCommentBlur()"
               @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
             />
             <MentionList :picker="commentMp" placement="above" />
@@ -824,6 +825,7 @@
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke } from '~/composables/useMentionPoke'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -903,6 +905,10 @@ const people = useHumanNames()
 const api = useSpoolApi()
 if (api.mock) api.bindIssuesMock((me: string) => createMockIssues({ me }))
 const live = useLive()
+/* SPL-982: a comment is a message card like any other, so its own author may
+   edit / delete it. Same gate as the channel feed (LiveFeed): the shared
+   MessageCard menu, double-click and Delete key all follow this. */
+const { canEdit } = useMessageEdit()
 
 const issues = ref<Issue[]>([])
 const labels = ref<IssueLabel[]>([])
@@ -2001,6 +2007,16 @@ async function sendComment() {
   } finally {
     busy.value = false
   }
+}
+
+/* owner, prd t1 topic 110d842c: a comment saves when the box loses focus (a
+   click elsewhere), like the issue description autosaves - not only on Enter.
+   MentionList swallows its own mousedown, so picking a name keeps the focus
+   and never blur-posts a half-typed @token. */
+function onCommentBlur() {
+  if (busy.value) return
+  if (!commentMp.encode(commentText.value).trim()) return
+  void sendComment()
 }
 
 /* (owner, prd t1 topic 110d842c: "In issues on mobile, clicking on

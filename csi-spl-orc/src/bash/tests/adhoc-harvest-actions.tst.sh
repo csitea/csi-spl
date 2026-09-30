@@ -70,7 +70,7 @@ chmod +x "$T/stub/"*
 in_orc() {
   local snip="$1"; shift
   : >"$T/calls.log"; : >"$T/stdin"
-  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
+  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u ORDERED_BY -u ORDERED_VIA HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
     MK="$T/mk" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" TF_SWEEP_MAKE="$T/stub/make" \
     TF_SWEEP_LOG_DIR="$T/sweep" ENV=dev SNIPPET="$snip" "$@" bash -c '
     set -uo pipefail
@@ -99,24 +99,28 @@ INV=(TENANT_ID=t1 INVITE_EMAIL=owner@example.com INVITE_ROLE=owner)
 in_orc 'do_spl_hub_invite' "${INV[@]}"; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would invite owner@example.com to t1 as biz_owner' "$T/out" \
   && pass "2. hub-invite DRY_RUN: no cloud call" || fail "2. invite dry: rc=$rc $(cat "$T/calls.log")"
-for bad in 'INVITE_ROLE=Admin!' "INVITE_ROLE=x' or '1" INVITE_EMAIL=nope TENANT_ID=T_1; do
-  in_orc 'do_spl_hub_invite' "${INV[@]}" "$bad" DRY_RUN=0; rc=$?
+for bad in 'INVITE_ROLE=Admin!' "INVITE_ROLE=x' or '1" INVITE_EMAIL=nope TENANT_ID=T_1 ORDERED_BY=nobody; do
+  in_orc 'do_spl_hub_invite' "${INV[@]}" ORDERED_BY=HUM-10 "$bad" DRY_RUN=0; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite $bad refused before any call" || fail "2. hub-invite $bad: rc=$rc"
 done
+# CLE-77778: ORDERED_BY (who ordered the invite) is required with DRY_RUN=0.
 in_orc 'do_spl_hub_invite' "${INV[@]}" DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'spool hub-invite --tenant t1 --email owner@example.com --role biz_owner dsn=set' "$T/calls.log" \
-  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: spool hub-invite through the proxy as $DEV_SA" \
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite refuses DRY_RUN=0 without ORDERED_BY (provenance)" \
+  || fail "2. invite missing ORDERED_BY: rc=$rc $(cat "$T/calls.log")"
+in_orc 'do_spl_hub_invite' "${INV[@]}" ORDERED_BY=HUM-10 ORDERED_VIA=CLE-34967 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'spool hub-invite --tenant t1 --email owner@example.com --role biz_owner --ordered-by HUM-10 --ordered-via CLE-34967 dsn=set' "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: spool hub-invite with provenance through the proxy as $DEV_SA" \
   || fail "2. invite real: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" && fail "2. the DSN password leaked into output / argv" || pass "2. the DSN password is in neither output nor argv"
 
 # 025: every role id passes to the hub DB (which owns the list); default developer.
 for r in product_owner admin tester pure_agent; do
-  in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=r@example.com INVITE_ROLE=$r DRY_RUN=0; rc=$?
-  [[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email r@example.com --role $r dsn=set" "$T/calls.log" \
+  in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=r@example.com INVITE_ROLE=$r ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
+  [[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email r@example.com --role $r --ordered-by HUM-10 --ordered-via  dsn=set" "$T/calls.log" \
     && pass "2. hub-invite INVITE_ROLE=$r reaches spool as --role $r" || fail "2. hub-invite role $r: rc=$rc $(cat "$T/calls.log")"
 done
-in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=d@example.com DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email d@example.com --role developer dsn=set" "$T/calls.log" \
+in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=d@example.com ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email d@example.com --role developer --ordered-by HUM-10 --ordered-via  dsn=set" "$T/calls.log" \
   && pass "2. hub-invite without INVITE_ROLE invites a developer" || fail "2. hub-invite default role: rc=$rc $(cat "$T/calls.log")"
 
 REV=(TENANT_ID=t1 INVITE_EMAIL=old@example.com)

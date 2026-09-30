@@ -63,7 +63,7 @@ in_orc() {
   local snip="$1"; shift
   : >"$T/calls.log"; : >"$T/stdin"
   env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUMAN_ID -u EMAIL \
-    -u TENANT_ID -u MEMBER_ROLE -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
+    -u TENANT_ID -u MEMBER_ROLE -u ORDERED_BY -u ORDERED_VIA -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" \
     ENV=dev SNIPPET="$snip" "$@" bash -c '
@@ -85,18 +85,18 @@ sqlbody=$(awk 'index($0, "<<'\''SQL'\''") {p=1; next} $0=="SQL" {p=0} p' "$FUNC"
 # --- 1. DRY_RUN plan, no cloud ------------------------------------------------
 in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=member; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would add HUM-4 to t1 as developer (admitted_by=operator)' "$T/out" \
+  && grep -q 'DRY_RUN would add HUM-4 to t1 as developer (admitted_by=operator, ordered_by=<none, REQUIRED for DRY_RUN=0>)' "$T/out" \
   && grep -q 'mark a pending invite for that human'"'"'s email accepted on csi-spl-dev:' "$T/out" \
   && grep -q 'Re-run with DRY_RUN=0' "$T/out" \
   && pass "1. HUMAN_ID DRY_RUN (default): plan, legacy member->developer, no cloud" \
   || fail "1. human dry: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
 
-in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=Owner@Example.COM MEMBER_ROLE=owner DRY_RUN=1; rc=$?
+in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=Owner@Example.COM MEMBER_ROLE=owner ORDERED_BY=HUM-10 ORDERED_VIA=CLE-34967 DRY_RUN=1; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would add owner@example.com to t1 as biz_owner (admitted_by=operator)' "$T/out" \
+  && grep -q 'DRY_RUN would add owner@example.com to t1 as biz_owner (admitted_by=operator, ordered_by=HUM-10 via CLE-34967)' "$T/out" \
   && grep -q 'mark a pending invite for owner@example.com accepted on csi-spl-dev:' "$T/out" \
   && ! grep -q 'Owner@Example.COM' "$T/out" \
-  && pass "1. EMAIL DRY_RUN: lower-cased, legacy owner->biz_owner, no cloud" \
+  && pass "1. EMAIL DRY_RUN: lower-cased, legacy owner->biz_owner, ordered_by in plan, no cloud" \
   || fail "1. email dry: rc=$rc $(cat "$T/out")"
 
 in_orc 'do_spl_tenant_member_add' ENV=prd TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer DRY_RUN=1; rc=$?
@@ -105,7 +105,7 @@ in_orc 'do_spl_tenant_member_add' ENV=prd TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROL
   || fail "1. prd dry: rc=$rc $(cat "$T/out")"
 
 # --- 2. bad input, before any call --------------------------------------------
-base=(TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer)
+base=(TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer ORDERED_BY=HUM-10)
 refuse() {
   local label="$1"; shift
   in_orc 'do_spl_tenant_member_add' "$@"; rc=$?
@@ -120,7 +120,9 @@ refuse "injected HUMAN_ID" TENANT_ID=t1 "HUMAN_ID=HUM-4' or '1'='1" MEMBER_ROLE=
 refuse "EMAIL that is not an email" TENANT_ID=t1 EMAIL=nope MEMBER_ROLE=developer DRY_RUN=0
 refuse "EMAIL with a space" TENANT_ID=t1 EMAIL='a b@example.com' MEMBER_ROLE=developer DRY_RUN=0
 refuse "missing MEMBER_ROLE" TENANT_ID=t1 HUMAN_ID=HUM-4 DRY_RUN=0
-refuse "bad MEMBER_ROLE" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE='Dev!' DRY_RUN=0
+refuse "bad MEMBER_ROLE" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE='Dev!' ORDERED_BY=HUM-10 DRY_RUN=0
+refuse "bad ORDERED_BY" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer ORDERED_BY=nobody DRY_RUN=0
+refuse "missing ORDERED_BY on DRY_RUN=0 (CLE-77778 provenance)" TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer DRY_RUN=0
 refuse "DRY_RUN=2" "${base[@]}" DRY_RUN=2
 in_orc 'do_spl_tenant_member_add' ENV=stg "${base[@]}" DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. ENV=stg refused before any call" || fail "2. ENV=stg: rc=$rc $(cat "$T/out")"
@@ -142,6 +144,8 @@ sql_shape() {
     && grep -q 'FROM human_identities WHERE email = :'"'"'email'"'"'' "$T/stdin" \
     && grep -q 'UPDATE tenant_invites' "$T/stdin" \
     && grep -q 'accepted_at = now(), accepted_by = :'"'"'hid'"'"'' "$T/stdin" \
+    && grep -q "ordered_by  = coalesce(ti.ordered_by, nullif(:'ordby', ''))" "$T/stdin" \
+    && grep -q "ordered_via = coalesce(ti.ordered_via, nullif(:'ordvia', ''))" "$T/stdin" \
     && grep -q 'accepted_at IS NULL' "$T/stdin" \
     && grep -q "format('refuse-human | %s'" "$T/stdin" \
     && grep -q "format('refuse-missing-human | %s'" "$T/stdin" \
@@ -151,20 +155,21 @@ sql_shape() {
     && ! grep -qiE '\b(delete|drop|truncate|alter)\b' "$T/stdin"
 }
 
-in_orc 'do_spl_tenant_member_add' "${base[@]}" DRY_RUN=0; rc=$?
+in_orc 'do_spl_tenant_member_add' "${base[@]}" ORDERED_VIA=CLE-34967 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && sql_shape \
   && grep -q '\[tenant=t1\]' "$T/calls.log" && grep -q '\[human=HUM-4\]' "$T/calls.log" \
   && grep -q '\[email=\]' "$T/calls.log" && grep -q '\[role=developer\]' "$T/calls.log" \
+  && grep -q '\[ordby=HUM-10\]' "$T/calls.log" && grep -q '\[ordvia=CLE-34967\]' "$T/calls.log" \
   && ! grep -q 'HUM-4' "$T/stdin" && ! grep -q 'developer' "$T/stdin" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
-  && grep -q "OK added HUM-4 to t1 ($DEV_SA):" "$T/out" \
+  && grep -q "OK added HUM-4 to t1 (ordered_by=HUM-10 via CLE-34967) ($DEV_SA):" "$T/out" \
   && grep -q 'no pending invite to accept for HUM-4 on t1' "$T/out" \
   && ! grep -q 'already a member' "$T/out" \
-  && pass "4. HUMAN_ID DRY_RUN=0: one transaction, values as -v, admitted_by=operator, as $DEV_SA" \
+  && pass "4. HUMAN_ID DRY_RUN=0: one transaction, values as -v (ordered_by too), admitted_by=operator, as $DEV_SA" \
   || fail "4. human real: rc=$rc $(cat "$T/calls.log") $(cat "$T/out") --- $(cat "$T/stdin")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" "$T/stdin" && fail "4. the DSN password leaked" || pass "4. the DSN password is in neither output, argv nor SQL"
 
-in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL="o'wner@example.com" MEMBER_ROLE=member DRY_RUN=0; rc=$?
+in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL="o'wner@example.com" MEMBER_ROLE=member ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "\[email=o'wner@example.com\]" "$T/calls.log" \
   && grep -q '\[human=\]' "$T/calls.log" && grep -q '\[role=developer\]' "$T/calls.log" \
   && ! grep -q "o'wner@example.com" "$T/stdin" && ! grep -q 'HUM-' "$T/stdin" \
@@ -185,7 +190,7 @@ in_orc 'do_spl_tenant_member_add' "${base[@]}" DRY_RUN=0 STUB_PSQL_FILE="$T/psql
   && pass "5. a pending invite row is reported accepted" \
   || fail "5. invite: rc=$rc $(cat "$T/out")"
 
-in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer DRY_RUN=0 \
+in_orc 'do_spl_tenant_member_add' TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer ORDERED_BY=HUM-10 DRY_RUN=0 \
   STUB_PSQL_OUT='refuse-human | 2' STUB_PSQL_RC=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'FATAL email person@example.com matches 2 human(s) in human_identities; want exactly one' "$T/out" \
   && pass "5. two humans for one email is a refusal" || fail "5. two humans: rc=$rc $(cat "$T/out")"

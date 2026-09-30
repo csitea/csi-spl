@@ -26,14 +26,23 @@
 # @param   developer|tester|pure_agent|biz_customer|regular_user; legacy
 # @param   owner|member map). An unknown id fails on the rbac_roles FK and
 # @param   nothing changes.
+# @param ORDERED_BY - required when DRY_RUN=0: the human who ordered this seat,
+# @param   a HUM-* id (CLE-77778 provenance). Recorded on the accepted invite
+# @param   (coalesced: an existing invite orderer is kept). A direct seat with
+# @param   no pending invite has nowhere in the DB to store it — the operator
+# @param   log line then carries it; the membership keeps admitted_by=operator.
+# @param ORDERED_VIA (optional) - the agent/channel that carried the order,
+# @param   e.g. CLE-34967 or '[terminal]'. At most 64 chars.
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer DRY_RUN=0 ./run -a do_spl_tenant_member_add
+# @example ENV=dev TENANT_ID=t1 EMAIL=person@example.com MEMBER_ROLE=developer ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_tenant_member_add
 #------------------------------------------------------------------------------
 do_spl_tenant_member_add() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" email="${EMAIL:-}" role dry=1
+  local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" email="${EMAIL:-}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" role dry=1
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
+  [[ ${#ordvia} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
   if [[ -n "$human" && -n "$email" ]] || [[ -z "$human" && -z "$email" ]]; then
     do_log "FATAL set exactly one of HUMAN_ID or EMAIL"
     return 1
@@ -48,22 +57,23 @@ do_spl_tenant_member_add() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     if [[ -n "$email" ]]; then
-      do_log "OK DRY_RUN would add $email to $tenant as $role (admitted_by=operator) and mark a pending invite for $email accepted on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
+      do_log "OK DRY_RUN would add $email to $tenant as $role (admitted_by=operator, ordered_by=${ordby:-<none, REQUIRED for DRY_RUN=0>}${ordvia:+ via $ordvia}) and mark a pending invite for $email accepted on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
     else
-      do_log "OK DRY_RUN would add $human to $tenant as $role (admitted_by=operator) and mark a pending invite for that human's email accepted on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
+      do_log "OK DRY_RUN would add $human to $tenant as $role (admitted_by=operator, ordered_by=${ordby:-<none, REQUIRED for DRY_RUN=0>}${ordvia:+ via $ordvia}) and mark a pending invite for that human's email accepted on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
     fi
     return 0
   fi
+  [[ -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this seat) is required with DRY_RUN=0 (CLE-77778 provenance)"; return 1; }
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  spl_via_proxy _spl_tenant_member_add_run "$tenant" "$human" "$email" "$role"
+  spl_via_proxy _spl_tenant_member_add_run "$tenant" "$human" "$email" "$role" "$ordby" "$ordvia"
 }
 
 _spl_tenant_member_add_run() {
   local out rc=0 n_added n_already n_invite line who="$2" mark
   [[ -n "$who" ]] || who="$3"
   out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v human="$2" -v email="$3" -v role="$4" <<'SQL'
+      -v tenant="$1" -v human="$2" -v email="$3" -v role="$4" -v ordby="$5" -v ordvia="$6" <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT CASE
@@ -98,7 +108,9 @@ SELECT (:ROW_COUNT = 1)::int AS inserted \gset
 SELECT format('already | %s', :'hid');
 \endif
 UPDATE tenant_invites AS ti
-   SET accepted_at = now(), accepted_by = :'hid'
+   SET accepted_at = now(), accepted_by = :'hid',
+       ordered_by  = coalesce(ti.ordered_by, nullif(:'ordby', '')),
+       ordered_via = coalesce(ti.ordered_via, nullif(:'ordvia', ''))
  WHERE ti.tenant_id = :'tenant'
    AND ti.accepted_at IS NULL
    AND (
@@ -132,7 +144,7 @@ SQL
   fi
   if (( n_added == 1 )); then
     line="$(grep '^added | ' <<<"$out" | head -n 1)"
-    do_log "OK added $who to $1 ($GCP_ACCOUNT): $line"
+    do_log "OK added $who to $1 (ordered_by=$5${6:+ via $6}) ($GCP_ACCOUNT): $line"
   else
     line="$(grep '^already | ' <<<"$out" | head -n 1)"
     do_log "OK ${line#already | } is already a member of $1 ($GCP_ACCOUNT)"

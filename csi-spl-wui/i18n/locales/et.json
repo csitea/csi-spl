@@ -713,7 +713,8 @@
     },
     "unread_divider": "Uued sõnumid",
     "unread_jump": "{n} uut",
-    "unread_jump_label": "Liigu esimese lugemata sõnumi juurde"
+    "unread_jump_label": "Liigu esimese lugemata sõnumi juurde",
+    "replies_unread": "{n} lugemata"
   },
   "topic": {
     "title": "Teema",

@@ -713,7 +713,8 @@
     },
     "unread_divider": "Nowe wiadomości",
     "unread_jump": "{n} nowych",
-    "unread_jump_label": "Przejdź do pierwszej nieprzeczytanej wiadomości"
+    "unread_jump_label": "Przejdź do pierwszej nieprzeczytanej wiadomości",
+    "replies_unread": "{n} nieprzeczytanych"
   },
   "topic": {
     "title": "Temat",

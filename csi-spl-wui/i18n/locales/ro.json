@@ -713,7 +713,8 @@
     },
     "unread_divider": "Mesaje noi",
     "unread_jump": "{n} noi",
-    "unread_jump_label": "Salt la primul mesaj necitit"
+    "unread_jump_label": "Salt la primul mesaj necitit",
+    "replies_unread": "{n} necitite"
   },
   "topic": {
     "title": "Temă",

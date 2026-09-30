@@ -19,6 +19,7 @@
       :search="channel.search"
       :last-live="channel.lastLive"
       :count-for="channel.repliesFor"
+      :unread-for="channel.unreadFor"
       :unread-boundary="boundary"
       always-topic
       clickable

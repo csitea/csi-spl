@@ -51,6 +51,38 @@ export function markReadAt(cursors, key, msg) {
   return next
 }
 
+/** The per-topic read-cursor key (CLE-77804 topic 35053f95): one per topic the reader has opened. */
+export function topicKey(taskId) {
+  return taskId ? `t:${taskId}` : ''
+}
+
+/**
+ * CLE-77804 (topic 35053f95): mark a topic read at its current reply total.
+ * The cursor carries `count` — the total the reader had seen — so the card can
+ * show unread = currentTotal - count as "<unread>/<total> >>", per reader, with
+ * no hub round-trip. Opening the thread (or the reader's own reply) sets it to
+ * the current total, clearing the unread part to a plain "<total>".
+ */
+export function markTopicReadAt(cursors, taskId, count) {
+  const key = topicKey(taskId)
+  if (!key) return { ...(cursors || {}) }
+  const next = { ...(cursors || {}) }
+  next[key] = { ts: new Date().toISOString(), id: '', count: Math.max(0, Number(count) || 0) }
+  return next
+}
+
+/**
+ * The unread reply count for a topic: how many replies arrived since the reader
+ * last read it. `total` is the hub's current reply count; `cursor` the t:<id>
+ * cursor. No cursor (never opened) -> 0, so an untouched topic shows a plain
+ * total, not every reply flagged.
+ */
+export function topicUnread(total, cursor) {
+  const n = Number(total) || 0
+  if (!cursor || !Number.isFinite(cursor.count)) return 0
+  return Math.max(0, n - Number(cursor.count))
+}
+
 /**
  * CLE-77804 (topic 1e7d56b8): the "New messages" divider. Given the read
  * cursor as it was when the feed was opened (the frozen boundary) and the

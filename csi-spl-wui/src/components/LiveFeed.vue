@@ -58,6 +58,7 @@
           :setsize="hasOlder ? -1 : shown.length"
           :topic-link="openable(it.msg)"
           :count="countFor ? countFor(String(it.msg.task_id || '')) : 0"
+          :unread="unreadFor ? unreadFor(String(it.msg.task_id || '')) : 0"
           :always-topic="alwaysTopic"
           :clickable="clickable"
           :selected="isSelected(it.msg)"
@@ -137,6 +138,8 @@ const props = defineProps<{
   currentTaskId?: string | null
   /** /channel and /dm (X3): every card is a topic root with a reply count. */
   countFor?: (taskId: string) => number
+  /** CLE-77804 (topic 35053f95): the reader's unread reply count per topic. */
+  unreadFor?: (taskId: string) => number
   alwaysTopic?: boolean
   /** a click (or Enter / Space) anywhere on a row opens its topic. */
   clickable?: boolean

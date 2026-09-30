@@ -713,7 +713,8 @@
     },
     "unread_divider": "Nya meddelanden",
     "unread_jump": "{n} nya",
-    "unread_jump_label": "Gå till det första olästa meddelandet"
+    "unread_jump_label": "Gå till det första olästa meddelandet",
+    "replies_unread": "{n} olästa"
   },
   "topic": {
     "title": "Ämne",

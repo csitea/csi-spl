@@ -460,6 +460,10 @@ html.pane-dragging * {
   padding: 0;
   min-height: var(--tap);
 }
+/* CLE-77804 (topic 35053f95): the unread reply count is bolded ahead of the
+   total ("2/7 >>"); a topic with unread replies gets a touch more weight. */
+.replies[data-unread] { font-weight: 600; }
+.replies__new { font-weight: 800; }
 
 .composer {
   padding: 12px 16px 16px;

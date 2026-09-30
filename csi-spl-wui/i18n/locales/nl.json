@@ -713,7 +713,8 @@
     },
     "unread_divider": "Nieuwe berichten",
     "unread_jump": "{n} nieuw",
-    "unread_jump_label": "Ga naar het eerste ongelezen bericht"
+    "unread_jump_label": "Ga naar het eerste ongelezen bericht",
+    "replies_unread": "{n} ongelezen"
   },
   "topic": {
     "title": "Onderwerp",

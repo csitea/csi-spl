@@ -87,16 +87,20 @@
                and is reached after the emoji, so this link stays the first stop. -->
           <!-- SPL-982 (owner, topic 8296eeec): exactly "3 >>", no word; the
                name ("3 replies - Open topic") stays on aria-label and title -->
+          <!-- CLE-77804 (topic 35053f95): the reader's own unread reply count in
+               bold before the total ("2/7 >>"); a plain total when none are
+               unread ("7 >>"), never "0/7". -->
           <button
             v-if="count > 0 || alwaysTopic"
             class="replies"
             type="button"
             data-test="topic-replies"
+            :data-unread="unreadCount || undefined"
             :aria-label="repliesName"
             :title="repliesName"
             @click.stop="openReplies"
           >
-            {{ count }} &gt;&gt;
+            <strong v-if="unreadCount > 0" class="replies__new" data-test="topic-unread">{{ unreadCount }}</strong>{{ unreadCount > 0 ? '/' : '' }}{{ count }} &gt;&gt;
           </button>
           <button
             type="button"
@@ -403,6 +407,8 @@ import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 const props = defineProps<{
   msg: SpoolMessage
   count?: number
+  /** CLE-77804 (topic 35053f95): the reader's unread reply count for this topic. */
+  unread?: number
   alwaysTopic?: boolean
   posinset?: number
   setsize?: number
@@ -433,7 +439,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
-const repliesName = computed(() => `${t('feed.replies', { n: props.count ?? 0 }, props.count ?? 0)} - ${t('feed.open_topic')}`)
+const repliesName = computed(() => {
+  const base = `${t('feed.replies', { n: props.count ?? 0 }, props.count ?? 0)} - ${t('feed.open_topic')}`
+  /* CLE-77804: announce the unread part the bold number shows visually */
+  return unreadCount.value > 0 ? `${t('feed.replies_unread', { n: unreadCount.value })}, ${base}` : base
+})
 /** The replies link opens this topic on the right. The left tab stays as it was. */
 function openReplies() {
   emit('open-topic', props.msg)
@@ -471,6 +481,8 @@ const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) 
 const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
+/* the unread part is capped at the total (a stale snapshot never shows n/less-than-n) */
+const unreadCount = computed(() => Math.max(0, Math.min(count.value, Number(props.unread) || 0)))
 
 /*
  * clicking the row opens its topic. The row already carried

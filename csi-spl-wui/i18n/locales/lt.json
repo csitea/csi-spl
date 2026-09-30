@@ -713,7 +713,8 @@
     },
     "unread_divider": "Naujos žinutės",
     "unread_jump": "{n} naujų",
-    "unread_jump_label": "Pereiti prie pirmos neperskaitytos žinutės"
+    "unread_jump_label": "Pereiti prie pirmos neperskaitytos žinutės",
+    "replies_unread": "{n} neperskaityta"
   },
   "topic": {
     "title": "Tema",

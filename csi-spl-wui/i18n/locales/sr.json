@@ -713,7 +713,8 @@
     },
     "unread_divider": "Нове поруке",
     "unread_jump": "{n} нових",
-    "unread_jump_label": "Скочи на прву непрочитану поруку"
+    "unread_jump_label": "Скочи на прву непрочитану поруку",
+    "replies_unread": "{n} непрочитаних"
   },
   "topic": {
     "title": "Tema",

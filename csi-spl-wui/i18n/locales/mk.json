@@ -713,7 +713,8 @@
     },
     "unread_divider": "Нови пораки",
     "unread_jump": "{n} нови",
-    "unread_jump_label": "Оди до првата непрочитана порака"
+    "unread_jump_label": "Оди до првата непрочитана порака",
+    "replies_unread": "{n} непрочитани"
   },
   "topic": {
     "title": "Тема",

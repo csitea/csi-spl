@@ -14,6 +14,9 @@ import {
   readMap,
   firstUnreadId,
   countUnread,
+  markTopicReadAt,
+  topicUnread,
+  topicKey,
 } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -109,6 +112,23 @@ describe('New-messages divider boundary (CLE-77804)', () => {
     assert.equal(firstUnreadId(msgs, null), '')
     assert.equal(firstUnreadId(msgs, { ts: '', id: '' }), '')
     assert.equal(countUnread(msgs, null), 0)
+  })
+})
+
+describe('per-topic unread ("2/7 >>", CLE-77804 topic 35053f95)', () => {
+  it('unread = current total minus the total seen at last open', () => {
+    const cur = markTopicReadAt({}, 'task-1', 5)[topicKey('task-1')]
+    assert.equal(cur.count, 5)
+    assert.equal(topicUnread(7, cur), 2)   // 2 new -> "2/7"
+    assert.equal(topicUnread(5, cur), 0)   // just opened -> plain "5"
+  })
+  it('a never-opened topic (no cursor) is 0, so the card shows a plain total', () => {
+    assert.equal(topicUnread(7, undefined), 0)
+    assert.equal(topicUnread(7, { ts: 'x', id: '' }), 0) // a cursor with no count snapshot
+  })
+  it('never negative when the total dropped below the snapshot (a delete)', () => {
+    const cur = markTopicReadAt({}, 'task-1', 7)[topicKey('task-1')]
+    assert.equal(topicUnread(6, cur), 0)
   })
 })
 

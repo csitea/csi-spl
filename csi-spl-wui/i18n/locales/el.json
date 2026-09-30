@@ -713,7 +713,8 @@
     },
     "unread_divider": "Νέα μηνύματα",
     "unread_jump": "{n} νέα",
-    "unread_jump_label": "Μετάβαση στο πρώτο μη αναγνωσμένο μήνυμα"
+    "unread_jump_label": "Μετάβαση στο πρώτο μη αναγνωσμένο μήνυμα",
+    "replies_unread": "{n} μη αναγνωσμένα"
   },
   "topic": {
     "title": "Θέμα",

@@ -713,7 +713,8 @@
     },
     "unread_divider": "Нови съобщения",
     "unread_jump": "{n} нови",
-    "unread_jump_label": "Към първото непрочетено съобщение"
+    "unread_jump_label": "Към първото непрочетено съобщение",
+    "replies_unread": "{n} непрочетени"
   },
   "topic": {
     "title": "Тема",

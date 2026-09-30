@@ -3,6 +3,7 @@ import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { topicOf } from '~/utils/channel-feed.mjs'
 import { useChannelStore } from '~/stores/channel'
+import { useNotificationStore } from '~/stores/notification'
 import { usePaneFocus } from '~/stores/pane-focus'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -68,6 +69,9 @@ export const useTopicStore = defineStore('topic', () => {
     open.value = true
     paneSelected.value = false
     usePaneFocus().openedTopic()
+    /* CLE-77804 (topic 35053f95): opening the thread reads it — snapshot the
+       current reply total so the card's "<unread>/<total>" clears to plain. */
+    if (next.taskId) useNotificationStore().markTopicRead(next.taskId, channel.repliesFor(next.taskId))
   }
 
   /** The channel / DM pane by task id (the pre-CLE-3427 entry point). */

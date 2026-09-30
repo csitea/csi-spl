@@ -18,13 +18,27 @@ describe('SPL-982 the replies link reads "n >>"', () => {
     assert.doesNotMatch(btn, /feed\.replies'/)
     assert.doesNotMatch(btn, /»/)
   })
-  it('keeps the accessible name "n replies - Open topic" on aria-label and title', () => {
+  it('keeps the accessible name "n replies - Open topic" on aria-label and title, and announces unread', () => {
     assert.match(btn, /:aria-label="repliesName"/)
     assert.match(btn, /:title="repliesName"/)
-    assert.match(vue, /const repliesName = computed\(\(\) => `\$\{t\('feed\.replies', \{ n: props\.count \?\? 0 \}, props\.count \?\? 0\)\} - \$\{t\('feed\.open_topic'\)\}`\)/)
+    assert.match(vue, /t\('feed\.replies', \{ n: props\.count \?\? 0 \}, props\.count \?\? 0\)/)
+    assert.match(vue, /t\('feed\.open_topic'\)/)
+    /* CLE-77804: the unread part is announced when present */
+    assert.match(vue, /unreadCount\.value > 0 \? `\$\{t\('feed\.replies_unread', \{ n: unreadCount\.value \}\)\}/)
   })
   it('the whole control (number and >>) opens the thread', () => {
     assert.match(btn, /@click\.stop="openReplies"/)
+  })
+})
+
+describe('CLE-77804 (topic 35053f95) the counter shows "<unread>/<total> >>", unread bold', () => {
+  it('renders a bold unread count before the total, only when there is unread', () => {
+    /* "2/7 >>": the unread number is a <strong>, then a slash only when > 0, then the total */
+    assert.match(btn, /<strong v-if="unreadCount > 0" class="replies__new" data-test="topic-unread">\{\{ unreadCount \}\}<\/strong>/)
+    assert.match(btn, /\{\{ unreadCount > 0 \? '\/' : '' \}\}\{\{ count \}\} &gt;&gt;/)
+  })
+  it('never shows "0/…": the unread part is capped at the total and hidden at 0', () => {
+    assert.match(vue, /const unreadCount = computed\(\(\) => Math\.max\(0, Math\.min\(count\.value, Number\(props\.unread\) \|\| 0\)\)\)/)
   })
 })
 

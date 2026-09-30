@@ -713,7 +713,8 @@
     },
     "unread_divider": "Нові повідомлення",
     "unread_jump": "{n} нових",
-    "unread_jump_label": "До першого непрочитаного повідомлення"
+    "unread_jump_label": "До першого непрочитаного повідомлення",
+    "replies_unread": "{n} непрочитаних"
   },
   "topic": {
     "title": "Тема",

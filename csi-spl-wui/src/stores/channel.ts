@@ -28,6 +28,7 @@ import {
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
+import { useNotificationStore } from '~/stores/notification'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -331,6 +332,8 @@ export const useChannelStore = defineStore('channel', () => {
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */
     if (!channelId || channelId === active.value) messages.value = [...messages.value, row]
+    /* CLE-77804: the reader's own reply never counts as unread (owner default 2) */
+    if (parentTaskId) useNotificationStore().markTopicRead(parentTaskId, repliesFor(parentTaskId))
     return row
   }
 
@@ -402,6 +405,8 @@ export const useChannelStore = defineStore('channel', () => {
       })
       messages.value = mergeLive(messages.value, own) as FeedMessage[]
     }
+    /* CLE-77804: the reader's own reply never counts as unread (owner default 2) */
+    if (parentTaskId && showHere) useNotificationStore().markTopicRead(parentTaskId, repliesFor(parentTaskId))
     /* one automatic resend when the socket went away underneath a
        pending frame. The frame carries our own msg_id, so the hub de-dupes
        the race where the first copy did land, and live-ws will have queued
@@ -451,6 +456,13 @@ export const useChannelStore = defineStore('channel', () => {
   function repliesFor(taskId: string) {
     return topicRepliesIn(replyIndex.value, taskId, totals.value[taskId])
   }
+  /* CLE-77804 (topic 35053f95): unread replies for this topic = current total
+     minus what the reader had seen when they last opened it (0 if never opened,
+     so an untouched topic shows a plain total). */
+  function unreadFor(taskId: string) {
+    const seen = useNotificationStore().topicRead[taskId]
+    return Number.isFinite(seen) ? Math.max(0, repliesFor(taskId) - Number(seen)) : 0
+  }
 
   return {
     channels,
@@ -489,5 +501,6 @@ export const useChannelStore = defineStore('channel', () => {
     send,
     createChannel,
     repliesFor,
+    unreadFor,
   }
 })

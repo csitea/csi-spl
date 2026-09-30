@@ -22,7 +22,9 @@ import {
   isUnread,
   loadCursors,
   markReadAt,
+  markTopicReadAt,
   saveCursors,
+  topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
 import { namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
@@ -140,6 +142,30 @@ export const useNotificationStore = defineStore('notification', () => {
    */
   const boundary = ref<Record<string, { ts: string, id: string } | null>>({})
   let enteredKey = ''
+
+  /**
+   * CLE-77804 (topic 35053f95): per-topic read snapshots — taskId -> the reply
+   * total the reader had seen when they last opened that topic. The card shows
+   * unread = currentTotal - seen as "<unread>/<total> >>" (topicUnread). Held in
+   * the same localStorage as the cursors (t:<id>), hydrated here so a reload
+   * keeps the read state. No hub round-trip: the count comes from the totals the
+   * topics view already returns, and the read position is per reader, local.
+   */
+  const topicRead = ref<Record<string, number>>({})
+  if (import.meta.client) {
+    for (const [k, c] of Object.entries(loadCursors())) {
+      if (k.startsWith('t:') && c && Number.isFinite((c as { count?: number }).count)) {
+        topicRead.value[k.slice(2)] = Number((c as { count?: number }).count)
+      }
+    }
+  }
+  /** Mark a topic read at its current reply total (thread opened, or own reply). */
+  function markTopicRead(taskId: string, count: number) {
+    if (!taskId || !topicKey(taskId)) return
+    const c = Math.max(0, Number(count) || 0)
+    topicRead.value = { ...topicRead.value, [taskId]: c }
+    if (import.meta.client) saveCursors(markTopicReadAt(loadCursors(), taskId, c))
+  }
   function enterFeed(key: string) {
     if (!key || key === enteredKey) return
     enteredKey = key
@@ -233,6 +259,8 @@ export const useNotificationStore = defineStore('notification', () => {
     mentions,
     boundary,
     enterFeed,
+    topicRead,
+    markTopicRead,
     requestPush,
     ping,
     ingest,

@@ -713,7 +713,8 @@
     },
     "unread_divider": "Новые сообщения",
     "unread_jump": "{n} новых",
-    "unread_jump_label": "Перейти к первому непрочитанному"
+    "unread_jump_label": "Перейти к первому непрочитанному",
+    "replies_unread": "{n} непрочитанных"
   },
   "topic": {
     "title": "Тема",

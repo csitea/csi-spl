@@ -770,7 +770,8 @@
     "unread_divider": "Nya meddelanden",
     "unread_jump": "{n} nya",
     "unread_jump_label": "Gå till det första olästa meddelandet",
-    "replies_unread": "{n} olästa"
+    "replies_unread": "{n} olästa",
+    "swipe_archive": "Släpp för att arkivera"
   },
   "topic": {
     "title": "Ämne",

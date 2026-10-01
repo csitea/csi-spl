@@ -770,7 +770,8 @@
     "unread_divider": "Mesaje noi",
     "unread_jump": "{n} noi",
     "unread_jump_label": "Salt la primul mesaj necitit",
-    "replies_unread": "{n} necitite"
+    "replies_unread": "{n} necitite",
+    "swipe_archive": "Eliberează pentru a arhiva"
   },
   "topic": {
     "title": "Temă",

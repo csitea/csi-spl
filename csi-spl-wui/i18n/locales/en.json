@@ -770,7 +770,8 @@
     "unread_divider": "New messages",
     "unread_jump": "{n} new",
     "unread_jump_label": "Jump to the first unread message",
-    "replies_unread": "{n} unread"
+    "replies_unread": "{n} unread",
+    "swipe_archive": "Release to archive"
   },
   "topic": {
     "title": "Topic",

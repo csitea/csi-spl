@@ -770,7 +770,8 @@
     "unread_divider": "Nieuwe berichten",
     "unread_jump": "{n} nieuw",
     "unread_jump_label": "Ga naar het eerste ongelezen bericht",
-    "replies_unread": "{n} ongelezen"
+    "replies_unread": "{n} ongelezen",
+    "swipe_archive": "Loslaten om te archiveren"
   },
   "topic": {
     "title": "Onderwerp",

@@ -294,6 +294,10 @@ function onTouchStart(e: TouchEvent) {
   const p = e.touches[0]
   touch = isMobile.value && level.value > 1 && e.touches.length === 1 && p ? { x: p.clientX, y: p.clientY } : null
 }
+/* CLE-77906: a card's swipe-to-archive took this gesture - it is not a Back */
+function claimSwipe() {
+  touch = null
+}
 function onTouchEnd(e: TouchEvent) {
   const p = e.changedTouches[0]
   const start = touch
@@ -401,7 +405,7 @@ export function useMobileStack() {
     /** SPL-1005: a page sheet / dialog / menu is open - the composer dock yields */
     sheetOpen,
     /** bind on the shell: @touchstart.passive / @touchend.passive */
-    swipe: { onTouchStart, onTouchEnd },
+    swipe: { onTouchStart, onTouchEnd, claim: claimSwipe },
     install,
   }
 }

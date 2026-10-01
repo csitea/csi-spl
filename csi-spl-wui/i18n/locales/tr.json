@@ -770,7 +770,8 @@
     "unread_divider": "Yeni mesajlar",
     "unread_jump": "{n} yeni",
     "unread_jump_label": "İlk okunmamış mesaja git",
-    "replies_unread": "{n} okunmamış"
+    "replies_unread": "{n} okunmamış",
+    "swipe_archive": "Arşivlemek için bırakın"
   },
   "topic": {
     "title": "Konu",

@@ -770,7 +770,8 @@
     "unread_divider": "Нови съобщения",
     "unread_jump": "{n} нови",
     "unread_jump_label": "Към първото непрочетено съобщение",
-    "replies_unread": "{n} непрочетени"
+    "replies_unread": "{n} непрочетени",
+    "swipe_archive": "Пусни, за да архивираш"
   },
   "topic": {
     "title": "Тема",

@@ -770,7 +770,8 @@
     "unread_divider": "Nové správy",
     "unread_jump": "{n} nových",
     "unread_jump_label": "Prejsť na prvú neprečítanú správu",
-    "replies_unread": "{n} neprečítaných"
+    "replies_unread": "{n} neprečítaných",
+    "swipe_archive": "Pustite na archiváciu"
   },
   "topic": {
     "title": "Téma",

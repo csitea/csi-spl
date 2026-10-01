@@ -770,7 +770,8 @@
     "unread_divider": "Uued sõnumid",
     "unread_jump": "{n} uut",
     "unread_jump_label": "Liigu esimese lugemata sõnumi juurde",
-    "replies_unread": "{n} lugemata"
+    "replies_unread": "{n} lugemata",
+    "swipe_archive": "Vabasta arhiveerimiseks"
   },
   "topic": {
     "title": "Teema",

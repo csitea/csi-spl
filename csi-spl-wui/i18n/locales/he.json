@@ -770,7 +770,8 @@
     "unread_divider": "הודעות חדשות",
     "unread_jump": "{n} חדשות",
     "unread_jump_label": "מעבר להודעה הראשונה שלא נקראה",
-    "replies_unread": "{n} שלא נקראו"
+    "replies_unread": "{n} שלא נקראו",
+    "swipe_archive": "שחררו כדי להעביר לארכיון"
   },
   "topic": {
     "title": "נושא",

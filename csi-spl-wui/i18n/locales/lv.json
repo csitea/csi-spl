@@ -770,7 +770,8 @@
     "unread_divider": "Jauni ziņojumi",
     "unread_jump": "{n} jauni",
     "unread_jump_label": "Pāriet uz pirmo nelasīto ziņojumu",
-    "replies_unread": "{n} nelasīti"
+    "replies_unread": "{n} nelasīti",
+    "swipe_archive": "Atlaid, lai arhivētu"
   },
   "topic": {
     "title": "Tēma",

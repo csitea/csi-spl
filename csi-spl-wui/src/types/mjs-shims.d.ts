@@ -547,6 +547,33 @@ declare module '~/utils/typed-by.mjs' {
   export function isViewersOwn(msg: { from?: string, typed_by?: string } | null | undefined, selfId?: string): boolean
 }
 
+declare module '~/utils/swipe-archive.mjs' {
+  export const SWIPE_LOCK_PX: number
+  export const SWIPE_MIN_PX: number
+  export const SWIPE_MAX_PX: number
+  export const SWIPE_RATIO: number
+  export const SWIPE_AXIS_RATIO: number
+  export const SWIPE_SETTLE_MS: number
+  export function swipeThresholdPx(width: number): number
+  export function createSwipe(opts: {
+    width: () => number
+    rtl?: () => boolean
+    onMove?: (dx: number, armed: boolean) => void
+    onLock?: () => void
+    onCommit: () => void
+    onCancel?: () => void
+  }): {
+    down(ev: { pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }): void
+    move(ev: { clientX: number, clientY: number, isPrimary?: boolean }): void
+    up(): void
+    cancel(): void
+    takeClick(): boolean
+    readonly swiping: boolean
+    readonly dx: number
+    readonly threshold: number
+  }
+}
+
 declare module '~/utils/touch-ui.mjs' {
   export const LONG_PRESS_MS: number
   export const LONG_PRESS_SLOP_PX: number

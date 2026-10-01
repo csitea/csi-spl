@@ -770,7 +770,8 @@
     "unread_divider": "Uudet viestit",
     "unread_jump": "{n} uutta",
     "unread_jump_label": "Siirry ensimmäiseen lukemattomaan viestiin",
-    "replies_unread": "{n} lukematonta"
+    "replies_unread": "{n} lukematonta",
+    "swipe_archive": "Päästä irti arkistoidaksesi"
   },
   "topic": {
     "title": "Aihe",

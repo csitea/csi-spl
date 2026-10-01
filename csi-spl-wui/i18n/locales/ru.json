@@ -770,7 +770,8 @@
     "unread_divider": "Новые сообщения",
     "unread_jump": "{n} новых",
     "unread_jump_label": "Перейти к первому непрочитанному",
-    "replies_unread": "{n} непрочитанных"
+    "replies_unread": "{n} непрочитанных",
+    "swipe_archive": "Отпустите, чтобы архивировать"
   },
   "topic": {
     "title": "Тема",

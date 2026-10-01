@@ -2,7 +2,9 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
+    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeArchive, 'msg--swiping': swipeDx > 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle }"
+    :style="swipeDx > 0 ? { '--swipe-dx': `${swipeDx}px` } : undefined"
+    :data-swipe-archive="swipeArchive ? 'true' : undefined"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
@@ -23,11 +25,24 @@
     @dblclick="onDblClick"
     @keydown="onKey"
     @contextmenu="onContextMenu"
-    @pointerdown="longPress.down"
-    @pointermove="longPress.move"
-    @pointerup="longPress.up"
-    @pointercancel="longPress.cancel"
+    @pointerdown="onRowDown"
+    @pointermove="onRowMove"
+    @pointerup="onRowUp"
+    @pointercancel="onRowCancel"
   >
+    <!-- CLE-77906 (owner, t1 topic 73c5d695): swipe right archives the topic
+         on mobile. The strip the card uncovers while it slides; armed (past
+         the threshold) it says so. -->
+    <span
+      v-if="swipeArchive && swipeDx > 0"
+      class="msg-swipe-reveal"
+      data-testid="swipe-archive-reveal"
+      :data-armed="swipeArmed ? 'true' : undefined"
+      aria-hidden="true"
+    >
+      <UiIcon name="archive" :size="20" />
+      <span v-if="swipeArmed" class="msg-swipe-reveal__text">{{ t('feed.swipe_archive') }}</span>
+    </span>
     <!-- SPL-1134 (specs/045 §3.9): the drag handle, the card's first ~3 mm.
          A move starts from here only; the rest of the card clicks, selects
          and long-presses as before. -->
@@ -419,6 +434,10 @@ import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { COMPOSER_FOCUS_EVENT, createLongPress } from '~/utils/touch-ui.mjs'
+import { SWIPE_SETTLE_MS, createSwipe } from '~/utils/swipe-archive.mjs'
+import { isTouchUi } from '~/utils/undo-timer.mjs'
+import { useLiveFeed } from '~/stores/live'
+import { useTopicStore } from '~/stores/topic'
 import {
   CARD_GRIP_STEP_ROWS,
   cardClipPx,
@@ -541,6 +560,11 @@ function onClick(ev: MouseEvent) {
     ev.preventDefault()
     return
   }
+  /* CLE-77906: nor does the finger that swiped */
+  if (swipe.takeClick()) {
+    ev.preventDefault()
+    return
+  }
   const el = ev.target as HTMLElement | null
   if (el && el.closest && el.closest(INTERACTIVE)) return
   if (selecting()) return
@@ -607,23 +631,25 @@ async function topicOpenerId(): Promise<string> {
 }
 
 /** SPL-983: archive the topic. The card leaves every feed here at once; the
-    hub's topic_archived frame tells the other tabs. */
-async function onMenuArchive() {
+    hub's topic_archived frame tells the other tabs. True when it archived. */
+async function onMenuArchive(): Promise<boolean> {
   closeMenu()
-  if (removing.value) return
+  if (removing.value) return false
   removing.value = true
   editError.value = ''
   try {
     const id = await topicOpenerId()
-    if (!id) return
+    if (!id) return false
     await parentDeps.api.archiveTopic(id, true)
     dropEverywhere(id)
     emit('deleted', props.msg)
     /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s;
        CLE-77871: and from which pane, so Undo selects it there again */
     archiveUndo.offerUndo(id, paneOfRow(rowEl.value))
+    return true
   } catch (e) {
     editError.value = topicErrorKey(e, 'archive')
+    return false
   } finally {
     removing.value = false
   }
@@ -749,6 +775,104 @@ const longPress = createLongPress({
   },
 })
 onBeforeUnmount(() => longPress.cancel())
+
+/*
+ * CLE-77906 (owner, t1 topic 73c5d695): "Both from the thread messages (AK
+ * cards view) and from the topic messages (AK topic view), one should be able
+ * to archive a topic by sliding to the right on mobile." A finger sliding a
+ * topic card (cards view) or the topic's opening message (topic view) to the
+ * right archives the topic through the menu's own Archive (onMenuArchive: the
+ * same permission, the same "Archived · Undo" snackbar with its touch window).
+ * The rules of the gesture are utils/swipe-archive.mjs; a mouse never swipes,
+ * so the desktop card is unchanged. While it slides the card's content moves
+ * and the strip it uncovers shows the archive icon; short of the threshold
+ * the card snaps back. A swipe takes the gesture from the phone's swipe-right
+ * Back (useMobileStack) and from the long press.
+ */
+const stack = useMobileStack()
+const touchUi = ref(false)
+/* the topic view (the right pane, channel or DM): its level-1 row is the
+   topic's own message (the pane opened by task id has no rootMsgId to match) */
+const inTopicPane = ref(false)
+onMounted(() => {
+  touchUi.value = isTouchUi()
+  inTopicPane.value = paneOfRow(rowEl.value) === 'topic'
+})
+const swipeArchive = computed(() => {
+  if (editing.value || !(mobile.value || touchUi.value)) return false
+  if (props.topicMenu) return showTopicArchive.value
+  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
+})
+const swipeDx = ref(0)
+const swipeArmed = ref(false)
+/** the snap back / the slide out animates; a finger-driven move does not */
+const swipeSettle = ref(false)
+let settleTimer: ReturnType<typeof setTimeout> | null = null
+function swipeTo(dx: number, settle: boolean) {
+  if (settleTimer) clearTimeout(settleTimer)
+  settleTimer = null
+  swipeSettle.value = settle
+  swipeDx.value = dx
+  /* the transform must not outlive the animation: a transformed card is the
+     containing block of its fixed menus and pickers */
+  if (settle && dx === 0) settleTimer = setTimeout(() => { swipeSettle.value = false; settleTimer = null }, SWIPE_SETTLE_MS)
+}
+const swipe = createSwipe({
+  width: () => rowEl.value?.getBoundingClientRect().width || 0,
+  rtl: () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl',
+  onLock: () => {
+    longPress.cancel()
+    stack.swipe.claim()
+  },
+  onMove: (dx, armed) => {
+    if (armed && !swipeArmed.value && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    swipeArmed.value = armed
+    swipeTo(dx, false)
+  },
+  onCommit: () => void swipeCommit(),
+  onCancel: () => {
+    swipeArmed.value = false
+    swipeTo(0, true)
+  },
+})
+async function swipeCommit() {
+  stack.swipe.claim()
+  const inTopicPane = paneOfRow(rowEl.value) === 'topic'
+  swipeTo(rowEl.value?.getBoundingClientRect().width || 0, true)
+  const ok = await onMenuArchive()
+  swipeArmed.value = false
+  if (!ok) {
+    swipeTo(0, true)
+    return
+  }
+  swipeTo(0, false)
+  /* the topic view of a topic that is archived now: back to the cards, where
+     the snackbar's Undo brings the card back (and selects it) */
+  if (inTopicPane && !props.topicMenu) {
+    useLiveFeed('pane').close()
+    useTopicStore().close()
+  }
+}
+function onRowDown(ev: PointerEvent) {
+  longPress.down(ev)
+  if (swipeArchive.value && !removing.value) swipe.down(ev)
+}
+function onRowMove(ev: PointerEvent) {
+  longPress.move(ev)
+  swipe.move(ev)
+}
+function onRowUp() {
+  longPress.up()
+  swipe.up()
+}
+function onRowCancel() {
+  longPress.cancel()
+  swipe.cancel()
+}
+onBeforeUnmount(() => {
+  swipe.cancel()
+  if (settleTimer) clearTimeout(settleTimer)
+})
 
 /* Reply: a topic card opens its topic (the third panel); a thread line is
    already in it. Either way the caret goes to the docked composer. */
@@ -952,6 +1076,11 @@ const handle = createHandleDrag({
   },
 })
 function onHandleDown(ev: PointerEvent) {
+  /* CLE-77906: a thumb's swipe often starts on the card's edge, which is this
+     handle; the handle stops the row's pointerdown, so start it here. A finger
+     that moves before the hold is not a move-drag (move-drag.mjs slop), so the
+     two never both run. */
+  if (swipeArchive.value && !removing.value) swipe.down(ev)
   if (!movable.value || !handle.down(ev)) return
   /* no text selection, no native drag, and the stream stays on the handle
      wherever the pointer goes */
@@ -1417,6 +1546,40 @@ async function save() {
 /* SPL-1134: the ONE card under a dragged reply is lit; the dragged row fades */
 .msg--move-over { background: var(--color-selected); outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .msg--dragging { opacity: 0.5; }
+/* CLE-77906: swipe right to archive (touch only). pan-y leaves the vertical
+   scroll to the browser and gives the horizontal move to the card. The whole
+   card slides by --swipe-dx (its content is display: contents on a phone, so
+   it cannot move on its own) and the strip, pinned just before the card's
+   start edge, fills the gap it uncovers with the archive icon (accent once
+   past the threshold). */
+.msg--swipe { position: relative; touch-action: pan-y; }
+.msg--swiping,
+.msg--swipe-settle { transform: translateX(var(--swipe-dx, 0px)); }
+.msg--swipe-settle { transition: transform 0.18s ease-out; }
+:global(html[dir="rtl"]) .msg--swiping,
+:global(html[dir="rtl"]) .msg--swipe-settle { transform: translateX(calc(-1 * var(--swipe-dx, 0px))); }
+.msg-swipe-reveal {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(-1 * var(--swipe-dx, 0px));
+  width: var(--swipe-dx, 0px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline-start: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  background: var(--color-selected);
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+.msg-swipe-reveal[data-armed] { background: var(--color-accent); color: var(--color-on-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .msg--swipe-settle { transition: none; }
+}
 /* SPL-1134 (specs/045 §3.9): the handle is the card's first 12 px (~3 mm).
    At rest it is invisible; on hover it tints and shows a grip, the cursor
    says grab (grabbing while lifted, not-allowed over a refusing row). */

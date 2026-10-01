@@ -180,15 +180,19 @@ describe('notify escalation', () => {
       createGain() { const g = { gain: {}, connect: () => {} }; this.g = g; return g }
       close() { this.closed = true; return Promise.resolve() }
     }
-    assert.equal(playChime(FakeCtx), true)
+    const timers = []
+    assert.equal(playChime(FakeCtx, (fn) => timers.push(fn)), true)
     const c = made[0]
     assert.equal(c.osc.frequency.value, 880)
     assert.equal(c.g.gain.value, 0.04)
     assert.equal(c.osc.started, true)
-    assert.equal(c.osc.stopAt, 5.12)
+    /* HUM-24: after the lead-in */
+    assert.ok(Math.abs(c.osc.stopAt - 5.17) < 1e-9, String(c.osc.stopAt))
     assert.equal(c.closed, false, 'open while it sounds')
     c.osc.onended()
-    assert.equal(c.closed, true, 'closed when the beep ends')
+    assert.equal(c.closed, false, 'HUM-24: still open while the speaker plays it')
+    timers[0]()
+    assert.equal(c.closed, true, 'closed after the grace')
     assert.equal(playChime(undefined), false, 'no Web Audio: nothing')
   })
 
@@ -242,7 +246,8 @@ describe('notify escalation', () => {
     const asCtor = (inst) => function () { return inst }
     for (const name of SOUND_NAMES) {
       const ctx = new SynthCtx()
-      assert.equal(playSound(name, asCtor(ctx)), true, name)
+      const timers = []
+      assert.equal(playSound(name, asCtor(ctx), (fn, ms) => timers.push({ fn, ms })), true, name)
       assert.equal(ctx.oscs.length, SOUND_LIBRARY[name].segs.length, name)
       for (const o of ctx.oscs) assert.equal(typeof o.stopAt, 'number', `${name}: scheduled a stop`)
       assert.equal(ctx.closed, false, `${name}: open while it sounds`)
@@ -250,7 +255,12 @@ describe('notify escalation', () => {
       const last = ctx.oscs.reduce((a, b) => (b.stopAt >= a.stopAt ? b : a))
       assert.equal(typeof last.onended, 'function', `${name}: last note closes the ctx`)
       last.onended()
-      assert.equal(ctx.closed, true, `${name}: closed when the sound ends`)
+      /* HUM-24: not at the context-time end - the speaker is still playing it */
+      assert.equal(ctx.closed, false, `${name}: still open right after the last note ends`)
+      assert.equal(timers.length, 1, `${name}: one deferred close`)
+      assert.ok(timers[0].ms >= 1000, `${name}: the close waits >= 1 s`)
+      timers[0].fn()
+      assert.equal(ctx.closed, true, `${name}: closed after the grace`)
     }
     assert.equal(playSound('chirp', undefined), false, 'no Web Audio: nothing')
     // an unknown name still plays (the default), it does not throw
@@ -585,5 +595,30 @@ describe('bug A: a new message signals', () => {
     assert.match(note, /visibilitychange/)
     /* the bell is on but the browser was never asked: the first click anywhere asks */
     assert.match(note, /askOnFirstGesture/)
+  })
+
+  /* HUM-24 (311427c6, msg 826e3ff8): pop / plain / chirp were silent on a
+     phone - all three end before ~0.17 s, under Android's output latency,
+     and the context was closed at the context-time end */
+  it('HUM-24: the close waits for the output latency, and notes start after a lead-in', async () => {
+    const { closeDelayMs, CLOSE_GRACE_S, LEAD_S } = await import('../../src/utils/notify.mjs')
+    assert.equal(closeDelayMs({}), CLOSE_GRACE_S * 1000)
+    assert.equal(closeDelayMs({ outputLatency: 0.3, baseLatency: 0.01 }), Math.round((0.3 + CLOSE_GRACE_S) * 1000))
+    assert.equal(closeDelayMs({ baseLatency: 0.2 }), Math.round((0.2 + CLOSE_GRACE_S) * 1000))
+    /* every library sound outlives a 0.3 s Bluetooth latency before its context closes */
+    for (const name of SOUND_NAMES) {
+      const end = Math.max(...SOUND_LIBRARY[name].segs.map((x) => (x.at || 0) + x.dur))
+      assert.ok(CLOSE_GRACE_S > 0.3 + end, name)
+    }
+    const starts = []
+    const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
+    class Ctx {
+      constructor() { this.currentTime = 3; this.destination = {} }
+      close() { return Promise.resolve() }
+      createOscillator() { return { frequency: param(), connect() {}, start(t) { starts.push(t) }, stop() {} } }
+      createGain() { return { gain: param(), connect() {} } }
+    }
+    for (const name of SOUND_NAMES) playSound(name, Ctx, () => {})
+    assert.ok(starts.length > 0 && starts.every((t) => t >= 3 + LEAD_S - 1e-9), 'no note starts at the context\'s first sample')
   })
 })

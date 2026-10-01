@@ -348,15 +348,37 @@ export function saveChimeSound(name, store) {
 }
 
 /**
- * Play a named sound. One AudioContext per call, closed when its last
- * oscillator ends — a context keeps an audio thread and buffers alive for the
- * life of the tab otherwise, one more per alert (CLE-35075).
+ * HUM-24 (311427c6, msg 826e3ff8: "only marimba and the cartoon sound work,
+ * the other sound options are empty"): the context used to close the moment
+ * its last oscillator ended IN CONTEXT TIME, but the speaker plays
+ * `outputLatency` behind that clock (Android ~0.1-0.3 s, more on Bluetooth),
+ * so the close threw away the audio still on its way out. Pop (0.10 s),
+ * plain (0.12 s) and chirp (0.165 s) were dropped whole; marimba (0.20 s) and
+ * boing (0.23 s) only lost their tail - exactly the three silent options.
+ * The close now waits for the output latency plus this margin.
+ */
+export const CLOSE_GRACE_S = 1
+
+/** How long after the last note ends (context time) the context may close, in ms. */
+export function closeDelayMs(ctx) {
+  const lat = Math.max(Number(ctx && ctx.outputLatency) || 0, Number(ctx && ctx.baseLatency) || 0)
+  return Math.round((lat + CLOSE_GRACE_S) * 1000)
+}
+
+/* the first notes of a context just woken can be cut while the output starts */
+export const LEAD_S = 0.05
+
+/**
+ * Play a named sound. One AudioContext per call, closed shortly after its
+ * last oscillator ends — a context keeps an audio thread and buffers alive
+ * for the life of the tab otherwise, one more per alert (CLE-35075).
  *
  * @param {string} name a key of SOUND_LIBRARY (unknown => DEFAULT_SOUND)
  * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
+ * @param {(fn: () => void, ms: number) => unknown} [later] setTimeout (a test seam)
  * @returns {boolean} whether the sound was started
  */
-export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
+export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext, later = setTimeout) {
   if (typeof Ctx !== 'function') return false
   const spec = SOUND_LIBRARY[name] || SOUND_LIBRARY[DEFAULT_SOUND]
   let ctx = null
@@ -368,7 +390,7 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
     if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
       void Promise.resolve(ctx.resume()).catch(() => {})
     }
-    const t0 = ctx.currentTime
+    const t0 = ctx.currentTime + LEAD_S
     let last = null
     let lastStop = t0
     for (const s of spec.segs) {
@@ -396,7 +418,11 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
       osc.stop(stop)
       if (stop >= lastStop) { lastStop = stop; last = osc }
     }
-    if (last) last.onended = () => { void Promise.resolve(ctx.close()).catch(() => {}) }
+    if (last) {
+      last.onended = () => {
+        later(() => { void Promise.resolve(ctx.close()).catch(() => {}) }, closeDelayMs(ctx))
+      }
+    }
     return true
   } catch {
     /* autoplay policies */
@@ -408,8 +434,9 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
 /**
  * The pre-051 880 Hz beep, kept for back-compat: `playSound('plain', …)`.
  * @param {(new () => any) | undefined} [Ctx] AudioContext (a test seam)
+ * @param {(fn: () => void, ms: number) => unknown} [later] setTimeout (a test seam)
  * @returns {boolean} whether a beep was started
  */
-export function playChime(Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext) {
-  return playSound('plain', Ctx)
+export function playChime(Ctx = typeof AudioContext === 'undefined' ? undefined : AudioContext, later = setTimeout) {
+  return playSound('plain', Ctx, later)
 }

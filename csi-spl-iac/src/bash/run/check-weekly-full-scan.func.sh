@@ -18,6 +18,10 @@
 # @description a <date>.tsv for next week's deltas, and <date>.summary.txt, the
 # @description short text the cron posts to #spool-hub-ops as OPS-01. No triage,
 # @description no issues.
+# @description MISSED WEEK: GitHub no longer runs these weekly, so a Friday the
+# @description box was down must be visible. When an earlier report exists but
+# @description the one from 7 days before is missing, <date>.missed.txt holds a
+# @description one-line alert, which the cron posts too.
 # @description DRY_RUN=1 (the default) prints the plan and scans nothing.
 # @param DRY_RUN (optional) - 1 (default) prints the plan; 0 scans
 # @param WEEKLY_SCAN_DIR (optional) - default ~/.cache/csi-spl/weekly-scan
@@ -142,6 +146,13 @@ do_check_weekly_full_scan() {
   fi
 
   mkdir -p "$dir" || return 1
+  local prev_week; prev_week="$(date -d "$date -7 days" +%F 2>/dev/null || true)"
+  rm -f "$dir/$date.missed.txt"
+  if [[ -n "$prev_week" && ! -f "$dir/$prev_week.md" ]] \
+     && find "$dir" -maxdepth 1 -name '????-??-??.md' ! -name "$date.md" 2>/dev/null | grep -q .; then
+    echo "Weekly full scan did NOT run on $prev_week: no report on the box (box down or cron missing?) -- this week's run follows." >"$dir/$date.missed.txt"
+    do_log "WARN the weekly full scan of $prev_week did not run (no $dir/$prev_week.md)"
+  fi
   local logs="$dir/$date.logs"; rm -rf "$logs"; mkdir -p "$logs"
   local tsv="$dir/$date.tsv"; : >"$tsv"
 

@@ -12,6 +12,8 @@
 #   7. do_check_weekly_full_scan DRY_RUN=1 lists csi-spl + csi-web rows, scans nothing
 #   8. DRY_RUN=0 (a csi-web row on a fixture repo, stub scanner): report, tsv
 #      and summary; a second week shows the change vs last week
+#   9. last Friday's report missing (box down) -> a one-line missed-week
+#      alert; none when it exists, none on the very first run
 #------------------------------------------------------------------------------
 set -uo pipefail
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
@@ -82,6 +84,20 @@ PATH="$T/bin:$PATH" DRY_RUN=0 WEEKLY_SCAN_ROWS=web-typos WEEKLY_SCAN_WEB="$WEB" 
   do_check_weekly_full_scan >/dev/null 2>&1
 grep -q '| csi-web | web-typos | FINDINGS | 3 | +1 |' "$T/scan/2026-10-09.md" \
   && pass "8b. the next week shows the change vs last week (+1)" || fail "8b. delta" "$(cat "$T/scan/2026-10-09.md" 2>&1)"
+
+# 9. a skipped Friday: an earlier report exists, last week's is missing
+S9="$T/scan9"; mkdir -p "$S9"; echo old >"$S9/2026-09-18.md"
+PATH="$T/bin:$PATH" DRY_RUN=0 WEEKLY_SCAN_ROWS=web-typos WEEKLY_SCAN_WEB="$WEB" WEEKLY_SCAN_DIR="$S9" WEEKLY_SCAN_DATE=2026-10-02 \
+  do_check_weekly_full_scan >/dev/null 2>&1
+grep -q 'did NOT run on 2026-09-25' "$S9/2026-10-02.missed.txt" 2>/dev/null \
+  && pass "9a. last Friday's report missing -> a one-line missed-week alert" || fail "9a. missed" "$(ls "$S9")"
+[[ ! -e "$T/scan/2026-10-09.missed.txt" ]] \
+  && pass "9b. last week's report present -> no alert" || fail "9b. false alarm"
+S9b="$T/scan9b"
+PATH="$T/bin:$PATH" DRY_RUN=0 WEEKLY_SCAN_ROWS=web-typos WEEKLY_SCAN_WEB="$WEB" WEEKLY_SCAN_DIR="$S9b" WEEKLY_SCAN_DATE=2026-10-02 \
+  do_check_weekly_full_scan >/dev/null 2>&1
+[[ ! -e "$S9b/2026-10-02.missed.txt" ]] \
+  && pass "9c. the very first run (no earlier report) never alerts" || fail "9c. first run alerted"
 
 echo "-- check-weekly-full-scan.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

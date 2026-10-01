@@ -268,7 +268,9 @@ declare module '~/utils/flow-entries.mjs' {
     mine: boolean
   }
   export const FLOW_CAP: number
+  export const FLOW_PAGE: number
   export const FLOW_TEXT_CHARS: number
+  export function flowWindow(held: FlowEntry[], shown?: number, boundary?: string): { entries: FlowEntry[], more: boolean }
   export function flowText(body: unknown, max?: number): string
   export function isThreadReply(m: unknown): boolean
   export function flowKeyOf(m: unknown, self?: string): string

@@ -11,6 +11,11 @@ import { isViewersOwn } from './typed-by.mjs'
 
 /** How many entries the panel holds. Older ones fall off the end. */
 export const FLOW_CAP = 200
+/**
+ * Entries one page of the Flow shows: the first paint, and each Load more
+ * (owner 73c9704c: "use the last 30 entries ... to be quick and nimble").
+ */
+export const FLOW_PAGE = 30
 /** Characters of the message shown in an entry. */
 export const FLOW_TEXT_CHARS = 90
 
@@ -121,4 +126,21 @@ export function flowUnread(entry, cursors = {}, opened = null) {
   if (opened && opened.has(entry.key)) return false
   const key = entry.kind === 'channel' ? 'ch:' + entry.channel : 'dm:' + entry.where
   return isUnread({ msg_id: entry.msg_id, ts: entry.at }, cursors[key])
+}
+
+/**
+ * The entries the panel shows: the newest `shown` of `held` that the topic
+ * pages read so far can vouch for. A page of topics holds each topic's
+ * newest few lines only, so while an older page is unread (`boundary` =
+ * the oldest read topic's last activity) an entry older than it could still
+ * be preceded by a newer line of an unread topic: it waits for that page.
+ * `more` = Load more has something to give (held beyond the window, or an
+ * unread page).
+ */
+export function flowWindow(held, shown = FLOW_PAGE, boundary = '') {
+  const list = held || []
+  const cut = boundary ? Date.parse(boundary) : NaN
+  const safe = Number.isFinite(cut) ? list.filter((e) => !(Date.parse(e.at) < cut)) : list
+  const entries = safe.slice(0, Math.max(0, shown))
+  return { entries, more: Boolean(boundary) || entries.length < list.length }
 }

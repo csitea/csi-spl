@@ -7,11 +7,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   FLOW_CAP,
+  FLOW_PAGE,
   dropFlow,
   flowEntry,
   flowKeyOf,
   flowText,
   flowUnread,
+  flowWindow,
   isThreadReply,
   mergeFlow,
 } from '../../src/utils/flow-entries.mjs'
@@ -124,5 +126,36 @@ describe('the Flow panel', () => {
     assert.match(list, /msgId: e\.msg_id/)
     /* lane A (CLE-77882): the entry opens in its original place, the whole row passed */
     assert.match(list, /await openMessage\(row\)/)
+  })
+})
+
+// owner 73c9704c (2026-10-01): "use the last 30 entries ... to be quick and
+// nimble" - the first paint is one page, Load more adds the next.
+describe('flowWindow', () => {
+  const at = (i) => new Date(Date.UTC(2026, 9, 1, 12, 0, 0) - i * 60000).toISOString()
+  const held = Array.from({ length: 70 }, (_, i) => ({ key: 'm' + i, at: at(i) }))
+  it('a page is 30 entries', () => assert.equal(FLOW_PAGE, 30))
+  it('shows the newest page, newest first, and says more is held', () => {
+    const w = flowWindow(held, FLOW_PAGE)
+    assert.deepEqual(w.entries.map((e) => e.key), held.slice(0, 30).map((e) => e.key))
+    assert.equal(w.more, true)
+  })
+  it('Load more widens the window by a page', () => {
+    assert.equal(flowWindow(held, 2 * FLOW_PAGE).entries.length, 60)
+    const all = flowWindow(held, 3 * FLOW_PAGE)
+    assert.equal(all.entries.length, 70)
+    assert.equal(all.more, false)
+  })
+  it('an entry older than the oldest read topic waits for the next topic page', () => {
+    const w = flowWindow(held, FLOW_PAGE, at(9))
+    assert.deepEqual(w.entries.map((e) => e.key), held.slice(0, 10).map((e) => e.key))
+    assert.equal(w.more, true)
+  })
+  it('CONTROL: without a boundary the same entries pass', () => {
+    assert.equal(flowWindow(held, FLOW_PAGE).entries.length, 30)
+  })
+  it('an unread page means more even when everything held is shown', () => {
+    assert.equal(flowWindow(held.slice(0, 5), FLOW_PAGE, at(40)).more, true)
+    assert.equal(flowWindow(held.slice(0, 5), FLOW_PAGE).more, false)
   })
 })

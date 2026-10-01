@@ -15,6 +15,15 @@
       @active="flow.select"
       @open="openKey"
     />
+    <!-- owner 73c9704c: a page of 30 entries first, older ones on request -->
+    <button
+      v-if="items.length && flow.hasMore"
+      type="button"
+      class="btn ghost flow-more"
+      data-testid="flow-load-more"
+      :disabled="flow.loadingMore"
+      @click="flow.loadMore()"
+    >{{ flow.loadingMore ? t('feed.loading_older') : t('feed.load_more') }}</button>
   </div>
 </template>
 
@@ -62,7 +71,7 @@ function channelName(id: string) {
   return String((c && c.name) || id)
 }
 
-const items = computed<SideHitItem[]>(() => flow.entries.map((e: FlowEntry) => {
+const items = computed<SideHitItem[]>(() => flow.visible.map((e: FlowEntry) => {
   const peer = e.kind === 'dm' ? personOf(e.where) : null
   const where = e.kind === 'channel' ? channelName(String(e.channel)) : shownPerson(peer!.id, peer!.box, people.names.value)
   const place = (e.kind === 'channel' ? '#' : '@') + where
@@ -86,7 +95,7 @@ const items = computed<SideHitItem[]>(() => flow.entries.map((e: FlowEntry) => {
  * whole, so no lookup; the Flow list stays while it navigates.
  */
 async function openKey(key: string) {
-  const row = flow.entries.find((r: FlowEntry) => r.key === key)
+  const row = flow.visible.find((r: FlowEntry) => r.key === key)
   if (!row) return
   flow.select(key)
   flow.markOpened(key)
@@ -120,3 +129,7 @@ onMounted(() => {
   restoreScroll()
 })
 </script>
+
+<style scoped>
+.flow-more { margin: 4px 8px 8px; }
+</style>

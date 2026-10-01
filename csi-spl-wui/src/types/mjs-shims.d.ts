@@ -198,12 +198,18 @@ declare module '~/utils/live-ws.mjs' {
     onIssue?: (f: Record<string, unknown>) => void
     onIssueLabel?: (f: Record<string, unknown>) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
+    /** bug B: the hub revision serving new requests (GET /v1/wui/revision), '' when unknown */
+    fetchRevision?: () => Promise<string>
     ackTimeoutMs?: number
+    probeTimeoutMs?: number
   }): {
     readonly state: string
     readonly welcome: Record<string, unknown> | null
     lastCursor(taskId: string): string
     connect(): void
+    redial(): void
+    checkRevision(): Promise<boolean>
+    wake(): void
     close(): void
     subscribe(taskId: string): void
     unsubscribe(taskId: string): void
@@ -217,6 +223,14 @@ declare module '~/utils/live-ws.mjs' {
     redialForToken(): Promise<Record<string, unknown>>
     send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
   }
+  export const REVISION_CHECK_MS: number
+  export function watchLive(client: { checkRevision(): Promise<boolean>, wake(): void }, opts?: {
+    doc?: Document
+    win?: Window
+    everyMs?: number
+    setEvery?: (fn: () => void, ms: number) => unknown
+    clearEvery?: (t: unknown) => void
+  }): () => void
 }
 
 declare module '~/utils/sidebar-tabs.mjs' {

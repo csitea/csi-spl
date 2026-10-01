@@ -71,7 +71,10 @@
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" :msg="msg" />
-        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
+        <!-- bug B (4ecb4b0d): our own row is drawn the moment Send is pressed;
+             until the hub's ack it says so, instead of a time that reads "posted" -->
+        <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status">{{ t('composer.sending') }}</span>
+        <span v-else class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
         <span
           v-if="edited"
           class="msg-edited"
@@ -1352,6 +1355,7 @@ async function save() {
    topic pane's long "2026-09-27 11:16:01 sent 94h 23m" pushed the smile
    button and the reaction chips past the pane's edge, where they were clipped. */
 .msg-meta > .msg-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-time--sending { font-style: italic; }
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; }

@@ -177,10 +177,17 @@ export function createLiveClient({
    * answer parks the client in state `signed_out`; connect() resumes it.
    */
   isSignedOut = async () => false,
+  /**
+   * Bug B (4ecb4b0d): resolves the hub revision serving NEW requests now
+   * (GET /v1/wui/revision), '' when unknown. See checkRevision.
+   */
+  fetchRevision = async () => '',
   random = Math.random,
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
   ackTimeoutMs = 10000,
+  /** wake(): an open socket that answers nothing within this is re-dialled. */
+  probeTimeoutMs = 5000,
 } = {}) {
   let ws = null
   let state = 'idle'
@@ -190,6 +197,9 @@ export function createLiveClient({
   let retryTimer = null
   let welcome = null
   let dropped = false
+  /* bumped by every frame the hub sends: wake() reads it to tell a live
+     socket from a half-open one */
+  let frames = 0
   const cursors = new Map()
   const subs = new Set()
   const chanSubs = new Set()
@@ -269,6 +279,7 @@ export function createLiveClient({
       raw(hello)
     }
     ws.onmessage = (ev) => {
+      frames++
       let f
       try {
         f = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data))
@@ -279,11 +290,7 @@ export function createLiveClient({
     }
     ws.onclose = () => {
       ws = null
-      for (const [, p] of pending) {
-        clearTimer(p.timer)
-        p.reject(Object.assign(new Error('socket closed'), { token: 'closed' }))
-      }
-      pending.clear()
+      rejectPending()
       if (closedByUs) {
         setState('closed')
         return
@@ -299,6 +306,33 @@ export function createLiveClient({
     ws.onerror = () => {
       /* onclose follows */
     }
+  }
+
+  /* every send still waiting for its ack fails 'closed' (one resend follows) */
+  function rejectPending() {
+    for (const [, p] of pending) {
+      clearTimer(p.timer)
+      p.reject(Object.assign(new Error('socket closed'), { token: 'closed' }))
+    }
+    pending.clear()
+  }
+
+  /**
+   * Bug B: drop this socket NOW and dial again, without waiting for a close
+   * the browser may take minutes to report. The old socket's handlers are
+   * detached first so its late onclose cannot schedule a second dial. The
+   * welcome on the new socket fires onReconnected - the catch-up read that
+   * fetches whatever the old socket never pushed.
+   */
+  function redial() {
+    if (closedByUs || !ws) return
+    const old = ws
+    ws = null
+    old.onopen = old.onmessage = old.onclose = old.onerror = null
+    try { old.close() } catch { /* already closing */ }
+    rejectPending()
+    dropped = true
+    connect()
   }
 
   function retry() {
@@ -442,6 +476,44 @@ export function createLiveClient({
       return cursors.get(String(taskId || '')) || ''
     },
     connect,
+    redial,
+    /**
+     * Bug B (t1 #spool-hub-bugs 4ecb4b0d): a hub deploy leaves this socket on
+     * the old Cloud Run revision for up to an hour, still ponging, while every
+     * post stored by the new revision is pushed only to the sockets IT holds.
+     * The reader saw those posts minutes late, at the next drop. So ask which
+     * revision serves new requests and, when it is not the one this socket's
+     * welcome named, re-dial onto it. Resolves true when it re-dialled.
+     */
+    async checkRevision() {
+      const mine = welcome && typeof welcome.revision === 'string' ? welcome.revision : ''
+      if (state !== 'open' || !mine) return false
+      let live = ''
+      try { live = String((await fetchRevision()) || '') } catch { live = '' }
+      if (!live || live === mine || state !== 'open' || welcome.revision !== mine) return false
+      redial()
+      return true
+    },
+    /**
+     * The tab came back (visible / online): a phone that slept, or a laptop
+     * that changed networks, can hold a socket that reads 'open' and is dead.
+     * A parked retry dials now; an open socket must answer a token frame
+     * within probeTimeoutMs or it is re-dialled.
+     */
+    wake() {
+      if (closedByUs) return
+      if (state === 'reconnecting' && retryTimer) {
+        connect()
+        return
+      }
+      if (state !== 'open' || !ws) return
+      const sock = ws
+      const seen = frames
+      raw({ type: FRAMES.token })
+      setTimer(() => {
+        if (ws === sock && frames === seen && state === 'open') redial()
+      }, probeTimeoutMs)
+    },
     close() {
       closedByUs = true
       if (retryTimer) clearTimer(retryTimer)
@@ -544,5 +616,39 @@ export function createLiveClient({
         else queue.push(frame)
       })
     },
+  }
+}
+
+/** How often a tab asks which hub revision is live (bug B). */
+export const REVISION_CHECK_MS = 15000
+
+/**
+ * Bug B: keep one tab's socket on the live hub revision and awake.
+ * Every `everyMs` (a background tab is throttled by the browser to about once
+ * a minute, and catches up at once when shown) and whenever the tab becomes
+ * visible it checks the revision; on visible and on `online` it also wakes
+ * the socket. Returns the function that stops watching.
+ */
+export function watchLive(client, {
+  doc = globalThis.document,
+  win = globalThis.window,
+  everyMs = REVISION_CHECK_MS,
+  setEvery = (fn, ms) => setInterval(fn, ms),
+  clearEvery = (t) => clearInterval(t),
+} = {}) {
+  const check = () => { void client.checkRevision() }
+  const onVisible = () => {
+    if (doc && doc.visibilityState === 'hidden') return
+    client.wake()
+    check()
+  }
+  const onOnline = () => client.wake()
+  const timer = setEvery(check, everyMs)
+  if (doc && doc.addEventListener) doc.addEventListener('visibilitychange', onVisible)
+  if (win && win.addEventListener) win.addEventListener('online', onOnline)
+  return () => {
+    clearEvery(timer)
+    if (doc && doc.removeEventListener) doc.removeEventListener('visibilitychange', onVisible)
+    if (win && win.removeEventListener) win.removeEventListener('online', onOnline)
   }
 }

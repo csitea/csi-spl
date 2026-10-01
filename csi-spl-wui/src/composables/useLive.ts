@@ -1,4 +1,4 @@
-import { cleanAs, createLiveClient, tokenStale, wsUrl } from '~/utils/live-ws.mjs'
+import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
@@ -94,6 +94,13 @@ export function useLive() {
       as: identity.value,
       onState: (s: string) => { state.value = s },
       isSignedOut: async () => (await auth.session()).state === 'out',
+      // bug B (4ecb4b0d): the revision serving NEW requests; the socket's own is in its welcome
+      fetchRevision: async () => {
+        const r = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/wui/revision`, { cache: 'no-store' })
+        if (!r.ok) return ''
+        const j = await r.json() as { revision?: unknown }
+        return typeof j.revision === 'string' ? j.revision : ''
+      },
       // live-ws fires this after the re-subscribes (subscribe first, then read)
       onReconnected: () => {
         for (const fn of reconnectListeners) fn()
@@ -142,6 +149,8 @@ export function useLive() {
       },
     })
     live.connect()
+    // bug B: off a retired hub revision, and awake after the tab sleeps
+    watchLive(live)
     return live
   }
 

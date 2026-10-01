@@ -290,6 +290,12 @@ with tempfile.TemporaryDirectory() as tmp:
         print("FAIL: non-boilerplate heading changed:", mod._heading_of(d2)); ok = False
     else:
         print("PASS: a plain heading is left as is")
+    d3 = Path(tmp) / "052-social-authentication-google-facebook"; d3.mkdir()
+    (d3 / "runbook.md").write_text("# A runbook, not the spec name\n")
+    if mod._heading_of(d3) != "Social authentication google facebook":
+        print("FAIL: no-spec.md fallback heading:", mod._heading_of(d3)); ok = False
+    else:
+        print("PASS: a dir with no spec.md is titled from its name")
 # a spec with 0 parsed rows is not MISSING and not in the create list
 plan = {"specs": [
     {"spec": "002", "dir": "002-empty", "heading": "Empty", "parsed": 0, "t_parsed": 0, "subtasks": 0, "pinned": ""},

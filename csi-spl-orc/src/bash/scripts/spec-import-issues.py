@@ -386,8 +386,14 @@ def _heading_of(directory: Path) -> str:
                 # Drop the git-spec boilerplate so the epic title reads clean:
                 # 'Feature Specification: GCP Bootstrap' -> 'GCP Bootstrap'.
                 head = re.sub(r"^(?:Feature Specification|Feature Spec|Spec|Tasks)\s*:\s*", "", head, flags=re.I)
-                return head or directory.name
-    return directory.name
+                return head or _dir_title(directory.name)
+    return _dir_title(directory.name)
+
+
+def _dir_title(name: str) -> str:
+    """A spec dir with no heading to read: '052-social-login' -> 'Social login'."""
+    words = SPEC_DIR.sub("", name).replace("-", " ").strip()
+    return words[:1].upper() + words[1:] if words else name
 
 
 def _doc_files(directory: Path) -> list:

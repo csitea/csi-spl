@@ -73,17 +73,14 @@ do_check_deploy_lag() {
   [[ -n "$site_fqdn" && "$site_fqdn" != null ]] || { do_log "FATAL cnf env.dns.fqdn is empty for $ENV"; return 1; }
   [[ -n "$sql_src" && "$sql_src" != null ]] || { do_log "FATAL cnf env.hub.image.sql_src is empty for $ENV"; return 1; }
 
-  # What the hub IMAGE is built from -- do_build_push_hub_image's own inputs:
-  # the static binary (build.sh over the Go module), the DDL dir cnf names, the
+  # What the hub IMAGE is built from -- the ONE list, shared with workflow
+  # 20's forward guard (hub-deploy-guard.sh `paths`, CLE-77918): the static
+  # binary (build.sh over the Go module), the DDL dir cnf names, the
   # Dockerfile, and .version (baked in by build.sh). NOT the api test scripts
   # and NOT spool-hub-roles/: neither is copied into the image.
-  local -a hub_paths=(
-    "$SPL_ORG_APP-api/src/go"
-    "$SPL_ORG_APP-api/src/bash/build.sh"
-    "$sql_src"
-    "$SPL_ORG_APP-orc/src/docker/spool-hub-api/Dockerfile"
-    ".version"
-  )
+  local -a hub_paths=()
+  mapfile -t hub_paths < <(APP_PATH="$APP_PATH" HUB_SQL_SRC="$sql_src" bash "$PROJ_PATH/src/bash/scripts/hub-deploy-guard.sh" paths)
+  (( ${#hub_paths[@]} )) || { do_log "FATAL hub-deploy-guard.sh paths printed no hub input"; return 1; }
   # Workflow 30's push allow-list, verbatim: every one of these DOES roll the site.
   local -a wui_paths=(
     "$SPL_ORG_APP-wui"

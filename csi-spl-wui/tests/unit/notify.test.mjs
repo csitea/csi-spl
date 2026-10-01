@@ -522,7 +522,8 @@ describe('bug A: a new message signals', () => {
   })
 
   it('one alert per feed replaces the last (tag), and the store passes the feed key', async () => {
-    assert.deepEqual(notificationOptions('b', true, 'ch:lobby'), { body: 'b', silent: false, tag: 'ch:lobby' })
+    /* HUM-24 (311427c6): renotify, or a same-tag replacement is silent */
+    assert.deepEqual(notificationOptions('b', true, 'ch:lobby'), { body: 'b', silent: false, tag: 'ch:lobby', renotify: true })
     assert.deepEqual(notificationOptions('b', false), { body: 'b', silent: true })
     const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
     assert.match(note, /ping\(copy\.title, copy\.body, key\)/)
@@ -552,5 +553,37 @@ describe('bug A: a new message signals', () => {
     }
     assert.equal(playSound('chirp', Ctx), true)
     assert.equal(resumed, 1)
+  })
+
+  /* HUM-24 (311427c6), third report: the bell read "alerts on" in a browser
+     that was never asked, or that blocks notifications, and nothing said so */
+  it('HUM-24: alertState names why an alert cannot fire', async () => {
+    const { alertState, needsHomeScreen } = await import('../../src/utils/notify.mjs')
+    assert.equal(alertState('granted', true), 'on')
+    assert.equal(alertState('granted', false), 'off')
+    assert.equal(alertState('default', true), 'ask')
+    assert.equal(alertState('denied', true), 'blocked')
+    assert.equal(alertState('denied', false), 'off')
+    assert.equal(alertState('unsupported', true), 'unsupported')
+    const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1'
+    const ipad = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.5 Safari/605.1.15'
+    assert.equal(alertState('unsupported', true, { ua: iphone }), 'install')
+    assert.equal(alertState('unsupported', true, { ua: iphone, standalone: true }), 'unsupported')
+    assert.equal(needsHomeScreen({ ua: ipad, maxTouchPoints: 5 }), true, 'an iPad reports itself as a Mac')
+    assert.equal(needsHomeScreen({ ua: ipad, maxTouchPoints: 0 }), false, 'a real Mac')
+    assert.equal(needsHomeScreen({ ua: 'Mozilla/5.0 (Linux; Android 14) Chrome/129 Mobile' }), false)
+  })
+
+  it('HUM-24: Settings shows the real state, can allow and test, and lists muted channels', () => {
+    const vue = readFileSync(join(WUI, 'src/components/settings/notifications.vue'), 'utf8')
+    for (const id of ['settings-notify-state', 'settings-notify-allow', 'settings-notify-test', 'settings-notify-muted']) {
+      assert.match(vue, new RegExp(`data-test="${id}`), id)
+    }
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /alertState\(permission\.value, alertsEnabled\.value/)
+    /* a permission granted or revoked in the browser's site settings shows without a reload */
+    assert.match(note, /visibilitychange/)
+    /* the bell is on but the browser was never asked: the first click anywhere asks */
+    assert.match(note, /askOnFirstGesture/)
   })
 })

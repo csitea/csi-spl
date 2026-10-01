@@ -6,12 +6,15 @@
       class="icon-btn notify-alerts"
       type="button"
       data-testid="notify-alerts"
-      :class="{ on: alertsWanted }"
+      :class="{ on: alertsWanted, 'notify-alerts--warn': warn }"
+      :data-state="notes.alertStatus"
       :aria-label="alertsLabel"
-      :title="alertsLabel"
+      :title="bellTitle"
       @click="notes.toggleAlerts()"
     >
       <UiIcon class="notify-glyph" :name="alertsWanted ? 'bell' : 'bell-off'" :size="18" />
+      <!-- HUM-24 (311427c6): on, but the browser cannot alert (not asked, blocked, iOS tab) -->
+      <span v-if="warn" class="notify-warn-dot" aria-hidden="true" />
     </button>
     <button
       class="icon-btn notify-chime"
@@ -38,7 +41,10 @@ const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
 const alertsWanted = computed(() => notes.alertsEnabled)
 const chimeLabel = computed(() => (notes.chime ? t('notify.chime_on') : t('notify.chime_off')))
+/* the bell is the reader's switch; the dot says the browser does not follow it */
+const warn = computed(() => ['ask', 'blocked', 'install', 'unsupported'].includes(notes.alertStatus))
 const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
+const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notify.state_${notes.alertStatus}`)}` : alertsLabel.value))
 </script>
 
 <style scoped>
@@ -61,6 +67,16 @@ const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') :
 /* SPL-998: off is drawn exactly like the bell when off (the owner: "the same
    width and color as on the bell"), so there is no chime-only off rule */
 .notify-glyph { display: block; }
+.notify-alerts { position: relative; }
+.notify-warn-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warn);
+}
 
 /* SPL-990: at <= 820 px there is no collapsed rail any more (M1's level 1
    is full width) and the bell + chime live in the avatar sheet, so the

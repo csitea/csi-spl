@@ -156,7 +156,14 @@ export function notificationOptions(body, chime, tag) {
   const o = { body: String(body || ''), silent: !chime }
   /* bug A: one alert per feed, the newest replacing the last, so a busy
      channel does not stack a pile of popups */
-  if (tag) o.tag = String(tag)
+  if (tag) {
+    o.tag = String(tag)
+    /* HUM-24 (311427c6): a same-tag alert REPLACES the last one SILENTLY
+       unless renotify is set, so while the first alert of a feed still sat in
+       the phone's tray (or the desktop's notification centre) every later
+       message of that feed changed it without a popup, sound or vibration */
+    o.renotify = true
+  }
   return o
 }
 
@@ -227,6 +234,39 @@ export function saveAlerts(on, store) {
 /** Browser alerts actually fire: the browser granted them AND the reader wants them. */
 export function alertsActive(permission, enabled) {
   return permission === 'granted' && Boolean(enabled)
+}
+
+/**
+ * HUM-24 (311427c6, third report: "the notification for new messages doesn't
+ * work"): the bell is the reader's switch and defaults ON, so it read "alerts
+ * on" in a browser that had never been asked for permission, or that blocks
+ * it, and nothing told the reader why no alert came. This names the real
+ * state for Settings:
+ *   off         the reader switched alerts off
+ *   on          wanted and allowed: alerts fire
+ *   ask         wanted, the browser has not been asked yet (one click allows)
+ *   blocked     wanted, the browser denies them (only its site settings undo it)
+ *   install     wanted, iPhone / iPad Safari: only a Home Screen app may notify
+ *   unsupported wanted, this browser has no notifications at all
+ */
+export function alertState(permission, enabled, env = {}) {
+  if (!enabled) return 'off'
+  if (permission === 'granted') return 'on'
+  if (permission === 'denied') return 'blocked'
+  if (permission === 'default') return 'ask'
+  return needsHomeScreen(env) ? 'install' : 'unsupported'
+}
+
+/**
+ * iOS / iPadOS Safari exposes notifications only to a web app opened from the
+ * Home Screen (16.4+); in a browser tab `Notification` does not exist. An
+ * iPad reports itself as a Mac, so a Mac with a touch screen counts.
+ * @param {{ ua?: string, maxTouchPoints?: number, standalone?: boolean }} env
+ */
+export function needsHomeScreen(env = {}) {
+  const ua = String(env.ua || '')
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && Number(env.maxTouchPoints) > 1)
+  return ios && !env.standalone
 }
 
 export function previewUnread(n) {

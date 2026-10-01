@@ -766,7 +766,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
-import { loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
+import { MUTED_CHANNELS_KEY, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
 /* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
@@ -1251,7 +1251,13 @@ onMounted(() => {
   if (session.state === 'loading' || session.state === 'unknown') void session.probe()
   mutedChannels.value = loadMutedChannels()
   listHidden.value = loadHiddenPeers()
+  window.addEventListener('storage', onMutedStorage)
 })
+/* HUM-24 (311427c6): an unmute in Settings, or in another tab, shows here at once */
+function onMutedStorage(e: StorageEvent) {
+  if (e.key === MUTED_CHANNELS_KEY || e.key === null) mutedChannels.value = loadMutedChannels()
+}
+onBeforeUnmount(() => window.removeEventListener('storage', onMutedStorage))
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
 const newChannel = ref('')

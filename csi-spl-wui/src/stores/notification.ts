@@ -10,6 +10,7 @@ import {
   loadAlerts,
   saveAlerts,
   alertsActive,
+  alertState,
   previewUnread,
   dmBadgeText,
   dmTotalText,
@@ -62,6 +63,8 @@ export const useNotificationStore = defineStore('notification', () => {
   /** the reader's on/off choice for browser alerts (the bell) */
   const alertsEnabled = ref(true)
   const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
+  /** HUM-24 (311427c6): why an alert can or cannot fire here - on / off / ask / blocked / install / unsupported */
+  const alertStatus = computed(() => alertState(permission.value, alertsEnabled.value, platform()))
   const unread = ref<Record<string, number>>({})
   /** CLE-77845: every message per DM key (`dm:<peer>`), for the "<new>/<total>" rail badge. */
   const dmTotal = ref<Record<string, number>>({})
@@ -90,6 +93,50 @@ export const useNotificationStore = defineStore('notification', () => {
     window.addEventListener('storage', (e) => {
       if (isSoundPrefKey(e.key)) hydrate()
     })
+    /* HUM-24 (311427c6): a permission granted or revoked in the browser's
+       site settings shows when the reader comes back, without a reload */
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) readPermission()
+    })
+    void watchPermission()
+    askOnFirstGesture()
+  }
+
+  function platform() {
+    if (!import.meta.client || typeof navigator === 'undefined') return {}
+    const standalone = Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
+      || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
+    return { ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, standalone }
+  }
+
+  function readPermission() {
+    permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  }
+
+  async function watchPermission() {
+    try {
+      const status = await navigator.permissions?.query({ name: 'notifications' as PermissionName })
+      if (status) status.onchange = () => readPermission()
+    } catch {
+      /* Safari before 16 has no notifications permission query */
+    }
+  }
+
+  /**
+   * HUM-24 (311427c6): the bell defaults ON, but a browser asks for permission
+   * only from a click, so a reader who never touched the bell had "alerts on"
+   * and a browser that was never asked. The first click or key press anywhere
+   * asks, once per page load, while the bell is on and the browser undecided.
+   */
+  function askOnFirstGesture() {
+    const ask = () => {
+      window.removeEventListener('pointerdown', ask, true)
+      window.removeEventListener('keydown', ask, true)
+      readPermission()
+      if (alertsEnabled.value && permission.value === 'default') void requestPush().catch(() => {})
+    }
+    window.addEventListener('pointerdown', ask, true)
+    window.addEventListener('keydown', ask, true)
   }
 
   function hydrate() {
@@ -120,6 +167,25 @@ export const useNotificationStore = defineStore('notification', () => {
   async function requestPush() {
     if (typeof Notification === 'undefined') return
     permission.value = await Notification.requestPermission()
+  }
+
+  /**
+   * HUM-24 (311427c6): Settings' "send a test notification" - the same path a
+   * new message takes (showAlert, the worker fallback on Android), so a reader
+   * can see for themselves whether this browser and the operating system let
+   * an alert through. Asks for permission first when the browser is undecided.
+   * @returns 'shown' | 'failed' | the alertState that stops it
+   */
+  async function testAlert() {
+    if (permission.value === 'default') await requestPush()
+    readPermission()
+    const blocker = alertState(permission.value, true, platform())
+    if (blocker !== 'on') return blocker
+    if (chime.value && import.meta.client) playSound(sound.value)
+    const title = i18n.t('notify.test_title')
+    const body = i18n.t('notify.test_body')
+    const tag = 'spool-test'
+    return (await showAlert(title, notificationOptions(body, chime.value, tag))) ? 'shown' : 'failed'
   }
 
   /* bug A: a burst of replies plays one chime, not one per message */
@@ -293,7 +359,9 @@ export const useNotificationStore = defineStore('notification', () => {
     sound,
     alertsEnabled,
     alertsOn,
+    alertStatus,
     toggleAlerts,
+    testAlert,
     unread,
     mentions,
     boundary,

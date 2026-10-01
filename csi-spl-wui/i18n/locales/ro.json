@@ -1503,5 +1503,15 @@
     "none": "Nu există membri ca care poți acționa",
     "forbidden": "Rolul tău nu permite acțiunea ca acest membru.",
     "load_failed": "Nu s-a putut porni — încearcă din nou."
+  },
+  "open_message": {
+    "title": "Mesaj",
+    "opening": "Se deschide mesajul…",
+    "not_found": "Acest mesaj nu mai există sau nu aveți acces la el.",
+    "deleted": "Acest mesaj a fost șters.",
+    "no_access": "Nu aveți acces la acest mesaj.",
+    "archived": "Acest mesaj este într-un subiect arhivat. Îl găsiți în Arhivă.",
+    "error": "Mesajul nu a putut fi deschis. Încercați din nou.",
+    "home": "La început"
   }
 }

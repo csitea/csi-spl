@@ -870,7 +870,8 @@ const route = useRoute()
 const mobileStack = useMobileStack()
 watch(() => route.path, (path) => {
   rowMenu.value = ''
-  if (holdFlow.value) return
+  /* CLE-77882: a message opened in place keeps the list it was opened from */
+  if (holdFlow.value || useSidePane().listHeld.value) return
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
      keeps the section the reader left from, whatever page sits behind */
   if (mobileStack.isMobile.value && mobileStack.level.value === 1) return

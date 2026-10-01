@@ -1503,5 +1503,15 @@
     "none": "Nav dalībnieku, kā kuriem varētu darboties",
     "forbidden": "Jūsu loma neļauj darboties kā šim dalībniekam.",
     "load_failed": "Neizdevās sākt — mēģiniet vēlreiz."
+  },
+  "open_message": {
+    "title": "Ziņa",
+    "opening": "Atver ziņu…",
+    "not_found": "Šī ziņa vairs nepastāv, vai jums nav tai piekļuves.",
+    "deleted": "Šī ziņa ir izdzēsta.",
+    "no_access": "Jums nav piekļuves šai ziņai.",
+    "archived": "Šī ziņa ir arhivētā tēmā. Atrodiet to arhīvā.",
+    "error": "Ziņu neizdevās atvērt. Mēģiniet vēlreiz.",
+    "home": "Uz sākumu"
   }
 }

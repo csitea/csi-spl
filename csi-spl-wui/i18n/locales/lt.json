@@ -1503,5 +1503,15 @@
     "none": "Nėra narių, kaip kurie galėtumėte veikti",
     "forbidden": "Jūsų vaidmuo neleidžia veikti kaip šis narys.",
     "load_failed": "Nepavyko pradėti — bandykite dar kartą."
+  },
+  "open_message": {
+    "title": "Žinutė",
+    "opening": "Atidaroma žinutė…",
+    "not_found": "Šios žinutės nebėra arba neturite prieigos prie jos.",
+    "deleted": "Ši žinutė ištrinta.",
+    "no_access": "Neturite prieigos prie šios žinutės.",
+    "archived": "Ši žinutė yra archyvuotoje temoje. Raskite ją archyve.",
+    "error": "Nepavyko atidaryti žinutės. Bandykite dar kartą.",
+    "home": "Į pradžią"
   }
 }

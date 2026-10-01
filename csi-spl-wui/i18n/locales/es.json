@@ -1503,5 +1503,15 @@
     "none": "No hay miembros como los que puedas actuar",
     "forbidden": "Tu rol no permite actuar como este miembro.",
     "load_failed": "No se pudo iniciar; inténtalo de nuevo."
+  },
+  "open_message": {
+    "title": "Mensaje",
+    "opening": "Abriendo el mensaje…",
+    "not_found": "Este mensaje ya no existe o no tienes acceso a él.",
+    "deleted": "Este mensaje se eliminó.",
+    "no_access": "No tienes acceso a este mensaje.",
+    "archived": "Este mensaje está en un tema archivado. Búscalo en Archivo.",
+    "error": "No se pudo abrir el mensaje. Inténtalo de nuevo.",
+    "home": "Ir al inicio"
   }
 }

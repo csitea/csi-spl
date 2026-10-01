@@ -1503,5 +1503,15 @@
     "none": "No members you can act as",
     "forbidden": "Your role does not allow acting as this member.",
     "load_failed": "Could not start — please try again."
+  },
+  "open_message": {
+    "title": "Message",
+    "opening": "Opening the message…",
+    "not_found": "This message no longer exists, or you do not have access to it.",
+    "deleted": "This message was deleted.",
+    "no_access": "You do not have access to this message.",
+    "archived": "This message is in an archived topic. Find it under Archive.",
+    "error": "The message could not be opened. Try again.",
+    "home": "Go to the start"
   }
 }

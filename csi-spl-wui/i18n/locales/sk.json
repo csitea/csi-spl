@@ -1503,5 +1503,15 @@
     "none": "Žiadni členovia, ako ktorí môžete konať",
     "forbidden": "Vaša rola neumožňuje konať ako tento člen.",
     "load_failed": "Nepodarilo sa spustiť — skúste znova."
+  },
+  "open_message": {
+    "title": "Správa",
+    "opening": "Otvára sa správa…",
+    "not_found": "Táto správa už neexistuje alebo k nej nemáte prístup.",
+    "deleted": "Táto správa bola odstránená.",
+    "no_access": "K tejto správe nemáte prístup.",
+    "archived": "Táto správa je v archivovanej téme. Nájdete ju v Archíve.",
+    "error": "Správu sa nepodarilo otvoriť. Skúste to znova.",
+    "home": "Na začiatok"
   }
 }

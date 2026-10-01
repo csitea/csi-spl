@@ -1503,5 +1503,15 @@
     "none": "Ei jäseniä, joina voit toimia",
     "forbidden": "Roolisi ei salli toimimista tämän jäsenen roolissa.",
     "load_failed": "Aloitus ei onnistunut — yritä uudelleen."
+  },
+  "open_message": {
+    "title": "Viesti",
+    "opening": "Avataan viestiä…",
+    "not_found": "Tätä viestiä ei enää ole, tai sinulla ei ole siihen pääsyä.",
+    "deleted": "Tämä viesti on poistettu.",
+    "no_access": "Sinulla ei ole pääsyä tähän viestiin.",
+    "archived": "Tämä viesti on arkistoidussa aiheessa. Löydät sen arkistosta.",
+    "error": "Viestiä ei voitu avata. Yritä uudelleen.",
+    "home": "Alkuun"
   }
 }

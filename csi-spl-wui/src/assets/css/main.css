@@ -1066,6 +1066,7 @@ html.pane-dragging * {
 .composer.omnibox--global .code-hint:empty { display: none; }
 .composer.omnibox--global .code-hint, .composer.omnibox--global .file-chips { flex-basis: 100%; }
 /* the search hit the pane scrolled to: the focus ring, held for a moment */
+.msg.open-focus,
 .msg.search-focus { outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: var(--focus-offset); box-shadow: var(--focus-3d); }
 
 /* ---- keyboard focus and selection, in ONE place ----------------

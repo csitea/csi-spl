@@ -1503,5 +1503,15 @@
     "none": "Hareket edebileceğiniz üye yok",
     "forbidden": "Rolünüz bu üye olarak hareket etmenize izin vermiyor.",
     "load_failed": "Başlatılamadı — tekrar deneyin."
+  },
+  "open_message": {
+    "title": "Mesaj",
+    "opening": "Mesaj açılıyor…",
+    "not_found": "Bu mesaj artık yok veya ona erişiminiz yok.",
+    "deleted": "Bu mesaj silindi.",
+    "no_access": "Bu mesaja erişiminiz yok.",
+    "archived": "Bu mesaj arşivlenmiş bir konuda. Arşiv altında bulabilirsiniz.",
+    "error": "Mesaj açılamadı. Tekrar deneyin.",
+    "home": "Başa dön"
   }
 }

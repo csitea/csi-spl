@@ -1441,7 +1441,10 @@ export function createSpoolClient({
       if (mock) {
         const row = state.messages.find((m) => m.msg_id === id)
         if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
-        return { msg_id: id, task_id: row.task_id, channel: row.channel || null, is_card: row.is_parent !== 0, can_move: row.from === state.me.id }
+        /* parent_task_id: mock only. The hub reads a topic by task_id, so a
+           reply is found in getTopic(task_id); the mock reads it by
+           parent_task_id || task_id and loses it (open-message.mjs). */
+        return { msg_id: id, task_id: row.task_id, parent_task_id: row.parent_task_id || undefined, channel: row.channel || null, is_card: row.is_parent !== 0, can_move: row.from === state.me.id }
       }
       return live(`/v1/view/messages/${encodeURIComponent(id)}/move`)
     },

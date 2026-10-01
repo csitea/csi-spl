@@ -1174,6 +1174,21 @@ declare module '~/utils/search-original.mjs' {
   export function markHit(msgId: string, opts?: { tries?: number, every?: number, hold?: number }): void
 }
 
+declare module '~/utils/open-message.mjs' {
+  export type OpenMessageReason = 'not_found' | 'deleted' | 'no_access' | 'archived' | 'error'
+  export type OpenMessageResult = { ok: true, kind: string, msgId: string } | { ok: false, reason: OpenMessageReason, msgId: string }
+  export const OPEN_FOCUS_MS: number
+  export const OPEN_FOCUS_CLASSES: string[]
+  export function isMessageId(id: unknown): boolean
+  export function messageHref(msgId: string, pathFor?: (path: string) => string): string
+  export function failureReason(err: unknown): 'not_found' | 'no_access' | 'error'
+  export function rowReason(row: unknown): '' | 'deleted' | 'archived'
+  export function resolveMessage(msgId: string, api: unknown, opts?: { limit?: number }): Promise<{ row: Record<string, any> } | { reason: OpenMessageReason }>
+  export function placeKind(row: unknown, self?: string): string
+  export function markOpened(msgId: string, opts?: { tries?: number, every?: number, hold?: number, doc?: Document }): void
+  export function openMessage(ref: string | Record<string, any>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean }): Promise<OpenMessageResult>
+}
+
 declare module '~/utils/slash-focus.mjs' {
   export const MOBILE_MAX: number
   export function isTypingTarget(el: EventTarget | null | undefined): boolean

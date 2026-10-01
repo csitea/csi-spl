@@ -1503,5 +1503,15 @@
     "none": "Brak członków, jako którzy możesz działać",
     "forbidden": "Twoja rola nie pozwala działać jako ten członek.",
     "load_failed": "Nie udało się rozpocząć — spróbuj ponownie."
+  },
+  "open_message": {
+    "title": "Wiadomość",
+    "opening": "Otwieranie wiadomości…",
+    "not_found": "Ta wiadomość już nie istnieje lub nie masz do niej dostępu.",
+    "deleted": "Ta wiadomość została usunięta.",
+    "no_access": "Nie masz dostępu do tej wiadomości.",
+    "archived": "Ta wiadomość jest w zarchiwizowanym temacie. Znajdziesz ją w Archiwum.",
+    "error": "Nie udało się otworzyć wiadomości. Spróbuj ponownie.",
+    "home": "Na początek"
   }
 }

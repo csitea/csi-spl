@@ -1503,5 +1503,15 @@
     "none": "Inga medlemmar du kan agera som",
     "forbidden": "Din roll tillåter inte att agera som den här medlemmen.",
     "load_failed": "Det gick inte att starta — försök igen."
+  },
+  "open_message": {
+    "title": "Meddelande",
+    "opening": "Öppnar meddelandet…",
+    "not_found": "Det här meddelandet finns inte längre, eller så har du inte åtkomst till det.",
+    "deleted": "Det här meddelandet har tagits bort.",
+    "no_access": "Du har inte åtkomst till det här meddelandet.",
+    "archived": "Det här meddelandet finns i ett arkiverat ämne. Du hittar det under Arkiv.",
+    "error": "Meddelandet kunde inte öppnas. Försök igen.",
+    "home": "Till början"
   }
 }

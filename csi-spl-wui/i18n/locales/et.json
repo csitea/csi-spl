@@ -1503,5 +1503,15 @@
     "none": "Pole liikmeid, kellena saaksite tegutseda",
     "forbidden": "Teie roll ei luba selle liikmena tegutseda.",
     "load_failed": "Ei õnnestunud alustada — proovige uuesti."
+  },
+  "open_message": {
+    "title": "Sõnum",
+    "opening": "Sõnumi avamine…",
+    "not_found": "Seda sõnumit enam ei ole või sul pole sellele juurdepääsu.",
+    "deleted": "See sõnum on kustutatud.",
+    "no_access": "Sul pole sellele sõnumile juurdepääsu.",
+    "archived": "See sõnum on arhiveeritud teemas. Leiad selle arhiivist.",
+    "error": "Sõnumit ei õnnestunud avada. Proovi uuesti.",
+    "home": "Algusesse"
   }
 }

@@ -120,6 +120,10 @@
     <ClientOnly>
       <MergeConfirmDialog v-if="move.mergeAsk.value" />
     </ClientOnly>
+    <!-- CLE-77882: "This message is gone or not yours to see" after an open-in-place; eager (CLE-77840) -->
+    <ClientOnly>
+      <OpenMessageToast v-if="openNotice.notice.value" />
+    </ClientOnly>
     <ClientOnly>
       <DebugPanel v-if="debugAllowed" />
     </ClientOnly>
@@ -158,6 +162,7 @@ import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
+import { useOpenMessageNotice } from '~/composables/useOpenMessage'
 
 const topic = useTopicStore()
 /* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
@@ -203,6 +208,7 @@ const move = useMove()
 const archiveUndo = useArchiveUndo()
 const deleteUndo = useDeleteUndo()
 const mentionDirect = useMentionDirectNote()
+const openNotice = useOpenMessageNotice()
 let offDeleted = () => {}
 let offTopic = () => {}
 /* SPL-996: a focusin chooses a pane only right after the reader's own

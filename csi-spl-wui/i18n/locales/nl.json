@@ -1503,5 +1503,15 @@
     "none": "Geen leden waarvoor je kunt handelen",
     "forbidden": "Je rol staat niet toe om als dit lid te handelen.",
     "load_failed": "Kon niet starten — probeer het opnieuw."
+  },
+  "open_message": {
+    "title": "Bericht",
+    "opening": "Bericht wordt geopend…",
+    "not_found": "Dit bericht bestaat niet meer, of je hebt er geen toegang toe.",
+    "deleted": "Dit bericht is verwijderd.",
+    "no_access": "Je hebt geen toegang tot dit bericht.",
+    "archived": "Dit bericht staat in een gearchiveerd onderwerp. Je vindt het onder Archief.",
+    "error": "Het bericht kon niet worden geopend. Probeer het opnieuw.",
+    "home": "Naar het begin"
   }
 }

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
   avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
-  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, AVATAR_MISS_KEY, loadAvatarFiles, resetAvatarFiles, robotSvg,
+  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, AVATAR_MISS_KEY, loadAvatarFiles, loadHumanNames, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
@@ -149,6 +149,35 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     resetAvatarFiles()
   })
 
+  it('owner 177db6cf: a failed re-read keeps the pictures and names of the last read that answered', async () => {
+    resetAvatarFiles()
+    const roster = { humans: [{ human_id: 'HUM-3', avatar_file_id: FID, display_name: 'FirstName LastName' }] }
+    let answer = 'ok'
+    const fetchFn = async () => {
+      if (answer === 'ok') return { ok: true, json: async () => roster }
+      if (answer === '503') return { ok: false, status: 503 }
+      throw new Error('dropped')
+    }
+    let t = 1000
+    const o = { base: 'http://t1.test', fetchFn, now: () => t }
+    assert.deepEqual(await loadAvatarFiles(o), { 'HUM-3': FID })
+    for (const fail of ['503', 'throw']) {
+      answer = fail
+      t += 60_001
+      assert.deepEqual(await loadAvatarFiles(o), { 'HUM-3': FID }, `${fail}: the pictures stay`)
+      assert.deepEqual(await loadHumanNames(o), { 'HUM-3': 'FirstName LastName' }, `${fail}: the names stay`)
+    }
+    // a read that answers still replaces them (a removed picture goes)
+    answer = 'ok'
+    roster.humans[0].avatar_file_id = null
+    t += 60_001
+    assert.deepEqual(await loadAvatarFiles(o), {})
+    // another tenant host never borrows this one's pictures
+    answer = '503'
+    assert.deepEqual(await loadAvatarFiles({ ...o, base: 'http://t2.test' }), {})
+    resetAvatarFiles()
+  })
+
   it('recognises png / jpeg / gif / webp by magic bytes, nothing else', () => {
     assert.equal(avatarImageMime(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10])), 'image/png')
     assert.equal(avatarImageMime(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg')
@@ -211,6 +240,31 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     const u5 = 'http://api.test/api/v1/auth/avatar?at=5'
     assert.equal(await loadAvatarImageUrl(u5, { fetchFn, missStore }), '')
     assert.equal(mem.get(AVATAR_MISS_KEY), u)
+    resetAvatarFiles()
+  })
+
+  it('owner 177db6cf: a picture that failed on a 5xx / network error is asked again by the next avatar, not kept as the default', async () => {
+    resetAvatarFiles()
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])
+    const want = `data:image/png;base64,${Buffer.from(PNG).toString('base64')}`
+    for (const fail of [async () => ({ ok: false, status: 503 }), async () => { throw new Error('dropped') }, () => { throw new Error('sync') }]) {
+      let calls = 0
+      let down = true
+      const fetchFn = (...a) => { calls++; return down ? fail(...a) : { ok: true, status: 200, arrayBuffer: async () => new Uint8Array(PNG).buffer } }
+      const u = `http://t1.test/v1/files/${FID}?${calls}${Math.random()}`
+      assert.equal(await loadAvatarImageUrl(u, { fetchFn }), '')
+      down = false
+      assert.equal(await loadAvatarImageUrl(u, { fetchFn }), want)
+      assert.equal(await loadAvatarImageUrl(u, { fetchFn }), want)
+      assert.equal(calls, 2, 'asked again once, then kept')
+    }
+    // a 404 stays final for the page: no second request
+    let calls = 0
+    const u404 = `http://t1.test/v1/files/${FID}?404`
+    const f404 = async () => { calls++; return { ok: false, status: 404 } }
+    assert.equal(await loadAvatarImageUrl(u404, { fetchFn: f404 }), '')
+    assert.equal(await loadAvatarImageUrl(u404, { fetchFn: f404 }), '')
+    assert.equal(calls, 1)
     resetAvatarFiles()
   })
 

@@ -182,10 +182,19 @@ export function avatarAltKey(id, box) {
 
 export const AVATAR_FILES_TTL_MS = 60_000
 const avatarLoads = new Map()
+/* The last roster read that ANSWERED, per (base, token). A later read that
+   fails resolves this, not {}: every avatar re-reads the roster once the TTL
+   is out, and an answer of {} replaced the page's whole picture and name map,
+   so one transient 401 / 5xx / dropped request (a hub rollout) put every
+   stored picture back to its identicon and every name back to its id until
+   the next good read - "the avatars disappear from time to time" (owner,
+   prd t1 432769d8 + 177db6cf, 2026-09-26). */
+const rosterLastGood = new Map()
 
 /**
  * One roster read per (base, token) per TTL, shared by every avatar on the
- * page. Resolves {} on any failure (the default is drawn), never rejects.
+ * page. Never rejects: a failed read resolves the last read that answered
+ * for this (base, token), or {} before any did (the default is drawn).
  * `read` (the spool client's rosterView) replaces the raw fetch: the read
  * then joins the roster store's identical one in flight instead of being a
  * second request.
@@ -207,8 +216,14 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
       return null
     }
   })()
-  const promise = json.then(avatarFilesFromView)
-  const names = json.then(humanNamesFromView)
+  const read1 = json.then((data) => {
+    if (data === null) return rosterLastGood.get(key) || { files: {}, names: {} }
+    const got = { files: avatarFilesFromView(data), names: humanNamesFromView(data) }
+    rosterLastGood.set(key, got)
+    return got
+  })
+  const promise = read1.then((r) => r.files)
+  const names = read1.then((r) => r.names)
   const entry = { at: now(), promise, names }
   avatarLoads.set(key, entry)
   /* A failed read is not kept: the first one runs on the login page, before
@@ -270,7 +285,8 @@ export function bytesToDataUri(bytes, type) {
  * and connect-src admits the hub, so the bytes are fetched with the caller's
  * credentials (017 FR-SEC-002: /v1/files needs the member session;
  * /api/v1/auth/avatar the session cookie) and only an image by its magic
- * bytes is shown. One fetch per URL for the page's lifetime.
+ * bytes is shown. One fetch per URL for the page's lifetime, except after a
+ * network error or a 5xx, which the next mount asks again.
  *
  * `missStore` (a Storage) also remembers a 404 across reloads, for ONE url:
  * the own-picture route answers 404 to a member with no stored picture on
@@ -284,21 +300,30 @@ export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = global
   if (avatarImages.has(url)) return avatarImages.get(url)
   const readMiss = () => { try { return missStore ? missStore.getItem(AVATAR_MISS_KEY) : null } catch { return null } }
   if (readMiss() === url) return Promise.resolve('')
+  /* A 404 or a non-image answer is final for the page; a network error or a
+     5xx is not kept, so the next avatar that mounts asks again instead of
+     showing the default until a reload. */
+  let transient = false
   const promise = (async () => {
     try {
       const res = await fetchFn(url, { credentials })
       if (res && res.status === 404 && missStore) {
         try { missStore.setItem(AVATAR_MISS_KEY, url) } catch { /* storage full or blocked */ }
       }
-      if (!res || !res.ok) return ''
+      if (!res || !res.ok) {
+        transient = !res || res.status !== 404
+        return ''
+      }
       const bytes = new Uint8Array(await res.arrayBuffer())
       const type = avatarImageMime(bytes)
       return type ? bytesToDataUri(bytes, type) : ''
     } catch {
+      transient = true
       return ''
     }
   })()
   avatarImages.set(url, promise)
+  promise.then(() => { if (transient && avatarImages.get(url) === promise) avatarImages.delete(url) })
   return promise
 }
 
@@ -311,4 +336,5 @@ export function forgetRosterRead() {
 export function resetAvatarFiles() {
   avatarLoads.clear()
   avatarImages.clear()
+  rosterLastGood.clear()
 }

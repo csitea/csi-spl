@@ -17,13 +17,19 @@
 # @param ROUTE_SINCE (optional) - an RFC 3339 UTC start instead (e.g. 2026-09-27T21:00:00Z); ROUTE_HOURS then sets the window's length
 # @param ROUTE_TOP (optional) - rows printed, default 30
 # @param ROUTE_LIMIT (optional) - log entries read at most, default 50000
+# @param ROUTE_QUERY (optional) - 1 splits each route by its query shape: the
+# @param   parameter names with their short values (ids folded, a long value
+# @param   reads {v}), e.g. ?dm=true&limit=50&per_topic=50 (CLE-77914); default 0
 # @example ENV=prd ./run -a do_spl_hub_route_latency
 # @example ENV=prd ROUTE_SINCE=2026-09-27T21:00:00Z ROUTE_HOURS=2 ./run -a do_spl_hub_route_latency
+# @example ENV=prd ROUTE_QUERY=1 ROUTE_HOURS=3 ./run -a do_spl_hub_route_latency
 #------------------------------------------------------------------------------
 do_spl_hub_route_latency() {
   do_require_bin gcloud python3 yq || return 1
   local hours="${ROUTE_HOURS:-6}" top="${ROUTE_TOP:-30}" limit="${ROUTE_LIMIT:-50000}" since="${ROUTE_SINCE:-}"
+  local query="${ROUTE_QUERY:-0}"
   spl_hub_route_latency_check_args "$hours" "$top" "$limit" "$since" || return 1
+  [[ "$query" == 0 || "$query" == 1 ]] || { do_log "FATAL ROUTE_QUERY must be 0 or 1, got '$query'"; return 1; }
   do_spl_cloud_cnf || return 1
   local svc
   svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
@@ -42,7 +48,7 @@ do_spl_hub_route_latency() {
     "$ENV" "$SPL_PROJECT" "$svc" "$hours" "$since" "$until"
   gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$svc\" AND httpRequest.requestUrl:\"/\" AND timestamp>=\"$since\" AND timestamp<\"$until\"" \
     --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --limit="$limit" --format=json |
-    spl_hub_route_latency_table "$top"
+    spl_hub_route_latency_table "$top" "$query"
 }
 
 # spl_hub_route_latency_check_args <hours> <top> <limit> <since> -> 0 when sane.
@@ -56,13 +62,16 @@ spl_hub_route_latency_check_args() {
     { do_log "FATAL ROUTE_SINCE must be RFC 3339 UTC (YYYY-MM-DDThh:mm:ssZ), got '$4'"; return 1; }
 }
 
-# spl_hub_route_latency_table <top> -> a `gcloud logging read --format=json`
-# array on stdin, printed as one row per (method, folded route).
+# spl_hub_route_latency_table <top> [query 0|1] -> a `gcloud logging read
+# --format=json` array on stdin, printed as one row per (method, folded
+# route), or per (method, folded route + query shape) when query is 1.
 spl_hub_route_latency_table() {
   python3 -c '
 import json, re, sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl
 top = int(sys.argv[1])
+by_query = len(sys.argv) > 2 and sys.argv[2] == "1"
+W = 78 if by_query else 46
 try:
     entries = json.load(sys.stdin)
 except Exception as e:
@@ -81,9 +90,15 @@ for e in entries:
     url, lat = h.get("requestUrl"), h.get("latency")
     if not url or not lat:
         continue
-    path = urlparse(url).path
+    u = urlparse(url)
+    path = u.path
     for rx, to in FOLD:
         path = rx.sub(to, path)
+    if by_query and u.query:
+        def fold(v):
+            v = FOLD[0][0].sub("{id}", v)
+            return v if len(v) <= 16 else "{v}"
+        path += "?" + "&".join("%s=%s" % (k, fold(v)) for k, v in sorted(parse_qsl(u.query, keep_blank_values=True)))
     r = rows.setdefault((h.get("requestMethod", "?"), path), {"ms": [], "kb": [], "4xx": 0, "5xx": 0})
     r["ms"].append(float(lat.rstrip("s")) * 1000.0)
     if int(h.get("status", 0) or 0) == 200:
@@ -100,11 +115,11 @@ def pct(a, q):
     a = sorted(a)
     return a[min(len(a) - 1, int(round(q * (len(a) - 1))))]
 print("entries=%d routes=%d first=%s last=%s revisions=%s" % (len(entries), len(rows), t0, t1, ",".join(sorted(revs))))
-hdr = "%6s %-7s %-46s %8s %8s %8s %5s %5s %8s %8s" % ("n", "method", "route", "p50_ms", "p95_ms", "max_ms", "4xx", "5xx", "p50_kb", "p95_kb")
+hdr = "%6s %-7s %-*s %8s %8s %8s %5s %5s %8s %8s" % ("n", "method", W, "route", "p50_ms", "p95_ms", "max_ms", "4xx", "5xx", "p50_kb", "p95_kb")
 def line(k, r):
     m = r["ms"]
-    return "%6d %-7s %-46s %8.1f %8.1f %8.0f %5d %5d %8.1f %8.1f" % (len(m), k[0][:7], k[1][:46], pct(m, .5), pct(m, .95), max(m), r["4xx"], r["5xx"], pct(r["kb"], .5), pct(r["kb"], .95))
-ws = {k: r for k, r in rows.items() if k[1].endswith("/ws")}
+    return "%6d %-7s %-*s %8.1f %8.1f %8.0f %5d %5d %8.1f %8.1f" % (len(m), k[0][:7], W, k[1][:W], pct(m, .5), pct(m, .95), max(m), r["4xx"], r["5xx"], pct(r["kb"], .5), pct(r["kb"], .95))
+ws = {k: r for k, r in rows.items() if k[1].split("?")[0].endswith("/ws")}
 rest = sorted(((k, r) for k, r in rows.items() if k not in ws), key=lambda kr: -sum(kr[1]["ms"]))
 print(); print("--- routes by total server time (top %d)" % top); print(hdr)
 for k, r in rest[:top]:
@@ -113,5 +128,5 @@ if ws:
     print(); print("--- websockets (latency = the socket life; 4xx = refused upgrades)"); print(hdr)
     for k, r in sorted(ws.items()):
         print(line(k, r))
-' "$1"
+' "$1" "${2:-0}"
 }

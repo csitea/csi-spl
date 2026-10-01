@@ -75,6 +75,20 @@ ws_line=$(grep -n 'websockets' <<<"$out" | cut -d: -f1); ws_row=$(grep -n '/v1/w
 [[ -n "$ws_line" && -n "$ws_row" && $ws_row -gt $ws_line ]] && awk '/\/v1\/wui\/ws/{exit !($1==2 && $7==1)}' <<<"$out" &&
   pass "websockets are listed apart, the refused upgrade is a 4xx" || fail "ws section: $out"
 grep -q 'revisions=rev-1' <<<"$out" && pass "the revisions in the window are named" || fail "revisions: $out"
+# --- 4. ROUTE_QUERY=1 splits a route by its query shape (CLE-77914) ------------------
+qtable() { SNIPPET='spl_hub_route_latency_table 10 1' in_orc <<<"$1" 2>&1; }
+QBODY="[$(e GET '/v1/view/topics?limit=50&dm=true&per_topic=50' 9.000 200 2048 1),
+$(e GET '/v1/view/topics?per_topic=50&limit=50&dm=true' 30.000 503 10 2),
+$(e GET '/v1/view/topics?limit=40&per_topic=3' 0.100 200 2048 3),
+$(e GET '/v1/view/topics?channel=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&cursor=eyJhbGciOiJub25lIn0xyz' 0.050 200 1024 4)]"
+qout=$(qtable "$QBODY")
+grep -qE '^ +2 GET +/v1/view/topics\?dm=true&limit=50&per_topic=50 ' <<<"$qout" && awk '/dm=true/{exit !($7==0 && $8==1)}' <<<"$qout" &&
+  pass "query mode: parameter order folds into one shape, its 5xx counted" || fail "query shape: $qout"
+grep -qE '^ +1 GET +/v1/view/topics\?limit=40&per_topic=3 ' <<<"$qout" && pass "query mode: another shape is its own row" || fail "second shape: $qout"
+grep -qE 'channel=\{id\}&cursor=\{v\}' <<<"$qout" && pass "query mode: ids fold, long values read {v}" || fail "fold: $qout"
+grep -q '?' <<<"$(table "$QBODY" | grep view/topics)" && fail "default mode kept a query: $(table "$QBODY")" || pass "default mode: one row per path, no query"
+SNIPPET=do_spl_hub_route_latency in_orc ROUTE_QUERY=2 >"$T/o" 2>&1 && fail "ROUTE_QUERY=2: ran" || pass "ROUTE_QUERY=2: refused"
+
 grep -q 'no request log entries' <<<"$(table '[]')" && pass "empty window said plainly" || fail "empty window"
 grep -q 'no data' <<<"$(table 'not json')" && pass "non-JSON body said plainly" || fail "non-JSON"
 

@@ -38,6 +38,10 @@
 # @param   root keys, needed only for a desk box that is not pinned yet
 # @param DISPATCH_LEGACY_REGISTRY (optional) - a second registry.tsv to carry the rows
 # @param DISPATCH_SUBSCRIBE (optional) - 0 skips step 10 (no hub DB read or write)
+# @param DISPATCH_FLEET (optional) - fleet mode (CLE-77911): the fleet's name; with it lease.conf also gets
+# @param   LEASE_FLEET / LEASE_MACHINE (DISPATCH_MACHINE, default $SPOOL_BOX_TAG) / LEASE_PRIORITY
+# @param   (DISPATCH_PRIORITY, e.g. pc,sat) / LEASE_ENV ($ENV) / LEASE_TENANT (DISPATCH_LEASE_TENANT).
+# @param   Unset, the fleet lines already in lease.conf are KEPT: a re-run never silently leaves fleet mode
 # @param DISPATCH_SWEEP (optional) - 0 skips step 11 (the sweep cron)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -69,6 +73,14 @@ spl_dispatch_setup_steps() {
   # 2. lease.conf
   local conf
   conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
+  if [[ -n "${DISPATCH_FLEET:-}" ]]; then
+    conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_MACHINE=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s' \
+      "$DISPATCH_FLEET" "${DISPATCH_MACHINE:-${SPOOL_BOX_TAG:-}}" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}")"
+  elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
+    # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
+    # this machine act beside the fleet's holder
+    conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
+  fi
   if [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
     spl_dispatch_ok lease-conf "$LEASE_CONF"
   else

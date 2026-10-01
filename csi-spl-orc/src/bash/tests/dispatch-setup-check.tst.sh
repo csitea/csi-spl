@@ -94,6 +94,15 @@ setup >"$T/o" 2>&1
 grep -v '^PLAN lease-loops' "$T/o" | grep -q '^PLAN' &&
   fail "2. a complete box still plans: $(grep '^PLAN' "$T/o")" || pass "2. a re-run on a complete box plans nothing but the ensure"
 grep -q '^RELAUNCH' "$T/o" && fail "2. RELAUNCH on older settings" || pass "2. settings older than the session: no RELAUNCH"
+# fleet mode (CLE-77911): DISPATCH_FLEET writes the fleet lines; a re-run without it keeps them
+setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_FLEET=main DISPATCH_MACHINE=pc DISPATCH_PRIORITY=pc,sat DISPATCH_LEASE_TENANT=w1 >"$T/o" 2>&1
+grep -qx 'LEASE_PRIORITY=pc,sat' "$S/dispatch/lease.conf" && grep -qx 'LEASE_TENANT=w1' "$S/dispatch/lease.conf" &&
+  pass "2. DISPATCH_FLEET writes the fleet lines into lease.conf" || fail "2. fleet conf: $(cat "$S/dispatch/lease.conf")"
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
+grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" && grep -qx 'LEASE_MASTER=CLE-002' "$S/dispatch/lease.conf" &&
+  pass "2. a re-run without DISPATCH_FLEET keeps fleet mode (never leaves it silently)" || fail "2. fleet dropped: $(cat "$S/dispatch/lease.conf")"
+# back to the local-only conf the rest of this file checks
+grep -vE '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
 
 # --- 3. settings newer than the session ----------------------------------------------
 touch "$R-wt/CLE-003/.claude/settings.local.json"

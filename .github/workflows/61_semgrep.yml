@@ -3,13 +3,14 @@
 # fails the action. The gate uses the p/golang + p/javascript + p/owasp-top-ten
 # rulesets against .semgrep-baseline.txt so only NEW findings redden trunk.
 #
-# Heavy tool: schedule + workflow_dispatch + path-scoped push (Go + WUI src).
+# Heavy tool: workflow_dispatch + path-scoped push (Go + WUI src).
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "61 sec: semgrep (SAST)"
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "47 3 * * 1"
   push:
     branches: [master]
     paths:

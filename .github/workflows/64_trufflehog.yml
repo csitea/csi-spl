@@ -4,15 +4,17 @@
 # detection over the working tree. The tool is installed in the job and verified
 # against a pinned sha256; a missing tool fails the action.
 #
-# Daily schedule + workflow_dispatch + push (sampled by the ref concurrency
+# workflow_dispatch + push on EVERY path, since a secret can land in any file
+# (sampled by the ref concurrency
 # group). --only-verified reaches provider APIs to confirm a secret is live, so
 # it is kept to a bounded working-tree scan, not every-push full history.
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "64 sec: trufflehog (verified secrets)"
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "41 3 * * *"
   push:
     branches: [master]
 

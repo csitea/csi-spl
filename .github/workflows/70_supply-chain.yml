@@ -7,6 +7,9 @@
 #   osv   osv-scanner over the Go + WUI lockfiles (dependency-level known vulns,
 #         no reachability pruning; a second source beside govulncheck + pnpm
 #         audit in 15). Findings triaged in osv-scanner.toml (#15 / T015).
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "70 sec: supply chain (trivy IaC + OSV)"
 
 on:
@@ -21,8 +24,6 @@ on:
       - 'csi-spl-api/src/go/spool-hub-api/go.sum'
       - 'csi-spl-wui/pnpm-lock.yaml'
       - '.github/workflows/70_supply-chain.yml'
-  schedule:
-    - cron: '23 3 * * *'
 
 permissions:
   contents: read

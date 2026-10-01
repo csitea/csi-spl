@@ -6,14 +6,15 @@
 # Trigger is path-scoped: on master it runs only when a Dockerfile, the config,
 # the action or this file changes. The fleet pushes to master ~10x/hour and a
 # ref-scoped concurrency group cancels every pending run but the newest, so an
-# unfiltered push trigger would almost never actually execute. A weekly schedule
-# catches drift; workflow_dispatch runs it on demand.
+# unfiltered push trigger would almost never actually execute. workflow_dispatch
+# runs it on demand.
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "66 sec: hadolint (Dockerfiles)"
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "17 4 * * 1"
   push:
     branches: [master]
     paths:

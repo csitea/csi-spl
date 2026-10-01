@@ -3,6 +3,9 @@
 # a pinned sha256; a missing tool fails the action -- nothing here skips.
 # actionlint catches broken/insecure workflow YAML: undefined job needs, bad
 # expressions, shellcheck issues in run: scripts, invalid glob/cron, etc.
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "85 sec: actionlint (workflows)"
 
 on:
@@ -11,8 +14,10 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/**'
-  schedule:
-    - cron: '29 3 * * *'
+      - '.github/actionlint.yaml'
+      - '.github/actionlint.yml'
+      - 'csi-spl-iac/src/bash/run/sec-actionlint.func.sh'
+      - 'csi-spl-iac/src/bash/tests/sec-actionlint.tst.sh'
 
 permissions:
   contents: read

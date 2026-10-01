@@ -5,13 +5,14 @@
 #
 # Path-scoped push: on master it runs only when a shell script, the action or
 # this file changes (the fleet pushes ~10x/hour and a ref-scoped concurrency
-# group cancels every pending run but the newest). Weekly schedule + dispatch.
+# group cancels every pending run but the newest). workflow_dispatch on demand.
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "67 sec: shellcheck (bash)"
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "23 4 * * 1"
   push:
     branches: [master]
     paths:

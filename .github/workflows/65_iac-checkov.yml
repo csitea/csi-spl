@@ -4,13 +4,14 @@
 # checked-in .checkov.baseline so only NEW misconfig reddens trunk.
 #
 # Path-scoped push: runs on master only when terraform, the baseline, the action
-# or this file changes. Weekly schedule + workflow_dispatch.
+# or this file changes. workflow_dispatch runs it on demand.
+# No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
+# (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
+# scope, and the pre-push hook runs it on every push's touched files first.
 name: "65 sec: checkov (terraform IaC)"
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "35 4 * * 1"
   push:
     branches: [master]
     paths:

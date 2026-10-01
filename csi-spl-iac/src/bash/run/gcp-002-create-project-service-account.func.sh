@@ -22,7 +22,7 @@
 # @description   5. A key file on disk for an SA that does not exist is stale:
 # @description      refuse rather than keep it or overwrite it.
 # @description The key is never printed; only its path is logged.
-# @param ENV - required: dev, prd or bkp (csi-spl-bkp, the off-project backups of iac 046)
+# @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): an org-level human identity (orgpolicy.policyAdmin, iam admin)
 # @param GCP_ORG_ID (optional) - overrides cnf env.gcp.gcp_org_id: the org the key-creation policy is set on
 # @param DRY_RUN (optional) - 1 (default): read and report, mutate nothing. 0: mutate.

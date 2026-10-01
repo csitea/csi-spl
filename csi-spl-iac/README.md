@@ -14,6 +14,8 @@
 | `src/terraform/030-cloud-run-hub` | the spool hub on Cloud Run (HTTPS + WS, min/max instances 1) + its runtime SA |
 | `src/terraform/040-cloud-sql-postgres` | the hub's Cloud SQL Postgres + database + the empty DSN secret slot |
 | `src/terraform/050-gcs-files` | the hub's `file_id` bucket (private, uniform, PAP enforced) |
+| `src/terraform/059-gcp-satellite-budget` | prd only: the satellite's monthly budget alert, filtered to its `box` label (spec 057; applied before 060) |
+| `src/terraform/060-gcp-vm-satellite` | prd only: the satellite agent box (spec 057): VM + data disk + logs-only SA + ONE ingress rule, tcp/22 from IAP |
 | `src/bash/tests/` | `bash src/bash/tests/run-all-tests.sh` |
 | `cnf/tpl-gen.ref` | the tpl-gen commit the renders are made with |
 

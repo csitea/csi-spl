@@ -6,13 +6,13 @@
 # @description no env file of its own), the id is <org>-<app>-<env>, and the committed cnf
 # @description (env.gcp.gcp_project) must agree with it, so a worktree-derived
 # @description ORG/APP can never name a different project. No GCP call.
-# @param ENV - required: dev, prd or bkp
+# @param ENV - required: dev, prd, bkp or all (csi-spl-all, the satellite of spec 057)
 # @example do_gcp_spl_proj_id || exit 1; echo "$PROJ_ID"
 #------------------------------------------------------------------------------
 do_gcp_spl_proj_id() {
   do_resolve_oap ORG
   do_resolve_oap APP
-  [[ "${ENV:-}" == dev || "${ENV:-}" == prd || "${ENV:-}" == bkp ]] || { do_log "FATAL ENV must be dev, prd or bkp, got: '${ENV:-}'"; return 1; }
+  [[ "${ENV:-}" == dev || "${ENV:-}" == prd || "${ENV:-}" == bkp || "${ENV:-}" == all ]] || { do_log "FATAL ENV must be dev, prd, bkp or all, got: '${ENV:-}'"; return 1; }
 
   local proj_id="${ORG}-${APP}-${ENV}"
   local cnf_file="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.yaml"

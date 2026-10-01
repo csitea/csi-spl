@@ -18,6 +18,7 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
+		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_plan \
 	'
@@ -58,6 +59,7 @@ do-provision: demand_var-ENV demand_var-STEP
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e ACTION=provision \
+		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_provision \
 	'

@@ -13,6 +13,9 @@
 # @description versioning on (a state file is the one thing here that is
 # @description rewritten), uniform access, public access prevented.
 # @description Idempotent, and a DRY RUN unless DRY_RUN=0.
+# @description PROJECT_ENV=all makes csi-spl-all-tfstate the same way: the state of
+# @description the satellite steps 059/060 (spec 057), after ENV=all gcp-000.
+# @param PROJECT_ENV (optional) - bkp (default) or all
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: create.
 # @param GCP_REGION (optional) - default europe-north1, the estate's region
 # @example DRY_RUN=0 ./run -a do_gcp_bkp_state_bucket_create
@@ -21,7 +24,8 @@ do_gcp_bkp_state_bucket_create() {
 
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
 
-  ENV=bkp
+  ENV="${PROJECT_ENV:-bkp}"
+  [[ "${ENV}" == bkp || "${ENV}" == all ]] || { do_log "FATAL PROJECT_ENV must be bkp or all, got: ${ENV}"; exit 1; }
   do_gcp_spl_proj_id || exit 1
   do_gcp_pin_account || exit 1
 
@@ -33,7 +37,7 @@ do_gcp_bkp_state_bucket_create() {
   do_log "INFO PROJ_ID=${PROJ_ID} bucket=${bucket} GCP_ACCOUNT=${GCP_ACCOUNT} DRY_RUN=${dry_run}"
 
   do_gcp_require_live_account "${GCP_ACCOUNT}" \
-    || quit_on "prove ${GCP_ACCOUNT} can mint an access token (its key is minted by ENV=bkp do_gcp_000_bootstrap_gcp_env)"
+    || quit_on "prove ${GCP_ACCOUNT} can mint an access token (its key is minted by ENV=${ENV} do_gcp_000_bootstrap_gcp_env)"
 
   # Three-way, as gcp-001: exists / reported absent / could not tell. Only a
   # reported absence may create; anything else stops.

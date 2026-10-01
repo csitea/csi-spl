@@ -6,6 +6,12 @@
 #          the tfvars through the step's *.tfvars.tpl and tpl-gen.
 #          Keys are the top-level (column 0) assignments of
 #          csi-spl-cnf/csi-spl/<env>/tf/<step>.vars.tfvars.
+#          Two declared exceptions, each a marker line IN the rendered tfvars
+#          (so it is reviewed with the template, never a list in this test):
+#          '# prd-only-step' (spec 057: the dev render of a prd-only step,
+#          whose env validation refuses dev) skips that env x step, and
+#          '# runtime-vars: a,b' names variables set at run time by TF_VAR_*
+#          (e.g. billing_account_id from GCP_BILLING_ACCOUNT_ID: never cnf).
 #          Control: a copy of 032's dev tfvars with one key dropped MUST fail;
 #          a check that passes it proves nothing.
 #------------------------------------------------------------------------------
@@ -20,7 +26,10 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 declared() { cat "$1"/*.tf | sed -nE 's/^[[:space:]]*variable[[:space:]]+"([^"]+)".*/\1/p' | sort -u; }
-set_keys() { sed -nE 's/^([A-Za-z_][A-Za-z0-9_-]*)[[:space:]]*=.*/\1/p' "$1" | sort -u; }
+set_keys() {
+  { sed -nE 's/^([A-Za-z_][A-Za-z0-9_-]*)[[:space:]]*=.*/\1/p' "$1"
+    sed -nE 's/^# runtime-vars: (.*)$/\1/p' "$1" | tr ', ' '\n\n' | sed '/^$/d'; } | sort -u
+}
 # missing <step-dir> <tfvars>: declared names the tfvars does not set
 missing() { comm -23 <(declared "$1") <(set_keys "$2"); }
 
@@ -30,6 +39,9 @@ for env in dev prd; do
     step=$(basename "$d")
     v="$CNF_DIR/$env/tf/$step.vars.tfvars"
     [[ -f "$v" ]] || { fail "$env $step: no $v"; continue; }
+    if [[ "$env" != prd ]] && grep -qx '# prd-only-step' "$v"; then
+      pass "$env $step: a prd-only step (its env validation refuses $env)"; continue
+    fi
     n=$((n + 1))
     m=$(missing "$d" "$v" | paste -sd, -)
     [[ -z "$m" ]] && pass "$env $step: every declared variable is set" || fail "$env $step: not in tfvars: $m"

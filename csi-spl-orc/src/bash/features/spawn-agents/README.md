@@ -64,13 +64,16 @@ the reference does it:
 ## 2. Configuration
 
 Everything is set through env vars. None of them bakes in a user, a host or a
-box.
+box. The box config `$SPOOL_BOX_ENV` (default `$SPOOL_ROOT/box.env`) holds this
+box's defaults for `SPOOL_AGENT_USER`, `SPOOL_RUN_AS_AGENT` and the `*_BIN`
+paths, so a spawn with no env still runs the agent as the right user; the
+environment always wins over it.
 
 | var | default |
 |---|---|
 | `SPOOL_ROOT` | `/var/spool-hub` |
 | `SPOOL_BOX_USER` | the owner of `$SPOOL_ROOT`, else the current user. This user owns the tmux server |
-| `SPOOL_AGENT_USER` | `$SPOOL_BOX_USER`. The agent CLIs run as this user |
+| `SPOOL_AGENT_USER` | the box config, else `$SPOOL_BOX_USER`. The agent CLIs run as this user |
 | `SPOOL_RUN_AS_AGENT` | `su-dash` (`sudo su - <agent>`), or `sudo-i` |
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |
 | `SPOOL_BOX_TAG` | empty. When set, window names read `<tag>: <ID>` |
@@ -91,10 +94,18 @@ bash csi-spl-api/src/bash/build.sh
 
 ### 3.2 Spawn a claude agent with the next free id
 
-The last argument is the branch slug.
+#### 3.2.1 Set the agent user once per box
 
 ```bash
-SPOOL_AGENT_USER=<AGENT_USER> bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh claude auto /opt/csi/csi-spl /path/to/brief.md short-slug
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh SPOOL_AGENT_USER=<AGENT_USER>
+```
+
+#### 3.2.2 Spawn
+
+The last argument is the branch slug. No env is needed once 3.2.1 is done.
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh claude auto /opt/csi/csi-spl /path/to/brief.md short-slug
 ```
 
 ### 3.3 Spawn with an exact id in a non-git working dir
@@ -243,6 +254,21 @@ a sibling's entry. Run the proof with:
 
 ```bash
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-trust-parallel.sh
+```
+
+### 3.9.3 The trust hop never reads a pty
+
+The hop to the agent user carries the trust script in its command line, not
+on stdin, and takes no `--pty`: through `su --pty` stdin is the terminal, so a
+piped script never reached python, which sat at `>>>` and the CLI never
+started. Proof, and the check that no agent CLI runs as the box user:
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-user-default.sh
+```
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-user-check.sh
 ```
 
 ### 3.10 The identity map: one record per agent

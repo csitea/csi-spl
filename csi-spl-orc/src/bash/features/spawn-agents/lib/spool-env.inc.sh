@@ -12,7 +12,7 @@
 #                       default: the owner of $SPOOL_ROOT (the box user owns
 #                       the spool root), else the current user
 #   SPOOL_AGENT_USER    OS user the agent CLIs run as
-#                                                   default $SPOOL_BOX_USER (no hop)
+#                       default: the box config (below), else $SPOOL_BOX_USER (no hop)
 #   SPOOL_RUN_AS_AGENT  su-dash | sudo-i            how to hop to the agent user
 #   SPOOL_TMUX_SOCKET   the box user's tmux socket  default /tmp/tmux-<uid>/default
 #   SPOOL_TMUX_SIZE     WxH for a window nobody is looking at   default 200x50
@@ -27,6 +27,14 @@
 #                       Resolved here, EXPORTED by spool-harness.sh
 #   CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN   default <agent home>/.local/bin/<cli> when it
 #                       exists, else the bare name
+#
+# The box config, $SPOOL_BOX_ENV (default $SPOOL_ROOT/box.env), is where a box
+# says once what every spawn on it should default to, so a bare
+# `spawn-window.sh claude auto ...` needs no env (CLE-77907: the owner's rule is
+# that agents run as a dedicated agent user, not as the box user). Plain
+# KEY=VALUE lines, never sourced; only the keys in SPOOL_BOX_ENV_KEYS are read,
+# and the environment always wins over the file. Write it with
+# scripts/box-config.sh.
 #
 # Agent ids follow SPEC-spool-identity-routing.md §2: ^[A-Z]{2,4}-[0-9]+$,
 # unique per box, and BOX is never an agent prefix.
@@ -61,6 +69,20 @@ spool_valid_id() {  # ID
   return 0
 }
 
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN"
+
+# Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
+_spool_box_env_load() {
+  local f="${SPOOL_BOX_ENV:-$SPOOL_ROOT/box.env}" k v
+  [ -r "$f" ] || return 0
+  while IFS='=' read -r k v || [ -n "$k" ]; do
+    case " $SPOOL_BOX_ENV_KEYS " in *" $k "*) ;; *) continue ;; esac
+    [ -n "${!k:-}" ] && continue
+    v="${v%$'\r'}"; v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
+    printf -v "$k" '%s' "$v"
+  done <"$f"
+}
+
 _spool_home_of() {  # USER
   getent passwd "$1" 2>/dev/null | cut -d: -f6
 }
@@ -71,6 +93,7 @@ _spool_feature_dir() {
 
 spool_env_resolve() {
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
+  _spool_box_env_load
   # Not $SUDO_USER: under `sudo -u <box user>` that names the CALLER, and an
   # agent calling spool-send.sh as itself would ring its own (empty) tmux.
   if [ -z "${SPOOL_BOX_USER:-}" ]; then

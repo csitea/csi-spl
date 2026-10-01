@@ -246,7 +246,13 @@ if [ "$AGENT_USER" = "$(id -un)" ]; then
   printf '%s' "$TRUST_PY" | python3 - "$DIR_ABS" "$SETTLE" "${AGENTS[@]}"
 else
   # Hop the way the launcher starts the agent, so HOME is the agent's own.
-  SPOOL_AGENT_USER="$AGENT_USER"
-  spool_agent_argv || exit 2
-  printf '%s' "$TRUST_PY" | "${SPOOL_AGENT_ARGV[@]}" -c "python3 - '${DIR_ABS}' ${SETTLE} ${AGENTS[*]}"
+  # The script travels in the command line (base64, inert in any shell), never
+  # on stdin, and this hop takes no pty: with su --pty (su-dash, from a
+  # terminal) stdin is the pty, so `python3 -` read the TTY instead of the
+  # pipe and sat in the REPL at '>>>' - claude was never started (CLE-77907,
+  # 3 lanes stuck 2026-10-01). The CLI launch itself keeps --pty (SIGWINCH).
+  SPOOL_AGENT_USER="$AGENT_USER" SPOOL_AGENT_PTY=0
+  b64="$(printf '%s' "$TRUST_PY" | base64 | tr -d '\n')"
+  printf -v args ' %q' "$DIR_ABS" "$SETTLE" "${AGENTS[@]}"
+  spool_agent_exec "python3 -c 'import base64; exec(compile(base64.b64decode(\"${b64}\"), \"trust-workdir\", \"exec\"))'${args}" </dev/null
 fi

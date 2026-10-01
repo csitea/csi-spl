@@ -10,33 +10,39 @@
 # ONE common hooks dir for every linked worktree, so a single hook there gates
 # them all -- no config is touched, and the whole core.bare landmine is gone.
 #
-# Idempotent: (re)points $GIT_COMMON_DIR/hooks/pre-push at the version-controlled
-# hook in the shared checkout, so an update to the hook propagates to everyone.
+# What it installs (CLE-77824): a COPY of hooks/pre-push-trampoline, which execs
+# the pre-push hook of whichever worktree is pushing. It used to be a symlink
+# into the shared checkout's working tree, and that checkout is fetch-only for
+# every lane (often behind and dirty), so the whole fleet ran a stale hook.
+# The trampoline is taken from THIS script's tree, so running the installer
+# from an up-to-date worktree installs the current one. Idempotent.
 #
 # Usage: install-pre-push-hook.sh <checkout-dir>
 # Exit: 0 installed/already, 2 usage / not a worktree, 1 no hook payload found.
 set -uo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
 wt="${1:-}"
 [ -n "$wt" ] || { echo "usage: install-pre-push-hook.sh <checkout-dir>" >&2; exit 2; }
 git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || { echo "install-pre-push-hook: $wt is not a git worktree" >&2; exit 2; }
 
-# The common git dir (shared by every linked worktree) and the shared checkout
-# that holds the version-controlled hook payload.
+# The common git dir, shared by every linked worktree.
 common="$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
   || common="$(git -C "$wt" rev-parse --git-common-dir 2>/dev/null)"
 case "$common" in
   /*) ;;
   *)  common="$(cd "$wt" && cd "$common" && pwd)" ;;
 esac
-repo="$(cd "$(dirname "$common")" && pwd)"
-hook_src="$repo/csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
+src="$here/../hooks/pre-push-trampoline"
 
-[ -x "$hook_src" ] \
-  || { echo "install-pre-push-hook: no executable hook at $hook_src" >&2; exit 1; }
+[ -r "$src" ] \
+  || { echo "install-pre-push-hook: no trampoline at $src" >&2; exit 1; }
 
 mkdir -p "$common/hooks" 2>/dev/null || true
 dest="$common/hooks/pre-push"
-ln -sfn "$hook_src" "$dest"
-echo "install-pre-push-hook: $dest -> $hook_src (common hooks dir; gates every worktree, no git config)"
+# Replace atomically; rm first so a symlink's TARGET is never written through.
+tmp="$dest.tmp.$$"
+cp "$src" "$tmp" && chmod 0755 "$tmp" && rm -f "$dest" && mv -f "$tmp" "$dest" \
+  || { rm -f "$tmp"; echo "install-pre-push-hook: could not install $dest" >&2; exit 1; }
+echo "install-pre-push-hook: $dest <- $src (trampoline into the pushing worktree's hook; gates every worktree, no git config)"

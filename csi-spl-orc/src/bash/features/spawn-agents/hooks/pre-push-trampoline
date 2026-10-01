@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# pre-push-trampoline (CLE-77824) — the file install-pre-push-hook.sh COPIES into
+# the common hooks dir ($GIT_COMMON_DIR/hooks/pre-push). It holds no gate logic:
+# it hands the push to the pre-push hook of the worktree that is PUSHING, so a
+# lane always runs the hook (and gate) its own rebase brought in.
+#
+# Why not a symlink into the shared checkout: that checkout is fetch-only for
+# every lane and is often behind and dirty, so a symlink there pinned the whole
+# fleet to a stale hook (measured 2026-10-01: 69 commits behind).
+#
+# Order: the pushing worktree's hook; else the shared checkout's (a worktree
+# from before the hook existed, or a git that cannot resolve a work tree -- that
+# hook REFUSES a poisoned config); else not the spool tree -> let the push go.
+# git passes remote name/URL as $1/$2 and the refs on stdin; exec keeps both.
+rel="csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
+top="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -n "$top" ] && [ -x "$top/$rel" ]; then
+  exec "$top/$rel" "$@"
+fi
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git rev-parse --git-common-dir 2>/dev/null)"
+if [ -n "$common" ]; then
+  repo="$(cd "$common/.." 2>/dev/null && pwd)"
+  if [ -n "$repo" ] && [ -x "$repo/$rel" ]; then
+    exec "$repo/$rel" "$@"
+  fi
+fi
+exit 0

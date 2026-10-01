@@ -8,6 +8,7 @@
 #     4. an already-green tree   -> exit 0 WITHOUT running the gate (rebase-retry)
 #     5. not the spool tree      -> exit 0 (fail-open), never blocks a foreign repo
 #    13. the gate gets the per-part log, the verdict cache and tier=fast
+#    14. a STALE shared checkout: the lane's own hook runs (trampoline)
 #   INSTALLER
 #     6. installs core.hooksPath for ONE worktree only, others untouched
 #     7. idempotent (second run still 0)
@@ -88,10 +89,11 @@ git -C "$MAIN" worktree add -q "$ROOT/wtA" -b wtA >/dev/null 2>&1
 git -C "$MAIN" worktree add -q "$ROOT/wtB" -b wtB >/dev/null 2>&1
 
 bash "$INSTALL" "$ROOT/wtA" >/dev/null 2>&1; eq "6. installer on wtA -> exit 0" 0 "$?"
-# the hook lands in the COMMON hooks dir, pointing at the shared payload
+# the hook lands in the COMMON hooks dir as a COPY of the trampoline (never a
+# symlink into the shared checkout, which is fetch-only and goes stale)
 dest="$MAIN/.git/hooks/pre-push"
-[ -e "$dest" ] && [ "$(readlink -f "$dest")" = "$(readlink -f "$MAIN/csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push")" ] \
-  && pass "6. common hooks dir has the pre-push hook" || fail "6. common hooks dir has the pre-push hook" "$(readlink "$dest" 2>/dev/null)"
+{ [ -f "$dest" ] && [ ! -L "$dest" ] && [ -x "$dest" ] && cmp -s "$dest" "$HERE/../hooks/pre-push-trampoline"; } \
+  && pass "6. common hooks dir has the trampoline (a copy, executable)" || fail "6. common hooks dir has the trampoline" "$(ls -l "$dest" 2>&1)"
 # every linked worktree resolves hooks to that same common dir
 eq "6. wtA resolves hooks to the common dir" "$MAIN/.git/hooks" "$(git -C "$ROOT/wtA" rev-parse --git-path hooks 2>/dev/null)"
 
@@ -176,6 +178,34 @@ eq "13. the gate got the log, the cache, tier=fast and mode=fast" \
   "log=$L/pre-push.log cache=$L/pre-push.parts.green tier=fast mode=fast" "$(cat "$ROOT/seen13" 2>/dev/null)"
 grep -q 'PASS .* secs=[0-9]*s' "$L/pre-push.log" \
   && pass "13. the PASS line carries the hook's wall time" || fail "13. the PASS line carries the hook's wall time" "$(cat "$L/pre-push.log")"
+
+# 14. STALE SHARED CHECKOUT (CLE-77824): the main checkout carries an OLD hook,
+#     a lane worktree carries the NEW one. A push from the lane must run the
+#     lane's hook; a push from the main checkout runs the main's; a repo with no
+#     hook at all lets the push through. Stub hooks record which one ran.
+ST="$ROOT/stale"; git init -q "$ST"
+HP="csi-spl-orc/src/bash/features/spawn-agents/hooks"
+mkdir -p "$ST/$HP"
+printf '#!/usr/bin/env bash\necho OLD >"$RAN"; read -r line; echo "$1 $line" >>"$RAN"; exit 0\n' >"$ST/$HP/pre-push"
+chmod +x "$ST/$HP/pre-push"
+git -C "$ST" add -A; git -C "$ST" commit -qm old-hook
+git -C "$ST" worktree add -q "$ROOT/stale-lane" -b lane >/dev/null 2>&1
+printf '#!/usr/bin/env bash\necho NEW >"$RAN"; read -r line; echo "$1 $line" >>"$RAN"; exit 0\n' >"$ROOT/stale-lane/$HP/pre-push"
+git -C "$ROOT/stale-lane" commit -qam new-hook
+bash "$INSTALL" "$ROOT/stale-lane" >/dev/null 2>&1; eq "14. installer from a lane -> exit 0" 0 "$?"
+( cd "$ROOT/stale-lane" && echo "refs/heads/lane abc refs/heads/master def" | RAN="$ROOT/ran14" "$ST/.git/hooks/pre-push" origin file://x )
+eq "14. a push from the lane runs the LANE's hook, not the stale shared one" NEW "$(head -1 "$ROOT/ran14" 2>/dev/null)"
+eq "14. ... with git's args and stdin passed through" "origin refs/heads/lane abc refs/heads/master def" "$(sed -n 2p "$ROOT/ran14" 2>/dev/null)"
+( cd "$ST" && echo x | RAN="$ROOT/ran14b" "$ST/.git/hooks/pre-push" origin file://x )
+eq "14. a push from the main checkout runs the main's hook" OLD "$(head -1 "$ROOT/ran14b" 2>/dev/null)"
+NH="$ROOT/nohook"; git init -q "$NH"; git -C "$NH" commit -q --allow-empty -m x
+( cd "$NH" && echo x | RAN="$ROOT/ran14c" bash "$HERE/../hooks/pre-push-trampoline" origin file://x ); eq "14. no spool hook anywhere -> exit 0" 0 "$?"
+[ ! -e "$ROOT/ran14c" ] && pass "14. ... and nothing ran" || fail "14. ... and nothing ran"
+# installing over an old SYMLINK replaces the link and never writes through it
+ln -sfn "$ST/$HP/pre-push" "$ST/.git/hooks/pre-push"; before="$(cat "$ST/$HP/pre-push")"
+bash "$INSTALL" "$ROOT/stale-lane" >/dev/null 2>&1
+{ [ ! -L "$ST/.git/hooks/pre-push" ] && [ "$(cat "$ST/$HP/pre-push")" = "$before" ]; } \
+  && pass "14. an old symlink is replaced, its target untouched" || fail "14. an old symlink is replaced, its target untouched"
 
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

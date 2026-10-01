@@ -251,6 +251,19 @@ export function dmBadgeText(unread, total) {
 }
 
 /**
+ * CLE-77873 (owner, t1 d6c9661e: "the amount of unread msgs vs the amount of
+ * total msgs on the direct msgs do not show"): a DM with nothing new still
+ * shows its total, plain ("7"), as a topic card reads "7 >>" with none unread
+ * (CLE-77804) - never "0/7". '' while the total is unknown.
+ * @param {number} total
+ */
+export function dmTotalText(total) {
+  const t = Number(total) || 0
+  if (t <= 0) return ''
+  return t > 999 ? '999+' : String(t)
+}
+
+/**
  * 051: the sound the chime plays. Each is a short motif of one or more
  * oscillator segments, all generated in code — no audio files, no licensing,
  * nothing bundled (distribution hygiene). A segment:

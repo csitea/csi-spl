@@ -19,6 +19,7 @@ import {
   ALERTS_KEY,
   previewUnread,
   dmBadgeText,
+  dmTotalText,
   CHIME_KEY,
   shouldPing,
   loadMutedChannels,
@@ -451,6 +452,13 @@ describe('DM rail badge "<new>/<total>" (CLE-77845)', () => {
   it('an unknown total falls back to the plain new count', () => {
     assert.equal(dmBadgeText(3, 0), '3')
     assert.equal(dmBadgeText(3, 2), '3')
+  })
+  /* CLE-77873 (owner, t1 d6c9661e): a read DM still shows its total, plain */
+  it('nothing new: the plain total, never "0/7"; unknown -> nothing', () => {
+    assert.equal(dmTotalText(7), '7')
+    assert.equal(dmTotalText(1000), '999+')
+    assert.equal(dmTotalText(0), '')
+    assert.equal(dmTotalText(undefined), '')
   })
   const msg = (id, from, to, extra = {}) => ({ msg_id: id, from, from_box: from.startsWith('HUM') ? 'box-wui' : 'box-desk', to, to_box: to.startsWith('HUM') ? 'box-wui' : 'box-desk', channel: null, ...extra })
   it('totals count every line of a fully inlined DM topic, ours too, per peer', () => {

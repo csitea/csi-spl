@@ -8,7 +8,11 @@
 //   live      one more DM from the peer -> "3/6" with no reload
 //   channel   the peer's answer in a CHANNEL, addressed to us, moves neither
 //             number (the 5dc55d94 phantom badge)
-//   read      opening the DM clears the badge
+//   read      opening the DM clears the new part: the row then reads its
+//             plain total "6" (CLE-77873, owner t1 d6c9661e: "the amount of
+//             unread msgs vs the amount of total msgs on the direct msgs do
+//             not show" - a read DM drew nothing at all), never "0/6"
+//   painted   every number is really on screen inside its row
 //
 // The rows go in through the notification store, as the reload path
 // (applyDms) and a live frame (countDmLive + ingest) put them.
@@ -61,7 +65,15 @@ const badgeOf = (p) => p.evaluate((peer) => {
   const row = [...document.querySelectorAll('a.nav-item')].find((e) => e.getAttribute('data-key') === peer)
   if (!row) return { row: false, text: null }
   const el = row.querySelector('[data-test=dm-badge]')
-  return { row: true, text: el ? el.textContent.trim() : '' }
+  const tot = row.querySelector('[data-test=dm-total]')
+  const shown = (e) => {
+    if (!e) return null
+    const r = e.getBoundingClientRect()
+    const R = row.getBoundingClientRect()
+    const cs = getComputedStyle(e)
+    return r.width > 0 && r.height > 0 && r.left >= R.left - 1 && r.right <= R.right + 1 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && cs.color !== cs.backgroundColor
+  }
+  return { row: true, text: el ? el.textContent.trim() : '', total: tot ? tot.textContent.trim() : '', shown: shown(el), totalShown: shown(tot) }
 }, PEER)
 
 const notes = (p, fn, ...args) => p.evaluate((fn, args) => {
@@ -69,9 +81,11 @@ const notes = (p, fn, ...args) => p.evaluate((fn, args) => {
   return n[fn](...args)
 }, fn, args)
 
-async function run(browser, base) {
+async function run(browser, base, width) {
+  const W = `${width}: `
+  const phone = width <= 820
   const p = await browser.newPage()
-  await p.setViewport({ width: 1200, height: 760, isMobile: false, hasTouch: false })
+  await p.setViewport({ width, height: phone ? 844 : 760, isMobile: phone, hasTouch: phone })
   await p.evaluateOnNewDocument(() => { window.__errs = []; window.addEventListener('error', (e) => window.__errs.push(String(e.message || ''))) })
   /* the reader had read the DM up to its third line */
   await p.evaluateOnNewDocument((peer, ts) => { try { localStorage.setItem('spool.read-cursors', JSON.stringify({ [`dm:${peer}`]: { ts, id: 'l3' } })) } catch { /* */ } }, PEER, CURSOR)
@@ -90,30 +104,31 @@ async function run(browser, base) {
   await notes(p, 'applyDms', [topic], 'HUM-1', '')
   await sleep(300)
   const load = await badgeOf(p)
-  check('load: 2 new of 5 reads "2/5"', load.text === '2/5', load)
+  check(W + 'load: 2 new of 5 reads "2/5", painted in its row', load.text === '2/5' && load.shown === true && load.total === '', load)
 
   const live = line('l6', 6, true)
   await notes(p, 'countDmLive', live, 'HUM-1')
   await notes(p, 'ingest', [live], { selfId: 'HUM-1', activeKey: '' }, { hydrate: false })
   await sleep(300)
   const after = await badgeOf(p)
-  check('live: one more DM reads "3/6" with no reload', after.text === '3/6', after)
+  check(W + 'live: one more DM reads "3/6" with no reload', after.text === '3/6', after)
 
   const answer = line('c1', 7, true, { channel: 'ops', to: 'HUM-1' })
   await notes(p, 'countDmLive', answer, 'HUM-1')
   await notes(p, 'ingest', [answer], { selfId: 'HUM-1', activeKey: '' }, { hydrate: false })
   await sleep(300)
   const chan = await badgeOf(p)
-  check('channel: the peer\'s channel answer to us moves neither number', chan.text === '3/6', chan)
+  check(W + 'channel: the peer\'s channel answer to us moves neither number', chan.text === '3/6', chan)
 
   await p.evaluate((peer) => [...document.querySelectorAll('a.nav-item')].find((e) => e.getAttribute('data-key') === peer).click(), PEER)
   await p.waitForFunction(() => location.pathname.includes('/dm/'), { timeout: NAV })
   await sleep(800)
   const read = await badgeOf(p)
-  check('read: opening the DM clears the badge', read.text === '', read)
+  check(W + 'read: opening the DM clears the new part', read.text === '', read)
+  check(W + 'read: ... and the row keeps its plain total "6", painted in its row (never "0/6")', read.total === '6' && read.totalShown === true, read)
 
   const errs = await p.evaluate(() => window.__errs || [])
-  check('no window error', errs.length === 0, { errs })
+  check(W + 'no window error', errs.length === 0, { errs })
   await p.close()
 }
 
@@ -121,7 +136,7 @@ const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
-  await run(browser, server.base)
+  await run(browser, server.base, 1200)
 } catch (e) {
   console.error(e)
   code = 1

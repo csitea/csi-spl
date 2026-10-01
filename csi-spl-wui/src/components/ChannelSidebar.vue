@@ -133,6 +133,7 @@
       <span class="dot" :class="{ on: p.online }" />
       <HumanName class="label" :id="p.id" :box="p.box" />
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + p.label) }}</span>
+      <span v-else-if="notes.dmTotalBadge('dm:' + p.label)" class="badge-total" data-test="dm-total">{{ notes.dmTotalBadge('dm:' + p.label) }}</span>
     </NuxtLink>
     <RowMutedButton v-if="mutedPeers[p.label]" :name="peerName(p.id, p.box)" @unmute="togglePeer('mute', p.label)" />
     <SidebarRowMenu
@@ -463,6 +464,7 @@
             <span class="dot" :class="{ on: row.online }" />
             <HumanName class="label" :id="row.id" :box="row.box" />
             <span v-if="notes.unread['dm:' + row.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + row.label) }}</span>
+            <span v-else-if="notes.dmTotalBadge('dm:' + row.label)" class="badge-total" data-test="dm-total">{{ notes.dmTotalBadge('dm:' + row.label) }}</span>
           </NuxtLink>
           <RowMutedButton v-if="mutedPeers[row.label]" :name="peerName(row.id, row.box)" @unmute="togglePeer('mute', row.label)" />
           <SidebarRowMenu
@@ -1629,6 +1631,17 @@ async function onCreate() {
   flex-shrink: 0;
 }
 .badge-mention + .badge-unread { margin-left: 4px; }
+/* CLE-77873: a read DM's plain total - the unread pill's box, muted, no fill */
+.badge-total {
+  margin-left: auto;
+  color: var(--color-muted);
+  border-radius: var(--radius-pill);
+  font-size: 0.6875rem;
+  padding: 0 6px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
 .create-error { margin: 0; font-size: 12px; color: var(--color-danger); overflow-wrap: anywhere; }
 .health-dot {
   width: 8px; height: 8px; border-radius: 50%;

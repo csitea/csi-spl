@@ -12,6 +12,7 @@ import {
   alertsActive,
   previewUnread,
   dmBadgeText,
+  dmTotalText,
   shouldPing,
   loadMutedChannels,
   playSound,
@@ -237,6 +238,11 @@ export const useNotificationStore = defineStore('notification', () => {
     return dmBadgeText(unread.value[key] || 0, dmTotal.value[key] || 0) as string
   }
 
+  /** CLE-77873: a DM with nothing new shows its plain total ("7"); '' when unknown. */
+  function dmTotalBadge(key: string) {
+    return unread.value[key] ? '' : dmTotalText(dmTotal.value[key] || 0) as string
+  }
+
   function bump(key: string, reason: string | null) {
     unread.value = { ...unread.value, [key]: (unread.value[key] || 0) + 1 }
     if (reason === 'mention') mentions.value = { ...mentions.value, [key]: (mentions.value[key] || 0) + 1 }
@@ -304,6 +310,7 @@ export const useNotificationStore = defineStore('notification', () => {
     dmTotal,
     countDmLive,
     dmBadge,
+    dmTotalBadge,
     hydrate,
     previewUnread,
   }

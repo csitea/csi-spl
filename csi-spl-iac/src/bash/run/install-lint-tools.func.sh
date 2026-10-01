@@ -14,6 +14,8 @@
 # @description   typos     typos-cli, the spelling WARN (no CI workflow yet, so pinned HERE)
 # @description   gitleaks  (15) -> LINT_TOOLS_BIN
 # @description   ruff      the lint-py rule set (no CI workflow yet, so pinned HERE)
+# @description   terraform the cnf's terraform_version (CI's box keeps it in /opt/tf):
+# @description             linked from /opt/tf/bin/terraform-<ver>, else the pinned zip
 # @description   pglast    PG16 grammar for the migration parse (pinned HERE: 6.x is
 # @description             libpg_query 16, the hub's POSTGRES_16) -> its own venv
 # @param LINT_TOOLS_BIN (optional) - default ~/.local/bin (on the hook's PATH)
@@ -37,6 +39,8 @@ _ILT_PGLAST_VER=6.16
 # ruff 0.16 widened its default rules: lint-py always passes --select.
 _ILT_RUFF_VER=0.16.9
 _ILT_RUFF_SHA=1bfbb819b5d4f9af501748862276b60e412d336034d99387691a4d4bce7a6f13
+# The zip digest for the cnf's terraform_version (CLE-77834 measured it).
+_ILT_TF_ZIP_SHA_1_9_8=186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8
 
 _ilt_root() {
   local base="${APP_PATH:-}"
@@ -154,6 +158,31 @@ _ilt_pglast() {
   do_log "INFO pglast $ver installed in $venv"
 }
 
+# terraform: the version is the cnf's (env.tf.terraform_version); the box that
+# runs CI keeps it at /opt/tf/bin/terraform-<ver>, so link that, else fetch
+# the zip and check it against the pinned digest.
+_ilt_terraform() {
+  local root ver dst="$_ILT_BIN/terraform" sha tmp
+  root="$(cd "$_ILT_WF/../.." && pwd)"
+  ver="$(sed -nE 's/^ *terraform_version: *"?([0-9.]+)"?.*/\1/p' "$root/csi-spl-cnf/csi-spl/dev.env.yaml" | head -1)"
+  [[ -n "$ver" ]] || { do_log "FATAL no terraform_version in csi-spl-cnf/csi-spl/dev.env.yaml"; return 1; }
+  if [[ -x "$dst" ]] && "$dst" version 2>/dev/null | head -1 | grep -qxF "Terraform v$ver"; then
+    do_log "INFO terraform $ver already installed at $dst"; return 0
+  fi
+  if [[ -x "/opt/tf/bin/terraform-$ver" ]]; then
+    ln -sf "/opt/tf/bin/terraform-$ver" "$dst" && do_log "INFO terraform $ver linked from /opt/tf/bin"; return $?
+  fi
+  local var="_ILT_TF_ZIP_SHA_${ver//./_}"; sha="${!var:-}"
+  [[ -n "$sha" ]] || { do_log "FATAL no pinned zip digest for terraform $ver (add _ILT_TF_ZIP_SHA_${ver//./_})"; return 1; }
+  tmp="$(mktemp -d)" || return 1
+  curl -fsSL --retry 5 -o "$tmp/tf.zip" "https://releases.hashicorp.com/terraform/$ver/terraform_${ver}_linux_amd64.zip" \
+    && echo "$sha  $tmp/tf.zip" | sha256sum -c - >/dev/null 2>&1 \
+    && python3 -c 'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extract("terraform", sys.argv[2])' "$tmp/tf.zip" "$tmp" \
+    && install -m 0755 "$tmp/terraform" "$dst" \
+    || { do_log "FATAL terraform $ver: download or sha256 check failed"; rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"; do_log "INFO terraform $ver installed at $dst (sha256 matches its pin)"
+}
+
 _ilt_py() {  # <tool> (checkov | semgrep)
   local tool="$1" wf ver
   case "$tool" in
@@ -178,7 +207,7 @@ do_install_lint_tools() {
   local _ILT_BIN="${LINT_TOOLS_BIN:-$HOME/.local/bin}"
   local _ILT_ESLINT="${LINT_TOOLS_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"
   local _ILT_VENV="${LINT_TOOLS_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv}"
-  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast ruff}"
+  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast ruff terraform}"
   mkdir -p "$_ILT_BIN" || return 1
   local t fails=0
   for t in $only; do
@@ -186,6 +215,7 @@ do_install_lint_tools() {
       shellcheck|actionlint|hadolint|trufflehog|gosec|typos|gitleaks|ruff) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
       eslint) _ilt_eslint || fails=$((fails + 1)) ;;
       pglast) _ilt_pglast || fails=$((fails + 1)) ;;
+      terraform) _ilt_terraform || fails=$((fails + 1)) ;;
       checkov|semgrep) _ilt_py "$t" || fails=$((fails + 1)) ;;
       *) do_log "FATAL unknown lint tool '$t'"; fails=$((fails + 1)) ;;
     esac

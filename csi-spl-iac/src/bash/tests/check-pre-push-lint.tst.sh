@@ -27,6 +27,8 @@
 #      (when docker compose is installed)
 #  20. lint-py (real ruff, when installed): an undefined name in a new .py,
 #      and a python heredoc that does not compile in a .sh, are REFUSED
+#  21. lint-tf (real terraform, when installed): an unformatted .tf and a
+#      .tfvars that does not parse are REFUSED; a formatted .tf passes
 #  18. a .vue whose TEMPLATE does not compile -> lint-wui-syntax FAIL; a clean
 #      one passes (when this checkout's csi-spl-wui/node_modules exists)
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
@@ -302,6 +304,28 @@ if [[ -n "$REAL_RUFF" ]]; then
     && pass "20b. a python heredoc that does not compile in a .sh is REFUSED" || fail "20b. heredoc" "rc=$rc verdict=$(verdict lint-py)"
 else
   echo "INFO: no ruff on this host -- leg 20 not run (./run -a do_install_lint_tools)"
+fi
+
+# 21. lint-tf
+REAL_TF="$(command -v terraform 2>/dev/null || true)"
+[[ -z "$REAL_TF" && -x "$HOME/.local/bin/terraform" ]] && REAL_TF="$HOME/.local/bin/terraform"
+if [[ -n "$REAL_TF" ]]; then
+  TFB="$T/tfb"; mkdir -p "$TFB"; ln -sf "$REAL_TF" "$TFB/terraform"; cp "$STUB/"* "$TFB/"
+  TFD="csi-spl-iac/src/terraform/x"
+  new_repo; mkdir -p "$R/$TFD"; printf 'variable "a" {\ntype=string\n}\n' >"$R/$TFD/main.tf"; commit tf
+  rc="$(PP_PATH="$TFB:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-tf)" == FAIL ]] \
+    && pass "21a. an unformatted .tf is REFUSED (terraform fmt -check)" || fail "21a. tf fmt" "rc=$rc verdict=$(verdict lint-tf)"
+  new_repo; mkdir -p "$R/$TFD"; printf 'a = "x\n' >"$R/$TFD/v.tfvars"; commit tfvars
+  rc="$(PP_PATH="$TFB:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-tf)" == FAIL ]] && grep -q 'HCL parse' "$T/out" \
+    && pass "21b. a .tfvars that does not parse is REFUSED" || fail "21b. tfvars" "rc=$rc verdict=$(verdict lint-tf)"
+  new_repo; mkdir -p "$R/$TFD"; printf 'variable "a" {\n  type = string\n}\n' >"$R/$TFD/main.tf"; commit tfok
+  rc="$(PP_PATH="$TFB:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 0 && "$(verdict lint-tf)" == PASS ]] \
+    && pass "21c. a formatted .tf passes" || fail "21c. tf ok" "rc=$rc verdict=$(verdict lint-tf)"
+else
+  echo "INFO: no terraform on this host -- leg 21 not run (./run -a do_install_lint_tools)"
 fi
 
 # 6. routing (the planner alone)

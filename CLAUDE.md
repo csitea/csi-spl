@@ -122,6 +122,7 @@ How to apply:
   | `lint-compose` | — | `docker compose config -q --no-interpolate` | hook |
   | `lint-gitleaks` | 15 | `do_sec_scan` secrets, `.gitleaks.toml`, over the PUSHED commits only | hook |
   | `lint-py` | — | touched `.py` compile + ruff 0.16.9 `E9,F` + a zero-baseline security subset; python heredocs in touched `.sh`/`.yml` compile | hook |
+  | `lint-tf` | — | touched `.tf`: `terraform fmt -check` (cnf's `terraform_version`); touched `.tfvars`: HCL parse. tflint / validate / trivy / render parity stay CI (wf10/70) + `PRE_PUSH_TIER=full` | hook |
   | `lint-wui-syntax` | — | per-file Vue SFC compile (script + template) and TS/JS parse: the template error class typecheck and `nuxt generate` pass | hook |
   | `lint-wui-lock` | — | `pnpm install --frozen-lockfile --lockfile-only` when `package.json`/lock change | hook |
   | `lint-shellcheck` | 67 | `do_sec_shellcheck` -S error, iac/orc/cnf bash trees | hook |

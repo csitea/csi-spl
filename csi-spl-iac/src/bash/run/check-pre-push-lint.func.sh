@@ -18,6 +18,8 @@
 # @description   lint-py          touched .py: compile + ruff E9,F + a security subset
 # @description                    (S102 S113 S301 S307 S506 S602 S604 S605); python
 # @description                    heredocs in touched .sh/.yml compile (py-heredoc-check.py)
+# @description   lint-tf          touched .tf: terraform fmt -check (parses the HCL too);
+# @description                    touched .tfvars: HCL parse (tpl-gen renders them unformatted)
 # @description   lint-wui-syntax  per-file Vue SFC compile (script + TEMPLATE) and TS/JS
 # @description                    parse (wui-syntax-check.mjs): the template-error class
 # @description                    that typecheck + nuxt generate pass (blanked dev+prd
@@ -49,7 +51,7 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
 _PPL_SLOW="lint-checkov lint-semgrep lint-gosec"
 
 # ruff: syntax + pyflakes + the security codes with a zero baseline. Never
@@ -109,6 +111,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-migration)  [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f" ;;
       lint-compose)    [[ "$b" == docker-compose*.yml || "$b" == docker-compose*.yaml ]] && echo "$f" ;;
       lint-gitleaks)   echo ALL; return 0 ;;
+      lint-tf)         [[ "$f" == *.tf || "$f" == *.tfvars ]] && echo "$f" ;;
       lint-py)
         if [[ "$f" == *.py ]]; then echo "$f"
         elif [[ "$f" == *.sh || "$f" == *.yml || "$f" == *.yaml ]] && grep -q python "$tree/$f" 2>/dev/null; then echo "$f"
@@ -143,7 +146,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
       case "$sc" in
-        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax|lint-py) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
+        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax|lint-py|lint-tf) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
         lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
       esac
     else
@@ -184,6 +187,7 @@ _ppl_missing() {  # <scanner>
     lint-compose)    docker compose version >/dev/null 2>&1 || echo "docker compose -- install docker with the compose plugin" ;;
     lint-gitleaks)   _ppl_need gitleaks ;;
     lint-py)         _ppl_need python3; _ppl_need ruff ;;
+    lint-tf)         _ppl_need terraform ;;
     lint-wui-syntax|lint-wui-lock)
       _ppl_need node
       _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin" ;;
@@ -226,6 +230,7 @@ _ppl_repro() {  # <scanner>
     lint-checkov)    act=do_sec_checkov ;; lint-semgrep) act=do_sec_semgrep ;; lint-gosec) act=do_sec_gosec ;;
     lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
     lint-wui-syntax) echo "cd csi-spl-wui && node ../csi-spl-iac/src/bash/scripts/wui-syntax-check.mjs $(printf '%s\n' "$sel" | sed 's|^csi-spl-wui/||' | paste -sd' ' -)"; return 0 ;;
+    lint-tf) echo "terraform fmt -check -diff $(printf '%s\n' "$sel" | grep '\.tf$' | paste -sd' ' -)"; return 0 ;;
     lint-py) echo "ruff check --isolated --select $_PPL_RUFF_RULES $(printf '%s\n' "$sel" | grep '\.py$' | paste -sd' ' -); python3 csi-spl-iac/src/bash/scripts/py-heredoc-check.py $(printf '%s\n' "$sel" | grep -v '\.py$' | paste -sd' ' -)"; return 0 ;;
     lint-wui-lock) echo "cd csi-spl-wui && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts"; return 0 ;;
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
@@ -291,6 +296,20 @@ sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
       fi
       if [[ "${#hds[@]}" -gt 0 ]]; then
         ( cd "$tree" && python3 "$(_ppl_scripts)/py-heredoc-check.py" "${hds[@]}" ) || rc=1
+      fi ;;
+    lint-tf)
+      local -a tfs=(); local terr; terr="$(mktemp)"
+      while IFS= read -r f; do
+        if [[ "$f" == *.tfvars ]]; then
+          terraform fmt - <"$tree/$f" >/dev/null 2>"$terr" \
+            || { echo "HCL parse: $f"; sed 's/^/  /' "$terr"; rc=1; }
+        else
+          tfs+=("$f")
+        fi
+      done <<<"$files"
+      rm -f "$terr"
+      if [[ "${#tfs[@]}" -gt 0 ]]; then
+        ( cd "$tree" && terraform fmt -check -diff "${tfs[@]}" ) || { echo "terraform fmt: run 'terraform fmt' on the files above"; rc=1; }
       fi ;;
     lint-wui-syntax)
       local -a wf=(); while IFS= read -r f; do wf+=("$tree/$f"); done <<<"$files"
@@ -384,6 +403,7 @@ _pp_part_lint_migration()  { _ppl_run_one lint-migration "$1"; }
 _pp_part_lint_compose()    { _ppl_run_one lint-compose "$1"; }
 _pp_part_lint_gitleaks()   { _ppl_run_one lint-gitleaks "$1"; }
 _pp_part_lint_py()         { _ppl_run_one lint-py "$1"; }
+_pp_part_lint_tf()         { _ppl_run_one lint-tf "$1"; }
 _pp_part_lint_wui_syntax() { _ppl_run_one lint-wui-syntax "$1"; }
 _pp_part_lint_wui_lock()   { _ppl_run_one lint-wui-lock "$1"; }
 _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }

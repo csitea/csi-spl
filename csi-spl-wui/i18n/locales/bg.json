@@ -195,7 +195,12 @@
       "failed": "Неуспешно запазване — опитайте отново."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Часова зона",
+      "browser": "Часовата зона на браузъра ({zone})",
+      "hint": "Всички часове в това работно пространство се показват в тази зона, включително ISO часове със зона в съобщенията. Час без зона, като 18:46, остава както е написан. Пази се за това работно пространство."
+    }
   },
   "auth": {
     "error": {

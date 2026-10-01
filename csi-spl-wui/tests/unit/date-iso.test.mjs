@@ -36,6 +36,8 @@ describe("iso dates", () => {
   it("no component formats a date through the locale", () => {
     const hits = []
     for (const p of files(SRC)) {
+      /* CLE-77908: the one helper that prints in a picked zone needs Intl */
+      if (p.endsWith(join("utils", "date-iso.mjs"))) continue
       const text = readFileSync(p, "utf8")
       text.split("\n").forEach((line, i) => {
         if (BANNED.test(line)) hits.push(`${p}:${i + 1}`)

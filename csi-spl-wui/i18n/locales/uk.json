@@ -195,7 +195,12 @@
       "failed": "Не вдалося зберегти — спробуйте ще раз."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Часовий пояс",
+      "browser": "Часовий пояс браузера ({zone})",
+      "hint": "Увесь час у цьому робочому просторі показується в цьому поясі, також час ISO з поясом у повідомленнях. Час без поясу, як-от 18:46, лишається як написано. Зберігається для цього робочого простору."
+    }
   },
   "auth": {
     "error": {

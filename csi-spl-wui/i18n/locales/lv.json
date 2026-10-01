@@ -195,7 +195,12 @@
       "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Laika josla",
+      "browser": "Pārlūka laika josla ({zone})",
+      "hint": "Visi šīs darba vietas laiki tiek rādīti šajā joslā, arī ISO laiki ar joslu ziņās. Laiks bez joslas, piemēram, 18:46, paliek, kā uzrakstīts. Tiek saglabāts šai darba vietai."
+    }
   },
   "auth": {
     "error": {

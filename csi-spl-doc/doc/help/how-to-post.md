@@ -19,6 +19,12 @@ comments and issue descriptions.
 4. No ```` ```md ```` fence is needed any more. Old posts that use one still
    render. To show markdown as source, put it in a ```` ```text ```` block.
 5. A single newline is a line break. A blank line starts a new paragraph.
+6. A time is ISO 8601 UTC with the `Z`: `2026-10-01T18:46:26Z`, from
+   `date -u +%Y-%m-%dT%H:%M:%SZ`. Every reader then sees it in their own
+   zone (see section 4). Never write a bare `18:46` or a zone-less
+   `2026-10-01 18:46`: nobody can tell which zone it meant, so it is shown
+   exactly as written and reads hours off for a reader in another zone.
+   Relative ages (`7s ago`, `2h 3m`) are fine as they are.
 
 ## 2. Example
 
@@ -42,10 +48,20 @@ Deployed **0.9.3** to dev and prd.
 - Raw HTML other than a table shows as text.
 - A link that is not http, https, mailto or a same-site path shows as text.
 
-## 4. Where it is implemented
+## 4. Times (CLE-77908, owner topic 07b84fd7)
+
+Every time the WUI prints is in the reader's zone: their own pick for that
+workspace (Settings, Appearance, Time zone), else the browser's. That
+includes an ISO 8601 date-time with a zone (`Z` or `+03:00`) written inside a
+post: it shows on the reader's clock, and the hover keeps it as written. A
+time with no zone, and anything inside `code` or a code block, stays as
+written.
+
+## 5. Where it is implemented
 
 `csi-spl-wui/src/utils/code-blocks.mjs` (`looksLikeMarkdown`,
 `markdownSource`), `csi-spl-wui/src/utils/markdown.mjs` (markdown-it and the
 allow-list, including `htmlTableNodes`), and `MessageBody.vue` /
 `MarkdownBlock.vue`. The tests are `tests/unit/markdown-unfenced.test.mjs` and
-`tests/unit/markdown-hostile.test.mjs`.
+`tests/unit/markdown-hostile.test.mjs`. Times: `csi-spl-wui/src/utils/date-iso.mjs`
+and `body-times.mjs`, tested by `tests/unit/local-time-zone.test.mjs`.

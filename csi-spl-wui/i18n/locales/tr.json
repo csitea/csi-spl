@@ -195,7 +195,12 @@
       "failed": "Kaydedilemedi — tekrar deneyin."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Saat dilimi",
+      "browser": "Tarayıcının saat dilimi ({zone})",
+      "hint": "Bu çalışma alanındaki her saat bu dilimde gösterilir, mesajlardaki dilimli ISO saatleri de. 18:46 gibi dilimsiz bir saat yazıldığı gibi kalır. Bu çalışma alanı için saklanır."
+    }
   },
   "auth": {
     "error": {

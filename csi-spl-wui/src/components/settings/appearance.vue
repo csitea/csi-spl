@@ -1,5 +1,5 @@
-<!-- Settings → Appearance (the theme and the font size; specs/023 §3.4; the
-     "Debug pane" checkbox). -->
+<!-- Settings → Appearance (the theme, the font size, the time zone (CLE-77908);
+     specs/023 §3.4; the "Debug pane" checkbox). -->
 <template>
   <SettingsSection id="settings-appearance" :title="t('settings.appearance')" data-test="settings-appearance">
     <div class="settings__row">
@@ -7,6 +7,7 @@
       <ThemeToggle align="end" />
     </div>
     <FontSizeSetting />
+    <TimeZoneSetting />
     <div class="settings__row" data-test="list-clip-default">
       <span id="list-clip-label">{{ t('feed.clip.label') }}</span>
       <div class="list-clip" role="radiogroup" aria-labelledby="list-clip-label">
@@ -30,6 +31,7 @@
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import FontSizeSetting from '~/components/FontSizeSetting.vue'
+import TimeZoneSetting from '~/components/TimeZoneSetting.vue'
 import DebugPaneSetting from '~/components/DebugPaneSetting.vue'
 import { useCardClipDefault } from '~/composables/useCardClip'
 import { CARD_CLIP_MODES } from '~/utils/card-clip.mjs'

@@ -16,7 +16,8 @@
     >{{ p.text }}</a>
     <template v-else>
       <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
-      <template v-for="(r, k) in namedRuns(p.text, people.names.value)" :key="k"><span v-if="r.title" class="person-name" :title="r.title">{{ r.text }}</span><template v-else>{{ r.text }}</template></template>
+      <!-- CLE-77908: an ISO time with a zone reads in the viewer's zone; the hover keeps it as written -->
+      <template v-for="(tr, i) in bodyTimeRuns(p.text)" :key="i"><time v-if="tr.iso" class="msg-time" :datetime="tr.iso" :title="tr.iso" data-test="body-time">{{ tr.text }}</time><template v-else><template v-for="(r, k) in namedRuns(tr.text, people.names.value)" :key="k"><span v-if="r.title" class="person-name" :title="r.title">{{ r.text }}</span><template v-else>{{ r.text }}</template></template></template></template>
     </template>
   </template>
 </template>
@@ -24,6 +25,7 @@
 <script setup lang="ts">
 import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
+import { bodyTimeRuns } from '~/utils/body-times.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 /* One run of a message body. Text interpolation only: a wiki region never

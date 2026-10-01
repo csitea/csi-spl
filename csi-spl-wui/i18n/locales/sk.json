@@ -195,7 +195,12 @@
       "failed": "Nepodarilo sa uložiť — skúste to znova."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Časové pásmo",
+      "browser": "Časové pásmo prehliadača ({zone})",
+      "hint": "Každý čas v tomto pracovnom priestore sa zobrazuje v tomto pásme, aj časy ISO s pásmom v správach. Čas bez pásma, napríklad 18:46, zostane tak, ako bol napísaný. Uloží sa pre tento pracovný priestor."
+    }
   },
   "auth": {
     "error": {

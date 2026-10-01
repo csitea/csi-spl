@@ -195,7 +195,12 @@
       "failed": "No se pudo guardar — inténtalo de nuevo."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Zona horaria",
+      "browser": "Zona horaria del navegador ({zone})",
+      "hint": "Todas las horas de este espacio de trabajo se muestran en esta zona, también las horas ISO con zona dentro de los mensajes. Una hora sin zona, como 18:46, queda tal como se escribió. Se guarda para este espacio de trabajo."
+    }
   },
   "auth": {
     "error": {

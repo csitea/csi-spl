@@ -43,6 +43,8 @@ export interface SessionClaims {
   issues_sort?: { col: string, dir: string } | null
   /** SPL-1182 The two vertical dividers' widths as window fractions; null = never dragged (default layout). */
   pane_sizes?: Record<string, number> | null
+  /** CLE-77908 The IANA zone every time prints in, per workspace; null = the browser's zone. */
+  time_zone?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -151,6 +153,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, pane_sizes: sizes }
   }
 
+  /** CLE-77908: mirror the time zone (optimistic; reverted on a failed save). */
+  function setTimeZone(zone: string | null) {
+    if (claims.value) claims.value = { ...claims.value, time_zone: zone }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -177,5 +184,5 @@ export const useSessionStore = defineStore('session', () => {
     await logout()
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, logout, stopActingAs }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, logout, stopActingAs }
 })

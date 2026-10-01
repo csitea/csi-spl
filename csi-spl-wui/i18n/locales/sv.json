@@ -195,7 +195,12 @@
       "failed": "Kunde inte spara — försök igen."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Tidszon",
+      "browser": "Webbläsarens tidszon ({zone})",
+      "hint": "Alla tider i den här arbetsytan visas i denna zon, även ISO-tider med zon i meddelanden. En tid utan zon, som 18:46, visas som den skrevs. Sparas för den här arbetsytan."
+    }
   },
   "auth": {
     "error": {

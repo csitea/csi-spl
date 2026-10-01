@@ -195,7 +195,12 @@
       "failed": "Čuvanje nije uspelo — pokušajte ponovo."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Временска зона",
+      "browser": "Временска зона прегледача ({zone})",
+      "hint": "Свако време у овом радном простору приказује се у овој зони, и ISO времена са зоном у порукама. Време без зоне, као 18:46, остаје како је написано. Чува се за овај радни простор."
+    }
   },
   "auth": {
     "error": {

@@ -195,7 +195,12 @@
       "failed": "Не удалось сохранить — попробуйте ещё раз."
     },
     "members_hint": "Looking for the people in this workspace? Members and invites live in Workspace settings.",
-    "members_link": "Open Members"
+    "members_link": "Open Members",
+    "time_zone": {
+      "label": "Часовой пояс",
+      "browser": "Часовой пояс браузера ({zone})",
+      "hint": "Всё время в этом рабочем пространстве показывается в этом поясе, в том числе время ISO с поясом в сообщениях. Время без пояса, например 18:46, остаётся как написано. Сохраняется для этого рабочего пространства."
+    }
   },
   "auth": {
     "error": {

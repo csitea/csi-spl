@@ -40,7 +40,7 @@
           </thead>
           <tbody>
             <tr v-for="r in rows" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id }">
-              <td dir="ltr" :data-label="t('events.col_when')">{{ whenOf(r) }}</td>
+              <td dir="ltr" :data-label="t('events.col_when')"><time :datetime="utcOf(r) || undefined" :title="utcOf(r) || undefined" data-test="events-when">{{ whenOf(r) }}</time></td>
               <td :data-label="t('events.col_id')"><code dir="ltr">{{ r.error_id }}</code></td>
               <td dir="ltr" :data-label="t('events.col_source')">{{ r.source }}</td>
               <td dir="ltr" :data-label="t('events.col_status')">{{ r.status ? String(r.status) : '' }}</td>
@@ -66,6 +66,7 @@
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 type EventRow = {
@@ -91,9 +92,16 @@ const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
 
+/* CLE-77908 (owner, 07b84fd7): stored UTC, shown in the person's own zone for
+   this workspace (Settings -> Appearance, else the browser's); the hover and
+   the <time datetime> keep the exact UTC instant, ISO 8601 with Z. */
 function whenOf(r: EventRow) {
   const raw = r.at || r.received_at || ''
   return isoDateTime(raw) || raw
+}
+function utcOf(r: EventRow) {
+  const raw = r.at || r.received_at || ''
+  return raw ? formatIsoTs(raw) : ''
 }
 
 function asRows(data: unknown): EventRow[] {

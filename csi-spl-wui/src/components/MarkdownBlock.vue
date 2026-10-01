@@ -33,6 +33,7 @@ import { h, type FunctionalComponent, type VNodeChild } from 'vue'
 import type { MdNode } from '~/utils/markdown.mjs'
 import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
 import { mentionParts } from '~/utils/code-blocks.mjs'
+import { hasBodyTime } from '~/utils/body-times.mjs'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
 
@@ -80,9 +81,11 @@ function onLink(e: MouseEvent, href: string) {
 }
 
 function text(s: string, inCode: boolean): VNodeChild {
-  if (!props.bare || inCode) return s
+  if (inCode) return s
+  /* CLE-77908: a zoned ISO time reads in the viewer's zone (MessageRuns) */
+  if (!props.bare) return hasBodyTime(s) ? h(MessageRuns, { parts: [{ type: 'text', text: s }] }) : s
   const parts = mentionParts(s)
-  return parts.length === 1 && parts[0].type === 'text' ? s : h(MessageRuns, { parts })
+  return parts.length === 1 && parts[0].type === 'text' && !hasBodyTime(s) ? s : h(MessageRuns, { parts })
 }
 
 function node(n: MdNode, inCode = false): VNodeChild {

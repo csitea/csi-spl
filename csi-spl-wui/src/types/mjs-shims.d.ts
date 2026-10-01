@@ -1741,7 +1741,17 @@ declare module '~/utils/tenant-host-boot.mjs' {
   }): void
 }
 
+declare module '~/utils/body-times.mjs' {
+  export function bodyTimeRuns(text: string): { text: string, iso?: string }[]
+  export function hasBodyTime(text: string): boolean
+}
+
 declare module '~/utils/date-iso.mjs' {
+  export function browserTimeZone(): string
+  export function isKnownTimeZone(zone: unknown): boolean
+  export function knownTimeZones(): string[]
+  export function setTimeZoneSource(source: () => string): void
+  export function viewerTimeZone(): string
   export function isoDate(value: unknown): string
   export function isoClock(value: unknown): string
   export function isoDateTime(value: unknown): string

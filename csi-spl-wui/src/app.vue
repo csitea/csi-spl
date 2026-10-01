@@ -16,6 +16,7 @@ import { tabTitle, tenantTabName, unreadTotal, withUnread } from '~/utils/tab-ti
 import { useNotificationStore } from '~/stores/notification'
 import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
+import { setTimeZoneSource } from '~/utils/date-iso.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
@@ -46,6 +47,10 @@ function docDir(): 'ltr' | 'rtl' {
 /* Owner (topic d1f76e76): the tab reads "<tenant display name>.spool-hub";
    the apex tenant is plain "spool-hub". A page's own title stays in front. */
 const session = useSessionStore()
+/* CLE-77908: every printed time follows the person's zone for this workspace
+   (Settings -> Appearance), else the browser's. A reactive read, so every
+   clock re-renders the moment the zone changes. */
+setTimeZoneSource(() => String(session.claims?.time_zone || ''))
 const apexTenant = String(useRuntimeConfig().public.tenant || '')
 const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 

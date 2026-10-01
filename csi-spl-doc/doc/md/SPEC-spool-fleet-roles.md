@@ -46,6 +46,9 @@ dispatcher, which passes it to `CLE-001`. `CLE-001` decides whether it deserves
 the humans' time; if so, `CLE-001` (or a new lane) opens a **new** discussion.
 An agent never reopens a closed discussion on its own.
 
+⏸️ on a topic's opening message = on hold (not archived). An agent sets or
+clears it with `do_spl_react` (CLE-77895).
+
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
@@ -212,4 +215,4 @@ end to end in every seated workspace.
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.3.5 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->
+<!-- version: 0.3.6 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->

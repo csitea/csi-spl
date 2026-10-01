@@ -16,6 +16,9 @@
 #  12. do_spl_topic_archive (CLE-77869) refuses a bad TOPIC / MODE / agent,
 #      sends nothing in a dry run, then runs `spool archive --task --as`
 #      (+ --unarchive) and names the hub's issue_topic / not_allowed refusals
+#  13. do_spl_react (CLE-77895) refuses a bad TOPIC / MSG / EMOJI / MODE /
+#      agent, sends nothing in a dry run, then runs `spool react --task
+#      [--msg] --emoji --as` (+ --remove) and names the hub's refusals
 #   9. do_spl_issue_* (specs/039) refuse bad fields, send only the set ones
 #      before it reads anything, sends `spool send --channel` with the
 #      normalized channel and the put files' ids, and names a non-member
@@ -658,6 +661,44 @@ out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENA
 for tok in "issue_topic:archived with its issue" "not_allowed:Who can archive topics" "not_found:never delivered to the desk"; do
   out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" FAKE_REFUSE="${tok%%:*}" TENANT_ID=t1 DESK_AGENT=CLE-00 \
     TOPIC=$ARC_TOPIC DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
+done
+
+# --- 13. the reaction leg (CLE-77895) ----------------------------------------------
+RX_TOPIC=b2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f
+RX_MSG=1f8fad5b-d9cb-469f-a165-70867728950e
+cat >"$T/fakereact" <<'FAKE'
+#!/bin/sh
+printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
+[ -n "${FAKE_REFUSE:-}" ] && { echo "spool: hub refused: $FAKE_REFUSE (refused)" >&2; exit 78; }
+echo '{"msg_id":"0f8fad5b-d9cb-469f-a165-70867728950e","task_id":"b2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f","reactions":[{"emoji":"⏸️","actors":["CLE-00"]}]}'
+FAKE
+chmod +x "$T/fakereact"; : >"$T/react.log"
+RX='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_react'
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *DRY_RUN*"add ⏸️ on the opening message of topic $RX_TOPIC"* && ! -s "$T/react.log" ]] &&
+  pass "do_spl_react: the dry run says what it would do and sends nothing" || fail "react dry run (rc=$rc): $out"
+for bad in "TOPIC=" "TOPIC=NOT-A-UUID" "TOPIC=B2C3FBAD-C8DF-42D3-8233-2D7E8D5A0C2F" "MSG=nope" "EMOJI=" "EMOJI=⏸️ ✅" "MODE=toggle" \
+           "DESK_AGENT=box-desk" "TENANT_ID=T1"; do
+  if SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ \
+       DRY_RUN=0 "$bad" >"$T/o" 2>&1; then
+    fail "do_spl_react refuses $bad: $(cat "$T/o")"
+  else
+    grep -q FATAL "$T/o" && pass "do_spl_react refuses $bad" || fail "do_spl_react refuses $bad without saying why: $(cat "$T/o")"
+  fi
+done
+[[ ! -s "$T/react.log" ]] && pass "CONTROL no refused reaction reached spool" || fail "a refused reaction ran spool: $(cat "$T/react.log")"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"emoji": "⏸️"'* && "$out" == *'"mode": "add"'* && "$out" == *'"actors": ["CLE-00"]'* ]] &&
+  tail -1 "$T/react.log" | grep -qx "react|--task|$RX_TOPIC|--emoji|⏸️|--as|CLE-00|" &&
+  pass "do_spl_react runs spool react --task --emoji --as and prints the hub's answer" ||
+  fail "react (rc=$rc): $out / $(tail -1 "$T/react.log")"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC= MSG=$RX_MSG EMOJI=✅ MODE=remove DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/react.log" | grep -qx "react|--msg|$RX_MSG|--emoji|✅|--as|CLE-00|--remove|" &&
+  pass "MSG alone and MODE=remove ride as --msg / --remove" || fail "react by msg (rc=$rc): $out / $(tail -1 "$T/react.log")"
+for tok in "bad_emoji:the picker offers" "not_found:never delivered to the desk" "not_a_card:name the one with MSG"; do
+  out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_REFUSE="${tok%%:*}" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
   [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
 done
 

@@ -37,6 +37,16 @@ Section 7 of the spec records how it was actually built.
 | budget | `csi-spl-all-satellite`: 170 per month in the billing account's currency, alerts at 50/90/100%, filtered to resources labelled `box=satellite` |
 | cost | about $163 per month list price: VM ~$145, disks ~$14, NAT/IP ~$4 |
 
+#### 1.1.1 What lives on which disk
+
+| disk | holds | survives |
+|---|---|---|
+| boot, 30 GB | the OS, packages, **`/home/debian`**: `~/.local/bin` (claude, spool, spool-agent), `~/.claude` (the owner's claude login), the spool env in `~/.bashrc`, the pushed keys and GitHub token | nothing: lost on any VM recreate |
+| data, 100 GB | `/opt` (the repo clone `/opt/csi/csi-spl`), `/var/spool-hub` (the spool root), docker's data-root `/mnt/data/docker` | a VM-only rebuild (e.g. an image change); NOT a 060 destroy |
+
+No snapshots and no backups (owner: git is the backup): anything not pushed is
+lost with its disk.
+
 ### 1.2 What is installed
 
 | what | version (2026-10-01) | installed by |
@@ -89,6 +99,21 @@ csi-spl-bkp. The dev renders of both steps are header-only (`# prd-only-step`).
   pair is minted locally (`do_satellite_ssh_keygen`), and terraform reads only
   the `.pub`. The billing account id comes only from `GCP_BILLING_ACCOUNT_ID`;
   make passes it as `TF_VAR_billing_account_id`.
+- No key, token or billing id in a spool post either. The pushed credentials
+  cross ssh stdin only; on the satellite every credential file is 0600 and its
+  directory 0700 (`do_satellite_verify` checks the files).
+- The owner's AI accounts are never copied: each CLI logs in on the satellite
+  with its own paste-the-code login (1.5.9).
+
+#### 1.4.1 Who is who
+
+| identity | holds | used for |
+|---|---|---|
+| owner login | org-level human account | ONLY the one-time `ENV=all` gcp-000..004 bootstrap, while no csi-spl-all key exists |
+| csi-spl-all SA, key `~/.gcp/.csi/key-csi-spl-all.json` on the fleet box | `roles/owner` on csi-spl-all | terraform 059/060, the IAP tunnel, the host-key pin, `do_satellite_verify` |
+| VM SA `csi-spl-all-satellite@…` | logs + metrics writer only | the VM's own metadata identity; a stolen token can spend nothing |
+| dev + prd SA keys in `~debian/.gcp/.csi/` | per env, as on the home box | `ENV=dev\|prd ./run -a ...` on the satellite |
+| GitHub token `~debian/.github/token` | repo access | the clone and pulls on the satellite |
 
 ### 1.5 Operating it
 
@@ -182,6 +207,17 @@ destroy deletes it, and **git is the only backup**. Push everything before a
 destroy. A recreate also loses `/home`, which holds the AI CLI logins, so the
 owner logs in again.
 
+Results of the 2026-10-01 drill:
+
+| stage | result |
+|---|---|
+| plan -destroy | exactly 10 (060) + 1 (059) resources |
+| destroy, re-provision | owner-gated per call; 059 then 060 back (1 + 10) |
+| ssh after the recreate | the stale host key was dropped, no "Host key has changed" |
+| creds push, bootstrap | every ROLE line OK/CHANGED |
+| verify | 15/15 PASS |
+| lost | `/home` (claude login, pushed keys, `~/.local/bin`) and the data disk (repo clone, spool root); all restored by the four steps above except the owner's claude login |
+
 #### 1.5.7 Raise the pinned image
 
 ```bash
@@ -191,6 +227,62 @@ cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_image_latest
 Copy the printed image into `boot_disk_image` in cnf, run
 `ENV=prd ./run -a do_tpl_gen`, then plan and apply. The image change
 recreates the VM; the data disk survives.
+
+#### 1.5.8 Build from nothing, in order (owner go for every GCP change)
+
+1. Project bootstrap, once, with the owner login (dry run unless `DRY_RUN=0`):
+   creates csi-spl-all, links billing, mints the csi-spl-all SA key, enables
+   compute, iap, billingbudgets, cloudbilling, logging, monitoring.
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-iac && ENV=all DRY_RUN=0 GCP_BILLING_ACCOUNT_ID=<BILLING_ACCOUNT_ID> ./run -a do_gcp_000_bootstrap_gcp_env
+```
+
+2. The terraform state bucket `csi-spl-all-tfstate`:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-iac && PROJECT_ENV=all DRY_RUN=0 ./run -a do_gcp_bkp_state_bucket_create
+```
+
+3. The ssh key pair, local only (terraform reads the `.pub`):
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_ssh_keygen
+```
+
+4. Render the tfvars:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-iac && ENV=prd ./run -a do_tpl_gen
+```
+
+5. Step 059 (the budget) BEFORE 060: `make do-tf-plan`, then
+   `make do-provision` with `GCP_BILLING_ACCOUNT_ID` (1.5.4).
+6. Step 060: `make do-tf-plan`, then `make do-provision` (1.5.3, 1.5.4).
+7. Then the four steps after a recreate (1.5.6) and the owner's login (1.5.9).
+
+#### 1.5.9 The owner's claude login (T023)
+
+Once per VM: the login lives in `~/.claude` on the boot disk. From a fleet box:
+
+```bash
+ssh satellite
+```
+
+On the satellite, start claude, open the printed authorize URL in any browser
+on any machine, sign in with the owner's account and paste the code back:
+
+```bash
+claude
+```
+
+#### 1.5.10 Keep agents alive after ssh disconnects
+
+Linger is on for `debian`; run agents inside tmux, never in the bare ssh session:
+
+```bash
+ssh -t satellite tmux new -A -s main
+```
 
 ### 1.6 Owner decisions (topics f35d82fc, b23639e2)
 

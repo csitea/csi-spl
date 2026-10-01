@@ -68,7 +68,7 @@ today. **FIXED** means it was broken and is now fixed on trunk by this lane.
 | G1 | each machine has its own clone and worktrees (`satellite-bootstrap.func.sh`), and pushes go `HEAD:master` with the fetch + rebase + `merge-base --is-ancestor` loop | **SAFE**: the git remote is the lock, and trunk stays linear |
 | G2 | the version tag is claimed by pushing it (`do_release_version`), and CI has its own concurrency groups | **SAFE**: the remote is the lock |
 | G3 | pre-push green cache `~/.cache/csi-spl/pre-push.*` | **SAFE**, per machine (it just re-runs more often) |
-| G4 | `git worktree list` is the "who owns what" map every brief tells agents to read | **BROKEN across machines**: each machine sees only its own lanes. With F1 the branch names no longer collide (`CLE-<n>-...`), but a scope check on one machine is blind to the other | new lane (N2): post the lane map on the hub (roster + branch), or read `git ls-remote` of pushed lane branches |
+| G4 | `git worktree list` is the "who owns what" map every brief tells agents to read | **FIXED by N2**: it saw one machine's lanes only. The fleet-wide lane map on the hub (rdb `0096_fleet_lanes`, `spool lane`) has one row per agent `<ID>@<box>` with repo, branch, scope, files, topic and state. The spawn writes it, exit-clean sets it done, and the seed prompt's scope check and `/spawn-an-agent` read it (`lane-map.sh`, `do_spl_lane_map`; `--check` exits 3 on an owned path). `lane-map.tst.sh` covers two simulated machines; its control shows the local-only map is blind |
 
 ### 2.4 Operations only the home box can run
 
@@ -167,6 +167,7 @@ fail. Bands keep spawning offline and need no new table.
 | F1 | per-machine agent-id band `SPOOL_AGENT_ID_RANGE` (box.env); allocator floor, band full = exit 1, explicit claims outside the band warn | `d8905f7a` | `spawn-agents/tests/test-next-agent-id.sh` (two simulated machines: no common id; the control shows the collision without bands) |
 | F2 | per-machine desk box `SPOOL_DESK_BOX` (box.env) is the default of every `DESK_BOX`/`AGENT_BOX` | `f7efacbf` | `spawn-agents/tests/test-desk-box-default.sh` |
 | T1 | hub tests for the one-to-many cases | `d5b5a8bd` | `internal/hub/multimachine_test.go`: two machines seated in one tenant, routed once; takeover mid-message loses nothing (memory, `-race` x15, Postgres x5) |
+| N2 | the fleet-wide lane map (G4): hub table + `lane` frame + `spool lane`; `do_spl_lane_map` (read, joined with this machine's worktrees; `LANE_CHECK` = the collision check) and `do_spl_lane_put` (spawn: live, exit-clean: done); the seed prompt SCOPE block and the spawn commands read it instead of `git worktree list`. Shared once the machine has a fleet (`LANE_FLEET`, else lease.conf `LEASE_FLEET` / `LEASE_ENV` / `LEASE_TENANT`); without one it is the local worktrees | CLE-77920 `6f9f50ac` (hub) + the orc commit | `internal/hub/box_lane_test.go`, `internal/store/fleet_lane_test.go` (memory + Postgres), `csi-spl-orc/src/bash/tests/lane-map.tst.sh`, `spawn-agents/tests/test-spawn-dry-run.sh` |
 
 ## 5. Out of scope
 

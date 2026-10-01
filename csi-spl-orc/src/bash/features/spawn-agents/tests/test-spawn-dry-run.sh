@@ -81,6 +81,16 @@ check "git: dry run added no worktree" test ! -e "$T_TMP/repo-wt"
 prompt="$(cat "$T_TMP/plan-git/prompt.txt")"
 has "git: closing steps present" "INTEGRATION / CLOSING STEPS" "$prompt"
 has "git: scope control present" "SCOPE + COLLISION CONTROL" "$prompt"
+# CLE-77920 (specs/058 N2): the scope check reads the FLEET-WIDE lane map,
+# and the spawn writes this agent's row (dry run: planned, nothing sent).
+has "git: scope check reads the fleet lane map" "lane-map.sh' - every live agent on EVERY machine" "$prompt"
+has "git: scope check can test paths" "--check <path,...> --agent CLE-79" "$prompt"
+has "git: the spawn plans its lane row" "PLAN lane       lane-map.sh put --agent CLE-79 --repo repo --branch CLE-79-fix-it --scope 'fix it'" "$out"
+printf '# Brief: fleet lane map\nbody\n' > "$T_TMP/brief-h.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-81 "$T_TMP/repo" "$T_TMP/brief-h.md" "fix it" 2>&1)"
+has "git: the lane scope is the brief's first heading" "--scope 'fleet lane map'" "$out"
+out="$(SPAWN_LANE_SCOPE='lane map' SPAWN_LANE_FILES=a/b,c SPAWN_LANE_TOPIC=t-1 bash "$T_SCRIPTS/spawn-claude.sh" CLE-80 "$T_TMP/repo" "$T_TMP/brief.md" "fix it" 2>&1)"
+has "git: SPAWN_LANE_* fill the row" "--scope 'lane map' --files 'a/b,c' --topic 't-1'" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # SPL-1253: the deploy-gate footer rides every git-repo brief.

@@ -30,8 +30,9 @@ tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#
 ### 1.2 Write the brief to a file
 
 Put the full task in a markdown file: the scope, the files it must NOT touch
-(read `git worktree list` first so the new scope is disjoint from every live
-agent), and how "done" is proven.
+(read the fleet-wide lane map first, `bash {{HARNESS_DIR}}/scripts/lane-map.sh` - every live
+agent on every machine, which `git worktree list` cannot see - so the new scope
+is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and how "done" is proven.
 
 ### 1.3 Start the window
 

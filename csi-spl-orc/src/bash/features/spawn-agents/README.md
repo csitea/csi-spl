@@ -23,6 +23,9 @@ the reference does it:
   the box user's client is attached to. No spawn ever runs `select-window`.
 - **Isolation.** Each agent gets its own git worktree, `<repo>-wt/<ID>`, on a
   branch off `origin/<trunk>`.
+- **Lane map.** Each spawn writes the agent's row (`<ID>@<box>`, repo, branch,
+  scope, files, topic) into the fleet-wide lane map on the hub, and the seed
+  prompt's scope check reads that map, not `git worktree list` (section 3.11).
 - **Seed prompt.** It carries the scope, integration and leak-gate blocks.
 - **Run-as hop.** Agents run as the agent user.
 - **Kept-open pane.** When the agent exits, its pane stays open.
@@ -355,6 +358,55 @@ new window. A record that cannot be proven is refused and named.
 ```bash
 DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 ```
+
+### 3.11 The fleet-wide lane map: who owns what on every machine
+
+`git worktree list` shows this machine's lanes only, so with agents on two
+machines (`csi-spl-doc/specs/058-multi-machine-fleet`, G4) a scope check on
+one machine was blind to the other. The lane map is one row per agent on the
+hub (rdb `0096_fleet_lanes`, `spool lane`): `<ID>@<box>` (box = the machine's
+`SPOOL_DESK_BOX`), repo, branch, scope, files, topic, state `live` or `done`.
+
+| when | who | writes |
+|---|---|---|
+| spawn | `spawn-core.inc.sh`, in the background, never blocking the spawn | `live`; scope = `SPAWN_LANE_SCOPE`, else the brief's first heading, else the slug; files = `SPAWN_LANE_FILES`; topic = `SPAWN_LANE_TOPIC` |
+| exit-clean | the agent (`/exit-clean`, `/kill-your-self`) | `done`, other fields kept |
+
+The map is shared once the machine has a fleet: `LANE_FLEET`, else
+`LEASE_FLEET` with `LEASE_ENV` / `LEASE_TENANT` (`LANE_ENV` / `LANE_TENANT`
+override them) from the dispatch `lease.conf`. Without one it is this machine's
+worktrees, which is the one-machine behaviour. The read always adds this
+machine's own worktrees too: a lane the hub has no row for shows as `src
+local`. A hub that does not answer prints a WARN and falls back to them.
+
+#### 3.11.1 Read it (live lanes; `--all` adds done, `--json` for scripts)
+
+```bash
+bash scripts/lane-map.sh
+```
+
+#### 3.11.2 Check the paths a new lane will own (exit 3 names the owner)
+
+```bash
+bash scripts/lane-map.sh --check csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ --agent CLE-07
+```
+
+#### 3.11.3 Spawn with the lane's files in its row
+
+```bash
+SPAWN_LANE_FILES=csi-spl-orc/src/bash/run/spl-lane-map.func.sh SPAWN_LANE_TOPIC=<task-id> bash scripts/spawn-window.sh claude auto <WORKDIR> <BRIEF> <slug>
+```
+
+#### 3.11.4 Mark a lane done by hand
+
+```bash
+bash scripts/lane-map.sh done --agent CLE-07
+```
+
+The same reads and writes as run actions: `./run -a do_spl_lane_map`
+(`LANE_CHECK`, `LANE_AGENT`, `LANE_ALL`, `LANE_FORMAT`) and `./run -a
+do_spl_lane_put` (`LANE_AGENT`, `LANE_STATE`, ...). Test:
+`csi-spl-orc/src/bash/tests/lane-map.tst.sh` (two simulated machines).
 
 ## 4. Exit codes of spool-send.sh and spool-notify.sh
 

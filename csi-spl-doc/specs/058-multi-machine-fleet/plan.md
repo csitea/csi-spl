@@ -14,7 +14,7 @@ Spec: [spec.md](spec.md).
 | 6 | gate every side-effect cron step (unanswered sweep, welcome, responder sweep, dispatch tick, gap feed) on "this machine holds the fleet lease"; gap feed reads the hub roster, not the local identity map; post-drop follows the lease | CLE-77911 | asked |
 | 7 | the satellite's box.env: `SPOOL_DESK_BOX=box-desk-sat`, `SPOOL_AGENT_ID_RANGE=100000-199999`, `SPOOL_AGENT_USER` (box-config.sh) | CLE-77912 | asked |
 | 8 | N1: a local-mode `spool send` to an id with no local dir refuses (or routes through the hub) instead of minting an orphan inbox; satellite agents report to the orchestrator through the hub | new lane | proposed |
-| 9 | N2: the lane map ("who owns what") readable across machines (hub roster + branch, or `git ls-remote` of lane branches) | new lane | proposed |
+| 9 | N2: the lane map ("who owns what") readable across machines: hub table `fleet_lanes` (rdb 0096), written at spawn, done at exit-clean, read by `do_spl_lane_map` / `lane-map.sh` in the spawn path's scope check | CLE-77920 | done (hub `6f9f50ac`; live once a machine sets its fleet in lease.conf, M2) |
 | 10 | M1 pins: mint `box-desk-sat` on the satellite, pin it from the home box with `do_spl_desk_pin` admin mode, per tenant and env; box operator grant | owner go (prd) | waiting |
 
 ## 2. Test register (spec section 2 cases)
@@ -23,6 +23,7 @@ Spec: [spec.md](spec.md).
 |---|---|---|
 | two simulated machines seated in the same tenant | `TestTwoMachinesOneTenantOwnBoxIDs` | pass |
 | a post routed once | `TestTwoMachinesOneTenantOwnBoxIDs` (DM, re-sync delivers 0), `TestFallbackLongestOnlineAndOldClientSkipped` (unheard post -> one agent) | pass |
+| two machines' lanes visible to each other; a path owned on the other machine collides | `lane-map.tst.sh` (control: the local-only map is blind), `TestBoxFleetLaneMap` | pass |
 | agent ids never collide | `test-next-agent-id.sh` (bands; the control shows the no-band collision) | pass |
 | a takeover mid-message loses nothing | `TestBoxTakeoverMidMessageLosesNothing` | pass |
 | the same box id on two machines | `TestLastHelloWinsOnlyForBoxRole` (4409), spec H1 | the documented hazard |

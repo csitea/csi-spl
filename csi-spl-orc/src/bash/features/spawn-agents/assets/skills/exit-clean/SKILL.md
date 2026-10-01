@@ -26,6 +26,13 @@ Everything finished is committed with explicit pathspecs and on the trunk
 origin/<trunk>`). Tick the spec's `tasks.md` in the same commit as the work.
 Work that is not finished is named in the report, never silently dropped.
 
+Then mark your lane done in the fleet-wide lane map, so no other machine's
+scope check still reads you as owning your files:
+
+```bash
+bash {{HARNESS_DIR}}/scripts/lane-map.sh done --agent <YOUR-AGENT-ID>
+```
+
 ## 2. Report
 
 Send the summary to your orchestrator (`{{ORCHESTRATOR_ID}}` unless your brief names

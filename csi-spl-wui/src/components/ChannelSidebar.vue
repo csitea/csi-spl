@@ -1505,11 +1505,12 @@ async function onCreate() {
 .sidebar-tab:hover { background: var(--color-surface-hover); color: var(--color-fg); }
 .sidebar-tab[aria-selected="true"] { color: var(--color-fg); }
 /* the current section: its icon 1px smaller on every side and a shade darker
-   than the rest (HUM-10, topic a3c2cf08) */
+   than the rest (HUM-10, topic a3c2cf08): darkened from --color-muted, the
+   other icons' colour, so it is darker in the dark theme too */
 .sidebar-tab[aria-selected="true"] :deep(svg) {
   width: calc(min(22px, 70cqi) - 2px);
   height: calc(min(22px, 70cqi) - 2px);
-  color: color-mix(in srgb, var(--color-fg) 80%, #000);
+  color: color-mix(in srgb, var(--color-muted) 75%, #000);
 }
 /* SPL-979: a touch drag on an icon reorders instead of scrolling the page */
 .sidebar-tab--movable { touch-action: none; }

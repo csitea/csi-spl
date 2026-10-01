@@ -512,7 +512,7 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 	if n.h.reg == nil || !cred.Verified() {
 		return true
 	}
-	hum, err := n.h.reg.Register(ctx, Identity{Provider: ProviderPassword, Subject: sess.Email, Email: sess.Email,
+	hum, landed, err := n.h.registerLanding(ctx, Identity{Provider: ProviderPassword, Subject: sess.Email, Email: sess.Email,
 		Name: cred.DisplayName}, sess.Tenant)
 	if errors.Is(err, ErrInviteExpired) {
 		n.log.Warn().Str("email", digest(sess.Email)).Str("tenant", sess.Tenant).Msg("auth.native_login_invite_expired")
@@ -529,7 +529,7 @@ func (n *native) registerLogin(ctx context.Context, w http.ResponseWriter, cred 
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "registrar")
 		return false
 	}
-	sess.HumanID = hum
+	sess.HumanID, sess.Tenant = hum, landed
 	n.h.bindTenant(ctx, sess)
 	return true
 }

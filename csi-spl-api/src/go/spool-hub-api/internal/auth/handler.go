@@ -62,6 +62,15 @@ var ErrNotAllowed = errors.New("auth: sign-in not allowed")
 // (CLE-77781, SPL-1229). Distinct from ErrNotAllowed so the copy differs.
 var ErrInviteExpired = errors.New("auth: invitation expired")
 
+// InviteLander is an optional Registrar hook (SPL-1230): the workspace a
+// sign-in that named NO tenant should land in — the newest live invite for the
+// provider-verified address — or "" for none. Without it such a sign-in stays
+// tenant-less, so an invitee who opened the plain sign-in page (not the mailed
+// link) landed nowhere and the invite stayed pending.
+type InviteLander interface {
+	InvitedTenant(ctx context.Context, email string) (string, error)
+}
+
 // Membership answers whether a registered human may read a tenant (spec 010
 // T013, store-backed, owned by the hub). A session proves who signed in, never
 // which tenant they may read (SEC-001); SessionForTenant asks this.
@@ -322,7 +331,47 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 	})
 	w.Header().Set("Cache-Control", "no-store")
 	// nosemgrep: go.lang.security.injection.open-redirect.open-redirect -- target is the configured provider's authorize endpoint (idp.AuthCodeURL built from cnf), not a request value; state+nonce are server-minted. Any redirect that lands a user-supplied path goes through safeRedirect (token.go). SPL-1288.
-	http.Redirect(w, r, idp.AuthCodeURL(state, nonce), http.StatusFound)
+	http.Redirect(w, r, withLoginHint(idp.AuthCodeURL(state, nonce), p, r.URL.Query().Get("login_hint")), http.StatusFound)
+}
+
+// withLoginHint pre-selects the invited address at the providers that honour
+// login_hint, Google and Microsoft (SPL-1231: an invitee arriving from the
+// invite link should not have to guess which account to pick). Anything that
+// is not a plain address is dropped. The hint never decides who signs in: the
+// provider-verified address still does.
+func withLoginHint(target, provider, hint string) string {
+	hint = normEmail(hint)
+	if hint == "" || (provider != ProviderGoogle && provider != ProviderMicrosoft) {
+		return target
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return target
+	}
+	q := u.Query()
+	q.Set("login_hint", hint)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// registerLanding runs the Registrar. A sign-in that named no tenant lands in
+// the workspace its verified address is invited to (SPL-1230); if that
+// admission is refused (a seat cap, a race with a revoke) it falls back to the
+// tenant-less sign-in it was before. It answers the human and the tenant the
+// session should carry.
+func (h *Handler) registerLanding(ctx context.Context, id Identity, tenant string) (string, string, error) {
+	if l, ok := h.reg.(InviteLander); ok && tenant == "" && id.Email != "" {
+		if t, err := l.InvitedTenant(ctx, id.Email); err == nil && validTenant(t) {
+			hum, err := h.reg.Register(ctx, id, t)
+			if err == nil {
+				h.log.Info().Str("tenant", t).Msg("auth.invite_landing")
+				return hum, t, nil
+			}
+			h.log.Warn().Err(err).Str("tenant", t).Msg("auth.invite_landing_refused")
+		}
+	}
+	hum, err := h.reg.Register(ctx, id, tenant)
+	return hum, tenant, err
 }
 
 func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
@@ -376,7 +425,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	sess := Session{V: 1, Provider: p, Subject: id.Subject, Email: id.Email, Name: id.Name,
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {
-		hum, err := h.reg.Register(r.Context(), id, st.Tenant)
+		hum, landed, err := h.registerLanding(r.Context(), id, st.Tenant)
 		if errors.Is(err, ErrInviteExpired) {
 			h.fail(w, r, p, st.Redirect, ErrCodeInviteExpired, "invite expired")
 			return
@@ -389,7 +438,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, r, p, st.Redirect, ErrCodeUnavailable, err.Error())
 			return
 		}
-		sess.HumanID = hum
+		sess.HumanID, sess.Tenant = hum, landed
 		h.bindTenant(r.Context(), &sess)
 	}
 	tok, err := signToken(h.sessionKey, sess)
@@ -398,7 +447,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, h.sessionCookie(tok, int(h.cfg.SessionTTL.Seconds())))
-	h.log.Info().Str("provider", p).Str("subject", digest(id.Subject)).Str("tenant", st.Tenant).
+	h.log.Info().Str("provider", p).Str("subject", digest(id.Subject)).Str("tenant", sess.Tenant).
 		Msg("auth.login_ok")
 	// CLE-77799: the durable sign-in event for the Activity log (method = the IdP).
 	h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_in", p)

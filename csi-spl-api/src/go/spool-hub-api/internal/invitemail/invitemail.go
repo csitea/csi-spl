@@ -137,6 +137,10 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	if err != nil {
 		return res, err
 	}
+	// SPL-1231: the invitee's own address rides along as a login hint, so the
+	// sign-in page names it and pre-selects it at Google / Microsoft. It is not
+	// a credential: admission is still the provider-verified address.
+	signIn += "&login_hint=" + url.QueryEscape(email)
 	lim := d.Limits
 	if lim.MaxSends == 0 {
 		lim.MaxSends = DefaultMaxSends

@@ -46,13 +46,25 @@ type recReg struct {
 	refuse bool
 	calls  []auth.Identity
 	ids    map[string]string
+	// SPL-1230: land is what InvitedTenant answers ("" = no live invite);
+	// refuseTenant refuses a Register into that one tenant (a seat cap);
+	// tenants records the tenant every Register was asked for.
+	land, refuseTenant string
+	tenants            []string
 }
 
-func (g *recReg) Register(_ context.Context, id auth.Identity, _ string) (string, error) {
+func (g *recReg) InvitedTenant(_ context.Context, _ string) (string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.land, nil
+}
+
+func (g *recReg) Register(_ context.Context, id auth.Identity, tenant string) (string, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.calls = append(g.calls, id)
-	if g.refuse {
+	g.tenants = append(g.tenants, tenant)
+	if g.refuse || (tenant != "" && tenant == g.refuseTenant) {
 		return "", auth.ErrNotAllowed
 	}
 	if g.ids == nil {

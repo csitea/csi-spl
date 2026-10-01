@@ -60,7 +60,7 @@ func TestSendOpenInviteOnceThenRateLimited(t *testing.T) {
 	m := msgs[0]
 	// the hub default locale (bg), unprefixed sign-in URL, lower-cased address
 	if m.To != "invitee@example.com" || m.Locale != "bg" || m.Template != mail.TemplateTenantInvite ||
-		res.SignInURL != "https://example.com/login?tenant=t1&redirect=%2Flobby" || !strings.Contains(m.TextBody, res.SignInURL) ||
+		res.SignInURL != "https://example.com/login?tenant=t1&redirect=%2Flobby&login_hint=invitee%40example.com" || !strings.Contains(m.TextBody, res.SignInURL) ||
 		!strings.Contains(m.TextBody, "2026-09-26 16:00 UTC") || !strings.HasSuffix(m.MessageID, ".tenant_invite@example.com>") {
 		t.Fatalf("message: %+v / %+v", m, res)
 	}
@@ -123,7 +123,7 @@ func TestSendLocaleAndLogSink(t *testing.T) {
 	r.d.Locale, r.d.Delivers = "en", false
 	res, err := Send(context.Background(), r.d, "t1", who)
 	// 047 W13: a sink that reaches no inbox answers "logged", never "sent"
-	if err != nil || res.Delivered || res.Outcome != Logged || res.Locale != "en" || res.SignInURL != "https://example.com/en/login?tenant=t1&redirect=%2Fen%2Flobby" {
+	if err != nil || res.Delivered || res.Outcome != Logged || res.Locale != "en" || !strings.HasPrefix(res.SignInURL, "https://example.com/en/login?tenant=t1&redirect=%2Fen%2Flobby&login_hint=") {
 		t.Fatalf("en / log sink: %+v %v", res, err)
 	}
 }

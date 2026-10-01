@@ -19,7 +19,7 @@ func TestProvisionMember(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
 	const email = "office@nibaconsult.example"
-	const name = "Raya Simeonova"
+	const name = "FirstName LastName"
 	pwHash, err := auth.HashPassword("a-chosen-pass", auth.Argon2Params{MemoryKiB: 64, Iterations: 1})
 	if err != nil {
 		t.Fatal(err)

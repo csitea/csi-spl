@@ -36,6 +36,7 @@ var (
 	_ auth.Preferences      = AuthHooks{}
 	_ auth.TenantLister     = AuthHooks{}
 	_ auth.FederatedLookup  = AuthHooks{}
+	_ auth.InviteLander     = AuthHooks{}
 )
 
 // Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
@@ -67,6 +68,25 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 		a.AvatarErr(hum, err)
 	}
 	return hum, nil
+}
+
+// InvitedTenant is the workspace a sign-in that named no tenant lands in: the
+// newest live invite for the provider-verified address, "" when there is none
+// or the store keeps no invites (SPL-1230, auth.InviteLander).
+func (a AuthHooks) InvitedTenant(ctx context.Context, email string) (string, error) {
+	f, ok := a.H.(InviteFinder)
+	if !ok || email == "" {
+		return "", nil
+	}
+	now := time.Now
+	if a.Now != nil {
+		now = a.Now
+	}
+	ts, err := f.LiveInviteTenants(ctx, email, now().UTC())
+	if err != nil || len(ts) == 0 {
+		return "", err
+	}
+	return ts[0], nil
 }
 
 // storeAvatar puts the already-checked picture bytes (auth.fetchAvatar:

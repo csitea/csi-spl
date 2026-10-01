@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  OPEN_FOCUS_CLASSES, failureReason, isMessageId, markOpened, messageHref, openMessage, placeKind, resolveMessage, rowReason,
+  OPEN_FOCUS_CLASSES, failureReason, isMessageId, markOpened, messageHref, openMessage, placeKind, placeOf, resolveMessage, rowReason,
 } from '../../src/utils/open-message.mjs'
 
 const MSG = '33333333-3333-4333-8333-333333333333'
@@ -76,6 +76,60 @@ test('resolveMessage: a bare id becomes its full row (task from moveInfo, row fr
 test('resolveMessage: a message past the first read still opens on its task and channel', async () => {
   const api = fakeApi({ info: { msg_id: MSG, task_id: TASK, channel: 'ops' }, rows: [] })
   assert.deepEqual(await resolveMessage(MSG, api), { row: { msg_id: MSG, task_id: TASK, channel: 'ops' } })
+})
+
+/* CLE-77909 (lane D red, dev): a cold /m/<id> to a reply in a 676-row DM
+   (row 661) opened the Topics view - the oldest 200 rows held no row, and
+   the stand-in had no DM ends, so no peer. */
+function longDmApi({ newest = [] } = {}) {
+  const old = Array.from({ length: 200 }, (_, i) => ({ msg_id: `0000${String(i).padStart(4, '0')}-0000-4000-8000-000000000000`, task_id: TASK, channel: null, from: 'CLE-1', to: 'HUM-4' }))
+  const calls = []
+  return {
+    calls,
+    async moveInfo(id) { calls.push(['moveInfo', id]); return { msg_id: id, task_id: TASK, channel: null } },
+    async getTopic(id, o) { calls.push(['getTopic', id, o]); return o && o.order === 'desc' ? { messages: newest, next: null } : { messages: old, next: old[199].msg_id } },
+    async topicSize() { throw http(409) },
+  }
+}
+
+test('resolveMessage: a DM reply past the oldest page is found on the newest page', async () => {
+  const reply = { msg_id: MSG, task_id: TASK, channel: null, from: 'CLE-1', to: 'HUM-4' }
+  const api = longDmApi({ newest: [reply] })
+  assert.deepEqual(await resolveMessage(MSG, api), { row: reply })
+  assert.deepEqual(api.calls.filter((c) => c[0] === 'getTopic').map((c) => c[2].order || 'asc'), ['asc', 'desc'])
+  assert.equal(placeKind(reply, 'HUM-4'), 'dm')
+})
+
+test('resolveMessage: a DM row on neither page keeps the DM ends of its topic, so it opens the DM', async () => {
+  const got = await resolveMessage(MSG, longDmApi())
+  assert.deepEqual(got, { row: { msg_id: MSG, task_id: TASK, channel: null, from: 'CLE-1', to: 'HUM-4' } })
+  assert.equal(placeKind(got.row, 'HUM-4'), 'dm')
+})
+
+test('resolveMessage: a short topic is read once', async () => {
+  const api = fakeApi({ info: { msg_id: MSG, task_id: TASK, channel: null }, rows: [{ msg_id: ROOT, task_id: TASK, channel: null, from: 'CLE-1', to: 'HUM-4' }] })
+  const got = await resolveMessage(MSG, api)
+  assert.equal(api.calls.filter((c) => c[0] === 'getTopic').length, 1)
+  assert.equal(placeKind(got.row, 'HUM-4'), 'dm')
+})
+
+test('placeOf: the channel wins; a DM takes the ends of the topic row; nothing known is a bare row', () => {
+  assert.deepEqual(placeOf({ channel: 'lobby', from: 'X' }, { channel: null }), { channel: 'lobby' })
+  assert.deepEqual(placeOf({ from: 'X' }, { channel: 'ops' }), { channel: 'ops' })
+  assert.deepEqual(placeOf({ channel: null, from: 'CLE-1', from_box: 'b1', to: 'HUM-4' }, {}), { channel: null, from: 'CLE-1', from_box: 'b1', to: 'HUM-4' })
+  assert.deepEqual(placeOf(undefined, undefined), { channel: null })
+})
+
+test('openMessage: a cold id of a DM reply past the oldest page opens the DM (kind dm), never its topic page', async () => {
+  const router = fakeRouter()
+  const sections = []
+  const out = await openMessage(MSG, {
+    self: 'HUM-4', api: longDmApi(), router, localePath: (p) => p, mark: () => {},
+    openSection: async (row) => { sections.push(row); return true },
+  })
+  assert.deepEqual(out, { ok: true, kind: 'dm', msgId: MSG })
+  assert.equal(sections[0].to, 'HUM-4')
+  assert.equal(router.log.length, 0)
 })
 
 test('resolveMessage: unknown / deleted / not yours -> not_found; no topics.read -> no_access', async () => {

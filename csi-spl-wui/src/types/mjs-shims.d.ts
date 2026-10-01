@@ -1209,6 +1209,7 @@ declare module '~/utils/open-message.mjs' {
   export function rowReason(row: unknown): '' | 'deleted' | 'archived'
   export function resolveMessage(msgId: string, api: unknown, opts?: { limit?: number }): Promise<{ row: Record<string, any> } | { reason: OpenMessageReason }>
   export function placeKind(row: unknown, self?: string): string
+  export function placeOf(topicRow: unknown, info: unknown): Record<string, any>
   export function markOpened(msgId: string, opts?: { tries?: number, every?: number, hold?: number, doc?: Document }): void
   export function openMessage(ref: string | Record<string, any>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean }): Promise<OpenMessageResult>
 }

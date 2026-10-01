@@ -65,6 +65,21 @@ export function rowReason(row) {
 }
 
 /**
+ * The place of a message that was not on the pages read: its channel from
+ * move-v1, else the DM ends of its topic's opening row - every row of a task
+ * sits in the same channel or the same DM. Without the ends a DM reply had
+ * no peer and opened the Topics view (CLE-77909).
+ */
+export function placeOf(topicRow, info) {
+  const t = topicRow && typeof topicRow === 'object' ? topicRow : {}
+  const channel = (info && info.channel) || t.channel || null
+  if (channel) return { channel }
+  const out = { channel: null }
+  for (const k of ['from', 'from_box', 'to', 'to_box']) if (t[k]) out[k] = t[k]
+  return out
+}
+
+/**
  * The full row of a message the caller knows only by id.
  *
  * move-v1 §4 (`moveInfo`) names its task and channel under the reader's
@@ -89,15 +104,27 @@ export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
   const taskId = String((info && info.task_id) || '')
   if (!taskId) return { reason: 'not_found' }
   let rows = []
+  let more = false
   try {
-    rows = (await withSessionRetry(api, () => api.getTopic(taskId, { limit }))).messages || []
+    const page = await withSessionRetry(api, () => api.getTopic(taskId, { limit }))
+    rows = (page && page.messages) || []
+    more = Boolean(page && page.next) || rows.length >= limit
   } catch (e) {
     const reason = failureReason(e)
     if (reason !== 'not_found') return { reason }
   }
-  const found = rows.find((m) => String((m && m.msg_id) || '') === id)
+  const byId = (m) => String((m && m.msg_id) || '') === id
+  let found = rows.find(byId)
+  /* CLE-77909: a long topic (a DM of 676 rows on dev) holds a recent reply
+     past the oldest page - read the newest page for it too. Flow entries
+     and search hits are mostly recent. */
+  if (!found && more) {
+    try {
+      found = ((await withSessionRetry(api, () => api.getTopic(taskId, { limit, order: 'desc' }))).messages || []).find(byId)
+    } catch { /* the place below still opens it */ }
+  }
   const parent = String((info && info.parent_task_id) || '')
-  const row = found || { msg_id: id, task_id: taskId, channel: (info && info.channel) || null, ...(parent ? { parent_task_id: parent } : {}) }
+  const row = found || { msg_id: id, task_id: taskId, ...placeOf(rows[0], info), ...(parent ? { parent_task_id: parent } : {}) }
   /* the task's opening card: archived, it is in no feed (topic-archive-v1) */
   const root = rows[0]
   if (root && root.msg_id && typeof api.topicSize === 'function') {

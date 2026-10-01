@@ -365,8 +365,13 @@ export function closeDelayMs(ctx) {
   return Math.round((lat + CLOSE_GRACE_S) * 1000)
 }
 
-/* the first notes of a context just woken can be cut while the output starts */
-export const LEAD_S = 0.05
+/* the first notes of a context just woken can be cut while the output starts.
+   HUM-24 (311427c6, msg ddd345ea: "no, the others still don't work" on
+   4.8.1): every chime opens a NEW context, so a new output stream, and a
+   Bluetooth / Android audio route drops what plays while it wakes (~0.15-0.3
+   s). Only the sounds longer than that (marimba 0.20 s, boing 0.23 s) got past
+   it, so the notes now start after a quarter second of silence. */
+export const LEAD_S = 0.25
 
 /**
  * Play a named sound. One AudioContext per call, closed shortly after its

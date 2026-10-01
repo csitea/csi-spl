@@ -27,6 +27,8 @@
 # @param DISPATCH_CHECK_SUBS (optional) - 0 skips the channel rows (no DB read)
 # @param DISPATCH_SWEEP (optional) - 0 skips the sweep row
 # @param DISPATCH_SWEEP_STALE (optional) - seconds, default 1800 (three missed 10-min ticks)
+# @param DISPATCH_DEPLOY_LAG (optional) - 0 skips the deploy-lag rows (CLE-77918:
+# @param   a hub / WUI input unserved on dev or prd after DISPATCH_LAG_GRACE min is a GAP)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_dispatch_check
 #------------------------------------------------------------------------------
@@ -95,6 +97,7 @@ do_spl_dispatch_check() {
       row "lease $v loop" "not running" "GAP LEASE_CMD=ensure do_spl_dispatch_lease"
   done
   [[ "${DISPATCH_SWEEP:-1}" != 0 ]] && spl_sweep_check_row
+  spl_dispatch_deploy_lag_rows
   echo
   if (( gaps )); then echo "dispatch check: $gaps gap(s)"; return 1; fi
   echo "dispatch check: no gap"

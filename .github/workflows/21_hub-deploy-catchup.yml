@@ -1,0 +1,112 @@
+# ops: deploy catch-up -- trunk's hub / WUI never stays unserved (CLE-77918)
+#
+# The gap it closes. On 2026-10-01 both hubs served one commit for ~50 min
+# while five green 20 runs all stood down ("trunk head <x> changed hub inputs
+# after <sha>"): each trusted a newer run to deploy, and on a busy trunk there
+# always was one. 20's guard now decides against the SERVED commit, so a push
+# run no longer stands down for a newer head -- but a run can still be
+# cancelled (a pending deploy replaced in its concurrency group), fail to read
+# /version and fall back to the trunk-head rule, or simply not exist (a push
+# GitHub never ran). So, every 15 minutes, this asks each env whether it serves
+# trunk head (do_check_deploy_lag, the same read-only check 00 runs: GET
+# /version and /build.json, one shared hub-input list) and, when a hub or WUI
+# input on trunk has been unserved for longer than GRACE_MINUTES (30), it
+# dispatches that component's deploy at trunk head with environment=all.
+#
+# Safe to repeat: 20 treats "all" like a push (forward-only guard against the
+# served commit), so a catch-up can never roll an env back, and it deploys
+# only what the env lacks. Not dispatched when a run of that workflow is
+# already queued or running on master (it will deploy), or when its last
+# finished run FAILED (the deploy is broken, not starved -- re-dispatching
+# every 15 min would only burn runners; 00 and the dispatch GAP feed report it).
+#
+# Local equivalent of the read: ENV=<env> GRACE_MINUTES=30 ./csi-spl-orc/run -a do_check_deploy_lag
+
+name: "21 ops: hub + WUI deploy catch-up"
+
+on:
+  schedule:
+    # GitHub's scheduler is best-effort; a declared 15 min is often 20-40.
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      dispatch:
+        description: 'Dispatch a deploy when a component is lagging'
+        type: choice
+        required: false
+        default: 'auto'
+        options:
+          - auto
+          - never
+
+# a superseded catch-up has nothing to add
+concurrency:
+  group: deploy-catchup
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  catchup:
+    name: Is trunk head served? (dispatch the lagging deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write   # gh workflow run -> 20 / 30
+    steps:
+      # fetch-depth 0: the check walks history between the served commit and
+      # trunk head; on depth 1 every verdict is "cannot tell".
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: do_check_deploy_lag (dev + prd, hub + WUI)
+        id: lag
+        env:
+          GRACE_MINUTES: ${{ vars.DEPLOY_CATCHUP_GRACE_MINUTES || '30' }}
+        run: |
+          set -uo pipefail
+          sha="$(git rev-parse HEAD)"
+          all=""
+          for e in dev prd; do
+            out="$(ENV="$e" SHA="$sha" ./csi-spl-orc/run -a do_check_deploy_lag 2>&1)" || true
+            all+="$(grep -E "^$e (hub|wui) (current|pending|lagging|unknown) " <<<"$out")"$'\n'
+          done
+          echo "$all"
+          hub=false; wui=false
+          grep -qE '^(dev|prd) hub lagging ' <<<"$all" && hub=true
+          grep -qE '^(dev|prd) wui lagging ' <<<"$all" && wui=true
+          { echo "hub=$hub"; echo "wui=$wui"; echo "sha=$sha"; } >> "$GITHUB_OUTPUT"
+          { echo "## Deploy catch-up at ${sha:0:8} (grace ${GRACE_MINUTES}m)"; echo
+            echo '```'; echo "$all"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispatch the lagging deploys at trunk head (environment=all, forward-guarded)
+        if: (steps.lag.outputs.hub == 'true' || steps.lag.outputs.wui == 'true') && inputs.dispatch != 'never'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HUB: ${{ steps.lag.outputs.hub }}
+          WUI: ${{ steps.lag.outputs.wui }}
+          SHA: ${{ steps.lag.outputs.sha }}
+        run: |
+          set -euo pipefail
+          catchup() {  # <workflow file> <component>
+            local wf="$1" comp="$2" inflight verdict
+            inflight="$(gh run list --workflow="$wf" --branch master --limit 20 --json status \
+              --jq '[.[] | select(.status != "completed")] | length')"
+            verdict="$(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion \
+              --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0].conclusion // "none"')"
+            if [[ "${inflight:-0}" -gt 0 ]]; then
+              echo "::notice::$comp lags, but a $wf run is already queued/running on master -- it deploys; not dispatching"
+            elif [[ "$verdict" != success && "$verdict" != none ]]; then
+              echo "::warning::$comp lags and $wf last concluded $verdict -- the deploy is broken, not starved; not dispatching"
+            else
+              echo "::warning::$comp lags at ${SHA:0:8} -- dispatching $wf (environment=all, forward-guarded)"
+              gh workflow run "$wf" --ref master -f environment=all
+            fi
+          }
+          [[ "$HUB" == true ]] && catchup 20_hub-build-deploy.yml hub
+          [[ "$WUI" == true ]] && catchup 30_wui-build-deploy.yml wui
+          exit 0

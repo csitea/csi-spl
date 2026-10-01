@@ -11,7 +11,8 @@
 #   6. check: a complete box reports no gap and exits 0
 #   7. check: each gap fails it - no process, not auto, missing seat, unread
 #      over the max, stale lease, holder not a dispatcher, a loop down,
-#      settings not loaded, model mismatch, the unanswered sweep never ran
+#      settings not loaded, model mismatch, the unanswered sweep never ran,
+#      a hub / WUI input unserved past the grace (CLE-77918)
 #   8. setup step 11: the sweep cron line is PLANned, then written once
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -53,7 +54,8 @@ seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/p
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPOOL_ROOT="$S" SPL_STATE_DIR="$ST" LEASE_PROC_ROOT="$P" \
     DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" \
-    PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$T/shared" SWEEP_CRON_LOG_DIR="$T/log" "$@" bash -c '
+    PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$T/shared" SWEEP_CRON_LOG_DIR="$T/log" \
+    DISPATCH_LAG_CMD='echo "$ENV hub current served=a sha=b"; echo "$ENV wui pending served=a sha=b n=1 age=3m (in grace)"' "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -185,6 +187,17 @@ echo 'hum|6|2' >>"$SUBS/w2.txt"
 gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'
 gap "unsigned human posts (CLE-77876)" '\| w2 inbound \| 2 of 6 human posts .*\| GAP UNSIGNED \|'
 cp "$T/w2.keep" "$SUBS/w2.txt"
+# CLE-77918: a hub / WUI input unserved past the grace is a GAP row; the
+# served/oldest commits are its value, so the tick keys it on env+component
+LAGCMD='if [ "$ENV" = prd ]; then echo "prd hub lagging served=ef4803e5 sha=0e72d9e0 n=5 oldest=af06b13e age=54m grace=${GRACE_MINUTES}m url=https://x/version"; else echo "$ENV hub current served=a"; fi; echo "$ENV wui current served=a"'
+gap "prd hub unserved past the grace (CLE-77918)" '\| deploy lag prd hub \| served=ef4803e5 sha=0e72d9e0 n=5 oldest=af06b13e age=54m grace=30m \| GAP trunk input not served after 30 min' DISPATCH_LAG_CMD="$LAGCMD"
+grep -qE '\| deploy lag dev hub \| current served=a \| ok \|' "$T/o" && ! grep -q 'url=' "$T/o" &&
+  pass "7. dev current stays ok next to it; the probe url is not in the row" || fail "7. lag rows: $(grep 'deploy lag' "$T/o")"
+check DISPATCH_LAG_CMD='echo "$ENV hub unknown url=x reason=unreachable"; echo "$ENV wui current"' >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -qE '\| deploy lag prd hub \| unknown reason=unreachable \| cannot tell \|' "$T/o" &&
+  pass "7. an unreadable endpoint is 'cannot tell', never a GAP" || fail "7. unknown: rc=$rc $(grep 'deploy lag' "$T/o")"
+check DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1
+grep -q 'deploy lag' "$T/o" && fail "7. DISPATCH_DEPLOY_LAG=0 still printed lag rows" || pass "7. DISPATCH_DEPLOY_LAG=0 skips the lag rows"
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
 mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never ran" 'unanswered sweep \| never ran \| GAP'

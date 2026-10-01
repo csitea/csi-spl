@@ -568,3 +568,54 @@ func testMsg(t *testing.T, from, to, kind, body, id string) *msg.Message {
 	}
 	return m
 }
+
+// specs/058 (owner 2efb3e78): agents are addressed <ID>@<box>, and the
+// reserved ids (CLE-002, ...) run on EVERY box. A browser command names the
+// box - the frame's to_box or an "@ID@box" mention - and goes to that box
+// only; a bare id announced on two boxes stays ambiguous_to_box (never a
+// guess).
+func TestWUIDispatchToBoxPinsTheSameIDOnTwoBoxes(t *testing.T) {
+	_, key, _ := ed25519.GenerateKey(nil)
+	e := dispatchEnv(t, true, key)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	home := e.box(tid, "box-desk", "CLE-002")
+	sat := e.box(tid, "sat", "CLE-002")
+	e.pin(tid, home)
+	e.pin(tid, sat)
+	if err := e.st.PutPin(ctx, tid, hub.WUIBox, key.Public().(ed25519.PublicKey), false, time.Now(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
+	frame := func(id, body, to, toBox string) map[string]any {
+		t.Helper()
+		f := map[string]any{"type": "send", "msg_id": id, "task_id": "lobby", "kind": "task", "body": body}
+		if to != "" {
+			f["to"] = to
+		}
+		if toBox != "" {
+			f["to_box"] = toBox
+		}
+		wsjson.Write(ctx, w, f) //nolint:errcheck
+		return readType(t, w, "ack")
+	}
+
+	if f := frame("58000000-0000-4000-8000-000000000001", "@CLE-002 run", "", ""); f["error"] != "ambiguous_to_box" {
+		t.Fatalf("bare id on two boxes: %v", f)
+	}
+	if f := frame("58000000-0000-4000-8000-000000000002", "@CLE-002@sat run", "", ""); f["type"] != "ack" || f["to_box"] != "sat" {
+		t.Fatalf("@CLE-002@sat: %v", f)
+	}
+	if f := frame("58000000-0000-4000-8000-000000000003", "run", "CLE-002", "box-desk"); f["type"] != "ack" || f["to_box"] != "box-desk" {
+		t.Fatalf("to CLE-002 to_box box-desk: %v", f)
+	}
+	if f := frame("58000000-0000-4000-8000-000000000004", "@CLE-002@nob run", "", ""); f["error"] != "unknown_agent" {
+		t.Fatalf("a box that does not announce the id: %v", f)
+	}
+	for box, id := range map[string]string{"sat": "58000000-0000-4000-8000-000000000002", "box-desk": "58000000-0000-4000-8000-000000000003"} {
+		q, err := e.st.QueuedFor(ctx, tid, box, time.Now())
+		if err != nil || len(q) != 1 || q[0].MsgID != id {
+			t.Fatalf("queued for %s: %v %+v", box, err, q)
+		}
+	}
+}

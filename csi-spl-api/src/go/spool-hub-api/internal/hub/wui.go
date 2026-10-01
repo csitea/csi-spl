@@ -97,6 +97,7 @@ type wuiIn struct {
 	Kind   string    `json:"kind,omitempty"`
 	Body   string    `json:"body,omitempty"`
 	To     string    `json:"to,omitempty"`
+	ToBox  string    `json:"to_box,omitempty"` // specs/058: the box of an <ID>@<box> address
 	Files  []wuiFile `json:"files,omitempty"`
 	// Hub-envelope tags (wui-live-ws.md §4, channels-v1 §2).
 	Channel      string `json:"channel,omitempty"`
@@ -614,7 +615,7 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	rt.signing = wuiSigning{agent: agent, fanOut: agent == "" && rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
 		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	if agent != "" {
-		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m)
+		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m, dispatchBox(f))
 		if tok != "" {
 			return rt, &frameRefusal{tok, status, detail}
 		}

@@ -65,6 +65,10 @@ func dispatchAgent(to, body string) string {
 		id, after = rest[:i], rest[i:]
 	}
 	id = strings.TrimRight(id, ",:;")
+	// specs/058: "@CLE-002@sat do x" names the box too (mentionBox reads it).
+	if i := strings.IndexByte(id, '@'); i > 0 {
+		id = id[:i]
+	}
 	// e09a72f7 (owner): a BARE @AGENT with no instructions after it is a
 	// mention, not a command. Dispatching it would 404 an offline agent
 	// (unknown_agent) and drop the person's message, which read to the owner as
@@ -82,6 +86,32 @@ func dispatchAgent(to, body string) string {
 	return ""
 }
 
+// dispatchBox is the box a browser send pins its agent to (specs/058: agents
+// are addressed <ID>@<box>, and the reserved ids 001-003 live on every box):
+// the frame's to_box, else the box of a leading "@ID@box" mention, else ""
+// (resolve the bare id across the roster, as before).
+func dispatchBox(f wuiIn) string {
+	if f.ToBox != "" {
+		return f.ToBox
+	}
+	if f.To != "" && f.To != BroadcastID {
+		return ""
+	}
+	b := strings.TrimLeft(f.Body, " \t")
+	if !strings.HasPrefix(b, "@") {
+		return ""
+	}
+	tok := b[1:]
+	if i := strings.IndexAny(tok, " \t\r\n"); i >= 0 {
+		tok = tok[:i]
+	}
+	tok = strings.TrimRight(tok, ",:;")
+	if i := strings.IndexByte(tok, '@'); i > 0 {
+		return tok[i+1:]
+	}
+	return ""
+}
+
 // isAgent: a v:1 agent id that is neither the broadcast id nor a human
 // (member HUM-* or door-off guest GST-*).
 func isAgent(id string) bool {
@@ -90,7 +120,9 @@ func isAgent(id string) bool {
 
 // dispatchCheck runs contract §3 steps 1-5 for a built message and returns
 // the target box and the tenant's box-wui pin, or an error frame triple.
-func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message) (box string, pin ed25519.PublicKey, tok string, status int, detail string) {
+// want (specs/058) pins the box: the agent must be announced THERE, and the
+// same id on another box is then not ambiguous.
+func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message, want string) (box string, pin ed25519.PublicKey, tok string, status int, detail string) {
 	if c.member == "" {
 		return "", nil, "dispatch_unauthenticated", http.StatusUnauthorized, "commanding an agent needs a signed-in member session"
 	}
@@ -103,12 +135,15 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message) 
 	}
 	var boxes []string
 	for b, agents := range roster {
-		if b != WUIBox && contains(agents, m.To) {
+		if b != WUIBox && (want == "" || b == want) && contains(agents, m.To) {
 			boxes = append(boxes, b)
 		}
 	}
 	switch len(boxes) {
 	case 0:
+		if want != "" {
+			return "", nil, "unknown_agent", http.StatusNotFound, m.To + " is not announced by box " + want + " of this tenant"
+		}
 		return "", nil, "unknown_agent", http.StatusNotFound, m.To + " is not announced by any box of this tenant"
 	case 1:
 		box = boxes[0]

@@ -489,6 +489,9 @@ type sessionResp struct {
 	// PaneSizes is the two vertical dividers' widths as fractions of the
 	// window (CLE-35099, SPL-1182), null when never dragged (default layout).
 	PaneSizes map[string]float64 `json:"pane_sizes"`
+	// TimeZone is the IANA zone the WUI prints times in (CLE-77908), per
+	// tenant, null when never picked (the WUI then follows the browser).
+	TimeZone *string `json:"time_zone"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -537,6 +540,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.IssuesColumns = h.issueColumns(ctx, s)
 		out.IssuesSort = h.issuesSort(ctx, s)
 		out.PaneSizes = h.paneSizes(ctx, s)
+		out.TimeZone = h.timeZone(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -944,6 +948,7 @@ type preferencesReq struct {
 	IssuesColumns      json.RawMessage `json:"issues_columns"`
 	IssuesSort         json.RawMessage `json:"issues_sort"`
 	PaneSizes          json.RawMessage `json:"pane_sizes"`
+	TimeZone           json.RawMessage `json:"time_zone"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
@@ -1004,9 +1009,10 @@ type prefsIn struct {
 	cols                                                map[string]int     // issues_columns, nil = null
 	sort                                                *IssuesSort        // issues_sort, nil = null (CLE-35099)
 	panes                                               map[string]float64 // pane_sizes, nil = null (CLE-35099)
+	tz                                                  string             // time_zone, "" = null (CLE-77908)
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
 	hasInterests                                        bool
-	hasCols, hasSort, hasPanes                          bool
+	hasCols, hasSort, hasPanes, hasTZ                   bool
 }
 
 // parsePreferences validates the whole body before anything is written. A
@@ -1035,8 +1041,11 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.panes, p.hasPanes, code, detail = parsePaneSizes(req.PaneSizes); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null) or pane_sizes (divider -> fraction or null) is required"
+	if p.tz, p.hasTZ, code, detail = parseTimeZone(req.TimeZone); code != "" {
+		return p, code, detail
+	}
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null) or time_zone (an IANA zone or null) is required"
 	}
 	if rawLoc != "" && rawLoc != "null" {
 		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
@@ -1169,7 +1178,7 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 	// tenant's membership override, so a change in one tenant never moves the
 	// others (spec 023 addendum). The humans-row writes above stay the global
 	// fallback for a tenant with no override yet and for the sign-in page.
-	// issues_sort and pane_sizes have no humans column: they live ONLY here.
+	// issues_sort, pane_sizes and time_zone have no humans column: they live ONLY here.
 	if !h.storeMembershipPrefs(w, r, hum, p, out) {
 		return nil, false
 	}
@@ -1190,8 +1199,8 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	if err != nil || tenant == "" {
 		// No active tenant: the per-tenant-only settings cannot be kept. The WUI
 		// only sends them inside a tenant, so this is the sign-in edge.
-		if p.hasSort || p.hasPanes {
-			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes with no active tenant, not stored")
+		if p.hasSort || p.hasPanes || p.hasTZ {
+			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes/time_zone with no active tenant, not stored")
 		}
 		return true
 	}
@@ -1210,6 +1219,9 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	}
 	if p.hasPanes {
 		out["pane_sizes"] = p.panes
+	}
+	if p.hasTZ {
+		out["time_zone"] = nullable(p.tz)
 	}
 	return true
 }
@@ -1245,6 +1257,9 @@ func (p prefsIn) membershipPatch() map[string]any {
 	}
 	if p.hasPanes {
 		patch["pane_sizes"] = nilFloatMap(p.panes)
+	}
+	if p.hasTZ {
+		patch["time_zone"] = nullable(p.tz)
 	}
 	return patch
 }

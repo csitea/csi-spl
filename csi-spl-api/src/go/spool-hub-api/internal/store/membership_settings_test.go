@@ -103,6 +103,30 @@ func TestMembershipSettings(t *testing.T) {
 				t.Fatalf("cleared key did not fall back: %q", over.Theme)
 			}
 
+			// CLE-77908 (owner, topic 07b84fd7): the time zone is per tenant, a
+			// null clears it back to the browser's zone, and the rest stays.
+			if err := ms.SetMembershipSettings(ctx, a, t1, map[string]any{"time_zone": "Europe/Helsinki"}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err = ms.MembershipSettings(ctx, a, t1); err != nil || got.TimeZone == nil || *got.TimeZone != "Europe/Helsinki" {
+				t.Fatalf("time_zone stored: %+v %v", got.TimeZone, err)
+			}
+			if over := base.Overlay(got); over.TimeZone != "Europe/Helsinki" {
+				t.Fatalf("time_zone overlay: %q", over.TimeZone)
+			}
+			if o, err := ms.MembershipSettings(ctx, b, t1); err != nil || o.TimeZone != nil {
+				t.Fatalf("time_zone leaked to another member: %+v %v", o.TimeZone, err)
+			}
+			if o, err := ms.MembershipSettings(ctx, a, t2); err != nil || o.TimeZone != nil {
+				t.Fatalf("time_zone leaked to another tenant: %+v %v", o.TimeZone, err)
+			}
+			if err := ms.SetMembershipSettings(ctx, a, t1, map[string]any{"time_zone": nil}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err = ms.MembershipSettings(ctx, a, t1); err != nil || got.TimeZone != nil || got.MessageOrder == nil {
+				t.Fatalf("time_zone clear: %+v %v", got, err)
+			}
+
 			// No membership: write is ErrNotFound.
 			if err := ms.SetMembershipSettings(ctx, b, t2, map[string]any{"preferred_theme": "dark"}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("write with no membership: %v", err)

@@ -30,6 +30,9 @@ type HumanSettings struct {
 	// PaneSizes is the two vertical dividers' widths as fractions of the
 	// window (CLE-35099, SPL-1182), nil when never dragged.
 	PaneSizes map[string]float64
+	// TimeZone is the IANA zone the WUI prints times in (CLE-77908), "" when
+	// never picked (the browser's zone). Per tenant only (rdb 0078).
+	TimeZone string
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -61,6 +64,7 @@ type MembershipSettings struct {
 	Diagnostics      *bool              `json:"diagnostics_enabled,omitempty"`
 	IssuesSort       *IssuesSort        `json:"issues_sort,omitempty"`
 	PaneSizes        map[string]float64 `json:"pane_sizes,omitempty"`
+	TimeZone         *string            `json:"time_zone,omitempty"`
 }
 
 // Overlay returns b with every set field of the per-tenant override o applied
@@ -107,6 +111,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.PaneSizes != nil {
 		b.PaneSizes = o.PaneSizes
+	}
+	if o.TimeZone != nil {
+		b.TimeZone = *o.TimeZone
 	}
 	return b
 }
@@ -225,7 +232,7 @@ func (h *Handler) settings(ctx context.Context, humanID string) settingReader {
 
 // settingsSnap is the request's overlaid HumanSettings for humanID (withSettings),
 // present only when the read succeeded. The settings with no per-column reader
-// on the store — issues_sort, pane_sizes (rdb 0078) — are read from here, so
+// on the store — issues_sort, pane_sizes, time_zone (rdb 0078) — are read from here, so
 // they carry the per-tenant override with no extra store round trip.
 func (h *Handler) settingsSnap(ctx context.Context, humanID string) (HumanSettings, bool) {
 	if snap, ok := ctx.Value(settingsKey{}).(*settingsSnapshot); ok && snap.human == humanID && snap.err == nil {

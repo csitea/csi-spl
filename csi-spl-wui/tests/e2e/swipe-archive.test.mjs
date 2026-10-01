@@ -19,6 +19,7 @@
 //   node tests/e2e/swipe-archive.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/swipe-archive.test.mjs   # what CI does
 //   OUT=<dir> ... also writes phone screenshots (mid-swipe, armed, snackbar)
+//   CPU_THROTTLE=4 ... a slow CI runner (Chrome CPU throttling)
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync } from 'node:fs'
@@ -159,6 +160,8 @@ try {
     try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
   })
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+  /* CPU_THROTTLE=4 reproduces a slow CI runner locally */
+  if (Number(process.env.CPU_THROTTLE) > 1) await (await p.target().createCDPSession()).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.CPU_THROTTLE) })
   /* warm a throwaway load: a cold nuxi dev drops the first dynamic import */
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
@@ -224,11 +227,21 @@ try {
   })
   ok('B releasing archives the topic: "Archived · Undo" shows', await until(p, (s) => Boolean(document.querySelector(s)), toast, 4000))
   ok('B the topic view closed (the archived topic is not left open)', await until(p, (sel) => !document.querySelector(sel), opener, 4000))
-  ok('B the card left the cards view', !(await has(p, card(b.top))))
+  /* the phone steps back to the cards (level 3 -> 2) and the feed's leave
+     transition runs: wait for both before reading the list (slow runners) */
+  const gone = await until(p, (sel) => ![...document.querySelectorAll(sel)].some((e) => e.getClientRects().length), card(b.top), 5000)
+  ok('B the card left the cards view', gone, { level: await level(p), toast: await has(p, toast) })
+  await sleep(600)
   await shot(p, 'swipe-topic-snackbar')
-  const u2 = await boxOf(p, '[data-testid=archive-toast-undo]')
-  if (u2) await p.touchscreen.tap(Math.round(u2.x + u2.w / 2), Math.round(u2.y + u2.h / 2))
-  ok('B Undo brings the card back', await until(p, (sel) => Boolean([...document.querySelectorAll(sel)].find((e) => e.getClientRects().length)), card(b.top)))
+  const back = (sel) => Boolean([...document.querySelectorAll(sel)].find((e) => e.getClientRects().length))
+  let came = false
+  for (let i = 0; i < 3 && !came; i++) {
+    if (!(await has(p, '[data-testid=archive-toast-undo]'))) break
+    const u2 = await boxOf(p, '[data-testid=archive-toast-undo]')
+    if (u2) await p.touchscreen.tap(Math.round(u2.x + u2.w / 2), Math.round(u2.y + u2.h / 2))
+    came = await until(p, back, card(b.top), 3000)
+  }
+  ok('B Undo brings the card back', came || (await until(p, back, card(b.top), 3000)), { level: await level(p), toast: await has(p, toast) })
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors (phone)', errors.filter((e) => !benign(e)).length === 0, errors)

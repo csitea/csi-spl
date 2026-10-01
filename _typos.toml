@@ -1,0 +1,53 @@
+# Spelling gate config (typos-cli 1.50.3). English only: translated copy is
+# excluded, not ignored word by word.
+[files]
+extend-exclude = [
+  "**/i18n/locales/*.json",
+  "!**/i18n/locales/en.json",
+  "**/mail/templates/*/*.txt",
+  "!**/mail/templates/*/en.txt",
+  "**/app/data/*/??/**",
+  "!**/app/data/*/en/**",
+  "**/app/public/??/**",
+  "!**/app/public/en/**",
+  "**/*.??.md", "**/*.??.html",
+  "!**/*.en.md", "!**/*.en.html",
+  "csi-spl-orc/src/bash/scripts/desk-welcome-text.py",
+  "**/node_modules/**", "**/*.lock", "**/pnpm-lock.yaml", "**/go.sum",
+  "**/*.svg", "**/*.min.js", "**/dist/**", "**/.output/**", "**/.nuxt/**",
+]
+
+[default]
+# domain identifiers and deliberate truncations, not typos
+extend-ignore-identifiers-re = [
+  "^[A-Z]{2,6}$",
+]
+extend-ignore-re = [
+  # SQL verbs with an English suffix ("UPDATEd", "SELECTs")
+  "\\b[A-Z]{4,}[a-z]{1,3}\\b",
+  # verbatim owner quotes in markdown blockquotes are kept as typed
+  "(?m)^\\s*>.*$",
+]
+
+[default.extend-words]
+wel = "wel"
+ot = "ot"
+rto = "rto"
+RTO = "RTO"
+fle = "fle"
+thr = "thr"
+ags = "ags"
+alog = "alog"
+Messager = "Messager"
+ba = "ba"
+mis = "mis"
+pn = "pn"
+caf = "caf"
+mear = "mear"
+jist = "jist"
+pagent = "pagent"
+minut = "minut"
+tema = "tema"
+unparseable = "unparseable"
+strat = "strat"
+bck = "bck"

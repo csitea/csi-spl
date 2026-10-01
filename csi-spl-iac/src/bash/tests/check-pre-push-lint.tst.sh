@@ -15,6 +15,10 @@
 #   8. with the REAL shellcheck (when installed): SC1087 refused, clean passes
 #   9. PRE_PUSH_LINT=0 skips every lint part (the rollback), and says so
 #  10. an extension-less #!/bin/bash script with a syntax error -> lint-syntax FAIL
+#  11. a touched .md with a broken relative link -> lint-mdlinks FAIL
+#  12. deleting a file an UNTOUCHED .md links to -> lint-mdlinks FAIL (referrer)
+#  13. typos (real binary, when installed): a typo on an ADDED line WARNs and
+#      never blocks; the same typo on an untouched line is not reported
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
 #   leg 8 uses the real binary that do_install_lint_tools puts on the box.
 #------------------------------------------------------------------------------
@@ -147,6 +151,39 @@ printf '#!/bin/bash\nif true; then\n' >"$R/$SH/hook"; commit hook
 rc="$(lint)"
 [[ "$rc" == 1 && "$(verdict lint-syntax)" == FAIL ]] \
   && pass "10. an extension-less #!/bin/bash script is bash -n checked" || fail "10. shebang syntax" "rc=$rc verdict=$(verdict lint-syntax)"
+
+# 11. broken relative link in a touched .md
+new_repo
+mkdir -p "$R/doc"; printf '# x\n\nsee [it](./nope.md)\n' >"$R/doc/a.md"; commit md
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-mdlinks)" == FAIL ]] && grep -q 'broken relative link' "$T/out" \
+  && pass "11. a broken relative link in a touched .md is a FAIL" || fail "11. mdlinks" "rc=$rc verdict=$(verdict lint-mdlinks)"
+
+# 12. a deleted target breaks an untouched referrer
+new_repo
+mkdir -p "$R/doc"; echo t >"$R/doc/target.md"; printf 'see [t](./target.md)\n' >"$R/doc/index.md"
+git -C "$R" add -A; git -C "$R" commit -qm docs; git -C "$R" branch -f base
+git -C "$R" rm -q "$R/doc/target.md"; git -C "$R" commit -qm rm
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-mdlinks)" == FAIL ]] \
+  && pass "12. deleting a linked-to file fails the untouched .md that links to it" || fail "12. referrer" "rc=$rc verdict=$(verdict lint-mdlinks)"
+
+# 13. typos: WARN on an added line only, never a block
+REAL_TY="$(command -v typos 2>/dev/null || true)"
+[[ -z "$REAL_TY" && -x "$HOME/.local/bin/typos" ]] && REAL_TY="$HOME/.local/bin/typos"
+if [[ -n "$REAL_TY" ]]; then
+  TY="$T/ty"; mkdir -p "$TY"; ln -sf "$REAL_TY" "$TY/typos"; cp "$STUB/"* "$TY/"
+  new_repo
+  mkdir -p "$R/doc"; printf 'old line wheather\n' >"$R/doc/n.md"
+  git -C "$R" add -A; git -C "$R" commit -qm seedtypo; git -C "$R" branch -f base
+  printf 'new line recieve\n' >>"$R/doc/n.md"; commit addtypo
+  rc="$(PP_PATH="$TY:/usr/local/bin:/usr/bin:/bin" lint)"
+  { [[ "$rc" == 0 && "$(verdict lint-typos)" == WARN-typos ]] && grep -q 'recieve' "$T/out" && ! grep -q 'wheather' "$T/out"; } \
+    && pass "13. typos WARNs on the added line only, and does not block" \
+    || fail "13. typos added-lines WARN" "rc=$rc verdict=$(verdict lint-typos)"
+else
+  echo "INFO: no typos binary on this host -- leg 13 not run (./run -a do_install_lint_tools)"
+fi
 
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>

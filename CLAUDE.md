@@ -123,7 +123,8 @@ How to apply:
   | `lint-hadolint` | 66 | `do_sec_hadolint` vs `.hadolint.yaml` | hook |
   | `lint-eslint` | 63 | `do_sec_eslint` vs `.eslint-security-baseline.txt` | hook |
   | `lint-trufflehog` | 64 | `do_sec_trufflehog` --only-verified, every touched file | hook |
-  | `lint-typos` | — | codespell, WARN only, never blocks | hook |
+  | `lint-mdlinks` | — | relative links in touched `.md`, and in the `.md` that link to a deleted/renamed path | hook |
+  | `lint-typos` | — | typos-cli 1.50.3 + root `_typos.toml`, ADDED lines only; WARN, never blocks (a real word goes in `_typos.toml`) | hook |
   | `lint-checkov` / `lint-semgrep` / `lint-gosec` | 65 / 61 / 62 | the action over its whole scope (65 s / 152 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
   | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 

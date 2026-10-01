@@ -11,7 +11,7 @@
 # @description             trufflehog (64) gosec (62) -> LINT_TOOLS_BIN
 # @description   eslint    eslint + eslint-plugin-security (63) -> LINT_TOOLS_ESLINT_DIR
 # @description   python    checkov (65), semgrep (61) -> LINT_TOOLS_VENV, linked into LINT_TOOLS_BIN
-# @description   codespell the typo WARN (no CI workflow yet, so pinned HERE: _ILT_CODESPELL_VER)
+# @description   typos     typos-cli, the spelling WARN (no CI workflow yet, so pinned HERE)
 # @param LINT_TOOLS_BIN (optional) - default ~/.local/bin (on the hook's PATH)
 # @param LINT_TOOLS_ESLINT_DIR (optional) - default ~/.cache/csi-spl/eslint
 # @param LINT_TOOLS_VENV (optional) - venv prefix, default ~/.cache/csi-spl/lint-venv (-<tool>)
@@ -24,9 +24,10 @@
 # @example LINT_TOOLS_SYSTEM=1 ./run -a do_install_lint_tools
 #------------------------------------------------------------------------------
 
-# No workflow pins codespell (spelling is WARN-only, CI has no gate), so its
-# pin lives here.
-_ILT_CODESPELL_VER=2.4.1
+# No workflow pins typos (spelling is WARN-only, CI has no gate), so its pin
+# lives here. Digest checked independently by two lanes (2026-10-01).
+_ILT_TYPOS_VER=1.50.3
+_ILT_TYPOS_SHA=aca6b5d546307092b8d0a8e0a89dd80f9da51f2f7617c5e45c5607c1684ffbf2
 
 _ilt_root() {
   local base="${APP_PATH:-}"
@@ -71,7 +72,7 @@ _ilt_fetch() {  # <name> <ver> <sha> <url> <member>
     *)        mv -f "$tmp/dl" "$dst" ;;
   esac
   chmod +x "$dst"; rm -rf "$tmp"
-  do_log "INFO $name $ver installed at $dst (sha256 matches the workflow pin)"
+  do_log "INFO $name $ver installed at $dst (sha256 matches its pin)"
 }
 
 _ilt_bin_tool() {  # <tool>
@@ -94,6 +95,10 @@ _ilt_bin_tool() {  # <tool>
       wf="$_ILT_WF/64_trufflehog.yml"; v="$(_ilt_pin "$wf" v)"; sha="$(_ilt_pin "$wf" sha)"
       _ilt_fetch trufflehog "$v" "$sha" \
         "https://github.com/trufflesecurity/trufflehog/releases/download/v$v/trufflehog_${v}_linux_amd64.tar.gz" trufflehog ;;
+    typos)
+      v="$_ILT_TYPOS_VER"
+      _ilt_fetch typos "$v" "$_ILT_TYPOS_SHA" \
+        "https://github.com/crate-ci/typos/releases/download/v$v/typos-v$v-x86_64-unknown-linux-musl.tar.gz" ./typos ;;
     gosec)
       wf="$_ILT_WF/62_gosec.yml"; v="$(_ilt_pin "$wf" v)"; sha="$(_ilt_pin "$wf" sha)"
       _ilt_fetch gosec "$v" "$sha" \
@@ -122,7 +127,7 @@ _ilt_py() {  # <tool> (checkov | semgrep)
     checkov)   wf="$_ILT_WF/65_iac-checkov.yml" ;;
     semgrep)   wf="$_ILT_WF/61_semgrep.yml" ;;
   esac
-  if [[ "$tool" == codespell ]]; then ver="$_ILT_CODESPELL_VER"; else ver="$(_ilt_pkg_pin "$wf" "$tool" ==)"; fi
+  ver="$(_ilt_pkg_pin "$wf" "$tool" ==)"
   [[ -n "$ver" ]] || { do_log "FATAL could not read the $tool pin from $wf"; return 1; }
   if _ilt_have "$_ILT_BIN/$tool" "$ver"; then do_log "INFO $tool $ver already installed"; return 0; fi
   local venv="$_ILT_VENV-$tool"
@@ -140,19 +145,19 @@ do_install_lint_tools() {
   local _ILT_BIN="${LINT_TOOLS_BIN:-$HOME/.local/bin}"
   local _ILT_ESLINT="${LINT_TOOLS_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"
   local _ILT_VENV="${LINT_TOOLS_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv}"
-  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep codespell}"
+  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos}"
   mkdir -p "$_ILT_BIN" || return 1
   local t fails=0
   for t in $only; do
     case "$t" in
-      shellcheck|actionlint|hadolint|trufflehog|gosec) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
+      shellcheck|actionlint|hadolint|trufflehog|gosec|typos) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
       eslint) _ilt_eslint || fails=$((fails + 1)) ;;
-      checkov|semgrep|codespell) _ilt_py "$t" || fails=$((fails + 1)) ;;
+      checkov|semgrep) _ilt_py "$t" || fails=$((fails + 1)) ;;
       *) do_log "FATAL unknown lint tool '$t'"; fails=$((fails + 1)) ;;
     esac
   done
   if [[ "${LINT_TOOLS_SYSTEM:-0}" == 1 ]]; then
-    for t in shellcheck actionlint hadolint trufflehog gosec; do
+    for t in shellcheck actionlint hadolint trufflehog gosec typos; do
       [[ " $only " == *" $t "* && -x "$_ILT_BIN/$t" ]] || continue
       if sudo install -m 0755 -o root -g root "$_ILT_BIN/$t" "/usr/local/bin/$t"; then
         do_log "INFO $t copied to /usr/local/bin (root-owned, every user)"

@@ -141,12 +141,22 @@ three minutes; until then, and for an agent with no seat, nothing is posted.
 
 ### 3.3.5 Relaunch a running claude session with the mirror
 
-A session started before the mirror keeps running without it. Exit it
-(`/exit`), then in the same pane resume it under its own id, from the identity
-map's record.
+A session started before the mirror keeps running without it. Close its
+window (`tmux kill-window -t <its pane>`), then restore it from any pane: the
+identity map's record gives its session and worktree, and the restore starts it
+in a NEW window through `restore-claude*.sh`, which launches through
+`spool-harness.sh --mirror` (`--resume <session>` and `--permission-mode auto`
+kept). While its process is alive the action SKIPs it. Run it from a checkout
+on trunk.
 
 ```bash
-ID=CLE-001; R=/var/spool-hub/agents/$ID.json; SPOOL_AGENT_USER=$USER bash csi-spl-orc/src/bash/features/spawn-agents/scripts/restore-claude-plain.sh "$ID" "$(jq -r .worktree "$R")" "$(jq -r .session_id "$R")"
+IDENTITY_RESTORE_IDS="CLE-002" DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+```
+
+Then confirm the agent reads `yes`.
+
+```bash
+./run -a do_spl_agent_mirror_check
 ```
 
 ### 3.3.6 Switch the mirror off for the whole box

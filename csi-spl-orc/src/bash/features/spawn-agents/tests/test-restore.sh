@@ -38,6 +38,7 @@ git -C "$T_TMP/main" worktree add -q -b CLE-10-x "$T_TMP/wt" master
 echo brief >"$T_TMP/brief.md"
 out="$(r claude CLE-10 "$T_TMP/wt" sid-a "$T_TMP/brief.md")"
 has "2. claude resumes by session, named after the id" "'claude' --name 'CLE-10' --resume sid-a --permission-mode auto" "$out"
+has "2. restore-claude starts through the mirror (specs/036)" "spool-harness.sh' --as 'CLE-10' --mirror -- 'claude' --name 'CLE-10' --resume sid-a --permission-mode auto" "$out"
 has "2. a lane worktree gets the worker kick" "tear down this worktree" "$out"
 has "2. ... re-pointing at the brief" "Re-read your task brief at $T_TMP/brief.md" "$out"
 has "2. a main checkout on master gets the neutral kick" "implies NO git step" "$(r claude CLE-11 "$T_TMP/main" sid-b)"
@@ -46,6 +47,7 @@ has "2. a non-git dir gets the neutral kick" "implies NO git step" "$(r claude C
 out="$(r claude-plain CLE-13 "$D" sid-e)"
 hasnt "2. restore-claude-plain adds no kick" "SESSION RESTORED" "$out"
 has "2. ... and still resumes the session" "--resume sid-e" "$out"
+has "2. restore-claude-plain starts through the mirror, resume + auto kept" "spool-harness.sh' --as 'CLE-13' --mirror -- 'claude' --name 'CLE-13' --resume sid-e --permission-mode auto" "$out"
 SPOOL_BOX_TAG=tbx has "2. the claude session name carries the box tag" "--name 'tbx: CLE-13'" "$(SPOOL_BOX_TAG=tbx r claude-plain CLE-13 "$D" sid-e)"
 
 # --- 4. refusals --------------------------------------------------------------------------

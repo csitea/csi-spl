@@ -122,6 +122,10 @@ try {
   /* ---- 1. archive from the menu: card leaves, snackbar offers Undo -------- */
   const menu = await openMenu(p, midCard(seeded.one.msg_id))
   ok('1 the card menu offers Archive', menu.includes('msg-menu-archive'), menu)
+  /* the stale window must start on a quiet network: a fetch (a prefetch, a
+     tab's chunk) still in flight from the steps above would 404 inside it and
+     reload the page for a reason that is not the overlay (CI, run 36839510064) */
+  await p.waitForNetworkIdle({ idleTime: 750, timeout: 15000 }).catch(() => {})
   /* CLE-77840: from here the build "was redeployed": new chunk fetches 404 */
   let deployed = true
   const goneChunks = []
@@ -129,7 +133,7 @@ try {
   const onRequest = (r) => {
     if (r.isInterceptResolutionHandled()) return
     if (deployed && new URL(r.url()).pathname.startsWith('/_nuxt/')) {
-      goneChunks.push(new URL(r.url()).pathname)
+      goneChunks.push(new URL(r.url()).pathname + (goneChunks.length ? '' : ` (first; initiator ${r.initiator()?.type || '?'}${r.initiator()?.url ? ' ' + r.initiator().url : ''})`))
       return r.respond({ status: 404, contentType: 'text/plain', body: 'gone after a deploy' })
     }
     return r.continue()

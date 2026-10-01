@@ -130,13 +130,17 @@ try {
   await sleep(400)
   ok('1 both own cards have a drag handle', await p.evaluate((ids) => ids.every((id) => document.querySelector(`.spool-main article.msg[data-msg-id="${id}"] [data-testid=move-handle]`)), [s.one.msg_id, s.two.msg_id]))
 
+  /* the stale window must start on a quiet network: a fetch (a prefetch, a
+     tab's chunk) still in flight from the steps above would 404 inside it and
+     reload the page for a reason that is not the overlay (CI, run 36839510064) */
+  await p.waitForNetworkIdle({ idleTime: 750, timeout: 15000 }).catch(() => {})
   /* CLE-77840: from here the build "was redeployed": new chunk fetches 404 */
   const goneChunks = []
   await p.setRequestInterception(true)
   const onRequest = (r) => {
     if (r.isInterceptResolutionHandled()) return
     if (new URL(r.url()).pathname.startsWith('/_nuxt/')) {
-      goneChunks.push(new URL(r.url()).pathname)
+      goneChunks.push(new URL(r.url()).pathname + (goneChunks.length ? '' : ` (first; initiator ${r.initiator()?.type || '?'}${r.initiator()?.url ? ' ' + r.initiator().url : ''})`))
       return r.respond({ status: 404, contentType: 'text/plain', body: 'gone after a deploy' })
     }
     return r.continue()

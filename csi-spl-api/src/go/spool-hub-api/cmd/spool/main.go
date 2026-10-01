@@ -24,6 +24,8 @@
 //	          add an emoji reaction, default on the topic's opening message (CLE-77895)
 //	lease   --fleet <f> --role <r> [--holder <machine>:<id> --if-gen <n>]   hub mode: read, or
 //	          compare-and-set, one role's fleet-wide lease (CLE-77911)
+//	lane    --fleet <f> [--agent <id> --box <b> [--repo --branch --scope --files --topic --state]]
+//	          hub mode: list, or write one row of, the fleet-wide lane map (CLE-77920)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -98,6 +100,7 @@ on a box (an agent's machine):
   archive             archive (or --unarchive) a topic by its task id
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
+  lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
 
 a box and its hub ($SPOOL_HUB_URL):
   hub-pin             pin (or --revoke) a box key at the hub, signed by the
@@ -215,6 +218,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdReact(cfg, rest)
 	case "lease": // CLE-77911
 		return cmdLease(cfg, rest)
+	case "lane": // CLE-77920
+		return cmdLane(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

@@ -56,6 +56,10 @@ const (
 	// lease, and the hub's answer (CLE-77911, rdb 0094). Request and reply
 	// pair on MsgID, a request id the box picks.
 	TLease = "lease"
+	// TLane is a box writing (lane_op put) or reading (lane_op list) the
+	// fleet-wide lane map, and the hub's answer (CLE-77920, rdb 0096).
+	// Request and reply pair on MsgID, a request id the box picks.
+	TLane = "lane"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -208,6 +212,12 @@ type Frame struct {
 	Holder    string          `json:"holder,omitempty"`
 	IfGen     int64           `json:"if_gen,omitempty"`
 	Lease     json.RawMessage `json:"lease,omitempty"`
+
+	// lane (CLE-77920): LaneOp put | list, Fleet names the map. A put carries
+	// the row in Lane {agent_id, agent_box, repo, branch, scope, files, topic,
+	// state}; the reply's Lane is {fleet, lanes: [row + writer_box, updated_at, age_s]}.
+	LaneOp string          `json:"lane_op,omitempty"`
+	Lane   json.RawMessage `json:"lane,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

@@ -259,6 +259,9 @@ type Store interface {
 	// One fleet-wide lease per role across machines (rdb 0094, CLE-77911).
 	FleetLeases
 
+	// The fleet-wide lane map: who owns what, across machines (rdb 0096, CLE-77920).
+	FleetLanes
+
 	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
 	Moves
 

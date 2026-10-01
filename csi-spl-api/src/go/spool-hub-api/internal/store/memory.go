@@ -28,7 +28,8 @@ type Memory struct {
 	kindChanges map[[2]string][]KindChange
 	// rdb 0037: emoji rows per (tenant, msg), in the order they were added.
 	reactions  map[[2]string][]memReaction
-	leases     map[[3]string]memLease // rdb 0094 fleet_leases
+	leases     map[[3]string]memLease  // rdb 0094 fleet_leases
+	lanes      map[[3]string]FleetLane // rdb 0096 fleet_lanes
 	deliveries map[[3]string]*memDelivery
 	seq        int
 	hum        memHumans               // humans_memory.go, guarded by mu

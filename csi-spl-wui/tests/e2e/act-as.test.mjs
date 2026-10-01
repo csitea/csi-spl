@@ -81,6 +81,9 @@ try {
   await p.click('[data-test=user-menu-act-as]')
   await p.waitForSelector('[data-test=act-as-select]', { visible: true, timeout: 5000 })
   ok('2 the picker dialog opens with a search box and a drop-down', (await shown(p, '[data-test=act-as-search]')) && (await shown(p, '[data-test=act-as-select]')))
+  // the member list loads async after the dialog mounts: wait for the first
+  // option, or a read straight after open sees an empty select (flaked on CI).
+  await p.waitForSelector('[data-test=act-as-select] option', { timeout: 5000 }).catch(() => null)
   const opts = await p.$$eval('[data-test=act-as-select] option', (els) => els.map((e) => e.value))
   // the ceiling: you (HUM-1) and the owner (HUM-2) are not offered; a developer
   // and a tester are.

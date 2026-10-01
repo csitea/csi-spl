@@ -75,15 +75,15 @@ do_spl_agent_identity_install() {
   #    is not ours is reported and left alone, never overwritten.
   cmd="run-shell -b \"bash $script --apply --delay 8 >/dev/null 2>&1\""
   for hook in after-new-window pane-exited; do
-    h="$(ai_tmux show-hooks -g "$hook" 2>/dev/null | grep -F "$hook[1] " | head -1)"
+    h="$(ai_tmux show-hooks -g "$hook" 2>/dev/null | grep -F "${hook}[1] " | head -1)"
     if [[ "$un" == 1 ]]; then
-      if [[ "$h" != *agent-identity-reconcile.sh* ]]; then echo "OK hook $hook[1]: none of ours"
-      elif [[ "$dry" == 1 ]]; then echo "PLAN hook: set-hook -gu $hook[1]   (was: $h)"
-      else ai_tmux set-hook -gu "$hook[1]" && echo "DONE hook: unset $hook[1]"; fi
-    elif [[ "$h" == *"$script --apply"* ]]; then echo "OK hook $hook[1]: $h"
-    elif [[ -n "$h" ]]; then echo "REFUSED hook $hook[1]: holds someone else's command, left alone: $h"; rc=1
-    elif [[ "$dry" == 1 ]]; then echo "PLAN hook: set-hook -g $hook[1] '$cmd'"
-    else ai_tmux set-hook -g "$hook[1]" "$cmd" && echo "DONE hook: $hook[1] = $cmd"; fi
+      if [[ "$h" != *agent-identity-reconcile.sh* ]]; then echo "OK hook ${hook}[1]: none of ours"
+      elif [[ "$dry" == 1 ]]; then echo "PLAN hook: set-hook -gu ${hook}[1]   (was: $h)"
+      else ai_tmux set-hook -gu "${hook}[1]" && echo "DONE hook: unset ${hook}[1]"; fi
+    elif [[ "$h" == *"$script --apply"* ]]; then echo "OK hook ${hook}[1]: $h"
+    elif [[ -n "$h" ]]; then echo "REFUSED hook ${hook}[1]: holds someone else's command, left alone: $h"; rc=1
+    elif [[ "$dry" == 1 ]]; then echo "PLAN hook: set-hook -g ${hook}[1] '$cmd'"
+    else ai_tmux set-hook -g "${hook}[1]" "$cmd" && echo "DONE hook: ${hook}[1] = $cmd"; fi
   done
   return "$rc"
 }

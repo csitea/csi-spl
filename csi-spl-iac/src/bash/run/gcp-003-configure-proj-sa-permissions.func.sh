@@ -12,6 +12,10 @@
 # @description when the binding is already there.
 # @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): an identity allowed to set the project IAM policy
+# @description ENV=all (csi-spl-all, the satellite of spec 057) also grants the SA
+# @description roles/billing.costsManager on GCP_BILLING_ACCOUNT_ID, so step 059 can
+# @description create the satellite's budget alert (a project owner cannot).
+# @param GCP_BILLING_ACCOUNT_ID (ENV=all) - the billing account csi-spl-all is linked to
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: grant.
 # @example ENV=dev GCP_ACCOUNT=admin@example.com DRY_RUN=0 ./run -a do_gcp_003_configure_proj_sa_permissions
 #------------------------------------------------------------------------------
@@ -54,16 +58,37 @@ do_gcp_003_configure_proj_sa_permissions() {
   [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the IAM policy of ${PROJ_ID} (rc=${rc}): ${out}"; exit 1; }
   if [[ -n "${out}" ]]; then
     do_log "OK ${member} already holds ${role} on ${PROJ_ID} — nothing to do"
-    return 0
-  fi
-
-  if [[ "${dry_run}" == 1 ]]; then
+  elif [[ "${dry_run}" == 1 ]]; then
     do_log "INFO DRY_RUN would run: gcloud projects add-iam-policy-binding ${PROJ_ID} --member=${member} --role=${role} --condition=None ${acct}"
-    do_log "OK DRY_RUN for ${PROJ_ID} complete: nothing was granted. Re-run with DRY_RUN=0 to mutate."
-    return 0
+  else
+    gcloud projects add-iam-policy-binding "${PROJ_ID}" --member="${member}" --role="${role}" \
+      --condition=None "${acct}" >/dev/null || quit_on "grant ${role} to ${member}"
+    do_log "OK ${member} holds ${role} on ${PROJ_ID}"
   fi
 
-  gcloud projects add-iam-policy-binding "${PROJ_ID}" --member="${member}" --role="${role}" \
-    --condition=None "${acct}" >/dev/null || quit_on "grant ${role} to ${member}"
-  do_log "OK ${member} holds ${role} on ${PROJ_ID}"
+  [[ "${ENV}" == all ]] && { _gcp_003_billing_costs_manager "${member}" "${acct}" "${dry_run}" || exit 1; }
+  [[ "${dry_run}" == 1 ]] && do_log "OK DRY_RUN for ${PROJ_ID} complete: nothing was granted. Re-run with DRY_RUN=0 to mutate."
+  return 0
+}
+
+# ENV=all only: the satellite's 059 budget lives on the billing account, which
+# roles/owner on the project does not reach.
+_gcp_003_billing_costs_manager() {
+  local member=$1 acct=$2 dry_run=$3 role="roles/billing.costsManager" out rc
+  do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
+  out=$(gcloud billing accounts get-iam-policy "${GCP_BILLING_ACCOUNT_ID}" "${acct}" \
+          --flatten='bindings[].members' \
+          --filter="bindings.role=${role} AND bindings.members=${member}" \
+          --format='value(bindings.role)' 2>&1)
+  rc=$?
+  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the IAM policy of the billing account (rc=${rc}): ${out}"; return 1; }
+  if [[ -n "${out}" ]]; then
+    do_log "OK ${member} already holds ${role} on the billing account — nothing to do"
+  elif [[ "${dry_run}" == 1 ]]; then
+    do_log "INFO DRY_RUN would run: gcloud billing accounts add-iam-policy-binding <GCP_BILLING_ACCOUNT_ID> --member=${member} --role=${role} ${acct}"
+  else
+    gcloud billing accounts add-iam-policy-binding "${GCP_BILLING_ACCOUNT_ID}" --member="${member}" --role="${role}" \
+      "${acct}" >/dev/null || { do_log "FATAL grant ${role} on the billing account to ${member}"; return 1; }
+    do_log "OK ${member} holds ${role} on the billing account"
+  fi
 }

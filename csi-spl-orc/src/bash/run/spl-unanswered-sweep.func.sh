@@ -185,7 +185,7 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
           FROM messages m
          WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
          ORDER BY m.tenant_id, m.task_id, m.received_at DESC, m.msg_id DESC) l
-  JOIN tenants t ON t.tenant_id = l.tenant_id AND t.disabled_at IS NULL
+  JOIN tenants t ON t.tenant_id = l.tenant_id
   LEFT JOIN channels c ON c.tenant_id = l.tenant_id AND c.channel_id = l.channel
  ORDER BY 1, 6;
 COMMIT;
@@ -278,7 +278,7 @@ try:
         f = line.rstrip("\n").split("\t")
         if len(f) == 4 and f[1] in ("1", "2", "3"):
             state[f[0]] = [int(f[1]), int(f[2]), int(f[3])]
-except FileNotFoundError:
+except OSError:          # no state yet (no file, or no dispatch dir on a report-only box)
     pass
 
 new_state, send_new, send_again, escalate = {}, [], [], []

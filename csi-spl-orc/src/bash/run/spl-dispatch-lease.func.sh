@@ -46,7 +46,7 @@ do_spl_dispatch_lease() {
   esac
 }
 
-# The lease dir and its files; LEASE_NOW (an epoch) and LEASE_PROC_ROOT (a
+# The lease dir and its files ("ro": do not create the dir); LEASE_NOW (an epoch) and LEASE_PROC_ROOT (a
 # fake /proc) exist for the tests only.
 spl_lease_init() {
   LEASE_DIR="${SPOOL_ROOT:-/var/spool-hub}/dispatch"
@@ -57,6 +57,7 @@ spl_lease_init() {
   LEASE_STALE="${LEASE_STALE:-180}"
   [[ "$LEASE_PERIOD" =~ ^[1-9][0-9]*$ && "$LEASE_STALE" =~ ^[1-9][0-9]*$ ]] ||
     { do_log "FATAL LEASE_PERIOD and LEASE_STALE must be positive integers"; return 1; }
+  [[ "${1:-}" == ro ]] && return 0
   mkdir -p "$LEASE_DIR" || { do_log "FATAL cannot create $LEASE_DIR"; return 1; }
 }
 
@@ -118,7 +119,7 @@ spl_lease_agent_pid() {
   for d in "$root"/[0-9]*; do
     pid="${d##*/}"
     [[ "$(cat "$d/comm" 2>/dev/null)" == claude ]] || continue
-    tr '\0' '\n' < "$d/environ" 2>/dev/null | grep -qx "SPOOL_AGENT_ID=$id" || continue
+    tr '\0' '\n' 2>/dev/null < "$d/environ" | grep -qx "SPOOL_AGENT_ID=$id" || continue
     echo "$pid"
   done | sort -n | head -1
 }

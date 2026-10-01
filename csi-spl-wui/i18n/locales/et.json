@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Sinu olek: võrgus",
+    "your_status_offline": "Sinu olek: võrguühenduseta"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "võrgus",
-      "offline_queued": "võrguühenduseta · järjekorras"
+      "offline_queued": "võrguühenduseta · järjekorras",
+      "last_seen": "viimati nähtud {when}"
     },
     "task": {
       "status": "{n} · uusimad eespool · {state}"

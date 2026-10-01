@@ -1799,3 +1799,11 @@ declare module '~/utils/row-keys.mjs' {
     opts?: { topicDelete?: boolean, editable?: boolean },
   ): '' | 'confirm-topic' | 'confirm-message' | 'delete-undo'
 }
+
+declare module '~/utils/dm-presence.mjs' {
+  export function dmPresence(p: { online: boolean, lastSeen?: string }): {
+    status: 'on' | 'off'
+    key: string
+    params: Record<string, string>
+  }
+}

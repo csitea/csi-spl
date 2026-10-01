@@ -38,7 +38,9 @@ describe('FeedHeader: one header for channel, DM and lobby', () => {
   })
 
   it('DM and lobby keep their status as the dot plus its tooltip', () => {
-    assert.match(template(PAGES[1]), /:status="online \? 'on' : 'off'"[\s\S]*?pages\.dm\.offline_queued/)
+    /* CLE-77862: the DM's is the PEER's presence, also printed beside the name */
+    assert.match(template(PAGES[1]), /:status="presence\.status"[\s\S]*?:status-text="t\(presence\.key, presence\.params\)"[\s\S]*?status-shown/)
+    assert.doesNotMatch(template(PAGES[2]), /status-shown/, 'the lobby keeps its words in the tooltip')
     assert.match(template(PAGES[2]), /:status="live\.state\.value === 'open' \? 'on' : 'off'"[\s\S]*?pages\.lobby\.status/)
   })
 
@@ -47,7 +49,8 @@ describe('FeedHeader: one header for channel, DM and lobby', () => {
     assert.match(t, /<header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t\('pane\.msgs'\)">/)
     assert.match(t, /<h2 class="feed-header__title" :title="titleTip \|\| title">\{\{ title \}\}<\/h2>/)
     assert.match(t, /v-if="status"[\s\S]*?class="dot"[\s\S]*?:title="statusText"/)
-    assert.match(t, /<span v-if="statusText" class="sr-only">/)
+    assert.match(t, /<span v-if="statusText && statusShown" class="feed-header__status" data-test="feed-header-status-text">\{\{ statusText \}\}<\/span>/)
+    assert.match(t, /<span v-else-if="statusText" class="sr-only">/)
     assert.match(t, /<CardClipControl \/>/)
     /* a boolean prop would read false when omitted and every channel would
        grow an "offline" dot */

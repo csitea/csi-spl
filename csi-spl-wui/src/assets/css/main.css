@@ -291,6 +291,25 @@ html.pane-dragging * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* CLE-77862: a DM's peer presence beside the name; it gives way (ellipsis)
+   before the title does, and the card height control keeps the right edge.
+   On a phone it goes UNDER the name (below), so "last seen ..." stays whole. */
+.feed-header__who {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.feed-header__status {
+  flex: 0 4 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
 .feed-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -787,6 +806,10 @@ html.pane-dragging * {
   .topic header > .topic-close { display: none; }
   .topic header { padding: 4px 8px 4px 4px; }
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
+  .feed-header__who--status { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
+  .feed-header__who--status .feed-header__title,
+  .feed-header__who--status .feed-header__status { max-width: 100%; }
+  .feed-header__who--status .feed-header__status { font-size: 0.75rem; }
 }
 @keyframes mobile-panel-in {
   from { transform: translateX(24px); opacity: .6; }

@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Ваш статус: в сети",
+    "your_status_offline": "Ваш статус: не в сети"
   },
   "composer": {
     "biz_owner": "владелец бизнеса",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "в сети",
-      "offline_queued": "не в сети · в очереди"
+      "offline_queued": "не в сети · в очереди",
+      "last_seen": "был(а) в сети {when}"
     },
     "task": {
       "status": "{n} · сначала новые · {state}"

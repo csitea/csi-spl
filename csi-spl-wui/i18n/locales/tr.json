@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Durumunuz: çevrimiçi",
+    "your_status_offline": "Durumunuz: çevrimdışı"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "çevrimiçi",
-      "offline_queued": "çevrimdışı · kuyrukta"
+      "offline_queued": "çevrimdışı · kuyrukta",
+      "last_seen": "son görülme {when}"
     },
     "task": {
       "status": "{n} · en yeniler önce · {state}"

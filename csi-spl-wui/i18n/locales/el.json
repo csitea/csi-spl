@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Η κατάστασή σας: συνδεδεμένος",
+    "your_status_offline": "Η κατάστασή σας: εκτός σύνδεσης"
   },
   "composer": {
     "biz_owner": "ιδιοκτήτης επιχείρησης",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "συνδεδεμένος",
-      "offline_queued": "εκτός σύνδεσης · σε αναμονή"
+      "offline_queued": "εκτός σύνδεσης · σε αναμονή",
+      "last_seen": "τελευταία σύνδεση {when}"
     },
     "task": {
       "status": "{n} · πρώτα τα νεότερα · {state}"

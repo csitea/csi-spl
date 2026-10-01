@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "הסטטוס שלך: מקוון",
+    "your_status_offline": "הסטטוס שלך: לא מקוון"
   },
   "composer": {
     "biz_owner": "בעל העסק",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "מקוון",
-      "offline_queued": "לא מקוון · בתור"
+      "offline_queued": "לא מקוון · בתור",
+      "last_seen": "נראה לאחרונה {when}"
     },
     "task": {
       "status": "{n} · החדשות ראשונות · {state}"

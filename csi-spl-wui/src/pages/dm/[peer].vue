@@ -3,8 +3,9 @@
     <FeedHeader
       :title="peerName"
       :title-tip="peer"
-      :status="online ? 'on' : 'off'"
-      :status-text="online ? t('pages.dm.online') : t('pages.dm.offline_queued')"
+      :status="presence.status"
+      :status-text="t(presence.key, presence.params)"
+      status-shown
     />
     <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" />
   </div>
@@ -27,6 +28,8 @@ import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import { useNotificationStore } from '~/stores/notification'
+import { dmPresence } from '~/utils/dm-presence.mjs'
+import { BROWSER_BOX } from '~/utils/view-api.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -51,6 +54,15 @@ const peerName = computed(() => {
 const online = computed(() => {
   const [id, box] = peer.value.split('@')
   return roster.isOnline(id, box)
+})
+/* CLE-77862 (HUM-24): the PEER's presence, in words beside the name - online,
+   else when they were last seen (a member's last_seen, an agent's box hello),
+   else "offline · queued". The reader's own dot is the sidebar's "you" row. */
+const presence = computed(() => {
+  const [id, box] = peer.value.split('@')
+  const lastSeen = roster.humansDetail[String(id || '')]?.last_seen
+    || (box && box !== BROWSER_BOX ? roster.boxes[box]?.last_hello_at : '')
+  return dmPresence({ online: online.value, lastSeen: lastSeen || '' })
 })
 
 /* The topic pane reads one task and does not notice a peer change. Once this

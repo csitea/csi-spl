@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Twój status: online",
+    "your_status_offline": "Twój status: offline"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · w kolejce"
+      "offline_queued": "offline · w kolejce",
+      "last_seen": "ostatnio widziany {when}"
     },
     "task": {
       "status": "{n} · od najnowszych · {state}"

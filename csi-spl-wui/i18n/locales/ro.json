@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Starea ta: online",
+    "your_status_offline": "Starea ta: offline"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · în coadă"
+      "offline_queued": "offline · în coadă",
+      "last_seen": "văzut ultima dată {when}"
     },
     "task": {
       "status": "{n} · cele mai noi primele · {state}"

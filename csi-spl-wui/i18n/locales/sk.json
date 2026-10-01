@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Váš stav: online",
+    "your_status_offline": "Váš stav: offline"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · vo fronte"
+      "offline_queued": "offline · vo fronte",
+      "last_seen": "naposledy videný {when}"
     },
     "task": {
       "status": "{n} · najnovšie prvé · {state}"

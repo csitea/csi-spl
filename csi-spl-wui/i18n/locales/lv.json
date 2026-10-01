@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Jūsu statuss: tiešsaistē",
+    "your_status_offline": "Jūsu statuss: bezsaistē"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "tiešsaistē",
-      "offline_queued": "bezsaistē · rindā"
+      "offline_queued": "bezsaistē · rindā",
+      "last_seen": "pēdējoreiz redzēts {when}"
     },
     "task": {
       "status": "{n} · jaunākās vispirms · {state}"

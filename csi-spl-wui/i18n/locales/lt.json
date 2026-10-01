@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Jūsų būsena: prisijungęs",
+    "your_status_offline": "Jūsų būsena: neprisijungęs"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "prisijungęs",
-      "offline_queued": "neprisijungęs · eilėje"
+      "offline_queued": "neprisijungęs · eilėje",
+      "last_seen": "paskutinį kartą matytas {when}"
     },
     "task": {
       "status": "{n} · naujausi viršuje · {state}"

@@ -95,7 +95,16 @@
       :title="t('auth.login.signed_in_as', { who: peerName(roster.self.id, roster.self.box) })"
     >
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
-      <span class="dot" :class="{ on: roster.self.online }" />
+      <!-- CLE-77862 (HUM-24): this dot is the READER's status, and says so;
+           a DM's peer status is in the DM header, beside the peer's name. -->
+      <span
+        class="dot"
+        :class="{ on: roster.self.online }"
+        role="img"
+        data-test="self-status-dot"
+        :title="selfStatus"
+        :aria-label="selfStatus"
+      />
       <HumanName class="label" :id="roster.self.id" :box="roster.self.box" />
       <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
            lands on the wrong side of an RTL label (he), because the bidi
@@ -897,6 +906,8 @@ const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
+/* CLE-77862: the tooltip / accessible name of the reader's own status dot */
+const selfStatus = computed(() => t(roster.self?.online ? 'sidebar.your_status_online' : 'sidebar.your_status_offline'))
 /* SPL-976: the description's submit key creates the channel, as the button does */
 const { onKeydown: onSubmitKey } = useSubmitKey()
 const localePath = useLocalePath()

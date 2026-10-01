@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Tilasi: paikalla",
+    "your_status_offline": "Tilasi: offline"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "paikalla",
-      "offline_queued": "offline · jonossa"
+      "offline_queued": "offline · jonossa",
+      "last_seen": "nähty viimeksi {when}"
     },
     "task": {
       "status": "{n} · uusimmat ensin · {state}"

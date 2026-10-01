@@ -473,7 +473,9 @@
       "error_gone": "This channel no longer exists.",
       "error_fallback": "The channel was not archived. Try again."
     },
-    "create_channel_unarchive": "Unarchive #{slug}"
+    "create_channel_unarchive": "Unarchive #{slug}",
+    "your_status_online": "Vaš status: na mreži",
+    "your_status_offline": "Vaš status: van mreže"
   },
   "composer": {
     "biz_owner": "власник пословања",
@@ -828,7 +830,8 @@
     },
     "dm": {
       "online": "na mreži",
-      "offline_queued": "van mreže · u redu čekanja"
+      "offline_queued": "van mreže · u redu čekanja",
+      "last_seen": "poslednji put viđen {when}"
     },
     "task": {
       "status": "{n} · najnovije prvo · {state}"

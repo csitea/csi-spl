@@ -96,7 +96,10 @@ try {
   await p.click('[data-test=users-invite-send]')
   await p.waitForSelector('[data-test=users-row][data-key="i:ts-invitee@example.com"]', { visible: true, timeout: 5000 }).catch(() => null)
   ok('4 Members invites', Boolean(await p.$('[data-test=users-row][data-key="i:ts-invitee@example.com"]')))
-  ok('4b a pending invite offers Resend', Boolean(await p.$('[data-test=users-pane-resend]')))
+  // CLE-77780: a pending invite offers "Send the invite email" until it has been
+  // mailed, then "Resend" — the mock's pending invite is unmailed, so it shows
+  // Send. Accept either so the check follows the invite's mailed state.
+  ok('4b a pending invite offers Send / Resend', Boolean(await p.$('[data-test=users-pane-send-mail], [data-test=users-pane-resend]')))
   await p.click('[data-test=users-row][data-key="m:HUM-3"]')
   await p.waitForSelector('[data-test=users-pane-suspend]', { visible: true, timeout: 5000 })
   await p.click('[data-test=users-pane-suspend]')

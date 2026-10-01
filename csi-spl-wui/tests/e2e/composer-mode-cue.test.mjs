@@ -88,8 +88,7 @@ function cue(p) {
       /* one border: every side the same width and colour (no mode edge/ring) */
       single: cs ? (cs.borderInlineStartWidth === cs.borderTopWidth && cs.borderInlineStartColor === cs.borderTopColor && cs.borderTopWidth === '1px') : false,
       fieldH: field ? Math.round(field.getBoundingClientRect().height) : 0,
-      /* owner, t1 be8fed75: the open thread's cue is ONE small arrow just
-         left of the box; markGap = field's start edge - arrow's end edge */
+      /* owner, t1 3d6d945d: the reply arrow is gone; any leftover counts */
       mark: (() => {
         const m = [...f.querySelectorAll('[data-test=composer-reply-mark]')].find(vis)
         if (!m || !field) return null
@@ -164,8 +163,8 @@ async function desktopCase(browser, theme) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, `reply-1440-${theme}`)
-  ok(`${tag} 2 a thread open: no chip, no text; only the small arrow, right at the box's left edge`,
-    Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark && c2.mark.text === '' && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.mark.w <= 20), c2)
+  ok(`${tag} 2 a thread open: no chip, no text, no arrow (owner t1 3d6d945d: "remove this arrow")`,
+    Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark === null), c2)
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply box has the very same single border as a new topic`, Boolean(c1 && c2 && c2.single && c1.edge === c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -232,8 +231,8 @@ async function phoneCase(browser) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, 'reply-390-dark')
-  ok('390 6 a thread open: still no line, the arrow just left of the box, the same single border, placeholder "Reply", GO "Send reply"',
-    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.placeholder.startsWith('Reply') && c2.single && c2.edge === c1.edge && c2.go === 'Send reply'), c2)
+  ok('390 6 a thread open: still no line, no arrow, the same single border, placeholder "Reply", GO "Send reply"',
+    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark === null && c2.placeholder.startsWith('Reply') && c2.single && c2.edge === c1.edge && c2.go === 'Send reply'), c2)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

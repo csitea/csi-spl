@@ -127,8 +127,8 @@ describe('the composer looks different per mode (HUM-24)', () => {
   it('no chip in the top bar (owner, t1 7d777e79 14:24Z: "some kind of reply button there in the wrong place"); the form carries the mode, DM pages say dm, the placeholder is the old one', () => {
     const c = src('src/components/MessageComposer.vue')
     assert.doesNotMatch(c, /class="composer-mode"|data-test="composer-mode"/)
-    /* owner, t1 be8fed75: in an open thread only a small arrow, just left of the box */
-    assert.match(c, /dockHint\.mode === 'thread'"\n\s+class="composer-reply-mark"/)
+    /* owner, t1 3d6d945d 19:42Z: "remove this arrow" - no reply mark left of the box */
+    assert.doesNotMatch(c, /composer-reply-mark/)
     assert.match(c, /:data-mode="modeAttr"/)
     assert.match(c, /t\(sendKey\)/)
     /* owner, t1 76b356b2: "double bordering ... Remove the lilac one" */

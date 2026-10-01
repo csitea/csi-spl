@@ -26,18 +26,9 @@
       <span>{{ modeText }}</span>
     </p>
     <div class="composer-box">
-      <!-- owner, t1 be8fed75 (2026-10-01): in an open thread "keep just the
-           small arrow icon but put the arrow icon just to the left of the
-           Omni box" - an icon, no word, no title; nothing in a new topic.
-           The desktop bottom dock says it in its line instead. -->
-      <span
-        v-if="global && !(bottom && !docked) && !searchMode && dockHint && dockHint.mode === 'thread'"
-        class="composer-reply-mark"
-        data-test="composer-reply-mark"
-        role="img"
-        :aria-label="t('composer.target_thread')"
-        :title="t('composer.target_thread')"
-      ><UiIcon name="reply" :size="16" /></span>
+      <!-- owner, t1 3d6d945d (2026-10-01 19:42Z): the reply arrow left of the
+           box is gone ("remove this arrow"); the placeholder and GO still say
+           reply. A hierarchy glyph is being proposed in that topic. -->
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
@@ -1343,18 +1334,6 @@ textarea.in-code {
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
 .composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
-.composer-reply-mark {
-  display: inline-flex;
-  flex: none;
-  align-self: center;
-  color: var(--color-mode-reply);
-  margin-inline-end: -4px;
-}
-/* in the top bar the box rests at --omnibox-rest; centre the arrow on it */
-.composer.omnibox--global:not(.composer--dock) .composer-reply-mark {
-  align-self: flex-start;
-  margin-top: calc((var(--omnibox-rest, 46px) - 16px) / 2);
-}
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.

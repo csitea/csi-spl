@@ -133,7 +133,7 @@ _pp_verdict() {  # <part> <VERDICT> <secs> [detail]
 # git hook or a `sudo -u <box-user> env` shell sees, so resolve it explicitly
 # before deciding it is missing.
 _pp_pnpm() {
-  if command -v pnpm >/dev/null 2>&1; then printf 'pnpm'; return 0; fi
+  local c; c="$(command -v pnpm 2>/dev/null)" && { printf '%s' "$c"; return 0; }
   local p
   for p in "$HOME/.local/bin/pnpm" /usr/local/bin/pnpm /usr/bin/pnpm; do
     [[ -x "$p" ]] && { printf '%s' "$p"; return 0; }
@@ -196,8 +196,16 @@ _pp_part_wui() {
   timeout -k 10 "$_pp_timeout" bash -c '
     cd "$1/csi-spl-wui" || exit 1
     export PATH="$HOME/.local/bin:$PATH"
-    if [[ ! -d node_modules ]]; then
-      echo "pre-push: WUI node_modules absent (fresh worktree) -- pnpm install --frozen-lockfile"
+    # A node_modules SYMLINK into another checkout (the stale shared one) made
+    # a lane FAIL on packages its lockfile has (2026-10-01): replace the LINK
+    # (never its target) with an install of its own. Re-install too when
+    # the installed lock (pnpm keeps a copy) is not this pnpm-lock.yaml.
+    if [[ -L node_modules ]]; then
+      echo "pre-push: WUI node_modules is a symlink to $(readlink node_modules) -- replacing the link with an install of its own"
+      rm -f node_modules || exit 1
+    fi
+    if [[ ! -d node_modules ]] || ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
+      echo "pre-push: WUI node_modules absent or built from another lockfile -- pnpm install --frozen-lockfile"
       "$2" install --frozen-lockfile || exit 1
     fi
     "$2" run test:unit || exit 1

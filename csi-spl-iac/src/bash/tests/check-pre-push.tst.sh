@@ -29,7 +29,7 @@ FUNC="$PROJ_ROOT/src/bash/run/check-pre-push.func.sh"
 
 fails=0
 pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1 -- $2"; fails=$((fails + 1)); }
+fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
 # A throwaway git repo with a base commit on a 'base' ref and HEAD one ahead.
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -124,6 +124,35 @@ if [ -r "$VT" ]; then
 else
   fail "9. cannot find the real no-payment-vendor-wui.tst.sh at $VT"
 fi
+
+# 10. the WUI part owns its install: a node_modules SYMLINK into another
+#     checkout is replaced by a real install (the link's target untouched), an
+#     install matching pnpm-lock.yaml is re-used, a changed lockfile re-installs.
+#     pnpm is a stub that logs its verb and lays down node_modules.
+W="$(mktemp -d)"; mkdir -p "$W/csi-spl-wui" "$W/bin" "$W/shared/node_modules"
+echo keep >"$W/shared/node_modules/marker"
+echo "lock: 1" >"$W/csi-spl-wui/pnpm-lock.yaml"
+cat >"$W/bin/pnpm" <<'STUB'
+#!/usr/bin/env bash
+echo "$1" >>"$PNPM_LOG"
+if [ "$1" = install ]; then mkdir -p node_modules/.pnpm && cp pnpm-lock.yaml node_modules/.pnpm/lock.yaml; fi
+exit 0
+STUB
+chmod +x "$W/bin/pnpm"
+ln -s "$W/shared/node_modules" "$W/csi-spl-wui/node_modules"
+installs() { grep -cx install "$W/pnpm.log" 2>/dev/null || true; }
+PATH="$W/bin:$PATH" PNPM_LOG="$W/pnpm.log" _pp_part_wui "$W" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && pass "10. symlinked node_modules -> the part passes" || fail "10. symlinked node_modules -> the part passes" "rc=$rc"
+[ ! -L "$W/csi-spl-wui/node_modules" ] && [ -d "$W/csi-spl-wui/node_modules" ] \
+  && pass "10. ... the link is replaced by a real install" || fail "10. ... the link is replaced by a real install"
+[ -f "$W/shared/node_modules/marker" ] && pass "10. ... the link's target is untouched" || fail "10. ... the link's target is untouched"
+[ "$(installs)" = 1 ] && pass "10. ... installed once" || fail "10. ... installed once" "$(installs)"
+PATH="$W/bin:$PATH" PNPM_LOG="$W/pnpm.log" _pp_part_wui "$W" >/dev/null 2>&1
+[ "$(installs)" = 1 ] && pass "10. an install matching the lockfile is re-used" || fail "10. an install matching the lockfile is re-used" "$(installs)"
+echo "lock: 2" >"$W/csi-spl-wui/pnpm-lock.yaml"
+PATH="$W/bin:$PATH" PNPM_LOG="$W/pnpm.log" _pp_part_wui "$W" >/dev/null 2>&1
+[ "$(installs)" = 2 ] && pass "10. a changed lockfile re-installs" || fail "10. a changed lockfile re-installs" "$(installs)"
+rm -rf "$W"
 
 echo "-- check-pre-push.tst.sh: $fails failed"
 [[ "$fails" -eq 0 ]]

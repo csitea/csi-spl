@@ -66,13 +66,14 @@ export function mayChangeTopic(msg, viewerId, me) {
 /**
  * The viewer may ARCHIVE / unarchive this card, per the workspace setting
  * "Who can archive topics" (CLE-77819). `me` is utils/access.mjs normalizeMe;
- * me.topicArchivePolicy is 'everyone' | 'admins' | 'starter'. null me (not
- * loaded yet) offers nothing, so a menu never offers what the hub refuses; the
- * hub re-checks every write (topic-archive-v1 §1). Delete stays mayChangeTopic.
+ * me.topicArchivePolicy is 'everyone' | 'admins' | 'starter'. A null me (not
+ * loaded yet, the mock, a hub without /v1/view/me) keeps the pre-setting rule:
+ * the author only (mayChangeTopic's author test). The hub re-checks every
+ * write (topic-archive-v1 §1). Delete stays mayChangeTopic.
  */
 export function mayArchiveTopic(msg, viewerId, me) {
   if (!isTopicCard(msg)) return false
-  if (!me || typeof me !== 'object') return false
+  if (!me || typeof me !== 'object') return mayChangeTopic(msg, viewerId, null)
   switch (me.topicArchivePolicy) {
     case 'admins':
       return me.tenantOwner === true || TOPIC_ADMIN_ROLES.includes(String(me.role || ''))

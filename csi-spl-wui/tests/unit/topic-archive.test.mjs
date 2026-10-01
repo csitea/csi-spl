@@ -72,7 +72,8 @@ describe('who may Archive, per the workspace policy (CLE-77819, owner 2026-09-30
     assert.equal(mayArchiveTopic(card, 'HUM-9', admin('starter')), true)
     assert.equal(mayArchiveTopic(card, 'HUM-2', me('starter')), false)
   })
-  it('offers nothing before /v1/view/me loads, or on a reply', () => {
+  it('before /v1/view/me answers (or in the mock): the author only; never on a reply', () => {
+    assert.equal(mayArchiveTopic(card, 'HUM-1', null), true, 'the author, as before the setting')
     assert.equal(mayArchiveTopic(card, 'HUM-2', null), false)
     assert.equal(mayArchiveTopic({ ...card, is_parent: 0 }, 'HUM-1', me('everyone')), false, 'a reply is not a card')
   })

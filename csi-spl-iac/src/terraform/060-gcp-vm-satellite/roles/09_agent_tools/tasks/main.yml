@@ -6,12 +6,24 @@
 #   pnpm             corepack, the version csi-spl-wui pins (packageManager)
 #   lint+terraform   the repo's do_install_lint_tools, CI-pinned, system-wide
 #   tpl-gen          the repo's do_setup_tpl_gen (the owner's clone)
+# curl, not get_url: ansible-core 2.14 (the tf-runner) passes cert_file to
+# http.client, which Python 3.12+ (Debian 13) removed (loop run 2, 2026-10-01)
 - name: cloud-sql-proxy, Google's release, sha256-pinned
-  ansible.builtin.get_url:
-    url: "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v{{ cloud_sql_proxy_version }}/cloud-sql-proxy.linux.amd64"
-    dest: /usr/local/bin/cloud-sql-proxy
-    checksum: "sha256:{{ cloud_sql_proxy_sha256 }}"
-    mode: "0755"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    f=/usr/local/bin/cloud-sql-proxy
+    [ "$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)" = "$SUM" ] && { echo "OK $VER"; exit 0; }
+    curl -fsSL --retry 3 -o "$f.part" "$URL" || { echo "FAIL download $URL"; exit 1; }
+    [ "$(sha256sum "$f.part" | cut -d' ' -f1)" = "$SUM" ] || { rm -f "$f.part"; echo "FAIL sha256 mismatch"; exit 1; }
+    chmod 755 "$f.part" && mv "$f.part" "$f" && echo "CHANGED $VER"
+  args:
+    executable: /bin/bash
+  environment:
+    VER: "{{ cloud_sql_proxy_version }}"
+    SUM: "{{ cloud_sql_proxy_sha256 }}"
+    URL: "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v{{ cloud_sql_proxy_version }}/cloud-sql-proxy.linux.amd64"
+  register: csp_out
+  changed_when: "'CHANGED' in csp_out.stdout"
 
 - name: pnpm, the version csi-spl-wui pins, through corepack, for the agent
   ansible.builtin.shell: |

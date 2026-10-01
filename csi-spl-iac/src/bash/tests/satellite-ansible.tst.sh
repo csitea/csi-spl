@@ -101,7 +101,12 @@ grep -q 'owner_home: "{{ home_root }}/' "$R/05_users/tasks/main.yml" && grep -q 
   && pass "homes live on the data disk" || fail "homes are not on the data disk"
 grep -q 'validate: /usr/sbin/sshd -t -f %s' "$R/04_ssh_hardening/tasks/main.yml" && pass "the sshd drop-in is validated" || fail "the sshd drop-in is not validated"
 grep -q 'force: false' "$R/01_data_disk/tasks/main.yml" && pass "01 formats only a blank disk" || fail "01 may reformat the data disk"
-grep -q 'checksum: "sha256:' "$R/09_agent_tools/tasks/main.yml" && pass "cloud-sql-proxy is sha256-pinned" || fail "cloud-sql-proxy is not sha256-pinned"
+grep -q 'SUM: "{{ cloud_sql_proxy_sha256 }}"' "$R/09_agent_tools/tasks/main.yml" && grep -q 'FAIL sha256 mismatch' "$R/09_agent_tools/tasks/main.yml" \
+  && pass "cloud-sql-proxy is sha256-pinned" || fail "cloud-sql-proxy is not sha256-pinned"
+# ansible-core 2.14's url modules pass cert_file, gone from Python 3.12+ (Debian 13): loop run 2
+grep -rnE '^\s*(ansible\.builtin\.)?(get_url|uri):' "$R" "$STEP/tasks" && fail "a role uses get_url/uri (breaks on the VM's Python)" \
+  || pass "no role uses get_url/uri (ansible 2.14 vs Python 3.13)"
+grep -q 'FAIL no ~/.local/bin/$b after install.sh' "$R/08_spool_harness/tasks/main.yml" && pass "08 proves claude/spool/spool-agent exist after install.sh" || fail "08 trusts an empty install.sh ok"
 
 # 4b. no task fights become's pty (loop run 1 hung on claude-apply's `bash -ic`)
 grep -q 'timeout 600 setsid -w bash "$ENGINE/ysg-box-orc/src/bash/features/claude-config/scripts/claude-apply.sh"' "$R/07_ysg_box/tasks/main.yml" \

@@ -93,7 +93,11 @@
   ansible.builtin.shell: |
     set -uo pipefail
     export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:$PATH"
-    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat </dev/null
+    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat </dev/null 2>&1
+    rc=$?
+    # loop run 2 printed nothing: prove the result, never trust an empty ok
+    for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] || { echo "FAIL no ~/.local/bin/$b after install.sh (rc=$rc)"; exit 1; }; done
+    exit "$rc"
   args:
     executable: /bin/bash
     chdir: "{{ repo_dir }}"

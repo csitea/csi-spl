@@ -648,6 +648,10 @@
       "badge": "{agent}-päätteen kautta",
       "title": "{who} kirjoitti tämän {agent}-päätteessä"
     },
+    "ai": {
+      "badge": "TA",
+      "title": "Tekoälyagentti"
+    },
     "clip": {
       "label": "Kortin korkeus",
       "mode": {

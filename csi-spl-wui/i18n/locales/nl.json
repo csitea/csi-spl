@@ -648,6 +648,10 @@
       "badge": "via terminal van {agent}",
       "title": "Getypt door {who} in de terminal van {agent}"
     },
+    "ai": {
+      "badge": "AI",
+      "title": "AI-agent"
+    },
     "clip": {
       "label": "Kaarthoogte",
       "mode": {

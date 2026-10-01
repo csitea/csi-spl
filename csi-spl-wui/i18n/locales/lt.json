@@ -648,6 +648,10 @@
       "badge": "per {agent} terminalą",
       "title": "{who} parašė tai {agent} terminale"
     },
+    "ai": {
+      "badge": "DI",
+      "title": "DI agentas"
+    },
     "clip": {
       "label": "Kortelės aukštis",
       "mode": {

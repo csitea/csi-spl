@@ -526,6 +526,7 @@ declare module '~/utils/pane-focus.mjs' {
 
 declare module '~/utils/typed-by.mjs' {
   export function typedByAuthor(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): { id: string, box: string, via: string, viaBox: string }
+  export function isAiMessage(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): boolean
 }
 
 declare module '~/utils/touch-ui.mjs' {

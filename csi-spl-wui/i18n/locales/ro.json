@@ -648,6 +648,10 @@
       "badge": "prin terminalul {agent}",
       "title": "Tastat de {who} în terminalul {agent}"
     },
+    "ai": {
+      "badge": "IA",
+      "title": "Agent IA"
+    },
     "clip": {
       "label": "Înălțimea cardului",
       "mode": {

@@ -648,6 +648,10 @@
       "badge": "{agent} terminali kaudu",
       "title": "{who} kirjutas selle {agent} terminalis"
     },
+    "ai": {
+      "badge": "TI",
+      "title": "Tehisintellekti agent"
+    },
     "clip": {
       "label": "Kaardi kõrgus",
       "mode": {

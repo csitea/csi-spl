@@ -648,6 +648,10 @@
       "badge": "preko terminala {agent}",
       "title": "Otkucao {who} u terminalu {agent}"
     },
+    "ai": {
+      "badge": "VI",
+      "title": "VI agent"
+    },
     "clip": {
       "label": "Висина картице",
       "mode": {

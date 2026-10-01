@@ -25,3 +25,22 @@ export function typedByAuthor(msg) {
   }
   return { id: from, box, via: '', viaBox: '' }
 }
+
+/* an agent id: <PREFIX>-<n> (CLE-, GRK-, AGY-, QWN-, a new CLI), never a
+   member HUM-<n> nor a door-off guest GST-<n> */
+const AGENT_ID = /^[A-Z]{2,4}-[0-9]+$/
+const PERSON_ID = /^(HUM|GST)-/
+
+/**
+ * HUM-24 (csitea ba4696c1): an AI-generated row is marked apart from a
+ * person's (a tint and an "AI" badge). AI means the row's SHOWN author is an
+ * agent: a line the owner typed at an agent's terminal shows as the human
+ * (above), so it stays a person's row; an empty or unknown sender is not
+ * claimed as AI.
+ * @param {{ from?: string, from_box?: string, typed_by?: string } | null | undefined} msg
+ * @returns {boolean}
+ */
+export function isAiMessage(msg) {
+  const id = typedByAuthor(msg).id
+  return AGENT_ID.test(id) && !PERSON_ID.test(id)
+}

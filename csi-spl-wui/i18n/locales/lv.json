@@ -648,6 +648,10 @@
       "badge": "caur {agent} termināli",
       "title": "{who} to ierakstīja {agent} terminālī"
     },
+    "ai": {
+      "badge": "MI",
+      "title": "MI aģents"
+    },
     "clip": {
       "label": "Kartītes augstums",
       "mode": {

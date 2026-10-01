@@ -334,6 +334,11 @@ html.pane-dragging * {
   max-width: 100%;
   min-width: 0;
 }
+/* HUM-24 (csitea ba4696c1): an AI agent's row carries a faint accent tint
+   (plus the "AI" badge in MessageCard), on every theme. One class, so hover,
+   focus, pressed and selected (all declared after, and more specific) still
+   paint over it unchanged. */
+.msg--ai { background: color-mix(in srgb, var(--color-accent) 9%, transparent); }
 .msg:hover { background: var(--color-surface-hover); }
 /* SPL-1134: what follows the pointer while a card is dragged by its handle
    (utils/move-drag.mjs; placed by useMove with a transform) */

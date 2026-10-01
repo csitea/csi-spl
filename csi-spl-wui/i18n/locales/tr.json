@@ -648,6 +648,10 @@
       "badge": "{agent} terminali üzerinden",
       "title": "{who} tarafından {agent} terminalinde yazıldı"
     },
+    "ai": {
+      "badge": "YZ",
+      "title": "Yapay zekâ ajanı"
+    },
     "clip": {
       "label": "Kart yüksekliği",
       "mode": {

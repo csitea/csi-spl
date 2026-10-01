@@ -648,6 +648,10 @@
       "badge": "via terminal {agent}",
       "title": "Typed by {who} in the terminal of {agent}"
     },
+    "ai": {
+      "badge": "AI",
+      "title": "AI agent"
+    },
     "clip": {
       "label": "Card height",
       "mode": {

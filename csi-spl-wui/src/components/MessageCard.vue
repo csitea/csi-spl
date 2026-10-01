@@ -2,12 +2,13 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
+    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging }"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
     :data-task-id="msg.task_id || undefined"
     :data-selected="selected ? 'true' : undefined"
+    :data-ai="ai ? 'true' : undefined"
     :aria-current="selected ? 'true' : undefined"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
@@ -56,6 +57,13 @@
       -->
       <div class="msg-meta">
         <AgentBadge :id="author.id" :box="author.box || undefined" />
+        <!-- HUM-24 (csitea ba4696c1): an AI agent's row says so beside the name -->
+        <span
+          v-if="ai"
+          class="msg-ai-badge"
+          data-testid="msg-ai-badge"
+          :title="t('feed.ai.title')"
+        >{{ t('feed.ai.badge') }}</span>
         <!-- specs/036 FR-011: the human typed this at the agent's terminal -->
         <span
           v-if="author.via"
@@ -404,7 +412,7 @@ import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips, emojiName } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
-import { typedByAuthor } from '~/utils/typed-by.mjs'
+import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { COMPOSER_FOCUS_EVENT, createLongPress } from '~/utils/touch-ui.mjs'
 import {
@@ -473,6 +481,8 @@ function whoOf(p: { id?: string, box?: string } | null | undefined) {
 }
 /** specs/036 FR-011: who the row is shown as (the typist, for a terminal line). */
 const author = computed(() => typedByAuthor(props.msg))
+/* HUM-24: an AI agent's row is tinted and badged (a typed-as-human line is not) */
+const ai = computed(() => isAiMessage(props.msg))
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
 /* a topic card is ordered by its LAST activity, so it shows that
@@ -1336,6 +1346,19 @@ async function save() {
  * both inline marks centre themselves rather than sitting on the text baseline.
  */
 .avatar--to { align-self: center; }
+.msg-ai-badge {
+  align-self: center;
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-accent);
+  color: var(--color-fg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .msg-to-arrow {
   align-self: center;
   color: var(--color-muted);

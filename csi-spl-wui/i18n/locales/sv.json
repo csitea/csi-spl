@@ -648,6 +648,10 @@
       "badge": "via terminalen för {agent}",
       "title": "Skrivet av {who} i terminalen för {agent}"
     },
+    "ai": {
+      "badge": "AI",
+      "title": "AI-agent"
+    },
     "clip": {
       "label": "Korthöjd",
       "mode": {

@@ -19,7 +19,9 @@ services:
     ports:
       - "127.0.0.1:${LDE_PG_PORT:?unset}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      # over TCP: a socket check is already "ready" on the image's socket-only
+      # initdb server, before the restart that opens 5432 (CLE-77859)
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 2s
       timeout: 3s
       retries: 30

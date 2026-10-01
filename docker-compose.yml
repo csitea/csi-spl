@@ -35,7 +35,11 @@ services:
       - pg-data:/var/lib/postgresql/data
       - ./csi-spl-api/src/docker/pg-init.sh:/docker-entrypoint-initdb.d/10-spool-owner.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d $${SPOOL_DB_NAME}"]
+      # over TCP, as hub-init dials it: on a fresh volume the image first runs
+      # a socket-only temporary server for initdb + pg-init.sh, then restarts;
+      # a socket check went healthy on that one and hub-init hit "connection
+      # refused" in the restart gap (wf50 run 36856362013, CLE-77859)
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres -d $${SPOOL_DB_NAME}"]
       interval: 2s
       timeout: 3s
       retries: 60

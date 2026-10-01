@@ -24,7 +24,7 @@ trap 'rm -rf "$T"' EXIT
 
 P="$T/proc" S="$T/spool" ST="$T/state" R="$T/repo"
 mkdir -p "$P" "$S" "$ST" "$T/home"
-git init -q "$R" && git -C "$R" commit -q --allow-empty -m init
+git init -q "$R" && git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 
 # agent <pid> <id> [perm] [model]
 agent() {

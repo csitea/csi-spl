@@ -211,7 +211,9 @@ spl_lease_show() {
 spl_lease_loop() {
   local verb="$1"
   exec 8> "$LEASE_DIR/$verb.run"
-  flock -n 8 || { do_log "INFO a $verb loop already runs - nothing to do"; return 0; }
+  # -w, not -n: a "is it running?" probe (spl_lease_running) holds the lock
+  # for an instant, and a loop starting in that instant must not give up
+  flock -w 2 8 || { do_log "INFO a $verb loop already runs - nothing to do"; return 0; }
   echo "$$" > "$LEASE_DIR/$verb.pid"
   spl_lease_code_ver > "$LEASE_DIR/$verb.ver"
   spl_lease_log "$verb start master=$LEASE_MASTER${LEASE_FAILOVER:+ failover=$LEASE_FAILOVER} pid=$$"
@@ -275,6 +277,8 @@ spl_lease_ensure() {
   ver="$(spl_lease_code_ver)"
   for verb in renew watch; do
     if spl_lease_running "$verb"; then
+      # a loop that took its lock a moment ago writes its version just after
+      [[ "$(cat "$LEASE_DIR/$verb.ver" 2>/dev/null)" == "$ver" ]] || sleep 1
       if [[ "$(cat "$LEASE_DIR/$verb.ver" 2>/dev/null)" == "$ver" ]]; then
         do_log "INFO lease $verb loop running (pid $(cat "$LEASE_DIR/$verb.pid" 2>/dev/null))"
         continue

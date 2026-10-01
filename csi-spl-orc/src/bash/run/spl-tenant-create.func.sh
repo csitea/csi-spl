@@ -27,6 +27,13 @@
 # @param TENANT_HOST (optional) - 1 (default): chain the host; 0: skip it
 # @param CNF_PUSH (optional) - 1: push the cnf change before the apply (run from
 # @param   the main checkout, the tree the tf-runner mounts)
+# @description SPL-1290: a dev/prd DRY_RUN=0 create also PINS the hub's box-wui
+# @description key under the new tenant (do_spl_cloud_pin_box_wui, signed with
+# @description the root key while it is still in hand). Without that pin every
+# @description browser post is stored unsigned and no agent receives it (prd
+# @description csitea, leiden, pas-psf and four more, found 2026-10-01,
+# @description CLE-77876). Exit 4 = created, box-wui not pinned.
+# @param TENANT_PIN_WUI (optional) - 1 (default): pin box-wui; 0: skip it
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=dev DRY_RUN=0 TENANT_ID=t1 ./run -a do_spl_tenant_create
@@ -147,6 +154,10 @@ do_spl_tenant_create() {
     "$tenant" "$url" "$pub" "$priv"
   do_log "OK created tenant $tenant url=$url (root private key printed once on stdout, not stored)"
   [[ "$env" == lde ]] && return 0
+  spl_tenant_create_pin_wui "$tenant" "$url" "$pub" "$priv" "$tmp" >&2 || {
+    do_log "WARN tenant $tenant exists, but box-wui is NOT pinned: its people's posts reach no agent until ENV=$env TENANT_ID=$tenant TENANT_FILE=<the saved create JSON> DRY_RUN=0 ./run -a do_spl_cloud_pin_box_wui" >&2
+    return 4
+  }
   ENV="$env" spl_tenant_create_host "$tenant" >&2 || {
     do_log "WARN tenant $tenant exists, but its host $url is not ready: re-run ENV=$env TENANT_ID=$tenant DRY_RUN=0 ./run -a do_spl_tenant_host_provision" >&2
     return 3
@@ -167,4 +178,21 @@ spl_tenant_create_host() {
     spl_th_cnf_push "cnf(orc, SPL-959): $ENV tenant host +$t" || return 1
   fi
   TENANT_ID="$t" DRY_RUN=0 do_spl_tenant_host_provision
+}
+
+# spl_tenant_create_pin_wui <tenant> <url> <pub> <priv> <tmp dir> (SPL-1290):
+# pin box-wui under the new tenant through do_spl_cloud_pin_box_wui, its root
+# key in a 0600 file under the caller's private tmp dir (removed with it).
+# A subshell, so the pin action's RETURN trap cannot replace the caller's.
+spl_tenant_create_pin_wui() {
+  local t="$1" url="$2" pub="$3" priv="$4" dir="$5" f
+  [[ "${TENANT_PIN_WUI:-1}" == 1 ]] || { do_log "INFO TENANT_PIN_WUI=0: box-wui is not pinned under $t"; return 0; }
+  f="$dir/tenant.json"
+  ( umask 077 && printf '{"tenant":"%s","url":"%s","root_pubkey":"%s","root_private_key":"%s"}\n' \
+      "$t" "$url" "$pub" "$priv" >"$f" ) || return 1
+  ( TENANT_ID="$t" TENANT_FILE="$f" DRY_RUN=0 FORCE=0 do_spl_cloud_pin_box_wui ) >/dev/null
+  local rc=$?
+  rm -f "$f"
+  (( rc == 0 )) && do_log "OK box-wui pinned under $t (SPL-1290): its people's posts reach the agents"
+  return $rc
 }

@@ -35,7 +35,6 @@ Env (all set by the action):
 import importlib.util
 import json
 import os
-import statistics
 import sys
 import time
 import uuid

@@ -20,7 +20,6 @@ import importlib.util
 import json
 import os
 import sys
-import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))

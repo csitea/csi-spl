@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Не е испратено — вашата сесија истече. Најавете се повторно; вашиот текст е зачуван.",
     "camera": "Фотографирај",
     "target_thread": "Одговор во отворената нишка",
-    "target_thread_in": "Одговор во: {title}",
     "target_new": "Нова тема во {target}",
     "target_dm": "Нова тема со {target}",
     "target_comment": "Коментар на {target}",
-    "target_search_only": "Тука не се објавува — GO го пребарува текстот"
+    "target_search_only": "Тука не се објавува — GO го пребарува текстот",
+    "mode_new": "Нова тема",
+    "mode_reply": "Одговор",
+    "mode_comment": "Коментар"
   },
   "feed": {
     "unknown_author": "непознат",
@@ -910,9 +912,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
-    "placeholder_new_topic": "Нова тема во {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "placeholder_target_enter": "Порака до {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
-    "placeholder_new_topic_enter": "Нова тема во {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
     "help_button": "Синтакса на пребарување",
     "help_title": "Синтакса на пребарување",

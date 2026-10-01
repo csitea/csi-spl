@@ -26,12 +26,6 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   const target = shallowRef<OmniboxTarget | null>(null)
   /** bumped to ask the search results list to take the focus (ArrowDown in the Omnibox) */
   const focusResults = ref(0)
-  /**
-   * HUM-24 (CLE-77879): the open thread's title, published by the topic pane
-   * that shows it, so the composer can say "Reply in: <title>". Empty when
-   * no pane is open or the topic has no text yet.
-   */
-  const threadTitle = ref('')
 
   function register(t: OmniboxTarget) {
     target.value = t
@@ -39,7 +33,7 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   function unregister(owner: symbol) {
     if (target.value && target.value.owner === owner) target.value = null
   }
-  return { target, focusResults, threadTitle, register, unregister }
+  return { target, focusResults, register, unregister }
 })
 
 /** Page helper: register a send target for this page's lifetime. */

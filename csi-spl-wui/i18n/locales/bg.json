@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Не е изпратено — сесията ви изтече. Влезте отново; текстът ви е запазен.",
     "camera": "Направи снимка",
     "target_thread": "Отговор в отворената нишка",
-    "target_thread_in": "Отговор в: {title}",
     "target_new": "Нова тема в {target}",
     "target_dm": "Нова тема с {target}",
     "target_comment": "Коментар към {target}",
-    "target_search_only": "Тук не се публикува — GO търси текста"
+    "target_search_only": "Тук не се публикува — GO търси текста",
+    "mode_new": "Нова тема",
+    "mode_reply": "Отговор",
+    "mode_comment": "Коментар"
   },
   "feed": {
     "unknown_author": "неизвестен",
@@ -910,9 +912,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
-    "placeholder_new_topic": "Нова тема в {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "placeholder_target_enter": "Съобщение до {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
-    "placeholder_new_topic_enter": "Нова тема в {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
     "help_button": "Синтаксис на търсене",
     "help_title": "Синтаксис на търсене",

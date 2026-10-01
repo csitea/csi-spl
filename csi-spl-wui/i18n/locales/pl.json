@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Nie wysłano — Twoja sesja wygasła. Zaloguj się ponownie; Twój tekst jest zachowany.",
     "camera": "Zrób zdjęcie",
     "target_thread": "Odpowiedź w otwartym wątku",
-    "target_thread_in": "Odpowiedź w: {title}",
     "target_new": "Nowy temat w {target}",
     "target_dm": "Nowy temat z {target}",
     "target_comment": "Komentarz do {target}",
-    "target_search_only": "Tu nie publikujesz — GO wyszukuje tekst"
+    "target_search_only": "Tu nie publikujesz — GO wyszukuje tekst",
+    "mode_new": "Nowy temat",
+    "mode_reply": "Odpowiedź",
+    "mode_comment": "Komentarz"
   },
   "feed": {
     "unknown_author": "nieznany",
@@ -910,9 +912,7 @@
       "issues": "Zgłoszenia"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
-    "placeholder_new_topic": "Nowy temat w {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "placeholder_target_enter": "Wiadomość do {target} — Enter wysyła · Shift+Enter dodaje wiersz · /search szuka wszędzie",
-    "placeholder_new_topic_enter": "Nowy temat w {target} — Enter wysyła · Shift+Enter dodaje wiersz · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "help_button": "Składnia wyszukiwania",
     "help_title": "Składnia wyszukiwania",

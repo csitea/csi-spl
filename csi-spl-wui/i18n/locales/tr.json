@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Gönderilmedi — oturumun sona erdi. Yeniden giriş yap; metnin duruyor.",
     "camera": "Fotoğraf çek",
     "target_thread": "Açık konuya yanıt",
-    "target_thread_in": "Yanıt: {title}",
     "target_new": "{target} içinde yeni konu",
     "target_dm": "{target} ile yeni konu",
     "target_comment": "{target} için yorum",
-    "target_search_only": "Burada gönderi yok — GO metni arar"
+    "target_search_only": "Burada gönderi yok — GO metni arar",
+    "mode_new": "Yeni konu",
+    "mode_reply": "Yanıt",
+    "mode_comment": "Yorum"
   },
   "feed": {
     "unknown_author": "bilinmiyor",
@@ -910,9 +912,7 @@
       "issues": "Konular"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
-    "placeholder_new_topic": "{target} içinde yeni konu — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "placeholder_target_enter": "{target} için mesaj — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
-    "placeholder_new_topic_enter": "{target} içinde yeni konu — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",

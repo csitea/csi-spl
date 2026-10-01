@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Nav nosūtīts — jūsu sesija beidzās. Piesakieties vēlreiz; jūsu teksts ir saglabāts.",
     "camera": "Uzņemt foto",
     "target_thread": "Atbilde atvērtajā pavedienā",
-    "target_thread_in": "Atbilde tēmā: {title}",
     "target_new": "Jauna tēma: {target}",
     "target_dm": "Jauna tēma ar {target}",
     "target_comment": "Komentārs: {target}",
-    "target_search_only": "Šeit nepublicē — GO meklē tekstu"
+    "target_search_only": "Šeit nepublicē — GO meklē tekstu",
+    "mode_new": "Jauna tēma",
+    "mode_reply": "Atbilde",
+    "mode_comment": "Komentārs"
   },
   "feed": {
     "unknown_author": "nezināms",
@@ -910,9 +912,7 @@
       "issues": "Problēmas"
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
-    "placeholder_new_topic": "Jauna tēma: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "placeholder_target_enter": "Ziņa: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
-    "placeholder_new_topic_enter": "Jauna tēma: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",

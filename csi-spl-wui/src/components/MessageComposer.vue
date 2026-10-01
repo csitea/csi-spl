@@ -36,9 +36,10 @@
       <span>{{ t('composer.target_search_only') }}</span>
     </p>
     <div class="composer-box">
-      <!-- HUM-24 (CLE-77879): in the top bar the same words sit in a calm chip
-           at the start of the box - "New topic in #alerts" / "Reply in: …" -
-           in the mode's own accent, the field's border in that accent too -->
+      <!-- HUM-24 (CLE-77879): in the top bar one short word in a calm chip at
+           the start of the box - "New topic" / "Reply" / "Comment" - in the
+           mode's own accent, the field's start edge in that accent too. Never
+           a title (owner, t1 7d777e79): the full line is its tooltip -->
       <span
         v-if="global && !docked && !bottom && !searchMode && dockHint"
         class="composer-mode"
@@ -48,7 +49,7 @@
         aria-live="polite"
       >
         <UiIcon :name="modeIcon" :size="14" />
-        <span class="composer-mode__text">{{ modeText }}</span>
+        <span class="composer-mode__text">{{ t(composerModeChipKey(dockHint)) }}</span>
       </span>
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
@@ -298,7 +299,7 @@ import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { composerModeChipKey, composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -333,7 +334,7 @@ const props = withDefaults(defineProps<{
   /** 022: the operator catalogue (search-v1 §6) */
   operators?: SearchOperator[]
   /** SPL-1003: the page's send target for the dock's hint (omnibox target `dock()`) */
-  dockTarget?: { reply: boolean, target: string, comment?: boolean, dm?: boolean, title?: string } | null
+  dockTarget?: { reply: boolean, target: string, comment?: boolean, dm?: boolean } | null
   /**
    * Topic c6994436 (lane B): TopBar moved this box into the bottom dock under
    * the middle pane (> 820 px, Settings -> Behaviour). The pickers, the GO
@@ -1350,7 +1351,7 @@ textarea.in-code {
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
-  max-width: min(18rem, 30%);
+  max-width: min(10rem, 20%);
   height: 28px;
   margin-top: calc((var(--omnibox-rest, 46px) - 28px) / 2);
   padding: 0 10px;
@@ -1364,13 +1365,6 @@ textarea.in-code {
 }
 .composer-mode svg { color: var(--composer-mode); flex: none; }
 .composer-mode__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* the chip takes room from the field: a long placeholder ends in an ellipsis
-   on its one line rather than growing the top-bar field (the dock's rule) */
-.composer.omnibox--global[data-mode]:not(.omnibox--bottom) textarea::placeholder {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.

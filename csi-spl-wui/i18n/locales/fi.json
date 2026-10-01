@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Ei lähetetty — istuntosi vanheni. Kirjaudu uudelleen; tekstisi on tallessa.",
     "camera": "Ota kuva",
     "target_thread": "Vastaat avoimeen ketjuun",
-    "target_thread_in": "Vastaus aiheeseen: {title}",
     "target_new": "Uusi aihe: {target}",
     "target_dm": "Uusi aihe käyttäjälle {target}",
     "target_comment": "Kommentoit: {target}",
-    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä"
+    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä",
+    "mode_new": "Uusi aihe",
+    "mode_reply": "Vastaus",
+    "mode_comment": "Kommentti"
   },
   "feed": {
     "unknown_author": "tuntematon",
@@ -910,9 +912,7 @@
       "issues": "Asiat"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
-    "placeholder_new_topic": "Uusi aihe: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "placeholder_target_enter": "Viesti: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
-    "placeholder_new_topic_enter": "Uusi aihe: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",

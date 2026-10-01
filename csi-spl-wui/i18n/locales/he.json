@@ -503,11 +503,13 @@
     "send_failed_session_expired": "לא נשלח — פג תוקף ההתחברות שלך. היכנס שוב; הטקסט שלך נשמר.",
     "camera": "צלם תמונה",
     "target_thread": "תגובה בשרשור הפתוח",
-    "target_thread_in": "תגובה בנושא: {title}",
     "target_new": "נושא חדש ב-{target}",
     "target_dm": "נושא חדש עם {target}",
     "target_comment": "תגובה על {target}",
-    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
+    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט",
+    "mode_new": "נושא חדש",
+    "mode_reply": "תגובה",
+    "mode_comment": "הערה"
   },
   "feed": {
     "unknown_author": "לא ידוע",
@@ -910,9 +912,7 @@
       "issues": "סוגיות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
-    "placeholder_new_topic": "נושא חדש ב-{target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "placeholder_target_enter": "הודעה אל {target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
-    "placeholder_new_topic_enter": "נושא חדש ב-{target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "help_button": "תחביר חיפוש",
     "help_title": "תחביר חיפוש",

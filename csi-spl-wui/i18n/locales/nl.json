@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Niet verzonden — je sessie is verlopen. Meld je opnieuw aan; je tekst staat er nog.",
     "camera": "Foto maken",
     "target_thread": "Antwoord in de open thread",
-    "target_thread_in": "Antwoord in: {title}",
     "target_new": "Nieuw onderwerp in {target}",
     "target_dm": "Nieuw onderwerp met {target}",
     "target_comment": "Reactie op {target}",
-    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst"
+    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst",
+    "mode_new": "Nieuw onderwerp",
+    "mode_reply": "Antwoord",
+    "mode_comment": "Reactie"
   },
   "feed": {
     "unknown_author": "onbekend",
@@ -910,9 +912,7 @@
       "issues": "Kwesties"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
-    "placeholder_new_topic": "Nieuw onderwerp in {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "placeholder_target_enter": "Bericht aan {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
-    "placeholder_new_topic_enter": "Nieuw onderwerp in {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",

@@ -111,10 +111,10 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
  * a line that opens with `@someone` is the explicit new topic (SPL-996 B)
  * even while a thread is open, so the hint follows it.
  * HUM-24 (CLE-77879): `dm` marks a direct-message page (a new topic there is
- * "with" the peer), `title` names the open thread a reply goes into.
- * @param {{ reply?: boolean, target?: string, comment?: boolean, dm?: boolean, title?: string } | null | undefined} dock
+ * "with" the peer).
+ * @param {{ reply?: boolean, target?: string, comment?: boolean, dm?: boolean } | null | undefined} dock
  * @param {unknown} [text]
- * @returns {{ mode: 'thread' | 'new' | 'dm' | 'comment', target: string, title?: string } | null}
+ * @returns {{ mode: 'thread' | 'new' | 'dm' | 'comment', target: string } | null}
  */
 export function dockTargetHint(dock, text = '') {
   if (!dock) return null
@@ -122,30 +122,39 @@ export function dockTargetHint(dock, text = '') {
   /* an open issue takes every line as a comment - no new topic */
   if (dock.comment) return { mode: 'comment', target }
   const reply = Boolean(dock.reply) && !startsNewTopic(text)
-  if (reply) {
-    const title = String(dock.title || '').trim()
-    return title ? { mode: 'thread', target, title } : { mode: 'thread', target }
-  }
+  if (reply) return { mode: 'thread', target }
   return { mode: dock.dm ? 'dm' : 'new', target }
 }
 
 /**
  * HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
- * from writing a reply in the chat". The composer's label for a hint, as an
- * i18n key and its params - the same words on the desktop chip, the bottom
- * dock and the phone dock.
- * @param {{ mode: string, target?: string, title?: string } | null | undefined} hint
+ * from writing a reply in the chat". The line over the phone / bottom dock
+ * for a hint, as an i18n key and its params (the desktop chip's tooltip too).
+ * @param {{ mode: string, target?: string } | null | undefined} hint
  * @returns {{ key: string, params: Record<string, string> } | null}
  */
 export function composerModeLabel(hint) {
   if (!hint) return null
   const target = String(hint.target || '')
-  if (hint.mode === 'thread') {
-    return hint.title ? { key: 'composer.target_thread_in', params: { title: String(hint.title) } } : { key: 'composer.target_thread', params: {} }
-  }
+  if (hint.mode === 'thread') return { key: 'composer.target_thread', params: {} }
   if (hint.mode === 'comment') return { key: 'composer.target_comment', params: { target } }
   if (hint.mode === 'dm') return { key: 'composer.target_dm', params: { target } }
   return { key: 'composer.target_new', params: { target } }
+}
+
+/**
+ * The desktop top-bar chip: ONE short word per mode, never a title or a
+ * channel. The owner (t1 7d777e79, 2026-10-01, on 4.8.7): "this text reply :
+ * <<the title>> is a bug" - the open title is already on screen, and a long
+ * one squeezed the box's own help text off the line.
+ * @param {{ mode: string } | null | undefined} hint
+ * @returns {string} an i18n key, '' for no hint
+ */
+export function composerModeChipKey(hint) {
+  if (!hint) return ''
+  if (hint.mode === 'thread') return 'composer.mode_reply'
+  if (hint.mode === 'comment') return 'composer.mode_comment'
+  return 'composer.mode_new'
 }
 
 /**

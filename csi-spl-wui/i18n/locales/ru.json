@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Не отправлено — ваша сессия истекла. Войдите снова; ваш текст сохранён.",
     "camera": "Сделать фото",
     "target_thread": "Ответ в открытой ветке",
-    "target_thread_in": "Ответ в: {title}",
     "target_new": "Новая тема в {target}",
     "target_dm": "Новая тема с {target}",
     "target_comment": "Комментарий к {target}",
-    "target_search_only": "Здесь не публикуется — GO ищет текст"
+    "target_search_only": "Здесь не публикуется — GO ищет текст",
+    "mode_new": "Новая тема",
+    "mode_reply": "Ответ",
+    "mode_comment": "Комментарий"
   },
   "feed": {
     "unknown_author": "неизвестно",
@@ -910,9 +912,7 @@
       "issues": "Заявки"
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
-    "placeholder_new_topic": "Новая тема в {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "placeholder_target_enter": "Сообщение для {target} — Enter отправляет · Shift+Enter добавляет строку · /search ищет везде",
-    "placeholder_new_topic_enter": "Новая тема в {target} — Enter отправляет · Shift+Enter добавляет строку · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже.",
     "help_button": "Синтаксис поиска",
     "help_title": "Синтаксис поиска",

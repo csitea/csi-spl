@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Neodoslané — vaša relácia vypršala. Prihláste sa znova; váš text je zachovaný.",
     "camera": "Odfotiť",
     "target_thread": "Odpoveď v otvorenom vlákne",
-    "target_thread_in": "Odpoveď v: {title}",
     "target_new": "Nová téma v {target}",
     "target_dm": "Nová téma s {target}",
     "target_comment": "Komentár k {target}",
-    "target_search_only": "Tu sa nepublikuje — GO hľadá text"
+    "target_search_only": "Tu sa nepublikuje — GO hľadá text",
+    "mode_new": "Nová téma",
+    "mode_reply": "Odpoveď",
+    "mode_comment": "Komentár"
   },
   "feed": {
     "unknown_author": "neznámy",
@@ -910,9 +912,7 @@
       "issues": "Úlohy"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
-    "placeholder_new_topic": "Nová téma v {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "placeholder_target_enter": "Správa pre {target} — Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
-    "placeholder_new_topic_enter": "Nová téma v {target} — Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "help_button": "Syntax vyhľadávania",
     "help_title": "Syntax vyhľadávania",

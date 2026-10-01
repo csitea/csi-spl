@@ -6,16 +6,18 @@
 // field's start edge, a placeholder and GO words of its own:
 //
 //   desktop 1440x900, /channel/alerts (dark and light):
-//     1 the list: chip "New topic in #alerts", data-mode new, GO "Start topic",
-//       placeholder "New topic in #alerts - ..."
-//     2 click a card (its thread opens): chip "Reply in: <title>", data-mode
-//       thread, GO "Send reply", a different start-edge colour than 1
+//     1 the list: chip "New topic", data-mode new, GO "Start topic",
+//       placeholder "Message #alerts - ..." (unchanged), one line in the bar
+//     2 click a card (its thread opens): chip "Reply" - one word, NEVER the
+//       title (owner, t1 7d777e79: "reply : <<the title>> is a bug") -
+//       data-mode thread, GO "Send reply", a different start-edge colour
 //     3 close the thread: back to 1
-//     4 /dm/CLE-07@box-a: chip "New topic with CLE-07@box-a", data-mode dm
+//     4 /dm/CLE-07@box-a: chip "New topic", data-mode dm
 //     5 /lobby, `e` on an own message: "Editing this message" over the box,
 //       the composer's chip unchanged
 //   phone 390x844 (touch), /channel/alerts:
-//     6 the dock line says "New topic in #alerts", tap a card -> "Reply in: ..."
+//     6 the dock line says "New topic in #alerts", tap a card -> "Replying in
+//       the open thread"
 //     CONTROL: before HUM-24 the desktop had no chip and no data-mode (1-4
 //     fail), the edit box had no label (5 fails).
 //
@@ -127,12 +129,11 @@ async function desktopCase(browser, theme) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, `new-1440-${theme}`)
-  ok(`${tag} 1 the list: the chip says a new topic in #alerts, the form is mode new`,
-    Boolean(c1 && c1.mode === 'new' && c1.chipMode === 'new' && c1.chip === 'New topic in #alerts'), c1)
-  ok(`${tag} 1 GO says "Start topic", the placeholder says new topic, the start edge is 3px`,
-    Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('New topic in #alerts') && c1.edgeW === '3px'), c1)
-  /* the chip shrank to "New topic in #ale…" and the longer placeholder wrapped
-     the field to two lines in the first cut (measured 70 px) */
+  ok(`${tag} 1 the list: the chip says "New topic", the form is mode new`,
+    Boolean(c1 && c1.mode === 'new' && c1.chipMode === 'new' && c1.chip === 'New topic'), c1)
+  ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", the start edge is 3px`,
+    Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.edgeW === '3px'), c1)
+  /* a long chip squeezed the placeholder in the first cut (4.8.7) */
   ok(`${tag} 1 the chip is not cut, the field stays one line in the bar (<= 50 px)`,
     Boolean(c1 && c1.chipCut === false && c1.fieldH > 0 && c1.fieldH <= 50), { chipCut: c1 && c1.chipCut, fieldH: c1 && c1.fieldH })
 
@@ -142,8 +143,8 @@ async function desktopCase(browser, theme) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, `reply-1440-${theme}`)
-  ok(`${tag} 2 a thread open: the chip says "Reply in: <title>", the form is mode thread`,
-    Boolean(c2 && c2.mode === 'thread' && c2.chipMode === 'thread' && /^Reply in: \S/.test(c2.chip || '')), c2)
+  ok(`${tag} 2 a thread open: the chip says just "Reply" (no title), the form is mode thread`,
+    Boolean(c2 && c2.mode === 'thread' && c2.chipMode === 'thread' && c2.chip === 'Reply'), c2)
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply accent differs from the new-topic accent`, Boolean(c1 && c2 && c1.edge && c2.edge && c1.edge !== c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -153,7 +154,7 @@ async function desktopCase(browser, theme) {
   })
   await waitMode(p, 'new')
   const c3 = await cue(p)
-  ok(`${tag} 3 the thread closed: back to a new topic`, Boolean(c3 && c3.mode === 'new' && c3.chip === 'New topic in #alerts'), c3)
+  ok(`${tag} 3 the thread closed: back to a new topic`, Boolean(c3 && c3.mode === 'new' && c3.chip === 'New topic'), c3)
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }
@@ -163,8 +164,8 @@ async function dmCase(browser) {
   await waitMode(p, 'dm')
   const c = await cue(p)
   await shot(p, 'dm-1440-dark')
-  ok('1440 4 a DM: the chip says a new topic with the peer, mode dm, GO "Start topic"',
-    Boolean(c && c.mode === 'dm' && c.chip === 'New topic with CLE-07@box-a' && c.go === 'Start topic'), c)
+  ok('1440 4 a DM: the chip says "New topic", mode dm, GO "Start topic"',
+    Boolean(c && c.mode === 'dm' && c.chip === 'New topic' && c.go === 'Start topic'), c)
   ok('1440 4 no page error', errors.length === 0, errors)
   await p.close()
 }
@@ -207,8 +208,8 @@ async function phoneCase(browser) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, 'reply-390-dark')
-  ok('390 6 a thread open: the dock line says "Reply in: <title>", GO "Send reply"',
-    Boolean(c2 && c2.mode === 'thread' && /^Reply in: \S/.test(c2.line || '') && c2.go === 'Send reply'), c2)
+  ok('390 6 a thread open: the dock line says "Replying in the open thread" (no title), GO "Send reply"',
+    Boolean(c2 && c2.mode === 'thread' && c2.line === 'Replying in the open thread' && c2.go === 'Send reply'), c2)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

@@ -108,7 +108,7 @@ function replyTarget() {
   })
 }
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_new_topic'), { target: shortId.value })),
+  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: shortId.value }),
   send: onSend,
   busy: () => store.sending,

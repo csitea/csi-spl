@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Neišsiųsta — jūsų sesija baigėsi. Prisijunkite iš naujo; jūsų tekstas išsaugotas.",
     "camera": "Fotografuoti",
     "target_thread": "Atsakymas atviroje gijoje",
-    "target_thread_in": "Atsakymas temoje: {title}",
     "target_new": "Nauja tema: {target}",
     "target_dm": "Nauja tema su {target}",
     "target_comment": "Komentuojama: {target}",
-    "target_search_only": "Čia neskelbiama — GO ieško teksto"
+    "target_search_only": "Čia neskelbiama — GO ieško teksto",
+    "mode_new": "Nauja tema",
+    "mode_reply": "Atsakymas",
+    "mode_comment": "Komentaras"
   },
   "feed": {
     "unknown_author": "nežinomas",
@@ -910,9 +912,7 @@
       "issues": "Problemos"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
-    "placeholder_new_topic": "Nauja tema: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "placeholder_target_enter": "Žinutė: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
-    "placeholder_new_topic_enter": "Nauja tema: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",

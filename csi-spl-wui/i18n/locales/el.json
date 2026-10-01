@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Δεν στάλθηκε — η συνεδρία σας έληξε. Συνδεθείτε ξανά· το κείμενό σας παραμένει εδώ.",
     "camera": "Λήψη φωτογραφίας",
     "target_thread": "Απάντηση στο ανοιχτό νήμα",
-    "target_thread_in": "Απάντηση σε: {title}",
     "target_new": "Νέο θέμα στο {target}",
     "target_dm": "Νέο θέμα με {target}",
     "target_comment": "Σχόλιο στο {target}",
-    "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο"
+    "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο",
+    "mode_new": "Νέο θέμα",
+    "mode_reply": "Απάντηση",
+    "mode_comment": "Σχόλιο"
   },
   "feed": {
     "unknown_author": "άγνωστος",
@@ -910,9 +912,7 @@
       "issues": "Θέματα"
     },
     "placeholder_target": "Μήνυμα προς {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
-    "placeholder_new_topic": "Νέο θέμα στο {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
     "placeholder_target_enter": "Μήνυμα προς {target} — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
-    "placeholder_new_topic_enter": "Νέο θέμα στο {target} — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
     "unreachable": "Η υπηρεσία αναζήτησης δεν είναι διαθέσιμη. Δοκιμάστε ξανά σε λίγο.",
     "help_button": "Σύνταξη αναζήτησης",
     "help_title": "Σύνταξη αναζήτησης",

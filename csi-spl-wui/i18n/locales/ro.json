@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Netrimis — sesiunea ta a expirat. Autentifică-te din nou; textul tău este păstrat.",
     "camera": "Fă o fotografie",
     "target_thread": "Răspuns în firul deschis",
-    "target_thread_in": "Răspuns în: {title}",
     "target_new": "Subiect nou în {target}",
     "target_dm": "Subiect nou cu {target}",
     "target_comment": "Comentariu la {target}",
-    "target_search_only": "Aici nu se publică — GO caută textul"
+    "target_search_only": "Aici nu se publică — GO caută textul",
+    "mode_new": "Subiect nou",
+    "mode_reply": "Răspuns",
+    "mode_comment": "Comentariu"
   },
   "feed": {
     "unknown_author": "necunoscut",
@@ -910,9 +912,7 @@
       "issues": "Probleme"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
-    "placeholder_new_topic": "Subiect nou în {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "placeholder_target_enter": "Mesaj către {target} — Enter trimite · Shift+Enter adaugă un rând · /search pentru a căuta peste tot",
-    "placeholder_new_topic_enter": "Subiect nou în {target} — Enter trimite · Shift+Enter adaugă un rând · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",

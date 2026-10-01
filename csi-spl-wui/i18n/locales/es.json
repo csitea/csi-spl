@@ -503,11 +503,13 @@
     "send_failed_session_expired": "No enviado: tu sesión expiró. Vuelve a iniciar sesión; tu texto sigue aquí.",
     "camera": "Hacer una foto",
     "target_thread": "Respondiendo en el hilo abierto",
-    "target_thread_in": "Responder en: {title}",
     "target_new": "Nuevo tema en {target}",
     "target_dm": "Nuevo tema con {target}",
     "target_comment": "Comentando en {target}",
-    "target_search_only": "Aquí no se publica — GO busca el texto"
+    "target_search_only": "Aquí no se publica — GO busca el texto",
+    "mode_new": "Nuevo tema",
+    "mode_reply": "Respuesta",
+    "mode_comment": "Comentario"
   },
   "feed": {
     "unknown_author": "desconocido",
@@ -910,9 +912,7 @@
       "issues": "Incidencias"
     },
     "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
-    "placeholder_new_topic": "Nuevo tema en {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
     "placeholder_target_enter": "Mensaje a {target} — Enter envía · Shift+Enter añade una línea · /search para buscar en todo",
-    "placeholder_new_topic_enter": "Nuevo tema en {target} — Enter envía · Shift+Enter añade una línea · /search para buscar en todo",
     "unreachable": "No se pudo contactar con el servicio de búsqueda. Inténtalo de nuevo en breve.",
     "help_button": "Sintaxis de búsqueda",
     "help_title": "Sintaxis de búsqueda",

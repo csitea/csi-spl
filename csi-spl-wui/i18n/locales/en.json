@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Not sent — your session expired. Sign in again; your text is still here.",
     "camera": "Take a photo",
     "target_thread": "Replying in the open thread",
-    "target_thread_in": "Reply in: {title}",
     "target_new": "New topic in {target}",
     "target_dm": "New topic with {target}",
     "target_comment": "Commenting on {target}",
-    "target_search_only": "No post here — GO searches for the text"
+    "target_search_only": "No post here — GO searches for the text",
+    "mode_new": "New topic",
+    "mode_reply": "Reply",
+    "mode_comment": "Comment"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -910,9 +912,7 @@
       "issues": "Issues"
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
-    "placeholder_new_topic": "New topic in {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "placeholder_target_enter": "Message {target} — Enter sends · Shift+Enter adds a line · /search to search everything",
-    "placeholder_new_topic_enter": "New topic in {target} — Enter sends · Shift+Enter adds a line · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",

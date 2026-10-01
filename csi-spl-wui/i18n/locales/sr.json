@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Није послато — ваша сесија је истекла. Пријавите се поново; ваш текст је сачуван.",
     "camera": "Фотографиши",
     "target_thread": "Одговор у отвореној нити",
-    "target_thread_in": "Одговор у: {title}",
     "target_new": "Нова тема у {target}",
     "target_dm": "Нова тема са {target}",
     "target_comment": "Коментар на {target}",
-    "target_search_only": "Овде се не објављује — GO претражује текст"
+    "target_search_only": "Овде се не објављује — GO претражује текст",
+    "mode_new": "Нова тема",
+    "mode_reply": "Одговор",
+    "mode_comment": "Коментар"
   },
   "feed": {
     "unknown_author": "nepoznato",
@@ -910,9 +912,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
-    "placeholder_new_topic": "Нова тема у {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "placeholder_target_enter": "Порука за {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
-    "placeholder_new_topic_enter": "Нова тема у {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",

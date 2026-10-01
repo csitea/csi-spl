@@ -162,7 +162,7 @@ function replyTarget() {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_new_topic'), { target: '#' + name.value })),
+  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#' + name.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: '#' + titleName.value }),
   send: onSend,
 })

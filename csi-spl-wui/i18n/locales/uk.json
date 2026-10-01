@@ -503,11 +503,13 @@
     "send_failed_session_expired": "Не надіслано — ваша сесія завершилася. Увійдіть знову; ваш текст збережено.",
     "camera": "Зробити фото",
     "target_thread": "Відповідь у відкритій гілці",
-    "target_thread_in": "Відповідь у: {title}",
     "target_new": "Нова тема в {target}",
     "target_dm": "Нова тема з {target}",
     "target_comment": "Коментар до {target}",
-    "target_search_only": "Тут не публікується — GO шукає текст"
+    "target_search_only": "Тут не публікується — GO шукає текст",
+    "mode_new": "Нова тема",
+    "mode_reply": "Відповідь",
+    "mode_comment": "Коментар"
   },
   "feed": {
     "unknown_author": "невідомо",
@@ -910,9 +912,7 @@
       "issues": "Заявки"
     },
     "placeholder_target": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
-    "placeholder_new_topic": "Нова тема в {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
     "placeholder_target_enter": "Повідомлення для {target} — Enter надсилає · Shift+Enter додає рядок · /search шукає всюди",
-    "placeholder_new_topic_enter": "Нова тема в {target} — Enter надсилає · Shift+Enter додає рядок · /search шукає всюди",
     "unreachable": "Сервіс пошуку недоступний. Спробуйте трохи пізніше.",
     "help_button": "Синтаксис пошуку",
     "help_title": "Синтаксис пошуку",

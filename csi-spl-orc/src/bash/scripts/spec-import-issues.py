@@ -12,6 +12,18 @@ Id shapes: T001, T005a, D1, P1, P2-1, US1, 1.2, OA-01, and a struck-through
 ~~T033~~. A table is the task list when the file has no checklist or heading
 for that id (026, 027, 029, 030). A spec dir with cases.tsv and no tasks.md
 (031) is read from that register.
+
+--docs (SPEC_IMPORT_DOCS=1) also files every OTHER document of a spec dir
+(spec.md, plan.md, research.md, contracts/*, checklists/*, scripts ...) as
+"doc" issues under the spec epic: one issue per file, split in parts when a
+file is longer than one description holds, title "[NNN doc-<path>] <path> -
+<heading>", status done, label doc. The epic's description becomes an index
+of those documents and the task count. Issue comments expire with channel
+retention; an issue description does not, so the text lives there.
+
+Personal data never travels: an e-mail address shaped like a person's name
+(first.last@...) becomes <EMAIL>, and every --redact word (whole word, any
+case) becomes <REDACTED>, in titles and descriptions alike.
 """
 
 from __future__ import annotations
@@ -25,6 +37,16 @@ from pathlib import Path
 TITLE_SENTENCE_MAX = 120
 TITLE_MAX = 255
 DESC_MAX = 20000
+# One doc part: the description cap less the header, the Source line and the
+# room a <REDACTED> replacement may add.
+DOC_PART_MAX = 18500
+DOC_SUFFIXES = {".md": "", ".sh": "bash", ".py": "python", ".yaml": "yaml", ".yml": "yaml", ".sql": "sql"}
+DOC_FIRST = ("spec.md", "plan.md")
+DOC_SKIP = {"tasks.md", "cases.tsv"}
+EMAIL = re.compile(r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+PERSONAL_LOCAL = re.compile(r"^[A-Za-z]{2,}[._][A-Za-z]{2,}$")
+# --redact words, set once by main(); scrub() reads them.
+REDACT: list = []
 ID_RE = r"(?:T\d+[a-z]?|US\d+|D\d+|P\d+(?:-\d+)?|OA-\d+|\d+\.\d+)"
 # A task id may be wrapped in bold or strikethrough — `**T001**` (pas-psf) or
 # `~~T033~~` (a dropped csi-spl task). EMPH swallows either, on both sides.
@@ -68,6 +90,20 @@ CASE = {
 # The hub's status vocabulary (mirror of store.IssueStatuses); the parser never
 # emits anything outside this set.
 HUB_STATUSES = ("eval", "todo", "wip", "diss", "blocked", "onhold", "qas", "done")
+
+
+def scrub(text: str) -> str:
+    """Drop personal data: a first.last@ address and every REDACT word."""
+
+    def mail(m: re.Match) -> str:
+        if m.group(2).lower().endswith("gserviceaccount.com"):
+            return m.group(0)
+        return "<EMAIL>" if PERSONAL_LOCAL.match(m.group(1)) else m.group(0)
+
+    text = EMAIL.sub(mail, text)
+    for word in REDACT:
+        text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", "<REDACTED>", text, flags=re.I)
+    return text
 
 
 def _word(raw: str) -> str | None:
@@ -154,9 +190,12 @@ class Item:
         self.tid = tid
         self.kind = kind
         self.status = status
-        self.title = make_title(spec, tid, sentence)
-        self.labels = ["subtask"] if kind == "subtask" else (["bug"] if is_bug(sentence) else ["task"])
-        self.description = clip_desc(body, source)
+        self.title = make_title(spec, tid, scrub(sentence))
+        if kind == "doc":
+            self.labels = ["doc"]
+        else:
+            self.labels = ["subtask"] if kind == "subtask" else (["bug"] if is_bug(sentence) else ["task"])
+        self.description = clip_desc(scrub(body), source)
         self.parent_id = parent_id
         self.directory = directory
         self.key = f"{directory}/{tid}"
@@ -351,6 +390,88 @@ def _heading_of(directory: Path) -> str:
     return directory.name
 
 
+def _doc_files(directory: Path) -> list:
+    """Every document of a spec dir but its task register, spec.md and plan.md
+    first, then the rest by path (contracts/, checklists/ ... included)."""
+    files = []
+    for path in directory.rglob("*"):
+        if path.is_file() and path.suffix in DOC_SUFFIXES and path.name not in DOC_SKIP:
+            files.append(path)
+
+    def order(path: Path) -> tuple:
+        rel = path.relative_to(directory).as_posix()
+        return (DOC_FIRST.index(rel) if rel in DOC_FIRST else len(DOC_FIRST), rel)
+
+    return sorted(files, key=order)
+
+
+def doc_id(rel: str) -> str:
+    return "doc-" + re.sub(r"[^A-Za-z0-9.-]+", "-", rel).strip("-")
+
+
+def split_parts(text: str, size: int) -> list:
+    """Line-boundary parts of at most `size` characters; a longer line is cut."""
+    parts: list[str] = []
+    cur = ""
+    for line in text.splitlines(keepends=True):
+        while len(line) > size:
+            if cur:
+                parts.append(cur)
+                cur = ""
+            parts.append(line[:size])
+            line = line[size:]
+        if len(cur) + len(line) > size:
+            parts.append(cur)
+            cur = ""
+        cur += line
+    if cur.strip() or not parts:
+        parts.append(cur)
+    return parts
+
+
+def _doc_heading(text: str) -> str:
+    for line in text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return ""
+
+
+def parse_docs(directory: Path, spec: str, src_root: str) -> list:
+    """One "doc" Item per document part of a spec dir (see the module doc)."""
+    items = []
+    for path in _doc_files(directory):
+        rel = path.relative_to(directory).as_posix()
+        source = f"{src_root}/{directory.name}/{rel}"
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        lang = DOC_SUFFIXES[path.suffix]
+        heading = _doc_heading(raw) if path.suffix == ".md" else ""
+        parts = split_parts(raw, DOC_PART_MAX)
+        for n, part in enumerate(parts, 1):
+            tid = doc_id(rel) + (f"-p{n}" if len(parts) > 1 else "")
+            name = rel + (f" (part {n}/{len(parts)})" if len(parts) > 1 else "")
+            sentence = f"{name} - {heading}" if heading else name
+            text = part.strip("\n") if not lang else f"```{lang}\n{part.rstrip()}\n```"
+            body = f"Spec {spec} document `{name}`, migrated from git.\n\n{text}"
+            it = Item(spec, tid, "doc", "done", sentence, body, source, "", directory.name)
+            items.append(it)
+    return items
+
+
+def epic_index(spec: str, heading: str, rel_dir: str, docs: list, tasks: int) -> str:
+    """The spec epic's description: where it came from and what is under it."""
+    lines = [f"# {heading}", "", f"Spec {spec}, migrated from git: `{rel_dir}/`.", ""]
+    if docs:
+        lines.append(f"**Documents** - {len(docs)} `doc` issue(s) under this epic; each holds the full text in its description:")
+        lines.append("")
+        lines.extend(f"- {scrub(it.title)}" for it in docs)
+        lines.append("")
+    if tasks:
+        lines.append(f"**Tasks** - {tasks} issue(s) titled `[{spec} <id>]`, one per tasks.md entry; the status mirrors its checkbox.")
+    else:
+        lines.append("**Tasks** - none: this spec has no tasks.md.")
+    return clip_desc("\n".join(lines), f"{rel_dir}/")
+
+
 def _words(text: str) -> set:
     return {w.lower() for w in re.findall(r"[A-Za-z]{4,}", text)}
 
@@ -366,7 +487,7 @@ def _pinned_epic(directory: Path) -> str:
     return m.group(1) if m else ""
 
 
-def parse_tree(specs: Path) -> dict:
+def parse_tree(specs: Path, docs: bool = False) -> dict:
     out_specs = []
     items = []
     if not specs.is_dir():
@@ -395,17 +516,21 @@ def parse_tree(specs: Path) -> dict:
             it.directory = d.name
             it.key = f"{d.name}/{it.tid}"
         items.extend(found)
-        out_specs.append(
-            {
-                "spec": spec,
-                "dir": d.name,
-                "heading": _heading_of(d),
-                "pinned": _pinned_epic(d),
-                "parsed": len(found),
-                "t_parsed": sum(1 for it in found if it.tid.startswith("T") and it.kind == "task"),
-                "subtasks": sum(1 for it in found if it.kind == "subtask"),
-            }
-        )
+        doc_items = parse_docs(d, spec, src_root) if docs else []
+        items.extend(doc_items)
+        row = {
+            "spec": spec,
+            "dir": d.name,
+            "heading": _heading_of(d),
+            "pinned": _pinned_epic(d),
+            "parsed": len(found),
+            "t_parsed": sum(1 for it in found if it.tid.startswith("T") and it.kind == "task"),
+            "subtasks": sum(1 for it in found if it.kind == "subtask"),
+            "docs": len(doc_items),
+        }
+        if docs:
+            row["epic_description"] = epic_index(spec, row["heading"], f"{src_root}/{d.name}", doc_items, len(found))
+        out_specs.append(row)
     return {"specs": out_specs, "items": [it.as_dict() for it in items]}
 
 
@@ -478,7 +603,7 @@ def missing_epics(plan: dict, list_doc: dict) -> list:
     assigned = _assign_epics(plan, issues)
     out = []
     for row in plan.get("specs", []):
-        if row["dir"] not in assigned and row.get("parsed", 0) > 0:
+        if row["dir"] not in assigned and (row.get("parsed", 0) > 0 or row.get("docs", 0) > 0):
             out.append((row["spec"], row.get("heading") or row["dir"]))
     return out
 
@@ -565,13 +690,13 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
     known = {}
     rows = {s["dir"]: dict(s, create=0, update=0, unchanged=0, missing_epic=False, epic="") for s in plan["specs"]}
     missing = []
-    # Flag a plan spec that has task rows but no 'Spec NNN' epic, in spec order,
-    # so the report and SPEC_IMPORT_CREATE_EPIC agree. A spec with no tasks needs
-    # no epic, so it is never MISSING and never auto-created.
+    # Flag a plan spec that has task rows (or docs) but no 'Spec NNN' epic, in
+    # spec order, so the report and SPEC_IMPORT_CREATE_EPIC agree. A spec with
+    # nothing to file needs no epic, so it is never MISSING nor auto-created.
     for s in plan["specs"]:
         d = s["dir"]
         rows[d]["epic"] = epics.get(d) or ""
-        if d not in epics and s.get("parsed", 0) > 0:
+        if d not in epics and (s.get("parsed", 0) > 0 or s.get("docs", 0) > 0):
             rows[d]["missing_epic"] = True
             if d not in missing:
                 missing.append(d)
@@ -646,6 +771,41 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
                 "changes": changes,
             }
         )
+    # --docs: the epic's description is the index of its documents. Only the
+    # description is written; the epic's title, status and labels stay the owner's.
+    by_key = {i.get("key"): i for i in issues}
+    for s in plan["specs"]:
+        want = s.get("epic_description")
+        epic = epics.get(s["dir"])
+        if not want or not epic:
+            continue
+        have = (by_key.get(epic) or {}).get("description") or ""
+        row = rows[s["dir"]]
+        path = desc_dir / f"epic-{re.sub(r'[^A-Za-z0-9._-]', '_', s['dir'])}.md"
+        path.write_text(want, encoding="utf-8")
+        if have.strip() == want.strip():
+            row["unchanged"] += 1
+            action = "skip"
+        else:
+            row["update"] += 1
+            action = "update"
+        ops.append(
+            {
+                "action": action,
+                "item": f"{s['dir']}/epic",
+                "spec": s["spec"],
+                "id": "epic",
+                "kind": "epic",
+                "title": (by_key.get(epic) or {}).get("title") or "",
+                "status": "",
+                "labels": [],
+                "description_path": str(path),
+                "parent_key": "",
+                "parent_item": "",
+                "ref": epic,
+                "changes": ["description"] if action == "update" else [],
+            }
+        )
     samples = []
     for op in ops:
         if op["kind"] == "task" and op["title"] not in samples:
@@ -669,6 +829,7 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
         "update": sum(r["update"] for r in rows.values()),
         "unchanged": sum(r["unchanged"] for r in rows.values()),
         "subtasks": sum(r["subtasks"] for r in kept),
+        "docs": sum(r.get("docs", 0) for r in kept),
     }
     return {
         "epic_rule": epic_rule,
@@ -685,18 +846,19 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
 
 def report_md(doc: dict) -> str:
     lines = [
-        "| spec | parsed | T parsed | subtasks | create | update | unchanged | epic |",
-        "|---|---:|---:|---:|---:|---:|---:|---|",
+        "| spec | parsed | T parsed | subtasks | docs | create | update | unchanged | epic |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in doc.get("rows") or []:
         epic = row.get("epic") or ("MISSING" if row.get("missing_epic") else "")
         lines.append(
             f"| {row['spec']} | {row.get('parsed', 0)} | {row.get('t_parsed', 0)} | {row.get('subtasks', 0)} "
-            f"| {row.get('create', row.get('parsed', 0))} | {row.get('update', 0)} | {row.get('unchanged', 0)} | {epic} |"
+            f"| {row.get('docs', 0)} | {row.get('create', row.get('parsed', 0))} | {row.get('update', 0)} "
+            f"| {row.get('unchanged', 0)} | {epic} |"
         )
     t = doc.get("totals") or {}
     lines.append(
-        f"| total | {t.get('parsed', 0)} | {t.get('t_parsed', 0)} | {t.get('subtasks', 0)} "
+        f"| total | {t.get('parsed', 0)} | {t.get('t_parsed', 0)} | {t.get('subtasks', 0)} | {t.get('docs', 0)} "
         f"| {t.get('create', 0)} | {t.get('update', 0)} | {t.get('unchanged', 0)} | |"
     )
     lines.append("")
@@ -725,7 +887,7 @@ def report_md(doc: dict) -> str:
 def offline_doc(plan: dict) -> dict:
     rows = []
     for s in plan["specs"]:
-        rows.append({**s, "create": s["parsed"], "update": 0, "unchanged": 0, "missing_epic": False})
+        rows.append({**s, "create": s["parsed"] + s.get("docs", 0), "update": 0, "unchanged": 0, "missing_epic": False})
     samples = []
     for item in plan["items"]:
         if item["kind"] == "task":
@@ -739,8 +901,9 @@ def offline_doc(plan: dict) -> dict:
         "rows": rows,
         "samples": samples,
         "totals": {
-            "parsed": len(plan["items"]),
+            "parsed": sum(s["parsed"] for s in plan["specs"]),
             "t_parsed": sum(s["t_parsed"] for s in plan["specs"]),
+            "docs": sum(s.get("docs", 0) for s in plan["specs"]),
             "create": len(plan["items"]),
             "update": 0,
             "unchanged": 0,
@@ -782,6 +945,8 @@ def main(argv: list[str]) -> int:
     a.add_argument("--specs", type=Path, required=True)
     a.add_argument("--only", default="")
     a.add_argument("--extra-labels", default="")
+    a.add_argument("--docs", action="store_true")
+    a.add_argument("--redact", default="")
     a.add_argument("--out", type=Path)
     b = sub.add_parser("reconcile")
     b.add_argument("--plan", type=Path, required=True)
@@ -791,6 +956,8 @@ def main(argv: list[str]) -> int:
     c = sub.add_parser("report")
     c.add_argument("--specs", type=Path)
     c.add_argument("--only", default="")
+    c.add_argument("--docs", action="store_true")
+    c.add_argument("--redact", default="")
     c.add_argument("--ops", type=Path)
     c.add_argument("--out", type=Path)
     e = sub.add_parser("epics")
@@ -803,6 +970,7 @@ def main(argv: list[str]) -> int:
     m.add_argument("--plan", type=Path, required=True)
     m.add_argument("--list", type=Path, required=True)
     args = p.parse_args(argv)
+    REDACT[:] = [w for w in (x.strip() for x in getattr(args, "redact", "").split(",")) if w]
     if args.cmd == "missingepics":
         plan = json.loads(args.plan.read_text(encoding="utf-8"))
         listed = _json_line(args.list)
@@ -820,7 +988,7 @@ def main(argv: list[str]) -> int:
         args.out.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
         return 0
     if args.cmd == "parse":
-        doc = add_labels(filter_specs(parse_tree(args.specs), args.only), args.extra_labels)
+        doc = add_labels(filter_specs(parse_tree(args.specs, args.docs), args.only), args.extra_labels)
         text = json.dumps(doc, ensure_ascii=False)
         if args.out:
             args.out.write_text(text, encoding="utf-8")
@@ -834,7 +1002,7 @@ def main(argv: list[str]) -> int:
         args.out.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return 0
     if args.specs:
-        doc = offline_doc(filter_specs(parse_tree(args.specs), args.only))
+        doc = offline_doc(filter_specs(parse_tree(args.specs, args.docs), args.only))
     else:
         doc = json.loads(args.ops.read_text(encoding="utf-8"))
     text = report_md(doc)

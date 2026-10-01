@@ -12,6 +12,11 @@
 # @description is updated, a second run creates nothing. Dry run unless
 # @description DRY_RUN=0. A dry run still lists issues (read-only) so the
 # @description report can say would-create and would-update.
+# @description SPEC_IMPORT_DOCS=1 also files each spec's other documents
+# @description (spec.md, plan.md, research, contracts, checklists ...) as
+# @description "doc" issues under its epic, split in parts when long, and
+# @description writes the epic's description as their index: issue comments
+# @description expire with channel retention, a description does not.
 # @param ENV - required on a live run: dev or prd
 # @param TENANT_ID - required on a live run
 # @param DESK_AGENT - required on a live run: the seated agent id
@@ -22,6 +27,10 @@
 # @param SPEC_IMPORT_CREATE_EPIC (optional) - 1 creates a 'Spec NNN - <heading>'
 # @param SPEC_IMPORT_CREATE_EPIC   epic for any of this plan's specs that lacks
 # @param SPEC_IMPORT_CREATE_EPIC   one (live run only); default 0 leaves it MISSING
+# @param SPEC_IMPORT_DOCS (optional) - 1 also imports the spec documents (above);
+# @param SPEC_IMPORT_DOCS   with SPEC_IMPORT_CREATE_EPIC=1 a doc-only spec gets its epic
+# @param SPEC_IMPORT_REDACT (optional) - comma list of words (a user, a name) replaced
+# @param SPEC_IMPORT_REDACT   by <REDACTED>; a first.last@ address always becomes <EMAIL>
 # @param SPEC_IMPORT_LIMIT (optional) - max writes this run (0 = all)
 # @param SPEC_IMPORT_INTERVAL (optional) - seconds between writes, default 0.25
 # @param SPEC_IMPORT_OUT (optional) - where the markdown report is written
@@ -40,6 +49,11 @@ do_spl_spec_import_issues() {
   parsearg=("${onlyarg[@]}")
   local extra="${SPEC_IMPORT_LABELS:-}"
   [[ -n "$extra" ]] && parsearg+=(--extra-labels "$extra")
+  local -a docarg=()
+  [[ "${SPEC_IMPORT_DOCS:-0}" == 1 ]] && docarg+=(--docs)
+  [[ -n "${SPEC_IMPORT_REDACT:-}" ]] && docarg+=(--redact "$SPEC_IMPORT_REDACT")
+  onlyarg+=("${docarg[@]}")
+  parsearg+=("${docarg[@]}")
   [[ -f "$py" ]] || { do_log "FATAL spec-import parser is missing: $py"; return 1; }
   [[ -d "$specs" ]] || { do_log "FATAL SPEC_DIR is not a directory: $specs"; return 1; }
   [[ "$interval" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$interval'"; return 1; }
@@ -145,6 +159,7 @@ do_spl_spec_import_issues() {
       task) color="#2563eb" ;;
       bug) color="#b91c1c" ;;
       subtask) color="#0f766e" ;;
+      doc) color="#7c3aed" ;;
       *) color="#6b7280" ;;
     esac
     local out
@@ -175,15 +190,15 @@ with open(sys.argv[2], "w", encoding="utf-8") as fh:
         title = base64.b64encode(op["title"].encode()).decode()
         cols = [op["action"], op["item"], op.get("ref") or "", op.get("parent_key") or "",
                 op.get("parent_item") or "", op["status"], ",".join(op["labels"]),
-                op["description_path"], title]
+                op["description_path"], op["kind"], title]
         fh.write("\x1f".join(cols) + "\n")
 with open(sys.argv[3], "w", encoding="utf-8") as fh:
     for item, key in doc["known_keys"].items():
         fh.write(f"{item}\t{key}\n")
 PY
 
-  local line n=0 fails=0 action item ref pkey pitem status labels desc title_b64 title key out try
-  while IFS=$'\x1f' read -r action item ref pkey pitem status labels desc title_b64; do
+  local n=0 fails=0 action item ref pkey pitem status labels desc kind title_b64 title key out try
+  while IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64; do
     if (( limit > 0 && n >= limit )); then
       do_log "INFO SPEC_IMPORT_LIMIT=$limit reached; the rest waits for the next run"
       break
@@ -192,7 +207,7 @@ PY
     if [[ -z "$pkey" && -n "$pitem" ]]; then
       pkey="$(awk -F '\t' -v k="$pitem" '$1==k {print $2; exit}' "$work/keys.tsv")"
     fi
-    if [[ -z "$pkey" ]]; then
+    if [[ -z "$pkey" && "$kind" != epic ]]; then
       do_log "FATAL $item has no parent to file under"
       fails=$((fails + 1))
       n=$((n + 1))
@@ -201,12 +216,17 @@ PY
     unset ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_LABELS \
       ISSUE_PARENT ISSUE_EPIC ISSUE_KIND ISSUE_REF ISSUE_ASSIGNEE ISSUE_PRIORITY \
       ISSUE_LEVEL ISSUE_DEADLINE ISSUE_BODY ISSUE_BODY_FILE
-    ISSUE_TITLE="$title"
     ISSUE_DESCRIPTION_FILE="$desc"
-    ISSUE_STATUS="$status"
-    ISSUE_LABELS="$labels"
-    ISSUE_PARENT="$pkey"
-    export ISSUE_TITLE ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_LABELS ISSUE_PARENT
+    export ISSUE_DESCRIPTION_FILE
+    # An epic op (SPEC_IMPORT_DOCS) writes the description only: the epic's
+    # title, status, labels and place stay the owner's.
+    if [[ "$kind" != epic ]]; then
+      ISSUE_TITLE="$title"
+      ISSUE_STATUS="$status"
+      ISSUE_LABELS="$labels"
+      ISSUE_PARENT="$pkey"
+      export ISSUE_TITLE ISSUE_STATUS ISSUE_LABELS ISSUE_PARENT
+    fi
     try=0
     rc=0
     out=""

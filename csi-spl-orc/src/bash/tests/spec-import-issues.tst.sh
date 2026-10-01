@@ -395,6 +395,92 @@ print("FAIL: parse --only leaked", specs, items); sys.exit(1)
 PY
 [[ $? -eq 0 ]] && pass "live filter parse --only" || fail "live filter parse --only"
 
+# SPEC_IMPORT_DOCS (CLE-77860): every other document of a spec dir becomes a
+# "doc" issue under its epic (status done, label doc, split in parts when
+# long), a doc-only spec gets an epic, the epic's description is the index,
+# personal data is scrubbed, and a second reconcile changes nothing.
+DOCFIX="$TEST_DIR/fixtures/spec-import-docs"
+python3 - "$DOCFIX" <<PY
+import importlib.util, json, sys, tempfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("imp", "$PY")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+ok = True
+def check(cond, good, bad):
+    global ok
+    if cond:
+        print("PASS:", good)
+    else:
+        print("FAIL:", bad); ok = False
+mod.REDACT[:] = ["devbox-user"]
+plan = mod.parse_tree(Path(sys.argv[1]), docs=True)
+items = {(i["spec"], i["id"]): i for i in plan["items"]}
+docs = [i for i in plan["items"] if i["kind"] == "doc"]
+check([i["id"] for i in docs if i["spec"] == "001"] == ["doc-spec.md", "doc-plan.md", "doc-contracts-api.md", "doc-restore.sh"],
+      "docs: spec.md and plan.md first, then by path, tasks.md never a doc",
+      [i["id"] for i in docs])
+check(all(i["status"] == "done" and i["labels"] == ["doc"] for i in docs), "docs are done + label doc", docs)
+sp = items[("001", "doc-spec.md")]
+check(sp["title"] == "[001 doc-spec.md] spec.md - Feature Specification: Sample feature", "doc title", sp["title"])
+check("The sample feature exists" in sp["description"] and "Source: fixtures/spec-import-docs/001-sample-feature/spec.md" in sp["description"],
+      "doc description carries the text and its Source line", sp["description"])
+check("first.last@" not in sp["description"] and "<EMAIL>" in sp["description"], "a first.last@ address is scrubbed", sp["description"])
+check("ops@example.com" in sp["description"] and "sa-run@sample-dev.iam.gserviceaccount.com" in sp["description"],
+      "role and service-account addresses are kept", sp["description"])
+check("devbox-user" not in sp["description"] and "<REDACTED>" in sp["description"], "a --redact word is scrubbed", sp["description"])
+sh = items[("001", "doc-restore.sh")]
+check("\`\`\`bash\n#!/usr/bin/env bash" in sh["description"], "a script is filed fenced", sh["description"])
+rows = {r["spec"]: r for r in plan["specs"]}
+check(rows["002"]["parsed"] == 0 and rows["002"]["docs"] == 1, "doc-only spec counts its doc", rows["002"])
+idx = rows["001"]["epic_description"]
+check("[001 doc-contracts-api.md]" in idx and "**Tasks** - 2 issue(s)" in idx, "epic index lists docs + task count", idx)
+src = "a" * 25 + "\n" + "b\n" * 30
+cut = mod.split_parts(src, 20)
+check("".join(cut) == src and all(len(c) <= 20 for c in cut) and cut[0] == "a" * 20 and cut[2].startswith("b"),
+      "split_parts cuts at line boundaries (a long line hard), loses nothing", cut)
+big = mod.split_parts("line\n" * 9000, mod.DOC_PART_MAX)
+check(len(big) == 3 and all(len(b) <= mod.DOC_PART_MAX for b in big), "a long doc is split in parts", [len(b) for b in big])
+# no tenant epic yet: both specs are MISSING (002 has docs only)
+empty = {"result": {"epics": [], "issues": [], "labels": []}}
+check(mod.missing_epics(plan, empty) == [("001", "Sample feature"), ("002", "Docs only")],
+      "a doc-only spec gets an auto-epic", mod.missing_epics(plan, empty))
+listed = {"result": {"issues": [
+    {"key": "S-1", "title": "Spec 001 - Sample feature", "labels": ["epic"], "kind": "epic", "parent": "", "status": "wip", "description": ""},
+    {"key": "S-2", "title": "Spec 002 - Docs only", "labels": ["epic"], "kind": "epic", "parent": "", "status": "eval", "description": ""},
+], "labels": [{"id": "epic"}, {"id": "task"}]}}
+with tempfile.TemporaryDirectory() as tmp:
+    rec = mod.reconcile(plan, listed, Path(tmp) / "desc")
+    ops = {(o["spec"], o["id"]): o for o in rec["ops"]}
+    ep = ops[("001", "epic")]
+    check(ep["action"] == "update" and ep["ref"] == "S-1" and ep["kind"] == "epic" and not ep["parent_key"],
+          "an empty epic description is updated to the index", ep)
+    check(ops[("002", "doc-spec.md")]["action"] == "create" and ops[("002", "doc-spec.md")]["parent_key"] == "S-2",
+          "a doc is created under its spec epic", ops[("002", "doc-spec.md")])
+    check("doc" in rec["needed_labels"], "label doc is registered", rec["needed_labels"])
+    n = 100
+    for o in rec["ops"]:
+        body = open(o["description_path"], encoding="utf-8").read()
+        if o["kind"] == "epic":
+            next(i for i in listed["result"]["issues"] if i["key"] == o["ref"])["description"] = body
+            continue
+        n += 1
+        listed["result"]["issues"].append({"key": f"S-{n}", "title": o["title"], "labels": o["labels"], "kind": "issue",
+            "parent": o["parent_key"], "status": o["status"], "description": body})
+    rec2 = mod.reconcile(plan, listed, Path(tmp) / "desc2")
+    moved = [(o["spec"], o["id"], o["action"]) for o in rec2["ops"] if o["action"] != "skip"]
+    check(not moved, "a second run changes 0 (docs, tasks and epic index)", moved)
+    check("| docs |" in mod.report_md(rec2), "report has a docs column", mod.report_md(rec2)[:200])
+mod.REDACT[:] = []
+plain = mod.parse_tree(Path(sys.argv[1]))
+check(not any(i["kind"] == "doc" for i in plain["items"]) and "epic_description" not in plain["specs"][0],
+      "without --docs nothing changes", plain["specs"][0])
+raise SystemExit(0 if ok else 1)
+PY
+[[ $? -eq 0 ]] && pass "doc import" || fail "doc import"
+
+offd=$(SPEC_IMPORT_OFFLINE=1 SPEC_IMPORT_DOCS=1 SPEC_DIR="$DOCFIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
+[[ "$offd" == *"| 002 | 0 | 0 | 0 | 1 |"* ]] && pass "offline SPEC_IMPORT_DOCS counts docs" || { fail "offline SPEC_IMPORT_DOCS"; printf '%s\n' "$offd" | head -n 20; }
+
 # A planted first-set status name must fail the suite: the read-only issue list
 # and the create/update calls speak the hub's set (eval|todo|wip|diss|...), so a
 # legacy name (backlog/in_progress/in_review/canceled) in the action or emitted
@@ -408,10 +494,10 @@ fi
 
 # An empty ref must not shift the columns. Tab would collapse it; the
 # action separates fields with a unit separator for that reason.
-line=$(python3 -c 'import base64; t=base64.b64encode(b"Hello [001]").decode(); print("\x1f".join(["create","001/T001","","SPL-1","","done","task","/tmp/d.md",t]))')
-IFS=$'\x1f' read -r action item ref pkey pitem status labels desc title_b64 <<<"$line"
+line=$(python3 -c 'import base64; t=base64.b64encode(b"Hello [001]").decode(); print("\x1f".join(["create","001/T001","","SPL-1","","done","task","/tmp/d.md","task",t]))')
+IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64 <<<"$line"
 title=$(printf '%s\n' "$title_b64" | base64 -d)
-if [[ "$action" == create && -z "$ref" && "$pkey" == SPL-1 && -z "$pitem" && "$status" == done && "$title" == "Hello [001]" ]]; then
+if [[ "$action" == create && -z "$ref" && "$pkey" == SPL-1 && -z "$pitem" && "$status" == done && "$kind" == task && "$title" == "Hello [001]" ]]; then
   pass "empty fields survive the row read"
 else
   fail "row read shifted: action=$action ref=$ref pkey=$pkey pitem=$pitem status=$status title=$title"

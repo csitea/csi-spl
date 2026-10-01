@@ -19,8 +19,8 @@ As built: spec section 7 (csi-spl-all, steps 059 + 060, bash bootstrap roles).
 - [x] T011 Step `060-gcp-vm-satellite` from csi-rel `050-gcp-vm-rdb`, trimmed per spec 5.1
 - [x] T012 Tests: tcp/22 is the only ingress; no key resource; no web tag; dated image
 - [ ] T013 Price confirmed from the Cloud Billing catalogue, <= $170/month (owner go to turn its API on). The owner's go was on the list estimate (~$163, 2026-10-01 12:57Z)
-- [ ] T014 `make do-tf-plan` (ENV=prd cnf, csi-spl-all key), 059 then 060; plan + price to the owner (CLE-001)
-- [ ] T015 Owner go -> `make do-provision`
+- [x] T014 `make do-tf-plan` (ENV=prd cnf, csi-spl-all key), 059 then 060; plan + price to the owner (CLE-001)
+- [x] T015 Owner go -> `make do-provision`: 059 budget (~13:40Z, applied by the prd-linked owner billing, no costsManager grant needed) and 060 VM applied by CLE-001; ssh + bootstrap done, verified 14:05Z (Debian 13, 4 vCPU / 31 GB, /mnt/data on /opt + /var/spool-hub, claude + spool, SPOOL_BOX_TAG=sat)
 
 ## 3. Box (after T015)
 

@@ -1,6 +1,6 @@
 # 057 — the satellite: a GCP agent box (gcp-agent-box)
 
-Status: **IMPLEMENTED on trunk, apply pending** (2026-10-01, CLE-77877).
+Status: **LIVE** (2026-10-01 ~14:00Z, CLE-77877 + CLE-001): csi-spl-all-satellite runs, `ssh satellite` works; open: T013, T023 (owner claude login), T024 (agents + desk proof).
 Round 1 answered 08:55Z; round 2 = the recommended defaults 1A 2A 3b 4A
 (owner 12:51Z "start working on this"); price go 12:57Z ("ok , go"). The
 owner then moved the box to its own project **csi-spl-all** (12:56Z, msg

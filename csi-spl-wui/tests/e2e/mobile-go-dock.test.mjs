@@ -74,7 +74,8 @@ function look(p) {
       toggle: [...document.querySelectorAll('[data-test=top-bar-search-toggle]')].filter(vis).length,
       midButton: midBtn ? (midBtn.getAttribute('data-test') || midBtn.getAttribute('data-testid') || midBtn.className) : '',
       dock: vis(dock),
-      dockBottom: dr ? Math.round(H - dr.bottom) : null,
+      /* CLE-77888: the dock sits on the ~5 mm bottom status strip (0 where none) */
+      dockBottom: dr ? Math.round(H - dr.bottom - (document.querySelector('[data-test=status-strip]')?.getBoundingClientRect().height || 0)) : null,
       goIcon: go ? (go.querySelector('svg[data-icon]')?.getAttribute('data-icon') || '') : '',
       goLabel: go ? go.getAttribute('aria-label') : '',
       goSize: r ? [Math.round(r.width), Math.round(r.height)] : null,

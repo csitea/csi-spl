@@ -94,13 +94,15 @@ async function phone(p, base, width) {
   const av = bar['[data-test=user-menu-trigger]']
   check(`${tag}: the avatar inside the bar`, av && av.y >= 0 && av.b <= row.b, av)
   const go = bar['.composer--dock [data-testid=send]']
+  /* CLE-77888: the dock sits on the ~5 mm bottom status strip - its top is the floor */
   const view = await p.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  const floor = view.h - await p.evaluate(() => document.querySelector('[data-test=status-strip]')?.getBoundingClientRect().height || 0)
   check(`${tag}: no floating GO (SPL-1005); the GO is the dock's bottom-right button`, !bar['[data-test=top-bar-search-toggle]']
-    && go && view.w - (go.x + go.w) <= 24 && view.h - go.b <= 24
+    && go && view.w - (go.x + go.w) <= 24 && floor - go.b <= 24
     && await p.evaluate(() => {
       const b = document.querySelector('.composer--dock [data-testid=send]')
       return getComputedStyle(b).borderRadius === '50%' && b.querySelector('svg')?.getAttribute('data-icon') === 'go'
-    }), { go, view })
+    }), { go, view, floor })
   for (const s of ['[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} is out of the row`, !bar[s]?.shown, bar[s])
   }

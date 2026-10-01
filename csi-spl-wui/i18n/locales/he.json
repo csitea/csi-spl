@@ -1329,7 +1329,12 @@
       "last_owner": "זהו בעל העסק האחרון של סביבת העבודה.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "מי יכול להעביר נושאים לארכיון",
+    "archive_policy_hint": "מי רשאי להעביר נושא לארכיון ולהוציא אותו מהארכיון בסביבת עבודה זו. העברה לארכיון מסתירה נושא מערוצים, מהודעות ישירות ומהחיפוש; היא אינה מוחקת אותו.",
+    "archive_policy_everyone": "כולם",
+    "archive_policy_admins": "מנהלים ובעלים בלבד",
+    "archive_policy_starter": "פותח הנושא (והמנהלים)"
   },
   "help": {
     "title": "עזרה",

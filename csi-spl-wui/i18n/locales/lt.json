@@ -1329,7 +1329,12 @@
       "last_owner": "Tai paskutinis šios darbo srities verslo savininkas.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Kas gali archyvuoti temas",
+    "archive_policy_hint": "Kas šioje darbo srityje gali archyvuoti temą ir grąžinti ją iš archyvo. Archyvavimas paslepia temą kanaluose, tiesioginėse žinutėse ir paieškoje; jos neištrina.",
+    "archive_policy_everyone": "Visi",
+    "archive_policy_admins": "Tik administratoriai ir savininkai",
+    "archive_policy_starter": "Temos pradėjėjas (ir administratoriai)"
   },
   "help": {
     "title": "Pagalba",

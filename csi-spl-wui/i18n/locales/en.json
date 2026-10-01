@@ -1329,7 +1329,12 @@
       "last_owner": "This is the workspace's last business owner.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Who can archive topics",
+    "archive_policy_hint": "Who may archive and unarchive a topic in this workspace. Archiving hides a topic from channels, direct messages and search; it does not delete it.",
+    "archive_policy_everyone": "Everyone",
+    "archive_policy_admins": "Admins and owners only",
+    "archive_policy_starter": "The topic's starter (and admins)"
   },
   "help": {
     "title": "Help",

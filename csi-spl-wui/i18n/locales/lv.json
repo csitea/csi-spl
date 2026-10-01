@@ -1329,7 +1329,12 @@
       "last_owner": "Šis ir pēdējais darbvietas biznesa īpašnieks.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Kas var arhivēt tēmas",
+    "archive_policy_hint": "Kas šajā darbvietā var arhivēt tēmu un atjaunot to no arhīva. Arhivēšana paslēpj tēmu kanālos, tiešajās ziņās un meklēšanā; tā tēmu neizdzēš.",
+    "archive_policy_everyone": "Visi",
+    "archive_policy_admins": "Tikai administratori un īpašnieki",
+    "archive_policy_starter": "Tēmas aizsācējs (un administratori)"
   },
   "help": {
     "title": "Palīdzība",

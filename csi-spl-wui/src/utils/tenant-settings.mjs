@@ -19,8 +19,13 @@ export function normalizeTenantSettings(body) {
     maxResponders: Number.isInteger(b.max_responders) && b.max_responders > 0 ? b.max_responders : 20,
     /* W16 (spec 047): '' when the hub keeps no issues (the field hides) */
     issuePrefix: str(b.issue_prefix),
+    /* CLE-77819: "Who can archive topics"; an absent / unknown value is the default */
+    topicArchivePolicy: TOPIC_ARCHIVE_POLICY_OPTIONS.includes(b.topic_archive_policy) ? b.topic_archive_policy : 'everyone',
   }
 }
+
+/** CLE-77819: the "Who can archive topics" choices, in the order General lists them. */
+export const TOPIC_ARCHIVE_POLICY_OPTIONS = Object.freeze(['everyone', 'admins', 'starter'])
 
 /** The issue key prefix as the hub stores it (upper-cased), or '' when the hub would refuse it. */
 export function issuePrefixOf(s) {

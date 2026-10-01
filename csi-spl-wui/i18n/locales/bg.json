@@ -1329,7 +1329,12 @@
       "last_owner": "Това е последният бизнес собственик на работното пространство.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Кой може да архивира теми",
+    "archive_policy_hint": "Кой може да архивира и разархивира тема в това работно пространство. Архивирането скрива темата от каналите, личните съобщения и търсенето; не я изтрива.",
+    "archive_policy_everyone": "Всички",
+    "archive_policy_admins": "Само администратори и собственици",
+    "archive_policy_starter": "Започналият темата (и администраторите)"
   },
   "help": {
     "title": "Помощ",

@@ -1329,7 +1329,12 @@
       "last_owner": "Dit is de laatste bedrijfseigenaar van de werkruimte.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Wie onderwerpen kan archiveren",
+    "archive_policy_hint": "Wie in deze werkruimte een onderwerp mag archiveren en uit het archief halen. Archiveren verbergt een onderwerp in kanalen, directe berichten en zoeken; het verwijdert het niet.",
+    "archive_policy_everyone": "Iedereen",
+    "archive_policy_admins": "Alleen beheerders en eigenaren",
+    "archive_policy_starter": "Wie het onderwerp startte (en beheerders)"
   },
   "help": {
     "title": "Help",

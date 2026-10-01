@@ -1,7 +1,9 @@
 <!-- Tenant settings -> General (specs/046 §4.5): the tenant's display name
      (the tenant switcher and the tab title, SPL-959), its default locale
      (the invite mail's language when the admin's own is not sent) and the
-     issue key prefix (W16, spec 047). tenant.settings. -->
+     issue key prefix (W16, spec 047), and who can archive topics (CLE-77819,
+     owner 2026-09-30: a per-workspace setting, default everyone).
+     tenant.settings. -->
 <template>
   <SettingsSection id="tenant-general" :title="t('tenant_settings.general_title')" data-test="tenant-settings-general">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -42,6 +44,13 @@
         >
         <small class="muted">{{ t('tenant_settings.issue_prefix_hint', { prefix: issuePrefixOf(prefix) || stored.issuePrefix }) }}</small>
       </label>
+      <label class="ts-field">
+        <span>{{ t('tenant_settings.archive_policy') }}</span>
+        <select v-model="policy" class="ts-select" data-test="tenant-general-archive-policy">
+          <option v-for="p in TOPIC_ARCHIVE_POLICY_OPTIONS" :key="p" :value="p">{{ t(`tenant_settings.archive_policy_${p}`) }}</option>
+        </select>
+        <small class="muted">{{ t('tenant_settings.archive_policy_hint') }}</small>
+      </label>
       <div class="ts-actions">
         <button type="submit" class="btn" :disabled="busy || !dirty" data-test="tenant-general-save">{{ t('tenant_settings.save') }}</button>
         <p v-if="notice" class="ts-notice" role="status" data-test="tenant-general-notice">{{ notice }}</p>
@@ -56,7 +65,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
-import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
+import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS } from '~/utils/tenant-settings.mjs'
 import type { TenantSettings } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -68,6 +77,7 @@ const tenantId = computed(() => stored.value?.tenantId || '')
 const name = ref('')
 const locale = ref('')
 const prefix = ref('')
+const policy = ref('everyone')
 const loading = ref(true)
 const loadError = ref('')
 const busy = ref(false)
@@ -75,13 +85,14 @@ const error = ref('')
 const notice = ref('')
 
 const prefixChanged = computed(() => Boolean(stored.value?.issuePrefix) && prefix.value.trim().toUpperCase() !== stored.value!.issuePrefix)
-const dirty = computed(() => Boolean(stored.value) && (name.value.trim() !== stored.value!.displayName || locale.value !== stored.value!.defaultLocale || prefixChanged.value))
+const dirty = computed(() => Boolean(stored.value) && (name.value.trim() !== stored.value!.displayName || locale.value !== stored.value!.defaultLocale || prefixChanged.value || policy.value !== stored.value!.topicArchivePolicy))
 
 function take(s: TenantSettings) {
   stored.value = s
   name.value = s.displayName
   locale.value = s.defaultLocale
   prefix.value = s.issuePrefix
+  policy.value = s.topicArchivePolicy
 }
 
 async function load() {
@@ -98,9 +109,10 @@ async function load() {
 async function save() {
   const s = stored.value
   if (!s || busy.value) return
-  const patch: { display_name?: string, default_locale?: string, issue_prefix?: string } = {}
+  const patch: { display_name?: string, default_locale?: string, issue_prefix?: string, topic_archive_policy?: string } = {}
   if (name.value.trim() !== s.displayName) patch.display_name = name.value.trim()
   if (locale.value !== s.defaultLocale) patch.default_locale = locale.value
+  if (policy.value !== s.topicArchivePolicy) patch.topic_archive_policy = policy.value
   if (prefixChanged.value) {
     const p = issuePrefixOf(prefix.value)
     if (!p) { error.value = t('tenant_settings.error.bad_prefix'); return }
@@ -135,13 +147,21 @@ watch(() => session.state, (st) => {
   color: var(--color-fg);
   border: 1px solid var(--color-border-strong);
 }
+.ts-select {
+  max-width: 420px;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border-strong);
+}
 .ts-prefix { max-width: 12ch; text-transform: uppercase; font-family: var(--font-mono, monospace); }
 .ts-locale { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ts-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ts-notice { margin: 0; color: var(--color-ok); }
 .ts-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 @media (max-width: 820px) {
-  .ts-field input { max-width: none; min-height: var(--tap, 44px); }
+  .ts-field input, .ts-select { max-width: none; min-height: var(--tap, 44px); }
   .ts-actions .btn, .ts-locale .btn { min-height: var(--tap, 44px); }
 }
 </style>

@@ -1329,7 +1329,12 @@
       "last_owner": "Det här är arbetsytans sista affärsägare.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Vem kan arkivera ämnen",
+    "archive_policy_hint": "Vem som får arkivera ett ämne och återställa det från arkivet i den här arbetsytan. Arkivering döljer ett ämne i kanaler, direktmeddelanden och sökning; det raderar det inte.",
+    "archive_policy_everyone": "Alla",
+    "archive_policy_admins": "Endast administratörer och ägare",
+    "archive_policy_starter": "Den som startade ämnet (och administratörer)"
   },
   "help": {
     "title": "Hjälp",

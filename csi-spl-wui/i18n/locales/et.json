@@ -1329,7 +1329,12 @@
       "last_owner": "See on tööruumi viimane äriomanik.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Kes saab teemasid arhiveerida",
+    "archive_policy_hint": "Kes saab selles tööruumis teemat arhiveerida ja arhiivist taastada. Arhiveerimine peidab teema kanalites, otsesõnumites ja otsingus; see ei kustuta teemat.",
+    "archive_policy_everyone": "Kõik",
+    "archive_policy_admins": "Ainult administraatorid ja omanikud",
+    "archive_policy_starter": "Teema alustaja (ja administraatorid)"
   },
   "help": {
     "title": "Abi",

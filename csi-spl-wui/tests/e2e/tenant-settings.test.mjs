@@ -148,6 +148,15 @@ try {
   await p.waitForSelector('[data-test=tenant-general-notice]', { visible: true, timeout: 5000 }).catch(() => null)
   const general = { value: await p.$eval('[data-test=tenant-general-name]', (e) => e.value), notice: await text(p, '[data-test=tenant-general-notice]'), error: await text(p, '[data-test=tenant-general-error]') }
   ok('12 General saves the tenant name', general.value === 'Renamed tenant' && general.notice !== '', general)
+  // CLE-77819: General -> "Who can archive topics" (default everyone), saved
+  const policy0 = await p.$eval('[data-test=tenant-general-archive-policy]', (e) => ({ value: e.value, options: [...e.options].map((o) => o.value), labels: [...e.options].map((o) => o.textContent.trim()) }))
+  await p.select('[data-test=tenant-general-archive-policy]', 'admins')
+  await p.click('[data-test=tenant-general-save]')
+  await sleep(500)
+  const policy1 = { value: await p.$eval('[data-test=tenant-general-archive-policy]', (e) => e.value), error: await text(p, '[data-test=tenant-general-error]') }
+  ok('12b General: Who can archive topics defaults to everyone, offers the three, saves admins',
+    policy0.value === 'everyone' && policy0.options.join() === 'everyone,admins,starter' && policy0.labels.every((l) => l && !l.startsWith('tenant_settings.')) &&
+    policy1.value === 'admins' && policy1.error === '', { policy0, policy1 })
 
   // 6. phone: the list is level 2, a section level 3
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })

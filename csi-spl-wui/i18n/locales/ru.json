@@ -1329,7 +1329,12 @@
       "last_owner": "Это последний бизнес-владелец рабочего пространства.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Кто может архивировать темы",
+    "archive_policy_hint": "Кто может архивировать тему и возвращать её из архива в этом рабочем пространстве. Архивирование скрывает тему в каналах, личных сообщениях и поиске; оно её не удаляет.",
+    "archive_policy_everyone": "Все",
+    "archive_policy_admins": "Только администраторы и владельцы",
+    "archive_policy_starter": "Автор темы (и администраторы)"
   },
   "help": {
     "title": "Справка",

@@ -1329,7 +1329,12 @@
       "last_owner": "Acesta este ultimul proprietar de afacere al spațiului de lucru.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Cine poate arhiva subiecte",
+    "archive_policy_hint": "Cine poate arhiva un subiect și îl poate scoate din arhivă în acest spațiu de lucru. Arhivarea ascunde un subiect în canale, mesaje directe și căutare; nu îl șterge.",
+    "archive_policy_everyone": "Toată lumea",
+    "archive_policy_admins": "Doar administratorii și proprietarii",
+    "archive_policy_starter": "Cel care a început subiectul (și administratorii)"
   },
   "help": {
     "title": "Ajutor",

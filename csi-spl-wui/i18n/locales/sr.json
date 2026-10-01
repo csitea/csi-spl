@@ -1329,7 +1329,12 @@
       "last_owner": "Ово је последњи пословни власник овог радног простора.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Ko može da arhivira teme",
+    "archive_policy_hint": "Ko može da arhivira temu i da je vrati iz arhive u ovom radnom prostoru. Arhiviranje skriva temu u kanalima, direktnim porukama i pretrazi; ne briše je.",
+    "archive_policy_everyone": "Svi",
+    "archive_policy_admins": "Samo administratori i vlasnici",
+    "archive_policy_starter": "Onaj ko je započeo temu (i administratori)"
   },
   "help": {
     "title": "Помоћ",

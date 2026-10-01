@@ -2,7 +2,8 @@
 // gates (strict, not fail-open), the section-of-path reader, the body
 // readers, the responder id rule, the mock hub rules.
 // Run: node tests/unit/tenant-settings.test.mjs
-import { issuePrefixOf, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '../../src/utils/tenant-settings.mjs'
+import { readFileSync } from 'node:fs'
+import { issuePrefixOf, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from '../../src/utils/tenant-settings.mjs'
 import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } from '../../src/utils/tenant-settings-nav.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
@@ -34,6 +35,18 @@ ok('CONTROL: an unknown section', tenantSettingsSectionOf('/tenant-settings/bill
 
 const s = normalizeTenantSettings({ tenant_id: 't1', display_name: 'Acme', default_locale: 'fi', responders: ['CLE-01', 3, ''], max_responders: 20 })
 ok('settings reader', s.tenantId === 't1' && s.displayName === 'Acme' && s.defaultLocale === 'fi' && s.responders.join() === 'CLE-01' && s.maxResponders === 20)
+// CLE-77819: "Who can archive topics" - read, defaulted, and the mock enforces the three values
+ok('archive policy reader: absent / unknown = everyone', s.topicArchivePolicy === 'everyone' && normalizeTenantSettings({ topic_archive_policy: 'bogus' }).topicArchivePolicy === 'everyone')
+ok('archive policy reader: admins / starter pass', normalizeTenantSettings({ topic_archive_policy: 'admins' }).topicArchivePolicy === 'admins' && normalizeTenantSettings({ topic_archive_policy: 'starter' }).topicArchivePolicy === 'starter')
+ok('archive policy options, in order', TOPIC_ARCHIVE_POLICY_OPTIONS.join() === 'everyone,admins,starter')
+{
+  const mp = createMockTenant()
+  ok('mock: fresh workspace archives for everyone', mp.settings().topic_archive_policy === 'everyone')
+  ok('mock: set admins', mp.patch({ topic_archive_policy: 'admins' }).topic_archive_policy === 'admins')
+  ok('CONTROL mock: an unknown policy is a 400 bad_setting', throws(() => mp.patch({ topic_archive_policy: 'nobody' }), 'bad_setting') && mp.settings().topic_archive_policy === 'admins')
+}
+const gen = readFileSync(new URL('../../src/pages/tenant-settings/general.vue', import.meta.url), 'utf8')
+ok('General page offers the archive policy select and saves it', gen.includes('data-test="tenant-general-archive-policy"') && gen.includes('patch.topic_archive_policy = policy.value'))
 ok('W16 settings reader: the issue prefix', s.issuePrefix === '' && normalizeTenantSettings({ issue_prefix: 'ACME' }).issuePrefix === 'ACME')
 ok('W16 prefix rule: upper-cased, 1..10 of A-Z0-9 from a letter', issuePrefixOf(' ops ') === 'OPS' && issuePrefixOf('A1') === 'A1' &&
   issuePrefixOf('1A') === '' && issuePrefixOf('A-B') === '' && issuePrefixOf('ABCDEFGHIJK') === '' && issuePrefixOf('') === '')

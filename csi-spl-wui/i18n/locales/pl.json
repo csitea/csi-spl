@@ -1329,7 +1329,12 @@
       "last_owner": "To ostatni właściciel biznesowy tego obszaru roboczego.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Kto może archiwizować tematy",
+    "archive_policy_hint": "Kto może archiwizować temat i przywracać go z archiwum w tym obszarze roboczym. Archiwizacja ukrywa temat w kanałach, wiadomościach bezpośrednich i wyszukiwaniu; nie usuwa go.",
+    "archive_policy_everyone": "Wszyscy",
+    "archive_policy_admins": "Tylko administratorzy i właściciele",
+    "archive_policy_starter": "Autor tematu (i administratorzy)"
   },
   "help": {
     "title": "Pomoc",

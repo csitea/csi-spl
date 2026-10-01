@@ -1329,7 +1329,12 @@
       "last_owner": "Tämä on työtilan viimeinen liiketoiminnan omistaja.",
       "self": "You cannot do this to yourself. Ask another admin.",
       "generic": "That did not work. Try again."
-    }
+    },
+    "archive_policy": "Kuka voi arkistoida aiheita",
+    "archive_policy_hint": "Kuka voi arkistoida aiheen ja palauttaa sen arkistosta tässä työtilassa. Arkistointi piilottaa aiheen kanavista, yksityisviesteistä ja hausta; se ei poista aihetta.",
+    "archive_policy_everyone": "Kaikki",
+    "archive_policy_admins": "Vain ylläpitäjät ja omistajat",
+    "archive_policy_starter": "Aiheen aloittaja (ja ylläpitäjät)"
   },
   "help": {
     "title": "Ohje",

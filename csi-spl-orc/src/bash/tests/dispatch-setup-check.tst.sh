@@ -24,6 +24,11 @@ trap 'rm -rf "$T"' EXIT
 
 P="$T/proc" S="$T/spool" ST="$T/state" R="$T/repo"
 mkdir -p "$P" "$S" "$ST" "$T/home"
+# the hub DB as fixture files: both dispatchers in every channel, CLE-001 in none
+SUBS="$T/subs"; mkdir -p "$SUBS"
+for w in w1 w2; do
+  printf 'chan|lobby\nchan|team\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nsub|team|box-desk|CLE-002|invite\nsub|team|box-desk|CLE-003|invite\n' >"$SUBS/$w.txt"
+done
 git init -q "$R" && git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 
 # agent <pid> <id> [perm] [model]
@@ -40,7 +45,7 @@ seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/p
 
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPOOL_ROOT="$S" SPL_STATE_DIR="$ST" LEASE_PROC_ROOT="$P" \
-    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 "$@" bash -c '
+    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done
@@ -124,6 +129,11 @@ echo "CLE-77 $(date +%s)" >"$S/dispatch/lease"; gap "holder not a dispatcher" 'G
 echo "CLE-002 $(date +%s)" >"$S/dispatch/lease"
 touch "$R-wt/CLE-002/.claude/settings.local.json"; gap "settings not loaded" 'CLE-002 desk-reply permission .*GAP relaunch'
 touch -d '2025-12-31 00:00:00' "$R-wt/CLE-002/.claude/settings.local.json"
+cp "$SUBS/w2.txt" "$T/w2.keep"; echo 'sub|team|box-desk|CLE-001|invite' >>"$SUBS/w2.txt"
+gap "orchestrator subscribed to a channel" '\| w2 #team \| dispatchers y, CLE-001 y \| GAP'
+grep -v 'CLE-003' "$T/w2.keep" >"$SUBS/w2.txt"
+gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, CLE-001 n \| GAP'
+cp "$T/w2.keep" "$SUBS/w2.txt"
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
 

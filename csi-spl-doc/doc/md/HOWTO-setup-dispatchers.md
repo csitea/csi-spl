@@ -82,6 +82,7 @@ The steps, in the order the action runs them:
 | `desk` | seats the dispatcher in each workspace where it has no seat |
 | `legacy-registry` | copies the registry row when `DISPATCH_LEGACY_REGISTRY` is set |
 | `lease-loops` | starts the renew and watch loops when they are not running |
+| channel subscriptions | `do_spl_dispatch_subscribe`: both dispatchers in every channel of every workspace (default channels included), the orchestrator in none. The hub delivers a web UI post to a channel's SUBSCRIBED agents and uses the fallback list only when none is online, so a channel the orchestrator sits in and the dispatchers do not reaches the orchestrator alone. It reads the hub DB even in the dry run; `DISPATCH_SUBSCRIBE=0` skips it. Dead subscriptions (no live process) are reported as `DEAD`, never removed |
 
 ### 3.3 Relaunch a session that started before its settings
 
@@ -89,6 +90,21 @@ A running session does not load a settings file created after it started. When
 the setup prints `RELAUNCH <id> ...`, have the orchestrator relaunch that
 session (resume it, so it keeps its conversation). The setup never kills or
 restarts a session itself.
+
+### 3.4 Fix the channel subscriptions only
+
+The same step 10 on its own: the dry run prints `PLAN add`, `PLAN remove`,
+`DEAD` and one `SUM` line per workspace.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_subscribe
+```
+
+Apply it.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && DRY_RUN=0 ./run -a do_spl_dispatch_subscribe
+```
 
 ## 4. Verify
 
@@ -110,6 +126,7 @@ cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_check
 | `<id> unread` | more than `DISPATCH_UNREAD_MAX` (default 20) messages wait in its inbox |
 | `lease` | the holder is not a dispatcher, or the lease is older than 180 s |
 | `lease renew loop` / `lease watch loop` | that loop is not running: `LEASE_CMD=ensure` (4.3) |
+| `<workspace> #<channel>` | a dispatcher is not subscribed there, or the orchestrator is: run 3.4 (`DISPATCH_CHECK_SUBS=0` skips these rows) |
 
 ### 4.2 Show the lease
 
@@ -174,4 +191,4 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
-<!-- version: 0.1.0 · updated: 2026-10-01 · last-edit: 2026-10-01T06:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-01 · last-edit: 2026-10-01T08:45:00Z -->

@@ -127,6 +127,22 @@ spl_lease_agent_pid() {
   done | sort -n | head -1
 }
 
+# The SPOOL_AGENT_ID of every live process on this box that carries one,
+# one per line - any agent kind (an agy or grok agent is not a claude process).
+# For the dead-subscription REPORT; the lease itself keeps the claude-only rule.
+# mapfile, not tr/grep: a builtin, so the walk does not fork per process.
+spl_lease_live_ids() {
+  local root="${LEASE_PROC_ROOT:-/proc}" d e
+  local -a env
+  for d in "$root"/[0-9]*; do
+    env=()
+    { mapfile -d '' -t env < "$d/environ"; } 2>/dev/null || continue
+    for e in "${env[@]}"; do
+      [[ "$e" == SPOOL_AGENT_ID=* ]] && { echo "${e#SPOOL_AGENT_ID=}"; break; }
+    done
+  done | sort -u
+}
+
 # One renew tick. The bound pid lives in renew.<id>.pid so a rebind or a loss
 # is logged once, not every tick.
 spl_lease_renew_tick() {

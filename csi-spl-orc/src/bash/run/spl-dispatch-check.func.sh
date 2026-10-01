@@ -9,12 +9,17 @@
 # @description   seat in every workspace, unread inbox messages
 # @description   the lease: holder is a dispatcher and its age is under LEASE_STALE
 # @description   the renew and watch loops: each holds its run lock
-# @description Read-only: no hub call, no write.
+# @description   per workspace and channel: both dispatchers subscribed and the
+# @description   orchestrator NOT (the hub delivers a web UI post to a
+# @description   channel's subscribed agents; do_spl_dispatch_subscribe fixes it)
+# @description Read-only: one read of the hub DB per workspace (as the env SA,
+# @description DISPATCH_CHECK_SUBS=0 skips it), no write.
 # @param ENV - required: dev or prd, the hub the desks seat at
 # @param DISPATCH_MASTER / DISPATCH_FAILOVER / DISPATCH_ORCH (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_MODEL (optional) - when set, a dispatcher on another model is a GAP
 # @param DISPATCH_UNREAD_MAX (optional) - more unread than this is a GAP, default 20
+# @param DISPATCH_CHECK_SUBS (optional) - 0 skips the channel rows (no DB read)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_dispatch_check
 #------------------------------------------------------------------------------
@@ -58,6 +63,10 @@ do_spl_dispatch_check() {
     n="$(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f 2>/dev/null | wc -l)"
     (( n > max )) && row "$id unread" "$n" "GAP over $max" || row "$id unread" "$n" ok
   done
+  if [[ "${DISPATCH_CHECK_SUBS:-1}" != 0 ]]; then
+    spl_dispatch_with_subs spl_dispatch_check_tenant ||
+      row "channel subscriptions" "could not read them for: $DISPATCH_TENANTS" "GAP see the log"
+  fi
   spl_lease_read
   local age=$(( $(spl_lease_now) - LT ))
   if [[ "$LH" != "$DISPATCH_MASTER" && "$LH" != "$DISPATCH_FAILOVER" ]]; then
@@ -103,4 +112,19 @@ spl_dispatch_model() {
   else f="$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1)"; fi
   [[ -n "$f" ]] || return 0
   grep -o '"model":"[^"]*"' "$f" 2>/dev/null | tail -1 | cut -d'"' -f4
+}
+
+# One row per channel of workspace <t>: both dispatchers in, the orchestrator out.
+spl_dispatch_check_tenant() {
+  local t="$1" data="$2" ch d o box="$DISPATCH_DESK_BOX"
+  for ch in $(sed -n 's/^chan|//p' <<<"$data"); do
+    d=y o=n
+    spl_dispatch_subbed "$data" "$ch" "$box" "$DISPATCH_MASTER" && spl_dispatch_subbed "$data" "$ch" "$box" "$DISPATCH_FAILOVER" || d=n
+    [[ -n "$(spl_dispatch_boxes_of "$data" "$ch" "$DISPATCH_ORCH")" ]] && o=y
+    if [[ "$d" == y && "$o" == n ]]; then
+      row "$t #$ch" "dispatchers y, $DISPATCH_ORCH n" ok
+    else
+      row "$t #$ch" "dispatchers $d, $DISPATCH_ORCH $o" "GAP do_spl_dispatch_subscribe"
+    fi
+  done
 }

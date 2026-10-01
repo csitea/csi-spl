@@ -154,6 +154,39 @@ fi
 
 check_tools || exit $?
 
+# IS THIS CHECKOUT ON TRUNK? The crontab line moves it with
+# `git checkout --detach origin/master` before every tick, and on 2026-09-30
+# that checkout failed on four dirty files for ~18 h: every tick ran code 27
+# commits old, and the failure went to a log nobody reads. So the tick itself
+# compares HEAD with trunk and, when they differ, says so in the log, tells the
+# orchestrator ONCE per (head, trunk) pair, and exits 1 after the reconcile
+# (the reconcile still runs: stale code seating desks beats no desks).
+# DESK_TRUNK_REF names trunk (default origin/master); a tree that is not a git
+# checkout, or lacks that ref, is not judged. DESK_TRUNK_CHECK=0 turns it off.
+stale=0
+if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${DESK_TRUNK_REF:-origin/master}" >/dev/null 2>&1; then
+  head_sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  trunk_sha="$(git -C "$ROOT" rev-parse "${DESK_TRUNK_REF:-origin/master}")"
+  if [ "$head_sha" != "$trunk_sha" ]; then
+    stale=1
+    behind="$(git -C "$ROOT" rev-list --count "HEAD..$trunk_sha" 2>/dev/null || echo '?')"
+    dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | head -5 | tr '\n' ' ')"
+    say "FATAL checkout $ROOT is NOT on trunk: HEAD ${head_sha:0:8}, ${DESK_TRUNK_REF:-origin/master} ${trunk_sha:0:8}, $behind commit(s) behind${dirty:+; dirty: $dirty}"
+    say "FATAL this tick runs stale code - fix the checkout (the crontab's 'git checkout --detach' cannot move it)"
+    mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
+    mark="$mark_dir/stale-checkout.${head_sha:0:12}.${trunk_sha:0:12}"
+    lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
+    to="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | head -1)}"
+    if [ ! -e "$mark" ] && [ -n "$to" ]; then
+      mkdir -p "$mark_dir" && touch "$mark"
+      SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh" \
+        --from "$to" --to "$to" --kind blocker --task desk-reconcile \
+        --body "DESK CRON: checkout $ROOT is not on trunk (HEAD ${head_sha:0:8}, trunk ${trunk_sha:0:8}, $behind behind${dirty:+, dirty: $dirty}). Every tick runs stale code until it is fixed." \
+        >/dev/null 2>&1 && say "INFO told $to" || say "WARN could not tell $to"
+    fi
+  fi
+fi
+
 # The dispatcher heartbeat lease (SPEC-spool-fleet-roles.md section 4): start
 # its renew + watch loops when they are not running. Idempotent (each loop
 # holds a lock), a no-op on a box without <spool root>/dispatch/lease.conf,
@@ -216,4 +249,5 @@ if [ "${DESK_RESPONDER:-1}" != 0 ]; then
   say "INFO do_spl_responder_sweep exit $rsc"
   [ "$rc" = 0 ] && [ "$rsc" != 0 ] && rc=1
 fi
+[ "$rc" = 0 ] && [ "$stale" = 1 ] && rc=1
 exit "$rc"

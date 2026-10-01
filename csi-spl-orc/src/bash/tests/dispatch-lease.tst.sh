@@ -18,6 +18,9 @@
 #  13. the live failover test of 2026-10-01, replayed: renew stops, the
 #      watcher (60 s ticks) promotes at 199 s, renew restarts, handback on the
 #      next watcher tick
+#  14. ensure returns at once to a caller that pipes it (run.sh's tee + `| cat`)
+#  15. ensure refuses a tree whose lease code is not trunk's
+#  16. ensure replaces a loop that runs older code; stop works by pid file
 #  12. bad LEASE_CMD / LEASE_PERIOD are refused
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -50,7 +53,9 @@ lease() {
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
     spl_lease_init || exit 1
-    if [ -n "${TICK:-}" ]; then spl_lease_ids master failover orch && "spl_lease_${TICK}_tick"; else do_spl_dispatch_lease; fi'
+    main() { if [ -n "${TICK:-}" ]; then spl_lease_ids master failover orch && "spl_lease_${TICK}_tick"; else do_spl_dispatch_lease; fi; }
+    # WRAP_TEE: the output plumbing run.sh gives every action
+    if [ -n "${WRAP_TEE:-}" ]; then main > >(tee -a /dev/null) 2> >(tee -a /dev/null >&2); else main; fi'
 }
 tick() { local verb="$1" now="$2"; shift 2; lease TICK="$verb" LEASE_NOW="$now" "$@" >/dev/null 2>&1; }
 holder() { cut -d' ' -f1 "$D/lease"; }
@@ -137,7 +142,8 @@ source "$PROJ_ROOT/src/bash/run/spl-dispatch-lease.func.sh"
 do_spl_dispatch_lease
 EOF
 chmod +x "$T/bin/run"
-E=(LEASE_RUN="$T/bin/run" LEASE_PERIOD=1)
+# this tree may hold unmerged edits of the lease code; section 15 tests that refusal
+E=(LEASE_RUN="$T/bin/run" LEASE_PERIOD=1 LEASE_ALLOW_STALE=1)
 alive() { local v; for v in renew watch; do flock -n "$D/$v.run" true 2>/dev/null && return 1; done; return 0; }
 waitfor() { local i; for i in $(seq 1 50); do "$@" && return 0; sleep 0.1; done; return 1; }
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
@@ -147,7 +153,7 @@ p1="$(cat "$D/renew.pid")"
 LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
 [[ "$(grep -c 'loop running' "$T/o")" == 2 && "$(grep -c 'loop started' "$T/o")" == 0 && "$(cat "$D/renew.pid")" == "$p1" ]] &&
   pass "10. a second ensure starts nothing" || fail "10. idempotent: $(cat "$T/o")"
-LM='' LF='' LO='' lease LEASE_CMD=renew "${E[@]}" >"$T/o" 2>&1
+LM='' LF='' LO='' timeout 10 bash -c "$(declare -f lease); $(declare -p T P D PROJ_ROOT); lease LEASE_CMD=renew ${E[*]}" >"$T/o" 2>&1
 grep -q 'already runs' "$T/o" && pass "10. a second renew loop exits at once" || fail "10. dup loop: $(cat "$T/o")"
 waitfor bash -c "grep -q '^M-1 ' '$D/lease'" && pass "10. the started renew loop renews" || fail "10. no renewal: $(cat "$D/lease.log")"
 LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1
@@ -157,6 +163,39 @@ LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
 waitfor alive && [[ "$(grep -c 'loop started' "$T/o")" == 2 && "$(cat "$D/renew.pid")" != "$p1" ]] &&
   pass "10. the next ensure brings both back" || fail "10. restart: $(cat "$T/o")"
 LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1; waitfor dead
+
+# --- 14. a piped caller is not held ------------------------------------------------------
+t0=$(date +%s)
+LM='' LF='' LO='' timeout 20 bash -c "$(declare -f lease); $(declare -p T P D PROJ_ROOT); lease LEASE_CMD=ensure WRAP_TEE=1 ${E[*]} 2>&1 | cat" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && $(( $(date +%s) - t0 )) -lt 10 ]] && grep -q 'loop started' "$T/o" &&
+  pass "14. 'ensure | cat' under run.sh's tee returns at once" || fail "14. rc=$rc after $(( $(date +%s) - t0 ))s: $(cat "$T/o")"
+waitfor alive || fail "14. the loops did not start"
+
+# --- 16. old code is replaced, stop by pid file ---------------------------------------------
+p1="$(cat "$D/renew.pid")"; echo oldcode >"$D/renew.ver"
+LM='' LF='' LO='' lease LEASE_CMD=ensure "${E[@]}" >"$T/o" 2>&1
+newpid() { alive && [[ -s "$D/renew.pid" && "$(cat "$D/renew.pid")" != "$p1" ]]; }
+waitfor newpid && [[ "$(logc 'ensure replaces renew (code oldcode')" == 1 ]] && ! kill -0 "$p1" 2>/dev/null &&
+  pass "16. a loop on older code is replaced" || fail "16. replace: $(cat "$T/o") $(tail -3 "$D/lease.log")"
+LM='' LF='' LO='' lease LEASE_CMD=stop >/dev/null 2>&1
+dead && [[ "$(logc 'stop renew pid=')" -ge 1 ]] && pass "16. stop ends both loops by pid file" || fail "16. stop"
+
+# --- 15. a stale tree is refused --------------------------------------------------------------
+G="$T/gitfix"; mkdir -p "$G/orc/src/bash/run"
+cp "$PROJ_ROOT/src/bash/run/spl-dispatch-lease.func.sh" "$G/orc/src/bash/run/"
+git -C "$G" init -q && git -C "$G" add . && git -C "$G" -c user.name=t -c user.email=t@example.com commit -q -m fix &&
+  git -C "$G" update-ref refs/remotes/origin/master HEAD
+stale() {
+  env PROJ_PATH="$G/orc" SPOOL_ROOT="$T/spool" LEASE_RUN=/bin/true "$@" bash -c '
+    do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; LEASE_CMD=ensure do_spl_dispatch_lease'
+}
+stale >"$T/o" 2>&1 && grep -q 'loop started' "$T/o" && pass "15. a tree on trunk's lease code starts the loops" || fail "15. on trunk: $(cat "$T/o")"
+echo '# local edit' >>"$G/orc/src/bash/run/spl-dispatch-lease.func.sh"
+rm -f "$D"/*.run
+stale >"$T/o" 2>&1 && fail "15. a stale tree was accepted: $(cat "$T/o")" ||
+  { grep -q "not origin/master's version" "$T/o" && [[ "$(logc 'REFUSED ensure from a stale tree')" == 1 ]] &&
+    pass "15. a tree whose lease code is not trunk's is refused, and logged" || fail "15. refusal: $(cat "$T/o")"; }
+stale LEASE_ALLOW_STALE=1 >"$T/o" 2>&1 && pass "15. LEASE_ALLOW_STALE=1 overrides" || fail "15. override: $(cat "$T/o")"
 
 # --- 11. the cron tick ensures the loops ------------------------------------------------
 grep -q 'LEASE_CMD=ensure .*do_spl_dispatch_lease' "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" &&

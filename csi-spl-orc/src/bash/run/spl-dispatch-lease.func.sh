@@ -206,12 +206,14 @@ spl_lease_show() {
 
 # The loop holds <verb>.run with flock for its whole life: that lock IS the
 # "is it running" answer ensure reads, so a stale pid file cannot lie and a
-# second copy exits at once.
+# second copy exits at once. <verb>.ver records the code it runs, so ensure
+# can replace a loop whose code trunk has since changed.
 spl_lease_loop() {
   local verb="$1"
   exec 8> "$LEASE_DIR/$verb.run"
   flock -n 8 || { do_log "INFO a $verb loop already runs - nothing to do"; return 0; }
   echo "$$" > "$LEASE_DIR/$verb.pid"
+  spl_lease_code_ver > "$LEASE_DIR/$verb.ver"
   spl_lease_log "$verb start master=$LEASE_MASTER${LEASE_FAILOVER:+ failover=$LEASE_FAILOVER} pid=$$"
   while :; do
     "spl_lease_${verb}_tick"
@@ -220,37 +222,90 @@ spl_lease_loop() {
   done
 }
 
+# This file, as the loops run it; its hash is the code version.
+SPL_LEASE_SRC="${BASH_SOURCE[0]}"
+spl_lease_code_ver() { sha1sum < "$SPL_LEASE_SRC" | cut -c1-12; }
+
 # 0 when a <verb> loop holds its run lock.
 spl_lease_running() {
   [[ -f "$LEASE_DIR/$1.run" ]] || return 1
   ! flock -n "$LEASE_DIR/$1.run" true
 }
 
+# Refuse to start loops from a tree whose lease code is not trunk's: a stale
+# checkout would otherwise run old code for as long as nobody looks (the desk
+# cron's checkout ran 27 commits behind for ~18 h on 2026-09-30). A tree that
+# is not a git checkout, or has no LEASE_TRUNK_REF, is not judged.
+# LEASE_ALLOW_STALE=1 overrides, for a deliberate test of unmerged code.
+spl_lease_trunk_check() {
+  local ref="${LEASE_TRUNK_REF:-origin/master}" dir rel mine theirs
+  [[ "${LEASE_ALLOW_STALE:-0}" == 1 ]] && return 0
+  dir="$(cd "$(dirname "$SPL_LEASE_SRC")" && pwd)"
+  git -C "$dir" rev-parse --verify -q "$ref" >/dev/null 2>&1 || return 0
+  rel="$(git -C "$dir" ls-files --full-name -- "$(basename "$SPL_LEASE_SRC")" 2>/dev/null)"
+  [[ -n "$rel" ]] || return 0
+  mine="$(git hash-object "$SPL_LEASE_SRC")"
+  theirs="$(git -C "$dir" rev-parse -q --verify "$ref:$rel" 2>/dev/null)"
+  [[ "$mine" == "$theirs" ]] && return 0
+  do_log "FATAL $SPL_LEASE_SRC is not $ref's version - this tree is stale or edited; update it (or LEASE_ALLOW_STALE=1 for a deliberate test)"
+  spl_lease_log "REFUSED ensure from a stale tree ($SPL_LEASE_SRC != $ref)"
+  return 1
+}
+
+# Start "$@" fully detached: its own session, stdin/stdout/stderr to the log,
+# and EVERY other inherited fd closed. Without the closing, a caller that
+# pipes this action (`... | grep`) never sees EOF: run.sh's output tee holds
+# the pipe and the loop holds the tee's input through a process-substitution fd.
+spl_lease_detach() {
+  local out="$1"; shift
+  (
+    for fd in /proc/$BASHPID/fd/*; do
+      fd="${fd##*/}"
+      [[ "$fd" =~ ^[0-9]+$ ]] && (( fd > 2 )) && eval "exec $fd>&-" 2>/dev/null
+    done
+    exec setsid nohup "$@" >> "$out" 2>&1 < /dev/null
+  ) >> "$out" 2>&1 < /dev/null &
+}
+
 spl_lease_ensure() {
   [[ -f "$LEASE_CONF" ]] || { do_log "INFO no $LEASE_CONF - this box runs no dispatch lease"; return 0; }
   spl_lease_ids master failover orch || return 1
-  local verb out
+  spl_lease_trunk_check || return 1
+  local verb out ver
+  ver="$(spl_lease_code_ver)"
   for verb in renew watch; do
     if spl_lease_running "$verb"; then
-      do_log "INFO lease $verb loop running (pid $(cat "$LEASE_DIR/$verb.pid" 2>/dev/null))"
-      continue
+      if [[ "$(cat "$LEASE_DIR/$verb.ver" 2>/dev/null)" == "$ver" ]]; then
+        do_log "INFO lease $verb loop running (pid $(cat "$LEASE_DIR/$verb.pid" 2>/dev/null))"
+        continue
+      fi
+      # an old loop: replace it. The lease survives a few seconds without a
+      # renewal or a watcher, so this leaves no gap.
+      spl_lease_log "ensure replaces $verb (code $(cat "$LEASE_DIR/$verb.ver" 2>/dev/null || echo unknown) -> $ver)"
+      spl_lease_stop_one "$verb" || return 1
     fi
     out="$LEASE_DIR/$verb.out"
     LEASE_CMD="$verb" LEASE_MASTER="$LEASE_MASTER" LEASE_FAILOVER="$LEASE_FAILOVER" LEASE_ORCH="$LEASE_ORCH" \
-      setsid nohup "${LEASE_RUN:-$PROJ_PATH/run}" -a do_spl_dispatch_lease >> "$out" 2>&1 < /dev/null &
+      spl_lease_detach "$out" "${LEASE_RUN:-$PROJ_PATH/run}" -a do_spl_dispatch_lease
     do_log "INFO lease $verb loop started (log $out)"
     spl_lease_log "ensure started $verb"
   done
   return 0
 }
 
+# Stop one loop by its pid file (never by a command-line pattern: `pkill -f`
+# also matches the shell that runs it) and wait for its lock to free.
+spl_lease_stop_one() {
+  local verb="$1" pid i
+  spl_lease_running "$verb" || return 0
+  pid="$(cat "$LEASE_DIR/$verb.pid" 2>/dev/null)"
+  [[ "$pid" =~ ^[0-9]+$ ]] || { do_log "FATAL $verb runs but $LEASE_DIR/$verb.pid holds no pid"; return 1; }
+  kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null
+  for i in $(seq 1 50); do spl_lease_running "$verb" || break; sleep 0.1; done
+  spl_lease_running "$verb" && { do_log "FATAL $verb loop pid $pid did not stop"; return 1; }
+  spl_lease_log "stop $verb pid=$pid"
+}
+
 spl_lease_stop() {
-  local verb pid
-  for verb in renew watch; do
-    spl_lease_running "$verb" || continue
-    pid="$(cat "$LEASE_DIR/$verb.pid" 2>/dev/null)"
-    [[ "$pid" =~ ^[0-9]+$ ]] && kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null
-    spl_lease_log "stop $verb pid=$pid"
-  done
-  return 0
+  spl_lease_stop_one renew && spl_lease_stop_one watch
 }

@@ -40,7 +40,7 @@ seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/p
 
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPOOL_ROOT="$S" SPL_STATE_DIR="$ST" LEASE_PROC_ROOT="$P" \
-    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" "$@" bash -c '
+    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done

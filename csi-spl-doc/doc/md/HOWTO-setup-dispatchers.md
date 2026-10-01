@@ -166,7 +166,9 @@ cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 
 ### 6.1 Stop the lease on this box
 
-Stops both loops; removing `lease.conf` keeps the cron from starting them again.
+Stops both loops by their pid files; removing `lease.conf` keeps the cron from
+starting them again. Never stop them with `pkill -f <pattern>`: the pattern
+also matches the shell that runs it, and kills that shell.
 
 ```bash
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"

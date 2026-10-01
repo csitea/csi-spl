@@ -49,6 +49,15 @@ c1=$(commit one); c2=$(commit two)
 git -C "$T/w" push -q origin HEAD:refs/heads/master
 
 mint() { lib spl_release_mint "$T/w" "$1" "$2" origin 2>>"$T/mint.err"; }
+# A parallel mint gets its OWN clone, as each CI deploy job has its own
+# checkout: N mints sharing $T/w raced on its local refs (concurrent
+# `fetch --force` of the v-tags, `tag -f`, ref packing), so one mint missed a
+# tag another had just written for the SAME commit and claimed the next number
+# (wf10 run 36844008515: "2.0.9 2.1.0 2.0.9 ..."). The only shared state left
+# is the remote, which is what the lock under test serialises. (CLE-77859)
+pmint() { # <job> <sha> <floor>
+  git clone -q "$T/remote.git" "$T/job.$1" && lib spl_release_mint "$T/job.$1" "$2" "$3" origin 2>>"$T/mint.err"
+}
 
 got=$(mint "$c1" 1.1.0); [[ "$got" == 1.1.0 ]] && pass "no tags yet: the floor 1.1.0" || fail "first mint '$got'"
 got=$(mint "$c2" 1.1.0); [[ "$got" == 1.1.1 ]] && pass "next commit: 1.1.1" || fail "second mint '$got'"
@@ -59,7 +68,8 @@ got=$(mint "$c3" 2.0.0); [[ "$got" == 2.0.0 ]] && pass "floor raised to 2.0.0 wi
 
 # --- 6. race: distinct commits ------------------------------------------------
 shas=(); for i in 1 2 3 4 5 6 7 8; do shas+=("$(commit "race-$i")"); done
-for i in "${!shas[@]}"; do ( mint "${shas[$i]}" 1.1.0 >"$T/r.$i" ) & done; wait
+git -C "$T/w" push -q origin HEAD:refs/heads/master
+for i in "${!shas[@]}"; do ( pmint "r$i" "${shas[$i]}" 1.1.0 >"$T/r.$i" ) & done; wait
 sort "$T"/r.* >"$T/race"
 dups=$(uniq -d "$T/race" | wc -l); n=$(grep -c . "$T/race")
 want=$(for v in 2.0.1 2.0.2 2.0.3 2.0.4 2.0.5 2.0.6 2.0.7 2.0.8; do echo $v; done)
@@ -70,8 +80,8 @@ for i in "${!shas[@]}"; do
 done
 
 # --- 7. race: one commit, many jobs -------------------------------------------
-c9=$(commit nine)
-for i in 1 2 3 4 5 6; do ( mint "$c9" 1.1.0 >"$T/s.$i" ) & done; wait
+c9=$(commit nine); git -C "$T/w" push -q origin HEAD:refs/heads/master
+for i in 1 2 3 4 5 6; do ( pmint "s$i" "$c9" 1.1.0 >"$T/s.$i" ) & done; wait
 if [[ "$(cat "$T"/s.* | sort -u)" == 2.0.9 && "$(git --git-dir="$T/remote.git" tag --points-at "$c9" | wc -l)" == 1 ]]; then
   pass "6 parallel jobs on one commit -> one version (2.0.9), one tag"
 else fail "same-commit race: $(cat "$T"/s.* | tr '\n' ' ') tags=$(git --git-dir="$T/remote.git" tag --points-at "$c9" | tr '\n' ' ')"; fi

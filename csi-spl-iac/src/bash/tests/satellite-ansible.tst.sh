@@ -117,6 +117,11 @@ grep -q '"SPOOL_DESK_BOX={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" &&
   && pass "08 writes SPOOL_DESK_BOX=<box_tag> (sat) with box-config.sh" || fail "08 does not set SPOOL_DESK_BOX"
 grep -q '"SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }}"' "$R/08_spool_harness/tasks/main.yml" \
   && pass "08 names the fleet desk (SPOOL_FLEET_ENV/TENANT) for cross-machine sends" || fail "08 does not name the fleet desk"
+gv=$(sed -n 's/^go_version: //p' "$R/02_os_binaries/defaults/main.yml")
+mv=$(sed -n 's/^go \([0-9.]*\)$/\1/p' "$PROJ_PATH/../csi-spl-api/src/go/spool-hub-api/go.mod")
+[[ -n "$gv" && "$gv" == "$mv" ]] && grep -q 'FAIL go$VER sha256 mismatch' "$R/02_os_binaries/tasks/main.yml" \
+  && pass "02 installs Go $gv, sha256-pinned, = go.mod (CI's go-version-file)" || fail "02 Go pin ($gv) != go.mod ($mv), or no sha check"
+grep -q '/usr/local/go/bin' "$R/09_agent_tools/tasks/main.yml" && pass "09 runs the lint tools with Go on PATH (loop run 3)" || fail "09 has no Go on PATH"
 grep -q '^  hostname     = var.vm_hostname$' "$STEP/03-vm.tf" && pass "060 sets the OS hostname from cnf vm_hostname" || fail "060 does not set the hostname"
 
 # 6. the host action and verify

@@ -95,7 +95,7 @@ REMOTE
 _satellite_versions_script() {
   local tsv="${PROJ_PATH}/cnf/satellite-replica.tsv" name cmd
   # shellcheck disable=SC2016
-  echo 'export PATH="$HOME/.local/bin:$HOME/.local/share/spool-agent/tools/bin:$HOME/.local/share/spool-agent/tools/go/bin:$HOME/go/bin:$HOME/bin:/usr/local/bin:$PATH"'
+  echo 'export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/.local/share/spool-agent/tools/bin:$HOME/.local/share/spool-agent/tools/go/bin:$HOME/go/bin:$HOME/bin:/usr/local/bin:$PATH"'
   while IFS=$'\t' read -r name cmd _; do
     [[ -z "$name" || "$name" == \#* ]] && continue
     printf 'o=$( (%s) 2>&1 ); r=$?; v=$(grep -m1 -oE "[0-9]+\\.[0-9]+(\\.[0-9]+)?" <<<"$o" | head -n1); ' "$cmd"

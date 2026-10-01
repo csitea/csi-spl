@@ -53,6 +53,37 @@
     name: google-cloud-cli
     state: present
 
+- name: "Go {{ go_version }} in /usr/local/go (go.dev tarball, sha256-pinned; as on the box PC)"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    [ "$(/usr/local/go/bin/go env GOVERSION 2>/dev/null)" = "go$VER" ] && { echo "OK go$VER"; exit 0; }
+    t=$(mktemp -d) && trap 'rm -rf "$t"' EXIT
+    curl -fsSL --retry 3 -o "$t/go.tgz" "https://go.dev/dl/go$VER.linux-amd64.tar.gz" || { echo "FAIL download go$VER"; exit 1; }
+    [ "$(sha256sum "$t/go.tgz" | cut -d' ' -f1)" = "$SUM" ] || { echo "FAIL go$VER sha256 mismatch"; exit 1; }
+    rm -rf /usr/local/go && tar -C /usr/local -xzf "$t/go.tgz" && echo "CHANGED go$VER"
+  args:
+    executable: /bin/bash
+  environment:
+    VER: "{{ go_version }}"
+    SUM: "{{ go_sha256 }}"
+  register: go_out
+  changed_when: "'CHANGED' in go_out.stdout"
+
+- name: Go on every login PATH (/usr/local/go/bin, ~/go/bin)
+  ansible.builtin.copy:
+    dest: /etc/profile.d/go.sh
+    content: |
+      # written by box-playbook.yaml role 02_os_binaries; do not edit
+      case ":$PATH:" in *":/usr/local/go/bin:"*) ;; *) export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH" ;; esac
+    mode: "0644"
+
+- name: Go on interactive non-login shells too
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: "# {mark} csi-spl satellite go (box-playbook.yaml 02)"
+    block: |
+      [ -r /etc/profile.d/go.sh ] && . /etc/profile.d/go.sh
+
 - name: Docker runs
   ansible.builtin.systemd:
     name: docker

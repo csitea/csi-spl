@@ -28,7 +28,7 @@
 - name: pnpm, the version csi-spl-wui pins, through corepack, for the agent
   ansible.builtin.shell: |
     set -uo pipefail
-    export PATH="$HOME/.local/bin:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     pm=$(jq -r '.packageManager // ""' "{{ repo_dir }}/csi-spl-wui/package.json"); pm=${pm%%+*}
     [[ "$pm" == pnpm@* ]] || { echo "FAIL no packageManager pnpm@ in csi-spl-wui/package.json"; exit 1; }
     [[ "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]] && { echo "OK ${pm#pnpm@}"; exit 0; }
@@ -48,7 +48,7 @@
 - name: The CI-pinned scanners + terraform, system-wide (do_install_lint_tools LINT_TOOLS_SYSTEM=1)
   ansible.builtin.shell: |
     set -uo pipefail
-    export PATH="$HOME/.local/bin:$PATH"
+    export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
     cd "{{ repo_dir }}/csi-spl-iac" && LINT_TOOLS_SYSTEM=1 timeout 1800 setsid -w ./run -a do_install_lint_tools </dev/null >/tmp/satellite-lint-tools.log 2>&1 \
       || { echo "FAIL do_install_lint_tools: $(tail -n 3 /tmp/satellite-lint-tools.log | tr '\n' ' ')"; exit 1; }
     grep -qiE 'install(ed|ing)|copied' /tmp/satellite-lint-tools.log && echo CHANGED || echo OK
@@ -62,7 +62,7 @@
 - name: tpl-gen, the repo's do_setup_tpl_gen (https, with the token through a helper)
   ansible.builtin.shell: |
     set -uo pipefail
-    export PATH="$HOME/.local/bin:$PATH"
+    export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
     export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.https://github.com.helper
     export GIT_CONFIG_VALUE_0='!f() { echo username=x-access-token; echo "password=$(cat "$HOME/.github/token")"; }; f'
     [ -d "{{ repo_dir }}/tpl-gen/src/python/tpl-gen/.venv" ] && had=1 || had=0

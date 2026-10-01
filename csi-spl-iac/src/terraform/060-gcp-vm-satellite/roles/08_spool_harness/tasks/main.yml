@@ -93,7 +93,7 @@
 - name: spool-install/install.sh as the agent (CLIs, yq, Go, spool, hooks, skills)
   ansible.builtin.shell: |
     set -uo pipefail
-    export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:$PATH"
+    export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
     cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat </dev/null 2>&1
     rc=$?
     # loop run 2 printed nothing: prove the result, never trust an empty ok

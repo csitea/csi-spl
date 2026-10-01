@@ -12,6 +12,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useViewerStore } from '~/stores/viewer'
+import { reselectRow } from '~/utils/reselect-row.mjs'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
 
 /** Owner (topic f20c6052): the snackbar shows for this long. ONE constant. */
@@ -31,7 +32,7 @@ export async function rereadFeeds() {
   }
 }
 
-type ArchiveToast = { id: number, msgId: string, busy: boolean }
+type ArchiveToast = { id: number, msgId: string, pane: string, busy: boolean }
 
 const toast = shallowRef<ArchiveToast | null>(null)
 let seq = 0
@@ -44,11 +45,13 @@ export function useArchiveUndo() {
     toast.value = null
   }
 
-  /** Offer Undo for the card just archived. Called after archiveTopic succeeds. */
-  function offerUndo(msgId: string) {
+  /** Offer Undo for the card just archived. Called after archiveTopic succeeds.
+      `pane` ('topic' / 'main', utils/reselect-row) is where it was, so Undo
+      selects it there again; 'rail' (a left-rail topic row) selects no card. */
+  function offerUndo(msgId: string, pane = '') {
     const id = String(msgId || '')
     if (!id) return
-    toast.value = { id: ++seq, msgId: id, busy: false }
+    toast.value = { id: ++seq, msgId: id, pane, busy: false }
   }
 
   async function undo() {
@@ -59,6 +62,8 @@ export function useArchiveUndo() {
       await api.archiveTopic(t.msgId, false)
       await rereadFeeds()
       toast.value = null
+      /* CLE-77871: the card that came back is selected again, as before */
+      if (t.pane !== 'rail') void reselectRow(t.msgId, { pane: t.pane })
     } catch (e) {
       toast.value = null
       noteError({ source: 'archive-undo', name: 'ArchiveUndo', message: i18n.t(topicErrorKey(e, 'archive')), error: e })

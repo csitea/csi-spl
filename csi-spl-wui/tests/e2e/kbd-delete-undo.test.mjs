@@ -11,7 +11,8 @@
 //   2  Delete on a reply: NO dialog, the reply leaves the pane at once, the
 //      "Deleted · Undo" snackbar shows - with every NEW /_nuxt/ fetch answered
 //      404 (a tab older than the last deploy) and without a reload
-//   3  Undo: the reply is back, and the hub (mock) never deleted it
+//   3  Undo: the reply is back, selected again (CLE-77871), and the hub
+//      (mock) never deleted it
 //   4  Delete again and let the snackbar close: the DELETE is sent (the reply
 //      stays gone after the topic is read again)
 //   5  Delete on the topic-level card (is_parent 1): the existing "Delete this
@@ -170,6 +171,9 @@ try {
   const back = await until(p, (sel) => Boolean(document.querySelector(sel)), paneRow(s.r2))
   ok('3 Undo brings the reply back', back)
   ok('3 the snackbar is gone after Undo', await until(p, () => !document.querySelector('[data-testid=delete-toast]'), null, 3000))
+  /* CLE-77871: the reply that came back is selected (focused) again, as before Delete */
+  ok('3 the reply that came back is selected again',
+    await until(p, (id) => document.activeElement?.matches?.(`.topic article.msg[data-msg-id="${id}"]`), s.r2, 4000))
   await shot(p, '3-undone')
 
   /* ---- 4. let it close: the DELETE is sent ------------------------------ */

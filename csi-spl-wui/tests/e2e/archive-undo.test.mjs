@@ -10,7 +10,7 @@
 //      last deploy, whose lazy chunks are gone - and the snackbar must still
 //      show WITHOUT the page reloading (a lazy snackbar chunk 404s there and
 //      chunk-reload.client.ts reloads the page instead)
-//   2  Undo -> the card is back in the feed
+//   2  Undo -> the card is back in the feed, selected (focused) again (CLE-77871)
 //   3  keyboard: after archiving, Tab reaches the Undo button; Esc closes the
 //      snackbar (and the card stays archived)
 //   4  hover HOLDS it open past the 0.7 s window (control: left alone it
@@ -158,6 +158,9 @@ try {
   const back = await until(p, (sel) => Boolean(document.querySelector(sel)), midCard(seeded.one.msg_id))
   ok('2 Undo brings the card back to the feed', back)
   ok('2 the snackbar is gone after Undo', !(await hasToast(p)))
+  /* CLE-77871: the card that came back is selected (focused) again */
+  ok('2 the card that came back is selected again',
+    await until(p, (id) => document.activeElement?.matches?.(`article.msg[data-msg-id="${id}"]`), seeded.one.msg_id, 4000))
   await shot(p, '2-undone')
 
   /* ---- 3. keyboard: Tab reaches Undo, Esc closes ------------------------- */

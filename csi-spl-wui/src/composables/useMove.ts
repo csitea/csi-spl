@@ -7,6 +7,7 @@ import { useViewerStore } from '~/stores/viewer'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { MoveAnswer, MoveDrag, MoveFrame } from '~/utils/move-apply.mjs'
 import { moveHit, sameHit, type MoveHit } from '~/utils/move-drag.mjs'
+import { reselectRow } from '~/utils/reselect-row.mjs'
 
 /** How long "Moved to ... · Undo" stays up (spec 3.3); MoveUndoToast runs it. */
 export const MOVE_UNDO_MS = 8000
@@ -166,6 +167,8 @@ export function useMove() {
       const answer = await call(t.undo)
       await dispatch({ ...answer, type: answerFrameType(answer.kind) })
       show(i18n.t(t.undo.kind === 'merge-undo' ? 'feed.merge.undone' : t.undo.kind === 'promote-undo' ? 'feed.promote.undone' : 'feed.move.undone'), null)
+      /* CLE-77871: the card that went back is selected again, as before */
+      void reselectRow(t.undo.msgId)
     } catch (e) {
       dismiss()
       await fail(e, t.undo.kind)

@@ -83,7 +83,7 @@ export function useTopicRowActions() {
       await api.archiveTopic(row.msgId, true)
       drop([task, row.msgId], [row.msgId])
       /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
-      archiveUndo.offerUndo(row.msgId)
+      archiveUndo.offerUndo(row.msgId, 'rail')
     } catch (e) {
       noteError({ source: 'topic-archive', name: 'TopicArchive', message: i18n.t(topicErrorKey(e, 'archive')), error: e })
     }

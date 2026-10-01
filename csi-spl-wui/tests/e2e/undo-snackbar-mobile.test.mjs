@@ -13,7 +13,8 @@
 //   - it sits ABOVE the docked composer (old: y 761..826 over "Message…")
 //   - Undo is a >= 44 px target and is what a tap at its centre hits
 //   - aria-live="polite"
-//   - a tap on Undo brings the card / reply back and closes it
+//   - a tap on Undo brings the card / reply back and closes it, and the card
+//     that came back is selected (focused) again, as before the action
 // A also proves the hold: a finger resting on the snackbar keeps it up past
 // its touch window; lifting the finger lets it close on its own.
 //
@@ -74,6 +75,8 @@ async function until(p, fn, arg, ms = 6000) {
 }
 
 const card = (id) => `article.msg[data-msg-id="${id}"]`
+/* CLE-77871 add-on: after Undo the card that came back is selected (focused) again */
+const reselected = (p, id) => until(p, (id) => document.activeElement?.matches?.(`article.msg[data-msg-id="${id}"]`), id, 4000)
 const has = (p, sel) => p.evaluate((sel) => Boolean(document.querySelector(sel)), sel)
 
 /** Tap the centre of the first visible element matching `sel`. */
@@ -206,6 +209,7 @@ try {
   ok('A2 a tap on Undo lands', await tapSel(p, '[data-testid=archive-toast-undo]'))
   ok('A2 Undo brings the card back', await until(p, (sel) => Boolean(document.querySelector(sel)), card(a2.top)))
   ok('A2 the snackbar is gone after Undo', await until(p, () => !document.querySelector('[data-testid=archive-toast]'), null, 3000))
+  ok('A2 the card that came back is selected again', await reselected(p, a2.top))
 
   /* ---- B. Delete topic dialog -> Archive instead ------------------------ */
   const b = await seed(p, 'B')
@@ -217,6 +221,7 @@ try {
   if (await checkSnack(p, 'archive-toast', 'B archive (delete dialog)')) {
     await tapSel(p, '[data-testid=archive-toast-undo]')
     ok('B Undo brings the card back', await until(p, (sel) => Boolean(document.querySelector(sel)), card(b.top)))
+    ok('B the card that came back is selected again', await reselected(p, b.top))
   }
 
   /* ---- C. Delete key on a reply ----------------------------------------- */
@@ -229,6 +234,7 @@ try {
     ok('C the reply left the pane', !(await has(p, `.topic ${card(c.r2)}`)))
     await tapSel(p, '[data-testid=delete-toast-undo]')
     ok('C Undo brings the reply back', await until(p, (sel) => Boolean(document.querySelector(sel)), `.topic ${card(c.r2)}`))
+    ok('C the reply that came back is selected again', await reselected(p, c.r2))
   }
 
   /* ---- D. reply menu -> Make it a topic (Moved · Undo) ------------------- */
@@ -238,7 +244,8 @@ try {
   ok('D the reply menu offers "Make it a topic" and it was tapped', await menuPick(p, `.topic ${card(d.r2)}`, 'promote-topic'))
   if (await checkSnack(p, 'move-toast', 'D move (promote)')) {
     ok('D a tap on Undo lands', await tapSel(p, '[data-testid=move-toast-undo]'))
-    ok('D the snackbar closes after Undo', await until(p, () => !document.querySelector('[data-testid=move-toast]'), null, 5000))
+    ok('D the reply is back in its topic and selected again', await reselected(p, d.r2))
+    ok('D the snackbar closes after Undo', await until(p, () => !document.querySelector('[data-testid=move-toast]'), null, 9000))
   }
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)

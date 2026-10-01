@@ -391,6 +391,7 @@ import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { deleteKeyAction, rowStep, stepRow } from '~/utils/row-keys.mjs'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
+import { paneOfRow } from '~/utils/reselect-row.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
@@ -600,8 +601,9 @@ async function onMenuArchive() {
     await parentDeps.api.archiveTopic(id, true)
     dropEverywhere(id)
     emit('deleted', props.msg)
-    /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
-    archiveUndo.offerUndo(id)
+    /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s;
+       CLE-77871: and from which pane, so Undo selects it there again */
+    archiveUndo.offerUndo(id, paneOfRow(rowEl.value))
   } catch (e) {
     editError.value = topicErrorKey(e, 'archive')
   } finally {

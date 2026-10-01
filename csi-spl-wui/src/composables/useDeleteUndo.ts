@@ -21,12 +21,13 @@ import { ARCHIVE_UNDO_MS, rereadFeeds } from '~/composables/useArchiveUndo'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { editFailureKey } from '~/utils/msg-edit.mjs'
+import { paneOfMsg, reselectRow } from '~/utils/reselect-row.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /** The owner asked for the same snackbar as archiving: the same window. */
 export const DELETE_UNDO_MS = ARCHIVE_UNDO_MS
 
-type DeleteToast = { id: number, msgId: string, busy: boolean }
+type DeleteToast = { id: number, msgId: string, pane: string, busy: boolean }
 type Restore = (row: SpoolMessage) => void
 
 const toast = shallowRef<DeleteToast | null>(null)
@@ -87,9 +88,11 @@ export function useDeleteUndo() {
       window.addEventListener('pagehide', () => commit())
     }
     commit() /* the previous one is final once the next delete starts */
+    /* CLE-77871: where it is, read before it leaves, so Undo selects it there */
+    const pane = typeof document === 'undefined' ? '' : paneOfMsg(id)
     setPending(row)
     dropEverywhere(id)
-    toast.value = { id: ++seq, msgId: id, busy: false }
+    toast.value = { id: ++seq, msgId: id, pane, busy: false }
   }
 
   function dismiss() {
@@ -106,6 +109,8 @@ export function useDeleteUndo() {
     toast.value = { ...t, busy: true }
     await bringBack(row)
     toast.value = null
+    /* CLE-77871: the reply that came back is selected again, as before */
+    void reselectRow(t.msgId, { pane: t.pane })
   }
 
   return { toast, offer, undo, dismiss }

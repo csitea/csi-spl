@@ -1832,3 +1832,12 @@ declare module '~/utils/undo-timer.mjs' {
     clear?: (id: unknown) => void
   }): UndoTimer
 }
+
+declare module '~/utils/reselect-row.mjs' {
+  export const RESELECT_WAIT_MS: number
+  export function paneOfRow(el: Element | null | undefined): '' | 'topic' | 'main'
+  export function paneOfMsg(msgId: string, doc?: Document): '' | 'topic' | 'main'
+  export function findRow(msgId: string, pane?: string, doc?: Document): HTMLElement | null
+  export function selectRow(row: HTMLElement | null, doc?: Document): boolean
+  export function reselectRow(msgId: string, opts?: { pane?: string, doc?: Document, wait?: number, set?: (fn: () => void, ms: number) => unknown }): Promise<boolean>
+}

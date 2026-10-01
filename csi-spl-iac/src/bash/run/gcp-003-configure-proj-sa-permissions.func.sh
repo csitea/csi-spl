@@ -66,7 +66,10 @@ do_gcp_003_configure_proj_sa_permissions() {
     do_log "OK ${member} holds ${role} on ${PROJ_ID}"
   fi
 
-  [[ "${ENV}" == all ]] && { _gcp_003_billing_costs_manager "${member}" "${acct}" "${dry_run}" || exit 1; }
+  # never stops the bootstrap: gcp-004 (the APIs) must still run after it
+  if [[ "${ENV}" == all ]] && ! _gcp_003_billing_costs_manager "${member}" "${acct}" "${dry_run}"; then
+    do_log "WARN the billing costsManager grant did not happen: 059 (budget) will 403 until it does; the rest of the bootstrap continues"
+  fi
   [[ "${dry_run}" == 1 ]] && do_log "OK DRY_RUN for ${PROJ_ID} complete: nothing was granted. Re-run with DRY_RUN=0 to mutate."
   return 0
 }
@@ -74,21 +77,24 @@ do_gcp_003_configure_proj_sa_permissions() {
 # ENV=all only: the satellite's 059 budget lives on the billing account, which
 # roles/owner on the project does not reach.
 _gcp_003_billing_costs_manager() {
-  local member=$1 acct=$2 dry_run=$3 role="roles/billing.costsManager" out rc
-  do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
-  out=$(gcloud billing accounts get-iam-policy "${GCP_BILLING_ACCOUNT_ID}" "${acct}" \
-          --flatten='bindings[].members' \
-          --filter="bindings.role=${role} AND bindings.members=${member}" \
-          --format='value(bindings.role)' 2>&1)
+  local member=$1 acct=$2 dry_run=$3 role="roles/billing.costsManager" out rc ba
+  [[ -n "${GCP_BILLING_ACCOUNT_ID:-}" ]] || { do_log "WARN GCP_BILLING_ACCOUNT_ID is not set"; return 1; }
+  # accept "billingAccounts/XXXXXX-XXXXXX-XXXXXX" (billingAccountName) too
+  ba="${GCP_BILLING_ACCOUNT_ID#billingAccounts/}"
+  [[ "${ba}" =~ ^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$ ]] || { do_log "WARN GCP_BILLING_ACCOUNT_ID is not XXXXXX-XXXXXX-XXXXXX"; return 1; }
+  # plain json + jq: the --flatten/--filter form answers INVALID_ARGUMENT on a
+  # billing account policy (measured 2026-10-01)
+  out=$(gcloud billing accounts get-iam-policy "${ba}" "${acct}" --format=json 2>&1)
   rc=$?
-  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the IAM policy of the billing account (rc=${rc}): ${out}"; return 1; }
+  [[ ${rc} -eq 0 ]] || { do_log "WARN cannot read the IAM policy of the billing account (rc=${rc}): ${out}"; return 1; }
+  out=$(jq -r --arg r "${role}" --arg m "${member}" '.bindings[]? | select(.role == $r) | .members[]? | select(. == $m)' <<<"${out}" 2>/dev/null)
   if [[ -n "${out}" ]]; then
     do_log "OK ${member} already holds ${role} on the billing account — nothing to do"
   elif [[ "${dry_run}" == 1 ]]; then
     do_log "INFO DRY_RUN would run: gcloud billing accounts add-iam-policy-binding <GCP_BILLING_ACCOUNT_ID> --member=${member} --role=${role} ${acct}"
   else
-    gcloud billing accounts add-iam-policy-binding "${GCP_BILLING_ACCOUNT_ID}" --member="${member}" --role="${role}" \
-      "${acct}" >/dev/null || { do_log "FATAL grant ${role} on the billing account to ${member}"; return 1; }
+    gcloud billing accounts add-iam-policy-binding "${ba}" --member="${member}" --role="${role}" \
+      "${acct}" >/dev/null || { do_log "WARN grant ${role} on the billing account to ${member} failed"; return 1; }
     do_log "OK ${member} holds ${role} on the billing account"
   fi
 }

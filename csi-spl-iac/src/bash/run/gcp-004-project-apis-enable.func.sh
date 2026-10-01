@@ -27,7 +27,7 @@ do_gcp_004_project_apis_enable() {
   local wanted=(cloudresourcemanager.googleapis.com serviceusage.googleapis.com storage.googleapis.com iam.googleapis.com)
   # csi-spl-all has no 001 step of its own (no env file): the satellite's
   # steps 059/060 (spec 057) need these too, so the bootstrap enables them
-  [[ "${ENV}" == all ]] && wanted+=(compute.googleapis.com iap.googleapis.com billingbudgets.googleapis.com logging.googleapis.com monitoring.googleapis.com)
+  [[ "${ENV}" == all ]] && wanted+=(compute.googleapis.com iap.googleapis.com billingbudgets.googleapis.com cloudbilling.googleapis.com logging.googleapis.com monitoring.googleapis.com)
 
   do_log "INFO PROJ_ID=${PROJ_ID} GCP_ACCOUNT=${GCP_ACCOUNT} DRY_RUN=${dry_run}"
 

@@ -10,6 +10,7 @@ import {
   isMobileFrontDoor,
   mobileHasBelow,
   mobileHistoryStep,
+  mobileInPlaceStep,
   mobileInitialLevel,
   mobileLevelOf,
   mobileTagState,
@@ -74,5 +75,19 @@ describe('mobile back swipe', () => {
   it('rtl mirrors it', () => {
     assert.equal(isMobileBackSwipe({ x0: 370, y0: 300, x1: 270, y1: 300, width: w, rtl: true }), true)
     assert.equal(isMobileBackSwipe({ x0: 20, y0: 300, x1: 120, y1: 300, width: w, rtl: true }), false)
+  })
+})
+
+describe('CLE-77882: an open-in-place is one history entry', () => {
+  it('the topic opening on the fresh route entry is a tag, not a second push', () => {
+    assert.equal(mobileInPlaceStep(mobileHistoryStep(2, 3), 3, true), 'tag')
+  })
+  it('CONTROL: without an open-in-place pending, a topic opening pushes (Back closes the thread)', () => {
+    assert.equal(mobileInPlaceStep(mobileHistoryStep(2, 3), 3, false), 'push')
+  })
+  it('only the step UP to the thread is folded; other steps pass through', () => {
+    assert.equal(mobileInPlaceStep('push', 2, true), 'push')
+    assert.equal(mobileInPlaceStep('tag', 1, true), 'tag')
+    assert.equal(mobileInPlaceStep('none', 3, true), 'none')
   })
 })

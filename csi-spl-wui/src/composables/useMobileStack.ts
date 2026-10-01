@@ -5,6 +5,7 @@ import {
   isMobileBackSwipe,
   mobileHasBelow,
   mobileHistoryStep,
+  mobileInPlaceStep,
   mobileInitialLevel,
   mobileLevelOf,
   mobileOverlayOf,
@@ -71,6 +72,8 @@ const rightOpen = computed(() => topicOpen.value || panels.value.some((p) => toV
 const level = computed<MobileLevel>(() => mobileLevelOf({ home: home.value, topicOpen: rightOpen.value }))
 let closeTopic: () => void = () => {}
 let installed = false
+/* CLE-77882: an open-in-place is navigating (utils/mobile-stack.mjs mobileInPlaceStep) */
+let inPlaceUntil = 0
 
 function tag(lv: MobileLevel, below?: number) {
   window.history.replaceState(mobileTagState(window.history.state, lv, below), '')
@@ -256,6 +259,16 @@ function overlay(open: MaybeRefOrGetter<boolean>, close: () => void, opts: { kee
   return off
 }
 
+/**
+ * CLE-77882: the next topic that opens (within `ms`) lands on the entry the
+ * open-in-place route push made, instead of pushing one more: Back from the
+ * opened message returns to the list it was opened from.
+ */
+function landInPlace(ms = 5000) {
+  if (!isMobile.value) return
+  inPlaceUntil = Date.now() + ms
+}
+
 function push(lv: 2 | 3) {
   if (lv >= 2) home.value = false
 }
@@ -344,6 +357,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
   /* browser Back / Forward, and pop() -> history.back() */
   window.addEventListener('popstate', (e) => {
     lastPos = statePosition()
+    inPlaceUntil = 0
     const tagged = mobileTaggedLevel(e.state)
     if (tagged !== null) applyLevel(tagged)
   })
@@ -353,7 +367,9 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
     if (!isMobile.value) return
     const record = () => {
       const tagged = mobileTaggedLevel(window.history.state)
-      const step = mobileHistoryStep(tagged, next)
+      const inPlace = inPlaceUntil > Date.now()
+      const step = mobileInPlaceStep(mobileHistoryStep(tagged, next), next, inPlace)
+      if (inPlace && next === 3) inPlaceUntil = 0
       if (step === 'tag') tag(next)
       else if (step === 'push') {
         window.history.pushState(mobileTagState(mobileOverlayState(window.history.state, null), next, tagged ?? 1), '')
@@ -380,6 +396,8 @@ export function useMobileStack() {
     home: toHome,
     rightPanel,
     overlay,
+    /** CLE-77882: the next topic open lands on the current entry (open in place) */
+    landInPlace,
     /** SPL-1005: a page sheet / dialog / menu is open - the composer dock yields */
     sheetOpen,
     /** bind on the shell: @touchstart.passive / @touchend.passive */

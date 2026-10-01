@@ -6,6 +6,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useSidePane } from '~/composables/useSidePane'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import type { OpenMessageReason, OpenMessageResult } from '~/utils/open-message.mjs'
@@ -32,6 +33,7 @@ export function useOpenMessage() {
   const roster = useRosterStore()
   const live = useLive()
   const sidePane = useSidePane()
+  const stack = useMobileStack()
 
   /**
    * Open `ref` (a msg_id, or the row the caller holds) where it was posted.
@@ -43,6 +45,8 @@ export function useOpenMessage() {
     const m = await import('~/utils/open-message.mjs')
     const self = String(access.me?.humanId || live.identity.value || roster.me?.id || '')
     const release = opts.keepList === false ? () => {} : sidePane.holdList()
+    /* phone: the opened message is ONE history entry over the list, so one Back returns to it */
+    if (opts.keepList !== false) stack.landInPlace()
     let out: OpenMessageResult
     try {
       out = await m.openMessage(ref, { self, api, router, localePath, replace: opts.replace })

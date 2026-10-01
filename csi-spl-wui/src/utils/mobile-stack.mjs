@@ -102,6 +102,23 @@ export function mobileHistoryStep(tagged, next) {
 }
 
 /**
+ * CLE-77882: a message opened IN PLACE from a list (Flow, Search) is one
+ * history entry, not two. The route push makes a fresh entry at level 2 and
+ * the topic opening on it would push level 3 on top, so Back first closed
+ * the thread onto a bare channel and only a second Back reached the list
+ * (owner: "Back returns to the list"). While an open-in-place is pending,
+ * that 'push' to 3 becomes a 'tag': the entry IS the opened message, and the
+ * entry under it is the list.
+ * @param {'tag'|'push'|'none'} step mobileHistoryStep's answer
+ * @param {1|2|3} next the level now on screen
+ * @param {boolean} inPlace an open-in-place is pending
+ * @returns {'tag'|'push'|'none'}
+ */
+export function mobileInPlaceStep(step, next, inPlace) {
+  return inPlace && step === 'push' && next === 3 ? 'tag' : step
+}
+
+/**
  * One touch gesture: does it pop a level? A right swipe that starts in the
  * left half of the screen, travels MOBILE_SWIPE_MIN_DX and stays mostly
  * horizontal. In rtl the mirror image pops.

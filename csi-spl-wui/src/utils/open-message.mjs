@@ -115,12 +115,20 @@ export function placeKind(row, self = '') {
   return to ? to.kind : 'topic'
 }
 
+/** Is the element laid out on screen? (a hidden panel's copy is not) */
+function isShown(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return true
+  const r = el.getBoundingClientRect()
+  return r.width > 0 && r.height > 0
+}
+
 /**
- * Mark every copy of the message once it has rendered, for `hold` ms. A copy
- * that renders DURING the hold is marked too: on a phone the middle card
- * exists (hidden) before the thread pane has drawn its own copy.
+ * Mark the copies of the message the reader can SEE, for `hold` ms from the
+ * first one. A hidden copy is skipped (on a phone the middle card is there,
+ * hidden, long before the thread pane draws the copy on screen), and a copy
+ * that shows DURING the hold is marked too. Gives up after `tries` without one.
  */
-export function markOpened(msgId, { tries = 60, every = 100, hold = OPEN_FOCUS_MS, doc = globalThis.document } = {}) {
+export function markOpened(msgId, { tries = 100, every = 100, hold = OPEN_FOCUS_MS, doc = globalThis.document } = {}) {
   if (!doc || !msgId) return
   const sel = `.msg[data-msg-id="${CSS.escape(String(msgId))}"]`
   const marked = new Set()
@@ -128,11 +136,11 @@ export function markOpened(msgId, { tries = 60, every = 100, hold = OPEN_FOCUS_M
   let until = 0
   const tick = () => {
     for (const el of doc.querySelectorAll(sel)) {
-      if (marked.has(el)) continue
+      if (marked.has(el) || !isShown(el)) continue
       marked.add(el)
       for (const c of OPEN_FOCUS_CLASSES) el.classList.add(c)
     }
-    if (marked.size && !until) until = Date.now() + hold
+    if (!until && marked.size) until = Date.now() + hold
     if (until && Date.now() >= until) {
       for (const el of marked) for (const c of OPEN_FOCUS_CLASSES) el.classList.remove(c)
       return

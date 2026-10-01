@@ -179,3 +179,23 @@ test('markOpened: a copy that renders during the hold (the phone thread pane) is
   await new Promise((r) => setTimeout(r, 80))
   assert.equal(early.set.size + late.set.size, 0)
 })
+
+test('markOpened: a hidden copy is never marked; the visible one is, when it shows (phone root)', async () => {
+  globalThis.CSS = globalThis.CSS || { escape: (s) => s }
+  const mk = (w) => {
+    const set = new Set()
+    return { set, rect: { width: w, height: w }, getBoundingClientRect() { return this.rect }, classList: { add: (c) => set.add(c), remove: (c) => set.delete(c) } }
+  }
+  const hidden = mk(0)
+  const shown = mk(10)
+  const els = [hidden]
+  markOpened(MSG, { doc: { querySelectorAll: () => els }, hold: 30, every: 5 })
+  await new Promise((r) => setTimeout(r, 60))
+  assert.equal(hidden.set.size, 0, 'the hidden middle card is not marked')
+  els.push(shown)
+  await new Promise((r) => setTimeout(r, 15))
+  assert.equal(shown.set.has('open-focus'), true)
+  assert.equal(hidden.set.size, 0)
+  await new Promise((r) => setTimeout(r, 60))
+  assert.equal(shown.set.size, 0, 'cleared after the hold')
+})

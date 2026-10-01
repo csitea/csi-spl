@@ -1769,6 +1769,7 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileHasBelow(state: unknown): boolean
   export function mobileTagState(state: unknown, level: MobileLevel, below?: number): Record<string, unknown>
   export function mobileHistoryStep(tagged: MobileLevel | null, next: MobileLevel): 'tag' | 'push' | 'none'
+  export function mobileInPlaceStep(step: 'tag' | 'push' | 'none', next: MobileLevel, inPlace: boolean): 'tag' | 'push' | 'none'
   export function isMobileBackSwipe(g: { x0: number, y0: number, x1: number, y1: number, width: number, rtl?: boolean }): boolean
   export const MOBILE_OVERLAY_KEY: 'splOverlay'
   export function mobileOverlayOf(state: unknown): number | null

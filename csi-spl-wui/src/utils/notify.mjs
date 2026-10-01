@@ -382,14 +382,9 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
   if (typeof Ctx !== 'function') return false
   const spec = SOUND_LIBRARY[name] || SOUND_LIBRARY[DEFAULT_SOUND]
   let ctx = null
-  try {
-    ctx = new Ctx()
-    /* bug A: a context made outside a click starts `suspended` under the
-       autoplay policy and plays nothing; resuming it is allowed once the
-       page has had any click or key press */
-    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
-      void Promise.resolve(ctx.resume()).catch(() => {})
-    }
+  const drop = () => { if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {}) }
+  /* the notes are scheduled from the clock as it reads when they can play */
+  const schedule = () => {
     const t0 = ctx.currentTime + LEAD_S
     let last = null
     let lastStop = t0
@@ -423,10 +418,26 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
         later(() => { void Promise.resolve(ctx.close()).catch(() => {}) }, closeDelayMs(ctx))
       }
     }
+  }
+  try {
+    ctx = new Ctx()
+    /* bug A: a context made outside a click starts `suspended` under the
+       autoplay policy and plays nothing; resuming it is allowed once the
+       page has had any click or key press.
+       HUM-24 (311427c6, lead from CLE-35004): schedule only once the resume
+       has resolved - notes scheduled from the clock BEFORE it may already lie
+       in the past when it runs, and a short motif then never sounds */
+    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+      void Promise.resolve(ctx.resume())
+        .then(() => schedule())
+        .catch(drop)
+      return true
+    }
+    schedule()
     return true
   } catch {
     /* autoplay policies */
-    if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {})
+    drop()
     return false
   }
 }

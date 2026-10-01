@@ -565,6 +565,30 @@ describe('bug A: a new message signals', () => {
     assert.equal(resumed, 1)
   })
 
+  /* HUM-24 (311427c6, CLE-35004's lead): the clock moved on while the resume
+     was pending, so notes scheduled before it lay in the past - a short motif
+     (pop / plain / chirp) never sounded */
+  it('HUM-24: a suspended context schedules its notes from the clock AFTER the resume', async () => {
+    const { LEAD_S } = await import('../../src/utils/notify.mjs')
+    const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
+    for (const name of SOUND_NAMES) {
+      const starts = []
+      let resolve
+      class Ctx {
+        constructor() { this.state = 'suspended'; this.currentTime = 0; this.destination = {} }
+        resume() { return new Promise((r) => { resolve = () => { this.state = 'running'; this.currentTime = 0.4; r() } }) }
+        close() { return Promise.resolve() }
+        createOscillator() { return { frequency: param(), connect() {}, start(t) { starts.push(t) }, stop() {} } }
+        createGain() { return { gain: param(), connect() {} } }
+      }
+      assert.equal(playSound(name, Ctx, () => {}), true, name)
+      assert.equal(starts.length, 0, `${name}: nothing scheduled on the frozen clock`)
+      resolve()
+      await new Promise((r) => setTimeout(r, 0))
+      assert.ok(starts.length > 0 && starts.every((t) => t >= 0.4 + LEAD_S - 1e-9), `${name}: ${starts}`)
+    }
+  })
+
   /* HUM-24 (311427c6), third report: the bell read "alerts on" in a browser
      that was never asked, or that blocks notifications, and nothing said so */
   it('HUM-24: alertState names why an alert cannot fire', async () => {

@@ -6,7 +6,8 @@
 #   REPL <part> OK|CHANGED|FAIL <detail>
 # Env: BOXHOME (the box PC's home path, rewritten to $HOME in the copied text
 #      files), PERSIST (home dirs that live on the data disk), GIT_NAME,
-#      GIT_EMAIL (optional).
+#      GIT_EMAIL (optional), PARTS (default "home claude tmux git gh";
+#      "home" alone reads no stdin and copies nothing from the box).
 #------------------------------------------------------------------------------
 set -uo pipefail
 : "${BOXHOME:?BOXHOME must be set}" "${PERSIST:?PERSIST must be set}"
@@ -15,13 +16,16 @@ fails=0
 verdict() { echo "REPL $1 $2 ${3:-}"; [[ "$2" == FAIL ]] && fails=$((fails + 1)); return 0; }
 stage=$(mktemp -d) || exit 1
 trap 'rm -rf "$stage"' EXIT
-tar -C "$stage" -xzf - || { verdict copy FAIL "tar from the box"; exit 1; }
+PARTS=" ${PARTS:-home claude tmux git gh} "
+if [[ "$PARTS" != " home " ]]; then
+  tar -C "$stage" -xzf - || { verdict copy FAIL "tar from the box"; exit 1; }
+fi
 
 # --- home: the stateful dirs live on the data disk -----------------------------
 part_home() {
   local d src dst moved=() kept=()
   mountpoint -q /mnt/data || { verdict home FAIL "/mnt/data is not mounted"; return; }
-  [[ -d "$DATA_HOME" ]] || sudo install -d -m 750 -o "$(id -un)" -g "$(id -gn)" "$DATA_HOME" \
+  [[ -d "$DATA_HOME" ]] || sudo -n install -d -m 750 -o "$(id -un)" -g "$(id -gn)" "$DATA_HOME" \
     || { verdict home FAIL "cannot create $DATA_HOME"; return; }
   for d in $PERSIST; do
     src="$HOME/$d" dst="$DATA_HOME/$d"
@@ -30,6 +34,9 @@ part_home() {
       # a recreate: the data copy wins, the fresh boot one is set aside
       if [[ -e "$src" || -L "$src" ]]; then rm -rf "$src.boot-aside"; mv "$src" "$src.boot-aside"; fi
     elif [[ -e "$src" ]]; then
+      # a cross-disk mv copies, then deletes: a read-only tree (the Go module
+      # cache) copies fine and then cannot be deleted, so make it writable first
+      chmod -R u+w "$src" 2>/dev/null
       mv "$src" "$dst" || { verdict home FAIL "mv ~/$d -> $dst"; return; }
     else
       mkdir -p "$dst"
@@ -97,11 +104,11 @@ part_gh() {
     && verdict gh CHANGED "authenticated from ~/.github/token" || verdict gh FAIL "gh auth login --with-token"
 }
 
-part_home
+[[ "$PARTS" == *" home "* ]] && part_home
 rewrite_home
-part_claude
-part_tmux
-part_git
-part_gh
+[[ "$PARTS" == *" claude "* ]] && part_claude
+[[ "$PARTS" == *" tmux "* ]] && part_tmux
+[[ "$PARTS" == *" git "* ]] && part_git
+[[ "$PARTS" == *" gh "* ]] && part_gh
 echo "REPLICA fails=$fails"
 exit $((fails > 0))

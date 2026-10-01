@@ -61,14 +61,22 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/spool-agent/tools/bin:$HOME/.lo
 f=0
 [[ -d "$DIR/.git" ]] || { echo "TOOL repo FAIL no $DIR: run do_satellite_bootstrap first"; exit 1; }
 if [[ "$PARTS" == *" pnpm "* ]]; then
-  # the version the WUI pins (packageManager), never corepack's "latest"
+  # the version the WUI pins (packageManager), never corepack's "latest".
+  # corepack links RELATIVE paths and never replaces a link, so it gets the
+  # real dir (~/.local is a link into the data disk, do_satellite_home_persist)
+  # and a dangling pnpm/pnpx link is removed first
   pm=$(jq -r '.packageManager // ""' "$DIR/csi-spl-wui/package.json" 2>/dev/null); pm=${pm%%+*}
   export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-  if [[ -n "$pm" && "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]]; then echo "TOOL pnpm OK ${pm#pnpm@}"
-  elif [[ "$pm" == pnpm@* ]] && corepack enable --install-directory "$HOME/.local/bin" pnpm >/dev/null 2>&1 \
-      && corepack prepare "$pm" --activate >/dev/null 2>&1 && [[ "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]]; then
-    echo "TOOL pnpm CHANGED corepack ${pm#pnpm@}"
-  else echo "TOOL pnpm FAIL corepack ${pm:-<no packageManager in csi-spl-wui/package.json>}"; f=1; fi
+  if [[ -n "$pm" && "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]]; then
+    echo "TOOL pnpm OK ${pm#pnpm@}"
+  elif [[ "$pm" == pnpm@* ]]; then
+    bindir=$(readlink -f "$HOME/.local/bin"); mkdir -p "$bindir"
+    for l in pnpm pnpx; do [[ -L "$bindir/$l" && ! -e "$bindir/$l" ]] && rm -f "$bindir/$l"; done
+    if corepack enable --install-directory "$bindir" pnpm >/dev/null 2>&1 && corepack prepare "$pm" --activate >/dev/null 2>&1 \
+        && [[ "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]]; then
+      echo "TOOL pnpm CHANGED corepack ${pm#pnpm@}"
+    else echo "TOOL pnpm FAIL corepack $pm"; f=1; fi
+  else echo "TOOL pnpm FAIL no packageManager in csi-spl-wui/package.json"; f=1; fi
 fi
 if [[ "$PARTS" == *" lint "* ]]; then
   if (cd "$DIR/csi-spl-iac" && ./run -a do_install_lint_tools) >/tmp/satellite-lint-tools.log 2>&1; then

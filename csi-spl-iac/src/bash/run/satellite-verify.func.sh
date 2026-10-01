@@ -12,7 +12,8 @@
 # @description   tool of cnf/satellite-replica.tsv, its version on THIS box and
 # @description   on the satellite (missing there = FAIL), and the AI-user setup
 # @description   (home dirs on the data disk, ~/.claude config + skills +
-# @description   memory, tmux, git identity, gh auth, docker, tpl-gen).
+# @description   memory, tmux, git identity, gh auth, docker, tpl-gen, and
+# @description   whether claude is logged in there: the loggedIn flag only).
 # @param GCP_BILLING_ACCOUNT_ID (optional) - lists the budget on the billing
 # @param        account; without it (or without that right) the budget check
 # @param        reads step 059's terraform state instead, and says so
@@ -122,13 +123,14 @@ echo "cfg memory $(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -type d
 [ -n "$(git config --global user.email)" ] && echo "cfg git ok"
 gh auth status -h github.com >/dev/null 2>&1 && echo "cfg gh ok"
 docker info >/dev/null 2>&1 && echo "cfg docker ok"
+[ "$(claude auth status --json 2>/dev/null | jq -r .loggedIn 2>/dev/null)" = true ] && echo "cfg claude-login ok"
 [ -d "$DIR/tpl-gen/src/python/tpl-gen/.venv" ] && echo "cfg tpl-gen ok"
 REMOTE
 )
   for d in $persist; do grep -qx "home $d ok" <<<"$remote" && ok "~/$d lives on the data disk" || ko "~/$d lives on the data disk"; done
   local c
   for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (statusLine, permissions)" tmux:"~/.tmux.conf" \
-    git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
+    git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" claude-login:"claude is logged in (claude auth status)" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
     grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${c#*:}" || ko "${c#*:}"
   done
   local n

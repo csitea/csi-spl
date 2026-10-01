@@ -154,6 +154,13 @@ st="$vm/.claude/settings.json"
 jq -r .statusLine.command "$st" | grep -q "^$vm/.claude/statusline-title.sh$" && pass "the box home path is rewritten to the VM's" || fail "the box home path is not rewritten"
 [[ "$(HOME="$vm" git config --global user.email)" == a@example.com ]] && pass "the git identity is set" || fail "the git identity is not set"
 grep -q '^REPL home FAIL' "$T/repl.out" && grep -q '^REPLICA fails=' "$T/repl.out" && pass "no data disk: home is a FAIL verdict, the other parts still run" || fail "replica verdicts: $(cat "$T/repl.out")"
+o=$(echo NOT-A-TAR | HOME="$vm" BOXHOME=/nonexistent PARTS=home PERSIST=".x" bash "$PROJ_PATH/src/bash/scripts/satellite-replicate-ai-user.sh" 2>&1)
+grep -q 'REPL copy FAIL' <<<"$o" && fail "PARTS=home read stdin" || pass "PARTS=home reads no stdin"
+grep -qE '^REPL (claude|tmux|git|gh) ' <<<"$o" && fail "PARTS=home ran another part" || pass "PARTS=home runs the home part only"
+grep -q 'PARTS=home' "$PROJ_PATH/src/bash/run/satellite-home-persist.func.sh" && ! grep -q 'tar ' "$PROJ_PATH/src/bash/run/satellite-home-persist.func.sh" \
+  && pass "do_satellite_home_persist sends no box file" || fail "do_satellite_home_persist may copy box files"
+grep -q 'claude auth status --json .*jq -r .loggedIn' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" \
+  && pass "verify reads only claude's loggedIn flag" || fail "verify does not check the claude login (loggedIn)"
 nv=$(bash -c "$(_satellite_versions_script)" 2>/dev/null | grep -c '^ver ')
 nr=$(grep -cv '^#' "$PROJ_PATH/cnf/satellite-replica.tsv")
 [[ "$nv" == "$nr" && "$nr" -gt 20 ]] && pass "verify's version script: one ver line per manifest row ($nr)" || fail "verify's version script: $nv ver lines for $nr rows"

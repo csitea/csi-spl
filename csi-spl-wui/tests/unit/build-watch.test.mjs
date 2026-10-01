@@ -15,8 +15,9 @@ const B = 'fedcba9876543210fedcba9876543210fedcba98'
 function el(props = {}) {
   return { getAttribute: () => null, tagName: 'INPUT', type: 'text', value: '', disabled: false, readOnly: false, isContentEditable: false, textContent: '', closest: () => null, getClientRects: () => [{}], ...props }
 }
-function doc({ fields = [], dialogs = [], pending = false } = {}) {
+function doc({ fields = [], dialogs = [], pending = false, active = null } = {}) {
   return {
+    activeElement: active,
     querySelectorAll: (sel) => (sel.includes('role=dialog') ? dialogs : fields),
     querySelector: (sel) => (sel === '[data-pending=true]' && pending ? {} : null),
   }
@@ -76,6 +77,28 @@ describe('build watch: is anything being typed?', () => {
     const combo = (expanded) => el({ value: 'English', getAttribute: (k) => ({ role: 'combobox', 'aria-expanded': expanded })[k] ?? null })
     assert.equal(pageBusy(doc({ fields: [combo('false')] })), false)
     assert.equal(pageBusy(doc({ fields: [combo('true')] })), true)
+  })
+  /* HUM-27 (csi-rel, 2026-09-28): switching the keyboard's typing language
+     bounces the window focus; the focus check found a newer deploy and an
+     EMPTY composer read as idle - the tab reloaded and the keyboard closed */
+  it('HUM-27: the reader in an EMPTY text field is busy (the keyboard is up)', () => {
+    const box = el({ tagName: 'TEXTAREA' })
+    assert.equal(pageBusy(doc({ fields: [box], active: box })), true)
+    assert.equal(decide({ running: A, live: B, busy: pageBusy(doc({ fields: [box], active: box })) }), 'prompt')
+    const input = el()
+    assert.equal(pageBusy(doc({ fields: [input], active: input })), true)
+    const editor = el({ tagName: 'DIV', isContentEditable: true })
+    assert.equal(pageBusy(doc({ active: editor })), true)
+  })
+  it('HUM-27 CONTROL: focus on a button, a checkbox, a disabled / read-only field, a closed combobox or an ignored field is idle', () => {
+    const empty = el({ tagName: 'TEXTAREA' })
+    assert.equal(pageBusy(doc({ fields: [empty], active: el({ tagName: 'BUTTON' }) })), false)
+    assert.equal(pageBusy(doc({ fields: [empty], active: el({ type: 'checkbox' }) })), false)
+    assert.equal(pageBusy(doc({ active: el({ tagName: 'TEXTAREA', disabled: true }) })), false)
+    assert.equal(pageBusy(doc({ active: el({ readOnly: true }) })), false)
+    assert.equal(pageBusy(doc({ active: el({ getAttribute: (k) => ({ role: 'combobox', 'aria-expanded': 'false' })[k] ?? null }) })), false)
+    assert.equal(pageBusy(doc({ active: el({ tagName: 'TEXTAREA', closest: () => ({}) }) })), false)
+    assert.equal(pageBusy(doc({ fields: [empty], active: null })), false)
   })
 })
 

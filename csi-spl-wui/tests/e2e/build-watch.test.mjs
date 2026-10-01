@@ -178,7 +178,9 @@ async function run(browser, base, width, touch) {
   await ta.evaluate((t) => t.focus())
   await p.keyboard.down('Control'); await p.keyboard.press('a'); await p.keyboard.up('Control')
   await p.keyboard.press('Backspace')
-  if (touch) await p.evaluate(() => document.activeElement && document.activeElement.blur())
+  /* HUM-27: a FOCUSED empty box still holds the reader (the keyboard is up),
+     so the reload waits for the focus to leave it, on every width */
+  await p.evaluate(() => document.activeElement && document.activeElement.blur())
   const after = await waitReload(p, 10000)
   check(`${tag}: the draft emptied -> the tab reloads by itself`, after)
   await ctx.close()

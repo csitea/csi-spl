@@ -66,6 +66,20 @@ function holdsText(el) {
   return !el.disabled && !el.readOnly && String(el.value || '') !== ''
 }
 
+/** The focused element takes typed text: a text field, textarea or editor. */
+function typingIn(el) {
+  if (!el || el.closest?.('[data-build-watch-ignore]')) return false
+  if (el.isContentEditable) return true
+  const tag = String(el.tagName || '').toLowerCase()
+  if (tag !== 'textarea' && tag !== 'input') return false
+  if (el.disabled || el.readOnly) return false
+  if (tag === 'textarea') return true
+  const type = String(el.type || 'text').toLowerCase()
+  if (/^(hidden|checkbox|radio|button|submit|reset|range|color|file|image)$/.test(type)) return false
+  // a closed combobox (the language switcher) is a picker, not a keyboard
+  return !(el.getAttribute?.('role') === 'combobox' && el.getAttribute('aria-expanded') !== 'true')
+}
+
 function shown(el) {
   return Boolean(el && el.getClientRects && el.getClientRects().length > 0)
 }
@@ -74,12 +88,20 @@ function shown(el) {
  * Is anything on the page that a reload would lose? Read from the DOM, so it
  * covers every composer, editor and form without each one registering:
  *   - a text field / textarea / contenteditable with content
+ *   - a text field the reader is IN, even an empty one (HUM-27): the
+ *     on-screen keyboard is up. Switching its typing language (Gboard's
+ *     input-method picker, Samsung's language list) takes the window focus
+ *     and gives it back, the window `focus` asks /build.json, and on a
+ *     newer deploy an empty composer read as idle: the tab reloaded under
+ *     the finger and the keyboard was gone ("the keyboard disappears when I
+ *     switch the language")
  *   - an open dialog (UiDialog, pickers, sheets: role=dialog|alertdialog)
  *   - a message still in flight (a pending row: data-pending="true")
  * @param {Document} [doc]
  */
 export function pageBusy(doc = globalThis.document) {
   if (!doc) return false
+  if (typingIn(doc.activeElement)) return true
   for (const el of doc.querySelectorAll('textarea, input, [contenteditable=""], [contenteditable="true"]')) {
     if (holdsText(el)) return true
   }

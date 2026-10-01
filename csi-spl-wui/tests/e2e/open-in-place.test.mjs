@@ -25,6 +25,7 @@ const REPLY = '33333333-3333-4333-8333-333333333333'
 const ALERT = '66666666-6666-4666-8666-666666666666'
 const DM = '77777777-7777-4777-8777-777777777777'
 const UNKNOWN = '0badc0de-0bad-4bad-8bad-0badc0de0bad'
+const LOBBY_REPLY = '55555555-5555-4555-8555-555555555555'
 const WIDTHS = [{ width: 1440, height: 900 }, { width: 390, height: 844, isMobile: true, hasTouch: true }]
 
 const results = []
@@ -121,6 +122,26 @@ try {
     await p.screenshot({ path: `${SHOTS}/${W}-notice.png` })
     const sw = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`${W} 11 no horizontal scroll`, sw <= 0, sw)
+    /* 12 (lane B repro): one channel's topic open, then a reply in ANOTHER
+       channel from the Flow list - the old target must not strip ?topic= */
+    if (W > 820) {
+      await p.goto(server.base + '/', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+      await p.waitForSelector('[data-testid=sidebar-tab-flow]', { visible: true, timeout: NAV_TIMEOUT })
+      await p.click('[data-testid=sidebar-tab-flow]')
+      const entry = (id) => `[data-testid=left-list] [data-testid=left-entry][data-msg-id="${id}"]`
+      await p.waitForSelector(entry(ALERT), { visible: true, timeout: NAV_TIMEOUT })
+      await p.click(entry(ALERT))
+      await p.waitForFunction(() => location.pathname.endsWith('/channel/alerts'), { timeout: 15000 }).catch(() => null)
+      await markedInView(p, ALERT)
+      await p.click(entry(LOBBY_REPLY))
+      await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 15000 }).catch(() => null)
+      /* the open path is the Flow list's own; this pins that the thread opens and stays */
+      const shown = await p.waitForFunction((id) => [...document.querySelectorAll(`aside.live-pane .msg[data-msg-id="${id}"], .topic-pane .msg[data-msg-id="${id}"]`)].some((el) => el.getBoundingClientRect().height > 0),
+        { timeout: 15000, polling: 100 }, LOBBY_REPLY).then(() => true).catch(() => false)
+      await new Promise((r) => setTimeout(r, 1000))
+      url = new URL(p.url())
+      ok(`${W} 12 Flow: #alerts then a #lobby reply - ?topic= kept, the reply shown in its thread`, url.searchParams.get('topic') === TOPIC && shown, { url: url.href, shown })
+    }
     await p.close()
   }
   console.log(`  screenshots ${SHOTS}`)

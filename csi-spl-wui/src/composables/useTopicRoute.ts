@@ -93,6 +93,12 @@ export function useTopicFeedClose(opts: {
 
   function releaseStaleTopic() {
     if (releasing || !opts.ready()) return
+    /* CLE-77882: only while this page IS the current route. During a
+       navigation Nuxt keeps the old page mounted, still `ready` over its own
+       list, and the new place's ?topic= opening would make it close that
+       topic and strip the query of the NEW route (lane B repro: #alerts,
+       then a #lobby reply from Flow). The new page judges its own list. */
+    if (router.currentRoute.value.path !== route.path) return
     const plan = topicFeedRelease(openTopicId(), opts.messages(), route.query)
     if (!plan.close) return
     releasing = true

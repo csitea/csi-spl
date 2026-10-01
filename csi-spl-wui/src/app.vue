@@ -7,8 +7,6 @@
   <ClientOnly><SettingsDialog /></ClientOnly>
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
-  <!-- owner 2026-10-01: release-time test, a black dot mid-screen on mobile only -->
-  <div class="release-dot" data-test="release-dot" aria-hidden="true" />
 </template>
 
 <script setup lang="ts">

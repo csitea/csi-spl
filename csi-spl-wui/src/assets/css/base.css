@@ -122,22 +122,3 @@ a:has(> .ui-icon) > .ui-icon {
     transition-duration: 0.01ms !important;
   }
 }
-
-/* owner 2026-10-01: release-time test. A black dot mid-screen on mobile only;
-   pointer-events: none so it never blocks a tap. */
-.release-dot { display: none; }
-@media (max-width: 820px) {
-  .release-dot {
-    display: block;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 120px;
-    height: 120px;
-    margin: -60px 0 0 -60px;
-    border-radius: 50%;
-    background: #000;
-    pointer-events: none;
-    z-index: 2147483000;
-  }
-}

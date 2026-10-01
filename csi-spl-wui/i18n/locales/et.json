@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Ei teavitatud, nad ei saa seda lugeda: {ids}",
-    "poke_failed": "Ei õnnestunud teavitada: {ids}. Sinu tekst on salvestatud."
+    "poke_failed": "Ei õnnestunud teavitada: {ids}. Sinu tekst on salvestatud.",
+    "sent_direct": "Saadetud {ids} otsesõnumina: ei ole selle kanali liige"
   },
   "issues_mobile": {
     "filters": "Filtrid",

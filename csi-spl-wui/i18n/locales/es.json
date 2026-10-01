@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "No avisados, no pueden leer esto: {ids}",
-    "poke_failed": "No se pudo avisar a {ids}. Tu texto está guardado."
+    "poke_failed": "No se pudo avisar a {ids}. Tu texto está guardado.",
+    "sent_direct": "Enviado a {ids} como mensaje directo: no es miembro de este canal"
   },
   "issues_mobile": {
     "filters": "Filtros",

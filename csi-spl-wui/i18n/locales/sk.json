@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Neupovedomení, nemôžu to čítať: {ids}",
-    "poke_failed": "Nepodarilo sa upovedomiť: {ids}. Váš text je uložený."
+    "poke_failed": "Nepodarilo sa upovedomiť: {ids}. Váš text je uložený.",
+    "sent_direct": "Odoslané {ids} ako priama správa: nie je členom tohto kanála"
   },
   "issues_mobile": {
     "filters": "Filtre",

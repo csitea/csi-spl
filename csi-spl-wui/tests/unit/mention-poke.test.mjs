@@ -12,6 +12,7 @@ import {
   pokeExcerpt,
   pokeTargets,
   splitByAccess,
+  splitPokes,
 } from '../../src/utils/mention-poke.mjs'
 
 describe('pokeTargets (K3)', () => {
@@ -108,7 +109,7 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
   const src = (f) => readFileSync(join(wui, f), 'utf8')
   it('channel and DM sends: after the ack, the DM peer / dispatch target skipped', () => {
     const s = src('src/stores/channel.ts')
-    assert.ok(s.indexOf('mentionPoke.poke(') > s.indexOf('await sendWithResend(() => client.send(frame))'))
+    assert.ok(s.lastIndexOf('mentionPoke.poke(') > s.indexOf('await sendWithResend(() => client.send(frame))'))
     assert.match(s, /addressee: asDm \? peerId : \(frame\.to \|\| ''\)/)
   })
   it('lobby and topic panes: where comes from the topic rows, unknown tells nobody', () => {
@@ -130,10 +131,44 @@ describe('every store path pokes after the store succeeded (K1, K3)', () => {
     assert.match(s, /poke\(\{ text, where: \{ issue: true, issueKey: issue\.key \} \}\)/)
     assert.match(s, /issueKey: sub\.key/)
   })
-  it('the mock tenant tells nobody; the strings exist', () => {
-    assert.match(src('src/composables/useMentionPoke.ts'), /if \(api\.mock\) return/)
+  it('the mock tenant tells nobody (only the direct notice, CLE-77852); the strings exist', () => {
+    const s = src('src/composables/useMentionPoke.ts')
+    const mock = (s.match(/if \(api\.mock\) \{[\s\S]*?\n {4}\}/) || [''])[0]
+    assert.match(mock, /return none/)
+    assert.doesNotMatch(mock, /sendDm|warn\(/)
     const en = JSON.parse(src('i18n/locales/en.json'))
     assert.ok(en.mention.not_told.includes('{ids}'))
     assert.ok(en.mention.poke_failed.includes('{ids}'))
+    assert.ok(en.mention.sent_direct.includes('{ids}'))
+  })
+})
+
+describe('splitPokes (CLE-77852: a seated agent outside the channel)', () => {
+  const acc = channelAccess({ default: false, members: ['HUM-1'], agents: [{ id: 'CLE-2', box: 'box-desk' }] })
+  const seated = ['CLE-2', 'CLE-001', 'HUM-4']
+  it('a member agent is told as before', () => {
+    assert.deepEqual(splitPokes(['CLE-2'], acc, seated), { ok: ['CLE-2'], direct: [], refused: [] })
+  })
+  it('a seated non-member agent is told by DM, not refused', () => {
+    assert.deepEqual(splitPokes(['CLE-001'], acc, ['CLE-001@box-desk']), { ok: [], direct: ['CLE-001'], refused: [] })
+  })
+  it('an agent not seated in the workspace keeps the refusal', () => {
+    assert.deepEqual(splitPokes(['CLE-9'], acc, seated), { ok: [], direct: [], refused: ['CLE-9'] })
+  })
+  it('a person outside the channel keeps the refusal, seated or not', () => {
+    assert.deepEqual(splitPokes(['HUM-4', 'GST-6'], acc, seated), { ok: [], direct: [], refused: ['HUM-4', 'GST-6'] })
+  })
+  it('mixed, in mention order', () => {
+    assert.deepEqual(splitPokes(['CLE-001', 'HUM-1', 'CLE-9', 'CLE-2'], acc, seated), { ok: ['HUM-1', 'CLE-2'], direct: ['CLE-001'], refused: ['CLE-9'] })
+  })
+  it('only a channel: a DM or an unknown place never pokes an outsider', () => {
+    assert.deepEqual(splitPokes(['CLE-001'], { kind: 'dm', ends: ['HUM-1', 'CLE-2'] }, seated), { ok: [], direct: [], refused: ['CLE-001'] })
+    assert.deepEqual(splitPokes(['CLE-001'], null, seated), { ok: [], direct: [], refused: ['CLE-001'] })
+  })
+  it('an open channel tells everyone, nobody goes direct', () => {
+    assert.deepEqual(splitPokes(['CLE-001', 'CLE-9'], { kind: 'open' }, seated), { ok: ['CLE-001', 'CLE-9'], direct: [], refused: [] })
+  })
+  it('no roster yet: refused as before', () => {
+    assert.deepEqual(splitPokes(['CLE-001'], acc, undefined), { ok: [], direct: [], refused: ['CLE-001'] })
   })
 })

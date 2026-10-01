@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Nie powiadomiono, nie mają dostępu do tego: {ids}",
-    "poke_failed": "Nie udało się powiadomić: {ids}. Twój tekst jest zapisany."
+    "poke_failed": "Nie udało się powiadomić: {ids}. Twój tekst jest zapisany.",
+    "sent_direct": "Wysłano do {ids} jako wiadomość bezpośrednią: nie jest członkiem tego kanału"
   },
   "issues_mobile": {
     "filters": "Filtry",

@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Ei ilmoitettu, he eivät voi lukea tätä: {ids}",
-    "poke_failed": "Ilmoitus ei mennyt perille: {ids}. Tekstisi on tallennettu."
+    "poke_failed": "Ilmoitus ei mennyt perille: {ids}. Tekstisi on tallennettu.",
+    "sent_direct": "Lähetetty kohteelle {ids} yksityisviestinä: ei tämän kanavan jäsen"
   },
   "issues_mobile": {
     "filters": "Suodattimet",

@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Nu au fost anunțați, nu pot citi asta: {ids}",
-    "poke_failed": "Nu am putut anunța: {ids}. Textul tău este salvat."
+    "poke_failed": "Nu am putut anunța: {ids}. Textul tău este salvat.",
+    "sent_direct": "Trimis către {ids} ca mesaj direct: nu este membru al acestui canal"
   },
   "issues_mobile": {
     "filters": "Filtre",

@@ -88,6 +88,24 @@ export function splitByAccess(ids, access) {
 }
 
 /**
+ * CLE-77852 (owner bug t1 e6c13767): an agent SEATED in this workspace (a box
+ * agent of the tenant, `seated` = the roster's ids) that is not a member of a
+ * members-only channel is still told, by the same DM poke, instead of being
+ * refused. Channels stay dispatcher-only: the orchestrator is in none of them
+ * and must still answer an @-mention. People and unseated agents keep K4's
+ * refusal, and a DM or an unknown place never pokes an outsider.
+ *
+ * @returns {{ ok: string[], direct: string[], refused: string[] }}
+ */
+export function splitPokes(ids, access, seated) {
+  const { ok, refused } = splitByAccess(ids, access)
+  if (!access || access.kind !== 'channel') return { ok, direct: [], refused }
+  const seat = new Set((Array.isArray(seated) ? seated : []).map((x) => String(x || '').split('@')[0]))
+  const direct = refused.filter((id) => !isHuman(id) && seat.has(id))
+  return { ok, direct, refused: refused.filter((id) => !direct.includes(id)) }
+}
+
+/**
  * The access of a channel from its member list (GET /v1/channels/{id}/members,
  * spool-client parseMemberList). A default channel is everyone in the tenant.
  */

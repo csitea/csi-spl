@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Inte meddelade, de kan inte läsa detta: {ids}",
-    "poke_failed": "Kunde inte meddela {ids}. Din text är sparad."
+    "poke_failed": "Kunde inte meddela {ids}. Din text är sparad.",
+    "sent_direct": "Skickat till {ids} som direktmeddelande: inte medlem i den här kanalen"
   },
   "issues_mobile": {
     "filters": "Filter",

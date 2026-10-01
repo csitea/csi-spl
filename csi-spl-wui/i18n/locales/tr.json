@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Bildirilmedi, bunu okuyamıyorlar: {ids}",
-    "poke_failed": "{ids} bilgilendirilemedi. Metniniz kaydedildi."
+    "poke_failed": "{ids} bilgilendirilemedi. Metniniz kaydedildi.",
+    "sent_direct": "{ids} kullanıcısına doğrudan mesaj olarak gönderildi: bu kanalın üyesi değil"
   },
   "issues_mobile": {
     "filters": "Filtreler",

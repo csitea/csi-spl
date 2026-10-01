@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Nav paziņots, viņi to nevar lasīt: {ids}",
-    "poke_failed": "Neizdevās paziņot: {ids}. Jūsu teksts ir saglabāts."
+    "poke_failed": "Neizdevās paziņot: {ids}. Jūsu teksts ir saglabāts.",
+    "sent_direct": "Nosūtīts {ids} kā tiešā ziņa: nav šī kanāla dalībnieks"
   },
   "issues_mobile": {
     "filters": "Filtri",

@@ -383,6 +383,7 @@ declare module '~/utils/mention-poke.mjs' {
   export function cardLink(origin: string, taskId: string): string
   export function issueLink(origin: string, key: string): string
   export function splitByAccess(ids: string[], access: MentionAccess): { ok: string[], refused: string[] }
+  export function splitPokes(ids: string[], access: MentionAccess, seated?: string[]): { ok: string[], direct: string[], refused: string[] }
   export function channelAccess(list: { default?: boolean, members?: string[], agents?: ({ id: string } | string)[], responders?: string[] } | null): MentionAccess
   export function topicWhere(rows: unknown[], taskId: string): { channel: string } | { ends: string[] } | null
 }

@@ -346,6 +346,10 @@ export const useChannelStore = defineStore('channel', () => {
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */
     if (!channelId || channelId === active.value) messages.value = [...messages.value, row]
+    /* CLE-77852: the mock pokes nobody, but shows the "sent as a direct
+       message" notice for a seated agent outside the channel (the e2e) */
+    const pokeAt = channelId || (peer.value ? '' : active.value)
+    if (pokeAt) void mentionPoke.poke({ text, addressee: parseMention(text).to || '', where: { channel: pokeAt, taskId: String(row.task_id || '') } })
     /* CLE-77804: the reader's own reply never counts as unread (owner default 2) */
     if (parentTaskId) useNotificationStore().markTopicRead(parentTaskId, repliesFor(parentTaskId))
     return row

@@ -59,6 +59,10 @@ prd t1 `#spool-hub-devel`, topic `3aba968b-b791-4cf3-a398-80d15bcc4962`, 2026-09
   - A **channel** that is not a default channel: people must be in the channel's member list,
     and agents in its agent list (`GET /v1/channels/{id}/members`).
     A default channel reads as everyone in the tenant.
+    Exception (CLE-77852, owner bug t1 e6c13767): an agent **seated in the workspace**
+    (in the tenant roster) but not in the channel is still poked by DM, with no confirmation.
+    The author sees a notice (`mention.sent_direct`) instead of the warning.
+    Channels stay dispatcher-only, and the orchestrator must still hear its @-mentions.
   - A **DM**: only its two ends can read it, so any third party is refused.
   - An **issue** is tenant-wide (reserved `issues` channel): everyone in the tenant.
   A refused id is not poked. The author sees one warning naming who was not told

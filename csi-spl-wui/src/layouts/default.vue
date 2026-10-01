@@ -109,6 +109,12 @@
     <ClientOnly>
       <DeleteUndoToast v-if="deleteUndo.toast.value" />
     </ClientOnly>
+    <!-- CLE-77852: "Sent to <agent> as a direct message: not a member of
+         this channel" after an @-mention of a seated non-member agent; eager
+         for the same reason (CLE-77840) -->
+    <ClientOnly>
+      <MentionDirectToast v-if="mentionDirect.note.value" />
+    </ClientOnly>
     <!-- 714c7028: "Merge topic (N messages) into Y?" when a topic is dropped
          on a topic; eager for the same reason (CLE-77840) -->
     <ClientOnly>
@@ -151,6 +157,7 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
+import { useMentionDirectNote } from '~/composables/useMentionPoke'
 
 const topic = useTopicStore()
 /* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
@@ -195,6 +202,7 @@ const move = useMove()
 /* SPL-1264: the "Archived · Undo" snackbar this tab shows after archiving a card */
 const archiveUndo = useArchiveUndo()
 const deleteUndo = useDeleteUndo()
+const mentionDirect = useMentionDirectNote()
 let offDeleted = () => {}
 let offTopic = () => {}
 /* SPL-996: a focusin chooses a pane only right after the reader's own

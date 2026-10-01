@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Not told, they cannot read this: {ids}",
-    "poke_failed": "Could not tell {ids}. Your text is saved."
+    "poke_failed": "Could not tell {ids}. Your text is saved.",
+    "sent_direct": "Sent to {ids} as a direct message: not a member of this channel"
   },
   "issues_mobile": {
     "filters": "Filters",

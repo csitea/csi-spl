@@ -1214,7 +1214,8 @@
   },
   "mention": {
     "not_told": "Niet ingelicht, zij kunnen dit niet lezen: {ids}",
-    "poke_failed": "Kon {ids} niet inlichten. Je tekst is opgeslagen."
+    "poke_failed": "Kon {ids} niet inlichten. Je tekst is opgeslagen.",
+    "sent_direct": "Naar {ids} gestuurd als direct bericht: geen lid van dit kanaal"
   },
   "issues_mobile": {
     "filters": "Filters",

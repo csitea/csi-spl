@@ -103,8 +103,18 @@ func TestBoxRedialsAfterHubRedeploy(t *testing.T) {
 			if out.Delivery != "queued" {
 				t.Fatalf("the new hub process should not know box-b yet: delivery %q, want queued", out.Delivery)
 			}
+			// The redial drains in ~1 s (max 1.04 s over 360 runs at up to
+			// 48-way parallel load), yet a lane saw it trip a flat 3 s inside
+			// the full -race suite under fleet load (CLE-77797). The
+			// window only bounds how long a PASS may take - the loop exits on
+			// delivery - so the redial case waits 15 s. The stranded case keeps
+			// 3 s: three redial periods of silence are its proof.
+			window := 3 * time.Second
+			if tc.want {
+				window = 15 * time.Second
+			}
 			got := false
-			for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			for deadline := time.Now().Add(window); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 				if len(inbox(t, b, "CLE-07")) == 2 {
 					got = true
 					break

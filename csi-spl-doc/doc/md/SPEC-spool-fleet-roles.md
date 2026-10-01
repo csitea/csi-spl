@@ -185,6 +185,79 @@ sequenceDiagram
 - Setting it all up on a machine: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md)
   (`do_spl_dispatch_setup`, verified by `do_spl_dispatch_check`).
 
+### 4.1 Across machines: the fleet lease (CLE-77911)
+
+Owner decision "a" (t1 5fe56859, 2026-10-01): exactly ONE orchestrator and
+ONE master dispatcher act at a time across BOTH machines, the box PC and the
+satellite ([SYS.md section 1](SYS.md)). The box PC's trio leads while it is
+on. When it goes silent (night, reboot), the satellite's trio takes over
+within about 3 minutes, and hands back when the PC returns. Later the
+priority flips to the satellite by one config change.
+
+| role | box PC | satellite |
+|---|---|---|
+| orchestrator | `CLE-001` | `CLE-101` |
+| master dispatcher | `CLE-002` | `CLE-102` |
+| failover dispatcher (local) | `CLE-003` | `CLE-103` |
+
+**Where the lease lives: the hub**, not a bucket. Both machines already reach
+the hub (the satellite has no public IP, but reaches it through NAT), and the
+box key's pin authenticates every write. The hub stamps the row with ITS
+clock, so the two machines' clocks never have to agree. The
+compare-and-set is one SQL statement. A bucket would have needed a new GCP
+resource, and its age would have come from each machine's own clock.
+
+- The row: rdb `0094_fleet_leases`, one per (tenant, fleet, role), with
+  `holder = <machine>:<agent id>`, the writing box (from the authenticated
+  hello, never from the frame), `gen`, and `renewed_at`.
+- The primitive: the box frame `lease` (`lease_op get | cas`), CLI
+  `spool lease --fleet <f> --role <r> [--holder <machine>:<id> --if-gen <n>]`.
+  A `cas` writes only while the row's `gen` is still the one the caller read.
+  A lost race answers `won=false` with the current row, not an error.
+- The rule lives in the loop, not in the hub: `do_spl_dispatch_lease
+  LEASE_CMD=fleet`, one loop per machine, every 60 s, for role `orch` and role
+  `dispatch`:
+
+| this machine | does |
+|---|---|
+| no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`) | writes nothing; a lease it held goes stale |
+| holds it | renews; the local master/failover order still applies inside the machine |
+| holder silent > 180 s on the hub's clock | takes over |
+| ranks before the holder's machine in `LEASE_PRIORITY` | takes it back (the handback) |
+| otherwise | stands by |
+
+- **Only the holder acts.** The loop mirrors the result into the local lease
+  files the agents read: `$SPOOL_ROOT/dispatch/lease` (dispatch) and
+  `lease.orch` (orchestrator), holding `<id> <epoch>` for a local holder and
+  `<machine>:<id> <epoch>` for a remote one. **An agent acts only while the
+  file names its own id AND is at most 180 s old.** Otherwise it stands by:
+  it reads and stays ready, but does not route, spawn or post. The age rule
+  covers a stopped loop: its machine's file goes stale at about the moment the
+  hub row does, so a machine that stops renewing also stands its own agents
+  down, and the other machine takes over (no window with two actors, beyond
+  the two machines' clock skew).
+- Every holder change is logged once to `lease.log` (`FLEET <role>: <old> ->
+  <new>`). The agent it activates hears `FLEET LEASE <role>: you are now
+  ACTIVE`. The agent it stands down hears `... STANDBY`. Each is told once.
+- **A hub this machine cannot reach** is logged once (`HUB-UNREACHABLE`). A
+  holder that cannot renew for longer than 180 s demotes ITSELF locally
+  (mirror `unknown:hub-unreachable`), because by then the other machine may
+  already act.
+- On a standby machine, the unanswered sweep sends nothing: the holder's
+  machine sends it, and sending from both would deliver every item twice. Its
+  gap notes go to its own orchestrator.
+- Opt-in: `lease.conf` with `LEASE_FLEET`, `LEASE_MACHINE` (default
+  `$SPOOL_BOX_TAG`), `LEASE_PRIORITY` (e.g. `pc,sat`, preferred first),
+  `LEASE_ENV`, `LEASE_TENANT` (the workspace whose hub row holds the lease;
+  both machines' desk boxes must be pinned in it) and `LEASE_DESK_BOX` (default
+  `box-desk`). With `LEASE_FLEET` set, `ensure` runs the fleet loop INSTEAD of
+  renew + watch. **Flipping the priority to the satellite** = `LEASE_PRIORITY`
+  `sat,pc` in BOTH machines' `lease.conf`.
+- Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` simulates two
+  machines against a hub stub (CAS, expiry at 181 s, priority handback, local
+  order, lost race, unreachable hub, hub clock). The hub side is tested by
+  `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
+
 ## 5. What this replaced
 
 Before 2026-10-01 the orchestrator read every message itself, a standing first
@@ -213,6 +286,7 @@ end to end in every seated workspace.
 | a channel created after the subscribe | done 2026-10-01: `do_spl_dispatch_tick` on every desk reconcile tick re-runs the subscribe (one read per workspace, no write when nothing changed) and reports a changed gap set: `DISPATCH` lines in the cron log; on prd one `dispatch-gaps` note to the lease holder per new `GAP`, the orchestrator once when it is still open after an hour; test workspaces (`<spool root>/dispatch/test-workspaces`, shared with the sweep) left out |
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
+| one lease across the box PC and the satellite (4.1) | code on trunk 2026-10-01 (rdb 0094 applied dev + prd, hub `lease` frame, `LEASE_CMD=fleet`); the satellite trio is seated once the satellite's users exist (lane CLE-77894) |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.3.6 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->
+<!-- version: 0.4.0 · updated: 2026-10-01 · last-edit: 2026-10-01T19:30:00Z -->

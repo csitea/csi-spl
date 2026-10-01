@@ -295,11 +295,37 @@ ssh -t satellite tmux new -A -s main
 | ~14:15 | "destroy and recreate it ... verify everything once again": done, 15/15 PASS |
 | ~14:47 | keep it on; document it here; next, an agent replicates the home box's AI-user setup onto it |
 
-### 1.7 Known gaps and next steps
+### 1.7 The satellite trio and the fleet lease
+
+Owner decision "a" (t1 5fe56859, 2026-10-01): exactly one orchestrator and one
+master dispatcher act at a time across the box PC and the satellite. The
+design is [SPEC-spool-fleet-roles.md section 4.1](SPEC-spool-fleet-roles.md),
+and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers.md).
+
+| | box PC | satellite |
+|---|---|---|
+| orchestrator | `CLE-001` | `CLE-101` |
+| master dispatcher | `CLE-002` | `CLE-102` |
+| failover dispatcher | `CLE-003` | `CLE-103` |
+| leads | while it is on (priority 1 today) | when the PC is silent > 180 s; hands back when the PC returns |
+
+- The lease row is on the hub (rdb 0094), which the satellite reaches through
+  Cloud NAT; there is no bucket and no inbound path.
+- Each machine runs one fleet loop (`do_spl_dispatch_lease LEASE_CMD=fleet`),
+  kept alive by its desk reconcile cron.
+- The satellite trio runs as the agent user, in auto mode on the current
+  model, with the terminal mirror on. It is seated as prd desks in every
+  workspace the PC trio serves, with the same channel subscriptions. Its desk
+  box id must differ from the PC's in each workspace.
+- Phasing out the PC is one config change: `LEASE_PRIORITY=sat,pc` on both
+  machines (HOWTO 6.4).
+
+### 1.8 Known gaps and next steps
 
 - T023: the owner logs in to claude on the satellite (`ssh satellite`, then `claude`).
 - T024: agents spawned there; a desk seated in a test workspace that answers
-  a post. This needs `install.sh` without `--no-seat`, `SPOOL_HUB_URL` and the
+  a post. The satellite trio (1.7) waits for the agent user on the satellite
+  (lane CLE-77894), then its desks and the live lease drill. This needs `install.sh` without `--no-seat`, `SPOOL_HUB_URL` and the
   tenant admin pin.
 - The AI-user replication: lane CLE-77894.
 - The bootstrap is bash roles, not ansible (owner round 1 asked for ansible).

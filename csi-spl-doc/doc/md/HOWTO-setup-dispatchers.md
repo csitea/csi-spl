@@ -149,8 +149,8 @@ cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_check
 | `<id> desk-reply permission` | the settings file is missing, or newer than the session (3.3) |
 | `<id> desks` | the workspaces it has no seat in |
 | `<id> unread` | more than `DISPATCH_UNREAD_MAX` (default 20) messages wait in its inbox |
-| `lease` | the holder is not a dispatcher, or the lease is older than 180 s |
-| `lease renew loop` / `lease watch loop` | that loop is not running: `LEASE_CMD=ensure` (4.3) |
+| `lease` | the holder is not a dispatcher, or the lease is older than 180 s (fleet mode: a fresh holder on the other machine is `ok`, this one stands by) |
+| `lease renew loop` / `lease watch loop` (fleet mode: `lease fleet loop`) | that loop is not running: `LEASE_CMD=ensure` (4.3) |
 | `<workspace> #<channel>` | a dispatcher is not subscribed there, or the orchestrator is: run 3.4 (`DISPATCH_CHECK_SUBS=0` skips these rows) |
 
 ### 4.2 Show the lease
@@ -204,9 +204,73 @@ loop back; the next watch tick logs `handback` and sends `STANDBY`.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 ```
 
-## 6. Undo
+## 6. Two machines: one fleet lease
 
-### 6.1 Stop the lease on this box
+Do this when a second machine (the satellite) runs its own trio and only ONE
+orchestrator and ONE master dispatcher may act across both. The design is
+[SPEC section 4.1](SPEC-spool-fleet-roles.md). Run 6.1 and 6.2 on EACH
+machine, with that machine's own ids and name; the fleet name, the priority
+list and the workspace are the same on both.
+
+### 6.1 Requirements
+
+- Every step of sections 2 to 4 is done on this machine.
+- This machine's desk box (`box-desk`, or `LEASE_DESK_BOX`) is pinned in the
+  workspace that holds the lease row (`DISPATCH_LEASE_TENANT`). The two
+  machines need different desk box ids in that workspace.
+- `jq` is installed.
+
+### 6.2 Write the fleet lines into lease.conf
+
+The machine names are your own: this machine's `DISPATCH_MACHINE`, and both
+machines in `DISPATCH_PRIORITY`, the preferred one first. The example makes
+the box PC (`pc`) lead and the satellite (`sat`) stand by.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && DRY_RUN=0 DISPATCH_FLEET=main DISPATCH_MACHINE=pc DISPATCH_PRIORITY=pc,sat DISPATCH_LEASE_TENANT=<workspace> ./run -a do_spl_dispatch_setup
+```
+
+From the next cron tick, `ensure` runs the fleet loop instead of renew +
+watch. A later re-run of `do_spl_dispatch_setup` without `DISPATCH_FLEET`
+keeps the fleet lines, so this machine never leaves fleet mode silently.
+
+### 6.3 Show the fleet lease
+
+Prints one `<role> <holder> <age-seconds> <gen>` line per role, read from the
+hub.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease
+```
+
+### 6.4 Flip the priority
+
+To make the satellite lead, set `LEASE_PRIORITY=sat,pc` in BOTH machines'
+`<spool root>/dispatch/lease.conf`, or re-run 6.2 on both with
+`DISPATCH_PRIORITY=sat,pc`. The satellite takes both roles on its next tick.
+
+### 6.5 The drill: takeover and handback
+
+On the box PC, stop its fleet loop. Within 180 to 240 s the satellite's log
+shows `takes over from pc:...`, and its orchestrator and master hear `you are
+now ACTIVE`. Post one test message in each channel, and check that each one is
+answered once, by the satellite.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease
+```
+
+Then start it again. On its first tick, the PC takes both roles back, and the
+satellite's agents hear `STANDBY`. The next test post is answered once, by the
+PC.
+
+```bash
+cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
+```
+
+## 7. Undo
+
+### 7.1 Stop the lease on this box
 
 Stops both loops by their pid files; removing `lease.conf` keeps the cron from
 starting them again. Never stop them with `pkill -f <pattern>`: the pattern
@@ -216,4 +280,4 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
-<!-- version: 0.2.2 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->
+<!-- version: 0.3.0 · updated: 2026-10-01 · last-edit: 2026-10-01T19:30:00Z -->

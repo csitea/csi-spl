@@ -50,6 +50,10 @@ else
   pass "no web port, tag, LB or DNS resource in 060"
 fi
 
+grep -qE '^\s*access_config' "$VM"/*.tf && fail "060 gives the VM a public IP (access_config)" \
+  || pass "060 VM has no public IP (outbound via Cloud NAT)"
+grep -qE '^resource "google_compute_router_nat"' "$VM"/*.tf && pass "060 has Cloud NAT for outbound" || fail "060 has no Cloud NAT: the VM cannot reach the internet"
+
 # --- 3. no key in state --------------------------------------------------------
 if grep -nE 'resource "(tls_private_key|google_service_account_key|local_sensitive_file|random_password)"' "$VM"/*.tf "$BUD"/*.tf; then
   fail "a state-borne key resource appears in 059/060"

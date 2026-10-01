@@ -15,6 +15,7 @@ locals {
 }
 
 resource "google_compute_disk" "data" {
+  # checkov:skip=CKV_GCP_37: Google-managed encryption; a CSEK would put a raw key in tfvars or state (R14)
   name   = var.data_disk_name
   type   = var.data_disk_type
   size   = var.data_disk_size_gb
@@ -29,6 +30,7 @@ resource "google_compute_disk" "data" {
 }
 
 resource "google_compute_instance" "satellite" {
+  # checkov:skip=CKV_GCP_38: Google-managed encryption; a CSEK would put a raw key in tfvars or state (R14)
   name         = var.vm_name
   machine_type = var.machine_type
   zone         = var.gcp_zone
@@ -51,10 +53,10 @@ resource "google_compute_instance" "satellite" {
   }
 
   network_interface {
+    # no public IP at all: outbound goes through Cloud NAT (05), inbound is
+    # tcp/22 from IAP only (round 1 Q7 A; NAT replaces the ephemeral IP at the
+    # same ~$4/month and leaves the VM with no internet-facing address)
     subnetwork = google_compute_subnetwork.satellite.id
-    # ephemeral public IP for OUTBOUND only (round 1 Q7 A); the one ingress
-    # rule (05) admits tcp/22 from IAP and nothing else
-    access_config {}
   }
 
   metadata = {

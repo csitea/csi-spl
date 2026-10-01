@@ -107,6 +107,7 @@
 </template>
 
 <script setup lang="ts">
+import { pendingDeleteId } from '~/composables/useDeleteUndo'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useTopicStore } from '~/stores/topic'
@@ -181,7 +182,9 @@ function clipModeFor() {
 const root = ref<HTMLElement | null>(null)
 const { newestLast } = useViewPrefs()
 /* the rows in DOM (= reading) order */
-const shown = computed(() => displayOrder(props.rows, newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[])
+/* CLE-77840: a reply deleted with the Delete key stays hidden while its Undo
+   window is open, even if a re-read brings the hub's (not yet deleted) row back */
+const shown = computed(() => displayOrder(props.rows.filter((m) => !pendingDeleteId.value || String(m.msg_id || '') !== pendingDeleteId.value), newestLast.value ? 'newest-last' : 'newest-first') as SpoolMessage[])
 /* Newest last: a thread follows new replies too while its reader sits at the
    bottom (A6); a reader scrolled up in it is never moved. */
 const { pill, jump, hold } = useScrollAnchor(

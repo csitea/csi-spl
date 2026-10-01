@@ -33,6 +33,14 @@ const toast = shallowRef<DeleteToast | null>(null)
 let seq = 0
 /** The row whose DELETE is not sent yet (null = none). */
 let pending: SpoolMessage | null = null
+/** Its msg_id, reactive: every feed (LiveFeed) hides it while it is pending.
+    The hub still holds the row until the DELETE goes, so a re-read inside the
+    window (a poll, a reconnect catch-up) would otherwise bring it back. */
+export const pendingDeleteId = ref('')
+function setPending(row: SpoolMessage | null) {
+  pending = row
+  pendingDeleteId.value = row ? String(row.msg_id || '') : ''
+}
 let unloadHooked = false
 const restorers = new Set<Restore>()
 
@@ -66,7 +74,7 @@ export function useDeleteUndo() {
   /** Send the pending DELETE now (the snackbar closed, or a new delete came). */
   function commit() {
     const row = pending
-    pending = null
+    setPending(null)
     if (row) void send(row)
   }
 
@@ -79,7 +87,7 @@ export function useDeleteUndo() {
       window.addEventListener('pagehide', () => commit())
     }
     commit() /* the previous one is final once the next delete starts */
-    pending = row
+    setPending(row)
     dropEverywhere(id)
     toast.value = { id: ++seq, msgId: id, busy: false }
   }
@@ -94,7 +102,7 @@ export function useDeleteUndo() {
     if (!t || t.busy) return
     const row = pending && String(pending.msg_id || '') === t.msgId ? pending : null
     if (!row) return /* already sent (the page was hiding): nothing to undo */
-    pending = null
+    setPending(null)
     toast.value = { ...t, busy: true }
     await bringBack(row)
     toast.value = null

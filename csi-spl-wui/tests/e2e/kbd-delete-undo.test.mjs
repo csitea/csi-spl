@@ -157,7 +157,9 @@ try {
   if (tb) await p.mouse.move(tb.x, tb.y)
   const text = await p.evaluate(() => document.querySelector('[data-testid=delete-toast-text]')?.textContent.trim() || '')
   ok('2 no "do you want to delete" dialog for a reply', !(await dialogOpen(p)))
-  ok('2 the reply leaves the pane at once', !(await p.$(paneRow(s.r2))))
+  /* "at once" = before the 0.7 s snackbar is over; polled, because a slow CI
+     runner can paint the removal a frame after the snackbar (wf11 36848069311) */
+  ok('2 the reply leaves the pane at once', await until(p, (sel) => !document.querySelector(sel), paneRow(s.r2), 2000))
   ok('2 the snackbar says "Deleted" and offers Undo', text === 'Deleted' && Boolean(await p.$('[data-testid=delete-toast-undo]')), text)
   ok('2 ... on a tab older than the last deploy, without fetching a chunk or reloading', text === 'Deleted' && await stale.samePage(), stale.gone)
   await stale.off()

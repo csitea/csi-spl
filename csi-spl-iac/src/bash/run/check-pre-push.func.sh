@@ -38,6 +38,7 @@
 # @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
+# @param PRE_PUSH_EXTRA_PATH (optional) - dirs appended to PATH before the tool check, default /usr/local/bin:/usr/bin:/bin:~/.local/bin
 # @example ./run -a do_check_pre_push
 # @example PRE_PUSH_MODE=full PRE_PUSH_TIER=full ./run -a do_check_pre_push
 # @example PRE_PUSH_PLAN=1 ./run -a do_check_pre_push
@@ -307,6 +308,11 @@ do_check_pre_push() {
   case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac
   git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
     || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
+  # A git hook can inherit a stripped PATH (measured 2026-10-01: a lane's push
+  # FAILed missing-tool=yq with yq in /usr/local/bin). APPEND the usual install
+  # dirs, as _pp_pnpm does, so a present tool is found; an absent one still FAILs.
+  local extra="${PRE_PUSH_EXTRA_PATH-/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin}"
+  [[ -n "$extra" ]] && export PATH="$PATH:$extra"
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl"
   local _PP_LOG="${PRE_PUSH_LOG:-$cache_dir/pre-push.log}"
   local _PP_CACHE="${PRE_PUSH_CACHE:-$cache_dir/pre-push.parts.green}"

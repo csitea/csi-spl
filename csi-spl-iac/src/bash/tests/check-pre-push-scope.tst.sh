@@ -125,11 +125,18 @@ NB="$ROOT/noyq"; mkdir -p "$NB"
 for t in bash env git sha1sum cut grep date mkdir wc tail mv paste sort head cat id dirname basename mktemp timeout sed rm awk tr jq python3 ls; do
   p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$NB/$t"
 done
-TOOLS=real gate "$R" PATH="$NB"; eq "6. yq missing -> REFUSED" 1 "$?"
+TOOLS=real gate "$R" PATH="$NB" PRE_PUSH_EXTRA_PATH=; eq "6. yq missing -> REFUSED" 1 "$?"
 eq "6. ... the iac suite never ran" 0 "$(runs csi-spl-iac)"
 grep -q 'PART iac FAIL .*missing-tool=yq' "$R.log" \
   && pass "6. ... the log names the missing tool (yq)" || fail "6. ... the log names the missing tool" "$(cat "$R.log")"
 out="$( PATH="$NB" _pp_missing_tools iac "$R" )"
+# ... while a STRIPPED PATH (yq present on the box, absent from PATH) is healed
+mkdir -p "$ROOT/yqdir"; printf '#!/bin/sh\nexit 0\n' >"$ROOT/yqdir/yq"; chmod +x "$ROOT/yqdir/yq"
+: >"$COUNT"; R6b="$ROOT/r6b"; mkrepo "$R6b" >/dev/null 2>&1
+echo y >"$R6b/csi-spl-iac/a.sh"; git -C "$R6b" add -A; git -C "$R6b" commit -qm iac
+TOOLS=real gate "$R6b" PATH="$NB" PRE_PUSH_EXTRA_PATH="$ROOT/yqdir"
+grep -q 'PART iac FAIL .*missing-tool=yq' "$R6b.log" \
+  && fail "6. a tool in an install dir missing from PATH is found" "$(cat "$R6b.log")" || pass "6. a tool in an install dir missing from PATH is found (PATH healed)"
 case "$out" in yq\ --\ install*) pass "6. ... and the message says how to install it" ;; *) fail "6. ... the message names yq and the fix" "$out" ;; esac
 
 # 7. rc 127 on HEAD and on trunk alike -> FAIL, never WARN

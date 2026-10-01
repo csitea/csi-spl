@@ -124,7 +124,15 @@ export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
     } catch { /* the place below still opens it */ }
   }
   const parent = String((info && info.parent_task_id) || '')
-  const row = found || { msg_id: id, task_id: taskId, ...placeOf(rows[0], info), ...(parent ? { parent_task_id: parent } : {}) }
+  /* the place of a row on no page read: its topic's opening row, else (a
+     thread read that came back empty) the opening row of the parent topic */
+  let placeRow = rows[0]
+  if (!found && !placeRow && parent && !(info && info.channel)) {
+    try {
+      placeRow = ((await withSessionRetry(api, () => api.getTopic(parent, { limit: 1 }))).messages || [])[0]
+    } catch { /* no place known: the topic page */ }
+  }
+  const row = found || { msg_id: id, task_id: taskId, ...placeOf(placeRow, info), ...(parent ? { parent_task_id: parent } : {}) }
   /* the task's opening card: archived, it is in no feed (topic-archive-v1) */
   const root = rows[0]
   if (root && root.msg_id && typeof api.topicSize === 'function') {

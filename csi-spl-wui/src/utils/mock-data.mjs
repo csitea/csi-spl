@@ -149,6 +149,21 @@ export const MOCK_MESSAGES = [
     channel: null,
     to_box: 'box-a',
   }),
+  /* CLE-77909: a reply in the DM's thread (rooted at the DM card above). A
+     cold /m/<this id> must open the DM with the thread on it, never /t/. */
+  msg({
+    msg_id: '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a',
+    task_id: '77777777-7777-4777-8777-777777777777',
+    ts: '2026-09-18T10:06:30Z',
+    from: 'GRK-03',
+    from_box: 'box-a',
+    to: 'HUM-1',
+    kind: 'note',
+    body: 'Mock DM reply, in the thread.',
+    channel: null,
+    to_box: 'box-wui',
+    parent_task_id: '99999999-9999-4999-8999-999999999999',
+  }),
   /* specs/036 FR-011: HUM-1 typed this at CLE-07's terminal; the hub verified
      it, so the lobby shows HUM-1 with a "via terminal CLE-07" badge. */
   msg({

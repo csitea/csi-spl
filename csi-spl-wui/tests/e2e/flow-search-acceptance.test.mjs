@@ -33,6 +33,7 @@ const ROOT = '22222222-2222-4222-8222-222222222222' /* #lobby topic root */
 const REPLY = '33333333-3333-4333-8333-333333333333' /* reply in thread bbbbbbbb */
 const THREAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const DM = '77777777-7777-4777-8777-777777777777' /* HUM-1 -> GRK-03 */
+const DM_REPLY = '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a' /* GRK-03's reply in the DM's thread (CLE-77909) */
 const UNKNOWN = '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f'
 const Q = 'Applying'
 
@@ -241,6 +242,23 @@ try {
   const gone = await cold.waitForSelector('[data-testid=open-msg-notice]', { visible: true, timeout: 10000 })
     .then((el) => el.evaluate((e) => e.getAttribute('data-reason'))).catch(() => '')
   ok('5.3 a deleted message: the notice says so (deleted, or not_found)', del === 'ok' && ['deleted', 'not_found'].includes(gone), { del, gone })
+  /* CLE-77909 (dev red, lane D): a cold link to a reply in a DM thread opened the Topics view */
+  const coldDm = await page(browser, DESKTOP, errors)
+  await coldDm.goto(server.base + '/m/' + DM_REPLY, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('5.4 cold deep link /m/<DM reply> lands in the DM, thread open, highlighted - never /t/',
+    await seen(coldDm, focused(DM_REPLY), NAV_TIMEOUT) && /\/dm\//.test(path(coldDm)) && notTopics(coldDm), coldDm.url())
+  await coldDm.close().catch(() => {})
+  const coldDmPhone = await page(browser, PHONE, errors)
+  await coldDmPhone.goto(server.base + '/m/' + DM_REPLY, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const phoneLanded = await seen(coldDmPhone, focused(DM_REPLY), NAV_TIMEOUT) && /\/dm\//.test(path(coldDmPhone)) && notTopics(coldDmPhone)
+  const phoneAt = coldDmPhone.url()
+  await shots(coldDmPhone, '5-dm-reply-phone')
+  /* the thread is one phone level over the DM (as for a #lobby reply): one Back is the DM, never /m/ or /t/ */
+  await coldDmPhone.goBack({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => {})
+  await new Promise((r) => setTimeout(r, 500))
+  ok('5.5 phone: the same cold link lands in the DM thread, highlighted; one Back is the DM - never /m/ or /t/',
+    phoneLanded && /\/dm\//.test(path(coldDmPhone)) && notTopics(coldDmPhone), { at: phoneAt, back: coldDmPhone.url() })
+  await coldDmPhone.close().catch(() => {})
 
   /* ---------- 6 phone ---------- */
   for (const mode of ['flow', 'search']) {

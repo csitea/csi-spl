@@ -113,6 +113,19 @@ test('resolveMessage: a short topic is read once', async () => {
   assert.equal(placeKind(got.row, 'HUM-4'), 'dm')
 })
 
+test('resolveMessage: a DM thread reply whose thread read is empty takes the DM ends of the parent topic', async () => {
+  const calls = []
+  const api = {
+    async moveInfo(id) { return { msg_id: id, task_id: ROOT, channel: null, parent_task_id: TASK } },
+    async getTopic(id, o) { calls.push([id, o]); return { messages: id === TASK ? [{ msg_id: ROOT, task_id: TASK, channel: null, from: 'HUM-1', to: 'GRK-03', to_box: 'box-a' }] : [] } },
+    async topicSize() { throw http(409) },
+  }
+  const got = await resolveMessage(MSG, api)
+  assert.deepEqual(got, { row: { msg_id: MSG, task_id: ROOT, channel: null, from: 'HUM-1', to: 'GRK-03', to_box: 'box-a', parent_task_id: TASK } })
+  assert.deepEqual(calls.map((c) => c[0]), [ROOT, TASK])
+  assert.equal(placeKind(got.row, 'HUM-1'), 'dm')
+})
+
 test('placeOf: the channel wins; a DM takes the ends of the topic row; nothing known is a bare row', () => {
   assert.deepEqual(placeOf({ channel: 'lobby', from: 'X' }, { channel: null }), { channel: 'lobby' })
   assert.deepEqual(placeOf({ from: 'X' }, { channel: 'ops' }), { channel: 'ops' })

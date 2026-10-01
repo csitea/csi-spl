@@ -484,7 +484,8 @@ const fullTime = computed(() => (
    time. The hover keeps the whole value. Desktop prints fullTime unchanged. */
 const mobile = useMobileStack().isMobile
 const time = computed(() => (mobile.value ? phoneCardTime(fullTime.value, at.value) : fullTime.value))
-const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : undefined)))
+/* CLE-77840: always titled - the time may be cut short with an ellipsis */
+const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : time.value)))
 /* SPL-981: a direct message shows only its sender; channel rows keep sender -> recipient */
 const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
@@ -1346,7 +1347,11 @@ async function save() {
    (ellipsis, full text on hover), and many chips wrap inside their own box */
 .msg-meta { align-items: center; flex-wrap: nowrap; }
 .msg-meta > :deep(.msg-author) { flex: 0 1 auto; min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-meta > .msg-time { flex: 0 0 auto; }
+/* CLE-77840 (owner, topic d837af50): the time is what gives way on a narrow
+   pane (ellipsis; the full time is its title). It used to be fixed, so the
+   topic pane's long "2026-09-27 11:16:01 sent 94h 23m" pushed the smile
+   button and the reaction chips past the pane's edge, where they were clipped. */
+.msg-meta > .msg-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; }

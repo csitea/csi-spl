@@ -61,6 +61,15 @@ const setOrder = (p, order) => p.evaluate((order) => {
   document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session').setViewPref('message_order', order)
 }, order)
 
+/* The mock tenant re-reads the feed every 4 s (useSpoolEvents: channel.refresh()
+   REPLACES channel.messages), which wipes the rows injected below whenever a
+   slow run crosses a tick: on a loaded box newest-last read the pre-injection
+   feed and no divider. A live hub has no such poll (frames merge through
+   ingestLive), so freeze the mock re-read once the channel has loaded. */
+const freezeMockPoll = (p) => p.evaluate(() => {
+  document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').refresh = async () => {}
+})
+
 /** Inject n rows into the channel store, each its own topic, from an ISO base. */
 const injectAt = (p, n, tag, iso) => p.evaluate((n, tag, iso) => {
   const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
@@ -112,6 +121,7 @@ async function run(browser, base, width) {
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
   await signIn(p)
   await p.waitForSelector('.live-rows > article.msg', { timeout: NAV })
+  await freezeMockPoll(p)
 
   /* older-than-boundary context, still nothing unread: no divider (today's look) */
   await injectAt(p, 10, 'read', READ_BASE)

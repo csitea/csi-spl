@@ -75,5 +75,20 @@ EOP
 [ "$got" = "1 1 0.06 31.0" ] && pass "a miss is counted and kept out of the live hop" ||
   fail "summary() got '$got', want '1 1 0.06 31.0'"
 
+# --- 4. the catch-up read finds a view-v1 row (env.msg.msg_id) ---------------------
+# The first after-fix run reported a message the view DID hold as never seen,
+# because the match looked at row.msg / row only.
+got="$(python3 - "$py" <<'EOP'
+import sys
+src = open(sys.argv[1]).read()
+ns = {}
+exec(compile(src[src.index("def row_msg_id("):src.index("def live_revision(")], "rowid", "exec"), ns)
+f = ns["row_msg_id"]
+print(f({"cursor": "c", "env": {"from_box": "box-wui", "msg": {"msg_id": "m1"}}}), f({"msg": {"msg_id": "m2"}}), f({"msg_id": "m3"}))
+EOP
+)"
+[ "$got" = "m1 m2 m3" ] && pass "the catch-up read matches env.msg, msg and flat rows" ||
+  fail "row_msg_id got '$got', want 'm1 m2 m3'"
+
 [ "$fails" -eq 0 ] && { echo "OK delivery-probe"; exit 0; }
 echo "FAILED delivery-probe: $fails"; exit 1

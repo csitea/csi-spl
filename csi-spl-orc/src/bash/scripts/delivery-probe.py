@@ -104,7 +104,13 @@ def catch_up(cookie, task, msg_id):
     st, _, out = m3.http("GET", "%s/v1/view/topics/%s?order=desc&limit=50" % (m3.HUB, task),
                          headers={"Cookie": cookie, "Origin": m3.HUB})
     rows = (out or {}).get("messages", []) if isinstance(out, dict) else []
-    return st == 200 and any((r.get("msg") or r).get("msg_id") == msg_id or r.get("msg_id") == msg_id for r in rows)
+    return st == 200 and any(row_msg_id(r) == msg_id for r in rows)
+
+
+def row_msg_id(r):
+    """A view-v1 topic row nests the message as env.msg (also accepts msg / flat)."""
+    inner = (r.get("env") or {}).get("msg") or r.get("msg") or r
+    return inner.get("msg_id")
 
 
 def live_revision():
@@ -166,6 +172,7 @@ def main():
                 rx, rx_welcome = dial(recv_cookie)
                 rx.send({"type": "subscribe", "task_id": task})
                 row["redialled"] = True
+                row["t_redial"] = time.time()
                 if catch_up(recv_cookie, task, msg_id):
                     row["t_seen"] = row["t_caught"] = time.time()
                     break

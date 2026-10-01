@@ -370,8 +370,18 @@ export function closeDelayMs(ctx) {
    4.8.1): every chime opens a NEW context, so a new output stream, and a
    Bluetooth / Android audio route drops what plays while it wakes (~0.15-0.3
    s). Only the sounds longer than that (marimba 0.20 s, boing 0.23 s) got past
-   it, so the notes now start after a quarter second of silence. */
-export const LEAD_S = 0.25
+   it, so the notes start after silence. HUM-24 then (msg 3c310c8c): desktop
+   Linux + Chrome, where PulseAudio / PipeWire wake an idle sink; on 4.8.1
+   chirp ending at 0.215 s was lost and marimba ending at 0.25 s was heard,
+   so her output drops ~0.2-0.23 s - the lead is the context's own reported
+   latency plus 0.4 s (CLE-35004's numbers). */
+export const LEAD_S = 0.4
+
+/** Seconds from the context clock to the first note: its output latency + LEAD_S. */
+export function leadFor(ctx) {
+  const lat = Math.max(Number(ctx && ctx.outputLatency) || 0, Number(ctx && ctx.baseLatency) || 0)
+  return lat + LEAD_S
+}
 
 /**
  * Play a named sound. One AudioContext per call, closed shortly after its
@@ -390,7 +400,7 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
   const drop = () => { if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {}) }
   /* the notes are scheduled from the clock as it reads when they can play */
   const schedule = () => {
-    const t0 = ctx.currentTime + LEAD_S
+    const t0 = ctx.currentTime + leadFor(ctx)
     let last = null
     let lastStop = t0
     for (const s of spec.segs) {

@@ -187,7 +187,7 @@ describe('notify escalation', () => {
     assert.equal(c.g.gain.value, 0.04)
     assert.equal(c.osc.started, true)
     /* HUM-24: after the lead-in */
-    assert.ok(Math.abs(c.osc.stopAt - 5.37) < 1e-9, String(c.osc.stopAt))
+    assert.ok(Math.abs(c.osc.stopAt - 5.52) < 1e-9, String(c.osc.stopAt))
     assert.equal(c.closed, false, 'open while it sounds')
     c.osc.onended()
     assert.equal(c.closed, false, 'HUM-24: still open while the speaker plays it')
@@ -628,7 +628,10 @@ describe('bug A: a new message signals', () => {
     const { closeDelayMs, CLOSE_GRACE_S, LEAD_S } = await import('../../src/utils/notify.mjs')
     /* HUM-24 msg ddd345ea: an output route that wakes in ~0.15-0.3 s drops what
        plays first; the silent three all ended inside 0.17 s */
-    assert.ok(LEAD_S >= 0.2, `lead-in ${LEAD_S} s covers a waking output route`)
+    assert.ok(LEAD_S >= 0.3, `lead-in ${LEAD_S} s covers a waking output route (HUM-24 Linux: ~0.2-0.23 s dropped)`)
+    const { leadFor } = await import('../../src/utils/notify.mjs')
+    assert.equal(leadFor({}), LEAD_S)
+    assert.ok(Math.abs(leadFor({ outputLatency: 0.08, baseLatency: 0.01 }) - (0.08 + LEAD_S)) < 1e-9)
     assert.equal(closeDelayMs({}), CLOSE_GRACE_S * 1000)
     assert.equal(closeDelayMs({ outputLatency: 0.3, baseLatency: 0.01 }), Math.round((0.3 + CLOSE_GRACE_S) * 1000))
     assert.equal(closeDelayMs({ baseLatency: 0.2 }), Math.round((0.2 + CLOSE_GRACE_S) * 1000))

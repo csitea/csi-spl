@@ -1,9 +1,11 @@
 # 057 — the satellite: a GCP agent box (gcp-agent-box)
 
-Status: **SPECIFICATION, draft.** Round 1 answered 2026-10-01 08:55Z; round 2
-(machine within budget, disk, ssh key, budget alert) pending (section 4).
-Nothing is created in GCP without the owner's explicit go for that call.
-Implementation is a separate go.
+Status: **IMPLEMENTED on trunk, apply pending** (2026-10-01, CLE-77877).
+Round 1 answered 08:55Z; round 2 = the recommended defaults 1A 2A 3b 4A
+(owner 12:51Z "start working on this"); price go 12:57Z ("ok , go"). The
+owner then moved the box to its own project **csi-spl-all** (12:56Z, msg
+4fdd67bc), which overrides R2 below (section 7). Nothing is created in GCP
+without the owner's go for that call.
 
 Owner topic: t1 `f35d82fc-6110-41cb-8b1b-c66420311583` (2026-10-01).
 
@@ -43,7 +45,7 @@ Owner topic: t1 `f35d82fc-6110-41cb-8b1b-c66420311583` (2026-10-01).
 | id | requirement | source |
 |---|---|---|
 | R1 | ONE VM, named **the satellite**, serving both dev and prd | 7 |
-| R2 | lives in the **prd** GCP project (`csi-spl-prd`), by explicit owner choice | 7 |
+| R2 | ~~lives in the **prd** GCP project~~ -> lives in its own project **`csi-spl-all`** (owner 2026-10-01 12:56Z: "it should have been created in the all project - aka in the csi-spl-all") | 7, 7.1 |
 | R3 | reaches the dev environment too (dev hub/WUI, dev GCP via the dev SA key) | 7 |
 | R4 | the same OS release as the home box: Debian 13 (trixie), 13.5 at measurement | 1 |
 | R5 | at least 75% of the home box's hardware (section 3) | 1 |
@@ -100,17 +102,17 @@ Prices are GCP list price, europe-north1, per month (730 h), approximate.
 | 12 | GCP + GitHub credentials | **A** a named action copies the dev + prd SA keys and the GitHub token over ssh (0600); the VM SA has no roles beyond logging |
 | 13 | backups | **C** none, git is the backup |
 
-### 4.2 Round 2 (posted 2026-10-01 08:57Z, pending)
+### 4.2 Round 2 (posted 2026-10-01 08:57Z; defaults taken 12:51Z, price go 12:57Z)
 
 Fixed in every option: 30 GB boot + 100 GB data disk pd-balanced ~$14,
 outbound IPv4 ~$4, IAP free; total = VM + ~$18.
 
 | # | decision | options | recommended | owner answer |
 |---|---|---|---|---|
-| 1 | machine | A e2-highmem-4, 4 vCPU / 32 GB on-demand, total ~$163; B e2-highmem-8, 8 vCPU / 64 GB, 3-year commitment, total ~$149; C e2-highmem-8 spot, total ~$110-130 (GCP may stop it); D e2-custom 3 vCPU / 24 GB, total ~$127 | A | pending |
-| 2 | data disk | A 100 GB pd-balanced; B 200 GB (+$11, 1A goes over budget) | A | pending |
-| 3 | ssh key | a eli-vta exactly: terraform creates the pair, the private key lands in the prd tf state (overrides the repo rule for this key); b a named action creates the pair in `~/.ssh/.csi/`, terraform receives only the public key | b | pending |
-| 4 | budget alert | A $170/month at 50/90/100%; B none | A | pending |
+| 1 | machine | A e2-highmem-4, 4 vCPU / 32 GB on-demand, total ~$163; B e2-highmem-8, 8 vCPU / 64 GB, 3-year commitment, total ~$149; C e2-highmem-8 spot, total ~$110-130 (GCP may stop it); D e2-custom 3 vCPU / 24 GB, total ~$127 | A | **A** (default) |
+| 2 | data disk | A 100 GB pd-balanced; B 200 GB (+$11, 1A goes over budget) | A | **A** (default) |
+| 3 | ssh key | a eli-vta exactly: terraform creates the pair, the private key lands in the prd tf state (overrides the repo rule for this key); b a named action creates the pair in `~/.ssh/.csi/`, terraform receives only the public key | b | **b** (default) |
+| 4 | budget alert | A $170/month at 50/90/100%; B none | A | **A** (default) |
 
 ## 5. Design
 
@@ -219,6 +221,26 @@ The satellite holds the dev SA key next to the prd one, and every csi-spl
 action already selects its key by `ENV`, so `ENV=dev ./run -a ...` on the
 satellite reaches dev exactly as on the home box. The dev hub and WUI are
 public endpoints; no cross-project IAM is needed.
+
+## 7. As built (2026-10-01, CLE-77877)
+
+Where the build differs from section 5, this section wins.
+
+| what | as built | why |
+|---|---|---|
+| project | **csi-spl-all**, bootstrapped by `ENV=all ./run -a do_gcp_000_bootstrap_gcp_env` (owner login; gcp-004 also enables compute, iap, billingbudgets, logging, monitoring) | owner 12:56Z |
+| steps | `059-gcp-satellite-budget` + `060-gcp-vm-satellite`, cnf in `prd.env.yaml` (rendered from prd only; dev renders carry `# prd-only-step`), run as the csi-spl-all SA (`tf_key_project`), state in `csi-spl-all-tfstate` (`PROJECT_ENV=all ./run -a do_gcp_bkp_state_bucket_create`) | the 046 pattern; no new env |
+| budget | its own step 059, applied BEFORE 060; filter = csi-spl-all + label `box=satellite`; amount in the billing account's currency; billing id = `GCP_BILLING_ACCOUNT_ID` (make passes `TF_VAR_billing_account_id`) | "budget alert first" |
+| network | the satellite's own VPC + subnet (private Google access, 10% flow logs), **no public IP**: outbound via Cloud Router + NAT (~ the same $4 as the IP), inbound only tcp/22 from IAP | a new project's default network allows ssh from 0.0.0.0/0; checkov 65 / trivy 70 |
+| names | `csi-spl-all-satellite`, disk `csi-spl-all-satellite-data`, key `~/.ssh/.csi/debian@csi-spl-all-satellite{,.pub}` | the project |
+| 07-ansible.tf | dropped: the bootstrap is the named action below | re-runnable without an apply |
+| bootstrap | `do_satellite_bootstrap` sends `satellite-box-setup.sh` (bash roles 01/02/03/06, one `ROLE` verdict line each) as root, then clones the repo and runs `spool-install/install.sh --no-seat` as `debian` with `SPOOL_BOX_TAG=sat`. **Not ansible**: no ansible on the fleet box and a 2 h owner deadline; the role numbering is kept so a port to ansible roles is mechanical | owner deadline 14:53Z |
+| actions | `do_satellite_ssh_keygen`, `do_satellite_ssh_config` (`ssh satellite` via `satellite-iap-proxy.sh`, the csi-spl-all SA in a throwaway CLOUDSDK_CONFIG), `do_satellite_creds_push` (dry run by default), `do_satellite_bootstrap`, `do_satellite_image_latest` | R15 |
+| tests | `satellite-steps.tst.sh`, `satellite-actions.tst.sh` (iac fast tier) | |
+
+Apply order: owner `ENV=all` gcp-000 -> state bucket -> 059 plan/provision ->
+060 plan/provision -> `do_satellite_ssh_config` -> `DRY_RUN=0 do_satellite_creds_push`
+-> `do_satellite_bootstrap` -> the owner's AI CLI logins over `ssh satellite`.
 
 ## 6. Out of scope
 

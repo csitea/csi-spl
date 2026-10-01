@@ -96,9 +96,12 @@
     <ClientOnly>
       <LazyMoveUndoToast v-if="move.toast.value" />
     </ClientOnly>
-    <!-- SPL-1264: "Archived · Undo"; its chunk loads on the first archive only -->
+    <!-- SPL-1264: "Archived · Undo". CLE-77840: EAGER, not Lazy - a lazy chunk
+         is fetched on the first archive, and on a tab older than the last
+         deploy that chunk is gone, so chunk-reload reloaded the page instead
+         of showing it (owner: "cannot see this snackbar at all") -->
     <ClientOnly>
-      <LazyArchiveUndoToast v-if="archiveUndo.toast.value" />
+      <ArchiveUndoToast v-if="archiveUndo.toast.value" />
     </ClientOnly>
     <!-- 714c7028: "Merge topic (N messages) into Y?"; loads when a topic is dropped on a topic -->
     <ClientOnly>

@@ -1,6 +1,7 @@
 <!-- SPL-1264 (CLE-77809): "Archived · Undo" bottom-centre after a card is
      archived. A thin adapter over the shared UndoSnackbar; the shell mounts it
-     lazily (LazyArchiveUndoToast) only once a card has been archived. 0.7 s per
+     once a card has been archived; it ships WITH the shell (eager, CLE-77840: a
+     lazy chunk is gone on a tab older than the last deploy). 0.7 s per
      the owner, held while hovered/focused (UndoSnackbar). -->
 <template>
   <UndoSnackbar

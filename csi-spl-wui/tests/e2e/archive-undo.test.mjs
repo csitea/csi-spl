@@ -4,7 +4,12 @@
 //
 // Desktop 1440x900:
 //   1  archive a card from its menu -> the card leaves the feed (control) and
-//      the snackbar says "Archived" and offers Undo
+//      the snackbar says "Archived" and offers Undo. CLE-77840 (owner, t1 topic
+//      f20c6052: "cannot see this snackbar at all"): this first archive runs
+//      with every NEW /_nuxt/ fetch answered 404 - a tab opened before the
+//      last deploy, whose lazy chunks are gone - and the snackbar must still
+//      show WITHOUT the page reloading (a lazy snackbar chunk 404s there and
+//      chunk-reload.client.ts reloads the page instead)
 //   2  Undo -> the card is back in the feed
 //   3  keyboard: after archiving, Tab reaches the Undo button; Esc closes the
 //      snackbar (and the card stays archived)
@@ -117,12 +122,31 @@ try {
   /* ---- 1. archive from the menu: card leaves, snackbar offers Undo -------- */
   const menu = await openMenu(p, midCard(seeded.one.msg_id))
   ok('1 the card menu offers Archive', menu.includes('msg-menu-archive'), menu)
+  /* CLE-77840: from here the build "was redeployed": new chunk fetches 404 */
+  let deployed = true
+  const goneChunks = []
+  await p.setRequestInterception(true)
+  const onRequest = (r) => {
+    if (r.isInterceptResolutionHandled()) return
+    if (deployed && new URL(r.url()).pathname.startsWith('/_nuxt/')) {
+      goneChunks.push(new URL(r.url()).pathname)
+      return r.respond({ status: 404, contentType: 'text/plain', body: 'gone after a deploy' })
+    }
+    return r.continue()
+  }
+  p.on('request', onRequest)
+  await p.evaluate(() => { window.__cle77840 = 'same page' })
   await clickArchive(p)
   const gone = await until(p, (sel) => !document.querySelector(sel), midCard(seeded.one.msg_id))
   ok('1 the archived card leaves the feed', gone)
   await p.waitForSelector('[data-testid=archive-toast]', { timeout: 5000 }).catch(() => {})
   const t1 = await toastText(p)
   ok('1 the snackbar says "Archived" and offers Undo', t1 === 'Archived' && Boolean(await p.$('[data-testid=archive-toast-undo]')), t1)
+  ok('1 ... on a tab older than the last deploy, without fetching a chunk or reloading',
+    t1 === 'Archived' && await p.evaluate(() => window.__cle77840 === 'same page').catch(() => false), goneChunks)
+  deployed = false
+  p.off('request', onRequest)
+  await p.setRequestInterception(false)
   await shot(p, '1-archived')
 
   /* ---- 2. Undo brings the card back -------------------------------------- */

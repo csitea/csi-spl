@@ -281,7 +281,8 @@ func (s *Server) wuiHello(ctx context.Context, conn *websocket.Conn, tenant, hum
 func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
 	tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox)
 	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
-		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}
+		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339),
+		"revision": s.o.Revision} // bug B: the browser compares it with GET /v1/wui/revision
 	if s.o.LobbyTaskID != "" {
 		welcome["lobby_task_id"] = s.o.LobbyTaskID
 	}

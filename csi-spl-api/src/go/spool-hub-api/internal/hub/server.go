@@ -71,8 +71,11 @@ type Options struct {
 	Version           string
 	Commit            string // -ldflags main.commit; "unknown" in dev builds
 	BuiltAt           string // -ldflags main.builtAt (RFC3339 UTC)
-	Env               string // lde | dev | prd; shown by GET / only
-	Now               func() time.Time
+	// Revision names the process a browser socket is on (bug B, 4ecb4b0d):
+	// Cloud Run's $K_REVISION, else a per-process id. See revision.go.
+	Revision string
+	Env      string // lde | dev | prd; shown by GET / only
+	Now      func() time.Time
 	// Quota: 0 = unlimited. Enforced on send / pin / PUT file (006 T012).
 	QuotaMessagesPerMonth int
 	QuotaPins             int
@@ -219,6 +222,7 @@ func New(o Options) (*Server, error) {
 	if o.PingInterval > 0 && o.PingTimeout <= 0 {
 		o.PingTimeout = writeTimeout
 	}
+	o.Revision = revisionOr(o.Revision)
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
@@ -264,6 +268,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	s.routeView(mux)
 	mux.HandleFunc("GET /v1/wui/ws", s.handleWUIWS)
+	mux.HandleFunc("GET /v1/wui/revision", s.handleWUIRevision) // bug B, revision.go
 	mux.HandleFunc("GET /v1/wui/pubkey", s.handleWUIPubkey)
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)

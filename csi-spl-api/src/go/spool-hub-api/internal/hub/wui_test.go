@@ -51,6 +51,7 @@ type wuiFrame struct {
 	Envelope    json.RawMessage `json:"envelope"`
 	Env         json.RawMessage `json:"env"`
 	TypedBy     string          `json:"typed_by"` // specs/036 FR-011
+	Revision    string          `json:"revision"` // bug B welcome (revision_test.go)
 }
 
 type wuiClient struct {

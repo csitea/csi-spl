@@ -19,6 +19,24 @@ spawner sets `--permission-mode auto`; the model comes from the agent user's
 settings, and a relaunch (`restore-claude-plain.sh`) passes it explicitly
 because `--resume` keeps the session's old model.
 
+### 1.1 One agent, one discussion
+
+Owner decision 2026-10-01. A lane agent serves **one discussion**: one owner
+topic, one bug or one feature. Every live agent costs memory and CPU on the box,
+and every turn re-reads its whole context, so an agent carrying three
+discussions pays for all three on every turn.
+
+| situation | do |
+|---|---|
+| a new ask in a **new** topic | spawn a new lane, or route it to the lane that owns that topic; never hand it to an idle agent because it is alive or "already in that code" |
+| a follow-up in the **same** topic | the owning lane if it is alive; if it has closed, a fresh lane that starts from its branch and notes |
+| the new discussion is genuinely intertwined (a regression in the lane's own just-shipped change, or work that needs its full context) | the same lane; `CLE-001` says why in the routing message |
+| a lane reports done | verify the claim (section 3.1), then close it at once (`/exit-clean`) |
+| a lane waits more than about an hour for an owner answer | park its context (branch, held commit, the open question) in `/var/tmp/CLE-parent-level/dispatch/hold/<topic>/`, close it, and respawn from the hold dir when the answer comes |
+
+"Stand by in case the owner answers later" is not a reason to keep an agent
+open. The dispatchers apply the first two rows; `CLE-001` applies the rest.
+
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
@@ -126,4 +144,4 @@ end to end in every seated workspace.
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
 | retiring the standing first responder and the relay agent | open, after the end-to-end test |
 
-<!-- version: 0.2.0 · updated: 2026-10-01 · last-edit: 2026-10-01T06:40:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-01 · last-edit: 2026-10-01T10:05:00Z -->

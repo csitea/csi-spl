@@ -39,7 +39,8 @@ const Q = 'Applying'
 const LIST = '[data-testid=left-list]'
 const ENTRY = `${LIST} [data-testid=left-entry]`
 const entry = (id) => `${ENTRY}[data-msg-id="${id}"]`
-const focused = (id) => `[data-msg-id="${id}"].open-focus`
+/* the agreed mark: open-focus (lane A), or the older search-focus */
+const focused = (id) => `[data-msg-id="${id}"]:is(.open-focus, .search-focus)`
 const DESKTOP = { width: 1440, height: 900 }
 const PHONE = { width: 390, height: 844, isMobile: true, hasTouch: true }
 
@@ -97,7 +98,7 @@ async function shots(p, name) {
 
 const selectedId = (p) => p.$eval(`${ENTRY}[aria-selected=true]`, (el) => el.getAttribute('data-msg-id')).catch(() => '')
 const entryIds = (p) => p.$$eval(ENTRY, (els) => els.map((e) => e.getAttribute('data-msg-id')))
-const inFeedView = (p, id) => p.$eval(`[data-msg-id="${id}"].open-focus`, (el) => {
+const inFeedView = (p, id) => p.$eval(focused(id), (el) => {
   const r = el.getBoundingClientRect()
   const s = (el.closest('.feed-body') || document.documentElement).getBoundingClientRect()
   return r.bottom > s.top && r.top < s.bottom
@@ -180,7 +181,7 @@ try {
     const onList = Boolean(l && ((l.closest('[data-query]') && l.closest('[data-query]').getAttribute('data-query') === q) || (l.parentElement && l.parentElement.textContent.includes(q))))
     return inField || onList ? q : ''
   }, LIST, Q).catch(() => '')
-  ok('4.3 the query and the results stay while you click through', kept === Q && await seen(d, `${LIST}[data-mode=search] ${entry(REPLY)}`, 2000), { kept })
+  ok('4.3 the query and the results stay while you click through', kept === Q && await seen(d, `${LIST}[data-mode=search] [data-testid=left-entry][data-msg-id="${REPLY}"]`, 2000), { kept })
   await shots(d, '4-search-open-desktop')
   if (searchUp) {
     await d.focus(LIST).catch(() => {})
@@ -227,8 +228,11 @@ try {
   /* ---------- 6 phone ---------- */
   for (const mode of ['flow', 'search']) {
     const m = await page(browser, PHONE, errors)
+    /* the list scrolls inside the sidebar's own scroller, not by itself */
+    await m.evaluateOnNewDocument(() => { window.scroller = (el) => el.closest('.sidebar-scroll') || el })
     if (mode === 'flow') {
-      await m.goto(server.base + '/channel/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      /* the section strip shows only at mobile level 1 (the list), not in a feed */
+      await m.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await m.tap('[data-testid=sidebar-tab-flow]').catch(() => {})
     } else {
       await m.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -238,16 +242,16 @@ try {
     ok(`6.${mode} 1 phone: the ${mode} list is full screen`, full)
     await shots(m, `6-${mode}-phone`)
     const id = mode === 'flow' ? ROOT : REPLY
-    const top = up ? await m.$eval(LIST, (el) => { el.scrollTop = el.scrollHeight; return el.scrollTop }) : -1
+    const top = up ? await m.$eval(LIST, (el) => { const s = scroller(el); s.scrollTop = s.scrollHeight; return s.scrollTop }) : -1
     await m.$eval(entry(id), (el) => el.scrollIntoView({ block: 'nearest' })).catch(() => {})
-    const scrollAt = up ? await m.$eval(LIST, (el) => el.scrollTop) : -1
+    const scrollAt = up ? await m.$eval(LIST, (el) => scroller(el).scrollTop) : -1
     ok(`6.${mode} 2 phone: a tap opens the original place, highlighted`, up && await pick(m, id, { tap: true }) && notTopics(m), m.url())
     await shots(m, `6-${mode}-open-phone`)
-    const back = await m.$('[data-testid=mobile-back], .mobile-back')
-    if (back) await back.tap()
-    else await m.goBack()
+    /* the visible Back button, else the browser's Back */
+    const backed = await m.tap('[data-testid=mobile-back]').then(() => true).catch(() => false)
+    if (!backed) await m.goBack().catch(() => {})
     const again = await seen(m, `${LIST}[data-mode=${mode}]`, 10000)
-    const now = again ? await m.$eval(LIST, (el) => el.scrollTop) : -2
+    const now = again ? await m.$eval(LIST, (el) => scroller(el).scrollTop) : -2
     ok(`6.${mode} 3 phone: Back returns to the list, same scroll, same entry selected`,
       again && Math.abs(now - scrollAt) <= 4 && await selectedId(m) === id, { top, scrollAt, now, selected: await selectedId(m) })
   }

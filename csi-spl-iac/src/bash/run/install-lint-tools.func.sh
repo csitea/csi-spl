@@ -14,6 +14,9 @@
 # @description   typos     typos-cli, the spelling WARN (no CI workflow yet, so pinned HERE)
 # @description   gitleaks  (15) -> LINT_TOOLS_BIN
 # @description   ruff      the lint-py rule set (no CI workflow yet, so pinned HERE)
+# @description   trivy     (70) checked against the release checksums file, as CI does
+# @description   osv-scanner (70) checked against the release SHA256SUMS, as CI does
+# @description   govulncheck (15) go install @<15's version> (the Go checksum DB verifies it)
 # @description   terraform the cnf's terraform_version (CI's box keeps it in /opt/tf):
 # @description             linked from /opt/tf/bin/terraform-<ver>, else the pinned zip
 # @description   pglast    PG16 grammar for the migration parse (pinned HERE: 6.x is
@@ -158,6 +161,41 @@ _ilt_pglast() {
   do_log "INFO pglast $ver installed in $venv"
 }
 
+# A binary whose digest CI reads from the release's own checksums file.
+_ilt_fetch_sums() {  # <name> <ver> <asset-url> <sums-url> <asset-name> <member or ''>
+  local name="$1" ver="$2" url="$3" sums="$4" asset="$5" member="$6" dst="$_ILT_BIN/$1" tmp
+  if _ilt_have "$dst" "$ver"; then do_log "INFO $name $ver already installed at $dst"; return 0; fi
+  [[ -n "$ver" ]] || { do_log "FATAL could not read the $name version from its workflow"; return 1; }
+  tmp="$(mktemp -d)" || return 1
+  if ! curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/$asset" "$url" \
+     || ! curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/sums" "$sums"; then
+    do_log "FATAL $name: download failed"; rm -rf "$tmp"; return 1
+  fi
+  if ! (cd "$tmp" && grep -E " \*?$asset\$" sums | sed 's/ \*/  /' | sha256sum -c - >/dev/null 2>&1); then
+    do_log "FATAL $name: sha256 does not match the release checksums -- refusing an unknown binary"; rm -rf "$tmp"; return 1
+  fi
+  if [[ -n "$member" ]]; then tar -xzf "$tmp/$asset" -C "$tmp" "$member" && mv -f "$tmp/$member" "$dst"
+  else mv -f "$tmp/$asset" "$dst"; fi
+  chmod +x "$dst"; rm -rf "$tmp"
+  do_log "INFO $name $ver installed at $dst (sha256 matches the release checksums)"
+}
+
+_ilt_govulncheck() {
+  local wf="$_ILT_WF/15_sec-deps-secrets.yml" ver root
+  ver="$(grep -oE 'govulncheck@v[0-9.]+' "$wf" | head -1 | sed 's/.*@//')"
+  [[ -n "$ver" ]] || { do_log "FATAL could not read the govulncheck pin from $wf"; return 1; }
+  if [[ -x "$_ILT_BIN/govulncheck" ]] && "$_ILT_BIN/govulncheck" -version 2>/dev/null | grep -qF "govulncheck@$ver"; then
+    do_log "INFO govulncheck $ver already installed"; return 0
+  fi
+  root="$(cd "$_ILT_WF/../.." && pwd)"
+  ( export GOTOOLCHAIN=local GOFLAGS= GOPROXY=https://proxy.golang.org GOBIN="$_ILT_BIN"
+    # shellcheck source=/dev/null
+    source "$root/csi-spl-api/src/bash/use-go-toolchain.sh" && spl_export_go_path \
+      && go install "golang.org/x/vuln/cmd/govulncheck@$ver" ) \
+    || { do_log "FATAL go install govulncheck@$ver failed"; return 1; }
+  do_log "INFO govulncheck $ver installed at $_ILT_BIN/govulncheck"
+}
+
 # terraform: the version is the cnf's (env.tf.terraform_version); the box that
 # runs CI keeps it at /opt/tf/bin/terraform-<ver>, so link that, else fetch
 # the zip and check it against the pinned digest.
@@ -207,14 +245,25 @@ do_install_lint_tools() {
   local _ILT_BIN="${LINT_TOOLS_BIN:-$HOME/.local/bin}"
   local _ILT_ESLINT="${LINT_TOOLS_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"
   local _ILT_VENV="${LINT_TOOLS_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv}"
-  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast ruff terraform}"
+  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast ruff terraform trivy osv-scanner govulncheck}"
   mkdir -p "$_ILT_BIN" || return 1
-  local t fails=0
+  local t v fails=0
   for t in $only; do
     case "$t" in
       shellcheck|actionlint|hadolint|trufflehog|gosec|typos|gitleaks|ruff) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
       eslint) _ilt_eslint || fails=$((fails + 1)) ;;
       pglast) _ilt_pglast || fails=$((fails + 1)) ;;
+      govulncheck) _ilt_govulncheck || fails=$((fails + 1)) ;;
+      trivy)
+        v="$(_ilt_pin "$_ILT_WF/70_supply-chain.yml" v)"
+        _ilt_fetch_sums trivy "$v" "https://github.com/aquasecurity/trivy/releases/download/v$v/trivy_${v}_Linux-64bit.tar.gz" \
+          "https://github.com/aquasecurity/trivy/releases/download/v$v/trivy_${v}_checksums.txt" "trivy_${v}_Linux-64bit.tar.gz" trivy \
+          || fails=$((fails + 1)) ;;
+      osv-scanner)
+        v="$(sed -n '/Install osv-scanner/,/osv-scanner --version/s/.*v=\([0-9.]*\);.*/\1/p' "$_ILT_WF/70_supply-chain.yml" | head -1)"
+        _ilt_fetch_sums osv-scanner "$v" "https://github.com/google/osv-scanner/releases/download/v$v/osv-scanner_linux_amd64" \
+          "https://github.com/google/osv-scanner/releases/download/v$v/osv-scanner_SHA256SUMS" osv-scanner_linux_amd64 "" \
+          || fails=$((fails + 1)) ;;
       terraform) _ilt_terraform || fails=$((fails + 1)) ;;
       checkov|semgrep) _ilt_py "$t" || fails=$((fails + 1)) ;;
       *) do_log "FATAL unknown lint tool '$t'"; fails=$((fails + 1)) ;;

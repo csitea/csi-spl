@@ -48,6 +48,8 @@
 # @description `./run -a do_install_lint_tools` (installs the CI-pinned versions).
 # @param PRE_PUSH_LINT (optional) - 0 = skip every lint part (logged SKIP-disabled per
 # @param        part): the one-variable rollback of this gate, never silent
+# @param PRE_PUSH_LINT_ONLY (optional) - space- or +-separated lint parts to run, default all
+# @param        (the weekly full scan picks the ones its sec actions do not cover)
 # @param (all of do_check_pre_push's) - this action is do_check_pre_push restricted to the lint parts
 # @example ./run -a do_check_pre_push_lint
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
@@ -148,6 +150,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
   fi
   [[ "$tier" == full ]] && scanners+=" $_PPL_SLOW"
   for sc in $scanners; do
+    [[ -z "${PRE_PUSH_LINT_ONLY:-}" || " ${PRE_PUSH_LINT_ONLY//+/ } " == *" $sc "* ]] || continue
     if [[ "$mode" == full ]]; then
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"

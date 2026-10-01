@@ -137,6 +137,16 @@ How to apply:
   | `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
   | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 
+  **Weekly full scan** (owner 2026-10-01: Friday 17:00 box time): every one
+  of those scanners over the WHOLE scope, plus checkov, gosec, semgrep,
+  govulncheck, trivy, OSV, gitleaks history and pnpm audit, for csi-spl and
+  csi-web: `./run -a do_check_weekly_full_scan` (DRY_RUN=1 prints the plan).
+  The report is `~/.cache/csi-spl/weekly-scan/<date>.md`, and a short summary
+  goes to #spool-hub-ops as OPS-01. The cron line is
+  `./run -a do_install_weekly_full_scan_cron` (DRY_RUN=1 prints the crontab
+  diff; exact end-of-line tag `# csi-spl:weekly-full-scan`). GitHub keeps a
+  weekly schedule only for CodeQL (60) and DAST (68).
+
   A change to a scanner's own action, config, baseline or workflow re-runs it
   over its whole CI scope. Rollback without a revert: `PRE_PUSH_LINT=0 git push`
   (logged, every lint part SKIPPED; the CI scanners still run after the push).

@@ -568,7 +568,6 @@
       "label": "Редактировать сообщение",
       "mode": "Редактирование сообщения",
       "hint": "Enter сохраняет · Shift+Enter новая строка · Esc отменяет",
-      "shortcut_hint": "Нажмите e, чтобы отредактировать это сообщение",
       "marker": "(изменено)",
       "marker_title": "Изменено {at}",
       "saving": "Сохранение…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Сообщение в {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки · /search для фильтра",
     "feed_label": "{target}, сначала новые",
     "index": {
       "subtitle": "только чтение · в пределах рабочего пространства",
@@ -898,7 +896,6 @@
     "submit": "Найти",
     "operator_suggestions": "Операторы поиска",
     "home": "Главная Spool",
-    "open_omnibox": "Поиск или сообщение",
     "placeholder_no_target": "Введите /search и запрос, напр. /search from:CLE-07 is:task",
     "title": "Поиск",
     "help_intro": "Введите /search в верхней строке, затем слова, \"фразы\" и операторы, как в Gmail. Примеры:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Пользователи",
-    "sidebar_hint": "Приглашайте людей в это рабочее пространство, меняйте их роль или удаляйте их.",
     "members": "Участники ({n})",
     "invites": "Ожидающие приглашения ({n})",
     "no_invites": "Нет ожидающих приглашений.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Все",
     "filter_me": "Я",
     "filter_unassigned": "Без исполнителя",
-    "filter_from": "Срок с",
-    "filter_until": "Срок до",
     "filter_clear": "Сбросить фильтры",
-    "show_group": "Показать {name}",
-    "hide_group": "Скрыть {name}",
     "count": "{n}",
     "no_assignee": "Без исполнителя",
     "field_assignee": "Исполнитель",
@@ -1155,7 +1147,6 @@
     "field_labels": "Метки",
     "field_deadline": "Срок",
     "field_kind": "Тип",
-    "no_deadline": "Без срока",
     "field_description": "Описание",
     "description_empty": "Добавьте описание",
     "description_edit_hint": "Щёлкните или нажмите E, чтобы изменить",
@@ -1166,7 +1157,6 @@
     "updated_by": "Обновил {name}",
     "discussion": "Обсуждение",
     "comment_placeholder": "Комментарий",
-    "comment_send": "Комментарий",
     "comment_empty": "Комментариев пока нет.",
     "shortcuts": "C новая. J и K двигают. Enter открывает. S статус. P приоритет. A исполнитель. L метка. Esc закрывает.",
     "add_label": "Добавить метку",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Группировка",
-    "group_none": "Нет",
     "col_key": "Ключ",
     "col_title": "Название",
     "col_resize": "Изменить ширину столбца {col}",

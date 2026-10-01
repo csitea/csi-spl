@@ -568,7 +568,6 @@
       "label": "Rediģēt ziņu",
       "mode": "Šīs ziņas rediģēšana",
       "hint": "Enter saglabā · Shift+Enter pievieno rindu · Esc atceļ",
-      "shortcut_hint": "Nospiediet e, lai rediģētu šo ziņu",
       "marker": "(rediģēts)",
       "marker_title": "Rediģēts {at}",
       "saving": "Saglabā…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Ziņa {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",
     "feed_label": "{target}, jaunākās vispirms",
     "index": {
       "subtitle": "tikai lasīšanai · darbvietas tvērumā",
@@ -898,7 +896,6 @@
     "submit": "Meklēt",
     "operator_suggestions": "Meklēšanas operatori",
     "home": "Spool sākums",
-    "open_omnibox": "Meklēt vai rakstīt",
     "placeholder_no_target": "Ievadiet /search un vaicājumu, piem., /search from:CLE-07 is:task",
     "title": "Meklēšana",
     "help_intro": "Augšējā joslā ievadiet /search, pēc tam vārdus, \"frāzes\" un operatorus kā Gmail. Piemēri:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Lietotāji",
-    "sidebar_hint": "Uzaiciniet cilvēkus šajā darbvietā, mainiet viņu lomu vai noņemiet viņus.",
     "members": "Dalībnieki ({n})",
     "invites": "Gaidošie uzaicinājumi ({n})",
     "no_invites": "Nav gaidošu uzaicinājumu.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Visas",
     "filter_me": "Es",
     "filter_unassigned": "Bez atbildīgā",
-    "filter_from": "Termiņš no",
-    "filter_until": "Termiņš līdz",
     "filter_clear": "Notīrīt filtrus",
-    "show_group": "Rādīt {name}",
-    "hide_group": "Slēpt {name}",
     "count": "{n}",
     "no_assignee": "Bez atbildīgā",
     "field_assignee": "Atbildīgais",
@@ -1155,7 +1147,6 @@
     "field_labels": "Etiķetes",
     "field_deadline": "Termiņš",
     "field_kind": "Veids",
-    "no_deadline": "Nav termiņa",
     "field_description": "Apraksts",
     "description_empty": "Pievienojiet aprakstu",
     "description_edit_hint": "Noklikšķiniet vai nospiediet E, lai rediģētu",
@@ -1166,7 +1157,6 @@
     "updated_by": "Atjaunināja {name}",
     "discussion": "Diskusija",
     "comment_placeholder": "Komentārs",
-    "comment_send": "Komentēt",
     "comment_empty": "Komentāru vēl nav.",
     "shortcuts": "C jauna. J un K pārvieto. Enter atver. S statuss. P prioritāte. A atbildīgais. L etiķete. Esc aizver.",
     "add_label": "Pievienot etiķeti",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Grupēt pēc",
-    "group_none": "Nav",
     "col_key": "Atslēga",
     "col_title": "Nosaukums",
     "col_resize": "Mainīt kolonnas {col} platumu",

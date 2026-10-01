@@ -568,7 +568,6 @@
       "label": "Επεξεργασία μηνύματος",
       "mode": "Επεξεργασία αυτού του μηνύματος",
       "hint": "Το Enter αποθηκεύει · Shift+Enter νέα γραμμή · Esc ακυρώνει",
-      "shortcut_hint": "Πατήστε e για να επεξεργαστείτε αυτό το μήνυμα",
       "marker": "(επεξεργασμένο)",
       "marker_title": "Επεξεργάστηκε στις {at}",
       "saving": "Αποθήκευση…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Μήνυμα προς {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για φιλτράρισμα",
     "feed_label": "{target}, πρώτα τα νεότερα",
     "index": {
       "subtitle": "μόνο ανάγνωση · ανά χώρο εργασίας",
@@ -898,7 +896,6 @@
     "submit": "Αναζήτηση",
     "operator_suggestions": "Τελεστές αναζήτησης",
     "home": "Αρχική Spool",
-    "open_omnibox": "Αναζήτηση ή μήνυμα",
     "placeholder_no_target": "Πληκτρολογήστε /search και ένα ερώτημα, π.χ. /search from:CLE-07 is:task",
     "title": "Αναζήτηση",
     "help_intro": "Πληκτρολογήστε /search στη γραμμή επάνω, μετά λέξεις, \"φράσεις\" και τελεστές, όπως στο Gmail. Παραδείγματα:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Χρήστες",
-    "sidebar_hint": "Προσκαλέστε άτομα σε αυτόν τον χώρο εργασίας, αλλάξτε τον ρόλο τους ή αφαιρέστε τους.",
     "members": "Μέλη ({n})",
     "invites": "Εκκρεμείς προσκλήσεις ({n})",
     "no_invites": "Δεν υπάρχουν εκκρεμείς προσκλήσεις.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Όλα",
     "filter_me": "Εγώ",
     "filter_unassigned": "Χωρίς υπεύθυνο",
-    "filter_from": "Προθεσμία από",
-    "filter_until": "Προθεσμία έως",
     "filter_clear": "Καθαρισμός φίλτρων",
-    "show_group": "Εμφάνιση {name}",
-    "hide_group": "Απόκρυψη {name}",
     "count": "{n}",
     "no_assignee": "Χωρίς υπεύθυνο",
     "field_assignee": "Υπεύθυνος",
@@ -1155,7 +1147,6 @@
     "field_labels": "Ετικέτες",
     "field_deadline": "Προθεσμία",
     "field_kind": "Τύπος",
-    "no_deadline": "Χωρίς προθεσμία",
     "field_description": "Περιγραφή",
     "description_empty": "Προσθέστε περιγραφή",
     "description_edit_hint": "Κάντε κλικ ή πατήστε E για επεξεργασία",
@@ -1166,7 +1157,6 @@
     "updated_by": "Ενημερώθηκε από {name}",
     "discussion": "Συζήτηση",
     "comment_placeholder": "Σχόλιο",
-    "comment_send": "Σχόλιο",
     "comment_empty": "Δεν υπάρχουν σχόλια ακόμα.",
     "shortcuts": "C νέο. J και K μετακινούν. Enter ανοίγει. S κατάσταση. P προτεραιότητα. A υπεύθυνος. L ετικέτα. Esc κλείνει.",
     "add_label": "Νέα ετικέτα",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Ομαδοποίηση",
-    "group_none": "Καμία",
     "col_key": "Κλειδί",
     "col_title": "Τίτλος",
     "col_resize": "Αλλαγή πλάτους της στήλης {col}",

@@ -568,7 +568,6 @@
       "label": "Izmeni poruku",
       "mode": "Измена ове поруке",
       "hint": "Enter čuva · Shift+Enter novi red · Esc otkazuje",
-      "shortcut_hint": "Pritisnite e da izmenite ovu poruku",
       "marker": "(izmenjeno)",
       "marker_title": "Izmenjeno {at}",
       "saving": "Čuvanje…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Poruka za {target} — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
     "feed_label": "{target}, najnovije prvo",
     "index": {
       "subtitle": "samo za čitanje · u okviru radnog prostora",
@@ -898,7 +896,6 @@
     "submit": "Претражи",
     "operator_suggestions": "Оператори претраге",
     "home": "Почетна Spool",
-    "open_omnibox": "Претражи или пиши",
     "placeholder_no_target": "Унесите /search и упит, нпр. /search from:CLE-07 is:task",
     "title": "Претрага",
     "help_intro": "Унесите /search у горњу траку, затим речи, \"фразе\" и операторе, као у Gmail-у. Примери:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Корисници",
-    "sidebar_hint": "Позовите људе у овај радни простор, промените им улогу или их уклоните.",
     "members": "Чланови ({n})",
     "invites": "Позивнице на чекању ({n})",
     "no_invites": "Нема позивница на чекању.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Сви",
     "filter_me": "Ја",
     "filter_unassigned": "Без задуженог",
-    "filter_from": "Рок од",
-    "filter_until": "Рок до",
     "filter_clear": "Обриши филтере",
-    "show_group": "Прикажи {name}",
-    "hide_group": "Сакриј {name}",
     "count": "{n}",
     "no_assignee": "Без задуженог",
     "field_assignee": "Задужен",
@@ -1155,7 +1147,6 @@
     "field_labels": "Ознаке",
     "field_deadline": "Рок",
     "field_kind": "Врста",
-    "no_deadline": "Без рока",
     "field_description": "Опис",
     "description_empty": "Додајте опис",
     "description_edit_hint": "Кликните или притисните E за измену",
@@ -1166,7 +1157,6 @@
     "updated_by": "Ажурирао {name}",
     "discussion": "Расправа",
     "comment_placeholder": "Коментар",
-    "comment_send": "Коментар",
     "comment_empty": "Још нема коментара.",
     "shortcuts": "C нови. J и K померају. Enter отвара. S статус. P приоритет. A задужен. L ознака. Esc затвара.",
     "add_label": "Додај ознаку",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Grupiši po",
-    "group_none": "Bez",
     "col_key": "Ključ",
     "col_title": "Naslov",
     "col_resize": "Промени ширину колоне {col}",

@@ -568,7 +568,6 @@
       "label": "Edit message",
       "mode": "Editing this message",
       "hint": "Enter saves · Shift+Enter adds a line · Esc cancels",
-      "shortcut_hint": "Press e to edit this message",
       "marker": "(edited)",
       "marker_title": "Edited {at}",
       "saving": "Saving…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "feed_label": "{target}, newest first",
     "index": {
       "subtitle": "read-only · workspace-scoped",
@@ -898,7 +896,6 @@
     "submit": "Search",
     "operator_suggestions": "Search operators",
     "home": "Spool home",
-    "open_omnibox": "Search or message",
     "placeholder_no_target": "Type /search and a query, e.g. /search from:CLE-07 is:task",
     "title": "Search",
     "help_intro": "Type /search in the bar at the top, then words, \"phrases\" and operators, as in Gmail. Examples:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Users",
-    "sidebar_hint": "Invite people to this workspace, change their role or remove them.",
     "members": "Members ({n})",
     "invites": "Pending invites ({n})",
     "no_invites": "No pending invites.",
@@ -1141,11 +1137,7 @@
     "filter_all": "All",
     "filter_me": "Me",
     "filter_unassigned": "No assignee",
-    "filter_from": "Deadline from",
-    "filter_until": "Deadline until",
     "filter_clear": "Clear filters",
-    "show_group": "Show {name}",
-    "hide_group": "Hide {name}",
     "count": "{n}",
     "no_assignee": "No assignee",
     "field_assignee": "Assignee",
@@ -1155,7 +1147,6 @@
     "field_labels": "Labels",
     "field_deadline": "Deadline",
     "field_kind": "Kind",
-    "no_deadline": "No deadline",
     "field_description": "Description",
     "description_empty": "Add a description",
     "description_edit_hint": "Click or press E to edit",
@@ -1166,7 +1157,6 @@
     "updated_by": "Updated by {name}",
     "discussion": "Discussion",
     "comment_placeholder": "Comment",
-    "comment_send": "Comment",
     "comment_empty": "No comments yet.",
     "shortcuts": "C new issue. J and K move. Enter opens. S status. P priority. A assignee. L label. Esc closes.",
     "add_label": "Add label",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Group by",
-    "group_none": "None",
     "col_key": "Key",
     "col_title": "Title",
     "col_resize": "Resize the {col} column",

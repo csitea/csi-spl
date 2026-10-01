@@ -568,7 +568,6 @@
       "label": "Mesajı düzenle",
       "mode": "Bu mesaj düzenleniyor",
       "hint": "Enter kaydeder · Shift+Enter yeni satır · Esc iptal eder",
-      "shortcut_hint": "Bu mesajı düzenlemek için e tuşuna basın",
       "marker": "(düzenlendi)",
       "marker_title": "{at} tarihinde düzenlendi",
       "saving": "Kaydediliyor…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "{target} için mesaj — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "feed_label": "{target}, en yeniler önce",
     "index": {
       "subtitle": "salt okunur · çalışma alanına özel",
@@ -898,7 +896,6 @@
     "submit": "Ara",
     "operator_suggestions": "Arama operatörleri",
     "home": "Spool ana sayfa",
-    "open_omnibox": "Ara veya yaz",
     "placeholder_no_target": "/search ve bir sorgu yazın, ör. /search from:CLE-07 is:task",
     "title": "Arama",
     "help_intro": "Üst çubuğa /search yazın, ardından Gmail'deki gibi kelimeler, \"ifadeler\" ve operatörler. Örnekler:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Kullanıcılar",
-    "sidebar_hint": "Bu çalışma alanına kişi davet edin, rollerini değiştirin veya onları kaldırın.",
     "members": "Üyeler ({n})",
     "invites": "Bekleyen davetler ({n})",
     "no_invites": "Bekleyen davet yok.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Tümü",
     "filter_me": "Ben",
     "filter_unassigned": "Atanmamış",
-    "filter_from": "Son tarih başlangıcı",
-    "filter_until": "Son tarih bitişi",
     "filter_clear": "Süzgeçleri temizle",
-    "show_group": "{name} göster",
-    "hide_group": "{name} gizle",
     "count": "{n}",
     "no_assignee": "Atanmamış",
     "field_assignee": "Atanan",
@@ -1155,7 +1147,6 @@
     "field_labels": "Etiketler",
     "field_deadline": "Son tarih",
     "field_kind": "Tür",
-    "no_deadline": "Son tarih yok",
     "field_description": "Açıklama",
     "description_empty": "Bir açıklama ekleyin",
     "description_edit_hint": "Düzenlemek için tıklayın veya E tuşuna basın",
@@ -1166,7 +1157,6 @@
     "updated_by": "{name} güncelledi",
     "discussion": "Tartışma",
     "comment_placeholder": "Yorum",
-    "comment_send": "Yorumla",
     "comment_empty": "Henüz yorum yok.",
     "shortcuts": "C yeni. J ve K gezer. Enter açar. S durum. P öncelik. A atanan. L etiket. Esc kapatır.",
     "add_label": "Etiket ekle",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Gruplama",
-    "group_none": "Yok",
     "col_key": "Anahtar",
     "col_title": "Başlık",
     "col_resize": "{col} sütununu yeniden boyutlandır",

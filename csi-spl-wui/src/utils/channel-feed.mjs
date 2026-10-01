@@ -186,12 +186,6 @@ export function initials(id) {
   return s.slice(0, 2).toUpperCase()
 }
 
-export function hueFor(id) {
-  let h = 0
-  for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return h % 360
-}
-
 /**
  * Byte size for a file card. `locale` (optional, the active UI locale) formats
  * the number with that locale's separators; without it the output is unchanged

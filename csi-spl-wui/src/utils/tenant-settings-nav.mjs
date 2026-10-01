@@ -18,8 +18,6 @@ export const TENANT_SETTINGS_SECTIONS = [
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
 ]
 
-export const TENANT_SETTINGS_PERMS = ['members.invite', 'tenant.settings']
-
 /** `me` is normalizeMe()'s shape. The mock build plays an admin. */
 export function tenantSettingsSections(me, { mock = false } = {}) {
   if (mock) return TENANT_SETTINGS_SECTIONS.slice()

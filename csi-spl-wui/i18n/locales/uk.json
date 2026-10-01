@@ -568,7 +568,6 @@
       "label": "Редагувати повідомлення",
       "mode": "Редагування повідомлення",
       "hint": "Enter зберігає · Shift+Enter новий рядок · Esc скасовує",
-      "shortcut_hint": "Натисніть e, щоб відредагувати це повідомлення",
       "marker": "(змінено)",
       "marker_title": "Змінено {at}",
       "saving": "Збереження…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter, щоб надіслати · /search для фільтрування",
     "feed_label": "{target}, спершу новіші",
     "index": {
       "subtitle": "лише читання · у межах робочого простору",
@@ -898,7 +896,6 @@
     "submit": "Шукати",
     "operator_suggestions": "Оператори пошуку",
     "home": "Головна Spool",
-    "open_omnibox": "Пошук або повідомлення",
     "placeholder_no_target": "Введіть /search і запит, напр. /search from:CLE-07 is:task",
     "title": "Пошук",
     "help_intro": "Введіть /search у верхньому рядку, далі слова, \"фрази\" й оператори, як у Gmail. Приклади:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Користувачі",
-    "sidebar_hint": "Запрошуйте людей до цього робочого простору, змінюйте їхню роль або видаляйте їх.",
     "members": "Учасники ({n})",
     "invites": "Очікувані запрошення ({n})",
     "no_invites": "Немає очікуваних запрошень.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Усі",
     "filter_me": "Я",
     "filter_unassigned": "Без виконавця",
-    "filter_from": "Термін від",
-    "filter_until": "Термін до",
     "filter_clear": "Скинути фільтри",
-    "show_group": "Показати {name}",
-    "hide_group": "Сховати {name}",
     "count": "{n}",
     "no_assignee": "Без виконавця",
     "field_assignee": "Виконавець",
@@ -1155,7 +1147,6 @@
     "field_labels": "Мітки",
     "field_deadline": "Термін",
     "field_kind": "Тип",
-    "no_deadline": "Без терміну",
     "field_description": "Опис",
     "description_empty": "Додайте опис",
     "description_edit_hint": "Клацніть або натисніть E, щоб редагувати",
@@ -1166,7 +1157,6 @@
     "updated_by": "Оновив {name}",
     "discussion": "Обговорення",
     "comment_placeholder": "Коментар",
-    "comment_send": "Коментар",
     "comment_empty": "Коментарів ще немає.",
     "shortcuts": "C нова. J і K рухають. Enter відкриває. S статус. P пріоритет. A виконавець. L мітка. Esc закриває.",
     "add_label": "Додати мітку",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Групування",
-    "group_none": "Немає",
     "col_key": "Ключ",
     "col_title": "Назва",
     "col_resize": "Змінити ширину стовпця {col}",

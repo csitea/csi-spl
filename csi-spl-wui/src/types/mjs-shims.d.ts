@@ -285,7 +285,6 @@ declare module '~/utils/channel-feed.mjs' {
     parentTaskId: string | null,
   ): T[]
   export function replyCount(messages: { parent_task_id?: string | null }[], taskId: string): number
-  export function applyVerbosity<T extends { kind?: string, body?: string }>(messages: T[], level: string): T[]
   export function parseMention(text: string): { to: string, kind: string, body: string }
   export function displayName(id: string, box?: string): string
   export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
@@ -297,7 +296,6 @@ declare module '~/utils/channel-feed.mjs' {
   export function personTitle(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function namedLine(line: string, names: Record<string, string> | null | undefined): { text: string, title: string }
   export function initials(id: string): string
-  export function hueFor(id: string): number
   export function formatBytes(n: number | undefined, locale?: string): string
   export function formatTs(ts: string, locale?: string): string
   export function formatAbsTs(ts: string): string
@@ -1314,7 +1312,6 @@ declare module '~/utils/tenant-users-mock.mjs' {
 declare module '~/utils/tenant-settings-nav.mjs' {
   export type TenantSection = { id: string, label: string, perm: string }
   export const TENANT_SETTINGS_SECTIONS: TenantSection[]
-  export const TENANT_SETTINGS_PERMS: string[]
   export function tenantSettingsSections(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): TenantSection[]
   export function tenantSettingsVisible(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): boolean
   export function tenantSettingsSectionOf(path: string): string
@@ -1669,26 +1666,10 @@ declare module '~/utils/issues.mjs' {
   export const PRIO_DEFAULT: number
   export function normalizeStatus(s: string): string
   export function isTopKind(kind: string): boolean
-  export const ISSUE_PRIORITIES: number[]
-  export const ISSUE_LEVELS: number[]
-  export const LEVEL_SHORT: string[]
-  export const ISSUE_SORTS: string[]
-  export function statusKey(s: string): string
-  export function priorityKey(p: number): string
-  export function levelKey(l: number): string
   export function normalizeIssue(raw: unknown): Issue
   export function normalizeLabel(raw: unknown): IssueLabel
   export function sortIssues(list: Issue[], by?: string): Issue[]
   export function matchIssue(issue: Issue, f?: IssueFilter, me?: string): boolean
-  export function groupIssues(list: Issue[], opts?: { sort?: string, filter?: IssueFilter, me?: string, hideEmpty?: boolean }): IssueGroup[]
-  export function visibleOrder(groups: IssueGroup[], collapsed?: Record<string, boolean>): Issue[]
-  export function stepKey(order: Issue[], current: string, delta: number): string
-  export function applyIssueFrame(list: Issue[], frame: unknown): Issue[]
-  export function applyLabelFrame(labels: IssueLabel[], frame: unknown): IssueLabel[]
-  export function patchIssue(issue: Issue, patch: Partial<Issue>): Issue
-  export function deadlineToLocalInput(iso: string, offsetMin?: number): string
-  export function localInputToDeadline(value: string, offsetMin?: number): string | null
-  export function isOverdue(issue: Issue, now?: number): boolean
   export function issueQuery(filter?: IssueFilter, sort?: string): string
   export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
 }
@@ -1698,15 +1679,12 @@ declare module '~/utils/issues-view.mjs' {
   export const ISSUE_LEVELS: number[]
   export const LEVEL_SHORT: string[]
   export const ISSUE_SORTS: string[]
-  export function statusKey(s: string): string
-  export function priorityKey(p: number): string
   export function levelKey(l: number): string
   export function groupIssues(list: import('~/utils/issues.mjs').Issue[], opts?: { sort?: string, filter?: import('~/utils/issues.mjs').IssueFilter, me?: string, hideEmpty?: boolean, by?: 'status' | 'none' }): import('~/utils/issues.mjs').IssueGroup[]
   export function visibleOrder(groups: import('~/utils/issues.mjs').IssueGroup[], collapsed?: Record<string, boolean>): import('~/utils/issues.mjs').Issue[]
   export function stepKey(order: import('~/utils/issues.mjs').Issue[], current: string, delta: number): string
   export function applyIssueFrame(list: import('~/utils/issues.mjs').Issue[], frame: unknown): import('~/utils/issues.mjs').Issue[]
   export function applyLabelFrame(labels: import('~/utils/issues.mjs').IssueLabel[], frame: unknown): import('~/utils/issues.mjs').IssueLabel[]
-  export function patchIssue(issue: import('~/utils/issues.mjs').Issue, patch: Partial<import('~/utils/issues.mjs').Issue>): import('~/utils/issues.mjs').Issue
   export function deadlineToLocalInput(iso: string, offsetMin?: number): string
   export function localInputToDeadline(value: string, offsetMin?: number): string | null
   export function isOverdue(issue: import('~/utils/issues.mjs').Issue, now?: number): boolean

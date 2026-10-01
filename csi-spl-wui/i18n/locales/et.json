@@ -568,7 +568,6 @@
       "label": "Muuda sõnumit",
       "mode": "Selle sõnumi muutmine",
       "hint": "Enter salvestab · Shift+Enter lisab rea · Esc katkestab",
-      "shortcut_hint": "Selle sõnumi muutmiseks vajuta e",
       "marker": "(muudetud)",
       "marker_title": "Muudetud {at}",
       "saving": "Salvestamine…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "feed_label": "{target}, uusimad eespool",
     "index": {
       "subtitle": "ainult lugemiseks · tööruumi piires",
@@ -898,7 +896,6 @@
     "submit": "Otsi",
     "operator_suggestions": "Otsinguoperaatorid",
     "home": "Spooli avaleht",
-    "open_omnibox": "Otsi või kirjuta",
     "placeholder_no_target": "Sisesta /search ja päring, nt /search from:CLE-07 is:task",
     "title": "Otsing",
     "help_intro": "Sisesta ülemisele ribale /search, seejärel sõnad, \"fraasid\" ja operaatorid nagu Gmailis. Näited:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Kasutajad",
-    "sidebar_hint": "Kutsu inimesi sellesse tööruumi, muuda nende rolli või eemalda nad.",
     "members": "Liikmed ({n})",
     "invites": "Ootel kutsed ({n})",
     "no_invites": "Ootel kutseid pole.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Kõik",
     "filter_me": "Mina",
     "filter_unassigned": "Vastutajata",
-    "filter_from": "Tähtaeg alates",
-    "filter_until": "Tähtaeg kuni",
     "filter_clear": "Tühjenda filtrid",
-    "show_group": "Näita {name}",
-    "hide_group": "Peida {name}",
     "count": "{n}",
     "no_assignee": "Vastutajata",
     "field_assignee": "Vastutaja",
@@ -1155,7 +1147,6 @@
     "field_labels": "Sildid",
     "field_deadline": "Tähtaeg",
     "field_kind": "Tüüp",
-    "no_deadline": "Tähtaega pole",
     "field_description": "Kirjeldus",
     "description_empty": "Lisa kirjeldus",
     "description_edit_hint": "Muutmiseks klõpsa või vajuta E",
@@ -1166,7 +1157,6 @@
     "updated_by": "Uuendas {name}",
     "discussion": "Arutelu",
     "comment_placeholder": "Kommentaar",
-    "comment_send": "Kommenteeri",
     "comment_empty": "Kommentaare veel pole.",
     "shortcuts": "C uus. J ja K liigutavad. Enter avab. S olek. P tähtsus. A vastutaja. L silt. Esc sulgeb.",
     "add_label": "Lisa silt",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Rühmita",
-    "group_none": "Puudub",
     "col_key": "Võti",
     "col_title": "Pealkiri",
     "col_resize": "Muuda veeru {col} laiust",

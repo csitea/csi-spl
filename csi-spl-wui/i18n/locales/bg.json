@@ -568,7 +568,6 @@
       "label": "Редактиране на съобщението",
       "mode": "Редактиране на това съобщение",
       "hint": "Enter записва · Shift+Enter нов ред · Esc отказва",
-      "shortcut_hint": "Натиснете e, за да редактирате това съобщение",
       "marker": "(редактирано)",
       "marker_title": "Редактирано на {at}",
       "saving": "Записване…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",
     "feed_label": "{target}, най-новите първи",
     "index": {
       "subtitle": "само за четене · в рамките на работното пространство",
@@ -898,7 +896,6 @@
     "submit": "Търси",
     "operator_suggestions": "Оператори за търсене",
     "home": "Начало на Spool",
-    "open_omnibox": "Търсене или съобщение",
     "placeholder_no_target": "Въведете /search и заявка, напр. /search from:CLE-07 is:task",
     "title": "Търсене",
     "help_intro": "Въведете /search в лентата горе, после думи, \"фрази\" и оператори, както в Gmail. Примери:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Потребители",
-    "sidebar_hint": "Канете хора в това работно пространство, променяйте ролята им или ги премахвайте.",
     "members": "Членове ({n})",
     "invites": "Чакащи покани ({n})",
     "no_invites": "Няма чакащи покани.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Всички",
     "filter_me": "Аз",
     "filter_unassigned": "Без отговорник",
-    "filter_from": "Краен срок от",
-    "filter_until": "Краен срок до",
     "filter_clear": "Изчисти филтрите",
-    "show_group": "Покажи {name}",
-    "hide_group": "Скрий {name}",
     "count": "{n}",
     "no_assignee": "Без отговорник",
     "field_assignee": "Отговорник",
@@ -1155,7 +1147,6 @@
     "field_labels": "Етикети",
     "field_deadline": "Краен срок",
     "field_kind": "Вид",
-    "no_deadline": "Без краен срок",
     "field_description": "Описание",
     "description_empty": "Добавете описание",
     "description_edit_hint": "Щракнете или натиснете E, за да редактирате",
@@ -1166,7 +1157,6 @@
     "updated_by": "Обновено от {name}",
     "discussion": "Обсъждане",
     "comment_placeholder": "Коментар",
-    "comment_send": "Коментар",
     "comment_empty": "Все още няма коментари.",
     "shortcuts": "C ново дело. J и K местят. Enter отваря. S статус. P приоритет. A отговорник. L етикет. Esc затваря.",
     "add_label": "Нов етикет",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Групиране",
-    "group_none": "Без",
     "col_key": "Ключ",
     "col_title": "Заглавие",
     "col_resize": "Промяна на ширината на колоната {col}",

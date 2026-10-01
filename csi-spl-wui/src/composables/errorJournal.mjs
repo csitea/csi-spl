@@ -548,11 +548,6 @@ export function getErrors() {
   return records.slice()
 }
 
-/** @returns {number} */
-export function getErrorCount() {
-  return records.length
-}
-
 /**
  * @param {(records: object[]) => void} fn
  * @returns {() => void} unsubscribe

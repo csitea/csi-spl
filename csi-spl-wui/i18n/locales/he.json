@@ -568,7 +568,6 @@
       "label": "עריכת ההודעה",
       "mode": "עריכת הודעה זו",
       "hint": "Enter שומר · Shift+Enter שורה חדשה · Esc מבטל",
-      "shortcut_hint": "הקישו e כדי לערוך הודעה זו",
       "marker": "(נערך)",
       "marker_title": "נערך ב-{at}",
       "saving": "שומר…",
@@ -858,7 +857,6 @@
     "expand_thread": "הרחב שרשור"
   },
   "pages": {
-    "message_placeholder": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "feed_label": "{target}, החדשות ראשונות",
     "index": {
       "subtitle": "קריאה בלבד · בתחום סביבת העבודה",
@@ -898,7 +896,6 @@
     "submit": "חפש",
     "operator_suggestions": "אופרטורים לחיפוש",
     "home": "דף הבית של Spool",
-    "open_omnibox": "חיפוש או הודעה",
     "placeholder_no_target": "הקלידו ‎/search ושאילתה, לדוגמה ‎/search from:CLE-07 is:task",
     "title": "חיפוש",
     "help_intro": "הקלידו ‎/search בסרגל העליון, ואחריו מילים, \"ביטויים\" ואופרטורים, כמו ב-Gmail. דוגמאות:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "משתמשים",
-    "sidebar_hint": "הזמינו אנשים לסביבת העבודה הזו, שנו את התפקיד שלהם או הסירו אותם.",
     "members": "חברים ({n})",
     "invites": "הזמנות ממתינות ({n})",
     "no_invites": "אין הזמנות ממתינות.",
@@ -1141,11 +1137,7 @@
     "filter_all": "הכל",
     "filter_me": "אני",
     "filter_unassigned": "בלי אחראי",
-    "filter_from": "מועד יעד מ",
-    "filter_until": "מועד יעד עד",
     "filter_clear": "נקה מסננים",
-    "show_group": "הצג {name}",
-    "hide_group": "הסתר {name}",
     "count": "{n}",
     "no_assignee": "בלי אחראי",
     "field_assignee": "אחראי",
@@ -1155,7 +1147,6 @@
     "field_labels": "תוויות",
     "field_deadline": "מועד יעד",
     "field_kind": "סוג",
-    "no_deadline": "אין מועד יעד",
     "field_description": "תיאור",
     "description_empty": "הוסף תיאור",
     "description_edit_hint": "לחצו או הקישו E כדי לערוך",
@@ -1166,7 +1157,6 @@
     "updated_by": "עודכן על ידי {name}",
     "discussion": "דיון",
     "comment_placeholder": "תגובה",
-    "comment_send": "הגב",
     "comment_empty": "אין עדיין תגובות.",
     "shortcuts": "C חדש. J ו-K מזיזים. Enter פותח. S מצב. P עדיפות. A אחראי. L תווית. Esc סוגר.",
     "add_label": "הוסף תווית",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "קיבוץ לפי",
-    "group_none": "ללא",
     "col_key": "מפתח",
     "col_title": "כותרת",
     "col_resize": "שינוי רוחב העמודה {col}",

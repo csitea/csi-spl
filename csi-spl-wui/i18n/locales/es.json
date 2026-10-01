@@ -568,7 +568,6 @@
       "label": "Editar mensaje",
       "mode": "Editando este mensaje",
       "hint": "Enter guarda · Shift+Enter añade una línea · Esc cancela",
-      "shortcut_hint": "Pulsa e para editar este mensaje",
       "marker": "(editado)",
       "marker_title": "Editado el {at}",
       "saving": "Guardando…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "feed_label": "{target}, los más recientes primero",
     "index": {
       "subtitle": "solo lectura · limitado al espacio de trabajo",
@@ -898,7 +896,6 @@
     "submit": "Buscar",
     "operator_suggestions": "Operadores de búsqueda",
     "home": "Inicio de Spool",
-    "open_omnibox": "Buscar o escribir",
     "placeholder_no_target": "Escribe /search y una consulta, p. ej. /search from:CLE-07 is:task",
     "title": "Búsqueda",
     "help_intro": "Escribe /search en la barra superior y luego palabras, \"frases\" y operadores, como en Gmail. Ejemplos:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Usuarios",
-    "sidebar_hint": "Invita a personas a este espacio de trabajo, cambia su rol o elimínalas.",
     "members": "Miembros ({n})",
     "invites": "Invitaciones pendientes ({n})",
     "no_invites": "No hay invitaciones pendientes.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Todas",
     "filter_me": "Yo",
     "filter_unassigned": "Sin responsable",
-    "filter_from": "Fecha límite desde",
-    "filter_until": "Fecha límite hasta",
     "filter_clear": "Quitar filtros",
-    "show_group": "Mostrar {name}",
-    "hide_group": "Ocultar {name}",
     "count": "{n}",
     "no_assignee": "Sin responsable",
     "field_assignee": "Responsable",
@@ -1155,7 +1147,6 @@
     "field_labels": "Etiquetas",
     "field_deadline": "Fecha límite",
     "field_kind": "Tipo",
-    "no_deadline": "Sin fecha límite",
     "field_description": "Descripción",
     "description_empty": "Añade una descripción",
     "description_edit_hint": "Haz clic o pulsa E para editar",
@@ -1166,7 +1157,6 @@
     "updated_by": "Actualizada por {name}",
     "discussion": "Discusión",
     "comment_placeholder": "Comentario",
-    "comment_send": "Comentar",
     "comment_empty": "Todavía no hay comentarios.",
     "shortcuts": "C nueva. J y K mueven. Enter abre. S estado. P prioridad. A responsable. L etiqueta. Esc cierra.",
     "add_label": "Añadir etiqueta",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Agrupar por",
-    "group_none": "Ninguno",
     "col_key": "Clave",
     "col_title": "Título",
     "col_resize": "Cambiar el ancho de la columna {col}",

@@ -568,7 +568,6 @@
       "label": "Redaguoti žinutę",
       "mode": "Redaguojama ši žinutė",
       "hint": "Enter išsaugo · Shift+Enter prideda eilutę · Esc atšaukia",
-      "shortcut_hint": "Paspauskite e, kad redaguotumėte šią žinutę",
       "marker": "(redaguota)",
       "marker_title": "Redaguota {at}",
       "saving": "Išsaugoma…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Žinutė {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "feed_label": "{target}, naujausi viršuje",
     "index": {
       "subtitle": "tik skaityti · pagal darbo sritį",
@@ -898,7 +896,6 @@
     "submit": "Ieškoti",
     "operator_suggestions": "Paieškos operatoriai",
     "home": "Spool pradžia",
-    "open_omnibox": "Ieškoti arba rašyti",
     "placeholder_no_target": "Įveskite /search ir užklausą, pvz. /search from:CLE-07 is:task",
     "title": "Paieška",
     "help_intro": "Viršutinėje juostoje įveskite /search, tada žodžius, \"frazes\" ir operatorius, kaip Gmail. Pavyzdžiai:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Naudotojai",
-    "sidebar_hint": "Pakvieskite žmones į šią darbo sritį, keiskite jų vaidmenį arba pašalinkite juos.",
     "members": "Nariai ({n})",
     "invites": "Laukiantys kvietimai ({n})",
     "no_invites": "Laukiančių kvietimų nėra.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Visos",
     "filter_me": "Aš",
     "filter_unassigned": "Be atsakingo",
-    "filter_from": "Terminas nuo",
-    "filter_until": "Terminas iki",
     "filter_clear": "Išvalyti filtrus",
-    "show_group": "Rodyti {name}",
-    "hide_group": "Slėpti {name}",
     "count": "{n}",
     "no_assignee": "Be atsakingo",
     "field_assignee": "Atsakingas",
@@ -1155,7 +1147,6 @@
     "field_labels": "Žymos",
     "field_deadline": "Terminas",
     "field_kind": "Tipas",
-    "no_deadline": "Be termino",
     "field_description": "Aprašas",
     "description_empty": "Pridėkite aprašą",
     "description_edit_hint": "Spustelėkite arba paspauskite E, kad redaguotumėte",
@@ -1166,7 +1157,6 @@
     "updated_by": "Atnaujino {name}",
     "discussion": "Aptarimas",
     "comment_placeholder": "Komentaras",
-    "comment_send": "Komentuoti",
     "comment_empty": "Komentarų dar nėra.",
     "shortcuts": "C nauja. J ir K juda. Enter atidaro. S būsena. P prioritetas. A atsakingas. L žyma. Esc uždaro.",
     "add_label": "Pridėti žymą",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Grupuoti pagal",
-    "group_none": "Nėra",
     "col_key": "Raktas",
     "col_title": "Pavadinimas",
     "col_resize": "Keisti stulpelio {col} plotį",

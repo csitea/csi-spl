@@ -568,7 +568,6 @@
       "label": "Editează mesajul",
       "mode": "Editarea acestui mesaj",
       "hint": "Enter salvează · Shift+Enter rând nou · Esc anulează",
-      "shortcut_hint": "Apasă e pentru a edita acest mesaj",
       "marker": "(editat)",
       "marker_title": "Editat la {at}",
       "saving": "Se salvează…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
     "feed_label": "{target}, cele mai noi primele",
     "index": {
       "subtitle": "doar citire · limitat la spațiul de lucru",
@@ -898,7 +896,6 @@
     "submit": "Caută",
     "operator_suggestions": "Operatori de căutare",
     "home": "Acasă Spool",
-    "open_omnibox": "Caută sau scrie",
     "placeholder_no_target": "Tastați /search și o interogare, de ex. /search from:CLE-07 is:task",
     "title": "Căutare",
     "help_intro": "Tastați /search în bara de sus, apoi cuvinte, \"expresii\" și operatori, ca în Gmail. Exemple:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Utilizatori",
-    "sidebar_hint": "Invită persoane în acest spațiu de lucru, schimbă-le rolul sau elimină-le.",
     "members": "Membri ({n})",
     "invites": "Invitații în așteptare ({n})",
     "no_invites": "Nicio invitație în așteptare.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Toate",
     "filter_me": "Eu",
     "filter_unassigned": "Fără responsabil",
-    "filter_from": "Termen de la",
-    "filter_until": "Termen până la",
     "filter_clear": "Șterge filtrele",
-    "show_group": "Arată {name}",
-    "hide_group": "Ascunde {name}",
     "count": "{n}",
     "no_assignee": "Fără responsabil",
     "field_assignee": "Responsabil",
@@ -1155,7 +1147,6 @@
     "field_labels": "Etichete",
     "field_deadline": "Termen",
     "field_kind": "Tip",
-    "no_deadline": "Fără termen",
     "field_description": "Descriere",
     "description_empty": "Adaugă o descriere",
     "description_edit_hint": "Faceți clic sau apăsați E pentru a edita",
@@ -1166,7 +1157,6 @@
     "updated_by": "Actualizat de {name}",
     "discussion": "Discuție",
     "comment_placeholder": "Comentariu",
-    "comment_send": "Comentează",
     "comment_empty": "Nu există încă comentarii.",
     "shortcuts": "C nou. J și K mută. Enter deschide. S stare. P prioritate. A responsabil. L etichetă. Esc închide.",
     "add_label": "Adaugă etichetă",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Grupare după",
-    "group_none": "Niciuna",
     "col_key": "Cheie",
     "col_title": "Titlu",
     "col_resize": "Redimensionează coloana {col}",

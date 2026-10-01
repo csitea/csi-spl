@@ -568,7 +568,6 @@
       "label": "Upraviť správu",
       "mode": "Úprava tejto správy",
       "hint": "Enter uloží · Shift+Enter nový riadok · Esc zruší",
-      "shortcut_hint": "Stlačte e na úpravu tejto správy",
       "marker": "(upravené)",
       "marker_title": "Upravené {at}",
       "saving": "Ukladá sa…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "feed_label": "{target}, najnovšie prvé",
     "index": {
       "subtitle": "len na čítanie · v rámci pracovného priestoru",
@@ -898,7 +896,6 @@
     "submit": "Hľadať",
     "operator_suggestions": "Operátory vyhľadávania",
     "home": "Domov Spool",
-    "open_omnibox": "Hľadať alebo písať",
     "placeholder_no_target": "Zadajte /search a dopyt, napr. /search from:CLE-07 is:task",
     "title": "Vyhľadávanie",
     "help_intro": "Do horného panela zadajte /search a potom slová, \"frázy\" a operátory ako v Gmaile. Príklady:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Používatelia",
-    "sidebar_hint": "Pozvite ľudí do tohto pracovného priestoru, zmeňte ich rolu alebo ich odstráňte.",
     "members": "Členovia ({n})",
     "invites": "Čakajúce pozvánky ({n})",
     "no_invites": "Žiadne čakajúce pozvánky.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Všetky",
     "filter_me": "Ja",
     "filter_unassigned": "Bez riešiteľa",
-    "filter_from": "Termín od",
-    "filter_until": "Termín do",
     "filter_clear": "Zrušiť filtre",
-    "show_group": "Zobraziť {name}",
-    "hide_group": "Skryť {name}",
     "count": "{n}",
     "no_assignee": "Bez riešiteľa",
     "field_assignee": "Riešiteľ",
@@ -1155,7 +1147,6 @@
     "field_labels": "Štítky",
     "field_deadline": "Termín",
     "field_kind": "Typ",
-    "no_deadline": "Bez termínu",
     "field_description": "Opis",
     "description_empty": "Pridajte opis",
     "description_edit_hint": "Kliknite alebo stlačte E na úpravu",
@@ -1166,7 +1157,6 @@
     "updated_by": "Aktualizoval {name}",
     "discussion": "Diskusia",
     "comment_placeholder": "Komentár",
-    "comment_send": "Komentár",
     "comment_empty": "Zatiaľ žiadne komentáre.",
     "shortcuts": "C nová. J a K posúvajú. Enter otvorí. S stav. P priorita. A riešiteľ. L štítok. Esc zavrie.",
     "add_label": "Pridať štítok",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Zoskupiť podľa",
-    "group_none": "Žiadne",
     "col_key": "Kľúč",
     "col_title": "Názov",
     "col_resize": "Zmeniť šírku stĺpca {col}",

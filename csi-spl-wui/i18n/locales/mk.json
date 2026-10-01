@@ -568,7 +568,6 @@
       "label": "Уреди ја пораката",
       "mode": "Уредување на оваа порака",
       "hint": "Enter зачувува · Shift+Enter нов ред · Esc откажува",
-      "shortcut_hint": "Притиснете e за да ја уредите оваа порака",
       "marker": "(уредено)",
       "marker_title": "Уредено на {at}",
       "saving": "Зачувување…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",
     "feed_label": "{target}, најновите први",
     "index": {
       "subtitle": "само за читање · во рамки на работниот простор",
@@ -898,7 +896,6 @@
     "submit": "Пребарај",
     "operator_suggestions": "Оператори за пребарување",
     "home": "Почетна на Spool",
-    "open_omnibox": "Пребарај или напиши",
     "placeholder_no_target": "Внесете /search и барање, на пр. /search from:CLE-07 is:task",
     "title": "Пребарување",
     "help_intro": "Внесете /search во лентата горе, потоа зборови, \"фрази\" и оператори, како во Gmail. Примери:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Корисници",
-    "sidebar_hint": "Поканете луѓе во овој работен простор, променете им ја улогата или отстранете ги.",
     "members": "Членови ({n})",
     "invites": "Покани на чекање ({n})",
     "no_invites": "Нема покани на чекање.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Сите",
     "filter_me": "Јас",
     "filter_unassigned": "Без одговорен",
-    "filter_from": "Краен рок од",
-    "filter_until": "Краен рок до",
     "filter_clear": "Исчисти филтри",
-    "show_group": "Прикажи {name}",
-    "hide_group": "Скриј {name}",
     "count": "{n}",
     "no_assignee": "Без одговорен",
     "field_assignee": "Одговорен",
@@ -1155,7 +1147,6 @@
     "field_labels": "Ознаки",
     "field_deadline": "Краен рок",
     "field_kind": "Вид",
-    "no_deadline": "Без краен рок",
     "field_description": "Опис",
     "description_empty": "Додајте опис",
     "description_edit_hint": "Кликнете или притиснете E за уредување",
@@ -1166,7 +1157,6 @@
     "updated_by": "Ажурирано од {name}",
     "discussion": "Дискусија",
     "comment_placeholder": "Коментар",
-    "comment_send": "Коментирај",
     "comment_empty": "Сè уште нема коментари.",
     "shortcuts": "C нов. J и K движат. Enter отвора. S статус. P приоритет. A одговорен. L ознака. Esc затвора.",
     "add_label": "Нова ознака",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Групирај по",
-    "group_none": "Без",
     "col_key": "Клуч",
     "col_title": "Наслов",
     "col_resize": "Промена на ширината на колоната {col}",

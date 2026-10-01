@@ -32,9 +32,7 @@ export const LEVEL_SHORT = ['', '1', '2', '3']
 /** Sort keys the hub answers (issues-v1 §4). priority is the default. */
 export const ISSUE_SORTS = ['priority', 'level', 'deadline', 'updated', 'created']
 
-/** i18n keys: issues.status.<id>, issues.priority.<n>, issues.level.<n>. */
-export const statusKey = (s) => `issues.status.${s}`
-export const priorityKey = (p) => `issues.priority.${Number(p) || 0}`
+/** i18n key: issues.level.<n>. */
 export const levelKey = (l) => `issues.level.${[1, 2, 3].includes(Number(l)) ? Number(l) : 2}`
 
 /**
@@ -189,11 +187,6 @@ export function applyLabelFrame(labels, frame) {
   const l = normalizeLabel(f.label)
   if (!l.id || (labels || []).some((x) => x.id === l.id)) return labels
   return [...(labels || []), l].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.id.localeCompare(b.id))
-}
-
-/** An optimistic patch applied locally (the hub's answer replaces it). */
-export function patchIssue(issue, patch) {
-  return { ...issue, ...patch }
 }
 
 

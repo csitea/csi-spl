@@ -568,7 +568,6 @@
       "label": "Redigera meddelandet",
       "mode": "Redigerar meddelandet",
       "hint": "Enter sparar · Shift+Enter ny rad · Esc avbryter",
-      "shortcut_hint": "Tryck e för att redigera det här meddelandet",
       "marker": "(redigerat)",
       "marker_title": "Redigerat {at}",
       "saving": "Sparar…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "feed_label": "{target}, nyaste först",
     "index": {
       "subtitle": "skrivskyddad · per arbetsyta",
@@ -898,7 +896,6 @@
     "submit": "Sök",
     "operator_suggestions": "Sökoperatorer",
     "home": "Spool-start",
-    "open_omnibox": "Sök eller skriv",
     "placeholder_no_target": "Skriv /search och en fråga, t.ex. /search from:CLE-07 is:task",
     "title": "Sök",
     "help_intro": "Skriv /search i fältet överst, sedan ord, \"fraser\" och operatorer, som i Gmail. Exempel:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Användare",
-    "sidebar_hint": "Bjud in personer till den här arbetsytan, ändra deras roll eller ta bort dem.",
     "members": "Medlemmar ({n})",
     "invites": "Väntande inbjudningar ({n})",
     "no_invites": "Inga väntande inbjudningar.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Alla",
     "filter_me": "Jag",
     "filter_unassigned": "Ingen tilldelad",
-    "filter_from": "Deadline från",
-    "filter_until": "Deadline till",
     "filter_clear": "Rensa filter",
-    "show_group": "Visa {name}",
-    "hide_group": "Dölj {name}",
     "count": "{n}",
     "no_assignee": "Ingen tilldelad",
     "field_assignee": "Tilldelad",
@@ -1155,7 +1147,6 @@
     "field_labels": "Etiketter",
     "field_deadline": "Deadline",
     "field_kind": "Typ",
-    "no_deadline": "Ingen deadline",
     "field_description": "Beskrivning",
     "description_empty": "Lägg till en beskrivning",
     "description_edit_hint": "Klicka eller tryck på E för att redigera",
@@ -1166,7 +1157,6 @@
     "updated_by": "Uppdaterad av {name}",
     "discussion": "Diskussion",
     "comment_placeholder": "Kommentar",
-    "comment_send": "Kommentera",
     "comment_empty": "Inga kommentarer ännu.",
     "shortcuts": "C nytt. J och K flyttar. Enter öppnar. S status. P prioritet. A tilldelad. L etikett. Esc stänger.",
     "add_label": "Lägg till etikett",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Gruppera efter",
-    "group_none": "Ingen",
     "col_key": "Nyckel",
     "col_title": "Titel",
     "col_resize": "Ändra bredden på kolumnen {col}",

@@ -568,7 +568,6 @@
       "label": "Muokkaa viestiä",
       "mode": "Viestin muokkaus",
       "hint": "Enter tallentaa · Shift+Enter lisää rivin · Esc peruuttaa",
-      "shortcut_hint": "Muokkaa tätä viestiä painamalla e",
       "marker": "(muokattu)",
       "marker_title": "Muokattu {at}",
       "saving": "Tallennetaan…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Viesti kohteeseen {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "feed_label": "{target}, uusimmat ensin",
     "index": {
       "subtitle": "vain luku · työtilaan rajattu",
@@ -898,7 +896,6 @@
     "submit": "Hae",
     "operator_suggestions": "Hakuoperaattorit",
     "home": "Spoolin etusivu",
-    "open_omnibox": "Hae tai kirjoita",
     "placeholder_no_target": "Kirjoita /search ja hakulauseke, esim. /search from:CLE-07 is:task",
     "title": "Haku",
     "help_intro": "Kirjoita ylärivin kenttään /search ja sen perään sanat, \"fraasit\" ja operaattorit kuten Gmailissa. Esimerkkejä:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Käyttäjät",
-    "sidebar_hint": "Kutsu ihmisiä tähän työtilaan, vaihda heidän roolinsa tai poista heidät.",
     "members": "Jäsenet ({n})",
     "invites": "Avoimet kutsut ({n})",
     "no_invites": "Ei avoimia kutsuja.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Kaikki",
     "filter_me": "Minä",
     "filter_unassigned": "Ei vastuuhenkilöä",
-    "filter_from": "Määräaika alkaen",
-    "filter_until": "Määräaika asti",
     "filter_clear": "Tyhjennä suodattimet",
-    "show_group": "Näytä {name}",
-    "hide_group": "Piilota {name}",
     "count": "{n}",
     "no_assignee": "Ei vastuuhenkilöä",
     "field_assignee": "Vastuuhenkilö",
@@ -1155,7 +1147,6 @@
     "field_labels": "Merkit",
     "field_deadline": "Määräaika",
     "field_kind": "Tyyppi",
-    "no_deadline": "Ei määräaikaa",
     "field_description": "Kuvaus",
     "description_empty": "Lisää kuvaus",
     "description_edit_hint": "Muokkaa napsauttamalla tai painamalla E",
@@ -1166,7 +1157,6 @@
     "updated_by": "Päivitti {name}",
     "discussion": "Keskustelu",
     "comment_placeholder": "Kommentti",
-    "comment_send": "Kommentoi",
     "comment_empty": "Ei vielä kommentteja.",
     "shortcuts": "C uusi. J ja K siirtävät. Enter avaa. S tila. P tärkeys. A vastuuhenkilö. L merkki. Esc sulkee.",
     "add_label": "Lisää merkki",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Ryhmittely",
-    "group_none": "Ei mitään",
     "col_key": "Tunnus",
     "col_title": "Otsikko",
     "col_resize": "Muuta sarakkeen {col} leveyttä",

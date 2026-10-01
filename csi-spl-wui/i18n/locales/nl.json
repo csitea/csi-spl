@@ -568,7 +568,6 @@
       "label": "Bericht bewerken",
       "mode": "Dit bericht bewerken",
       "hint": "Enter slaat op · Shift+Enter nieuwe regel · Esc annuleert",
-      "shortcut_hint": "Druk op e om dit bericht te bewerken",
       "marker": "(bewerkt)",
       "marker_title": "Bewerkt op {at}",
       "saving": "Opslaan…",
@@ -858,7 +857,6 @@
     "expand_thread": "Expand thread"
   },
   "pages": {
-    "message_placeholder": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "feed_label": "{target}, nieuwste eerst",
     "index": {
       "subtitle": "alleen-lezen · werkruimte-gebonden",
@@ -898,7 +896,6 @@
     "submit": "Zoeken",
     "operator_suggestions": "Zoekoperatoren",
     "home": "Spool-start",
-    "open_omnibox": "Zoeken of berichten",
     "placeholder_no_target": "Typ /search en een zoekopdracht, bv. /search from:CLE-07 is:task",
     "title": "Zoeken",
     "help_intro": "Typ /search in de balk bovenaan, dan woorden, \"zinnen\" en operatoren, zoals in Gmail. Voorbeelden:",
@@ -1022,7 +1019,6 @@
   },
   "users": {
     "title": "Gebruikers",
-    "sidebar_hint": "Nodig mensen uit voor deze werkruimte, wijzig hun rol of verwijder ze.",
     "members": "Leden ({n})",
     "invites": "Openstaande uitnodigingen ({n})",
     "no_invites": "Geen openstaande uitnodigingen.",
@@ -1141,11 +1137,7 @@
     "filter_all": "Alles",
     "filter_me": "Ik",
     "filter_unassigned": "Niemand",
-    "filter_from": "Deadline vanaf",
-    "filter_until": "Deadline tot",
     "filter_clear": "Filters wissen",
-    "show_group": "Toon {name}",
-    "hide_group": "Verberg {name}",
     "count": "{n}",
     "no_assignee": "Niemand",
     "field_assignee": "Toegewezen aan",
@@ -1155,7 +1147,6 @@
     "field_labels": "Labels",
     "field_deadline": "Deadline",
     "field_kind": "Type",
-    "no_deadline": "Geen deadline",
     "field_description": "Beschrijving",
     "description_empty": "Voeg een beschrijving toe",
     "description_edit_hint": "Klik of druk op E om te bewerken",
@@ -1166,7 +1157,6 @@
     "updated_by": "Bijgewerkt door {name}",
     "discussion": "Bespreking",
     "comment_placeholder": "Opmerking",
-    "comment_send": "Opmerking",
     "comment_empty": "Nog geen opmerkingen.",
     "shortcuts": "C nieuw. J en K verplaatsen. Enter opent. S status. P prioriteit. A toegewezen. L label. Esc sluit.",
     "add_label": "Label toevoegen",
@@ -1240,7 +1230,6 @@
   },
   "issues_view": {
     "group": "Groeperen op",
-    "group_none": "Geen",
     "col_key": "Sleutel",
     "col_title": "Titel",
     "col_resize": "Breedte van kolom {col} aanpassen",

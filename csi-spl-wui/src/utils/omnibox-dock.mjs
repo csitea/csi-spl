@@ -10,7 +10,6 @@
  * docked at the bottom already (SPL-991/1005), in either setting.
  */
 
-export const POSITIONS = /** @type {const} */ (['top', 'bottom'])
 export const DEFAULT_POSITION = 'top'
 
 /** The element the bottom Omnibox is teleported into (layouts/default.vue). */

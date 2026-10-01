@@ -14,7 +14,7 @@
 <template>
   <footer
     v-if="shown"
-    ref="stripEl"
+    ref="barEl"
     class="status-strip"
     data-test="status-strip"
     :data-yield="stack.sheetOpen.value ? 'true' : undefined"
@@ -117,11 +117,11 @@ function copyCommit() { void copyText(buildCommit.value, 'strip-commit') }
 
 /* one card at a time; a tap outside the strip or Esc closes it, Back too */
 const open = ref<'' | 'health' | 'version'>('')
-const stripEl = ref<HTMLElement | null>(null)
+const barEl = ref<HTMLElement | null>(null)
 function close() { open.value = '' }
 function toggle(which: 'health' | 'version') { open.value = open.value === which ? '' : which }
 function onOutside(ev: Event) {
-  const el = stripEl.value
+  const el = barEl.value
   if (el && ev.target instanceof Node && el.contains(ev.target)) return
   close()
 }
@@ -139,7 +139,7 @@ stack.overlay(() => open.value !== '', close, { keepsDock: true })
 
 /* its height (safe-area inset included) lifts the composer; 0 when gone */
 let observer: ResizeObserver | null = null
-watch(stripEl, (el) => {
+watch(barEl, (el) => {
   observer?.disconnect()
   observer = null
   if (!el) {

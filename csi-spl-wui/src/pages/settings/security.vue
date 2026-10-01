@@ -17,10 +17,10 @@
     <!-- CLE-77781: this is the person's OWN sign-in page, not the workspace's
          people. Point admins who came here looking for members/invites at the
          right place (Workspace settings → Members). -->
-    <p v-if="canManageMembers" class="muted settings__hint" data-test="settings-members-hint">
-      {{ t('settings.members_hint') }}
-      <NuxtLink :to="localePath('/tenant-settings/members')" data-test="settings-members-link">{{ t('settings.members_link') }}</NuxtLink>
-    </p>
+    <p v-if="canManageMembers" class="muted settings__hint" data-test="settings-members-hint">{{ t('settings.members_hint') }}</p>
+    <div v-if="canManageMembers" class="settings__actions">
+      <NuxtLink :to="localePath('/tenant-settings/members')" class="btn ghost settings__members-link" data-test="settings-members-link">{{ t('settings.members_link') }}</NuxtLink>
+    </div>
   </SettingsSection>
 </template>
 
@@ -61,4 +61,13 @@ const changed = useState('settings-password-changed', () => false)
 }
 .settings__hint { font-size: 0.8125rem; margin: 10px 0 0; }
 .settings__actions { margin-top: 12px; }
+/* CLE-77781: a real >= 44px tap target (mobile-m5 e2e: every settings link is
+   >= 44px). .btn sets min-height but an inline <a> ignores it, so give the
+   link an explicit flex display; inline-flex keeps it sized to its text. */
+.settings__members-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap, 44px);
+  text-decoration: none;
+}
 </style>

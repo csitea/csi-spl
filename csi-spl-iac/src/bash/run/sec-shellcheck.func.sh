@@ -9,6 +9,8 @@
 # @param SEC_SHELLCHECK_ROOT (optional) - repo root; default the parent of APP_PATH
 # @param SEC_SHELLCHECK_BIN (optional) - override the tool, used by the hermetic test
 # @param SEC_SHELLCHECK_SEVERITY (optional) - default error
+# @param SEC_SHELLCHECK_FILES (optional) - newline list of root-relative *.sh to scan
+# @param        INSTEAD of the whole tree (the pre-push lint part: touched files only)
 # @example ./run -a do_sec_shellcheck
 #------------------------------------------------------------------------------
 
@@ -78,9 +80,13 @@ do_sec_shellcheck() {
   fi
 
   local files=() f
-  while IFS= read -r f; do files+=("$f"); done < <(
-    find "${scan_dirs[@]}" -type f -name '*.sh' 2>/dev/null | grep -v '/node_modules/' | sort
-  )
+  if [[ -n "${SEC_SHELLCHECK_FILES:-}" ]]; then
+    while IFS= read -r f; do [[ -n "$f" ]] && files+=("$root/$f"); done <<<"$SEC_SHELLCHECK_FILES"
+  else
+    while IFS= read -r f; do files+=("$f"); done < <(
+      find "${scan_dirs[@]}" -type f -name '*.sh' 2>/dev/null | grep -v '/node_modules/' | sort
+    )
+  fi
   if [[ "${#files[@]}" -eq 0 ]]; then
     do_log "FATAL no *.sh found under the bash trees -- refusing a scan that checks nothing"
     return 1

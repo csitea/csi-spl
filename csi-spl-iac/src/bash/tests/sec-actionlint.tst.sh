@@ -65,15 +65,25 @@ set -e
   || fail "CONTROL: an actionlint tool error was accepted as a finding (rc=$rc)"
 
 # --- control fires, scan clean -> passes ------------------------------------
-stub actionlint 'if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "bad.yml:6:5: error: needs does-not-exist"; exit 1; fi; exit 0'
+stub actionlint '[[ "${SEC_ACTIONLINT_PHASE:-}" == control-shellcheck ]] && { echo "sc.yml:7:9: shellcheck reported issue in this script: SC2144:error"; exit 1; }; if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "bad.yml:6:5: error: needs does-not-exist"; exit 1; fi; exit 0'
 set +e
 out=$(PATH="$T/bin:$PATH" SEC_ACTIONLINT_ROOT="$ROOT" do_sec_actionlint 2>&1); rc=$?
 set -e
 [[ "$rc" -eq 0 ]] && grep -q 'no findings' <<<"$out" \
   && pass "control then a clean tree passes" || { fail "clean scan did not pass (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
 
+# --- CONTROL: the shellcheck leg skipped (no shellcheck on PATH) fails --------
+# actionlint without shellcheck exits 0 on a run: block bug; that must not pass.
+stub actionlint 'if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "bad.yml:6:5: error: needs does-not-exist"; exit 1; fi; exit 0'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ACTIONLINT_ROOT="$ROOT" do_sec_actionlint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'did not run shellcheck' <<<"$out" \
+  && pass "CONTROL: a skipped shellcheck leg fails the action" \
+  || fail "CONTROL: actionlint without its shellcheck leg was accepted (rc=$rc)"
+
 # --- a real finding fails ----------------------------------------------------
-stub actionlint 'if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "error: needs does-not-exist"; exit 1; fi; echo "wf.yml:3:1: error: bad"; exit 1'
+stub actionlint '[[ "${SEC_ACTIONLINT_PHASE:-}" == control-shellcheck ]] && { echo "sc.yml:7:9: shellcheck reported issue in this script: SC2144:error"; exit 1; }; if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "error: needs does-not-exist"; exit 1; fi; echo "wf.yml:3:1: error: bad"; exit 1'
 set +e
 out=$(PATH="$T/bin:$PATH" SEC_ACTIONLINT_ROOT="$ROOT" do_sec_actionlint 2>&1); rc=$?
 set -e

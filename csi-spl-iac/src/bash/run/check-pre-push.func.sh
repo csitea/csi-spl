@@ -10,6 +10,8 @@
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ (unit tests + typecheck)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
+# @description   lint-*      the scanner workflows (61..67, 85) + syntax, on the
+# @description               TOUCHED files only -- check-pre-push-lint.func.sh
 # @description   A push that touches none of a part's paths never runs it (it is
 # @description   logged SKIP-untouched), so an orc- or doc-only push runs hygiene.
 # @description TIERS (CLE-77824, owner 2026-10-01): the hook runs the FAST tier,
@@ -38,15 +40,21 @@
 # @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
+# @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint)
 # @param PRE_PUSH_EXTRA_PATH (optional) - dirs appended to PATH before the tool check, default /usr/local/bin:/usr/bin:/bin:~/.local/bin
 # @example ./run -a do_check_pre_push
 # @example PRE_PUSH_MODE=full PRE_PUSH_TIER=full ./run -a do_check_pre_push
 # @example PRE_PUSH_PLAN=1 ./run -a do_check_pre_push
 #------------------------------------------------------------------------------
 
+# The lint parts live beside this file; the run loader sources both, a test
+# that sources only this one gets them too.
+declare -F _ppl_plan >/dev/null 2>&1 \
+  || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-lint.func.sh"
+
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
-_PP_CACHE_V=2
+_PP_CACHE_V=3
 
 # The paths each part reads: they select it AND key its green cache.
 _pp_paths() {  # <part>
@@ -55,6 +63,7 @@ _pp_paths() {  # <part>
     wui)        echo "csi-spl-wui" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
+    lint-*)     _ppl_paths "$1" ;;
     *)          echo "" ;;
   esac
 }
@@ -65,6 +74,7 @@ _pp_label() {  # <part>
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
     api)        echo "csi-spl-api suite" ;;
+    lint-*)     echo "$1 (touched files, CI's version + baseline)" ;;
   esac
 }
 
@@ -168,6 +178,7 @@ _pp_missing_tools() {  # <part> <tree>
         || echo "go -- install the Go in csi-spl-api/src/go/spool-hub-api/go.mod under /usr/local/go<ver>"
       [[ "${_PP_TIER:-fast}" == full ]] && { _pp_need gcc "apt-get install gcc (go test -race needs cgo)"; }
       [[ "${_PP_TIER:-fast}" == full ]] && { _pp_need docker "install docker and pull postgres:16-alpine (hub-pg)"; } ;;
+    lint-*) _ppl_missing "$part" ;;
   esac
   return 0
 }
@@ -216,6 +227,7 @@ _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;;
+    lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
 }
 
@@ -327,7 +339,11 @@ do_check_pre_push() {
   local _PP_TOP="$tree" _PP_HEAD
   _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
-  local all="hygiene iac wui-vendor wui api" parts="hygiene" p changed=""
+  local only="${PRE_PUSH_ONLY:-}"
+  case "$only" in ''|lint) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty or lint (got '$only')"; return 2 ;; esac
+  local all="hygiene iac wui-vendor wui api" parts="hygiene" p changed="" lint
+  local -A _PPL_FILES=()
+  local _PPL_SELECTED=""
   if [[ "$mode" == full ]]; then
     parts="$all"
   elif ! changed="$(_pp_changed "$tree" "$base")"; then
@@ -339,6 +355,12 @@ do_check_pre_push() {
       _pp_touches "$changed" $(_pp_paths "$p") && parts+=" $p"
     done
   fi
+  # The lint parts run right after hygiene: seconds, and the likeliest red.
+  _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
+  local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
+  all="hygiene $lint_all iac wui-vendor wui api"
+  parts="${parts/hygiene/hygiene${lint:+ $lint}}"
+  [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
 
   # A machine-readable plan line (also the whole of PLAN mode's output).
   echo "PRE_PUSH_PLAN mode=$mode tier=$_PP_TIER parts=$parts"
@@ -359,6 +381,8 @@ do_check_pre_push() {
       _pp_verdict "$p" SKIP-untouched 0
     fi
   done
+
+  [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 ]] && _ppl_typos "$changed" "$tree"
 
   _pp_baseline_cleanup "$tree"
 

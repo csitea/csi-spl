@@ -57,9 +57,11 @@ mkrepo() {  # <dir>
 }
 # The stub repos carry no toolchain scaffold, so the tool preflight is stubbed
 # to "nothing missing" -- except in case 6, which runs the real one (TOOLS=real).
+# The lint parts (scanners) have their own test, check-pre-push-lint.tst.sh;
+# here the lint planner selects none, so only the suite routing is under test.
 gate() {  # <repo> [env...] -> rc; per-part log in $R.log
-  local R="$1" pre='_pp_missing_tools() { :; }'; shift
-  [ "${TOOLS:-stub}" = real ] && pre=':'
+  local R="$1" pre='_pp_missing_tools() { :; }; _ppl_plan() { _PPL_SELECTED=""; }'; shift
+  [ "${TOOLS:-stub}" = real ] && pre='_ppl_plan() { _PPL_SELECTED=""; }'
   ( env "$@" PRE_PUSH_TREE="$R" PRE_PUSH_BASE=trunk PRE_PUSH_LOG="$R.log" PRE_PUSH_CACHE="$R.cache" \
       bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
 }
@@ -143,7 +145,7 @@ case "$out" in yq\ --\ install*) pass "6. ... and the message says how to instal
 R="$ROOT/r7"; mkrepo "$R" >/dev/null 2>&1
 echo z >"$R/csi-spl-api/z.go"; git -C "$R" add -A; git -C "$R" commit -qm api
 ( env PRE_PUSH_TREE="$R" PRE_PUSH_BASE=trunk PRE_PUSH_LOG="$R.log" PRE_PUSH_CACHE="$R.cache" \
-    bash -c '. "$0"; do_log(){ :; }; do_check_dist_hygiene(){ return 0; }; _pp_missing_tools(){ :; }; _pp_part_api(){ return 127; }; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
+    bash -c '. "$0"; do_log(){ :; }; do_check_dist_hygiene(){ return 0; }; _pp_missing_tools(){ :; }; _ppl_plan(){ _PPL_SELECTED=""; }; _pp_part_api(){ return 127; }; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
 eq "7. rc 127 on HEAD and trunk -> REFUSED (not a pre-existing WARN)" 1 "$?"
 grep -q 'PART api FAIL .*rc=127' "$R.log" && pass "7. ... logged FAIL rc=127" || fail "7. ... logged FAIL rc=127" "$(cat "$R.log")"
 

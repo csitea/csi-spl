@@ -10,6 +10,8 @@
 # @description only the detector type and file path.
 # @param SEC_TRUFFLEHOG_ROOT (optional) - repo root; default the parent of APP_PATH
 # @param SEC_TRUFFLEHOG_BIN (optional) - override the tool, used by the hermetic test
+# @param SEC_TRUFFLEHOG_FILES (optional) - newline list of root-relative files to scan
+# @param        INSTEAD of the working tree (the pre-push lint part: the pushed diff)
 # @example ./run -a do_sec_trufflehog
 #------------------------------------------------------------------------------
 
@@ -79,8 +81,14 @@ do_sec_trufflehog() {
   local exclude; exclude=$(mktemp)
   printf '%s\n' '(^|/)node_modules/' '(^|/)\.git/' '(^|/)tpl-gen/' '(^|/)bin/' >"$exclude"
   local out; out=$(mktemp)
-  do_log "INFO trufflehog filesystem --only-verified on $root (working tree)"
-  SEC_TRUFFLEHOG_PHASE=scan "$bin" filesystem "$root" --only-verified --no-update \
+  local targets=("$root") f
+  if [[ -n "${SEC_TRUFFLEHOG_FILES:-}" ]]; then
+    targets=()
+    while IFS= read -r f; do [[ -n "$f" && -f "$root/$f" ]] && targets+=("$root/$f"); done <<<"$SEC_TRUFFLEHOG_FILES"
+    [[ "${#targets[@]}" -gt 0 ]] || { do_log "INFO trufflehog: none of the listed files exist -- nothing to scan"; rm -f "$exclude" "$out"; return 0; }
+  fi
+  do_log "INFO trufflehog filesystem --only-verified on ${#targets[@]} target(s) under $root"
+  SEC_TRUFFLEHOG_PHASE=scan "$bin" filesystem "${targets[@]}" --only-verified --no-update \
     --exclude-paths="$exclude" --json >"$out" 2>/dev/null || true
   n=$(_sec_trufflehog_count <"$out")
   rm -f "$exclude"

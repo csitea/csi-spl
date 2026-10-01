@@ -9,6 +9,8 @@
 # @param SEC_HADOLINT_ROOT (optional) - repo root; default the parent of APP_PATH
 # @param SEC_HADOLINT_BIN (optional) - override the tool, used by the hermetic test
 # @param SEC_HADOLINT_CONFIG (optional) - config; default <root>/.hadolint.yaml
+# @param SEC_HADOLINT_FILES (optional) - newline list of root-relative Dockerfiles to
+# @param        lint INSTEAD of every Dockerfile (the pre-push lint part)
 # @example ./run -a do_sec_hadolint
 #------------------------------------------------------------------------------
 
@@ -63,12 +65,16 @@ do_sec_hadolint() {
   fi
   rm -rf "$ctl"
 
-  local dfs=()
+  local dfs=() f
+  if [[ -n "${SEC_HADOLINT_FILES:-}" ]]; then
+    while IFS= read -r f; do [[ -n "$f" ]] && dfs+=("$root/$f"); done <<<"$SEC_HADOLINT_FILES"
+  else
   while IFS= read -r f; do dfs+=("$f"); done < <(
     find "$root" -path '*/node_modules' -prune -o -path "$root/tpl-gen" -prune \
       -o -path '*/bin/*' -prune \
       -o \( -iname 'Dockerfile' -o -iname 'Dockerfile.*' -o -iname '*.dockerfile' \) -print 2>/dev/null | sort
   )
+  fi
   if [[ "${#dfs[@]}" -eq 0 ]]; then
     do_log "FATAL no Dockerfile found under $root -- refusing a scan that checks nothing"
     return 1

@@ -102,6 +102,34 @@ How to apply:
   | `csi-spl-wui/**` | `pnpm run typecheck` |
   | `csi-spl-wui/**`, anything the browser renders | `BASE_URL=<generated bundle> pnpm run test:e2e` — typecheck does not drive Chrome |
   | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` |
+  | any `.sh`, workflow, Dockerfile, wui `.mjs/.js`, `.yml/.json` | `./run -a do_check_pre_push_lint` (seconds; the scanners below, touched files only) |
+
+  **Lint parts** (CLE-77829, owner 2026-10-01: "why cannot they be ran via
+  shell actions locally before someone pushes?!"). The hook runs each GitHub
+  scanner on the files the push TOUCHES, through the same `do_sec_*` action,
+  binary version (read from the workflow's pin), config, severity and
+  baseline as CI, so a local PASS is a CI PASS for those files. A file the
+  push does not touch is never scanned, so its old finding cannot block you.
+  Tools: `cd csi-spl-iac && ./run -a do_install_lint_tools` (sha-checked
+  against the workflow pins; `LINT_TOOLS_SYSTEM=1` also copies them
+  root-owned into `/usr/local/bin` for every user). A FAIL prints the exact
+  command that reproduces it.
+
+  | part | CI | checks | tier |
+  |---|---|---|---|
+  | `lint-syntax` | — | `bash -n` (.sh, `#!..sh` scripts), yq (.yml/.yaml), jq (.json), `make -n` (orc Makefile) | hook |
+  | `lint-shellcheck` | 67 | `do_sec_shellcheck` -S error, iac/orc/cnf bash trees | hook |
+  | `lint-actionlint` | 85 | `do_sec_actionlint`, with a control proving its shellcheck leg ran | hook |
+  | `lint-hadolint` | 66 | `do_sec_hadolint` vs `.hadolint.yaml` | hook |
+  | `lint-eslint` | 63 | `do_sec_eslint` vs `.eslint-security-baseline.txt` | hook |
+  | `lint-trufflehog` | 64 | `do_sec_trufflehog` --only-verified, every touched file | hook |
+  | `lint-typos` | — | codespell, WARN only, never blocks | hook |
+  | `lint-checkov` / `lint-semgrep` / `lint-gosec` | 65 / 61 / 62 | the action over its whole scope (65 s / 152 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
+  | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
+
+  A change to a scanner's own action, config, baseline or workflow re-runs it
+  over its whole CI scope. Rollback without a revert: `PRE_PUSH_LINT=0 git push`
+  (logged, every lint part SKIPPED; the CI scanners still run after the push).
 
   The pre-push HOOK runs `do_check_pre_push` in its FAST tier (CLE-77824,
   owner 2026-10-01; it had grown to 16 min for iac and >10 min for api, so

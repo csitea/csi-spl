@@ -12,6 +12,8 @@
 # @param        config is copied beside it so eslint-plugin-security resolves
 # @param SEC_ESLINT_BIN (optional) - override the tool, used by the hermetic test
 # @param SEC_ESLINT_CONFIG SEC_ESLINT_BASELINE SEC_ESLINT_DIRS (optional)
+# @param SEC_ESLINT_FILES (optional) - newline list of root-relative .mjs/.js to scan
+# @param        INSTEAD of SEC_ESLINT_DIRS (the pre-push lint part); same baseline
 # @example SEC_ESLINT_DIR=/tmp/es ./run -a do_sec_eslint
 #------------------------------------------------------------------------------
 
@@ -61,9 +63,14 @@ except Exception: print(-1)')
   # --- scan: the WUI .mjs/.js ------------------------------------------------
   local dirs="${SEC_ESLINT_DIRS:-csi-spl-wui/src}"
   local files=() f
-  while IFS= read -r f; do files+=("$f"); done < <(
-    cd "$root" && find $dirs -type f \( -name '*.mjs' -o -name '*.js' \) 2>/dev/null | grep -v '/node_modules/' | sort
-  )
+  if [[ -n "${SEC_ESLINT_FILES:-}" ]]; then
+    while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done <<<"$SEC_ESLINT_FILES"
+  else
+    # shellcheck disable=SC2086
+    while IFS= read -r f; do files+=("$f"); done < <(
+      cd "$root" && find $dirs -type f \( -name '*.mjs' -o -name '*.js' \) 2>/dev/null | grep -v '/node_modules/' | sort
+    )
+  fi
   if [[ "${#files[@]}" -eq 0 ]]; then
     do_log "FATAL no .mjs/.js under $dirs -- refusing a scan that checks nothing"
     return 1

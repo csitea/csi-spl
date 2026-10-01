@@ -4,10 +4,14 @@
 # @description control first: a planted workflow with a real error (a job that
 # @description `needs:` a non-existent job) MUST be flagged. A tool that reports
 # @description nothing on it proves nothing and the action fails closed. Then it
-# @description lints every workflow file; any finding is non-zero. A missing
+# @description lints every workflow file; any finding is non-zero. A second
+# @description control proves the shellcheck leg on run: blocks ran (actionlint
+# @description skips it SILENTLY when shellcheck is not on PATH). A missing
 # @description tool fails closed; it is never a skip.
 # @param SEC_ACTIONLINT_ROOT (optional) - repo root; default the parent of APP_PATH
 # @param SEC_ACTIONLINT_BIN (optional) - override the tool, used by the hermetic test
+# @param SEC_ACTIONLINT_FILES (optional) - newline list of root-relative workflow files
+# @param        to lint INSTEAD of every workflow (the pre-push lint part)
 # @example ./run -a do_sec_actionlint
 #------------------------------------------------------------------------------
 
@@ -44,6 +48,19 @@ jobs:
     steps:
       - run: echo hi
 EOF
+  # Second control, for the run: blocks: actionlint runs shellcheck ONLY when the
+  # binary is on PATH, and skips it silently otherwise (exit 0, no output),
+  # so a box without shellcheck read a wf85 red as green. This error-level
+  # SC2144 must come back as a shellcheck finding.
+  cat >"$d/.github/workflows/sc.yml" <<'EOF'
+name: sc
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: if [ -f *.log ]; then echo has-log; fi
+EOF
   printf '%s\n' "$d"
 }
 
@@ -68,6 +85,14 @@ do_sec_actionlint() {
     rm -rf "$ctl"
     return 1
   fi
+  rc=0
+  SEC_ACTIONLINT_PHASE=control-shellcheck "$bin" -no-color "$ctl/.github/workflows/sc.yml" >"$ctl/out" 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]] || ! grep -qE 'shellcheck|SC2144' "$ctl/out"; then
+    do_log "FATAL control: actionlint did not run shellcheck on a run: block (exit $rc) -- is shellcheck on PATH? the run: scripts would go unchecked"
+    sed 's/^/  /' "$ctl/out"
+    rm -rf "$ctl"
+    return 1
+  fi
   rm -rf "$ctl"
 
   do_log "INFO actionlint on $root/.github/workflows"
@@ -80,7 +105,11 @@ do_sec_actionlint() {
   # the security-relevant shellcheck codes (injection SC2086, etc.) still fail
   # the gate. Override with SEC_ACTIONLINT_SHELLCHECK_OPTS.
   local sc_opts="${SEC_ACTIONLINT_SHELLCHECK_OPTS:--e SC2015 -e SC2034 -e SC2001}"
-  ( cd "$root" && SEC_ACTIONLINT_PHASE=scan SHELLCHECK_OPTS="$sc_opts" "$bin" -no-color ) >"$log" 2>&1 || rc=$?
+  local files=() f
+  if [[ -n "${SEC_ACTIONLINT_FILES:-}" ]]; then
+    while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done <<<"$SEC_ACTIONLINT_FILES"
+  fi
+  ( cd "$root" && SEC_ACTIONLINT_PHASE=scan SHELLCHECK_OPTS="$sc_opts" "$bin" -no-color "${files[@]}" ) >"$log" 2>&1 || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     do_log "INFO actionlint: no findings"
     rm -f "$log"

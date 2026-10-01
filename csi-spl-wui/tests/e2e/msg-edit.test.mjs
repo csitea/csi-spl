@@ -396,9 +396,16 @@ try {
   await sleep(300)
 
   /* ---- 7c. Delete on the focused thread row removes that message ------ */
+  /* CLE-77840 (owner, topic bc1fd547): this row is the topic's OPENING message
+     (is_parent 1), so Delete asks first - "the same do you want to delete
+     should occur only on the is_parent=1 msgs" - and Delete in the confirm
+     deletes it. A reply goes at once with Undo (kbd-delete-undo.test.mjs). */
   const deleteFocused = await focusRow(page, OWN_MSG, PANE)
   ok('the edited thread row takes focus for Delete', deleteFocused)
   await page.keyboard.press('Delete')
+  const asked = await page.waitForSelector('[data-testid=msg-delete-confirm], [data-testid=topic-delete-confirm]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
+  ok('Delete on an is_parent 1 row asks first (the confirm opens)', asked)
+  await page.evaluate(() => (document.querySelector('[data-testid=msg-delete-confirm]') || document.querySelector('[data-testid=topic-delete-confirm]'))?.click())
   await page.waitForFunction((id) => {
     return !document.querySelector(`[data-test=topic-section] [data-test=topic-root] article.msg[data-msg-id="${id}"]`)
   }, { timeout: 5000 }, OWN_MSG).catch(() => {})

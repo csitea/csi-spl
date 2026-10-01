@@ -42,6 +42,11 @@ const (
 	// removes one. Request and reply pair on MsgID, the edited message's id.
 	TEdit   = "edit"
 	TDelete = "delete"
+	// TArchive is a box agent archiving or unarchiving a topic by its task
+	// id, and the hub's answer (CLE-77869): the box twin of the browser's
+	// PUT/DELETE /v1/messages/{card}/archive. Request and reply pair on
+	// MsgID, a request id the box picks.
+	TArchive = "archive"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -167,6 +172,13 @@ type Frame struct {
 
 	// edit reply (specs/032 §10): the register revision the edit wrote.
 	Revision int `json:"revision,omitempty"`
+
+	// archive (CLE-77869): ArchiveOp archive | unarchive on the request
+	// (TaskID the topic, As the acting agent); Archive the answer object on
+	// the reply - the browser route's body {msg_id, task_id, archived,
+	// archived_at, archived_by}.
+	ArchiveOp string          `json:"archive_op,omitempty"`
+	Archive   json.RawMessage `json:"archive,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

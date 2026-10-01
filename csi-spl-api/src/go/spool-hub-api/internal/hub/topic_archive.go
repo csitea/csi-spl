@@ -30,8 +30,9 @@ import (
 //   - DELETE (the card and every child): the author, the tenant owner or an
 //     admin - unchanged by the setting (archiveByPolicy governs archive only).
 //
-// Never an agent. An agent has no route here at all: every one is a
-// member-session browser route.
+// Every route here is a member-session browser route. A box agent archives
+// over its own socket instead (box_archive.go, CLE-77869), through the same
+// card, store write, frame and setting.
 
 const (
 	topicArchivedFrame = "topic_archived"

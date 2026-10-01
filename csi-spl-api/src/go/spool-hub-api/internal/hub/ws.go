@@ -151,6 +151,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onEdit(ctx, x, f)
 		case wire.TDelete:
 			s.onDelete(ctx, x, f)
+		case wire.TArchive: // CLE-77869: a box agent archives a topic
+			s.onArchive(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

@@ -19,6 +19,7 @@
 //	edit    --msg-id <uuid> (--body <text> | --body-file <path>) [--as <id>]   hub mode: re-sign
 //	          a message this box sent with a new body (specs/032 §10)
 //	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
+//	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -90,6 +91,7 @@ on a box (an agent's machine):
   mcp                 serve the spool tools over MCP on stdio (--as <agent>)
   issue               list, get, create, update, comment, label, delete issues
   edit, delete        edit or delete a message this box sent
+  archive             archive (or --unarchive) a topic by its task id
 
 a box and its hub ($SPOOL_HUB_URL):
   hub-pin             pin (or --revoke) a box key at the hub, signed by the
@@ -113,13 +115,22 @@ running a hub:
 
 func main() { os.Exit(run(os.Args[1:])) }
 
-func run(args []string) int {
+// helpRC prints usage for no verb (rc 1) or a help verb (rc 0); ok=false
+// means args name a verb run() dispatches.
+func helpRC(args []string) (int, bool) {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprint(os.Stderr, usage)
 		if len(args) == 0 {
-			return 1
+			return 1, true
 		}
-		return 0
+		return 0, true
+	}
+	return 0, false
+}
+
+func run(args []string) int {
+	if rc, ok := helpRC(args); ok {
+		return rc
 	}
 	cmd, rest := args[0], args[1:]
 
@@ -188,6 +199,8 @@ func run(args []string) int {
 		return cmdEdit(cfg, rest)
 	case "delete":
 		return cmdDelete(cfg, rest)
+	case "archive": // CLE-77869
+		return cmdArchive(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

@@ -80,6 +80,8 @@ type EventRow = {
   route: string
 }
 
+const EVENTS_PAGE = 30
+
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
@@ -137,7 +139,9 @@ async function load(before = 0, append = false) {
   if (append) busy.value = true
   else loading.value = true
   loadError.value = ''
-  const res = await client.list({ limit: 50, before })
+  /* owner 73c9704c: "use the last 30 entries ... to be quick and nimble" -
+     a page of 30, Load more for older (it was 50) */
+  const res = await client.list({ limit: EVENTS_PAGE, before })
   if (!res.ok) {
     loadError.value = eventsErrorKey(res.error)
     if (!append) rows.value = []

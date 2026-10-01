@@ -249,14 +249,33 @@ _pp_fn() {  # <part>
 # is pre-existing (someone else's red) and must NOT block this push -- that is
 # the mutual-hook deadlock that stopped a fix from ever landing.
 _PP_BASE_WT=""
+# Sets _PP_BASE_WT; call it directly, never in $(...): the subshell dropped
+# the variable, so the end-of-run cleanup never saw the worktree and EVERY
+# pre-existing re-check leaked one into the shared .git (132 by 2026-10-01).
 _pp_baseline_tree() {  # <tree> <base>
-  [[ -n "$_PP_BASE_WT" ]] && { printf '%s' "$_PP_BASE_WT"; return 0; }
+  [[ -n "$_PP_BASE_WT" ]] && return 0
   git -C "$1" rev-parse --verify -q "$2^{commit}" >/dev/null 2>&1 || return 1
-  local tmp; tmp="$(mktemp -d 2>/dev/null)" || return 1
+  # Named for this process, so a later run can tell a dead run's leftover
+  # (_pp_baseline_reap) from a live one's.
+  local tmp; tmp="$(mktemp -d "${TMPDIR:-/tmp}/csi-spl-pre-push-base.$$.XXXXXX" 2>/dev/null)" || return 1
   if git -C "$1" worktree add --detach -q "$tmp" "$2" >/dev/null 2>&1; then
-    _PP_BASE_WT="$tmp"; printf '%s' "$tmp"; return 0
+    _PP_BASE_WT="$tmp"; return 0
   fi
   rmdir "$tmp" 2>/dev/null; return 1
+}
+# A killed hook (timeout, Ctrl-C, a closed pane) used to leave its baseline
+# worktree registered in the SHARED .git: 132 /tmp/tmp.* entries piled up by
+# 2026-10-01. The trap in do_check_pre_push removes it on INT/TERM/HUP; this
+# reaps the ones a SIGKILL left, i.e. whose owning pid is gone.
+_pp_baseline_reap() {  # <tree>
+  local wt pid
+  git -C "$1" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' \
+    | grep -E '/csi-spl-pre-push-base\.[0-9]+\.[^/]+$' | while IFS= read -r wt; do
+      pid="${wt##*/csi-spl-pre-push-base.}"; pid="${pid%%.*}"
+      kill -0 "$pid" 2>/dev/null && continue
+      git -C "$1" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
+    done
+  git -C "$1" worktree prune 2>/dev/null || true
 }
 _pp_baseline_cleanup() {  # <tree>
   [[ -n "$_PP_BASE_WT" ]] || return 0
@@ -312,7 +331,8 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
   # Pre-existing on trunk? Re-run the SAME part against the base ref.
   local bwt brc=0 bsha
   bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"
-  if bwt="$(_pp_baseline_tree "$tree" "$base")"; then
+  if _pp_baseline_tree "$tree" "$base"; then
+    bwt="$_PP_BASE_WT"
     do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base ($bsha) to see if it is your break or trunk's"
     "$fn" "$bwt" || brc=$?
   else
@@ -387,6 +407,15 @@ do_check_pre_push() {
 
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
   local _PP_FAILED=0
+  _pp_baseline_reap "$tree"
+  # a kill mid-run must not leave the baseline worktree behind
+  local _pp_old_traps; _pp_old_traps="$(trap -p INT TERM HUP)"
+  # shellcheck disable=SC2064
+  trap "_pp_baseline_cleanup '$tree'; exit 130" INT
+  # shellcheck disable=SC2064
+  trap "_pp_baseline_cleanup '$tree'; exit 143" TERM
+  # shellcheck disable=SC2064
+  trap "_pp_baseline_cleanup '$tree'; exit 129" HUP
   for p in $all; do
     if [[ " $parts " == *" $p "* ]]; then
       _pp_run "$(_pp_label "$p")" "$(_pp_fn "$p")" "$tree" "$base" "$p"
@@ -398,6 +427,8 @@ do_check_pre_push() {
   [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 ]] && _ppl_typos "$changed" "$tree"
 
   _pp_baseline_cleanup "$tree"
+  trap - INT TERM HUP
+  [[ -n "$_pp_old_traps" ]] && eval "$_pp_old_traps"
 
   echo ""
   echo "============ pre-push summary (mode=$mode tier=$_PP_TIER) ============"

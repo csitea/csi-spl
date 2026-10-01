@@ -39,7 +39,9 @@ the reference does it:
 | `scripts/spawn-core.inc.sh` | the shared launcher core |
 | `scripts/spool-agent.sh` | start claude, grok, agy or qwen SEATED and MIRRORED (`specs/036-spool-terminal-mirror`): claims an id, names the window, seats a desk, gives the session the mirror hooks, then runs the CLI |
 | `scripts/spool-mirror.py` | the terminal -> web UI DM mirror: the CLIs' `UserPromptSubmit` / `Stop` hook and its post (redacted, never echoing the web UI's own words) |
-| `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI |
+| `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI; with `--mirror` (every spawn and restore passes it) it also gives the session the terminal mirror hooks |
+| `lib/spool-mirror-hooks.inc.sh` | the mirror hook writers (claude `--settings` file, grok / agy / qwen hook files), shared by `spool-agent.sh` and `spool-harness.sh --mirror` |
+| `scripts/agent-mirror-check.py` | per live agent: mirrored yes/no and why (`./run -a do_spl_agent_mirror_check`) |
 | `scripts/spool-send.sh` | runs `spool send` and then shows the message in the recipient's tmux pane. It replaces `inbox-send.sh` |
 | `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
@@ -119,6 +121,41 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh claude
 
 ```bash
 bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --dry-run --as CLE-4441 grok
+```
+
+### 3.3.3 Every spawn and restore is mirrored
+
+`spawn-*.sh`, `restore-*.sh` and `do_spl_agent_identity_restore` start the CLI
+through `spool-harness.sh --mirror`: every prompt typed in the terminal and
+every final answer goes into the agent's DM `<ID>@box-desk` (redacted; tool
+output never). The hook takes the id from the process env (`SPOOL_AGENT_ID`,
+else `MCP_BOT_AGENT_ID`), never from a window name. It posts from the agent's
+desk seat, and the desk reconcile cron seats every live agent window within
+three minutes; until then, and for an agent with no seat, nothing is posted.
+
+### 3.3.4 See which live agents are mirrored
+
+```bash
+./run -a do_spl_agent_mirror_check
+```
+
+### 3.3.5 Relaunch a running claude session with the mirror
+
+A session started before the mirror keeps running without it. Exit it
+(`/exit`), then in the same pane resume it under its own id, from the identity
+map's record.
+
+```bash
+ID=CLE-001; R=/var/spool-hub/agents/$ID.json; SPOOL_AGENT_USER=$USER bash csi-spl-orc/src/bash/features/spawn-agents/scripts/restore-claude-plain.sh "$ID" "$(jq -r .worktree "$R")" "$(jq -r .session_id "$R")"
+```
+
+### 3.3.6 Switch the mirror off for the whole box
+
+New launches get no hooks, and the hooks of live sessions post nothing.
+Remove the file to switch it back on.
+
+```bash
+touch /var/spool-hub/.mirror-off
 ```
 
 ### 3.4 Send a task and show it in the peer's pane

@@ -117,6 +117,7 @@ import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu
 import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
+import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
@@ -203,8 +204,7 @@ const { pill, jump, hold } = useScrollAnchor(
    push it under the divider or bump the "N new" count. */
 const { viewerId } = useMessageEdit()
 function isOwn(m: SpoolMessage) {
-  const self = String(viewerId.value || '').split('@')[0]
-  return Boolean(self) && String(m.from || '').split('@')[0] === self
+  return isViewersOwn(m, viewerId.value)
 }
 const firstNewId = computed(() => (props.unreadBoundary ? firstUnreadId(shown.value, props.unreadBoundary, viewerId.value) : ''))
 const newCount = computed(() => (props.unreadBoundary ? countUnread(shown.value, props.unreadBoundary, viewerId.value) : 0))

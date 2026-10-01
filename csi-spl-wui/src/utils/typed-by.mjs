@@ -44,3 +44,23 @@ export function isAiMessage(msg) {
   const id = typedByAuthor(msg).id
   return AGENT_ID.test(id) && !PERSON_ID.test(id)
 }
+
+/**
+ * CLE-77889 (owner, t1 99905c80: "even if I write some messages in the direct
+ * messages - those are shown to me as new ... they should be shown as new for
+ * the receiver of those msgs, but not me"): a row is the VIEWER'S OWN when its
+ * SHOWN author is the viewer - their own post (any box), or a line they typed
+ * at an agent's terminal (from=<agent>, typed_by=<viewer>), which the feed draws
+ * as theirs. Every "new" rule (rail badges, the New-messages divider, a topic
+ * card's unread replies, alerts) skips it; ids compare without their @box.
+ * @param {{ from?: string, typed_by?: string } | null | undefined} msg
+ * @param {string} [selfId] the viewer's v:1 id, with or without @box
+ * @returns {boolean}
+ */
+export function isViewersOwn(msg, selfId = '') {
+  const self = String(selfId || '').split('@')[0]
+  if (!self || !msg) return false
+  if (String(msg.from || '').split('@')[0] === self) return true
+  const typed = typeof msg.typed_by === 'string' ? msg.typed_by.split('@')[0] : ''
+  return HUMAN_ID.test(typed) && typed === self
+}

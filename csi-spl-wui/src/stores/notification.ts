@@ -23,13 +23,15 @@ import {
   pingThrottle,
   notificationTarget,
 } from '~/utils/notify.mjs'
-import { isAiMessage } from '~/utils/typed-by.mjs'
+import { isAiMessage, isViewersOwn } from '~/utils/typed-by.mjs'
 import {
   cursorFromChannel,
   isUnread,
   loadCursors,
   markReadAt,
   markTopicReadAt,
+  ownReplyReadAt,
+  replyTopicsOf,
   saveCursors,
   topicKey,
   unreadFromChannels,
@@ -47,6 +49,9 @@ type Ctx = {
 
 type Msg = {
   msg_id?: string
+  task_id?: string
+  parent_task_id?: string | null
+  topic_row?: boolean
   from?: string
   to?: string
   body?: string
@@ -252,12 +257,29 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     }
   }
-  /** Mark a topic read at its current reply total (thread opened, or own reply). */
-  function markTopicRead(taskId: string, count: number) {
+  /** Mark a topic read at its current reply total (thread opened, or own reply).
+   *  `ownMsgId`: the own reply that total already counts, so its echo never counts it twice (CLE-77889). */
+  function markTopicRead(taskId: string, count: number, ownMsgId = '') {
     if (!taskId || !topicKey(taskId)) return
     const c = Math.max(0, Number(count) || 0)
     topicRead.value = { ...topicRead.value, [taskId]: c }
-    if (import.meta.client) saveCursors(markTopicReadAt(loadCursors(), taskId, c))
+    if (import.meta.client) saveCursors(markTopicReadAt(loadCursors(), taskId, c, ownMsgId))
+  }
+
+  /** CLE-77889: the reader's own reply (another tab or device, a terminal line) is seen, never "1/N" new. */
+  function ownReplyRead(m: Msg) {
+    if (!import.meta.client) return
+    const before = loadCursors()
+    let next = before
+    for (const id of replyTopicsOf(m) as string[]) next = ownReplyReadAt(next, id, m)
+    if (next === before) return
+    saveCursors(next)
+    const read = { ...topicRead.value }
+    for (const id of replyTopicsOf(m) as string[]) {
+      const c = next[topicKey(id)] as { count?: number } | undefined
+      if (c && Number.isFinite(c.count)) read[id] = Number(c.count)
+    }
+    topicRead.value = read
   }
   function enterFeed(key: string) {
     if (!key || key === enteredKey) return
@@ -333,11 +355,11 @@ export const useNotificationStore = defineStore('notification', () => {
     const hydrate = opts.hydrate === true || (unseen.length > 1 && opts.hydrate !== false)
     const cursors = hydrate ? loadCursors() : {}
     /* CLE-77804 (HUM-24, topic 311427c6): the reader's own message is never unread. */
-    const self = String(ctx.selfId || '').split('@')[0]
-    const isOwn = (m: Msg) => Boolean(self) && String(m.from || '').split('@')[0] === self
+    const isOwn = (m: Msg) => isViewersOwn(m, ctx.selfId)
     for (const m of unseen) {
       if (!m.msg_id) continue
       seen.add(m.msg_id)
+      if (isOwn(m)) ownReplyRead(m)
       const key = channelKey(m, ctx)
       if (hydrate) {
         /* a (re)load: count what the stored cursor has not seen, never ping */

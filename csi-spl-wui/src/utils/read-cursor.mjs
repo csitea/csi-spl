@@ -6,6 +6,7 @@
  */
 
 import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { isViewersOwn } from './typed-by.mjs'
 
 export const CURSOR_KEY = 'spool.read-cursors'
 
@@ -63,12 +64,59 @@ export function topicKey(taskId) {
  * no hub round-trip. Opening the thread (or the reader's own reply) sets it to
  * the current total, clearing the unread part to a plain "<total>".
  */
-export function markTopicReadAt(cursors, taskId, count) {
+export function markTopicReadAt(cursors, taskId, count, ownMsgId = '') {
   const key = topicKey(taskId)
   if (!key) return { ...(cursors || {}) }
   const next = { ...(cursors || {}) }
-  next[key] = { ts: new Date().toISOString(), id: '', count: Math.max(0, Number(count) || 0) }
+  const was = next[key]
+  const c = { ts: new Date().toISOString(), id: '', count: Math.max(0, Number(count) || 0) }
+  const own = withOwn(was && Array.isArray(was.own) ? was.own : [], ownMsgId)
+  next[key] = own.length ? { ...c, own } : c
   return next
+}
+
+/** How many own msg_ids a topic cursor remembers (enough for a burst from another device). */
+export const OWN_KEEP = 50
+
+function withOwn(list, id) {
+  const out = list.map(String).filter(Boolean)
+  if (id && !out.includes(String(id))) out.push(String(id))
+  return out.slice(-OWN_KEEP)
+}
+
+/**
+ * CLE-77889 (owner, t1 99905c80): the reader's OWN reply - sent from another
+ * tab or device, or typed at an agent's terminal - raises the topic's reply
+ * total, and the card read it as "1/N" new. It now moves the reader's seen
+ * count with it: each own reply of a topic the reader has a cursor for, newer
+ * than that cursor, counts as seen ONCE (its msg_id is kept in `own`, so the
+ * echo of a reply this tab already counted when sending, a reload, and the
+ * same row read twice never count it again). The cursor's ts stays put, so
+ * own replies still on their way are counted when they land.
+ *
+ * @param {Record<string, any>} cursors
+ * @param {string} taskId the topic the reply counts under
+ * @param {{ msg_id?: string, received_at?: string, ts?: string }} msg an own reply
+ * @returns {Record<string, any>} the same object when nothing moved
+ */
+export function ownReplyReadAt(cursors, taskId, msg) {
+  const key = topicKey(taskId)
+  const c = key && cursors ? cursors[key] : null
+  const id = String((msg && msg.msg_id) || '')
+  if (!c || !Number.isFinite(c.count) || !id) return cursors
+  const own = Array.isArray(c.own) ? c.own.map(String) : []
+  if (own.includes(id)) return cursors
+  if (c.ts && when(msg) && when(msg) <= c.ts) return cursors
+  return { ...cursors, [key]: { ...c, count: Number(c.count) + 1, own: withOwn(own, id) } }
+}
+
+/** The topics a message counts as a reply under: its own task (when it is not the root) and its parent. */
+export function replyTopicsOf(msg) {
+  const m = msg || {}
+  const out = []
+  if (m.task_id && !m.topic_row) out.push(String(m.task_id))
+  if (m.parent_task_id && String(m.parent_task_id) !== String(m.task_id || '')) out.push(String(m.parent_task_id))
+  return out
 }
 
 /**
@@ -92,11 +140,11 @@ export function topicUnread(total, cursor) {
  */
 export function firstUnreadId(messages, cursor, selfId = '') {
   if (!cursor || !cursor.ts) return ''
-  const self = String(selfId || '').split('@')[0]
   let best = null
   for (const m of messages || []) {
-    /* CLE-77804 (HUM-24, topic 311427c6): the reader's own message is never new */
-    if (self && String((m && m.from) || '').split('@')[0] === self) continue
+    /* CLE-77804 (HUM-24, topic 311427c6): the reader's own message is never new,
+       nor one they typed at an agent's terminal (CLE-77889) */
+    if (isViewersOwn(m, selfId)) continue
     if (!isUnread(m, cursor)) continue
     const ts = when(m)
     const id = String((m && m.msg_id) || '')
@@ -108,10 +156,9 @@ export function firstUnreadId(messages, cursor, selfId = '') {
 /** How many of `messages` are unread vs the frozen boundary (the "N new" count). Own messages never count (HUM-24). */
 export function countUnread(messages, cursor, selfId = '') {
   if (!cursor || !cursor.ts) return 0
-  const self = String(selfId || '').split('@')[0]
   let n = 0
   for (const m of messages || []) {
-    if (self && String((m && m.from) || '').split('@')[0] === self) continue
+    if (isViewersOwn(m, selfId)) continue
     if (isUnread(m, cursor)) n++
   }
   return n

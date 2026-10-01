@@ -3,6 +3,7 @@
 import { stripBidiControls } from './bidi.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 import { isUnread } from './read-cursor.mjs'
+import { isViewersOwn } from './typed-by.mjs'
 
 export function topLevel(messages) {
   return messages
@@ -890,9 +891,9 @@ export function unreadFromDms(topics, cursors, self = '') {
   for (const t of topics || []) {
     const msgs = t && t.inline && Array.isArray(t.inline.messages) ? t.inline.messages : []
     for (const m of msgs) {
-      if (!m || m.channel) continue
-      const from = String(m.from || '')
-      if (!from || from === me) continue
+      if (!m || m.channel || !m.from) continue
+      /* CLE-77889: our own line - or one we typed at the agent's terminal - is never new */
+      if (isViewersOwn(m, me)) continue
       const peer = dmPeerOf(m, me)
       if (!peer) continue
       const key = `dm:${peer}`

@@ -4,6 +4,7 @@
  */
 
 import { storageGet, storageGetJson, storageSet, storageSetJson } from './prefs.mjs'
+import { isViewersOwn } from './typed-by.mjs'
 
 export const CHIME_KEY = 'spool.chime'
 /* 051: which sound the chime plays, per device (owner dd88348d: "the beep
@@ -27,9 +28,9 @@ export function mentionedIds(body) {
   return ids
 }
 
+/** The viewer's own row: their post, or a line they typed at an agent's terminal (CLE-77889). */
 export function isSelf(msg, selfId) {
-  const self = String(selfId || '')
-  return Boolean(self) && String((msg && msg.from) || '') === self
+  return isViewersOwn(msg, selfId)
 }
 
 export function isDm(msg, ctx = {}) {
@@ -91,11 +92,6 @@ export function toggleMutedChannel(ids, channel) {
   return [...next]
 }
 
-/** The member id without its @box: "HUM-24@wui" and "HUM-24" are one reader. */
-function baseId(id) {
-  return String(id || '').split('@')[0]
-}
-
 /**
  * Ping (chime + browser alert) on every new message from someone else, unless
  * its channel is muted. A DM has no channel, so a muted channel does not
@@ -109,8 +105,7 @@ function baseId(id) {
  */
 export function shouldPing(msg, ctx = {}, muted = []) {
   if (!msg) return false
-  const self = baseId(ctx && ctx.selfId)
-  if (self && baseId(msg.from) === self) return false
+  if (isViewersOwn(msg, ctx && ctx.selfId)) return false
   const ch = normalizeChannel(msg && msg.channel) || normalizeChannel(ctx && ctx.channel)
   if (!ch) return true
   const set = new Set((muted || []).map((id) => normalizeChannel(id)))

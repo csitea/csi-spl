@@ -423,8 +423,10 @@ export const useChannelStore = defineStore('channel', () => {
       })
       messages.value = mergeLive(messages.value, own) as FeedMessage[]
     }
-    /* CLE-77804: the reader's own reply never counts as unread (owner default 2) */
-    if (parentTaskId && showHere) useNotificationStore().markTopicRead(parentTaskId, repliesFor(parentTaskId))
+    /* CLE-77804: the reader's own reply never counts as unread (owner default 2).
+       CLE-77889: synchronously, before the store's watcher ingests the pending
+       row, and naming its msg_id, so the own-reply rule never counts it again */
+    if (parentTaskId && showHere) useNotificationStore().markTopicRead(parentTaskId, repliesFor(parentTaskId), frame.msg_id)
     /* one automatic resend when the socket went away underneath a
        pending frame. The frame carries our own msg_id, so the hub de-dupes
        the race where the first copy did land, and live-ws will have queued

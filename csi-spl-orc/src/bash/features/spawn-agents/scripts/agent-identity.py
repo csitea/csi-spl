@@ -15,6 +15,11 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   refresh index.json. Idempotent: an unchanged record is not
                   rewritten and keeps its updated_at.
   check           the map vs the live box as one table; exit 1 on any drift
+  reconcile [--tag T] [--apply]
+                  record (written with --apply), then print one
+                  RENAME<TAB>pane<TAB>old<TAB>new per agent window whose name
+                  is not the one derived from its record; the caller renames
+  set-title ID T  set ID's title (what riname does); reconcile then renames
   hash            the hash of the records as they are on disk
   alive ID        print the pid and exit 0 when ID's record names a live process
                   that still IS that agent: the pid exists with the recorded start
@@ -44,7 +49,7 @@ ID_RE = re.compile(r"^(CLE|GRK|AGY|QWN)-[0-9]+$")
 NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])((?:CLE|GRK|AGY|QWN)-[0-9]+)(?![0-9])")
 BADGES = (">", "?", "!")
 VOLATILE = ("updated_at",)          # never part of the hash, never a reason to rewrite
-FIELDS = ("v", "id", "kind", "session_id", "worktree", "title", "model", "permission_mode",
+FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", "model", "permission_mode",
           "user", "pid", "proc_start", "tmux_session", "window_id", "pane_id", "alive", "updated_at")
 
 
@@ -144,8 +149,9 @@ def homes(proc, pid, env):
 
 
 def claude_session(proc, pid, env, start):
-    """(session_id, cwd) from the process's own ~/.claude/sessions/<pid>.json,
-    refusing a file a recycled pid inherited (procStart must match)."""
+    """(session_id, cwd, name) from the process's own ~/.claude/sessions/<pid>.json,
+    refusing a file a recycled pid inherited (procStart must match). name is
+    the session's title (--name, /rename)."""
     for h in homes(proc, pid, env):
         try:
             with open(os.path.join(h, ".claude", "sessions", "%s.json" % pid)) as fh:
@@ -156,8 +162,8 @@ def claude_session(proc, pid, env, start):
         if want and want != start:
             continue
         if d.get("sessionId"):
-            return str(d["sessionId"]), str(d.get("cwd", "") or "")
-    return "", ""
+            return str(d["sessionId"]), str(d.get("cwd", "") or ""), str(d.get("name", "") or "")
+    return "", "", ""
 
 
 def strip_name(name):
@@ -218,9 +224,9 @@ def facts(proc, panes):
         if not ID_RE.match(aid):
             skipped.append((pid, kind, "its environment carries no agent id (unreadable, or not a fleet agent)"))
             continue
-        sid, cwd = "", ""
+        sid, cwd, sname = "", "", ""
         if kind == "claude":
-            sid, cwd = claude_session(proc, pid, env, start)
+            sid, cwd, sname = claude_session(proc, pid, env, start)
         if not sid:
             sid = flag(argv, "--session-id") or flag(argv, "--resume") or flag(argv, "--conversation")
         cwd = cwd or proc.cwd(pid)
@@ -240,6 +246,7 @@ def facts(proc, panes):
             "window_id": pane["window_id"] if pane else None,
             "pane_id": pane["pane_id"] if pane else None,
             "window_name": pane["name"] if pane else None,
+            "session_name": sname or None,
         })
     return out, skipped
 
@@ -314,11 +321,24 @@ def merge(recs, live):
         if i in per_id:
             f = per_id[i][0]
             r = dict(old or {})
+            # The title is what a human named the work: the session's own
+            # name (/rename, --name) with any tag and id stripped - the id in
+            # it is ignored, the record's id comes from the environment. Else
+            # the record's title; else, once, the window name when it carries
+            # this same id.
             title = (old or {}).get("title")
+            # ... only when that session name CHANGED since the last record:
+            # a title set by riname (set-title) is not undone on every pass by
+            # a session name nobody touched since.
+            if f.get("session_name") and f["session_name"] != (old or {}).get("session_name"):
+                nid, t = strip_name(f["session_name"])
+                t = t if nid else re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", f["session_name"]).strip()
+                if t:
+                    title = t
             if title is None:
                 nid, t = strip_name(f.get("window_name") or "")
                 title = t if nid == i else ""
-            r.update({k: f[k] for k in ("id", "kind", "session_id", "worktree", "model", "permission_mode",
+            r.update({k: f[k] for k in ("id", "kind", "session_id", "session_name", "worktree", "model", "permission_mode",
                                          "user", "pid", "proc_start", "tmux_session", "window_id", "pane_id")})
             r["title"] = title
             r["alive"] = True
@@ -407,6 +427,73 @@ def cmd_check(args, proc):
     return 1 if drift else 0
 
 
+def badge_of(name):
+    """The state badge a window name carries right after its id ('' if none)."""
+    n = re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", name)
+    if n[:2] in ("> ", "? ", "! "):
+        return n[0]
+    m = re.match(r"^(?:CLE|GRK|AGY|QWN)-[0-9]+ ([>?!])(?: |$)", n)
+    return m.group(1) if m else ""
+
+
+def want_name(tag, aid, badge, title):
+    out = " ".join(x for x in (aid, badge, title) if x)
+    return "%s: %s" % (tag, out) if tag else out
+
+
+def cmd_reconcile(args, proc):
+    """Every agent window's name, derived from its record: '<tag>: <ID>
+    [badge] <title>'. Only windows holding a recorded agent are touched; the
+    badge is kept when the window already carries that id (the badge loop
+    owns it). Prints one RENAME<TAB>pane<TAB>old<TAB>new per window to fix;
+    the caller performs it (compare-and-set)."""
+    live, skipped = facts(proc, read_panes(sys.stdin))
+    recs = load(args.dir)
+    new, changes, conflicts = merge(recs, live)
+    if args.apply:
+        os.makedirs(args.dir, exist_ok=True)
+        for i, _ in changes:
+            write_json(os.path.join(args.dir, i + ".json"), {k: new[i].get(k) for k in FIELDS})
+        if changes or not os.path.exists(os.path.join(args.dir, "index.json")):
+            write_json(os.path.join(args.dir, "index.json"),
+                       {"v": 1, "hash": map_hash(load(args.dir)), "records": len(new), "reconciled_at": now_utc()})
+    renames = 0
+    for f in sorted(live, key=lambda x: x["id"]):
+        if f["id"] in conflicts or not f.get("pane_id") or f.get("window_name") is None:
+            continue
+        r = new.get(f["id"]) or {}
+        cur = f["window_name"]
+        nid, _ = strip_name(cur)
+        want = want_name(args.tag, f["id"], badge_of(cur) if nid == f["id"] else "", r.get("title") or "")
+        if cur != want:
+            print("RENAME\t%s\t%s\t%s" % (f["pane_id"], cur, want))
+            renames += 1
+    for i, pids in sorted(conflicts.items()):
+        print("CONFLICT %s: carried by %d live processes (pids %s) - its windows left alone" % (i, len(pids), " ".join(map(str, pids))))
+    print("reconcile: %d live agent(s), %d record change(s), %d window(s) to rename, %d conflict(s), %d skipped"
+          % (len(live), len(changes), renames, len(conflicts), len(skipped)))
+    return 0
+
+
+def cmd_set_title(args, proc):
+    """Set ID's title (riname): the next reconcile names its window from it."""
+    recs = load(args.dir)
+    r = recs.get(args.id)
+    if not r:
+        print("set-title: %s is not in the map (run record first)" % args.id)
+        return 4
+    title = re.sub(r"[\x00-\x1f#]", "", args.title).strip()[:60]
+    if r.get("title") != title:
+        r["title"] = title
+        r["updated_at"] = now_utc()
+        write_json(os.path.join(args.dir, args.id + ".json"), {k: r.get(k) for k in FIELDS})
+        recs[args.id] = r
+        write_json(os.path.join(args.dir, "index.json"),
+                   {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    print("set-title: %s -> %s" % (args.id, title))
+    return 0
+
+
 def cmd_alive(args, proc):
     r = load(args.dir).get(args.id)
     if not r or not r.get("alive") or not r.get("pid"):
@@ -437,7 +524,13 @@ def main():
     r = sub.add_parser("record")
     r.add_argument("--apply", action="store_true")
     sub.add_parser("check")
+    rc = sub.add_parser("reconcile")
+    rc.add_argument("--tag", default="")
+    rc.add_argument("--apply", action="store_true")
     sub.add_parser("hash")
+    st = sub.add_parser("set-title")
+    st.add_argument("id")
+    st.add_argument("title")
     a = sub.add_parser("alive")
     a.add_argument("id")
     args = ap.parse_args()
@@ -451,6 +544,10 @@ def main():
         return cmd_record(args, proc)
     if args.cmd == "check":
         return cmd_check(args, proc)
+    if args.cmd == "reconcile":
+        return cmd_reconcile(args, proc)
+    if args.cmd == "set-title":
+        return cmd_set_title(args, proc)
     if args.cmd == "hash":
         print(map_hash(load(args.dir)))
         return 0

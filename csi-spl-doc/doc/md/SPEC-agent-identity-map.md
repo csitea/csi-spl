@@ -1,6 +1,6 @@
 # SPEC: the agent identity map
 
-Status: step (a) built: record + check. Steps (b) to (d) follow in this order.
+Status: steps (a) record + check and (b) reconcile + riname + install are built. Steps (c) and (d) follow.
 Owner order, 2026-10-01: "some kind of hash to keep up-to-date the runtime tmux
 window names and the session names in sync with this hash on the disk".
 
@@ -29,7 +29,8 @@ and by nothing else.
 | `kind` | the CLI's argv[0] (claude, grok, agy, qwen) |
 | `session_id` | the process's own `~/.claude/sessions/<pid>.json` (its start time must match), else `--session-id` / `--resume` |
 | `worktree` | the session file's cwd, else `/proc/<pid>/cwd` |
-| `title` | kept from the record; first set from the window name only when that name carries the same id |
+| `session_name` | the session file's `name` (`--name`, `/rename`) |
+| `title` | the session name without tag and id, adopted when the session name changes; else what `riname.sh` set; first set from the window name only when that name carries the same id |
 | `model`, `permission_mode` | the CLI's argv |
 | `user`, `pid`, `proc_start` | `/proc/<pid>/status` and `/proc/<pid>/stat` |
 | `tmux_session`, `window_id`, `pane_id` | the pane whose process tree holds the process |
@@ -59,9 +60,15 @@ master is recorded only on the next pass.
 `scripts/agent-identity.py`, and the actions `do_spl_agent_identity_record` and
 `do_spl_agent_identity_check`. Test: `tests/test-agent-identity.sh`.
 
-4.2 (b) `do_spl_agent_identity_reconcile` sets every window name from its
-record, from cron and from the tmux hooks, both installed by an action. The
-spawn path and `riname.sh` write the record and then reconcile.
+4.2 (b) `do_spl_agent_identity_reconcile` sets every agent window to
+`<tag>: <ID> [badge] <title>` from its record. It keeps a state badge only on
+the right id, compare-and-sets each rename on the pane id, and turns off
+`allow-rename` / `automatic-rename` on that window. `riname.sh` writes the
+title into the record (`set-title`) and then reconciles. Its pane comes from
+the process, never from a registry row. `do_spl_agent_identity_install` adds
+the per-minute cron line and the `after-new-window[1]` / `pane-exited[1]`
+hooks (the sorter keeps index 0); `IDENTITY_UNINSTALL=1` removes them. Test:
+`tests/test-agent-identity-reconcile.sh`.
 
 4.3 (c) The resolvers (`spool_pane_of`, `agent-send.sh`,
 `tmux-close-window.sh`, desk liveness) read the map and verify the process.

@@ -203,6 +203,40 @@ DRY_RUN=0 ./run -a do_spl_agent_identity_record
 bash -c '. csi-spl-orc/src/bash/features/spawn-agents/lib/agent-identity.inc.sh && ai_alive CLE-002'
 ```
 
+#### 3.10.5 Name every agent window from the map (dry run, the default)
+
+The name is `<tag>: <ID> [badge] <title>`. The title is the agent's own session
+name (`/rename`), or the one `riname.sh` set. A window that took a neighbour's
+name is put back. Plain windows are never touched.
+
+```bash
+./run -a do_spl_agent_identity_reconcile
+```
+
+#### 3.10.6 Apply the names
+
+```bash
+DRY_RUN=0 ./run -a do_spl_agent_identity_reconcile
+```
+
+#### 3.10.7 Install the per-minute cron line and the tmux hooks (dry run first)
+
+```bash
+./run -a do_spl_agent_identity_install
+```
+
+#### 3.10.8 Install them
+
+```bash
+DRY_RUN=0 ./run -a do_spl_agent_identity_install
+```
+
+#### 3.10.9 Remove them again (the rollback)
+
+```bash
+DRY_RUN=0 IDENTITY_UNINSTALL=1 ./run -a do_spl_agent_identity_install
+```
+
 ## 4. Exit codes of spool-send.sh and spool-notify.sh
 
 The message file is written before the pane is touched. Any exit code below 10

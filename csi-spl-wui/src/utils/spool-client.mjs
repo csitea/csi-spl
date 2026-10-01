@@ -186,6 +186,18 @@ function mockArchivePolicy() {
   } catch { return '' }
 }
 
+/**
+ * CLE-77891 test hook (mock only), next to the archive policy: the mock
+ * member's role ('admin' | 'developer', default developer) an e2e opts into
+ * with localStorage `spool.mock.role`. Read only when the policy hook is on.
+ */
+function mockRole() {
+  try {
+    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.role') || '') : ''
+    return ['admin', 'developer'].includes(v) ? v : 'developer'
+  } catch { return 'developer' }
+}
+
 /** Signed-in HUM-* . Live uses /v1/view/me. The mock has no me() and uses the roster. */
 export function signedInHuman(me, opts = {}) {
   const id = me && typeof me.humanId === 'string' ? me.humanId : ''
@@ -831,7 +843,7 @@ export function createSpoolClient({
            unrestricted, as before); when set, the mock member is a plain
            developer in a workspace with that "Who can archive topics". */
         const policy = mockArchivePolicy()
-        if (policy && (!a || !a.target_hum)) return { role: 'developer', tenant_owner: false, topic_archive_policy: policy }
+        if (policy && (!a || !a.target_hum)) return { role: mockRole(), tenant_owner: false, topic_archive_policy: policy }
         if (!a || !a.target_hum) return null
         let name = a.target_hum
         try {

@@ -21,11 +21,27 @@
             role="menuitem"
             tabindex="-1"
             class="msg-menu__item"
+            :class="{ 'msg-menu__item--off': item.disabled }"
             :data-testid="'msg-menu-' + item.id"
-            @click.stop="choose(item.id)"
+            :data-disabled="item.disabled ? 'true' : undefined"
+            :aria-disabled="item.disabled ? 'true' : undefined"
+            :aria-describedby="item.disabled ? hintId + item.id : undefined"
+            :title="item.disabled && item.hintKey ? t(item.hintKey) : undefined"
+            @click.stop="choose(item.id, item.disabled)"
           >
             <UiIcon :name="item.icon" :size="16" />
-            <span>{{ t(item.labelKey) }}</span>
+            <span class="msg-menu__text">
+              <span>{{ t(item.labelKey) }}</span>
+              <!-- CLE-77891: a locked entry says why (the tooltip on a desktop;
+                   a finger has no hover, so the sheet shows it under the name) -->
+              <small
+                v-if="item.disabled && item.hintKey"
+                :id="hintId + item.id"
+                class="msg-menu__why"
+                :class="{ 'sr-only': !sheet }"
+                data-testid="msg-menu-why"
+              >{{ t(item.hintKey) }}</small>
+            </span>
           </button>
         </li>
       </ul>
@@ -35,6 +51,7 @@
 
 <script setup lang="ts">
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
+import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 import { usePhone } from '~/composables/useTouchUi'
@@ -64,6 +81,8 @@ const props = defineProps<{
   mergeTopic?: boolean
   /** 8f588edd: a reply the viewer may promote into a new topic of its own */
   promoteTopic?: boolean
+  /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
+  locks?: Partial<TopicMenuLocks>
 }>()
 
 const emit = defineEmits<{
@@ -109,7 +128,9 @@ const items = computed(() => msgMenuItems({
   moveTopic: props.moveTopic,
   mergeTopic: props.mergeTopic,
   promoteTopic: props.promoteTopic,
+  locks: props.locks,
 }))
+const hintId = useId() + '-why-'
 
 function itemEls(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
@@ -174,7 +195,9 @@ function onMenuKey(e: KeyboardEvent) {
   }
 }
 
-function choose(id: string) {
+function choose(id: string, disabled?: boolean) {
+  /* a disabled entry does nothing and keeps the menu open: its reason stays readable */
+  if (disabled) return
   if (id === 'open') emit('open')
   else if (id === 'parent') emit('parent')
   else if (id === 'edit') emit('edit')
@@ -233,6 +256,9 @@ function choose(id: string) {
   min-height: 36px;
 }
 .msg-menu__item .ui-icon { flex: 0 0 auto; }
+.msg-menu__text { display: flex; flex-direction: column; min-width: 0; }
+.msg-menu__item--off { color: var(--color-muted); opacity: .7; cursor: not-allowed; }
+.msg-menu__why { font-size: 0.75rem; line-height: 1.3; white-space: normal; }
 .msg-menu__item:hover,
 .msg-menu__item:focus-visible {
   background: var(--color-surface-hover);

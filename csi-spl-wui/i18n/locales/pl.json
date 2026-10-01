@@ -592,7 +592,17 @@
       "move_channel": "Przenieś do kanału…",
       "merge_topic": "Scal z…",
       "move_topic": "Przenieś do tematu…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może edytować ten temat",
+        "edit_agent": "Wiadomość agenta może edytować tylko sam agent",
+        "move": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może przenieść ten temat",
+        "move_place": "Ten temat zostaje na miejscu: lobby, wiadomości bezpośrednie i zgłoszenia nie są przenoszone",
+        "merge": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może scalić ten temat",
+        "archive_admins": "W tej przestrzeni roboczej tylko właściciel lub administrator może archiwizować tematy",
+        "archive_starter": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może zarchiwizować ten temat",
+        "delete": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może usunąć ten temat"
+      }
     },
     "emoji": {
       "add": "Dodaj emoji",

@@ -592,7 +592,17 @@
       "move_channel": "Verplaatsen naar kanaal…",
       "merge_topic": "Samenvoegen met…",
       "move_topic": "Verplaatsen naar onderwerp…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp bewerken",
+        "edit_agent": "Het bericht van een agent kan alleen die agent zelf bewerken",
+        "move": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp verplaatsen",
+        "move_place": "Dit onderwerp blijft waar het is: de lobby, directe berichten en issues kunnen niet verplaatst worden",
+        "merge": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp samenvoegen",
+        "archive_admins": "In deze werkruimte kunnen alleen de eigenaar of een beheerder onderwerpen archiveren",
+        "archive_starter": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp archiveren",
+        "delete": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp verwijderen"
+      }
     },
     "emoji": {
       "add": "Emoji toevoegen",

@@ -592,7 +592,17 @@
       "move_channel": "Flytta till kanal…",
       "merge_topic": "Slå ihop med…",
       "move_topic": "Flytta till ämne…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan redigera det här ämnet",
+        "edit_agent": "En agents meddelande kan bara redigeras av agenten själv",
+        "move": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan flytta det här ämnet",
+        "move_place": "Det här ämnet stannar där det är: lobbyn, direktmeddelanden och ärenden kan inte flyttas",
+        "merge": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan slå ihop det här ämnet",
+        "archive_admins": "I den här arbetsytan kan bara ägaren eller en administratör arkivera ämnen",
+        "archive_starter": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan arkivera det här ämnet",
+        "delete": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan ta bort det här ämnet"
+      }
     },
     "emoji": {
       "add": "Lägg till emoji",

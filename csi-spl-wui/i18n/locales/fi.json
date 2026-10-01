@@ -592,7 +592,17 @@
       "move_channel": "Siirrä kanavalle…",
       "merge_topic": "Yhdistä toiseen…",
       "move_topic": "Siirrä aiheeseen…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi muokata tätä aihetta",
+        "edit_agent": "Agentin viestiä voi muokata vain agentti itse",
+        "move": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi siirtää tämän aiheen",
+        "move_place": "Tämä aihe pysyy paikallaan: aulaa, yksityisviestejä ja tikettejä ei voi siirtää",
+        "merge": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi yhdistää tämän aiheen",
+        "archive_admins": "Tässä työtilassa vain omistaja tai ylläpitäjä voi arkistoida aiheita",
+        "archive_starter": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi arkistoida tämän aiheen",
+        "delete": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi poistaa tämän aiheen"
+      }
     },
     "emoji": {
       "add": "Lisää emoji",

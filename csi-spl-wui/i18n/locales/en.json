@@ -592,7 +592,17 @@
       "move_channel": "Move to channel…",
       "merge_topic": "Merge into…",
       "move_topic": "Move to topic…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Only the topic starter, the workspace owner or an admin can edit this topic",
+        "edit_agent": "An agent's message can be edited only by its agent",
+        "move": "Only the topic starter, the workspace owner or an admin can move this topic",
+        "move_place": "This topic stays where it is: the lobby, direct messages and issues cannot move",
+        "merge": "Only the topic starter, the workspace owner or an admin can merge this topic",
+        "archive_admins": "In this workspace only the owner or an admin can archive topics",
+        "archive_starter": "Only the topic starter, the workspace owner or an admin can archive this topic",
+        "delete": "Only the topic starter, the workspace owner or an admin can delete this topic"
+      }
     },
     "emoji": {
       "add": "Add emoji",

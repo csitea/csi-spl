@@ -592,7 +592,17 @@
       "move_channel": "Pārvietot uz kanālu…",
       "merge_topic": "Apvienot ar…",
       "move_topic": "Pārvietot uz tēmu…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var rediģēt šo tēmu",
+        "edit_agent": "Aģenta ziņojumu var rediģēt tikai pats aģents",
+        "move": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var pārvietot šo tēmu",
+        "move_place": "Šī tēma paliek savā vietā: vestibilu, tiešos ziņojumus un problēmas nevar pārvietot",
+        "merge": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var apvienot šo tēmu",
+        "archive_admins": "Šajā darbvietā tēmas arhivēt var tikai īpašnieks vai administrators",
+        "archive_starter": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var arhivēt šo tēmu",
+        "delete": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var dzēst šo tēmu"
+      }
     },
     "emoji": {
       "add": "Pievienot emoji",

@@ -592,7 +592,17 @@
       "move_channel": "Presunúť do kanála…",
       "merge_topic": "Zlúčiť s…",
       "move_topic": "Presunúť do témy…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Túto tému môže upraviť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
+        "edit_agent": "Správu agenta môže upraviť len samotný agent",
+        "move": "Túto tému môže presunúť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
+        "move_place": "Táto téma zostáva na mieste: lobby, priame správy a problémy sa nepresúvajú",
+        "merge": "Túto tému môže zlúčiť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
+        "archive_admins": "V tomto pracovnom priestore môže témy archivovať len vlastník alebo správca",
+        "archive_starter": "Túto tému môže archivovať len jej zakladateľ, vlastník pracovného priestoru alebo správca",
+        "delete": "Túto tému môže odstrániť len jej zakladateľ, vlastník pracovného priestoru alebo správca"
+      }
     },
     "emoji": {
       "add": "Pridať emoji",

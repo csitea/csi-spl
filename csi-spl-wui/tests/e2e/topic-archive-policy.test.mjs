@@ -1,6 +1,7 @@
 // CLE-77819 (owner 2026-09-30, csitea #spool-hub topic 85597e91): a REGULAR
 // member archives her own topic and undoes it; under a workspace policy that
-// does not let her, the menu has no Archive on someone else's topic.
+// does not let her, Archive on someone else's topic is disabled (CLE-77891:
+// shown with the reason, not hidden).
 // "Who can archive topics" is a per-workspace setting (everyone - the
 // default - | admins | starter). Runs against the lde mock; the opt-in
 // localStorage `spool.mock.archive_policy` makes the mock answer
@@ -8,10 +9,10 @@
 //
 //   1  starter: her own new topic -> Archive -> "Archived · Undo" -> Undo
 //      brings it back
-//   2  starter: someone else's topic (#alerts, by GRK-03) -> no Archive,
-//      no Delete
+//   2  starter: someone else's topic (#alerts, by GRK-03) -> Archive and
+//      Delete disabled
 //   3  CONTROL everyone (the default): the same card offers Archive
-//   4  admins: even her own topic offers no Archive
+//   4  admins: even her own topic has Archive disabled
 //
 // Run:
 //   node tests/e2e/topic-archive-policy.test.mjs
@@ -72,7 +73,8 @@ const hasToast = (p) => p.evaluate(() => Boolean(document.querySelector('[data-t
 
 /** Open a middle card's ⋯ menu and return its item testids. */
 async function openMenu(p, sel) {
-  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  /* CLE-77891: a disabled entry (shown with its reason, not hidden) reads 'msg-menu-x:off' */
+  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid') + (e.getAttribute('aria-disabled') === 'true' ? ':off' : '')))
   for (let i = 0; i < 2; i++) {
     await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
     for (let t = 0; t < 20; t++) {
@@ -144,7 +146,7 @@ try {
   await withPolicy(p, 'starter', '/channel/alerts')
   await p.waitForSelector(midCard(OTHER), { timeout: 10000 })
   const other = await openMenu(p, midCard(OTHER))
-  ok('2 starter: someone else\'s topic offers no Archive and no Delete', other.length > 0 && !other.includes('msg-menu-archive') && !other.includes('msg-menu-delete-topic'), other)
+  ok('2 starter: someone else\'s topic: Archive and Delete disabled', other.includes('msg-menu-archive:off') && other.includes('msg-menu-delete-topic:off'), other)
   await shot(p, '2-other-no-archive')
   await p.keyboard.press('Escape')
 
@@ -152,7 +154,7 @@ try {
   await withPolicy(p, 'everyone', '/channel/alerts')
   await p.waitForSelector(midCard(OTHER), { timeout: 10000 })
   const every = await openMenu(p, midCard(OTHER))
-  ok('3 CONTROL everyone: someone else\'s topic offers Archive (but not Delete)', every.includes('msg-menu-archive') && !every.includes('msg-menu-delete-topic'), every)
+  ok('3 CONTROL everyone: someone else\'s topic offers Archive (Delete disabled)', every.includes('msg-menu-archive') && every.includes('msg-menu-delete-topic:off'), every)
   await p.keyboard.press('Escape')
 
   /* ---- 4. admins: not even her own topic -------------------------------- */
@@ -161,7 +163,7 @@ try {
   await p.waitForSelector(midCard(seeded2.one.msg_id), { timeout: 10000 })
   await sleep(400)
   const adm = await openMenu(p, midCard(seeded2.one.msg_id))
-  ok('4 admins: a plain member\'s own topic offers no Archive', adm.length > 0 && !adm.includes('msg-menu-archive'), adm)
+  ok('4 admins: a plain member\'s own topic: Archive disabled', adm.includes('msg-menu-archive:off'), adm)
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)

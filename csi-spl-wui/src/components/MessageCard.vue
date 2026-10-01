@@ -317,6 +317,7 @@
       :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
       :promote-topic="canMoveMsg"
+      :locks="menuLocks"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -412,6 +413,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
+import { topicMenuLocks } from '~/utils/topic-menu.mjs'
 import { reactionChips, emojiName } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
@@ -895,6 +897,11 @@ const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && 
   channel: props.moveCtx?.channel || '',
 }))
 const movable = computed(() => (canMoveTopic.value || canMoveMsg.value) && !editing.value)
+/* CLE-77891 (HUM-24): a topic card's menu has the same entries for everyone;
+   what this viewer may not do is shown disabled with the reason. */
+const menuLocks = computed(() => props.topicMenu && !editing.value
+  ? topicMenuLocks(props.msg, editorId.value, access.me, { editable: Boolean(props.editable), lobbyTaskId: lobbyTask.value })
+  : undefined)
 const dragging = ref(false)
 const dropTarget = computed(() => Boolean(props.topicMenu) && (isCardDropTarget(move.drag.value, props.msg, lobbyTask.value) || isMergeCardDropTarget(move.drag.value, props.msg, lobbyTask.value)))
 const dropOver = computed(() => {

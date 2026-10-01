@@ -153,7 +153,8 @@ const toastText = (p) => p.evaluate(() => document.querySelector('[data-testid=m
 
 async function openMenu(p, sel) {
   /* the menu mounts lazily: wait for its items (a fixed sleep read [] now and then), click again once */
-  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid')))
+  /* CLE-77891: a disabled entry (shown with its reason, not hidden) reads 'msg-menu-x:off' */
+  const items = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=msg-menu] [role=menuitem]')].map((e) => e.getAttribute('data-testid') + (e.getAttribute('aria-disabled') === 'true' ? ':off' : '')))
   for (let i = 0; i < 2; i++) {
     await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
     for (let t = 0; t < 20; t++) {
@@ -206,7 +207,7 @@ try {
   }), midCard(OTHER_CARD))
   ok('1 another author\'s card: no handle, not movable, no HTML5 draggable', !other.handle && other.movable === null && other.draggable === null, other)
   const otherMenu = await openMenu(p, midCard(OTHER_CARD))
-  ok('1 its menu offers no Move to channel…', otherMenu.length > 0 && !otherMenu.includes('msg-menu-move-channel'), otherMenu)
+  ok('1 its menu: Move to channel… disabled', otherMenu.includes('msg-menu-move-channel:off'), otherMenu)
   await p.keyboard.press('Escape')
   await sleep(200)
 

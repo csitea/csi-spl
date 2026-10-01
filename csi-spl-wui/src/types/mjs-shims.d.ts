@@ -571,7 +571,7 @@ declare module '~/utils/touch-ui.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string, disabled?: boolean, hintKey?: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
@@ -650,6 +650,12 @@ declare module '~/utils/move-mock.mjs' {
   export function mockMove(state: unknown, id: string, body: { to_channel?: string, to_task?: string }): import('~/utils/move-apply.mjs').MoveAnswer
   export function mockMergeTopic(state: unknown, id: string, body: { to_task?: string, undo?: { from_task?: string, msg_ids?: string[] } }): import('~/utils/move-apply.mjs').MoveAnswer
   export function mockPromoteTopic(state: unknown, id: string, body: { undo?: { from_task?: string, msg_ids?: string[] } }): import('~/utils/move-apply.mjs').MoveAnswer
+}
+
+declare module '~/utils/topic-menu.mjs' {
+  /** CLE-77891: per topic-card entry, '' or the i18n key of why it is disabled */
+  export type TopicMenuLocks = { edit: string, move: string, merge: string, archive: string, delete: string }
+  export function topicMenuLocks(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean, topicArchivePolicy?: string } | null, opts?: { editable?: boolean, lobbyTaskId?: string }): TopicMenuLocks
 }
 
 declare module '~/utils/topic-archive.mjs' {

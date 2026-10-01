@@ -592,7 +592,17 @@
       "move_channel": "Perkelti į kanalą…",
       "merge_topic": "Sujungti su…",
       "move_topic": "Perkelti į temą…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali redaguoti šią temą",
+        "edit_agent": "Agento žinutę gali redaguoti tik pats agentas",
+        "move": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali perkelti šią temą",
+        "move_place": "Ši tema lieka savo vietoje: fojė, tiesioginės žinutės ir užduotys neperkeliamos",
+        "merge": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali sujungti šią temą",
+        "archive_admins": "Šioje darbo erdvėje temas archyvuoti gali tik savininkas arba administratorius",
+        "archive_starter": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali archyvuoti šią temą",
+        "delete": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali ištrinti šią temą"
+      }
     },
     "emoji": {
       "add": "Pridėti emoji",

@@ -592,7 +592,17 @@
       "move_channel": "Kanala taşı…",
       "merge_topic": "Şununla birleştir…",
       "move_topic": "Konuya taşı…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici düzenleyebilir",
+        "edit_agent": "Bir ajanın mesajını yalnızca ajanın kendisi düzenleyebilir",
+        "move": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici taşıyabilir",
+        "move_place": "Bu konu yerinde kalır: lobi, doğrudan mesajlar ve kayıtlar taşınamaz",
+        "merge": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici birleştirebilir",
+        "archive_admins": "Bu çalışma alanında konuları yalnızca sahip veya bir yönetici arşivleyebilir",
+        "archive_starter": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici arşivleyebilir",
+        "delete": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici silebilir"
+      }
     },
     "emoji": {
       "add": "Emoji ekle",

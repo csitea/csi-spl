@@ -34,8 +34,14 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
  * unchanged.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
+ * CLE-77891 (HUM-24): a topic card's menu has the same shape for every viewer.
+ * `locks` (utils/topic-menu.mjs topicMenuLocks) names, per entry, why the
+ * viewer may not use it; such an entry is still listed, `disabled` with that
+ * reason as `hintKey`, instead of vanishing. Without `locks` (a reply, a
+ * thread line) nothing changes.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
@@ -44,6 +50,12 @@ export function msgMenuItems(opts = {}) {
   const copy = { id: 'copy', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' }
   const edit = { id: 'edit', icon: 'pencil', labelKey: 'feed.msg_menu.edit' }
   const items = []
+  const locks = o.locks && typeof o.locks === 'object' ? o.locks : {}
+  /** the entry when allowed, else - when locked - the entry disabled with its reason */
+  const gated = (on, item, lock) => {
+    if (on) items.push(item)
+    else if (lock) items.push({ ...item, disabled: true, hintKey: String(lock) })
+  }
   if (touch) {
     items.push({ id: 'reply', icon: 'reply', labelKey: 'feed.msg_menu.reply' })
     items.push({ id: 'react', icon: 'smile', labelKey: 'feed.emoji.add' })
@@ -52,13 +64,13 @@ export function msgMenuItems(opts = {}) {
   if (o.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'feed.msg_menu.open_parent' })
   if (touch) items.push({ id: 'copy-text', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' })
   items.push(copy)
-  if (editable) items.push(edit)
+  gated(editable, edit, locks.edit)
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
-  if (o.moveChannel) items.push({ id: 'move-channel', icon: 'move', labelKey: 'feed.msg_menu.move_channel' })
+  gated(o.moveChannel, { id: 'move-channel', icon: 'move', labelKey: 'feed.msg_menu.move_channel' }, locks.move)
   // 714c7028: a topic card can also MERGE its whole topic into another topic.
-  if (o.mergeTopic) items.push({ id: 'merge-topic', icon: 'merge', labelKey: 'feed.msg_menu.merge_topic' })
+  gated(o.mergeTopic, { id: 'merge-topic', icon: 'merge', labelKey: 'feed.msg_menu.merge_topic' }, locks.merge)
   if (o.moveTopic) items.push({ id: 'move-topic', icon: 'move', labelKey: 'feed.msg_menu.move_topic' })
   // 8f588edd: a reply can also be PROMOTED into a new topic of its own - the
   // keyboard / touch way to do what the drag into the topics list does.
@@ -67,8 +79,8 @@ export function msgMenuItems(opts = {}) {
   // addressed to may archive but not delete. `topic` stays the both-shorthand.
   const wantArchive = Boolean(o.topic || o.topicArchive)
   const wantDelete = Boolean(o.topic || o.topicDelete)
-  if (wantArchive) items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
-  if (wantDelete) items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })
+  gated(wantArchive, { id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' }, locks.archive)
+  if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
   else if (editable && !wantArchive) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
   return items
 }

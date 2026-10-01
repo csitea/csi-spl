@@ -592,7 +592,17 @@
       "move_channel": "Mover a un canal…",
       "merge_topic": "Combinar con…",
       "move_topic": "Mover a un tema…",
-      "promote_topic": "Make it a topic"
+      "promote_topic": "Make it a topic",
+      "why": {
+        "edit": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede editar este tema",
+        "edit_agent": "El mensaje de un agente solo lo puede editar el propio agente",
+        "move": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede mover este tema",
+        "move_place": "Este tema se queda donde está: el vestíbulo, los mensajes directos y las incidencias no se mueven",
+        "merge": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede fusionar este tema",
+        "archive_admins": "En este espacio de trabajo solo el propietario o un administrador puede archivar temas",
+        "archive_starter": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede archivar este tema",
+        "delete": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede eliminar este tema"
+      }
     },
     "emoji": {
       "add": "Añadir emoji",

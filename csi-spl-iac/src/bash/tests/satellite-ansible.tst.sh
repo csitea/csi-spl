@@ -115,6 +115,8 @@ grep -q 'timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install
   && pass "08 runs install.sh with no controlling tty, bounded" || fail "08 runs install.sh on become's pty"
 grep -q '"SPOOL_DESK_BOX={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" && grep -q '^    box_tag: sat$' "$PB" \
   && pass "08 writes SPOOL_DESK_BOX=<box_tag> (sat) with box-config.sh" || fail "08 does not set SPOOL_DESK_BOX"
+grep -q '"SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }}"' "$R/08_spool_harness/tasks/main.yml" \
+  && pass "08 names the fleet desk (SPOOL_FLEET_ENV/TENANT) for cross-machine sends" || fail "08 does not name the fleet desk"
 grep -q '^  hostname     = var.vm_hostname$' "$STEP/03-vm.tf" && pass "060 sets the OS hostname from cnf vm_hostname" || fail "060 does not set the hostname"
 
 # 6. the host action and verify

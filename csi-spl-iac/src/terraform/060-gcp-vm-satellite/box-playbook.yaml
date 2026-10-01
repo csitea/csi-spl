@@ -25,6 +25,10 @@
     box_tag: sat
     # lane agent ids on this box (spec 058 F1); 001..003 stay reserved on every box
     agent_id_range: 100000-199999
+    # the fleet desk cross-machine sends relay through (spec 058 N1; the box PC
+    # names the same pair in its dispatch/lease.conf LEASE_ENV / LEASE_TENANT)
+    fleet_env: prd
+    fleet_tenant: t1
     box_timezone: Europe/Helsinki
     data_device: /dev/disk/by-id/google-satellite-data
     data_mnt: /mnt/data

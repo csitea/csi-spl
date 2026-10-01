@@ -77,7 +77,8 @@
     set -uo pipefail
     f="$SPOOL_ROOT/box.env"; before=$(cat "$f" 2>/dev/null)
     timeout 60 setsid -w bash "{{ repo_dir }}/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh" \
-      "SPOOL_AGENT_USER={{ agent_user }}" "SPOOL_DESK_BOX={{ box_tag }}" "SPOOL_AGENT_ID_RANGE={{ agent_id_range }}" </dev/null >/dev/null \
+      "SPOOL_AGENT_USER={{ agent_user }}" "SPOOL_DESK_BOX={{ box_tag }}" "SPOOL_AGENT_ID_RANGE={{ agent_id_range }}" \
+      "SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }}" </dev/null >/dev/null \
       || { echo "FAIL box-config.sh"; exit 1; }
     [ "$(cat "$f")" = "$before" ] && echo OK || echo CHANGED
   args:

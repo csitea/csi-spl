@@ -23,7 +23,7 @@ import (
 // set it must belong to that topic (task_id may be empty when react_msg is
 // given), and it must pass the read door (the box sent, was addressed or was
 // delivered it), else not_found. The actor is the acting agent, one this box
-// announced.
+// announced. react_op list reads the target's reactions and writes nothing.
 
 // onReact answers a react frame.
 func (s *Server) onReact(ctx context.Context, x *session, f wire.Frame) {
@@ -54,8 +54,11 @@ func (s *Server) boxReact(ctx context.Context, x *session, f wire.Frame) (map[st
 	if f.ReactMsg != "" && (!uuidRe.MatchString(f.ReactMsg) || f.ReactMsg != strings.ToLower(f.ReactMsg)) {
 		return nil, &issueErr{http.StatusBadRequest, "bad_frame", "react_msg must be a lowercase message UUID"}
 	}
+	if f.ReactOp == "list" {
+		return s.boxReactList(ctx, x, f)
+	}
 	if f.ReactOp != "add" && f.ReactOp != "remove" {
-		return nil, &issueErr{http.StatusBadRequest, "bad_frame", "react_op must be add or remove"}
+		return nil, &issueErr{http.StatusBadRequest, "bad_frame", "react_op must be add, remove or list"}
 	}
 	emoji := canonicalEmoji(f.Emoji)
 	if emoji == "" {
@@ -97,6 +100,25 @@ func (s *Server) boxReact(ctx context.Context, x *session, f wire.Frame) (map[st
 	grouped := groupReactions(rows[m.MsgID])
 	s.fanoutReaction(ctx, x.tenant, m, grouped)
 	return map[string]any{"msg_id": m.MsgID, "task_id": m.TaskID, "reactions": grouped}, nil
+}
+
+// boxReactList is react_op list: the target's reactions, read-only (no
+// emoji, no billing gate), behind the same target rule and read door, so an
+// operator can verify a mark without writing (CLE-77895).
+func (s *Server) boxReactList(ctx context.Context, x *session, f wire.Frame) (map[string]any, *issueErr) {
+	if detail := senderRefusal(x, f.As); detail != "" {
+		return nil, &issueErr{http.StatusForbidden, TokenFromNotAnnounced, detail}
+	}
+	m, ae := s.reactTarget(ctx, x, f.TaskID, f.ReactMsg)
+	if ae != nil {
+		return nil, ae
+	}
+	rows, err := s.o.Store.ReactionsFor(ctx, x.tenant, []string{m.MsgID})
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("box reaction list")
+		return nil, &issueErr{http.StatusInternalServerError, "internal", "reactions unavailable"}
+	}
+	return map[string]any{"msg_id": m.MsgID, "task_id": m.TaskID, "reactions": groupReactions(rows[m.MsgID])}, nil
 }
 
 // reactTarget is the message the reaction hangs on: msgID when given (a

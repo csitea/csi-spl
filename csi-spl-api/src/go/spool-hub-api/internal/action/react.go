@@ -20,10 +20,12 @@ type ReactArgs struct {
 	Emoji  string            `json:"emoji"`
 	As     string            `json:"as"`
 	Remove bool              `json:"remove,omitempty"`
-	Hub    *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
+	List   bool              `json:"list,omitempty"` // read only: no emoji, nothing written
+	Hub    *hubclient.Client `json:"-"`              // nil = hubclient.New(cfg)
 }
 
-// React adds (or removes) the reaction and returns the hub's answer.
+// React adds (or removes) the reaction - or, List, only reads the target's
+// reactions - and returns the hub's answer.
 // Hub mode only: reactions live on the hub.
 func React(ctx context.Context, cfg *config.Config, in ReactArgs) (json.RawMessage, error) {
 	if cfg.HubURL == "" {
@@ -36,7 +38,7 @@ func React(ctx context.Context, cfg *config.Config, in ReactArgs) (json.RawMessa
 	if (task != "" || m == "") && !editMsgIDRe.MatchString(task) {
 		return nil, fmt.Errorf("--task must be the topic's task UUID (or give --msg)")
 	}
-	if strings.TrimSpace(in.Emoji) == "" {
+	if !in.List && strings.TrimSpace(in.Emoji) == "" {
 		return nil, fmt.Errorf("--emoji is required")
 	}
 	if !msg.ValidID(in.As) {
@@ -45,6 +47,9 @@ func React(ctx context.Context, cfg *config.Config, in ReactArgs) (json.RawMessa
 	hc := in.Hub
 	if hc == nil {
 		hc = hubclient.New(cfg)
+	}
+	if in.List {
+		return hc.Reactions(ctx, task, m, in.As)
 	}
 	return hc.React(ctx, task, m, in.Emoji, in.As, !in.Remove)
 }

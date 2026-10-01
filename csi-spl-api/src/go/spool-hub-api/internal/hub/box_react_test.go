@@ -84,6 +84,16 @@ func TestBoxReactOnHold(t *testing.T) {
 		t.Fatalf("msg-only actors %v", got)
 	}
 
+	// --list reads it, writes nothing, and needs no emoji; an unread topic
+	// is still absent to it.
+	raw, err = action.React(ctx, b.cfg, action.ReactArgs{TaskID: task, List: true, As: "CLE-08", Hub: b.c})
+	if id, rs := reactAnswer(t, raw); err != nil || id != card || len(rs) != 1 {
+		t.Fatalf("list: %s %v", raw, err)
+	}
+	if got := reactedBy(t, e, tid, card, "⏸️"); len(got) != 1 {
+		t.Fatalf("list wrote: %v", got)
+	}
+
 	// --remove takes it off again.
 	raw, err = action.React(ctx, b.cfg, action.ReactArgs{TaskID: task, Emoji: "⏸️", As: "CLE-08", Remove: true, Hub: b.c})
 	if err != nil {
@@ -127,6 +137,8 @@ func TestBoxReactRefusals(t *testing.T) {
 	refused("unknown message", "not_found", action.ReactArgs{TaskID: task, MsgID: uuidV4(), As: "CLE-08"}, b)
 	refused("unread message, no task", "not_found", action.ReactArgs{MsgID: card, As: "CLE-09"}, c)
 	refused("the lobby, no message", "not_a_card", action.ReactArgs{TaskID: lobby, As: "CLE-08"}, b)
+	refused("list of an unread topic", "not_found", action.ReactArgs{TaskID: task, List: true, As: "CLE-09"}, c)
+	refused("list as an unannounced agent", hub.TokenFromNotAnnounced, action.ReactArgs{TaskID: task, List: true, As: "CLE-09"}, b)
 
 	// Control: the same box and agent may react once the request is right.
 	if _, err := action.React(ctx, b.cfg, action.ReactArgs{TaskID: other, MsgID: elsewhere, Emoji: "⏸️", As: "CLE-08", Hub: b.c}); err != nil {

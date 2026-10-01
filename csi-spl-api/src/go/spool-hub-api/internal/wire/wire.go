@@ -185,7 +185,7 @@ type Frame struct {
 	ArchiveOp string          `json:"archive_op,omitempty"`
 	Archive   json.RawMessage `json:"archive,omitempty"`
 
-	// react (CLE-77895): ReactOp add | remove, Emoji the glyph, ReactMsg the
+	// react (CLE-77895): ReactOp add | remove | list (read-only), Emoji the glyph, ReactMsg the
 	// target message ("" = the topic's opening card) on the request (TaskID
 	// the topic, As the acting agent); Reaction the answer object on the
 	// reply - the browser route's body {msg_id, task_id, reactions}.

@@ -296,6 +296,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function retentionDays(row: { channel_id?: string, channel?: string, retention_days?: number }): number
   export function connectionHealth(state: string): 'ok' | 'warn' | 'down'
   export function feedRow<T>(row: T): T
+  export function topicStarter(row: { participants?: readonly string[] } | null | undefined): { id: string, box: string } | null
   export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
   export function mergeLive<T>(rows: T[], msg: unknown): T[]
   export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }

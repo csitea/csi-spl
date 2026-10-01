@@ -380,6 +380,18 @@ function splitLabel(p) {
 }
 
 /**
+ * Who a view-v1 §4.3 topic row is drawn as: its first participant, the
+ * sender of its first message (the same person feedRow makes the card's
+ * author), or null when the row names nobody. The Topics list draws this
+ * person's avatar (owner, prd t1 432769d8: the list showed none).
+ */
+export function topicStarter(row) {
+  const first = ((row && row.participants) || []).find((p) => p && !String(p).startsWith('@'))
+  const who = first ? splitLabel(first) : null
+  return who && who.id ? { id: who.id, box: who.box || '' } : null
+}
+
+/**
  * One feed row. A flat v:1 message passes through; a view-v1 §4.3 topic row
  * (live `/v1/view/topics?channel=` or `?dm=true&peer=`) becomes a root card
  * keyed by its task_id, with `count - 1` replies.

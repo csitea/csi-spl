@@ -488,3 +488,23 @@ describe('SPL-981 a direct message header shows only the sender', () => {
     assert.match(vue, /<template v-if="recipient">\s*<span class="msg-to-arrow"/)
   })
 })
+
+describe('Topics list avatar (owner, prd t1 432769d8)', async () => {
+  const { topicStarter, feedRow } = await import('../../src/utils/channel-feed.mjs')
+  it('draws the topic as its first participant - the card author feedRow picks', () => {
+    const row = { task_id: 't', participants: ['CLE-001@box-desk', 'HUM-10@box-wui'] }
+    assert.deepEqual(topicStarter(row), { id: 'CLE-001', box: 'box-desk' })
+    assert.equal(feedRow(row).from, topicStarter(row).id)
+    assert.deepEqual(topicStarter({ participants: ['HUM-10'] }), { id: 'HUM-10', box: '' })
+  })
+  it('skips an @-address and is null for a row that names nobody', () => {
+    assert.deepEqual(topicStarter({ participants: ['@all', 'HUM-3@box-wui'] }), { id: 'HUM-3', box: 'box-wui' })
+    assert.equal(topicStarter({ participants: [] }), null)
+    assert.equal(topicStarter({}), null)
+    assert.equal(topicStarter(null), null)
+  })
+  it('the Topics page renders it in every row', () => {
+    const vue = readFileSync(new URL('../../src/pages/index.vue', import.meta.url), 'utf8')
+    assert.match(vue, /<SpoolAvatar[\s\S]*?data-test="topic-row-avatar"[\s\S]*?:id="topicStarter\(t\)!\.id"/)
+  })
+})

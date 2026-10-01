@@ -35,6 +35,18 @@
         :href="localePath('/t/' + t.task_id)"
         @click.exact.prevent="pane.open(t.task_id)"
       >
+        <!-- owner, prd t1 432769d8 (2026-09-26, "the avatars disappear from
+             time to time"): this list was the one place a person or agent had
+             no picture. The starter's avatar, in the cards' 36 px gutter. -->
+        <SpoolAvatar
+          v-if="topicStarter(t)"
+          class="topic-row__avatar"
+          data-test="topic-row-avatar"
+          :id="topicStarter(t)!.id"
+          :box="topicStarter(t)!.box"
+        />
+        <span v-else class="topic-row__avatar" aria-hidden="true" />
+        <div class="topic-row__main">
         <div class="msg-meta">
           <span class="msg-author" :title="topicPeople(t.participants).title || undefined">{{ topicPeople(t.participants).text || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
@@ -42,6 +54,7 @@
         </div>
         <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
+        </div>
       </a>
       <SidebarRowMenu
         :menu-id="'home:' + t.task_id"
@@ -72,7 +85,7 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
-import { namedLine } from '~/utils/channel-feed.mjs'
+import { namedLine, topicStarter } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
@@ -246,5 +259,12 @@ function openTopicMenu(taskId: string) {
 <style scoped>
 .topic-row-wrap { position: relative; min-width: 0; }
 /* the row menu button sits over the row's end */
-.topic-row-wrap > .topic-row { padding-inline-end: 40px; }
+.topic-row-wrap > .topic-row {
+  padding-inline-end: 40px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: start;
+}
+.topic-row__main { min-width: 0; }
 </style>

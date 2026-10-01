@@ -47,6 +47,11 @@ const (
 	// PUT/DELETE /v1/messages/{card}/archive. Request and reply pair on
 	// MsgID, a request id the box picks.
 	TArchive = "archive"
+	// TReact is a box agent adding or removing an emoji reaction on a
+	// message of a topic, and the hub's answer (CLE-77895): the box twin of
+	// the browser's PUT/DELETE /v1/messages/{msg_id}/reactions. Request and
+	// reply pair on MsgID, a request id the box picks.
+	TReact = "react"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -179,6 +184,15 @@ type Frame struct {
 	// archived_at, archived_by}.
 	ArchiveOp string          `json:"archive_op,omitempty"`
 	Archive   json.RawMessage `json:"archive,omitempty"`
+
+	// react (CLE-77895): ReactOp add | remove, Emoji the glyph, ReactMsg the
+	// target message ("" = the topic's opening card) on the request (TaskID
+	// the topic, As the acting agent); Reaction the answer object on the
+	// reply - the browser route's body {msg_id, task_id, reactions}.
+	ReactOp  string          `json:"react_op,omitempty"`
+	ReactMsg string          `json:"react_msg,omitempty"`
+	Emoji    string          `json:"emoji,omitempty"`
+	Reaction json.RawMessage `json:"reaction,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

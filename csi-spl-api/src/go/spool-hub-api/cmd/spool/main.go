@@ -20,6 +20,8 @@
 //	          a message this box sent with a new body (specs/032 §10)
 //	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
+//	react   (--task <uuid> [--msg <uuid>] | --msg <uuid>) --emoji <e> --as <id> [--remove]   hub mode:
+//	          add an emoji reaction, default on the topic's opening message (CLE-77895)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -92,6 +94,7 @@ on a box (an agent's machine):
   issue               list, get, create, update, comment, label, delete issues
   edit, delete        edit or delete a message this box sent
   archive             archive (or --unarchive) a topic by its task id
+  react               add (or --remove) an emoji reaction on a topic's message
 
 a box and its hub ($SPOOL_HUB_URL):
   hub-pin             pin (or --revoke) a box key at the hub, signed by the
@@ -201,6 +204,8 @@ func run(args []string) int {
 		return cmdDelete(cfg, rest)
 	case "archive": // CLE-77869
 		return cmdArchive(cfg, rest)
+	case "react": // CLE-77895
+		return cmdReact(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

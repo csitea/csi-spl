@@ -270,6 +270,17 @@ name_is_agent() {
 # Registry rows are consulted newest-first; a window-name scan is the backstop.
 resolve_pane_for_agent() {
   local id="$1" registry="${SPOOL_ROOT}/registry.tsv" p
+  # The identity map first: the pane of the process that carries the id,
+  # proven live (pid, start time, env) - never a window name a sort or a
+  # restart may have moved onto another agent.
+  if [[ -r "${SPOOL_ROOT}/agents/$id.json" ]]; then
+    # shellcheck source=../lib/agent-identity.inc.sh
+    type ai_pane_of >/dev/null 2>&1 || . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/agent-identity.inc.sh" 2>/dev/null
+    if p="$(ai_pane_of "$id" "$("${TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null)" 2>/dev/null)" && [[ -n "$p" ]]; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  fi
   if [[ -f "$registry" ]]; then
     while read -r p; do
       [[ -n "$p" ]] || continue

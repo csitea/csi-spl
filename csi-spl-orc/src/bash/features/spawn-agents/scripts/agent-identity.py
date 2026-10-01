@@ -35,6 +35,7 @@ stay, so a restore can start that session again under its own id.
 """
 import argparse
 import hashlib
+import subprocess
 import json
 import os
 import pwd
@@ -56,13 +57,46 @@ FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", 
 class Proc:
     def __init__(self, root):
         self.root = root
+        # A process of ANOTHER user keeps its environ, cwd and home unreadable
+        # to us. Ask that user for that one file (sudo -n -u <owner>, least
+        # privilege, never root), only on a permission error, only on the real
+        # /proc. AI_OWNER_HOP=0 turns it off.
+        self.hop = os.environ.get("AI_OWNER_HOP", "1") != "0" and os.path.realpath(root) == "/proc"
+
+    def as_owner(self, pid, argv):
+        """stdout of ARGV run as the user PID runs as (b"" on any failure)."""
+        if not self.hop:
+            return b""
+        uid = self.uid(pid)
+        if uid is None or uid == os.getuid():
+            return b""
+        try:
+            r = subprocess.run(["sudo", "-n", "-u", user_of(uid)] + argv, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, timeout=5)
+            return r.stdout if r.returncode == 0 else b""
+        except (OSError, subprocess.SubprocessError):
+            return b""
 
     def read(self, pid, name, binary=False):
+        path = os.path.join(self.root, str(pid), name)
         try:
-            with open(os.path.join(self.root, str(pid), name), "rb" if binary else "r") as fh:
+            with open(path, "rb" if binary else "r") as fh:
                 return fh.read()
+        except PermissionError:
+            out = self.as_owner(pid, ["cat", path])
+            return out if binary else out.decode("utf-8", "replace")
         except OSError:
             return b"" if binary else ""
+
+    def read_file(self, pid, path):
+        """A file in the process owner's space (its home's session file)."""
+        try:
+            with open(path) as fh:
+                return fh.read()
+        except PermissionError:
+            return self.as_owner(pid, ["cat", path]).decode("utf-8", "replace")
+        except OSError:
+            return ""
 
     def argv(self, pid):
         return [a.decode("utf-8", "replace") for a in self.read(pid, "cmdline", True).split(b"\0") if a]
@@ -94,8 +128,11 @@ class Proc:
         return None
 
     def cwd(self, pid):
+        path = os.path.join(self.root, str(pid), "cwd")
         try:
-            return os.readlink(os.path.join(self.root, str(pid), "cwd"))
+            return os.readlink(path)
+        except PermissionError:
+            return self.as_owner(pid, ["readlink", path]).decode("utf-8", "replace").strip()
         except OSError:
             return ""
 
@@ -154,9 +191,10 @@ def claude_session(proc, pid, env, start):
     the session's title (--name, /rename)."""
     for h in homes(proc, pid, env):
         try:
-            with open(os.path.join(h, ".claude", "sessions", "%s.json" % pid)) as fh:
-                d = json.load(fh)
-        except (OSError, ValueError):
+            d = json.loads(proc.read_file(pid, os.path.join(h, ".claude", "sessions", "%s.json" % pid)) or "null")
+        except ValueError:
+            continue
+        if not isinstance(d, dict):
             continue
         want = str(d.get("procStart", "") or "")
         if want and want != start:

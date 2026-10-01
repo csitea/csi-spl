@@ -268,6 +268,14 @@ spl_desk_live_agents() {
       spool_id_of_window_var id "$w"
       [ -n "$id" ] && printf '%s\n' "$id"
     done < <("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null)
+    # Plus every agent the identity map proves alive by its PROCESS: a window
+    # whose name a sort or a restore moved onto a neighbour must not cost the
+    # real agent its seat (2026-10-01 04:37Z: CLE-77798 retired while running,
+    # its window labelled with another id).
+    if [ -r "$feat/lib/agent-identity.inc.sh" ]; then
+      # shellcheck disable=SC1091
+      . "$feat/lib/agent-identity.inc.sh" && ai_live_ids
+    fi
   ) 2>/dev/null | sort -u
 }
 

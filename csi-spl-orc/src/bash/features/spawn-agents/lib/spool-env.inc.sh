@@ -31,6 +31,8 @@
 # Agent ids follow SPEC-spool-identity-routing.md §2: ^[A-Z]{2,4}-[0-9]+$,
 # unique per box, and BOX is never an agent prefix.
 
+# This file's own directory: its sibling libs (agent-identity.inc.sh) load from it.
+_SPOOL_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPOOL_ID_RE='^[A-Z]{2,4}-[0-9]+$'
 
 # The kinds this feature can launch, and the id prefix each one owns.
@@ -273,6 +275,19 @@ spool_pane_of_var() {  # VAR ID
     pcmd["$p"]="$cmd"
   done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{pane_current_command}	#{window_name}' 2>/dev/null || true)
   [ "${#order[@]}" -gt 0 ] || return 0
+
+  # The identity map first (SPEC-agent-identity-map.md): the pane of the
+  # process that carries SPOOL_AGENT_ID=<id>, proven live (pid, start time,
+  # env) and present on the server. A window NAME cannot mislead it - after a
+  # restart or a sort, names and registry rows were what pointed pokes at the
+  # wrong agent. No record, or not provably alive: the old lookup below.
+  if [ -r "$SPOOL_ROOT/agents/$id.json" ]; then
+    type ai_pane_of >/dev/null 2>&1 || . "$_SPOOL_ENV_LIB_DIR/agent-identity.inc.sh" 2>/dev/null
+    if p="$(ai_pane_of "$id" "$(printf '%s\n' "${order[@]}")" 2>/dev/null)" && [ -n "$p" ]; then
+      SPOOL_PANE_TTY="${ptty[$p]:-}"; SPOOL_PANE_CMD="${pcmd[$p]:-}"
+      printf -v "$__pv" '%s' "$p"; return 0
+    fi
+  fi
 
   # The registry appends, so its rows for an id are oldest-first: walk back.
   if [ -r "$reg" ]; then

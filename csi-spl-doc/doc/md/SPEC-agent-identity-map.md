@@ -1,6 +1,6 @@
 # SPEC: the agent identity map
 
-Status: steps (a) record + check and (b) reconcile + riname + install are built. Steps (c) and (d) follow.
+Status: steps (a) record + check, (b) reconcile + riname + install, and (c) resolvers are built. Step (d) follows.
 Owner order, 2026-10-01: "some kind of hash to keep up-to-date the runtime tmux
 window names and the session names in sync with this hash on the disk".
 
@@ -70,8 +70,17 @@ the per-minute cron line and the `after-new-window[1]` / `pane-exited[1]`
 hooks (the sorter keeps index 0); `IDENTITY_UNINSTALL=1` removes them. Test:
 `tests/test-agent-identity-reconcile.sh`.
 
-4.3 (c) The resolvers (`spool_pane_of`, `agent-send.sh`,
-`tmux-close-window.sh`, desk liveness) read the map and verify the process.
+4.3 (c) The resolvers read the map first and verify the process:
+`spool_pane_of` (which pokes from `spool-send.sh` and `agent-send.sh` go
+through), `tmux-close-window.sh --agent`, and the desk's live-agent list. The
+desk now counts an agent as live when the map proves its process, even when no
+window carries its id. The check is fork-free bash (`ai_alive_fast`,
+`ai_pane_of`), so a poke costs the same as before (about 120 to 170 ms live).
+When there is no record, or the process cannot be proven (another user's
+environment), the old registry and window-name lookup runs unchanged. A
+process of another user is read as that user (`sudo -n -u <owner>`, only on a
+permission error), so agents that run as the agent user are mapped too.
+Test: `tests/test-agent-identity-resolve.sh`.
 
 4.4 (d) The reboot restore starts each record's session under its own id. The
 box engine's save and restore call these actions.

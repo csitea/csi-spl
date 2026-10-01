@@ -16,6 +16,9 @@
 #                          (dry run without --apply: RENAME plans only)
 #   ai_alive ID            print the pid, exit 0, when ID's record names a process that still IS ID
 #   ai_hash                the map's hash
+#   ai_alive_fast ID       the same rule as ai_alive, pure bash (prints the pid)
+#   ai_pane_of ID [PANES]  the live pane of a live agent, from the map, verified
+#   ai_live_ids            every agent the map proves alive
 #
 # Settings: SPOOL_ROOT (default /var/spool-hub); SPOOL_TMUX_SOCKET (else $TMUX,
 # else the caller's default socket). Test seams: AI_PROC_ROOT (a fake /proc),
@@ -92,3 +95,71 @@ ai_reconcile() {
 ai_check()  { ai_panes | ai_py check; }
 ai_alive()  { ai_py alive "${1:?ai_alive: agent id}" </dev/null; }
 ai_hash()   { ai_py hash </dev/null; }
+
+# ── fast readers (pure bash builtins, no fork: the notifier's hot path) ─────
+# A record's scalar fields into AI_REC[key]. The writer is ours:
+# json.dump(indent=1, sort_keys=True), one ' "key": value,' per line.
+declare -gA AI_REC=()
+ai_load() {  # ID -> AI_REC; non-zero when there is no such record
+  local f line re='^ "([a-z_]+)": "?([^",]*)"?,?$'
+  AI_REC=()
+  f="$(ai_dir)/$1.json"
+  [ -r "$f" ] || return 1
+  while IFS= read -r line; do
+    [[ "$line" =~ $re ]] && AI_REC[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"
+  done < "$f"
+  [ "${AI_REC[id]:-}" = "$1" ]
+}
+ai_field() { ai_load "$1" || return 1; local v="${AI_REC[$2]:-}"; [ "$v" = null ] && v=""; printf '%s\n' "$v"; }  # ID KEY
+
+# The same liveness rule as `agent-identity.py alive`: the record says alive,
+# the pid exists with the recorded start time, is that agent's CLI (argv[0],
+# argv[1] behind a node loader, else comm), and carries SPOOL_AGENT_ID (or
+# MCP_BOT_AGENT_ID) = ID. Prints the pid.
+ai_alive_fast() {  # ID
+  local id="$1" root="${AI_PROC_ROOT:-/proc}" pid start kind st a0="" a1="" comm="" kv ok=0
+  local -a f
+  ai_load "$id" || return 1
+  [ "${AI_REC[alive]:-}" = true ] || return 1
+  pid="${AI_REC[pid]:-}"; start="${AI_REC[proc_start]:-}"; kind="${AI_REC[kind]:-claude}"
+  [[ "$pid" =~ ^[0-9]+$ ]] && [ -n "$start" ] || return 1
+  { IFS= read -r st < "$root/$pid/stat"; } 2>/dev/null || return 1
+  st="${st##*) }"; read -r -a f <<< "$st"
+  [ "${f[19]:-}" = "$start" ] || return 1
+  { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$root/$pid/cmdline" 2>/dev/null
+  { IFS= read -r comm < "$root/$pid/comm"; } 2>/dev/null
+  a0="${a0##*/}"; a1="${a1##*/}"
+  case "$a0" in node|nodejs|bun|deno|ld-linux*) a0="$a1" ;; esac
+  [ "$a0" = "$kind" ] || [ "$comm" = "$kind" ] || return 1
+  while IFS= read -r -d '' kv; do
+    case "$kv" in "SPOOL_AGENT_ID=$id"|"MCP_BOT_AGENT_ID=$id") ok=1; break ;; esac
+  done < "$root/$pid/environ" 2>/dev/null
+  [ "$ok" = 1 ] || return 1
+  printf '%s\n' "$pid"
+}
+
+# The pane of a live agent, from the map: only when ai_alive_fast proves the
+# process AND that pane is in LIVE-PANES (newline list; default: ask tmux).
+ai_pane_of() {  # ID [LIVE-PANES]
+  local id="$1" live="${2-}" pane p
+  ai_alive_fast "$id" >/dev/null || return 1
+  pane="${AI_REC[pane_id]:-}"
+  [ -n "$pane" ] && [ "$pane" != null ] || return 1
+  [ -n "$live" ] || live="$(ai_tmux list-panes -a -F '#{pane_id}' 2>/dev/null)"
+  while IFS= read -r p; do
+    [ "$p" = "$pane" ] && { printf '%s\n' "$pane"; return 0; }
+  done <<< "$live"
+  return 1
+}
+
+# Every agent the map proves alive, one id per line.
+ai_live_ids() {
+  local f id
+  for f in "$(ai_dir)"/*.json; do
+    [ -e "$f" ] || continue
+    id="${f##*/}"; id="${id%.json}"
+    [[ "$id" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] || continue
+    ai_alive_fast "$id" >/dev/null && printf '%s\n' "$id"
+  done
+  return 0
+}

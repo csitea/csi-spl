@@ -321,6 +321,7 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 		MaxAge: int(h.cfg.StateTTL.Seconds()), HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
 	})
 	w.Header().Set("Cache-Control", "no-store")
+	// nosemgrep: go.lang.security.injection.open-redirect.open-redirect -- target is the configured provider's authorize endpoint (idp.AuthCodeURL built from cnf), not a request value; state+nonce are server-minted. Any redirect that lands a user-supplied path goes through safeRedirect (token.go). SPL-1288.
 	http.Redirect(w, r, idp.AuthCodeURL(state, nonce), http.StatusFound)
 }
 

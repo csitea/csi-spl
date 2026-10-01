@@ -11,16 +11,20 @@
 #
 # Triage (semgrep 1.178.0), all in hub-lane Go (CLE-77790 does not edit
 # csi-spl-api; these are hardening items for the hub lane, tracked here):
-#   cookie-missing-secure x3 (auth handler): the session + OAuth-state response
-#         cookies set Secure = cfg.CookieSecure (env SPOOL_HUB_AUTH_COOKIE_SECURE,
-#         "true" in dev+prd cnf, "false" only for local http dev/lde) and
-#         HttpOnly: true; a config value is not the literal the rule wants.
-#         nosemgrep'd inline with that reason (SPL-1285).
-#   open-redirect x3 (auth handler + fakeidp): redirect targets; fakeidp is a
-#         test IdP; the handler one is a hub-lane review item.
 #   math-random x1 (hubclient/flush): non-crypto jitter.
+# RESOLVED (spec 056 hub-sec lane, removed from this baseline so a regression
+# reddens the gate again):
+#   cookie-missing-secure/-httponly (SPL-1285/1287): the session + OAuth-state
+#         response cookies are HttpOnly: true with Secure = cfg.CookieSecure
+#         ("true" in dev+prd cnf, "false" only for local http dev/lde);
+#         nosemgrep'd inline with that reason, backed by cookie-secure-cnf.tst.sh
+#         and TestSessionCookieSecureFollowsConfig. The tenant-switch request
+#         cookie became a Cookie header (no http.Cookie literal).
+#   open-redirect (SPL-1288): handler redirects to the cnf authorize endpoint or
+#         through safeRedirect (TestSafeRedirect); the fakeidp test IdPs redirect
+#         only to the pre-registered RedirectURI they 400 a mismatch against.
+#         nosemgrep'd inline with those reasons.
+#   missing-ssl-minversion (SPL-1289): SMTP tls.Config now floors TLS 1.2 in the
+#         literal (real fix, no suppression).
 # A NEW occurrence of any rule anywhere not already counted here fails the gate.
 go.lang.security.audit.crypto.math_random.math-random-used|csi-spl-api/src/go/spool-hub-api/internal/hubclient/flush.go|1
-go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/fakeidp/fakeidp.go|1
-go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/fakeidp/microsoft.go|1
-go.lang.security.injection.open-redirect.open-redirect|csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go|1

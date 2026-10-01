@@ -247,6 +247,7 @@ func (f *IdP) authorize(w http.ResponseWriter, r *http.Request, prov string, c C
 	} else {
 		back.Set("code", f.mint(f.codes, prov, "code"))
 	}
+	// nosemgrep: go.lang.security.injection.open-redirect.open-redirect -- target is the pre-registered client RedirectURI; the request's redirect_uri must equal it exactly or this handler 400s above, so it is never attacker-controlled. SPL-1288.
 	http.Redirect(w, r, c.RedirectURI+"?"+back.Encode(), http.StatusFound)
 }
 

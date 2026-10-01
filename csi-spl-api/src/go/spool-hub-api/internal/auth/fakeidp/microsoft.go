@@ -90,6 +90,7 @@ func (f *IdP) microsoftRoutes(mux *http.ServeMux) {
 			f.mu.Unlock()
 			back.Set("code", code)
 		}
+		// nosemgrep: go.lang.security.injection.open-redirect.open-redirect -- target is the pre-registered client RedirectURI; the request's redirect_uri must equal it exactly or this handler 400s above, so it is never attacker-controlled. SPL-1288.
 		http.Redirect(w, r, f.ms.RedirectURI+"?"+back.Encode(), http.StatusFound)
 	})
 	mux.HandleFunc("POST /{tenant}/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {

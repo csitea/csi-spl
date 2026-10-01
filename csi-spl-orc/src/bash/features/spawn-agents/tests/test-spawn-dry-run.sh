@@ -22,7 +22,8 @@ for k in claude grok agy qwen; do
   has "$k: prompt teaches spool recv" "SPOOL_ROOT=${SPOOL_ROOT} /opt/x/spool recv --as ${p}-77" "$prompt"
   has "$k: prompt teaches spool-send.sh" "spool-send.sh --from ${p}-77 --to <PEER-ID>" "$prompt"
   has "$k: prompt says local mode is unsigned" "UNSIGNED" "$prompt"
-  has "$k: prompt names the orchestrator" "orchestrator CLE-00" "$prompt"
+  has "$k: prompt names the orchestrator" "today CLE-00 here" "$prompt"
+  has "$k: reports go to the lease holder (specs/058 N1)" "--to orchestrator" "$prompt"
   # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"

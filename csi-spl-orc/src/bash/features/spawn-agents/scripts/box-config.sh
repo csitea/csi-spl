@@ -38,6 +38,12 @@ for kv in "$@"; do
   if [ "$k" = SPOOL_DESK_BOX ] && [ -n "$v" ] && { ! [[ "$v" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || [ "$v" = box-wui ]; }; then
     echo "box-config: SPOOL_DESK_BOX must be a box id (^[a-z0-9][a-z0-9-]{0,31}\$, not box-wui), got '$v'" >&2; exit 2
   fi
+  if [ "$k" = SPOOL_FLEET_ENV ] && [ -n "$v" ] && ! [[ "$v" =~ ^(dev|prd|self)$ ]]; then
+    echo "box-config: SPOOL_FLEET_ENV must be dev, prd or self, got '$v'" >&2; exit 2
+  fi
+  if [ "$k" = SPOOL_FLEET_TENANT ] && [ -n "$v" ] && ! [[ "$v" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; then
+    echo "box-config: SPOOL_FLEET_TENANT must be a tenant id, got '$v'" >&2; exit 2
+  fi
   if [ "$k" = SPOOL_AGENT_ID_RANGE ] && [ -n "$v" ] && ! [[ "$v" =~ ^[0-9]{1,9}-[0-9]{1,9}$ ]]; then
     echo "box-config: SPOOL_AGENT_ID_RANGE must be <lo>-<hi>, got '$v'" >&2; exit 2
   fi

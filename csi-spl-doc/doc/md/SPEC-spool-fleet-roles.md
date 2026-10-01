@@ -266,6 +266,38 @@ resource, and its age would have come from each machine's own clock.
   order, lost race, unreachable hub, hub clock). The hub side is tested by
   `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
 
+### 4.2 Messages and reports across machines (specs/058 N1, CLE-77919)
+
+Each machine has its own spool root (`/var/spool-hub`). A peer message or a
+report must reach the agent's inbox on WHICHEVER machine it runs, and a
+report must reach the orchestrator that holds the lease, not a fixed id on
+the sender's machine.
+
+| send | goes |
+|---|---|
+| `spool-send.sh --to <id>`, `<id>` an agent of this machine (its dir or a `registry.tsv` row) | local, unchanged |
+| `--to <id>@<box>` | the machine named: this machine's own desk box is local, any other box is relayed with that `to_box`. The role ids 001-003 exist on EVERY machine, so a bare `CLE-001` always means this machine's, and the hub refuses it across machines (`ambiguous_to_box`) |
+| `--to <id>` NOT on this machine | relayed: `spool-fleet-relay.sh` (as the box user) signs it with THIS machine's desk box and hands it to the hub over the live desk sidecar; the hub roster names the box that holds `<id>`; that machine's sidecar writes it into the agent's desk inbox AND, through `SPOOL_FLEET_ROOT`, into `/var/spool-hub/<id>/inbox`, and rings the pane. `delivery` is the hub's (`sent`, `queued`, `pending`) |
+| `--to <id>` known nowhere (or no fleet desk configured) | refused, exit 13, nothing written. The bare `spool send` refuses an unknown local id too (exit 3, `unknown_local_agent`): it no longer mints an orphan inbox |
+| `--to orchestrator` | the orch lease holder from `<root>/dispatch/lease.orch` (`<ID>@<box>`: local when the box is this machine's, else relayed to that box); `none@unreachable` or no file -> `LEASE_ORCH`, then `SPOOL_ORCHESTRATOR_ID` |
+
+- The fleet desk: `SPOOL_FLEET_ENV` + `SPOOL_FLEET_TENANT` in box.env
+  (`box-config.sh`), else `LEASE_ENV` + `LEASE_TENANT` of `lease.conf`; the box
+  is `SPOOL_DESK_BOX`. The sender must be seated on that desk (the hub refuses
+  an unannounced sender); the relay says so and sends nothing.
+- Only agent-to-agent DMs are copied into the harness root, only into an
+  inbox that already exists, once (inbox or archive), and a failed copy is
+  retried by the hub's redelivery. Human DMs and channel mentions stay on the
+  desk.
+- Attachments do not cross machines (exit 2): name a path in the body.
+- Rollout: the copy needs the desk sidecar restarted on the new binary; the
+  desk reconcile restarts a sidecar whose binary was rebuilt, and
+  `do_spl_desk_up` passes `SPOOL_FLEET_ROOT` (default `/var/spool-hub`).
+- Tests: `internal/hub/fleet_send_test.go` (two machines through one hub, both
+  ways, reports while the orch lease flips), `internal/spool/fleet_test.go`,
+  `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
+  script against a fake `/proc`).
+
 ## 5. What this replaced
 
 Before 2026-10-01 the orchestrator read every message itself, a standing first
@@ -295,6 +327,7 @@ end to end in every seated workspace.
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | one lease across the box PC and the satellite (4.1) | live on the box PC since 2026-10-01 23:24Z (rdb 0094 + 0095 on dev + prd, hub `lease` frame, `LEASE_CMD=fleet`; prd rows `CLE-001@box-desk` / `CLE-002@box-desk`; the interim lease.sh retired). The satellite trio `CLE-001/002/003@sat` and the live drill follow the satellite rebuild (CLE-77912) and the owner's go for its prd pins |
+| messages and reports across machines (4.2) | code on trunk 2026-10-02 (CLE-77919); live once the satellite's desk is pinned and both sidecars run the new binary |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.4.0 · updated: 2026-10-01 · last-edit: 2026-10-01T19:30:00Z -->
+<!-- version: 0.5.0 · updated: 2026-10-02 · last-edit: 2026-10-02T00:00:00Z -->

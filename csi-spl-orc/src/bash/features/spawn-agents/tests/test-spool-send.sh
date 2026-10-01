@@ -46,6 +46,9 @@ eq "tail shows the 2-message topic" 2 "$(printf '%s\n' "$tail_out" | grep -c .)"
 has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | head -1)"
 
 # ---- doorbell outcomes -----------------------------------------------------
+# agents of THIS machine: a send to an id the root does not know is relayed or
+# refused (specs/058 N1, test-fleet-send.sh), never an orphan inbox
+for id in CLE-92 CLE-93 CLE-94 CLE-97; do mkdir -p "$SPOOL_ROOT/$id/inbox"; done
 t_window CLE-92 'bash --norc' >/dev/null
 bash "$SS" --from CLE-90 --to CLE-92 --kind note --body x >/dev/null; eq "pane with only a shell: exit 7" 7 "$?"
 t_window CLE-93 "sh -c 'printf \"❯ half typed\\n\"; sleep 600'" >/dev/null

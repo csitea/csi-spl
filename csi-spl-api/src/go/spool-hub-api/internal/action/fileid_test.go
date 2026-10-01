@@ -17,6 +17,7 @@ import (
 // sent as before, without bytes: refusing it would change the CLI.
 func TestSC006_FileIDAttachCarriesBytes(t *testing.T) {
 	cfg := testkit.NewConfig(t)
+	testkit.Agents(t, cfg, "CLE-07")
 	src := filepath.Join(t.TempDir(), "patch.txt")
 	if err := os.WriteFile(src, []byte("twelve bytes"), 0o644); err != nil {
 		t.Fatal(err)

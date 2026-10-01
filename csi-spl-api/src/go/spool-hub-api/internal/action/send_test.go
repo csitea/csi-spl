@@ -39,6 +39,7 @@ func TestSendArgRefusals(t *testing.T) {
 
 func TestSendLocalAttachmentOrder(t *testing.T) {
 	cfg := testkit.NewConfig(t)
+	testkit.Agents(t, cfg, "CLE-2")
 	dir := t.TempDir()
 	write := func(name, body string) string {
 		p := filepath.Join(dir, name)

@@ -1,6 +1,6 @@
 # 058: the fleet on many machines (one to many)
 
-Status: **analysis done; fixes F1 + F2 live on trunk; the rest is assigned** (2026-10-01, CLE-77913).
+Status: **analysis done; fixes F1 + F2 + N1 on trunk; the rest is assigned** (2026-10-02; CLE-77913, N1 CLE-77919).
 Plan: [plan.md](plan.md). Related: [057 the satellite](../057-satellite/spec.md),
 rdb `0094_fleet_leases.sql` (CLE-77911), the satellite ansible port (CLE-77912).
 
@@ -50,8 +50,8 @@ today. **FIXED** means it was broken and is now fixed on trunk by this lane.
 |---|---|---|---|---|
 | O1 | agent id allocation (`next-agent-id.sh`) | floor = max(local registry, local tmux, local dirs). A fresh satellite starts at `CLE-01` | **FIXED by F1**: `SPOOL_AGENT_ID_RANGE=<lo>-<hi>` in box.env | this lane |
 | O2 | desk box id | `${DESK_BOX:-box-desk}` in 27 actions/scripts; `spool-install` builds a unique id but saves it nowhere, and 057 bootstraps with `--no-seat` | **FIXED by F2**: `SPOOL_DESK_BOX` in box.env is the default everywhere (`lib/bash/funcs/spl-desk-box.func.sh`). It is still a literal in `spl-dispatch-lease.func.sh` and `spl-dispatch-setup.func.sh` | this lane; the 2 lease files: CLE-77911 |
-| O3 | local-mode `spool send` to an agent that lives on the other machine | `internal/spool/spool.go` `ensureAgent` `MkdirAll`s an orphan inbox and reports `delivery: local` | **BROKEN**: the message is silently lost, and the orphan dir burns that id on the sender | new lane (N1) |
-| O4 | `SPOOL_ORCHESTRATOR_ID` (default `CLE-00`) | a satellite agent's reports land in the satellite's own `CLE-00` dir | **BROKEN** until reports cross machines through the hub | new lane (N1) |
+| O3 | local-mode `spool send` to an agent that lives on the other machine | `internal/spool/spool.go` `ensureAgent` `MkdirAll`ed an orphan inbox and reported `delivery: local` | **FIXED by N1**: the binary refuses an unknown local id (exit 3); `spool-send.sh` / `agent-send.sh` relay it through this machine's desk and the hub, and the receiving sidecar copies it into that machine's `/var/spool-hub` inbox (`SPOOL_FLEET_ROOT`) | CLE-77919 |
+| O4 | `SPOOL_ORCHESTRATOR_ID` (default `CLE-00`) | a satellite agent's reports landed in the satellite's own `CLE-00` dir | **FIXED by N1**: `--to orchestrator` resolves to the orch fleet-lease holder (`lease.orch`), relayed when it is on the other machine; the seed prompt uses it | CLE-77919 |
 | O5 | dispatch lease | local `/proc` liveness check | being moved to the hub: `fleet_leases` (0094) | CLE-77911 |
 | O6 | dispatch post-drop dir `$SPOOL_ROOT/dispatch/posts` | local | must follow the lease holder | CLE-77911 |
 | O7 | unanswered sweep | local state, but reads the hub DB | **BROKEN** if installed on both machines: the same nags go out twice | CLE-77911 (gate on the lease holder) |
@@ -156,7 +156,7 @@ fail. Bands keep spawning offline and need no new table.
 | M0 | now: the home box is primary; the satellite runs the standby trio under the fleet lease | CLE-77911 |
 | M1 | satellite box.env: `SPOOL_DESK_BOX=box-desk-sat`, `SPOOL_AGENT_ID_RANGE=100000-199999`, `SPOOL_AGENT_USER`; key minted on the satellite; pin from the home box via `do_spl_desk_pin` admin mode, per tenant and env; box operator grant | CLE-77912 (box.env); owner go for each prd pin |
 | M2 | the side-effect crons are gated on the lease holder (O6-O10); new lanes spawn on the satellite | CLE-77911 |
-| M3 | cross-machine reports via the hub (O3, O4), plus the lane map on the hub (G4) | new lane N1, N2 |
+| M3 | cross-machine reports via the hub (O3, O4: done, N1), plus the lane map on the hub (G4) | N1 done (CLE-77919); N2 open. Live needs M1 (the satellite desk pinned) and `SPOOL_FLEET_ENV`/`SPOOL_FLEET_TENANT` (or `LEASE_ENV`/`LEASE_TENANT`) on each machine |
 | M4 | the roles flip: the fleet lease is handed to the satellite | owner go |
 | M5 | home box retired: its lanes finish or move (3.5); then EITHER `box-desk` is taken over serially by the satellite, OR it is unpinned and `box-desk-sat` stays the only desk | owner choice |
 
@@ -166,6 +166,7 @@ fail. Bands keep spawning offline and need no new table.
 |---|---|---|---|
 | F1 | per-machine agent-id band `SPOOL_AGENT_ID_RANGE` (box.env); allocator floor, band full = exit 1, explicit claims outside the band warn | `d8905f7a` | `spawn-agents/tests/test-next-agent-id.sh` (two simulated machines: no common id; the control shows the collision without bands) |
 | F2 | per-machine desk box `SPOOL_DESK_BOX` (box.env) is the default of every `DESK_BOX`/`AGENT_BOX` | `f7efacbf` | `spawn-agents/tests/test-desk-box-default.sh` |
+| N1 | cross-machine sends and reports: unknown local id refused (`unknown_local_agent`, exit 3); `spool-send.sh` relays a non-local id via the desk sidecar + hub roster (`spool-fleet-relay.sh`); the receiving sidecar copies agent DMs into `SPOOL_FLEET_ROOT`; `--to orchestrator` = the orch lease holder. Details: `SPEC-spool-fleet-roles.md` 4.2 | CLE-77919 | `internal/hub/fleet_send_test.go` (two machines, both ways, reports while the lease flips), `internal/spool/fleet_test.go`, `spawn-agents/tests/test-fleet-send.sh` |
 | T1 | hub tests for the one-to-many cases | `d5b5a8bd` | `internal/hub/multimachine_test.go`: two machines seated in one tenant, routed once; takeover mid-message loses nothing (memory, `-race` x15, Postgres x5) |
 | N2 | the fleet-wide lane map (G4): hub table + `lane` frame + `spool lane`; `do_spl_lane_map` (read, joined with this machine's worktrees; `LANE_CHECK` = the collision check) and `do_spl_lane_put` (spawn: live, exit-clean: done); the seed prompt SCOPE block and the spawn commands read it instead of `git worktree list`. Shared once the machine has a fleet (`LANE_FLEET`, else lease.conf `LEASE_FLEET` / `LEASE_ENV` / `LEASE_TENANT`); without one it is the local worktrees | CLE-77920 `6f9f50ac` (hub) + the orc commit | `internal/hub/box_lane_test.go`, `internal/store/fleet_lane_test.go` (memory + Postgres), `csi-spl-orc/src/bash/tests/lane-map.tst.sh`, `spawn-agents/tests/test-spawn-dry-run.sh` |
 

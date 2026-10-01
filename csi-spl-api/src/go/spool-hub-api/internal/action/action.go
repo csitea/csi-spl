@@ -113,7 +113,7 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 		return SendResult{}, err
 	}
 	if cfg.HubURL == "" {
-		m, err := spool.New(cfg).Send(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
+		m, err := spool.New(cfg).SendKnown(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
 		if err != nil {
 			return SendResult{}, err
 		}

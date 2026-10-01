@@ -4,6 +4,7 @@
 package testkit
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -22,6 +23,20 @@ func NewConfig(t *testing.T) *config.Config {
 		PinsDir:   filepath.Join(root, "msgs", "pins"),
 		LogLevel:  "error",
 		LogFormat: "console",
+	}
+}
+
+// Agents makes each id an agent of cfg's local root (<root>/<id>/{inbox,
+// outbox,archive}): a local `spool send` refuses an id the root does not
+// know (specs/058 N1).
+func Agents(t *testing.T, cfg *config.Config, ids ...string) {
+	t.Helper()
+	for _, id := range ids {
+		for _, d := range []string{"inbox", "outbox", "archive"} {
+			if err := os.MkdirAll(filepath.Join(cfg.SpoolRoot, id, d), 0o775); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }
 

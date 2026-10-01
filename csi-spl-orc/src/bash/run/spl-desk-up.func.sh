@@ -284,9 +284,17 @@ spl_desk_sidecar() {
     # is every ordinary desk - the spool binary's stopwatch stays off and costs
     # nothing; do_spl_latency_probe sets it to time the hops this sidecar
     # crosses.
+    #
+    # SPOOL_FLEET_ROOT (specs/058 N1): an agent-to-agent DM from another
+    # machine is also written into <fleet root>/<agent>/inbox, the inbox a
+    # harness agent reads with `spool recv` - the receiving half of
+    # spool-send.sh's hub relay. Default the harness root when it exists;
+    # SPOOL_FLEET_ROOT= (empty) turns the copy off.
+    local fleet="${SPOOL_FLEET_ROOT-/var/spool-hub}"
+    [[ -n "$fleet" && -d "$fleet" ]] || fleet=""
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
-    SPOOL_TRACE="${SPOOL_TRACE:-}" \
+    SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!
     printf '%s\n' "$SPL_DESK_PID" >"$pidf"

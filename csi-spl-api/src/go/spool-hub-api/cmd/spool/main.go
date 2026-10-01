@@ -53,7 +53,8 @@
 // Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
 // pin only prepare the one per-box key for hub mode (contracts/trust-modes.md).
 //
-// Exit codes: 0 ok, 78 verify/refuse (hash mismatch; in hub mode also a bad or
+// Exit codes: 0 ok, 3 send: --to is not an agent of this local spool root
+// (specs/058 N1: it lives on another machine), 78 verify/refuse (hash mismatch; in hub mode also a bad or
 // unpinned box signature), 1 other.
 package main
 

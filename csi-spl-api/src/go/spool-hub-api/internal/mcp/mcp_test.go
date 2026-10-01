@@ -46,6 +46,8 @@ func newHarness(t *testing.T) *harness {
 	// Local mode: no keys, no pins on either side.
 	cliCfg := testkit.NewConfig(t)
 	mcpCfg := testkit.NewConfig(t)
+	testkit.Agents(t, cliCfg, "CLE-07")
+	testkit.Agents(t, mcpCfg, "CLE-07")
 
 	ctx := context.Background()
 	ct, st := sdk.NewInMemoryTransports()
@@ -354,6 +356,7 @@ func callText(t *testing.T, cs *sdk.ClientSession, name string, args map[string]
 // it touches a file - so an agent's tool calls reach its own inbox only.
 func TestSeatedServerActsForItsSeatOnly(t *testing.T) {
 	cs, cfg := seated(t, "CLE-07")
+	testkit.Agents(t, cfg, "CLE-07", "CLE-08")
 
 	// the seat writes to itself and to a neighbour (local mode)
 	for _, to := range []string{"CLE-07", "CLE-08"} {
@@ -401,6 +404,7 @@ func TestSeatedServerActsForItsSeatOnly(t *testing.T) {
 // caller's to name (spec 002 behaviour).
 func TestUnseatedServerKeepsSpec002(t *testing.T) {
 	cs, cfg := seated(t, "")
+	testkit.Agents(t, cfg, "CLE-08")
 	if out, isErr := callText(t, cs, "spool_send", map[string]any{"from": "GRK-03", "to": "CLE-08", "task_id": task, "kind": "note", "body": "hi"}); isErr {
 		t.Fatalf("unseated send: %s", out)
 	}

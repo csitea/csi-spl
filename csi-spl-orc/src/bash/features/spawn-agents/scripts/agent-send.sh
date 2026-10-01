@@ -20,7 +20,12 @@
 #      engine; it may ALSO have a spool dir, because the desk seats every pane
 #      agent, but its brief tells it to read the markdown inbox)
 #   3. $SPOOL_ROOT/<ID>/inbox                 -> spool
-#   4. none                                   -> exit 3, nothing delivered
+#   4. none, and a fleet desk is configured   -> spool: spool-send.sh relays it
+#      through the hub to the machine that holds <ID> (specs/058 N1), or
+#      refuses (exit 13) when the hub knows no box for it either
+#   5. none                                   -> exit 3, nothing delivered
+#   <ID> may be <ID>@<box> (the machine named: spool leg), or `orchestrator`: the holder of the fleet lease's orch role
+#   (lib/spool-fleet.inc.sh), not a fixed id on this machine.
 #
 # The legacy leg is NOT reimplemented: it runs $SPOOL_LEGACY_SEND (the frozen
 # engine's sender) with the same arguments, so an old agent is reached exactly
@@ -40,6 +45,8 @@ set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/spool-fleet.inc.sh
+. "$_here/../lib/spool-fleet.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 usage() { sed -n '/^# Usage:/,/^# Routing/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//' >&2; exit 2; }
@@ -60,6 +67,10 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$TO" ] || usage
+[ "$TO" = orchestrator ] && TO="$(spool_fleet_orchestrator)"
+# <ID>@<box>: the machine is named (specs/058); spool-send.sh routes it
+AT_BOX=""
+case "$TO" in *@*) AT_BOX="@${TO##*@}"; TO="${TO%@*}" ;; esac
 # cle-7 -> CLE-07, the way the frozen engine's sender normalises it: uppercase
 # the prefix and pad a SHORT number up to 2 digits. NEVER reformat the width of
 # an id that is already >=2 digits -- CLE-001 and CLE-01 are DIFFERENT ids, and
@@ -87,12 +98,14 @@ case "$VIA" in
   spool)  route=spool why="--via spool" ;;
   legacy) route=legacy why="--via legacy" ;;
   auto)
-    if in_spool_registry; then route=spool why="$TO is in $SPOOL_ROOT/registry.tsv"
+    if [ -n "$AT_BOX" ]; then route=spool why="$TO$AT_BOX names its machine's box"
+    elif in_spool_registry; then route=spool why="$TO is in $SPOOL_ROOT/registry.tsv"
     elif [ -n "$LEGACY_ROOT" ] && [ -d "$LEGACY_ROOT/$TO/inbox" ]; then route=legacy why="$TO has a markdown inbox under $LEGACY_ROOT"
     elif [ -d "$SPOOL_ROOT/$TO/inbox" ]; then route=spool why="$TO has a spool mailbox under $SPOOL_ROOT"
+    elif spool_fleet_desk_configured; then route=spool why="$TO is not on this machine: relayed through the hub (specs/058)"
     fi ;;
 esac
-[ -n "$route" ] || { echo "agent-send: no mailbox for $TO (not in $SPOOL_ROOT/registry.tsv, no $SPOOL_ROOT/$TO/inbox${LEGACY_ROOT:+, no $LEGACY_ROOT/$TO/inbox}); nothing delivered" >&2; exit 3; }
+[ -n "$route" ] || { echo "agent-send: no mailbox for $TO (not in $SPOOL_ROOT/registry.tsv, no $SPOOL_ROOT/$TO/inbox${LEGACY_ROOT:+, no $LEGACY_ROOT/$TO/inbox}, no fleet desk to relay it); nothing delivered" >&2; exit 3; }
 echo "via: $route ($why)"
 
 if [ "$route" = legacy ]; then
@@ -107,7 +120,7 @@ if [ "$route" = legacy ]; then
 fi
 
 [ -n "$FROM" ] || { echo "agent-send: the spool needs a sender id: --from <ID> (or SPOOL_AGENT_ID)" >&2; exit 2; }
-args=(--from "$FROM" --to "$TO" --kind "$KIND")
+args=(--from "$FROM" --to "$TO$AT_BOX" --kind "$KIND")
 [ "$POKE" = 1 ] || args+=(--no-poke)
 if [ -n "$FILE" ]; then args+=(--body-file "$FILE"); else args+=(--body "${TEXT[*]}"); fi
 exec bash "$_here/spool-send.sh" "${args[@]}"

@@ -51,6 +51,12 @@ type Config struct {
 	// TenantRootKey is the path to the tenant root PRIVATE key used by spool-pin
 	// to POST/DELETE /v1/pins. Empty = local pin file only (002).
 	TenantRootKey string `env:"SPOOL_TENANT_ROOT_KEY"`
+	// FleetRoot is the machine's harness spool root (specs/058 N1), set on a
+	// desk's hub-run sidecar only: an agent-to-agent DM the hub delivers to
+	// this box is ALSO written into <FleetRoot>/<to>/inbox when that inbox
+	// exists, so a peer or a report from another machine reaches the inbox
+	// the agent reads with `spool recv`. Unset = no copy (hub, CI, tests).
+	FleetRoot string `env:"SPOOL_FLEET_ROOT"`
 	// MirrorLocal also hub-sends same-box mail: unset/0/false (default) or 1/true.
 	MirrorLocal string `env:"SPOOL_MIRROR_LOCAL"`
 	// Channels is the box's channel subscriptions (comma list of slugs) sent in

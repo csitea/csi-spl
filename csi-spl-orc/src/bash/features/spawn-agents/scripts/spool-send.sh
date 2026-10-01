@@ -17,13 +17,26 @@
 #                                           gains an outbound record, so the
 #                                           column reads as a conversation
 #
+# Across machines (specs/058 N1): --to that is NOT an agent of this machine's
+# $SPOOL_ROOT (no dir, no registry.tsv row) is relayed through the hub by THIS
+# machine's desk sidecar (scripts/spool-fleet-relay.sh); the hub roster names
+# the box that holds it, and that machine's sidecar writes it into the agent's
+# inbox there and rings its pane. delivery is then the hub's (sent|queued|
+# pending), never "local", and no orphan inbox is made here. An id the hub
+# cannot place either is refused, exit 13, nothing written.
+# `--to <ID>@<box>` names the machine: this machine's own desk box sends
+# locally, any other box is relayed with that to_box (the role ids 001-003
+# exist on every machine, so a bare id can be ambiguous on the hub).
+# `--to orchestrator` is whoever holds the fleet lease's orch role
+# (lib/spool-fleet.inc.sh), not a fixed id on this machine.
+#
 # The FILE is the source of truth; the pane line is the second leg (trust-modes
 # §2: local mode = file + poll). Every non-zero exit below 10 therefore still
 # means the message WAS delivered — only the pane was left alone. Local mode is
 # unsigned: the written object carries no `sig`.
 #
 # Usage:
-#   spool-send.sh --from <ID> --to <ID> --kind task|result|note|reject|blocker|msg
+#   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator> --kind task|result|note|reject|blocker|msg
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #   spool-send.sh --poke-only --to <ID> [--from <ID>]   # ring, send nothing
@@ -34,10 +47,12 @@
 # Exit codes:
 #   0   delivered and shown in the pane (or --no-poke)
 #   5   delivered; no live window carries <to> — it reads its inbox on its own
+#       (a relay to another machine exits 0: that machine rings the pane)
 #   6   delivered; REFUSED to poke: the pane holds unsent typed text
 #   7   delivered; the pane runs only bare shells (the agent has exited)
 #   2   usage error (nothing sent)
-#   10+ `spool send` failed: 10 + its exit code (nothing delivered)
+#   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
+#       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -47,6 +62,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-notify.inc.sh"
 # shellcheck source=../lib/spool-poke-queue.inc.sh
 . "$_here/../lib/spool-poke-queue.inc.sh"
+# shellcheck source=../lib/spool-fleet.inc.sh
+. "$_here/../lib/spool-fleet.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -54,7 +71,7 @@ usage() {
   exit 2
 }
 
-FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0
+FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
 EXTRA=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -76,6 +93,16 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
+if [ "$TO" = orchestrator ]; then
+  TO="$(spool_fleet_orchestrator)"
+  echo "to: orchestrator = ${TO}" >&2
+fi
+TO_BOX=""
+case "$TO" in
+  *@*) TO_BOX="${TO##*@}"; TO="${TO%@*}"
+       [[ "$TO_BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "ERROR: bad box in --to: '${TO_BOX}'" >&2; exit 2; }
+       [ "$TO_BOX" = "$(spool_fleet_box)" ] && TO_BOX="" ;;
+esac
 spool_valid_id "$TO" || exit 2
 [ -z "$FROM" ] || spool_valid_id "$FROM" || exit 2
 
@@ -87,13 +114,28 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")
   args+=("${EXTRA[@]}")
-  # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
-  # script rings the pane itself, below, so it can report the outcome as its
-  # exit code; letting both fire would show the message twice.
-  out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    echo "ERROR: '${SPOOL_BIN} send' failed (rc=${rc}); nothing was delivered" >&2
-    exit $((10 + rc))
+  if [ -n "$TO_BOX" ] || ! spool_fleet_local "$TO"; then
+    # specs/058 N1: not on this machine. Attachments are local paths/blobs this
+    # machine holds, so a relay carries the body only.
+    [ "${#EXTRA[@]}" -eq 0 ] || { echo "ERROR: ${TO} is on another machine; --file-*/--dir-* attachments do not cross machines (send a path in the body). Nothing was sent." >&2; exit 2; }
+    rargs=(--from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
+    [ -n "$TASK" ] && rargs+=(--task "$TASK")
+    [ -n "$TO_BOX" ] && rargs+=(--to-box "$TO_BOX")
+    out="$(spool_fleet_relay "${rargs[@]}")"; rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "ERROR: ${TO} is not an agent of this machine (${SPOOL_ROOT}) and the hub relay failed (rc=${rc}); nothing was delivered" >&2
+      exit $((10 + rc))
+    fi
+    RELAY=1
+  else
+    # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
+    # script rings the pane itself, below, so it can report the outcome as its
+    # exit code; letting both fire would show the message twice.
+    out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"; rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "ERROR: '${SPOOL_BIN} send' failed (rc=${rc}); nothing was delivered" >&2
+      exit $((10 + rc))
+    fi
   fi
   printf '%s\n' "$out"
   TASK="$(printf '%s' "$out" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
@@ -136,6 +178,10 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   fi
 fi
 
+if [ "$POKE_ONLY" -eq 0 ] && [ "$RELAY" -eq 1 ]; then
+  echo "poke: remote (${TO} is on another machine; its sidecar rings the pane there)"
+  exit 0
+fi
 [ "$POKE" -eq 1 ] || { echo "poke: skipped (--no-poke); ${TO} finds it on its next 'spool recv'"; exit 0; }
 
 # ---- the pane leg (lib/spool-notify.inc.sh, contracts/poke-line.md) --------

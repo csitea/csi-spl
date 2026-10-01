@@ -31,6 +31,13 @@ B="$WORK/spool"
 pass() { echo "ok   - $1"; }
 fail() { echo "FAIL - $1"; exit 1; }
 
+# 0. a local send to an id this root does not know is refused, nothing written
+#    (specs/058 N1: it lives on another machine, or nowhere)
+rc=0; "$B" send --from GRK-03 --to CLE-07 --kind task --body "x" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 3 ] && [ ! -e "$SPOOL_ROOT/CLE-07" ] && pass "unknown local recipient: exit 3, no orphan inbox" ||
+  fail "unknown local recipient: rc=$rc"
+mkdir -p "$SPOOL_ROOT/CLE-07/inbox"
+
 # 1. blob a file, reference another by path, and send both, with no key at all
 echo "patch-bytes" > "$WORK/patch.txt"
 echo "on-box-report" > "$WORK/report.txt"

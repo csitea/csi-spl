@@ -40,6 +40,48 @@ func (s *Store) ensureAgent(id string) error {
 
 func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoot, id, box) }
 
+// ErrUnknownRecipient: a local-mode send to an id this root does not know
+// (specs/058 N1, O3). Before it, the send minted an orphan inbox for an agent
+// that lives on another machine and reported "local": the message was lost
+// and the id was burnt on the sender's machine.
+var ErrUnknownRecipient = errors.New("unknown_local_agent")
+
+// KnownLocal reports whether id is an agent of this spool root: its dir
+// exists, or registry.tsv (the spawn record) lists it in its first column (a
+// "<box tag>: " prefix or an "@<box>" suffix there is ignored, as the
+// harness's name parsers do).
+func (s *Store) KnownLocal(id string) bool {
+	if fi, err := os.Stat(filepath.Join(s.cfg.SpoolRoot, id)); err == nil && fi.IsDir() {
+		return true
+	}
+	b, err := os.ReadFile(filepath.Join(s.cfg.SpoolRoot, "registry.tsv"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		first, _, _ := strings.Cut(line, "\t")
+		if i := strings.LastIndex(first, ": "); i >= 0 {
+			first = first[i+2:]
+		}
+		first, _, _ = strings.Cut(first, "@")
+		if strings.TrimSpace(first) == id {
+			return true
+		}
+	}
+	return false
+}
+
+// SendKnown is Send to an id KnownLocal accepts; any other id is refused with
+// ErrUnknownRecipient before anything is written.
+func (s *Store) SendKnown(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
+	if msg.ValidID(to) && !s.KnownLocal(to) {
+		return nil, fmt.Errorf("%w: %s has no inbox under %s and is not in its registry.tsv; "+
+			"it lives on another machine (spool-send.sh relays it through the hub) or does not exist; nothing was written",
+			ErrUnknownRecipient, to, s.cfg.SpoolRoot)
+	}
+	return s.Send(from, to, taskID, kind, body, atts)
+}
+
 // Send builds an unsigned message (v = cfg.WriteVersion(), specs/020) and writes it to the recipient's inbox
 // and the sender's outbox. Local mode trusts POSIX permissions on SpoolRoot: no
 // key, no pin, no sig (contracts/trust-modes.md section 2).
@@ -114,10 +156,54 @@ func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 	name := msg.Filename(m)
 	for _, box := range []string{"inbox", "archive"} {
 		if _, err := os.Stat(filepath.Join(s.dir(id, box), name)); err == nil {
-			return false, nil
+			// a redelivery: the fleet copy may be the half that failed
+			return false, s.bridgeFleet(m, id)
 		}
 	}
-	return s.writeBoxRing(m, id, "inbox", ring)
+	wrote, err := s.writeBoxRing(m, id, "inbox", ring)
+	if err != nil {
+		return wrote, err
+	}
+	return wrote, s.bridgeFleet(m, id)
+}
+
+// bridgeFleet writes an agent-to-agent DM the hub delivered into the same
+// agent's inbox under cfg.FleetRoot (specs/058 N1): the inbox a harness agent
+// reads with `spool recv`, so a peer message or a report sent from another
+// machine reaches it. Only when that inbox already exists (never an orphan),
+// only for a DM (id is the message's to, not a channel mention) from an
+// agent (not a human or a broadcast), shown once (inbox or archive), and
+// without a ring: the desk delivery above already rang the pane. An error is
+// returned, not swallowed, so the hub redelivers and this half is retried.
+func (s *Store) bridgeFleet(m *msg.Message, id string) error {
+	root := s.cfg.FleetRoot
+	if root == "" || id != m.To || !agentSender(m.From) ||
+		filepath.Clean(root) == filepath.Clean(s.cfg.SpoolRoot) {
+		return nil
+	}
+	inbox := filepath.Join(root, id, "inbox")
+	if fi, err := os.Stat(inbox); err != nil || !fi.IsDir() {
+		return nil
+	}
+	name := msg.Filename(m)
+	for _, box := range []string{"inbox", "archive"} {
+		if _, err := os.Stat(filepath.Join(root, id, box, name)); err == nil {
+			return nil
+		}
+	}
+	blob, err := msg.Marshal(m)
+	if err != nil {
+		return err
+	}
+	if err := writeFileAtomic(filepath.Join(inbox, name), blob, 0o664); err != nil {
+		return fmt.Errorf("fleet copy into %s: %w", inbox, err)
+	}
+	return nil
+}
+
+// agentSender: an agent id, not a human (HUM-) or the broadcast (ALL-).
+func agentSender(id string) bool {
+	return msg.ValidID(id) && !strings.HasPrefix(id, "HUM-") && !strings.HasPrefix(id, "ALL-")
 }
 
 // writeBox writes m as <id>/<box>/<filename>.
@@ -355,7 +441,8 @@ func atomicMove(src, dst string) error {
 	return os.Remove(src)
 }
 
-// ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse, 1 other.
+// ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse,
+// 3 unknown local recipient (specs/058 N1), 1 other.
 // Local mode raises neither sign error; they are kept for hub mode (003).
 func ExitCode(err error) int {
 	switch {
@@ -363,6 +450,8 @@ func ExitCode(err error) int {
 		return 0
 	case errors.Is(err, sign.ErrUnpinned), errors.Is(err, sign.ErrVerify):
 		return 78
+	case errors.Is(err, ErrUnknownRecipient):
+		return 3
 	default:
 		return 1
 	}

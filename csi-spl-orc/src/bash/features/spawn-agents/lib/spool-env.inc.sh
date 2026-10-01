@@ -69,7 +69,9 @@ spool_valid_id() {  # ID
   return 0
 }
 
-SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX"
+# SPOOL_FLEET_ENV / SPOOL_FLEET_TENANT (specs/058 N1): the hub env + tenant
+# whose desk relays a send to an agent on another machine of the fleet.
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT"
 
 # Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
 _spool_box_env_load() {

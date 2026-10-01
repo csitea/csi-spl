@@ -1175,6 +1175,9 @@ export function createSpoolClient({
       const frame = { task_id: task_id || uuid(), kind, body, files: files || [] }
       if (msg_id) frame.msg_id = msg_id
       if (to && to !== '@channel') frame.to = to
+      // specs/058: a DM peer is <ID>@<box>; the box pins the route, because the
+      // reserved ids CLE-001..003 run on every box (a bare id would be ambiguous_to_box).
+      if (peer && String(peer).includes('@')) frame.to_box = String(peer).split('@')[1]
       if (channel) frame.channel = String(channel)
       if (parent_task_id) frame.parent_task_id = String(parent_task_id)
       if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent

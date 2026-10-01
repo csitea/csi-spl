@@ -144,6 +144,8 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     assert.equal('channel' in frames[1], false)
     assert.equal(frames[1].to, 'CLE-07')
     assert.equal(frames[1].task_id, T2)
+    assert.equal(frames[1].to_box, 'box-a', 'a DM names its peer box (specs/058)')
+    assert.equal('to_box' in frames[0], false, 'a channel post names no box')
     assert.equal(dm.channel, null)
     await c.sendMessage({ channel: 'lobby', text: 'ambient' })
     assert.equal('to' in frames[2], false)

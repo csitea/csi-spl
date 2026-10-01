@@ -76,7 +76,7 @@
         <div v-if="open" class="user-menu__prefs" data-test="user-menu-prefs">
           <div class="user-menu__pref" data-test="user-menu-language">
             <span class="user-menu__pref-label">{{ t('nav.lang_label') }}</span>
-            <LanguageSwitcher />
+            <LanguageSwitcher fill />
           </div>
           <div class="user-menu__pref" data-test="user-menu-theme">
             <span class="user-menu__pref-label">{{ t('settings.theme') }}</span>
@@ -588,10 +588,12 @@ watch(signedIn, (v) => { if (!v) close(false) })
   }
   .user-menu__item { min-height: 48px; }
   /* async child: its root does not carry this scope id, hence :deep.
-     Content-sized (SPL-1184): the control shrink-wraps to the longest locale
-     name, capped at 14rem, shrinkable on a phone. No width:100% force — it
-     defeated the control's max-content width and left a dead gap. */
-  .user-menu__pref :deep(.lang-switcher) { flex: 0 1 auto; min-width: 0; max-width: 14rem; }
+     CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
+     phone"): the language control takes its own full-width line under the
+     label (it was capped at 14rem, and the corner's 5.5rem rule in main.css
+     shrank it to "🇬🇧 En" beside a separate ▾); one tap target, no cut name. */
+  .user-menu__pref[data-test=user-menu-language] { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
+  .user-menu__pref :deep(.lang-switcher) { flex: 1 1 auto; min-width: 0; max-width: none; }
   .user-menu__pref-label { flex: 0 0 auto; }
 }
 </style>

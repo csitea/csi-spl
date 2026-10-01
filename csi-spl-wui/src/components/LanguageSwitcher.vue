@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="lang-switcher" data-test="lang-switcher">
+  <div ref="root" class="lang-switcher" :class="{ 'lang-switcher--fill': fill }" data-test="lang-switcher">
     <!--
       Preference persistence (donor WUI parity, Nuxt-native):
       - Primary: cookie `i18n_redirected`, written by plugins/locale-cookie.client.ts
@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRefs } from 'vue'
 import {
   Combobox,
   ComboboxButton,
@@ -160,6 +160,16 @@ const LOCALE_FLAGS: Record<LocaleCode, string> = {
   es: '🇪🇸',
   nl: '🇳🇱',
 }
+
+/**
+ * CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
+ * phone"): `fill` is the avatar sheet's row control - it spans the space the
+ * row gives it, never narrower than the longest "<flag> <name>", and the whole
+ * box is ONE tap target that opens the list (the ▾ is drawn inside it, not a
+ * second button). The top bar and the sign-in frame keep the compact control.
+ */
+const props = withDefaults(defineProps<{ fill?: boolean }>(), { fill: false })
+const { fill } = toRefs(props)
 
 const { locales, locale: currentLocale, t } = useI18n({ useScope: 'global' })
 const { switchTo } = useLocaleSwitch()
@@ -452,6 +462,28 @@ async function onSelect(loc: LocaleEntry | null) {
   white-space: nowrap;
   border: 0;
 }
+/* CLE-77892: the avatar sheet's full-row control. The field keeps the
+   longest name as its minimum (min-width:auto lets the sizers hold it), the
+   control stretches to whatever the row has left, and the ComboboxButton is
+   laid over the whole box, so a tap anywhere opens the list; the ▾ sits at
+   its inline end, inside the field's end padding. The list is as wide as the
+   control (width:100% before place-popover pins it in px via lockWidth). */
+.lang-switcher--fill { align-items: stretch; width: 100%; }
+.lang-switcher--fill .lang-switcher__combobox,
+.lang-switcher--fill .lang-switcher__control { width: 100%; }
+.lang-switcher--fill .lang-switcher__control { position: relative; }
+.lang-switcher--fill .lang-switcher__field { flex: 1 1 auto; min-width: auto; min-height: var(--tap, 44px); }
+.lang-switcher--fill .lang-switcher__sizer,
+.lang-switcher--fill .lang-switcher__input { padding: 4px 36px 4px 12px; font-size: 0.9375rem; }
+.lang-switcher--fill .lang-switcher__button {
+  position: absolute;
+  inset: 0;
+  justify-content: flex-end;
+  padding: 0 14px;
+  border-inline-start: 0;
+}
+.lang-switcher--fill .lang-switcher__button:hover { background: transparent; }
+.lang-switcher--fill .lang-switcher__options { width: 100%; max-width: none; }
 /* SPL-990: phones (the avatar sheet, the sign-in frame): a 44 px target */
 @media (max-width: 820px) {
   .lang-switcher__input,

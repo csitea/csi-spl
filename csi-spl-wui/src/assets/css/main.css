@@ -955,7 +955,9 @@ html.pane-dragging * {
 @media (max-width: 640px) {
   :root { --lang-corner-w: 5.5rem; }
 }
-.app-corner .lang-switcher__combobox { width: var(--lang-corner-w); }
+/* CLE-77892: not the avatar sheet's row control (UserMenu sits in this corner
+   too, and 5.5rem cut its "🇬🇧 English" to "🇬🇧 En" on a phone) */
+.app-corner .lang-switcher:not(.lang-switcher--fill) .lang-switcher__combobox { width: var(--lang-corner-w); }
 
 /* 022 top-bar Omnibox: one line that grows with its content (``` blocks) */
 .composer.omnibox--global {

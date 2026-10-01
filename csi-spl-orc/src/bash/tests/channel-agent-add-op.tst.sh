@@ -149,7 +149,8 @@ sql_shape() {
     && grep -q 'FROM roster r' "$T/stdin" \
     && grep -q 'deleted_at IS NULL' "$T/stdin" \
     && grep -q 'string_to_array(:'"'"'agents'"'"'' "$T/stdin" \
-    && grep -q "'lobby', 'alerts', 'feedback', 'tasks', 'issues', 'general'" "$T/stdin" \
+    && grep -q "(:'channel' IN ('tasks', 'issues', 'general')" "$T/stdin" \
+    && grep -q "OR (:'channel' IN ('lobby', 'alerts', 'feedback') AND :'allowdef' <> '1')" "$T/stdin" \
     && grep -q "format('refuse-not-a-member | %s'" "$T/stdin" \
     && grep -q "format('refuse-channel | %s'" "$T/stdin" \
     && grep -q "format('refuse-public | %s'" "$T/stdin" \
@@ -230,6 +231,20 @@ in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT=''; rc
 [[ $rc -ne 0 ]] && grep -q 'returned 0 added and 0 already, want 1' "$T/out" \
   && pass "5. psql output with neither added nor already is a refusal" \
   || fail "5. empty result: rc=$rc $(cat "$T/out")"
+
+# --- 6. ALLOW_DEFAULT_CHANNEL=1: a default channel is seated like the hub does --------
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q '\[allowdef=1\]' "$T/calls.log" && grep -q '\[channel=lobby\]' "$T/calls.log" \
+  && grep -q "INSERT INTO channels (tenant_id, channel_id, name, created_by, members_open_invite)" "$T/stdin" \
+  && pass "6. ALLOW_DEFAULT_CHANNEL=1 seats #lobby, seeding its row first" || fail "6. lobby: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=general AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q '\[channel=lobby\]' "$T/calls.log" && pass "6. ...and #general is #lobby" || fail "6. general: $(cat "$T/out")"
+for ch in tasks issues; do
+  in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=$ch AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "6. #$ch stays refused with ALLOW_DEFAULT_CHANNEL=1" || fail "6. #$ch accepted"
+done
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=yes DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "6. ALLOW_DEFAULT_CHANNEL=yes is refused" || fail "6. bad flag accepted"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

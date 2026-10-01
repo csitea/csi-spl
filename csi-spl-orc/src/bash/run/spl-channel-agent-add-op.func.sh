@@ -24,6 +24,11 @@
 # @param CHANNEL - required: the channel id
 # @param AGENTS - required: space-separated agent ids, e.g. "CLE-7 CLE-8"
 # @param AGENT_BOX (optional) - default box-desk. box-wui is reserved.
+# @param ALLOW_DEFAULT_CHANNEL (optional) - 1 seats agents in a default channel
+# @param   (lobby, alerts, feedback; general is lobby) the way the hub's
+# @param   InviteChannelAgent does since rdb 0036: the channel's row is seeded
+# @param   first, then the invite row is written. issues and the retired tasks
+# @param   stay refused. Default 0 (refused, as before)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 CHANNEL=release-notes AGENTS="CLE-7 CLE-8" DRY_RUN=0 ./run -a do_spl_channel_agent_add_op
 #------------------------------------------------------------------------------
@@ -31,6 +36,8 @@ do_spl_channel_agent_add_op() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-box-desk}" agents="${AGENTS:-}" dry=1 raw a
+  local allowdef="${ALLOW_DEFAULT_CHANNEL:-0}"
+  [[ "$allowdef" == 0 || "$allowdef" == 1 ]] || { do_log "FATAL ALLOW_DEFAULT_CHANNEL must be 0 or 1, got: '$allowdef'"; return 1; }
   local -a ids=()
   declare -A seen=()
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
@@ -42,12 +49,17 @@ do_spl_channel_agent_add_op() {
       do_log "FATAL #issues is reserved and is not a channel an agent is added to"
       return 1 ;;
     lobby|alerts|feedback|tasks)
-      if [[ "$raw" == general ]]; then
+      # a default channel takes invite rows since rdb 0036 (the hub seeds its
+      # row first); ALLOW_DEFAULT_CHANNEL=1 opts in. #tasks is retired: never.
+      if [[ "$allowdef" == 1 && "$ch" != tasks ]]; then
+        :
+      elif [[ "$raw" == general ]]; then
         do_log "FATAL #general is #lobby, a default channel (lobby, alerts, feedback, tasks): an agent seat is not stored"
+        return 1
       else
         do_log "FATAL #$ch is a default channel (lobby, alerts, feedback, tasks): an agent seat is not stored"
-      fi
-      return 1 ;;
+        return 1
+      fi ;;
   esac
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ -n "$agents" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
@@ -65,21 +77,28 @@ do_spl_channel_agent_add_op() {
   fi
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  spl_via_proxy _spl_channel_agent_add_op_run "$tenant" "$ch" "$box" "$agents"
+  spl_via_proxy _spl_channel_agent_add_op_run "$tenant" "$ch" "$box" "$agents" "$allowdef"
 }
 
 _spl_channel_agent_add_op_run() {
   local out rc=0 n_added n_already n_want=0 a mark added_ids already_ids
   for a in $4; do n_want=$((n_want + 1)); done
   out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" <<'SQL'
+      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" -v allowdef="${5:-0}" <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
-SELECT (:'channel' IN ('lobby', 'alerts', 'feedback', 'tasks', 'issues', 'general'))::int AS ispub \gset
+SELECT (:'channel' IN ('tasks', 'issues', 'general')
+        OR (:'channel' IN ('lobby', 'alerts', 'feedback') AND :'allowdef' <> '1'))::int AS ispub \gset
 \if :ispub
 ROLLBACK;
 SELECT format('refuse-public | %s', :'channel');
 \quit 1
+\endif
+SELECT (:'channel' IN ('lobby', 'alerts', 'feedback'))::int AS isdef \gset
+\if :isdef
+INSERT INTO channels (tenant_id, channel_id, name, created_by, members_open_invite)
+VALUES (:'tenant', :'channel', :'channel', 'hub', false)
+ON CONFLICT (tenant_id, channel_id) DO NOTHING;
 \endif
 SELECT EXISTS (
          SELECT 1 FROM channels

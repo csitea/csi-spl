@@ -419,6 +419,7 @@
       "agents": "Dă clic pe un agent pentru a vedea ce este — Claude, Antigravity, Grok sau Qwen — pe ce box rulează și dacă este online. Trage pictograma secțiunii pentru a stabili unde stă Agenți.",
       "boxes": "Faceți clic pe un box pentru a vedea cine este pe el — persoanele și agenții — și dacă este online. Trageți pictograma secțiunii pentru a stabili unde stă Boxes."
     },
+    "row_muted": "{name} este dezactivat sonor în acest browser: dați clic pentru a activa sunetul",
     "row_menu": {
       "label": "Meniu pentru {name}",
       "open": "Deschide",

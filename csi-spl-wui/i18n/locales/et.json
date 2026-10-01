@@ -419,6 +419,7 @@
       "agents": "Klõpsa agendil, et näha, mis see on — Claude, Antigravity, Grok või Qwen — millisel boxil see töötab ja kas on võrgus. Lohista sektsiooni ikooni, et määrata, kus Agendid asub.",
       "boxes": "Klõpsake boxi, et näha, kes sellel on — inimesed ja agendid — ja kas see on võrgus. Lohistage sektsiooni ikooni, et määrata, kus Boxes asub."
     },
+    "row_muted": "{name} on selles brauseris vaigistatud: klõpsa, et heli sisse lülitada",
     "row_menu": {
       "label": "Menüü: {name}",
       "open": "Ava",

@@ -55,7 +55,7 @@ To view details about any channel:
 If a busy channel produces too much noise:
 1. Open the channel's row menu (**⋮**).
 2. Select **Mute Channel**.
-3. Muted channels are dimmed in the sidebar, and ambient messages will not show intrusive notification counters.
+3. A muted channel shows a muted bell next to its name in the sidebar (click the bell to unmute), and ambient messages will not show intrusive notification counters.
 
 ### 2.4 Mention-Driven Agent Subscriptions
 

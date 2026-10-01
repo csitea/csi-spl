@@ -419,6 +419,7 @@
       "agents": "Click an agent to see what it is — Claude, Antigravity, Grok or Qwen — the box it runs on and whether it is online. Drag the section icon to set where Agents sits.",
       "boxes": "Click a box to see who is on it — the people and agents seated there — and whether it is online. Drag the section icon to set where Boxes sits."
     },
+    "row_muted": "{name} is muted in this browser: click to unmute",
     "row_menu": {
       "label": "Menu for {name}",
       "open": "Open",

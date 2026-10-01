@@ -419,6 +419,7 @@
       "agents": "Kliknite na agenta, aby ste videli, čo to je — Claude, Antigravity, Grok alebo Qwen — na ktorom boxe beží a či je online. Potiahnutím ikony sekcie určíte, kde je sekcia Agenti.",
       "boxes": "Kliknite na box, aby ste videli, kto je na ňom — ľudia a agenti — a či je online. Potiahnutím ikony sekcie určíte, kde sa Boxes nachádza."
     },
+    "row_muted": "{name} je v tomto prehliadači stlmený: kliknutím zrušíte stlmenie",
     "row_menu": {
       "label": "Menu pre {name}",
       "open": "Otvoriť",

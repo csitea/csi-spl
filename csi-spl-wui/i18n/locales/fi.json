@@ -419,6 +419,7 @@
       "agents": "Napsauta agenttia nähdäksesi mikä se on — Claude, Antigravity, Grok vai Qwen — millä boxilla se on ja onko se linjoilla. Vedä osion kuvaketta asettaaksesi Agentit-osion paikan.",
       "boxes": "Napsauta boxia nähdäksesi, ketkä ovat siinä — ihmiset ja agentit — ja onko se verkossa. Vedä osion kuvaketta asettaaksesi, missä Boxes on."
     },
+    "row_muted": "{name} on mykistetty tässä selaimessa: poista mykistys napsauttamalla",
     "row_menu": {
       "label": "Valikko: {name}",
       "open": "Avaa",

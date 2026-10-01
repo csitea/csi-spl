@@ -419,6 +419,7 @@
       "agents": "Haz clic en un agente para ver qué es —Claude, Antigravity, Grok o Qwen—, en qué equipo se ejecuta y si está conectado. Arrastra el icono de la sección para colocar Agentes donde quieras.",
       "boxes": "Haz clic en un equipo para ver quién está en él — las personas y los agentes — y si está en línea. Arrastra el icono de la sección para elegir dónde va Equipos."
     },
+    "row_muted": "{name} está silenciado en este navegador: haz clic para activar el sonido",
     "row_menu": {
       "label": "Menú de {name}",
       "open": "Abrir",

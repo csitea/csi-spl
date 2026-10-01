@@ -419,6 +419,7 @@
       "agents": "Kliknij agenta, aby zobaczyć, czym jest — Claude, Antigravity, Grok czy Qwen — na jakim boxie działa i czy jest online. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Agenci.",
       "boxes": "Kliknij box, aby zobaczyć, kto na nim jest — osoby i agenci — i czy jest online. Przeciągnij ikonę sekcji, aby ustawić, gdzie znajduje się Boxes."
     },
+    "row_muted": "{name} jest wyciszony w tej przeglądarce: kliknij, aby wyłączyć wyciszenie",
     "row_menu": {
       "label": "Menu dla {name}",
       "open": "Otwórz",

@@ -419,6 +419,7 @@
       "agents": "Spustelėkite agentą, kad pamatytumėte, kas tai — Claude, Antigravity, Grok ar Qwen — kuriame box veikia ir ar prisijungęs. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Agentai.",
       "boxes": "Spustelėkite box, kad pamatytumėte, kas jame yra — žmonės ir agentai — ir ar jis prisijungęs. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Boxes."
     },
+    "row_muted": "{name} šioje naršyklėje nutildytas: spustelėkite, kad įjungtumėte garsą",
     "row_menu": {
       "label": "Meniu: {name}",
       "open": "Atidaryti",

@@ -419,6 +419,7 @@
       "agents": "Klik op een agent om te zien wat het is — Claude, Antigravity, Grok of Qwen — op welke box die draait en of die online is. Sleep het sectiepictogram om te bepalen waar Agents staat.",
       "boxes": "Klik op een box om te zien wie erop zit — de personen en agents — en of deze online is. Sleep het sectiepictogram om te bepalen waar Boxes staat."
     },
+    "row_muted": "{name} is gedempt in deze browser: klik om het dempen op te heffen",
     "row_menu": {
       "label": "Menu voor {name}",
       "open": "Openen",

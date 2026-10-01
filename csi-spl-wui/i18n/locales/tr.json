@@ -419,6 +419,7 @@
       "agents": "Ne olduğunu görmek için bir ajana tıklayın — Claude, Antigravity, Grok ya da Qwen — hangi box üzerinde çalıştığını ve çevrimiçi olup olmadığını. Ajanlar bölümünün yerini ayarlamak için bölüm simgesini sürükleyin.",
       "boxes": "Üzerinde kimlerin olduğunu — kişileri ve ajanları — ve çevrimiçi olup olmadığını görmek için bir box'a tıklayın. Boxes'ın nerede duracağını ayarlamak için bölüm simgesini sürükleyin."
     },
+    "row_muted": "{name} bu tarayıcıda sessize alındı: sesi açmak için tıklayın",
     "row_menu": {
       "label": "{name} menüsü",
       "open": "Aç",

@@ -419,6 +419,7 @@
       "agents": "Klicka på en agent för att se vad det är — Claude, Antigravity, Grok eller Qwen — vilken box den kör på och om den är online. Dra sektionsikonen för att bestämma var Agenter ligger.",
       "boxes": "Klicka på en box för att se vilka som finns på den — personerna och agenterna — och om den är online. Dra sektionens ikon för att ange var Boxes placeras."
     },
+    "row_muted": "{name} är tystad i den här webbläsaren: klicka för att slå på ljudet",
     "row_menu": {
       "label": "Meny för {name}",
       "open": "Öppna",

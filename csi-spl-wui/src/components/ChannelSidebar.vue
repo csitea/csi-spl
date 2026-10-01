@@ -125,6 +125,7 @@
       <HumanName class="label" :id="p.id" :box="p.box" />
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + p.label) }}</span>
     </NuxtLink>
+    <RowMutedButton v-if="mutedPeers[p.label]" :name="peerName(p.id, p.box)" @unmute="togglePeer('mute', p.label)" />
     <SidebarRowMenu
       :menu-id="'dm:' + p.label"
       :name="peerName(p.id, p.box)"
@@ -217,6 +218,7 @@
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
+    <RowMutedButton v-if="isChannelMuted(c.channel_id)" :name="c.name" @unmute="toggleChannelMute(c.channel_id)" />
     <SidebarRowMenu
       :menu-id="'ch:' + c.channel_id"
       :name="c.name"
@@ -417,6 +419,7 @@
             <span class="label">{{ row.label }}</span>
             <span v-if="notes.unread['ch:' + row.id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + row.id]) }}</span>
           </NuxtLink>
+          <RowMutedButton v-if="isChannelMuted(row.id)" :name="row.label" @unmute="toggleChannelMute(row.id)" />
           <SidebarRowMenu
             :menu-id="'flow:ch:' + row.id"
             :name="row.label"
@@ -452,6 +455,7 @@
             <HumanName class="label" :id="row.id" :box="row.box" />
             <span v-if="notes.unread['dm:' + row.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + row.label) }}</span>
           </NuxtLink>
+          <RowMutedButton v-if="mutedPeers[row.label]" :name="peerName(row.id, row.box)" @unmute="togglePeer('mute', row.label)" />
           <SidebarRowMenu
             :menu-id="'flow:dm:' + row.label"
             :name="peerName(row.id, row.box)"
@@ -1631,7 +1635,11 @@ async function onCreate() {
 }
 .nav-row:focus-within { z-index: 4; }
 .nav-row > .nav-item { padding-inline-end: 44px; }
-.nav-row--muted { opacity: 0.55; }
+/* CLE-77851: a muted row is NOT faded. Opacity read as "inactive / not a
+   member" (csitea #csi-fina), and on the row it also made the open row menu
+   see-through. It keeps its look; RowMutedButton marks it and room is made
+   for that bell before the row menu. */
+.nav-row--muted > .nav-item { padding-inline-end: 72px; }
 .nav-row--blocked .label { text-decoration: line-through; }
 .nav-row--pinned { box-shadow: inset 3px 0 0 var(--color-accent); }
 .sidebar-help { position: relative; }

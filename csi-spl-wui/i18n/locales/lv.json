@@ -419,6 +419,7 @@
       "agents": "Noklikšķiniet uz aģenta, lai redzētu, kas tas ir — Claude, Antigravity, Grok vai Qwen — uz kura box tas darbojas un vai ir tiešsaistē. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Aģenti.",
       "boxes": "Noklikšķiniet uz box, lai redzētu, kas uz tā ir — cilvēki un aģenti — un vai tas ir tiešsaistē. Velciet sadaļas ikonu, lai norādītu, kur atrodas Boxes."
     },
+    "row_muted": "{name} šajā pārlūkā ir izslēgta skaņa: noklikšķiniet, lai ieslēgtu skaņu",
     "row_menu": {
       "label": "Izvēlne: {name}",
       "open": "Atvērt",

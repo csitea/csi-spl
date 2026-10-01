@@ -151,7 +151,11 @@ try {
     f = await facts(p)
     ok(`${tag}: Enter opens the selected entry in its place (#lobby), the entry stays selected`, f.path.endsWith('/channel/lobby') && f.selected[0] === next, { path: f.path, selected: f.selected, next })
     if (!phone) {
-      const kept = await p.evaluate(() => Boolean(document.activeElement && document.activeElement.closest('[data-testid=left-list]')))
+      /* FlowList hands the focus back after openMessage resolves, which is
+         after the path changed: wait for it, do not sample the gap (CI is
+         slower than a desk, and read the gap as a loss on every run) */
+      const kept = await p.waitForFunction(() => Boolean(document.activeElement && document.activeElement.closest('[data-testid=left-list]')), { timeout: 5000 })
+        .then(() => true).catch(() => false)
       ok(`${tag}: the keyboard stays on the list after Enter`, kept)
     }
 

@@ -121,6 +121,7 @@ import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -234,7 +235,14 @@ const feedItems = computed<FeedItem[]>(() => {
    Visibility is measured on scroll with getBoundingClientRect — deliberately
    not an observer (load-more-30 keeps the feed free of auto-load-on-scroll). */
 const dividerVisible = ref(false)
-const showUnreadJump = computed(() => newCount.value > 0 && !pill.value && !dividerVisible.value)
+/* CLE-77905 (owner, t1 05e24244, 2026-10-01: "Just remove it for now"): NOT on
+   a phone. It was meant to take the reader to the first unread message
+   (CLE-77804), but in newest-first the unread sit at the top, so it showed
+   "1 new" over the top card while the reader was already there - its jump to
+   top 0 moved nothing and the pill kept catching taps. Bring it back on
+   phones only once it has a target the reader is not already looking at. */
+const phone = useMobileStack().isMobile
+const showUnreadJump = computed(() => !phone.value && newCount.value > 0 && !pill.value && !dividerVisible.value)
 function dividerEl(): HTMLElement | null {
   return root.value?.querySelector<HTMLElement>('[data-testid="new-divider"]') || null
 }

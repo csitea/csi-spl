@@ -11,7 +11,9 @@
 //   newest-last the feed scrolls to the divider on open (you land at the first
 //              unread), and it sits BEFORE the unread block
 //   jump       scrolled away, a "N new" button is on screen and hittable and
-//              takes the reader back to the unread
+//              takes the reader back to the unread (desktop only)
+//   phone      at 820 and 390 px there is no "N new" button (CLE-77905,
+//              owner t1 05e24244: it caught taps and moved nothing)
 //
 // The read boundary is seeded into localStorage before the app boots, the same
 // cursor the rail badge counts against; rows are injected through the page's
@@ -150,8 +152,14 @@ async function run(browser, base, width) {
     const at = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null
     return { present: Boolean(el), text: el ? el.textContent.trim() : '', hit: Boolean(el && at && (at === el || el.contains(at))), onScreen: Boolean(r && r.top >= 0 && r.bottom <= window.innerHeight) }
   })
-  check(`${tag} scrolled away, a "N new" jump button is on screen and hittable`, jump.present && jump.hit && jump.onScreen && /\d/.test(jump.text), jump)
-  if (jump.hit) {
+  /* CLE-77905 (owner, t1 05e24244): on a phone (<= 820 px) there is no
+     "N new" button at all - it caught taps and moved nothing */
+  if (width <= 820) {
+    check(`${tag} phone: no "N new" jump button`, !jump.present, jump)
+  } else {
+    check(`${tag} scrolled away, a "N new" jump button is on screen and hittable`, jump.present && jump.hit && jump.onScreen && /\d/.test(jump.text), jump)
+  }
+  if (width > 820 && jump.hit) {
     await p.click('[data-testid=unread-jump]')
     await sleep(1000)
     check(`${tag} the jump button brings the reader to the new messages`, await unreadRegionVisible(p))
@@ -196,7 +204,7 @@ const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
-  for (const w of [1440, 820]) await run(browser, server.base, w)
+  for (const w of [1440, 820, 390]) await run(browser, server.base, w)
 } catch (e) {
   console.error(e)
   code = 1

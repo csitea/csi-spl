@@ -1,10 +1,13 @@
-# Supply-chain scans (spec 056). Same runner rule as 15_sec-deps-secrets.yml:
-# self-hosted (spool-ci); tools are installed in the job and verified against a
-# pinned sha256; a missing tool fails the action -- nothing here skips.
+# Supply-chain scans (spec 056). GitHub-hosted (ubuntu-latest): the repo is
+# public and these need no box state, so they keep the self-hosted runners free
+# for deploys. Tools are installed in the job and verified against a pinned
+# sha256; a missing tool fails the action -- nothing here skips.
 #   iac   trivy config (misconfiguration) over the terraform, HIGH,CRITICAL,
 #         findings triaged in .trivyignore.yaml (each justified + reported).
-# (OSV-Scanner is added here as a second step under spec 056 #15.)
-name: "70 sec: supply chain (trivy IaC)"
+#   osv   osv-scanner over the Go + WUI lockfiles (dependency-level known vulns,
+#         no reachability pruning; a second source beside govulncheck + pnpm
+#         audit in 15). Findings triaged in osv-scanner.toml (#15 / T015).
+name: "70 sec: supply chain (trivy IaC + OSV)"
 
 on:
   workflow_dispatch: {}
@@ -13,6 +16,10 @@ on:
     paths:
       - 'csi-spl-iac/src/terraform/**'
       - '.trivyignore.yaml'
+      - 'osv-scanner.toml'
+      - 'csi-spl-api/src/go/spool-hub-api/go.mod'
+      - 'csi-spl-api/src/go/spool-hub-api/go.sum'
+      - 'csi-spl-wui/pnpm-lock.yaml'
       - '.github/workflows/70_supply-chain.yml'
   schedule:
     - cron: '23 3 * * *'
@@ -58,3 +65,26 @@ jobs:
       - name: trivy config (terraform misconfiguration)
         working-directory: csi-spl-iac
         run: SEC_SCAN=iac ./run -a do_sec_scan
+
+      # osv-scanner: a direct binary verified against the release SHA256SUMS
+      # before it is cached (same fail-closed pattern as trivy above).
+      - name: Install osv-scanner 2.6.0
+        run: |
+          set -euo pipefail
+          v=2.6.0; dir="$RUNNER_TOOL_CACHE/osv-scanner/$v"
+          if [[ ! -x "$dir/osv-scanner" ]]; then
+            base="https://github.com/google/osv-scanner/releases/download/v$v"
+            get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
+            get "$base/osv-scanner_linux_amd64" "$RUNNER_TEMP/osv-scanner"
+            get "$base/osv-scanner_SHA256SUMS" "$RUNNER_TEMP/osv-SHA256SUMS"
+            (cd "$RUNNER_TEMP" && grep ' osv-scanner_linux_amd64$' osv-SHA256SUMS | sed 's/osv-scanner_linux_amd64/osv-scanner/' | sha256sum -c -)
+            chmod +x "$RUNNER_TEMP/osv-scanner"
+            mkdir -p "$dir.tmp.$$" && mv "$RUNNER_TEMP/osv-scanner" "$dir.tmp.$$/osv-scanner"
+            mkdir -p "$(dirname "$dir")" && mv -T "$dir.tmp.$$" "$dir" 2>/dev/null || rm -rf "$dir.tmp.$$"
+          fi
+          "$dir/osv-scanner" --version | head -1
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: osv-scanner (Go + WUI lockfiles)
+        working-directory: csi-spl-iac
+        run: SEC_SCAN=osv ./run -a do_sec_scan

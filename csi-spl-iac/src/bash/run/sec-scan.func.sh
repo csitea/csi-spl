@@ -6,14 +6,16 @@
 # @description   wui      pnpm audit --audit-level=moderate on csi-spl-wui
 # @description   secrets  gitleaks over the full git history (.gitleaks.toml)
 # @description   images   trivy image on the production hub base
-# @description   all      the four, in that order; any failure fails the run
+# @description   iac      trivy config (misconfiguration) over the terraform
+# @description   osv      osv-scanner over the Go + WUI lockfiles (osv-scanner.toml)
+# @description   all      go/wui/secrets/images, in that order; any failure fails
 # @description Each scan runs a negative control first. The control must
 # @description observe a real finding (govulncheck exit 3, pnpm audit exit 1
 # @description with a vulnerability, gitleaks "leaks found", trivy a CVE/GO
 # @description id). A tool error is not a passing control: the scan then
 # @description proved nothing and the action fails closed.
 # @description A missing tool fails closed. It is never a skip.
-# @param SEC_SCAN (required) - go | wui | secrets | images | all
+# @param SEC_SCAN (required) - go | wui | secrets | images | iac | osv | all
 # @param SEC_SCAN_ROOT (optional) - repo root; default is the parent of APP_PATH
 # @param SEC_SCAN_GO_BIN SEC_SCAN_PNPM_BIN SEC_SCAN_GITLEAKS_BIN SEC_SCAN_TRIVY_BIN
 # @param        (optional) - override the tool, used by the hermetic test
@@ -29,6 +31,7 @@
 _SEC_SCAN_GOVULNCHECK_MOD=v1.7.0
 _SEC_SCAN_GITLEAKS_VER=8.30.1
 _SEC_SCAN_TRIVY_VER=0.74.0
+_SEC_SCAN_OSV_VER=2.6.0
 
 _sec_scan_root() {
   if [[ -n "${SEC_SCAN_ROOT:-}" ]]; then
@@ -372,6 +375,76 @@ _sec_scan_iac() {
   return 1
 }
 
+# A go.mod requiring a version the OSV database still lists (x/text v0.3.5).
+# osv-scanner reads go.mod directly, so the control needs no network tidy.
+_sec_osv_control_dir() {
+  local d
+  d=$(mktemp -d) || return 1
+  cat >"$d/go.mod" <<'EOF'
+module example.com/sec-scan-osv-control
+
+go 1.21
+
+require golang.org/x/text v0.3.5
+EOF
+  printf '%s\n' "$d"
+}
+
+# OSV-Scanner over the committed lockfiles (Go go.mod + WUI pnpm-lock.yaml):
+# dependency-level known-vulnerability detection across ecosystems, with NO
+# reachability pruning, so it is a second source beside govulncheck (go) and
+# pnpm audit (wui). Findings are triaged in <root>/osv-scanner.toml (each entry
+# justified + review-dated), so the gate is green today and reddens on a NEW
+# lockfile vulnerability. osv-scanner exits 1 when an un-ignored vuln is found.
+_sec_scan_osv() {
+  local bin="${SEC_SCAN_OSV_BIN:-osv-scanner}"
+  _sec_scan_need "$bin" || return 1
+  local root ctl rc log cfg
+  root=$(_sec_scan_root) || return 1
+
+  local locks=()
+  [[ -f "$root/csi-spl-api/src/go/spool-hub-api/go.mod" ]] && locks+=(--lockfile "$root/csi-spl-api/src/go/spool-hub-api/go.mod")
+  [[ -f "$root/csi-spl-wui/pnpm-lock.yaml" ]] && locks+=(--lockfile "$root/csi-spl-wui/pnpm-lock.yaml")
+  [[ "${#locks[@]}" -gt 0 ]] || { do_log "FATAL no go.mod or pnpm-lock.yaml under $root -- refusing a scan that checks nothing"; return 1; }
+
+  ctl=$(_sec_osv_control_dir) || return 1
+  log=$(mktemp)
+  do_log "INFO osv-scanner $_SEC_SCAN_OSV_VER control (want a vulnerability id, exit 1)"
+  rc=0
+  SEC_SCAN_PHASE=control "$bin" scan source --lockfile "$ctl/go.mod" >"$log" 2>&1 || rc=$?
+  rm -rf "$ctl"
+  if [[ "$rc" -ne 1 ]] || ! grep -qE 'CVE-[0-9]{4}-[0-9]+|GO-[0-9]{4}-[0-9]+|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}' "$log"; then
+    do_log "FATAL control: osv-scanner named no vulnerability (exit $rc) -- the check proved nothing"
+    sed 's/^/  /' "$log"
+    rm -f "$log"
+    return 1
+  fi
+  rm -f "$log"
+
+  local cfg_args=()
+  cfg="$root/osv-scanner.toml"
+  [[ -f "$cfg" ]] && cfg_args=(--config "$cfg")
+  log=$(mktemp)
+  do_log "INFO osv-scanner scan source ${locks[*]}"
+  rc=0
+  SEC_SCAN_PHASE=scan "$bin" scan source "${cfg_args[@]}" "${locks[@]}" >"$log" 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    do_log "INFO osv-scanner: no known vulnerabilities outside the triaged osv-scanner.toml"
+    rm -f "$log"
+    return 0
+  fi
+  if [[ "$rc" -eq 1 ]]; then
+    do_log "FATAL osv-scanner: known vulnerabilities found (exit 1)"
+    sed 's/^/  /' "$log"
+    rm -f "$log"
+    return 1
+  fi
+  do_log "FATAL osv-scanner failed (exit $rc) -- the scan proved nothing"
+  sed 's/^/  /' "$log"
+  rm -f "$log"
+  return 1
+}
+
 do_sec_scan() {
   local which="${SEC_SCAN:-}"
   case "$which" in
@@ -380,6 +453,7 @@ do_sec_scan() {
     secrets) _sec_scan_secrets ;;
     images) _sec_scan_images ;;
     iac) _sec_scan_iac ;;
+    osv) _sec_scan_osv ;;
     all)
       local rc=0
       _sec_scan_go || rc=1
@@ -389,7 +463,7 @@ do_sec_scan() {
       return "$rc"
       ;;
     *)
-      do_log "FATAL SEC_SCAN must be one of: go, wui, secrets, images, iac, all"
+      do_log "FATAL SEC_SCAN must be one of: go, wui, secrets, images, iac, osv, all"
       return 1
       ;;
   esac

@@ -253,6 +253,42 @@ set -e
   && pass "a trivy config misconfiguration fails the gate" \
   || fail "a trivy config finding did not fail (rc=$rc)"
 
+# --- osv (osv-scanner): scans the Go + WUI lockfiles mk_root created ----------
+# osv: control that names no vulnerability fails (proved nothing)
+stub osv-scanner 'exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=osv SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'control:' <<<"$out" \
+  && pass "CONTROL: osv-scanner that names no vulnerability fails the action" \
+  || fail "CONTROL: an osv-scanner exit with no id was accepted (rc=$rc)"
+
+# osv: control fires (a GO id) then a clean scan passes
+stub osv-scanner 'if [[ "${SEC_SCAN_PHASE:-}" == control ]]; then echo "GO-2021-0113"; exit 1; fi; exit 0'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=osv SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && grep -q 'no known vulnerabilities' <<<"$out" \
+  && pass "osv-scanner control then clean lockfiles passes" \
+  || { fail "clean osv-scanner did not pass (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+
+# osv: an un-ignored finding fails
+stub osv-scanner 'if [[ "${SEC_SCAN_PHASE:-}" == control ]]; then echo "GO-2021-0113"; exit 1; fi; echo "GHSA-aaaa-bbbb-cccc"; exit 1'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=osv SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'known vulnerabilities found' <<<"$out" \
+  && pass "an osv-scanner finding fails the gate" \
+  || fail "an osv-scanner finding did not fail (rc=$rc)"
+
+# osv: a missing binary fails closed
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SCAN=osv SEC_SCAN_ROOT="$ROOT" SEC_SCAN_OSV_BIN=not-an-osv-scanner do_sec_scan 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'not on PATH' <<<"$out" \
+  && pass "a missing osv-scanner fails closed" \
+  || fail "a missing osv-scanner did not fail closed (rc=$rc)"
+
 # --- the workflow actually invokes every scan --------------------------------
 if [[ -f "$WF" ]]; then
   miss=0
@@ -266,6 +302,30 @@ if [[ -f "$WF" ]]; then
   (( miss )) || pass "15_sec-deps-secrets.yml runs all four scans at the pinned tools, with full git history"
 else
   fail "no workflow at $WF"
+fi
+
+# --- 70_supply-chain.yml runs the iac + osv scans at pinned, verified tools ---
+WF70="$APP_ROOT/.github/workflows/70_supply-chain.yml"
+if [[ -f "$WF70" ]]; then
+  miss=0
+  for needle in 'SEC_SCAN=iac' 'SEC_SCAN=osv' 'osv-scanner_linux_amd64' \
+                'osv-scanner_SHA256SUMS' 'sha256sum -c' 'osv-scanner 2.6.0'; do
+    if ! grep -qF "$needle" "$WF70"; then
+      fail "70_supply-chain.yml is missing $needle"
+      miss=1
+    fi
+  done
+  (( miss )) || pass "70_supply-chain.yml runs trivy IaC + osv-scanner, pinned and sha256-verified"
+else
+  fail "no workflow at $WF70"
+fi
+
+# --- the osv triage baseline exists and is not empty of its justified entries -
+OSVCFG="$APP_ROOT/osv-scanner.toml"
+if [[ -f "$OSVCFG" ]] && grep -q 'IgnoredVulns' "$OSVCFG" && grep -q 'reason' "$OSVCFG"; then
+  pass "osv-scanner.toml triage baseline is present with justified entries"
+else
+  fail "osv-scanner.toml missing or has no justified IgnoredVulns"
 fi
 
 # --- the checked-in allowlist does not swallow the planted AKIA control -----

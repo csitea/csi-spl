@@ -33,9 +33,9 @@ Provided by CLE-77789; single import mechanism (this file), one epic, no duplica
 - [x] T017 sha256-verify the gitleaks tool download - `eea4cbb3`
 - [x] T018 go mod verify in the CI quality gate - `82f54930`
 - [x] T020s Dependabot for gomod + npm + github-actions - `83d05921`
-- [ ] T019 actionlint on the workflows (85_actionlint.yml + do_sec_actionlint) - wip
-- [ ] T015 OSV-Scanner multi-ecosystem lockfile vulns (70_supply-chain.yml) - todo
-- [ ] T016 Trivy filesystem + IaC misconfig scan (sec-scan fs/iac modes) - todo
+- [x] T019 actionlint on the workflows (85_actionlint.yml + do_sec_actionlint) - `d275bf29`
+- [x] T015 OSV-Scanner multi-ecosystem lockfile vulns (SEC_SCAN=osv, 70_supply-chain.yml, osv-scanner.toml triage baseline) - `<this commit>`
+- [x] T016 Trivy IaC misconfig scan (SEC_SCAN=iac, 70_supply-chain.yml) - `b59917b4`. The trivy *filesystem* vuln mode is intentionally NOT added: it would duplicate govulncheck (Go, reachable, T-15/15) + OSV (Go+npm lockfiles, T015) + trivy image (hub base), i.e. triple-scan the same lockfiles and burn the CI minutes the load fix (8dd96c0f) just reclaimed. Lockfile vuln coverage = govulncheck ∪ pnpm audit ∪ OSV; misconfig = trivy config.
 
 ## Follow-ups surfaced by the SAST/secret gates (lane: hub/auth) — one issue each
 

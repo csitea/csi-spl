@@ -25,6 +25,8 @@
 #  16. a new migration that is not PG16 SQL -> FAIL (pglast, when installed)
 #  17. a docker-compose file with an unknown service key -> lint-compose FAIL
 #      (when docker compose is installed)
+#  20. lint-py (real ruff, when installed): an undefined name in a new .py,
+#      and a python heredoc that does not compile in a .sh, are REFUSED
 #  18. a .vue whose TEMPLATE does not compile -> lint-wui-syntax FAIL; a clean
 #      one passes (when this checkout's csi-spl-wui/node_modules exists)
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
@@ -282,6 +284,25 @@ k2="$(_pp_key "$R" lint-gitleaks fast)"
   && pass "19. a whole-scope lint part's green verdict is keyed by the tree, not reused across trees" \
   || fail "19. whole-scope cache key" "k1=$k1 k2=$k2"
 unset _PPL_FILES
+
+# 20. lint-py
+REAL_RUFF="$(command -v ruff 2>/dev/null || true)"
+[[ -z "$REAL_RUFF" && -x "$HOME/.local/bin/ruff" ]] && REAL_RUFF="$HOME/.local/bin/ruff"
+if [[ -n "$REAL_RUFF" ]]; then
+  RF="$T/rf"; mkdir -p "$RF"; ln -sf "$REAL_RUFF" "$RF/ruff"; cp "$STUB/"* "$RF/"
+  new_repo
+  printf 'import os\nprint(undefined_name)\n' >"$R/csi-spl-orc/src/bash/run/p.py"; commit py
+  rc="$(PP_PATH="$RF:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-py)" == FAIL ]] && grep -q 'F821' "$T/out" \
+    && pass "20a. an undefined name in a pushed .py is REFUSED (ruff F821)" || fail "20a. ruff" "rc=$rc verdict=$(verdict lint-py)"
+  new_repo
+  printf '#!/bin/bash\npython3 - <<'"'"'PY'"'"'\nif True print(1)\nPY\n' >"$R/$SH/h.sh"; commit heredoc
+  rc="$(PP_PATH="$RF:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-py)" == FAIL ]] \
+    && pass "20b. a python heredoc that does not compile in a .sh is REFUSED" || fail "20b. heredoc" "rc=$rc verdict=$(verdict lint-py)"
+else
+  echo "INFO: no ruff on this host -- leg 20 not run (./run -a do_install_lint_tools)"
+fi
 
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>

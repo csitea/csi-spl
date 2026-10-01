@@ -15,6 +15,9 @@
 # @description                    ones parse with the PG16 grammar (pglast 6.x)
 # @description   lint-compose     docker compose config -q --no-interpolate (schema)
 # @description   lint-gitleaks    15's gitleaks + .gitleaks.toml over the PUSHED commits only
+# @description   lint-py          touched .py: compile + ruff E9,F + a security subset
+# @description                    (S102 S113 S301 S307 S506 S602 S604 S605); python
+# @description                    heredocs in touched .sh/.yml compile (py-heredoc-check.py)
 # @description   lint-wui-syntax  per-file Vue SFC compile (script + TEMPLATE) and TS/JS
 # @description                    parse (wui-syntax-check.mjs): the template-error class
 # @description                    that typecheck + nuxt generate pass (blanked dev+prd
@@ -46,8 +49,12 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
 _PPL_SLOW="lint-checkov lint-semgrep lint-gosec"
+
+# ruff: syntax + pyflakes + the security codes with a zero baseline. Never
+# ruff's default set (0.16 widened it: 150 style findings).
+_PPL_RUFF_RULES="E9,F,S102,S113,S301,S307,S506,S602,S604,S605"
 
 # The hub migrations (forward-only; roles/*.sql carry psql variables, hub-pg's).
 _PPL_MIG_DIR="csi-spl-rdb/src/sql/postgres/spool-hub"
@@ -102,6 +109,10 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-migration)  [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f" ;;
       lint-compose)    [[ "$b" == docker-compose*.yml || "$b" == docker-compose*.yaml ]] && echo "$f" ;;
       lint-gitleaks)   echo ALL; return 0 ;;
+      lint-py)
+        if [[ "$f" == *.py ]]; then echo "$f"
+        elif [[ "$f" == *.sh || "$f" == *.yml || "$f" == *.yaml ]] && grep -q python "$tree/$f" 2>/dev/null; then echo "$f"
+        fi ;;
       lint-wui-syntax)
         [[ "$f" == csi-spl-wui/* && "$f" =~ \.(vue|ts|tsx|mjs|js)$ && "$f" != */node_modules/* \
            && "$f" != csi-spl-wui/.nuxt/* && "$f" != csi-spl-wui/.output/* && "$f" != csi-spl-wui/dist/* ]] && echo "$f" ;;
@@ -132,7 +143,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
       case "$sc" in
-        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
+        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax|lint-py) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
         lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
       esac
     else
@@ -172,6 +183,7 @@ _ppl_missing() {  # <scanner>
     lint-migration)  [[ -x "$(_ppl_pglast_py)" ]] || echo "pglast -- $fix" ;;
     lint-compose)    docker compose version >/dev/null 2>&1 || echo "docker compose -- install docker with the compose plugin" ;;
     lint-gitleaks)   _ppl_need gitleaks ;;
+    lint-py)         _ppl_need python3; _ppl_need ruff ;;
     lint-wui-syntax|lint-wui-lock)
       _ppl_need node
       _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin" ;;
@@ -214,6 +226,7 @@ _ppl_repro() {  # <scanner>
     lint-checkov)    act=do_sec_checkov ;; lint-semgrep) act=do_sec_semgrep ;; lint-gosec) act=do_sec_gosec ;;
     lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
     lint-wui-syntax) echo "cd csi-spl-wui && node ../csi-spl-iac/src/bash/scripts/wui-syntax-check.mjs $(printf '%s\n' "$sel" | sed 's|^csi-spl-wui/||' | paste -sd' ' -)"; return 0 ;;
+    lint-py) echo "ruff check --isolated --select $_PPL_RUFF_RULES $(printf '%s\n' "$sel" | grep '\.py$' | paste -sd' ' -); python3 csi-spl-iac/src/bash/scripts/py-heredoc-check.py $(printf '%s\n' "$sel" | grep -v '\.py$' | paste -sd' ' -)"; return 0 ;;
     lint-wui-lock) echo "cd csi-spl-wui && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts"; return 0 ;;
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
@@ -257,6 +270,28 @@ _ppl_run_one() {  # <scanner> <tree>
         ( cd "$tree/$(dirname "$f")" && docker compose -f "${f##*/}" config -q --no-interpolate ) \
           || { echo "COMPOSE schema: $f"; rc=1; }
       done <<<"$files" ;;
+    lint-py)
+      local -a pys=() hds=()
+      while IFS= read -r f; do
+        if [[ "$f" == *.py ]]; then pys+=("$f"); else hds+=("$f"); fi
+      done <<<"$files"
+      if [[ "${#pys[@]}" -gt 0 ]]; then
+        ( cd "$tree" && python3 -c '
+import sys
+bad = 0
+for f in sys.argv[1:]:
+    try:
+        compile(open(f, encoding="utf-8").read(), f, "exec")
+    except SyntaxError as e:
+        bad += 1
+        print("%s:%s: %s" % (f, e.lineno, e.msg))
+sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
+        ( cd "$tree" && ruff check --no-cache --isolated --target-version py310 --output-format concise \
+            --select "$_PPL_RUFF_RULES" "${pys[@]}" ) || rc=1
+      fi
+      if [[ "${#hds[@]}" -gt 0 ]]; then
+        ( cd "$tree" && python3 "$(_ppl_scripts)/py-heredoc-check.py" "${hds[@]}" ) || rc=1
+      fi ;;
     lint-wui-syntax)
       local -a wf=(); while IFS= read -r f; do wf+=("$tree/$f"); done <<<"$files"
       _ppl_wui_modules || return 1
@@ -348,6 +383,7 @@ _pp_part_lint_mdlinks()    { _ppl_run_one lint-mdlinks "$1"; }
 _pp_part_lint_migration()  { _ppl_run_one lint-migration "$1"; }
 _pp_part_lint_compose()    { _ppl_run_one lint-compose "$1"; }
 _pp_part_lint_gitleaks()   { _ppl_run_one lint-gitleaks "$1"; }
+_pp_part_lint_py()         { _ppl_run_one lint-py "$1"; }
 _pp_part_lint_wui_syntax() { _ppl_run_one lint-wui-syntax "$1"; }
 _pp_part_lint_wui_lock()   { _ppl_run_one lint-wui-lock "$1"; }
 _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }

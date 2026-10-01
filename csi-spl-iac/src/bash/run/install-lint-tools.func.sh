@@ -13,6 +13,7 @@
 # @description   python    checkov (65), semgrep (61) -> LINT_TOOLS_VENV, linked into LINT_TOOLS_BIN
 # @description   typos     typos-cli, the spelling WARN (no CI workflow yet, so pinned HERE)
 # @description   gitleaks  (15) -> LINT_TOOLS_BIN
+# @description   ruff      the lint-py rule set (no CI workflow yet, so pinned HERE)
 # @description   pglast    PG16 grammar for the migration parse (pinned HERE: 6.x is
 # @description             libpg_query 16, the hub's POSTGRES_16) -> its own venv
 # @param LINT_TOOLS_BIN (optional) - default ~/.local/bin (on the hook's PATH)
@@ -33,6 +34,9 @@ _ILT_TYPOS_VER=1.50.3
 _ILT_TYPOS_SHA=aca6b5d546307092b8d0a8e0a89dd80f9da51f2f7617c5e45c5607c1684ffbf2
 # pglast 7+/8 parse the PG17/18 grammar and would pass SQL the PG16 hub rejects.
 _ILT_PGLAST_VER=6.16
+# ruff 0.16 widened its default rules: lint-py always passes --select.
+_ILT_RUFF_VER=0.16.9
+_ILT_RUFF_SHA=1bfbb819b5d4f9af501748862276b60e412d336034d99387691a4d4bce7a6f13
 
 _ilt_root() {
   local base="${APP_PATH:-}"
@@ -104,6 +108,11 @@ _ilt_bin_tool() {  # <tool>
       v="$_ILT_TYPOS_VER"
       _ilt_fetch typos "$v" "$_ILT_TYPOS_SHA" \
         "https://github.com/crate-ci/typos/releases/download/v$v/typos-v$v-x86_64-unknown-linux-musl.tar.gz" ./typos ;;
+    ruff)
+      v="$_ILT_RUFF_VER"
+      _ilt_fetch ruff "$v" "$_ILT_RUFF_SHA" \
+        "https://github.com/astral-sh/ruff/releases/download/$v/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+        ruff-x86_64-unknown-linux-gnu/ruff ;;
     gitleaks)
       wf="$_ILT_WF/15_sec-deps-secrets.yml"
       v="$(grep -oE 'gitleaks/releases/download/v[0-9.]+' "$wf" | head -1 | sed 's|.*/v||')"
@@ -169,12 +178,12 @@ do_install_lint_tools() {
   local _ILT_BIN="${LINT_TOOLS_BIN:-$HOME/.local/bin}"
   local _ILT_ESLINT="${LINT_TOOLS_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"
   local _ILT_VENV="${LINT_TOOLS_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv}"
-  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast}"
+  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast ruff}"
   mkdir -p "$_ILT_BIN" || return 1
   local t fails=0
   for t in $only; do
     case "$t" in
-      shellcheck|actionlint|hadolint|trufflehog|gosec|typos|gitleaks) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
+      shellcheck|actionlint|hadolint|trufflehog|gosec|typos|gitleaks|ruff) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
       eslint) _ilt_eslint || fails=$((fails + 1)) ;;
       pglast) _ilt_pglast || fails=$((fails + 1)) ;;
       checkov|semgrep) _ilt_py "$t" || fails=$((fails + 1)) ;;
@@ -182,7 +191,7 @@ do_install_lint_tools() {
     esac
   done
   if [[ "${LINT_TOOLS_SYSTEM:-0}" == 1 ]]; then
-    for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks; do
+    for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks ruff; do
       [[ " $only " == *" $t "* && -x "$_ILT_BIN/$t" ]] || continue
       if sudo install -m 0755 -o root -g root "$_ILT_BIN/$t" "/usr/local/bin/$t"; then
         do_log "INFO $t copied to /usr/local/bin (root-owned, every user)"

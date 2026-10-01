@@ -1807,3 +1807,28 @@ declare module '~/utils/dm-presence.mjs' {
     params: Record<string, string>
   }
 }
+
+declare module '~/utils/undo-timer.mjs' {
+  export const UNDO_TOUCH_MIN_MS: number
+  export const UNDO_NOTE_MS: number
+  export function undoWindowMs(duration: number, opts?: { touch?: boolean, undo?: boolean }): number
+  export function isTouchUi(win?: Window): boolean
+  export type UndoTimer = {
+    arm(): void
+    hold(reason?: string): void
+    release(reason?: string): void
+    touched(): void
+    stop(): void
+    windowMs(): number
+    readonly armed: boolean
+    readonly held: boolean
+  }
+  export function createUndoTimer(opts: {
+    duration: number
+    touch?: boolean
+    undo?: boolean
+    onExpire: () => void
+    set?: (fn: () => void, ms: number) => unknown
+    clear?: (id: unknown) => void
+  }): UndoTimer
+}

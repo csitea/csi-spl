@@ -3,12 +3,14 @@
      the shell on the first move; its code ships WITH the shell (CLE-77840: a
      lazy chunk is gone on a tab older than the last deploy).
 
-     CLE-77809: a thin adapter over the shared UndoSnackbar. The 8 s timer stays
-     in useMove (no `duration` here), so behaviour is unchanged; only the markup
-     and styling now live in one place. -->
+     CLE-77809: a thin adapter over the shared UndoSnackbar.
+     CLE-77871: the 8 s (3 s with no Undo) window moved here from useMove, so
+     the snackbar's clock holds it while hovered, focused or touched like the
+     others. Keyed by the toast id: a second move restarts the window. -->
 <template>
   <UndoSnackbar
     v-if="item"
+    :key="item.id"
     icon="move"
     testid="move-toast"
     :data-id="item.id"
@@ -17,6 +19,7 @@
     :close-label="t('common.close')"
     :show-undo="Boolean(item.undo)"
     :busy="item.busy"
+    :duration="item.undo ? MOVE_UNDO_MS : UNDO_NOTE_MS"
     @undo="move.undo()"
     @dismiss="move.dismiss()"
   />
@@ -24,7 +27,8 @@
 
 <script setup lang="ts">
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
-import { useMove } from '~/composables/useMove'
+import { MOVE_UNDO_MS, useMove } from '~/composables/useMove'
+import { UNDO_NOTE_MS } from '~/utils/undo-timer.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const move = useMove()

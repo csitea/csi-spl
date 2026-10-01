@@ -5,7 +5,7 @@
 // The hub's DELETE /v1/messages/{id} is a hard delete (the row and its
 // deliveries go), so Undo cannot be a second call. Instead the delete is a
 // DELAYED COMMIT: the row leaves every feed of this tab at once, the DELETE is
-// sent only when the snackbar closes (its 0.7 s, Esc, the X, or the next
+// sent only when the snackbar closes (its 0.7 s - 6 s on a touch UI, CLE-77871 -, Esc, the X, or the next
 // delete), and Undo before that sends nothing and re-reads the feeds. Other
 // tabs learn of it from the hub's message_deleted frame once it is sent. A tab
 // closed inside the window still sends it on pagehide (best effort): if that

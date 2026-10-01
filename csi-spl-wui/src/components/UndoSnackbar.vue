@@ -7,18 +7,30 @@
      dismisses itself after that long, but it HOLDS while the pointer is over it
      or focus is inside it, so a slow click on Undo still lands (owner asked for
      a very short 0.7 s; the hold is what keeps that usable). `duration` 0 (the
-     default) hands timing to the caller - move keeps its own 8 s timer. -->
+     default) hands timing to the caller.
+
+     CLE-77871 (owner, topic f20c6052: "the snack bar should work on mobile as
+     well"): a phone has no hover, so 0.7 s was gone before a thumb reached
+     Undo. On a touch UI the window is at least UNDO_TOUCH_MIN_MS and holds
+     while a finger is on it (utils/undo-timer.mjs); hover is a MOUSE pointer
+     only (a tap's emulated mouseenter would hold it forever). On a phone it
+     sits above the composer dock, the keyboard and the safe-area inset, and
+     Undo / close are 44 px targets. Move now passes its 8 s here too. -->
 <template>
   <div
     class="undo-snackbar"
     role="status"
     aria-live="polite"
+    aria-atomic="true"
     :data-testid="testid"
     :data-id="dataId === undefined ? undefined : String(dataId)"
-    @mouseenter="hold"
-    @mouseleave="release"
-    @focusin="hold"
-    @focusout="release"
+    @pointerenter="onPointerEnter"
+    @pointerleave="onPointerLeave"
+    @pointerdown="onPointerDown"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerUp"
+    @focusin="clock.hold('focus')"
+    @focusout="clock.release('focus')"
     @keydown.esc.stop.prevent="emit('dismiss')"
   >
     <UiIcon v-if="icon" class="undo-snackbar__icon" :name="icon" :size="18" />
@@ -46,6 +58,7 @@
 
 <script setup lang="ts">
 import type { UiIconName } from '~/utils/uiIcons'
+import { createUndoTimer, isTouchUi } from '~/utils/undo-timer.mjs'
 
 const props = withDefaults(defineProps<{
   text: string
@@ -61,23 +74,36 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ undo: [], dismiss: [] }>()
 
-let timer: ReturnType<typeof setTimeout> | null = null
-function clear() { if (timer) { clearTimeout(timer); timer = null } }
 /* full window on each (re)arm: 0.7 s is short, so restarting after a hover
-   leave is friendlier than resuming a few ms that were left. */
-function arm() { clear(); if (props.duration && props.duration > 0) timer = setTimeout(() => emit('dismiss'), props.duration) }
-function hold() { clear() }
-function release() { arm() }
+   leave is friendlier than resuming a few ms that were left. The touch read
+   happens on mount (client only: the shell mounts this in <ClientOnly>). */
+const clock = createUndoTimer({
+  duration: props.duration,
+  undo: props.showUndo,
+  touch: isTouchUi(),
+  onExpire: () => emit('dismiss'),
+})
+const isMouse = (ev: PointerEvent) => ev.pointerType === 'mouse'
+function onPointerEnter(ev: PointerEvent) { if (isMouse(ev)) clock.hold('hover') }
+function onPointerLeave(ev: PointerEvent) { if (isMouse(ev)) clock.release('hover') }
+function onPointerDown(ev: PointerEvent) {
+  if (isMouse(ev)) return
+  clock.touched()
+  clock.hold('touch')
+}
+function onPointerUp(ev: PointerEvent) { if (!isMouse(ev)) clock.release('touch') }
 
-onMounted(arm)
-onBeforeUnmount(clear)
+onMounted(() => clock.arm())
+onBeforeUnmount(() => clock.stop())
 </script>
 
 <style scoped>
 .undo-snackbar {
   position: fixed;
   left: 50%;
-  bottom: 1rem;
+  /* CLE-77871: above the phone's composer dock + keyboard (0 on a desktop)
+     and the home-indicator inset */
+  bottom: calc(1rem + max(calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px)), env(safe-area-inset-bottom, 0px)));
   transform: translateX(-50%);
   z-index: var(--z-snackbar);
   display: flex;
@@ -101,4 +127,10 @@ onBeforeUnmount(clear)
 }
 .undo-snackbar__undo { flex: none; font-weight: 600; color: var(--color-accent); }
 .undo-snackbar__close { flex: none; }
+/* CLE-77871: a thumb, not a cursor - 44 px targets (--tap) */
+@media (max-width: 820px), (pointer: coarse) {
+  .undo-snackbar { gap: 0.25rem; padding-block: 0.25rem; }
+  .undo-snackbar__undo,
+  .undo-snackbar__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+}
 </style>

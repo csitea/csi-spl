@@ -5,6 +5,7 @@
 <template>
   <UndoSnackbar
     v-if="item"
+    :key="item.id"
     icon="trash"
     testid="delete-toast"
     :text="t('feed.msg_delete.undo.done')"

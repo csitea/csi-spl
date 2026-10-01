@@ -8,7 +8,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { MoveAnswer, MoveDrag, MoveFrame } from '~/utils/move-apply.mjs'
 import { moveHit, sameHit, type MoveHit } from '~/utils/move-drag.mjs'
 
-/** How long "Moved to ... · Undo" stays up (spec 3.3). */
+/** How long "Moved to ... · Undo" stays up (spec 3.3); MoveUndoToast runs it. */
 export const MOVE_UNDO_MS = 8000
 
 export type MoveRequest =
@@ -35,7 +35,6 @@ const toast = shallowRef<MoveToast | null>(null)
 const mergeAsk = shallowRef<MergeAsk | null>(null)
 const movedListeners = new Set<MovedListener>()
 let toastSeq = 0
-let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 /** The move logic itself loads on the first move or move frame (specs/027 initial-JS budget). */
 const loadApply = () => import('~/utils/move-apply.mjs')
@@ -95,16 +94,13 @@ export function useMove() {
   }
 
   function dismiss() {
-    if (toastTimer) clearTimeout(toastTimer)
-    toastTimer = null
     toast.value = null
   }
 
   function show(text: string, undo: MoveRequest | null) {
-    if (toastTimer) clearTimeout(toastTimer)
-    const id = ++toastSeq
-    toast.value = { id, text, undo, busy: false }
-    toastTimer = setTimeout(() => { if (toast.value && toast.value.id === id) dismiss() }, undo ? MOVE_UNDO_MS : 3000)
+    /* CLE-77871: the window (MOVE_UNDO_MS, 3 s without Undo) is the
+       snackbar's own clock now (MoveUndoToast), so it holds while touched */
+    toast.value = { id: ++toastSeq, text, undo, busy: false }
   }
 
   function call(req: MoveRequest): Promise<MoveAnswer> {

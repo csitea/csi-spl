@@ -506,10 +506,7 @@
     "target_new": "Uusi aihe: {target}",
     "target_dm": "Uusi aihe käyttäjälle {target}",
     "target_comment": "Kommentoit: {target}",
-    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä",
-    "mode_new": "Uusi aihe",
-    "mode_reply": "Vastaus",
-    "mode_comment": "Kommentti"
+    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä"
   },
   "feed": {
     "unknown_author": "tuntematon",

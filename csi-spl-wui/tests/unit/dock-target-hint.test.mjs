@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { composerModeChipKey, composerModeLabel, composerSendKey, dockTargetHint } from '../../src/utils/omnibox-topic.mjs'
+import { composerModeLabel, composerSendKey, dockTargetHint } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -86,15 +86,10 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, '@CLE-07 go').mode, 'dm')
   })
 
-  it('one label per mode for the dock line, and one short word per mode for the desktop chip', () => {
+  it('one label per mode for the desktop bottom dock line', () => {
     assert.deepEqual(composerModeLabel({ mode: 'new', target: '#alerts' }), { key: 'composer.target_new', params: { target: '#alerts' } })
     assert.deepEqual(composerModeLabel({ mode: 'dm', target: 'HUM-2' }), { key: 'composer.target_dm', params: { target: 'HUM-2' } })
     assert.deepEqual(composerModeLabel({ mode: 'thread', target: '#a', title: 'T' }), { key: 'composer.target_thread', params: {} })
-    assert.equal(composerModeChipKey({ mode: 'new' }), 'composer.mode_new')
-    assert.equal(composerModeChipKey({ mode: 'dm' }), 'composer.mode_new')
-    assert.equal(composerModeChipKey({ mode: 'thread' }), 'composer.mode_reply')
-    assert.equal(composerModeChipKey({ mode: 'comment' }), 'composer.mode_comment')
-    assert.equal(composerModeChipKey(null), '')
     assert.deepEqual(composerModeLabel({ mode: 'comment', target: 'SPL-7' }), { key: 'composer.target_comment', params: { target: 'SPL-7' } })
     assert.equal(composerModeLabel(null), null)
   })
@@ -109,7 +104,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
 
   it('every locale carries the new words, translated', () => {
     const en = loc('en')
-    const KEYS = [['composer', 'mode_new'], ['composer', 'mode_reply'], ['composer', 'mode_comment'], ['composer', 'target_dm'], ['composer', 'go_new'], ['composer', 'go_reply'], ['composer', 'go_comment'], ['feed', 'edit', 'mode']]
+    const KEYS = [['composer', 'target_dm'], ['composer', 'go_new'], ['composer', 'go_reply'], ['composer', 'go_comment'], ['feed', 'edit', 'mode']]
     const get = (d, path) => path.reduce((o, k) => (o ? o[k] : undefined), d)
     assert.equal(ALL.length, 19)
     for (const l of ALL) {
@@ -121,23 +116,20 @@ describe('the composer looks different per mode (HUM-24)', () => {
         if (l !== 'en') assert.notEqual(v, get(en, path), `${l} ${path.join('.')} is still English`)
       }
       assert.match(d.composer.target_dm, /\{target\}/, l)
-      /* the chip is a word or two, never a placeholder */
-      for (const k of ['mode_new', 'mode_reply', 'mode_comment']) assert.ok(!/[{}]/.test(d.composer[k]) && d.composer[k].length <= 20, `${l} ${k}`)
     }
     /* HUM-24 is Bulgarian: the words checked */
     const bg = loc('bg')
     assert.equal(bg.composer.target_new, 'Нова тема в {target}')
-    assert.equal(bg.composer.mode_reply, 'Отговор')
+    assert.equal(bg.composer.go_reply, 'Изпращане на отговор')
     assert.equal(bg.feed.edit.mode, 'Редактиране на това съобщение')
   })
 
-  it('the top bar shows the chip, the form carries the mode, DM pages say dm, the placeholder is the old one', () => {
+  it('no chip in the top bar (owner, t1 7d777e79 14:24Z: "some kind of reply button there in the wrong place"); the form carries the mode, DM pages say dm, the placeholder is the old one', () => {
     const c = src('src/components/MessageComposer.vue')
-    assert.match(c, /v-if="global && !docked && !bottom && !searchMode && dockHint"\n\s+class="composer-mode"/)
+    assert.doesNotMatch(c, /class="composer-mode"|data-test="composer-mode"/)
     assert.match(c, /:data-mode="modeAttr"/)
     assert.match(c, /t\(sendKey\)/)
     assert.match(c, /\.composer\.omnibox--global\[data-mode\]:not\(\[data-mode=search\]\) \.omnibox-field \{/)
-    assert.match(c, /t\(composerModeChipKey\(dockHint\)\)/)
     assert.doesNotMatch(src('src/components/TopBar.vue'), /threadTitle/)
     assert.match(src('src/pages/dm/[peer].vue'), /dm: true \}\)/)
     /* 4.8.7 regression: "New topic in #x — Enter for a new line · Ctrl+Ent…"

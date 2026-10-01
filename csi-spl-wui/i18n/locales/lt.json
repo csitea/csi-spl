@@ -506,10 +506,7 @@
     "target_new": "Nauja tema: {target}",
     "target_dm": "Nauja tema su {target}",
     "target_comment": "Komentuojama: {target}",
-    "target_search_only": "Čia neskelbiama — GO ieško teksto",
-    "mode_new": "Nauja tema",
-    "mode_reply": "Atsakymas",
-    "mode_comment": "Komentaras"
+    "target_search_only": "Čia neskelbiama — GO ieško teksto"
   },
   "feed": {
     "unknown_author": "nežinomas",

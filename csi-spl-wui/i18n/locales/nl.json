@@ -506,10 +506,7 @@
     "target_new": "Nieuw onderwerp in {target}",
     "target_dm": "Nieuw onderwerp met {target}",
     "target_comment": "Reactie op {target}",
-    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst",
-    "mode_new": "Nieuw onderwerp",
-    "mode_reply": "Antwoord",
-    "mode_comment": "Reactie"
+    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst"
   },
   "feed": {
     "unknown_author": "onbekend",

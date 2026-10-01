@@ -506,10 +506,7 @@
     "target_new": "New topic in {target}",
     "target_dm": "New topic with {target}",
     "target_comment": "Commenting on {target}",
-    "target_search_only": "No post here — GO searches for the text",
-    "mode_new": "New topic",
-    "mode_reply": "Reply",
-    "mode_comment": "Comment"
+    "target_search_only": "No post here — GO searches for the text"
   },
   "feed": {
     "unknown_author": "unknown",

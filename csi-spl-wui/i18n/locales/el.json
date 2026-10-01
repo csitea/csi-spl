@@ -506,10 +506,7 @@
     "target_new": "Νέο θέμα στο {target}",
     "target_dm": "Νέο θέμα με {target}",
     "target_comment": "Σχόλιο στο {target}",
-    "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο",
-    "mode_new": "Νέο θέμα",
-    "mode_reply": "Απάντηση",
-    "mode_comment": "Σχόλιο"
+    "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο"
   },
   "feed": {
     "unknown_author": "άγνωστος",

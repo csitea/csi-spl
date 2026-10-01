@@ -26,21 +26,6 @@
       <span>{{ modeText }}</span>
     </p>
     <div class="composer-box">
-      <!-- HUM-24 (CLE-77879): in the top bar one short word in a calm chip at
-           the start of the box - "New topic" / "Reply" / "Comment" - in the
-           mode's own accent, the field's start edge in that accent too. Never
-           a title (owner, t1 7d777e79): the full line is its tooltip -->
-      <span
-        v-if="global && !docked && !bottom && !searchMode && dockHint"
-        class="composer-mode"
-        data-test="composer-mode"
-        :data-mode="dockHint.mode"
-        :title="modeText"
-        aria-live="polite"
-      >
-        <UiIcon :name="modeIcon" :size="14" />
-        <span class="composer-mode__text">{{ t(composerModeChipKey(dockHint)) }}</span>
-      </span>
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
@@ -290,7 +275,7 @@ import { useStatusStripHeight } from '~/composables/useStatusStrip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { composerModeChipKey, composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -1338,8 +1323,10 @@ textarea.in-code {
 /*
  * HUM-24 (CLE-77879): "creating a new topic must look different from writing
  * a reply". Each mode has one accent (variables.css --color-mode-*): the
- * field's start edge and border carry it, the label's icon too. Calm: a tint
- * and a 3px edge, never a fill. Search mode and no target stay neutral.
+ * field's start edge and border carry it, with the placeholder and the GO
+ * words. No chip and no line over the box (owner, t1 7d777e79 / dd98f8d7:
+ * a "Reply" pill in the top bar read as a stray button). Search mode and no
+ * target stay neutral.
  */
 .composer:is([data-mode=new], [data-mode=dm]) { --composer-mode: var(--color-mode-new); }
 .composer[data-mode=thread],
@@ -1350,25 +1337,6 @@ textarea.in-code {
   padding-inline-start: 6px;
 }
 .composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
-.composer-mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  max-width: min(10rem, 20%);
-  height: 28px;
-  margin-top: calc((var(--omnibox-rest, 46px) - 28px) / 2);
-  padding: 0 10px;
-  box-sizing: border-box;
-  border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, var(--composer-mode) 50%, transparent);
-  background: color-mix(in srgb, var(--composer-mode) 14%, transparent);
-  color: var(--color-fg);
-  font-size: 0.8125rem;
-  white-space: nowrap;
-}
-.composer-mode svg { color: var(--composer-mode); flex: none; }
-.composer-mode__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.

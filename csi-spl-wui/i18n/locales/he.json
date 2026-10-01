@@ -506,10 +506,7 @@
     "target_new": "נושא חדש ב-{target}",
     "target_dm": "נושא חדש עם {target}",
     "target_comment": "תגובה על {target}",
-    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט",
-    "mode_new": "נושא חדש",
-    "mode_reply": "תגובה",
-    "mode_comment": "הערה"
+    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
   },
   "feed": {
     "unknown_author": "לא ידוע",

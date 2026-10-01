@@ -506,10 +506,7 @@
     "target_new": "Nová téma v {target}",
     "target_dm": "Nová téma s {target}",
     "target_comment": "Komentár k {target}",
-    "target_search_only": "Tu sa nepublikuje — GO hľadá text",
-    "mode_new": "Nová téma",
-    "mode_reply": "Odpoveď",
-    "mode_comment": "Komentár"
+    "target_search_only": "Tu sa nepublikuje — GO hľadá text"
   },
   "feed": {
     "unknown_author": "neznámy",

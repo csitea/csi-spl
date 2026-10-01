@@ -506,10 +506,7 @@
     "target_new": "Uus teema: {target}",
     "target_dm": "Uus teema kasutajaga {target}",
     "target_comment": "Kommentaar: {target}",
-    "target_search_only": "Siia ei postitata — GO otsib teksti",
-    "mode_new": "Uus teema",
-    "mode_reply": "Vastus",
-    "mode_comment": "Kommentaar"
+    "target_search_only": "Siia ei postitata — GO otsib teksti"
   },
   "feed": {
     "unknown_author": "tundmatu",

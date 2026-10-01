@@ -506,10 +506,7 @@
     "target_new": "Nowy temat w {target}",
     "target_dm": "Nowy temat z {target}",
     "target_comment": "Komentarz do {target}",
-    "target_search_only": "Tu nie publikujesz — GO wyszukuje tekst",
-    "mode_new": "Nowy temat",
-    "mode_reply": "Odpowiedź",
-    "mode_comment": "Komentarz"
+    "target_search_only": "Tu nie publikujesz — GO wyszukuje tekst"
   },
   "feed": {
     "unknown_author": "nieznany",

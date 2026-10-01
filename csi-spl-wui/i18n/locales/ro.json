@@ -506,10 +506,7 @@
     "target_new": "Subiect nou în {target}",
     "target_dm": "Subiect nou cu {target}",
     "target_comment": "Comentariu la {target}",
-    "target_search_only": "Aici nu se publică — GO caută textul",
-    "mode_new": "Subiect nou",
-    "mode_reply": "Răspuns",
-    "mode_comment": "Comentariu"
+    "target_search_only": "Aici nu se publică — GO caută textul"
   },
   "feed": {
     "unknown_author": "necunoscut",

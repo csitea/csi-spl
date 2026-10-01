@@ -6,20 +6,22 @@
 // field's start edge, a placeholder and GO words of its own:
 //
 //   desktop 1440x900, /channel/alerts (dark and light):
-//     1 the list: chip "New topic", data-mode new, GO "Start topic",
+//     NO chip and no text anywhere outside the box (owner, t1 7d777e79: first
+//     "reply : <<the title>> is a bug", then at 14:24Z "some kind of reply
+//     button there in the wrong place" - the one-word "Reply" chip)
+//     1 the list: data-mode new (purple edge), GO "Start topic",
 //       placeholder "Message #alerts - ..." (unchanged), one line in the bar
-//     2 click a card (its thread opens): chip "Reply" - one word, NEVER the
-//       title (owner, t1 7d777e79: "reply : <<the title>> is a bug") -
-//       data-mode thread, GO "Send reply", a different start-edge colour
+//     2 click a card (its thread opens): data-mode thread (cyan edge), GO
+//       "Send reply", placeholder "Reply - ..."
 //     3 close the thread: back to 1
-//     4 /dm/CLE-07@box-a: chip "New topic", data-mode dm
+//     4 /dm/CLE-07@box-a: data-mode dm, GO "Start topic"
 //     5 /lobby, `e` on an own message: "Editing this message" over the box,
 //       the composer's chip unchanged
 //   phone 390x844 (touch), /channel/alerts:
 //     6 NO text line above the dock (owner, t1 dd98f8d7): mode new, placeholder
 //       "Message #alerts"; tap a card -> mode thread, placeholder "Reply…"
-//     CONTROL: before HUM-24 the desktop had no chip and no data-mode (1-4
-//     fail), the edit box had no label (5 fails).
+//     CONTROL: before HUM-24 the desktop had no data-mode and one GO label
+//     (1-4 fail), the edit box had no label (5 fails).
 //
 // Run:
 //   pnpm run test:e2e:composer-mode-cue
@@ -69,7 +71,8 @@ function cue(p) {
     const vis = (el) => Boolean(el) && el.getClientRects().length > 0
     const f = [...document.querySelectorAll('form.composer.omnibox--global')].find(vis)
     if (!f) return null
-    const chip = [...f.querySelectorAll('[data-test=composer-mode]')].find(vis)
+    /* any leftover mode chip anywhere on the page */
+    const chip = [...document.querySelectorAll('[data-test=composer-mode], .composer-mode')].find(vis)
     const line = [...f.querySelectorAll('[data-test=dock-target]')].find(vis)
     const field = f.querySelector('.omnibox-field')
     const go = f.querySelector('[data-testid=send]')
@@ -77,12 +80,10 @@ function cue(p) {
     return {
       mode: f.getAttribute('data-mode'),
       chip: chip ? chip.textContent.trim() : null,
-      chipMode: chip ? chip.getAttribute('data-mode') : null,
       line: line ? line.textContent.trim() : null,
       edge: cs ? cs.borderInlineStartColor : '',
       edgeW: cs ? cs.borderInlineStartWidth : '',
       fieldH: field ? Math.round(field.getBoundingClientRect().height) : 0,
-      chipCut: chip ? chip.querySelector('.composer-mode__text').scrollWidth > chip.querySelector('.composer-mode__text').clientWidth : null,
       placeholder: f.querySelector('textarea')?.placeholder || '',
       go: go ? go.getAttribute('aria-label') : '',
     }
@@ -129,13 +130,13 @@ async function desktopCase(browser, theme) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, `new-1440-${theme}`)
-  ok(`${tag} 1 the list: the chip says "New topic", the form is mode new`,
-    Boolean(c1 && c1.mode === 'new' && c1.chipMode === 'new' && c1.chip === 'New topic'), c1)
+  ok(`${tag} 1 the list: no chip anywhere, the form is mode new`,
+    Boolean(c1 && c1.mode === 'new' && c1.chip === null && c1.line === null), c1)
   ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", the start edge is 3px`,
     Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.edgeW === '3px'), c1)
   /* a long chip squeezed the placeholder in the first cut (4.8.7) */
-  ok(`${tag} 1 the chip is not cut, the field stays one line in the bar (<= 50 px)`,
-    Boolean(c1 && c1.chipCut === false && c1.fieldH > 0 && c1.fieldH <= 50), { chipCut: c1 && c1.chipCut, fieldH: c1 && c1.fieldH })
+  ok(`${tag} 1 the field stays one line in the bar (<= 50 px)`,
+    Boolean(c1 && c1.fieldH > 0 && c1.fieldH <= 50), { fieldH: c1 && c1.fieldH })
 
   const card = await firstCard(p)
   await p.mouse.click(card.x, card.y)
@@ -143,8 +144,8 @@ async function desktopCase(browser, theme) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, `reply-1440-${theme}`)
-  ok(`${tag} 2 a thread open: the chip says just "Reply" (no title), the form is mode thread`,
-    Boolean(c2 && c2.mode === 'thread' && c2.chipMode === 'thread' && c2.chip === 'Reply'), c2)
+  ok(`${tag} 2 a thread open: still no chip and no "Reply" button outside the box, the form is mode thread`,
+    Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null), c2)
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply accent differs from the new-topic accent`, Boolean(c1 && c2 && c1.edge && c2.edge && c1.edge !== c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -154,7 +155,7 @@ async function desktopCase(browser, theme) {
   })
   await waitMode(p, 'new')
   const c3 = await cue(p)
-  ok(`${tag} 3 the thread closed: back to a new topic`, Boolean(c3 && c3.mode === 'new' && c3.chip === 'New topic'), c3)
+  ok(`${tag} 3 the thread closed: back to a new topic`, Boolean(c3 && c3.mode === 'new' && c3.chip === null), c3)
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }
@@ -164,8 +165,8 @@ async function dmCase(browser) {
   await waitMode(p, 'dm')
   const c = await cue(p)
   await shot(p, 'dm-1440-dark')
-  ok('1440 4 a DM: the chip says "New topic", mode dm, GO "Start topic"',
-    Boolean(c && c.mode === 'dm' && c.chip === 'New topic' && c.go === 'Start topic'), c)
+  ok('1440 4 a DM: no chip, mode dm, GO "Start topic"',
+    Boolean(c && c.mode === 'dm' && c.chip === null && c.go === 'Start topic'), c)
   ok('1440 4 no page error', errors.length === 0, errors)
   await p.close()
 }

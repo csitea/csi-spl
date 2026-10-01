@@ -506,10 +506,7 @@
     "target_new": "Jauna tēma: {target}",
     "target_dm": "Jauna tēma ar {target}",
     "target_comment": "Komentārs: {target}",
-    "target_search_only": "Šeit nepublicē — GO meklē tekstu",
-    "mode_new": "Jauna tēma",
-    "mode_reply": "Atbilde",
-    "mode_comment": "Komentārs"
+    "target_search_only": "Šeit nepublicē — GO meklē tekstu"
   },
   "feed": {
     "unknown_author": "nezināms",

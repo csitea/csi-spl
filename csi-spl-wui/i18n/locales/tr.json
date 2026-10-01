@@ -506,10 +506,7 @@
     "target_new": "{target} içinde yeni konu",
     "target_dm": "{target} ile yeni konu",
     "target_comment": "{target} için yorum",
-    "target_search_only": "Burada gönderi yok — GO metni arar",
-    "mode_new": "Yeni konu",
-    "mode_reply": "Yanıt",
-    "mode_comment": "Yorum"
+    "target_search_only": "Burada gönderi yok — GO metni arar"
   },
   "feed": {
     "unknown_author": "bilinmiyor",

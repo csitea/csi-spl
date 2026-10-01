@@ -129,7 +129,7 @@ export function dockTargetHint(dock, text = '') {
 /**
  * HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
  * from writing a reply in the chat". The line over the phone / bottom dock
- * for a hint, as an i18n key and its params (the desktop chip's tooltip too).
+ * for a hint, as an i18n key and its params (the desktop bottom dock only).
  * @param {{ mode: string, target?: string } | null | undefined} hint
  * @returns {{ key: string, params: Record<string, string> } | null}
  */
@@ -140,21 +140,6 @@ export function composerModeLabel(hint) {
   if (hint.mode === 'comment') return { key: 'composer.target_comment', params: { target } }
   if (hint.mode === 'dm') return { key: 'composer.target_dm', params: { target } }
   return { key: 'composer.target_new', params: { target } }
-}
-
-/**
- * The desktop top-bar chip: ONE short word per mode, never a title or a
- * channel. The owner (t1 7d777e79, 2026-10-01, on 4.8.7): "this text reply :
- * <<the title>> is a bug" - the open title is already on screen, and a long
- * one squeezed the box's own help text off the line.
- * @param {{ mode: string } | null | undefined} hint
- * @returns {string} an i18n key, '' for no hint
- */
-export function composerModeChipKey(hint) {
-  if (!hint) return ''
-  if (hint.mode === 'thread') return 'composer.mode_reply'
-  if (hint.mode === 'comment') return 'composer.mode_comment'
-  return 'composer.mode_new'
 }
 
 /**

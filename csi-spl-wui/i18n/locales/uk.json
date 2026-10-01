@@ -506,10 +506,7 @@
     "target_new": "Нова тема в {target}",
     "target_dm": "Нова тема з {target}",
     "target_comment": "Коментар до {target}",
-    "target_search_only": "Тут не публікується — GO шукає текст",
-    "mode_new": "Нова тема",
-    "mode_reply": "Відповідь",
-    "mode_comment": "Коментар"
+    "target_search_only": "Тут не публікується — GO шукає текст"
   },
   "feed": {
     "unknown_author": "невідомо",

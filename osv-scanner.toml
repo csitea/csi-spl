@@ -1,186 +1,43 @@
 # OSV-Scanner triage baseline (spec 056 #15 / T015), owner topic 875651f8.
 # Pattern mirrors .trivyignore.yaml + .gitleaks.toml: the gate is GREEN today and
-# reddens on a NEW lockfile vulnerability. Each current finding is listed with a
-# reason and a review date. These are DEPENDENCY-level findings (OSV lists every
-# advisory for a pinned version, with no reachability pruning):
-#  - Go: govulncheck (reachable-vulnerability analysis, 15_sec-deps-secrets.yml)
-#    is the AUTHORITATIVE Go gate and is green -- none of these are reachable.
-#    The version bumps are tracked by Dependabot (.github/dependabot.yml, T020s);
-#    golang.org/x/crypto 0.51.0 -> 0.52.0 is escalated to the hub lane (7 Critical).
-#  - npm: below pnpm audit's moderate+ gate (15); Dependabot-tracked.
-# Review / re-check by 2026-11-01: drop any id whose bump has landed.
-
-[[IgnoredVulns]]
-id = "GHSA-2v4p-qf9q-27wj"
-ignoreUntil = 2026-11-01
-reason = "google.golang.org/grpc: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-45gg-vh54-h5m9"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-5cgq-3rg8-m6cv"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-78mq-xcr3-xm33"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-89gr-r52h-f8rx"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+# reddens on a NEW lockfile vulnerability. Refreshed after CLE-77817 bumped
+# golang.org/x/crypto 0.51->0.55, x/net 0.55->0.58, grpc 1.83.1->1.84.0 (trunk
+# 3225fde7), which cleared the 7 Critical + 3 High this list used to carry.
+# Remaining entries, each with a reason + review date:
+#  - golang.org/x/crypto 0.55.0 / grpc 1.84.0: the fix is in a release that
+#    requires go 1.26; this module is pinned to go 1.25 (+ golang:1.25-alpine),
+#    so 0.55 / 1.84 are the highest compatible. Not reachable (govulncheck green).
+#    Revisit when the toolchain moves to go 1.26.
+#  - otel/sdk, serialize-javascript (npm): low, below the govulncheck/pnpm-audit
+#    gates; Dependabot-tracked.
+# Review / re-check by 2026-11-01.
 
 [[IgnoredVulns]]
 id = "GHSA-8wmf-6v46-5gfg"
 ignoreUntil = 2026-11-01
-reason = "go.opentelemetry.io/otel/sdk: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-9m57-25v3-79x9"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-f5wc-c3c7-36mc"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "go.opentelemetry.io/otel/sdk: low / not reachable (govulncheck green, authoritative Go gate); Dependabot-tracked."
 
 [[IgnoredVulns]]
 id = "GHSA-gfhx-hw2g-v5hg"
 ignoreUntil = 2026-11-01
-reason = "serialize-javascript: below pnpm audit moderate+ gate; bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-jppx-rxg9-jmrx"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-q4h4-gmj2-qvw2"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-qpw4-5x99-6vjp"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-rm3j-f69w-wqmq"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-vgwf-h737-ff37"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-w879-237q-wc7r"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GHSA-x527-x647-q7gg"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5005"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5006"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5013"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5014"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5015"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5016"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5017"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5018"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5019"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5020"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5021"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5023"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5033"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "serialize-javascript: below pnpm audit moderate+ gate (low); Dependabot-tracked."
 
 [[IgnoredVulns]]
 id = "GO-2026-5932"
 ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-5942"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/net: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
-
-[[IgnoredVulns]]
-id = "GO-2026-6303"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
 
 [[IgnoredVulns]]
 id = "GO-2026-6354"
 ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
 
 [[IgnoredVulns]]
 id = "GO-2026-6355"
 ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
 
 [[IgnoredVulns]]
 id = "GO-2026-6443"
 ignoreUntil = 2026-11-01
-reason = "google.golang.org/grpc: not reachable (govulncheck green, authoritative Go gate); bump tracked by Dependabot (T020s)."
+reason = "google.golang.org/grpc: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."

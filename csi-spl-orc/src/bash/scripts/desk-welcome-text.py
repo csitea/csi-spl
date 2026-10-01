@@ -9,9 +9,10 @@ words".
   desk-welcome-text.py --locale <l> --default-locale <l> --slot <n> --seed <s> --name <name>
   desk-welcome-text.py --check     (every locale x variant under the word cap)
 
-Three variants per locale, so the (at most three) bots that greet one person
-do not all say the same thing: bot <slot> takes variant (hash(seed) + slot) % 3,
-and the seed (tenant/human) turns the wheel from one person to the next. The
+Three variants per locale. One greeter per tenant posts now (CLE-77896),
+but a ledger planned before that may hold three bots, so bot <slot> takes
+variant (hash(seed) + slot) % 3 and no two say the same thing; the seed
+(tenant/human) turns the wheel from one person to the next. The
 wording avoids grammatical gender: the hub does not know it.
 
 A word is a whitespace-separated token, the way a reader counts, so an emoji

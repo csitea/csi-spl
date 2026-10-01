@@ -238,7 +238,8 @@ if [ "${DESK_DISPATCH:-1}" != 0 ]; then
   fi
 fi
 
-# SPL-961: the seated bots welcome a person admitted since the last tick, in
+# SPL-961: the tenant's one configured greeter (do_spl_desk_greeter; none =
+# nobody, CLE-77896) welcomes a person admitted since the last tick, in
 # #lobby of EVERY tenant with a desk on this box (not only $TENANT: the other
 # tenants' desks have no tick of their own). Its ledger makes a repeated tick a
 # no-op, so riding the reconcile's schedule costs one read-only DB query.

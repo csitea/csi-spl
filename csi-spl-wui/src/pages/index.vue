@@ -127,7 +127,7 @@ const firstRunCandidate = computed(() => (api.mock || String(session.state) === 
 const { t: tr, locale } = useI18n({ useScope: 'global' })
 /* a phone prints the row's time on the viewer's own clock, only
    HH:MM when it is from today (phoneCardTime, as on every card); desktop
-   keeps the UTC HH:MM */
+   prints HH:MM, also the viewer's own clock (CLE-77908: it was UTC) */
 const mobile = useMobileStack().isMobile
 const rowTime = (ts: string) => (mobile.value ? phoneCardTime(formatMsgListTs(ts), ts) : formatTs(ts, locale.value))
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */

@@ -1,6 +1,7 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
 import { stripBidiControls } from './bidi.mjs'
+import { isoClock, isoDate, isoDateTime, isoDateTimeSec } from './date-iso.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 import { isUnread } from './read-cursor.mjs'
 import { isViewersOwn } from './typed-by.mjs'
@@ -225,14 +226,13 @@ export function formatBytes(n, locale) {
 }
 
 /**
- * HH:MM (UTC) of a message timestamp. The same 24-hour digits in every UI
+ * HH:MM of a message timestamp on the viewer's own clock (CLE-77908: it was
+ * UTC, three hours early in Finland). The same 24-hour digits in every UI
  * locale. Channel / list cards keep this form.
  */
 export function formatTs(ts, _locale) {
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return String(ts || '')
-  /* 24-hour UTC HH:MM in every UI locale. A locale used to rewrite 14:05 as 14.05. */
-  return d.toISOString().slice(11, 16)
+  /* 24-hour HH:MM in every UI locale. A locale used to rewrite 14:05 as 14.05. */
+  return isoClock(ts) || String(ts || '')
 }
 
 /**
@@ -258,16 +258,12 @@ export function formatIsoTs(ts) {
  *  Dropping the zone makes a UTC clock read as the wrong hour, so this is
  *  the reader's wall time. The full ISO UTC value stays on the hover. */
 export function formatMsgListTs(ts) {
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return String(ts || '')
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return isoDateTime(ts) || String(ts || '')
 }
 
 /** The viewer's own wall clock of `d`: `{ day: 'yyyy-mm-dd', hm: 'HH:MM' }`. */
 function wallClock(d) {
-  const p = (n) => String(n).padStart(2, '0')
-  return { day: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hm: `${p(d.getHours())}:${p(d.getMinutes())}` }
+  return { day: isoDate(d), hm: isoClock(d) }
 }
 
 /**
@@ -278,7 +274,7 @@ function wallClock(d) {
  * (owner, prd t1 topic 95adf832, 2026-09-28 00:3x EEST): "today"
  * is the VIEWER's local calendar day, on every phone surface. The first cut
  * read "today" in the frame the text was printed in, and the topic pane's
- * clock prints UTC, so between local midnight and UTC midnight a viewer east
+ * clock printed UTC then (local since CLE-77908), so between local midnight and UTC midnight a viewer east
  * of Greenwich read a UTC hour, and west of it a date on today's lines. A
  * phone now prints the viewer's own wall clock from `ts` itself, and "only
  * the hours": the topic pane's ` sent 7s` tail and its seconds are dropped
@@ -299,12 +295,11 @@ export function phoneCardTime(text, ts, nowMs = Date.now()) {
   return (at.day.slice(0, 4) === now.day.slice(0, 4) ? at.day.slice(5) : at.day) + ' ' + at.hm
 }
 
-/** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */
+/** The viewer's local wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z).
+ *  CLE-77908 (owner, "off by 3hours"): this was UTC, so the topic pane's
+ *  `... sent 7s` clock read three hours early in Finland. */
 export function formatAbsTs(ts) {
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return String(ts || '')
-  const iso = d.toISOString()
-  return iso.slice(0, 10) + ' ' + iso.slice(11, 19)
+  return isoDateTimeSec(ts) || String(ts || '')
 }
 
 /**
@@ -325,7 +320,7 @@ export function formatElapsed(sec) {
 }
 
 /**
- * Topic-pane clock: absolute UTC time, the word `sent`, then elapsed age
+ * Topic-pane clock: absolute local time, the word `sent`, then elapsed age
  * (`7s` / `1m` / `2h 3m`) from `originMs` (topic open, ticking).
  * A reply after open shows `sent 0s` until origin catches up.
  */

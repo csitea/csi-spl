@@ -36,6 +36,14 @@ import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 import { mentionDisplay, namedLine, peopleLabels, personTitle, shownPerson } from '../../src/utils/channel-feed.mjs'
 
+
+/* the viewer's zone: Node re-reads process.env.TZ on assignment */
+const inUtc = (fn) => () => {
+  const tz0 = process.env.TZ
+  process.env.TZ = 'UTC'
+  try { fn() } finally { if (tz0 === undefined) delete process.env.TZ; else process.env.TZ = tz0 }
+}
+
 describe('channel-feed', () => {
   it('splits top-level from topic replies', () => {
     const top = topLevel(MOCK_MESSAGES)
@@ -85,7 +93,8 @@ describe('channel-feed', () => {
     assert.equal(initials('CLE-07'), 'CL')
   })
 
-  it('formats times and sizes in the active UI locale when given one (spec 021)', () => {
+  /* CLE-77908: the clocks are the viewer's local time; these literals are UTC */
+  it('formats times and sizes in the active UI locale when given one (spec 021)', inUtc(() => {
     const ts = '2026-09-19T14:05:00Z'
     assert.equal(formatTs(ts), '14:05')
     assert.equal(formatTs(ts, 'fi'), '14:05')
@@ -111,7 +120,7 @@ describe('channel-feed', () => {
     assert.equal(retentionDays({ channel_id: 'alerts' }), 7)
     assert.equal(retentionDays({ channel_id: 'alerts', retention_days: 3 }), 3)
     assert.equal(retentionDays({ channel_id: 'lobby', retention_days: 30 }), 0)
-  })
+  }))
 })
 
 describe('channel-feed live rows (gap A2)', () => {
@@ -322,7 +331,7 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
     assert.match(vue, /(?:recipientOf|headerRecipientOf)\(props\.msg\)/, 'the recipient is not read from THIS message')
   })
 
-  it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', () => {
+  it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', inUtc(() => {
     assert.equal(formatIsoTs('2026-09-22T11:58:03Z'), '2026-09-22T11:58:03Z')
     /* the hub sends fractional seconds on some rows; the owner's format has none */
     assert.equal(formatIsoTs('2026-09-22T09:07:33.67515Z'), '2026-09-22T09:07:33Z')
@@ -331,7 +340,7 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
     /* CONTROL: the old formatter is still the old formatter, untouched */
     assert.equal(formatAbsTs('2026-09-22T11:58:03Z'), '2026-09-22 11:58:03')
     assert.notEqual(formatIsoTs('2026-09-22T11:58:03Z'), formatAbsTs('2026-09-22T11:58:03Z'))
-  })
+  }))
 
   it('the list clock is local yyyy-mm-dd HH:MM and the card hover keeps full ISO UTC', () => {
     const local = (raw) => {

@@ -1,6 +1,8 @@
 /**
  * Absolute dates are YYYY-MM-DD, and a date with a time is YYYY-MM-DD HH:MM
- * in 24-hour local wall time. The same instant prints the same way in every
+ * in 24-hour local wall time: the viewer's own (browser) time zone, never UTC.
+ * CLE-77908 (owner, "off by 3hours"): every message / topic clock the WUI
+ * prints goes through these helpers, so no view drifts back to UTC. The same instant prints the same way in every
  * UI locale. Relative ages ("7s", "2h 3m") are not dates and stay as they are.
  */
 
@@ -19,11 +21,25 @@ export function isoDate(value) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** Local HH:MM, or "" when value is not a time. */
+export function isoClock(value) {
+  const d = asDate(value)
+  if (!d) return ""
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 /** Local YYYY-MM-DD HH:MM, or "" when value is not a time. */
 export function isoDateTime(value) {
   const d = asDate(value)
   if (!d) return ""
-  return `${isoDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${isoDate(d)} ${isoClock(d)}`
+}
+
+/** Local YYYY-MM-DD HH:MM:SS, or "" when value is not a time. */
+export function isoDateTimeSec(value) {
+  const d = asDate(value)
+  if (!d) return ""
+  return `${isoDateTime(d)}:${pad(d.getSeconds())}`
 }
 
 /** A typed day. "" when it is not a real YYYY-MM-DD calendar day. */

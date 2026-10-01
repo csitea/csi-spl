@@ -128,6 +128,7 @@
 <script setup lang="ts">
 import UiIcon from '@/components/UiIcon.vue'
 import { useErrorJournal } from '@/composables/useErrorJournal'
+import { isoDateTimeSec } from '~/utils/date-iso.mjs'
 import type { ErrorRecord } from '@/composables/useErrorJournal'
 import {
   ageParts,
@@ -239,7 +240,8 @@ const meta = computed(() =>
 )
 
 function headline(r: ErrorRecord): string {
-  const at = String(r.at || '').replace('T', ' ').replace(/\..*$/, '')
+  /* CLE-77908: the viewer's local clock, like every other time in the WUI */
+  const at = isoDateTimeSec(r.at) || String(r.at || '')
   return [at, summariseRecord(r), r.origin || ''].filter(Boolean).join('  ')
 }
 

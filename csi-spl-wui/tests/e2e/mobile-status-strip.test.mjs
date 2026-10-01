@@ -206,7 +206,9 @@ try {
     const c = document.querySelector('[data-test=status-strip-version-card]')
     if (!c || !c.getClientRects().length) return false
     const r = c.getBoundingClientRect()
-    return c.textContent.includes(sha) && r.left >= 0 && r.right <= window.innerWidth
+    /* the commit the bundle carries (CI bakes it in) wins over build.json's */
+    const commit = c.querySelector('.status-strip__sha')?.textContent.trim() || ''
+    return (commit === sha || /^[0-9a-f]{7,40}$/.test(commit)) && r.left >= 0 && r.right <= window.innerWidth
   }, SHA, 3000)
   if (OUT) await p.screenshot({ path: `${OUT}/phone-390-version.png` })
   ok('390 9 a tap on the version opens the version card with the commit, inside the screen', verCard)

@@ -11,11 +11,14 @@
 #                    /var/spool-hub owned by it
 #   03_os_packages   tmux git curl jq python3 perl docker node+npm gh gcloud ...
 #   06_ssh_hardening keys only, no root login, no passwords
+#   07_timezone      the box clock's zone, BOX_TIMEZONE (default Europe/Helsinki,
+#                    owner topic 9a6e0f12); a recreate gets it back on the next run
 # The agent harness (CLIs, yq, Go, the spool binary, hooks, skills) is the
 # repo's own spool-install/install.sh, run as the box user by the bootstrap
 # action AFTER the credentials push (it needs the clone).
 # Env: BOX_USER (required), DATA_DEVICE (default the GCE by-id name of 060's
-#      device_name satellite-data).
+#      device_name satellite-data), BOX_TIMEZONE (optional, default
+#      Europe/Helsinki).
 #------------------------------------------------------------------------------
 set -uo pipefail
 BOX_USER=${BOX_USER:?BOX_USER must be set}
@@ -94,9 +97,19 @@ role_06_ssh_hardening() {
   verdict 06_ssh_hardening CHANGED "$f"
 }
 
+role_07_timezone() {
+  local tz="${BOX_TIMEZONE:-Europe/Helsinki}" cur
+  [[ -f "/usr/share/zoneinfo/$tz" ]] || { verdict 07_timezone FAIL "unknown zone $tz"; return; }
+  cur=$(timedatectl show -p Timezone --value 2>/dev/null)
+  [[ "$cur" == "$tz" ]] && { verdict 07_timezone OK "$tz"; return; }
+  timedatectl set-timezone "$tz" || { verdict 07_timezone FAIL "timedatectl set-timezone $tz"; return; }
+  verdict 07_timezone CHANGED "${cur:-?} -> $tz"
+}
+
 role_01_data_disk
 role_03_os_packages
 role_02_os_user
 role_06_ssh_hardening
+role_07_timezone
 echo "SETUP fails=$fails"
 exit $((fails > 0))

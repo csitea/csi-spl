@@ -123,6 +123,7 @@ echo "cfg memory $(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -type d
 [ -n "$(git config --global user.email)" ] && echo "cfg git ok"
 gh auth status -h github.com >/dev/null 2>&1 && echo "cfg gh ok"
 docker info >/dev/null 2>&1 && echo "cfg docker ok"
+echo "cfg tz $(timedatectl show -p Timezone --value 2>/dev/null)"
 [ "$(claude auth status --json 2>/dev/null | jq -r .loggedIn 2>/dev/null)" = true ] && echo "cfg claude-login ok"
 [ -d "$DIR/tpl-gen/src/python/tpl-gen/.venv" ] && echo "cfg tpl-gen ok"
 REMOTE
@@ -133,7 +134,8 @@ REMOTE
     git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" claude-login:"claude is logged in (claude auth status)" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
     grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${c#*:}" || ko "${c#*:}"
   done
-  local n
+  local n tz="${BOX_TIMEZONE:-Europe/Helsinki}"
+  n=$(sed -n 's/^cfg tz //p' <<<"$remote"); [[ "$n" == "$tz" ]] && ok "timezone $tz" || ko "timezone $tz (is ${n:-?})"
   n=$(sed -n 's/^cfg skills //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/skills: $n" || ko "~/.claude/skills: ${n:-0}"
   n=$(sed -n 's/^cfg memory //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/projects/*/memory: $n" || ko "~/.claude/projects/*/memory: ${n:-0}"
 }

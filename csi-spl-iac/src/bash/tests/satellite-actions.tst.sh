@@ -161,6 +161,9 @@ grep -q 'PARTS=home' "$PROJ_PATH/src/bash/run/satellite-home-persist.func.sh" &&
   && pass "do_satellite_home_persist sends no box file" || fail "do_satellite_home_persist may copy box files"
 grep -q 'claude auth status --json .*jq -r .loggedIn' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" \
   && pass "verify reads only claude's loggedIn flag" || fail "verify does not check the claude login (loggedIn)"
+grep -q '^role_07_timezone$' "$bs" && grep -q 'timedatectl set-timezone' "$bs" && grep -q 'BOX_TIMEZONE:-Europe/Helsinki' "$bs" \
+  && pass "setup role 07 sets the timezone (default Europe/Helsinki)" || fail "setup has no timezone role"
+grep -q 'ok "timezone \$tz"' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" && pass "verify has the timezone row" || fail "verify has no timezone row"
 cc="$PROJ_PATH/src/bash/run/satellite-claude-config.func.sh"
 # shellcheck disable=SC1090
 source "$cc"

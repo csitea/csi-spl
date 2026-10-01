@@ -1334,20 +1334,14 @@ textarea.in-code {
 .omnibox--bottom .composer-target[data-mode=thread] svg { color: var(--composer-mode, var(--color-accent)); flex: none; }
 /*
  * HUM-24 (CLE-77879): "creating a new topic must look different from writing
- * a reply". Each mode has one accent (variables.css --color-mode-*): the
- * field's start edge and border carry it, with the placeholder and the GO
- * words. No chip and no line over the box (owner, t1 7d777e79 / dd98f8d7:
- * a "Reply" pill in the top bar read as a stray button). Search mode and no
- * target stay neutral.
+ * a reply". The box keeps its ONE ordinary border in every mode (owner, t1
+ * 76b356b2: "some kind of double bordering ... Remove the lilac one" - the
+ * coloured start edge is gone); the mode is the placeholder ("Message #x"
+ * vs "Reply"), the reply arrow left of the box and the GO words. No chip and
+ * no line over the box (t1 7d777e79 / dd98f8d7 / be8fed75).
  */
-.composer:is([data-mode=new], [data-mode=dm]) { --composer-mode: var(--color-mode-new); }
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
-.composer.omnibox--global[data-mode]:not([data-mode=search]) .omnibox-field {
-  border-color: color-mix(in srgb, var(--composer-mode) 45%, var(--color-border));
-  border-inline-start: 3px solid var(--composer-mode);
-  padding-inline-start: 6px;
-}
 .composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
 .composer-reply-mark {
   display: inline-flex;

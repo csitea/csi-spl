@@ -411,9 +411,8 @@ html.pane-dragging * {
   resize: none;
 }
 .msg-edit-box:disabled { opacity: .7; cursor: progress; }
-/* HUM-24 (CLE-77879): an edit in place looks like an edit - a label over the
-   box and the edit accent down its start edge, never the composer's look */
-.msg-edit-box { border-inline-start: 3px solid var(--color-mode-edit); }
+/* HUM-24 (CLE-77879): an edit in place says so in a label over the box; the
+   box keeps its one border (owner, t1 76b356b2: no second coloured edge) */
 .msg-edit-mode {
   display: flex;
   align-items: center;

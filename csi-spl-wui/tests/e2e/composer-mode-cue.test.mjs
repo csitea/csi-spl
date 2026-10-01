@@ -3,15 +3,17 @@
 // topic must look different from writing a reply in the chat".
 //
 // Every composer mode now shows its own cue - a label, an accent on the
-// field's start edge, a placeholder and GO words of its own:
+// reply arrow, a placeholder and GO words of its own - and ONE ordinary
+// border in every mode (owner, t1 76b356b2: "double bordering ... Remove the
+// lilac one"):
 //
 //   desktop 1440x900, /channel/alerts (dark and light):
 //     NO chip and no text anywhere outside the box (owner, t1 7d777e79: first
 //     "reply : <<the title>> is a bug", then at 14:24Z "some kind of reply
 //     button there in the wrong place" - the one-word "Reply" chip)
-//     1 the list: data-mode new (purple edge), GO "Start topic",
+//     1 the list: data-mode new, one plain border, GO "Start topic",
 //       placeholder "Message #alerts - ..." (unchanged), one line in the bar
-//     2 click a card (its thread opens): data-mode thread (cyan edge), GO
+//     2 click a card (its thread opens): data-mode thread, the same border, GO
 //       "Send reply", placeholder "Reply - ..."
 //     3 close the thread: back to 1
 //     4 /dm/CLE-07@box-a: data-mode dm, GO "Start topic"
@@ -83,6 +85,8 @@ function cue(p) {
       line: line ? line.textContent.trim() : null,
       edge: cs ? cs.borderInlineStartColor : '',
       edgeW: cs ? cs.borderInlineStartWidth : '',
+      /* one border: every side the same width and colour (no mode edge/ring) */
+      single: cs ? (cs.borderInlineStartWidth === cs.borderTopWidth && cs.borderInlineStartColor === cs.borderTopColor && cs.borderTopWidth === '1px') : false,
       fieldH: field ? Math.round(field.getBoundingClientRect().height) : 0,
       /* owner, t1 be8fed75: the open thread's cue is ONE small arrow just
          left of the box; markGap = field's start edge - arrow's end edge */
@@ -148,8 +152,8 @@ async function desktopCase(browser, theme) {
   await shot(p, `new-1440-${theme}`)
   ok(`${tag} 1 the list: no chip anywhere, no reply arrow, the form is mode new`,
     Boolean(c1 && c1.mode === 'new' && c1.chip === null && c1.line === null && c1.mark === null), c1)
-  ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", the start edge is 3px`,
-    Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.edgeW === '3px'), c1)
+  ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", ONE plain 1px border (no lilac edge)`,
+    Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.single), c1)
   /* a long chip squeezed the placeholder in the first cut (4.8.7) */
   ok(`${tag} 1 the field stays one line in the bar (<= 50 px)`,
     Boolean(c1 && c1.fieldH > 0 && c1.fieldH <= 50), { fieldH: c1 && c1.fieldH })
@@ -163,7 +167,7 @@ async function desktopCase(browser, theme) {
   ok(`${tag} 2 a thread open: no chip, no text; only the small arrow, right at the box's left edge`,
     Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark && c2.mark.text === '' && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.mark.w <= 20), c2)
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
-  ok(`${tag} 2 the reply accent differs from the new-topic accent`, Boolean(c1 && c2 && c1.edge && c2.edge && c1.edge !== c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
+  ok(`${tag} 2 the reply box has the very same single border as a new topic`, Boolean(c1 && c2 && c2.single && c1.edge === c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
   await p.evaluate(() => {
     const b = [...document.querySelectorAll('[data-test=topic-pane-close],[data-test=live-topic-close]')].find((el) => el.getClientRects().length > 0)
@@ -203,11 +207,11 @@ async function editCase(browser) {
     const label = row && row.querySelector('[data-test=msg-edit-mode]')
     const box = row && row.querySelector('[data-test=msg-edit-box]')
     const cs = box ? getComputedStyle(box) : null
-    return { label: label ? label.textContent.trim() : null, edgeW: cs ? cs.borderInlineStartWidth : '' }
+    return { label: label ? label.textContent.trim() : null, single: cs ? (cs.borderInlineStartWidth === cs.borderTopWidth && cs.borderInlineStartColor === cs.borderTopColor) : false }
   }, OWN_MSG)
   await shot(p, 'edit-1440-dark')
-  ok('1440 5 `e` on an own message: "Editing this message" over the box, a 3px edit edge',
-    focused && shown && seen.label === 'Editing this message' && seen.edgeW === '3px', { focused, shown, ...seen })
+  ok('1440 5 `e` on an own message: "Editing this message" over the box, which keeps ONE border',
+    focused && shown && seen.label === 'Editing this message' && seen.single, { focused, shown, ...seen })
   ok('1440 5 no page error', errors.length === 0, errors)
   await p.close()
 }
@@ -218,8 +222,8 @@ async function phoneCase(browser) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, 'new-390-dark')
-  ok('390 6 no text line above the dock, no chip, no arrow: mode new (accent edge), placeholder "Message #alerts"',
-    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.edgeW === '3px' && c1.placeholder.startsWith('Message #alerts')), c1)
+  ok('390 6 no text line above the dock, no chip, no arrow: mode new, ONE plain border, placeholder "Message #alerts"',
+    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.single && c1.placeholder.startsWith('Message #alerts')), c1)
   /* owner, t1 be8fed75: "no more than 2 mm after the omnibox border" (~8 px) */
   ok('390 6 the dock leaves at most 8 px between its edge and the box border, above and at the side',
     Boolean(c1 && c1.gap && c1.gap.top <= 8 && c1.gap.left <= 8), c1 && c1.gap)
@@ -228,8 +232,8 @@ async function phoneCase(browser) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, 'reply-390-dark')
-  ok('390 6 a thread open: still no line, the arrow just left of the box, mode thread (a different edge), placeholder "Reply", GO "Send reply"',
-    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.placeholder.startsWith('Reply') && c2.edge !== c1.edge && c2.go === 'Send reply'), c2)
+  ok('390 6 a thread open: still no line, the arrow just left of the box, the same single border, placeholder "Reply", GO "Send reply"',
+    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.placeholder.startsWith('Reply') && c2.single && c2.edge === c1.edge && c2.go === 'Send reply'), c2)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

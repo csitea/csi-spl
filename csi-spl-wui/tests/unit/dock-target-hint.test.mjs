@@ -131,7 +131,9 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.match(c, /dockHint\.mode === 'thread'"\n\s+class="composer-reply-mark"/)
     assert.match(c, /:data-mode="modeAttr"/)
     assert.match(c, /t\(sendKey\)/)
-    assert.match(c, /\.composer\.omnibox--global\[data-mode\]:not\(\[data-mode=search\]\) \.omnibox-field \{/)
+    /* owner, t1 76b356b2: "double bordering ... Remove the lilac one" */
+    assert.doesNotMatch(c, /border-inline-start: 3px solid var\(--composer-mode\)/)
+    assert.doesNotMatch(c, /\.omnibox-field \{\n\s+border-color: color-mix\(in srgb, var\(--composer-mode\)/)
     assert.doesNotMatch(src('src/components/TopBar.vue'), /threadTitle/)
     assert.match(src('src/pages/dm/[peer].vue'), /dm: true \}\)/)
     /* 4.8.7 regression: "New topic in #x — Enter for a new line · Ctrl+Ent…"
@@ -143,9 +145,9 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.match(src('src/components/MessageCard.vue'), /data-test="msg-edit-mode"/)
   })
 
-  it('each mode accent is defined for the dark default and every light theme', () => {
+  it('the reply arrow and edit accents are defined for the dark default and every light theme', () => {
     const v = src('src/assets/css/variables.css')
-    for (const k of ['--color-mode-new', '--color-mode-reply', '--color-mode-edit']) {
+    for (const k of ['--color-mode-reply', '--color-mode-edit']) {
       assert.equal((v.match(new RegExp(`${k}:`, 'g')) || []).length, 2, k)
     }
     assert.match(v, /:root\[data-theme\^="light"\] \{/)

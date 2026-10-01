@@ -371,16 +371,14 @@
   --color-btn-select-fg: #f4f8ff;
 }
 
-/* HUM-24 (CLE-77879): the composer's mode accents - a new topic, a reply in
-   a thread, an edit in place. Each clears 3:1 (non-text) on --color-composer
+/* HUM-24 (CLE-77879): the composer's accents - the reply arrow in a thread
+   and an edit in place. Each clears 3:1 (non-text) on --color-composer
    and --color-bg-2 in its theme family; every light-* theme shares one set. */
 :root {
-  --color-mode-new: #a06bff;
   --color-mode-reply: #34d5f0;
   --color-mode-edit: #e3b341;
 }
 :root[data-theme^="light"] {
-  --color-mode-new: #6a35d6;
   --color-mode-reply: #0a7ea3;
   --color-mode-edit: #8a6100;
 }

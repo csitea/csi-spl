@@ -163,8 +163,12 @@
         </span>
         <!-- SPL-982 (owner, topic 8296eeec): the reactions sit in the header,
              3px after the Add-emoji icon; one chip per emoji, its count from 2
-             people on, and its tooltip names who reacted -->
-        <span v-if="chips.length && !titleOnly && !mobile" class="msg-reactions" data-testid="msg-reactions">
+             people on, and its tooltip names who reacted.
+             CLE-77873 (owner, t1 d6c9661e): the titles view keeps this header
+             line and its smile, so it keeps the chips too. Hiding them there
+             (an SPL-943 gate from when they were a strip under the body) made
+             every pick a silent toggle: added, removed, added, nothing seen. -->
+        <span v-if="chips.length && !mobile" class="msg-reactions" data-testid="msg-reactions">
           <button
             v-for="chip in chips"
             :key="chip.emoji"
@@ -281,7 +285,7 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
       </p>
-      <p v-if="reactError && !titleOnly" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
+      <p v-if="reactError" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
       </p>
@@ -999,7 +1003,7 @@ function chipTitle(chip: { emoji: string, actors: string[] }) {
   return who ? `${name} · ${who}` : name
 }
 /* SPL-1007: a phone draws the chips inside Add emoji; its name reads them out */
-const phoneChips = computed(() => mobile.value && chips.value.length > 0 && !titleOnly.value)
+const phoneChips = computed(() => mobile.value && chips.value.length > 0)
 const emojiBtnName = computed(() => [t('feed.emoji.add'), ...chips.value.map((c) => (c.mine
   ? t('feed.emoji.mine', { emoji: emojiLabel(c.emoji) })
   : t('feed.emoji.chip', { emoji: emojiLabel(c.emoji), n: c.count })))].join(', '))

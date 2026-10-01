@@ -16,11 +16,19 @@ describe('titles view is one line (SPL-943)', () => {
     assert.match(vue, /\.msg-title \{[^}]*overflow:\s*hidden/s)
   })
 
-  it('reactions, the emoji error, and the open icon are not part of a titles card', () => {
-    assert.match(vue, /v-if="chips\.length && !titleOnly && !mobile"/)
-    assert.match(vue, /const phoneChips = computed\(\(\) => mobile\.value && chips\.value\.length > 0 && !titleOnly\.value\)/)
-    assert.match(vue, /v-if="reactError && !titleOnly"/)
+  it('the open icon is not part of a titles card', () => {
     assert.match(vue, /v-if="topicLink && !titleOnly"/)
     assert.match(vue, /const titleOnly = computed\(\(\) => props\.clipMode === 'titles' && !editing\.value\)/)
+  })
+
+  /* CLE-77873 (owner, t1 d6c9661e): SPL-982 moved the chips INTO the header
+     line a titles card keeps, beside its smile; gated off there, a pick
+     toggled with nothing drawn. The chips and the failure note follow the
+     smile, never the height mode. */
+  it('a titles card keeps its reaction chips and the emoji error', () => {
+    assert.match(vue, /v-if="chips\.length && !mobile" class="msg-reactions" data-testid="msg-reactions"/)
+    assert.match(vue, /const phoneChips = computed\(\(\) => mobile\.value && chips\.value\.length > 0\)/)
+    assert.match(vue, /v-if="reactError" class="msg-edit-error" role="alert" data-testid="msg-emoji-error"/)
+    assert.doesNotMatch(vue, /chips[^"\n]*titleOnly|reactError && !titleOnly/)
   })
 })

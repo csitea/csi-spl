@@ -49,7 +49,7 @@ describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon'
     assert.ok(meta.indexOf('data-testid="msg-reactions"') > meta.indexOf('data-testid="msg-emoji-btn"'))
     /* one strip per card: the desktop strip, or (SPL-1007) the phone one inside Add emoji */
     assert.equal(vue.split('data-testid="msg-reactions"').length - 1, 2)
-    assert.match(vue, /v-if="chips\.length && !titleOnly && !mobile" class="msg-reactions" data-testid="msg-reactions"/)
+    assert.match(vue, /v-if="chips\.length && !mobile" class="msg-reactions" data-testid="msg-reactions"/)
     assert.match(vue, /v-if="phoneChips" class="msg-reactions msg-reactions--phone" data-testid="msg-reactions"/)
   })
   it('paints emoji, chips, (edited), spacer, then the right-hand controls', () => {

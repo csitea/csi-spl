@@ -13,6 +13,9 @@
 #  10. do_spl_desk_edit (specs/032 §10) refuses a bad MSG_ID / empty body /
 #      both body sources, then runs `spool edit --msg-id --as` and names a
 #      not_author refusal as another box's message
+#  12. do_spl_topic_archive (CLE-77869) refuses a bad TOPIC / MODE / agent,
+#      sends nothing in a dry run, then runs `spool archive --task --as`
+#      (+ --unarchive) and names the hub's issue_topic / not_allowed refusals
 #   9. do_spl_issue_* (specs/039) refuse bad fields, send only the set ones
 #      before it reads anything, sends `spool send --channel` with the
 #      normalized channel and the put files' ids, and names a non-member
@@ -620,6 +623,43 @@ out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" FAKE_REFU
   DESK_BODY=x DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"only the box that sent a message can edit it"* ]] && pass "a not_author refusal is named as another box's message" ||
   fail "not_author refusal (rc=$rc): $out"
+
+# --- 12. the topic archive leg (CLE-77869) ----------------------------------------
+ARC_TOPIC=e2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f
+cat >"$T/fakearchive" <<'FAKE'
+#!/bin/sh
+printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
+[ -n "${FAKE_REFUSE:-}" ] && { echo "spool: hub refused: $FAKE_REFUSE (refused)" >&2; exit 78; }
+echo '{"msg_id":"0f8fad5b-d9cb-469f-a165-70867728950e","task_id":"e2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f","archived":true,"archived_by":"CLE-00"}'
+FAKE
+chmod +x "$T/fakearchive"; : >"$T/archive.log"
+mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+ARC='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_topic_archive'
+out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *DRY_RUN*"archive topic $ARC_TOPIC"* && ! -s "$T/archive.log" ]] &&
+  pass "do_spl_topic_archive: the dry run says what it would do and sends nothing" || fail "archive dry run (rc=$rc): $out"
+for bad in "TOPIC=" "TOPIC=NOT-A-UUID" "TOPIC=E2C3FBAD-C8DF-42D3-8233-2D7E8D5A0C2F" "MODE=delete" "DESK_AGENT=box-desk" "TENANT_ID=T1"; do
+  if SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC \
+       DRY_RUN=0 "$bad" >"$T/o" 2>&1; then
+    fail "do_spl_topic_archive refuses $bad: $(cat "$T/o")"
+  else
+    grep -q FATAL "$T/o" && pass "do_spl_topic_archive refuses $bad" || fail "do_spl_topic_archive refuses $bad without saying why: $(cat "$T/o")"
+  fi
+done
+[[ ! -s "$T/archive.log" ]] && pass "CONTROL no refused archive reached spool" || fail "a refused archive ran spool: $(cat "$T/archive.log")"
+out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"archived": true'* && "$out" == *'"mode": "archive"'* ]] &&
+  tail -1 "$T/archive.log" | grep -qx "archive|--task|$ARC_TOPIC|--as|CLE-00|" &&
+  pass "do_spl_topic_archive runs spool archive --task --as and prints the hub's answer" ||
+  fail "archive (rc=$rc): $out / $(tail -1 "$T/archive.log")"
+out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC MODE=unarchive DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/archive.log" | grep -qx "archive|--task|$ARC_TOPIC|--as|CLE-00|--unarchive|" &&
+  pass "MODE=unarchive rides as --unarchive" || fail "unarchive (rc=$rc): $out / $(tail -1 "$T/archive.log")"
+for tok in "issue_topic:archived with its issue" "not_allowed:Who can archive topics" "not_found:never delivered to the desk"; do
+  out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" FAKE_REFUSE="${tok%%:*}" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    TOPIC=$ARC_TOPIC DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
+done
 
 # --- 11. desk_down never takes the other seated agents offline (SPL-1004) ----------
 # 2026-09-27 11:47Z: an agent closing its lane ran DESK_AGENT=<itself>

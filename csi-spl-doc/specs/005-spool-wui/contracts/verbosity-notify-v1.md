@@ -60,6 +60,17 @@ Escalation **effects**, independently:
 
 Own messages (`from === selfId`) never escalate and never increment unread.
 
+**Amended 2026-10-01 (bug A, t1 5002067f, CLE-77848).** A member reported
+"notifications for new messages are enabled, but no signal comes": under the
+rule above an ordinary reply raised only a badge. Since then the **chime and
+the Web Notification** fire on **every** new message not from the signed-in
+identity, unless its channel is muted (a DM is never muted by a channel) or it
+lands in the open feed while the tab is focused. Escalation still decides the
+alert's title (`notify.title_*`) and the mention badge. Each alert carries
+`tag = <channel key>`, so a feed keeps one, and the chime plays at most once
+per 2 s. The tab title leads with the unread total, `(n) <title>`, not
+counting muted channels.
+
 ## 3. Read cursors are local (OQ-W5 (a), aligns with 003 OQ-CH2 (a))
 
 M3 stores last-read `{ ts, id }` per key in `localStorage`

@@ -153,6 +153,13 @@ agree:
   **marimba** or **boing** — each with a **Preview** button that plays it.
   The chime and its sound are kept per browser.
 
+**When it signals.** Every new message from someone else plays the chime and
+raises a browser alert, unless its channel is muted or you are already looking
+at it (the same feed, in the tab in front). A burst plays one chime, and each
+feed keeps one alert, the newest. The tab title leads with your unread count,
+e.g. `(3) spool-hub`. On Android, Chrome shows the alerts as they are; on an
+iPhone, add Spool to the Home Screen first, as Safari tabs get no alerts.
+
 ---
 
 ## 7. Sign-in & security (`/settings/security`)

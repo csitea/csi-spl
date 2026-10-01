@@ -64,8 +64,9 @@ do_gcp_001_create_project() {
   # convention, so a worktree-derived ORG/APP cannot name a new project.
   local cnf_file="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.yaml"
   local cnf_proj=""
-  if [[ -f "${cnf_file}" ]] && command -v yq &>/dev/null; then
-    cnf_proj=$(yq -r '.env.gcp.gcp_project' "${cnf_file}" 2>/dev/null)
+  # ENV=all: all.env.yaml is the SHARED base, not csi-spl-all's env file
+  if [[ "${ENV}" != all && -f "${cnf_file}" ]] && command -v yq &>/dev/null; then
+    cnf_proj=$(yq -r '.env.gcp.gcp_project // ""' "${cnf_file}" 2>/dev/null)
   fi
   local proj_id="${ORG}-${APP}-${ENV}"
   if [[ -n "${cnf_proj}" && "${cnf_proj}" != "${proj_id}" ]]; then

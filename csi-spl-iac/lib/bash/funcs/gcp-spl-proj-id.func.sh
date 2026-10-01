@@ -17,8 +17,10 @@ do_gcp_spl_proj_id() {
   local proj_id="${ORG}-${APP}-${ENV}"
   local cnf_file="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.yaml"
   local cnf_proj=""
-  if [[ -f "${cnf_file}" ]] && command -v yq &>/dev/null; then
-    cnf_proj=$(yq -r '.env.gcp.gcp_project' "${cnf_file}" 2>/dev/null)
+  # ENV=all: all.env.yaml is the SHARED base every env merges, not an env
+  # file of csi-spl-all, so it never names a project; the convention decides
+  if [[ "${ENV}" != all && -f "${cnf_file}" ]] && command -v yq &>/dev/null; then
+    cnf_proj=$(yq -r '.env.gcp.gcp_project // ""' "${cnf_file}" 2>/dev/null)
   fi
   if [[ -n "${cnf_proj}" && "${cnf_proj}" != "${proj_id}" ]]; then
     do_log "FATAL ${cnf_file} says gcp_project=${cnf_proj}, the convention says ${proj_id}; refusing"

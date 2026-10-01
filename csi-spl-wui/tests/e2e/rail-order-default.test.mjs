@@ -51,6 +51,9 @@ const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
 /* the owner's stored order on prd (humans.rail_order, measured 2026-09-27); a
    legacy seven-tab claim, drawn with people + agents appended (parseRailOrder). */
 const STORED = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'archive']
+/* CLE-77916 (owner, t1 topic 5463df22): Archive is ALWAYS last and not
+   draggable. A stored order with Archive first is drawn with it last. */
+const ARCHIVE_FIRST = ['archive', 'channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes']
 
 /** Sign in as a member; `order` undefined = never reordered (the claim is absent). */
 const signIn = (p, order) => p.evaluate((order) => {
@@ -67,10 +70,44 @@ const go = (p, path) => p.evaluate((path) => document.querySelector('#__nuxt')._
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const railOf = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
 
+/* CLE-77916: press a tab and move it one tab along the rail's own axis with the
+   mouse (a desktop window at phone width is a row): the preview moves it ONE
+   place - measured on the wrong axis it jumped to the first or last index.
+   Pressing Archive and moving it previews nothing. Released with Escape-free
+   pointercancel so nothing is saved. */
+async function dragProbe(p, tag, rail) {
+  const boxes = await p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.map((e) => {
+    const r = e.getBoundingClientRect()
+    return { id: e.getAttribute('data-reorder-id'), x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }
+  }))
+  const row = Math.abs(boxes.at(-1).x - boxes[0].x) > Math.abs(boxes.at(-1).y - boxes[0].y)
+  const a = boxes[1]
+  const step = row ? { x: boxes[2].x - a.x + 4, y: 0 } : { x: 0, y: boxes[2].y - a.y + 4 }
+  await p.mouse.move(a.x, a.y)
+  await p.mouse.down()
+  for (let i = 1; i <= 6; i++) await p.mouse.move(a.x + (step.x * i) / 6, a.y + (step.y * i) / 6)
+  await sleep(100)
+  const mid = await railOf(p)
+  const expect = [rail[0], rail[2], rail[1], ...rail.slice(3)]
+  check(`${tag}: a drag by one tab along the ${row ? 'row' : 'column'} moves it one place`, same(mid, expect), { mid })
+  await p.evaluate(() => window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, isPrimary: true, pointerType: 'mouse' })))
+  await p.mouse.up()
+  await sleep(100)
+  const arch = boxes.find((b) => b.id === 'archive')
+  await p.mouse.move(arch.x, arch.y)
+  await p.mouse.down()
+  for (let i = 1; i <= 6; i++) await p.mouse.move(arch.x - (row ? arch.w * i / 3 : 0), arch.y - (row ? 0 : arch.h * i / 3))
+  await sleep(100)
+  const still = await railOf(p)
+  check(`${tag}: pressing and moving Archive moves nothing`, same(still, rail), { still })
+  await p.mouse.up()
+  await sleep(100)
+}
+
 async function run(browser, base, width, touch) {
   const p = await browser.newPage()
   await p.setViewport({ width, height: 800, isMobile: touch, hasTouch: touch })
-  for (const [who, order] of [['fresh user (never reordered)', undefined], ['stored order', STORED]]) {
+  for (const [who, order] of [['fresh user (never reordered)', undefined], ['stored order', STORED], ['stored order with Archive first', ARCHIVE_FIRST]]) {
     const tag = `${width}px ${who}`
     /* the rail draws parseRailOrder(claim): the 9-tab default for a fresh user,
        the stored order with people + agents appended for a legacy claim. */
@@ -83,11 +120,17 @@ async function run(browser, base, width, touch) {
     await sleep(400)
     const rail = await railOf(p)
     check(`${tag}: the rail draws ${order ? 'the stored order, unchanged' : 'the new default'}`, same(rail, want), { rail })
+    check(`${tag}: Archive is the last section`, rail.at(-1) === 'archive', { last: rail.at(-1) })
+    const pinned = await p.$$eval('[data-testid=sidebar-rail] [data-pinned=last]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
+    check(`${tag}: Archive, and only Archive, is not draggable`, same(pinned, ['archive']), { pinned })
+    await dragProbe(p, tag, rail)
     await go(p, '/settings/behaviour')
     await p.waitForSelector('[data-test=rail-order-list] [data-reorder-id]', { timeout: NAV })
     await sleep(300)
     const list = await p.$$eval('[data-test=rail-order-list] [data-reorder-id]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
     check(`${tag}: Settings -> Behaviour lists the same order`, same(list, want), { list })
+    const archiveCtl = await p.$$('[data-test=rail-order-up-archive], [data-test=rail-order-down-archive]')
+    check(`${tag}: Settings offers no Move up / down for Archive`, archiveCtl.length === 0, { n: archiveCtl.length })
   }
   await p.close()
 }

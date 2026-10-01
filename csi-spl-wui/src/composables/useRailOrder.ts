@@ -3,7 +3,7 @@
 // claim (kept on the hub), so a drop in either place redraws both at once.
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { applyRailOrder, parseRailOrder, type RailId } from '~/utils/rail-order.mjs'
+import { applyRailOrder, parseRailOrder, pinRailOrder, type RailId } from '~/utils/rail-order.mjs'
 
 export function useRailOrder() {
   const session = useSessionStore()
@@ -27,5 +27,8 @@ export function useRailOrder() {
     }
   }
 
-  return { order, custom, saving, save }
+  /* CLE-77916: Archive stays last in a drag preview too */
+  const normalize = (o: RailId[]) => pinRailOrder(o)
+
+  return { order, custom, saving, save, normalize }
 }

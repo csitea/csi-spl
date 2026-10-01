@@ -16,7 +16,10 @@
         :data-reorder-id="item.id"
         :data-test="`rail-order-row-${item.id}`"
       >
+        <!-- CLE-77916 (owner, t1 topic 5463df22): Archive is always last and
+             the one row that does not move: no grip, no up / down -->
         <span
+          v-if="item.movable"
           class="rail-order__grip"
           :title="t('settings.rail_order.drag')"
           aria-hidden="true"
@@ -24,9 +27,11 @@
         >
           <UiIcon name="grip" :size="18" />
         </span>
+        <span v-else class="rail-order__grip rail-order__grip--pinned" aria-hidden="true" :data-test="`rail-order-pinned-${item.id}`" />
         <UiIcon :name="item.icon" :size="18" />
         <span class="rail-order__name">{{ t(item.labelKey) }}</span>
         <button
+          v-if="item.movable"
           type="button"
           class="icon-btn"
           :disabled="i === 0 || rail.saving.value"
@@ -38,9 +43,10 @@
           <UiIcon name="chevron-up" :size="18" />
         </button>
         <button
+          v-if="item.movable"
           type="button"
           class="icon-btn"
-          :disabled="i === rows.length - 1 || rail.saving.value"
+          :disabled="i === lastMovable || rail.saving.value"
           :aria-label="t('settings.rail_order.down', { name: t(item.labelKey) })"
           :title="t('settings.rail_order.down', { name: t(item.labelKey) })"
           :data-test="`rail-order-down-${item.id}`"
@@ -65,7 +71,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
-import { RAIL_TABS, moveBy, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, isRailMovable, moveBy, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -84,6 +90,7 @@ const drag = useDragReorder<RailId>({
   order: () => rail.order.value,
   items: () => [...(listEl.value?.querySelectorAll<HTMLElement>('[data-reorder-id]') || [])],
   onDrop: (next) => { void store(next) },
+  normalize: rail.normalize,
 })
 const BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
 const mobileStack = useMobileStack()
@@ -91,7 +98,13 @@ const mobileStack = useMobileStack()
 const rows = computed(() => (drag.preview.value || rail.order.value)
   .map((id) => BY_ID.get(id))
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
-  .map((item) => ({ ...item, labelKey: railLabelKey(item, mobileStack.isMobile.value) })))
+  .map((item) => ({ ...item, labelKey: railLabelKey(item, mobileStack.isMobile.value), movable: isRailMovable(item.id) })))
+/* the last row a Move down can reach: the one above the pinned Archive */
+const lastMovable = computed(() => {
+  let n = rows.value.length - 1
+  while (n > 0 && !rows.value[n].movable) n--
+  return n
+})
 
 async function store(next: string[] | null) {
   status.value = ''
@@ -164,6 +177,7 @@ onMounted(() => { if (session.state === 'loading') void session.probe() })
   color: var(--color-muted);
 }
 .rail-order__row--dragging .rail-order__grip { cursor: grabbing; }
+.rail-order__grip--pinned { cursor: default; }
 .rail-order__name {
   flex: 1;
   min-width: 0;

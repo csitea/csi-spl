@@ -25,7 +25,7 @@
         :key="item.id"
         type="button"
         class="sidebar-tab"
-        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': true }"
+        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': item.movable }"
         role="tab"
         :data-testid="'sidebar-tab-' + item.id"
         :data-reorder-id="item.id"
@@ -34,7 +34,8 @@
         :tabindex="tab === item.id ? 0 : -1"
         :aria-label="t(item.labelKey)"
         :title="t(item.labelKey)"
-        @pointerdown="railDrag.down($event, item.id as RailId)"
+        :data-pinned="item.movable ? undefined : 'last'"
+        @pointerdown="item.movable && railDrag.down($event, item.id as RailId)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
       >
@@ -725,7 +726,7 @@ import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
-import { RAIL_TABS, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
@@ -750,6 +751,7 @@ const railDrag = useDragReorder<RailId>({
   order: () => railOrder.order.value,
   items: () => [...(railEl.value?.querySelectorAll<HTMLElement>('[data-reorder-id]') || [])],
   onDrop: (next) => { void railOrder.save(next) },
+  normalize: railOrder.normalize,
 })
 const RAIL_BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
 /* CLE-77904 (owner, t1 topic cb12574f): on a phone the DM section is named
@@ -758,7 +760,8 @@ const phone = useMobileStack().isMobile
 const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .map((id) => RAIL_BY_ID.get(id))
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
-  .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: railLabelKey(item, phone.value) })))
+  /* CLE-77916 (owner, t1 topic 5463df22): Archive is last and not draggable */
+  .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: railLabelKey(item, phone.value), movable: isRailMovable(item.id) })))
 const dmLabelKey = computed(() => railLabelKey(RAIL_BY_ID.get('dm') || { labelKey: 'sidebar.direct_messages' }, phone.value))
 const tab = ref<SideTab>('dm')
 const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'agents', 'boxes'])

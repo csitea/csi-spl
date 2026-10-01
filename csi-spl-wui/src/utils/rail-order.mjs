@@ -8,6 +8,8 @@
 // The admin-only Users tab is not one of them: it always stays last. Since
 // SPL-983 there are seven (Archive); an order stored before that holds six
 // and is drawn with the missing tab appended (parseRailOrder).
+// CLE-77916 (owner, t1 topic 5463df22): Archive is ALWAYS the last section and
+// the one that cannot be dragged (RAIL_PINNED_LAST, pinRailOrder).
 
 /** The six tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS = Object.freeze([
@@ -46,7 +48,30 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'boxes', icon: 'server', labelKey: 'sidebar.boxes' }),
 ])
 
+/** Every rail id, in the hub's list (auth.RailTabs) - a set, not the drawn order. */
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
+
+/**
+ * CLE-77916 (owner, t1 topic 5463df22, 2026-10-01: "its place should be
+ * ALWAYS at the bottom and it must be the only one which is NOT draggable"):
+ * Archive ends every drawn and every saved order, whatever was stored.
+ */
+export const RAIL_PINNED_LAST = 'archive'
+
+/** `order` with the pinned tab moved to the end (a copy; absent stays absent). */
+export function pinRailOrder(order) {
+  const out = order.filter((id) => id !== RAIL_PINNED_LAST)
+  if (out.length !== order.length) out.push(RAIL_PINNED_LAST)
+  return out
+}
+
+/** The order a never-reordered person sees: RAIL_IDS with Archive last. */
+export const DEFAULT_RAIL_ORDER = Object.freeze(pinRailOrder([...RAIL_IDS]))
+
+/** Can this rail tab be dragged / stepped? Archive cannot. */
+export function isRailMovable(id) {
+  return id !== RAIL_PINNED_LAST
+}
 
 /**
  * The catalogue key that names a rail tab: its phone name at <= 820 px
@@ -72,15 +97,16 @@ export function isRailOrder(raw) {
  * The order to draw: the stored one, tolerant of a tab added since it was
  * stored (SPL-983 Archive: an order saved with six ids keeps them in place
  * and gets the new tab appended). Unknown and repeated ids are dropped; no
- * stored order at all is the default order.
+ * stored order at all is the default order. Archive is always last
+ * (CLE-77916), so an order stored with it elsewhere is drawn repaired.
  */
 export function parseRailOrder(raw) {
-  if (!Array.isArray(raw)) return [...RAIL_IDS]
+  if (!Array.isArray(raw)) return [...DEFAULT_RAIL_ORDER]
   const out = []
   for (const id of raw) if (RAIL_IDS.includes(id) && !out.includes(id)) out.push(id)
-  if (out.length === 0) return [...RAIL_IDS]
+  if (out.length === 0) return [...DEFAULT_RAIL_ORDER]
   for (const id of RAIL_IDS) if (!out.includes(id)) out.push(id)
-  return out
+  return pinRailOrder(out)
 }
 
 export function sameOrder(a, b) {
@@ -107,7 +133,8 @@ export function moveBy(order, id, delta) {
 /**
  * The index a dragged item lands on: the number of OTHER items whose middle
  * lies before the pointer. `mids` are the items' middles in their current
- * order, `from` the dragged item's index there.
+ * order, `from` the dragged item's index there, both on the list's own axis
+ * (dragAxis).
  */
 export function dropIndex(mids, from, pos) {
   let n = 0
@@ -115,6 +142,25 @@ export function dropIndex(mids, from, pos) {
     if (i !== from && pos > mids[i]) n++
   }
   return n
+}
+
+/**
+ * CLE-77916: the axis a list runs along, from its items' boxes in order: 'x'
+ * when it is laid out in a row (the phone strip), 'y' otherwise (the desktop
+ * rail, the Settings list). `sign` is -1 when the row runs right to left, so
+ * `sign * clientX` grows along the list. Measuring the strip on clientY made
+ * every sideways press-and-move a "drop" at the first or the last index - the
+ * tab under the finger jumped to an end and the order was saved.
+ * @param {{ left: number, top: number, width: number, height: number }[]} rects
+ */
+export function dragAxis(rects) {
+  if (!Array.isArray(rects) || rects.length < 2) return { axis: 'y', sign: 1 }
+  const a = rects[0]
+  const b = rects[rects.length - 1]
+  const dx = (b.left + b.width / 2) - (a.left + a.width / 2)
+  const dy = (b.top + b.height / 2) - (a.top + a.height / 2)
+  if (Math.abs(dx) > Math.abs(dy)) return { axis: 'x', sign: dx < 0 ? -1 : 1 }
+  return { axis: 'y', sign: 1 }
 }
 
 /** Past the click-versus-drag threshold? */
@@ -134,6 +180,8 @@ export async function applyRailOrder(want, { current, apply, save }) {
   /* a legacy (shorter) stored order is kept as it was on a revert */
   const prev = Array.isArray(current) && current.length > 0 ? [...current] : null
   if (want !== null && !isRailOrder(want)) return { ok: false, value: prev }
+  /* CLE-77916: whatever the caller built, Archive is saved last */
+  if (want !== null) want = pinRailOrder(want)
   if (want === null ? prev === null : (prev !== null && sameOrder(want, prev))) return { ok: true, value: prev }
   const next = want === null ? null : [...want]
   apply(next)

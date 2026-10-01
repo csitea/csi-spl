@@ -1441,6 +1441,11 @@ declare module '~/utils/rail-order.mjs' {
   export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
   export const RAIL_IDS: readonly RailId[]
+  export const RAIL_PINNED_LAST: 'archive'
+  export const DEFAULT_RAIL_ORDER: readonly RailId[]
+  export function pinRailOrder<T extends string>(order: readonly T[]): T[]
+  export function isRailMovable(id: string): boolean
+  export function dragAxis(rects: readonly { left: number, top: number, width: number, height: number }[]): { axis: 'x' | 'y', sign: 1 | -1 }
   export function railLabelKey(tab: { labelKey: string, phoneLabelKey?: string }, phone: boolean): string
   export const DRAG_THRESHOLD_PX: number
   export function isRailOrder(raw: unknown): boolean

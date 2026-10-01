@@ -18,6 +18,11 @@ import {
   isDrag,
   applyRailOrder,
   railLabelKey,
+  RAIL_PINNED_LAST,
+  DEFAULT_RAIL_ORDER,
+  pinRailOrder,
+  isRailMovable,
+  dragAxis,
 } from '../../src/utils/rail-order.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -41,16 +46,87 @@ describe('rail ids', () => {
     for (const bad of [null, [], ['dm'], ['events', 'flow', 'topics', 'issues', 'channels', 'dm'], ['agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm'], [...RAIL_IDS, 'users'], 'dm']) {
       assert.equal(isRailOrder(bad), false, JSON.stringify(bad))
     }
-    for (const none of [null, [], 'dm', ['users']]) assert.deepEqual(parseRailOrder(none), [...RAIL_IDS])
+    for (const none of [null, [], 'dm', ['users']]) assert.deepEqual(parseRailOrder(none), [...DEFAULT_RAIL_ORDER])
     /* SPL-983 / CLE-77794 / CLE-77799: an order stored before a tab existed keeps
        its place, the tabs added since (archive, people + agents, then boxes) appended */
-    assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'archive', 'people', 'agents', 'boxes'])
-    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'archive', 'events', 'people', 'agents', 'boxes'])
+    assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'people', 'agents', 'boxes', 'archive'])
+    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'archive'])
     /* a legacy nine-tab order (before Boxes) keeps its place, Boxes appended */
-    assert.deepEqual(parseRailOrder(['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents']), [...RAIL_IDS])
-    /* a stored order is kept exactly, whatever the default is (owner 2026-09-27) */
-    const owners = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'archive', 'agents', 'people', 'boxes']
+    assert.deepEqual(parseRailOrder(['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents']), [...DEFAULT_RAIL_ORDER])
+    /* a stored order is kept exactly, whatever the default is (owner 2026-09-27) - but for Archive */
+    const owners = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'agents', 'people', 'boxes', 'archive']
     assert.deepEqual(parseRailOrder(owners), owners)
+  })
+})
+
+/* CLE-77916 (owner, t1 topic 5463df22, 2026-10-01): "its place should be ALWAYS
+   at the bottom and it must be the only one which is NOT draggable" */
+describe('Archive is always last and never moves', () => {
+  it('the default order ends with Archive; every other tab keeps its default place', () => {
+    assert.equal(RAIL_PINNED_LAST, 'archive')
+    assert.equal(DEFAULT_RAIL_ORDER.at(-1), 'archive')
+    assert.deepEqual([...DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'archive'])
+    assert.ok(isRailOrder([...DEFAULT_RAIL_ORDER]), 'the hub still admits the default (a permutation)')
+    assert.equal(isRailMovable('archive'), false)
+    for (const id of RAIL_IDS.filter((x) => x !== 'archive')) assert.equal(isRailMovable(id), true, id)
+  })
+  it('a stored order with Archive first or in the middle is drawn with it last, the rest untouched', () => {
+    /* the two stored orders on prd, measured 2026-10-01 (humans.rail_order) */
+    assert.deepEqual(parseRailOrder(['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'archive', 'flow']),
+      ['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'flow', 'archive'])
+    assert.deepEqual(parseRailOrder(['dm', 'issues', 'topics', 'events', 'archive', 'people', 'agents', 'boxes', 'channels', 'flow']),
+      ['dm', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'channels', 'flow', 'archive'])
+    assert.deepEqual(parseRailOrder(['archive', 'dm', 'channels']).at(-1), 'archive')
+    assert.deepEqual(parseRailOrder(['archive', 'dm', 'channels']).slice(0, 2), ['dm', 'channels'])
+  })
+  it('an old saved order plus a tab added since: the new tab is appended, Archive stays after it', () => {
+    assert.deepEqual(parseRailOrder(['flow', 'archive', 'dm']), ['flow', 'dm', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'archive'])
+  })
+  it('pinRailOrder moves only Archive and never invents it', () => {
+    assert.deepEqual(pinRailOrder(['archive', 'dm', 'flow']), ['dm', 'flow', 'archive'])
+    assert.deepEqual(pinRailOrder(['dm', 'flow']), ['dm', 'flow'])
+  })
+  it('a drag or a save that puts Archive anywhere else is saved with it last', async () => {
+    const log = []
+    const want = ['archive', 'channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes']
+    const out = await applyRailOrder(want, { current: null, apply: (o) => log.push(o), save: async () => ({ ok: true }) })
+    assert.equal(out.value.at(-1), 'archive')
+    assert.equal(out.value[0], 'channels')
+  })
+  it('a stored order with Archive elsewhere is repaired by the next save, even of the same drawn order', async () => {
+    const stored = ['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'archive', 'flow']
+    const saved = []
+    await applyRailOrder(parseRailOrder(stored), { current: stored, apply: () => {}, save: async (o) => { saved.push(o); return { ok: true } } })
+    assert.deepEqual(saved, [parseRailOrder(stored)])
+  })
+  it('the rail and Settings do not let Archive be dragged or stepped', () => {
+    const side = read('src/components/ChannelSidebar.vue')
+    assert.match(side, /@pointerdown="item\.movable && railDrag\.down\(/)
+    assert.match(side, /normalize: railOrder\.normalize/)
+    const set = read('src/components/RailOrderSetting.vue')
+    assert.equal((set.match(/v-if="item\.movable"/g) || []).length, 3, 'grip, up and down')
+    assert.match(set, /normalize: rail\.normalize/)
+    assert.match(set, /:disabled="i === lastMovable/)
+  })
+})
+
+/* CLE-77916: the phone strip is a ROW; measured on clientY every sideways
+   press-and-move dropped the tab at the first or the last index */
+describe('dragAxis', () => {
+  const box = (left, top) => ({ left, top, width: 60, height: 52 })
+  it('a column is y, a row is x, a right-to-left row is x with sign -1', () => {
+    assert.deepEqual(dragAxis([box(0, 0), box(0, 52), box(0, 104)]), { axis: 'y', sign: 1 })
+    assert.deepEqual(dragAxis([box(0, 0), box(60, 0), box(120, 0)]), { axis: 'x', sign: 1 })
+    assert.deepEqual(dragAxis([box(120, 0), box(60, 0), box(0, 0)]), { axis: 'x', sign: -1 })
+    assert.deepEqual(dragAxis([box(0, 0)]), { axis: 'y', sign: 1 })
+  })
+  it('on a row a sideways move by one tab moves one place, not to an end', () => {
+    const rects = [0, 60, 120, 180, 240].map((l) => box(l, 0))
+    const { axis, sign } = dragAxis(rects)
+    const mids = rects.map((r) => sign * (axis === 'x' ? r.left + r.width / 2 : r.top + r.height / 2))
+    /* finger on tab 2 (x 150) moves 65 px right, past tab 3's middle: index 3 */
+    assert.equal(dropIndex(mids, 2, 215), 3)
+    assert.equal(dropIndex(mids, 2, 150), 2)
   })
 })
 
@@ -93,7 +169,7 @@ describe('applyRailOrder', () => {
       }),
     }
   }
-  const rev = ['boxes', 'agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm']
+  const rev = ['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'archive']
   it('mirrors at once, then saves', async () => {
     const r = rig(true)
     assert.deepEqual(await applyRailOrder(rev, r.io(null)), { ok: true, value: rev })
@@ -140,7 +216,7 @@ describe('wiring', () => {
     const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /useRailOrder\(\)/)
     assert.match(src, /useDragReorder<RailId>\(/)
-    assert.match(src, /@pointerdown="railDrag\.down\(\$event, item\.id as RailId\)"/)
+    assert.match(src, /@pointerdown="item\.movable && railDrag\.down\(\$event, item\.id as RailId\)"/)
     // rail is RAIL, minus the DM tab while acting as a member (specs/054)
     assert.match(src, /const rail = computed\(\(\) => \(acting\.value \? RAIL\.value\.filter\(\(item\) => item\.id !== 'dm'\) : RAIL\.value\)\)/)
     assert.doesNotMatch(src, /id: USERS_TAB/)

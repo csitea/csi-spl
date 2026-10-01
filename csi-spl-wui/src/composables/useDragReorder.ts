@@ -2,19 +2,25 @@
 // by the left rail and the Settings list. A press only becomes a drag past
 // DRAG_THRESHOLD_PX, so a plain click still clicks; the click that ends a drag
 // is swallowed. While dragging, `preview` is the order to draw.
-import { DRAG_THRESHOLD_PX, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order.mjs'
+// CLE-77916: a list laid out in a row (the phone strip) is measured along x
+// (dragAxis); `normalize` keeps a pinned item where it belongs in the preview.
+import { DRAG_THRESHOLD_PX, dragAxis, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order.mjs'
 
 export function useDragReorder<T extends string>(opts: {
   order: () => readonly T[]
   /** the item elements, in the current order, each with data-reorder-id */
   items: () => HTMLElement[]
   onDrop: (next: T[]) => void
+  /** the order as it may be drawn and saved (e.g. a pinned item put back) */
+  normalize?: (order: T[]) => T[]
 }) {
+  const norm = (o: T[]) => (opts.normalize ? opts.normalize(o) : o)
   const preview = ref<T[] | null>(null) as Ref<T[] | null>
   const draggingId = ref<T | ''>('') as Ref<T | ''>
   let start: { x: number, y: number, id: T, pointerId: number, el: HTMLElement } | null = null
   let mids: number[] = []
   let base: T[] = []
+  let along = (ev: PointerEvent) => ev.clientY
 
   function swallowClick() {
     const stop = (e: Event) => { e.preventDefault(); e.stopPropagation() }
@@ -27,13 +33,16 @@ export function useDragReorder<T extends string>(opts: {
     if (!draggingId.value) {
       if (!isDrag(ev.clientX - start.x, ev.clientY - start.y, DRAG_THRESHOLD_PX)) return
       base = [...opts.order()]
-      mids = opts.items().map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
+      const rects = opts.items().map((el) => el.getBoundingClientRect())
+      const { axis, sign } = dragAxis(rects)
+      along = axis === 'x' ? (e) => sign * e.clientX : (e) => e.clientY
+      mids = rects.map((r) => (axis === 'x' ? sign * (r.left + r.width / 2) : r.top + r.height / 2))
       draggingId.value = start.id
       try { start.el.setPointerCapture(ev.pointerId) } catch { /* released already */ }
     }
     ev.preventDefault()
     const from = base.indexOf(start.id)
-    preview.value = moveTo(base, start.id, dropIndex(mids, from, ev.clientY))
+    preview.value = norm(moveTo(base, start.id, dropIndex(mids, from, along(ev))))
   }
 
   function finish(ev: PointerEvent, drop: boolean) {

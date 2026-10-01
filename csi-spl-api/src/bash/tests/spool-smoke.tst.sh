@@ -96,14 +96,19 @@ LEG_FROM="$("$B" recv --as CLE-07 --ack | python3 -c 'import json,sys;msgs=json.
 
 # 7. spool mcp speaks MCP over real stdio: initialize, the five canonical tools,
 #    an unsigned send, and the corrupted blob as a tool error mirroring exit 78.
-#    stdin is held open briefly so the replies are written before EOF.
+#    stdin is held open until all four replies (ids 1..4, in any order) are
+#    written, bounded: the stdio transport closes on EOF, and a fixed `sleep 1`
+#    lost replies under box load (CLE-77859).
 { printf '%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
     '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
     '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"spool_send","arguments":{"from":"AGY-09","to":"CLE-07","kind":"note","body":"hi"}}}' \
     "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"spool_get_file\",\"arguments\":{\"file_id\":\"$FID\",\"dest\":\"$WORK/mcp-bad.txt\"}}}"
-  sleep 1; } | timeout 20 "$B" mcp > "$WORK/mcp.out"
+  for _ in $(seq 1 500); do
+    [ "$(grep -cE '"id":[1-4][,}]' "$WORK/mcp.out" 2>/dev/null)" = 4 ] && break; sleep 0.1
+  done
+} | timeout 60 "$B" mcp > "$WORK/mcp.out"
 MCP="$(python3 - "$WORK/mcp.out" <<'PY'
 import json,sys
 r={d.get("id"):d.get("result",{}) for d in map(json.loads,open(sys.argv[1]))}

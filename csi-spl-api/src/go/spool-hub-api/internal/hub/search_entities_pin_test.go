@@ -28,7 +28,7 @@ func TestSearchEntityRows(t *testing.T) {
 	})
 	ctx := context.Background()
 	ta, _ := e.tenant()
-	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	at := fixtureAt()
 	pub, _, _ := ed25519.GenerateKey(nil)
 	for _, b := range []string{"box-z", "box-a", "box-r"} {
 		if err := e.st.PutPin(ctx, ta, b, pub, false, at, at); err != nil {
@@ -63,7 +63,7 @@ func TestSearchEntityRows(t *testing.T) {
 			`{"box":"box-a","id":"CLE-07","name":{"text":"CLE-07@box-a","highlights":[]},"online":false,"revoked":false},` +
 			`{"box":"box-a","id":"GRK-03","name":{"text":"GRK-03@box-a","highlights":[]},"online":false,"revoked":false}]`},
 		{"type:user", "users", `[{"avatar_file_id":null,"display_name":"Ada Person","id":"<HUM>","name":{"text":"Ada Person (<HUM>)","highlights":[]},"online":false}]`},
-		{"type:channel", "channels", `[{"channel":"alerts","count":1,"default":true,"last_ts":"2026-09-01T10:02:00Z","name":{"text":"alerts","highlights":[]}},` +
+		{"type:channel", "channels", `[{"channel":"alerts","count":1,"default":true,"last_ts":"` + at.Add(2*time.Minute).Format(time.RFC3339) + `","name":{"text":"alerts","highlights":[]}},` +
 			`{"channel":"feedback","count":0,"default":true,"last_ts":null,"name":{"text":"feedback","highlights":[]}},` +
 			`{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}}]`},
 		{"type:box box-a", "boxes", `[{"agents":["CLE-07","GRK-03"],"box_id":"box-a","last_hello_at":<H>,"name":{"text":"box-a","highlights":[[0,5]]},"online":false,"revoked":false}]`},

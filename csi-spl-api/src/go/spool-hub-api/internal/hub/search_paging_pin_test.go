@@ -29,7 +29,7 @@ func TestSearchPagingWalksEverySection(t *testing.T) {
 	})
 	ctx := context.Background()
 	ta, _ := e.tenant()
-	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	at := fixtureAt()
 	pub, _, _ := ed25519.GenerateKey(nil)
 	if err := e.st.PutPin(ctx, ta, "box-a", pub, false, at, at); err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestSearchGroupedLimit(t *testing.T) {
 	})
 	ctx := context.Background()
 	ta, _ := e.tenant()
-	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	at := fixtureAt()
 	pub, _, _ := ed25519.GenerateKey(nil)
 	if err := e.st.PutPin(ctx, ta, "box-a", pub, false, at, at); err != nil {
 		t.Fatal(err)

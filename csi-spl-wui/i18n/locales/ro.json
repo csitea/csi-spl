@@ -107,6 +107,11 @@
       "reset": "Ordinea implicită",
       "moved": "{name} este acum pe locul {n}"
     },
+    "channel_order": {
+      "label": "Ordinea canalelor",
+      "hint": "Trage canalele din panoul din stânga sau reordonează-le aici. Se păstrează în contul tău pentru acest spațiu de lucru, deci fiecare dispozitiv arată aceeași ordine.",
+      "empty": "Acest spațiu de lucru nu are încă niciun canal."
+    },
     "message_order": {
       "label": "Ordinea mesajelor",
       "newest_first": "Cele mai noi sus",

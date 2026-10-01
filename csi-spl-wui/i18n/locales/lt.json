@@ -107,6 +107,11 @@
       "reset": "Numatytoji tvarka",
       "moved": "{name} dabar yra {n}-as"
     },
+    "channel_order": {
+      "label": "Kanalų tvarka",
+      "hint": "Tempkite kanalus kairiajame skydelyje arba pakeiskite tvarką čia. Saugoma jūsų paskyroje šiai darbo sričiai, todėl visuose įrenginiuose tvarka ta pati.",
+      "empty": "Šioje darbo srityje dar nėra kanalų."
+    },
     "message_order": {
       "label": "Žinučių tvarka",
       "newest_first": "Naujausios viršuje",

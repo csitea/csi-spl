@@ -107,6 +107,11 @@
       "reset": "Predvolené poradie",
       "moved": "{name} je teraz na mieste {n}"
     },
+    "channel_order": {
+      "label": "Poradie kanálov",
+      "hint": "Presúvajte kanály v ľavom paneli alebo zmeňte poradie tu. Uloží sa do vášho účtu pre tento pracovný priestor, takže každé zariadenie ukazuje rovnaké poradie.",
+      "empty": "Tento pracovný priestor zatiaľ nemá žiadne kanály."
+    },
     "message_order": {
       "label": "Poradie správ",
       "newest_first": "Najnovšie hore",

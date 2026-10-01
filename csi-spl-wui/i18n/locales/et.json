@@ -107,6 +107,11 @@
       "reset": "Vaikimisi järjestus",
       "moved": "{name} on nüüd number {n}"
     },
+    "channel_order": {
+      "label": "Kanalite järjestus",
+      "hint": "Lohista kanaleid vasakul paneelil või muuda järjestust siin. Salvestatakse sinu kontole selle tööruumi jaoks, nii et igas seadmes on sama järjestus.",
+      "empty": "Selles tööruumis pole veel kanaleid."
+    },
     "message_order": {
       "label": "Sõnumite järjekord",
       "newest_first": "Uusimad üleval",

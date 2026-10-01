@@ -107,6 +107,11 @@
       "reset": "Standaardvolgorde",
       "moved": "{name} staat nu op plaats {n}"
     },
+    "channel_order": {
+      "label": "Volgorde van kanalen",
+      "hint": "Sleep de kanalen in het linkerpaneel of wijzig de volgorde hier. Bewaard in je account voor deze werkruimte, dus elk apparaat toont dezelfde volgorde.",
+      "empty": "Deze werkruimte heeft nog geen kanalen."
+    },
     "message_order": {
       "label": "Volgorde van berichten",
       "newest_first": "Nieuwste bovenaan",

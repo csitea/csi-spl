@@ -107,6 +107,11 @@
       "reset": "Noklusējuma secība",
       "moved": "{name} tagad ir {n}. vietā"
     },
+    "channel_order": {
+      "label": "Kanālu secība",
+      "hint": "Velciet kanālus kreisajā panelī vai mainiet secību šeit. Tiek glabāts jūsu kontā šai darbvietai, tāpēc visās ierīcēs ir tā pati secība.",
+      "empty": "Šajā darbvietā vēl nav kanālu."
+    },
     "message_order": {
       "label": "Ziņu secība",
       "newest_first": "Jaunākās augšā",

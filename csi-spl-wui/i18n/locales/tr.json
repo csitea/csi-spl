@@ -107,6 +107,11 @@
       "reset": "Varsayılan sıra",
       "moved": "{name} artık {n}. sırada"
     },
+    "channel_order": {
+      "label": "Kanal sırası",
+      "hint": "Sol paneldeki kanalları sürükleyin veya sırayı burada değiştirin. Bu çalışma alanı için hesabınızda saklanır, böylece her cihaz aynı sırayı gösterir.",
+      "empty": "Bu çalışma alanında henüz kanal yok."
+    },
     "message_order": {
       "label": "Mesaj sırası",
       "newest_first": "En yeniler üstte",

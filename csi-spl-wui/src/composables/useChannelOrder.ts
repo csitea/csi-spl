@@ -4,6 +4,10 @@
 // through PUT /v1/me/channel-order, optimistic and debounced, so a few quick
 // moves are one call. A failed save keeps the new order on screen and goes to
 // the error snackbar with the hub's token.
+//
+// One order per page: the left panel and Settings -> Behaviour -> "Channel
+// order" (DM 7fa9656f) read and change the SAME state, so a move in either
+// shows in the other at once.
 import { noteError } from '~/composables/errorJournal.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
@@ -20,14 +24,16 @@ const loadEdits = () => (edits ??= import('~/utils/channel-order-edit.mjs').catc
 
 export const CHANNEL_ORDER_SAVE_MS = 300
 
+/* the pending save is shared like the order: browser-only state */
+let timer: ReturnType<typeof setTimeout> | null = null
+let inflight = 0
+
 export function useChannelOrder() {
   const api = useSpoolApi()
   const access = useAccessStore()
   const session = useSessionStore()
   const i18n = useNuxtApp().$i18n
-  const order = ref<string[]>([])
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let inflight = 0
+  const order = useState<string[]>('spool-channel-order', () => [])
 
   /* a local change wins until it is stored: a /view/me answer landing in
      between must not draw the old order back */
@@ -77,5 +83,13 @@ export function useChannelOrder() {
     if (next) await set(next)
   }
 
-  return { order, set, step }
+  /** "Default order" in Settings: forget the stored list ([] clears it on the hub). */
+  function reset() {
+    if (!order.value.length) return
+    order.value = []
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { void flush() }, CHANNEL_ORDER_SAVE_MS)
+  }
+
+  return { order, set, step, reset }
 }

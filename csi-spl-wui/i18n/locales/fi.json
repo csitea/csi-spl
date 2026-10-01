@@ -107,6 +107,11 @@
       "reset": "Oletusjärjestys",
       "moved": "{name} on nyt numero {n}"
     },
+    "channel_order": {
+      "label": "Kanavien järjestys",
+      "hint": "Vedä vasemman paneelin kanavia tai järjestä ne tässä. Tallennetaan tilillesi tätä työtilaa varten, joten kaikilla laitteilla on sama järjestys.",
+      "empty": "Tässä työtilassa ei ole vielä kanavia."
+    },
     "message_order": {
       "label": "Viestien järjestys",
       "newest_first": "Uusimmat ylimpänä",

@@ -107,6 +107,11 @@
       "reset": "Domyślna kolejność",
       "moved": "{name} jest teraz na miejscu {n}"
     },
+    "channel_order": {
+      "label": "Kolejność kanałów",
+      "hint": "Przeciągnij kanały w lewym panelu lub zmień kolejność tutaj. Zapisane na koncie dla tego obszaru roboczego, więc każde urządzenie pokazuje tę samą kolejność.",
+      "empty": "Ten obszar roboczy nie ma jeszcze kanałów."
+    },
     "message_order": {
       "label": "Kolejność wiadomości",
       "newest_first": "Najnowsze na górze",

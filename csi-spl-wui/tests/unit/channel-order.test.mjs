@@ -171,3 +171,36 @@ describe('the sidebar wiring', () => {
     assert.match(ts, /sidebar\.channel_order_failed/)
   })
 })
+
+describe('Settings -> Behaviour -> Channel order (owner DM 7fa9656f)', () => {
+  it('sits beside Left panel order and shares the one order with the left panel', () => {
+    const page = src('src/components/settings/behaviour.vue')
+    assert.match(page, /<RailOrderSetting \/>\n\s*<ChannelOrderSetting \/>/)
+    const ts = src('src/composables/useChannelOrder.ts')
+    assert.match(ts, /useState<string\[\]>\('spool-channel-order'/, 'one order per page, not one per caller')
+    const vue = src('src/components/ChannelOrderSetting.vue')
+    assert.match(vue, /useChannelOrder\(\)/)
+    assert.match(vue, /pinRows\(\s*channel\.ordered,\s*channelOrder\.order\.value/, 'the rows the left panel draws, in its order')
+    assert.match(vue, /onDrop: \(next\) => \{ void channelOrder\.set\(next\) \}/)
+    assert.match(vue, /channelOrder\.step\(displayed\.value, item\.id|channelOrder\.step\(displayed\.value, id, delta\)/)
+    assert.match(vue, /channelOrder\.reset\(\)/)
+  })
+
+  it('"Default order" clears the stored list (an empty PUT), not a no-op merge', () => {
+    const ts = src('src/composables/useChannelOrder.ts')
+    const reset = ts.slice(ts.indexOf('function reset()'), ts.indexOf('function reset()') + 300)
+    assert.match(reset, /order\.value = \[\]/)
+    assert.match(reset, /flush\(\)/)
+  })
+
+  it('label, hint and empty text are translated in every locale', () => {
+    const en = JSON.parse(src('i18n/locales/en.json')).settings.channel_order
+    for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const co = JSON.parse(src(`i18n/locales/${loc}.json`)).settings.channel_order
+      for (const k of ['label', 'hint', 'empty']) {
+        assert.ok(typeof co?.[k] === 'string' && co[k].trim(), `${loc} settings.channel_order.${k}`)
+        if (loc !== 'en') assert.notEqual(co[k], en[k], `${loc} settings.channel_order.${k} is translated`)
+      }
+    }
+  })
+})

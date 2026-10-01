@@ -107,6 +107,11 @@
       "reset": "Standardordning",
       "moved": "{name} är nu nummer {n}"
     },
+    "channel_order": {
+      "label": "Kanalordning",
+      "hint": "Dra kanalerna i vänsterpanelen eller ändra ordningen här. Sparas på ditt konto för den här arbetsytan, så alla enheter visar samma ordning.",
+      "empty": "Den här arbetsytan har inga kanaler än."
+    },
     "message_order": {
       "label": "Meddelandeordning",
       "newest_first": "Nyaste överst",

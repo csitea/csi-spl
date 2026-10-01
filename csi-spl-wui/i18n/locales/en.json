@@ -107,6 +107,11 @@
       "reset": "Default order",
       "moved": "{name} is now number {n}"
     },
+    "channel_order": {
+      "label": "Channel order",
+      "hint": "Drag the channels in the left panel, or reorder them here. Kept on your account for this workspace, so every device shows the same order.",
+      "empty": "This workspace has no channels yet."
+    },
     "message_order": {
       "label": "Message order",
       "newest_first": "Newest at the top",

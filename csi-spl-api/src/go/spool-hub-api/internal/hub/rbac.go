@@ -90,6 +90,11 @@ type meBody struct {
 	// ActAs is set only when THIS session is an act-as clone (specs/054): it
 	// tells the WUI to show the "Acting as X — Stop" banner. null otherwise.
 	ActAs *actAsMe `json:"act_as"`
+	// TopicArchivePolicy is the workspace "Who can archive topics" setting in
+	// force (CLE-77819): everyone | admins | starter. The WUI reads it to
+	// decide whether a topic card's menu offers Archive. It rides the cached
+	// tenant row, so it costs no extra round trip (TestRoundTripsPerRequest).
+	TopicArchivePolicy string `json:"topic_archive_policy,omitempty"`
 }
 
 // actAsMe is the act-as state of a clone session (specs/054).
@@ -115,6 +120,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()
+		out.TopicArchivePolicy = store.EffectiveArchivePolicy(t.TopicArchivePolicy)
 		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
 		// Only an act-as session pays the clone lookup (its Provider marks it);
 		// a normal /v1/view/me adds no round trip (TestRoundTripsPerRequest).

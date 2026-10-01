@@ -18,29 +18,53 @@ import (
 // The owner, 2026-09-26: "archive and delete a topic or msg in direct msgs
 // (aka card with is_parent=1), which if archived will add a soft delete = 1
 // and if delete will actually delete not only the parent msg or topic but
-// also all of its children". And, answering who may: the card's author, the
-// tenant owner and an admin; nobody else, and never an agent. An agent has
-// no route here at all: every one is a member-session browser route.
+// also all of its children".
+//
+// Who may (CLE-77819, owner 2026-09-30, csitea #spool-hub topic 85597e91:
+// "we must have a workspace specific setting for this behaviour .. set the
+// default to EVERYONE"):
+//   - ARCHIVE / unarchive follows the workspace setting "Who can archive
+//     topics" (tenants.topic_archive_policy, rdb 0093): 'everyone' (the
+//     default) any member who can read the topic; 'admins' the tenant owner
+//     or an admin only; 'starter' the topic's starter plus owner / admin.
+//   - DELETE (the card and every child): the author, the tenant owner or an
+//     admin - unchanged by the setting (archiveByPolicy governs archive only).
+//
+// Never an agent. An agent has no route here at all: every one is a
+// member-session browser route.
 
 const (
 	topicArchivedFrame = "topic_archived"
 	topicDeletedFrame  = "topic_deleted"
 )
 
+// cardCap is what a resolveCard call must be allowed to do.
+type cardCap int
+
+const (
+	capRead    cardCap = iota // GET the topic size / confirm dialog (no gate)
+	capArchive                // PUT/DELETE archive: the widened rule
+	capDelete                 // DELETE topic: author, tenant owner or admin
+)
+
 // topicCard is one resolved request on a card: who asks, what the card is,
-// and whether the caller may change it.
+// and whether the caller may change it. may is the §3.3 author / owner / admin
+// rule (delete, move, merge, promote all use it); mayArchive applies the
+// workspace "Who can archive topics" setting, for archive / unarchive only
+// (CLE-77819).
 type topicCard struct {
-	t       store.Tenant
-	from    string // the caller's v:1 id, as editorID resolves it
-	m       store.EditableMessage
-	st      store.CardState
-	ownTask string // the card's task, or "" for a lobby card (store.TopicArchive)
-	may     bool   // author, tenant owner or admin (spec §3.3)
+	t          store.Tenant
+	from       string // the caller's v:1 id, as editorID resolves it
+	m          store.EditableMessage
+	st         store.CardState
+	ownTask    string // the card's task, or "" for a lobby card (store.TopicArchive)
+	may        bool   // author, tenant owner or admin (spec §3.3)
+	mayArchive bool   // archive per tenants.topic_archive_policy (CLE-77819)
 }
 
-// resolveCard runs contract §1 in order. mutate adds billing, notes.send
-// and the §3.3 gate. ok=false means it answered.
-func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, mutate bool) (topicCard, bool) {
+// resolveCard runs contract §1 in order. need != capRead adds billing,
+// notes.send and the capability gate. ok=false means it answered.
+func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, need cardCap) (topicCard, bool) {
 	var c topicCard
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
@@ -53,6 +77,7 @@ func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, mutate bool
 		return c, false
 	}
 	c.from = from
+	mutate := need != capRead
 	perm := rbac.TopicsRead
 	if mutate {
 		if !billing.AllowsWrite(t.BillingStatus) {
@@ -100,15 +125,45 @@ func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, mutate bool
 		return c, false
 	}
 	c.may = s.mayChangeTopic(r.Context(), t.ID, hum, from, m.FromID)
-	if mutate && !c.may {
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may do this")
-		return c, false
+	// Archive follows the workspace "Who can archive topics" setting
+	// (CLE-77819); delete keeps the narrower c.may rule.
+	c.mayArchive = s.mayArchiveByPolicy(r.Context(), t.ID, hum, t.TopicArchivePolicy, c.may)
+	switch need {
+	case capArchive:
+		if !c.mayArchive {
+			writeErr(w, http.StatusForbidden, "not_allowed", "this workspace does not let you archive this topic")
+			return c, false
+		}
+	case capDelete:
+		if !c.may {
+			writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may do this")
+			return c, false
+		}
 	}
 	return c, true
 }
 
+// mayArchiveByPolicy applies "Who can archive topics" (CLE-77819). stored is
+// the tenant's tenants.topic_archive_policy ("" = everyone). change is the
+// author/owner/admin result (c.may): the starter policy is exactly it; admins
+// drops the author; everyone lets any reader-member through (resolveCard has
+// already gated the read door and notes.send).
+func (s *Server) mayArchiveByPolicy(ctx context.Context, tenant, hum, stored string, change bool) bool {
+	switch store.EffectiveArchivePolicy(stored) {
+	case store.ArchivePolicyAdmins:
+		a, err := s.access(ctx, hum, tenant)
+		return err == nil && (a.TenantOwner || a.Role == rbac.Admin)
+	case store.ArchivePolicyStarter:
+		return change
+	default: // everyone
+		return true
+	}
+}
+
 // mayChangeTopic is spec §3.3: the card's author, the tenant owner or an
 // admin. The author test is the edit path's (from_id = the caller's v:1 id).
+// It gates DELETE (and move / merge / promote); ARCHIVE runs it through the
+// workspace policy instead (mayArchiveByPolicy).
 func (s *Server) mayChangeTopic(ctx context.Context, tenant, hum, from, author string) bool {
 	if from != "" && from == author {
 		return true
@@ -120,7 +175,7 @@ func (s *Server) mayChangeTopic(ctx context.Context, tenant, hum, from, author s
 // PUT (archive) and DELETE (unarchive) /v1/messages/{msg_id}/archive.
 func (s *Server) handleArchiveTopic(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	c, ok := s.resolveCard(w, r, true)
+	c, ok := s.resolveCard(w, r, capArchive)
 	if !ok {
 		return
 	}
@@ -166,7 +221,7 @@ func withType(typ string, m store.EditableMessage, body map[string]any) map[stri
 // transaction (store.DeleteTopic).
 func (s *Server) handleDeleteTopic(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	c, ok := s.resolveCard(w, r, true)
+	c, ok := s.resolveCard(w, r, capDelete)
 	if !ok {
 		return
 	}
@@ -196,7 +251,7 @@ func (s *Server) handleViewTopicSize(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(store.WithMemo(r.Context()))
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
-	c, ok := s.resolveCard(w, r, false)
+	c, ok := s.resolveCard(w, r, capRead)
 	if !ok {
 		return
 	}
@@ -207,7 +262,7 @@ func (s *Server) handleViewTopicSize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := archivedBody(c.m, c.st)
-	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may, c.may
+	out["replies"], out["task_ids"], out["can_delete"], out["can_archive"] = set.Replies(), set.TaskIDs, c.may, c.mayArchive
 	writeJSON(w, http.StatusOK, out)
 }
 

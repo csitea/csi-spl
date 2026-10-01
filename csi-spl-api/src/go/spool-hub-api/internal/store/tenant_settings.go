@@ -18,17 +18,52 @@ import (
 type TenantConfig struct {
 	DisplayName   string // "" = unset (the WUI shows the tenant id)
 	DefaultLocale string // "" = unset (the hub default)
+	// TopicArchivePolicy is "Who can archive topics" (CLE-77819, rdb 0093):
+	// "" = unset = ArchivePolicyEveryone, else one of the ArchivePolicy* values.
+	TopicArchivePolicy string
 }
 
 // TenantConfigPatch changes the fields that are not nil; a pointer to ""
 // clears one.
 type TenantConfigPatch struct {
-	DisplayName   *string
-	DefaultLocale *string
+	DisplayName        *string
+	DefaultLocale      *string
+	TopicArchivePolicy *string
 }
 
 // MaxTenantDisplayName is the rdb 0041 CHECK on tenants.display_name.
 const MaxTenantDisplayName = 200
+
+// "Who can archive topics" (CLE-77819, owner 2026-09-30, rdb 0093). The rdb
+// CHECK on tenants.topic_archive_policy MUST equal this set.
+const (
+	ArchivePolicyEveryone = "everyone" // any member who can read the topic
+	ArchivePolicyAdmins   = "admins"   // the tenant owner or an admin only
+	ArchivePolicyStarter  = "starter"  // the topic's starter, plus owner / admin
+)
+
+// DefaultArchivePolicy is what an unset ("") setting means (owner: default to
+// everyone).
+const DefaultArchivePolicy = ArchivePolicyEveryone
+
+// ValidArchivePolicy reports whether p is a stored policy value ("" = unset).
+func ValidArchivePolicy(p string) bool {
+	switch p {
+	case "", ArchivePolicyEveryone, ArchivePolicyAdmins, ArchivePolicyStarter:
+		return true
+	default:
+		return false
+	}
+}
+
+// EffectiveArchivePolicy maps the stored value (incl. "") to the policy in
+// force.
+func EffectiveArchivePolicy(stored string) string {
+	if stored == "" {
+		return DefaultArchivePolicy
+	}
+	return stored
+}
 
 // TenantSettings is implemented by Memory and Postgres.
 type TenantSettings interface {
@@ -70,6 +105,13 @@ func normalizeTenantConfig(p *TenantConfigPatch) error {
 		}
 		p.DefaultLocale = &l
 	}
+	if p.TopicArchivePolicy != nil {
+		pol := strings.TrimSpace(*p.TopicArchivePolicy)
+		if !ValidArchivePolicy(pol) {
+			return ErrBadTenantConfig
+		}
+		p.TopicArchivePolicy = &pol
+	}
 	return nil
 }
 
@@ -89,7 +131,8 @@ func (s *Memory) TenantConfig(_ context.Context, tenant string) (TenantConfig, e
 	if !ok {
 		return TenantConfig{}, ErrNotFound
 	}
-	return TenantConfig{DisplayName: t.DisplayName, DefaultLocale: s.tenantLocale[tenant]}, nil
+	return TenantConfig{DisplayName: t.DisplayName, DefaultLocale: s.tenantLocale[tenant],
+		TopicArchivePolicy: t.TopicArchivePolicy}, nil
 }
 
 func (s *Memory) SetTenantConfig(_ context.Context, tenant string, p TenantConfigPatch) error {
@@ -111,6 +154,10 @@ func (s *Memory) SetTenantConfig(_ context.Context, tenant string, p TenantConfi
 			s.tenantLocale = map[string]string{}
 		}
 		s.tenantLocale[tenant] = *p.DefaultLocale
+	}
+	if p.TopicArchivePolicy != nil {
+		t.TopicArchivePolicy = *p.TopicArchivePolicy
+		s.tenants[tenant] = t
 	}
 	return nil
 }
@@ -164,8 +211,9 @@ func (s *Postgres) MemberState(ctx context.Context, tenant, humanID string) (str
 
 func (s *Postgres) TenantConfig(ctx context.Context, tenant string) (TenantConfig, error) {
 	var c TenantConfig
-	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, '')
-		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale)
+	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, ''),
+		COALESCE(topic_archive_policy, '')
+		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale, &c.TopicArchivePolicy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TenantConfig{}, ErrNotFound
 	}
@@ -176,17 +224,25 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 	if err := normalizeTenantConfig(&p); err != nil {
 		return err
 	}
-	var name, loc any
+	// topic_archive_policy rides the cached tenant row (getTenant); drop the
+	// hot entry so a policy change takes effect at once.
+	defer s.hot.forget()
+	var name, loc, pol any
 	if p.DisplayName != nil {
 		name = nullIfEmpty(*p.DisplayName)
 	}
 	if p.DefaultLocale != nil {
 		loc = nullIfEmpty(*p.DefaultLocale)
 	}
+	if p.TopicArchivePolicy != nil {
+		pol = nullIfEmpty(*p.TopicArchivePolicy)
+	}
 	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET
-		display_name   = CASE WHEN $2 THEN $3::text ELSE display_name END,
-		default_locale = CASE WHEN $4 THEN $5::text ELSE default_locale END
-		WHERE tenant_id = $1`, tenant, p.DisplayName != nil, name, p.DefaultLocale != nil, loc)
+		display_name         = CASE WHEN $2 THEN $3::text ELSE display_name END,
+		default_locale       = CASE WHEN $4 THEN $5::text ELSE default_locale END,
+		topic_archive_policy = CASE WHEN $6 THEN $7::text ELSE topic_archive_policy END
+		WHERE tenant_id = $1`, tenant, p.DisplayName != nil, name, p.DefaultLocale != nil, loc,
+		p.TopicArchivePolicy != nil, pol)
 	if err != nil {
 		return err
 	}

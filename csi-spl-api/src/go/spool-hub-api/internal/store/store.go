@@ -63,6 +63,10 @@ type Tenant struct {
 	// Place in the tenant drop box (rdb 0049): 1 first. 0 = unset, drawn
 	// after every set one.
 	SortOrder int
+	// TopicArchivePolicy is "Who can archive topics" (rdb 0093, CLE-77819):
+	// "" = unset = everyone, else an ArchivePolicy* value. It rides the cached
+	// tenant row so archive and /v1/view/me read it with no extra round trip.
+	TopicArchivePolicy string
 }
 
 func normalizeTenant(t *Tenant) error {

@@ -80,6 +80,13 @@ func listedTasks(t *testing.T, e *env, tid, as string) map[string]bool {
 func TestTopicArchivePermissions(t *testing.T) {
 	e := archiveEnv(t)
 	tid, _ := e.tenant()
+	// This test is the author/owner/admin rule: the "starter" archive policy
+	// (CLE-77819). The default "everyone" lets any member archive; that is
+	// TestTopicArchivePolicy's job.
+	starter := store.ArchivePolicyStarter
+	if err := e.st.(store.TenantSettings).SetTenantConfig(context.Background(), tid, store.TenantConfigPatch{TopicArchivePolicy: &starter}); err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now().UTC()
 	T, G := uuidV4(), uuidV4()
 	card := putCard(t, e, tid, T, "", "HUM-1", hub.WUIBox, 1, now)
@@ -178,6 +185,73 @@ func TestTopicArchivePermissions(t *testing.T) {
 	own := putCard(t, e, tid, uuidV4(), "", "HUM-1", hub.WUIBox, 1, now.Add(3*time.Second))
 	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+own+"/topic", "HUM-1", nil); code != http.StatusOK || has(t, e, tid, own) {
 		t.Fatalf("author delete: %d %v", code, out)
+	}
+}
+
+// CLE-77819 (owner 2026-09-30, csitea #spool-hub topic 85597e91): archive
+// follows the workspace setting "Who can archive topics". Each value is a
+// control, run against member (HUM-2) / admin (HUM-9) / owner (HUM-8) /
+// starter (HUM-1). Delete stays the author/owner/admin rule under every value.
+func TestTopicArchivePolicy(t *testing.T) {
+	e := archiveEnv(t)
+	tid, _ := e.tenant()
+	ts := e.st.(store.TenantSettings)
+	now := time.Now().UTC()
+	n := 0
+	fresh := func() string { // a HUM-1-started lobby card, each its own task
+		n++
+		return putCard(t, e, tid, uuidV4(), "", "HUM-1", hub.WUIBox, 1, now.Add(time.Duration(n)*time.Second))
+	}
+	setPolicy := func(p string) {
+		if err := ts.SetTenantConfig(context.Background(), tid, store.TenantConfigPatch{TopicArchivePolicy: &p}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archive := func(as string) (int, map[string]any) {
+		return call(t, e, tid, http.MethodPut, "/v1/messages/"+fresh()+"/archive", as, nil)
+	}
+	allowed := func(label, as string) {
+		if code, out := archive(as); code != http.StatusOK || out["archived"] != true {
+			t.Fatalf("%s: %d %v", label, code, out)
+		}
+	}
+	refused := func(label, as string) {
+		if code, out := archive(as); code != http.StatusForbidden || out["error"] != "not_allowed" {
+			t.Fatalf("%s: %d %v", label, code, out)
+		}
+	}
+
+	// everyone (the default): a plain member, the starter, an admin all archive.
+	setPolicy(store.ArchivePolicyEveryone)
+	allowed("everyone member archive", "HUM-2")
+	allowed("everyone starter archive", "HUM-1")
+	allowed("everyone admin archive", "HUM-9")
+	// but delete stays strict even under everyone: the member is refused.
+	if code, out := call(t, e, tid, http.MethodDelete, "/v1/messages/"+fresh()+"/topic", "HUM-2", nil); code != http.StatusForbidden || out["error"] != "not_allowed" {
+		t.Fatalf("everyone member delete must be refused: %d %v", code, out)
+	}
+
+	// admins: only the tenant owner or an admin; the starter and a member no.
+	setPolicy(store.ArchivePolicyAdmins)
+	allowed("admins owner archive", "HUM-8")
+	allowed("admins admin archive", "HUM-9")
+	refused("admins starter refused", "HUM-1")
+	refused("admins member refused", "HUM-2")
+
+	// starter: the topic's starter, plus owner / admin; a plain member no.
+	setPolicy(store.ArchivePolicyStarter)
+	allowed("starter starter archive", "HUM-1")
+	allowed("starter admin archive", "HUM-9")
+	refused("starter member refused", "HUM-2")
+
+	// can_archive in the confirm dialog reflects the caller under the policy.
+	setPolicy(store.ArchivePolicyAdmins)
+	card := fresh()
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/messages/"+card+"/topic", "HUM-2", nil); code != http.StatusOK || out["can_archive"] != false {
+		t.Fatalf("admins member can_archive: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/messages/"+card+"/topic", "HUM-9", nil); code != http.StatusOK || out["can_archive"] != true || out["can_delete"] != true {
+		t.Fatalf("admins admin can_archive: %d %v", code, out)
 	}
 }
 

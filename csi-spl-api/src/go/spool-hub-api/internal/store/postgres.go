@@ -132,10 +132,11 @@ func (s *Postgres) getTenant(ctx context.Context, id string) (Tenant, error) {
 	var root []byte
 	var bought *time.Time
 	err := s.queryRowTenant(ctx, id, `SELECT tenant_id, root_pubkey, billing_status, plan_id,
-		COALESCE(org, ''), COALESCE(app, ''), COALESCE(project_id, ''), bought_at, seats_users, seats_bots
+		COALESCE(org, ''), COALESCE(app, ''), COALESCE(project_id, ''), bought_at, seats_users, seats_bots,
+		COALESCE(topic_archive_policy, '')
 		FROM tenants WHERE tenant_id = $1`,
 		[]any{id}, &t.ID, &root, &t.BillingStatus, &t.PlanID,
-		&t.Org, &t.App, &t.ProjectID, &bought, &t.SeatsUsers, &t.SeatsBots)
+		&t.Org, &t.App, &t.ProjectID, &bought, &t.SeatsUsers, &t.SeatsBots, &t.TopicArchivePolicy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Tenant{}, ErrNotFound
 	}

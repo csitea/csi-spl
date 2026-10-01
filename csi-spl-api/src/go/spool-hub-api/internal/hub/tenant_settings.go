@@ -29,11 +29,14 @@ func (s *Server) tenantSettingsStore(w http.ResponseWriter) (store.TenantSetting
 }
 
 type tenantSettingsBody struct {
-	TenantID      string   `json:"tenant_id"`
-	DisplayName   string   `json:"display_name"`
-	DefaultLocale string   `json:"default_locale"`
-	Responders    []string `json:"responders"`
-	MaxResponders int      `json:"max_responders"`
+	TenantID      string `json:"tenant_id"`
+	DisplayName   string `json:"display_name"`
+	DefaultLocale string `json:"default_locale"`
+	// TopicArchivePolicy is "Who can archive topics" (CLE-77819): the value in
+	// force (everyone | admins | starter), never "".
+	TopicArchivePolicy string   `json:"topic_archive_policy"`
+	Responders         []string `json:"responders"`
+	MaxResponders      int      `json:"max_responders"`
 	// IssuePrefix is the key prefix of the tenant's issues (W16, spec 047);
 	// "" when this hub's store keeps no issues.
 	IssuePrefix string `json:"issue_prefix"`
@@ -61,7 +64,8 @@ func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t s
 		}
 	}
 	writeJSON(w, http.StatusOK, tenantSettingsBody{TenantID: t.ID, DisplayName: cfg.DisplayName,
-		DefaultLocale: cfg.DefaultLocale, Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix})
+		DefaultLocale: cfg.DefaultLocale, TopicArchivePolicy: store.EffectiveArchivePolicy(cfg.TopicArchivePolicy),
+		Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix})
 }
 
 // GET /v1/tenant/settings
@@ -88,30 +92,18 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var body struct {
-		DisplayName   *string   `json:"display_name"`
-		DefaultLocale *string   `json:"default_locale"`
-		Responders    *[]string `json:"responders"`
-		IssuePrefix   *string   `json:"issue_prefix"`
+		DisplayName        *string   `json:"display_name"`
+		DefaultLocale      *string   `json:"default_locale"`
+		TopicArchivePolicy *string   `json:"topic_archive_policy"`
+		Responders         *[]string `json:"responders"`
+		IssuePrefix        *string   `json:"issue_prefix"`
 	}
 	if !decodeMembers(w, r, &body) {
 		return
 	}
 	var list []string
 	if body.Responders != nil {
-		seen := map[string]bool{}
-		for _, id := range *body.Responders {
-			id = strings.TrimSpace(id)
-			if !agentIDRe.MatchString(id) || strings.HasPrefix(id, "HUM-") {
-				writeErr(w, http.StatusBadRequest, "bad_responder", "responders must be agent ids (CLE-01, GRK-03)")
-				return
-			}
-			if !seen[id] {
-				seen[id] = true
-				list = append(list, id)
-			}
-		}
-		if len(list) > store.MaxResponders {
-			writeErr(w, http.StatusBadRequest, "bad_responder", "at most 20 responders")
+		if list, ok = responderList(w, *body.Responders); !ok {
 			return
 		}
 	}
@@ -126,11 +118,12 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	if body.DisplayName != nil || body.DefaultLocale != nil {
-		err := ts.SetTenantConfig(r.Context(), t.ID, store.TenantConfigPatch{DisplayName: body.DisplayName, DefaultLocale: body.DefaultLocale})
+	if body.DisplayName != nil || body.DefaultLocale != nil || body.TopicArchivePolicy != nil {
+		err := ts.SetTenantConfig(r.Context(), t.ID, store.TenantConfigPatch{DisplayName: body.DisplayName,
+			DefaultLocale: body.DefaultLocale, TopicArchivePolicy: body.TopicArchivePolicy})
 		switch {
 		case errors.Is(err, store.ErrBadTenantConfig):
-			writeErr(w, http.StatusBadRequest, "bad_setting", "display_name is one line of at most 200 characters; default_locale is a supported locale or empty")
+			writeErr(w, http.StatusBadRequest, "bad_setting", "display_name is one line of at most 200 characters; default_locale is a supported locale or empty; topic_archive_policy is everyone, admins or starter")
 			return
 		case err != nil:
 			writeErr(w, http.StatusInternalServerError, "internal", "tenant settings not saved")
@@ -150,9 +143,33 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Bool("name", body.DisplayName != nil).
-		Bool("locale", body.DefaultLocale != nil).Bool("responders", body.Responders != nil).
+		Bool("locale", body.DefaultLocale != nil).Bool("archive_policy", body.TopicArchivePolicy != nil).
+		Bool("responders", body.Responders != nil).
 		Bool("issue_prefix", body.IssuePrefix != nil).Msg("tenant.settings_changed")
 	s.writeTenantSettings(w, r, t, ts, fb)
+}
+
+// responderList dedupes the PATCH responder ids in order and checks each is
+// an agent id (never a HUM-*), at most MaxResponders. ok=false: it answered.
+func responderList(w http.ResponseWriter, ids []string) ([]string, bool) {
+	var list []string
+	seen := map[string]bool{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if !agentIDRe.MatchString(id) || strings.HasPrefix(id, "HUM-") {
+			writeErr(w, http.StatusBadRequest, "bad_responder", "responders must be agent ids (CLE-01, GRK-03)")
+			return nil, false
+		}
+		if !seen[id] {
+			seen[id] = true
+			list = append(list, id)
+		}
+	}
+	if len(list) > store.MaxResponders {
+		writeErr(w, http.StatusBadRequest, "bad_responder", "at most 20 responders")
+		return nil, false
+	}
+	return list, true
 }
 
 type tenantChannelRow struct {

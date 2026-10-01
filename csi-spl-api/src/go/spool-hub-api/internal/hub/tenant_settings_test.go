@@ -69,6 +69,10 @@ func TestTenantSettingsGeneral(t *testing.T) {
 	if code != 200 || body["display_name"] != "" || body["default_locale"] != "" || len(body["responders"].([]any)) != 0 {
 		t.Fatalf("fresh settings: %d %v", code, body)
 	}
+	// CLE-77819: a fresh workspace archives for everyone (the default).
+	if body["topic_archive_policy"] != "everyone" {
+		t.Fatalf("fresh archive policy: %v, want everyone", body["topic_archive_policy"])
+	}
 	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin,
 		map[string]any{"display_name": "  Acme  ", "default_locale": "fi", "responders": []string{"CLE-01", "GRK-3", "CLE-01"}})
 	if code != 200 || body["display_name"] != "Acme" || body["default_locale"] != "fi" {
@@ -82,9 +86,20 @@ func TestTenantSettingsGeneral(t *testing.T) {
 	if code != 200 || body["display_name"] != "Acme" || body["default_locale"] != "" || len(body["responders"].([]any)) != 2 {
 		t.Fatalf("biz_owner partial patch: %d %v", code, body)
 	}
+	// CLE-77819: set the archive policy, and a partial patch leaves it.
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{"topic_archive_policy": "admins"})
+	if code != 200 || body["topic_archive_policy"] != "admins" {
+		t.Fatalf("patch archive policy: %d %v", code, body)
+	}
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{"display_name": "Acme"})
+	if code != 200 || body["topic_archive_policy"] != "admins" {
+		t.Fatalf("archive policy survives a partial patch: %d %v", code, body)
+	}
+	call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{"topic_archive_policy": "everyone"})
 	for name, bad := range map[string]map[string]any{
 		"locale":    {"default_locale": "xx"},
 		"name":      {"display_name": "two\nlines"},
+		"policy":    {"topic_archive_policy": "nobody"},
 		"responder": {"responders": []string{"HUM-4"}},
 		"unknown":   {"billing": "free"},
 	} {

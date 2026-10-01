@@ -6,8 +6,8 @@
 // Parent, Level read-only), a double-click on the Epics-sidebar row opens it,
 // and the plain issue menu carries Edit too.
 //
-//   pnpm run test:e2e:issues-epic-edit
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-epic-edit
+//   pnpm run test:e2e issues-epic-edit
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-epic-edit
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

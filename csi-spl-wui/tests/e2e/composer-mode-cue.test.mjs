@@ -26,8 +26,8 @@
 //     (1-4 fail), the edit box had no label (5 fails).
 //
 // Run:
-//   pnpm run test:e2e:composer-mode-cue
-//   BASE_URL=<generated bundle> pnpm run test:e2e:composer-mode-cue   # what CI does
+//   pnpm run test:e2e composer-mode-cue
+//   BASE_URL=<generated bundle> pnpm run test:e2e composer-mode-cue   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per step there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

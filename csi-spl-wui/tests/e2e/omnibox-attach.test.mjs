@@ -5,8 +5,8 @@
 // `/search …` line left in the Omnibox kept search mode on every page, and
 // search mode renders no Attach.
 //
-//   pnpm run test:e2e:omnibox-attach
-//   BASE_URL=<generated bundle> pnpm run test:e2e:omnibox-attach
+//   pnpm run test:e2e omnibox-attach
+//   BASE_URL=<generated bundle> pnpm run test:e2e omnibox-attach
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

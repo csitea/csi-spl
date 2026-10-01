@@ -6,8 +6,8 @@
 // Control: before W14 there is no [data-testid=help-open] (0 clicks reach help).
 //
 // Run:
-//   pnpm run test:e2e:help
-//   BASE_URL=<generated bundle> pnpm run test:e2e:help
+//   pnpm run test:e2e help
+//   BASE_URL=<generated bundle> pnpm run test:e2e help
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

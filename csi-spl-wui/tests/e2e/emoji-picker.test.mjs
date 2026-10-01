@@ -12,8 +12,8 @@
 //     5 1440 px: the popover keeps its 8 columns and shows every row
 //
 // Run:
-//   pnpm run test:e2e:emoji-picker
-//   BASE_URL=<generated bundle> pnpm run test:e2e:emoji-picker   # what CI does
+//   pnpm run test:e2e emoji-picker
+//   BASE_URL=<generated bundle> pnpm run test:e2e emoji-picker   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per viewport there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

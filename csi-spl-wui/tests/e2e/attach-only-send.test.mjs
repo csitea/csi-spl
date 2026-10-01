@@ -7,8 +7,8 @@
 // CONTROL: on the pre-fix build the attachment-only GO/Enter dropped the file.
 //
 // Run:
-//   pnpm run test:e2e:attach-only
-//   BASE_URL=<generated bundle> pnpm run test:e2e:attach-only   # what CI does
+//   pnpm run test:e2e attach-only
+//   BASE_URL=<generated bundle> pnpm run test:e2e attach-only   # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { writeFileSync } from 'node:fs'

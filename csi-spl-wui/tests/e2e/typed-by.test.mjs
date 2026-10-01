@@ -10,8 +10,8 @@
 // and the typed row's name must NOT be the agent's.
 //
 // Run:
-//   pnpm run test:e2e:typed-by
-//   BASE_URL=<generated bundle> pnpm run test:e2e:typed-by     # what CI does
+//   pnpm run test:e2e typed-by
+//   BASE_URL=<generated bundle> pnpm run test:e2e typed-by     # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

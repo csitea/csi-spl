@@ -1,0 +1,8 @@
+# e2e files the CI suite does NOT run: `<file> <reason>`, one per line.
+# Everything else in tests/e2e/*.test.mjs runs in `pnpm test:e2e`
+# (src/node/test/run-e2e-tests.mjs). A line naming no file fails the runner.
+# Run a skipped file by name: `pnpm test:e2e csp-violations`.
+csp-violations.test.mjs   needs the Hosting CSP headers from the firebase.json render (spec 017 T013)
+live-interop.test.mjs     needs a live hub (HUB_URL), two sockets; `pnpm test:live`
+rounded-corners.test.mjs  visual sweep, PHASE=before is meant to fail; not in the 016 T021 pick
+scroll-anchor.test.mjs    not in the 016 T021 pick

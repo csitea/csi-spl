@@ -11,8 +11,8 @@
 // cannot read green. 1440x900 and 390x844, light and dark.
 //
 // Run:
-//   pnpm run test:e2e:ai-marker
-//   BASE_URL=<generated bundle> pnpm run test:e2e:ai-marker     # what CI does
+//   pnpm run test:e2e ai-marker
+//   BASE_URL=<generated bundle> pnpm run test:e2e ai-marker     # what CI does
 //   SHOT_DIR=/tmp/shots ...                                      # keep the screenshots
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'

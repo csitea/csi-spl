@@ -21,9 +21,9 @@
 // mock fixture happens to carry a clickable reply button.
 //
 // Run:
-//   pnpm test:e2e:topic-pane
-//   BASE_URL=https://dev.<domain> pnpm test:e2e:topic-pane
-//   OUT=/var/tmp/CLE-3429-proof pnpm test:e2e:topic-pane   # screenshots
+//   pnpm test:e2e topic-pane
+//   BASE_URL=https://dev.<domain> pnpm test:e2e topic-pane
+//   OUT=/var/tmp/CLE-3429-proof pnpm test:e2e topic-pane   # screenshots
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

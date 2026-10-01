@@ -10,8 +10,8 @@
 //   D  delete with the one confirm; a parent with a live subtask is refused
 // Each operation carries a control: the same gesture cancelled changes nothing.
 //
-//   pnpm run test:e2e:issues-crud
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-crud
+//   pnpm run test:e2e issues-crud
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-crud
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdtempSync } from 'node:fs'

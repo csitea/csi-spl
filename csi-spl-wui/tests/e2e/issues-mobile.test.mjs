@@ -11,8 +11,8 @@
 // with every time masked, so a before / after pair can be compared pixel for
 // pixel.
 //
-//   pnpm run test:e2e:issues-mobile
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-mobile
+//   pnpm run test:e2e issues-mobile
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-mobile
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync, mkdtempSync } from 'node:fs'

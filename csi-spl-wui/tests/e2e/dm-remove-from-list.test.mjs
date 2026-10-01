@@ -12,11 +12,11 @@
 //
 // Plant the defect and watch it go red (the proof skips the click, so the
 // row is never removed):
-//   PROVE_RED=no-hide pnpm run test:e2e:dm-remove
+//   PROVE_RED=no-hide pnpm run test:e2e dm-remove
 //
 // Run:
-//   pnpm run test:e2e:dm-remove
-//   BASE_URL=<generated bundle> pnpm run test:e2e:dm-remove     # what CI does
+//   pnpm run test:e2e dm-remove
+//   BASE_URL=<generated bundle> pnpm run test:e2e dm-remove     # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

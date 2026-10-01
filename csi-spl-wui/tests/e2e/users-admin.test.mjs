@@ -15,11 +15,11 @@
 //
 // Plant the defect and watch it go red (the proof cancels the remove
 // confirmation, so the row stays):
-//   PROVE_RED=no-remove pnpm run test:e2e:users
+//   PROVE_RED=no-remove pnpm run test:e2e users
 //
 // Run:
-//   pnpm run test:e2e:users
-//   BASE_URL=<generated bundle> pnpm run test:e2e:users     # what CI does
+//   pnpm run test:e2e users
+//   BASE_URL=<generated bundle> pnpm run test:e2e users     # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

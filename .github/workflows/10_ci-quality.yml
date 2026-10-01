@@ -172,12 +172,9 @@ jobs:
   # BASE_URL points at that local server so the tests drive THIS commit, not
   # a live hub and not nuxi dev.
   #
-  # Left out (need a live hub, credentials, or Hosting CSP headers):
-  #   pnpm test:live              live-interop — HUB_URL / two sockets
-  #   pnpm test:e2e:csp           Hosting CSP from firebase.json render
-  #   pnpm test:e2e:rounded       visual, not in the T021 pick
-  #   pnpm test:e2e:scroll-anchor same
-  #   tests/e2e/*.proof.mjs       live sites or credentials
+  # Left out: the files csi-spl-wui/tests/e2e/ci-skip.txt names, each with
+  # its reason (live hub, Hosting CSP headers, visual sweeps), and
+  # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
     name: "wui: browser e2e (mock, generated)"
@@ -239,7 +236,7 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
-      - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit, dm-remove, display-name, typed-by, mobile-messages, card-edge-inset, topic-send-target, thread-dock-target, mobile-go-dock, omnibox-bottom, issue-dock-comment)
+      - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
           CI: "1"
         run: |
@@ -301,42 +298,11 @@ jobs:
           kill -0 "$serve_pid" && kill -0 "$api_pid" \
             || { echo "::error::a server of this job died; the port answered from elsewhere"; cat "$RUNNER_TEMP/wui-e2e-serve.log" "$RUNNER_TEMP/wui-e2e-api.log"; exit 1; }
           export BASE_URL="http://127.0.0.1:$web_port"
-          # Every script runs, whatever the one before it did, and the step fails at
-          # the end naming each red one: a red used to stop the step and hide every
-          # script after it (CLE-77827). test:e2e itself runs every file it lists.
-          failed=()
-          for s in \
-            test:e2e \
-            test:e2e:console-errors \
-            test:e2e:topic-pane \
-            test:e2e:mobile-stack \
-            test:e2e:mobile-overlay \
-            test:e2e:msg-edit \
-            test:e2e:dm-remove \
-            test:e2e:display-name \
-            test:e2e:typed-by \
-            test:e2e:top-bar-mobile \
-            test:e2e:top-bar-tenant \
-            test:e2e:mobile-messages \
-            test:e2e:card-edge-inset \
-            test:e2e:topic-send-target \
-            test:e2e:thread-dock-target \
-            test:e2e:mobile-go-dock \
-            test:e2e:issue-dock-comment \
-            test:e2e:delete-confirm \
-            test:e2e:channel-people \
-            test:e2e:channel-properties-esc \
-            test:e2e:build-watch \
-            test:e2e:names-not-ids \
-            test:e2e:search-original \
-            test:e2e:omnibox-bottom \
-            test:e2e:tenant-settings; do
-            pnpm run "$s" || failed+=("$s")
-          done
-          if (( ${#failed[@]} )); then
-            echo "::error::wui e2e: ${#failed[@]} script(s) failed: ${failed[*]}"
-            exit 1
-          fi
+          # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
+          # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
+          # whatever the one before it did, and the step fails at the end naming
+          # each red one (CLE-77827).
+          pnpm run test:e2e
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.

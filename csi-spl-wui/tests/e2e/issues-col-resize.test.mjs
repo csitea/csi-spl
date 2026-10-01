@@ -17,8 +17,8 @@
 //       {"issues_columns": ...} after release, and the per-browser store is
 //       left alone
 //
-//   pnpm run test:e2e:issues-col-resize
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-col-resize
+//   pnpm run test:e2e issues-col-resize
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-col-resize
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

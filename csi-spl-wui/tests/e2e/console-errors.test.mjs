@@ -7,8 +7,8 @@
 // DOM.
 //
 // Run:
-//   pnpm test:e2e:console-errors                      (boots nuxi dev, mock tenant)
-//   BASE_URL=http://127.0.0.1:3000 pnpm test:e2e:console-errors
+//   pnpm test:e2e console-errors                      (boots nuxi dev, mock tenant)
+//   BASE_URL=http://127.0.0.1:3000 pnpm test:e2e console-errors
 //
 // Env:
 //   BASE_URL     WUI origin to audit (default: start `nuxi dev` in mock mode)

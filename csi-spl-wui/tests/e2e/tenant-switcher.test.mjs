@@ -14,8 +14,8 @@
 // options (rendered, hidden while closed), "open" is aria-expanded.
 //
 // Run:
-//   pnpm run test:e2e:tenant-switcher
-//   BASE_URL=<generated bundle> pnpm run test:e2e:tenant-switcher
+//   pnpm run test:e2e tenant-switcher
+//   BASE_URL=<generated bundle> pnpm run test:e2e tenant-switcher
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

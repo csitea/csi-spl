@@ -11,9 +11,9 @@
 // they are untouched.
 //
 // Run:
-//   pnpm run test:e2e:act-as
-//   BASE_URL=<generated bundle> pnpm run test:e2e:act-as     # what CI does
-//   SHOTS=/var/tmp/shots pnpm run test:e2e:act-as            # write screenshots
+//   pnpm run test:e2e act-as
+//   BASE_URL=<generated bundle> pnpm run test:e2e act-as     # what CI does
+//   SHOTS=/var/tmp/shots pnpm run test:e2e act-as            # write screenshots
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'

@@ -5,8 +5,8 @@
 // its place; Hide keeps it hidden across a reload.
 //
 // Run:
-//   pnpm run test:e2e:first-run
-//   BASE_URL=<generated bundle> pnpm run test:e2e:first-run
+//   pnpm run test:e2e first-run
+//   BASE_URL=<generated bundle> pnpm run test:e2e first-run
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

@@ -14,12 +14,12 @@
 //      topmost element at their centre (nothing laid over them).
 //
 // CONTROLS - plant the defect and watch it go red:
-//   PROVE_RED=no-row-avatar pnpm run test:e2e:avatars   (the Topics rows lose it)
-//   PROVE_RED=hidden        pnpm run test:e2e:avatars   (every avatar visibility:hidden)
+//   PROVE_RED=no-row-avatar pnpm run test:e2e avatars   (the Topics rows lose it)
+//   PROVE_RED=hidden        pnpm run test:e2e avatars   (every avatar visibility:hidden)
 //
 // Run:
-//   pnpm run test:e2e:avatars
-//   BASE_URL=<generated bundle> pnpm run test:e2e:avatars     # what CI does
+//   pnpm run test:e2e avatars
+//   BASE_URL=<generated bundle> pnpm run test:e2e avatars     # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

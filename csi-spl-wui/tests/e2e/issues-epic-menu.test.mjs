@@ -5,8 +5,8 @@
 // filtered to: Copy link, Archive, Delete (cascade + count confirm). It is
 // disabled with a tooltip when the view is not filtered to one epic.
 //
-//   pnpm run test:e2e:issues-epic-menu
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-epic-menu
+//   pnpm run test:e2e issues-epic-menu
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-epic-menu
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

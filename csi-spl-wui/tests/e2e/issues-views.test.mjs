@@ -11,8 +11,8 @@
 //   V6  signed in, the view is the person's (the issues_view claim) and a
 //       switch is sent to the hub as {"issues_view": ...}
 //
-//   pnpm run test:e2e:issues-views
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-views
+//   pnpm run test:e2e issues-views
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-views
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

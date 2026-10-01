@@ -14,8 +14,8 @@
 // avatar at the same inset, no sideways scroll, one header line from 390 px.
 // Desktop (1440): unchanged - text starts right of the avatar column.
 //
-//   pnpm run test:e2e:card-edge-inset
-//   BASE_URL=<generated bundle> pnpm run test:e2e:card-edge-inset
+//   pnpm run test:e2e card-edge-inset
+//   BASE_URL=<generated bundle> pnpm run test:e2e card-edge-inset
 //   MEASURE=1 ... prints the numbers without asserting
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

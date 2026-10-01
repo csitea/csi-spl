@@ -176,20 +176,8 @@ jobs:
           curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" \
             || { echo "::error::generated bundle not serving"; cat "$RUNNER_TEMP/wui-e2e-serve.log"; exit 1; }
           export BASE_URL="http://127.0.0.1:$web_port"
-          # Every script runs, whatever the one before it did, and the step fails at
-          # the end naming each red one: a red used to stop the step and hide every
-          # script after it (CLE-77827). test:e2e itself runs every file it lists.
-          failed=()
-          for s in \
-            test:e2e \
-            test:e2e:console-errors \
-            test:e2e:topic-pane \
-            test:e2e:mobile-stack \
-            test:e2e:msg-edit \
-            test:e2e:names-not-ids; do
-            pnpm run "$s" || failed+=("$s")
-          done
-          if (( ${#failed[@]} )); then
-            echo "::error::wui e2e: ${#failed[@]} script(s) failed: ${failed[*]}"
-            exit 1
-          fi
+          # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
+          # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
+          # whatever the one before it did, and the step fails at the end naming
+          # each red one (CLE-77827).
+          pnpm run test:e2e

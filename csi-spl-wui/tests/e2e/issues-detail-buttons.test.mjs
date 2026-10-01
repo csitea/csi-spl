@@ -7,8 +7,8 @@
 // single-issue confirm. A regular member sees the same three (the hub is the
 // authority, as it was for the menu). No horizontal scroll at 390.
 //
-//   pnpm run test:e2e:issues-detail-buttons
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-detail-buttons
+//   pnpm run test:e2e issues-detail-buttons
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-detail-buttons
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

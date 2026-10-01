@@ -7,8 +7,8 @@
 // Control: before W12 the Agents page has no [data-test=connect-agent].
 //
 // Run:
-//   pnpm run test:e2e:connect-agent
-//   BASE_URL=<generated bundle> pnpm run test:e2e:connect-agent
+//   pnpm run test:e2e connect-agent
+//   BASE_URL=<generated bundle> pnpm run test:e2e connect-agent
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

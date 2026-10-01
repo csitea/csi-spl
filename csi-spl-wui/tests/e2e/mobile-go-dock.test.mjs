@@ -14,8 +14,8 @@
 // dock (the 'no floating GO' and 'level 1 dock' checks fail there).
 //
 // Run:
-//   pnpm run test:e2e:mobile-go-dock
-//   BASE_URL=<generated bundle> pnpm run test:e2e:mobile-go-dock   # what CI does
+//   pnpm run test:e2e mobile-go-dock
+//   BASE_URL=<generated bundle> pnpm run test:e2e mobile-go-dock   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per step there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

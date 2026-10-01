@@ -13,8 +13,8 @@
 // and dark.
 //
 // Run:
-//   pnpm run test:e2e:flow-left
-//   BASE_URL=<generated bundle> pnpm run test:e2e:flow-left     # what CI does
+//   pnpm run test:e2e flow-left
+//   BASE_URL=<generated bundle> pnpm run test:e2e flow-left     # what CI does
 //   SHOT_DIR=/tmp/shots ...                                      # keep the screenshots
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'

@@ -19,8 +19,8 @@
 //     docked composer -> is_parent 0 into the open topic, not a middle card.
 //
 // Run:
-//   pnpm run test:e2e:topic-send-target
-//   BASE_URL=<generated bundle> pnpm run test:e2e:topic-send-target   # what CI does
+//   pnpm run test:e2e topic-send-target
+//   BASE_URL=<generated bundle> pnpm run test:e2e topic-send-target   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per step there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

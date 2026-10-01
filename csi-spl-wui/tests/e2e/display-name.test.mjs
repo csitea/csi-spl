@@ -13,11 +13,11 @@
 // CONTROL: the user menu shows the OLD name before the save, so a menu that
 // always reads the typed text (or a selector that matches nothing) cannot
 // read green. Plant the defect and watch it go red (the save is skipped):
-//   PROVE_RED=no-save pnpm run test:e2e:display-name
+//   PROVE_RED=no-save pnpm run test:e2e display-name
 //
 // Run:
-//   pnpm run test:e2e:display-name
-//   BASE_URL=<generated bundle> pnpm run test:e2e:display-name     # what CI does
+//   pnpm run test:e2e display-name
+//   BASE_URL=<generated bundle> pnpm run test:e2e display-name     # what CI does
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

@@ -17,7 +17,7 @@
 // asserts the textarea's value EQUALS the old body rather than asserting that
 // a textarea appeared. Plant the defect and watch it go red:
 //
-//   PROVE_RED=prefill-empty pnpm run test:e2e:msg-edit
+//   PROVE_RED=prefill-empty pnpm run test:e2e msg-edit
 //
 // which makes the proof itself blank the box after opening it — the same
 // observable state a `beginEdit` that forgot the body would produce — so the
@@ -34,9 +34,9 @@
 // a real signed-in session.
 //
 // Run:
-//   pnpm run test:e2e:msg-edit
-//   BASE_URL=<generated bundle> pnpm run test:e2e:msg-edit     # exactly what CI does
-//   OUT=/var/tmp/CLE-3445-proof pnpm run test:e2e:msg-edit     # screenshots
+//   pnpm run test:e2e msg-edit
+//   BASE_URL=<generated bundle> pnpm run test:e2e msg-edit     # exactly what CI does
+//   OUT=/var/tmp/CLE-3445-proof pnpm run test:e2e msg-edit     # screenshots
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync } from 'node:fs'
@@ -474,7 +474,7 @@ try {
    * So this asserts the state AFTER a swap with the editor open, with no
    * navigation in between. Plant the defect and watch it go red:
    *
-   *   PROVE_RED=keep-editor pnpm run test:e2e:msg-edit
+   *   PROVE_RED=keep-editor pnpm run test:e2e msg-edit
    *
    * which re-opens the editor on the bot root after the swap, reproducing the
    * un-keyed card's behaviour without editing src/.

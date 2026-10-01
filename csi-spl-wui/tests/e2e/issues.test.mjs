@@ -2,8 +2,8 @@
 // epic every tenant has (SPL-1 "random", SPL-18), so the rows it creates
 // start at SPL-2 and land under that epic by default.
 //
-//   pnpm run test:e2e:issues
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues
+//   pnpm run test:e2e issues
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync, mkdtempSync } from 'node:fs'

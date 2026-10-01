@@ -19,8 +19,8 @@
 //   PROVE_RED=no-archive node tests/e2e/tenant-settings.test.mjs
 //
 // Run:
-//   pnpm run test:e2e:tenant-settings
-//   BASE_URL=<generated bundle> pnpm run test:e2e:tenant-settings
+//   pnpm run test:e2e tenant-settings
+//   BASE_URL=<generated bundle> pnpm run test:e2e tenant-settings
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

@@ -24,8 +24,8 @@
 //       inside the one 44 px Add-emoji target, and a tap on it opens the sheet
 //
 // Run:
-//   pnpm run test:e2e:mobile-messages
-//   BASE_URL=<generated bundle> pnpm run test:e2e:mobile-messages   # what CI does
+//   pnpm run test:e2e mobile-messages
+//   BASE_URL=<generated bundle> pnpm run test:e2e mobile-messages   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per viewport there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

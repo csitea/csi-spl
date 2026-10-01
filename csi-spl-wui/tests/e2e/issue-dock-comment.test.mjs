@@ -11,8 +11,8 @@
 // checks fail (GO does nothing, the text stays in the box).
 //
 // Run:
-//   pnpm run test:e2e:issue-dock-comment
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issue-dock-comment   # what CI does
+//   pnpm run test:e2e issue-dock-comment
+//   BASE_URL=<generated bundle> pnpm run test:e2e issue-dock-comment   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per step there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

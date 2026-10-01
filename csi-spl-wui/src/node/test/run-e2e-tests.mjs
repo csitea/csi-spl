@@ -1,46 +1,97 @@
-// WUI browser-e2e runner — runs EVERY listed file, fails at the end.
+// WUI browser-e2e runner — discovers tests instead of hardcoding them.
 //
-// Why this exists: `test:e2e` used to be one `node a && node b && …` chain of
-// ~45 files, so the first red stopped it and every file after it never ran.
-// On 2026-10-01 move-by-drag went red and the ~20 files behind it went
-// unexercised for hours (CLE-77827): one red hid all the others.
+// Why this exists, twice over:
+//   • `test:e2e` used to be one `node a && node b && …` chain, so the first
+//     red stopped it and every file after it never ran (CLE-77827).
+//   • Then it was an explicit list in package.json, plus ~95
+//     `test:e2e:<name>` scripts, plus a script loop in workflows 10 and 11.
+//     48 lanes edited package.json in the 72 h before 2026-10-01 to add one
+//     line each, and a file nobody listed never ran: local-time and
+//     open-parent-section sat on disk unexercised, and the script
+//     `node a.test.mjs b.test.mjs` only ever ran a (CLE-77915).
 //
-// The list stays explicit (it is the CI pick, not every *.test.mjs on disk —
-// many e2e files are opt-in or need a live hub), and it stays in package.json.
+// Discovery removes that failure mode by construction: every
+// tests/e2e/*.test.mjs on disk runs, the moment it lands, unless
+// tests/e2e/ci-skip.txt names it with a reason (live hub, credentials,
+// Hosting headers). *.proof.mjs files are never discovered — they drive live
+// sites.
 //
 // Contract (`10_ci-quality.yml` / `11_ci-public.yml` run `pnpm run test:e2e`):
-//   • every listed file runs, in order, whatever the ones before it did
+//   • every selected file runs, in sorted order, whatever the ones before did
 //   • exit 0 only when every file exits 0
-//   • exit 1 when any file fails, when a listed file is missing, or when the
-//     list is empty — an empty run must never read as a pass
+//   • exit 1 when any file fails, when nothing is selected, when a path given
+//     is missing, or when a ci-skip.txt line names no file on disk or gives
+//     no reason — an empty run must never read as a pass
 //   • the last lines name every failed file, so the job log says it once
 //
 // Usage:
-//   node src/node/test/run-e2e-tests.mjs tests/e2e/a.test.mjs tests/e2e/b.test.mjs
-//   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs …   # stop at first failure
-import { existsSync } from 'node:fs'
+//   node src/node/test/run-e2e-tests.mjs                     # the CI suite
+//   node src/node/test/run-e2e-tests.mjs msg-edit csp        # names containing these (skipped ones too)
+//   node src/node/test/run-e2e-tests.mjs tests/e2e/a.test.mjs # exact paths
+//   node src/node/test/run-e2e-tests.mjs --list              # print the selection, run none
+//   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs         # stop at first failure
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../../..')
+const E2E_REL = 'tests/e2e'
+const SKIP_REL = `${E2E_REL}/ci-skip.txt`
 
-const files = process.argv.slice(2)
+const argv = process.argv.slice(2)
+const listOnly = argv.includes('--list')
+const args = argv.filter((a) => !a.startsWith('--'))
+const paths = args.filter((a) => a.includes('/'))
+const filters = args.filter((a) => !a.includes('/'))
 const failFast = process.env.FAIL_FAST === '1'
 
-if (files.length === 0) {
-  console.error('e2e runner: no test files given — refusing to pass')
+const die = (msg) => {
+  console.error(`e2e runner: ${msg}`)
   process.exit(1)
 }
 
-const missing = files.filter((f) => !existsSync(join(WUI, f)))
-if (missing.length) {
-  console.error(`e2e runner: listed file(s) not found: ${missing.join(', ')}`)
-  process.exit(1)
+// Sorted so a failure is reproducible in the same order on every machine.
+const discovered = existsSync(join(WUI, E2E_REL))
+  ? readdirSync(join(WUI, E2E_REL)).filter((f) => f.endsWith('.test.mjs')).sort().map((f) => `${E2E_REL}/${f}`)
+  : []
+if (discovered.length === 0) die(`no *.test.mjs found in ${E2E_REL} — refusing to pass`)
+
+// ci-skip.txt: `<file name> <reason>` per line, `#` comments. A stale line is
+// an error, not a no-op: it would hide the file that replaced it.
+const skipped = new Set()
+if (existsSync(join(WUI, SKIP_REL))) {
+  for (const raw of readFileSync(join(WUI, SKIP_REL), 'utf8').split('\n')) {
+    const line = raw.replace(/#.*/, '').trim()
+    if (!line) continue
+    const [name, ...reason] = line.split(/\s+/)
+    if (!reason.length) die(`${SKIP_REL}: "${name}" gives no reason`)
+    if (!discovered.includes(`${E2E_REL}/${name}`)) die(`${SKIP_REL}: "${name}" is not a file in ${E2E_REL}`)
+    skipped.add(`${E2E_REL}/${name}`)
+  }
 }
 
-console.log(`e2e runner: ${files.length} file(s)\n`)
+let files
+if (paths.length) {
+  const missing = paths.filter((f) => !existsSync(join(WUI, f)))
+  if (missing.length) die(`file(s) not found: ${missing.join(', ')}`)
+  files = paths
+} else if (filters.length) {
+  files = discovered.filter((f) => filters.some((s) => f.slice(E2E_REL.length + 1).includes(s)))
+  if (files.length === 0) die(`filter [${filters.join(', ')}] matched none of ${discovered.length} files`)
+} else {
+  files = discovered.filter((f) => !skipped.has(f))
+  if (files.length === 0) die('every discovered file is in ci-skip.txt — refusing to pass')
+}
+
+if (listOnly) {
+  for (const f of files) console.log(f)
+  process.exit(0)
+}
+
+const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL})`
+console.log(`e2e runner: ${files.length} file(s)${scope}\n`)
 
 const failures = []
 for (const [i, file] of files.entries()) {

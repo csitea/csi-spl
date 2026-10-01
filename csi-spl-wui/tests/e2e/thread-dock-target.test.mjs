@@ -19,8 +19,8 @@
 //   accent edge (data-mode) and placeholder only - no text line above it.
 //
 // Run:
-//   pnpm run test:e2e:thread-dock-target
-//   BASE_URL=<generated bundle> pnpm run test:e2e:thread-dock-target   # what CI does
+//   pnpm run test:e2e thread-dock-target
+//   BASE_URL=<generated bundle> pnpm run test:e2e thread-dock-target   # what CI does
 //   SHOTS=<dir> ... also writes a screenshot per step there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

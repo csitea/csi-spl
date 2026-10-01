@@ -23,8 +23,8 @@
 // and this file sets NUXT_PUBLIC_BUILD_COMMIT itself.
 //
 // Run:
-//   pnpm run test:e2e:keyboard-lang-switch
-//   BASE_URL=<generated bundle> pnpm run test:e2e:keyboard-lang-switch
+//   pnpm run test:e2e keyboard-lang-switch
+//   BASE_URL=<generated bundle> pnpm run test:e2e keyboard-lang-switch
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

@@ -2,8 +2,8 @@
 // archive/delete confirm. Mock mode starts with the SPL-1 "random" epic, so a
 // row created lands under it; deleting the epic with cascade takes the row too.
 //
-//   pnpm run test:e2e:issues-ctxmenu
-//   BASE_URL=<generated bundle> pnpm run test:e2e:issues-ctxmenu
+//   pnpm run test:e2e issues-ctxmenu
+//   BASE_URL=<generated bundle> pnpm run test:e2e issues-ctxmenu
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

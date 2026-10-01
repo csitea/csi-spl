@@ -20,8 +20,8 @@
 // Control: on 1.9.9 (the epics had no scroller) the Issues checks go red.
 //
 // Run:
-//   pnpm run test:e2e:sidebar-footer
-//   BASE_URL=<generated bundle> pnpm run test:e2e:sidebar-footer
+//   pnpm run test:e2e sidebar-footer
+//   BASE_URL=<generated bundle> pnpm run test:e2e sidebar-footer
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'

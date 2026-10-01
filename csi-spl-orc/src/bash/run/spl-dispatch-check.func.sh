@@ -9,6 +9,8 @@
 # @description   seat in every workspace, unread inbox messages
 # @description   the lease: holder is a dispatcher and its age is under LEASE_STALE
 # @description   the renew and watch loops: each holds its run lock
+# @description   the unanswered sweep: its last delivered run is under
+# @description   DISPATCH_SWEEP_STALE s old, with its open count (SPEC 3.2)
 # @description   per workspace and channel: both dispatchers subscribed and the
 # @description   orchestrator NOT (the hub delivers a web UI post to a
 # @description   channel's subscribed agents; do_spl_dispatch_subscribe fixes it)
@@ -20,6 +22,8 @@
 # @param DISPATCH_MODEL (optional) - when set, a dispatcher on another model is a GAP
 # @param DISPATCH_UNREAD_MAX (optional) - more unread than this is a GAP, default 20
 # @param DISPATCH_CHECK_SUBS (optional) - 0 skips the channel rows (no DB read)
+# @param DISPATCH_SWEEP (optional) - 0 skips the sweep row
+# @param DISPATCH_SWEEP_STALE (optional) - seconds, default 1800 (three missed 10-min ticks)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_dispatch_check
 #------------------------------------------------------------------------------
@@ -81,6 +85,7 @@ do_spl_dispatch_check() {
     spl_lease_running "$v" && row "lease $v loop" "pid $(cat "$LEASE_DIR/$v.pid" 2>/dev/null)" ok ||
       row "lease $v loop" "not running" "GAP LEASE_CMD=ensure do_spl_dispatch_lease"
   done
+  [[ "${DISPATCH_SWEEP:-1}" != 0 ]] && spl_sweep_check_row
   echo
   if (( gaps )); then echo "dispatch check: $gaps gap(s)"; return 1; fi
   echo "dispatch check: no gap"

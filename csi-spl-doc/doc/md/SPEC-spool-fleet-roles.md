@@ -81,6 +81,47 @@ agent's commit (`git merge-base --is-ancestor <sha> <served>`); a hub change is
 checked the same way against `/version`. An unproven claim goes back to the
 agent.
 
+### 3.2 The unanswered sweep: the pull that finds what nobody answered
+
+The routing rule acts on DELIVERIES, so it only ever sees a post the moment
+it arrives. A post that arrived before the dispatchers existed, while a seat
+was down, whose poke was lost, or that an agent read and never answered, is
+never looked at again. Measured 2026-10-01: two bugs posted in csi-rel
+#development on 2026-09-28 sat three days unanswered until the owner pinged
+("the pulling mechanism should work for all the tenants, not only the spool
+t1 tenant").
+
+`do_spl_unanswered_sweep` (csi-spl-orc) is the pull. Every 10 minutes, from
+the box crontab (tag `# csi-spl:unanswered-sweep`, installed by
+`do_spl_unanswered_sweep_install_cron`, step 11 of `do_spl_dispatch_setup`),
+it reads EVERY workspace of the hub in one read-only query and lists each
+topic whose LAST message is a human's and older than 15 minutes.
+
+| a topic whose last message is | the sweep |
+|---|---|
+| an agent's | leaves it: answered |
+| a human's, in a test workspace (`e2e`, or an id or name with `e2e`, `test` or `proof` as a word) | leaves it |
+| a human's, in an archived topic or an archived or deleted channel | leaves it: closed |
+| a human's DM to another human, or in `#issues` / `#tasks` | leaves it |
+| a human's, younger than 15 minutes | leaves it: the live delivery has it |
+| a pure acknowledgement ("ok", "thanks", emoji only) | lists it in its own table, never sends it |
+| any other human post | sends it to the lease holder |
+
+Delivery is ONE spool note per sweep (task `unanswered-sweep`) to the lease
+holder, with only the items NEW since the last sweep: a table of workspace,
+channel, topic, last human post, age, who and the first 120 characters. The
+memory is `<spool root>/dispatch/unanswered.state`, keyed by the topic's last
+message, so a new human post in a known topic is a new item. An item still
+open two hours after its note is sent once more (`AGAIN`); still open two
+hours after that, it is escalated to `CLE-001`, once. The dispatcher treats
+each item like a delivery under section 3.
+
+`<spool root>/dispatch/unanswered.last` holds the last delivered sweep's time
+and open counts; `do_spl_dispatch_check` shows it as the `unanswered sweep`
+row and calls it a GAP when the sweep never ran, its last note failed, or it
+is over 30 minutes old. Without `DELIVER=1` the action only reports: run it
+by hand to see the current list.
+
 ## 4. Master and failover: the heartbeat lease
 
 ```mermaid
@@ -153,6 +194,7 @@ end to end in every seated workspace.
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
 | web UI posts reach the dispatchers | done 2026-10-01: `do_spl_dispatch_subscribe` put both dispatchers in every channel of all 6 workspaces and took the orchestrator out (the hub delivers to a channel's subscribed agents; the fallback list only when none is online). `do_spl_dispatch_check`: no gap. t1 proven on live traffic: 227 human posts reached the master, the orchestrator only DMs and @mentions |
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
+| unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.3.2 · updated: 2026-10-01 · last-edit: 2026-10-01T10:36:00Z -->
+<!-- version: 0.3.3 · updated: 2026-10-01 · last-edit: 2026-10-01T11:10:00Z -->

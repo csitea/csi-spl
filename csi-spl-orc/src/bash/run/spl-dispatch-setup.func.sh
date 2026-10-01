@@ -20,6 +20,9 @@
 # @description  10. the channel subscriptions (do_spl_dispatch_subscribe): both
 # @description      dispatchers in every channel, the orchestrator in none. It
 # @description      reads the hub DB even in the dry run (DISPATCH_SUBSCRIBE=0 skips)
+# @description  11. the unanswered-post sweep cron (do_spl_unanswered_sweep_install_cron,
+# @description      SPEC 3.2: the pull that finds posts nobody answered;
+# @description      DISPATCH_SWEEP=0 skips)
 # @description Dry run unless DRY_RUN=0: prints one "PLAN <step> <what>" line
 # @description per action and touches nothing. Verify with do_spl_dispatch_check.
 # @param ENV - required: dev or prd, the hub the desks seat at
@@ -35,6 +38,7 @@
 # @param   root keys, needed only for a desk box that is not pinned yet
 # @param DISPATCH_LEGACY_REGISTRY (optional) - a second registry.tsv to carry the rows
 # @param DISPATCH_SUBSCRIBE (optional) - 0 skips step 10 (no hub DB read or write)
+# @param DISPATCH_SWEEP (optional) - 0 skips step 11 (the sweep cron)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_dispatch_setup
@@ -116,6 +120,11 @@ spl_dispatch_setup_steps() {
   # dir is not this one)
   if [[ "${DISPATCH_SUBSCRIBE:-1}" != 0 ]]; then
     ( DRY_RUN=$dry do_spl_dispatch_subscribe ) || return 1
+  fi
+
+  # 11. the unanswered-post sweep cron (its own crontab diff in the dry run)
+  if [[ "${DISPATCH_SWEEP:-1}" != 0 ]]; then
+    ( DRY_RUN=$dry do_spl_unanswered_sweep_install_cron ) || return 1
   fi
   ((dry)) && do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to apply"
   return 0

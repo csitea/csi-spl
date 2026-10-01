@@ -11,7 +11,8 @@
 #   6. check: a complete box reports no gap and exits 0
 #   7. check: each gap fails it - no process, not auto, missing seat, unread
 #      over the max, stale lease, holder not a dispatcher, a loop down,
-#      settings not loaded, model mismatch
+#      settings not loaded, model mismatch, the unanswered sweep never ran
+#   8. setup step 11: the sweep cron line is PLANned, then written once
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -29,6 +30,12 @@ SUBS="$T/subs"; mkdir -p "$SUBS"
 for w in w1 w2; do
   printf 'chan|lobby\nchan|team\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nsub|team|box-desk|CLE-002|invite\nsub|team|box-desk|CLE-003|invite\n' >"$SUBS/$w.txt"
 done
+# a fake crontab (-l prints the file, <file> replaces it) and the checkout the
+# sweep cron line points at, so step 11 never touches the real crontab
+mkdir -p "$T/bin" "$T/shared/csi-spl-orc/src/bash/scripts"
+printf '#!/usr/bin/env bash\nif [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi\ncp "$1" "$FAKE_CRONTAB"\n' >"$T/bin/crontab"
+chmod +x "$T/bin/crontab"
+cp "$PROJ_ROOT/src/bash/scripts/unanswered-sweep-cron.sh" "$T/shared/csi-spl-orc/src/bash/scripts/"
 git init -q "$R" && git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 
 # agent <pid> <id> [perm] [model]
@@ -45,10 +52,13 @@ seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/p
 
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPOOL_ROOT="$S" SPL_STATE_DIR="$ST" LEASE_PROC_ROOT="$P" \
-    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" "$@" bash -c '
+    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" \
+    PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$T/shared" SWEEP_CRON_LOG_DIR="$T/log" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done
+    do_require_bin() { return 0; }
+    for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh "$PROJ_PATH"/src/bash/run/spl-unanswered-sweep*.func.sh \
+      "$PROJ_PATH"/src/bash/run/spl-desk-install-service.func.sh; do source "$f"; done
     "$ACTION"'
 }
 setup() { act ACTION=do_spl_dispatch_setup "$@"; }
@@ -108,9 +118,12 @@ echo "CLE-002 $(date +%s)" >"$S/dispatch/lease"
 ( exec 7>"$S/dispatch/renew.run"; flock 7; sleep 30 ) & H1=$!
 ( exec 7>"$S/dispatch/watch.run"; flock 7; sleep 30 ) & H2=$!
 sleep 0.3
+printf 'ts=%s\nopen=2\nper=w1=2\nto=CLE-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
 check >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'dispatch check: no gap' "$T/o" && grep -q '| CLE-003 desks | 2/2 workspaces | ok |' "$T/o" &&
   pass "6. a complete box: no gap, exit 0" || fail "6. rc=$rc $(cat "$T/o")"
+grep -qE '\| unanswered sweep \| last [0-9]+s ago to CLE-002, 2 open \(w1=2\) \| ok \|' "$T/o" &&
+  pass "6. the sweep row shows its age and open count" || fail "6. sweep row: $(grep -i sweep "$T/o")"
 
 # --- 7. each gap fails the check -----------------------------------------------------------
 gap() { # <label> <expected verdict regex> -- env...
@@ -136,6 +149,18 @@ gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, CLE-00
 cp "$T/w2.keep" "$SUBS/w2.txt"
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
+mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never ran" 'unanswered sweep \| never ran \| GAP'
+
+# --- 8. setup step 11: the sweep cron ----------------------------------------------------------
+rm -f "$T/crontab"
+setup >"$T/o" 2>&1
+grep -q '^    +2-59/10 \* \* \* \* ENV=prd .*unanswered-sweep-cron.sh .*# csi-spl:unanswered-sweep$' "$T/o" && [[ ! -e "$T/crontab" ]] &&
+  pass "8. the dry run shows the sweep cron line, writes nothing" || fail "8. dry: $(cat "$T/o")"
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; setup DRY_RUN=0 LEASE_RUN=/bin/true >>"$T/o" 2>&1
+[[ "$(grep -c '# csi-spl:unanswered-sweep$' "$T/crontab" 2>/dev/null)" == 1 ]] &&
+  pass "8. DRY_RUN=0 installs the sweep cron once (idempotent)" || fail "8. crontab: $(cat "$T/crontab" 2>/dev/null) $(tail -5 "$T/o")"
+setup DISPATCH_SWEEP=0 >"$T/o" 2>&1
+grep -q 'unanswered-sweep' "$T/o" && fail "8. DISPATCH_SWEEP=0 still ran step 11" || pass "8. DISPATCH_SWEEP=0 skips step 11"
 
 echo "dispatch-setup-check: $fails failure(s)"
 [[ $fails -eq 0 ]]

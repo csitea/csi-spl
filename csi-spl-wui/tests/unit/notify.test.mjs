@@ -152,11 +152,12 @@ describe('notify escalation', () => {
 
   it('SPL-998: every sound path in src reads the note', () => {
     const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
-    const calls = store.match(/new Notification\([^)]*\)/g) || []
+    /* bug A: the store raises alerts through showAlert (Android's worker fallback) */
+    const calls = store.match(/showAlert\([^\n]*\)/g) || []
     assert.ok(calls.length >= 1)
-    for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value\)/)
+    for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value, tag\)/)
     /* 051: the ping plays the reader's chosen sound, still gated on the note */
-    assert.match(store, /if \(chime\.value && import\.meta\.client\)[\s\S]{0,140}playSound\(sound\.value\)/)
+    assert.match(store, /if \(chime\.value && import\.meta\.client( && chimeGate\(\))?\)[\s\S]{0,140}playSound\(sound\.value\)/)
     /* CLE-35075/051: the synth lives in notify.mjs; the gated store path plays
        it, and the Settings picker previews it. Nowhere else. */
     const sounds = execSync(`grep -rlE "playSound\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
@@ -164,7 +165,10 @@ describe('notify escalation', () => {
     assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
     /* nothing else in src makes a sound: add it to this list AND gate it on the note */
     const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
-    assert.deepEqual(hits, ['src/stores/notification.ts'])
+    /* bug A: the one place that constructs an alert is showAlert in notify.mjs */
+    assert.deepEqual(hits, ['src/utils/notify.mjs'])
+    const lib = readFileSync(join(WUI, 'src/utils/notify.mjs'), 'utf8')
+    assert.match(lib, /export async function showAlert\(title, opts, env = \{\}\)/)
   })
 
   it('CLE-35075: playChime makes the same beep and closes its AudioContext when it ends', () => {
@@ -360,7 +364,9 @@ describe('muted channels do not ping', () => {
     assert.equal(shouldPing(alerts, { selfId: 'HUM-1' }, ['alerts']), false)
     const dm = msg({ channel: null, from: 'CLE-07', to: 'HUM-1', body: 'hi' })
     assert.equal(shouldPing(dm, { selfId: 'HUM-1' }, ['lobby', 'alerts', 'releases']), true)
-    assert.equal(shouldPing(msg({ channel: 'tasks', body: 'Applying patch' }), { selfId: 'HUM-1' }, []), false)
+    /* bug A: an ordinary message pings too; muting its channel silences it */
+    assert.equal(shouldPing(msg({ channel: 'tasks', body: 'Applying patch' }), { selfId: 'HUM-1' }, []), true)
+    assert.equal(shouldPing(msg({ channel: 'tasks', body: 'Applying patch' }), { selfId: 'HUM-1' }, ['tasks']), false)
   })
 
   it('mute is remembered in this browser under spool.muted-channels', () => {
@@ -461,5 +467,82 @@ describe('DM rail badge "<new>/<total>" (CLE-77845)', () => {
   it('a channel line never counts toward a DM total', () => {
     const topics = [{ count: 2, participants: [], inline: { messages: [msg('a', 'CLE-1', 'HUM-1', { channel: 'ops' }), msg('b', 'CLE-1', 'HUM-1')] } }]
     assert.deepEqual(dmTotalsFromDms(topics, 'HUM-1'), { 'dm:CLE-1@box-desk': 1 })
+  })
+})
+
+// Bug A (t1 5002067f, HUM-24 2026-09-29): "notifications for new messages are
+// enabled, but no signal comes". Only a mention, a DM or #alerts made a
+// sound or an alert, so an ordinary reply from a member or an agent raised a
+// rail badge and nothing else; and on Android `new Notification()` throws, so
+// no alert ever showed there.
+describe('bug A: a new message signals', () => {
+  it('an ordinary channel message from another member or agent pings', () => {
+    const ctx = { selfId: 'HUM-24' }
+    assert.equal(shouldPing(msg({ from: 'HUM-10', channel: 'lobby', body: 'hello' }), ctx, []), true)
+    assert.equal(shouldPing(msg({ from: 'CLE-07', channel: 'spool-hub-bugs', body: 'fixed' }), ctx, []), true)
+    /* the reader's own message never pings, with or without its @box */
+    assert.equal(shouldPing(msg({ from: 'HUM-24', channel: 'lobby' }), ctx, []), false)
+    assert.equal(shouldPing(msg({ from: 'HUM-24@wui', channel: 'lobby' }), ctx, []), false)
+    /* a muted channel stays quiet; a DM is never muted by a channel */
+    assert.equal(shouldPing(msg({ from: 'HUM-10', channel: 'lobby' }), ctx, ['lobby']), false)
+    assert.equal(shouldPing(msg({ from: 'HUM-10', channel: null }), ctx, ['lobby']), true)
+    /* escalation still names the alert: an ordinary message is not a mention */
+    assert.equal(escalateReason(msg({ from: 'HUM-10', channel: 'lobby', body: 'hello' }), ctx), null)
+  })
+
+  it('the open feed pings when the reader is away, for any message, not only an escalated one', () => {
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /away\(\) && shouldPing\(m, ctx, loadMutedChannels\(\)\)/)
+    assert.match(note, /document\.hasFocus\(\)/)
+    assert.doesNotMatch(note, /if \(reason\) \{\s*const copy = copyFor/)
+  })
+
+  it('Android: a throwing Notification constructor falls back to the service worker', async () => {
+    const { showAlert } = await import('../../src/utils/notify.mjs')
+    const shown = []
+    function Throws() { throw new TypeError('Illegal constructor') }
+    const serviceWorker = { getRegistration: async () => ({ showNotification: async (t, o) => { shown.push([t, o]) } }) }
+    assert.equal(await showAlert('DM from HUM-10', { body: 'hi', silent: false }, { Notification: Throws, serviceWorker }), true)
+    assert.deepEqual(shown, [['DM from HUM-10', { body: 'hi', silent: false }]])
+    /* desktop: the constructor works and the worker is not touched */
+    const made = []
+    function Works(t) { made.push(t) }
+    assert.equal(await showAlert('x', {}, { Notification: Works, serviceWorker: { getRegistration: async () => { throw new Error('unused') } } }), true)
+    assert.deepEqual(made, ['x'])
+    /* neither available: false, never a throw */
+    assert.equal(await showAlert('x', {}, { Notification: Throws, serviceWorker: undefined }), false)
+  })
+
+  it('one alert per feed replaces the last (tag), and the store passes the feed key', async () => {
+    assert.deepEqual(notificationOptions('b', true, 'ch:lobby'), { body: 'b', silent: false, tag: 'ch:lobby' })
+    assert.deepEqual(notificationOptions('b', false), { body: 'b', silent: true })
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /ping\(copy\.title, copy\.body, key\)/)
+    assert.match(note, /showAlert\(title, notificationOptions\(body, chime\.value, tag\)\)/)
+  })
+
+  it('a burst of messages plays one chime per 2 s', async () => {
+    const { pingThrottle } = await import('../../src/utils/notify.mjs')
+    let t = 0
+    const gate = pingThrottle(2000, () => t)
+    assert.equal(gate(), true)
+    t = 500
+    assert.equal(gate(), false)
+    t = 2100
+    assert.equal(gate(), true)
+  })
+
+  it('a suspended AudioContext (autoplay policy) is resumed before it plays', () => {
+    let resumed = 0
+    const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
+    class Ctx {
+      constructor() { this.state = 'suspended'; this.currentTime = 0; this.destination = {} }
+      resume() { resumed++; this.state = 'running'; return Promise.resolve() }
+      close() { return Promise.resolve() }
+      createOscillator() { return { frequency: param(), connect() {}, start() {}, stop() {} } }
+      createGain() { return { gain: param(), connect() {} } }
+    }
+    assert.equal(playSound('chirp', Ctx), true)
+    assert.equal(resumed, 1)
   })
 })

@@ -10,7 +10,9 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
-import { tabTitle, tenantTabName } from '~/utils/tab-title.mjs'
+import { tabTitle, tenantTabName, unreadTotal, withUnread } from '~/utils/tab-title.mjs'
+import { useNotificationStore } from '~/stores/notification'
+import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
@@ -45,15 +47,24 @@ const session = useSessionStore()
 const apexTenant = String(useRuntimeConfig().public.tenant || '')
 const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 
-useHead(() => ({
-  titleTemplate: (page) => tabTitle(page, tabName.value),
-  htmlAttrs: {
-    lang: i18nHead.value.htmlAttrs?.lang || locale.value,
-    dir: docDir(),
-    /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
-    'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
-  },
-  link: [...(i18nHead.value.link || [])],
-  meta: appVersion ? [{ name: 'version', content: appVersion }] : [],
-}))
+const notes = useNotificationStore()
+const unreadCount = computed(() => (import.meta.client ? unreadTotal(notes.unread, loadMutedChannels()) : 0))
+
+useHead(() => {
+  /* read here, not inside titleTemplate, so a new unread re-runs the head */
+  const name = tabName.value
+  const unread = unreadCount.value
+  return {
+    /* bug A: the unread total leads the tab title */
+    titleTemplate: (page) => withUnread(tabTitle(page, name), unread),
+    htmlAttrs: {
+      lang: i18nHead.value.htmlAttrs?.lang || locale.value,
+      dir: docDir(),
+      /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
+      'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
+    },
+    link: [...(i18nHead.value.link || [])],
+    meta: appVersion ? [{ name: 'version', content: appVersion }] : [],
+  }
+})
 </script>

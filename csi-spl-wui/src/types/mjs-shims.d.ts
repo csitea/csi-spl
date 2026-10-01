@@ -1693,6 +1693,8 @@ declare module '~/utils/tab-title.mjs' {
   export const PRODUCT: string
   export function tenantTabName(claims: unknown, pageTenant: string, apexTenant: string): string
   export function tabTitle(pageTitle: string | undefined | null, tabName: string): string
+  export function unreadTotal(unread: Record<string, number>, muted?: string[]): number
+  export function withUnread(title: string, n: number): string
 }
 
 declare module '~/utils/mobile-stack.mjs' {

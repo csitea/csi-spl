@@ -91,12 +91,26 @@ export function toggleMutedChannel(ids, channel) {
   return [...next]
 }
 
+/** The member id without its @box: "HUM-24@wui" and "HUM-24" are one reader. */
+function baseId(id) {
+  return String(id || '').split('@')[0]
+}
+
 /**
- * Ping only when the message would escalate and its channel is not muted.
- * A DM has no channel, so a muted channel does not silence it.
+ * Ping (chime + browser alert) on every new message from someone else, unless
+ * its channel is muted. A DM has no channel, so a muted channel does not
+ * silence it.
+ *
+ * Bug A (t1 5002067f, HUM-24 2026-09-29: "notifications for new messages are
+ * enabled, but no signal comes"): this used to ping only what escalates (a
+ * mention, a DM, #alerts), so an ordinary reply from a member or an agent
+ * raised a rail badge and nothing else. Escalation now only picks the alert's
+ * title and the mention badge; muting a channel is the noise control.
  */
 export function shouldPing(msg, ctx = {}, muted = []) {
-  if (!escalateReason(msg, ctx)) return false
+  if (!msg) return false
+  const self = baseId(ctx && ctx.selfId)
+  if (self && baseId(msg.from) === self) return false
   const ch = normalizeChannel(msg && msg.channel) || normalizeChannel(ctx && ctx.channel)
   if (!ch) return true
   const set = new Set((muted || []).map((id) => normalizeChannel(id)))
@@ -138,8 +152,57 @@ export function saveChime(on, store) {
    the operating system's own alert sound unless it is `silent`, so with the
    bell on and the note off every alert still beeped. Every alert the WUI
    raises takes its options from here. */
-export function notificationOptions(body, chime) {
-  return { body: String(body || ''), silent: !chime }
+export function notificationOptions(body, chime, tag) {
+  const o = { body: String(body || ''), silent: !chime }
+  /* bug A: one alert per feed, the newest replacing the last, so a busy
+     channel does not stack a pile of popups */
+  if (tag) o.tag = String(tag)
+  return o
+}
+
+/**
+ * Raise one browser alert. Desktop browsers take `new Notification()`; Android
+ * Chrome THROWS on it ("Illegal constructor", bug A: the phone never showed an
+ * alert and the error was swallowed) and only shows one through the service
+ * worker's registration, so a throw falls back to that.
+ *
+ * @returns {Promise<boolean>} whether an alert was raised
+ */
+export async function showAlert(title, opts, env = {}) {
+  const N = 'Notification' in env ? env.Notification : (typeof Notification === 'undefined' ? undefined : Notification)
+  const sw = 'serviceWorker' in env
+    ? env.serviceWorker
+    : (typeof navigator !== 'undefined' && navigator.serviceWorker ? navigator.serviceWorker : undefined)
+  if (typeof N === 'function') {
+    try {
+      new N(title, opts)
+      return true
+    } catch {
+      /* Android Chrome: only the service worker may show one */
+    }
+  }
+  try {
+    const reg = sw && typeof sw.getRegistration === 'function' ? await sw.getRegistration() : null
+    if (!reg || typeof reg.showNotification !== 'function') return false
+    await reg.showNotification(title, opts)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A ping gate: at most one sound per `ms`, so a burst of agent replies plays
+ * one chime, not twenty overlapping ones.
+ */
+export function pingThrottle(ms = 2000, now = () => Date.now()) {
+  let last = -Infinity
+  return () => {
+    const t = now()
+    if (t - last < ms) return false
+    last = t
+    return true
+  }
 }
 
 /** SPL-998: another tab flipped the note or the bell (a `storage` event; null = cleared).
@@ -246,6 +309,12 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
   let ctx = null
   try {
     ctx = new Ctx()
+    /* bug A: a context made outside a click starts `suspended` under the
+       autoplay policy and plays nothing; resuming it is allowed once the
+       page has had any click or key press */
+    if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+      void Promise.resolve(ctx.resume()).catch(() => {})
+    }
     const t0 = ctx.currentTime
     let last = null
     let lastStop = t0

@@ -24,3 +24,27 @@ export function tabTitle(pageTitle, tabName) {
   const tail = String(tabName || PRODUCT)
   return page && page !== tail && page !== PRODUCT ? `${page} · ${tail}` : tail
 }
+
+/**
+ * Bug A (t1 5002067f): a background tab gave no sign of a new message. The
+ * unread total leads the title, "(3) hooli.spool-hub", as a chat tab does.
+ * Muted channels do not count: they are the ones the reader asked to ignore.
+ *
+ * @param {Record<string, number>} unread per key (`ch:<slug>` / `dm:<peer>`)
+ * @param {string[]} [muted] muted channel slugs
+ */
+export function unreadTotal(unread, muted = []) {
+  const off = new Set((muted || []).map((c) => `ch:${c}`))
+  let n = 0
+  for (const [k, v] of Object.entries(unread || {})) {
+    if (!off.has(k)) n += Math.max(0, Number(v) || 0)
+  }
+  return n
+}
+
+/** "(n) <title>"; over 99 reads "(99+)"; zero leaves the title alone. */
+export function withUnread(title, n) {
+  const v = Number(n) || 0
+  if (v <= 0) return String(title || '')
+  return `(${v > 99 ? '99+' : v}) ${title}`
+}

@@ -17,6 +17,8 @@ import {
   playSound,
   loadChimeSound,
   saveChimeSound,
+  showAlert,
+  pingThrottle,
 } from '~/utils/notify.mjs'
 import {
   cursorFromChannel,
@@ -119,18 +121,25 @@ export const useNotificationStore = defineStore('notification', () => {
     permission.value = await Notification.requestPermission()
   }
 
-  function ping(title: string, body: string) {
-    if (chime.value && import.meta.client) {
+  /* bug A: a burst of replies plays one chime, not one per message */
+  const chimeGate = pingThrottle(2000)
+
+  function ping(title: string, body: string, tag = '') {
+    if (chime.value && import.meta.client && chimeGate()) {
       /* 051: the reader's chosen sound; its AudioContext closes when it ends (CLE-35075) */
       playSound(sound.value)
     }
     if (alertsOn.value && typeof Notification !== 'undefined') {
-      try {
-        new Notification(title, notificationOptions(body, chime.value))
-      } catch {
-        /* ignore */
-      }
+      /* bug A: Android takes it only through the service worker (showAlert) */
+      void showAlert(title, notificationOptions(body, chime.value, tag))
     }
+  }
+
+  /** The reader is not looking at this tab: hidden, or another window in front. */
+  function away() {
+    if (typeof document === 'undefined') return false
+    if (document.hidden) return true
+    return typeof document.hasFocus === 'function' && !document.hasFocus()
   }
 
   /**
@@ -254,12 +263,10 @@ export const useNotificationStore = defineStore('notification', () => {
       }
       if (ctx.activeKey && ctx.activeKey === key) {
         markRead(key, m)
-        if (import.meta.client && typeof document !== 'undefined' && document.hidden && shouldPing(m, ctx, loadMutedChannels())) {
-          const reason = escalateReason(m, ctx)
-          if (reason) {
-            const copy = copyFor(m, reason)
-            ping(copy.title, copy.body)
-          }
+        /* the open feed signals only while the reader is away from the tab */
+        if (import.meta.client && away() && shouldPing(m, ctx, loadMutedChannels())) {
+          const copy = copyFor(m, escalateReason(m, ctx) || '')
+          ping(copy.title, copy.body, key)
         }
         continue
       }
@@ -269,7 +276,7 @@ export const useNotificationStore = defineStore('notification', () => {
       bump(key, reason)
       if (shouldPing(m, ctx, loadMutedChannels())) {
         const copy = copyFor(m, reason || '')
-        ping(copy.title, copy.body)
+        ping(copy.title, copy.body, key)
       }
     }
   }

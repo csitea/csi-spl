@@ -1,4 +1,5 @@
-// Spool service worker — makes the WUI an installable PWA, and nothing else.
+// Spool service worker — makes the WUI an installable PWA and shows its
+// alerts on Android (bug A, below), and nothing else.
 //
 // It caches NOTHING and has no fetch handler: every request goes to the
 // network exactly as it did before this file existed. A worker that serves
@@ -20,5 +21,20 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys()
     await Promise.all(keys.map((k) => caches.delete(k)))
     await self.clients.claim()
+  })())
+})
+
+// Bug A (t1 5002067f): on Android a new-message alert can only be shown
+// through this worker (showAlert in utils/notify.mjs). Tapping it brings the
+// open Spool tab forward, or opens one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil((async () => {
+    const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const c of tabs) {
+      if ('focus' in c) return c.focus()
+    }
+    if (self.clients.openWindow) return self.clients.openWindow('/')
+    return undefined
   })())
 })

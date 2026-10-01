@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { tabTitle, tenantTabName } from '../../src/utils/tab-title.mjs'
+import { tabTitle, tenantTabName, unreadTotal, withUnread } from '../../src/utils/tab-title.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const claims = (active, tenants) => ({ active_tenant: active, tenants })
@@ -37,6 +37,20 @@ describe('tab title', () => {
   })
   it('app.vue sets the title template from these helpers', () => {
     const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')
-    assert.match(app, /titleTemplate: \(page\) => tabTitle\(page, tabName\.value\)/)
+    assert.match(app, /titleTemplate: \(page\) => withUnread\(tabTitle\(page, name\), unread\)/)
+  })
+})
+
+// Bug A (t1 5002067f): a background tab gave no sign of a new message.
+describe('tab title: unread count', () => {
+  it('leads with the unread total, muted channels left out', () => {
+    assert.equal(unreadTotal({ 'ch:lobby': 2, 'dm:HUM-10': 1, 'ch:noise': 40 }, ['noise']), 3)
+    assert.equal(withUnread('hooli.spool-hub', 3), '(3) hooli.spool-hub')
+    assert.equal(withUnread('hooli.spool-hub', 0), 'hooli.spool-hub')
+    assert.equal(withUnread('spool-hub', 150), '(99+) spool-hub')
+  })
+  it('app.vue feeds the notification store unread into the title', () => {
+    const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')
+    assert.match(app, /withUnread\(tabTitle\(page, name\), unread\)/)
   })
 })

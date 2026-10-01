@@ -79,6 +79,16 @@ variable "data_disk_size_gb" {
   description = "The data disk size (round 2 Q2)."
 }
 
+variable "vm_hostname" {
+  type        = string
+  description = "The OS hostname, a FQDN whose first label is the fleet box name (owner, t1 2efb3e78: sat). The instance name stays vm_name."
+
+  validation {
+    condition     = can(regex("^[a-z][-a-z0-9]{0,61}[a-z0-9]?(\\.[a-z][-a-z0-9]{0,61}[a-z0-9])+$", var.vm_hostname))
+    error_message = "vm_hostname must be a FQDN (GCE custom hostname), e.g. sat.csi-spl-all.internal."
+  }
+}
+
 variable "os_user" {
   type        = string
   description = "The GCE Debian default user (round 1 Q9)."

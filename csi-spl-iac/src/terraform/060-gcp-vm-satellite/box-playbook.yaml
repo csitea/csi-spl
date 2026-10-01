@@ -20,7 +20,11 @@
   # facts only once sshd answers: do_tf_apply runs this right after the VM is created
   gather_facts: false
   vars:
+    # the fleet box name (owner, t1 2efb3e78): SPOOL_DESK_BOX, agents CLE-<id>@sat,
+    # and the first label of 060's vm_hostname
     box_tag: sat
+    # lane agent ids on this box (spec 058 F1); 001..003 stay reserved on every box
+    agent_id_range: 100000-199999
     box_timezone: Europe/Helsinki
     data_device: /dev/disk/by-id/google-satellite-data
     data_mnt: /mnt/data

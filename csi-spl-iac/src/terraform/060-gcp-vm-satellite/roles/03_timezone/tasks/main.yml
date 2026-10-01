@@ -1,6 +1,10 @@
 ---
 # 03 the box clock's zone (owner topic 9a6e0f12: Europe/Helsinki), so a
 # recreate gets it back. Port of satellite-box-setup.sh role_07_timezone.
+- name: "The hostname is the box name (060 vm_hostname; owner, t1 2efb3e78)"
+  ansible.builtin.debug:
+    msg: "{{ 'OK hostname ' + ansible_hostname if ansible_hostname == box_tag else 'WARN hostname is ' + ansible_hostname + ', want ' + box_tag + ' (060 vm_hostname; do_satellite_verify FAILs it)' }}"
+
 - name: "Timezone {{ box_timezone }}"
   community.general.timezone:
     name: "{{ box_timezone }}"

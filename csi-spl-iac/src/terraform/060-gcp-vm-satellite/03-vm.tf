@@ -33,6 +33,7 @@ resource "google_compute_instance" "satellite" {
   name         = var.vm_name
   machine_type = var.machine_type
   zone         = var.gcp_zone
+  hostname     = var.vm_hostname
   tags         = [local.ssh_tag]
   labels       = merge(local.labels, { role = "satellite" })
 

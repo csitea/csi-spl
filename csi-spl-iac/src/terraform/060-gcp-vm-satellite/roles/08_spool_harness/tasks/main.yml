@@ -72,11 +72,28 @@
     block: |
       [ -r /etc/profile.d/csi-spl-satellite.sh ] && . /etc/profile.d/csi-spl-satellite.sh
 
+- name: The box config every spawn reads ($SPOOL_ROOT/box.env, spawn-agents box-config.sh; spec 058)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    f="$SPOOL_ROOT/box.env"; before=$(cat "$f" 2>/dev/null)
+    timeout 60 setsid -w bash "{{ repo_dir }}/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh" \
+      "SPOOL_AGENT_USER={{ agent_user }}" "SPOOL_DESK_BOX={{ box_tag }}" "SPOOL_AGENT_ID_RANGE={{ agent_id_range }}" </dev/null >/dev/null \
+      || { echo "FAIL box-config.sh"; exit 1; }
+    [ "$(cat "$f")" = "$before" ] && echo OK || echo CHANGED
+  args:
+    executable: /bin/bash
+  environment:
+    SPOOL_ROOT: "{{ spool_root }}"
+  become: true
+  become_user: "{{ agent_user }}"
+  register: box_config
+  changed_when: "'CHANGED' in box_config.stdout"
+
 - name: spool-install/install.sh as the agent (CLIs, yq, Go, spool, hooks, skills)
   ansible.builtin.shell: |
     set -uo pipefail
     export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:$PATH"
-    cd "{{ repo_dir }}" && bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat
+    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat </dev/null
   args:
     executable: /bin/bash
     chdir: "{{ repo_dir }}"

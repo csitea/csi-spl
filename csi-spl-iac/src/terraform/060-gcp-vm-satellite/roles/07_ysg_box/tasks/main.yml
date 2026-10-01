@@ -79,8 +79,11 @@
 - name: Apply the pack, per role, as that role's user
   ansible.builtin.shell: |
     set -uo pipefail
-    cd / && bash "$ENGINE/ysg-box-orc/src/bash/features/claude-config/scripts/claude-apply.sh" \
-      --pack /var/tmp/satellite-claude-config/sat.pack --role "$ROLE" --box "$TAG" --adopt
+    # setsid: no controlling tty. The apply smoke-starts the new .bashrc with an
+    # interactive `bash -ic`; on the become pty that shell fought over the terminal
+    # and the task never returned (loop run 1, 2026-10-01). timeout: a bounded fail.
+    cd / && timeout 600 setsid -w bash "$ENGINE/ysg-box-orc/src/bash/features/claude-config/scripts/claude-apply.sh" \
+      --pack /var/tmp/satellite-claude-config/sat.pack --role "$ROLE" --box "$TAG" --adopt </dev/null
   args:
     executable: /bin/bash
   environment:

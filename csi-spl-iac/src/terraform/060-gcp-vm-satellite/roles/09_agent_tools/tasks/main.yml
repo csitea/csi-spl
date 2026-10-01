@@ -37,7 +37,7 @@
   ansible.builtin.shell: |
     set -uo pipefail
     export PATH="$HOME/.local/bin:$PATH"
-    cd "{{ repo_dir }}/csi-spl-iac" && LINT_TOOLS_SYSTEM=1 ./run -a do_install_lint_tools >/tmp/satellite-lint-tools.log 2>&1 \
+    cd "{{ repo_dir }}/csi-spl-iac" && LINT_TOOLS_SYSTEM=1 timeout 1800 setsid -w ./run -a do_install_lint_tools </dev/null >/tmp/satellite-lint-tools.log 2>&1 \
       || { echo "FAIL do_install_lint_tools: $(tail -n 3 /tmp/satellite-lint-tools.log | tr '\n' ' ')"; exit 1; }
     grep -qiE 'install(ed|ing)|copied' /tmp/satellite-lint-tools.log && echo CHANGED || echo OK
   args:
@@ -54,7 +54,7 @@
     export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.https://github.com.helper
     export GIT_CONFIG_VALUE_0='!f() { echo username=x-access-token; echo "password=$(cat "$HOME/.github/token")"; }; f'
     [ -d "{{ repo_dir }}/tpl-gen/src/python/tpl-gen/.venv" ] && had=1 || had=0
-    cd "{{ repo_dir }}/csi-spl-iac" && TPL_GEN_REPO_URL="{{ tpl_gen_repo_url }}" ./run -a do_setup_tpl_gen >/tmp/satellite-tpl-gen.log 2>&1 \
+    cd "{{ repo_dir }}/csi-spl-iac" && TPL_GEN_REPO_URL="{{ tpl_gen_repo_url }}" timeout 1200 setsid -w ./run -a do_setup_tpl_gen </dev/null >/tmp/satellite-tpl-gen.log 2>&1 \
       || { echo "FAIL do_setup_tpl_gen: $(tail -n 3 /tmp/satellite-tpl-gen.log | tr '\n' ' ')"; exit 1; }
     [ "$had" = 1 ] && echo OK || echo CHANGED
   args:

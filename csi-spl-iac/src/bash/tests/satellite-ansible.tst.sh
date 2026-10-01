@@ -63,6 +63,16 @@ for r in roles:
 for f in ("tasks/git-sync.yml",):
     yaml.safe_load(open(os.path.join(os.path.dirname(pb), f)))
 print("parsed ok")
+# ansible splits a free-form shell body on quotes: an odd ' or " (an apostrophe
+# in a comment) fails the syntax check (loop run 2 prep, 2026-10-01)
+files = [os.path.join(rdir, r, "tasks", "main.yml") for r in roles] + [os.path.join(os.path.dirname(pb), "tasks/git-sync.yml")]
+bad = []
+for f in files:
+    for t in yaml.safe_load(open(f)) or []:
+        sh = t.get("ansible.builtin.shell")
+        if isinstance(sh, str) and (sh.count("'") % 2 or sh.count('"') % 2):
+            bad.append(os.path.basename(os.path.dirname(os.path.dirname(f))) + ":" + t.get("name", "?"))
+print("unbalanced " + ", ".join(bad))
 PY
 )
 grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools' <<<"$out" \
@@ -71,6 +81,7 @@ grep -qx 'sorted True' <<<"$out" && pass "the roles run in their numbered order"
 grep -qx 'missing ' <<<"$out" && pass "every role has tasks/main.yml" || fail "a role has no tasks/main.yml ($(grep '^missing' <<<"$out"))"
 grep -qx 'orphan ' <<<"$out" && pass "no orphaned role dir" || fail "a role dir is not in the playbook ($(grep '^orphan' <<<"$out"))"
 grep -qx 'parsed ok' <<<"$out" && pass "the playbook, its roles and tasks/ parse as YAML" || fail "a playbook YAML does not parse"
+grep -qx 'unbalanced ' <<<"$out" && pass "every shell body has balanced quotes (ansible's splitter)" || fail "a shell body has an odd quote ($(grep '^unbalanced' <<<"$out"))"
 
 # 4. secrets
 n=$(grep -c 'no_log: true' "$R/06_secrets/tasks/main.yml")
@@ -91,6 +102,15 @@ grep -q 'owner_home: "{{ home_root }}/' "$R/05_users/tasks/main.yml" && grep -q 
 grep -q 'validate: /usr/sbin/sshd -t -f %s' "$R/04_ssh_hardening/tasks/main.yml" && pass "the sshd drop-in is validated" || fail "the sshd drop-in is not validated"
 grep -q 'force: false' "$R/01_data_disk/tasks/main.yml" && pass "01 formats only a blank disk" || fail "01 may reformat the data disk"
 grep -q 'checksum: "sha256:' "$R/09_agent_tools/tasks/main.yml" && pass "cloud-sql-proxy is sha256-pinned" || fail "cloud-sql-proxy is not sha256-pinned"
+
+# 4b. no task fights become's pty (loop run 1 hung on claude-apply's `bash -ic`)
+grep -q 'timeout 600 setsid -w bash "$ENGINE/ysg-box-orc/src/bash/features/claude-config/scripts/claude-apply.sh"' "$R/07_ysg_box/tasks/main.yml" \
+  && pass "07 applies the claude-config with no controlling tty, bounded" || fail "07 runs claude-apply on become's pty (it hangs)"
+grep -q 'timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh' "$R/08_spool_harness/tasks/main.yml" \
+  && pass "08 runs install.sh with no controlling tty, bounded" || fail "08 runs install.sh on become's pty"
+grep -q '"SPOOL_DESK_BOX={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" && grep -q '^    box_tag: sat$' "$PB" \
+  && pass "08 writes SPOOL_DESK_BOX=<box_tag> (sat) with box-config.sh" || fail "08 does not set SPOOL_DESK_BOX"
+grep -q '^  hostname     = var.vm_hostname$' "$STEP/03-vm.tf" && pass "060 sets the OS hostname from cnf vm_hostname" || fail "060 does not set the hostname"
 
 # 6. the host action and verify
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

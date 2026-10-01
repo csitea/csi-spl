@@ -177,6 +177,8 @@ done
 id -nG "$A" 2>/dev/null | tr ' ' '\n' | grep -qx "$O" && echo "agent in-owner-group"
 [ "$(stat -c %U /opt/csi 2>/dev/null)" = "$O" ] && echo "owner owns /opt/csi"
 [ "$(stat -c %U:%G /var/spool-hub 2>/dev/null)" = "$O:spool-agents" ] && echo "owner owns /var/spool-hub"
+echo "hostname $(hostname -s)"
+grep -h '^SPOOL_DESK_BOX=' /var/spool-hub/box.env 2>/dev/null | sed 's/^/boxenv /'
 REMOTE
 )
   local u r uid
@@ -190,4 +192,8 @@ REMOTE
   grep -qx "agent in-owner-group" <<<"$out" && ok "$agent is in $owner's group" || ko "$agent is in $owner's group"
   grep -qx "owner owns /opt/csi" <<<"$out" && ok "/opt/csi belongs to $owner" || ko "/opt/csi belongs to $owner"
   grep -qx "owner owns /var/spool-hub" <<<"$out" && ok "/var/spool-hub is $owner:spool-agents" || ko "/var/spool-hub is $owner:spool-agents"
+  local box
+  box=$(sed -n 's/^BOX_TAG=\([a-z0-9-]*\)$/\1/p' <<<"$envf")
+  grep -qx "hostname ${box}" <<<"$out" && ok "hostname -s = ${box}" || ko "hostname -s = ${box} (is $(sed -n 's/^hostname //p' <<<"$out"))"
+  grep -qx "boxenv SPOOL_DESK_BOX=${box}" <<<"$out" && ok "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}" || ko "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}"
 }

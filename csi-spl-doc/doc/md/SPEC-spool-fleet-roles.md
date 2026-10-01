@@ -37,6 +37,15 @@ discussions pays for all three on every turn.
 "Stand by in case the owner answers later" is not a reason to keep an agent
 open. The dispatchers apply the first two rows; `CLE-001` applies the rest.
 
+**When a human ends the discussion, the agent ends too.** A human closes or
+archives the topic, or says in any words that it is done or no longer active:
+the dispatcher tells `CLE-001`, and `CLE-001` closes the lane. The agent does not
+look for new work in that topic, and posts nothing more there. If it still has
+something to say (a risk, a follow-up, an idea), it sends one message to the
+dispatcher, which passes it to `CLE-001`. `CLE-001` decides whether it deserves
+the humans' time; if so, `CLE-001` (or a new lane) opens a **new** discussion.
+An agent never reopens a closed discussion on its own.
+
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
@@ -144,4 +153,4 @@ end to end in every seated workspace.
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
 | retiring the standing first responder and the relay agent | open, after the end-to-end test |
 
-<!-- version: 0.3.0 · updated: 2026-10-01 · last-edit: 2026-10-01T10:05:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-01 · last-edit: 2026-10-01T10:10:00Z -->

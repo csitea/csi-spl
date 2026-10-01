@@ -103,5 +103,25 @@ run DISPATCH_TENANTS=w2 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls" ]] && ! grep -q '^PLAN' "$T/o" && grep -q 'SUM  w2: 1 channel(s), 1 already right' "$T/o" &&
   pass "5. a complete workspace plans and changes nothing" || fail "5. w2: $(cat "$T/o")"
 
+# --- 6. inbound silence (CLE-77876) -----------------------------------------------------------
+# w4: people posted, the seated dispatchers received nothing, 3 posts unsigned.
+# w5: people posted and the desk got a file. w6: one post only. e2e: a test workspace.
+for w in w4 w5 w6 e2e; do
+  mkdir -p "$T/state/desk/$w/box-desk/spool/CLE-002/inbox" "$T/state/desk/$w/box-desk/spool/CLE-002/archive"
+done
+touch -d '1 day ago' "$T/state/desk/w4/box-desk/spool/CLE-002/inbox/old.json"
+touch "$T/state/desk/w5/box-desk/spool/CLE-002/archive/new.json"
+printf 'chan|lobby\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nhum|5|3\n' >"$SUBS/w4.txt"
+printf 'chan|lobby\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nhum|5|0\n' >"$SUBS/w5.txt"
+printf 'chan|lobby\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nhum|1|0\n' >"$SUBS/w6.txt"
+cp "$SUBS/w4.txt" "$SUBS/e2e.txt"
+run DISPATCH_TENANTS="w4 w5 w6 e2e"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "SILENT w4 5 human posts in 120 min, 0 inbound files on the dispatchers' desk: the workspace receives nothing" "$T/o" &&
+  grep -qx 'UNSIGNED w4 3 of 5 human posts in 120 min stored unsigned, no agent got them: no box-wui pin, see do_spl_check_box_wui_pins' "$T/o" &&
+  pass "6. people post, the desk receives nothing: SILENT, and the unsigned posts named" || fail "6. w4: rc=$rc $(cat "$T/o")"
+grep -qE '^(SILENT|UNSIGNED) (w5|w6|e2e) ' "$T/o" && fail "6. a healthy / quiet / test workspace was flagged: $(grep -E '^(SILENT|UNSIGNED)' "$T/o")" ||
+  pass "6. a desk that received, a single post and a test workspace are not flagged"
+run DISPATCH_TENANTS=w2; grep -qE '^(SILENT|UNSIGNED)' "$T/o" && fail "6. no hum line flagged w2" || pass "6. no hum line = nothing to judge"
+
 echo "dispatch-subscribe: $fails failure(s)"
 [[ $fails -eq 0 ]]

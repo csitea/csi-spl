@@ -12,7 +12,9 @@
 # @description      when nothing changed
 # @description   2. do_spl_dispatch_check DISPATCH_CHECK_SUBS=0 (local only:
 # @description      processes, seats, lease, loops, sweep; no second DB read)
-# @description   3. its GAP rows and the subscribe's DEAD lines form the gap
+# @description   3. its GAP rows, the subscribe's DEAD lines and its SILENT /
+# @description      UNSIGNED lines (a workspace whose people post and whose
+# @description      dispatchers receive nothing, CLE-77876) form the gap
 # @description      set, kept in <spool root>/dispatch/gaps.<env>.state with the time
 # @description      each item was first seen. Only a CHANGE is reported: a
 # @description      "DISPATCH gap" line per new item, "DISPATCH cleared" per
@@ -52,6 +54,10 @@ do_spl_dispatch_tick() {
     while IFS='|' read -r where ids; do
       for a in $ids; do echo "DEAD $where $a"; done
     done >"$tmp/gaps"
+  # CLE-77876: humans post, the dispatchers receive nothing; the counts are
+  # the value, so one silent workspace stays one item while it lasts
+  sed -n 's/^SILENT \([^ ]*\) \([^:]*\): \(.*\)$/GAP \1 inbound: \3 (\2)/p; s/^UNSIGNED \([^ ]*\) \([^,]*\), \(.*\)$/GAP \1 unsigned posts: \3 (\2)/p' \
+    "$tmp/sub" >>"$tmp/gaps"
   ( DISPATCH_CHECK_SUBS=0 do_spl_dispatch_check ) >"$tmp/check" 2>&1
   # "| what | value | GAP ... |" -> "GAP what: verdict (value)"; the value
   # (an age, a count) is not part of the item's identity

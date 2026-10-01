@@ -120,6 +120,25 @@ tick FAIL_ADD=other; rc=$?
 [[ $rc -eq 1 ]] && grep -q '^DISPATCH subscribe FAILED (prd)' "$T/o" && grep -q '^DISPATCH   .*subscription change(s) failed' "$T/o" &&
   pass "6. a failing subscribe fails the tick and shows why" || fail "6. rc=$rc $(cat "$T/o")"
 
+# --- 6b. a silent workspace (CLE-77876) -------------------------------------------------------
+sed -i '/^chan|other$/d' "$SUBS/w1.txt"
+mkdir -p "$T/state/desk/w1/box-desk/spool/CLE-002/inbox"
+echo 'hum|4|4' >>"$SUBS/w1.txt"
+n="$(grep -c '^send ' "$T/sent")"
+tick; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "DISPATCH gap GAP w1 inbound: the workspace receives nothing (4 human posts in 120 min, 0 inbound files on the dispatchers' desk)" "$T/o" &&
+  grep -qx 'DISPATCH gap GAP w1 unsigned posts: no agent got them: no box-wui pin, see do_spl_check_box_wui_pins (4 of 4 human posts in 120 min stored unsigned)' "$T/o" &&
+  [[ "$(grep -c '^send ' "$T/sent")" == $((n + 1)) ]] && grep -q -- '- w1 inbound: the workspace receives nothing' "$T/sent" &&
+  pass "6b. people post, the desk receives nothing: a GAP to the lease holder" || fail "6b. rc=$rc $(cat "$T/o")"
+sed -i 's/^hum|4|4$/hum|9|9/' "$SUBS/w1.txt"
+tick
+[[ ! -s "$T/o" ]] && pass "6b. the same silence with other counts is not new" || fail "6b. again: $(cat "$T/o")"
+touch "$T/state/desk/w1/box-desk/spool/CLE-002/inbox/new.json"
+sed -i 's/^hum|9|9$/hum|9|0/' "$SUBS/w1.txt"
+tick
+grep -q '^DISPATCH cleared GAP w1 inbound' "$T/o" && grep -q '^DISPATCH cleared GAP w1 unsigned posts' "$T/o" &&
+  pass "6b. a delivered file clears it" || fail "6b. cleared: $(cat "$T/o")"
+
 # --- 7. the cron script -----------------------------------------------------------------------
 ORC_NAME="$(basename "$PROJ_ROOT")" O="$T/co/$ORC_NAME"
 mkdir -p "$O/src/bash/scripts"

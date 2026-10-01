@@ -11,6 +11,9 @@
 # @description   the renew and watch loops: each holds its run lock
 # @description   the unanswered sweep: its last delivered run is under
 # @description   DISPATCH_SWEEP_STALE s old, with its open count (SPEC 3.2)
+# @description   per workspace: inbound - humans posted in the last
+# @description   DISPATCH_SILENCE_WINDOW min and the dispatchers' desk received
+# @description   files, and no post was stored unsigned (CLE-77876)
 # @description   per workspace and channel: both dispatchers subscribed and the
 # @description   orchestrator NOT (the hub delivers a web UI post to a
 # @description   channel's subscribed agents; do_spl_dispatch_subscribe fixes it)
@@ -132,6 +135,14 @@ spl_dispatch_check_tenant() {
       row "$t #$ch" "dispatchers $d, $DISPATCH_ORCH $o" "GAP do_spl_dispatch_subscribe"
     fi
   done
+  local l bad
+  bad="$(spl_dispatch_inbound "$t" "$data")"
+  if [[ -z "$bad" ]]; then
+    l="$(sed -n 's/^hum|\([^|]*\)|.*/\1/p' <<<"$data" | head -1)"
+    row "$t inbound" "${l:-0} human posts in ${DISPATCH_SILENCE_WINDOW:-120} min" ok
+  else
+    while IFS= read -r l; do row "$t inbound" "${l#* "$t" }" "GAP ${l%% *}"; done <<<"$bad"
+  fi
 }
 
 # The dispatcher's worktree: the identity map's (<spool root>/agents/<id>.json,

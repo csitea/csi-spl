@@ -171,6 +171,10 @@ gap "orchestrator subscribed to a channel" '\| w2 #team \| dispatchers y, CLE-00
 grep -v 'CLE-003' "$T/w2.keep" >"$SUBS/w2.txt"
 gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, CLE-001 n \| GAP'
 cp "$T/w2.keep" "$SUBS/w2.txt"
+echo 'hum|6|2' >>"$SUBS/w2.txt"
+gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'
+gap "unsigned human posts (CLE-77876)" '\| w2 inbound \| 2 of 6 human posts .*\| GAP UNSIGNED \|'
+cp "$T/w2.keep" "$SUBS/w2.txt"
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
 mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never ran" 'unanswered sweep \| never ran \| GAP'

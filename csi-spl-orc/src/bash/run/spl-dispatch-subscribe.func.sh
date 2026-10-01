@@ -17,6 +17,14 @@
 # @description            still reach it
 # @description   DEAD   - REPORT ONLY: subscribed agents on the desk box with no
 # @description            live claude process on this box. Nothing is removed
+# @description   SILENT - REPORT ONLY (CLE-77876, prd csitea 2026-10-01: two
+# @description            days of human posts and not one reached an agent):
+# @description            people posted in the workspace's channels in the last
+# @description            DISPATCH_SILENCE_WINDOW minutes, and neither
+# @description            dispatcher's desk spool received a single file
+# @description   UNSIGNED - REPORT ONLY: the hub stored human posts of that
+# @description            window unsigned (no box-wui pin), so no box got them
+# @description            (do_spl_check_box_wui_pins, do_spl_cloud_pin_box_wui)
 # @description One read per workspace, through ONE proxy session, which the
 # @description dry run makes too (read-only) to compute the plan. DRY_RUN=1
 # @description (default) prints the plan; DRY_RUN=0 applies it in that session.
@@ -25,6 +33,9 @@
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
 # @param DESK_BOX (optional) - the box the agents answer from, default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @param DISPATCH_SILENCE_WINDOW (optional) - minutes, default 120
+# @param DISPATCH_SILENCE_GRACE (optional) - minutes a post may take to arrive, default 5
+# @param DISPATCH_SILENCE_MIN (optional) - human posts it takes to call silence, default 2
 # @example ENV=prd ./run -a do_spl_dispatch_subscribe
 # @example ENV=prd DISPATCH_TENANTS=t1 DRY_RUN=0 ./run -a do_spl_dispatch_subscribe
 #------------------------------------------------------------------------------
@@ -45,6 +56,9 @@ do_spl_dispatch_subscribe() {
 # subscriptions and call <fn> <tenant> <data>. <data> lines:
 #   chan|<channel>            one per live channel (defaults included)
 #   sub|<channel>|<box>|<agent>|<origin>   one per live subscription
+#   hum|<posts>|<unsigned>    human channel posts the hub stored between
+#                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
+#                             and how many of them unsigned (absent = 0|0)
 # DISPATCH_SUBS_DIR (<dir>/<tenant>.txt holding those lines) replaces the hub
 # DB, for the tests and for an offline look at an export.
 spl_dispatch_with_subs() {
@@ -78,7 +92,8 @@ _spl_dispatch_with_subs_all() {
 # SPL_PROXY_DSN set (inside spl_via_proxy). Announce rows on a default channel
 # grant nothing since rdb 0036 and are left out, as ChannelMembers does.
 _spl_dispatch_subs_read() {
-  spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" <<'SQL'
+  spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" \
+    -v win="${DISPATCH_SILENCE_WINDOW:-120}" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
 BEGIN READ ONLY;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT 'chan|' || c.channel_id FROM channels c
@@ -94,6 +109,12 @@ SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || 
    AND c.deleted_at IS NULL AND c.archived_at IS NULL
    AND NOT (s.origin = 'announce' AND s.channel_id IN ('lobby', 'alerts', 'feedback'))
  ORDER BY 1;
+SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '')
+  FROM messages m
+ WHERE m.tenant_id = :'tenant' AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%'
+   AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks') AND m.typed_by IS NULL
+   AND m.received_at > now() - make_interval(mins => :win)
+   AND m.received_at <= now() - make_interval(mins => :grace);
 COMMIT;
 SQL
 }
@@ -129,6 +150,7 @@ spl_dispatch_subscribe_tenant() {
     done
     [[ -n "$dead" ]] && { n_dead=$((n_dead + 1)); echo "DEAD $t #$ch $dead (no live process on this box; report only)"; }
   done
+  spl_dispatch_inbound "$t" "$data"
   echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add to add the dispatchers, $n_rm orchestrator seat(s) to remove, $n_dead with dead subscriptions"
 }
 
@@ -140,4 +162,25 @@ spl_dispatch_subbed() {
 # The boxes on which <agent> is subscribed to <channel>.
 spl_dispatch_boxes_of() {
   sed -n "s/^sub|$2|\([^|]*\)|$3|.*/\1/p" <<<"$1" | sort -u
+}
+
+# spl_dispatch_inbound <tenant> <data>: the SILENT / UNSIGNED lines of one
+# workspace (none when it is healthy, a test workspace, or not seated here).
+# Inbound = files the dispatchers' desk spools received (inbox + archive,
+# by mtime: the box writes a file on delivery) since the window opened.
+spl_dispatch_inbound() {
+  local t="$1" data="$2" posts uns n=0 a d win="${DISPATCH_SILENCE_WINDOW:-120}" since
+  IFS='|' read -r _ posts uns < <(grep '^hum|' <<<"$data" | head -1)
+  posts="${posts:-0}" uns="${uns:-0}"
+  spl_test_workspace "$t" && return 0
+  (( uns > 0 )) && echo "UNSIGNED $t $uns of $posts human posts in $win min stored unsigned, no agent got them: no box-wui pin, see do_spl_check_box_wui_pins"
+  (( posts >= ${DISPATCH_SILENCE_MIN:-2} )) || return 0
+  spl_dispatch_seated "$DISPATCH_MASTER" "$t" || spl_dispatch_seated "$DISPATCH_FAILOVER" "$t" || return 0
+  since=$(( ${DISPATCH_NOW:-$(date +%s)} - win * 60 ))
+  for a in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
+    d="$DISPATCH_STATE_DIR/desk/$t/$DISPATCH_DESK_BOX/spool/$a"
+    n=$(( n + $(find "$d/inbox" "$d/archive" -maxdepth 1 -type f -newermt "@$since" 2>/dev/null | wc -l) ))
+  done
+  (( n == 0 )) && echo "SILENT $t $posts human posts in $win min, 0 inbound files on the dispatchers' desk: the workspace receives nothing"
+  return 0
 }

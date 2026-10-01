@@ -305,7 +305,11 @@ async function checkRailTouch(browser, base, vp) {
     await sleep(300)
     const ids = () => p.$$eval('[data-test=rail-order-list] li', (ls) => ls.map((l) => l.dataset.reorderId))
     const before = await ids()
-    const g = await p.$$eval('[data-test=rail-order-list] li', (ls) => ls.map((l) => {
+    /* CLE-77916: Archive is pinned last with no grip and no up / down; the
+       sizes are the movable rows' */
+    const pinned = await p.$$eval('[data-test=rail-order-list] li', (ls) => ls.filter((l) => !l.querySelector('.icon-btn')).map((l) => l.dataset.reorderId))
+    ok(`${tag} only Archive has no Move controls (pinned last)`, JSON.stringify(pinned) === '["archive"]' && before.at(-1) === 'archive', { pinned })
+    const g = await p.$$eval('[data-test=rail-order-list] li', (ls) => ls.filter((l) => l.querySelector('.icon-btn')).map((l) => {
       const grip = l.querySelector('.rail-order__grip').getBoundingClientRect()
       const up = l.querySelector('.icon-btn').getBoundingClientRect()
       const r = l.getBoundingClientRect()

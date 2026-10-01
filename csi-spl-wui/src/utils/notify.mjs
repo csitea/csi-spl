@@ -152,8 +152,10 @@ export function saveChime(on, store) {
    the operating system's own alert sound unless it is `silent`, so with the
    bell on and the note off every alert still beeped. Every alert the WUI
    raises takes its options from here. */
-export function notificationOptions(body, chime, tag) {
+export function notificationOptions(body, chime, tag, data) {
   const o = { body: String(body || ''), silent: !chime }
+  /* CLE-77890: what a tap opens (notificationTarget); the worker reads it back */
+  if (data) o.data = data
   /* bug A: one alert per feed, the newest replacing the last, so a busy
      channel does not stack a pile of popups */
   if (tag) {
@@ -168,10 +170,36 @@ export function notificationOptions(body, chime, tag) {
 }
 
 /**
+ * CLE-77890 (owner, t1 bd6d7291: "whenever I click on the announcements from
+ * the android, it does not jump to the actual UI of the announcement, but just
+ * keeps me there where I was"): a tap on an alert opens its message. The
+ * worker (public/sw.js) posts NOTIFY_OPEN to an open tab, which answers on the
+ * message's port and routes to `url`; an older bundle that never answers is
+ * navigated there, and with no tab open one is opened at `url`.
+ */
+export const NOTIFY_OPEN = 'spool:notification-open'
+
+/**
+ * The target an alert carries in its `data`: the message id and its deep link
+ * /m/<msg_id> (CLE-77882), locale-aware through `pathFor`. No id: the app root.
+ * @param {{ msg_id?: string } | null | undefined} msg
+ * @param {(p: string) => string} [pathFor] localePath
+ * @returns {{ msgId: string, url: string }}
+ */
+export function notificationTarget(msg, pathFor = (p) => p) {
+  const msgId = String((msg && msg.msg_id) || '').toLowerCase()
+  const path = msgId ? '/m/' + encodeURIComponent(msgId) : '/'
+  return { msgId, url: String(pathFor(path) || path) }
+}
+
+/**
  * Raise one browser alert. Desktop browsers take `new Notification()`; Android
  * Chrome THROWS on it ("Illegal constructor", bug A: the phone never showed an
  * alert and the error was swallowed) and only shows one through the service
  * worker's registration, so a throw falls back to that.
+ *
+ * CLE-77890: `env.onOpen(data)` runs when a desktop alert is clicked (after the
+ * tab is brought forward); an Android alert's click is the worker's.
  *
  * @returns {Promise<boolean>} whether an alert was raised
  */
@@ -182,7 +210,17 @@ export async function showAlert(title, opts, env = {}) {
     : (typeof navigator !== 'undefined' && navigator.serviceWorker ? navigator.serviceWorker : undefined)
   if (typeof N === 'function') {
     try {
-      new N(title, opts)
+      const n = new N(title, opts)
+      if (typeof env.onOpen === 'function') {
+        n.onclick = (e) => {
+          if (e && typeof e.preventDefault === 'function') e.preventDefault()
+          try {
+            if (typeof window !== 'undefined') window.focus()
+          } catch { /* not allowed: the click still opens the message */ }
+          if (typeof n.close === 'function') n.close()
+          env.onOpen(opts && opts.data)
+        }
+      }
       return true
     } catch {
       /* Android Chrome: only the service worker may show one */

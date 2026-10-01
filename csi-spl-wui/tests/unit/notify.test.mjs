@@ -156,7 +156,7 @@ describe('notify escalation', () => {
     /* bug A: the store raises alerts through showAlert (Android's worker fallback) */
     const calls = store.match(/showAlert\([^\n]*\)/g) || []
     assert.ok(calls.length >= 1)
-    for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value, tag\)/)
+    for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value, tag(, data)?\)/)
     /* 051: the ping plays the reader's chosen sound, still gated on the note */
     assert.match(store, /if \(chime\.value && import\.meta\.client( && chimeGate\(\))?\)[\s\S]{0,140}playSound\(sound\.value\)/)
     /* CLE-35075/051: the synth lives in notify.mjs; the gated store path plays
@@ -536,8 +536,43 @@ describe('bug A: a new message signals', () => {
     assert.deepEqual(notificationOptions('b', true, 'ch:lobby'), { body: 'b', silent: false, tag: 'ch:lobby', renotify: true })
     assert.deepEqual(notificationOptions('b', false), { body: 'b', silent: true })
     const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
-    assert.match(note, /ping\(copy\.title, copy\.body, key\)/)
-    assert.match(note, /showAlert\(title, notificationOptions\(body, chime\.value, tag\)\)/)
+    assert.match(note, /ping\(copy\.title, copy\.body, key, m\)/)
+    assert.match(note, /showAlert\(title, notificationOptions\(body, chime\.value, tag, data\), \{ onOpen: openTarget \}\)/)
+  })
+
+  it('CLE-77890: an alert carries its message and deep link /m/<msg_id> in data', async () => {
+    const { notificationTarget } = await import('../../src/utils/notify.mjs')
+    const id = 'AB0F3C1E-1111-4222-8333-444455556666'
+    assert.deepEqual(notificationTarget({ msg_id: id }), { msgId: id.toLowerCase(), url: '/m/' + id.toLowerCase() })
+    assert.deepEqual(notificationTarget({ msg_id: 'abc' }, (p) => '/fi' + p), { msgId: 'abc', url: '/fi/m/abc' })
+    assert.deepEqual(notificationTarget(null), { msgId: '', url: '/' })
+    const data = { msgId: 'abc', url: '/m/abc' }
+    assert.deepEqual(notificationOptions('b', true, 'dm:HUM-1', data), { body: 'b', silent: false, tag: 'dm:HUM-1', renotify: true, data })
+    /* the store builds it from the message it pings for, with the locale prefix */
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /notificationTarget\(m, \(p: string\) => nuxtApp\.\$localePath\(p\)\)/)
+    /* and routes a tapped alert to it; the worker's hand-over reaches the same function */
+    assert.match(note, /function openTarget[\s\S]{0,200}navigateTo\(url\)/)
+    const plugin = readFileSync(join(WUI, 'src/plugins/notify-open.client.ts'), 'utf8')
+    assert.match(plugin, /serviceWorker\.addEventListener\('message'/)
+    assert.match(plugin, /e\.ports\[0\]\.postMessage\('ok'\)[\s\S]{0,40}notes\.openTarget\(d\)/)
+  })
+
+  it('CLE-77890: clicking a desktop alert focuses the tab and opens its message', async () => {
+    const { showAlert } = await import('../../src/utils/notify.mjs')
+    const made = []
+    function Works(t, o) { this.t = t; this.o = o; this.closed = false; this.close = () => { this.closed = true }; made.push(this) }
+    const opened = []
+    const data = { msgId: 'abc', url: '/m/abc' }
+    assert.equal(await showAlert('x', { body: 'b', data }, { Notification: Works, onOpen: (d) => opened.push(d) }), true)
+    let prevented = false
+    made[0].onclick({ preventDefault: () => { prevented = true } })
+    assert.deepEqual(opened, [data])
+    assert.equal(prevented, true, 'the browser does not also focus some other tab')
+    assert.equal(made[0].closed, true)
+    /* no onOpen (Settings' test alert): no click handler, nothing to open */
+    await showAlert('y', {}, { Notification: Works })
+    assert.equal(made[1].onclick, undefined)
   })
 
   it('a burst of messages plays one chime per 2 s', async () => {

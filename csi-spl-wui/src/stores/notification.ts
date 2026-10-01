@@ -21,6 +21,7 @@ import {
   saveChimeSound,
   showAlert,
   pingThrottle,
+  notificationTarget,
 } from '~/utils/notify.mjs'
 import { isAiMessage } from '~/utils/typed-by.mjs'
 import {
@@ -75,7 +76,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const mentions = ref<Record<string, number>>({})
   const seen = new Set<string>()
   /* the global i18n instance, captured while the Nuxt app is in context (stores have no component) */
-  const i18n = useNuxtApp().$i18n
+  const nuxtApp = useNuxtApp()
+  const i18n = nuxtApp.$i18n
   const humanNames = useHumanNames()
 
   /** Browser-notification title + body for one escalated message, in the active UI locale. */
@@ -195,14 +197,21 @@ export const useNotificationStore = defineStore('notification', () => {
   /* bug A: a burst of replies plays one chime, not one per message */
   const chimeGate = pingThrottle(2000)
 
-  function ping(title: string, body: string, tag = '') {
+  /** CLE-77890: a tapped alert opens its message (sw.js on Android, onclick on a desktop). */
+  function openTarget(data: { url?: string } | null | undefined) {
+    const url = String((data && data.url) || '')
+    if (url.startsWith('/') && !url.startsWith('//')) void navigateTo(url)
+  }
+
+  function ping(title: string, body: string, tag = '', m: Msg | null = null) {
     if (chime.value && import.meta.client && chimeGate()) {
       /* 051: the reader's chosen sound; its AudioContext closes when it ends (CLE-35075) */
       playSound(sound.value)
     }
     if (alertsOn.value && typeof Notification !== 'undefined') {
       /* bug A: Android takes it only through the service worker (showAlert) */
-      void showAlert(title, notificationOptions(body, chime.value, tag))
+      const data = m ? notificationTarget(m, (p: string) => nuxtApp.$localePath(p)) : undefined
+      void showAlert(title, notificationOptions(body, chime.value, tag, data), { onOpen: openTarget })
     }
   }
 
@@ -342,7 +351,7 @@ export const useNotificationStore = defineStore('notification', () => {
         /* the open feed signals only while the reader is away from the tab */
         if (import.meta.client && away() && shouldPing(m, ctx, loadMutedChannels())) {
           const copy = copyFor(m, escalateReason(m, ctx) || '')
-          ping(copy.title, copy.body, key)
+          ping(copy.title, copy.body, key, m)
         }
         continue
       }
@@ -352,7 +361,7 @@ export const useNotificationStore = defineStore('notification', () => {
       bump(key, reason)
       if (shouldPing(m, ctx, loadMutedChannels())) {
         const copy = copyFor(m, reason || '')
-        ping(copy.title, copy.body, key)
+        ping(copy.title, copy.body, key, m)
       }
     }
   }
@@ -374,6 +383,7 @@ export const useNotificationStore = defineStore('notification', () => {
     markTopicRead,
     requestPush,
     ping,
+    openTarget,
     ingest,
     markRead,
     markChannelRead,

@@ -207,6 +207,10 @@ def claude_session(proc, pid, env, start):
     return "", "", ""
 
 
+# "<ID>@<box>" at the head of a name: the box is display (specs/058).
+AT_BOX = re.compile(r"^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
+
+
 def strip_name(name):
     """'tag: CLE-07 > some title' -> ('CLE-07', 'some title'); no id -> ('', name)."""
     n = name
@@ -215,6 +219,7 @@ def strip_name(name):
         n = m.group(1)
     if n[:2] in ("> ", "? ", "! "):                          # a badge an older writer put first
         n = n[2:]
+    n = AT_BOX.sub(r"\1", n)                                 # "CLE-07@sat" (specs/058)
     m = re.match(r"^((?:CLE|GRK|AGY|QWN)-[0-9]+)(?: (.*))?$", n)
     if not m:
         return "", name
@@ -470,7 +475,7 @@ def cmd_check(args, proc):
 
 def badge_of(name):
     """The state badge a window name carries right after its id ('' if none)."""
-    n = re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", name)
+    n = AT_BOX.sub(r"\1", re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", name))
     if n[:2] in ("> ", "? ", "! "):
         return n[0]
     m = re.match(r"^(?:CLE|GRK|AGY|QWN)-[0-9]+ ([>?!])(?: |$)", n)
@@ -478,6 +483,8 @@ def badge_of(name):
 
 
 def want_name(tag, aid, badge, title):
+    if tag and aid and os.environ.get("SPOOL_NAME_STYLE", "at") != "colon":
+        return " ".join(x for x in ("%s@%s" % (aid, tag), badge, title) if x)
     out = " ".join(x for x in (aid, badge, title) if x)
     return "%s: %s" % (tag, out) if tag else out
 

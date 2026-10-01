@@ -76,7 +76,8 @@ environment always wins over it.
 | `SPOOL_AGENT_USER` | the box config, else `$SPOOL_BOX_USER`. The agent CLIs run as this user |
 | `SPOOL_RUN_AS_AGENT` | `su-dash` (`sudo su - <agent>`), or `sudo-i` |
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |
-| `SPOOL_BOX_TAG` | empty. When set, window names read `<tag>: <ID>` |
+| `SPOOL_BOX_TAG` | empty. When set, window and claude session names read `<ID>@<tag>` (the owner's `<ID>@<box>` naming, specs/058; 3 letters preferred) |
+| `SPOOL_NAME_STYLE` | `at`. `colon` writes the older `<tag>: <ID>`. Every parser reads both shapes |
 | `SPOOL_ORCHESTRATOR_ID` | `CLE-00`. Spawned agents report to this id |
 | `SPOOL_AGENT_ID_RANGE` | empty (the whole line). `<lo>-<hi>`: this machine allocates ids only inside that band, so two machines of one fleet never hand out the same id (`csi-spl-doc/specs/058-multi-machine-fleet`). Set it in the box config |
 | `SPOOL_DESK_BOX` | `box-desk`. This machine's desk box id: every `DESK_BOX` / `AGENT_BOX` default of the desk actions and scripts reads it (`csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh`), so two machines of one fleet never seat the same box (the hub keeps one socket per box id; the last hello evicts the other). Set it in the box config |
@@ -308,7 +309,7 @@ bash -c '. csi-spl-orc/src/bash/features/spawn-agents/lib/agent-identity.inc.sh 
 
 #### 3.10.5 Name every agent window from the map (dry run, the default)
 
-The name is `<tag>: <ID> [badge] <title>`. The title is the agent's own session
+The name is `<ID>@<tag> [badge] <title>` (older windows: `<tag>: <ID> [badge] <title>`, still parsed). The title is the agent's own session
 name (`/rename`), or the one `riname.sh` set. A window that took a neighbour's
 name is put back. Plain windows are never touched.
 

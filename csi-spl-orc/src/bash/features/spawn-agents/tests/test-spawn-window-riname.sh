@@ -30,12 +30,12 @@ bash "$SW" grok CLE-4442 "$WD" >/dev/null 2>&1; eq "kind/prefix mismatch refused
 bash "$SW" agy BOX-1 "$WD" >/dev/null 2>&1;     eq "BOX id refused (exit 2)" 2 "$?"
 
 out="$(bash "$SW" agy auto "$WD")"; read -r ID PANE <<<"$out"
-eq "auto allocates the first AGY id" AGY-01 "$ID"
+eq "auto allocates the first AGY id (1-3 are reserved)" AGY-04 "$ID"
 eq "focus still on the original window" home "$(active)"
 
 out="$(SPOOL_BOX_TAG=tg bash "$SW" grok auto "$WD")"; read -r ID PANE <<<"$out"
-eq "auto allocates GRK-01" GRK-01 "$ID"
-has "SPOOL_BOX_TAG decorates the window name" "tg: GRK-01" "$("${TM[@]}" list-windows -t t -F '#{window_name}')"
+eq "auto allocates GRK-04" GRK-04 "$ID"
+has "SPOOL_BOX_TAG decorates the window name <ID>@<box>" "GRK-04@tg" "$("${TM[@]}" list-windows -t t -F '#{window_name}')"
 
 SPOOL_TMUX_SOCKET="$T_TMP/none.sock" bash "$SW" claude CLE-4450 "$WD" >/dev/null 2>&1
 eq "no tmux session: exit 5" 5 "$?"
@@ -47,7 +47,7 @@ printf 'CLE-95\tclaude\t%s\t/x\t20260101T000000Z\n' "$P" >> "$SPOOL_ROOT/registr
 out="$(bash "$T_SCRIPTS/riname.sh" --agent CLE-95 'spool msg test')"; eq "riname --agent: exit 0" 0 "$?"
 eq "window renamed, id kept" "CLE-95 spool msg test" "$("${TM[@]}" display-message -p -t "$P" '#{window_name}')"
 out="$(SPOOL_BOX_TAG=tg bash "$T_SCRIPTS/riname.sh" --agent CLE-95 'again #[fg=red]')"
-eq "tagged rename strips tmux format bytes" "tg: CLE-95 again [fg=red]" "$("${TM[@]}" display-message -p -t "$P" '#{window_name}')"
+eq "tagged rename strips tmux format bytes" "CLE-95@tg again [fg=red]" "$("${TM[@]}" display-message -p -t "$P" '#{window_name}')"
 bash "$T_SCRIPTS/riname.sh" --agent CLE-96 x >/dev/null 2>&1; eq "no window for the id: exit 4" 4 "$?"
 out="$(TMUX_PANE="$P" bash "$T_SCRIPTS/riname.sh" 'self')"
 eq "self-target via TMUX_PANE" "CLE-95 self" "$("${TM[@]}" display-message -p -t "$P" '#{window_name}')"

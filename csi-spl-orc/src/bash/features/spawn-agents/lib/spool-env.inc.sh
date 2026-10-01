@@ -233,8 +233,13 @@ spool_dq_escape() {  # VAR STRING
 }
 
 # The display name of an id: "<tag>: <id>" when SPOOL_BOX_TAG is set.
+# specs/058 (owner 2efb3e78): an agent is named <ID>@<box>, so the default
+# reads "CLE-07@<tag>"; SPOOL_NAME_STYLE=colon keeps the old "<tag>: CLE-07".
+# Every parser reads both shapes during the switch.
 spool_decorate() {  # ID
-  if [ -n "$SPOOL_BOX_TAG" ]; then printf '%s: %s' "$SPOOL_BOX_TAG" "$1"; else printf '%s' "$1"; fi
+  if [ -z "$SPOOL_BOX_TAG" ]; then printf '%s' "$1"
+  elif [ "${SPOOL_NAME_STYLE:-at}" = colon ]; then printf '%s: %s' "$SPOOL_BOX_TAG" "$1"
+  else printf '%s@%s' "$1" "$SPOOL_BOX_TAG"; fi
 }
 
 # The agent id a window name carries, or nothing. Accepts an optional
@@ -254,6 +259,7 @@ spool_id_of_window_var() {  # VAR WINDOW_NAME
             [[ "$pre" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && n="${n#*: }" ;;
   esac
   n="${n%% *}"
+  n="${n%%@*}"   # "CLE-07@sat": the box is display (specs/058)
   [[ "$n" =~ $SPOOL_ID_RE ]] || n=""
   printf -v "$1" '%s' "$n"
 }

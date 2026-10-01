@@ -48,7 +48,7 @@ out="$(r claude-plain CLE-13 "$D" sid-e)"
 hasnt "2. restore-claude-plain adds no kick" "SESSION RESTORED" "$out"
 has "2. ... and still resumes the session" "--resume sid-e" "$out"
 has "2. restore-claude-plain starts through the mirror, resume + auto kept" "spool-harness.sh' --as 'CLE-13' --mirror -- 'claude' --name 'CLE-13' --resume sid-e --permission-mode auto" "$out"
-SPOOL_BOX_TAG=tbx has "2. the claude session name carries the box tag" "--name 'tbx: CLE-13'" "$(SPOOL_BOX_TAG=tbx r claude-plain CLE-13 "$D" sid-e)"
+SPOOL_BOX_TAG=tbx has "2. the claude session name is <ID>@<box> (specs/058)" "--name 'CLE-13@tbx'" "$(SPOOL_BOX_TAG=tbx r claude-plain CLE-13 "$D" sid-e)"
 
 # --- 4. refusals --------------------------------------------------------------------------
 r grok "not an id" "$D" s >/dev/null; eq "4. a non-id title is refused" 1 "$?"

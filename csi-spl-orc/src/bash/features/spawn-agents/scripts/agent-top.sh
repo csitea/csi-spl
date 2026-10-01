@@ -76,7 +76,7 @@ PIDFILE="${AGENT_TOP_PIDFILE:-/tmp/agent-top-badge-loop.pid}"
 # never strips a tag the box has always shown.
 if [ -z "$(an_tag)" ]; then
   AGENT_TOP_TAG="$("${TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null \
-    | sed -nE 's/^([A-Za-z0-9][A-Za-z0-9._-]*): (CLE|GRK|AGY|QWN)-[0-9]+.*/\1/p' | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+    | sed -nE -e 's/^([A-Za-z0-9][A-Za-z0-9._-]*): (CLE|GRK|AGY|QWN)-[0-9]+.*/\1/p' -e 's/^(CLE|GRK|AGY|QWN)-[0-9]+@([a-z0-9][a-z0-9-]*).*/\2/p' | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
 fi
 
 registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else the newest live one of ID

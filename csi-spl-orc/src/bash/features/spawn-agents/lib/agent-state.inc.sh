@@ -4,7 +4,9 @@
 # engine (specs/048, SPL-1160) with the SAME states, badge tokens and name
 # format, so a badge written by either copy reads the same to the other.
 #
-# A window name is "<tag>: <ID> [<badge>] [<title>]". The tag is DISPLAY only
+# A window name is "<ID>@<tag> [<badge>] [<title>]" (specs/058, the owner's
+# <ID>@<box> naming), or the older "<tag>: <ID> [<badge>] [<title>]"
+# (SPOOL_NAME_STYLE=colon); both always parse. The tag is DISPLAY only
 # (the box tag, SPOOL_BOX_TAG); the badge is one token right after the id:
 #   >  busy       ?  a dialog, or reports the orchestrator has not seen
 #   !  ended      (none) idle
@@ -17,6 +19,8 @@ AN_TAG_TOKEN_RE='^[A-Za-z0-9][A-Za-z0-9._-]*$'
 # The SHAPE of another box's tag: three characters, a lowercase letter first.
 AN_TAG_SHAPE_RE='^[a-z][a-z0-9]{2}$'
 AN_ID_HEAD_RE='^(CLE|GRK|AGY|QWN)-[0-9]+([[:space:]]|$)'
+# "<ID>@<box>" at the head of a name (specs/058).
+AN_ID_AT_RE='^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$'
 
 an_tag() { printf '%s' "${SPOOL_BOX_TAG:-${BOX_TAG:-${AGENT_TOP_TAG:-}}}"; }
 
@@ -43,6 +47,7 @@ an_strip() {
         return 0
       fi ;;
   esac
+  if [[ "$n" =~ $AN_ID_AT_RE ]]; then printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0; fi
   case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
   head="${n%%": "*}"; rest="${n#*": "}"
   printf '%s' "$head" | grep -qE "$AN_TAG_TOKEN_RE" || { printf '%s' "$n"; return 0; }
@@ -52,10 +57,16 @@ an_strip() {
   printf '%s' "$n"
 }
 
-an_decorate() {  # NAME -> "<tag>: NAME" (never double-tags)
-  local n tag
+an_decorate() {  # NAME -> "<ID>@<tag> rest" (or "<tag>: NAME"); never double-tags
+  local n tag id
   n="$(an_strip "${1-}")"; tag="$(an_tag)"
-  if [ -n "$tag" ]; then printf '%s: %s' "$tag" "$n"; else printf '%s' "$n"; fi
+  [ -n "$tag" ] || { printf '%s' "$n"; return 0; }
+  id="$(printf '%s' "$n" | grep -oE '^[A-Z]{2,4}-[0-9]+' || true)"
+  if [ "${SPOOL_NAME_STYLE:-at}" != colon ] && [ -n "$id" ]; then
+    printf '%s@%s%s' "$id" "$tag" "${n#"$id"}"
+  else
+    printf '%s: %s' "$tag" "$n"
+  fi
 }
 
 # NAME BADGE -> the name with BADGE (> ? ! or none) right after the id, the

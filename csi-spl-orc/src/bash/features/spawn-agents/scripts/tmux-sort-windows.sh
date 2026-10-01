@@ -143,7 +143,7 @@ _rows() {  # SESSION
   "${TM[@]}" list-windows -t "$1" -F '#{window_id}	#{window_index}	#{window_name}' 2>/dev/null \
   | while IFS='	' read -r id idx name; do
       [ -n "$id" ] || continue
-      case "$name" in *": "*|'> '*|'? '*|'! '*) name="$(an_strip "$name")" ;; esac
+      case "$name" in *": "*|*@*|'> '*|'? '*|'! '*) name="$(an_strip "$name")" ;; esac
       printf '%s\t%s\t%s\n' "$id" "$idx" "$name"
     done
 }

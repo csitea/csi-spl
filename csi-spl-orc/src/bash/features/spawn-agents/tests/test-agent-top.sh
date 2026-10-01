@@ -58,10 +58,12 @@ eq "3. the status line" "agents 6  >1 ?1 !1 .2  orc=1" "$(bash "$TOP" --status-l
 # --- 4 ------------------------------------------------------------------------------
 name() { tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$1" '#{window_name}'; }
 bash "$TOP" --badges >/dev/null 2>&1
-eq "4. busy -> '>' after the id, tag + title kept" "tbx: CLE-07 > build x" "$(name "$P1")"
-eq "4. dialog -> '?'" "tbx: GRK-08 ? ask" "$(name "$P2")"
-eq "4. ended -> '!'" "tbx: CLE-10 ! gone" "$(name "$P4")"
-eq "4. idle keeps no badge" "tbx: QWN-09 quiet" "$(name "$P3")"
+# The fixtures carry the OLD "<tag>: <ID>" names; a badge pass writes the
+# owner's <ID>@<box> shape (specs/058), so both shapes parse.
+eq "4. busy -> '>' after the id, tag + title kept" "CLE-07@tbx > build x" "$(name "$P1")"
+eq "4. dialog -> '?'" "GRK-08@tbx ? ask" "$(name "$P2")"
+eq "4. ended -> '!'" "CLE-10@tbx ! gone" "$(name "$P4")"
+eq "4. idle keeps no badge" "QWN-09@tbx quiet" "$(name "$P3")"
 eq "4. the orchestrator is never renamed" "tbx: CLE-00 orc" "$(name "$P5")"
 tmux -S "$SPOOL_TMUX_SOCKET" set-hook -g window-renamed 'run-shell "echo x >> '"$T_TMP"'/renames"'
 bash "$TOP" --badges >/dev/null 2>&1
@@ -69,9 +71,13 @@ check "4. a second pass renames nothing" test ! -s "$T_TMP/renames"
 tmux -S "$SPOOL_TMUX_SOCKET" set-hook -gu window-renamed
 tmux -S "$SPOOL_TMUX_SOCKET" rename-window -t "$P1" '> tbx: CLE-07 build x'
 bash "$TOP" --badges >/dev/null 2>&1
-eq "4. a badge written in front of the tag moves after the id" "tbx: CLE-07 > build x" "$(name "$P1")"
+eq "4. a badge written in front of the tag moves after the id" "CLE-07@tbx > build x" "$(name "$P1")"
 SPOOL_BOX_TAG=zzz bash "$TOP" --badges >/dev/null 2>&1
-eq "4. a configured tag wins over the inferred one" "zzz: CLE-07 > build x" "$(name "$P1")"
+eq "4. a configured tag wins over the inferred one" "CLE-07@zzz > build x" "$(name "$P1")"
+SPOOL_BOX_TAG=zzz SPOOL_NAME_STYLE=colon bash "$TOP" --badges >/dev/null 2>&1
+eq "4. SPOOL_NAME_STYLE=colon writes the old shape back" "zzz: CLE-07 > build x" "$(name "$P1")"
+SPOOL_BOX_TAG=zzz bash "$TOP" --badges >/dev/null 2>&1
+eq "4. ... and the default writes <ID>@<box> again" "CLE-07@zzz > build x" "$(name "$P1")"
 
 # --- 5 ------------------------------------------------------------------------------
 bash "$TOP" --ensure-badge-loop --interval 60; p1="$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"

@@ -221,6 +221,9 @@ an_strip() {
         printf '%s %s%s' "$id" "${n:0:1}" "${tail:+ $tail}"; return 0
       fi ;;
   esac
+  if [[ "$n" =~ ^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$ ]]; then
+    printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0   # "<ID>@<box>" (specs/058)
+  fi
   case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
   head="${n%%": "*}"; rest="${n#*": "}"
   printf '%s' "$head" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { printf '%s' "$n"; return 0; }

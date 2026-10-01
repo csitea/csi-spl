@@ -37,7 +37,7 @@ _ch_busy() {  # WAIT_NAME
   local cmd
   spool_tmux_argv
   cmd="$("${SPOOL_TM[@]}" list-panes -a -F '#{window_name}	#{pane_current_command}' 2>/dev/null \
-    | awk -F '\t' -v n="$1" '$1 ~ ("(^|[[:space:]])" n "($|[[:space:]])") { print $2; exit }')" || true
+    | awk -F '\t' -v n="$1" '$1 ~ ("(^|[[:space:]])" n "($|[[:space:]@])") { print $2; exit }')" || true
   [ -n "$cmd" ] || return 1
   case "$cmd" in bash|sh|zsh|dash|sleep) return 1 ;; *) return 0 ;; esac
 }

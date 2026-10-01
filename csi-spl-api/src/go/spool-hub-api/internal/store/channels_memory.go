@@ -364,7 +364,7 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 	return out, nil
 }
 
-func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error) {
+func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Time, reads map[string]ReadMark, reader string) ([]ChannelStat, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
@@ -397,7 +397,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 		st := get(m.Channel)
 		st.Count++
 		st.LastAt, st.LastMsgID = m.ReceivedAt, m.MsgID
-		if r, ok := reads[m.Channel]; !ok || newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID) {
+		if r, ok := reads[m.Channel]; (!ok || newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID)) && !OwnLine(m.FromID, m.TypedBy, reader, ok) {
 			st.Unread++
 		}
 		if posters[m.Channel] == nil {

@@ -74,7 +74,7 @@ func TestChannelCountsMatchTheOracle(t *testing.T) {
 	if err != nil || len(want) != 3 {
 		t.Fatalf("oracle %d channels %v", len(want), err)
 	}
-	stats, err := pg.ViewChannelStats(ctx, tid, now, nil)
+	stats, err := pg.ViewChannelStats(ctx, tid, now, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -198,7 +198,7 @@ func (s *Server) handleTenantChannels(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), nil)
+	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), nil, "")
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return

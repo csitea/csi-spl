@@ -291,12 +291,12 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 	return out, nil
 }
 
-func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error) {
+func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark, reader string) ([]ChannelStat, error) {
 	cs := newChannelStats(tenant)
 	// One batch, one round trip (it was a BEGIN .. COMMIT
 	// transaction of 5 + len(reads) round trips). Results come back in queue
 	// order, so the unread counts see the counts the stats read stored.
-	reqs := append([]tenantRead{cs.channelsRead(), cs.countsRead(now)}, cs.unreadReads(reads, now)...)
+	reqs := append([]tenantRead{cs.channelsRead(), cs.countsRead(now, reader)}, cs.unreadReads(reads, now, reader)...)
 	reqs = append(reqs, cs.membersRead())
 	if err := s.queryTenantBatch(ctx, tenant, reqs...); err != nil {
 		return nil, err
@@ -354,8 +354,9 @@ func (cs *channelStats) channelsRead() tenantRead {
 }
 
 // countsRead is each channel's live message count, newest message and
-// posters; unread starts at the count.
-func (cs *channelStats) countsRead(now time.Time) tenantRead {
+// posters; unread starts at the count less the reader's own lines (OwnLine:
+// from_id, on the same covering index).
+func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {
 	// e908f41b lane B: one GROUP BY over the covering index messages_channel_stats
 	// (rdb 0080, (tenant_id, channel) INCLUDE received_at, from_id, expires_at) —
 	// count, max(received_at) and count(DISTINCT from_id) posters come from ONE
@@ -367,23 +368,24 @@ func (cs *channelStats) countsRead(now time.Time) tenantRead {
 	// messages: 147 ms + Seq Scan 14059 buffers + temp 748 -> 96 ms + Index Only
 	// Scan 1340 buffers + no temp.
 	return tenantRead{`WITH c AS (
-			SELECT channel, count(*)::int AS n, max(received_at) AS last_at, count(DISTINCT from_id)::int AS posters
+			SELECT channel, count(*)::int AS n, max(received_at) AS last_at, count(DISTINCT from_id)::int AS posters,
+				count(*) FILTER (WHERE $3::text IS NULL OR from_id IS DISTINCT FROM $3)::int AS others
 			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2
 			GROUP BY channel)
-		SELECT c.channel, c.n, c.last_at, l.msg_id, c.posters FROM c
+		SELECT c.channel, c.n, c.last_at, l.msg_id, c.posters, c.others FROM c
 		CROSS JOIN LATERAL (SELECT x.msg_id::text AS msg_id FROM messages x
 			WHERE x.tenant_id = $1 AND x.channel = c.channel AND x.expires_at > $2 AND x.received_at = c.last_at
 			ORDER BY x.msg_id::text DESC LIMIT 1) l`,
-		[]any{cs.tenant, now}, func(r pgx.Rows) error {
+		[]any{cs.tenant, now, nullIfEmpty(reader)}, func(r pgx.Rows) error {
 			var id string
-			var n, posters int
+			var n, posters, others int
 			var last time.Time
 			var lastID string
-			if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
+			if err := r.Scan(&id, &n, &last, &lastID, &posters, &others); err != nil {
 				return err
 			}
 			st := cs.get(id)
-			st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
+			st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, others
 			return nil
 		}}
 }
@@ -392,7 +394,7 @@ func (cs *channelStats) countsRead(now time.Time) tenantRead {
 // matters for a channel with messages, which is known only once the counts
 // read is scanned: every mark is queued, and one for a channel without
 // messages is scanned and dropped.
-func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time) []tenantRead {
+func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time, reader string) []tenantRead {
 	ids := make([]string, 0, len(reads))
 	for id := range reads {
 		ids = append(ids, id)
@@ -402,8 +404,9 @@ func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time) []
 	for _, id := range ids {
 		mark := reads[id]
 		out = append(out, tenantRead{`SELECT count(*)::int FROM messages
-				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
-			[]any{cs.tenant, id, now, mark.At, mark.MsgID}, func(r pgx.Rows) error {
+				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)
+				AND ($6::text IS NULL OR (from_id IS DISTINCT FROM $6 AND typed_by IS DISTINCT FROM $6))`,
+			[]any{cs.tenant, id, now, mark.At, mark.MsgID, nullIfEmpty(reader)}, func(r pgx.Rows) error {
 				var unread int
 				if err := r.Scan(&unread); err != nil {
 					return err

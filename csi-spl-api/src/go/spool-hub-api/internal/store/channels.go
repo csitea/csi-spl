@@ -104,6 +104,19 @@ type ReadMark struct {
 	MsgID string
 }
 
+// OwnLine reports whether a line (its from_id, typed_by) is the reader's
+// own, which is never unread for them (CLE-77889, owner t1 99905c80: "they
+// should be shown as new for the receiver of those msgs, but not me"): they
+// sent it, or typed it at an agent's terminal. Against a read mark both count;
+// a channel with no mark skips from_id only, which keeps its count on the
+// covering index (rdb 0080 INCLUDEs from_id, not typed_by).
+func OwnLine(fromID, typedBy, reader string, marked bool) bool {
+	if reader == "" {
+		return false
+	}
+	return fromID == reader || (marked && typedBy == reader)
+}
+
 // ChannelStat is one row of GET /v1/view/channels (channels-v1 §5.2).
 type ChannelStat struct {
 	Channel
@@ -209,8 +222,10 @@ type Channels interface {
 	// tell "reserved: archived" apart from a live conflict.
 	ArchivedChannel(ctx context.Context, tenantID, channelID string) (Channel, bool, error)
 	// ViewChannelStats lists defaults, created and seen channels with counts,
-	// unread (per reads) and member stats. Read-only (FR-019).
-	ViewChannelStats(ctx context.Context, tenantID string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error)
+	// unread (per reads) and member stats. Read-only (FR-019). reader is the
+	// reading member (HUM-*, "" = none): their own lines are never unread
+	// (CLE-77889, see OwnLine).
+	ViewChannelStats(ctx context.Context, tenantID string, now time.Time, reads map[string]ReadMark, reader string) ([]ChannelStat, error)
 }
 
 var (

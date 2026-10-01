@@ -209,7 +209,11 @@ permission control).
 - `read` (repeatable) = the reader's last-read cursor per channel (a cursor
   from `./view-v1.md` §4.4). `unread` = messages after it; without one,
   `unread = count`. A cursor the hub cannot decode → `400 bad_cursor`. Read
-  state is **client-held** (OQ-CH2).
+  state is **client-held** (OQ-CH2). The reading member's OWN lines are never
+  unread for them (CLE-77889): their posts, and, after a `read` cursor, a line
+  they typed at an agent's terminal (`typed_by`). Another reader counts them.
+  Tests: `TestChannelUnreadSkipsReadersOwnLines` (store),
+  `TestViewChannelsOwnPostNotUnread` (hub).
 - `members.agents` / `members.boxes` = subscribed agents / their boxes
   (a default channel: the agents a member added, origin `removed` not
   counted); `members.posters` = distinct `from` ids.

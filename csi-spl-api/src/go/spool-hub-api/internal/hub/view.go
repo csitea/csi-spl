@@ -340,9 +340,15 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusBadRequest, "bad_cursor", "read must be <channel>~<cursor from this API>")
 		return
 	}
-	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads)
+	// CLE-77889: the reader's own lines are never unread for them (store.OwnLine)
+	hum, member := s.readerID(r, t.ID)
+	var rows []store.ChannelStat
+	err := errChannelsDoor
+	if member {
+		rows, err = s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads, hum)
+	}
 	if err == nil {
-		rows, err = s.visibleChannels(r, t.ID, rows)
+		rows, err = s.visibleChannels(r.Context(), t.ID, hum, rows)
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
@@ -376,15 +382,11 @@ var errChannelsDoor = errors.New("channels: reader unavailable")
 // visibleChannels is the read door (rdb 0028): a created channel the reader
 // is not in is omitted entirely - not greyed out, not listed as joinable. Its
 // name and description are as private as its messages.
-func (s *Server) visibleChannels(r *http.Request, tenant string, rows []store.ChannelStat) ([]store.ChannelStat, error) {
-	hum, ok := s.readerID(r, tenant)
-	if !ok {
-		return nil, errChannelsDoor
-	}
+func (s *Server) visibleChannels(ctx context.Context, tenant, hum string, rows []store.ChannelStat) ([]store.ChannelStat, error) {
 	if hum == "" {
 		return rows, nil
 	}
-	mine, err := s.readerChannels(r.Context(), tenant, hum)
+	mine, err := s.readerChannels(ctx, tenant, hum)
 	if err != nil {
 		return nil, err
 	}

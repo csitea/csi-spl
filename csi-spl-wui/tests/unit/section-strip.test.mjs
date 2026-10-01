@@ -1,0 +1,44 @@
+// CLE-77886 (owner, t1 topic ac0fa400): on a phone every section keeps the
+// one section strip; a section page shows it instead of a bare title, and
+// the strip rolls endlessly.
+//
+// Run: node tests/unit/section-strip.test.mjs
+import { describe, it } from 'node:test'
+import assert from 'node:assert/strict'
+import { isSectionPage, loopPosition, railLinkSection } from '../../src/utils/section-strip.mjs'
+
+describe('isSectionPage', () => {
+  it('every section page the owner named, with or without a locale', () => {
+    for (const p of ['/issues', '/people', '/boxes', '/agents', '/events', '/help', '/tenant-settings', '/archive', '/', '/fi/issues', '/issues?epic=SPL-1', '/people/']) {
+      assert.equal(isSectionPage(p), true, p)
+    }
+  })
+  it('a drill-down keeps its own header and Back', () => {
+    for (const p of ['/channel/general', '/dm/HUM-2', '/people/HUM-2', '/agents/CLE-1', '/boxes/b1', '/help/how-to-post', '/tenant-settings/members', '/t/abc', '/search']) {
+      assert.equal(isSectionPage(p), false, p)
+    }
+  })
+})
+
+describe('railLinkSection', () => {
+  it('names the rail link a route belongs to', () => {
+    assert.equal(railLinkSection('/help'), 'help')
+    assert.equal(railLinkSection('/fi/help/how-to-post'), 'help')
+    assert.equal(railLinkSection('/tenant-settings/members'), 'settings')
+    assert.equal(railLinkSection('/issues'), '')
+  })
+})
+
+describe('loopPosition', () => {
+  it('keeps the view inside the middle copy, never at an end', () => {
+    assert.equal(loopPosition(500, 700), 500)
+    assert.equal(loopPosition(100, 700), 800)
+    assert.equal(loopPosition(1100, 700), 400)
+    assert.equal(loopPosition(350, 700), 350)
+    assert.equal(loopPosition(1050, 700), 1050)
+  })
+  it('no set width (not measured / nothing overflows) leaves it alone', () => {
+    assert.equal(loopPosition(5, 0), 5)
+    assert.equal(loopPosition(5, NaN), 5)
+  })
+})

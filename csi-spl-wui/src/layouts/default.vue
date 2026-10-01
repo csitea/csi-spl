@@ -20,6 +20,7 @@
         :style="shellStyle"
         :data-mobile-level="stack.level.value"
         :data-mobile-topic="topicPaneOpen ? '1' : undefined"
+        :data-mobile-section="sectionStrip ? '1' : undefined"
         :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
         :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
         :data-collapse-threads="collapse.collapsed.threads ? '1' : undefined"
@@ -153,6 +154,7 @@ const MobileStatusStrip = defineAsyncComponent(() => import('@/components/Mobile
 import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'
+import { isSectionPage } from '~/utils/section-strip.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
@@ -252,6 +254,10 @@ stack.install({
   topicOpen: topicPaneOpen,
   closeTopic: () => { livePane.close(); topic.close() },
 })
+/* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
+   (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
+const route = useRoute()
+const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so
    the section the reader opened LAST is the one they see. Without this a stale

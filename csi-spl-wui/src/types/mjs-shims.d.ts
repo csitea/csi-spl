@@ -1904,3 +1904,9 @@ declare module '~/utils/side-hit-list.mjs' {
   export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>
   export function itemSegments(item: { segs?: SideHitSeg[], text?: string } | null | undefined): SideHitSeg[]
 }
+
+declare module '~/utils/section-strip.mjs' {
+  export function isSectionPage(path: string): boolean
+  export function railLinkSection(path: string): '' | 'help' | 'settings'
+  export function loopPosition(pos: number, set: number): number
+}

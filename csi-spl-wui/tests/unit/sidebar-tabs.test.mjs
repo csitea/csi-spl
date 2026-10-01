@@ -107,8 +107,9 @@ describe('the strip is icons, in that order', () => {
     assert.match(vue, /:aria-label="t\(item\.labelKey\)"/)
     assert.match(vue, /:title="t\(item\.labelKey\)"/)
     const rail = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
-    /* SPL-989: the only words are the phone strip's label, hidden above 820 px */
-    assert.doesNotMatch(rail.replace(/<span class="sidebar-tab__label"[^>]*>\{\{ t\(item\.labelKey\) \}\}<\/span>/, ''), /\{\{\s*t\(/)
+    /* SPL-989: the only words are the phone strip's label, hidden above 820 px
+       (CLE-77886: also on the phone strip's endless-roll copies) */
+    assert.doesNotMatch(rail.replace(/<span class="sidebar-tab__label"[^>]*>\{\{ t\(item\.labelKey\) \}\}<\/span>/g, ''), /\{\{\s*t\(/)
     const style = vue.slice(vue.indexOf('<style'))
     const outside = style.slice(0, style.indexOf('@media (max-width: 820px) {\n  .sidebar-main'))
     assert.match(outside, /\.sidebar-tab__label \{ display: none; \}/)

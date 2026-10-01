@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly }">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly, 'sidebar--strip': stripOnly }">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
@@ -29,7 +29,7 @@
         role="tab"
         :data-testid="'sidebar-tab-' + item.id"
         :data-reorder-id="item.id"
-        :aria-selected="tab === item.id ? 'true' : 'false'"
+        :aria-selected="railOn(item.id) ? 'true' : 'false'"
         :aria-controls="'sidebar-panel-' + item.id"
         :tabindex="tab === item.id ? 0 : -1"
         :aria-label="t(item.labelKey)"
@@ -66,6 +66,34 @@
       >
         <UiIcon name="settings" :size="20" />
       </NuxtLink>
+      <!-- CLE-77886 (owner, msg 8ebbce0e): on a phone whose strip overflows,
+           a copy of its controls on each side makes it roll endlessly
+           (useLoopStrip). Copies only: no ids, no test ids, out of the tab
+           order and hidden from assistive tech; a tap does what the real
+           control does. -->
+      <template v-if="loop.on.value">
+        <div v-for="side in LOOP_SIDES" :key="side" class="sidebar-rail__loop" :data-loop="side" aria-hidden="true">
+          <button
+            v-for="item in rail"
+            :key="item.id"
+            type="button"
+            class="sidebar-tab"
+            tabindex="-1"
+            :data-on="railOn(item.id) ? 'true' : undefined"
+            @click="selectTab(item.id)"
+          >
+            <UiIcon :name="item.icon" :size="20" />
+            <span class="sidebar-tab__label">{{ t(item.labelKey) }}</span>
+            <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" />
+          </button>
+          <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
+            <UiIcon name="help" :size="20" />
+          </NuxtLink>
+          <NuxtLink v-if="tenantSettingsShown" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')">
+            <UiIcon name="settings" :size="20" />
+          </NuxtLink>
+        </div>
+      </template>
     </div>
     <div class="sidebar-body">
       <div
@@ -691,6 +719,8 @@ import { isNewer } from '~/utils/build-watch.mjs'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useLoopStrip } from '~/composables/useLoopStrip'
+import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
@@ -726,6 +756,7 @@ const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
   .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: item.labelKey })))
 const tab = ref<SideTab>('dm')
+const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'agents', 'boxes'])
 /* the first render builds the open rail tab only. The other tabs
    (a v-show each) were built with it and hidden: on / the flow tab alone was
    915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page. They
@@ -846,6 +877,21 @@ const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id 
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
+/* CLE-77886 (owner, t1 topic ac0fa400): on a phone a section's own page
+   keeps this strip on top (layouts/default.vue data-mobile-section); the
+   sidebar then shows the strip only. On Help / Workspace settings - rail
+   links, not tabs - no tab reads as selected on a phone: the link does. */
+const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && isSectionPage(route.path))
+const onRailLink = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && Boolean(railLinkSection(route.path)))
+function railOn(id: SideTab) {
+  return tab.value === id && !onRailLink.value
+}
+const LOOP_SIDES = ['before', 'after'] as const
+const loop = useLoopStrip(railEl, {
+  enabled: () => mobileStack.isMobile.value,
+  selected: '.sidebar-tab[aria-selected="true"], .router-link-active:not([tabindex="-1"])',
+  watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value],
+})
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
 }
@@ -878,9 +924,21 @@ watch([topicOpen, tab, () => viewer.topics.length], async ([id, which]) => {
 /* Topics opens the topic index. Flow stays on this page and mixes the
    three lists. Direct messages and channels only swap the sidebar. */
 async function selectTab(next: SideTab) {
+  /* CLE-77886: on a phone, a tap on the section already selected above its
+     own page shows that section's list at level 1 (the Issues epics, ...),
+     where the page's Back chevron used to lead */
+  if (stripOnly.value && next === tab.value && !onRailLink.value) {
+    mobileStack.home()
+    return
+  }
   holdFlow.value = next === 'flow'
   holdSearch.value = false
   tab.value = next
+  /* CLE-77886: on a phone a section whose content is this sidebar's list
+     (Channels, DMs, Flow, People, Agents, Boxes) shows it at level 1 under
+     the strip - from a section page's strip too - instead of a bare page */
+  const phoneList = mobileStack.isMobile.value && PHONE_LIST_TABS.has(next)
+  if (phoneList && mobileStack.level.value > 1) mobileStack.home()
   if (next === 'topics') {
     if (viewer.topics.length === 0) void viewer.loadTopics()
     if (tabForPath(route.path) !== 'topics') await navigateTo(localePath('/'))
@@ -891,9 +949,9 @@ async function selectTab(next: SideTab) {
   if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
   /* CLE-77794: People / Agents land on their index (the "pick someone" card in
      the middle pane); a click on a row then opens /people/<id> or /agents/<id>. */
-  if (next === PEOPLE_TAB && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
-  if (next === AGENTS_TAB && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
-  if (next === BOXES_TAB && tabForPath(route.path) !== BOXES_TAB) await navigateTo(localePath('/boxes'))
+  if (next === PEOPLE_TAB && !phoneList && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
+  if (next === AGENTS_TAB && !phoneList && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
+  if (next === BOXES_TAB && !phoneList && tabForPath(route.path) !== BOXES_TAB) await navigateTo(localePath('/boxes'))
 }
 /* CLE-77884: the search list's X - back to the list the page belongs to */
 function closeSearch() {
@@ -1753,9 +1811,37 @@ async function onCreate() {
     container-type: normal;
   }
   .sidebar-tab :deep(svg) { width: 22px; height: 22px; }
-  .sidebar-tab[aria-selected="true"] { background: var(--color-surface-hover); }
-  .sidebar-tab[aria-selected="true"] :deep(svg) { width: 20px; height: 20px; }
+  /* CLE-77886 (owner, msg cbab6075): "make the selected section a bit
+     smaller - 1px around each side and more 3d and a bit darker and with
+     bolder font". The copies of the endless strip mark theirs with data-on;
+     Help and the gear are links, router-link-active. */
+  .sidebar-tab[aria-selected="true"],
+  .sidebar-tab[data-on="true"],
+  .sidebar-rail__help.router-link-active,
+  .sidebar-rail__settings.router-link-active {
+    margin: 1px;
+    min-height: 50px;
+    background: color-mix(in srgb, var(--color-surface-hover) 78%, #000);
+    color: var(--color-fg);
+    box-shadow:
+      0 2px 4px rgb(0 0 0 / 0.35),
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      inset 0 -2px 0 rgb(0 0 0 / 0.25);
+  }
+  .sidebar-tab[aria-selected="true"] :deep(svg),
+  .sidebar-tab[data-on="true"] :deep(svg) { width: 20px; height: 20px; }
   .sidebar-tab__label { display: block; font-size: 0.6875rem; white-space: nowrap; }
+  .sidebar-tab[aria-selected="true"] .sidebar-tab__label,
+  .sidebar-tab[data-on="true"] .sidebar-tab__label { font-weight: 700; }
+  /* the endless strip's copies: [before][real][after], one row, same gap */
+  .sidebar-rail__loop { display: flex; flex: 0 0 auto; gap: inherit; }
+  .sidebar-rail__loop[data-loop="before"] { order: -1; }
+  .sidebar-rail__loop .sidebar-rail__help { margin-inline-start: 0; }
+  /* a section's own page (CLE-77886): the strip alone, above the page */
+  .sidebar.sidebar--strip { max-height: none; }
+  .sidebar--strip .sidebar-body,
+  .sidebar--strip .sidebar-foot,
+  .sidebar--strip > :not(.sidebar-main) { display: none; }
   /* a sideways drag scrolls the strip; a long press still reorders */
   .sidebar-tab--movable { touch-action: pan-x; }
   /* the phone strip: the gear ends the row, a 44 px target */

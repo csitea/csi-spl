@@ -149,15 +149,23 @@ try {
       await btn.click()
       await sleep(250)
       if (tab === 'issues') {
-        /* on a phone the tab opens the list (level 2); Back shows the
-           Issues section's epics at level 1 (SPL-992) */
+        /* on a phone the tab opens the list (level 2) under the section
+           strip; a tap on the selected Issues control shows the section's
+           epics at level 1 (SPL-992, CLE-77886) */
         if (vp.mobile) {
-          await p.waitForSelector('[data-test=issues-back]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
-          await p.click('[data-test=issues-back]').catch(() => null)
+          await p.waitForSelector('.spool-shell[data-mobile-section="1"] [data-testid=sidebar-tab-issues]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
+          await p.click('[data-testid=sidebar-tab-issues]').catch(() => null)
         }
         await p.waitForSelector('[data-testid=sidebar-epics-h]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
         await padEpics(p)
         await sleep(300)
+      }
+      /* CLE-77886: on a phone a section with a page of its own (Topics) shows
+         it under the section strip; a tap on its selected control shows the
+         section's list at level 1 */
+      if (vp.mobile && tab !== 'issues' && await p.$('.spool-shell[data-mobile-section="1"]')) {
+        await p.click(`[data-testid=sidebar-tab-${tab}]`).catch(() => null)
+        await sleep(400)
       }
       await p.waitForFunction((t) => document.getElementById('sidebar-panel-' + t)?.offsetParent, { timeout: 10000 }, tab).catch(() => null)
       await sleep(150)

@@ -795,6 +795,23 @@ html.pane-dragging * {
      page's own right panel (the issue detail, useMobileStack.rightPanel)
      lives inside .spool-main and covers it itself */
   .spool-shell[data-mobile-level="3"][data-mobile-topic="1"] > .spool-main { display: none; }
+  /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page (Issues,
+     People, Boxes, Agents, Event log, Help, Workspace settings, ...) keeps
+     the SAME section strip as level 1 on top of it - only the strip of the
+     sidebar shows (ChannelSidebar .sidebar--strip) - and no title text: the
+     selected control in the strip names the section. The page's header
+     gives up its Back and its title; a header that still carries a control
+     (the Event log's Clear) stays a row, any other dissolves. */
+  .spool-shell[data-mobile-section="1"] { flex-direction: column; }
+  .spool-shell[data-mobile-section="1"] > .sidebar {
+    display: flex;
+    flex: 0 0 auto;
+    padding-bottom: 0;
+  }
+  .spool-shell[data-mobile-section="1"] > .spool-main { flex: 1 1 auto; min-height: 0; }
+  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header > .mobile-back,
+  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header > h2 { display: none; }
+  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header:not(:has(> .btn)) { display: contents; }
   .spool-shell[data-mobile-level="1"] > .sidebar,
   .spool-shell[data-mobile-level="2"] > .spool-main,
   .spool-shell[data-mobile-level="3"][data-mobile-topic="1"] > .topic {

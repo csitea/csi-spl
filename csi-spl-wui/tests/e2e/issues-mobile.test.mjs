@@ -160,8 +160,10 @@ try {
       }
       ok(`2b ${w}: the FAB opens the new-issue form full screen, Create makes it, Back returns to the list`, true, '')
 
-      /* level 1: Back from the list shows the Issues section's epics; a tap on one opens its list */
-      await p.click('[data-test=issues-back]')
+      /* level 1: a tap on the selected Issues control of the section strip
+         (CLE-77886: the list has no Back / title of its own on a phone)
+         shows the Issues section's epics; a tap on one opens its list */
+      await p.click('[data-testid=sidebar-tab-issues]')
       await p.waitForSelector('[data-testid=sidebar-epic]', { visible: true, timeout: 5000 }).catch(() => {})
       const l1 = await p.evaluate(() => {
         const row = document.querySelector('[data-testid=sidebar-epic]')

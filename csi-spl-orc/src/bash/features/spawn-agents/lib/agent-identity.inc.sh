@@ -26,6 +26,8 @@
 
 AI_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_PY="$AI_LIB_DIR/../scripts/agent-identity.py"
+# shellcheck source=proc-owner.inc.sh
+. "$AI_LIB_DIR/proc-owner.inc.sh"
 
 ai_dir() { printf '%s/agents' "${SPOOL_ROOT:-/var/spool-hub}"; }
 
@@ -131,9 +133,17 @@ ai_alive_fast() {  # ID
   a0="${a0##*/}"; a1="${a1##*/}"
   case "$a0" in node|nodejs|bun|deno|ld-linux*) a0="$a1" ;; esac
   [ "$a0" = "$kind" ] || [ "$comm" = "$kind" ] || return 1
-  while IFS= read -r -d '' kv; do
-    case "$kv" in "SPOOL_AGENT_ID=$id"|"MCP_BOT_AGENT_ID=$id") ok=1; break ;; esac
-  done < "$root/$pid/environ" 2>/dev/null
+  # Another user's agent (the agent user) through its owner (proc-owner.inc.sh);
+  # a readable environ stays a builtin read, no fork.
+  if [ -r "$root/$pid/environ" ]; then
+    while IFS= read -r -d '' kv; do
+      case "$kv" in "SPOOL_AGENT_ID=$id"|"MCP_BOT_AGENT_ID=$id") ok=1; break ;; esac
+    done < "$root/$pid/environ" 2>/dev/null
+  else
+    while IFS= read -r -d '' kv; do
+      case "$kv" in "SPOOL_AGENT_ID=$id"|"MCP_BOT_AGENT_ID=$id") ok=1; break ;; esac
+    done < <(spool_proc_environ "$root" "$pid")
+  fi
   [ "$ok" = 1 ] || return 1
   printf '%s\n' "$pid"
 }

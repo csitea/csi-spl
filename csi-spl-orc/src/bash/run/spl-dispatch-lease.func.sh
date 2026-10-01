@@ -157,36 +157,64 @@ spl_lease_tell() {
     spl_lease_log "WARN could not tell $to"
 }
 
+# The owner hop for an agent that runs as another user (lib/proc-owner.inc.sh,
+# CLE-77907): its environ is unreadable to the box user. Missing lib (a copied
+# tree) = no hop, the readable processes still count.
+# shellcheck source=../features/spawn-agents/lib/proc-owner.inc.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh" 2>/dev/null || true
+
 # The pid of a live claude process whose environment carries
 # SPOOL_AGENT_ID=<id>; empty when there is none. The lowest pid wins, so two
-# reads in a row agree.
+# reads in a row agree. A claude of another user (the agent user) is read
+# through its owner, one hop for all of them.
 spl_lease_agent_pid() {
   local id="$1" root="${LEASE_PROC_ROOT:-/proc}" d pid comm
-  for d in "$root"/[0-9]*; do
-    pid="${d##*/}"
-    # `read`, not $(cat): a builtin, so the walk forks only for the few
-    # claude processes (measured 2026-10-01: one fork per pid made a tick 26 s)
-    comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
-    [[ "$comm" == claude ]] || continue
-    grep -qzx "SPOOL_AGENT_ID=$id" "$d/environ" 2>/dev/null || continue
-    echo "$pid"
-  done | sort -n | head -1
+  local -a other=()
+  {
+    for d in "$root"/[0-9]*; do
+      pid="${d##*/}"
+      # `read`, not $(cat): a builtin, so the walk forks only for the few
+      # claude processes (measured 2026-10-01: one fork per pid made a tick 26 s)
+      comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
+      [[ "$comm" == claude ]] || continue
+      if [[ -r "$d/environ" ]]; then
+        grep -qzx "SPOOL_AGENT_ID=$id" "$d/environ" 2>/dev/null && echo "$pid"
+      else
+        other+=("$pid")
+      fi
+    done
+    if (( ${#other[@]} )) && declare -F spool_proc_env_get >/dev/null; then
+      spool_proc_env_get "$root" SPOOL_AGENT_ID "${other[@]}" | awk -v id="$id" '$2 == id {print $1}'
+    fi
+  } | sort -n | head -1
 }
 
 # The SPOOL_AGENT_ID of every live process on this box that carries one,
 # one per line - any agent kind (an agy or grok agent is not a claude process).
 # For the dead-subscription REPORT; the lease itself keeps the claude-only rule.
 # mapfile, not tr/grep: a builtin, so the walk does not fork per process.
+# Another user's process: only its agent CLIs (comm claude/grok/agy/qwen/node)
+# go through the owner hop.
 spl_lease_live_ids() {
-  local root="${LEASE_PROC_ROOT:-/proc}" d e
-  local -a env
-  for d in "$root"/[0-9]*; do
-    env=()
-    { mapfile -d '' -t env < "$d/environ"; } 2>/dev/null || continue
-    for e in "${env[@]}"; do
-      [[ "$e" == SPOOL_AGENT_ID=* ]] && { echo "${e#SPOOL_AGENT_ID=}"; break; }
+  local root="${LEASE_PROC_ROOT:-/proc}" d e comm
+  local -a env other=()
+  {
+    for d in "$root"/[0-9]*; do
+      env=()
+      if [[ ! -r "$d/environ" ]]; then
+        comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
+        case "$comm" in claude|grok|agy|qwen|node|bun) other+=("${d##*/}") ;; esac
+        continue
+      fi
+      { mapfile -d '' -t env < "$d/environ"; } 2>/dev/null || continue
+      for e in "${env[@]}"; do
+        [[ "$e" == SPOOL_AGENT_ID=* ]] && { echo "${e#SPOOL_AGENT_ID=}"; break; }
+      done
     done
-  done | sort -u
+    if (( ${#other[@]} )) && declare -F spool_proc_env_get >/dev/null; then
+      spool_proc_env_get "$root" SPOOL_AGENT_ID "${other[@]}" | awk '{print $2}'
+    fi
+  } | sort -u
 }
 
 # One renew tick. The bound pid lives in renew.<id>.pid so a rebind or a loss

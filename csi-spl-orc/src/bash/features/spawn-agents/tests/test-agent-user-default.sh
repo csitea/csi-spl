@@ -11,6 +11,8 @@
 #   7-10 trust-workdir via su-dash and sudo-i (stub sudo, HOME sandboxed):
 #        the entry is written, and the hop carried no --pty and no stdin
 #   11-12 agent-user-check.sh flags a CLI running as the box user
+#   13-15 proc-owner.inc.sh reads an environ only its owner can read, one hop
+#        per owner; off = nothing (the dispatch GAP of 2026-10-01)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -75,5 +77,29 @@ sleep 0.2
 out="$(env SPOOL_AGENT_USER="$OTHER" SPOOL_BOX_USER="$ME" bash "$T_SCRIPTS/agent-user-check.sh" claude-t77907 2>/dev/null)"; rc=$?
 kill "$fp" 2>/dev/null; wait "$fp" 2>/dev/null
 eq "12. agent-user-check: a box-user claude -> 1, named" "1 $fp" "$rc $(printf '%s' "$out" | awk -v p="$fp" '$1==p{print $1}')"
+
+# 13-15 the owner hop (a fake /proc; the stub hop reads environ.priv)
+if [ "$(id -u)" = 0 ]; then echo "skip - 13-15: root reads every environ"; else
+. "$T_FEAT/lib/proc-owner.inc.sh"
+PR="$T_TMP/proc"; mkdir -p "$PR/11" "$PR/12" "$PR/13"
+printf 'HOME=/a\0SPOOL_AGENT_ID=CLE-11\0' >"$PR/11/environ"
+for n in 12 13; do
+  printf 'HOME=/b\0SPOOL_AGENT_ID=CLE-%s\0' "$n" >"$PR/$n/environ.priv"; : >"$PR/$n/environ"; chmod 000 "$PR/$n/environ"
+done
+cat >"$STUB/hop" <<'SH'
+#!/usr/bin/env bash
+shift; a=(); for x in "$@"; do [[ "$x" == */environ ]] && x="$x.priv"; a+=("$x"); done
+echo hop >>"$HOPLOG"; exec "${a[@]}"
+SH
+chmod +x "$STUB/hop"; export HOPLOG="$T_TMP/hops"
+got="$(SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$STUB/hop" spool_proc_env_get "$PR" SPOOL_AGENT_ID 11 12 13 | sort | tr '\n' ' ')"
+eq "13. env_get: own + other user's agents, ids by pid" "11 CLE-11 12 CLE-12 13 CLE-13 " "$got"
+eq "14. ... through ONE hop for both unreadable pids" 1 "$(wc -l <"$HOPLOG")"
+got="$(SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$STUB/hop" spool_proc_environ "$PR" 12 | tr '\0' ' ')"
+eq "15. environ of an unreadable pid through its owner" "HOME=/b SPOOL_AGENT_ID=CLE-12 " "$got"
+got="$(SPOOL_OWNER_HOP=0 spool_proc_env_get "$PR" SPOOL_AGENT_ID 11 12 13 | tr '\n' ' ')"
+eq "15b. control: hop off -> only the readable one (the GAP)" "11 CLE-11 " "$got"
+chmod -R u+rwX "$PR"
+fi
 
 t_done

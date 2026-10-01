@@ -112,18 +112,30 @@ spl_dispatch_cmd_flag() {
 # --model from the command line, else the last model the session's transcript
 # recorded (<HOME>/.claude/projects/<cwd with / and . as ->/<session>.jsonl).
 spl_dispatch_model() {
-  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" m home cwd sid f
+  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" m home cwd sid
   m="$(spl_dispatch_cmd_flag "$pid" --model)"
   [[ -n "$m" ]] && { echo "$m"; return 0; }
-  home="$(tr '\0' '\n' < "$root/$pid/environ" 2>/dev/null | sed -n 's/^HOME=//p' | head -1)"
+  if declare -F spool_proc_environ >/dev/null; then
+    home="$(spool_proc_environ "$root" "$pid" | tr '\0' '\n' | sed -n 's/^HOME=//p' | head -1)"
+  else
+    home="$(tr '\0' '\n' < "$root/$pid/environ" 2>/dev/null | sed -n 's/^HOME=//p' | head -1)"
+  fi
   cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
+  [[ -z "$cwd" ]] && declare -F spool_proc_as_owner >/dev/null &&
+    cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
   [[ -n "$home" && -n "$cwd" ]] || return 0
   local dir="$home/.claude/projects/$(tr '/.' '--' <<<"$cwd")"
   sid="$(spl_dispatch_cmd_flag "$pid" --resume)"
-  if [[ -n "$sid" && -f "$dir/$sid.jsonl" ]]; then f="$dir/$sid.jsonl"
-  else f="$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1)"; fi
-  [[ -n "$f" ]] || return 0
-  grep -o '"model":"[^"]*"' "$f" 2>/dev/null | tail -1 | cut -d'"' -f4
+  # shellcheck disable=SC2016
+  local pick='f=""; [ -n "$2" ] && [ -f "$1/$2.jsonl" ] && f="$1/$2.jsonl"
+    [ -n "$f" ] || f="$(ls -t "$1"/*.jsonl 2>/dev/null | head -1)"
+    [ -n "$f" ] && grep -o "\"model\":\"[^\"]*\"" "$f" 2>/dev/null | tail -1'
+  # The agent user's home is its own: read its transcript through it.
+  if [[ -r "$dir" ]] || ! declare -F spool_proc_as_owner >/dev/null; then
+    bash -c "$pick" _ "$dir" "$sid"
+  else
+    spool_proc_as_owner "$root" "$pid" bash -c "$pick" _ "$dir" "$sid"
+  fi | cut -d'"' -f4
 }
 
 # One row per channel of workspace <t>: both dispatchers in, the orchestrator out.

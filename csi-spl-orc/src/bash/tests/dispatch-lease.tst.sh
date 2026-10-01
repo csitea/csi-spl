@@ -22,6 +22,9 @@
 #  15. ensure refuses a tree whose lease code is not trunk's
 #  16. ensure replaces a loop that runs older code; stop works by pid file
 #  12. bad LEASE_CMD / LEASE_PERIOD are refused
+#  17. an agent of ANOTHER user (environ unreadable to the box user, CLE-77907)
+#      is found through its owner: renew binds it, live_ids lists it, and
+#      with the hop off it is not seen (the 2026-10-01 GAP)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -229,6 +232,31 @@ tick watch 10259
 [[ "$(holder)" == M-1 && "$(logc 'handback to M-1')" == 1 && "$(sentc '^F-1 :: DISPATCH LEASE: STANDBY')" == 1 ]] &&
   pass "13. renew restarts, handback on the next watcher tick" || fail "13. handback: $(cat "$D/lease.log")"
 [[ "$(wc -l <"$T/sent")" == 4 ]] && pass "13. four notes, no repeats" || fail "13. sent: $(cat "$T/sent")"
+
+# --- 17. an agent of another user: its environ is the owner's only ------------------------
+if [[ "$(id -u)" == 0 ]]; then echo "SKIP: 17. root reads every environ"; else
+rm -rf "$T/spool" "$T/sent"; mkdir -p "$D"; rm -rf "${P:?}"/*
+# other <pid> <id>: the real environ unreadable, the owner's view in environ.priv
+other() { agent "$1" "$2"; mv "$P/$1/environ" "$P/$1/environ.priv"; printf 'HOME=/x\0' >"$P/$1/environ"; chmod 000 "$P/$1/environ"; }
+cat >"$T/bin/hop" <<'EOF2'
+#!/usr/bin/env bash
+shift; a=(); for x in "$@"; do [[ "$x" == */environ ]] && x="$x.priv"; a+=("$x"); done
+echo "hop ${a[*]}" >>"$HOPLOG"; exec "${a[@]}"
+EOF2
+chmod +x "$T/bin/hop"
+other 900 M-1; other 901 F-1; agent 902 X-9
+tick renew 20000 SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$T/bin/hop" HOPLOG="$T/hops"
+[[ "$(cat "$D/lease")" == "M-1 20000" && "$(logc 'renew bind M-1 pid=900')" == 1 ]] &&
+  pass "17. renew binds a master whose environ only its owner reads" || fail "17. lease '$(cat "$D/lease" 2>&1)' log: $(cat "$D/lease.log" 2>&1)"
+[[ "$(wc -l <"$T/hops")" == 1 ]] && pass "17. one owner hop for the whole walk" || fail "17. hops: $(cat "$T/hops")"
+ids="$(env PROJ_PATH="$PROJ_ROOT" LEASE_PROC_ROOT="$P" SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$T/bin/hop" HOPLOG="$T/hops" bash -c '
+  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_live_ids' | tr '\n' ' ')"
+[[ "$ids" == "F-1 M-1 X-9 " ]] && pass "17. live_ids lists the other user's agents too" || fail "17. live_ids: '$ids'"
+tick renew 20060 SPOOL_OWNER_HOP=0
+[[ "$(cat "$D/lease")" == "M-1 20000" && "$(logc 'renew stop M-1')" == 1 ]] &&
+  pass "17. control: with the hop off the master is not seen (the GAP)" || fail "17. control: $(cat "$D/lease.log")"
+chmod -R u+rwX "$P"
+fi
 
 echo "dispatch-lease: $fails failure(s)"
 [[ $fails -eq 0 ]]

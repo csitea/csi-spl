@@ -56,6 +56,12 @@ SECRETS = [
     (r'(?i)("[a-z0-9_-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)"\s*:\s*)"[^"]{6,}"',
      r'\1"<redacted>"', "json-secret"),
     (r"(?i)(password|passwd|pw|secret|token|api[_-]?key|access[_-]?key)(\s*[=:]\s*)['\"]?[^\s'\"]{6,}", r"\1\2<redacted>", "assignment"),
+    # A password said in prose, the way a human types one into a terminal:
+    # "the password is X", "pw for HUM-1 was X". The value must carry a digit
+    # or a symbol, so "the password is incorrect." stays prose. (2026-10-01: a
+    # typed password once reached a prd DM through the mirror.)
+    (r"(?i)(\b(?:password|passwd|passphrase|passcode|pw|pwd)\b(?:\s+(?:for|of)\s+\S+)?\s+(?:is|was)\s+['\"]?)"
+     r"(?=[^\s'\"]*[0-9!@#$%^&*_+=~])[^\s'\"]{6,}", r"\1<redacted>", "typed-password"),
     (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", "jwt"),
 ]
 _COMPILED = [(re.compile(t[0]), t[1], t[2] if len(t) > 2 else t[1]) for t in SECRETS]

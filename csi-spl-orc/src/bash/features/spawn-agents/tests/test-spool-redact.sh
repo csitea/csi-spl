@@ -55,6 +55,8 @@ $B64L"
   "json-secret|$(rep q 20)|{\"access_token\":\"$(rep q 20)\"}"
   "assignment|$(rep r 20)|export AWS_SECRET_ACCESS_KEY=$(rep r 20)"
   "assignment|supersecret1|pw=supersecret1"
+  "typed-password|Tr0ub4dor&3x|ok, the password is Tr0ub4dor&3x, log in now"
+  "typed-password|Hunter2!xq|my pw for HUM-1 was 'Hunter2!xq'"
   "jwt|eyJ$(rep x 12).$(rep y 12).$(rep z 12)|jwt eyJ$(rep x 12).$(rep y 12).$(rep z 12)"
 )
 for row in "${rows[@]}"; do
@@ -74,6 +76,7 @@ same "a sha256"                 "sha256 $(rep 9 64)"
 same "a uuid topic"             "topic f4ff5779-3376-48a1-85a9-62010c6ceb5c"
 same "an ed25519 PUBLIC key"    "box_pubkey $(rep Q 43)="
 same "a URL with no credentials" "https://api.example.com/v1/view/topics/abc?order=asc&limit=50"
+same "a password in prose"      "the password is incorrect. Reset the password is now possible."
 same "a token budget"           "token: 400 left"
 same "a key header in prose"    "look for the words PRIVATE KEY in the file"
 out="$(red "$BEGIN RSA $PK-----

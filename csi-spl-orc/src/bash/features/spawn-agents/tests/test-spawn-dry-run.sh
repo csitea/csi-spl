@@ -29,7 +29,7 @@ for k in claude grok agy qwen; do
   launch="$(cat "$T_TMP/plan-$k/launch.cmd")"
   has "$k: launch exports SPOOL_ROOT" "SPOOL_ROOT='${SPOOL_ROOT}'" "$launch"
   has "$k: launch exports SPOOL_AGENT_ID" "SPOOL_AGENT_ID='${p}-77'" "$launch"
-  has "$k: the CLI starts through spool-harness --as (spec 012 T013)" "spool-harness.sh' --as '${p}-77' -- '" "$launch"
+  has "$k: the CLI starts through spool-harness --as (spec 012 T013), mirrored (specs/036)" "spool-harness.sh' --as '${p}-77' --mirror -- '" "$launch"
   [ "$k" = grok ] && printf '%s\n' "$out" > "$T_TMP/grok.out"
   # Normalise the kind-specific parts for the parity check below.
   printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77([^0-9]|$)/ID\1/g" > "$T_TMP/norm-$k"

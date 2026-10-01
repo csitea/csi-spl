@@ -3,7 +3,7 @@
 # specs/012-spool-box-api). Prepares one agent's spool surface, then exec-s the
 # agent CLI in its place:
 #
-#   spool-harness --as <agent_id> [--to-box <box_id>] [--] <agent-cli-command...>
+#   spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--] <agent-cli-command...>
 #
 #   1. dirs      $SPOOL_ROOT/<agent_id>/{inbox,outbox,archive} and the shared
 #                $SPOOL_ROOT/{files,pins}, mode 0775; umask 0002 so the files
@@ -16,7 +16,15 @@
 #                agent seen under this box in its roster cache
 #   4. env       exports SPOOL_ROOT, SPOOL_BOX_ID (when set), SPOOL_AGENT_ID
 #                and SPOOL_NOTIFY_CMD (the terminal leg, specs/028)
-#   5. exec      replaces itself with the agent command
+#   5. mirror    --mirror only: the terminal mirror's hooks for THIS session
+#                (specs/036, lib/spool-mirror-hooks.inc.sh): claude gets
+#                `--settings <file>` inserted after the binary, grok / agy / qwen
+#                get their hook file written or merged. Skipped when the user's
+#                own settings already carry the hook, and for every launch while
+#                $SPOOL_ROOT/.mirror-off exists (the box-wide kill switch). The
+#                hook posts each typed prompt and each final answer into the
+#                agent's web UI DM, from its desk seat; no seat, no post
+#   6. exec      replaces itself with the agent command
 #
 # --to-box <box_id> names the box this session is attached to: it sets
 # $SPOOL_BOX_ID for the session and wins over an inherited value.
@@ -57,17 +65,18 @@ BOX_ID_RE='^[a-z0-9][a-z0-9-]{0,31}$'
 say()  { echo "spool-harness: $*" >&2; }
 die()  { local rc="$1"; shift; say "$*"; exit "$rc"; }
 usage() {
-  echo "usage: spool-harness --as <agent_id> [--to-box <box_id>] [--] <agent-cli-command...>" >&2
+  echo "usage: spool-harness --as <agent_id> [--to-box <box_id>] [--mirror] [--] <agent-cli-command...>" >&2
   exit 2
 }
 
-agent="" to_box=""
+agent="" to_box="" mirror=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --as)       [ $# -ge 2 ] || usage; agent="$2"; shift 2 ;;
     --as=*)     agent="${1#--as=}"; shift ;;
     --to-box)   [ $# -ge 2 ] || usage; to_box="$2"; shift 2 ;;
     --to-box=*) to_box="${1#--to-box=}"; shift ;;
+    --mirror)   mirror=1; shift ;;
     -h|--help)  usage ;;
     --)         shift; break ;;
     -*)         say "unknown option '$1'"; usage ;;
@@ -189,6 +198,26 @@ export SPOOL_ROOT SPOOL_AGENT_ID="$agent"
 # MCP tool (specs/012 FR-001: one API, so one terminal leg too).
 [ -n "$SPOOL_NOTIFY_CMD" ] && export SPOOL_NOTIFY_CMD
 
-# ── 5. exec ────────────────────────────────────────────────────────────────
+# ── 5. mirror ──────────────────────────────────────────────────────────────
 command -v "$1" >/dev/null 2>&1 || die 127 "agent command '$1' not found"
+if [ "$mirror" = 1 ]; then
+  kind="$(basename "$1")"
+  if [ -e "$SPOOL_ROOT/.mirror-off" ]; then
+    say "mirror: off for every launch ($SPOOL_ROOT/.mirror-off exists)"
+  else
+    case "$kind" in
+      claude|grok|agy|qwen)
+        # shellcheck source=../lib/spool-mirror-hooks.inc.sh
+        . "$HARNESS_DIR/../lib/spool-mirror-hooks.inc.sh"
+        if smh_install "$kind" "$agent" "${SPOOL_MIRROR_PY:-$HARNESS_DIR/spool-mirror.py}"; then
+          [ "${#SMH_ARGS[@]}" -gt 0 ] && set -- "$1" "${SMH_ARGS[@]}" "${@:2}"
+        else
+          say "warning: cannot write the mirror hooks ($kind): this session is not mirrored"
+        fi ;;
+      *) say "mirror: '$kind' has no hook mechanism; not mirrored" ;;
+    esac
+  fi
+fi
+
+# ── 6. exec ────────────────────────────────────────────────────────────────
 exec "$@"

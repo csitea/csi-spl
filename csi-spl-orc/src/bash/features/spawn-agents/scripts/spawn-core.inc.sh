@@ -273,8 +273,9 @@ spawn_main() {
     _sp_prompt_args=" ${SPAWN_PROMPT_FLAG:+${SPAWN_PROMPT_FLAG} }\"${PROMPT_ESC}\""
   fi
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
-  # sidecar in hub mode, SPOOL_* env), not with the env prepared inline here.
-  LAUNCH="export ${SPAWN_ID_PREFIX}_TMUX_PANE='${PANE}' ${SPAWN_ID_PREFIX}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}'; cd '${RUNDIR}' && exec bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${_sp_prompt_args}"
+  # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
+  # hooks of specs/036), not with the env prepared inline here.
+  LAUNCH="export ${SPAWN_ID_PREFIX}_TMUX_PANE='${PANE}' ${SPAWN_ID_PREFIX}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}'; cd '${RUNDIR}' && exec bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${_sp_prompt_args}"
 
   if ! _sp_live; then
     _sp_shown="$LAUNCH"

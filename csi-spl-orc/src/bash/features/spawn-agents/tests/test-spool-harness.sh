@@ -56,6 +56,45 @@ bash "$H" --as CLE-1 --to-box Box_A true >/dev/null 2>&1; eq "bad box id -> 78" 
 check "a refused id creates nothing" test ! -e "$SPOOL_ROOT/BOX-1"
 bash "$H" --as CLE-1 -- no-such-cli-xyz >/dev/null 2>&1; eq "missing command -> 127" 127 "$?"
 
+# ── --mirror (specs/036, per launch) ──
+# Fake CLIs print their argv; HOME is the sandbox's, so every hook file the
+# harness writes is visible here and nowhere else.
+mkdir -p "$T_TMP/mbin"
+for c in claude grok agy qwen othercli; do
+  printf '#!/usr/bin/env bash\nprintf "ARGV:%%s\\n" "$*"\n' >"$T_TMP/mbin/$c"; chmod +x "$T_TMP/mbin/$c"
+done
+MH="$HOME/.local/state/spool-agent/mirror-hooks-CLE-41.json"
+out="$(bash "$H" --as CLE-41 --mirror -- "$T_TMP/mbin/claude" --resume S1 --permission-mode auto 2>"$T_TMP/err")"
+eq "mirror: claude gets --settings right after the binary" "ARGV:--settings $MH --resume S1 --permission-mode auto" "$out"
+has "mirror: the per-agent hooks file runs this checkout's spool-mirror.py" "$T_SCRIPTS/spool-mirror.py hook" "$(cat "$MH")"
+has "mirror: ...for UserPromptSubmit" UserPromptSubmit "$(cat "$MH")"
+has "mirror: ...and Stop" '"Stop"' "$(cat "$MH")"
+eq "mirror: silent on stderr" "" "$(cat "$T_TMP/err")"
+out="$(bash "$H" --as CLE-41 -- "$T_TMP/mbin/claude" --resume S1 2>/dev/null)"
+eq "mirror: CONTROL: without --mirror the argv is untouched" "ARGV:--resume S1" "$out"
+mkdir -p "$HOME/.claude"; printf '{"hooks":{"Stop":[{"hooks":[{"command":"python3 /x/spool-mirror.py hook"}]}]}}' >"$HOME/.claude/settings.json"
+out="$(bash "$H" --as CLE-42 --mirror -- "$T_TMP/mbin/claude" -p hi 2>/dev/null)"
+eq "mirror: hooks already in ~/.claude/settings.json are not added twice" "ARGV:-p hi" "$out"
+rm -f "$HOME/.claude/settings.json"
+out="$(bash "$H" --as GRK-41 --mirror -- "$T_TMP/mbin/grok" 2>/dev/null)"
+eq "mirror: grok's argv is untouched" "ARGV:" "$out"
+has "mirror: grok gets ~/.grok/hooks/spool-mirror.json" "spool-mirror.py hook" "$(cat "$HOME/.grok/hooks/spool-mirror.json" 2>/dev/null)"
+mkdir -p "$HOME/.gemini/config"; printf '{"mine":{"Stop":[]}}' >"$HOME/.gemini/config/hooks.json"
+bash "$H" --as AGY-41 --mirror -- "$T_TMP/mbin/agy" >/dev/null 2>&1
+has "mirror: agy gets the named hook merged" '"spool-mirror"' "$(cat "$HOME/.gemini/config/hooks.json")"
+has "mirror: ...and keeps the user's own" '"mine"' "$(cat "$HOME/.gemini/config/hooks.json")"
+bash "$H" --as QWN-41 --mirror -- "$T_TMP/mbin/qwen" >/dev/null 2>&1
+has "mirror: qwen gets the entries merged into its settings" "spool-mirror.py hook" "$(cat "$HOME/.qwen/settings.json" 2>/dev/null)"
+out="$(bash "$H" --as CLE-43 --mirror -- "$T_TMP/mbin/othercli" a 2>"$T_TMP/err")"
+eq "mirror: an unknown CLI still starts, argv untouched" "ARGV:a" "$out"
+has "mirror: ...and says it is not mirrored" "no hook mechanism" "$(cat "$T_TMP/err")"
+touch "$SPOOL_ROOT/.mirror-off"
+out="$(bash "$H" --as CLE-44 --mirror -- "$T_TMP/mbin/claude" x 2>"$T_TMP/err")"
+eq "mirror: the box kill switch skips the hooks" "ARGV:x" "$out"
+has "mirror: ...and names it" ".mirror-off" "$(cat "$T_TMP/err")"
+check "mirror: ...writing no hooks file" test ! -e "$HOME/.local/state/spool-agent/mirror-hooks-CLE-44.json"
+rm -f "$SPOOL_ROOT/.mirror-off"
+
 # ── hub mode: identity ──
 export SPOOL_HUB_URL=http://127.0.0.1:9
 bash "$H" --as CLE-2 true >/dev/null 2>&1;   eq "hub: no box id -> 78" 78 "$?"

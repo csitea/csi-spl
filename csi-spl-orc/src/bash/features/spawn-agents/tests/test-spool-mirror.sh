@@ -28,6 +28,10 @@
 #  15. agy: prompt/answer read from the transcript the hook names; prints {}
 #  16. CLI-injected content (system-reminder, task-notification, restart
 #      notices) is stripped; injection-only prompts post nothing
+#  17. a FIXTURE claude session end to end, hook -> post: the typed prompt and
+#      the final answer arrive in the DM, tool output (PreToolUse/PostToolUse)
+#      does not, a password typed in prose is redacted; $SPOOL_ROOT/.mirror-off
+#      stops every post, live sessions included
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) post one prompt once
 set -uo pipefail
@@ -101,17 +105,15 @@ eq "2. grok session-end Stop is skipped" 'null' "$(hx '{"hook_event_name":"Stop"
 eq "2. a subagent's Stop is skipped" 'null' "$(hx '{"hook_event_name":"Stop","lastAssistantMessage":"ok","subagentType":"explore"}')"
 eq "2. an empty prompt is skipped" 'null' "$(hx '{"hook_event_name":"UserPromptSubmit","prompt":"   "}')"
 printf 'not json' | MCP_BOT_AGENT_ID=CLE-7 python3 "$MIRROR" hook; eq "2. garbage on stdin still exits 0" 0 "$?"
-printf '{"hook_event_name":"UserPromptSubmit","prompt":"x"}' | env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_ID SPOOL_MIRROR_DISCOVER=0 python3 "$MIRROR" hook
+printf '{"hook_event_name":"UserPromptSubmit","prompt":"x"}' | env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_ID python3 "$MIRROR" hook
 eq "2. no agent id: exit 0, nothing sent" "0 0" "$? $(nsends)"
-python3 -c '
-import importlib.util, sys
-s = importlib.util.spec_from_file_location("m", sys.argv[1])
-m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
-rows = ["2712855 pane: GRK-333 ! title", "9 pane: CLE-1 x"]
-assert m.agent_from_window_rows([1, 2712855], rows) == "GRK-333"
-assert m.agent_from_window_rows([1, 2], rows) == ""
-' "$MIRROR"
-eq "2. a window name yields its agent id" 0 $?
+rid() { python3 -c 'import importlib.util,sys
+s=importlib.util.spec_from_file_location("m",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(m.resolve_agent())' "$MIRROR"; }
+eq "2. the id is the process env's SPOOL_AGENT_ID" CLE-5 "$(SPOOL_AGENT_ID=CLE-5 MCP_BOT_AGENT_ID=CLE-6 rid)"
+eq "2. ...else MCP_BOT_AGENT_ID" CLE-6 "$(MCP_BOT_AGENT_ID=CLE-6 rid)"
+eq "2. ...a garbled SPOOL_AGENT_ID falls through to MCP_BOT_AGENT_ID" CLE-6 "$(SPOOL_AGENT_ID=nope MCP_BOT_AGENT_ID=CLE-6 rid)"
+eq "2. never a window name: no env, no id (inside tmux or not)" "" "$(TMUX_PANE=%1 rid)"
 
 # --- 3. the web UI's own words are not echoed ---------------------------------
 mkdir -p "$A/.mirror/typed"
@@ -295,5 +297,27 @@ hx16() { python3 -c 'import importlib.util,json,sys
 s=importlib.util.spec_from_file_location("m",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
 print(json.dumps(m.hook_extract(json.loads(sys.argv[2]))))' "$MIRROR" "$1"; }
 eq "16. the hook drops an injection-only UserPromptSubmit" 'null' "$(hx16 '{"hook_event_name":"UserPromptSubmit","session_id":"S","prompt":"<task-notification>done</task-notification>"}')"
+
+# --- 17. a fixture session, end to end ------------------------------------------------------
+# tests/fixtures/mirror-session.jsonl: one claude hook payload per line, in the
+# order a real session fires them (prompt, tool calls, answer).
+n17=$(nsends)
+while IFS= read -r ev; do
+  printf '%s' "$ev" | SPOOL_AGENT_ID=CLE-7 SPOOL_MIRROR_SYNC=1 SPOOL_MIRROR_POST="python3 $MIRROR" python3 "$MIRROR" hook
+done <"$T_FEAT/tests/fixtures/mirror-session.jsonl"
+eq "17. exactly two posts: the prompt and the answer" "$((n17 + 2))" "$(nsends)"
+all17="$(for i in $(seq "$n17" $(( $(nsends) - 1 ))); do cat "$SENDS/$i"; done)"
+has "17. the typed prompt arrives in the DM" "[terminal] deploy the hub to dev" "$all17"
+has "17. the final answer arrives in the DM" "Deployed to dev; /version is current." "$all17"
+hasnt "17. tool input never arrives" "gcloud run deploy" "$all17"
+hasnt "17. tool output never arrives" "Service URL" "$all17"
+hasnt "17. the typed password never arrives" "Tr0ub4dor" "$all17"
+has "17. ...it arrives as the redaction marker" "the password is <redacted>" "$all17"
+has "17. the seat log counts the redaction" "typed-password" "$(cat "$A/.mirror/mirror.log")"
+n17=$(nsends)
+mkdir -p "$T_TMP/box-root"; : >"$T_TMP/box-root/.mirror-off"
+printf '{"hook_event_name":"Stop","session_id":"F17","last_assistant_message":"switched off"}' |
+  SPOOL_ROOT="$T_TMP/box-root" SPOOL_AGENT_ID=CLE-7 SPOOL_MIRROR_SYNC=1 SPOOL_MIRROR_POST="python3 $MIRROR" python3 "$MIRROR" hook
+eq "17. \$SPOOL_ROOT/.mirror-off: nothing posted, exit 0" "0 $n17" "$? $(nsends)"
 
 t_done

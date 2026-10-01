@@ -76,7 +76,7 @@ restore_main() {
 
   args="$("$RESTORE_ARGS" "$sid")"
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
-  cmd="export ${RESTORE_ID_PREFIX}_TMUX_PANE='${pane}' ${RESTORE_ID_PREFIX}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}'; cd '${rundir}' && exec bash '${_RS_DIR}/spool-harness.sh' --as '${title}' -- '${bin}' ${args}"
+  cmd="export ${RESTORE_ID_PREFIX}_TMUX_PANE='${pane}' ${RESTORE_ID_PREFIX}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}'; cd '${rundir}' && exec bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
   stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${bin##*/} ${args}'"
   if [ -n "$kick" ]; then spool_dq_escape kick_esc "$kick"; fi
   if [ "${RESTORE_PRINT:-0}" = 1 ]; then

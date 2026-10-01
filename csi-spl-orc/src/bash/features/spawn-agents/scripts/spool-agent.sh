@@ -194,71 +194,17 @@ fi
 HOOKS_DIR="${SPOOL_AGENT_HOOKS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/spool-agent}"
 HOOKS_JSON="$HOOKS_DIR/mirror-hooks.json"
 GROK_HOOK="$HOME/.grok/hooks/spool-mirror.json"
-# agy (antigravity) reads ~/.gemini/config/hooks.json: named hooks, each with
-# its event lists (measured, agy 1.2.11). Its payloads carry no text and no
-# event name, so the command names the event; spool-mirror.py reads the
-# transcript. Merged as the one named hook "spool-mirror": others are kept.
+# The hook writers are the shared lib's (spool-harness.sh --mirror uses the
+# same ones): agy gets the named hook "spool-mirror" merged into
+# ~/.gemini/config/hooks.json, qwen the mirror entries merged into
+# ~/.qwen/settings.json; every other hook and key is kept.
+# shellcheck source=../lib/spool-mirror-hooks.inc.sh
+. "$FEAT/lib/spool-mirror-hooks.inc.sh"
 AGY_HOOK="${SPOOL_AGENT_AGY_HOOKS:-$HOME/.gemini/config/hooks.json}"
-agy_hooks_merge() {
-  mkdir -p "$(dirname "$AGY_HOOK")" && python3 - "$AGY_HOOK" "$MIRROR_PY" <<'EOF_PY'
-import json, os, shlex, sys
-path, py = sys.argv[1], shlex.quote(sys.argv[2])
-import time
-try:
-    d = json.load(open(path))
-    if not isinstance(d, dict):
-        raise ValueError
-except FileNotFoundError:
-    d = {}
-except ValueError:
-    # Not a hooks file agy can load, so it holds no hook to keep: moved aside
-    # (never deleted), and the file is written fresh.
-    os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
-    d = {}
-def h(ev):
-    return [{"type": "command", "command": f"[ -r {py} ] && exec python3 {py} hook --agy {ev}; echo '{{}}'", "timeout": 10}]
-d["spool-mirror"] = {"PreInvocation": h("pre"), "Stop": h("stop")}
-tmp = path + ".tmp.%d" % os.getpid()
-open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
-os.replace(tmp, path)
-EOF_PY
-}
-# qwen (0.24.6) runs claude-shaped UserPromptSubmit / Stop hooks from
-# ~/.qwen/settings.json, with claude's payload fields (prompt,
-# last_assistant_message). Merged: an older spool-mirror entry is replaced,
-# everything else in the file (mcpServers, other hooks) is kept.
+agy_hooks_merge() { smh_agy_merge "$AGY_HOOK" "$MIRROR_PY"; }
 QWEN_SETTINGS="${SPOOL_AGENT_QWEN_SETTINGS:-$HOME/.qwen/settings.json}"
-qwen_hooks_merge() {
-  mkdir -p "$(dirname "$QWEN_SETTINGS")" && hooks_json | python3 -c '
-import json, os, sys, time
-path = sys.argv[1]
-new = json.load(sys.stdin)["hooks"]
-try:
-    d = json.load(open(path))
-    if not isinstance(d, dict):
-        raise ValueError
-except FileNotFoundError:
-    d = {}
-except ValueError:
-    os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
-    d = {}
-hk = d.setdefault("hooks", {})
-for ev, entries in new.items():
-    hk[ev] = [e for e in hk.get(ev, []) if "spool-mirror.py" not in json.dumps(e)] + entries
-tmp = path + ".tmp.%d" % os.getpid()
-open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
-os.replace(tmp, path)
-' "$QWEN_SETTINGS"
-}
-hooks_json() {
-  python3 - "$MIRROR_PY" <<'EOF_PY'
-import json, shlex, sys
-p = shlex.quote(sys.argv[1])
-cmd = f"[ -r {p} ] && exec python3 {p} hook; exit 0"
-h = [{"hooks": [{"type": "command", "command": cmd, "timeout": 10}]}]
-print(json.dumps({"hooks": {"UserPromptSubmit": h, "Stop": h}}, indent=2, sort_keys=True))
-EOF_PY
-}
+qwen_hooks_merge() { smh_qwen_merge "$QWEN_SETTINGS" "$MIRROR_PY"; }
+hooks_json() { smh_hooks_json "$MIRROR_PY"; }
 
 SESSION_ID=""
 [ "$BACKFILL" = 1 ] && SESSION_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"

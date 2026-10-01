@@ -1842,3 +1842,24 @@ declare module '~/utils/reselect-row.mjs' {
   export function selectRow(row: HTMLElement | null, doc?: Document): boolean
   export function reselectRow(msgId: string, opts?: { pane?: string, doc?: Document, wait?: number, set?: (fn: () => void, ms: number) => unknown }): Promise<boolean>
 }
+
+declare module '~/utils/side-hit-list.mjs' {
+  export type SideHitSeg = { text: string, mark: boolean }
+  export type SideHitItem = {
+    key: string
+    msgId?: string
+    type?: string
+    group?: string
+    who?: { id: string, box?: string }
+    where?: string
+    when?: string
+    segs?: SideHitSeg[]
+    text?: string
+    badge?: string
+    title?: string
+    unread?: boolean
+  }
+  export function cycleIndex(i: number, n: number, key: string): number
+  export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>
+  export function itemSegments(item: { segs?: SideHitSeg[], text?: string } | null | undefined): SideHitSeg[]
+}

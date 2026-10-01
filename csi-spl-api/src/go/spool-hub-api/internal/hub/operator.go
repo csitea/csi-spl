@@ -266,4 +266,5 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/operator/invites", s.handleOperatorInvite)
 	mux.HandleFunc("POST /v1/operator/invites/mail", s.handleOperatorInviteMail)
 	mux.HandleFunc("DELETE /v1/operator/invites", s.handleOperatorInviteRevoke)
+	mux.HandleFunc("POST /v1/operator/replay-unsigned", s.handleOperatorReplayUnsigned)
 }

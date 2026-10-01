@@ -61,6 +61,25 @@ spl_lease_init() {
   mkdir -p "$LEASE_DIR" || { do_log "FATAL cannot create $LEASE_DIR"; return 1; }
 }
 
+# The test workspaces nobody dispatches to or sweeps: ONE list, shared by
+# do_spl_unanswered_sweep and the dispatch actions. The ids in
+# SWEEP_SKIP_TENANTS (default e2e) plus <spool root>/dispatch/test-workspaces
+# (one id per line, # comments), printed space-separated.
+spl_test_workspaces() {
+  local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/test-workspaces"
+  # shellcheck disable=SC2086 # a space-separated list, split on purpose
+  { printf '%s\n' ${SWEEP_SKIP_TENANTS-e2e}; [[ -f "$f" ]] && sed 's/#.*//' "$f"; } |
+    tr -s ' \t' '\n\n' | grep -E '^[A-Za-z0-9_-]+$' | sort -u | tr '\n' ' '
+}
+
+# 0 when workspace <id> is a test one: on that list, or its id matches
+# SWEEP_SKIP_RE (the sweep's default).
+spl_test_workspace() {
+  local re="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}"
+  [[ " $(spl_test_workspaces) " == *" $1 "* ]] && return 0
+  [[ -n "$re" ]] && grep -qiE -- "$re" <<<"$1"
+}
+
 # KEY=value from lease.conf for the ids not already in the environment. Read,
 # never sourced: the file sits in a dir every agent on the box may write.
 spl_lease_conf() {

@@ -31,7 +31,7 @@
 # @param DISPATCH_ORCH (optional) - default CLE-001
 # @param DISPATCH_TENANTS (optional) - space-separated workspaces; default every
 # @param   workspace with a pinned desk box under the state dir
-# @param DISPATCH_SKIP_TENANTS (optional) - left out of that default, default e2e (the probe workspace)
+# @param DISPATCH_SKIP_TENANTS (optional) - also left out of that default, on top of the test workspaces (spl_test_workspaces: e2e, <spool root>/dispatch/test-workspaces, SWEEP_SKIP_RE)
 # @param DISPATCH_REPO (optional) - the git checkout the worktrees branch off; default this tree
 # @param DISPATCH_POSTS_DIR (optional) - default <spool root>/dispatch/posts
 # @param DISPATCH_ROOT_KEY_DIR (optional) - dir holding <workspace>.json tenant
@@ -142,7 +142,14 @@ spl_dispatch_cnf() {
     [[ "${!v}" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL $v is not an agent id: '${!v}'"; return 1; }
   done
   [[ "$DISPATCH_MASTER" != "$DISPATCH_FAILOVER" ]] || { do_log "FATAL master and failover are the same id"; return 1; }
-  DISPATCH_REPO="${DISPATCH_REPO:-${APP_PATH:-$(cd "$PROJ_PATH/.." && pwd)}}"
+  # the MAIN checkout, also when this runs from another worktree of it (the
+  # desk cron's checkout): the dispatcher worktrees sit next to the main one
+  if [[ -z "${DISPATCH_REPO:-}" ]]; then
+    local here common
+    here="${APP_PATH:-$(cd "$PROJ_PATH/.." && pwd)}"
+    common="$(git -C "$here" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+    if [[ "$common" == */.git ]]; then DISPATCH_REPO="${common%/.git}"; else DISPATCH_REPO="$here"; fi
+  fi
   DISPATCH_POSTS_DIR="${DISPATCH_POSTS_DIR:-$LEASE_DIR/posts}"
   DISPATCH_BRIEF_DIR="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}"
   DISPATCH_BOX_USER="${DISPATCH_BOX_USER:-${SPOOL_BOX_USER:-$(id -un)}}"
@@ -154,7 +161,7 @@ spl_dispatch_cnf() {
     for d in "$DISPATCH_STATE_DIR"/desk/*/"$DISPATCH_DESK_BOX"/pinned; do
       [[ -e "$d" ]] || continue
       d="${d%/"$DISPATCH_DESK_BOX"/pinned}"; d="${d##*/}"
-      [[ " ${DISPATCH_SKIP_TENANTS-e2e} " == *" $d "* ]] && continue
+      if [[ " ${DISPATCH_SKIP_TENANTS-} " == *" $d "* ]] || spl_test_workspace "$d"; then continue; fi
       DISPATCH_TENANTS+="${DISPATCH_TENANTS:+ }$d"
     done
   fi

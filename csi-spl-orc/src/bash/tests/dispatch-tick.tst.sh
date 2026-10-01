@@ -9,8 +9,10 @@
 #   2. a new channel: the next tick subscribes both dispatchers to it
 #   3. no change: the next tick calls no runner, prints nothing, writes nothing
 #   4. a dead subscription: logged once per agent, never sent
-#   5. a new check GAP: logged and ONE note to the orchestrator; the same gap
-#      with another value is not new; a gone gap is logged as cleared
+#   5. a new check GAP on prd: logged and ONE note to the lease holder; the
+#      same gap with another value is not new; still open after
+#      DISPATCH_GAP_ESCALATE s: the orchestrator told once; a gone gap is
+#      logged as cleared; on dev the same gap is logged and never sent
 #   6. a failing subscribe fails the tick and prints its output
 #   7. desk-reconcile-cron.sh logs only the tick's DISPATCH lines, a failing
 #      tick makes the tick exit 1, DESK_DISPATCH=0 skips it
@@ -34,7 +36,7 @@ printf '| what | value | verdict |\n|---|---|---|\n| CLE-002 process | pid 7, SP
 tick() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/repo" SPL_STATE_DIR="$T/state" LEASE_PROC_ROOT="$P" \
     DISPATCH_SUBS_DIR="$SUBS" SPOOL_ROOT="$S" ENV=prd CALLS="$T/calls" CHECK="$T/check" \
-    DISPATCH_TICK_SEND="$T/send.sh" SENT="$T/sent" SPOOL_BIN=/bin/true DISPATCH_TICK_GAPS=1 "$@" bash -c '
+    DISPATCH_TICK_SEND="$T/send.sh" SENT="$T/sent" SPOOL_BIN=/bin/true "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done
@@ -54,7 +56,7 @@ chmod +x "$T/send.sh"
 echo 'chan|newc' >>"$SUBS/w1.txt"
 : >"$T/calls"
 tick; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls" && ! -s "$T/o" && ! -e "$S/dispatch/gaps.prd" ]] &&
+[[ $rc -eq 0 && ! -s "$T/calls" && ! -s "$T/o" && ! -e "$S/dispatch/gaps.prd.state" ]] &&
   pass "1. without lease.conf the tick does nothing and prints nothing" || fail "1. rc=$rc $(cat "$T/calls" "$T/o")"
 
 # --- 2. a new channel ------------------------------------------------------------------------
@@ -84,17 +86,32 @@ echo '| CLE-003 process | none with SPOOL_AGENT_ID=CLE-003 | GAP not running |' 
 echo '| CLE-002 unread | 25 | GAP over 20 |' >>"$T/check"
 tick; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'DISPATCH gap GAP CLE-003 process: GAP not running (none with SPOOL_AGENT_ID=CLE-003)' "$T/o" &&
-  grep -qx 'DISPATCH gap GAP CLE-002 unread: GAP over 20 (25)' "$T/o" && grep -qx 'DISPATCH told O-1' "$T/o" &&
-  pass "5. a new check GAP is logged and the orchestrator told" || fail "5. rc=$rc $(cat "$T/o")"
-[[ "$(grep -c '^send ' "$T/sent")" == 1 ]] && grep -q -- '--from O-1 --to O-1 --kind note --task dispatch-gaps' "$T/sent" &&
+  grep -qx 'DISPATCH gap GAP CLE-002 unread: GAP over 20 (25)' "$T/o" && grep -qx 'DISPATCH told CLE-002' "$T/o" &&
+  pass "5. a new check GAP is logged and the lease holder told" || fail "5. rc=$rc $(cat "$T/o")"
+[[ "$(grep -c '^send ' "$T/sent")" == 1 ]] && grep -q -- '--from O-1 --to CLE-002 --kind note --task dispatch-gaps' "$T/sent" &&
   grep -qx -- '- CLE-003 process: GAP not running (none with SPOOL_AGENT_ID=CLE-003)' "$T/sent" && ! grep -q 'DEAD' "$T/sent" &&
   pass "5. ONE note, the new GAP rows only" || fail "5. sent: $(cat "$T/sent")"
 sed -i 's/| 25 |/| 31 |/' "$T/check"
 tick
 [[ ! -s "$T/o" && "$(grep -c '^send ' "$T/sent")" == 1 ]] && pass "5. the same gap with another value is not new" || fail "5. value: $(cat "$T/o")"
+echo "CLE-003 $(date +%s)" >"$S/dispatch/lease"
+tick DISPATCH_NOW=$(( $(date +%s) + 3700 ))
+grep -q '^DISPATCH still open after 3600s: GAP CLE-003 process' "$T/o" && grep -qx 'DISPATCH told O-1' "$T/o" &&
+  [[ "$(grep -c -- '--to O-1 ' "$T/sent")" == 1 ]] && pass "5. still open after an hour: the orchestrator told" || fail "5. escalate: $(cat "$T/o")"
+tick DISPATCH_NOW=$(( $(date +%s) + 7400 ))
+[[ ! -s "$T/o" && "$(grep -c '^send ' "$T/sent")" == 2 ]] && pass "5. escalated once only" || fail "5. escalate twice: $(cat "$T/o")"
+echo '| lease watch loop | not running | GAP LEASE_CMD=ensure do_spl_dispatch_lease |' >>"$T/check"
+tick
+grep -q -- '--to CLE-003 ' "$T/sent" && pass "5. a new gap goes to the CURRENT lease holder" || fail "5. holder: $(grep '^send' "$T/sent")"
+n="$(grep -c '^send ' "$T/sent")"
+echo '| CLE-002 desks | 1/2, missing: w2 | GAP seat it |' >>"$T/check"
+tick ENV=dev
+grep -q '^DISPATCH gap GAP CLE-002 desks: GAP seat it' "$T/o" && [[ "$(grep -c '^send ' "$T/sent")" == "$n" ]] &&
+  pass "5. dev: logged, never sent" || fail "5. dev: $(cat "$T/o")"
+sed -i '/CLE-002 desks/d' "$T/check"
 sed -i '/CLE-003 process/d' "$T/check"
 tick
-grep -qx 'DISPATCH cleared GAP CLE-003 process: GAP not running' "$T/o" && [[ "$(grep -c '^send ' "$T/sent")" == 1 ]] &&
+grep -qx 'DISPATCH cleared GAP CLE-003 process: GAP not running' "$T/o" && [[ "$(grep -c '^send ' "$T/sent")" == "$n" ]] &&
   pass "5. a gone gap is logged as cleared, nothing sent" || fail "5. cleared: $(cat "$T/o")"
 
 # --- 6. failing subscribe ------------------------------------------------------------------

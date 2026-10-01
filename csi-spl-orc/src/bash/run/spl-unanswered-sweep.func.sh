@@ -45,7 +45,7 @@
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
 # @param SWEEP_DAYS (optional) - lookback in days, default 7
 # @param SWEEP_RESEND (optional) - seconds before a re-send and again before the escalation, default 7200
-# @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e
+# @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e; <spool root>/dispatch/test-workspaces adds to it (one id per line)
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
 # @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks"
 # @param SWEEP_SKIP_HUMANS (optional) - posters left out; default HUM-1 on prd (the e2e probe owner), none on dev
@@ -203,7 +203,7 @@ SQL
 # spl_sweep_classify <rows> <state> <outdir>: writes report.md, holder.md,
 # orch.md (empty = nothing to send), state.new and last into <outdir>.
 spl_sweep_classify() {
-  SKIP_T="${SWEEP_SKIP_TENANTS-e2e}" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
+  SKIP_T="$(spl_test_workspaces)" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
   SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks}" ACKS="$LEASE_DIR/unanswered.acks" \
   SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 - "$@" <<'PY'

@@ -49,7 +49,7 @@ do_spl_dispatch_check() {
       else
         row "$id model" "${model:-unknown}" ok
       fi
-      wt="${DISPATCH_REPO}-wt/$id"
+      wt="$(spl_dispatch_worktree "$id")"
       if [[ ! -f "$wt/.claude/settings.local.json" ]]; then
         row "$id desk-reply permission" "no $wt/.claude/settings.local.json" "GAP run do_spl_dispatch_setup"
       elif spl_dispatch_stale_settings "$pid" "$wt/.claude/settings.local.json"; then
@@ -132,4 +132,13 @@ spl_dispatch_check_tenant() {
       row "$t #$ch" "dispatchers $d, $DISPATCH_ORCH $o" "GAP do_spl_dispatch_subscribe"
     fi
   done
+}
+
+# The dispatcher's worktree: the identity map's (<spool root>/agents/<id>.json,
+# written at spawn), else <main checkout>-wt/<id>. Never the running checkout.
+spl_dispatch_worktree() {
+  local m="${SPOOL_ROOT:-/var/spool-hub}/agents/$1.json" w=""
+  [[ -f "$m" ]] && w="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree") or "")' "$m" 2>/dev/null)"
+  [[ -n "$w" && -d "$w" ]] && { echo "$w"; return 0; }
+  echo "${DISPATCH_REPO}-wt/$1"
 }

@@ -124,6 +124,30 @@ check >"$T/o" 2>&1; rc=$?
   pass "6. a complete box: no gap, exit 0" || fail "6. rc=$rc $(cat "$T/o")"
 grep -qE '\| unanswered sweep \| last [0-9]+s ago to CLE-002, 2 open \(w1=2\) \| ok \|' "$T/o" &&
   pass "6. the sweep row shows its age and open count" || fail "6. sweep row: $(grep -i sweep "$T/o")"
+# 2026-10-01: from the desk cron's checkout (a second worktree of the same
+# repo) the check looked for <that checkout>-wt/CLE-002 and saw GAPs
+git -C "$R" worktree add -q --detach "$T/cron-co"
+check APP_PATH="$T/cron-co" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q '| CLE-002 desk-reply permission | loaded | ok |' "$T/o" &&
+  pass "6. run from a second worktree: the dispatcher worktrees of the main checkout" || fail "6. second worktree: rc=$rc $(cat "$T/o")"
+mkdir -p "$T/plain" "$S/agents"
+printf '{"id": "CLE-002", "worktree": "%s"}\n' "$R-wt/CLE-002" >"$S/agents/CLE-002.json"
+printf '{"id": "CLE-003", "worktree": "%s"}\n' "$R-wt/CLE-003" >"$S/agents/CLE-003.json"
+check APP_PATH="$T/plain" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q '| CLE-003 desk-reply permission | loaded | ok |' "$T/o" &&
+  pass "6. outside any checkout: the worktree from the identity map" || fail "6. identity map: rc=$rc $(cat "$T/o")"
+rm -rf "$S/agents"
+# a test workspace's desk is no dispatcher gap (the sweep's shared list)
+mkdir -p "$ST/desk/w12live1/box-desk"; touch "$ST/desk/w12live1/box-desk/pinned"
+echo 'w12live1  # a dev proof' >"$S/dispatch/test-workspaces"
+check >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q '| CLE-002 desks | 2/2 workspaces | ok |' "$T/o" &&
+  pass "6. a workspace on the test-workspaces list is left out" || fail "6. test list: rc=$rc $(cat "$T/o")"
+rm -f "$S/dispatch/test-workspaces"
+check >"$T/o" 2>&1
+grep -q 'CLE-002 desks | 2/3, missing: w12live1' "$T/o" &&
+  pass "6. off the list it is a seat gap (the control)" || fail "6. control: $(grep desks "$T/o")"
+rm -rf "$ST/desk/w12live1"
 
 # --- 7. each gap fails the check -----------------------------------------------------------
 gap() { # <label> <expected verdict regex> -- env...

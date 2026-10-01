@@ -170,6 +170,34 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as CL
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh
 ```
 
+### 3.9.1 What a spawned brief says about pushing
+
+Every brief for a git checkout ends with the DEPLOY-GATE footer
+(`spawn-core.inc.sh`, asserted by `tests/test-spawn-dry-run.sh`). It tells
+the agent:
+
+- run `./run -a do_check_pre_push` before every push, and again after the
+  mandatory rebase. That covers the suites the push touches plus the lint
+  parts (shellcheck, actionlint, hadolint, eslint-security, trufflehog and
+  syntax, on the touched files only, at CI's pins).
+- `./run -a do_install_lint_tools` installs a missing scanner.
+- the hook is never bypassed outside an audited emergency.
+- the scanner workflows (61..67, 85) on the pushed sha are checked, and a
+  red one is fixed in the same lane.
+
+### 3.9.2 Parallel spawns start trusted
+
+`trust-workdir.sh --settle` makes each spawn take a box-wide lock
+(`~/.spool-spawn-trust.lock`), write the trust entry, and verify that it reads
+back (exit 3 if it does not). The spawn then holds the lock for
+`TRUST_SETTLE_SECS` (default 6) while its CLI starts. A starting claude
+rewrites `~/.claude.json` unlocked, and in a parallel batch that write dropped
+a sibling's entry. Run the proof with:
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-trust-parallel.sh
+```
+
 ### 3.10 The identity map: one record per agent
 
 The map in `$SPOOL_ROOT/agents/` holds one `<ID>.json` per agent and an

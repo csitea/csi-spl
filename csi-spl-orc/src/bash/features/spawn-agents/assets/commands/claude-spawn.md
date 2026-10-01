@@ -48,6 +48,24 @@ SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNE
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
 that is not a git checkout runs in place, with no worktree.
 
+Spawns in a parallel batch are serialised at the trust step: each one waits
+for the box-wide trust lock, verifies its folder reads back as trusted, and
+holds the lock a few seconds while its claude starts. A spawn whose trust does
+not verify stops with an error, rather than leaving a window that sits on
+"Is this a project you trust?".
+
+In a git checkout the brief carries the DEPLOY-GATE footer, so every push
+succeeds the first time:
+
+- run `cd csi-spl-iac && ./run -a do_check_pre_push` before every push, and
+  again after the rebase. It includes the lint parts: the CI scanners on the
+  touched files.
+- missing scanners are installed with `./run -a do_install_lint_tools`.
+- never `SPL_PREPUSH_OVERRIDE=1`, except in an emergency reported to the
+  orchestrator.
+- after the push, check the scanner workflows on that sha
+  (`gh run list --commit <sha>`) and fix a red one in the same lane.
+
 ### 1.4 Prove it is visible
 
 The window is created with `new-window -d`; never `select-window` or

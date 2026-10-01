@@ -32,7 +32,7 @@ for k in claude grok agy qwen; do
   has "$k: the CLI starts through spool-harness --as (spec 012 T013)" "spool-harness.sh' --as '${p}-77' -- '" "$launch"
   [ "$k" = grok ] && printf '%s\n' "$out" > "$T_TMP/grok.out"
   # Normalise the kind-specific parts for the parity check below.
-  printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77/ID/g" > "$T_TMP/norm-$k"
+  printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77([^0-9]|$)/ID\1/g" > "$T_TMP/norm-$k"
 done
 # GUARD: inside the test sandbox a spawn WITHOUT SPAWN_DRY_RUN=1 is refused
 # before any side effect (no spool dir, no plan, no launch).
@@ -86,6 +86,12 @@ has "git: deploy-gate footer names the pre-push command" "./run -a do_check_pre_
 has "git: deploy-gate footer requires Postgres, not memory" "must run on POSTGRES" "$prompt"
 has "git: deploy-gate footer names the audited override" "SPL_PREPUSH_OVERRIDE=1" "$prompt"
 has "git: deploy-gate footer forbids a working-around of a refused prd mutation" "do_spl_desk_up" "$prompt"
+# CLE-77829: the gate's lint parts, the re-run after the rebase, the scanner reds.
+has "git: deploy-gate footer re-runs the gate after the rebase" "AGAIN after the mandatory rebase" "$prompt"
+has "git: deploy-gate footer names the lint parts" "do_check_pre_push_lint" "$prompt"
+has "git: deploy-gate footer names the tool installer" "do_install_lint_tools" "$prompt"
+has "git: deploy-gate footer checks the scanner workflows on the sha" "gh run list --commit <sha>': 61..67 and 85" "$prompt"
+has "git: deploy-gate footer: a scanner red on your sha is yours" "a scanner red on your sha is your red" "$prompt"
 # ... and NOT on a non-git session (checked at the top loop).
 hasnt "claude: no deploy-gate footer outside a repo" "DEPLOY-GATE (SPL-1250" "$(cat "$T_TMP/plan-claude/prompt.txt")"
 

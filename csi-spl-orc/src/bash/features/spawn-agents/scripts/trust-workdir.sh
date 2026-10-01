@@ -15,7 +15,18 @@
 # A store that does not exist is skipped (the CLI's first run onboards itself).
 # Each edit is idempotent, under an flock, written via temp file + rename.
 #
-# Usage: trust-workdir.sh <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen)
+# --settle (a spawn, CLE-77829): a parallel batch lost the trust race (2 of 8
+# spawns stopped on "Is this a project you trust?", 2026-10-01). The per-store
+# flock cannot stop it: a STARTING claude rewrites the whole ~/.claude.json
+# from the copy it read, unlocked, so a sibling's fresh trust entry is lost.
+# With --settle the edit (1) waits for ONE box-wide spawn lock
+# (<home>/.spool-spawn-trust.lock), (2) VERIFIES the entry reads back, exit 3
+# if it never does, and (3) leaves a detached child holding that lock for
+# TRUST_SETTLE_SECS (default 6) that re-asserts the entry every 0.2 s, so the
+# claude launched next reads it and the next spawn's edit waits for this
+# claude's startup write to be over.
+#
+# Usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen)
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -23,8 +34,11 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 spool_env_resolve
 
+SETTLE=0
+[ "${1:-}" = --settle ] && { SETTLE="${TRUST_SETTLE_SECS:-6}"; shift; }
+case "$SETTLE" in ''|*[!0-9.]*) echo "trust-workdir: TRUST_SETTLE_SECS must be a number" >&2; exit 2 ;; esac
 DIR="${1:-}"
-[ -n "$DIR" ] || { echo "usage: trust-workdir.sh <DIR> [AGENT_USER] [AGENT ...]" >&2; exit 2; }
+[ -n "$DIR" ] || { echo "usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT ...]" >&2; exit 2; }
 shift
 AGENT_USER="${1:-$(id -un)}"
 [ $# -gt 0 ] && shift
@@ -37,7 +51,8 @@ read -r -d '' TRUST_PY <<'PY'
 import fcntl, json, os, re, sys, time
 
 target = sys.argv[1]
-agents = sys.argv[2:]
+settle = float(sys.argv[2])
+agents = sys.argv[3:]
 home = os.path.expanduser("~")
 stamp = int(time.time())
 changed, skipped = [], []
@@ -120,6 +135,46 @@ STORES = {
     "qwen": (os.path.join(home, ".qwen", "trustedFolders.json"), qwen, "{}\n"),
 }
 
+def trusted(name):
+    """Does the store read back with `target` trusted? None = no store."""
+    path = STORES[name][0]
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except FileNotFoundError:
+        return None
+    try:
+        if name == "claude":
+            return bool(json.loads(text).get("projects", {}).get(target, {}).get("hasTrustDialogAccepted"))
+        if name == "agy":
+            return target in json.loads(text).get("trustedWorkspaces", [])
+        if name == "qwen":
+            return json.loads(text).get(target) == "TRUST_FOLDER"
+        return re.search(r"^%s\s*$" % re.escape('[folders."%s"]' % target), text, re.M) is not None
+    except ValueError:
+        return False   # a half-written file reads as not-yet-trusted
+
+
+spawn_lock = None
+if settle > 0:
+    # ONE lock for every spawn on this box: the next spawn edits only after
+    # this one's CLI has started (and done its own write of the store).
+    try:
+        spawn_lock = open(os.path.join(home, ".spool-spawn-trust.lock"), "a+")
+    except OSError as exc:
+        print("trust-workdir: no spawn lock (%s), going on without it" % exc, file=sys.stderr)
+    deadline = time.time() + 120
+    while spawn_lock is not None:
+        try:
+            fcntl.flock(spawn_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except OSError:
+            if time.time() > deadline:
+                print("trust-workdir: spawn lock busy for 120 s, going on without it", file=sys.stderr)
+                spawn_lock.close(); spawn_lock = None
+                break
+            time.sleep(0.1)
+
 rc = 0
 for name in agents:
     if name not in STORES:
@@ -144,14 +199,54 @@ if changed:
     print("trust-workdir: trusted %s for %s" % (target, ", ".join(changed)))
 if skipped:
     print("trust-workdir: skipped %s" % ", ".join(skipped))
+
+if settle > 0:
+    known = [a for a in agents if a in STORES]
+    # VERIFY before the CLI starts: re-assert until every existing store reads
+    # back trusted (a concurrent unlocked writer can undo the first edit).
+    for _ in range(25):
+        missing = [a for a in known if trusted(a) is False]
+        if not missing:
+            break
+        for a in missing:
+            try:
+                edit(STORES[a][0], STORES[a][1], STORES[a][2])
+            except Exception:
+                pass
+        time.sleep(0.2)
+    missing = [a for a in known if trusted(a) is False]
+    if missing:
+        print("trust-workdir: NOT VERIFIED for %s in %s -- the CLI would stop on its trust prompt"
+              % (", ".join(missing), target), file=sys.stderr)
+        sys.exit(3)
+    print("trust-workdir: verified %s for %s (settle %ss)" % (target, ", ".join(known) or "-", settle))
+    sys.stdout.flush()
+    if os.fork() == 0:
+        # Detached settler: holds the spawn lock (inherited) while the CLI
+        # starts, re-asserting the entry against an unlocked whole-file write.
+        os.setsid()
+        devnull = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            os.dup2(devnull, fd)
+        end = time.time() + settle
+        while time.time() < end:
+            for a in known:
+                try:
+                    if trusted(a) is False:
+                        edit(STORES[a][0], STORES[a][1], STORES[a][2])
+                except Exception:
+                    pass
+            time.sleep(0.2)
+        os._exit(0)
+    # the parent's copy of the lock fd closes on exit; the child keeps it held
 sys.exit(rc)
 PY
 
 if [ "$AGENT_USER" = "$(id -un)" ]; then
-  printf '%s' "$TRUST_PY" | python3 - "$DIR_ABS" "${AGENTS[@]}"
+  printf '%s' "$TRUST_PY" | python3 - "$DIR_ABS" "$SETTLE" "${AGENTS[@]}"
 else
   # Hop the way the launcher starts the agent, so HOME is the agent's own.
   SPOOL_AGENT_USER="$AGENT_USER"
   spool_agent_argv || exit 2
-  printf '%s' "$TRUST_PY" | "${SPOOL_AGENT_ARGV[@]}" -c "python3 - '${DIR_ABS}' ${AGENTS[*]}"
+  printf '%s' "$TRUST_PY" | "${SPOOL_AGENT_ARGV[@]}" -c "python3 - '${DIR_ABS}' ${SETTLE} ${AGENTS[*]}"
 fi

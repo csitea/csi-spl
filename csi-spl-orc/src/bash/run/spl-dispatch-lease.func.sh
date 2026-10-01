@@ -17,6 +17,20 @@
 # @description            (idempotent; the desk reconcile cron calls it every
 # @description            tick, which is what brings them back after a reboot)
 # @description   stop   - stop the loops this action started
+# @description   fleet  - loop (FLEET MODE, CLE-77911): ONE lease per role across
+# @description            every machine of a fleet, held on the hub (spool lease,
+# @description            compare-and-set). Each tick, for role orch and dispatch:
+# @description            this machine's candidate (orch: LEASE_ORCH; dispatch:
+# @description            LEASE_MASTER, else LEASE_FAILOVER - the local order) renews
+# @description            when this machine holds it, takes it when the holder is
+# @description            silent > LEASE_STALE s on the hub's clock, and takes it
+# @description            back from a machine later in LEASE_PRIORITY (handback).
+# @description            The result is mirrored into <dir>/lease (dispatch) and
+# @description            <dir>/lease.orch as "<id> <epoch>" for a local holder,
+# @description            "<machine>:<id> <epoch>" for a remote one; every holder
+# @description            change is logged once and told to the agents it moves.
+# @description            ensure runs fleet INSTEAD of renew + watch when lease.conf
+# @description            sets LEASE_FLEET.
 # @description Every transition is written ONCE to <dir>/lease.log and sent
 # @description as a spool note to the failover and the orchestrator.
 # @description The ids come from LEASE_MASTER / LEASE_FAILOVER / LEASE_ORCH,
@@ -30,9 +44,14 @@
 # @param LEASE_ORCH (optional) - the orchestrator told of every transition (else lease.conf)
 # @param LEASE_PERIOD (optional) - seconds between ticks, default 60
 # @param LEASE_STALE (optional) - seconds of silence before a failover, default 180
+# @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
+# @param LEASE_MACHINE (optional) - fleet mode: this machine's name, default $SPOOL_BOX_TAG
+# @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
+# @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=watch LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003 ./run -a do_spl_dispatch_lease
+# @example LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease
 #------------------------------------------------------------------------------
 do_spl_dispatch_lease() {
   spl_lease_init || return 1
@@ -42,7 +61,9 @@ do_spl_dispatch_lease() {
     watch)  spl_lease_ids master failover orch || return 1; spl_lease_loop watch ;;
     ensure) spl_lease_ensure ;;
     stop)   spl_lease_stop ;;
-    *) do_log "FATAL LEASE_CMD must be show, renew, watch, ensure or stop, got: '${LEASE_CMD:-}'"; return 1 ;;
+    fleet)  spl_lease_ids master failover orch && spl_fleet_ids || return 1; spl_fleet_hub_init || return 1; spl_lease_loop fleet ;;
+    fleet-show) spl_fleet_ids || return 1; spl_fleet_hub_init || return 1; spl_fleet_show ;;
+    *) do_log "FATAL LEASE_CMD must be show, renew, watch, fleet, fleet-show, ensure or stop, got: '${LEASE_CMD:-}'"; return 1 ;;
   esac
 }
 
@@ -87,10 +108,10 @@ spl_lease_conf() {
   [[ -f "$LEASE_CONF" ]] || return 0
   while IFS='=' read -r k v; do
     case "$k" in
-      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH)
+      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v" ;;
     esac
-  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$' "$LEASE_CONF")
+  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY=[a-z0-9][a-z0-9,-]*$' "$LEASE_CONF")
   return 0
 }
 
@@ -114,6 +135,12 @@ spl_lease_read() {
   [[ "$LT" =~ ^[0-9]+$ ]] || LT=0
   return 0
 }
+
+# 0 when the dispatch lease is held on ANOTHER machine (fleet mode mirrors a
+# remote holder as "<machine>:<id>", an unreachable hub as "unknown:..."):
+# this machine's sweep and gap notes then stay silent - the holder's own
+# machine sends them. Needs spl_lease_read first.
+spl_lease_remote() { [[ "$LH" == *:* ]]; }
 
 spl_lease_write() {
   printf '%s %s\n' "$1" "$(spl_lease_now)" > "$LEASE_FILE.tmp.$$" && mv -f "$LEASE_FILE.tmp.$$" "$LEASE_FILE"
@@ -311,9 +338,20 @@ spl_lease_ensure() {
   [[ -f "$LEASE_CONF" ]] || { do_log "INFO no $LEASE_CONF - this box runs no dispatch lease"; return 0; }
   spl_lease_ids master failover orch || return 1
   spl_lease_trunk_check || return 1
-  local verb out ver
+  local verb out ver verbs=(renew watch)
   ver="$(spl_lease_code_ver)"
-  for verb in renew watch; do
+  if [[ -n "${LEASE_FLEET:-}" ]]; then
+    spl_fleet_ids || return 1
+    # fleet mode owns the local lease files: the local-only loops would
+    # overwrite the mirror with a holder the fleet never chose
+    for verb in renew watch; do
+      spl_lease_running "$verb" && { spl_lease_log "ensure stops $verb (fleet mode)"; spl_lease_stop_one "$verb" || return 1; }
+    done
+    verbs=(fleet)
+  else
+    spl_lease_running fleet && { spl_lease_log "ensure stops fleet (no LEASE_FLEET)"; spl_lease_stop_one fleet || return 1; }
+  fi
+  for verb in "${verbs[@]}"; do
     if spl_lease_running "$verb"; then
       # a loop that took its lock a moment ago writes its version just after
       [[ "$(cat "$LEASE_DIR/$verb.ver" 2>/dev/null)" == "$ver" ]] || sleep 1
@@ -328,6 +366,8 @@ spl_lease_ensure() {
     fi
     out="$LEASE_DIR/$verb.out"
     LEASE_CMD="$verb" LEASE_MASTER="$LEASE_MASTER" LEASE_FAILOVER="$LEASE_FAILOVER" LEASE_ORCH="$LEASE_ORCH" \
+      LEASE_FLEET="${LEASE_FLEET:-}" LEASE_MACHINE="${LEASE_MACHINE:-}" LEASE_PRIORITY="${LEASE_PRIORITY:-}" \
+      LEASE_ENV="${LEASE_ENV:-}" LEASE_TENANT="${LEASE_TENANT:-}" LEASE_DESK_BOX="${LEASE_DESK_BOX:-}" \
       spl_lease_detach "$out" "${LEASE_RUN:-$PROJ_PATH/run}" -a do_spl_dispatch_lease
     do_log "INFO lease $verb loop started (log $out)"
     spl_lease_log "ensure started $verb"
@@ -349,5 +389,169 @@ spl_lease_stop_one() {
 }
 
 spl_lease_stop() {
-  spl_lease_stop_one renew && spl_lease_stop_one watch
+  spl_lease_stop_one renew && spl_lease_stop_one watch && spl_lease_stop_one fleet
+}
+
+# ---- fleet mode (CLE-77911, owner decision "a", t1 5fe56859) ------------------
+# ONE orchestrator and ONE master dispatcher act at a time across every
+# machine of a fleet. The lease row lives on the hub (rdb 0094, `spool lease`:
+# read, or compare-and-set on gen); the hub's clock ages it, so the machines'
+# clocks never have to agree. The priority rule lives HERE, not in the hub.
+
+# The fleet-mode settings; LEASE_MACHINE defaults to the box tag.
+spl_fleet_ids() {
+  spl_lease_conf
+  LEASE_MACHINE="${LEASE_MACHINE:-${SPOOL_BOX_TAG:-}}"
+  local k
+  for k in LEASE_FLEET LEASE_MACHINE; do
+    [[ "${!k:-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL $k is not set (env or $LEASE_CONF)"; return 1; }
+  done
+  [[ "${LEASE_PRIORITY:-}" =~ ^[a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*$ ]] ||
+    { do_log "FATAL LEASE_PRIORITY must list the machines, preferred first (e.g. pc,sat)"; return 1; }
+  [[ ",$LEASE_PRIORITY," == *",$LEASE_MACHINE,"* ]] ||
+    { do_log "FATAL this machine ($LEASE_MACHINE) is not in LEASE_PRIORITY ($LEASE_PRIORITY)"; return 1; }
+}
+
+# Resolve how this machine calls the hub. LEASE_HUB_CMD (tests) replaces the
+# whole call: it gets `lease <args>` and prints the hub's answer.
+spl_fleet_hub_init() {
+  [[ -n "${LEASE_HUB_CMD:-}" ]] && return 0
+  [[ "${LEASE_TENANT:-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL LEASE_TENANT is not set (env or $LEASE_CONF)"; return 1; }
+  [[ "${LEASE_ENV:-}" =~ ^(dev|prd|self)$ ]] || { do_log "FATAL LEASE_ENV must be dev, prd or self"; return 1; }
+  LEASE_DESK_BOX="${LEASE_DESK_BOX:-box-desk}"
+  ENV="$LEASE_ENV" do_spl_desk_cnf || return 1
+  spl_host_spool || return 1
+  LEASE_DESK_DIR="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"
+  [[ -s "$LEASE_DESK_DIR/pinned" ]] ||
+    { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($LEASE_DESK_DIR): seat a desk there first (do_spl_desk_up)"; return 1; }
+}
+
+spl_fleet_hub() {
+  if [[ -n "${LEASE_HUB_CMD:-}" ]]; then "$LEASE_HUB_CMD" lease "$@"; return; fi
+  # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
+  SPOOL_ROOT="$LEASE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LEASE_DESK_DIR/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LEASE_TENANT" timeout 30 "$SPL_SPOOL" lease "$@"
+}
+
+# spl_fleet_read <json>: sets FH (holder), FG (gen), FA (age_s), FW (won).
+spl_fleet_read() {
+  local line
+  # "|", not @tsv: a tab is IFS whitespace, so an empty holder would collapse
+  line="$(jq -r '[.holder // "", .gen // 0, .age_s // -1, .won // false] | map(tostring) | join("|")' <<<"$1" 2>/dev/null)" || return 1
+  IFS='|' read -r FH FG FA FW <<<"$line"
+  [[ "$FG" =~ ^[0-9]+$ && "$FA" =~ ^-?[0-9]+$ ]]
+}
+
+# The 0-based rank of a machine in LEASE_PRIORITY; unknown = last.
+spl_fleet_rank() {
+  local i=0 m
+  IFS=, read -ra _ms <<<"$LEASE_PRIORITY"
+  for m in "${_ms[@]}"; do [[ "$m" == "$1" ]] && { echo "$i"; return; }; i=$((i + 1)); done
+  echo "$i"
+}
+
+# This machine's live candidate for a role (empty = none): the local order.
+spl_fleet_candidate() {
+  local id
+  case "$1" in
+    orch) [[ -n "$(spl_lease_agent_pid "$LEASE_ORCH")" ]] && echo "$LEASE_ORCH" ;;
+    dispatch)
+      for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
+        [[ -n "$(spl_lease_agent_pid "$id")" ]] && { echo "$id"; return; }
+      done ;;
+  esac
+}
+
+# The local agents of a role (who hears ACTIVE / STANDBY).
+spl_fleet_role_agents() {
+  case "$1" in orch) echo "$LEASE_ORCH" ;; dispatch) echo "$LEASE_MASTER $LEASE_FAILOVER" ;; esac
+}
+
+spl_fleet_mirror_file() { [[ "$1" == dispatch ]] && echo "$LEASE_FILE" || echo "$LEASE_FILE.$1"; }
+
+# One role's tick: read, decide, compare-and-set, mirror, tell.
+spl_fleet_role_tick() {
+  local role="$1" me="$LEASE_MACHINE" cand out hm want="" ok now
+  ok="$LEASE_DIR/fleet.$role.ok"
+  now="$(spl_lease_now)"
+  cand="$(spl_fleet_candidate "$role")"
+  if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" || ! spl_fleet_read "$out"; then
+    spl_fleet_unreachable "$role" "$now" "$out"; return 0
+  fi
+  hm="${FH%%:*}"
+  if [[ -z "$cand" ]]; then
+    [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate; it goes stale in ${LEASE_STALE}s"
+  elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )) ||
+       (( $(spl_fleet_rank "$me") < $(spl_fleet_rank "$hm") )); then
+    want="$me:$cand"
+  fi
+  [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
+  if [[ -n "$want" ]]; then
+    local before="$FH" age="$FA"
+    if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" 2>&1)" && spl_fleet_read "$out"; then
+      [[ "$FW" == true ]] && echo "$now" > "$ok"
+      [[ "$FW" == true && -n "$before" && "${before%%:*}" != "$me" ]] &&
+        spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before%%:*}") -> $(spl_fleet_rank "$me"))"
+    else
+      spl_fleet_unreachable "$role" "$now" "$out"; return 0
+    fi
+  fi
+  rm -f "$LEASE_DIR/fleet.$role.unreachable"
+  spl_fleet_apply "$role" "$FH" "$now"
+}
+
+# A hub call failed. Holding on past LEASE_STALE without a renewal means the
+# other machine may already act: demote locally rather than act twice.
+spl_fleet_unreachable() {
+  local role="$1" now="$2" last=0 mine
+  spl_fleet_once "$role.unreachable" "HUB-UNREACHABLE $role: $(tr '\n' ' ' <<<"$3" | cut -c1-200)"
+  [[ -f "$LEASE_DIR/fleet.$role.ok" ]] && last="$(cat "$LEASE_DIR/fleet.$role.ok")"
+  mine="$(cat "$LEASE_DIR/fleet.$role.holder" 2>/dev/null)"
+  [[ "${mine%%:*}" == "$LEASE_MACHINE" ]] && (( now - last > LEASE_STALE )) &&
+    spl_fleet_apply "$role" "unknown:hub-unreachable" "$now"
+  return 0
+}
+
+# Log a condition once until it clears (the marker is removed by the caller).
+spl_fleet_once() {
+  [[ -f "$LEASE_DIR/fleet.$1" ]] && return 0
+  touch "$LEASE_DIR/fleet.$1"; spl_lease_log "$2"
+}
+
+# Mirror the holder locally and tell the agents a change moves.
+spl_fleet_apply() {
+  local role="$1" holder="$2" now="$3" f prev id hid
+  f="$(spl_fleet_mirror_file "$role")"
+  hid="$holder"; [[ "${holder%%:*}" == "$LEASE_MACHINE" ]] && hid="${holder#*:}"
+  printf '%s %s\n' "$hid" "$now" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  prev="$(cat "$LEASE_DIR/fleet.$role.holder" 2>/dev/null)"
+  [[ "$prev" == "$holder" ]] && return 0
+  echo "$holder" > "$LEASE_DIR/fleet.$role.holder"
+  spl_lease_log "FLEET $role: ${prev:-none} -> $holder"
+  for id in $(spl_fleet_role_agents "$role"); do
+    if [[ "$holder" == "$LEASE_MACHINE:$id" ]]; then
+      spl_lease_tell "$id" "FLEET LEASE $role: you are now ACTIVE (fleet $LEASE_FLEET, was ${prev:-none}). Act for the whole fleet until told STANDBY; pick up what the previous holder left unanswered (do_spl_unanswered_sweep)."
+    elif [[ "$prev" == "$LEASE_MACHINE:$id" ]]; then
+      spl_lease_tell "$id" "FLEET LEASE $role: STANDBY - $holder holds it now. Finish the message in hand, then do not route, spawn or post; read and stay ready."
+    fi
+  done
+  [[ "$role" == dispatch && "$holder" != "$LEASE_MACHINE:$LEASE_ORCH" ]] &&
+    spl_lease_tell "$LEASE_ORCH" "FLEET LEASE dispatch: ${prev:-none} -> $holder."
+  return 0
+}
+
+spl_lease_fleet_tick() {
+  spl_fleet_role_tick orch
+  spl_fleet_role_tick dispatch
+  return 0
+}
+
+# fleet-show: one line per role, "<role> <holder> <age-seconds> <gen>", from the hub.
+spl_fleet_show() {
+  local role out
+  for role in orch dispatch; do
+    out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" && spl_fleet_read "$out" ||
+      { echo "$role ERROR $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; continue; }
+    echo "$role ${FH:-none} $FA $FG"
+  done
 }

@@ -68,6 +68,12 @@ do_spl_unanswered_sweep() {
   spl_lease_conf
   SWEEP_ORCH="${SWEEP_ORCH:-${LEASE_ORCH:-CLE-001}}"
   SWEEP_FROM="${SWEEP_FROM:-$SWEEP_ORCH}"
+  # fleet mode (CLE-77911): another machine holds the dispatch lease, so its
+  # own sweep sends; sending from here too would deliver every item twice
+  if (( ${DELIVER:-0} )) && [[ -z "${SWEEP_TO:-}" ]] && spl_lease_read && spl_lease_remote; then
+    do_log "INFO the fleet's dispatch lease is held by $LH: this machine's sweep sends nothing"
+    return 0
+  fi
   local tmp rc=0
   tmp="$(mktemp -d)" || return 1
   if (( deliver )); then

@@ -96,10 +96,13 @@ do_spl_dispatch_tick() {
   return $rc
 }
 
-# The lease holder, else the master in lease.conf, else the orchestrator.
+# The lease holder, else the master in lease.conf, else the orchestrator. A
+# holder on another machine (fleet mode) cannot read this spool: the gaps of
+# THIS machine go to its own orchestrator.
 _spl_dispatch_tick_holder() {
   spl_lease_read
-  if [[ "$LH" != none ]]; then echo "$LH"
+  if spl_lease_remote; then echo "${LEASE_ORCH:-CLE-001}"
+  elif [[ "$LH" != none ]]; then echo "$LH"
   elif [[ -n "${LEASE_MASTER:-}" ]]; then echo "$LEASE_MASTER"
   else echo "${LEASE_ORCH:-CLE-001}"; fi
 }

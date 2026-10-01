@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Purpose: do_spl_dispatch_lease FLEET MODE (CLE-77911, SPEC-spool-fleet-roles.md
+#          section 4.2): ONE orchestrator and ONE master dispatcher across two
+#          machines. Two machines are simulated (two spool roots, two fake
+#          /proc trees); the hub is a stub with the real contract (`spool
+#          lease`: read, compare-and-set on gen, age on the HUB's clock).
+#   1. the preferred machine (pc) takes both roles; the satellite stands by
+#   2. renewals change nothing and log nothing
+#   3. pc silent: 180 s is not stale, 181 s is - the satellite takes over,
+#      its agents are told ACTIVE once
+#   4. pc returns: priority handback; the satellite's agents told STANDBY once
+#   5. local order: pc's master dies -> pc's failover holds at once
+#   6. priority flip is one config change (LEASE_PRIORITY=sat,pc)
+#   7. a lost compare-and-set mirrors the real holder, never its own wish
+#   8. hub unreachable past LEASE_STALE: the holder demotes itself locally
+#   9. a machine with no live candidate never writes
+#  10. the age is the hub's clock: a machine whose clock runs ahead does not
+#      take over
+#  11. ensure in fleet mode runs the fleet loop instead of renew + watch;
+#      a machine missing from LEASE_PRIORITY is refused
+#  12. a remote holder silences this machine's unanswered sweep and sends its
+#      gap notes to its own orchestrator
+#------------------------------------------------------------------------------
+set -uo pipefail
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+fails=0
+pass() { echo "PASS: $1"; }
+fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
+command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/bin" "$T/hub" "$T/pc/proc" "$T/sat/proc"
+
+cat >"$T/bin/send" <<'STUB'
+#!/usr/bin/env bash
+to="" body=""
+while [ $# -gt 0 ]; do case "$1" in --to) to="$2"; shift 2 ;; --body) body="$2"; shift 2 ;; *) shift ;; esac; done
+echo "$to :: $body" >>"$SENT"
+STUB
+# The hub stub: one file per fleet+role, "holder gen at"; HUB_NOW is its clock.
+# HUB_DOWN=1 fails every call; HUB_RACE=<holder> writes that holder first on a
+# cas, as another machine winning the race would.
+cat >"$T/bin/hub" <<'STUB'
+#!/usr/bin/env bash
+[ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
+shift
+fleet="" role="" holder="" ifgen=""
+while [ $# -gt 0 ]; do case "$1" in --fleet) fleet="$2";; --role) role="$2";; --holder) holder="$2";; --if-gen) ifgen="$2";; esac; shift 2; done
+f="$HUB_DIR/$fleet.$role"; h="" g=0 at=0
+[ -s "$f" ] && read -r h g at <"$f"
+if [ -n "$holder" ] && [ -n "${HUB_RACE:-}" ]; then g=$((g + 1)); h="$HUB_RACE"; at="$HUB_NOW"; echo "$h $g $at" >"$f"; fi
+won=false
+if [ -n "$holder" ] && [ "$ifgen" = "$g" ]; then g=$((g + 1)); h="$holder"; at="$HUB_NOW"; echo "$h $g $at" >"$f"; won=true; fi
+age=-1; [ "$g" -gt 0 ] && age=$((HUB_NOW - at))
+printf '{"fleet":"%s","role":"%s","holder":"%s","box":"b","gen":%s,"age_s":%s,"won":%s}\n' "$fleet" "$role" "$h" "$g" "$age" "$won"
+STUB
+chmod +x "$T/bin/send" "$T/bin/hub"
+
+# agent <machine> <pid> <id> / kill_agent <machine> <pid>
+agent() { mkdir -p "$T/$1/proc/$2"; echo claude >"$T/$1/proc/$2/comm"; printf 'SPOOL_AGENT_ID=%s\0' "$3" >"$T/$1/proc/$2/environ"; }
+kill_agent() { rm -rf "${T:?}/$1/proc/$2"; }
+
+PRIO=pc,sat
+# tick <machine> <hub-now> [env...]: one fleet tick on that machine
+tick() {
+  local m="$1" now="$2"; shift 2
+  local ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
+  [[ "$m" == sat ]] && ids=(LEASE_ORCH=CLE-101 LEASE_MASTER=CLE-102 LEASE_FAILOVER=CLE-103)
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" \
+    SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
+    LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" "${ids[@]}" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init && spl_lease_fleet_tick' >>"$T/out" 2>&1
+}
+mirror() { cut -d' ' -f1 "$T/$1/spool/dispatch/lease${2:+.$2}" 2>/dev/null; }
+hubh() { cut -d' ' -f1 "$T/hub/main.$1" 2>/dev/null; }
+sentc() { grep -c -- "$2" "$T/$1/sent" 2>/dev/null || true; }
+logc() { grep -c -- "$2" "$T/$1/spool/dispatch/lease.log" 2>/dev/null || true; }
+
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-101; agent sat 201 CLE-102; agent sat 202 CLE-103
+
+# --- 1. pc first ---------------------------------------------------------------
+tick pc 1000; tick sat 1000
+[[ "$(hubh dispatch)" == pc:CLE-002 && "$(hubh orch)" == pc:CLE-001 && "$(mirror pc)" == CLE-002 && "$(mirror pc orch)" == CLE-001 &&
+   "$(mirror sat)" == pc:CLE-002 && "$(mirror sat orch)" == pc:CLE-001 ]] &&
+  pass "1. pc holds both roles; the satellite mirrors pc as the holder" ||
+  fail "1. hub $(hubh dispatch)/$(hubh orch) pc $(mirror pc)/$(mirror pc orch) sat $(mirror sat)/$(mirror sat orch): $(cat "$T/out")"
+[[ "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && "$(sentc pc 'CLE-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 &&
+   "$(sentc sat ACTIVE)" == 0 ]] &&
+  pass "1. pc's agents told ACTIVE once; nobody on the satellite is" || fail "1. sent pc: $(cat "$T/pc/sent" 2>&1) sat: $(cat "$T/sat/sent" 2>&1)"
+
+# --- 2. renewals ----------------------------------------------------------------
+n_pc=$(wc -l <"$T/pc/spool/dispatch/lease.log"); n_sat=$(wc -l <"$T/sat/spool/dispatch/lease.log")
+tick pc 1060; tick sat 1060
+[[ "$(wc -l <"$T/pc/spool/dispatch/lease.log")" == "$n_pc" && "$(wc -l <"$T/sat/spool/dispatch/lease.log")" == "$n_sat" &&
+   "$(cut -d' ' -f2 "$T/hub/main.dispatch")" == 2 ]] &&
+  pass "2. a renewal bumps gen and logs nothing on either machine" || fail "2. logs grew or gen wrong: $(cat "$T/hub/main.dispatch")"
+
+# --- 3. pc silent: the satellite takes over after 180 s ------------------------------
+tick sat 1240
+[[ "$(hubh dispatch)" == pc:CLE-002 ]] && pass "3. 180 s of silence is not stale" || fail "3. took over at 180 s: $(hubh dispatch)"
+tick sat 1241
+[[ "$(hubh dispatch)" == sat:CLE-102 && "$(hubh orch)" == sat:CLE-101 && "$(mirror sat)" == CLE-102 && "$(mirror sat orch)" == CLE-101 ]] &&
+  pass "3. at 181 s the satellite's master and orchestrator take over" || fail "3. hub $(hubh dispatch)/$(hubh orch): $(cat "$T/sat/spool/dispatch/lease.log")"
+tick sat 1300
+[[ "$(sentc sat 'CLE-102 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && "$(sentc sat 'CLE-101 :: FLEET LEASE orch: you are now ACTIVE')" == 1 &&
+   "$(logc sat 'takes over from pc:CLE-002')" == 1 ]] &&
+  pass "3. ACTIVE told once, the takeover logged once" || fail "3. sent: $(cat "$T/sat/sent")"
+
+# --- 4. pc returns: handback ------------------------------------------------------
+tick pc 1320
+[[ "$(hubh dispatch)" == pc:CLE-002 && "$(hubh orch)" == pc:CLE-001 && "$(mirror pc)" == CLE-002 ]] &&
+  pass "4. pc returns and takes both roles back on priority" || fail "4. hub $(hubh dispatch)/$(hubh orch)"
+tick sat 1330; tick sat 1390
+[[ "$(mirror sat)" == pc:CLE-002 && "$(sentc sat 'CLE-102 :: FLEET LEASE dispatch: STANDBY')" == 1 &&
+   "$(sentc sat 'CLE-101 :: FLEET LEASE orch: STANDBY')" == 1 && "$(hubh dispatch)" == pc:CLE-002 ]] &&
+  pass "4. the satellite's agents told STANDBY once and the satellite does not grab it back" || fail "4. sat mirror $(mirror sat) sent: $(cat "$T/sat/sent")"
+
+# --- 5. local order ---------------------------------------------------------------
+kill_agent pc 101
+tick pc 1400
+[[ "$(hubh dispatch)" == pc:CLE-003 && "$(mirror pc)" == CLE-003 && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
+  pass "5. pc's master gone: pc's failover holds at once, the fleet lease stays on pc" || fail "5. hub $(hubh dispatch)"
+agent pc 111 CLE-002
+tick pc 1460
+[[ "$(hubh dispatch)" == pc:CLE-002 && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: STANDBY')" == 1 ]] &&
+  pass "5. pc's master back: it holds again, the failover is told STANDBY" || fail "5. hub $(hubh dispatch)"
+
+# --- 6. priority flip ------------------------------------------------------------
+PRIO=sat,pc
+tick sat 1470; tick pc 1480
+[[ "$(hubh dispatch)" == sat:CLE-102 && "$(hubh orch)" == sat:CLE-101 && "$(mirror pc)" == sat:CLE-102 ]] &&
+  pass "6. LEASE_PRIORITY=sat,pc moves both roles to the satellite, pc stands by" || fail "6. hub $(hubh dispatch)/$(hubh orch)"
+PRIO=pc,sat
+
+# --- 7. a lost compare-and-set ---------------------------------------------------
+tick pc 1490 HUB_RACE=sat:CLE-103
+[[ "$(hubh dispatch)" == sat:CLE-103 && "$(mirror pc)" == sat:CLE-103 ]] &&
+  pass "7. pc lost the race: it mirrors the real holder (sat:CLE-103), not its own wish" || fail "7. hub $(hubh dispatch) mirror $(mirror pc)"
+tick pc 1500
+[[ "$(hubh dispatch)" == pc:CLE-002 ]] && pass "7. the next tick takes it on priority" || fail "7. hub $(hubh dispatch)"
+
+# --- 8. hub unreachable ----------------------------------------------------------
+tick pc 1600 HUB_DOWN=1
+[[ "$(mirror pc)" == CLE-002 && "$(logc pc HUB-UNREACHABLE)" == 2 ]] &&
+  pass "8. a short outage keeps the holder; logged once per role" || fail "8. mirror $(mirror pc): $(cat "$T/pc/spool/dispatch/lease.log")"
+tick pc 1700 HUB_DOWN=1
+[[ "$(mirror pc)" == unknown:hub-unreachable && "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: STANDBY')" -ge 1 && "$(logc pc HUB-UNREACHABLE)" == 2 ]] &&
+  pass "8. past LEASE_STALE without a renewal pc demotes itself (no double acting)" || fail "8. mirror $(mirror pc)"
+tick pc 1710
+[[ "$(mirror pc)" == CLE-002 && "$(hubh dispatch)" == pc:CLE-002 ]] && pass "8. hub back: pc holds again" || fail "8. mirror $(mirror pc)"
+
+# --- 9. no live candidate --------------------------------------------------------
+kill_agent sat 200; kill_agent sat 201; kill_agent sat 202
+g0=$(cut -d' ' -f2 "$T/hub/main.dispatch")
+tick sat 9999
+[[ "$(cut -d' ' -f2 "$T/hub/main.dispatch")" == "$g0" && "$(hubh dispatch)" == pc:CLE-002 ]] &&
+  pass "9. a machine with no live agent never writes, even over a stale lease" || fail "9. hub $(cat "$T/hub/main.dispatch")"
+
+# --- 10. the hub's clock -----------------------------------------------------------
+agent sat 201 CLE-102
+tick sat 1720 LEASE_NOW=999999
+[[ "$(hubh dispatch)" == pc:CLE-002 ]] && pass "10. a satellite clock far ahead does not make pc stale (hub age decides)" || fail "10. hub $(hubh dispatch)"
+
+# --- 11. ensure in fleet mode -------------------------------------------------------
+E="$T/e"; mkdir -p "$E/spool/dispatch"
+printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=CLE-001\nLEASE_FLEET=main\nLEASE_MACHINE=pc\nLEASE_PRIORITY=pc,sat\n' >"$E/spool/dispatch/lease.conf"
+cat >"$T/bin/run" <<'STUB'
+#!/usr/bin/env bash
+echo "$LEASE_CMD $LEASE_FLEET $LEASE_MACHINE $LEASE_PRIORITY" >>"$RUNLOG"; exec 8>"$SPOOL_ROOT/dispatch/$LEASE_CMD.run"; flock -n 8 || exit 0
+echo $$ >"$SPOOL_ROOT/dispatch/$LEASE_CMD.pid"; sleep 30
+STUB
+chmod +x "$T/bin/run"
+ens() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$E/spool" LEASE_RUN="$T/bin/run" RUNLOG="$E/runlog" LEASE_ALLOW_STALE=1 "$@" bash -c '
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init && LEASE_CMD=ensure do_spl_dispatch_lease' >>"$T/out" 2>&1
+}
+ens; sleep 1
+[[ "$(cat "$E/runlog" 2>/dev/null)" == "fleet main pc pc,sat" ]] &&
+  pass "11. ensure starts ONE fleet loop with the conf's fleet settings (no renew, no watch)" || fail "11. runlog: $(cat "$E/runlog" 2>&1)"
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$E/spool" bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; LEASE_CMD=stop do_spl_dispatch_lease' >/dev/null 2>&1
+out=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$E/spool" LEASE_MACHINE=other LEASE_HUB_CMD="$T/bin/hub" bash -c '
+  do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; LEASE_CMD=fleet do_spl_dispatch_lease' 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"not in LEASE_PRIORITY"* ]] &&
+  pass "11. a machine missing from LEASE_PRIORITY is refused" || fail "11. rc=$rc out=$out"
+
+# --- 12. remote holder: the standby machine's sweep, tick and check --------------
+R="$T/r"; mkdir -p "$R/spool/dispatch"
+printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=CLE-001\nLEASE_FLEET=main\n' >"$R/spool/dispatch/lease.conf"
+rem() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$R/spool" LEASE_NOW=5000 "$@" bash -c '
+    do_log() { echo "$*"; }
+    for f in spl-dispatch-lease spl-unanswered-sweep spl-dispatch-tick spl-dispatch-check; do source "$PROJ_PATH/src/bash/run/$f.func.sh"; done
+    spl_sweep_rows() { echo "SWEEP-READ-ROWS"; return 1; }
+    spl_lease_init ro; spl_lease_conf; eval "$CALL"' 2>&1
+}
+echo "sat:CLE-102 4990" >"$R/spool/dispatch/lease"
+out=$(rem ENV=prd DELIVER=1 CALL=do_spl_unanswered_sweep); rc=$?
+[[ $rc -eq 0 && "$out" == *"held by sat:CLE-102"* && "$out" != *SWEEP-READ-ROWS* ]] &&
+  pass "12. remote holder: DELIVER=1 sweep sends nothing (no double delivery)" || fail "12. sweep rc=$rc: $out"
+[[ "$(rem CALL=_spl_dispatch_tick_holder)" == CLE-001 ]] &&
+  pass "12. remote holder: this machine's gap notes go to its own orchestrator" || fail "12. tick holder: $(rem CALL=_spl_dispatch_tick_holder)"
+echo "CLE-002 4990" >"$R/spool/dispatch/lease"
+[[ "$(rem CALL=_spl_dispatch_tick_holder)" == CLE-002 ]] &&
+  pass "12. local holder: gap notes go to it as before" || fail "12. local tick holder"
+echo
+(( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }
+echo "FAIL: $fails fleet-lease.tst.sh assertion(s)"; exit 1

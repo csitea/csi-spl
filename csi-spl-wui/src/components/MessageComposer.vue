@@ -26,6 +26,18 @@
       <span>{{ modeText }}</span>
     </p>
     <div class="composer-box">
+      <!-- owner, t1 be8fed75 (2026-10-01): in an open thread "keep just the
+           small arrow icon but put the arrow icon just to the left of the
+           Omni box" - an icon, no word, no title; nothing in a new topic.
+           The desktop bottom dock says it in its line instead. -->
+      <span
+        v-if="global && !(bottom && !docked) && !searchMode && dockHint && dockHint.mode === 'thread'"
+        class="composer-reply-mark"
+        data-test="composer-reply-mark"
+        role="img"
+        :aria-label="t('composer.target_thread')"
+        :title="t('composer.target_thread')"
+      ><UiIcon name="reply" :size="16" /></span>
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
@@ -1337,6 +1349,18 @@ textarea.in-code {
   padding-inline-start: 6px;
 }
 .composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
+.composer-reply-mark {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--color-mode-reply);
+  margin-inline-end: -4px;
+}
+/* in the top bar the box rests at --omnibox-rest; centre the arrow on it */
+.composer.omnibox--global:not(.composer--dock) .composer-reply-mark {
+  align-self: flex-start;
+  margin-top: calc((var(--omnibox-rest, 46px) - 16px) / 2);
+}
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.
@@ -1368,22 +1392,6 @@ textarea.in-code {
      (its height stays, so nothing under it moves) */
   .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
-  /* SPL-1003: one short line over the box - the open thread takes the post
-     (text colour, accent icon), or it starts a new topic (muted) */
-  .composer--dock.composer--dock .composer-target {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    margin: 0 0 4px;
-    padding-inline: 4px;
-    font-size: 0.8125rem;
-    line-height: 1.3;
-    color: var(--color-muted);
-  }
-  .composer--dock.composer--dock .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .composer--dock.composer--dock .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
-  .composer--dock.composer--dock .composer-target[data-mode=thread] svg { color: var(--composer-mode, var(--color-accent)); flex: none; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);

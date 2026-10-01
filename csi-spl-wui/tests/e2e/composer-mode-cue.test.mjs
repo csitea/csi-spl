@@ -84,6 +84,22 @@ function cue(p) {
       edge: cs ? cs.borderInlineStartColor : '',
       edgeW: cs ? cs.borderInlineStartWidth : '',
       fieldH: field ? Math.round(field.getBoundingClientRect().height) : 0,
+      /* owner, t1 be8fed75: the open thread's cue is ONE small arrow just
+         left of the box; markGap = field's start edge - arrow's end edge */
+      mark: (() => {
+        const m = [...f.querySelectorAll('[data-test=composer-reply-mark]')].find(vis)
+        if (!m || !field) return null
+        const a = m.getBoundingClientRect()
+        const b = field.getBoundingClientRect()
+        return { text: m.textContent.trim(), markGap: Math.round(b.left - a.right), w: Math.round(a.width) }
+      })(),
+      /* the dock's own padding around the box (phone): form edge -> field border */
+      gap: (() => {
+        if (!field || f.getAttribute('data-docked') !== 'true') return null
+        const a = f.getBoundingClientRect()
+        const b = field.getBoundingClientRect()
+        return { top: Math.round(b.top - a.top), left: Math.round(b.left - a.left) }
+      })(),
       placeholder: f.querySelector('textarea')?.placeholder || '',
       go: go ? go.getAttribute('aria-label') : '',
     }
@@ -130,8 +146,8 @@ async function desktopCase(browser, theme) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, `new-1440-${theme}`)
-  ok(`${tag} 1 the list: no chip anywhere, the form is mode new`,
-    Boolean(c1 && c1.mode === 'new' && c1.chip === null && c1.line === null), c1)
+  ok(`${tag} 1 the list: no chip anywhere, no reply arrow, the form is mode new`,
+    Boolean(c1 && c1.mode === 'new' && c1.chip === null && c1.line === null && c1.mark === null), c1)
   ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", the start edge is 3px`,
     Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.edgeW === '3px'), c1)
   /* a long chip squeezed the placeholder in the first cut (4.8.7) */
@@ -144,8 +160,8 @@ async function desktopCase(browser, theme) {
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, `reply-1440-${theme}`)
-  ok(`${tag} 2 a thread open: still no chip and no "Reply" button outside the box, the form is mode thread`,
-    Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null), c2)
+  ok(`${tag} 2 a thread open: no chip, no text; only the small arrow, right at the box's left edge`,
+    Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark && c2.mark.text === '' && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.mark.w <= 20), c2)
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply accent differs from the new-topic accent`, Boolean(c1 && c2 && c1.edge && c2.edge && c1.edge !== c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -202,15 +218,18 @@ async function phoneCase(browser) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, 'new-390-dark')
-  ok('390 6 no text line above the dock, no chip: mode new (accent edge), placeholder "Message #alerts"',
-    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.edgeW === '3px' && c1.placeholder.startsWith('Message #alerts')), c1)
+  ok('390 6 no text line above the dock, no chip, no arrow: mode new (accent edge), placeholder "Message #alerts"',
+    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.edgeW === '3px' && c1.placeholder.startsWith('Message #alerts')), c1)
+  /* owner, t1 be8fed75: "no more than 2 mm after the omnibox border" (~8 px) */
+  ok('390 6 the dock leaves at most 8 px between its edge and the box border, above and at the side',
+    Boolean(c1 && c1.gap && c1.gap.top <= 8 && c1.gap.left <= 8), c1 && c1.gap)
   await p.touchscreen.tap(card.x, card.y)
   await waitMode(p, 'thread')
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, 'reply-390-dark')
-  ok('390 6 a thread open: still no line, mode thread (a different edge), placeholder "Reply", GO "Send reply"',
-    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.placeholder.startsWith('Reply') && c2.edge !== c1.edge && c2.go === 'Send reply'), c2)
+  ok('390 6 a thread open: still no line, the arrow just left of the box, mode thread (a different edge), placeholder "Reply", GO "Send reply"',
+    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark && c2.mark.markGap >= -2 && c2.mark.markGap <= 4 && c2.placeholder.startsWith('Reply') && c2.edge !== c1.edge && c2.go === 'Send reply'), c2)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

@@ -66,22 +66,19 @@ import {
   withoutSettings,
 } from '~/utils/settings-nav.mjs'
 import { fixedTenantOption, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
-import SettingsProfile from '~/components/settings/profile.vue'
-import SettingsLanguage from '~/components/settings/language.vue'
-import SettingsAppearance from '~/components/settings/appearance.vue'
-import SettingsBehaviour from '~/components/settings/behaviour.vue'
-import SettingsNotifications from '~/components/settings/notifications.vue'
-import SettingsSecurity from '~/components/settings/security.vue'
-import SettingsKeys from '~/components/settings/keys.vue'
-
+/* CLE-77874: each section is its own async chunk. The dialog is mounted in
+   app.vue on every page, so static imports put all seven sections (and their
+   settings widgets) in the initial JS: ci_initial_gzip_kb went 151 -> 197 KB
+   over the 160 KB budget (perf-budgets.json). As the old /settings route they
+   were lazy; they load again only when the modal opens on a section. */
 const SECTION_COMPONENTS: Record<string, Component> = {
-  profile: SettingsProfile,
-  language: SettingsLanguage,
-  appearance: SettingsAppearance,
-  behaviour: SettingsBehaviour,
-  notifications: SettingsNotifications,
-  security: SettingsSecurity,
-  keys: SettingsKeys,
+  profile: defineAsyncComponent(() => import('~/components/settings/profile.vue')),
+  language: defineAsyncComponent(() => import('~/components/settings/language.vue')),
+  appearance: defineAsyncComponent(() => import('~/components/settings/appearance.vue')),
+  behaviour: defineAsyncComponent(() => import('~/components/settings/behaviour.vue')),
+  notifications: defineAsyncComponent(() => import('~/components/settings/notifications.vue')),
+  security: defineAsyncComponent(() => import('~/components/settings/security.vue')),
+  keys: defineAsyncComponent(() => import('~/components/settings/keys.vue')),
 }
 
 const session = useSessionStore()

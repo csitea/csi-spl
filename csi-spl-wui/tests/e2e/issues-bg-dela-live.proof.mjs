@@ -5,7 +5,8 @@
 // множествено число".
 //
 // Steps:
-//   1. /bg/issues: the page shows "Дела" and the "Ново дело" button
+//   1. /bg/issues: the header reads "Дела" and the shortcut hint "ново дело"
+//      (the + button is icon-only)
 //   2. no visible "Проблем…" or whole-word "Задача"/"Задачи" on the page
 //      ("Подзадача" is a subtask and stays)
 //   3. a screenshot of the view: <OUT>/issues-bg.png
@@ -88,7 +89,7 @@ async function main() {
     await p.waitForSelector('[data-test=issues-filter-deadline-date]', { timeout: 30000 })
     await sleep(2500)
     const t = await p.evaluate(() => document.body.innerText)
-    step('bg /issues shows "Дела" and "Ново дело"', /Дела/.test(t) && /Ново дело/.test(t), { lang: await p.evaluate(() => document.documentElement.lang) })
+    step('bg /issues shows "Дела" and "ново дело"', /Дела/.test(t) && /ново дело/i.test(t), { lang: await p.evaluate(() => document.documentElement.lang) })
     const stale = [...new Set(t.match(/[Пп]роблем\S*|(?<![А-Яа-я])[Зз]адач[аи](?![А-Яа-я])/g) || [])]
     step('no "Проблем…" / "Задача" / "Задачи" left on the page', stale.length === 0, { stale })
     await p.screenshot({ path: `${OUT}/issues-bg.png` })

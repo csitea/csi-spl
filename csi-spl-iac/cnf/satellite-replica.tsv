@@ -1,0 +1,38 @@
+# The satellite replica manifest (spec 057, owner topic 5fe56859): every tool
+# the box PC's agent user runs, the command that prints its version, and the
+# action that installs it on the satellite. do_satellite_verify reads this
+# file: it runs each command on THIS box and on the satellite and prints both
+# versions; a tool missing on the satellite is a FAIL.
+# Columns, TAB separated: name  version-command  installed-by
+claude	claude --version	spool-install/install.sh (bootstrap 05)
+spool	spool version	spool-install/install.sh (bootstrap 05)
+spool-agent	command -v spool-agent	spool-install/install.sh (bootstrap 05)
+yq	yq --version	spool-install/install.sh (bootstrap 05)
+go	go version	spool-install/install.sh (bootstrap 05)
+git	git --version	satellite-box-setup.sh 03
+tmux	tmux -V	satellite-box-setup.sh 03
+jq	jq --version	satellite-box-setup.sh 03
+make	make --version	satellite-box-setup.sh 03
+python3	python3 --version	satellite-box-setup.sh 03
+node	node --version	satellite-box-setup.sh 03
+npm	npm --version	satellite-box-setup.sh 03
+gh	gh --version	satellite-box-setup.sh 03
+gcloud	gcloud --version	satellite-box-setup.sh 03
+docker	docker --version	satellite-box-setup.sh 03
+docker-compose	docker compose version	satellite-box-setup.sh 03
+pnpm	pnpm --version	do_satellite_install_tools (corepack)
+cloud-sql-proxy	cloud-sql-proxy --version	do_satellite_install_tools (the box's binary, sha-checked)
+terraform	terraform version	do_satellite_install_tools (do_install_lint_tools)
+shellcheck	shellcheck --version	do_satellite_install_tools (do_install_lint_tools)
+actionlint	actionlint --version	do_satellite_install_tools (do_install_lint_tools)
+hadolint	hadolint --version	do_satellite_install_tools (do_install_lint_tools)
+trufflehog	trufflehog --version	do_satellite_install_tools (do_install_lint_tools)
+gitleaks	gitleaks version	do_satellite_install_tools (do_install_lint_tools)
+typos	typos --version	do_satellite_install_tools (do_install_lint_tools)
+ruff	ruff --version	do_satellite_install_tools (do_install_lint_tools)
+semgrep	semgrep --version	do_satellite_install_tools (do_install_lint_tools)
+checkov	checkov --version	do_satellite_install_tools (do_install_lint_tools)
+gosec	gosec -version	do_satellite_install_tools (do_install_lint_tools)
+trivy	trivy --version	do_satellite_install_tools (do_install_lint_tools)
+osv-scanner	osv-scanner --version	do_satellite_install_tools (do_install_lint_tools)
+govulncheck	govulncheck -version 2>&1 | grep -i '^scanner'	do_satellite_install_tools (do_install_lint_tools)

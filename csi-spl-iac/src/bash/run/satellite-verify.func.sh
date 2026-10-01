@@ -7,7 +7,12 @@
 # @description   VM RUNNING, no public IP, the ONE ingress rule = tcp/22 from
 # @description   the IAP range, ssh over IAP, the data disk on /mnt/data + /opt +
 # @description   /var/spool-hub, claude / spool / spool-agent present,
-# @description   SPOOL_BOX_TAG=sat, the pushed keys 0600, the budget exists.
+# @description   SPOOL_BOX_TAG=sat, the pushed keys 0600, the budget exists;
+# @description   then the replica of the box PC (owner topic 5fe56859): every
+# @description   tool of cnf/satellite-replica.tsv, its version on THIS box and
+# @description   on the satellite (missing there = FAIL), and the AI-user setup
+# @description   (home dirs on the data disk, ~/.claude config + skills +
+# @description   memory, tmux, git identity, gh auth, docker, tpl-gen).
 # @param GCP_BILLING_ACCOUNT_ID (optional) - lists the budget on the billing
 # @param        account; without it (or without that right) the budget check
 # @param        reads step 059's terraform state instead, and says so
@@ -71,6 +76,62 @@ do_satellite_verify() {
       || ko "budget $bname is in step 059's terraform state"
   fi
 
+  _satellite_verify_replica
+
   echo "SATELLITE-VERIFY fails=${fails}"
   return $((fails > 0))
+}
+
+# The bash that prints `ver <name> <version|present|MISSING>` per row of the
+# replica manifest; it runs on this box and, over ssh, on the satellite.
+_satellite_versions_script() {
+  local tsv="${PROJ_PATH}/cnf/satellite-replica.tsv" name cmd
+  # shellcheck disable=SC2016
+  echo 'export PATH="$HOME/.local/bin:$HOME/.local/share/spool-agent/tools/bin:$HOME/.local/share/spool-agent/tools/go/bin:$HOME/go/bin:$HOME/bin:/usr/local/bin:$PATH"'
+  while IFS=$'\t' read -r name cmd _; do
+    [[ -z "$name" || "$name" == \#* ]] && continue
+    printf 'o=$( (%s) 2>&1 ); r=$?; v=$(grep -m1 -oE "[0-9]+\\.[0-9]+(\\.[0-9]+)?" <<<"$o" | head -n1); ' "$cmd"
+    printf '[ -n "$v" ] && [ $r = 0 ] || { [ $r = 0 ] && v=present || v=MISSING; }; echo "ver %s $v"\n' "$name"
+  done <"$tsv"
+}
+
+# The replica checks of do_satellite_verify (it shares ok / ko / fails and
+# SATELLITE_SSH with the caller).
+_satellite_verify_replica() {
+  local script here there name hv sv d
+  script=$(_satellite_versions_script)
+  here=$(bash -c "$script" 2>/dev/null)
+  there=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" bash -s <<<"$script" 2>/dev/null)
+  while read -r _ name hv; do
+    sv=$(awk -v n="$name" '$1 == "ver" && $2 == n { print $3 }' <<<"$there")
+    if [[ -n "$sv" && "$sv" != MISSING ]]; then ok "tool $name box=$hv satellite=$sv"; else ko "tool $name box=$hv satellite=${sv:-MISSING}"; fi
+  done <<<"$here"
+
+  local persist="${SATELLITE_PERSIST:-.claude .local .config .cache .gcp .github go .npm .terraform.d .tmux}" remote repo
+  repo=$(do_satellite_cnf gh_repo 120-github-general-secrets) || return 1
+  # shellcheck disable=SC2016,SC2029
+  remote=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "PERSIST='${persist}' DIR='/opt/csi/${repo##*/}' bash -s" 2>/dev/null <<'REMOTE'
+export PATH="$HOME/.local/bin:$PATH"
+dh="/mnt/data/home/$(id -un)"
+for d in $PERSIST; do [ "$(readlink "$HOME/$d")" = "$dh/$d" ] && echo "home $d ok" || echo "home $d no"; done
+[ -s "$HOME/.claude/CLAUDE.md" ] && echo "cfg claude-md ok"
+jq -e '.statusLine and .permissions' "$HOME/.claude/settings.json" >/dev/null 2>&1 && echo "cfg settings ok"
+echo "cfg skills $(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
+echo "cfg memory $(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -type d -name memory 2>/dev/null | wc -l)"
+[ -s "$HOME/.tmux.conf" ] && echo "cfg tmux ok"
+[ -n "$(git config --global user.email)" ] && echo "cfg git ok"
+gh auth status -h github.com >/dev/null 2>&1 && echo "cfg gh ok"
+docker info >/dev/null 2>&1 && echo "cfg docker ok"
+[ -d "$DIR/tpl-gen/src/python/tpl-gen/.venv" ] && echo "cfg tpl-gen ok"
+REMOTE
+)
+  for d in $persist; do grep -qx "home $d ok" <<<"$remote" && ok "~/$d lives on the data disk" || ko "~/$d lives on the data disk"; done
+  local c
+  for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (statusLine, permissions)" tmux:"~/.tmux.conf" \
+    git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
+    grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${c#*:}" || ko "${c#*:}"
+  done
+  local n
+  n=$(sed -n 's/^cfg skills //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/skills: $n" || ko "~/.claude/skills: ${n:-0}"
+  n=$(sed -n 's/^cfg memory //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/projects/*/memory: $n" || ko "~/.claude/projects/*/memory: ${n:-0}"
 }

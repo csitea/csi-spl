@@ -56,7 +56,7 @@ STUB
 chmod +x "$T/bin/gcloud"; export PATH="$T/bin:$PATH"
 # shellcheck disable=SC1091
 source "$PROJ_PATH/lib/bash/funcs/satellite.func.sh"
-for f in satellite-ssh-keygen satellite-ssh-config satellite-creds-push; do
+for f in satellite-ssh-keygen satellite-ssh-config satellite-creds-push satellite-install-tools satellite-replicate-ai-user satellite-verify; do
   # shellcheck disable=SC1090
   source "$PROJ_PATH/src/bash/run/$f.func.sh"
 done
@@ -131,6 +131,32 @@ n_g=$(grep -cE 'gcloud (compute|billing|storage) ' "$v"); n_a=$(grep -E 'gcloud 
 [[ "$n_g" -ge 4 && "$n_a" == 0 ]] && pass "every gcloud call in verify carries --account ($n_g)" || fail "a gcloud call in verify lacks \$acct ($n_a of them)"
 grep -q 'prevent_destroy' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.tf" | grep -q true \
   && fail "060 still blocks the owner's destroy drill" || pass "060 has no prevent_destroy (owner-gated destroy drill)"
+
+# --- 6. the replica ------------------------------------------------------------------
+if ( SATELLITE_TOOLS='pnpm bogus' do_satellite_install_tools ) >/dev/null 2>&1; then fail "install_tools accepted an unknown part"; else pass "install_tools refuses an unknown part"; fi
+mkdir -p "$HOME/.claude/skills/s1" "$HOME/.claude/projects/-opt-x/memory"
+echo '{"model":"m","statusLine":{"command":"'"$HOME"'/.claude/statusline-title.sh"}}' >"$HOME/.claude/settings.json"
+echo PLANTED-SECRET-MARKER >"$HOME/.claude/.credentials.json"
+out=$( ( DRY_RUN=1 do_satellite_replicate_ai_user ) 2>&1 ); rc=$?
+[[ $rc -eq 0 ]] && grep -q 'would copy ~/.claude/settings.json' <<<"$out" && grep -q 'would copy ~/.claude/projects/-opt-x/memory' <<<"$out" \
+  && pass "replicate DRY_RUN lists the settings and the memory" || fail "replicate DRY_RUN plan is wrong (rc=$rc)"
+grep -q 'credentials\|PLANTED-SECRET-MARKER' <<<"$out" && fail "replicate would copy a credential" || pass "CONTROL: replicate never lists .credentials.json"
+grep -q -- "--exclude='.credentials.json'" "$PROJ_PATH/src/bash/run/satellite-replicate-ai-user.func.sh" \
+  && pass "replicate's tar excludes .credentials.json" || fail "replicate's tar does not exclude .credentials.json"
+vm="$T/vmhome"; mkdir -p "$vm/.claude"
+echo '{"hooks":{"Stop":[1]},"model":"old","theme":"light"}' >"$vm/.claude/settings.json"
+( cd "$HOME" && tar -czf - .claude/settings.json .claude/skills ) \
+  | BOXHOME="$HOME" HOME="$vm" PERSIST=".x" GIT_NAME="FirstName LastName" GIT_EMAIL="a@example.com" \
+    bash "$PROJ_PATH/src/bash/scripts/satellite-replicate-ai-user.sh" >"$T/repl.out" 2>&1
+st="$vm/.claude/settings.json"
+[[ "$(jq -c .hooks "$st")" == '{"Stop":[1]}' && "$(jq -r .model "$st")" == m && "$(jq -r .theme "$st")" == light ]] \
+  && pass "settings merge: box keys win, the VM's hooks and keys stay" || fail "settings merge wrong: $(cat "$st")"
+jq -r .statusLine.command "$st" | grep -q "^$vm/.claude/statusline-title.sh$" && pass "the box home path is rewritten to the VM's" || fail "the box home path is not rewritten"
+[[ "$(HOME="$vm" git config --global user.email)" == a@example.com ]] && pass "the git identity is set" || fail "the git identity is not set"
+grep -q '^REPL home FAIL' "$T/repl.out" && grep -q '^REPLICA fails=' "$T/repl.out" && pass "no data disk: home is a FAIL verdict, the other parts still run" || fail "replica verdicts: $(cat "$T/repl.out")"
+nv=$(bash -c "$(_satellite_versions_script)" 2>/dev/null | grep -c '^ver ')
+nr=$(grep -cv '^#' "$PROJ_PATH/cnf/satellite-replica.tsv")
+[[ "$nv" == "$nr" && "$nr" -gt 20 ]] && pass "verify's version script: one ver line per manifest row ($nr)" || fail "verify's version script: $nv ver lines for $nr rows"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

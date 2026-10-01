@@ -256,11 +256,17 @@ try {
     steps.push({ at: pt === aRow ? A : pt === alertsRow ? 'alerts' : pt === lobbyRow ? 'lobby' : pt === middle ? 'middle' : B, ...(await dragState(p)) })
   }
   /* what the eye sees, not only the classes: rows that draw an outline or a
-     ring while #b is lit (the current channel's own marker, a 3 px inset left
-     bar, is not a target) */
+     ring while #b is lit. A ring is a box-shadow layer with a SPREAD; the
+     selected row's raise (CLE-77812: a 1 px inset bevel plus the zero-spread
+     var(--focus-3d) drop shadow, and the older 3 px inset left bar) has none,
+     so the current channel's own marker is not read as a target. */
   const drawn = await p.evaluate(() => [...document.querySelectorAll('#sidebar-panel-channels .nav-row')].filter((r) => {
     const els = [r, r.querySelector('.nav-item')].filter(Boolean)
-    return els.some((e) => { const cs = getComputedStyle(e); return (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) || (/rgb/.test(cs.boxShadow) && !/ 3px 0px 0px 0px inset/.test(cs.boxShadow)) })
+    const ring = (shadow) => shadow !== 'none' && shadow.split(/,(?![^(]*\))/).some((layer) => {
+      const px = layer.replace(/rgba?\([^)]*\)/g, '').match(/-?[\d.]+px/g) || []
+      return px.length >= 4 && parseFloat(px[3]) > 0
+    })
+    return els.some((e) => { const cs = getComputedStyle(e); return (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) || ring(cs.boxShadow) })
   }).map((r) => r.getAttribute('data-order') + ' ' + (() => { const e = r.querySelector('.nav-item'); const cs = getComputedStyle(e); const rs = getComputedStyle(r); return [rs.outlineStyle, rs.boxShadow, cs.outlineStyle, cs.boxShadow, cs.borderStyle, document.activeElement === e].join('|') })()))
   ok('4 on screen only #b is drawn as the target', drawn.length === 1 && drawn[0].startsWith(B + ' '), drawn)
   await shot(p, '4-one-lit')

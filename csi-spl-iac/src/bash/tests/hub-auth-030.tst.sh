@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# pre-push-tier: slow -- its control render needs the tpl-gen venv (CI runs do_setup_tpl_gen)
 #------------------------------------------------------------------------------
 # Purpose: spec 010 T020/T021 -- 030 renders cnf env.auth.social into the hub:
 #          the plain auth env joins environment_variables, no auth secret is a

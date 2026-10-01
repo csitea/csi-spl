@@ -50,7 +50,7 @@ APP_PATH="$T"
 # Run PLAN mode and echo just the parts= field.
 plan() {  # extra changed files staged relative to base, via env before call
   PRE_PUSH_PLAN=1 PRE_PUSH_TREE="$T" PRE_PUSH_BASE="${PP_BASE:-base}" PRE_PUSH_MODE="${PP_MODE:-fast}" \
-    do_check_pre_push 2>/dev/null | sed -n 's/^PRE_PUSH_PLAN mode=[a-z]* parts=//p'
+    do_check_pre_push 2>/dev/null | sed -n 's/^PRE_PUSH_PLAN mode=[a-z]* tier=[a-z]* parts=//p'
 }
 has()   { case " $1 " in *" $2 "*) return 0 ;; *) return 1 ;; esac; }
 reset_tree() { git -C "$T" checkout -q -- . 2>/dev/null; git -C "$T" clean -fdq >/dev/null 2>&1; }

@@ -3,7 +3,17 @@
 # the reference-hygiene gate, the no-baked-hostname gate, the end-to-end smoke,
 # the hub Postgres gate, and the hub GCS/fake-gcs blob gate.
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
+#
+# SPL_API_TEST_TIER=fast (CLE-77824) is the pre-push hook's tier: it leaves out
+# the four slow pieces -- build-stripped (two full builds), go test -race (the
+# plain go test still runs), the hub Postgres gate (~384 s) and the hub GCS
+# gate -- and names each one it leaves out. CI (workflow 10 and the workflow 20
+# deploy gate) never sets it, so CI always runs the full suite.
 set -euo pipefail
+
+tier="${SPL_API_TEST_TIER:-full}"
+case "$tier" in full|fast) ;; *) echo "SPL_API_TEST_TIER must be full or fast (got '$tier')" >&2; exit 2 ;; esac
+slow() { echo "SKIP-TIER (fast tier; CI workflow 10/20 runs it): $1"; }
 
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
@@ -15,7 +25,7 @@ spl_export_go_path
 
 echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
-bash "$HERE/build-stripped.tst.sh"
+if [ "$tier" = full ]; then bash "$HERE/build-stripped.tst.sh"; else slow build-stripped.tst.sh; fi
 
 echo "== gofmt =="
 unformatted="$(cd "$MOD" && gofmt -l .)"
@@ -28,8 +38,14 @@ echo "ok   - go vet clean"
 
 # 016 T002 / FR-004: the gate runs under the race detector, so a data race
 # fails it instead of landing green (-race needs cgo: CGO_ENABLED=1 + gcc).
-echo "== go test -race =="
-( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
+if [ "$tier" = full ]; then
+  echo "== go test -race =="
+  ( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
+else
+  echo "== go test (no -race: fast tier) =="
+  ( cd "$MOD" && go test ./... )
+  slow "go test -race"
+fi
 
 echo "== standalone hub-init rules (047 W9, W18) =="
 bash "$HERE/hub-entrypoint.tst.sh"
@@ -51,9 +67,9 @@ echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"
 
 echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
-bash "$HERE/hub-pg.tst.sh"
+if [ "$tier" = full ]; then bash "$HERE/hub-pg.tst.sh"; else slow hub-pg.tst.sh; fi
 
 echo "== hub GCS gate: internal/blob against fake-gcs (skips without cached emulator image) =="
-bash "$HERE/hub-gcs.tst.sh"
+if [ "$tier" = full ]; then bash "$HERE/hub-gcs.tst.sh"; else slow hub-gcs.tst.sh; fi
 
-echo "ALL csi-spl-api TESTS PASSED"
+echo "ALL csi-spl-api TESTS PASSED (tier=$tier)"

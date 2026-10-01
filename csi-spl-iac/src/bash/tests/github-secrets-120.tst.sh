@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# pre-push-tier: slow -- needs terraform (CI workflow 10 iac-suite)
 #------------------------------------------------------------------------------
 # Purpose: 120-github-general-secrets publishes GCP_KEY_<ORG>_<APP>_<ENV> from
 #          the project key file WITHOUT the key entering terraform state or

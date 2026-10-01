@@ -7,6 +7,7 @@
 #     3. SPL_PREPUSH_OVERRIDE=1  -> exit 0 even when the gate would fail, audited
 #     4. an already-green tree   -> exit 0 WITHOUT running the gate (rebase-retry)
 #     5. not the spool tree      -> exit 0 (fail-open), never blocks a foreign repo
+#    13. the gate gets the per-part log, the verdict cache and tier=fast
 #   INSTALLER
 #     6. installs core.hooksPath for ONE worktree only, others untouched
 #     7. idempotent (second run still 0)
@@ -156,6 +157,25 @@ eq "12. gate through the hook leaves the pushing branch HEAD untouched" "$before
 [ "$(git -C "$GR" config --get core.bare 2>/dev/null)" != true ] \
   && pass "12. ... and does not flip core.bare=true on the pushing repo" \
   || fail "12. ... and does not flip core.bare=true on the pushing repo"
+
+# 13. the hook hands the gate its per-part log, its verdict cache and the FAST
+#     tier (CLE-77824), and records its own wall time on the verdict line.
+#     A fresh repo: case 11 leaves $REPO's config poisoned on purpose.
+R13="$ROOT/repo13"; mkdir -p "$R13/csi-spl-iac"
+cat >"$R13/csi-spl-iac/run" <<'STUB'
+#!/usr/bin/env bash
+printf 'log=%s cache=%s tier=%s mode=%s\n' "${PRE_PUSH_LOG:-}" "${PRE_PUSH_CACHE:-}" "${PRE_PUSH_TIER:-}" "${PRE_PUSH_MODE:-}" >"$SEEN"
+exit 0
+STUB
+chmod +x "$R13/csi-spl-iac/run"
+git init -q "$R13"; git -C "$R13" add -A; git -C "$R13" commit -qm c13
+L="$ROOT/l13"
+( cd "$R13" && env SEEN="$ROOT/seen13" SPL_PREPUSH_LOG_DIR="$L" bash "$HOOK" origin file://x >/dev/null 2>&1 )
+eq "13. gate passes -> exit 0" 0 "$?"
+eq "13. the gate got the log, the cache, tier=fast and mode=fast" \
+  "log=$L/pre-push.log cache=$L/pre-push.parts.green tier=fast mode=fast" "$(cat "$ROOT/seen13" 2>/dev/null)"
+grep -q 'PASS .* secs=[0-9]*s' "$L/pre-push.log" \
+  && pass "13. the PASS line carries the hook's wall time" || fail "13. the PASS line carries the hook's wall time" "$(cat "$L/pre-push.log")"
 
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

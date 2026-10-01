@@ -1,39 +1,75 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description ONE pre-push gate that runs what the deploy pipeline blocks on
-# @description AND that runs on bare metal here: the csi-spl-api suite that
-# @description workflow 20 gates the hub deploy on (gofmt, go vet, go test
-# @description -race, hub-pg on a local Postgres container, hub-gcs), the WUI
-# @description unit tests + typecheck that workflow 30 gates the WUI deploy on,
-# @description the csi-spl-iac suite, and the distribution-hygiene sweep. A break
-# @description is then caught in the lane that wrote it, not after it has stalled
-# @description every deploy. (The csi-spl-orc / csi-spl-cnf conf-validator suites
-# @description need python/container deps absent at push time, so they are NOT
-# @description gated here -- run those through their container path.)
-# @description Each part prints PASS/FAIL with its wall time; a final table sums
-# @description them and the exit code is non-zero if any part failed.
-# @description Two modes: FAST (default) runs only the suites whose tree changed
-# @description vs PRE_PUSH_BASE (origin/master); FULL runs every suite. When the
-# @description base ref is unknown FAST falls back to FULL rather than skip a
-# @description gate silently.
-# @description hub-pg needs a local Postgres (initdb) or the cached
-# @description postgres:16-alpine image; when neither is present it SKIPS inside
-# @description the suite and this action WARNS loudly (the classic "green on the
-# @description in-memory store, red on CI Postgres" gap) -- set
-# @description PRE_PUSH_REQUIRE_PG=1 to make that skip a FAILURE.
-# @param PRE_PUSH_MODE (optional) - fast (default) | full
-# @param PRE_PUSH_BASE (optional) - diff base for fast mode, default origin/master
-# @param PRE_PUSH_REQUIRE_PG (optional) - 1 = a skipped hub-pg (no Postgres) FAILS
+# @description ONE pre-push gate: the checks the deploy pipeline blocks on that
+# @description are cheap enough to run before every push, for exactly the parts
+# @description the push touches. A break is then caught in the lane that wrote
+# @description it, not after it has stalled every deploy.
+# @description PARTS (selected by the paths the push changes vs PRE_PUSH_BASE):
+# @description   hygiene     always (~1 s)
+# @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/workflows/
+# @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
+# @description   wui         csi-spl-wui/ (unit tests + typecheck)
+# @description   api         csi-spl-api/ csi-spl-rdb/ .version
+# @description   A push that touches none of a part's paths never runs it (it is
+# @description   logged SKIP-untouched), so an orc- or doc-only push runs hygiene.
+# @description TIERS (CLE-77824, owner 2026-10-01): the hook runs the FAST tier,
+# @description which leaves the slow checks to CI -- api: go test -race,
+# @description build-stripped, hub-pg (Postgres, ~384 s), hub-gcs; iac: every
+# @description test marked '# pre-push-tier: slow' (terraform validate, tpl-gen
+# @description renders). Workflow 10 (and the workflow 20 deploy gate) runs the
+# @description FULL suites on every push and fails on any skip.
+# @description VERDICT CACHE: a part's green verdict is keyed by the git tree of
+# @description the paths that part reads (plus the tier), so a rebase over
+# @description commits that only touch OTHER parts re-uses it instead of
+# @description re-running; any change under the part's own paths re-runs it.
+# @description NO SILENT SKIPS: a part's tools are checked up front; a missing
+# @description one is a FAIL that names the tool and the fix. A failure is
+# @description re-run on PRE_PUSH_BASE and WARNs (does not block) only when it is
+# @description red there too, so a fix still lands on a red trunk.
+# @description Every part writes one line to PRE_PUSH_LOG: PASS, PASS-cached,
+# @description WARN-pre-existing (with the trunk sha), FAIL or SKIP-untouched,
+# @description with its duration.
+# @param PRE_PUSH_MODE (optional) - fast (default: parts the push touches) | full (every part)
+# @param PRE_PUSH_TIER (optional) - fast (default: the hook tier) | full (also the CI-only slow checks)
+# @param PRE_PUSH_BASE (optional) - diff base, default origin/master
 # @param PRE_PUSH_PLAN (optional) - 1 = print the selected parts and exit 0
 # @param PRE_PUSH_TREE (optional) - checkout root, default $APP_PATH
+# @param PRE_PUSH_LOG (optional) - per-part verdict log, default ~/.cache/csi-spl/pre-push.log
+# @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
+# @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
+# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
 # @example ./run -a do_check_pre_push
-# @example PRE_PUSH_MODE=full ./run -a do_check_pre_push
+# @example PRE_PUSH_MODE=full PRE_PUSH_TIER=full ./run -a do_check_pre_push
 # @example PRE_PUSH_PLAN=1 ./run -a do_check_pre_push
 #------------------------------------------------------------------------------
 
-# Union of what this push would carry: commits ahead of the base, plus staged,
-# unstaged and untracked working-tree changes (so it is useful before a commit
-# too). Returns 1 when the base ref is unknown, so the caller can widen to FULL.
+# Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
+# new gate.
+_PP_CACHE_V=2
+
+# The paths each part reads: they select it AND key its green cache.
+_pp_paths() {  # <part>
+  case "$1" in
+    iac)        echo "csi-spl-iac csi-spl-cnf .github/workflows" ;;
+    wui)        echo "csi-spl-wui" ;;
+    wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
+    api)        echo "csi-spl-api csi-spl-rdb .version" ;;
+    *)          echo "" ;;
+  esac
+}
+_pp_label() {  # <part>
+  case "$1" in
+    hygiene)    echo "distribution-hygiene" ;;
+    iac)        echo "csi-spl-iac suite" ;;
+    wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
+    wui)        echo "csi-spl-wui unit + typecheck" ;;
+    api)        echo "csi-spl-api suite" ;;
+  esac
+}
+
+# What this push would carry: commits ahead of the base, plus staged, unstaged
+# and untracked working-tree changes (so it is useful before a commit too).
+# Returns 1 when the base ref is unknown, so the caller can widen to FULL.
 _pp_changed() {  # <tree> <base>
   local tree="$1" base="$2"
   git -C "$tree" rev-parse --verify -q "$base^{commit}" >/dev/null 2>&1 || return 1
@@ -45,12 +81,51 @@ _pp_changed() {  # <tree> <base>
   } | sort -u
 }
 
-# hub-pg.tst.sh runs iff a local Postgres server (initdb) OR the cached
-# postgres:16-alpine docker image is present; otherwise it self-skips.
-_pp_pg_available() {
-  ls /usr/lib/postgresql/*/bin/initdb >/dev/null 2>&1 && return 0
-  command -v docker >/dev/null 2>&1 && docker image inspect postgres:16-alpine >/dev/null 2>&1 && return 0
+# Does a changed file fall under one of a part's paths?
+_pp_touches() {  # <changed-list> <paths...>
+  local changed="$1" f p; shift
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    for p in "$@"; do
+      [[ "$f" == "$p" || "$f" == "$p"/* ]] && return 0
+    done
+  done <<< "$changed"
   return 1
+}
+
+# The cache key of a part: the git trees of its paths at HEAD, plus the tier and
+# the gate version. Empty (= uncacheable) when any of those paths is dirty in
+# the working tree, since then HEAD is not what was tested.
+_pp_key() {  # <tree> <part> <tier>
+  local tree="$1" part="$2" tier="$3" p ids=""
+  local -a paths; read -r -a paths <<< "$(_pp_paths "$part")"
+  [[ "${#paths[@]}" -gt 0 ]] || return 0
+  [[ -z "$(git -C "$tree" status --porcelain -- "${paths[@]}" 2>/dev/null)" ]] || return 0
+  for p in "${paths[@]}"; do
+    ids+="$p=$(git -C "$tree" rev-parse -q --verify "HEAD:$p" 2>/dev/null || echo -) "
+  done
+  printf '%s' "v$_PP_CACHE_V $part $tier $ids" | sha1sum | cut -c1-40
+}
+_pp_cache_has() {  # <key>
+  [[ -n "$1" && "${PRE_PUSH_NO_CACHE:-0}" != 1 && -f "$_PP_CACHE" ]] && grep -qxF "$1" "$_PP_CACHE" 2>/dev/null
+}
+_pp_cache_add() {  # <key>
+  [[ -n "$1" ]] || return 0
+  mkdir -p "$(dirname "$_PP_CACHE")" 2>/dev/null || return 0
+  printf '%s\n' "$1" >>"$_PP_CACHE" 2>/dev/null || return 0
+  # keep it bounded: the newest 2000 verdicts
+  if [[ "$(wc -l <"$_PP_CACHE" 2>/dev/null || echo 0)" -gt 4000 ]]; then
+    tail -n 2000 "$_PP_CACHE" >"$_PP_CACHE.tmp.$$" 2>/dev/null && mv -f "$_PP_CACHE.tmp.$$" "$_PP_CACHE"
+  fi
+}
+
+# One verdict line per part, so an audit of a push answers itself.
+_pp_verdict() {  # <part> <VERDICT> <secs> [detail]
+  local who="${SPOOL_AGENT_ID:-${USER:-$(id -un 2>/dev/null)}}"
+  local line
+  line="$(date -u +%FT%TZ) $who PART $1 $2 ${3}s tree=$_PP_TOP HEAD=$_PP_HEAD${4:+ $4}"
+  mkdir -p "$(dirname "$_PP_LOG")" 2>/dev/null || true
+  printf '%s\n' "$line" >>"$_PP_LOG" 2>/dev/null || true
 }
 
 # pnpm is often a user-local install (~/.local/bin) not on the minimal PATH a
@@ -65,15 +140,48 @@ _pp_pnpm() {
   return 1
 }
 
-# A suite can HANG (tf-steps render is network-bound and has hung an agent for
-# hours). Every part runs under a hard timeout so the hook can never block a
-# push forever: `timeout` returns 124, which the runner reports as a FAIL named
-# "TIMED OUT", never a hang.
-_pp_timeout="${PRE_PUSH_PART_TIMEOUT:-600}"
+# The tools a part needs, checked BEFORE it runs. A missing tool used to fail
+# the part on HEAD and on trunk alike, which read as "pre-existing" and let the
+# push through untested (rc=127 'yq: command not found', CLE-77820). Prints one
+# "<tool> -- <fix>" line per missing tool.
+_pp_missing_tools() {  # <part> <tree>
+  local part="$1" tree="$2"
+  _pp_need() { command -v "$1" >/dev/null 2>&1 || echo "$1 -- $2"; }
+  case "$part" in
+    hygiene)
+      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin" ;;
+    iac)
+      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
+      _pp_need jq "apt-get install jq"
+      _pp_need python3 "apt-get install python3" ;;
+    wui-vendor) _pp_need grep "install grep" ;;
+    wui)
+      _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin"
+      _pp_need node "install Node (the version in csi-spl-wui/package.json engines)" ;;
+    api)
+      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
+      ( export GOTOOLCHAIN=local
+        # shellcheck source=/dev/null
+        source "$tree/csi-spl-api/src/bash/use-go-toolchain.sh" 2>/dev/null && spl_export_go_path 2>/dev/null
+        command -v go >/dev/null 2>&1 ) \
+        || echo "go -- install the Go in csi-spl-api/src/go/spool-hub-api/go.mod under /usr/local/go<ver>"
+      [[ "${_PP_TIER:-fast}" == full ]] && { _pp_need gcc "apt-get install gcc (go test -race needs cgo)"; }
+      [[ "${_PP_TIER:-fast}" == full ]] && { _pp_need docker "install docker and pull postgres:16-alpine (hub-pg)"; } ;;
+  esac
+  return 0
+}
+
+# Every part runs under a hard timeout so the hook can never block a push
+# forever: `timeout` returns 124, reported as "TIMED OUT", never a hang.
+_pp_timeout="${PRE_PUSH_PART_TIMEOUT:-300}"
 # hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
 _pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
-_pp_part_api()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"; }
-_pp_part_iac()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"; }
+_pp_part_api() {
+  SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
+}
+_pp_part_iac() {
+  IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
+}
 # The payment-vendor gate READS csi-spl-wui (it greps it) but LIVES in the api
 # suite, so a WUI-only change used to skip it and a vendor word ("stripe") in a
 # .vue comment reached trunk and failed hub deploy 20 twice. It is a fast,
@@ -82,8 +190,8 @@ _pp_part_iac()     { timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/
 _pp_part_wui_vendor() { bash "$1/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh"; }
 _pp_part_wui() {
   local wui="$1/csi-spl-wui" pn
-  [[ -d "$wui" ]] || { do_log "WARN pre-push: no csi-spl-wui at $wui -- skipping the WUI gate"; return 0; }
-  pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin) -- cannot run the WUI gate"; return 1; }
+  [[ -d "$wui" ]] || { do_log "FATAL pre-push: no csi-spl-wui at $wui"; return 1; }
+  pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin)"; return 1; }
   timeout -k 10 "$_pp_timeout" bash -c '
     cd "$1/csi-spl-wui" || exit 1
     export PATH="$HOME/.local/bin:$PATH"
@@ -95,11 +203,17 @@ _pp_part_wui() {
     "$2" run typecheck  || exit 1
   ' _ "$1" "$pn"
 }
+_pp_fn() {  # <part>
+  case "$1" in
+    hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;;
+    wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;;
+  esac
+}
 
-# A single origin/master worktree, built lazily on the first failure and reused,
-# so a FAILED part can be re-run against trunk: a failure that ALSO fails on
-# trunk is pre-existing (someone else's red) and must NOT block this push -- that
-# is the mutual-hook deadlock that stopped a fix from ever landing.
+# A single base-ref worktree, built lazily on the first failure and reused, so
+# a FAILED part can be re-run against trunk: a failure that ALSO fails on trunk
+# is pre-existing (someone else's red) and must NOT block this push -- that is
+# the mutual-hook deadlock that stopped a fix from ever landing.
 _PP_BASE_WT=""
 _pp_baseline_tree() {  # <tree> <base>
   [[ -n "$_PP_BASE_WT" ]] && { printf '%s' "$_PP_BASE_WT"; return 0; }
@@ -116,36 +230,69 @@ _pp_baseline_cleanup() {  # <tree>
   _PP_BASE_WT=""
 }
 
-# Run one part against the working tree; on failure, re-run it against the
-# baseline (origin/master) and only BLOCK when it passes there -- a failure that
-# also exists on trunk is reported (WARN) but never blocks, so a fix can land on
-# a red trunk (no mutual-hook deadlock). rc 124 is a timeout, reported as such.
-_pp_run() {  # <label> <fn> <tree> <base>
-  local label="$1" fn="$2" tree="$3" base="$4"
-  local start="$SECONDS" rc=0
+_pp_record() {  # <label> <STAT> <secs>
+  _PP_NAMES+=("$1"); _PP_STAT+=("$2"); _PP_SECS+=("$3")
+}
+
+# Run one part: cached green -> PASS-cached; missing tool -> FAIL (never a
+# pre-existing WARN); else run it, and on failure re-run it on the base ref and
+# BLOCK only when it passes there. Optional <part> keys the cache and the log;
+# without it (the tests' stub parts) neither is touched.
+_pp_run() {  # <label> <fn> <tree> <base> [<part>]
+  local label="$1" fn="$2" tree="$3" base="$4" part="${5:-}"
+  local start="$SECONDS" rc=0 key="" missing="" el
+  if [[ -n "$part" ]]; then
+    key="$(_pp_key "$tree" "$part" "$_PP_TIER")"
+    if _pp_cache_has "$key"; then
+      _pp_record "$label (green verdict re-used: its paths are unchanged)" "PASS" 0
+      _pp_verdict "$part" PASS-cached 0 "key=${key:0:12}"
+      do_log "INFO pre-push: PASS $label (cached: nothing under $(_pp_paths "$part") changed since it was green)"
+      return 0
+    fi
+    missing="$(_pp_missing_tools "$part" "$tree")"
+    if [[ -n "$missing" ]]; then
+      _pp_record "$label (MISSING TOOL: $(cut -d' ' -f1 <<<"$missing" | paste -sd, -))" "FAIL" 0
+      _PP_FAILED=$((_PP_FAILED + 1))
+      _pp_verdict "$part" FAIL 0 "missing-tool=$(cut -d' ' -f1 <<<"$missing" | paste -sd, -)"
+      while IFS= read -r m; do do_log "FATAL pre-push: $label cannot run -- missing tool: $m"; done <<<"$missing"
+      return 0
+    fi
+  fi
   do_log "INFO pre-push: ==> $label"
   "$fn" "$tree" || rc=$?
-  local el=$((SECONDS - start))
+  el=$((SECONDS - start))
   if [[ "$rc" -eq 0 ]]; then
-    _PP_NAMES+=("$label"); _PP_STAT+=("PASS"); _PP_SECS+=("$el")
+    _pp_record "$label" "PASS" "$el"
+    [[ -n "$part" ]] && { _pp_cache_add "$key"; _pp_verdict "$part" PASS "$el"; }
     do_log "INFO pre-push: PASS $label (${el}s)"
     return 0
   fi
   local note="rc=$rc"; [[ "$rc" -eq 124 || "$rc" -eq 137 ]] && note="TIMED OUT after ${_pp_timeout}s"
-  # Pre-existing on trunk? Re-run the SAME part against origin/master.
-  local bwt brc=0
+  if [[ "$rc" -eq 127 ]]; then
+    # command not found: an environment gap, never "pre-existing on trunk"
+    _pp_record "$label (rc=127: a command was not found)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "rc=127-command-not-found"
+    do_log "FATAL pre-push: FAIL $label -- rc=127, a command it needs is not installed (see the output above)"
+    return 0
+  fi
+  # Pre-existing on trunk? Re-run the SAME part against the base ref.
+  local bwt brc=0 bsha
+  bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"
   if bwt="$(_pp_baseline_tree "$tree" "$base")"; then
-    do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base to see if it is your break or trunk's"
+    do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base ($bsha) to see if it is your break or trunk's"
     "$fn" "$bwt" || brc=$?
   else
     do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as NEW"
     brc=0
   fi
+  el=$((SECONDS - start))
   if [[ "$brc" -ne 0 ]]; then
-    _PP_NAMES+=("$label (PRE-EXISTING on $base)"); _PP_STAT+=("WARN"); _PP_SECS+=("$el")
-    do_log "WARN pre-push: $label fails on your tree AND on $base ($note) -- pre-existing trunk failure, NOT blocking your push"
+    _pp_record "$label (PRE-EXISTING on $base $bsha)" "WARN" "$el"
+    [[ -n "$part" ]] && _pp_verdict "$part" WARN-pre-existing "$el" "trunk=$bsha $note"
+    do_log "WARN pre-push: $label fails on your tree AND on $base $bsha ($note) -- pre-existing trunk failure, NOT blocking your push"
   else
-    _PP_NAMES+=("$label"); _PP_STAT+=("FAIL"); _PP_SECS+=("$el"); _PP_FAILED=$((_PP_FAILED + 1))
+    _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green"
     do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
   fi
   return 0
@@ -155,74 +302,54 @@ do_check_pre_push() {
   local tree="${PRE_PUSH_TREE:-$APP_PATH}"
   local mode="${PRE_PUSH_MODE:-fast}"
   local base="${PRE_PUSH_BASE:-origin/master}"
+  local _PP_TIER="${PRE_PUSH_TIER:-fast}"
   case "$mode" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_MODE must be fast or full (got '$mode')"; return 2 ;; esac
+  case "$_PP_TIER" in fast|full) ;; *) do_log "FATAL pre-push: PRE_PUSH_TIER must be fast or full (got '$_PP_TIER')"; return 2 ;; esac
   git -C "$tree" rev-parse --git-dir >/dev/null 2>&1 \
     || { do_log "FATAL pre-push: $tree is not a git checkout"; return 2; }
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl"
+  local _PP_LOG="${PRE_PUSH_LOG:-$cache_dir/pre-push.log}"
+  local _PP_CACHE="${PRE_PUSH_CACHE:-$cache_dir/pre-push.parts.green}"
+  local _PP_TOP="$tree" _PP_HEAD
+  _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
-  # The gated suites are exactly the ones a deploy is blocked on AND that run on
-  # bare metal here: distribution-hygiene, the csi-spl-api suite (workflow 20's
-  # hub-deploy gate), the csi-spl-iac suite, and the WUI unit tests + typecheck
-  # (workflow 30's wui-deploy gate). The csi-spl-orc and csi-spl-cnf suites lean
-  # on the conf-validator's python/container deps that are NOT present at push
-  # time, so gating on them would refuse pushes for an environment gap rather
-  # than a defect; run those through their container path, not this hook.
-  local sel_hygiene=1 sel_api=0 sel_iac=0 sel_wui=0
+  local all="hygiene iac wui-vendor wui api" parts="hygiene" p changed=""
   if [[ "$mode" == full ]]; then
-    sel_api=1 sel_iac=1 sel_wui=1
+    parts="$all"
+  elif ! changed="$(_pp_changed "$tree" "$base")"; then
+    do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
+    mode=full; parts="$all"
   else
-    local changed f
-    if ! changed="$(_pp_changed "$tree" "$base")"; then
-      do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
-      mode=full; sel_api=1 sel_iac=1 sel_wui=1
-    else
-      while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        case "$f" in
-          csi-spl-api/*|csi-spl-rdb/*|.version) sel_api=1 ;;
-          csi-spl-cnf/*|csi-spl-iac/*|.github/workflows/*) sel_iac=1 ;;
-          csi-spl-wui/*)                        sel_wui=1 ;;
-        esac
-      done <<< "$changed"
-    fi
+    for p in iac wui-vendor wui api; do
+      # shellcheck disable=SC2046
+      _pp_touches "$changed" $(_pp_paths "$p") && parts+=" $p"
+    done
   fi
 
-  local parts="hygiene"
-  [[ "$sel_iac" == 1 ]] && parts+=" iac"
-  [[ "$sel_wui" == 1 ]] && parts+=" wui wui-vendor"
-  [[ "$sel_api" == 1 ]] && parts+=" api"
-
   # A machine-readable plan line (also the whole of PLAN mode's output).
-  echo "PRE_PUSH_PLAN mode=$mode parts=$parts"
+  echo "PRE_PUSH_PLAN mode=$mode tier=$_PP_TIER parts=$parts"
   if [[ "${PRE_PUSH_PLAN:-0}" == 1 ]]; then
-    do_log "INFO pre-push PLAN only (mode=$mode): $parts"
+    do_log "INFO pre-push PLAN only (mode=$mode tier=$_PP_TIER): $parts"
     return 0
   fi
 
-  do_log "INFO pre-push: mode=$mode, base=$base, parts:$parts"
+  do_log "INFO pre-push: mode=$mode tier=$_PP_TIER base=$base parts: $parts"
+  [[ "$_PP_TIER" == fast ]] && do_log "INFO pre-push: fast tier -- go test -race, hub-pg, hub-gcs, build-stripped and the slow iac tests (terraform validate, tpl-gen renders) run in CI workflow 10/20, not here"
 
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
   local _PP_FAILED=0
-
-  [[ "$sel_hygiene" == 1 ]] && _pp_run "distribution-hygiene" _pp_part_hygiene "$tree" "$base"
-  [[ "$sel_iac" == 1 ]] && _pp_run "csi-spl-iac suite" _pp_part_iac "$tree" "$base"
-  [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui payment-vendor gate" _pp_part_wui_vendor "$tree" "$base"
-  [[ "$sel_wui" == 1 ]] && _pp_run "csi-spl-wui unit + typecheck" _pp_part_wui "$tree" "$base"
-  if [[ "$sel_api" == 1 ]]; then
-    if _pp_pg_available; then
-      do_log "INFO pre-push: hub-pg will RUN (local initdb or cached postgres:16-alpine present)"
+  for p in $all; do
+    if [[ " $parts " == *" $p "* ]]; then
+      _pp_run "$(_pp_label "$p")" "$(_pp_fn "$p")" "$tree" "$base" "$p"
     else
-      do_log "WARN pre-push: hub-pg will SKIP -- no local postgres and no cached postgres:16-alpine; the Postgres store/hub/auth tests CI runs are NOT covered locally"
-      if [[ "${PRE_PUSH_REQUIRE_PG:-0}" == 1 ]]; then
-        _PP_NAMES+=("hub-pg coverage (PRE_PUSH_REQUIRE_PG)"); _PP_STAT+=("FAIL"); _PP_SECS+=("0"); _PP_FAILED=$((_PP_FAILED + 1))
-      fi
+      _pp_verdict "$p" SKIP-untouched 0
     fi
-    _pp_run "csi-spl-api suite (gofmt, vet, race, hub-pg, hub-gcs)" _pp_part_api "$tree" "$base"
-  fi
+  done
 
   _pp_baseline_cleanup "$tree"
 
   echo ""
-  echo "==================== pre-push summary (mode=$mode) ===================="
+  echo "============ pre-push summary (mode=$mode tier=$_PP_TIER) ============"
   local i
   for i in "${!_PP_NAMES[@]}"; do
     printf '  %-4s %5ss  %s\n' "${_PP_STAT[$i]}" "${_PP_SECS[$i]}" "${_PP_NAMES[$i]}"

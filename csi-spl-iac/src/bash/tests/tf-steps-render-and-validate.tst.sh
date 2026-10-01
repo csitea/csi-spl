@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# pre-push-tier: slow -- terraform validate of every step, minutes (CI workflow 10 iac-suite runs it)
 #------------------------------------------------------------------------------
 # Purpose: the committed tfvars are what tpl-gen renders from the committed
 #          yaml TODAY (an edited yaml that was never re-rendered fails here),

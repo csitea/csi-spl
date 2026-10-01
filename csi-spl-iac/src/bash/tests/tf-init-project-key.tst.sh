@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# pre-push-tier: slow -- needs terraform (CI workflow 10 iac-suite)
 #------------------------------------------------------------------------------
 # Purpose: every terraform run goes through do_tf_init (ported from csi-rel
 #          unchanged), and do_tf_init points GOOGLE_APPLICATION_CREDENTIALS at

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# pre-push-tier: slow -- needs the tpl-gen venv a worktree does not carry (CI runs do_setup_tpl_gen)
 #------------------------------------------------------------------------------
 # Purpose: the csi-rel container path (csi-spl-orc `make
 #          do-generate-config-for-step`) renders EXACTLY the committed tfvars,

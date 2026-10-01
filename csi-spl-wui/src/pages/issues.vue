@@ -585,12 +585,11 @@
       @close="closeDetail"
     >
       <!-- CLE-77806 (owner, topic 260d2cbb): the issue's actions live in the
-           modal header (⋯ -> Copy link / Status / Assignee / Archive / Delete),
-           so Delete left the body. Desktop only; the phone header carries its own. -->
+           modal header, so Delete left the body. CLE-77854 (owner, topic
+           643330e5): Copy link / Archive / Delete are separate buttons there,
+           no ☰ menu. Desktop only; the phone header carries its own. -->
       <template v-if="!phone && detail && !creating" #tools>
-        <button type="button" class="issues-detail__menu" data-test="issues-detail-actions" :aria-label="t('issues_menu.label')" :title="t('issues_menu.label')" aria-haspopup="menu" @click="openDetailMenu($event)">
-          <UiIcon name="menu" :size="18" />
-        </button>
+        <IssueDetailActions :copied="copiedKey === detail.key" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
       </template>
       <div v-if="form" class="issues-detail-in" data-test="issues-detail" :data-modal="phone ? 'false' : 'true'">
       <header v-if="phone" class="issues-detail__h">
@@ -598,9 +597,7 @@
         <MobileBack class="issues-mback" data-test="issues-detail-back" />
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
         <span class="issues-detail__hgap" />
-        <button v-if="detail && !creating" type="button" class="issues-detail__menu" data-test="issues-detail-actions" :aria-label="t('issues_menu.label')" :title="t('issues_menu.label')" aria-haspopup="menu" @click="openDetailMenu($event)">
-          <UiIcon name="menu" :size="20" />
-        </button>
+        <IssueDetailActions v-if="detail && !creating" tap :copied="copiedKey === detail.key" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
       </header>
       <!-- CLE-77806 (owner, topic 260d2cbb): two columns above 820 px - the
            left ~70% holds title + description + subtasks + discussion, the right
@@ -839,7 +836,6 @@
       :x="ctxPoint.x"
       :y="ctxPoint.y"
       :items="ctxItems"
-      :over-modal="ctxOverModal"
       @close="onCtxClose"
       @choose="onCtxChoose"
     />
@@ -1051,10 +1047,7 @@ const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtx
    right-click. Then it omits "Open" (the epic is already the view) and it
    right-aligns under the button. */
 const ctxFromButton = ref(false)
-/* CLE-77806: the same menu opened from the open issue's header actions button,
-   which floats over the modal - the popover has to sit above --z-modal. */
-const ctxOverModal = ref(false)
-const { copy: copyText } = useCopyText()
+const { copy: copyText, copied: copiedKey } = useCopyText()
 const actConfirm = ref<{ target: IssueMenuTarget, action: 'archive' | 'delete', count: number } | null>(null)
 const actBusy = ref(false)
 const actError = ref('')
@@ -1979,15 +1972,12 @@ const ctxItems = computed<IssueMenuItem[]>(() => {
   if (!tg) return []
   const items: IssueMenuItem[] = []
   /* CLE-77816 (owner, topic 4365c545): Edit is the first item everywhere the
-     menu opens - it opens the same issue dialog (epic / feature included), so
-     the open-issue's own header menu does not repeat it. */
-  if (!ctxOverModal.value) items.push({ id: 'edit', icon: 'edit', labelKey: 'issues_menu.edit' })
+     menu opens - it opens the same issue dialog (epic / feature included). */
+  items.push({ id: 'edit', icon: 'edit', labelKey: 'issues_menu.edit' })
   /* from the title-row button the epic is already the open view - no "Open" */
   if (!ctxFromButton.value) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
   items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
-  /* CLE-77806: from the open issue's header menu, status and assignee already
-     have their own rows in the property panel - no need to repeat them here */
-  if (!tg.top && !ctxOverModal.value) {
+  if (!tg.top) {
     items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
     items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
   }
@@ -2004,18 +1994,20 @@ function openEpicMenu(ev: MouseEvent) {
   ctxFromButton.value = true
   openCtxMenu(tg, Math.max(8, r.right - 176), r.bottom + 4)
 }
-/* CLE-77806 (owner, topic 260d2cbb): the open issue's actions live in the modal
-   header (⋯), not as a Delete button in the body. It opens the same shared menu
-   - Copy link / Status / Assignee / Archive / Delete - aimed at the open issue,
-   dropped just under the button and lifted above the modal. */
-function openDetailMenu(ev: MouseEvent) {
-  if (!detail.value) return
-  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-  ctxFromButton.value = true
-  ctxOverModal.value = true
-  openCtxMenu(issueTarget(detail.value), Math.max(8, r.right - 176), r.bottom + 4)
+/* CLE-77854 (owner, topic 643330e5): the open issue's header buttons - the
+   actions its ☰ menu held (CLE-77806), aimed at the open issue. Copy link
+   copies and confirms; Archive keeps the shared confirm; Delete is the
+   single-issue confirm, which refuses while it still has live subtasks. */
+function detailCopy() {
+  if (detail.value) void copyText(issueLinkFor(issueTarget(detail.value)), detail.value.key)
 }
-function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false; ctxOverModal.value = false }
+function detailArchive() {
+  if (detail.value) askAction('archive', issueTarget(detail.value))
+}
+function detailDelete() {
+  if (detail.value) askDelete(detail.value)
+}
+function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false }
 /* CLE-77816 (owner, topic 4365c545): Edit opens the same issue dialog for the
    target - an epic / feature edits like an issue. A held row opens straight
    away; an epic (often not in the kind=issue list) is fetched first, the same
@@ -2058,10 +2050,6 @@ function onCtxChoose(id: string) {
     menuPos.value = { top: pt.y, left: Math.max(8, Math.min(pt.x, window.innerWidth - 240)) }
     return
   }
-  /* CLE-77806: from the modal header, Delete removes the one open issue with the
-     same single-issue confirm the body's Delete button used (which refuses when
-     it still has live subtasks); Archive keeps the shared cascade path. */
-  if (id === 'delete' && ctxOverModal.value && detail.value) { askDelete(detail.value); return }
   if (id === 'archive' || id === 'delete') askAction(id, tg)
 }
 /* the count the confirm states: for an epic / feature the issues under it, else
@@ -2925,22 +2913,6 @@ select.issues-pctl { appearance: auto; }
 .issues-prow .issues-deadline { width: 100%; flex-wrap: nowrap; }
 .issues-prow .issues-deadline :deep(.dlp__text) { flex: 1 1 auto; min-width: 0; }
 .issues-detail-meta { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 2px; }
-/* CLE-77806: the header actions button (⋯), in the dialog header on desktop and
-   in the phone's top bar */
-.issues-detail__menu {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-.issues-detail__menu:hover, .issues-detail__menu:focus-visible { color: var(--color-fg); border-color: var(--color-border); outline: none; }
 .issues-detail__hgap { flex: 1 1 auto; }
 /* SPL-1027: the sheet's CRUD cells */
 .issues-c-act { width: 1%; white-space: nowrap; text-align: center; }
@@ -3185,7 +3157,6 @@ select.issues-pctl { appearance: auto; }
   .issues-detail__h { justify-content: flex-start; }
   .issues-detail__title { min-height: var(--tap, 44px); }
   .issues-prop, .issues-pctl, .issues-pval, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }
-  .issues-detail__menu { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   .issues-sub-add { min-width: var(--tap, 44px); }
   /* the sheets: filters, sort and every picker */
   .issues-scrim { position: fixed; inset: 0; z-index: 38; background: rgb(0 0 0 / .4); }

@@ -302,10 +302,8 @@ try {
     await p.type('[data-test=issues-subtask-input]', 'a child')
     await p.keyboard.press('Enter')
     await p.waitForSelector('[data-test=issues-subtask]', { visible: true, timeout: 5000 }).catch(() => {})
-    // CLE-77806: Delete lives in the modal's header actions menu (⋯), not the body
-    await p.click('[data-test=issues-detail-actions]')
-    await p.waitForSelector('[data-test=issues-ctxmenu-delete]', { visible: true, timeout: 5000 })
-    await p.click('[data-test=issues-ctxmenu-delete]')
+    // CLE-77854: Delete is its own button in the modal header, not the body
+    await p.click('[data-test=issues-detail-delete]')
     await p.waitForSelector('[data-testid=issues-delete-confirm]', { visible: true, timeout: 5000 })
     await p.click('[data-testid=issues-delete-confirm]')
     const refused = await p.waitForSelector('[data-testid=issues-delete-error]', { visible: true, timeout: 5000 }).then((h) => h.evaluate((el) => el.textContent.trim()), () => '')

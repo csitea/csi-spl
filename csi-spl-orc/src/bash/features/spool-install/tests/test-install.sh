@@ -7,7 +7,8 @@
 #   1. refusals: a bad --cli, a seat with no SPOOL_HUB_URL or no tenant
 #   2. --dry-run downloads and writes nothing
 #   3. a full install: the three vendor installers, grok into <prefix>/bin,
-#      yq + Go into tools, spool built, the shim, the config
+#      yq + Go into tools, spool built and linked as <prefix>/bin/spool
+#      (a real file there is kept), the shim, the config
 #   4. the shim runs spool-agent.sh with the configured env/tenant/box, and
 #      an option given on its command line wins
 #   5. the hooks: merged into ~/.claude/settings.json, other keys kept, an
@@ -149,6 +150,9 @@ grep -qx "vendor-grok ran GROK_BIN_DIR=$H/.local/bin" "$T/vendor.log" && [[ -x "
   pass "3. yq and the latest Go land in tools" || fail "3. tools: $(ls -R "$TOOLS" | head) $(cat "$T/net.log")"
 grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" && [[ -x "$TOOLS/bin/spool" ]] &&
   pass "3. spool is built into tools with the tools Go on PATH" || fail "3. build: $(cat "$T/build.log")"
+[[ -L "$H/.local/bin/spool" && "$(readlink "$H/.local/bin/spool")" == "$TOOLS/bin/spool" ]] &&
+  [[ "$(env -i PATH="$H/.local/bin:/usr/bin:/bin" bash -c 'command -v spool && spool')" == "$H/.local/bin/spool"$'\n'spool-stub ]] &&
+  pass "3. spool is on <prefix>/bin, a link to the tools build" || fail "3. spool link: $(ls -l "$H/.local/bin/spool" 2>&1) $(cat "$T/o")"
 CFG="$H/.config/spool-agent/env"
 [[ "$(stat -c %a "$CFG")" == 600 ]] && grep -qx 'SPOOL_ENV=prd' "$CFG" && grep -qx 'SPOOL_TENANT=t9' "$CFG" && grep -qx 'SPOOL_BOX=box-ext' "$CFG" &&
   pass "3. the config holds env/tenant/box, mode 0600" || fail "3. config: $(cat "$CFG")"
@@ -302,6 +306,16 @@ ARGS=(--cli agy,qwen --no-seat); inst SPOOL_INSTALL_URL_AGY=https://vendor.test/
 ! grep -q 'vendor-agy ran' "$T/vendor.log" && [[ ! -e "$H/.local/bin/agy" ]] && pass "11. ... and never run" || fail "11. it ran"
 grep -q '^npm install' "$T/npm.log" && [[ -r "$H/.claude/commands/qwen-spawn.md" ]] &&
   pass "11. qwen and the harness still install after it" || fail "11. later steps skipped: $(cat "$T/o")"
+
+# --- 3b. a real <prefix>/bin/spool is never replaced; a stale link is repointed ----------------
+rm -f "$H/.local/bin/spool"; printf '#!/bin/sh\necho my-spool\n' >"$H/.local/bin/spool"; chmod +x "$H/.local/bin/spool"
+ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
+[[ $rc -eq 0 && ! -L "$H/.local/bin/spool" ]] && grep -q 'echo my-spool' "$H/.local/bin/spool" && grep -q 'is not a link: left alone' "$T/o" &&
+  pass "3b. a real <prefix>/bin/spool is left alone and named" || fail "3b. foreign spool: rc $rc $(cat "$T/o")"
+rm -f "$H/.local/bin/spool"; ln -s "$T/old-clone/spool" "$H/.local/bin/spool"
+ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
+[[ $rc -eq 0 && "$(readlink "$H/.local/bin/spool")" == "$TOOLS/bin/spool" ]] &&
+  pass "3b. a stale spool link is repointed at this build" || fail "3b. stale link: rc $rc $(ls -l "$H/.local/bin/spool")"
 
 # --- 8. a foreign spool-agent ------------------------------------------------------------------------------------
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"

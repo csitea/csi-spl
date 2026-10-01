@@ -12,7 +12,8 @@
 #      installer, which installs or updates to the LATEST release (qwen:
 #      `npm install -g` into <prefix>, which needs Node 20+ and npm)
 #   2. the toolchain the harness runs on: yq (v4) and Go, when not present,
-#      into <data>/tools, and the `spool` binary built from this checkout
+#      into <data>/tools, and the `spool` binary built from this checkout,
+#      linked as <prefix>/bin/spool (a real file there is left alone)
 #   3. the `spool-agent` command in <prefix>/bin, a shim that runs this
 #      checkout's spool-agent.sh with your env / tenant / box
 #   4. the terminal mirror hooks in ~/.claude/settings.json (claude and grok
@@ -296,6 +297,19 @@ else
     bash "$BUILD_SH" "$SPOOL" >&2 || die 6 "the spool build failed ($BUILD_SH)"
   fi
   say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | head -1))"
+fi
+# The harness scripts (spool-send.sh, ...) call a bare `spool`: a binary only
+# in tools is not on PATH, and they fail rc 127. A symlink in <prefix>/bin
+# follows every rebuild; a <prefix>/bin/spool that is a real file is left
+# alone and named, never replaced.
+SPOOL_LINK="$BIN/spool"
+if [ "$DRY" = 1 ]; then plan "link $SPOOL_LINK -> $SPOOL"
+elif [ -L "$SPOOL_LINK" ] && [ "$(readlink "$SPOOL_LINK")" = "$SPOOL" ]; then :
+elif [ -e "$SPOOL_LINK" ] && [ ! -L "$SPOOL_LINK" ]; then
+  say "WARN $SPOOL_LINK exists and is not a link: left alone (spool is at $SPOOL)"
+else
+  mkdir -p "$BIN" && ln -sfn "$SPOOL" "$SPOOL_LINK" || die 7 "cannot link $SPOOL_LINK"
+  say "spool on PATH: $SPOOL_LINK -> $SPOOL"
 fi
 
 # ── 4. the spool-agent command and its config ────────────────────────────────

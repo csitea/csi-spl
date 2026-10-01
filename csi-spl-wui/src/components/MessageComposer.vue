@@ -1383,6 +1383,13 @@ textarea.in-code {
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
     background: var(--color-sidebar);
     border-top: 1px solid var(--color-border);
+    /* CLE-77888 (owner, t1 be8fed75): "a little bit more 3D, as if it were
+       on top of the sliding below content" - the house raise (--focus-3d: a
+       blurred drop shadow, zero spread) turned upward, over the feed, and a
+       1 px top light on the bar's edge; a dark theme cannot show a shadow
+       on near-black, so the bar's face also lightens toward its top edge */
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
   /* the strip under it carries the home-indicator inset */
   :global(html[data-status-strip]) .composer.composer--dock.composer--dock { padding-bottom: 6px; }

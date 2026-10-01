@@ -10,6 +10,7 @@
 //       unchanged (Send / Attach still 44 px), nothing overlaps
 //     4 --composer-dock-h = dock + strip, so the panes and the snackbars
 //       (CLE-77871, which read it) clear both
+//     4b the bottom bar is raised (owner, t1 be8fed75): a shadow cast upward
 //     5 the last card of the feed scrolls clear of the dock and the strip
 //     6 tap the note = the desktop note: the chime flips (and back)
 //     7 tap the bell = the desktop bell: the alerts switch flips (and back)
@@ -106,6 +107,7 @@ const facts = (p) => p.evaluate(() => {
     attach: box(dock?.querySelector('[data-testid=attach]')),
     dockVar: parseInt(root.getPropertyValue('--composer-dock-h'), 10) || 0,
     stripVar: parseInt(root.getPropertyValue('--status-strip-h'), 10) || 0,
+    dockShadow: dock ? getComputedStyle(dock).boxShadow : '',
   }
 })
 
@@ -136,6 +138,10 @@ try {
     Boolean(f.dock && f.strip && Math.abs(f.dock.bottom - f.strip.top) <= 1 && f.send && f.send.h >= TAP && f.attach && f.attach.h >= TAP), { dock: f.dock, strip: f.strip })
   ok('390 4 --composer-dock-h counts the dock and the strip (snackbars and panes clear both)',
     Boolean(f.dock && f.strip && Math.abs(f.dockVar - (f.dock.h + f.strip.h)) <= 2 && f.stripVar === f.strip.h), { dockVar: f.dockVar, stripVar: f.stripVar })
+
+  /* CLE-77888 (owner, t1 be8fed75): the bar looks raised over the feed - an upward (negative y) shadow */
+  ok('390 4b the bottom bar is raised: a shadow cast upward over the content',
+    /rgba?\([^)]*\) 0px -\d+px \d+px/.test(f.dockShadow), f.dockShadow)
 
   const last = await p.evaluate(() => {
     const body = [...document.querySelectorAll('.feed-body')].find((b) => b.getClientRects().length)

@@ -161,6 +161,13 @@ grep -q 'PARTS=home' "$PROJ_PATH/src/bash/run/satellite-home-persist.func.sh" &&
   && pass "do_satellite_home_persist sends no box file" || fail "do_satellite_home_persist may copy box files"
 grep -q 'claude auth status --json .*jq -r .loggedIn' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" \
   && pass "verify reads only claude's loggedIn flag" || fail "verify does not check the claude login (loggedIn)"
+cc="$PROJ_PATH/src/bash/run/satellite-claude-config.func.sh"
+# shellcheck disable=SC1090
+source "$cc"
+if ( DRY_RUN=2 do_satellite_claude_config ) >/dev/null 2>&1; then fail "claude_config accepted DRY_RUN=2"; else pass "claude_config refuses a bad DRY_RUN"; fi
+grep -q -- '--exclude ysg-box-cnf' "$cc" && pass "claude_config renders from an export without ysg-box-cnf" || fail "claude_config reads the hub's own box layer"
+awk '/dry_run" == 1 \]\]; then/ { d = NR } /ssh "\$\{SATELLITE_SSH/ && !s { s = NR } END { exit !(d && s && d < s) }' "$cc" \
+  && pass "claude_config ships nothing before its DRY_RUN return" || fail "claude_config may ssh in a dry run"
 nv=$(bash -c "$(_satellite_versions_script)" 2>/dev/null | grep -c '^ver ')
 nr=$(grep -cv '^#' "$PROJ_PATH/cnf/satellite-replica.tsv")
 [[ "$nv" == "$nr" && "$nr" -gt 20 ]] && pass "verify's version script: one ver line per manifest row ($nr)" || fail "verify's version script: $nv ver lines for $nr rows"

@@ -79,15 +79,26 @@ sequenceDiagram
 
 - The lease is one line, `<holder> <epoch>`, in `$SPOOL_ROOT/dispatch/lease`.
   Only the holder dispatches.
-- The **renew loop** is bound to the master's claude process id: when the
-  process dies, renewal stops and the lease goes stale.
-- The **watch loop** promotes the failover after 180 s without renewal and keeps
-  the lease fresh in its name. When the master renews again, the watcher sends
+- The **renew loop** follows the master BY AGENT ID: each tick it looks for a
+  live claude process whose environment carries `SPOOL_AGENT_ID=<master>`, so a
+  relaunched master is picked up with no manual step. No such process, no
+  renewal, and the lease goes stale.
+- The **watch loop** promotes the failover after 180 s without renewal (never
+  a failover with no live process: that is logged once as `NO-FAILOVER`) and
+  keeps the lease fresh in its name, under a lock so it cannot overwrite a
+  master renewal. When the master renews again, the watcher sends
   the failover `STANDBY`; the master's own renewal is the handback.
 - On promotion the failover also works through the master's unread inbox,
   skipping what the master's outbox shows it already handled.
-- Every transition is logged to `$SPOOL_ROOT/dispatch/lease.log` and reported to
-  `CLE-001`.
+- Every transition is logged once to `$SPOOL_ROOT/dispatch/lease.log` and
+  reported to `CLE-001`.
+- Both loops are the run action `do_spl_dispatch_lease`
+  (`LEASE_CMD=show|renew|watch|ensure|stop`). The desk reconcile cron runs
+  `ensure` every tick, which starts a loop that is not running; that is what
+  brings them back after a reboot. `$SPOOL_ROOT/dispatch/lease.conf` (the ids)
+  is the opt-in: without it `ensure` starts nothing.
+- Setting it all up on a machine: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md)
+  (`do_spl_dispatch_setup`, verified by `do_spl_dispatch_check`).
 
 ## 5. What this replaced
 
@@ -110,8 +121,9 @@ end to end in every seated workspace.
 | piece | state |
 |---|---|
 | `CLE-002`, `CLE-003` spawned (auto mode, current model) | live since 2026-10-01 |
-| lease renew + watch loops | running from an interim script outside the repo; landing them as a run.sh action with tests, and starting them at boot, is open |
-| dispatchers seated on every workspace desk | open |
+| lease renew + watch loops | `do_spl_dispatch_lease` with tests (a replay of the 2026-10-01 live failover test); ensured every 5 min by the desk reconcile cron; repo loops live since 2026-10-01 06:28Z; the interim watch loop is stopped, the interim renew loop is stopped by the orchestrator at cutover |
+| setup and verify on a new machine | `do_spl_dispatch_setup` (DRY_RUN plan, idempotent) + `do_spl_dispatch_check`; prompt: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md) |
+| dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
 | retiring the standing first responder and the relay agent | open, after the end-to-end test |
 
-<!-- version: 0.1.0 · updated: 2026-10-01 · last-edit: 2026-10-01T04:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-01 · last-edit: 2026-10-01T06:40:00Z -->

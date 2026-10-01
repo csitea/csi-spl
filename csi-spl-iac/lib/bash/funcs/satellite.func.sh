@@ -14,13 +14,18 @@
 # @param $2 (optional) the step, default 060-gcp-vm-satellite
 # @example vm=$(do_satellite_cnf vm_name) || exit 1
 #------------------------------------------------------------------------------
-do_satellite_cnf() {
-  local key=$1 step=${2:-060-gcp-vm-satellite} f v
+# the cnf file the satellite's steps live in (SATELLITE_CNF_FILE in tests)
+_satellite_cnf_file() {
   if [[ -z "${SATELLITE_CNF_FILE:-}" ]]; then
     do_resolve_oap ORG >&2
     do_resolve_oap APP >&2
   fi
-  f="${SATELLITE_CNF_FILE:-${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/prd.env.yaml}"
+  printf '%s\n' "${SATELLITE_CNF_FILE:-${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/prd.env.yaml}"
+}
+
+do_satellite_cnf() {
+  local key=$1 step=${2:-060-gcp-vm-satellite} f v
+  f=$(_satellite_cnf_file)
   [[ -f "$f" ]] || { do_log "FATAL no satellite cnf at $f" >&2; return 1; }
   v=$(yq -r ".env.steps.\"${step}\".${key} // \"\"" "$f" 2>/dev/null)
   [[ -n "$v" && "$v" != null ]] || { do_log "FATAL steps.${step}.${key} is not set in $f" >&2; return 1; }

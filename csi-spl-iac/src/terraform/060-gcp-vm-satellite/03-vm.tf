@@ -22,11 +22,10 @@ resource "google_compute_disk" "data" {
   zone   = var.gcp_zone
   labels = merge(local.labels, { role = "satellite-data" })
 
-  # no snapshots (round 1 Q13: git is the backup), so the disk itself is
-  # never destroyed by terraform
-  lifecycle {
-    prevent_destroy = true
-  }
+  # No prevent_destroy: the owner orders full destroy + recreate drills
+  # (2026-10-01 "destroy and recreate it ... verify everything once again"),
+  # and git is the backup (round 1 Q13). A destroy is owner-gated per call
+  # (make do-tf-plan-destroy first). A VM rebuild alone keeps this disk.
 }
 
 resource "google_compute_instance" "satellite" {

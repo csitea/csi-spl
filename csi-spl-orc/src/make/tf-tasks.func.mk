@@ -97,8 +97,26 @@ do-deprovision: demand_var-ENV demand_var-STEP
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e GIT_REF=$(GIT_REF) \
+		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_divest \
+	'
+
+.PHONY: do-tf-plan-destroy ## @-> 03.06 show what a full-step destroy would remove (changes nothing)
+do-tf-plan-destroy: demand_var-ENV demand_var-STEP
+	@bash -c '\
+	  source lib/bash/funcs/resolve-oap.func.sh; \
+	  do_resolve_oap ORG; do_resolve_oap APP; \
+	  export ENV=$(ENV); \
+	  docker exec \
+		-e ORG=$$ORG \
+		-e ENV=$$ENV \
+		-e APP=$${APP#*-} \
+		-e STEP=$(STEP) \
+		-e ACTION=provision \
+		-e TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}" \
+		con-$$ORG-$$APP-tf-runner \
+		./run -a do_tf_plan_destroy \
 	'
 
 .PHONY: do-provision-local ## @-> 03.07 provision a step locally

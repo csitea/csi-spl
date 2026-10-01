@@ -162,9 +162,13 @@ spl_lease_log() { echo "$(date -u +%FT%TZ) $*" >> "$LEASE_LOG"; }
 spl_lease_tell() {
   local to="$1"; shift
   local send="${LEASE_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  local rc=0
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$LEASE_ORCH" --to "$to" \
-    --kind note --task dispatch-lease --body "$*" >/dev/null 2>&1 8>&- ||
-    spl_lease_log "WARN could not tell $to"
+    --kind note --task dispatch-lease --body "$*" >/dev/null 2>&1 8>&- || rc=$?
+  # spool-send.sh: 1-9 = delivered, only the poke did not ring (e.g. 6, the
+  # pane holds unsent text); 10+ = nothing delivered
+  (( rc >= 10 || rc == 2 )) && spl_lease_log "WARN could not tell $to (spool-send exit $rc)"
+  return 0
 }
 
 # The owner hop for an agent that runs as another user (lib/proc-owner.inc.sh,

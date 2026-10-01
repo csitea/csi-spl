@@ -19,6 +19,8 @@
 #      take over
 #  11. ensure in fleet mode runs the fleet loop instead of renew + watch;
 #      a machine missing from LEASE_PRIORITY is refused
+#  13. a note delivered without a poke (spool-send exit 1-9) is no WARN;
+#      exit 10+ (nothing delivered) is
 #  Both machines run CLE-001/002/003 (reserved on every box), so every holder
 #  is <ID>@<box>; 12 checks a same-id holder on the other box is never read as
 #  this machine's own.
@@ -193,6 +195,17 @@ out=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$E/spool" LEASE_MACHINE=other LEASE
   do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; LEASE_CMD=fleet do_spl_dispatch_lease' 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"not in LEASE_PRIORITY"* ]] &&
   pass "11. a machine missing from LEASE_PRIORITY is refused" || fail "11. rc=$rc out=$out"
+
+# --- 13. a delivered note whose poke did not ring is not a WARN ----------------------
+printf '#!/usr/bin/env bash\nexit "$SEND_RC"\n' >"$T/bin/send-rc"; chmod +x "$T/bin/send-rc"
+tellrc() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/w/spool" LEASE_SEND="$T/bin/send-rc" SEND_RC="$1" LEASE_ORCH=CLE-001 bash -c '
+    do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_lease_tell CLE-002 hi'
+  cat "$T/w/spool/dispatch/lease.log" 2>/dev/null | grep -c WARN
+}
+mkdir -p "$T/w/spool"
+[[ "$(tellrc 6)" == 0 ]] && pass "13. exit 6 (delivered, pane busy) logs no WARN" || fail "13. exit 6 warned"
+[[ "$(tellrc 11)" == 1 ]] && pass "13. exit 11 (nothing delivered) logs a WARN" || fail "13. exit 11 not warned"
 
 # --- 12. remote holder: the standby machine's sweep, tick and check --------------
 R="$T/r"; mkdir -p "$R/spool/dispatch"

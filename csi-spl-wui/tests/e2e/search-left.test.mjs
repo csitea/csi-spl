@@ -92,6 +92,12 @@ try {
   ok('6 the query, the list and the chosen hit stay', Boolean(kept) && (await selected(p, LIST))[0] === ids[1], { sel: await selected(p, LIST) })
   await p.screenshot({ path: `${SHOTS}/2-desktop-open.png` })
 
+  /* the place focuses its own line a moment later; the list keeps the keys */
+  await new Promise((r) => setTimeout(r, 2500))
+  const keptFocus = await p.evaluate(() => Boolean(document.activeElement && document.activeElement.closest('[data-testid=left-list]')))
+  await p.keyboard.press('ArrowUp')
+  ok('6b the keyboard stays on the list after Enter: ArrowUp keeps cycling', keptFocus && (await selected(p, LIST))[0] === ids[0], { keptFocus, sel: await selected(p, LIST) })
+
   await p.click(`${LIST} [data-testid=left-entry][data-msg-id="${ids[0]}"]`)
   await p.waitForFunction((id) => location.hash === '#' + id, { timeout: 10000 }, ids[0]).catch(() => null)
   ok('7 a click on the next hit opens it; the list is still there', inPlace(p.url(), ids[0]) && Boolean(await p.$(ENTRY)) && (await selected(p, LIST))[0] === ids[0], p.url())

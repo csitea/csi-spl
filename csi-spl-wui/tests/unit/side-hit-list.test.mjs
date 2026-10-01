@@ -62,3 +62,17 @@ describe('SideHitList.vue carries the shared acceptance hooks (lane D)', () => {
     assert.match(src, /:aria-selected=/)
   })
 })
+
+describe('an open from the list keeps the keyboard on the list (CLE-001, wf11 flow-left)', () => {
+  const src = read('src/components/SideHitList.vue')
+  it('Enter and a mouse click keep the focus; a tap does not', () => {
+    assert.match(src, /emit\('open', props\.activeKey\)\n\s+keepFocus\(\)/)
+    assert.match(src, /pointerType !== 'touch'\) keepFocus\(\)/)
+  })
+  it('the hand-back is bounded and yields to the reader', () => {
+    assert.match(src, /const KEEP_MS = 2000/)
+    assert.match(src, /addEventListener\('pointerdown', onPress, true\)/)
+    assert.match(src, /addEventListener\('keydown', onKeyAny, true\)/)
+    assert.match(src, /focus\(\{ preventScroll: true \}\)/)
+  })
+})

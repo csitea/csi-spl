@@ -38,7 +38,7 @@
         :data-ts="item.ts || undefined"
         :data-msg-id="item.msgId || item.key"
         :title="item.title || undefined"
-        @click="onClick(item)"
+        @click="onClick($event, item)"
         @contextmenu="emit('menu', item.key, $event)"
         @pointerdown="emit('press', item.key, $event)"
       >
@@ -100,9 +100,57 @@ function onFocus() {
   if (activeIndex.value < 0 && props.items.length) emit('active', props.items[0].key)
 }
 
-function onClick(item: SideHitItem) {
+/* CLE-77884 (owner: browse the list fast with the keyboard): an open from
+   the list leaves the focus ON the list, so Up/Down keep cycling. The place
+   it opens focuses its own line (LiveFeed's #<msg> rule, a thread row) a
+   moment later; for a short while any such move is handed back, unless the
+   reader presses somewhere else first. Not after a tap: a phone has no keys. */
+const KEEP_MS = 2000
+let releaseKeep: (() => void) | null = null
+function keepFocus() {
+  releaseKeep?.()
+  const list = listEl.value
+  if (!list || typeof document === 'undefined') return
+  const until = Date.now() + KEEP_MS
+  const back = () => {
+    if (Date.now() > until) return release()
+    if (!list.isConnected) return release()
+    const a = document.activeElement
+    if (!a || a === document.body || !list.contains(a)) list.focus({ preventScroll: true })
+  }
+  const onIn = (ev: FocusEvent) => {
+    if (ev.target instanceof Node && list.contains(ev.target)) return
+    setTimeout(back, 0)
+  }
+  const timers = [0, 150, 400, 900, 1600].map((ms) => setTimeout(back, ms))
+  const release = () => {
+    document.removeEventListener('focusin', onIn, true)
+    document.removeEventListener('pointerdown', onPress, true)
+    document.removeEventListener('keydown', onKeyAny, true)
+    timers.forEach(clearTimeout)
+    clearTimeout(stop)
+    if (releaseKeep === release) releaseKeep = null
+  }
+  const onPress = (ev: PointerEvent) => {
+    if (!(ev.target instanceof Node && list.contains(ev.target))) release()
+  }
+  /* a key that is not the list's own walk (/, a letter, Tab) is the reader
+     going elsewhere */
+  const onKeyAny = (ev: KeyboardEvent) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter'].includes(ev.key)) release()
+  }
+  const stop = setTimeout(release, KEEP_MS)
+  document.addEventListener('focusin', onIn, true)
+  document.addEventListener('pointerdown', onPress, true)
+  document.addEventListener('keydown', onKeyAny, true)
+  releaseKeep = release
+}
+onBeforeUnmount(() => releaseKeep?.())
+
+function onClick(ev: MouseEvent, item: SideHitItem) {
   emit('active', item.key)
   emit('open', item.key)
+  if ((ev as PointerEvent).pointerType !== 'touch') keepFocus()
 }
 
 function onKey(ev: KeyboardEvent) {
@@ -117,6 +165,7 @@ function onKey(ev: KeyboardEvent) {
   if (ev.key === 'Enter' && activeIndex.value >= 0) {
     ev.preventDefault()
     emit('open', props.activeKey)
+    keepFocus()
     return
   }
   emit('keydown', ev, props.activeKey)

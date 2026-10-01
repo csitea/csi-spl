@@ -153,6 +153,18 @@ if [ "$PRINT" = 1 ]; then
 fi
 
 check_tools || exit $?
+
+# The dispatcher heartbeat lease (SPEC-spool-fleet-roles.md section 4): start
+# its renew + watch loops when they are not running. Idempotent (each loop
+# holds a lock), a no-op on a box without <spool root>/dispatch/lease.conf,
+# and FIRST, so a slow or failing reconcile never delays the lease after a
+# reboot. Its result does not change the reconcile's exit code.
+# DESK_LEASE=0 turns it off.
+if [ "${DESK_LEASE:-1}" != 0 ]; then
+  ( cd "$ORC" && env LEASE_CMD=ensure ./run -a do_spl_dispatch_lease )
+  say "INFO do_spl_dispatch_lease ensure exit $?"
+fi
+
 say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
 # DESK_MUTE travels from the crontab line through to the action. Without it a
 # tick would UNDO a deliberate mute - DESK_POKE defaults to 1, so the reconcile

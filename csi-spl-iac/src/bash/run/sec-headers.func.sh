@@ -60,15 +60,30 @@ _sec_headers_missing() {
   printf '%s\n' "${miss[@]}"
 }
 
+# Wait until a local mock is listening. The mock binds port 0 itself and only
+# then writes the port it got into <portfile> (atomic rename), so a port read
+# here is already accepting: no fixed sleep, no pick-then-bind port race. Bounded
+# by SEC_HEADERS_MOCK_WAIT seconds (default 60, generous for a loaded box); fails
+# early if the server process died. Prints the port.
+_sec_headers_wait_port() {
+  local portfile="$1" pid="$2" deadline
+  deadline=$(( SECONDS + ${SEC_HEADERS_MOCK_WAIT:-60} ))
+  while (( SECONDS < deadline )); do
+    [[ -s "$portfile" ]] && { cat "$portfile"; return 0; }
+    kill -0 "$pid" 2>/dev/null || { do_log "FATAL mock server (pid $pid) exited before listening" >&2; return 1; }
+    sleep 0.1
+  done
+  do_log "FATAL mock server (pid $pid) not listening after ${SEC_HEADERS_MOCK_WAIT:-60}s" >&2
+  return 1
+}
+
 # A local server that returns only one of the required headers, so the check must
-# report the rest as missing. Prints "PORT PID SCRIPT".
+# report the rest as missing. Prints "PORT PID SCRIPT" once it is listening.
 _sec_headers_mock() {
-  local port script
-  port=$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')
+  local port pid script
   script=$(mktemp --suffix=.py)
   cat >"$script" <<'PY'
-import sys,http.server
-port=int(sys.argv[1])
+import os,sys,http.server
 class H(http.server.BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.send_response(200)
@@ -76,10 +91,15 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
     def do_GET(self): self.do_HEAD()
     def log_message(self,*a): pass
-http.server.HTTPServer(("127.0.0.1",port),H).serve_forever()
+srv=http.server.HTTPServer(("127.0.0.1",0),H)
+with open(sys.argv[1]+".tmp","w") as f: f.write(str(srv.server_address[1]))
+os.rename(sys.argv[1]+".tmp",sys.argv[1])
+srv.serve_forever()
 PY
-  python3 "$script" "$port" >/dev/null 2>&1 &
-  printf '%s %s %s\n' "$port" "$!" "$script"
+  python3 "$script" "$script.port" >/dev/null 2>&1 &
+  pid=$!
+  port=$(_sec_headers_wait_port "$script.port" "$pid") || { kill "$pid" 2>/dev/null; rm -f "$script" "$script.port"*; return 1; }
+  printf '%s %s %s\n' "$port" "$pid" "$script"
 }
 
 do_sec_headers() {
@@ -88,12 +108,12 @@ do_sec_headers() {
 
   # --- control: a mock omitting headers must be flagged ----------------------
   local pm port pid script
-  pm=$(_sec_headers_mock); read -r port pid script <<<"$pm"
-  sleep 1
+  pm=$(_sec_headers_mock) || return 1
+  read -r port pid script <<<"$pm"
   local cmiss
   cmiss=$(_sec_headers_missing "http://127.0.0.1:$port")
   kill "$pid" >/dev/null 2>&1 || true
-  rm -f "$script"
+  rm -f "$script" "$script.port"
   if [[ -z "$cmiss" || "$cmiss" == "UNREACHABLE" ]]; then
     do_log "FATAL control: the check did not flag a header-less mock -- it proves nothing"
     return 1

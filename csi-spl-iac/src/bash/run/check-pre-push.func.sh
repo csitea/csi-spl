@@ -40,6 +40,7 @@
 # @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
+# @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint)
 # @param PRE_PUSH_EXTRA_PATH (optional) - dirs appended to PATH before the tool check, default /usr/local/bin:/usr/bin:/bin:~/.local/bin
 # @example ./run -a do_check_pre_push
@@ -207,7 +208,9 @@ _pp_part_wui() {
   local wui="$1/csi-spl-wui" pn
   [[ -d "$wui" ]] || { do_log "FATAL pre-push: no csi-spl-wui at $wui"; return 1; }
   pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin)"; return 1; }
-  timeout -k 10 "$_pp_timeout" bash -c '
+  # unit (57 s) + typecheck (77..134 s) + a re-install (52 s) measured past the
+  # 300 s default on a loaded box (CLE-77831): the wui part gets its own.
+  timeout -k 10 "${PRE_PUSH_WUI_TIMEOUT:-420}" bash -c '
     cd "$1/csi-spl-wui" || exit 1
     export PATH="$HOME/.local/bin:$PATH"
     # A node_modules SYMLINK into another checkout (the stale shared one) made

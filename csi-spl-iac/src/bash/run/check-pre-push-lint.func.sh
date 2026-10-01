@@ -15,6 +15,12 @@
 # @description                    ones parse with the PG16 grammar (pglast 6.x)
 # @description   lint-compose     docker compose config -q --no-interpolate (schema)
 # @description   lint-gitleaks    15's gitleaks + .gitleaks.toml over the PUSHED commits only
+# @description   lint-wui-syntax  per-file Vue SFC compile (script + TEMPLATE) and TS/JS
+# @description                    parse (wui-syntax-check.mjs): the template-error class
+# @description                    that typecheck + nuxt generate pass (blanked dev+prd
+# @description                    2026-09-30); seconds, before the wui part's minutes
+# @description   lint-wui-lock    pnpm install --frozen-lockfile --lockfile-only: a
+# @description                    package.json edit without its lock fails every CI install
 # @description   lint-shellcheck  67 do_sec_shellcheck  (.sh in the iac/orc/cnf bash trees)
 # @description   lint-actionlint  85 do_sec_actionlint  (.github/workflows/*)
 # @description   lint-hadolint    66 do_sec_hadolint    (Dockerfiles)
@@ -40,7 +46,7 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-trufflehog lint-gitleaks"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
 _PPL_SLOW="lint-checkov lint-semgrep lint-gosec"
 
 # The hub migrations (forward-only; roles/*.sql carry psql variables, hub-pg's).
@@ -96,6 +102,10 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-migration)  [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f" ;;
       lint-compose)    [[ "$b" == docker-compose*.yml || "$b" == docker-compose*.yaml ]] && echo "$f" ;;
       lint-gitleaks)   echo ALL; return 0 ;;
+      lint-wui-syntax)
+        [[ "$f" == csi-spl-wui/* && "$f" =~ \.(vue|ts|tsx|mjs|js)$ && "$f" != */node_modules/* \
+           && "$f" != csi-spl-wui/.nuxt/* && "$f" != csi-spl-wui/.output/* && "$f" != csi-spl-wui/dist/* ]] && echo "$f" ;;
+      lint-wui-lock)   [[ "$f" == csi-spl-wui/package.json || "$f" == csi-spl-wui/pnpm-lock.yaml ]] && { echo ALL; return 0; } ;;
       lint-trufflehog) echo "$f" ;;
       lint-checkov)    [[ "$f" == csi-spl-iac/src/terraform/* ]] && { echo ALL; return 0; } ;;
       lint-semgrep)    [[ "$f" == *.go || "$f" == csi-spl-wui/src/* ]] && { echo ALL; return 0; } ;;
@@ -122,7 +132,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
       case "$sc" in
-        lint-syntax|lint-mdlinks|lint-compose) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
+        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
         lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
       esac
     else
@@ -162,6 +172,9 @@ _ppl_missing() {  # <scanner>
     lint-migration)  [[ -x "$(_ppl_pglast_py)" ]] || echo "pglast -- $fix" ;;
     lint-compose)    docker compose version >/dev/null 2>&1 || echo "docker compose -- install docker with the compose plugin" ;;
     lint-gitleaks)   _ppl_need gitleaks ;;
+    lint-wui-syntax|lint-wui-lock)
+      _ppl_need node
+      _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin" ;;
     lint-shellcheck) _ppl_need shellcheck ;;
     lint-actionlint) _ppl_need actionlint; _ppl_need shellcheck ;;
     lint-hadolint)   _ppl_need hadolint ;;
@@ -200,6 +213,8 @@ _ppl_repro() {  # <scanner>
     lint-trufflehog) var=SEC_TRUFFLEHOG_FILES act=do_sec_trufflehog ;;
     lint-checkov)    act=do_sec_checkov ;; lint-semgrep) act=do_sec_semgrep ;; lint-gosec) act=do_sec_gosec ;;
     lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
+    lint-wui-syntax) echo "cd csi-spl-wui && node ../csi-spl-iac/src/bash/scripts/wui-syntax-check.mjs $(printf '%s\n' "$sel" | sed 's|^csi-spl-wui/||' | paste -sd' ' -)"; return 0 ;;
+    lint-wui-lock) echo "cd csi-spl-wui && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts"; return 0 ;;
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
     *) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
@@ -242,6 +257,13 @@ _ppl_run_one() {  # <scanner> <tree>
         ( cd "$tree/$(dirname "$f")" && docker compose -f "${f##*/}" config -q --no-interpolate ) \
           || { echo "COMPOSE schema: $f"; rc=1; }
       done <<<"$files" ;;
+    lint-wui-syntax)
+      local -a wf=(); while IFS= read -r f; do wf+=("$tree/$f"); done <<<"$files"
+      _ppl_wui_modules || return 1
+      ( cd "${_PP_TOP:-$tree}/csi-spl-wui" && node "$(_ppl_scripts)/wui-syntax-check.mjs" "${wf[@]}" ) || rc=1 ;;
+    lint-wui-lock)
+      ( cd "$tree/csi-spl-wui" && "$(_pp_pnpm)" install --frozen-lockfile --lockfile-only --ignore-scripts --reporter=silent ) \
+        || { echo "LOCKFILE csi-spl-wui/pnpm-lock.yaml does not match package.json -- run pnpm install and commit the lock"; rc=1; } ;;
     lint-gitleaks)
       local gbase; gbase="$(git -C "$tree" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)"
       if [[ -n "$gbase" && "$gbase" != "$(git -C "$tree" rev-parse HEAD)" ]]; then
@@ -266,6 +288,17 @@ _ppl_run_one() {  # <scanner> <tree>
     do_log "ERROR pre-push: $sc found something -- reproduce it with: $(_ppl_repro "$sc")"
   fi
   return 1
+}
+
+# The SFC check resolves typescript + vue from the pushing tree's WUI
+# node_modules; a fresh worktree has none, so install them (the wui part
+# would install them anyway, a few lines later).
+_ppl_wui_modules() {
+  local wui="${_PP_TOP:-.}/csi-spl-wui" pn
+  [[ -d "$wui/node_modules/typescript" && -d "$wui/node_modules/vue" ]] && return 0
+  pn="$(_pp_pnpm)" || { echo "pnpm not found"; return 127; }
+  echo "pre-push: WUI node_modules absent -- pnpm install --frozen-lockfile (once per worktree)"
+  ( cd "$wui" && export PATH="$HOME/.local/bin:$PATH" && "$pn" install --frozen-lockfile --reporter=silent )
 }
 
 # Forward-only + PG16 parse. On the BASE tree there is no edit to refuse and
@@ -315,6 +348,8 @@ _pp_part_lint_mdlinks()    { _ppl_run_one lint-mdlinks "$1"; }
 _pp_part_lint_migration()  { _ppl_run_one lint-migration "$1"; }
 _pp_part_lint_compose()    { _ppl_run_one lint-compose "$1"; }
 _pp_part_lint_gitleaks()   { _ppl_run_one lint-gitleaks "$1"; }
+_pp_part_lint_wui_syntax() { _ppl_run_one lint-wui-syntax "$1"; }
+_pp_part_lint_wui_lock()   { _ppl_run_one lint-wui-lock "$1"; }
 _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }
 _pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }

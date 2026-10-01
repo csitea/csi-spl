@@ -121,6 +121,8 @@ How to apply:
   | `lint-migration` | — | a migration already on trunk is never edited/renamed/deleted (`SPL_MIGRATION_EDIT_OK=<file>` allows one, logged); a new one parses with the PG16 grammar (pglast 6.x) | hook |
   | `lint-compose` | — | `docker compose config -q --no-interpolate` | hook |
   | `lint-gitleaks` | 15 | `do_sec_scan` secrets, `.gitleaks.toml`, over the PUSHED commits only | hook |
+  | `lint-wui-syntax` | — | per-file Vue SFC compile (script + template) and TS/JS parse: the template error class typecheck and `nuxt generate` pass | hook |
+  | `lint-wui-lock` | — | `pnpm install --frozen-lockfile --lockfile-only` when `package.json`/lock change | hook |
   | `lint-shellcheck` | 67 | `do_sec_shellcheck` -S error, iac/orc/cnf bash trees | hook |
   | `lint-actionlint` | 85 | `do_sec_actionlint`, with a control proving its shellcheck leg ran | hook |
   | `lint-hadolint` | 66 | `do_sec_hadolint` vs `.hadolint.yaml` | hook |

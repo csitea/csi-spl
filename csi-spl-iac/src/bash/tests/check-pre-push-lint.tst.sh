@@ -25,6 +25,8 @@
 #  16. a new migration that is not PG16 SQL -> FAIL (pglast, when installed)
 #  17. a docker-compose file with an unknown service key -> lint-compose FAIL
 #      (when docker compose is installed)
+#  18. a .vue whose TEMPLATE does not compile -> lint-wui-syntax FAIL; a clean
+#      one passes (when this checkout's csi-spl-wui/node_modules exists)
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
 #   leg 8 uses the real binary that do_install_lint_tools puts on the box.
 #------------------------------------------------------------------------------
@@ -250,6 +252,26 @@ else
   echo "INFO: no docker compose on this host -- leg 17 not run"
 fi
 
+# 18. Vue SFC compile
+WUI_NM="$(cd "$TEST_DIR/../../../.." && pwd)/csi-spl-wui/node_modules"
+if [[ -d "$WUI_NM/vue" && -d "$WUI_NM/typescript" ]]; then
+  NODE_DIR="$(dirname "$(command -v node)")"
+  wui_repo() { new_repo; mkdir -p "$R/csi-spl-wui/src"; ln -s "$WUI_NM" "$R/csi-spl-wui/node_modules"; echo '{}' >"$R/csi-spl-wui/package.json"
+    printf 'node_modules\n' >"$R/.gitignore"; git -C "$R" add -A; git -C "$R" commit -qm wui; git -C "$R" branch -f base; }
+  wui_repo
+  printf '<template>\n  <p v-if="a">x</p>\n  <p v-else-if>bad</p>\n</template>\n<script setup lang="ts">\nconst a = true\n</script>\n' >"$R/csi-spl-wui/src/Bad.vue"; commit badvue
+  rc="$(PP_PATH="$STUB:$NODE_DIR:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-wui-syntax)" == FAIL ]] && grep -q 'template:' "$T/out" \
+    && pass "18a. a .vue template that does not compile is REFUSED" || fail "18a. sfc" "rc=$rc verdict=$(verdict lint-wui-syntax)"
+  wui_repo
+  printf '<template>\n  <p v-if="a">x</p>\n  <p v-else>y</p>\n</template>\n<script setup lang="ts">\nconst a: boolean = true\n</script>\n' >"$R/csi-spl-wui/src/Good.vue"; commit goodvue
+  rc="$(PP_PATH="$STUB:$NODE_DIR:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 0 && "$(verdict lint-wui-syntax)" == PASS ]] \
+    && pass "18b. a clean .vue passes" || fail "18b. sfc clean" "rc=$rc verdict=$(verdict lint-wui-syntax) $(grep -m3 -E 'Good|FATAL' "$T/out")"
+else
+  echo "INFO: no csi-spl-wui/node_modules (vue + typescript) in this checkout -- leg 18 not run"
+fi
+
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>
   local -A _PPL_FILES=()
@@ -259,6 +281,7 @@ plan_of() {  # <changed-files...>
 }
 new_repo
 mkdir -p "$R/.github/workflows" "$R/csi-spl-orc/src/docker/x" "$R/csi-spl-wui/src/lib" "$R/csi-spl-iac/src/bash/run"
+mkdir -p "$R/csi-spl-wui"; echo '{}' >"$R/csi-spl-wui/package.json"
 for f in .github/workflows/a.yml csi-spl-orc/src/docker/x/Dockerfile csi-spl-wui/src/lib/a.mjs \
          csi-spl-api/src/bash/h.sh csi-spl-iac/src/bash/run/sec-shellcheck.func.sh; do echo x >"$R/$f"; done
 p="$(plan_of .github/workflows/a.yml)";              [[ " $p " == *" lint-actionlint "* ]] && pass "6a. workflow -> actionlint" || fail "6a" "$p"
@@ -269,6 +292,7 @@ p="$(plan_of csi-spl-api/src/bash/h.sh)"
 declare -A _PPL_FILES=()
 _ppl_plan "csi-spl-iac/src/bash/run/sec-shellcheck.func.sh" fast fast "$R" >/dev/null
 [[ "${_PPL_FILES[lint-shellcheck]:-}" == ALL ]] && pass "6e. the shellcheck action changed -> its whole scope" || fail "6e" "${_PPL_FILES[lint-shellcheck]:-none}"
+p="$(plan_of csi-spl-wui/package.json)"; [[ " $p " == *" lint-wui-lock "* ]] && pass "6g. wui package.json -> lockfile drift" || fail "6g" "$p"
 p="$(plan_of doc/readme.md)"
 [[ " $p " != *" lint-shellcheck "* && " $p " != *" lint-syntax "* ]] && pass "6f. a doc-only push runs no scanner but trufflehog" || fail "6f" "$p"
 unset _PPL_FILES

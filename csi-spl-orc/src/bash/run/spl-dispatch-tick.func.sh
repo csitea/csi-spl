@@ -41,6 +41,9 @@ do_spl_dispatch_tick() {
     sed 's/^/DISPATCH   /' "$tmp/sub"
   fi
   sed -n 's/^PLAN /DISPATCH subscribe /p' "$tmp/sub"
+  # the gap feed is OFF until its check resolves the dispatcher worktrees
+  # outside the running checkout (2026-10-01: false GAPs from the cron tree)
+  [[ "${DISPATCH_TICK_GAPS:-0}" == 1 ]] || { rm -rf "$tmp"; return $rc; }
   # one DEAD item per agent, so one agent's exit is one new item
   sed -n 's/^DEAD \([^ ]*\) \(#[^ ]*\) \(.*\) (no live process.*/\1 \2|\3/p' "$tmp/sub" |
     while IFS='|' read -r where ids; do

@@ -34,7 +34,7 @@ printf '| what | value | verdict |\n|---|---|---|\n| CLE-002 process | pid 7, SP
 tick() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/repo" SPL_STATE_DIR="$T/state" LEASE_PROC_ROOT="$P" \
     DISPATCH_SUBS_DIR="$SUBS" SPOOL_ROOT="$S" ENV=prd CALLS="$T/calls" CHECK="$T/check" \
-    DISPATCH_TICK_SEND="$T/send.sh" SENT="$T/sent" SPOOL_BIN=/bin/true "$@" bash -c '
+    DISPATCH_TICK_SEND="$T/send.sh" SENT="$T/sent" SPOOL_BIN=/bin/true DISPATCH_TICK_GAPS=1 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/src/bash/run/spl-dispatch-*.func.sh; do source "$f"; done

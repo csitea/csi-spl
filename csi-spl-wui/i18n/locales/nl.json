@@ -490,6 +490,9 @@
     "resize": "Grootte wijzigen",
     "send": "Versturen",
     "go": "Ga / Verzenden",
+    "go_new": "Onderwerp starten",
+    "go_reply": "Antwoord versturen",
+    "go_comment": "Reactie plaatsen",
     "sending": "Versturen…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",
     "send_failed": "Niet verzonden — het bericht bereikte de hub niet.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Niet verzonden — je sessie is verlopen. Meld je opnieuw aan; je tekst staat er nog.",
     "camera": "Foto maken",
     "target_thread": "Antwoord in de open thread",
+    "target_thread_in": "Antwoord in: {title}",
     "target_new": "Nieuw onderwerp in {target}",
+    "target_dm": "Nieuw onderwerp met {target}",
     "target_comment": "Reactie op {target}",
     "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Druk op Enter om het onderwerp van dit bericht te openen.",
     "edit": {
       "label": "Bericht bewerken",
+      "mode": "Dit bericht bewerken",
       "hint": "Enter slaat op · Shift+Enter nieuwe regel · Esc annuleert",
       "shortcut_hint": "Druk op e om dit bericht te bewerken",
       "marker": "(bewerkt)",
@@ -904,7 +910,9 @@
       "issues": "Kwesties"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
+    "placeholder_new_topic": "Nieuw onderwerp in {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "placeholder_target_enter": "Bericht aan {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
+    "placeholder_new_topic_enter": "Nieuw onderwerp in {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",

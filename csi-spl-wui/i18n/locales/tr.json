@@ -490,6 +490,9 @@
     "resize": "Boyutu değiştir",
     "send": "Gönder",
     "go": "Git / Gönder",
+    "go_new": "Konu başlat",
+    "go_reply": "Yanıtı gönder",
+    "go_comment": "Yorumu gönder",
     "sending": "Gönderiliyor…",
     "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter veya Cmd+Enter gönderir",
     "send_failed": "Gönderilmedi — mesaj hub'a ulaşmadı.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Gönderilmedi — oturumun sona erdi. Yeniden giriş yap; metnin duruyor.",
     "camera": "Fotoğraf çek",
     "target_thread": "Açık konuya yanıt",
+    "target_thread_in": "Yanıt: {title}",
     "target_new": "{target} içinde yeni konu",
+    "target_dm": "{target} ile yeni konu",
     "target_comment": "{target} için yorum",
     "target_search_only": "Burada gönderi yok — GO metni arar"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Bu iletinin konusunu açmak için Enter'a basın.",
     "edit": {
       "label": "Mesajı düzenle",
+      "mode": "Bu mesaj düzenleniyor",
       "hint": "Enter kaydeder · Shift+Enter yeni satır · Esc iptal eder",
       "shortcut_hint": "Bu mesajı düzenlemek için e tuşuna basın",
       "marker": "(düzenlendi)",
@@ -904,7 +910,9 @@
       "issues": "Konular"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
+    "placeholder_new_topic": "{target} içinde yeni konu — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "placeholder_target_enter": "{target} için mesaj — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
+    "placeholder_new_topic_enter": "{target} içinde yeni konu — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",

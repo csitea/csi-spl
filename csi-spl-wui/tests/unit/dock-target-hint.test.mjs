@@ -6,10 +6,10 @@
 // it before the send: the open thread (a reply) or a new topic in the feed.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dockTargetHint } from '../../src/utils/omnibox-topic.mjs'
+import { composerModeLabel, composerSendKey, dockTargetHint } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -61,9 +61,95 @@ describe('the phone dock names its target (SPL-1003)', () => {
     }
   })
 
-  it('the hint shows only on a docked composer - the phone dock, or the bottom dock (topic c6994436) - so the default desktop is unchanged', () => {
+  it('the line over the box shows on a docked composer - the phone dock, or the bottom dock (topic c6994436); the top bar has its own chip (HUM-24)', () => {
     const c = src('src/components/MessageComposer.vue')
     assert.match(c, /v-if="\(docked \|\| bottom\) && !searchMode && dockHint"/)
     assert.match(src('src/components/TopBar.vue'), /:dock-target="dockTarget"/)
+  })
+})
+
+// HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
+// from writing a reply in the chat" - every mode has its own label, accent,
+// placeholder and GO words, on the desktop top bar too.
+describe('the composer looks different per mode (HUM-24)', () => {
+  const LOCALES = join(WUI, 'i18n/locales')
+  const loc = (l) => JSON.parse(readFileSync(join(LOCALES, `${l}.json`), 'utf8'))
+  const ALL = readdirSync(LOCALES).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''))
+
+  it('a reply names the open thread when its title is known; a DM page says "with" the peer', () => {
+    assert.deepEqual(dockTargetHint({ reply: true, target: '#alerts', title: 'disk is full' }, 'x'), { mode: 'thread', target: '#alerts', title: 'disk is full' })
+    assert.deepEqual(dockTargetHint({ reply: true, target: '#alerts', title: '  ' }, 'x'), { mode: 'thread', target: '#alerts' })
+    assert.deepEqual(dockTargetHint({ reply: false, target: 'CLE-07@box-a', dm: true }, 'x'), { mode: 'dm', target: 'CLE-07@box-a' })
+    /* a DM with its thread open is a reply, like anywhere else */
+    assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, 'x').mode, 'thread')
+    /* an addressed line starts a new topic in the DM */
+    assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, '@CLE-07 go').mode, 'dm')
+  })
+
+  it('one label per mode, from the same keys on every surface', () => {
+    assert.deepEqual(composerModeLabel({ mode: 'new', target: '#alerts' }), { key: 'composer.target_new', params: { target: '#alerts' } })
+    assert.deepEqual(composerModeLabel({ mode: 'dm', target: 'HUM-2' }), { key: 'composer.target_dm', params: { target: 'HUM-2' } })
+    assert.deepEqual(composerModeLabel({ mode: 'thread', target: '#a', title: 'T' }), { key: 'composer.target_thread_in', params: { title: 'T' } })
+    assert.deepEqual(composerModeLabel({ mode: 'thread', target: '#a' }), { key: 'composer.target_thread', params: {} })
+    assert.deepEqual(composerModeLabel({ mode: 'comment', target: 'SPL-7' }), { key: 'composer.target_comment', params: { target: 'SPL-7' } })
+    assert.equal(composerModeLabel(null), null)
+  })
+
+  it('the GO button says what it does', () => {
+    assert.equal(composerSendKey({ mode: 'new' }), 'composer.go_new')
+    assert.equal(composerSendKey({ mode: 'dm' }), 'composer.go_new')
+    assert.equal(composerSendKey({ mode: 'thread' }), 'composer.go_reply')
+    assert.equal(composerSendKey({ mode: 'comment' }), 'composer.go_comment')
+    assert.equal(composerSendKey(null), 'composer.go')
+  })
+
+  it('every locale carries the new words, translated, and the new-topic placeholder keeps its key hints', () => {
+    const en = loc('en')
+    const KEYS = [['composer', 'target_thread_in'], ['composer', 'target_dm'], ['composer', 'go_new'], ['composer', 'go_reply'], ['composer', 'go_comment'], ['feed', 'edit', 'mode'], ['search', 'placeholder_new_topic'], ['search', 'placeholder_new_topic_enter']]
+    const get = (d, path) => path.reduce((o, k) => (o ? o[k] : undefined), d)
+    assert.equal(ALL.length, 19)
+    for (const l of ALL) {
+      const d = loc(l)
+      for (const path of KEYS) {
+        const v = get(d, path)
+        assert.equal(typeof v, 'string', `${l} ${path.join('.')}`)
+        assert.ok(v.trim(), `${l} ${path.join('.')}`)
+        if (l !== 'en') assert.notEqual(v, get(en, path), `${l} ${path.join('.')} is still English`)
+      }
+      assert.match(d.composer.target_thread_in, /\{title\}/, l)
+      assert.match(d.composer.target_dm, /\{target\}/, l)
+      assert.ok(d.search.placeholder_new_topic.startsWith(d.composer.target_new), l)
+      assert.match(d.search.placeholder_new_topic, /\{target\}.* — .*\/search/, l)
+    }
+    /* HUM-24 is Bulgarian: the words checked */
+    const bg = loc('bg')
+    assert.equal(bg.composer.target_new, 'Нова тема в {target}')
+    assert.equal(bg.composer.target_thread_in, 'Отговор в: {title}')
+    assert.equal(bg.feed.edit.mode, 'Редактиране на това съобщение')
+  })
+
+  it('the top bar shows the chip, the form carries the mode, the panes publish their title, DM pages say dm', () => {
+    const c = src('src/components/MessageComposer.vue')
+    assert.match(c, /v-if="global && !docked && !bottom && !searchMode && dockHint"\n\s+class="composer-mode"/)
+    assert.match(c, /:data-mode="modeAttr"/)
+    assert.match(c, /t\(sendKey\)/)
+    assert.match(c, /\.composer\.omnibox--global\[data-mode\] \.omnibox-field \{/)
+    for (const pane of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
+      assert.match(src(pane), /omnibox\.threadTitle = title/, pane)
+    }
+    assert.match(src('src/components/TopBar.vue'), /title: omnibox\.threadTitle/)
+    assert.match(src('src/pages/dm/[peer].vue'), /dm: true \}\)/)
+    for (const page of ['src/pages/channel/[name].vue', 'src/pages/lobby.vue', 'src/pages/index.vue', 'src/pages/t/[task_id].vue']) {
+      assert.match(src(page), /sk\('search\.placeholder_new_topic'\)/, page)
+    }
+    assert.match(src('src/components/MessageCard.vue'), /data-test="msg-edit-mode"/)
+  })
+
+  it('each mode accent is defined for the dark default and every light theme', () => {
+    const v = src('src/assets/css/variables.css')
+    for (const k of ['--color-mode-new', '--color-mode-reply', '--color-mode-edit']) {
+      assert.equal((v.match(new RegExp(`${k}:`, 'g')) || []).length, 2, k)
+    }
+    assert.match(v, /:root\[data-theme\^="light"\] \{/)
   })
 })

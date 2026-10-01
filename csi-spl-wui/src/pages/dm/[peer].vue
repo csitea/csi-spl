@@ -148,7 +148,7 @@ function replyTarget() {
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
   placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: peer.value })),
-  dock: () => ({ reply: Boolean(replyTarget()), target: peer.value }),
+  dock: () => ({ reply: Boolean(replyTarget()), target: peer.value, dm: true }),
   send: onSend,
 })
 </script>

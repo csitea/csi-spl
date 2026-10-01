@@ -247,6 +247,8 @@
         <div ref="clipInner" class="card-body__inner">
           <!-- SPL-985: @ opens the shared picker in the edit box too -->
           <div v-if="editing" class="mention-anchor">
+            <!-- HUM-24 (CLE-77879): say it is an edit, not a new post -->
+            <p class="msg-edit-mode" data-test="msg-edit-mode"><UiIcon name="pencil" :size="14" /><span>{{ t('feed.edit.mode') }}</span></p>
             <textarea
               ref="editEl"
               class="msg-edit-box"

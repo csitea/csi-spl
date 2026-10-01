@@ -59,6 +59,7 @@
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
+import { useOmniboxStore } from '~/stores/omnibox'
 import { newestFirst } from '~/utils/feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -97,10 +98,12 @@ const messages = computed(() => {
   return newestFirst([topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m)))
 })
 /* The open topic's own title, selected at the top of this pane. */
-const heading = computed(() => {
-  const text = topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null)
-  return text ? t('topic.list_title', { text }) : t('topic.title')
-})
+const titleText = computed(() => topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null))
+const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
+/* HUM-24: the composer says "Reply in: <this title>" while this pane is open */
+const omnibox = useOmniboxStore()
+watch(() => (pane.taskId ? titleText.value : ''), (title) => { omnibox.threadTitle = title }, { immediate: true })
+onUnmounted(() => { omnibox.threadTitle = '' })
 
 /*
  * an edit landed. Which stores hold this row depends on the

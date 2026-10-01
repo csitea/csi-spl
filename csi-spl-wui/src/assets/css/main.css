@@ -411,6 +411,19 @@ html.pane-dragging * {
   resize: none;
 }
 .msg-edit-box:disabled { opacity: .7; cursor: progress; }
+/* HUM-24 (CLE-77879): an edit in place looks like an edit - a label over the
+   box and the edit accent down its start edge, never the composer's look */
+.msg-edit-box { border-inline-start: 3px solid var(--color-mode-edit); }
+.msg-edit-mode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.msg-edit-mode svg { color: var(--color-mode-edit); flex: none; }
 .msg-edit-hint { margin: 2px 0 0; font-size: 0.6875rem; }
 .msg-edit-error {
   display: flex;

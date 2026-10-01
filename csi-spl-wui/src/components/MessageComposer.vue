@@ -6,6 +6,7 @@
     class="composer"
     :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode, 'composer--dock': docked, 'omnibox--bottom': bottom && !docked }"
     :data-docked="docked ? 'true' : undefined"
+    :data-mode="modeAttr"
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     @submit.prevent="onSend"
   >
@@ -19,8 +20,8 @@
       :data-mode="dockHint.mode"
       aria-live="polite"
     >
-      <UiIcon :name="dockHint.mode === 'new' ? 'plus' : 'reply'" :size="14" />
-      <span>{{ dockHint.mode === 'thread' ? t('composer.target_thread') : dockHint.mode === 'comment' ? t('composer.target_comment', { target: dockHint.target }) : t('composer.target_new', { target: dockHint.target }) }}</span>
+      <UiIcon :name="modeIcon" :size="14" />
+      <span>{{ modeText }}</span>
     </p>
     <!-- a phone page with no send target (/issues list, /events,
          /settings) says so - GO there searches for the text, never nothing -->
@@ -35,6 +36,20 @@
       <span>{{ t('composer.target_search_only') }}</span>
     </p>
     <div class="composer-box">
+      <!-- HUM-24 (CLE-77879): in the top bar the same words sit in a calm chip
+           at the start of the box - "New topic in #alerts" / "Reply in: …" -
+           in the mode's own accent, the field's border in that accent too -->
+      <span
+        v-if="global && !docked && !bottom && !searchMode && dockHint"
+        class="composer-mode"
+        data-test="composer-mode"
+        :data-mode="dockHint.mode"
+        :title="modeText"
+        aria-live="polite"
+      >
+        <UiIcon :name="modeIcon" :size="14" />
+        <span class="composer-mode__text">{{ modeText }}</span>
+      </span>
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
@@ -259,8 +274,8 @@
           data-testid="send"
           @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
-          :aria-label="busy ? t('composer.sending') : t('composer.go')"
-        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ busy ? t('composer.sending') : t('composer.go') }}</span></button>
+          :aria-label="busy ? t('composer.sending') : t(sendKey)"
+        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ busy ? t('composer.sending') : t(sendKey) }}</span></button>
       </div>
     </div>
   </form>
@@ -283,7 +298,7 @@ import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -318,7 +333,7 @@ const props = withDefaults(defineProps<{
   /** 022: the operator catalogue (search-v1 §6) */
   operators?: SearchOperator[]
   /** SPL-1003: the page's send target for the dock's hint (omnibox target `dock()`) */
-  dockTarget?: { reply: boolean, target: string } | null
+  dockTarget?: { reply: boolean, target: string, comment?: boolean, dm?: boolean, title?: string } | null
   /**
    * Topic c6994436 (lane B): TopBar moved this box into the bottom dock under
    * the middle pane (> 820 px, Settings -> Behaviour). The pickers, the GO
@@ -649,6 +664,15 @@ const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
 const syntaxRows = computed(() => operatorHelpRows(props.operators && props.operators.length ? props.operators : undefined))
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
+/* HUM-24 (CLE-77879): one mode, one look - the label, its icon, the field's
+   accent (data-mode) and the GO button's words all follow dockHint */
+const modeText = computed(() => {
+  const label = composerModeLabel(dockHint.value)
+  return label ? t(label.key, label.params) : ''
+})
+const modeIcon = computed(() => (dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment') ? 'reply' : 'plus'))
+const modeAttr = computed(() => (props.global && !searchMode.value && dockHint.value ? dockHint.value.mode : undefined))
+const sendKey = computed(() => composerSendKey(searchMode.value ? null : dockHint.value))
 
 function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length
@@ -1305,7 +1329,48 @@ textarea.in-code {
 }
 .omnibox--bottom .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .omnibox--bottom .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
-.omnibox--bottom .composer-target[data-mode=thread] svg { color: var(--color-accent); flex: none; }
+.omnibox--bottom .composer-target[data-mode=thread] svg { color: var(--composer-mode, var(--color-accent)); flex: none; }
+/*
+ * HUM-24 (CLE-77879): "creating a new topic must look different from writing
+ * a reply". Each mode has one accent (variables.css --color-mode-*): the
+ * field's start edge and border carry it, the label's icon too. Calm: a tint
+ * and a 3px edge, never a fill. Search mode and no target stay neutral.
+ */
+.composer[data-mode] { --composer-mode: var(--color-mode-new); }
+.composer[data-mode=thread],
+.composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
+.composer.omnibox--global[data-mode] .omnibox-field {
+  border-color: color-mix(in srgb, var(--composer-mode) 45%, var(--color-border));
+  border-inline-start: 3px solid var(--composer-mode);
+  padding-inline-start: 6px;
+}
+.composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
+.composer-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-width: min(18rem, 30%);
+  height: 28px;
+  margin-top: calc((var(--omnibox-rest, 46px) - 28px) / 2);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--composer-mode) 50%, transparent);
+  background: color-mix(in srgb, var(--composer-mode) 14%, transparent);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.composer-mode svg { color: var(--composer-mode); flex: none; }
+.composer-mode__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* the chip takes room from the field: a long placeholder ends in an ellipsis
+   on its one line rather than growing the top-bar field (the dock's rule) */
+.composer.omnibox--global[data-mode]:not(.omnibox--bottom) textarea::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.
@@ -1349,7 +1414,7 @@ textarea.in-code {
   }
   .composer--dock.composer--dock .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .composer--dock.composer--dock .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
-  .composer--dock.composer--dock .composer-target[data-mode=thread] svg { color: var(--color-accent); flex: none; }
+  .composer--dock.composer--dock .composer-target[data-mode=thread] svg { color: var(--composer-mode, var(--color-accent)); flex: none; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);

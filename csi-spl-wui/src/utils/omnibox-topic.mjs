@@ -110,14 +110,53 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
  * `dock` is the page's omnibox target `dock()`; `text` the line as typed:
  * a line that opens with `@someone` is the explicit new topic (SPL-996 B)
  * even while a thread is open, so the hint follows it.
- * @param {{ reply?: boolean, target?: string, comment?: boolean } | null | undefined} dock
+ * HUM-24 (CLE-77879): `dm` marks a direct-message page (a new topic there is
+ * "with" the peer), `title` names the open thread a reply goes into.
+ * @param {{ reply?: boolean, target?: string, comment?: boolean, dm?: boolean, title?: string } | null | undefined} dock
  * @param {unknown} [text]
- * @returns {{ mode: 'thread' | 'new' | 'comment', target: string } | null}
+ * @returns {{ mode: 'thread' | 'new' | 'dm' | 'comment', target: string, title?: string } | null}
  */
 export function dockTargetHint(dock, text = '') {
   if (!dock) return null
+  const target = String(dock.target || '')
   /* an open issue takes every line as a comment - no new topic */
-  if (dock.comment) return { mode: 'comment', target: String(dock.target || '') }
+  if (dock.comment) return { mode: 'comment', target }
   const reply = Boolean(dock.reply) && !startsNewTopic(text)
-  return { mode: reply ? 'thread' : 'new', target: String(dock.target || '') }
+  if (reply) {
+    const title = String(dock.title || '').trim()
+    return title ? { mode: 'thread', target, title } : { mode: 'thread', target }
+  }
+  return { mode: dock.dm ? 'dm' : 'new', target }
+}
+
+/**
+ * HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
+ * from writing a reply in the chat". The composer's label for a hint, as an
+ * i18n key and its params - the same words on the desktop chip, the bottom
+ * dock and the phone dock.
+ * @param {{ mode: string, target?: string, title?: string } | null | undefined} hint
+ * @returns {{ key: string, params: Record<string, string> } | null}
+ */
+export function composerModeLabel(hint) {
+  if (!hint) return null
+  const target = String(hint.target || '')
+  if (hint.mode === 'thread') {
+    return hint.title ? { key: 'composer.target_thread_in', params: { title: String(hint.title) } } : { key: 'composer.target_thread', params: {} }
+  }
+  if (hint.mode === 'comment') return { key: 'composer.target_comment', params: { target } }
+  if (hint.mode === 'dm') return { key: 'composer.target_dm', params: { target } }
+  return { key: 'composer.target_new', params: { target } }
+}
+
+/**
+ * HUM-24: the GO button says what it does in this mode - start a topic, send
+ * a reply, post a comment. No hint (no send target, /search) keeps "Go / Send".
+ * @param {{ mode: string } | null | undefined} hint
+ * @returns {string}
+ */
+export function composerSendKey(hint) {
+  if (!hint) return 'composer.go'
+  if (hint.mode === 'thread') return 'composer.go_reply'
+  if (hint.mode === 'comment') return 'composer.go_comment'
+  return 'composer.go_new'
 }

@@ -490,6 +490,9 @@
     "resize": "Zmeniť veľkosť",
     "send": "Odoslať",
     "go": "Choď / Odoslať",
+    "go_new": "Založiť tému",
+    "go_reply": "Odoslať odpoveď",
+    "go_comment": "Pridať komentár",
     "sending": "Odosiela sa…",
     "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter alebo Cmd+Enter odošle",
     "send_failed": "Neodoslané — správa sa nedostala do hubu.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Neodoslané — vaša relácia vypršala. Prihláste sa znova; váš text je zachovaný.",
     "camera": "Odfotiť",
     "target_thread": "Odpoveď v otvorenom vlákne",
+    "target_thread_in": "Odpoveď v: {title}",
     "target_new": "Nová téma v {target}",
+    "target_dm": "Nová téma s {target}",
     "target_comment": "Komentár k {target}",
     "target_search_only": "Tu sa nepublikuje — GO hľadá text"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Stlačením Enter otvoríte tému tejto správy.",
     "edit": {
       "label": "Upraviť správu",
+      "mode": "Úprava tejto správy",
       "hint": "Enter uloží · Shift+Enter nový riadok · Esc zruší",
       "shortcut_hint": "Stlačte e na úpravu tejto správy",
       "marker": "(upravené)",
@@ -904,7 +910,9 @@
       "issues": "Úlohy"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
+    "placeholder_new_topic": "Nová téma v {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "placeholder_target_enter": "Správa pre {target} — Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
+    "placeholder_new_topic_enter": "Nová téma v {target} — Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "help_button": "Syntax vyhľadávania",
     "help_title": "Syntax vyhľadávania",

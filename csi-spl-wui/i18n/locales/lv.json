@@ -490,6 +490,9 @@
     "resize": "Mainīt izmēru",
     "send": "Sūtīt",
     "go": "Aiziet / Sūtīt",
+    "go_new": "Sākt tēmu",
+    "go_reply": "Sūtīt atbildi",
+    "go_comment": "Publicēt komentāru",
     "sending": "Sūta…",
     "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter vai Cmd+Enter nosūta",
     "send_failed": "Nav nosūtīts — ziņa nesasniedza hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Nav nosūtīts — jūsu sesija beidzās. Piesakieties vēlreiz; jūsu teksts ir saglabāts.",
     "camera": "Uzņemt foto",
     "target_thread": "Atbilde atvērtajā pavedienā",
+    "target_thread_in": "Atbilde tēmā: {title}",
     "target_new": "Jauna tēma: {target}",
+    "target_dm": "Jauna tēma ar {target}",
     "target_comment": "Komentārs: {target}",
     "target_search_only": "Šeit nepublicē — GO meklē tekstu"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Nospiediet Enter, lai atvērtu šīs ziņas tēmu.",
     "edit": {
       "label": "Rediģēt ziņu",
+      "mode": "Šīs ziņas rediģēšana",
       "hint": "Enter saglabā · Shift+Enter pievieno rindu · Esc atceļ",
       "shortcut_hint": "Nospiediet e, lai rediģētu šo ziņu",
       "marker": "(rediģēts)",
@@ -904,7 +910,9 @@
       "issues": "Problēmas"
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
+    "placeholder_new_topic": "Jauna tēma: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "placeholder_target_enter": "Ziņa: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
+    "placeholder_new_topic_enter": "Jauna tēma: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",

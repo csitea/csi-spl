@@ -490,6 +490,9 @@
     "resize": "Промени ја големината",
     "send": "Испрати",
     "go": "Оди / Испрати",
+    "go_new": "Започни тема",
+    "go_reply": "Испрати одговор",
+    "go_comment": "Објави коментар",
     "sending": "Се испраќа…",
     "code_hint": "Блок со код: Enter додава ред, напишете ``` или притиснете Esc за затворање, Ctrl+Enter или Cmd+Enter испраќа",
     "send_failed": "Не е испратено — пораката не стигна до hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Не е испратено — вашата сесија истече. Најавете се повторно; вашиот текст е зачуван.",
     "camera": "Фотографирај",
     "target_thread": "Одговор во отворената нишка",
+    "target_thread_in": "Одговор во: {title}",
     "target_new": "Нова тема во {target}",
+    "target_dm": "Нова тема со {target}",
     "target_comment": "Коментар на {target}",
     "target_search_only": "Тука не се објавува — GO го пребарува текстот"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Притиснете Enter за да ја отворите темата на оваа порака.",
     "edit": {
       "label": "Уреди ја пораката",
+      "mode": "Уредување на оваа порака",
       "hint": "Enter зачувува · Shift+Enter нов ред · Esc откажува",
       "shortcut_hint": "Притиснете e за да ја уредите оваа порака",
       "marker": "(уредено)",
@@ -904,7 +910,9 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
+    "placeholder_new_topic": "Нова тема во {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "placeholder_target_enter": "Порака до {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
+    "placeholder_new_topic_enter": "Нова тема во {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
     "help_button": "Синтакса на пребарување",
     "help_title": "Синтакса на пребарување",

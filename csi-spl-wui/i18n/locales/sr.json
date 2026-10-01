@@ -490,6 +490,9 @@
     "resize": "Promeni veličinu",
     "send": "Pošalji",
     "go": "Иди / Пошаљи",
+    "go_new": "Започни тему",
+    "go_reply": "Пошаљи одговор",
+    "go_comment": "Објави коментар",
     "sending": "Slanje…",
     "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter или Cmd+Enter шаље",
     "send_failed": "Nije poslato — poruka nije stigla do huba.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Није послато — ваша сесија је истекла. Пријавите се поново; ваш текст је сачуван.",
     "camera": "Фотографиши",
     "target_thread": "Одговор у отвореној нити",
+    "target_thread_in": "Одговор у: {title}",
     "target_new": "Нова тема у {target}",
+    "target_dm": "Нова тема са {target}",
     "target_comment": "Коментар на {target}",
     "target_search_only": "Овде се не објављује — GO претражује текст"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Притисните Enter да отворите тему ове поруке.",
     "edit": {
       "label": "Izmeni poruku",
+      "mode": "Измена ове поруке",
       "hint": "Enter čuva · Shift+Enter novi red · Esc otkazuje",
       "shortcut_hint": "Pritisnite e da izmenite ovu poruku",
       "marker": "(izmenjeno)",
@@ -904,7 +910,9 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
+    "placeholder_new_topic": "Нова тема у {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "placeholder_target_enter": "Порука за {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
+    "placeholder_new_topic_enter": "Нова тема у {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",

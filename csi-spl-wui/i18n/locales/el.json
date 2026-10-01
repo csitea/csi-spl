@@ -490,6 +490,9 @@
     "resize": "Αλλαγή μεγέθους",
     "send": "Αποστολή",
     "go": "Μετάβαση / Αποστολή",
+    "go_new": "Έναρξη θέματος",
+    "go_reply": "Αποστολή απάντησης",
+    "go_comment": "Δημοσίευση σχολίου",
     "sending": "Αποστολή…",
     "code_hint": "Μπλοκ κώδικα: το Enter προσθέτει γραμμή, πληκτρολογήστε ``` ή πατήστε Esc για κλείσιμο, το Ctrl+Enter ή το Cmd+Enter στέλνει",
     "send_failed": "Δεν στάλθηκε — το μήνυμα δεν έφτασε στο hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Δεν στάλθηκε — η συνεδρία σας έληξε. Συνδεθείτε ξανά· το κείμενό σας παραμένει εδώ.",
     "camera": "Λήψη φωτογραφίας",
     "target_thread": "Απάντηση στο ανοιχτό νήμα",
+    "target_thread_in": "Απάντηση σε: {title}",
     "target_new": "Νέο θέμα στο {target}",
+    "target_dm": "Νέο θέμα με {target}",
     "target_comment": "Σχόλιο στο {target}",
     "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Πατήστε Enter για να ανοίξετε το θέμα αυτού του μηνύματος.",
     "edit": {
       "label": "Επεξεργασία μηνύματος",
+      "mode": "Επεξεργασία αυτού του μηνύματος",
       "hint": "Το Enter αποθηκεύει · Shift+Enter νέα γραμμή · Esc ακυρώνει",
       "shortcut_hint": "Πατήστε e για να επεξεργαστείτε αυτό το μήνυμα",
       "marker": "(επεξεργασμένο)",
@@ -904,7 +910,9 @@
       "issues": "Θέματα"
     },
     "placeholder_target": "Μήνυμα προς {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
+    "placeholder_new_topic": "Νέο θέμα στο {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
     "placeholder_target_enter": "Μήνυμα προς {target} — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
+    "placeholder_new_topic_enter": "Νέο θέμα στο {target} — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
     "unreachable": "Η υπηρεσία αναζήτησης δεν είναι διαθέσιμη. Δοκιμάστε ξανά σε λίγο.",
     "help_button": "Σύνταξη αναζήτησης",
     "help_title": "Σύνταξη αναζήτησης",

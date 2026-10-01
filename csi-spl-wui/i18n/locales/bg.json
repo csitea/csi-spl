@@ -490,6 +490,9 @@
     "resize": "Преоразмери полето",
     "send": "Изпрати",
     "go": "Напред / Изпрати",
+    "go_new": "Създаване на тема",
+    "go_reply": "Изпращане на отговор",
+    "go_comment": "Публикуване на коментар",
     "sending": "Изпращане…",
     "code_hint": "Блок с код: Enter добавя ред, напишете ``` или натиснете Esc за затваряне, Ctrl+Enter или Cmd+Enter изпраща",
     "send_failed": "Не е изпратено — съобщението не стигна до хъба.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Не е изпратено — сесията ви изтече. Влезте отново; текстът ви е запазен.",
     "camera": "Направи снимка",
     "target_thread": "Отговор в отворената нишка",
+    "target_thread_in": "Отговор в: {title}",
     "target_new": "Нова тема в {target}",
+    "target_dm": "Нова тема с {target}",
     "target_comment": "Коментар към {target}",
     "target_search_only": "Тук не се публикува — GO търси текста"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Натиснете Enter, за да отворите темата на това съобщение.",
     "edit": {
       "label": "Редактиране на съобщението",
+      "mode": "Редактиране на това съобщение",
       "hint": "Enter записва · Shift+Enter нов ред · Esc отказва",
       "shortcut_hint": "Натиснете e, за да редактирате това съобщение",
       "marker": "(редактирано)",
@@ -904,7 +910,9 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
+    "placeholder_new_topic": "Нова тема в {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "placeholder_target_enter": "Съобщение до {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
+    "placeholder_new_topic_enter": "Нова тема в {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
     "help_button": "Синтаксис на търсене",
     "help_title": "Синтаксис на търсене",

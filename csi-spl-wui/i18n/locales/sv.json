@@ -490,6 +490,9 @@
     "resize": "Ändra storlek på rutan",
     "send": "Skicka",
     "go": "Kör / Skicka",
+    "go_new": "Starta ämne",
+    "go_reply": "Skicka svar",
+    "go_comment": "Publicera kommentar",
     "sending": "Skickar…",
     "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter eller Cmd+Enter skickar",
     "send_failed": "Inte skickat — meddelandet nådde inte hubben.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Inte skickat — din session har gått ut. Logga in igen; din text finns kvar.",
     "camera": "Ta ett foto",
     "target_thread": "Svarar i den öppna tråden",
+    "target_thread_in": "Svar i: {title}",
     "target_new": "Nytt ämne i {target}",
+    "target_dm": "Nytt ämne med {target}",
     "target_comment": "Kommenterar {target}",
     "target_search_only": "Inget inlägg här — GO söker efter texten"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Tryck på Enter för att öppna meddelandets ämne.",
     "edit": {
       "label": "Redigera meddelandet",
+      "mode": "Redigerar meddelandet",
       "hint": "Enter sparar · Shift+Enter ny rad · Esc avbryter",
       "shortcut_hint": "Tryck e för att redigera det här meddelandet",
       "marker": "(redigerat)",
@@ -904,7 +910,9 @@
       "issues": "Ärenden"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
+    "placeholder_new_topic": "Nytt ämne i {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "placeholder_target_enter": "Meddelande till {target} — Enter skickar · Shift+Enter lägger till en rad · /search söker överallt",
+    "placeholder_new_topic_enter": "Nytt ämne i {target} — Enter skickar · Shift+Enter lägger till en rad · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",

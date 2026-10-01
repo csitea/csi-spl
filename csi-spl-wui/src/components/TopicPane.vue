@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useTopicStore } from '~/stores/topic'
+import { useOmniboxStore } from '~/stores/omnibox'
 import { WINDOW, useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
@@ -110,11 +111,15 @@ const messages = computed(() => {
   return newestFirst(base.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
 })
 /* The open topic's own title, selected at the top of this pane. */
-const heading = computed(() => {
+const titleText = computed(() => {
   const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]
-  const text = topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
-  return text ? t('topic.list_title', { text }) : t('topic.title')
+  return topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
 })
+const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
+/* HUM-24: the composer says "Reply in: <this title>" while this pane is open */
+const omnibox = useOmniboxStore()
+watch(() => (topic.open ? titleText.value : ''), (title) => { omnibox.threadTitle = title }, { immediate: true })
+onUnmounted(() => { omnibox.threadTitle = '' })
 
 /*
  * SPL-1024: a reply of a channel topic may be moved to another topic (drag

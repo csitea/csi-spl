@@ -490,6 +490,9 @@
     "resize": "Muuda suurust",
     "send": "Saada",
     "go": "Mine / Saada",
+    "go_new": "Alusta teemat",
+    "go_reply": "Saada vastus",
+    "go_comment": "Postita kommentaar",
     "sending": "Saatmine…",
     "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter või Cmd+Enter saadab",
     "send_failed": "Saatmata — sõnum ei jõudnud hubi.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Saatmata — sinu seanss aegus. Logi uuesti sisse; sinu tekst on alles.",
     "camera": "Tee foto",
     "target_thread": "Vastus avatud lõimes",
+    "target_thread_in": "Vastus teemas: {title}",
     "target_new": "Uus teema: {target}",
+    "target_dm": "Uus teema kasutajaga {target}",
     "target_comment": "Kommentaar: {target}",
     "target_search_only": "Siia ei postitata — GO otsib teksti"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Selle sõnumi teema avamiseks vajuta Enter.",
     "edit": {
       "label": "Muuda sõnumit",
+      "mode": "Selle sõnumi muutmine",
       "hint": "Enter salvestab · Shift+Enter lisab rea · Esc katkestab",
       "shortcut_hint": "Selle sõnumi muutmiseks vajuta e",
       "marker": "(muudetud)",
@@ -904,7 +910,9 @@
       "issues": "Probleemid"
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
+    "placeholder_new_topic": "Uus teema: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "placeholder_target_enter": "Sõnum: {target} — Enter saadab · Shift+Enter lisab rea · /search otsib kõikjalt",
+    "placeholder_new_topic_enter": "Uus teema: {target} — Enter saadab · Shift+Enter lisab rea · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",

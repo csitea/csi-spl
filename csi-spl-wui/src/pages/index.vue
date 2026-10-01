@@ -221,7 +221,7 @@ function replyTarget() {
   })
 }
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
+  placeholder: () => (replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_new_topic'), { target: tr('nav.topics') })),
   dock: () => ({ reply: Boolean(replyTarget()), target: tr('nav.topics') }),
   send: onSend,
 })

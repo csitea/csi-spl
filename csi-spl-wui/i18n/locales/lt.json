@@ -490,6 +490,9 @@
     "resize": "Keisti dydį",
     "send": "Siųsti",
     "go": "Pirmyn / Siųsti",
+    "go_new": "Pradėti temą",
+    "go_reply": "Siųsti atsakymą",
+    "go_comment": "Skelbti komentarą",
     "sending": "Siunčiama…",
     "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter arba Cmd+Enter siunčia",
     "send_failed": "Neišsiųsta — žinutė nepasiekė hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Neišsiųsta — jūsų sesija baigėsi. Prisijunkite iš naujo; jūsų tekstas išsaugotas.",
     "camera": "Fotografuoti",
     "target_thread": "Atsakymas atviroje gijoje",
+    "target_thread_in": "Atsakymas temoje: {title}",
     "target_new": "Nauja tema: {target}",
+    "target_dm": "Nauja tema su {target}",
     "target_comment": "Komentuojama: {target}",
     "target_search_only": "Čia neskelbiama — GO ieško teksto"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės temą.",
     "edit": {
       "label": "Redaguoti žinutę",
+      "mode": "Redaguojama ši žinutė",
       "hint": "Enter išsaugo · Shift+Enter prideda eilutę · Esc atšaukia",
       "shortcut_hint": "Paspauskite e, kad redaguotumėte šią žinutę",
       "marker": "(redaguota)",
@@ -904,7 +910,9 @@
       "issues": "Problemos"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
+    "placeholder_new_topic": "Nauja tema: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "placeholder_target_enter": "Žinutė: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
+    "placeholder_new_topic_enter": "Nauja tema: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",

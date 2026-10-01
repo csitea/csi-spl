@@ -490,6 +490,9 @@
     "resize": "שינוי גודל התיבה",
     "send": "שליחה",
     "go": "קדימה / שליחה",
+    "go_new": "פתיחת נושא",
+    "go_reply": "שליחת תגובה",
+    "go_comment": "פרסום הערה",
     "sending": "שולח…",
     "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter או Cmd+Enter שולח",
     "send_failed": "לא נשלח — ההודעה לא הגיעה ל-hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "לא נשלח — פג תוקף ההתחברות שלך. היכנס שוב; הטקסט שלך נשמר.",
     "camera": "צלם תמונה",
     "target_thread": "תגובה בשרשור הפתוח",
+    "target_thread_in": "תגובה בנושא: {title}",
     "target_new": "נושא חדש ב-{target}",
+    "target_dm": "נושא חדש עם {target}",
     "target_comment": "תגובה על {target}",
     "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "הקישו Enter כדי לפתוח את הנושא של ההודעה הזו.",
     "edit": {
       "label": "עריכת ההודעה",
+      "mode": "עריכת הודעה זו",
       "hint": "Enter שומר · Shift+Enter שורה חדשה · Esc מבטל",
       "shortcut_hint": "הקישו e כדי לערוך הודעה זו",
       "marker": "(נערך)",
@@ -904,7 +910,9 @@
       "issues": "סוגיות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
+    "placeholder_new_topic": "נושא חדש ב-{target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "placeholder_target_enter": "הודעה אל {target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
+    "placeholder_new_topic_enter": "נושא חדש ב-{target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "help_button": "תחביר חיפוש",
     "help_title": "תחביר חיפוש",

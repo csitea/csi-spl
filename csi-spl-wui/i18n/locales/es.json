@@ -490,6 +490,9 @@
     "resize": "Cambiar el tamaño",
     "send": "Enviar",
     "go": "Ir / Enviar",
+    "go_new": "Crear tema",
+    "go_reply": "Enviar respuesta",
+    "go_comment": "Publicar comentario",
     "sending": "Enviando…",
     "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter o Cmd+Enter envía",
     "send_failed": "No enviado: el mensaje no llegó al hub.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "No enviado: tu sesión expiró. Vuelve a iniciar sesión; tu texto sigue aquí.",
     "camera": "Hacer una foto",
     "target_thread": "Respondiendo en el hilo abierto",
+    "target_thread_in": "Responder en: {title}",
     "target_new": "Nuevo tema en {target}",
+    "target_dm": "Nuevo tema con {target}",
     "target_comment": "Comentando en {target}",
     "target_search_only": "Aquí no se publica — GO busca el texto"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Pulsa Intro para abrir el tema de este mensaje.",
     "edit": {
       "label": "Editar mensaje",
+      "mode": "Editando este mensaje",
       "hint": "Enter guarda · Shift+Enter añade una línea · Esc cancela",
       "shortcut_hint": "Pulsa e para editar este mensaje",
       "marker": "(editado)",
@@ -904,7 +910,9 @@
       "issues": "Incidencias"
     },
     "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
+    "placeholder_new_topic": "Nuevo tema en {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
     "placeholder_target_enter": "Mensaje a {target} — Enter envía · Shift+Enter añade una línea · /search para buscar en todo",
+    "placeholder_new_topic_enter": "Nuevo tema en {target} — Enter envía · Shift+Enter añade una línea · /search para buscar en todo",
     "unreachable": "No se pudo contactar con el servicio de búsqueda. Inténtalo de nuevo en breve.",
     "help_button": "Sintaxis de búsqueda",
     "help_title": "Sintaxis de búsqueda",

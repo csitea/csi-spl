@@ -17,14 +17,21 @@ export interface OmniboxTarget {
    * topic in `target` (the page's own name: '#channel', the peer, ...).
    * `comment` true on an open issue (/issues on a phone): the
    * post is a comment on the issue named by `target` (SPL-n).
+   * `dm` true on a direct-message page (HUM-24: "New topic with <peer>").
    */
-  dock?: () => { reply: boolean, target: string, comment?: boolean }
+  dock?: () => { reply: boolean, target: string, comment?: boolean, dm?: boolean }
 }
 
 export const useOmniboxStore = defineStore('omnibox', () => {
   const target = shallowRef<OmniboxTarget | null>(null)
   /** bumped to ask the search results list to take the focus (ArrowDown in the Omnibox) */
   const focusResults = ref(0)
+  /**
+   * HUM-24 (CLE-77879): the open thread's title, published by the topic pane
+   * that shows it, so the composer can say "Reply in: <title>". Empty when
+   * no pane is open or the topic has no text yet.
+   */
+  const threadTitle = ref('')
 
   function register(t: OmniboxTarget) {
     target.value = t
@@ -32,7 +39,7 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   function unregister(owner: symbol) {
     if (target.value && target.value.owner === owner) target.value = null
   }
-  return { target, focusResults, register, unregister }
+  return { target, focusResults, threadTitle, register, unregister }
 })
 
 /** Page helper: register a send target for this page's lifetime. */

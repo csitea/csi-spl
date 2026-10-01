@@ -490,6 +490,9 @@
     "resize": "Muuta kirjoituskentän kokoa",
     "send": "Lähetä",
     "go": "Mene / Lähetä",
+    "go_new": "Aloita aihe",
+    "go_reply": "Lähetä vastaus",
+    "go_comment": "Lähetä kommentti",
     "sending": "Lähetetään…",
     "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter tai Cmd+Enter lähettää",
     "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",
@@ -500,7 +503,9 @@
     "send_failed_session_expired": "Ei lähetetty — istuntosi vanheni. Kirjaudu uudelleen; tekstisi on tallessa.",
     "camera": "Ota kuva",
     "target_thread": "Vastaat avoimeen ketjuun",
+    "target_thread_in": "Vastaus aiheeseen: {title}",
     "target_new": "Uusi aihe: {target}",
+    "target_dm": "Uusi aihe käyttäjälle {target}",
     "target_comment": "Kommentoit: {target}",
     "target_search_only": "Täällä ei julkaista — GO hakee tekstiä"
   },
@@ -556,6 +561,7 @@
     "open_topic_hint": "Avaa tämän viestin aihe painamalla Enter.",
     "edit": {
       "label": "Muokkaa viestiä",
+      "mode": "Viestin muokkaus",
       "hint": "Enter tallentaa · Shift+Enter lisää rivin · Esc peruuttaa",
       "shortcut_hint": "Muokkaa tätä viestiä painamalla e",
       "marker": "(muokattu)",
@@ -904,7 +910,9 @@
       "issues": "Asiat"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
+    "placeholder_new_topic": "Uusi aihe: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "placeholder_target_enter": "Viesti: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
+    "placeholder_new_topic_enter": "Uusi aihe: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",

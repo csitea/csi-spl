@@ -301,31 +301,42 @@ jobs:
           kill -0 "$serve_pid" && kill -0 "$api_pid" \
             || { echo "::error::a server of this job died; the port answered from elsewhere"; cat "$RUNNER_TEMP/wui-e2e-serve.log" "$RUNNER_TEMP/wui-e2e-api.log"; exit 1; }
           export BASE_URL="http://127.0.0.1:$web_port"
-          pnpm run test:e2e
-          pnpm run test:e2e:console-errors
-          pnpm run test:e2e:topic-pane
-          pnpm run test:e2e:mobile-stack
-          pnpm run test:e2e:mobile-overlay
-          pnpm run test:e2e:msg-edit
-          pnpm run test:e2e:dm-remove
-          pnpm run test:e2e:display-name
-          pnpm run test:e2e:typed-by
-          pnpm run test:e2e:top-bar-mobile
-          pnpm run test:e2e:top-bar-tenant
-          pnpm run test:e2e:mobile-messages
-          pnpm run test:e2e:card-edge-inset
-          pnpm run test:e2e:topic-send-target
-          pnpm run test:e2e:thread-dock-target
-          pnpm run test:e2e:mobile-go-dock
-          pnpm run test:e2e:issue-dock-comment
-          pnpm run test:e2e:delete-confirm
-          pnpm run test:e2e:channel-people
-          pnpm run test:e2e:channel-properties-esc
-          pnpm run test:e2e:build-watch
-          pnpm run test:e2e:names-not-ids
-          pnpm run test:e2e:search-original
-          pnpm run test:e2e:omnibox-bottom
-          pnpm run test:e2e:tenant-settings
+          # Every script runs, whatever the one before it did, and the step fails at
+          # the end naming each red one: a red used to stop the step and hide every
+          # script after it (CLE-77827). test:e2e itself runs every file it lists.
+          failed=()
+          for s in \
+            test:e2e \
+            test:e2e:console-errors \
+            test:e2e:topic-pane \
+            test:e2e:mobile-stack \
+            test:e2e:mobile-overlay \
+            test:e2e:msg-edit \
+            test:e2e:dm-remove \
+            test:e2e:display-name \
+            test:e2e:typed-by \
+            test:e2e:top-bar-mobile \
+            test:e2e:top-bar-tenant \
+            test:e2e:mobile-messages \
+            test:e2e:card-edge-inset \
+            test:e2e:topic-send-target \
+            test:e2e:thread-dock-target \
+            test:e2e:mobile-go-dock \
+            test:e2e:issue-dock-comment \
+            test:e2e:delete-confirm \
+            test:e2e:channel-people \
+            test:e2e:channel-properties-esc \
+            test:e2e:build-watch \
+            test:e2e:names-not-ids \
+            test:e2e:search-original \
+            test:e2e:omnibox-bottom \
+            test:e2e:tenant-settings; do
+            pnpm run "$s" || failed+=("$s")
+          done
+          if (( ${#failed[@]} )); then
+            echo "::error::wui e2e: ${#failed[@]} script(s) failed: ${failed[*]}"
+            exit 1
+          fi
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.

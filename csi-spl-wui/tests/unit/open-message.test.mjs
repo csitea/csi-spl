@@ -266,3 +266,21 @@ test('markOpened: a hidden copy is never marked; the visible one is, when it sho
   await new Promise((r) => setTimeout(r, 60))
   assert.equal(shown.set.size, 0, 'cleared after the hold')
 })
+
+/* CLE-77909 (live dev): the DM opened, but the reply sat ~37 rows deep in a
+   700-row topic and the pane reads the newest 30 - nothing to mark. The pane
+   pages back toward a #<msg_id> hash, bounded. */
+test('TopicPane: a #<msg_id> older than the first page is paged to (at most HASH_PAGES), live only', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../../src/components/TopicPane.vue', import.meta.url), 'utf8')
+  const fn = src.slice(src.indexOf('async function reachHash'), src.indexOf("watch(() => route.hash"))
+  assert.match(src, /const HASH_PAGES = 10\n/)
+  assert.match(fn, /if \(api\.mock \|\| !id \|\| !want\) return/)
+  assert.match(fn, /i < HASH_PAGES && olderCursor\.value && topic\.parentTaskId === id/)
+  assert.match(fn, /liveRows\.value\.some\(\(r\) => String\(r\.msg_id\) === want\)\) return/)
+  assert.match(fn, /await loadOlder\(\)/)
+  /* declared before the immediate topic watch that calls it (no TDZ), and called after the first page */
+  assert.ok(src.indexOf('async function reachHash') < src.indexOf('watch(() => [topic.open, topic.parentTaskId]'))
+  const first = src.slice(src.indexOf('watch(() => [topic.open, topic.parentTaskId]'), src.indexOf('async function loadOlder'))
+  assert.match(first, /loading\.value = false\n  \}\n  void reachHash\(\)\n\}, \{ immediate: true \}\)/)
+})

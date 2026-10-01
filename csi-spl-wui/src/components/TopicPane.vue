@@ -155,6 +155,22 @@ async function catchUp() {
   }
 }
 
+/* CLE-77909: a link to a reply (/m/<id>, #<msg_id>) older than the newest
+   WINDOW: read older pages until it is held, so the feed can scroll to it and
+   mark it. At most HASH_PAGES pages; past that the reader pages by hand. */
+const HASH_PAGES = 10
+const route = useRoute()
+async function reachHash() {
+  const id = topic.parentTaskId
+  const want = String(route.hash || '').replace(/^#/, '')
+  if (api.mock || !id || !want) return
+  for (let i = 0; i < HASH_PAGES && olderCursor.value && topic.parentTaskId === id; i++) {
+    if (liveRows.value.some((r) => String(r.msg_id) === want)) return
+    await loadOlder()
+  }
+}
+watch(() => route.hash, () => { if (!loading.value) void reachHash() })
+
 watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   liveRows.value = []
   loadError.value = ''
@@ -175,6 +191,7 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   } finally {
     loading.value = false
   }
+  void reachHash()
 }, { immediate: true })
 
 /** Load more: the next WINDOW older replies (before=<next>), merged by msg_id. */

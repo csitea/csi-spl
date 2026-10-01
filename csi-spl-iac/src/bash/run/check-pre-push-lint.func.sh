@@ -34,10 +34,12 @@
 # @description   lint-mdlinks     relative links in touched .md (and in the .md that
 # @description                    link to a deleted/renamed path) must resolve
 # @description   lint-typos       typos-cli (_typos.toml) on the ADDED lines: WARN only
+# @description   lint-semgrep     61 do_sec_semgrep on the touched hub .go / WUI src files
+# @description                    vs .semgrep-baseline.txt (~11 s; whole scope 152 s)
+# @description   lint-gomod       go mod tidy -diff (offline) when go.mod/go.sum change
 # @description FULL tier only (too slow for the hook, CI owns them; measured
 # @description 2026-10-01 over the whole tree): lint-checkov (65, 65 s, when
-# @description terraform is touched), lint-semgrep (61, 152 s) and lint-gosec
-# @description (62, >300 s). CodeQL (60) and DAST (68) need the whole
+# @description terraform is touched) and lint-gosec (62, >300 s). CodeQL (60) and DAST (68) need the whole
 # @description repo / a live host and stay CI-only.
 # @description A change to a scanner's own action, config, baseline or workflow
 # @description re-runs that scanner over its WHOLE CI scope, as CI then does.
@@ -51,8 +53,8 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock"
-_PPL_SLOW="lint-checkov lint-semgrep lint-gosec"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod"
+_PPL_SLOW="lint-checkov lint-gosec"
 
 # ruff: syntax + pyflakes + the security codes with a zero baseline. Never
 # ruff's default set (0.16 widened it: 150 style findings).
@@ -81,6 +83,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
     lint-actionlint) own=(csi-spl-iac/src/bash/run/sec-actionlint.func.sh .github/actionlint.yaml .github/actionlint.yml) ;;
     lint-hadolint)   own=(csi-spl-iac/src/bash/run/sec-hadolint.func.sh .hadolint.yaml .github/workflows/66_hadolint.yml) ;;
     lint-eslint)     own=(csi-spl-iac/src/bash/run/sec-eslint.func.sh .eslint-security.config.mjs .eslint-security-baseline.txt .github/workflows/63_eslint-security.yml) ;;
+    lint-semgrep)    own=(csi-spl-iac/src/bash/run/sec-semgrep.func.sh .semgrep-baseline.txt .github/workflows/61_semgrep.yml) ;;
     lint-checkov)    own=(csi-spl-iac/src/bash/run/sec-checkov.func.sh .github/workflows/65_iac-checkov.yml) ;;
   esac
   while IFS= read -r f; do
@@ -122,7 +125,10 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-wui-lock)   [[ "$f" == csi-spl-wui/package.json || "$f" == csi-spl-wui/pnpm-lock.yaml ]] && { echo ALL; return 0; } ;;
       lint-trufflehog) echo "$f" ;;
       lint-checkov)    [[ "$f" == csi-spl-iac/src/terraform/* ]] && { echo ALL; return 0; } ;;
-      lint-semgrep)    [[ "$f" == *.go || "$f" == csi-spl-wui/src/* ]] && { echo ALL; return 0; } ;;
+      lint-semgrep)
+        [[ ( "$f" == csi-spl-api/src/go/spool-hub-api/*.go ) \
+           || ( "$f" == csi-spl-wui/src/* && "$f" =~ \.(js|mjs|ts|vue)$ ) ]] && echo "$f" ;;
+      lint-gomod)      [[ "$f" == csi-spl-api/src/go/spool-hub-api/go.mod || "$f" == csi-spl-api/src/go/spool-hub-api/go.sum ]] && { echo ALL; return 0; } ;;
       lint-gosec)      [[ "$f" == *.go || "$f" == */go.mod || "$f" == */go.sum ]] && { echo ALL; return 0; } ;;
     esac
   done <<<"$changed"
@@ -187,6 +193,11 @@ _ppl_missing() {  # <scanner>
     lint-compose)    docker compose version >/dev/null 2>&1 || echo "docker compose -- install docker with the compose plugin" ;;
     lint-gitleaks)   _ppl_need gitleaks ;;
     lint-py)         _ppl_need python3; _ppl_need ruff ;;
+    lint-gomod)
+      ( export GOTOOLCHAIN=local
+        # shellcheck source=/dev/null
+        source "${_PP_TOP:-.}/csi-spl-api/src/bash/use-go-toolchain.sh" 2>/dev/null && spl_export_go_path 2>/dev/null
+        command -v go >/dev/null 2>&1 ) || echo "go -- install the Go in csi-spl-api/src/go/spool-hub-api/go.mod under /usr/local/go<ver>" ;;
     lint-tf)         _ppl_need terraform ;;
     lint-wui-syntax|lint-wui-lock)
       _ppl_need node
@@ -227,7 +238,9 @@ _ppl_repro() {  # <scanner>
     lint-hadolint)   var=SEC_HADOLINT_FILES act=do_sec_hadolint ;;
     lint-eslint)     var=SEC_ESLINT_FILES act=do_sec_eslint ;;
     lint-trufflehog) var=SEC_TRUFFLEHOG_FILES act=do_sec_trufflehog ;;
-    lint-checkov)    act=do_sec_checkov ;; lint-semgrep) act=do_sec_semgrep ;; lint-gosec) act=do_sec_gosec ;;
+    lint-semgrep)    var=SEC_SEMGREP_DIRS act=do_sec_semgrep ;;
+    lint-gomod)      echo "cd csi-spl-api/src/go/spool-hub-api && go mod tidy -diff"; return 0 ;;
+    lint-checkov)    act=do_sec_checkov ;; lint-gosec) act=do_sec_gosec ;;
     lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
     lint-wui-syntax) echo "cd csi-spl-wui && node ../csi-spl-iac/src/bash/scripts/wui-syntax-check.mjs $(printf '%s\n' "$sel" | sed 's|^csi-spl-wui/||' | paste -sd' ' -)"; return 0 ;;
     lint-tf) echo "terraform fmt -check -diff $(printf '%s\n' "$sel" | grep '\.tf$' | paste -sd' ' -)"; return 0 ;;
@@ -332,7 +345,16 @@ sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
       local -a mds=(); mapfile -t mds <<<"$files"
       ( cd "$tree" && python3 "$(_ppl_scripts)/md-rel-links.py" "${mds[@]}" ) || rc=$? ;;
     lint-checkov)    SEC_CHECKOV_ROOT="$tree" do_sec_checkov || rc=$? ;;
-    lint-semgrep)    SEC_SEMGREP_ROOT="$tree" do_sec_semgrep || rc=$? ;;
+    lint-semgrep)
+      if [[ "${_PPL_FILES[$sc]:-}" == ALL ]]; then SEC_SEMGREP_ROOT="$tree" do_sec_semgrep || rc=$?
+      else SEC_SEMGREP_ROOT="$tree" SEC_SEMGREP_DIRS="$(printf '%s\n' "$files" | paste -sd' ' -)" do_sec_semgrep || rc=$?
+      fi ;;
+    lint-gomod)
+      ( cd "$tree/csi-spl-api/src/go/spool-hub-api" || exit 1
+        export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+        # shellcheck source=/dev/null
+        source ../../bash/use-go-toolchain.sh && spl_export_go_path || exit 127
+        go mod tidy -diff ) || { echo "GO MOD: go.mod/go.sum are not tidy -- run 'go mod tidy' in csi-spl-api/src/go/spool-hub-api"; rc=1; } ;;
     lint-gosec)      SEC_GOSEC_ROOT="$tree" do_sec_gosec || rc=$? ;;
   esac
   [[ "$rc" -eq 0 ]] && return 0
@@ -408,6 +430,7 @@ _pp_part_lint_wui_syntax() { _ppl_run_one lint-wui-syntax "$1"; }
 _pp_part_lint_wui_lock()   { _ppl_run_one lint-wui-lock "$1"; }
 _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }
 _pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
+_pp_part_lint_gomod()      { _ppl_run_one lint-gomod "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }
 
 # Spelling: WARN only (owner: no CI gate yet). typos-cli with the repo-root

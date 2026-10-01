@@ -132,7 +132,9 @@ How to apply:
   | `lint-trufflehog` | 64 | `do_sec_trufflehog` --only-verified, every touched file | hook |
   | `lint-mdlinks` | — | relative links in touched `.md`, and in the `.md` that link to a deleted/renamed path | hook |
   | `lint-typos` | — | typos-cli 1.50.3 + root `_typos.toml`, ADDED lines only; WARN, never blocks (a real word goes in `_typos.toml`) | hook |
-  | `lint-checkov` / `lint-semgrep` / `lint-gosec` | 65 / 61 / 62 | the action over its whole scope (65 s / 152 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
+  | `lint-semgrep` | 61 | `do_sec_semgrep` vs `.semgrep-baseline.txt` on the touched hub `.go` / WUI src files (~11 s; whole scope 152 s) | hook |
+  | `lint-gomod` | — | `go mod tidy -diff` (offline) when `go.mod`/`go.sum` change | hook |
+  | `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
   | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 
   A change to a scanner's own action, config, baseline or workflow re-runs it

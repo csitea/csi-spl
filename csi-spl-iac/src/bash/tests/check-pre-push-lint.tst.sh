@@ -66,6 +66,11 @@ cat >"$STUB/gitleaks" <<'EOF'
 [[ "${SEC_SCAN_PHASE:-}" == control ]] && { echo "leaks found: 1"; exit 1; }
 exit 0
 EOF
+cat >"$STUB/semgrep" <<'EOF'
+#!/usr/bin/env bash
+[[ "${SEC_SEMGREP_PHASE:-}" == control ]] && { echo '{"results":[{"check_id":"control-eval"}]}'; exit 1; }
+echo '{"results":[]}'
+EOF
 cat >"$STUB/trufflehog" <<'EOF'
 #!/usr/bin/env bash
 [[ "${SEC_TRUFFLEHOG_PHASE:-}" == control ]] && echo '{"DetectorName":"AWS"}'
@@ -81,6 +86,8 @@ do_check_dist_hygiene() { return 0; }
 . "$RUN_DIR/sec-shellcheck.func.sh"
 # shellcheck source=../run/sec-trufflehog.func.sh
 . "$RUN_DIR/sec-trufflehog.func.sh"
+# shellcheck source=../run/sec-semgrep.func.sh
+. "$RUN_DIR/sec-semgrep.func.sh"
 # shellcheck source=../run/sec-scan.func.sh
 . "$RUN_DIR/sec-scan.func.sh"
 # shellcheck source=../run/check-pre-push.func.sh
@@ -95,6 +102,7 @@ new_repo() {
   printf '#!/bin/bash\necho ok\n' >"$R/$SH/edited.sh"
   echo '{}' >"$R/seed.json"
   echo 'title = "x"' >"$R/.gitleaks.toml"
+  echo '# rule|path|count' >"$R/.semgrep-baseline.txt"
   git -C "$R" add -A; git -C "$R" commit -qm seed; git -C "$R" branch -f base
 }
 commit() { git -C "$R" add -A; git -C "$R" commit -qm "$1"; }
@@ -349,6 +357,9 @@ declare -A _PPL_FILES=()
 _ppl_plan "csi-spl-iac/src/bash/run/sec-shellcheck.func.sh" fast fast "$R" >/dev/null
 [[ "${_PPL_FILES[lint-shellcheck]:-}" == ALL ]] && pass "6e. the shellcheck action changed -> its whole scope" || fail "6e" "${_PPL_FILES[lint-shellcheck]:-none}"
 p="$(plan_of csi-spl-wui/package.json)"; [[ " $p " == *" lint-wui-lock "* ]] && pass "6g. wui package.json -> lockfile drift" || fail "6g" "$p"
+mkdir -p "$R/csi-spl-api/src/go/spool-hub-api"; echo 'package x' >"$R/csi-spl-api/src/go/spool-hub-api/x.go"; echo 'module x' >"$R/csi-spl-api/src/go/spool-hub-api/go.mod"
+p="$(plan_of csi-spl-api/src/go/spool-hub-api/x.go)"; [[ " $p " == *" lint-semgrep "* && " $p " != *" lint-gomod "* ]] && pass "6h. a hub .go -> semgrep on that file" || fail "6h" "$p"
+p="$(plan_of csi-spl-api/src/go/spool-hub-api/go.mod)"; [[ " $p " == *" lint-gomod "* ]] && pass "6i. go.mod -> go mod tidy -diff" || fail "6i" "$p"
 p="$(plan_of doc/readme.md)"
 [[ " $p " != *" lint-shellcheck "* && " $p " != *" lint-syntax "* ]] && pass "6f. a doc-only push runs no scanner but trufflehog" || fail "6f" "$p"
 unset _PPL_FILES

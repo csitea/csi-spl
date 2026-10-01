@@ -46,6 +46,12 @@ describe('the DM page and the sidebar', () => {
     assert.match(side, /sidebar\.your_status_online' : 'sidebar\.your_status_offline'/)
   })
 
+  it('on a phone the words sit under the name and wrap rather than clip (CI fonts are wider)', () => {
+    const css = read('src/assets/css/main.css')
+    assert.match(css, /\.feed-header__who--status \{ flex-direction: column;/)
+    assert.match(css, /\.feed-header__who--status \.feed-header__status \{ font-size: 0\.75rem; white-space: normal; overflow-wrap: anywhere; \}/)
+  })
+
   it('every locale carries the new words, {when} kept', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'))

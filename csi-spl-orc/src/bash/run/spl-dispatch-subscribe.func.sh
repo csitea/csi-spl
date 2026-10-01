@@ -23,7 +23,9 @@
 # @description            DISPATCH_SILENCE_WINDOW minutes, and neither
 # @description            dispatcher's desk spool received a single file
 # @description   UNSIGNED - REPORT ONLY: the hub stored human posts of that
-# @description            window unsigned (no box-wui pin), so no box got them
+# @description            window unsigned (no box-wui pin), so no box got them;
+# @description            a post from before the workspace's current pin does
+# @description            not count (that one is do_spl_replay_unsigned's)
 # @description            (do_spl_check_box_wui_pins, do_spl_cloud_pin_box_wui)
 # @description One read per workspace, through ONE proxy session, which the
 # @description dry run makes too (read-only) to compute the plan. DRY_RUN=1
@@ -58,7 +60,8 @@ do_spl_dispatch_subscribe() {
 #   sub|<channel>|<box>|<agent>|<origin>   one per live subscription
 #   hum|<posts>|<unsigned>    human channel posts the hub stored between
 #                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
-#                             and how many of them unsigned (absent = 0|0)
+#                             and how many of them unsigned and not older
+#                             than the live box-wui pin (absent = 0|0)
 # DISPATCH_SUBS_DIR (<dir>/<tenant>.txt holding those lines) replaces the hub
 # DB, for the tests and for an offline look at an export.
 spl_dispatch_with_subs() {
@@ -109,7 +112,12 @@ SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || 
    AND c.deleted_at IS NULL AND c.archived_at IS NULL
    AND NOT (s.origin = 'announce' AND s.channel_id IN ('lobby', 'alerts', 'feedback'))
  ORDER BY 1;
-SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '')
+-- unsigned leaves out a post stored before the live box-wui pin was set: a
+-- post stored before the pin is the replay's (do_spl_replay_unsigned), not a
+-- live gap (CLE-001, 2026-10-01: the first ticks after the pin alerted).
+SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '' AND NOT EXISTS (
+         SELECT 1 FROM pins p WHERE p.tenant_id = m.tenant_id AND p.box_id = 'box-wui'
+            AND p.revoked_at IS NULL AND p.updated_at > m.received_at))
   FROM messages m
  WHERE m.tenant_id = :'tenant' AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%'
    AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks') AND m.typed_by IS NULL

@@ -175,6 +175,17 @@ export function inviteErrorToken(err) {
   return ''
 }
 
+/**
+ * CLE-77819 test hook (mock only): the workspace "Who can archive topics" an
+ * e2e opts into with localStorage `spool.mock.archive_policy`; '' = off.
+ */
+function mockArchivePolicy() {
+  try {
+    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.archive_policy') || '') : ''
+    return ['everyone', 'admins', 'starter'].includes(v) ? v : ''
+  } catch { return '' }
+}
+
 /** Signed-in HUM-* . Live uses /v1/view/me. The mock has no me() and uses the roster. */
 export function signedInHuman(me, opts = {}) {
   const id = me && typeof me.humanId === 'string' ? me.humanId : ''
@@ -816,6 +827,11 @@ export function createSpoolClient({
         // act_as as the hub would, with the target's name from the directory.
         const { mockActAsGet } = await import('./act-as-mock.mjs')
         const a = mockActAsGet()
+        /* CLE-77819: the OPT-IN archive-policy mock. Absent by default (null =
+           unrestricted, as before); when set, the mock member is a plain
+           developer in a workspace with that "Who can archive topics". */
+        const policy = mockArchivePolicy()
+        if (policy && (!a || !a.target_hum)) return { role: 'developer', tenant_owner: false, topic_archive_policy: policy }
         if (!a || !a.target_hum) return null
         let name = a.target_hum
         try {
@@ -1299,7 +1315,11 @@ export function createSpoolClient({
         const all = [...state.messages, ...(state.archived || [])]
         const row = all.find((m) => m.msg_id === id)
         const replies = row ? all.filter((m) => m.msg_id !== id && (m.task_id === row.task_id || m.task_id === id)).length : 0
-        return { msg_id: id, task_id: row ? row.task_id : '', replies, task_ids: row ? [row.task_id] : [], can_delete: true, can_archive: true }
+        /* CLE-77819: with the opt-in policy, the mock answers can_archive the
+           way the hub's resolveCard does for a plain developer. */
+        const policy = mockArchivePolicy()
+        const canArchive = !policy || policy === 'everyone' || (policy === 'starter' && Boolean(row) && row.from === state.me.id)
+        return { msg_id: id, task_id: row ? row.task_id : '', replies, task_ids: row ? [row.task_id] : [], can_delete: true, can_archive: canArchive }
       }
       return live(`/v1/view/messages/${encodeURIComponent(id)}/topic`)
     },

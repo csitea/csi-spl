@@ -52,7 +52,11 @@ while [ "$#" -gt 0 ]; do
     *) break ;;
   esac
 done
-ENVN="${1:-}" TENANT="${2:-}" BOX="${3:-box-desk}"
+# The desk box defaults to this machine's (specs/058, as spl_desk_box_default in
+# lib/bash/funcs/spl-desk-box.func.sh - inlined: this file is installed as a copy).
+_desk_box="${SPOOL_DESK_BOX:-}"
+[ -n "$_desk_box" ] || _desk_box="$(sed -n "s/^SPOOL_DESK_BOX=[\"']\{0,1\}\([a-z0-9-]*\).*/\1/p" "${SPOOL_BOX_ENV:-/var/spool-hub/box.env}" 2>/dev/null | tail -1)"
+ENVN="${1:-}" TENANT="${2:-}" BOX="${3:-${_desk_box:-box-desk}}"
 [[ "$ENVN" =~ ^(dev|prd)$ ]] || { say "usage: spool-mcp <dev|prd> [tenant] [desk box]"; exit 2; }
 [[ -z "$TENANT" || "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad tenant '$TENANT'"; exit 2; }
 [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || { say "bad desk box '$BOX'"; exit 2; }

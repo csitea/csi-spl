@@ -42,7 +42,7 @@ do_spl_desk_pin() {
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" rkj="${ROOT_KEY_JSON:-}" other="${BOX_PUBKEY:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" rkj="${ROOT_KEY_JSON:-}" other="${BOX_PUBKEY:-}"
   local revoke="${PIN_REVOKE:-0}"
   [[ "$revoke" == 0 || "$revoke" == 1 ]] || { do_log "FATAL PIN_REVOKE must be 0 or 1, got: '$revoke'"; return 1; }
   spl_desk_validate "$tenant" "$box" CLE-0 || return 1

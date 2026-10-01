@@ -12,7 +12,7 @@
 # Environment variables:
 #   ENV         dev | prd (default: prd)
 #   TENANT_ID   tenant id (default: t1)
-#   DESK_BOX    box id (default: box-desk)
+#   DESK_BOX    box id (default: this machine's, spl_desk_box_default: box-desk)
 #   DESK_AGENT  agent id (e.g. AGY-3493; defaults to tmux window name)
 #   DESK_TO     human id (optional; auto-picked from newest if omitted)
 #   DESK_TASK   task uuid (optional; auto-picked from newest if omitted)
@@ -30,7 +30,9 @@ usage() {
 
 ENV="${ENV:-prd}"
 TENANT_ID="${TENANT_ID:-t1}"
-DESK_BOX="${DESK_BOX:-box-desk}"
+# shellcheck source=../../../lib/bash/funcs/spl-desk-box.func.sh
+. "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../.." && pwd)/lib/bash/funcs/spl-desk-box.func.sh"
+DESK_BOX="${DESK_BOX:-$(spl_desk_box_default)}"
 DESK_AGENT="${DESK_AGENT:-}"
 DESK_TO="${DESK_TO:-}"
 DESK_TASK="${DESK_TASK:-}"

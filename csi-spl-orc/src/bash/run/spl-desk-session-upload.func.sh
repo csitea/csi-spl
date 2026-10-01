@@ -37,7 +37,7 @@ do_spl_desk_session_upload() {
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local token="${SESSION_TOKEN:-}" to="${DESK_TO:-}" auser="${SESSION_AGENT_USER:-${SPOOL_AGENT_USER:-$(id -un)}}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ -n "$token" ]] || { do_log "FATAL SESSION_TOKEN must name a string only $agent's transcript holds, or its path"; return 1; }

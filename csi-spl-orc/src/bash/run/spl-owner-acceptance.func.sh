@@ -60,7 +60,7 @@ do_spl_owner_acceptance() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
 
-  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-CLE-00}" box="${OA_BOX:-box-desk}"
+  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-CLE-00}" box="${OA_BOX:-$(spl_desk_box_default)}"
   local topic="${OA_TOPIC:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   spl_oa_validate "$topic" || return 1

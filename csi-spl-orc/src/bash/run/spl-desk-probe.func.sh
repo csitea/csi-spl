@@ -43,7 +43,7 @@ do_spl_desk_probe() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}" ch="${DESK_CHANNEL:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}" ch="${DESK_CHANNEL:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ -z "$ch" || "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id, got: '$ch'"; return 1; }
 

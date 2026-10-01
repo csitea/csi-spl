@@ -36,7 +36,7 @@ do_spl_desk_post() {
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" channel="${DESK_CHANNEL:-}" typed_by="${DESK_TYPED_BY:-}"
   channel="${channel#\#}"; channel="${channel,,}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1

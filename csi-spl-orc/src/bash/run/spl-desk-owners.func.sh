@@ -21,7 +21,7 @@
 # @example ENV=prd TENANT_ID=t1 DESK_OWNERS='HUM-5 HUM-10' DRY_RUN=0 ./run -a do_spl_desk_owners
 #------------------------------------------------------------------------------
 do_spl_desk_owners() {
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" dry="${DRY_RUN:-1}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" dry="${DRY_RUN:-1}"
   spl_desk_validate "$tenant" "$box" CLE-0 || return 1
   do_spl_cloud_cnf || return 1
   local d="$SPL_STATE_DIR/desk/$tenant/$box" f ids="" id

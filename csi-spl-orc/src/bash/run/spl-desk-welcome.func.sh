@@ -45,7 +45,7 @@ do_spl_desk_welcome() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local box="${DESK_BOX:-box-desk}" age="${WELCOME_MAX_AGE_H:-24}" tries="${WELCOME_TRIES:-3}"
+  local box="${DESK_BOX:-$(spl_desk_box_default)}" age="${WELCOME_MAX_AGE_H:-24}" tries="${WELCOME_TRIES:-3}"
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ "$age" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL WELCOME_MAX_AGE_H must be 1..9999 hours, got: '$age'"; return 1; }
   [[ "$tries" =~ ^[1-9]$ ]] || { do_log "FATAL WELCOME_TRIES must be 1..9, got: '$tries'"; return 1; }

@@ -24,7 +24,7 @@
 do_spl_desk_mirror_check() {
   do_require_bin python3 || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local auser="${SESSION_AGENT_USER:-${SPOOL_AGENT_USER:-$(id -un)}}"
   spl_desk_validate "$tenant" "$box" "${agent:-CLE-0}" || return 1
   local d="$SPL_STATE_DIR/desk/$tenant/$box" ahome

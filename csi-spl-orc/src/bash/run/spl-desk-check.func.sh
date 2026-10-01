@@ -49,7 +49,7 @@
 do_spl_desk_check() {
   do_require_bin python3 yq || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local repair="${DESK_REPAIR:-0}"
   [[ "$repair" == 0 || "$repair" == 1 ]] || { do_log "FATAL DESK_REPAIR must be 0 or 1, got: '$repair'"; return 1; }

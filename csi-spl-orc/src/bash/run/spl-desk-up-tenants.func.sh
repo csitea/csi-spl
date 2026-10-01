@@ -27,7 +27,7 @@ do_spl_desk_up_tenants() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local box="${DESK_BOX:-box-desk}" skip=" ${DESK_SKIP_TENANTS:-} " t dir rc=0 n=0
+  local box="${DESK_BOX:-$(spl_desk_box_default)}" skip=" ${DESK_SKIP_TENANTS:-} " t dir rc=0 n=0
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   for dir in "$SPL_STATE_DIR"/desk/*/; do
     t="${dir%/}"; t="${t##*/}"

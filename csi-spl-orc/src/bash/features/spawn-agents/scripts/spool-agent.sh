@@ -56,7 +56,9 @@ ORC="$(cd "$FEAT/../../../.." && pwd)"
 RUN="${SPOOL_AGENT_RUN:-$ORC/run}"
 MIRROR_PY="$_here/spool-mirror.py"
 
-OPERATOR="" AS="" ENVN="${SPOOL_AGENT_ENVS:-}" TENANT="t1" BOX="box-desk" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
+# shellcheck source=../../../../../lib/bash/funcs/spl-desk-box.func.sh
+. "$ORC/lib/bash/funcs/spl-desk-box.func.sh"
+OPERATOR="" AS="" ENVN="${SPOOL_AGENT_ENVS:-}" TENANT="t1" BOX="$(spl_desk_box_default)" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
 usage() { sed -n '/^#   spool-agent.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [ "$#" -gt 0 ]; do
   case "$1" in

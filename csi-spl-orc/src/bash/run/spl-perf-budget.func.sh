@@ -53,7 +53,7 @@ do_spl_perf_budget() {
   [[ "$post" == 0 || "$post" == 1 ]] || { do_log "FATAL PERF_POST must be 0 or 1, got: '$post'"; return 1; }
   if [[ "$post" == 1 ]]; then
     local pagent="${PERF_POST_AGENT:-}" pto="${PERF_POST_TO:-}" ptask="${PERF_POST_TASK:-}"
-    spl_desk_validate "$tenant" "${DESK_BOX:-box-desk}" "$pagent" || return 1
+    spl_desk_validate "$tenant" "${DESK_BOX:-$(spl_desk_box_default)}" "$pagent" || return 1
     [[ "$pto" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL PERF_POST_TO must be a human id (HUM-...), got: '$pto'"; return 1; }
     [[ "$ptask" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || {
       do_log "FATAL PERF_POST_TASK must be a lowercase task UUID, got: '$ptask'"; return 1; }

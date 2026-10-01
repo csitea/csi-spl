@@ -35,7 +35,7 @@
 do_spl_channel_agent_add_op() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-box-desk}" agents="${AGENTS:-}" dry=1 raw a
+  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1 raw a
   local allowdef="${ALLOW_DEFAULT_CHANNEL:-0}"
   [[ "$allowdef" == 0 || "$allowdef" == 1 ]] || { do_log "FATAL ALLOW_DEFAULT_CHANNEL must be 0 or 1, got: '$allowdef'"; return 1; }
   local -a ids=()

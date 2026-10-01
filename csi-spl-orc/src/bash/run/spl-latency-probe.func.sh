@@ -50,7 +50,7 @@ do_spl_latency_probe() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${LAT_BOX:-box-desk}" agent="${LAT_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${LAT_BOX:-$(spl_desk_box_default)}" agent="${LAT_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
 
   local api_fqdn hub d

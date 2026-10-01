@@ -58,7 +58,7 @@ do_spl_desk_up() {
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local rkj="${ROOT_KEY_JSON:-}" wait="${DESK_WAIT_SECS:-30}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL DESK_WAIT_SECS must be a whole number, got: '$wait'"; return 1; }

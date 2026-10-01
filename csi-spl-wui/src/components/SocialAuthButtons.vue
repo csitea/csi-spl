@@ -37,9 +37,10 @@
       v-for="p in providers"
       :key="p"
       class="btn social-auth__btn"
-      :class="`social-auth__btn--${p}`"
+      :class="[`social-auth__btn--${p}`, { 'social-auth__btn--suggested': p === suggested }]"
       :data-test="`social-auth-${p}`"
-      :href="startHref(p, redirect, tenant, authBase)"
+      :data-suggested="p === suggested ? 'true' : undefined"
+      :href="startHref(p, redirect, tenant, authBase, loginHint)"
       rel="nofollow"
     >
       <span class="social-auth__mark" aria-hidden="true">
@@ -115,7 +116,11 @@ withDefaults(defineProps<{
   redirect?: string
   /** Tenant to carry on start (auth-v1 §1); dropped unless a DNS label. */
   tenant?: string
-}>(), { redirect: '/', tenant: '' })
+  /** SPL-1231: the invited address, sent as login_hint (pre-selects the account). */
+  loginHint?: string
+  /** SPL-1231: the provider the invited address most likely owns, drawn emphasised. */
+  suggested?: string
+}>(), { redirect: '/', tenant: '', loginHint: '', suggested: '' })
 
 const { t } = useI18n({ useScope: 'global' })
 const authBase = useAuthBase()
@@ -183,6 +188,11 @@ function label(p: string): string {
   box-sizing: border-box;
   overflow: hidden;
   text-decoration: none;
+}
+/* SPL-1231: the button the invited address most likely signs in with. */
+.social-auth__btn--suggested {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 .social-auth__btn--google {
   /* Google's own button language: white tile, coloured G, hairline grey. */

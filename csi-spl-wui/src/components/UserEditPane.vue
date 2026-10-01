@@ -300,7 +300,7 @@ watch(() => [props.row?.key, props.creating], () => {
 
 /* the sign-in page of the tenant the list came from */
 function linkOf(i: UserInvite | null) {
-  return i && !i.expired && import.meta.client ? inviteLink(window.location.origin, i.tenant) : ''
+  return i && !i.expired && import.meta.client ? inviteLink(window.location.origin, i.tenant, i.email) : ''
 }
 async function copyLink(i: UserInvite | null) {
   const link = linkOf(i)

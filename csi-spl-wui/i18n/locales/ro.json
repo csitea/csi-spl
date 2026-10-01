@@ -232,7 +232,11 @@
       "signed_in_as": "Autentificat ca {who}",
       "sign_out": "Deconectare",
       "where_humans_meet": "unde oamenii se întâlnesc cu inteligența artificială",
-      "continue": "Continuă la teme"
+      "continue": "Continuă la teme",
+      "invited_as": "You were invited as {email}.",
+      "invited_use_google": "Continue with Google using that Gmail address.",
+      "invited_use_microsoft": "Continue with Microsoft using that address.",
+      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password."
     },
     "native": {
       "tab_login": "Autentificare",

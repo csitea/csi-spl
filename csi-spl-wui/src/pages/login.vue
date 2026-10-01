@@ -2,8 +2,14 @@
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
-    <SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" />
-    <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" />
+    <!-- SPL-1231: arriving from an invite, say which address was invited and
+         which sign-in owns it, so the invitee does not bounce between providers. -->
+    <div v-if="invited && session.state !== 'in'" class="login-invite-hint" role="note" data-test="login-invite-hint">
+      <p data-test="login-invite-email">{{ t('auth.login.invited_as', { email: invited }) }}</p>
+      <p class="muted" :data-test="`login-invite-use-${hinted || 'any'}`">{{ t(`auth.login.invited_use_${hinted || 'any'}`) }}</p>
+    </div>
+    <SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" :login-hint="invited" :suggested="hinted" />
+    <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" :email="invited" />
     <p v-if="changed" class="muted" role="status" data-test="password-changed">{{ t('auth.login.password_changed') }}</p>
     <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
     <p v-if="session.state === 'in'" class="muted">
@@ -20,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { safeRedirect } from '~/utils/auth-client.mjs'
+import { hintedProvider, loginHintOf, safeRedirect } from '~/utils/auth-client.mjs'
 import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import NativeAuthForm from '~/components/NativeAuthForm.vue'
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
@@ -50,6 +56,10 @@ if (changedFromSettings.value) changedFromSettings.value = false
 const redirectQ = useSettledQuery('redirect')
 const tenantQ = useSettledQuery('tenant')
 const authError = useSettledQuery('auth_error')
+/* SPL-1231: ?login_hint=<the invited address> (the invite mail / copied link) */
+const hintQ = useSettledQuery('login_hint')
+const invited = computed(() => loginHintOf(hintQ.value.value))
+const hinted = computed(() => hintedProvider(invited.value))
 const redirect = computed(() => safeRedirect(redirectQ.value.value || '/'))
 /* auth-v1 §1: tenant is optional on start; send the one the viewer reads from */
 const tenant = computed(() => tenantQ.value.value || useSpoolApi().tenant || '')
@@ -81,6 +91,13 @@ onMounted(() => { void session.probe() })
   text-align: center;
 }
 /* A centered card still types from the start of the field. */
+.login-invite-hint {
+  margin: 0 auto 12px;
+  max-width: 34rem;
+}
+.login-invite-hint p {
+  margin: 4px 0;
+}
 .login-landing-card :deep(input),
 .login-landing-card :deep(textarea) {
   text-align: start;

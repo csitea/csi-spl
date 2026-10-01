@@ -25,6 +25,11 @@ describe('inviteLink', () => {
     assert.equal(d.invites[0].tenant, 'acme')
     assert.equal(normalizeDirectory({ invites: [{ email: 'p@example.com' }] }).invites[0].tenant, '')
   })
+  it('SPL-1231: carries the invitee address as login_hint (lower-cased); never a non-address', () => {
+    assert.equal(inviteLink('https://app.example.com', 't1', 'Office@Acme.BG'), 'https://app.example.com/login?tenant=t1&login_hint=office%40acme.bg')
+    assert.equal(inviteLink('https://app.example.com', 't1', 'nope'), 'https://app.example.com/login?tenant=t1')
+    assert.equal(inviteLink('https://app.example.com', 't1', ''), 'https://app.example.com/login?tenant=t1')
+  })
   it('CONTROL: no tenant or no origin = no link (never a tenant-less sign-in)', () => {
     assert.equal(inviteLink('https://app.example.com', ''), '')
     assert.equal(inviteLink('', 't1'), '')
@@ -36,7 +41,7 @@ describe('the pending-invite pane', () => {
   const pane = src('src/components/UserEditPane.vue')
   it('offers Copy invite link for a live invite, of the tenant the list came from', () => {
     assert.match(pane, /v-if="linkOf\(invite\)"[\s\S]*?data-test="users-pane-copy-link"/)
-    assert.match(pane, /i && !i\.expired && import\.meta\.client \? inviteLink\(window\.location\.origin, i\.tenant\)/)
+    assert.match(pane, /i && !i\.expired && import\.meta\.client \? inviteLink\(window\.location\.origin, i\.tenant, i\.email\)/)
     assert.match(pane, /navigator\.clipboard\.writeText\(link\)/)
   })
   it('only the hub answer "sent" reads as mailed ("logged" does not)', () => {

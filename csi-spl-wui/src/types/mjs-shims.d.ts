@@ -411,7 +411,9 @@ declare module '~/utils/auth-client.mjs' {
   export function providerLabel(p: string): string
   export function safeRedirect(path: string): string
   export function authOrigin(base: string): string
-  export function startHref(provider: string, redirect: string, tenant?: string, base?: string): string
+  export function startHref(provider: string, redirect: string, tenant?: string, base?: string, hint?: string): string
+  export function loginHintOf(v: unknown): string
+  export function hintedProvider(email: unknown): string
   export function retryAfterMessage(seconds: number): string
   export interface NativeResult {
     ok: boolean
@@ -1215,7 +1217,7 @@ declare module '~/utils/tenant-users.mjs' {
   export function memberLabel(row: UserRow | null | undefined): string
   export function userErrorKey(err: unknown): string
   export function looksLikeEmail(s: unknown): boolean
-  export function inviteLink(origin: unknown, tenant: unknown): string
+  export function inviteLink(origin: unknown, tenant: unknown, email?: unknown): string
 }
 
 declare module '~/utils/tenant-users-mock.mjs' {

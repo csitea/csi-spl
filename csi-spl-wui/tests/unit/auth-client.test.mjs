@@ -7,6 +7,8 @@ import {
   authErrorMessage,
   authOrigin,
   createAuthClient,
+  hintedProvider,
+  loginHintOf,
   nativeErrorMessage,
   providerLabel,
   providerName,
@@ -82,6 +84,23 @@ describe('auth-v1 helpers (spec 010)', () => {
   it('builds a plain start link with redirect and an optional DNS-label tenant', () => {
     assert.equal(startHref('google', '/t/abc', 't1'), '/api/v1/auth/google/start?redirect=%2Ft%2Fabc&tenant=t1')
     assert.equal(startHref('facebook', 'https://x', 'Not_A_Label'), '/api/v1/auth/facebook/start?redirect=%2F')
+  })
+
+  it('SPL-1231: carries a plain invited address as login_hint, lower-cased; drops anything else', () => {
+    assert.equal(startHref('google', '/', 't1', '', 'Invitee@Googlemail.com'), '/api/v1/auth/google/start?redirect=%2F&tenant=t1&login_hint=invitee%40googlemail.com')
+    assert.equal(startHref('google', '/', 't1', '', 'not an address'), '/api/v1/auth/google/start?redirect=%2F&tenant=t1')
+    assert.equal(startHref('google', '/', 't1'), '/api/v1/auth/google/start?redirect=%2F&tenant=t1')
+    assert.equal(loginHintOf('  Office@Acme.BG '), 'office@acme.bg')
+    for (const bad of ['', 'x', 'a@b', 'a b@c.d', null, undefined]) assert.equal(loginHintOf(bad), '')
+  })
+
+  it('SPL-1231: suggests Google for Gmail, Microsoft for the Outlook family, nothing for a work domain', () => {
+    assert.equal(hintedProvider('p@googlemail.com'), 'google')
+    assert.equal(hintedProvider('p@outlook.com'), 'microsoft')
+    assert.equal(hintedProvider('p@hotmail.co.uk'), 'microsoft')
+    assert.equal(hintedProvider('p@live.com'), 'microsoft')
+    assert.equal(hintedProvider('office@acme.bg'), '')
+    assert.equal(hintedProvider('not an address'), '')
   })
 })
 
@@ -312,7 +331,7 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
 
   it('is registry-driven plain links, no IdP SDK', () => {
     assert.ok(src.includes('loadProviders()'))
-    assert.ok(src.includes(':href="startHref(p, redirect, tenant, authBase)"'))
+    assert.ok(src.includes(':href="startHref(p, redirect, tenant, authBase, loginHint)"'))
     assert.equal(/<script[^>]+src=|accounts\.google\.com|connect\.facebook\.net/.test(src), false)
   })
 
@@ -329,7 +348,7 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
   it('/login renders it, with the settled redirect and tenant', () => {
     const login = readFileSync(join(WUI, 'src/pages/login.vue'), 'utf8')
     // SPL-959: the social return carries ?tenant=<t> from a tenant host (socialRedirect)
-    assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" />'))
+    assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" :login-hint="invited" :suggested="hinted" />'))
   })
   it('renders Microsoft and LinkedIn marks only when those providers are advertised', () => {
     // Buttons exist only for registry entries (v-for="p in providers").
@@ -413,7 +432,7 @@ describe('native sign-in pages (spec 015 A4, native-auth-v1 §2–§4)', () => {
 
   it('/login renders the native form (auth off → invisible) and change-password for p:password only', () => {
     const login = read('src/pages/login.vue')
-    assert.ok(login.includes('<NativeAuthForm v-if="session.state !== \'in\'" :redirect="redirect" :tenant="tenant" />'))
+    assert.ok(login.includes('<NativeAuthForm v-if="session.state !== \'in\'" :redirect="redirect" :tenant="tenant" :email="invited" />'))
     assert.ok(login.includes("session.claims?.p === 'password'"))
     assert.ok(login.includes('<ChangePasswordForm'))
     const form = read('src/components/NativeAuthForm.vue')

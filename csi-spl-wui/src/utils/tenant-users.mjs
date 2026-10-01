@@ -93,11 +93,15 @@ export function userErrorKey(err) {
  * sign-in page of the tenant (the shape invitemail.SignInURL mails) and carries
  * no secret: admission is the verified-email match. '' without a tenant.
  */
-export function inviteLink(origin, tenant) {
+export function inviteLink(origin, tenant, email = '') {
   const o = String(origin || '').replace(/\/+$/, '')
   const id = String(tenant || '').trim()
   if (!o || !id) return ''
-  return `${o}/login?tenant=${encodeURIComponent(id)}`
+  // SPL-1231: the invitee's own address rides as a sign-in hint (named on the
+  // login page, pre-selected at Google / Microsoft); admission is unchanged.
+  const e = String(email || '').trim().toLowerCase()
+  const hint = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? `&login_hint=${encodeURIComponent(e)}` : ''
+  return `${o}/login?tenant=${encodeURIComponent(id)}${hint}`
 }
 
 /** A loose address check before the round trip; the hub has the last word. */

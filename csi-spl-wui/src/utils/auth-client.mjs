@@ -168,11 +168,33 @@ export function authOrigin(base) {
  * §4: a plain link, no SDK. tenant only when it is a DNS label. The redirect
  * stays a WUI path: the hub lands on <APP_URL><redirect>, APP_URL = the WUI.
  */
-export function startHref(provider, redirect, tenant, base = '') {
+export function startHref(provider, redirect, tenant, base = '', hint = '') {
   const q = new URLSearchParams({ redirect: safeRedirect(redirect) })
   const t = String(tenant || '')
   if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) q.set('tenant', t)
+  // SPL-1231: the invited address pre-selects that account at Google /
+  // Microsoft (the hub forwards it only there). Never a credential.
+  const h = loginHintOf(hint)
+  if (h) q.set('login_hint', h)
   return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
+}
+
+/** SPL-1231: a plain e-mail address (lower-cased) usable as a sign-in hint, '' for anything else. */
+export function loginHintOf(v) {
+  const s = String(v || '').trim().toLowerCase()
+  return s.length >= 3 && s.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : ''
+}
+
+/**
+ * SPL-1231: the sign-in an invited address most likely owns — 'google' for
+ * Gmail, 'microsoft' for the Outlook family — or '' when it could be anything
+ * (a work address may be Google Workspace, Microsoft 365 or a password).
+ */
+export function hintedProvider(email) {
+  const d = loginHintOf(email).split('@')[1] || ''
+  if (d === 'gmail.com' || d === 'googlemail.com') return 'google'
+  if (/^(outlook|hotmail|live|msn)\.[a-z.]+$/.test(d)) return 'microsoft'
+  return ''
 }
 
 /** in-flight GET /providers per fetch function and auth origin (loadProviders) */

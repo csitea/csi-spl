@@ -79,7 +79,9 @@ import { useAuthCopy } from '~/composables/useAuthCopy'
 const props = withDefaults(defineProps<{
   redirect?: string
   tenant?: string
-}>(), { redirect: '/', tenant: '' })
+  /** SPL-1231: the invited address (?login_hint), pre-filled into an empty email field */
+  email?: string
+}>(), { redirect: '/', tenant: '', email: '' })
 
 type Mode = 'login' | 'register' | 'forgot'
 /* labels are catalogue keys (spec 021), rendered through t() */
@@ -102,7 +104,9 @@ const auth = useAuthClient()
 const session = useSessionStore()
 const status = ref<'idle' | 'on' | 'off'>('idle')
 const mode = ref<Mode>('login')
-const email = ref('')
+const email = ref(props.email)
+/* /login's query settles after hydration: fill the field once it arrives, never over typing */
+watch(() => props.email, (v) => { if (v && !email.value) email.value = v })
 const password = ref('')
 const name = ref('')
 const busy = ref(false)

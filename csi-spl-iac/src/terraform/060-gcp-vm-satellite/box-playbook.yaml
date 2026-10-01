@@ -17,7 +17,8 @@
 - name: The satellite - data disk, binaries, users, ysg-box settings, agent harness
   hosts: satellite
   become: true
-  gather_facts: true
+  # facts only once sshd answers: do_tf_apply runs this right after the VM is created
+  gather_facts: false
   vars:
     box_tag: sat
     box_timezone: Europe/Helsinki
@@ -40,6 +41,15 @@
     creds_envs: [dev, prd]
 
   pre_tasks:
+    - name: Wait for sshd on a fresh VM (over IAP)
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        sleep: 15
+        timeout: 900
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
     - name: Python apt bindings for the apt module (a fresh Debian image may lack them)
       ansible.builtin.raw: dpkg -s python3-apt >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-apt)
       changed_when: false

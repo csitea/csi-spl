@@ -28,7 +28,7 @@ Section 7 of the spec records how it was actually built.
 | OS | Debian GNU/Linux 13 (trixie), cloud kernel, image `debian-13-trixie-v20260921` (pinned, dated) |
 | boot disk | 30 GB pd-balanced: OS, `/home` |
 | data disk | `csi-spl-all-satellite-data`, 100 GB pd-balanced, ext4, label `satellite-data`; mounted at `/mnt/data`, with `/opt` and `/var/spool-hub` bind-mounted from it and docker's data-root on it |
-| OS user | `debian` (the GCE Debian default): groups `docker` and `google-sudoers`, linger on, so tmux and agents survive logout |
+| users | the box PC's split (box-playbook role 05): `<owner>` uid 2000 (tmux, the UI, `/opt/csi`) and `<agent>` uid 2001 (every AI CLI agent), names from the ysg-box overlay's `boxes/sat/box.env` (`BOX_USER`, `BOX_AGENT_USER`); homes `/mnt/data/home/<user>`, NOPASSWD sudo, `docker` + `spool-agents`, linger. `debian` (the GCE default) is the ssh/Ansible entry only |
 | network | own VPC `csi-spl-all-satellite-vpc`, subnet `10.80.0.0/24` (private Google access, 10% flow logs); internal IP only |
 | outbound | Cloud Router + Cloud NAT (`csi-spl-all-satellite-nat`); **no public IP** |
 | inbound | ONE firewall rule: tcp/22 from `35.235.240.0/20`, Google IAP only; no http/https, no load balancer, no DNS |
@@ -41,31 +41,36 @@ Section 7 of the spec records how it was actually built.
 
 | disk | holds | survives |
 |---|---|---|
-| boot, 30 GB | the OS, packages, **`/home/debian`**: `~/.local/bin` (claude, spool, spool-agent), `~/.claude` (the owner's claude login), the spool env in `~/.bashrc`, the pushed keys and GitHub token | nothing: lost on any VM recreate |
-| data, 100 GB | `/opt` (the repo clone `/opt/csi/csi-spl`), `/var/spool-hub` (the spool root), docker's data-root `/mnt/data/docker` | a VM-only rebuild (e.g. an image change); NOT a 060 destroy |
+| boot, 30 GB | the OS, packages, `/home/debian` (the ssh entry only) | nothing: lost on any VM recreate |
+| data, 100 GB | the users' homes `/mnt/data/home/<owner>` and `/mnt/data/home/<agent>` (`~/.local/bin`, `~/.claude` with the agent's claude login, the keys and token), `/opt` (the repo `/opt/csi/csi-spl`, the ysg-box overlay and engine), `/var/spool-hub` (the spool root), docker's data-root `/mnt/data/docker` | a VM-only rebuild (e.g. an image change); NOT a 060 destroy |
 
 No snapshots and no backups (owner: git is the backup): anything not pushed is
 lost with its disk.
 
 ### 1.2 What is installed
 
-| what | version (2026-10-01) | installed by |
-|---|---|---|
-| tmux, git, curl, jq, python3, perl, make, rsync, acl, build-essential, htop | Debian 13 | `satellite-box-setup.sh` role 03 |
-| docker + docker-compose | 26.1.5 | role 03 |
-| node + npm | 20.19 / 9.2 | role 03 |
-| gh | 2.46 | role 03 |
-| Google Cloud SDK | 585.0.0 | role 03 (Google apt repo) |
-| the csi-spl repo | `/opt/csi/csi-spl` (https clone, the token is read from `~/.github/token`) | bootstrap role 05 |
-| claude (Claude Code) | 2.1.x | `spool-install/install.sh --cli claude` |
-| spool, spool-agent, yq, Go | from this checkout | `spool-install/install.sh` |
-| spool env | `SPOOL_ROOT=/var/spool-hub`, `SPOOL_BOX_TAG=sat` (in `~/.bashrc`) | bootstrap role 05 |
-| credentials | `~/.gcp/.csi/key-csi-spl-{dev,prd}.json`, `~/.github/token`, all 0600 | `do_satellite_creds_push` |
+Everything in the VM is installed by ONE Ansible playbook, the eli-vta
+pattern (owner, topic 6f10f92b: "use the established ansible approach ... not
+anything ad-hoc"): `csi-spl-iac/src/terraform/060-gcp-vm-satellite/box-playbook.yaml`.
+Each role is idempotent; a recreate plus one playbook run rebuilds the box.
 
-These are **not yet** on the satellite: the owner's AI CLI logins, grok / agy /
-qwen, chrome (for e2e), the full AI-user setup of the home box, and a seated
-spool desk. Lane CLE-77894 replicates the AI-user setup; add what it installs
-to this table.
+| role | what | replaces |
+|---|---|---|
+| 01_data_disk | ext4 on the data disk (formatted only when blank), `/mnt/data`; `/opt` and `/var/spool-hub` bind-mounted from it; docker's data-root on it | `satellite-box-setup.sh` 01 |
+| 02_os_binaries | tmux git curl jq python3 perl make rsync acl sudo build-essential htop, docker + docker-compose, node + npm, gh, the Google Cloud CLI (Google's apt repo) | `satellite-box-setup.sh` 03 |
+| 03_timezone | `Europe/Helsinki` (topic 9a6e0f12) | `satellite-box-setup.sh` 07 |
+| 04_ssh_hardening | keys only, no passwords, no root login (`/etc/ssh/sshd_config.d/60-satellite.conf`, `sshd -t` validated) | `satellite-box-setup.sh` 06 |
+| 05_users | `<owner>` + `<agent>` as on the box PC (1.1), `/opt/csi` the owner's (setgid, default ACL group rwx), `/var/spool-hub` `<owner>:spool-agents` 2770, `/etc/csi-spl-satellite.env` (what verify reads) | `satellite-box-setup.sh` 02 |
+| 06_secrets | `~/.gcp/.csi/key-csi-spl-{dev,prd}.json` and `~/.github/token` for both users, 0600 in 0700 dirs, `no_log` | `do_satellite_creds_push` |
+| 07_ysg_box | the ysg-box engine + overlay, its `/var` dat dirs, and box `sat`'s claude-config rendered on the VM and applied per role (`.bashrc` & co, `~/.claude` CLAUDE.md settings commands skills, dotfiles); never a `.credentials.json` | `do_satellite_claude_config` |
+| 08_spool_harness | `/opt/csi/csi-spl`, git + gh for both users, the spool env (`/etc/profile.d/csi-spl-satellite.sh`: `SPOOL_ROOT`, `SPOOL_BOX_TAG=sat`), `spool-install/install.sh --cli claude --no-seat` as `<agent>` (claude, spool, spool-agent, yq, Go, hooks, skills) | `do_satellite_bootstrap` 05 |
+| 09_agent_tools | cloud-sql-proxy (Google's release, sha256-pinned to the box PC's), pnpm (corepack, the WUI's pin), the CI-pinned scanners + terraform (`do_install_lint_tools`, system-wide), tpl-gen | `do_satellite_install_tools` |
+
+`csi-spl-iac/cnf/satellite-replica.tsv` names every tool and the role that
+installs it; `do_satellite_verify` compares each with the box PC.
+
+Not on the satellite: the AI CLI logins (each user's own interactive step,
+1.5.9), grok / agy / qwen, chrome (for e2e), a seated spool desk.
 
 ### 1.3 Where it is defined
 
@@ -74,11 +79,19 @@ to this table.
 | cnf (single source of truth) | `csi-spl-cnf/csi-spl/prd.env.yaml` → `steps.059-gcp-satellite-budget`, `steps.060-gcp-vm-satellite` |
 | terraform: budget | `csi-spl-iac/src/terraform/059-gcp-satellite-budget` |
 | terraform: VM, disk, VPC, NAT, firewall, SA | `csi-spl-iac/src/terraform/060-gcp-vm-satellite` |
+| terraform → Ansible | `060-gcp-vm-satellite/07-ansible.tf`: writes `inventory.prd.ini` (the VM over the IAP proxy) and `csi-spl-iac/src/bash/scripts/run-ansible-csi-spl-prd-060-gcp-vm-satellite.sh` (both git-ignored, no secret); `do_tf_apply` runs the script after every 060 apply, in the tf-runner |
+| the playbook | `060-gcp-vm-satellite/box-playbook.yaml`, `roles/01..09`, `tasks/git-sync.yml` |
+| the users' names | the ysg-box overlay `boxes/sat/box.env` (`BOX_USER`, `BOX_AGENT_USER`, `BOX_ENGINE_ROOT`), never this repo |
 | tfvars templates | `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/05{9,60}-*.tpl` |
 | box actions | `csi-spl-iac/src/bash/run/satellite-*.func.sh`, helpers in `csi-spl-iac/lib/bash/funcs/satellite.func.sh` |
-| on-VM setup script | `csi-spl-iac/src/bash/scripts/satellite-box-setup.sh` (roles 01 data disk, 02 OS user, 03 packages, 06 ssh hardening) |
 | ssh ProxyCommand | `csi-spl-iac/src/bash/scripts/satellite-iap-proxy.sh` |
-| tests | `csi-spl-iac/src/bash/tests/satellite-steps.tst.sh`, `satellite-actions.tst.sh` |
+| tests | `csi-spl-iac/src/bash/tests/satellite-steps.tst.sh`, `satellite-actions.tst.sh`, `satellite-ansible.tst.sh` |
+
+The bash setup (`satellite-box-setup.sh`, `do_satellite_bootstrap`,
+`do_satellite_install_tools`, `do_satellite_home_persist`,
+`do_satellite_replicate_ai_user`, `do_satellite_creds_push`,
+`do_satellite_claude_config`) stays until the playbook passes verify on a
+recreated VM, then it is retired.
 
 Both steps take their cnf from **prd** (`ENV=prd`), but they run as the
 **csi-spl-all** service account (`tf_key_project: csi-spl-all`, key
@@ -112,8 +125,8 @@ csi-spl-bkp. The dev renders of both steps are header-only (`# prd-only-step`).
 | owner login | org-level human account | ONLY the one-time `ENV=all` gcp-000..004 bootstrap, while no csi-spl-all key exists |
 | csi-spl-all SA, key `~/.gcp/.csi/key-csi-spl-all.json` on the fleet box | `roles/owner` on csi-spl-all | terraform 059/060, the IAP tunnel, the host-key pin, `do_satellite_verify` |
 | VM SA `csi-spl-all-satellite@…` | logs + metrics writer only | the VM's own metadata identity; a stolen token can spend nothing |
-| dev + prd SA keys in `~debian/.gcp/.csi/` | per env, as on the home box | `ENV=dev\|prd ./run -a ...` on the satellite |
-| GitHub token `~debian/.github/token` | repo access | the clone and pulls on the satellite |
+| dev + prd SA keys in `~/.gcp/.csi/` of `<owner>` and `<agent>` | per env, as on the home box | `ENV=dev\|prd ./run -a ...` on the satellite |
+| GitHub token `~/.github/token` of both users | repo access | the clones, pulls and pushes on the satellite |
 
 ### 1.5 Operating it
 
@@ -144,7 +157,11 @@ It prints one `PASS`/`FAIL` line per check:
 - the only ingress rule is tcp:22 from IAP;
 - ssh works;
 - the data disk is mounted on `/mnt/data`, `/opt` and `/var/spool-hub`;
-- claude, spool and spool-agent are installed;
+- the users (role 05): `<owner>` uid 2000 and `<agent>` uid 2001, homes on
+  the data disk, NOPASSWD sudo, docker, linger, the agent in the owner's group;
+- AS THE AGENT: claude, spool and spool-agent, every tool of the replica
+  manifest, the claude-config, git, gh, docker, tpl-gen, and whether claude is
+  logged in (`claude auth status`, the `loggedIn` flag only);
 - `SPOOL_BOX_TAG=sat`;
 - the keys are 0600;
 - the budget exists.
@@ -172,16 +189,25 @@ cd /opt/csi/csi-spl/csi-spl-orc && GCP_BILLING_ACCOUNT_ID=<BILLING_ACCOUNT_ID> E
 
 #### 1.5.5 Re-run the box setup (idempotent)
 
-```bash
-cd /opt/csi/csi-spl/csi-spl-iac && DRY_RUN=0 ./run -a do_satellite_creds_push
-```
+The playbook, inside the tf-runner container (the eli-vta ad-hoc path as a
+named action). Needs one 060 apply from the mounted tree first: that apply
+writes the script.
 
 ```bash
-cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_bootstrap
+cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_playbook
 ```
 
-`SATELLITE_CLIS=claude,grok` installs more CLIs. `SATELLITE_SKIP_HARNESS=1`
-runs the root setup only.
+One role, or a dry run:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-iac && SATELLITE_PLAYBOOK_ARGS="--tags 07_ysg_box" ./run -a do_satellite_playbook
+```
+
+The same, straight in the container:
+
+```bash
+docker exec -it con-csi-csi-spl-tf-runner bash /opt/csi/csi-spl/csi-spl-iac/src/bash/scripts/run-ansible-csi-spl-prd-060-gcp-vm-satellite.sh
+```
 
 #### 1.5.6 Destroy and recreate (owner go for every destroy)
 
@@ -195,12 +221,12 @@ cd /opt/csi/csi-spl/csi-spl-orc && GCP_BILLING_ACCOUNT_ID=<BILLING_ACCOUNT_ID> E
 cd /opt/csi/csi-spl/csi-spl-orc && GCP_BILLING_ACCOUNT_ID=<BILLING_ACCOUNT_ID> ENV=prd STEP=060-gcp-vm-satellite make do-deprovision
 ```
 
-Then `make do-provision` for 059 (if it was destroyed) and 060. After that,
-in order:
-1. `do_satellite_ssh_config`: drops the old host key and pins the new one.
-2. `DRY_RUN=0 do_satellite_creds_push`.
-3. `do_satellite_bootstrap`.
-4. `do_satellite_verify`.
+Then `make do-provision` for 059 (if it was destroyed) and 060. The 060
+apply creates the VM, then runs the whole playbook against it (it waits for
+sshd; a new instance id drops the stale host key). After that, in order:
+1. `do_satellite_ssh_config`: pins the new host keys for `ssh satellite`.
+2. `do_satellite_verify`.
+3. The agent's claude login (1.5.9).
 
 The data disk has no `prevent_destroy` (owner drill, 2026-10-01): a 060
 destroy deletes it, and **git is the only backup**. Push everything before a
@@ -259,29 +285,30 @@ cd /opt/csi/csi-spl/csi-spl-iac && ENV=prd ./run -a do_tpl_gen
 5. Step 059 (the budget) BEFORE 060: `make do-tf-plan`, then
    `make do-provision` with `GCP_BILLING_ACCOUNT_ID` (1.5.4).
 6. Step 060: `make do-tf-plan`, then `make do-provision` (1.5.3, 1.5.4).
-7. Then the four steps after a recreate (1.5.6) and the owner's login (1.5.9).
+7. Then the steps after a recreate (1.5.6): the 060 apply already ran the playbook.
 
-#### 1.5.9 The owner's claude login (T023)
+#### 1.5.9 The claude login, per user
 
-Once per VM: the login lives in `~/.claude` on the boot disk. From a fleet box:
-
-```bash
-ssh satellite
-```
-
-On the satellite, start claude, open the printed authorize URL in any browser
-on any machine, sign in with the owner's account and paste the code back:
+Agents run as `<agent>`, so the claude login is `<agent>`'s, in
+`/mnt/data/home/<agent>/.claude` on the data disk (a VM-only rebuild keeps it,
+a 060 destroy does not). It is the owner's interactive step, once: from a
+fleet box, one line, then open the printed URL in any browser, sign in and
+paste the code back:
 
 ```bash
-claude
+ssh -t satellite sudo -iu <agent> claude auth login
 ```
+
+`do_satellite_verify` then reads `<agent>: claude is logged in` as PASS. The
+`<owner>` user needs no claude login (it runs tmux, not agents).
 
 #### 1.5.10 Keep agents alive after ssh disconnects
 
-Linger is on for `debian`; run agents inside tmux, never in the bare ssh session:
+Linger is on for `<owner>` and `<agent>`; run agents inside the owner's tmux,
+never in the bare ssh session:
 
 ```bash
-ssh -t satellite tmux new -A -s main
+ssh -t satellite sudo -iu <owner> tmux new -A -s main
 ```
 
 ### 1.6 Owner decisions (topics f35d82fc, b23639e2)
@@ -322,12 +349,14 @@ and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers
 
 ### 1.8 Known gaps and next steps
 
-- T023: the owner logs in to claude on the satellite (`ssh satellite`, then `claude`).
+- The playbook's first run on a recreated VM (owner go for the destroy), then
+  the agent's claude login (1.5.9); after a green verify the bash setup
+  actions are retired.
 - T024: agents spawned there; a desk seated in a test workspace that answers
   a post. The satellite trio (1.7) waits for the agent user on the satellite
   (lane CLE-77894), then its desks and the live lease drill. This needs `install.sh` without `--no-seat`, `SPOOL_HUB_URL` and the
   tenant admin pin.
-- The AI-user replication: lane CLE-77894.
+- The AI-user replication: the playbook's roles 05..09.
 - The bootstrap is bash roles, not ansible (owner round 1 asked for ansible).
   The role numbering is kept for a mechanical port.
 - The guest had not published its ssh host keys at the first pin, so the

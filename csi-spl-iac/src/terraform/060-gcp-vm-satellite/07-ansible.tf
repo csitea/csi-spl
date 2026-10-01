@@ -65,6 +65,14 @@ resource "local_file" "ansible_script" {
     export ANSIBLE_ROLES_PATH=${local.ansible_dir}/roles
     mkdir -p "$(dirname ${local.ansible_log})"
 
+    # a recreated VM has new host keys: drop the stale entry when the instance
+    # id changed (do_satellite_ssh_config re-pins from the guest attributes)
+    kh=~/.ssh/known_hosts.satellite id_file=~/.ssh/known_hosts.satellite.instance
+    if [ "$(cat "$id_file" 2>/dev/null)" != "${google_compute_instance.satellite.instance_id}" ]; then
+      ssh-keygen -R ${google_compute_instance.satellite.name} -f "$kh" >/dev/null 2>&1; rm -f "$kh.old"
+      echo "${google_compute_instance.satellite.instance_id}" >"$id_file"
+    fi
+
     ansible-playbook --syntax-check -i ${local.ansible_inventory} ${local.ansible_dir}/box-playbook.yaml \
       || { echo "Syntax check failed, exiting..."; exit 1; }
 

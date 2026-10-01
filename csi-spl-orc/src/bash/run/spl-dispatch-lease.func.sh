@@ -115,11 +115,14 @@ spl_lease_tell() {
 # SPOOL_AGENT_ID=<id>; empty when there is none. The lowest pid wins, so two
 # reads in a row agree.
 spl_lease_agent_pid() {
-  local id="$1" root="${LEASE_PROC_ROOT:-/proc}" d pid
+  local id="$1" root="${LEASE_PROC_ROOT:-/proc}" d pid comm
   for d in "$root"/[0-9]*; do
     pid="${d##*/}"
-    [[ "$(cat "$d/comm" 2>/dev/null)" == claude ]] || continue
-    tr '\0' '\n' 2>/dev/null < "$d/environ" | grep -qx "SPOOL_AGENT_ID=$id" || continue
+    # `read`, not $(cat): a builtin, so the walk forks only for the few
+    # claude processes (measured 2026-10-01: one fork per pid made a tick 26 s)
+    comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
+    [[ "$comm" == claude ]] || continue
+    grep -qzx "SPOOL_AGENT_ID=$id" "$d/environ" 2>/dev/null || continue
     echo "$pid"
   done | sort -n | head -1
 }

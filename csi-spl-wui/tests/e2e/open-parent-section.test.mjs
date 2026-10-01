@@ -51,7 +51,7 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   await p.goto(server.base + '/search?q=Applying', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const hit = `[data-test=search-results] .search-row[data-type=messages]`
+  const hit = `[data-test=search-results] [data-test=search-row][data-type=messages]`
   await p.waitForSelector(hit, { visible: true, timeout: NAV_TIMEOUT })
   /* 022 §10: a click opens the ORIGINAL; the right-pane preview is the row menu's Show here */
   await p.click(hit, { button: 'right' })

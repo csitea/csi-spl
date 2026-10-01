@@ -954,7 +954,9 @@
       "original": "Atvērt oriģinālu",
       "here": "Rādīt šeit",
       "copy_link": "Kopēt saiti"
-    }
+    },
+    "left_hint": "{n} rezultāts kreisajā panelī. Augšup / Lejup pārlūkošanai, Enter to atver tā vietā. | {n} rezultāti kreisajā panelī. Augšup / Lejup pārlūkošanai, Enter atver vienu tā vietā.",
+    "close_results": "Aizvērt meklēšanas rezultātus"
   },
   "role": {
     "biz_owner": "Biznesa īpašnieks",

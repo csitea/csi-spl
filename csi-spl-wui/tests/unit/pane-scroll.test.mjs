@@ -90,7 +90,6 @@ describe('the four views do not call scrollIntoView', () => {
     for (const rel of [
       'src/components/ChannelSidebar.vue',
       'src/pages/index.vue',
-      'src/pages/search.vue',
     ]) {
       const src = read(rel)
       assert.doesNotMatch(src, /scrollIntoView\s*\(/, rel)
@@ -136,8 +135,13 @@ describe('a thread is not scrolled', () => {
       assert.doesNotMatch(src, /scrollIntoView\s*\(/, rel)
       assert.doesNotMatch(src, /scrollRowToTop\s*\(/, rel)
     }
-    const search = read('src/pages/search.vue')
-    const focus = search.slice(search.indexOf('function focusMessage'), search.indexOf('useHead'))
+    /* CLE-77884: the search list moved to the left panel */
+    for (const rel of ['src/pages/search.vue', 'src/components/SearchSidePanel.vue', 'src/components/SideHitList.vue']) {
+      assert.doesNotMatch(read(rel), /scrollIntoView\s*\(/, rel)
+    }
+    assert.match(read('src/components/SideHitList.vue'), /scrollRowIntoPane\(/)
+    const search = read('src/components/SearchSidePanel.vue')
+    const focus = search.slice(search.indexOf('function focusMessage'), search.indexOf('defineExpose'))
     assert.match(focus, /openThreadRow\(/)
     assert.doesNotMatch(focus, /scrollTop/)
     const card = read('src/components/MessageCard.vue')

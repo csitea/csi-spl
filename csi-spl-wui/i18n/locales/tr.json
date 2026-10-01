@@ -954,7 +954,9 @@
       "original": "Orijinali aç",
       "here": "Burada göster",
       "copy_link": "Bağlantıyı kopyala"
-    }
+    },
+    "left_hint": "Sol panelde {n} sonuç. Gezinmek için Yukarı / Aşağı, Enter yerinde açar. | Sol panelde {n} sonuç. Gezinmek için Yukarı / Aşağı, Enter birini yerinde açar.",
+    "close_results": "Arama sonuçlarını kapat"
   },
   "role": {
     "biz_owner": "İşletme sahibi",

@@ -415,6 +415,19 @@
         <!-- topic 635f8072: message entries, not a list of channels / agents / topics -->
         <LazyFlowList :active="tab === 'flow'" />
       </div>
+      <!-- CLE-77884 (topic 635f8072): the /search hits, in the left panel. Not
+           a rail tab: shown by a search and held while the reader opens hits
+           (holdSearch); a rail icon or its X clears it. On a phone the search
+           page itself is this list (level 2), so it is not built twice. -->
+      <div
+        v-if="tab === 'search' && !(mobileStack.isMobile.value && onSearchPage)"
+        id="sidebar-panel-search"
+        class="sidebar-panel"
+        role="tabpanel"
+        data-testid="sidebar-panel-search"
+      >
+        <SearchSidePanel @close="closeSearch" />
+      </div>
       <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
         v-if="tab === 'issues' || tabsWarm"
@@ -659,11 +672,14 @@ import { useViewerStore } from '~/stores/viewer'
 import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
+import { useSearchStore } from '~/stores/search'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { MUTED_CHANNELS_KEY, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
 /* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
+/* CLE-77884: async too - only a search needs it */
+const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
@@ -675,7 +691,7 @@ import { isNewer } from '~/utils/build-watch.mjs'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
@@ -693,7 +709,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -757,12 +773,26 @@ function toggleTopicMenu(key: string, taskId: string) {
 }
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
+/* CLE-77884: so does the search list while the reader opens its hits; a
+   navigation from anywhere else (a rail icon, a link, Open parent section)
+   lets the rail follow the page again */
+const holdSearch = ref(false)
+const searchStore = useSearchStore()
 const route = useRoute()
 const mobileStack = useMobileStack()
+const onSearchPage = computed(() => isSearchPage(route.path))
 watch(() => route.path, (path) => {
   rowMenu.value = ''
+  if (isSearchPage(path)) {
+    holdFlow.value = false
+    holdSearch.value = true
+    tab.value = 'search'
+    return
+  }
   /* CLE-77882: a message opened in place keeps the list it was opened from */
-  if (holdFlow.value || useSidePane().listHeld.value) return
+  const held = useSidePane().listHeld.value
+  if (holdSearch.value && !held && !searchStore.opening) holdSearch.value = false
+  if (holdFlow.value || held || holdSearch.value) return
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
      keeps the section the reader left from, whatever page sits behind */
   if (mobileStack.isMobile.value && mobileStack.level.value === 1) return
@@ -849,6 +879,7 @@ watch([topicOpen, tab, () => viewer.topics.length], async ([id, which]) => {
    three lists. Direct messages and channels only swap the sidebar. */
 async function selectTab(next: SideTab) {
   holdFlow.value = next === 'flow'
+  holdSearch.value = false
   tab.value = next
   if (next === 'topics') {
     if (viewer.topics.length === 0) void viewer.loadTopics()
@@ -864,6 +895,12 @@ async function selectTab(next: SideTab) {
   if (next === AGENTS_TAB && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
   if (next === BOXES_TAB && tabForPath(route.path) !== BOXES_TAB) await navigateTo(localePath('/boxes'))
 }
+/* CLE-77884: the search list's X - back to the list the page belongs to */
+function closeSearch() {
+  holdSearch.value = false
+  tab.value = tabForPath(route.path) || 'channels'
+  if (isSearchPage(route.path)) void navigateTo(localePath('/'))
+}
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
   if (!req) return
@@ -871,6 +908,7 @@ watch(() => sidePane.requested.value, (req) => {
      topic that just opened remains the one the omnibox writes into. */
   if (req.stay) {
     holdFlow.value = false
+    holdSearch.value = false
     tab.value = req.id
     if (req.id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
     return
@@ -879,7 +917,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB) sidePane.setCurrent(id)
+  if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB) sidePane.setCurrent(id)
   if (id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

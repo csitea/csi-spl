@@ -954,7 +954,9 @@
       "original": "Open original",
       "here": "Show here",
       "copy_link": "Copy link"
-    }
+    },
+    "left_hint": "{n} result, in the left panel. Up / Down to browse, Enter to open it in place. | {n} results, in the left panel. Up / Down to browse, Enter to open one in place.",
+    "close_results": "Close the search results"
   },
   "role": {
     "biz_owner": "Business owner",

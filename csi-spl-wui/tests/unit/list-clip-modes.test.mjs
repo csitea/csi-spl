@@ -53,15 +53,10 @@ describe('middle pane lists (the msgs mode, FeedHeader control)', () => {
     })
   }
 
-  it('search results: a message hit takes the middle mode, the page has the control', () => {
-    const t = template('src/pages/search.vue')
-    assert.match(t, /<header class="feed-header">[\s\S]*?<LazyCardClipControl \/>[\s\S]*?<\/header>/)
-    assert.match(t, /class="search-row__snippet" :class="listClipClass\(clipMode\)"/)
-    assert.match(script('src/pages/search.vue'), /const \{ mode: clipMode \} = useCardClip\(\)/)
-    const css = read('src/pages/search.vue')
-    assert.match(css, /\.search-row__snippet\.list-clip--titles \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
-    assert.match(css, /\.search-row__snippet\.list-clip--rows \{[^}]*-webkit-line-clamp: 5;/)
-    assert.doesNotMatch(css, /\.search-row__snippet\.list-clip--full/, 'full is the unclipped snippet')
+  it('search results (CLE-77884): a compact left-panel list - a fixed two-line snippet, no clip control', () => {
+    assert.doesNotMatch(template('src/pages/search.vue'), /CardClipControl/)
+    const css = read('src/components/SideHitList.vue')
+    assert.match(css, /\.side-hit__text \{[^}]*-webkit-line-clamp: 2;/)
   })
 })
 

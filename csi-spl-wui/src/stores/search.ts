@@ -20,6 +20,12 @@ export const useSearchStore = defineStore('search', () => {
   const loadingMore = ref('')
   const error = ref<SearchError | null>(null)
   const operators = ref<SearchOperator[]>(SEARCH_OPERATORS)
+  /* CLE-77884: the left panel's chosen hit and its scroll, so the list comes
+     back as the reader left it after an open (phone Back, a remount) */
+  const activeKey = ref('')
+  const scrollTop = ref(0)
+  /* > 0 while the left list's own open navigates (ChannelSidebar keeps the list) */
+  const opening = ref(0)
   let seq = 0
   let opsLoaded = false
 
@@ -99,5 +105,5 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  return { q, result, loading, loadingMore, error, operators, run, more, loadOperators }
+  return { q, result, activeKey, scrollTop, opening, loading, loadingMore, error, operators, run, more, loadOperators }
 })

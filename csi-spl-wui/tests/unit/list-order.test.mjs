@@ -358,10 +358,11 @@ describe('search rows carry the clock their group is ordered by', () => {
     assert.deepEqual(items.map(rowAt), ['2026-09-20T03:00:00Z', '2026-09-19T03:00:00Z'])
   })
 
-  it('the search row stamps data-key and data-ts', () => {
-    const s = read('pages/search.vue')
-    assert.match(s, /:data-key="row\.key"/)
-    assert.match(s, /:data-ts="rowAt\(row\) \|\| undefined"/)
+  it('the search row stamps data-key and data-ts (CLE-77884: the left panel list)', () => {
+    const s = read('components/SideHitList.vue')
+    assert.match(s, /:data-key="item\.key"/)
+    assert.match(s, /:data-ts="item\.ts \|\| undefined"/)
+    assert.match(read('components/SearchSidePanel.vue'), /ts: rowAt\(row\)/)
   })
 })
 

@@ -35,6 +35,7 @@
         :data-test="rowTest || undefined"
         :data-key="item.key"
         :data-type="item.type || undefined"
+        :data-ts="item.ts || undefined"
         :data-msg-id="item.msgId || item.key"
         :title="item.title || undefined"
         @click="onClick(item)"

@@ -954,7 +954,9 @@
       "original": "Avaa alkuperäinen",
       "here": "Näytä tässä",
       "copy_link": "Kopioi linkki"
-    }
+    },
+    "left_hint": "{n} tulos vasemmassa paneelissa. Ylös / Alas selaa, Enter avaa sen paikallaan. | {n} tulosta vasemmassa paneelissa. Ylös / Alas selaa, Enter avaa yhden paikallaan.",
+    "close_results": "Sulje hakutulokset"
   },
   "role": {
     "biz_owner": "Liiketoiminnan omistaja",

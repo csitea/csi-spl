@@ -954,7 +954,9 @@
       "original": "Deschide originalul",
       "here": "Arată aici",
       "copy_link": "Copiază linkul"
-    }
+    },
+    "left_hint": "{n} rezultat în panoul din stânga. Sus / Jos pentru a răsfoi, Enter îl deschide la locul lui. | {n} rezultate în panoul din stânga. Sus / Jos pentru a răsfoi, Enter deschide unul la locul lui.",
+    "close_results": "Închide rezultatele căutării"
   },
   "role": {
     "biz_owner": "Proprietar de business",

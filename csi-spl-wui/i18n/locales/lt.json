@@ -954,7 +954,9 @@
       "original": "Atverti originalą",
       "here": "Rodyti čia",
       "copy_link": "Kopijuoti nuorodą"
-    }
+    },
+    "left_hint": "{n} rezultatas kairiajame skydelyje. Aukštyn / Žemyn naršyti, Enter atveria jį vietoje. | {n} rezultatai kairiajame skydelyje. Aukštyn / Žemyn naršyti, Enter atveria vieną vietoje.",
+    "close_results": "Uždaryti paieškos rezultatus"
   },
   "role": {
     "biz_owner": "Verslo savininkas",

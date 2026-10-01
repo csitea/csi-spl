@@ -954,7 +954,9 @@
       "original": "Öppna original",
       "here": "Visa här",
       "copy_link": "Kopiera länk"
-    }
+    },
+    "left_hint": "{n} träff i vänsterpanelen. Upp / Ner för att bläddra, Enter öppnar den på sin plats. | {n} träffar i vänsterpanelen. Upp / Ner för att bläddra, Enter öppnar en på sin plats.",
+    "close_results": "Stäng sökresultaten"
   },
   "role": {
     "biz_owner": "Affärsägare",

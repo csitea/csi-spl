@@ -467,9 +467,8 @@ describe('issue hits (grammar 1.2)', () => {
     assert.deepEqual(completeOperators('prio:').map((c) => c.insert), ['prio:1 ', 'prio:2 ', 'prio:3 ', 'prio:4 ', 'prio:5 '])
     assert.deepEqual(completeOperators('assignee:').map((c) => c.insert), ['assignee:me ', 'assignee:none '])
     assert.deepEqual(completeOperators('label:'), [])
-    const page = read('src/pages/search.vue')
-    assert.match(page, /status:in_progress/)
-    assert.match(page, /case 'issues'/)
+    assert.match(read('src/pages/search.vue'), /status:in_progress/)
+    assert.match(read('src/components/SearchSidePanel.vue'), /case 'issues'/)
   })
   it('every locale names the issues group and the issue operators', () => {
     const files = readdirSync(join(WUI, 'i18n/locales')).filter((f) => f.endsWith('.json')).sort()
@@ -585,9 +584,20 @@ describe('search-results.mjs stays out of the initial bundle', () => {
     assert.ok(files.includes(join('src', 'pages', 'search.vue')))
     assert.match(readFileSync(join(WUI, 'src/pages/search.vue'), 'utf8'), STATIC)
   })
+  /* CLE-77884: the left-panel list imports it too; it is itself async-only */
+  const LAZY = [join('src', 'pages', 'search.vue'), join('src', 'components', 'SearchSidePanel.vue')]
   it('no other source file imports it statically', () => {
-    const bad = files.filter((f) => f !== join('src', 'pages', 'search.vue') && STATIC.test(readFileSync(join(WUI, f), 'utf8')))
+    const bad = files.filter((f) => !LAZY.includes(f) && STATIC.test(readFileSync(join(WUI, f), 'utf8')))
     assert.deepEqual(bad, [])
+  })
+  it('SearchSidePanel.vue is only ever loaded with import()', () => {
+    const users = files.filter((f) => /SearchSidePanel/.test(readFileSync(join(WUI, f), 'utf8')) && f !== LAZY[1])
+    assert.ok(users.length, 'CONTROL: someone mounts it')
+    for (const f of users) {
+      const src = readFileSync(join(WUI, f), 'utf8')
+      assert.doesNotMatch(src, /^\s*import\s+SearchSidePanel\b/m, f)
+      assert.match(src, /import\(['"]~\/components\/SearchSidePanel\.vue['"]\)|<LazySearchSidePanel\b/, f)
+    }
   })
   it('the first-paint callers load it with import()', () => {
     for (const f of ['src/utils/spool-client.mjs', 'src/stores/search.ts']) {

@@ -954,7 +954,9 @@
       "original": "Origineel openen",
       "here": "Hier tonen",
       "copy_link": "Link kopiëren"
-    }
+    },
+    "left_hint": "{n} resultaat in het linkerpaneel. Omhoog / Omlaag om te bladeren, Enter opent het op zijn plek. | {n} resultaten in het linkerpaneel. Omhoog / Omlaag om te bladeren, Enter opent er een op zijn plek.",
+    "close_results": "Zoekresultaten sluiten"
   },
   "role": {
     "biz_owner": "Bedrijfseigenaar",

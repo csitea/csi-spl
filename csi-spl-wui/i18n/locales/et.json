@@ -954,7 +954,9 @@
       "original": "Ava algne",
       "here": "Näita siin",
       "copy_link": "Kopeeri link"
-    }
+    },
+    "left_hint": "{n} tulemus vasakul paneelil. Üles / Alla sirvimiseks, Enter avab selle oma kohal. | {n} tulemust vasakul paneelil. Üles / Alla sirvimiseks, Enter avab ühe oma kohal.",
+    "close_results": "Sulge otsingutulemused"
   },
   "role": {
     "biz_owner": "Äriomanik",

@@ -954,7 +954,9 @@
       "original": "Abrir original",
       "here": "Mostrar aquí",
       "copy_link": "Copiar enlace"
-    }
+    },
+    "left_hint": "{n} resultado en el panel izquierdo. Arriba / Abajo para recorrerlo, Enter lo abre en su sitio. | {n} resultados en el panel izquierdo. Arriba / Abajo para recorrerlos, Enter abre uno en su sitio.",
+    "close_results": "Cerrar los resultados de búsqueda"
   },
   "role": {
     "biz_owner": "Propietario de negocio",

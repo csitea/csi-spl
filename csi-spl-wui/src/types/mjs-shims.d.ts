@@ -243,6 +243,7 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const AGENTS_TAB: 'agents'
   export const BOXES_TAB: 'boxes'
   export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null
+  export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
 }
 
@@ -1896,6 +1897,8 @@ declare module '~/utils/side-hit-list.mjs' {
     badge?: string
     title?: string
     unread?: boolean
+    /** the clock the list is ordered by, stamped as data-ts */
+    ts?: string
   }
   export function cycleIndex(i: number, n: number, key: string): number
   export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>

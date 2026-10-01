@@ -1,9 +1,9 @@
 // 022 §10: "Open original" on a search result, in a real browser
 // on the mock tenant. Desktop: a click on a message hit opens the channel it
 // was posted in, with its topic open on the right and the hit marked there;
-// Back returns to the results; the row's right menu (right-click and the row
-// button) offers Open original, Show here, Copy link; Show here keeps the
-// search page. Phone (390 px): a long press opens the menu as a sheet, a tap
+// Back returns to the results; the row's right menu (right-click and the menu
+// key) offers Open original, Show here, Copy link; Show here keeps the
+// search page. CLE-77884: the hits are the LEFT panel's list. Phone (390 px): a long press opens the menu as a sheet, a tap
 // opens the original.
 //
 //   node tests/e2e/search-original.test.mjs          (mock tenant, nuxi dev)
@@ -22,7 +22,7 @@ const SHOTS = process.env.SEARCH_ORIGINAL_SHOTS || mkdtempSync(join(tmpdir(), 's
 const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
 const Q = 'Applying'
-const HIT = '[data-test=search-results] .search-row[data-type=messages]'
+const HIT = '[data-test=search-results] [data-test=search-row][data-type=messages]'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -64,7 +64,7 @@ try {
   await p.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(HIT, { visible: true, timeout: NAV_TIMEOUT })
 
-  /* 1-3: the menu, from a right-click and from the row button */
+  /* 1-3: the menu, from a right-click and from the keyboard's menu key */
   await p.click(HIT, { button: 'right' })
   await p.waitForSelector('[data-testid=search-row-menu]', { visible: true, timeout: 5000 })
   const ids = await p.$$eval('[data-testid=search-row-menu] [role=menuitem]', (els) => els.map((e) => e.getAttribute('data-testid')))
@@ -74,10 +74,12 @@ try {
   await p.keyboard.press('Escape')
   await p.waitForSelector('[data-testid=search-row-menu]', { hidden: true, timeout: 5000 })
   ok('2 Escape closes it', true)
-  await p.hover(HIT)
-  await p.click(`${HIT} [data-testid=search-row-menu-btn]`)
-  const fromBtn = await p.waitForSelector('[data-testid=search-row-menu]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
-  ok('3 the row button opens the same menu', fromBtn)
+  await p.$eval('[data-test=search-results]', (el) => el.focus())
+  await p.keyboard.down('Shift')
+  await p.keyboard.press('F10')
+  await p.keyboard.up('Shift')
+  const fromKey = await p.waitForSelector('[data-testid=search-row-menu]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
+  ok('3 Shift+F10 on the list opens the same menu', fromKey)
 
   /* 4: Show here = the old preview, the page stays /search */
   await p.click('[data-testid=search-row-menu-here]')
@@ -115,7 +117,7 @@ try {
   await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await m.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await m.waitForSelector(HIT, { visible: true, timeout: NAV_TIMEOUT })
-  const box = await (await m.$(`${HIT} .search-row__snippet`)).boundingBox()
+  const box = await (await m.$(`${HIT} .side-hit__text`)).boundingBox()
   await m.touchscreen.touchStart(box.x + 20, box.y + 5)
   await sleep(800)
   await m.touchscreen.touchEnd()

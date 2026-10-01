@@ -68,6 +68,16 @@ export function tabForPath(path) {
 }
 
 /**
+ * CLE-77884: the search page, whose hits the left panel lists (not a rail
+ * tab: the sidebar holds that list while the reader opens hits).
+ * @param {string} path vue-router path, no query
+ */
+export function isSearchPage(path) {
+  const p = productPath(path)
+  return p === '/search' || p.startsWith('/search/')
+}
+
+/**
  * Omnibox command `/switch-pane: <name>`.
  * `null` — this line is not the command (send it as a message).
  * `''` — it is the command, but the name is not a pane (do not send).

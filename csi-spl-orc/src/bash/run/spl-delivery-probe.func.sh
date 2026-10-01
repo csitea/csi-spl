@@ -20,6 +20,8 @@
 # @param PROBE_GAP (optional) - seconds between sends, default 20
 # @param PROBE_WAIT (optional) - seconds a live frame may take, default 30
 # @param PROBE_FRESH_SENDER (optional) - 1 (default) new sender socket per send
+# @param PROBE_CHECK_EVERY (optional) - 0 (default) a raw receiver socket; N =
+# @param   the receiver re-dials like the WUI when GET /v1/wui/revision moves
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd DRY_RUN=0 PROBE_N=24 ./run -a do_spl_delivery_probe
 #------------------------------------------------------------------------------
@@ -46,7 +48,7 @@ do_spl_delivery_probe() {
     do_log "FATAL no seated m3-e2e member in $st: run ENV=$ENV TENANT_ID=$tenant DRY_RUN=0 ./run -a do_spl_m3_e2e first"; return 1; }
   local out="$st/delivery-results.json" rc=0
   PROBE_N="${PROBE_N:-20}" PROBE_GAP="${PROBE_GAP:-20}" PROBE_WAIT="${PROBE_WAIT:-30}" \
-  PROBE_FRESH_SENDER="${PROBE_FRESH_SENDER:-1}" PROBE_OUT="$out" \
+  PROBE_FRESH_SENDER="${PROBE_FRESH_SENDER:-1}" PROBE_CHECK_EVERY="${PROBE_CHECK_EVERY:-0}" PROBE_OUT="$out" \
   M3_HUB_URL="$hub" M3_AUTH_URL="$hub" M3_TENANT="$tenant" M3_STATE="$st" M3_HUMAN_EMAIL="$email" \
     python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/delivery-probe.py" || rc=$?
   (( rc == 0 )) || { do_log "FAIL the delivery probe on $tenant ($ENV) measured nothing: see $out"; return 1; }

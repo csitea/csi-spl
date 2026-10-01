@@ -314,6 +314,10 @@ hasnt "17. tool output never arrives" "Service URL" "$all17"
 hasnt "17. the typed password never arrives" "Tr0ub4dor" "$all17"
 has "17. ...it arrives as the redaction marker" "the password is <redacted>" "$all17"
 has "17. the seat log counts the redaction" "typed-password" "$(cat "$A/.mirror/mirror.log")"
+post answer "login: password: hunter2 and the key AKIA$(printf 'B%.0s' $(seq 16))" s17h >/dev/null
+eq "17. OWNER RULE: password: hunter2 mirrors as password: [redacted]" "login: password: [redacted] and the key <redacted:aws-key-id>" "$(body_of_last)"
+post prompt "password reset flow works" s17c >/dev/null
+eq "17. CONTROL: an ordinary line mirrors unchanged" "[terminal] password reset flow works" "$(body_of_last)"
 n17=$(nsends)
 mkdir -p "$T_TMP/box-root"; : >"$T_TMP/box-root/.mirror-off"
 printf '{"hook_event_name":"Stop","session_id":"F17","last_assistant_message":"switched off"}' |

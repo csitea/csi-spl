@@ -51,11 +51,22 @@ SECRETS = [
     # A signed URL (git-rel's relay, S3/GCS) is a bearer credential until it
     # expires: the signature is what grants the read.
     (r"(?i)((?:X-Goog-Signature|X-Amz-Signature|Signature|sig)=)[A-Za-z0-9%+/=_-]{16,}", r"\1<redacted>", "signed-url"),
+    # OWNER RULE, hard-coded (HUM-10, 2026-10-01, topic cbb86bfe): "if there
+    # is password: <<password>> the <<password>> should not be replicated in
+    # the channel". Any length, `:` or `=`, any case, an env-style prefix
+    # (DB_PASSWORD=, PGPASSWORD=) or a quoted JSON key. The marker is
+    # [redacted]: a whole message renders with html: true in the web UI, where
+    # a <tag>-shaped marker may vanish. Closes the 2026-09-30 prd leak.
+    (r"""(?i)(\b[A-Za-z0-9_]*(?:password|passwd|passphrase|pwd)["']?\s*[:=]\s*)(?![\[<]redacted)"""
+     r"""(?:"[^"\n]*"|'[^'\n]*'|[^\s'"]+)""", r"\1[redacted]", "password"),
+    # An Authorization header, whatever its scheme (Basic, Bearer, token, ...).
+    (r"""(?i)(\bauthorization["']?\s*[:=]\s*)(?![\[<]redacted)(?:(?:basic|bearer|token|digest|negotiate)\s+)?[^\s'",;]+""",
+     r"\1[redacted]", "authorization"),
     (r"(?i)(\bbearer\s+)[A-Za-z0-9._~+/-]{16,}=*", r"\1<redacted>", "bearer"),
     (r"(?i)(\b(?:set-)?cookie:\s*[^=\s;]+=)[^;\s]{16,}", r"\1<redacted>", "cookie"),
     (r'(?i)("[a-z0-9_-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)"\s*:\s*)"[^"]{6,}"',
      r'\1"<redacted>"', "json-secret"),
-    (r"(?i)(password|passwd|pw|secret|token|api[_-]?key|access[_-]?key)(\s*[=:]\s*)['\"]?[^\s'\"]{6,}", r"\1\2<redacted>", "assignment"),
+    (r"(?i)(password|passwd|pw|secret|token|api[_-]?key|access[_-]?key)(\s*[=:]\s*)(?!\[redacted\])['\"]?[^\s'\"]{6,}", r"\1\2<redacted>", "assignment"),
     # A password said in prose, the way a human types one into a terminal:
     # "the password is X", "pw for HUM-1 was X". The value must carry a digit
     # or a symbol, so "the password is incorrect." stays prose. (2026-10-01: a

@@ -145,7 +145,9 @@ has "6. dry run prints the crontab diff: our line added" "+* * * * * bash" "$out
 eq "6. ... exactly one line added, none removed" "1 0" "$(printf '%s\n' "$out" | grep -cE '^  \+[^+]') $(printf '%s\n' "$out" | grep -cE '^  -[^-]')"
 has "6. ... and prints the hook commands" "PLAN hook: set-hook -g pane-exited[1]" "$out"
 check "6. ... and changes nothing" cmp -s "$CT" "$T_TMP/crontab.orig"
+rm -rf "$SPOOL_ROOT/agents"
 inst DRY_RUN=0 >/dev/null
+check "6. DRY_RUN=0 creates the map dir the cron line logs into" test -d "$SPOOL_ROOT/agents"
 eq "6. DRY_RUN=0: one line ending in our tag" 1 "$(grep -c ' # csi-spl:agent-identity-reconcile$' "$CT")"
 check "6. ... every other line byte-identical, order kept" cmp -s <(grep -v ' # csi-spl:agent-identity-reconcile$' "$CT") "$T_TMP/crontab.orig"
 has "6. ... the prd desk-reconcile line still there" "# csi-spl:desk-reconcile-prd" "$(cat "$CT")"

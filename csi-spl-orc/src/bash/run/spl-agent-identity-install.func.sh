@@ -50,6 +50,13 @@ do_spl_agent_identity_install() {
     rm -f "$before" "$after"; return 1
   fi
 
+  # 0. the map dir: the cron line appends its log there, and a redirection to a
+  #    missing dir fails before the script could create it
+  if [[ "$un" != 1 && ! -d "${log%/*}" ]]; then
+    if [[ "$dry" == 1 ]]; then echo "PLAN dir: mkdir -p ${log%/*}"
+    else mkdir -p "${log%/*}" && echo "DONE dir: ${log%/*}" || { do_log "FATAL cannot create ${log%/*}"; rm -f "$before" "$after"; return 1; }; fi
+  fi
+
   # 1. the cron line: the whole crontab, with exactly our line added/removed
   if [[ "$un" == 1 ]]; then ai_cron_without "$before" >"$after"
   else { ai_cron_without "$before"; printf '%s\n' "$want"; } >"$after"; fi

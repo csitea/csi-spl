@@ -117,6 +117,8 @@ try {
     await p.waitForFunction(() => location.pathname.endsWith('/channel/alerts'), { timeout: NAV_TIMEOUT })
     f = await facts(p)
     ok(`${tag}: a click opens #alerts`, f.path.endsWith('/channel/alerts'), f.path)
+    const lit = await p.waitForFunction((id) => document.querySelector(`.msg[data-msg-id="${id}"].open-focus`), { timeout: 10000 }, ALERT).then(() => true, () => false)
+    ok(`${tag}: the message is highlighted in its place`, lit)
     if (phone) {
       ok(`${tag}: phone - the place is the screen, not the list`, f.level === '2' || f.level === '3', f.level)
       /* Back walks the stack down to the list (the thread first, when one opened) */
@@ -143,10 +145,15 @@ try {
     ok(`${tag}: ArrowUp selects it back`, f.selected[0] === ALERT, f.selected)
     await p.keyboard.press('ArrowDown')
     await p.keyboard.press('Enter')
-    /* the next entry (5555...) is a reply in #lobby: it opens #lobby at its topic, the reply in view */
+    /* the next entry (5555...) is a reply in #lobby: Enter opens it in #lobby
+       (the thread and the highlight are openMessage's, proved by its own suite) */
     await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: NAV_TIMEOUT })
-    const at = await p.evaluate((id) => ({ url: location.pathname + location.search, card: Boolean(document.querySelector(`.msg[data-msg-id="${id}"]`)) }), next)
-    ok(`${tag}: Enter opens the selected entry's place (#lobby, the reply on screen)`, at.card, { at, next })
+    f = await facts(p)
+    ok(`${tag}: Enter opens the selected entry in its place (#lobby), the entry stays selected`, f.path.endsWith('/channel/lobby') && f.selected[0] === next, { path: f.path, selected: f.selected, next })
+    if (!phone) {
+      const kept = await p.evaluate(() => Boolean(document.activeElement && document.activeElement.closest('[data-testid=left-list]')))
+      ok(`${tag}: the keyboard stays on the list after Enter`, kept)
+    }
 
     ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
     await p.close()

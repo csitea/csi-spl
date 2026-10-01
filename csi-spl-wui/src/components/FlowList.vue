@@ -20,13 +20,13 @@
 
 <script setup lang="ts">
 import { useFlowStore } from '~/stores/flow'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useOpenMessage } from '~/composables/useOpenMessage'
 import { useChannelStore } from '~/stores/channel'
 import { useNotificationStore } from '~/stores/notification'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useNowTick } from '~/composables/useNowTick'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { flowEntryPath, flowUnread } from '~/utils/flow-entries.mjs'
+import { flowUnread } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import type { SideHitItem } from '~/utils/side-hit-list.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
@@ -35,9 +35,7 @@ import { formatMsgListTs, phoneCardTime, shownPerson } from '~/utils/channel-fee
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 
 const { t } = useI18n({ useScope: 'global' })
-const localePath = useLocalePath()
-const api = useSpoolApi()
-const router = useRouter()
+const { openMessage } = useOpenMessage()
 const flow = useFlowStore()
 const channel = useChannelStore()
 const notes = useNotificationStore()
@@ -83,18 +81,19 @@ const items = computed<SideHitItem[]>(() => flow.entries.map((e: FlowEntry) => {
 }))
 
 /**
- * The message in its original place: its channel or DM with its topic open
- * and the card brought into view (the "Open parent section" path, loaded on
- * the click). A row that names no place still opens by route.
+ * The message in its original place (lane A, CLE-77882): its channel or DM
+ * scrolled to it and highlighted, a reply in its thread. The row is passed
+ * whole, so no lookup; the Flow list stays while it navigates.
  */
 async function openKey(key: string) {
   const row = flow.entries.find((r: FlowEntry) => r.key === key)
   if (!row) return
   flow.select(key)
   flow.markOpened(key)
-  const { openParentSection } = await import('~/utils/parent-section-open.mjs')
-  const opened = await openParentSection(row, { api, router, localePath, self: flow.self() })
-  if (!opened) await navigateTo(localePath(flowEntryPath(row)))
+  /* the keyboard stays on the list, so the next ArrowDown keeps cycling */
+  const keyboard = Boolean(scrollEl.value && scrollEl.value.contains(document.activeElement))
+  await openMessage(row)
+  if (keyboard && !stack.isMobile.value) listEl.value?.focus()
 }
 
 /* the scroll survives the panel being hidden (another tab, a phone at level

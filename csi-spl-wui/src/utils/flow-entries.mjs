@@ -7,6 +7,7 @@
 
 import { dmPeerOf } from './channel-feed.mjs'
 import { isUnread, when } from './read-cursor.mjs'
+import { isViewersOwn } from './typed-by.mjs'
 
 /** How many entries the panel holds. Older ones fall off the end. */
 export const FLOW_CAP = 200
@@ -73,7 +74,8 @@ export function flowEntry(m, self = '') {
     text,
     files,
     at: when(m),
-    mine: Boolean(self) && String(m.from || '') === String(self),
+    /* CLE-77889: a line the viewer typed at an agent's terminal is theirs too */
+    mine: isViewersOwn(m, self),
   }
 }
 
@@ -119,18 +121,4 @@ export function flowUnread(entry, cursors = {}, opened = null) {
   if (opened && opened.has(entry.key)) return false
   const key = entry.kind === 'channel' ? 'ch:' + entry.channel : 'dm:' + entry.where
   return isUnread({ msg_id: entry.msg_id, ts: entry.at }, cursors[key])
-}
-
-/**
- * The place an entry opens until lane A's openMessage is on the page: the
- * channel / DM feed with the topic and the message as the hash. `peer` is
- * the DM peer label.
- */
-export function flowEntryPath(entry) {
-  if (!entry) return '/'
-  const topic = entry.parent_task_id || entry.task_id
-  const q = topic ? '?topic=' + encodeURIComponent(topic) : ''
-  const hash = '#' + encodeURIComponent(entry.msg_id)
-  if (entry.kind === 'channel') return '/channel/' + encodeURIComponent(entry.channel) + q + hash
-  return '/dm/' + encodeURIComponent(entry.where) + q + hash
 }

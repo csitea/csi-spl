@@ -275,7 +275,6 @@ declare module '~/utils/flow-entries.mjs' {
   export function mergeFlow(held: FlowEntry[], messages: unknown[], self?: string, cap?: number): FlowEntry[]
   export function dropFlow(held: FlowEntry[], msgId: string): FlowEntry[]
   export function flowUnread(entry: FlowEntry, cursors?: Record<string, { ts?: string, id?: string } | undefined>, opened?: Set<string> | null): boolean
-  export function flowEntryPath(entry: FlowEntry | null): string
 }
 
 declare module '~/utils/channel-feed.mjs' {

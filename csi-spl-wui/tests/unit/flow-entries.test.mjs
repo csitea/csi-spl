@@ -9,7 +9,6 @@ import {
   FLOW_CAP,
   dropFlow,
   flowEntry,
-  flowEntryPath,
   flowKeyOf,
   flowText,
   flowUnread,
@@ -106,17 +105,8 @@ describe('flowUnread', () => {
   it('never for the reader\'s own message, nor one opened from the Flow', () => {
     assert.equal(flowUnread(flowEntry(msg({ from: SELF }), SELF), {}), false)
     assert.equal(flowUnread(e, {}, new Set(['m1'])), false)
-  })
-})
-
-describe('flowEntryPath', () => {
-  it('a channel reply opens its channel at the parent topic, the message as hash', () => {
-    const e = flowEntry(msg({ parent_task_id: 'p' }), SELF)
-    assert.equal(flowEntryPath(e), '/channel/lobby?topic=p#m1')
-  })
-  it('a DM opens the DM', () => {
-    const e = flowEntry(msg({ channel: null, from: 'GRK-03', from_box: 'box-a' }), SELF)
-    assert.equal(flowEntryPath(e), '/dm/GRK-03%40box-a?topic=t1#m1')
+    /* CLE-77889: a line the viewer typed at an agent's terminal */
+    assert.equal(flowUnread(flowEntry(msg({ from: 'CLE-07', typed_by: SELF }), SELF), {}), false)
   })
 })
 
@@ -132,5 +122,7 @@ describe('the Flow panel', () => {
     const list = readFileSync(new URL('../../src/components/FlowList.vue', import.meta.url), 'utf8')
     assert.match(list, /<LazySideHitList[\s\S]*mode="flow"/)
     assert.match(list, /msgId: e\.msg_id/)
+    /* lane A (CLE-77882): the entry opens in its original place, the whole row passed */
+    assert.match(list, /await openMessage\(row\)/)
   })
 })

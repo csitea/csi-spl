@@ -64,6 +64,17 @@ try {
   const p = await browser.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
+  // specs/054 (CLE-77781): the mock is signed-OUT by default and its /session no
+  // longer rides the network, so opt into a signed-in admin (HUM-1 is the mock's
+  // admin viewer) via localStorage — else the rail and the tenant-settings gear
+  // never render and every step below fails at the empty rail.
+  await p.evaluateOnNewDocument(() => {
+    try {
+      localStorage.setItem('spool.mock.session', JSON.stringify({
+        hum: 'HUM-1', email: 'admin@example.com', name: 'FirstName LastName', t: 't1',
+      }))
+    } catch { /* opaque origin on the very first document */ }
+  })
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
 
   // 1. the entry: bottom-left of the screen

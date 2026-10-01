@@ -20,6 +20,9 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   RENAME<TAB>pane<TAB>old<TAB>new per agent window whose name
                   is not the one derived from its record; the caller renames
   set-title ID T  set ID's title (what riname does); reconcile then renames
+  restore-plan [--since UTC] [--until UTC] [--ids "ID ..."]
+                  the records a reboot restore starts again (RESTORE rows) and
+                  the ones it refuses (REFUSE + reason); see the action
   hash            the hash of the records as they are on disk
   alive ID        print the pid and exit 0 when ID's record names a live process
                   that still IS that agent: the pid exists with the recorded start
@@ -513,6 +516,139 @@ def cmd_reconcile(args, proc):
     return 0
 
 
+def transcript_owner(path, read):
+    """The agent a claude transcript belongs to: the id in its project dir (the
+    LAUNCH cwd, which no restore or rename can move); for a project dir with
+    no id, the one id its agent-name / custom-title records ever carried (two
+    different ids -> unknown, never guessed)."""
+    m = NAME_ID_RE.findall(os.path.basename(os.path.dirname(path)))
+    if m:
+        return m[-1]
+    ids = set()
+    for line in read(path).splitlines():
+        if '"agent-name"' not in line and '"custom-title"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        n = NAME_ID_RE.findall(str(d.get("agentName") or d.get("customTitle") or ""))
+        if n:
+            ids.add(n[-1])
+            if len(ids) > 1:
+                return ""
+    return ids.pop() if ids else ""
+
+
+def user_home(user):
+    if os.environ.get("AI_TRANSCRIPT_HOME"):          # test seam
+        return os.environ["AI_TRANSCRIPT_HOME"]
+    try:
+        return pwd.getpwnam(user).pw_dir
+    except KeyError:
+        return ""
+
+
+def read_as(user):
+    """A reader for files in USER's home (0700): directly, else as that user."""
+    def rd(path):
+        try:
+            with open(path) as fh:
+                return fh.read()
+        except PermissionError:
+            if os.environ.get("AI_OWNER_HOP", "1") == "0":
+                return ""
+            try:
+                r = subprocess.run(["sudo", "-n", "-u", user, "cat", path], stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL, timeout=5)
+                return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                return ""
+        except OSError:
+            return ""
+    return rd
+
+
+def exists_as(user, path):
+    if os.path.exists(path):
+        return True
+    if os.environ.get("AI_OWNER_HOP", "1") == "0":
+        return False
+    try:
+        return subprocess.run(["sudo", "-n", "-u", user, "test", "-e", path], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def cmd_restore_plan(args, proc):
+    """Which records a reboot restore starts again, and which it refuses.
+    RESTORE<TAB>id<TAB>kind<TAB>user<TAB>session_id<TAB>worktree<TAB>tmux_session<TAB>title
+    REFUSE<TAB>id<TAB>reason        SKIP<TAB>id<TAB>reason (not a candidate)"""
+    live, _ = facts(proc, read_panes(sys.stdin))
+    live_ids = {f["id"] for f in live}
+    running = set()                       # every session id a live CLI holds
+    for f in live:
+        if f.get("session_id"):
+            running.add(f["session_id"])
+    for pid in proc.pids():
+        argv = proc.argv(pid)
+        if kind_of(argv):
+            for fl in ("--resume", "--session-id", "--conversation"):
+                v = flag(argv, fl)
+                if v:
+                    running.add(v)
+    recs = load(args.dir)
+    want = set(args.ids.split()) if args.ids else None
+    cands = []
+    for i in sorted(recs):
+        r = recs[i]
+        if want is not None and i not in want:
+            continue
+        if i in live_ids:
+            print("SKIP\t%s\talready running (pid of its process is live)" % i)
+            continue
+        # Killed by the restart: the record still says alive (no pass ran since
+        # the process vanished), or the first pass after the restart flipped it
+        # - inside [since, until]. An agent that exited on its own before the
+        # restart, or long after it, is not brought back.
+        went = r.get("updated_at") or ""
+        if want is None and not (r.get("alive") or (args.since <= went and (not args.until or went <= args.until))):
+            print("SKIP\t%s\tnot killed by the restart (went dead at %s, outside %s .. %s)" % (i, went or "?", args.since, args.until or "now"))
+            continue
+        cands.append(r)
+    sid_n = {}
+    for r in cands:
+        if r.get("session_id"):
+            sid_n[r["session_id"]] = sid_n.get(r["session_id"], 0) + 1
+    for r in cands:
+        i, sid, wt, kind, user = r["id"], r.get("session_id"), r.get("worktree"), r.get("kind") or "claude", r.get("user") or ""
+        why = ""
+        if not sid:
+            why = "its session is unknown; not guessing one"
+        elif sid_n.get(sid, 0) > 1:
+            why = "session %s is on %d records" % (sid, sid_n[sid])
+        elif sid in running:
+            why = "session %s is already running in another process" % sid
+        elif not wt or not os.path.isdir(wt):
+            why = "its worktree %s is gone (a resume elsewhere would start a fresh conversation)" % wt
+        elif kind == "claude":
+            home = user_home(user)
+            t = os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", wt), sid + ".jsonl")
+            if not home or not exists_as(user, t):
+                why = "the transcript of %s is not under the project dir of %s" % (sid, wt)
+            else:
+                own = transcript_owner(t, read_as(user))
+                if own and own != i:
+                    why = "session %s belongs to %s, not to %s" % (sid, own, i)
+        if why:
+            print("REFUSE\t%s\t%s" % (i, why))
+        else:
+            print("RESTORE\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (i, kind, user or "-", sid, wt,
+                                                       r.get("tmux_session") or "-", r.get("title") or "-"))
+    return 0
+
+
 def cmd_set_title(args, proc):
     """Set ID's title (riname): the next reconcile names its window from it."""
     recs = load(args.dir)
@@ -566,6 +702,10 @@ def main():
     rc.add_argument("--tag", default="")
     rc.add_argument("--apply", action="store_true")
     sub.add_parser("hash")
+    rp = sub.add_parser("restore-plan")
+    rp.add_argument("--since", default="")
+    rp.add_argument("--until", default="")
+    rp.add_argument("--ids", default="")
     st = sub.add_parser("set-title")
     st.add_argument("id")
     st.add_argument("title")
@@ -586,6 +726,8 @@ def main():
         return cmd_reconcile(args, proc)
     if args.cmd == "set-title":
         return cmd_set_title(args, proc)
+    if args.cmd == "restore-plan":
+        return cmd_restore_plan(args, proc)
     if args.cmd == "hash":
         print(map_hash(load(args.dir)))
         return 0

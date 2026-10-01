@@ -237,6 +237,21 @@ DRY_RUN=0 ./run -a do_spl_agent_identity_install
 DRY_RUN=0 IDENTITY_UNINSTALL=1 ./run -a do_spl_agent_identity_install
 ```
 
+#### 3.10.10 After a reboot: see which agents the map would start again (dry run)
+
+Each agent the restart killed resumes its own session in its own worktree, in a
+new window. A record that cannot be proven is refused and named.
+
+```bash
+./run -a do_spl_agent_identity_restore
+```
+
+#### 3.10.11 Start them
+
+```bash
+DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+```
+
 ## 4. Exit codes of spool-send.sh and spool-notify.sh
 
 The message file is written before the pane is touched. Any exit code below 10

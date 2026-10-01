@@ -1,6 +1,6 @@
 # SPEC: the agent identity map
 
-Status: steps (a) record + check, (b) reconcile + riname + install, and (c) resolvers are built. Step (d) follows.
+Status: steps (a) to (d) are built. The box engine calling (d) at boot is the last switch.
 Owner order, 2026-10-01: "some kind of hash to keep up-to-date the runtime tmux
 window names and the session names in sync with this hash on the disk".
 
@@ -82,5 +82,20 @@ process of another user is read as that user (`sudo -n -u <owner>`, only on a
 permission error), so agents that run as the agent user are mapped too.
 Test: `tests/test-agent-identity-resolve.sh`.
 
-4.4 (d) The reboot restore starts each record's session under its own id. The
-box engine's save and restore call these actions.
+4.4 (d) `do_spl_agent_identity_restore` (DRY_RUN=1 default) starts again every
+agent the restart killed:
+
+- a record that still says alive with no process, or one the first pass after
+  the restart flipped (dead between the boot time and
+  `IDENTITY_RESTORE_WINDOW` minutes later);
+- each resumes its own session in its own worktree, in a NEW window (tmux
+  re-issues pane ids after a restart), through `restore-<kind>.sh`, as the
+  user it ran as;
+- each gets a fresh spool-registry row (`IDENTITY_LEGACY_REGISTRY` also takes
+  one), then reconcile names the windows and check runs.
+
+A record is REFUSED, named and skipped, when its session is unknown, is on two
+records, or is already running; when its worktree is gone; or when its
+transcript is not under that worktree's project dir or belongs to another
+agent. Test: `tests/test-agent-identity-restore.sh`. The box engine's boot job
+calls this action instead of inferring agent sessions from window names.

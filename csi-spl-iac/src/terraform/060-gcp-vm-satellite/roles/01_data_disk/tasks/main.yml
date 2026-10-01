@@ -1,0 +1,61 @@
+---
+# 01 the data disk (060's attached disk, device_name satellite-data): ext4,
+# formatted ONLY when blank, mounted on data_mnt; /opt, /var/spool-hub and
+# docker's data-root live on it, so a VM rebuild that keeps the disk keeps
+# them. Port of satellite-box-setup.sh role_01_data_disk.
+- name: The data disk is attached
+  ansible.builtin.stat:
+    path: "{{ data_device }}"
+  register: data_dev
+
+- name: Refuse without the data disk
+  ansible.builtin.assert:
+    that: data_dev.stat.exists
+    fail_msg: "no block device {{ data_device }} (060 attaches it as satellite-data)"
+
+- name: Format the data disk only when it is blank
+  community.general.filesystem:
+    dev: "{{ data_device }}"
+    fstype: ext4
+    opts: -m 0 -L satellite-data
+    force: false
+
+- name: Mount the data disk
+  ansible.posix.mount:
+    src: LABEL=satellite-data
+    path: "{{ data_mnt }}"
+    fstype: ext4
+    opts: defaults,nofail,discard
+    passno: "2"
+    state: mounted
+
+- name: The dirs on the data disk
+  ansible.builtin.file:
+    path: "{{ data_mnt }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [opt, spool-hub, docker, home]
+
+- name: Bind /opt and /var/spool-hub onto the data disk
+  ansible.posix.mount:
+    src: "{{ data_mnt }}/{{ item.src }}"
+    path: "{{ item.dst }}"
+    fstype: none
+    opts: "bind,nofail,x-systemd.requires-mounts-for={{ data_mnt }}"
+    state: mounted
+  loop:
+    - { src: opt, dst: /opt }
+    - { src: spool-hub, dst: "{{ spool_root }}" }
+
+- name: The docker dir
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: "0755"
+
+- name: Docker's data-root on the data disk
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{ \"data-root\": \"{{ data_mnt }}/docker\" }\n"
+    mode: "0644"
+  notify: Restart docker

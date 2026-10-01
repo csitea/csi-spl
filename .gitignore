@@ -46,3 +46,8 @@ __pycache__/
 
 # standalone backups (README: Backup, restore and upgrade) hold the tenant root key
 /backup-*/
+
+# terraform-generated ansible files (060-gcp-vm-satellite/07-ansible.tf, the
+# eli-vta pattern): the inventory and the run script, rebuilt on every apply
+csi-spl-iac/src/terraform/*/inventory.*.ini
+csi-spl-iac/src/bash/scripts/run-ansible-*.sh

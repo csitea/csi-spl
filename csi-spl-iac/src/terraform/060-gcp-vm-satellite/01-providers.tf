@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    # 07-ansible.tf: the inventory + run-ansible script (eli-vta pattern)
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 
   backend "gcs" {}

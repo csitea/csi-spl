@@ -4,6 +4,7 @@
 # steps block is absent, so this renders the header only and the step's env
 # validation refuses a dev plan.
 
+# runtime-vars: proj_path
 org         = "csi"
 app         = "spl"
 env         = "prd"

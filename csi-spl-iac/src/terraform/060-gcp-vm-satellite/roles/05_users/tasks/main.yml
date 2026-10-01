@@ -1,0 +1,152 @@
+---
+# 05 the users, as on the box PC: the OWNER (tmux, the UI, the worktrees) and
+# the AGENT (every AI CLI; CLAUDE.md "Claude Code instances start as" it).
+# Their names come from the ysg-box overlay's boxes/<box_tag>/box.env
+# (BOX_USER / BOX_AGENT_USER), never from this repo. Homes live on the data
+# disk (box.env BOX_AGENT_HOME), so they survive a VM rebuild that keeps it.
+# Sudo as on the box PC: NOPASSWD:ALL, one /etc/sudoers.d file each, visudo
+# checked. The agent is in the owner's group (the shared worktrees), both in
+# docker and spool-agents; both linger (tmux and agents outlive ssh).
+# The GCE login user (os_user) stays the ssh/ansible entry only.
+- name: The ysg-box overlay (box.env names the users)
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/git-sync.yml"
+  vars:
+    git_url: "{{ ysg_box_overlay_url }}"
+    git_dir: "{{ ysg_box_overlay_dir }}"
+    git_user: root
+
+- name: Read boxes/{{ box_tag }}/box.env
+  ansible.builtin.slurp:
+    src: "{{ ysg_box_overlay_dir }}/boxes/{{ box_tag }}/box.env"
+  register: box_env_raw
+
+- name: The owner and agent users from box.env
+  ansible.builtin.set_fact:
+    owner_user: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_USER=\"?([a-z_][a-z0-9_-]*)', '\\1') | first }}"
+    agent_user: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_AGENT_USER=\"?([a-z_][a-z0-9_-]*)', '\\1') | first }}"
+    ysg_box_engine_dir: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_ENGINE_ROOT=\"?(/[A-Za-z0-9/._-]+)', '\\1') | first }}"
+
+- name: Refuse a box.env without both users
+  ansible.builtin.assert:
+    that:
+      - owner_user | length > 0
+      - agent_user | length > 0
+      - owner_user != agent_user
+      - ysg_box_engine_dir is match('^/opt/')
+    fail_msg: "boxes/{{ box_tag }}/box.env must set BOX_USER, BOX_AGENT_USER and BOX_ENGINE_ROOT (under /opt)"
+
+- name: The users' home paths
+  ansible.builtin.set_fact:
+    owner_home: "{{ home_root }}/{{ owner_user }}"
+    agent_home: "{{ home_root }}/{{ agent_user }}"
+
+- name: The spool group
+  ansible.builtin.group:
+    name: "{{ spool_group }}"
+    system: true
+
+- name: The users' own groups
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid }}"
+  loop:
+    - { name: "{{ owner_user }}", gid: "{{ owner_uid }}" }
+    - { name: "{{ agent_user }}", gid: "{{ agent_uid }}" }
+
+- name: The owner user
+  ansible.builtin.user:
+    name: "{{ owner_user }}"
+    uid: "{{ owner_uid }}"
+    group: "{{ owner_user }}"
+    groups: [docker, "{{ spool_group }}", sudo]
+    append: true
+    home: "{{ owner_home }}"
+    create_home: true
+    shell: /bin/bash
+
+- name: The agent user
+  ansible.builtin.user:
+    name: "{{ agent_user }}"
+    uid: "{{ agent_uid }}"
+    group: "{{ agent_user }}"
+    groups: ["{{ owner_user }}", docker, "{{ spool_group }}"]
+    append: true
+    home: "{{ agent_home }}"
+    create_home: true
+    shell: /bin/bash
+
+- name: Passwordless sudo, as on the box PC
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ item }}-nopasswd"
+    content: "{{ item }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  loop: ["{{ owner_user }}", "{{ agent_user }}"]
+
+- name: Linger (tmux and the agents outlive the ssh session)
+  ansible.builtin.command: loginctl enable-linger {{ item }}
+  args:
+    creates: "/var/lib/systemd/linger/{{ item }}"
+  loop: ["{{ owner_user }}", "{{ agent_user }}"]
+
+- name: The owner logs in over IAP with the satellite key too (ssh -l <owner> satellite)
+  ansible.posix.authorized_key:
+    user: "{{ owner_user }}"
+    key: "{{ lookup('file', ssh_public_key_file) }}"
+    state: present
+
+- name: /opt/csi and the engine's parent, the owner's, group-writable (setgid + default ACL, as on the box PC)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "2775"
+  loop: [/opt/csi, "{{ ysg_box_engine_dir | dirname }}"]
+
+- name: Default ACL, group rwx, on /opt/csi and the engine's parent
+  ansible.posix.acl:
+    path: "{{ item.0 }}"
+    etype: group
+    entity: "{{ owner_user }}"
+    permissions: rwx
+    default: "{{ item.1 }}"
+    state: present
+  loop: "{{ ['/opt/csi', ysg_box_engine_dir | dirname] | product([false, true]) | list }}"
+
+- name: Everything under /opt/csi and the engine's parent belongs to the owner (a clone made by root or the GCE user)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    c=0
+    for d in /opt/csi "$E"; do
+      if [ -n "$(find "$d" \( ! -user "$O" -o ! -group "$O" \) -print -quit)" ]; then
+        chown -R "$O:$O" "$d" && chmod -R g+rwX "$d" && c=1
+      fi
+    done
+    [ "$c" = 1 ] && echo CHANGED || echo OK
+  args:
+    executable: /bin/bash
+  environment:
+    O: "{{ owner_user }}"
+    E: "{{ ysg_box_engine_dir | dirname }}"
+  register: opt_owner
+  changed_when: "'CHANGED' in opt_owner.stdout"
+
+- name: The spool root, the owner's, group spool-agents (as on the box PC)
+  ansible.builtin.file:
+    path: "{{ spool_root }}"
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ spool_group }}"
+    mode: "2770"
+
+- name: The box's self-description, read by do_satellite_verify
+  ansible.builtin.copy:
+    dest: /etc/csi-spl-satellite.env
+    content: |
+      # written by box-playbook.yaml role 05_users; do not edit
+      OWNER_USER={{ owner_user }}
+      AGENT_USER={{ agent_user }}
+      BOX_TAG={{ box_tag }}
+      BOX_TIMEZONE={{ box_timezone }}
+    mode: "0644"

@@ -1,0 +1,6 @@
+---
+# 03 the box clock's zone (owner topic 9a6e0f12: Europe/Helsinki), so a
+# recreate gets it back. Port of satellite-box-setup.sh role_07_timezone.
+- name: "Timezone {{ box_timezone }}"
+  community.general.timezone:
+    name: "{{ box_timezone }}"

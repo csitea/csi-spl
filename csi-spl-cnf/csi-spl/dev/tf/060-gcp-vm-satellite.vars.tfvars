@@ -6,6 +6,7 @@
 
 # prd-only-step
 
+# runtime-vars: proj_path
 org         = "csi"
 app         = "spl"
 env         = "dev"

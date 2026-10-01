@@ -1,0 +1,15 @@
+---
+# 04 sshd: keys only, no root login, no passwords. sshd -t validates the
+# drop-in before it is written. Port of satellite-box-setup.sh
+# role_06_ssh_hardening (same file, same content).
+- name: The sshd drop-in
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/60-satellite.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload ssh

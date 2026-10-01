@@ -1,0 +1,60 @@
+---
+# 02 the OS binaries (eli-vta 01_os_binaries): the Debian packages the box
+# PC's agents run, docker, and the Google Cloud CLI from Google's apt repo.
+# Port of satellite-box-setup.sh role_03_os_packages; cnf/satellite-replica.tsv
+# names each tool do_satellite_verify compares with the box PC.
+- name: Debian packages
+  ansible.builtin.apt:
+    name:
+      - tmux
+      - git
+      - curl
+      - wget
+      - ca-certificates
+      - gnupg
+      - jq
+      - python3
+      - python3-venv
+      - perl
+      - util-linux
+      - rsync
+      - acl
+      - sudo
+      - make
+      - unzip
+      - zip
+      - build-essential
+      - docker.io
+      - docker-compose
+      - nodejs
+      - npm
+      - gh
+      - htop
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: The Google Cloud apt key
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor --yes -o /usr/share/keyrings/cloud.google.gpg
+  args:
+    executable: /bin/bash
+    creates: /usr/share/keyrings/cloud.google.gpg
+
+- name: The Google Cloud apt repo
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main
+    filename: google-cloud-sdk
+    state: present
+
+- name: The Google Cloud CLI
+  ansible.builtin.apt:
+    name: google-cloud-cli
+    state: present
+
+- name: Docker runs
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started

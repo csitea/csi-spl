@@ -1,0 +1,6 @@
+---
+# the box PC's cloud-sql-proxy (2.14.1, sha256 measured 2026-10-01 on the box
+# PC binary AND on Google's release URL: the same bytes)
+cloud_sql_proxy_version: 2.14.1
+cloud_sql_proxy_sha256: e48115261929445f468ae7ae86be199781bafda56837c9f33644892df8d46997
+tpl_gen_repo_url: https://github.com/csitea/tpl-gen.git

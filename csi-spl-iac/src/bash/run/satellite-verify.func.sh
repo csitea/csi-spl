@@ -10,7 +10,10 @@
 # @description   SPOOL_BOX_TAG=sat, the pushed keys 0600, the budget exists;
 # @description   then the replica of the box PC (owner topic 5fe56859): every
 # @description   tool of cnf/satellite-replica.tsv, its version on THIS box and
-# @description   on the satellite (missing there = FAIL), and the AI-user setup
+# @description   on the satellite (missing there = FAIL); the users of the
+# @description   playbook (box-playbook.yaml 05, owner topic 6f10f92b): owner +
+# @description   agent from /etc/csi-spl-satellite.env, uid, home on the data
+# @description   disk, NOPASSWD sudo, docker, linger; and, AS THE AGENT, the AI-user setup
 # @description   (home dirs on the data disk, ~/.claude config + skills +
 # @description   memory, tmux, git identity, gh auth, docker, tpl-gen, and
 # @description   whether claude is logged in there: the loggedIn flag only).
@@ -51,18 +54,22 @@ do_satellite_verify() {
 
   do_satellite_ssh_opts || return 1
   local remote
+  _satellite_verify_users
   # shellcheck disable=SC2016
-  remote=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" 'for m in /mnt/data /opt /var/spool-hub; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
-    for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] && echo "bin $b ok" || echo "bin $b no"; done
-    grep -h "^export SPOOL_BOX_TAG=" "$HOME/.bashrc" | sed "s/^export /tag /"
-    for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do echo "key $f $(stat -c %a "$HOME/$f" 2>/dev/null || echo missing)"; done' 2>/dev/null)
+  remote=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
+for m in /mnt/data /opt /var/spool-hub; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
+for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] && echo "bin $b ok" || echo "bin $b no"; done
+grep -h "^export SPOOL_BOX_TAG=" /etc/profile.d/csi-spl-satellite.sh "$HOME/.bashrc" 2>/dev/null | head -n 1 | sed "s/^export /tag /"
+for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do echo "key $f $(stat -c %a "$HOME/$f" 2>/dev/null || echo missing)"; done
+REMOTE
+)
   if [[ -n "$remote" ]]; then ok "ssh over IAP as the ${proj} SA"; else ko "ssh over IAP as the ${proj} SA"; fi
   local m b f
   for m in /mnt/data /opt /var/spool-hub; do grep -qx "mnt $m ok" <<<"$remote" && ok "data disk mounted on $m" || ko "data disk mounted on $m"; done
-  for b in claude spool spool-agent; do grep -qx "bin $b ok" <<<"$remote" && ok "$b installed" || ko "$b installed"; done
+  for b in claude spool spool-agent; do grep -qx "bin $b ok" <<<"$remote" && ok "$b installed for ${SATELLITE_AGENT}" || ko "$b installed for ${SATELLITE_AGENT}"; done
   grep -qx "tag SPOOL_BOX_TAG=${tag}" <<<"$remote" && ok "SPOOL_BOX_TAG=${tag}" || ko "SPOOL_BOX_TAG=${tag}"
   for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do
-    grep -qx "key $f 600" <<<"$remote" && ok "~/$f is 0600" || ko "~/$f is 0600 ($(sed -n "s#^key $f ##p" <<<"$remote"))"
+    grep -qx "key $f 600" <<<"$remote" && ok "${SATELLITE_AGENT}: ~/$f is 0600" || ko "${SATELLITE_AGENT}: ~/$f is 0600 ($(sed -n "s#^key $f ##p" <<<"$remote"))"
   done
 
   local ba="${GCP_BILLING_ACCOUNT_ID:-}" bname
@@ -102,19 +109,17 @@ _satellite_verify_replica() {
   local script here there name hv sv d
   script=$(_satellite_versions_script)
   here=$(bash -c "$script" 2>/dev/null)
-  there=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" bash -s <<<"$script" 2>/dev/null)
+  there=$("${SATELLITE_AS_AGENT[@]}" <<<"$script" 2>/dev/null)
   while read -r _ name hv; do
     sv=$(awk -v n="$name" '$1 == "ver" && $2 == n { print $3 }' <<<"$there")
     if [[ -n "$sv" && "$sv" != MISSING ]]; then ok "tool $name box=$hv satellite=$sv"; else ko "tool $name box=$hv satellite=${sv:-MISSING}"; fi
   done <<<"$here"
 
-  local persist="${SATELLITE_PERSIST:-.claude .local .config .cache .gcp .github go .npm .terraform.d .tmux}" remote repo
+  local remote repo
   repo=$(do_satellite_cnf gh_repo 120-github-general-secrets) || return 1
-  # shellcheck disable=SC2016,SC2029
-  remote=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "PERSIST='${persist}' DIR='/opt/csi/${repo##*/}' bash -s" 2>/dev/null <<'REMOTE'
+  # shellcheck disable=SC2016
+  remote=$({ printf "DIR='%s'\n" "/opt/csi/${repo##*/}"; cat <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
-dh="/mnt/data/home/$(id -un)"
-for d in $PERSIST; do [ "$(readlink "$HOME/$d")" = "$dh/$d" ] && echo "home $d ok" || echo "home $d no"; done
 [ -s "$HOME/.claude/CLAUDE.md" ] && echo "cfg claude-md ok"
 jq -e '.statusLine and .permissions' "$HOME/.claude/settings.json" >/dev/null 2>&1 && echo "cfg settings ok"
 echo "cfg skills $(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
@@ -127,15 +132,62 @@ echo "cfg tz $(timedatectl show -p Timezone --value 2>/dev/null)"
 [ "$(claude auth status --json 2>/dev/null | jq -r .loggedIn 2>/dev/null)" = true ] && echo "cfg claude-login ok"
 [ -d "$DIR/tpl-gen/src/python/tpl-gen/.venv" ] && echo "cfg tpl-gen ok"
 REMOTE
-)
-  for d in $persist; do grep -qx "home $d ok" <<<"$remote" && ok "~/$d lives on the data disk" || ko "~/$d lives on the data disk"; done
+} | "${SATELLITE_AS_AGENT[@]}" 2>/dev/null)
   local c
   for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (statusLine, permissions)" tmux:"~/.tmux.conf" \
     git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" claude-login:"claude is logged in (claude auth status)" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
-    grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${c#*:}" || ko "${c#*:}"
+    grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${SATELLITE_AGENT}: ${c#*:}" || ko "${SATELLITE_AGENT}: ${c#*:}"
   done
   local n tz="${BOX_TIMEZONE:-Europe/Helsinki}"
   n=$(sed -n 's/^cfg tz //p' <<<"$remote"); [[ "$n" == "$tz" ]] && ok "timezone $tz" || ko "timezone $tz (is ${n:-?})"
   n=$(sed -n 's/^cfg skills //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/skills: $n" || ko "~/.claude/skills: ${n:-0}"
-  n=$(sed -n 's/^cfg memory //p' <<<"$remote"); [[ "${n:-0}" -gt 0 ]] && ok "~/.claude/projects/*/memory: $n" || ko "~/.claude/projects/*/memory: ${n:-0}"
+  # the agents' memory grows on the satellite itself: informational, never a FAIL
+  n=$(sed -n 's/^cfg memory //p' <<<"$remote"); echo "INFO ${SATELLITE_AGENT}: ~/.claude/projects/*/memory: ${n:-0}"
+}
+
+# The users of box-playbook.yaml role 05 (owner topic 6f10f92b): read from
+# the box's own /etc/csi-spl-satellite.env (the names are not in this repo),
+# then one row per property, as on the box PC. Sets SATELLITE_AGENT and
+# SATELLITE_AS_AGENT (the command that runs a stdin script as the agent);
+# before the playbook ran there are no users: a FAIL, and the checks that
+# follow run as the ssh login user, as before.
+_satellite_verify_users() {
+  local envf owner agent out
+  envf=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" 'cat /etc/csi-spl-satellite.env 2>/dev/null' 2>/dev/null)
+  owner=$(sed -n 's/^OWNER_USER=\([a-z_][a-z0-9_-]*\)$/\1/p' <<<"$envf")
+  agent=$(sed -n 's/^AGENT_USER=\([a-z_][a-z0-9_-]*\)$/\1/p' <<<"$envf")
+  if [[ -z "$owner" || -z "$agent" ]]; then
+    ko "the owner + agent users exist (/etc/csi-spl-satellite.env: run the playbook, ./run -a do_satellite_playbook)"
+    SATELLITE_AGENT="the ssh user"
+    SATELLITE_AS_AGENT=(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" bash -s)
+    return 0
+  fi
+  SATELLITE_AGENT="$agent"
+  SATELLITE_AS_AGENT=(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n -u ${agent} -H bash -s")
+  # shellcheck disable=SC2029
+  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "O='${owner}' A='${agent}' sudo -n bash -s" 2>/dev/null <<'REMOTE'
+for u in "$O" "$A"; do
+  id "$u" >/dev/null 2>&1 || { echo "user $u missing"; continue; }
+  echo "user $u uid $(id -u "$u")"
+  case "$(getent passwd "$u" | cut -d: -f6)" in /mnt/data/home/*) echo "user $u home-data" ;; esac
+  grep -qx "$u ALL=(ALL) NOPASSWD:ALL" "/etc/sudoers.d/90-$u-nopasswd" 2>/dev/null && echo "user $u sudo"
+  id -nG "$u" | tr ' ' '\n' | grep -qx docker && echo "user $u docker"
+  [ -f "/var/lib/systemd/linger/$u" ] && echo "user $u linger"
+done
+id -nG "$A" 2>/dev/null | tr ' ' '\n' | grep -qx "$O" && echo "agent in-owner-group"
+[ "$(stat -c %U /opt/csi 2>/dev/null)" = "$O" ] && echo "owner owns /opt/csi"
+[ "$(stat -c %U:%G /var/spool-hub 2>/dev/null)" = "$O:spool-agents" ] && echo "owner owns /var/spool-hub"
+REMOTE
+)
+  local u r uid
+  for u in "$owner" "$agent"; do
+    [[ "$u" == "$owner" ]] && uid=2000 || uid=2001
+    grep -qx "user $u uid $uid" <<<"$out" && ok "user $u exists, uid $uid" || ko "user $u exists, uid $uid"
+    for r in home-data:"home on the data disk" sudo:"passwordless sudo (as on the box PC)" docker:"in the docker group" linger:"lingers"; do
+      grep -qx "user $u ${r%%:*}" <<<"$out" && ok "$u: ${r#*:}" || ko "$u: ${r#*:}"
+    done
+  done
+  grep -qx "agent in-owner-group" <<<"$out" && ok "$agent is in $owner's group" || ko "$agent is in $owner's group"
+  grep -qx "owner owns /opt/csi" <<<"$out" && ok "/opt/csi belongs to $owner" || ko "/opt/csi belongs to $owner"
+  grep -qx "owner owns /var/spool-hub" <<<"$out" && ok "/var/spool-hub is $owner:spool-agents" || ko "/var/spool-hub is $owner:spool-agents"
 }

@@ -1,0 +1,67 @@
+---
+# The satellite's in-VM setup (spec 057, owner topic 6f10f92b), the eli-vta
+# box-playbook pattern: one play, numbered roles, idempotent, so a destroy +
+# recreate + ONE run of the generated run-ansible script rebuilds the box.
+# Runs only in the tf-runner container (07-ansible.tf writes the inventory and
+# the script; do_tf_apply runs it after the 060 apply; ad hoc:
+# ./run -a do_satellite_playbook). The controller supplies the secrets at run
+# time, never this repo: the SA keys from ~/.gcp/.csi (mounted), the GitHub
+# token from GITHUB_TOKEN (the container's env); every task that touches one
+# is no_log.
+#
+# Users (the box PC's split, CLAUDE.md "Claude Code instances start as" the
+# agent user): the OWNER runs tmux and the UI, the AGENT runs every AI CLI.
+# Their names are NOT in this repo (distribution hygiene): role 05 reads them
+# from the ysg-box overlay's boxes/<box_tag>/box.env (BOX_USER,
+# BOX_AGENT_USER), the file the hub renders that box's claude-config from.
+- name: The satellite - data disk, binaries, users, ysg-box settings, agent harness
+  hosts: satellite
+  become: true
+  gather_facts: true
+  vars:
+    box_tag: sat
+    box_timezone: Europe/Helsinki
+    data_device: /dev/disk/by-id/google-satellite-data
+    data_mnt: /mnt/data
+    home_root: /mnt/data/home
+    # the uids box.env's homes and tmux socket assume (/tmp/tmux-2000)
+    owner_uid: 2000
+    agent_uid: 2001
+    spool_root: /var/spool-hub
+    spool_group: spool-agents
+    repo_url: https://github.com/csitea/csi-spl.git
+    repo_dir: /opt/csi/csi-spl
+    ysg_box_overlay_url: https://github.com/csitea/ysg-box-csi.git
+    ysg_box_overlay_dir: /opt/csi/ysg-box
+    ysg_box_engine_url: https://github.com/csitea/ysg-box.git
+    agent_clis: claude
+    # the controller side: read at run time, inside the tf-runner
+    controller_home: "{{ lookup('env', 'HOME') }}"
+    creds_envs: [dev, prd]
+
+  pre_tasks:
+    - name: Python apt bindings for the apt module (a fresh Debian image may lack them)
+      ansible.builtin.raw: dpkg -s python3-apt >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-apt)
+      changed_when: false
+
+  roles:
+    - { role: 01_data_disk, tags: [01_data_disk] }
+    - { role: 02_os_binaries, tags: [02_os_binaries] }
+    - { role: 03_timezone, tags: [03_timezone] }
+    - { role: 04_ssh_hardening, tags: [04_ssh_hardening] }
+    - { role: 05_users, tags: [05_users, always] }
+    - { role: 06_secrets, tags: [06_secrets] }
+    - { role: 07_ysg_box, tags: [07_ysg_box] }
+    - { role: 08_spool_harness, tags: [08_spool_harness] }
+    - { role: 09_agent_tools, tags: [09_agent_tools] }
+
+  handlers:
+    - name: Restart docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+
+    - name: Reload ssh
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded

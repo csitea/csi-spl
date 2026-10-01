@@ -1,0 +1,52 @@
+---
+# 06 the credentials (eli-vta 07_gcp_secrets; spec 057 round 1 Q12 A): the
+# dev + prd project SA keys and the GitHub token, into the owner's AND the
+# agent's home, 0600 in 0700 dirs, so `ENV=dev|prd ./run -a ...`, git and gh
+# work there as on the box PC. Read on the controller at run time (~/.gcp is
+# mounted into the tf-runner, the token is its GITHUB_TOKEN), no_log, never
+# in this repo, the inventory, the run script or terraform state. The AI CLI
+# logins are NOT copied: each is the owner's interactive step (topic a5e4f4ae).
+- name: The credential dirs
+  ansible.builtin.file:
+    path: "{{ item.0.home }}/{{ item.1 }}"
+    state: directory
+    owner: "{{ item.0.user }}"
+    group: "{{ item.0.user }}"
+    mode: "0700"
+  loop: "{{ users | product(['.gcp', '.gcp/.csi', '.github']) | list }}"
+  vars:
+    users:
+      - { user: "{{ owner_user }}", home: "{{ owner_home }}" }
+      - { user: "{{ agent_user }}", home: "{{ agent_home }}" }
+
+- name: The project SA keys (dev, prd)
+  ansible.builtin.copy:
+    dest: "{{ item.0.home }}/.gcp/.csi/key-{{ org }}-{{ app }}-{{ item.1 }}.json"
+    content: "{{ lookup('file', controller_home + '/.gcp/.csi/key-' + org + '-' + app + '-' + item.1 + '.json') }}"
+    owner: "{{ item.0.user }}"
+    group: "{{ item.0.user }}"
+    mode: "0600"
+  loop: "{{ users | product(creds_envs) | list }}"
+  vars:
+    users:
+      - { user: "{{ owner_user }}", home: "{{ owner_home }}" }
+      - { user: "{{ agent_user }}", home: "{{ agent_home }}" }
+  no_log: true
+
+- name: Refuse without the controller's GitHub token
+  ansible.builtin.assert:
+    that: lookup('env', 'GITHUB_TOKEN') | length > 0
+    fail_msg: "GITHUB_TOKEN is empty on the controller (the tf-runner's env)"
+  no_log: true
+
+- name: The GitHub token
+  ansible.builtin.copy:
+    dest: "{{ item.home }}/.github/token"
+    content: "{{ lookup('env', 'GITHUB_TOKEN') }}\n"
+    owner: "{{ item.user }}"
+    group: "{{ item.user }}"
+    mode: "0600"
+  loop:
+    - { user: "{{ owner_user }}", home: "{{ owner_home }}" }
+    - { user: "{{ agent_user }}", home: "{{ agent_home }}" }
+  no_log: true

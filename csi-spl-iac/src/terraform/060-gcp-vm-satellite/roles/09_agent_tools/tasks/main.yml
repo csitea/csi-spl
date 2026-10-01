@@ -1,0 +1,65 @@
+---
+# 09 the box PC's tools the harness does not install (was
+# do_satellite_install_tools; cnf/satellite-replica.tsv lists each and how
+# do_satellite_verify compares it with the box PC):
+#   cloud-sql-proxy  Google's release binary, sha256-pinned (= the box PC's)
+#   pnpm             corepack, the version csi-spl-wui pins (packageManager)
+#   lint+terraform   the repo's do_install_lint_tools, CI-pinned, system-wide
+#   tpl-gen          the repo's do_setup_tpl_gen (the owner's clone)
+- name: cloud-sql-proxy, Google's release, sha256-pinned
+  ansible.builtin.get_url:
+    url: "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v{{ cloud_sql_proxy_version }}/cloud-sql-proxy.linux.amd64"
+    dest: /usr/local/bin/cloud-sql-proxy
+    checksum: "sha256:{{ cloud_sql_proxy_sha256 }}"
+    mode: "0755"
+
+- name: pnpm, the version csi-spl-wui pins, through corepack, for the agent
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export PATH="$HOME/.local/bin:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    pm=$(jq -r '.packageManager // ""' "{{ repo_dir }}/csi-spl-wui/package.json"); pm=${pm%%+*}
+    [[ "$pm" == pnpm@* ]] || { echo "FAIL no packageManager pnpm@ in csi-spl-wui/package.json"; exit 1; }
+    [[ "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]] && { echo "OK ${pm#pnpm@}"; exit 0; }
+    # corepack links RELATIVE paths and never replaces a link: the real dir,
+    # and a dangling pnpm/pnpx link removed first
+    bindir=$(readlink -f "$HOME/.local/bin"); mkdir -p "$bindir"
+    for l in pnpm pnpx; do [[ -L "$bindir/$l" && ! -e "$bindir/$l" ]] && rm -f "$bindir/$l"; done
+    corepack enable --install-directory "$bindir" pnpm && corepack prepare "$pm" --activate >/dev/null \
+      && [[ "$(pnpm --version)" == "${pm#pnpm@}" ]] && echo "CHANGED ${pm#pnpm@}"
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ agent_user }}"
+  register: pnpm_out
+  changed_when: "'CHANGED' in pnpm_out.stdout"
+
+- name: The CI-pinned scanners + terraform, system-wide (do_install_lint_tools LINT_TOOLS_SYSTEM=1)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export PATH="$HOME/.local/bin:$PATH"
+    cd "{{ repo_dir }}/csi-spl-iac" && LINT_TOOLS_SYSTEM=1 ./run -a do_install_lint_tools >/tmp/satellite-lint-tools.log 2>&1 \
+      || { echo "FAIL do_install_lint_tools: $(tail -n 3 /tmp/satellite-lint-tools.log | tr '\n' ' ')"; exit 1; }
+    grep -qiE 'install(ed|ing)|copied' /tmp/satellite-lint-tools.log && echo CHANGED || echo OK
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ agent_user }}"
+  register: lint_out
+  changed_when: "'CHANGED' in lint_out.stdout"
+
+- name: tpl-gen, the repo's do_setup_tpl_gen (https, with the token through a helper)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export PATH="$HOME/.local/bin:$PATH"
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.https://github.com.helper
+    export GIT_CONFIG_VALUE_0='!f() { echo username=x-access-token; echo "password=$(cat "$HOME/.github/token")"; }; f'
+    [ -d "{{ repo_dir }}/tpl-gen/src/python/tpl-gen/.venv" ] && had=1 || had=0
+    cd "{{ repo_dir }}/csi-spl-iac" && TPL_GEN_REPO_URL="{{ tpl_gen_repo_url }}" ./run -a do_setup_tpl_gen >/tmp/satellite-tpl-gen.log 2>&1 \
+      || { echo "FAIL do_setup_tpl_gen: $(tail -n 3 /tmp/satellite-tpl-gen.log | tr '\n' ' ')"; exit 1; }
+    [ "$had" = 1 ] && echo OK || echo CHANGED
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ owner_user }}"
+  register: tplgen_out
+  changed_when: "'CHANGED' in tplgen_out.stdout"

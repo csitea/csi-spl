@@ -1,0 +1,34 @@
+---
+# Clone git_url into git_dir, or fast-forward it, as git_user. The GitHub
+# token reaches git through a credential helper that reads GH_TOKEN from the
+# task's environment: never argv, never .git/config, never the log (no_log).
+# Vars: git_url, git_dir, git_user.
+- name: "git sync {{ git_dir }}"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    h='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
+    # root syncs a dir 05_users later hands to the owner: no dubious-ownership refusal
+    git() { command git -c safe.directory="$DIR" "$@"; }
+    if [ -d "$DIR/.git" ]; then
+      before=$(git -C "$DIR" rev-parse HEAD)
+      git -c credential.helper= -c "credential.helper=$h" -C "$DIR" pull -q --ff-only \
+        || { echo "WARN $DIR did not fast-forward (left as is)"; exit 0; }
+      [ "$(git -C "$DIR" rev-parse HEAD)" = "$before" ] && echo "OK $DIR" || echo "CHANGED $DIR pulled"
+    else
+      git -c credential.helper= -c "credential.helper=$h" clone -q "$URL" "$DIR" && echo "CHANGED $DIR cloned"
+    fi
+  args:
+    executable: /bin/bash
+  environment:
+    GH_TOKEN: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+    URL: "{{ git_url }}"
+    DIR: "{{ git_dir }}"
+  become: true
+  become_user: "{{ git_user }}"
+  register: git_sync
+  changed_when: "'CHANGED' in git_sync.stdout"
+  no_log: true
+
+- name: "git sync {{ git_dir }}: verdict"
+  ansible.builtin.debug:
+    msg: "{{ git_sync.stdout | default('FAIL (no output: rerun with the token set)') }}"

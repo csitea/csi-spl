@@ -6,6 +6,7 @@
 {% if ENV != "prd" %}
 # prd-only-step
 {% endif %}
+# runtime-vars: proj_path
 org         = "{{ ORG }}"
 app         = "{{ APP }}"
 env         = "{{ ENV }}"

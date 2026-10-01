@@ -1412,8 +1412,9 @@ declare module '~/utils/view-prefs.mjs' {
 
 declare module '~/utils/rail-order.mjs' {
   export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
-  export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string }[]
+  export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
   export const RAIL_IDS: readonly RailId[]
+  export function railLabelKey(tab: { labelKey: string, phoneLabelKey?: string }, phone: boolean): string
   export const DRAG_THRESHOLD_PX: number
   export function isRailOrder(raw: unknown): boolean
   export function parseRailOrder(raw: unknown): RailId[]

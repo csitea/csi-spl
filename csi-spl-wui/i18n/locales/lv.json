@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Neizdevās nomainīt darbvietu. Mēģiniet vēlreiz.",
     "channels": "Kanāli",
     "direct_messages": "Tiešās ziņas",
+    "messages": "Ziņas",
     "new_channel_placeholder": "jauns kanāls",
     "new_channel_label": "Jauns kanāls",
     "retention_days": "{n} d.",

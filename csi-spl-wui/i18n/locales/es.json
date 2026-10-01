@@ -388,6 +388,7 @@
     "tenant_switch_failed": "No se pudo cambiar de espacio de trabajo. Inténtelo de nuevo.",
     "channels": "Canales",
     "direct_messages": "Mensajes directos",
+    "messages": "Mensajes",
     "new_channel_placeholder": "nuevo canal",
     "new_channel_label": "Nuevo canal",
     "retention_days": "{n} d",

@@ -106,7 +106,7 @@
         data-testid="sidebar-panel-dm"
       >
     <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-dm" aria-describedby="sidebar-help-dm-tip">
-      {{ t('sidebar.direct_messages') }}
+      {{ t(dmLabelKey) }}
       <span id="sidebar-help-dm-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.direct_messages') }}</span>
     </h2>
     <div class="sidebar-scroll">
@@ -725,7 +725,7 @@ import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
-import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
@@ -752,10 +752,14 @@ const railDrag = useDragReorder<RailId>({
   onDrop: (next) => { void railOrder.save(next) },
 })
 const RAIL_BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
+/* CLE-77904 (owner, t1 topic cb12574f): on a phone the DM section is named
+   "Messages" (railLabelKey); above 820 px it stays "Direct messages" */
+const phone = useMobileStack().isMobile
 const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
   .map((id) => RAIL_BY_ID.get(id))
   .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
-  .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: item.labelKey })))
+  .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: railLabelKey(item, phone.value) })))
+const dmLabelKey = computed(() => railLabelKey(RAIL_BY_ID.get('dm') || { labelKey: 'sidebar.direct_messages' }, phone.value))
 const tab = ref<SideTab>('dm')
 const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'agents', 'boxes'])
 /* the first render builds the open rail tab only. The other tabs

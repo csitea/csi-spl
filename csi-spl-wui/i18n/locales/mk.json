@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Промената на работниот простор не успеа. Обидете се повторно.",
     "channels": "Канали",
     "direct_messages": "Директни пораки",
+    "messages": "Пораки",
     "new_channel_placeholder": "нов канал",
     "new_channel_label": "Нов канал",
     "retention_days": "{n} д",

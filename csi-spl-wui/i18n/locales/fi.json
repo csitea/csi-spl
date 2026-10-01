@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Työtilan vaihto epäonnistui. Yritä uudelleen.",
     "channels": "Kanavat",
     "direct_messages": "Yksityisviestit",
+    "messages": "Viestit",
     "new_channel_placeholder": "uusi kanava",
     "new_channel_label": "Uusi kanava",
     "retention_days": "{n} pv",

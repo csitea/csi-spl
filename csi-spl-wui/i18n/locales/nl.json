@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Wisselen van werkruimte is mislukt. Probeer het opnieuw.",
     "channels": "Kanalen",
     "direct_messages": "Directe berichten",
+    "messages": "Berichten",
     "new_channel_placeholder": "nieuw kanaal",
     "new_channel_label": "Nieuw kanaal",
     "retention_days": "{n} d",

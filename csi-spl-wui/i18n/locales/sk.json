@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Pracovný priestor sa nepodarilo zmeniť. Skúste to znova.",
     "channels": "Kanály",
     "direct_messages": "Priame správy",
+    "messages": "Správy",
     "new_channel_placeholder": "nový kanál",
     "new_channel_label": "Nový kanál",
     "retention_days": "{n} d",

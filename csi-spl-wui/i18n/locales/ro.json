@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Spațiul de lucru nu a putut fi schimbat. Încercați din nou.",
     "channels": "Canale",
     "direct_messages": "Mesaje directe",
+    "messages": "Mesaje",
     "new_channel_placeholder": "canal nou",
     "new_channel_label": "Canal nou",
     "retention_days": "{n} z",

@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Η αλλαγή χώρου εργασίας απέτυχε. Δοκιμάστε ξανά.",
     "channels": "Κανάλια",
     "direct_messages": "Άμεσα μηνύματα",
+    "messages": "Μηνύματα",
     "new_channel_placeholder": "νέο κανάλι",
     "new_channel_label": "Νέο κανάλι",
     "retention_days": "{n} ημ.",

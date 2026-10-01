@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Не удалось сменить рабочее пространство. Попробуйте ещё раз.",
     "channels": "Каналы",
     "direct_messages": "Личные сообщения",
+    "messages": "Сообщения",
     "new_channel_placeholder": "новый канал",
     "new_channel_label": "Новый канал",
     "retention_days": "{n} дн.",

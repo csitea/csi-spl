@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Nepavyko pakeisti darbo srities. Bandykite dar kartą.",
     "channels": "Kanalai",
     "direct_messages": "Tiesioginės žinutės",
+    "messages": "Žinutės",
     "new_channel_placeholder": "naujas kanalas",
     "new_channel_label": "Naujas kanalas",
     "retention_days": "{n} d.",

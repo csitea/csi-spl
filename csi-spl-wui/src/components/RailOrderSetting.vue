@@ -65,7 +65,8 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
-import { RAIL_TABS, moveBy, type RailId } from '~/utils/rail-order.mjs'
+import { RAIL_TABS, moveBy, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
@@ -85,9 +86,12 @@ const drag = useDragReorder<RailId>({
   onDrop: (next) => { void store(next) },
 })
 const BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
+const mobileStack = useMobileStack()
+/* CLE-77904: a tab's name as the rail shows it ("Messages" on a phone) */
 const rows = computed(() => (drag.preview.value || rail.order.value)
   .map((id) => BY_ID.get(id))
-  .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item)))
+  .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
+  .map((item) => ({ ...item, labelKey: railLabelKey(item, mobileStack.isMobile.value) })))
 
 async function store(next: string[] | null) {
   status.value = ''
@@ -103,7 +107,7 @@ async function step(id: RailId, delta: number) {
   if (!ok) return
   const at = rail.order.value.indexOf(id)
   const item = BY_ID.get(id)
-  announce.value = t('settings.rail_order.moved', { name: item ? t(item.labelKey) : id, n: at + 1 })
+  announce.value = t('settings.rail_order.moved', { name: item ? t(railLabelKey(item, mobileStack.isMobile.value)) : id, n: at + 1 })
   /* the button that was pressed may now be disabled (it reached an end):
      keep the keyboard on the same row */
   await nextTick()

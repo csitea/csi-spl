@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Tööruumi ei õnnestunud vahetada. Proovige uuesti.",
     "channels": "Kanalid",
     "direct_messages": "Otsesõnumid",
+    "messages": "Sõnumid",
     "new_channel_placeholder": "uus kanal",
     "new_channel_label": "Uus kanal",
     "retention_days": "{n} p",

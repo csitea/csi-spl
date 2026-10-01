@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Çalışma alanı değiştirilemedi. Tekrar deneyin.",
     "channels": "Kanallar",
     "direct_messages": "Doğrudan mesajlar",
+    "messages": "Mesajlar",
     "new_channel_placeholder": "yeni kanal",
     "new_channel_label": "Yeni kanal",
     "retention_days": "{n} g",

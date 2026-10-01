@@ -388,6 +388,7 @@
     "tenant_switch_failed": "לא ניתן היה להחליף סביבת עבודה. נסו שוב.",
     "channels": "ערוצים",
     "direct_messages": "הודעות ישירות",
+    "messages": "הודעות",
     "new_channel_placeholder": "ערוץ חדש",
     "new_channel_label": "ערוץ חדש",
     "retention_days": "{n} ימ׳",

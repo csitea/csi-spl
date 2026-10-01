@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Смяната на работното пространство не бе успешна. Опитайте отново.",
     "channels": "Канали",
     "direct_messages": "Лични съобщения",
+    "messages": "Съобщения",
     "new_channel_placeholder": "нов канал",
     "new_channel_label": "Нов канал",
     "retention_days": "{n} д",

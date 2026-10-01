@@ -17,6 +17,7 @@ import {
   dropIndex,
   isDrag,
   applyRailOrder,
+  railLabelKey,
 } from '../../src/utils/rail-order.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -156,5 +157,38 @@ describe('wiring', () => {
   it('the drag swallows only the click that ends a drag', () => {
     const s = read('src/composables/useDragReorder.ts')
     assert.match(s, /if \(!dragged\) return\s+swallowClick\(\)/)
+  })
+})
+
+// CLE-77904 (owner, t1 topic cb12574f): "Change the name of the mobile app
+// from Direct Messages to just Messages." Phones only; desktop keeps its name.
+describe('railLabelKey', () => {
+  const dm = RAIL_TABS.find((t) => t.id === 'dm')
+  it('names the DM section "Messages" on a phone and "Direct messages" above 820 px', () => {
+    assert.equal(railLabelKey(dm, true), 'sidebar.messages')
+    assert.equal(railLabelKey(dm, false), 'sidebar.direct_messages')
+  })
+  it('leaves every other tab its one name', () => {
+    for (const tab of RAIL_TABS.filter((t) => t.id !== 'dm')) {
+      assert.equal(railLabelKey(tab, true), tab.labelKey, tab.id)
+      assert.equal(railLabelKey(tab, false), tab.labelKey, tab.id)
+    }
+  })
+  it('every catalogue has a phone name shorter than its desktop name', () => {
+    const codes = ['en', 'bg', 'el', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
+    for (const code of codes) {
+      const side = JSON.parse(readFileSync(join(WUI, 'i18n/locales', code + '.json'), 'utf8')).sidebar
+      assert.equal(typeof side.messages, 'string', code)
+      assert.ok(side.messages.length > 0 && side.messages.length < side.direct_messages.length, code)
+    }
+    const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8')).sidebar
+    assert.equal(en.messages, 'Messages')
+  })
+  it('the sidebar and the Settings list name the tab through it', () => {
+    const side = readFileSync(join(WUI, 'src/components/ChannelSidebar.vue'), 'utf8')
+    assert.match(side, /railLabelKey\(/)
+    assert.match(side, /\{\{ t\(dmLabelKey\) \}\}/)
+    assert.doesNotMatch(side, /\{\{ t\('sidebar\.direct_messages'\) \}\}/)
+    assert.match(readFileSync(join(WUI, 'src/components/RailOrderSetting.vue'), 'utf8'), /railLabelKey\(/)
   })
 })

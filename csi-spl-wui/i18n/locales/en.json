@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Could not switch the workspace. Try again.",
     "channels": "Channels",
     "direct_messages": "Direct messages",
+    "messages": "Messages",
     "new_channel_placeholder": "new channel",
     "new_channel_label": "New channel",
     "retention_days": "{n} d",

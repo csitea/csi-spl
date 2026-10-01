@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Nie udało się zmienić obszaru roboczego. Spróbuj ponownie.",
     "channels": "Kanały",
     "direct_messages": "Wiadomości bezpośrednie",
+    "messages": "Wiadomości",
     "new_channel_placeholder": "nowy kanał",
     "new_channel_label": "Nowy kanał",
     "retention_days": "{n} d",

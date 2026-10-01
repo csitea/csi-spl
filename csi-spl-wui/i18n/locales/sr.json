@@ -388,6 +388,7 @@
     "tenant_switch_failed": "Promena radnog prostora nije uspela. Pokušajte ponovo.",
     "channels": "Kanali",
     "direct_messages": "Direktne poruke",
+    "messages": "Poruke",
     "new_channel_placeholder": "novi kanal",
     "new_channel_label": "Novi kanal",
     "retention_days": "{n} d",

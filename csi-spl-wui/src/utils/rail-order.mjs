@@ -16,7 +16,9 @@ export const RAIL_TABS = Object.freeze([
      owner did not name, goes last. A stored order (humans.rail_order) is kept
      as it is; only never-reordered people follow this one. */
   Object.freeze({ id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' }),
-  Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' }),
+  /* CLE-77904 (owner, t1 topic cb12574f): on a phone the section reads
+     "Messages"; desktop keeps "Direct messages" (railLabelKey) */
+  Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages', phoneLabelKey: 'sidebar.messages' }),
   /* Owner 2026-09-26: Issues is the third tab. */
   Object.freeze({ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }),
   Object.freeze({ id: 'topics', icon: 'list', labelKey: 'nav.topics' }),
@@ -45,6 +47,16 @@ export const RAIL_TABS = Object.freeze([
 ])
 
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
+
+/**
+ * The catalogue key that names a rail tab: its phone name at <= 820 px
+ * (useMobileStack().isMobile) when it has one, else its label.
+ * @param {{ labelKey: string, phoneLabelKey?: string }} tab
+ * @param {boolean} phone
+ */
+export function railLabelKey(tab, phone) {
+  return (phone && tab.phoneLabelKey) || tab.labelKey
+}
 
 /** A pointer must travel this far before a press becomes a drag: a click never reorders. */
 export const DRAG_THRESHOLD_PX = 6

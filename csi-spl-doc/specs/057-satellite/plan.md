@@ -21,16 +21,21 @@ Spec: [spec.md](spec.md). Tasks: [tasks.md](tasks.md).
 | a web port opens by mistake | the step test fails on any ingress rule other than tcp/22, and the step has exactly one firewall rule |
 | a key lands in tf state | no `tls_private_key`/`google_service_account_key` resource; a test greps the step for them |
 | dev and prd share one box (owner's explicit choice) | the dev and prd SA keys stay separate files; every action keeps choosing its key by `ENV` |
-| the data disk is lost on a rebuild | separate disk, `prevent_destroy` via cnf, daily snapshot |
-| cost drift | the machine type and schedule are cnf; a budget alert is a follow-up if the owner wants one |
+| the data disk is lost on a rebuild | separate disk, `prevent_destroy` via cnf; no snapshots (owner: git is the backup), so un-pushed work on the VM is at risk |
+| cost drift past $170 | the machine type is cnf; the budget alert (round 2 Q4); the price is confirmed from the billing catalogue before the go |
+| 4 vCPU is slow for builds and e2e | the owner chose RAM first; the machine type is one cnf value to raise later |
 | image drift from the home box | the image is pinned by date in cnf; raising it is a reviewed cnf change |
 
-## 3. Cost (europe-north1, list, per month, approximate)
+## 3. Cost (europe-north1, list, per month, approximate; round 2 Q1 A)
 
-| item | on-demand | 1-year commit |
-|---|---|---|
-| e2-standard-16 | ~$430 | ~$270 |
-| 700 GB pd-balanced data + 50 GB boot | ~$83 | ~$83 |
-| daily snapshots, 7 kept | ~$15-25 | ~$15-25 |
-| ephemeral IPv4 | ~$4 | ~$4 |
-| **total** | **~$530** | **~$370** |
+| item | per month |
+|---|---|
+| e2-highmem-4 (4 vCPU / 32 GB), always on | ~$145 |
+| 30 GB boot + 100 GB data, pd-balanced | ~$14 |
+| outbound IPv4 | ~$4 |
+| IAP tunnel, budget alert | $0 |
+| **total** | **~$163** (limit $170) |
+
+The owner asked for the price before the go: T013 confirms each line from the
+Cloud Billing catalogue (its API is off in both projects; turning it on is a
+GCP change, so it waits for the owner's go too).

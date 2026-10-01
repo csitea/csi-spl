@@ -97,8 +97,11 @@ for cfg in - "$T/home/.config/gcloud"; do
 done
 
 # --- 3. static: every activation / login is re-pinned, every such file isolates ----
+# The lib helpers that activate for their callers (CLE-77915: the 7 gcp-list-*
+# actions run on gcp-each-env-sa, the 4 apis actions on gcp-project-apis) are
+# scanned too; gcp-account-pin is the resolver itself, checked above.
 n_files=0; n_sites=0
-for f in "$RUN"/gcp-*.func.sh; do
+for f in "$RUN"/gcp-*.func.sh "$PROJ_ROOT"/lib/bash/funcs/gcp-each-env-sa.func.sh "$PROJ_ROOT"/lib/bash/funcs/gcp-project-apis.func.sh; do
   acts=$(grep -cE '^\s*(if\s+!\s+)?gcloud auth (activate-service-account|login)\b' "$f")
   (( acts )) || continue
   n_files=$((n_files + 1)); n_sites=$((n_sites + acts))
@@ -106,7 +109,8 @@ for f in "$RUN"/gcp-*.func.sh; do
   [[ "$pins" -eq "$acts" ]] || fail "$(basename "$f"): $acts activation/login statement(s), $pins re-pin(s)"
   grep -q 'export CLOUDSDK_CONFIG="\$_spl_sdk_dir"' "$f" || fail "$(basename "$f") activates without isolating its gcloud config"
 done
-[[ $n_files -ge 20 ]] && pass "static: $n_sites activation/login statement(s) in $n_files action(s), each re-pinned in an isolated config" \
+# 16 files since CLE-77915 folded 11 actions onto the 2 helpers (was 25).
+[[ $n_files -ge 12 ]] && pass "static: $n_sites activation/login statement(s) in $n_files action(s), each re-pinned in an isolated config" \
   || fail "static: saw only $n_files action(s) -- the scan is blind"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

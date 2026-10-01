@@ -91,14 +91,14 @@ code.
 | 27 | gcp-list-service-accounts | **ported** | **no** (isolated) | generic SA list. diff → **5** |
 | 28 | gcp-list-static-dns-addresses | **ported** | **no** (isolated) | generic static address list. diff → **5** |
 | 29 | gcp-list-vpcs | **ported** | **no** (isolated) | generic VPC list. diff → **5** |
-| 30 | gcp-modify-project-apis-disable | **ported** | **no** (isolated) | generic API disable. diff → **9** (wrap + `--account` on `gcloud --version`). Destructive, never run without the owner's per-call go |
-| 31 | gcp-modify-project-apis-enable | **ported** | **no** (isolated) | generic API enable. diff → **9** |
+| 30 | gcp-modify-project-apis-disable | **ported** | **no** (isolated) | generic API disable. folded onto `do_gcp_project_apis` (lib, CLE-77915): the csi-rel diff is no longer line-for-line; verb + service list unchanged (wrap + `--account` on `gcloud --version`). Destructive, never run without the owner's per-call go |
+| 31 | gcp-modify-project-apis-enable | **ported** | **no** (isolated) | generic API enable. folded onto `do_gcp_project_apis` (lib, CLE-77915): the csi-rel diff is no longer line-for-line; verb + service list unchanged |
 | 32 | gcp-modify-project-assign-owner | not ported | n/a | org/project-level identity mutation superseded by gcp-000..004 |
 | 33 | gcp-modify-project | not ported | n/a | org/project-level mutation superseded by gcp-000..004 |
 | 34 | gcp-modify-project-service-account-for-all-env | not ported | n/a | superseded by gcp-000..004 |
 | 35 | gcp-modify-project-service-account | not ported | n/a | superseded by gcp-000..004 |
-| 36 | gcp-project-apis-disable | **ported** | **no** (isolated) | generic API disable (all listed services). diff → **9**. Destructive, never run without the owner's per-call go |
-| 37 | gcp-project-apis-enable | **ported** | **no** (isolated) | generic API enable (broader than bootstrap gcp-004). diff → **9** |
+| 36 | gcp-project-apis-disable | **ported** | **no** (isolated) | generic API disable (all listed services). folded onto `do_gcp_project_apis` (lib, CLE-77915): the csi-rel diff is no longer line-for-line; verb + service list unchanged. Destructive, never run without the owner's per-call go |
+| 37 | gcp-project-apis-enable | **ported** | **no** (isolated) | generic API enable (broader than bootstrap gcp-004). folded onto `do_gcp_project_apis` (lib, CLE-77915): the csi-rel diff is no longer line-for-line; verb + service list unchanged |
 | 38 | gcp-project-delete | **ported** | **no** (isolated) | generic project delete. diff → **5**. Destructive, never run without the owner's per-call go (realm rule: never delete a project) |
 | 39 | gcp-remove-files-from-gs-found-in-web-host | not ported | n/a | rel web host |
 | 40 | gcp-remove-iap-iam-policy-binding | not ported | n/a | csi-spl has no IAP |

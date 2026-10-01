@@ -1504,6 +1504,13 @@ async function onCreate() {
 }
 .sidebar-tab:hover { background: var(--color-surface-hover); color: var(--color-fg); }
 .sidebar-tab[aria-selected="true"] { color: var(--color-fg); }
+/* the current section: its icon 1px smaller on every side and a shade darker
+   than the rest (HUM-10, topic a3c2cf08) */
+.sidebar-tab[aria-selected="true"] :deep(svg) {
+  width: calc(min(22px, 70cqi) - 2px);
+  height: calc(min(22px, 70cqi) - 2px);
+  color: color-mix(in srgb, var(--color-fg) 80%, #000);
+}
 /* SPL-979: a touch drag on an icon reorders instead of scrolling the page */
 .sidebar-tab--movable { touch-action: none; }
 .sidebar-tab--dragging { background: var(--color-surface-hover); color: var(--color-fg); cursor: grabbing; }
@@ -1798,6 +1805,7 @@ async function onCreate() {
   }
   .sidebar-tab :deep(svg) { width: 22px; height: 22px; }
   .sidebar-tab[aria-selected="true"] { background: var(--color-surface-hover); }
+  .sidebar-tab[aria-selected="true"] :deep(svg) { width: 20px; height: 20px; }
   .sidebar-tab__label { display: block; font-size: 0.6875rem; white-space: nowrap; }
   /* a sideways drag scrolls the strip; a long press still reorders */
   .sidebar-tab--movable { touch-action: pan-x; }

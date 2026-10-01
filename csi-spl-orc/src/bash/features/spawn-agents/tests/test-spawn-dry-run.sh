@@ -34,6 +34,14 @@ for k in claude grok agy qwen; do
   # Normalise the kind-specific parts for the parity check below.
   printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77/ID/g" > "$T_TMP/norm-$k"
 done
+# GUARD: inside the test sandbox a spawn WITHOUT SPAWN_DRY_RUN=1 is refused
+# before any side effect (no spool dir, no plan, no launch).
+GR="$T_TMP/guard"; mkdir -p "$GR"
+( unset SPAWN_DRY_RUN; CLAUDE_BIN=/bin/false timeout 20 bash "$T_SCRIPTS/spawn-claude.sh" CLE-99 "$WD" "$T_TMP/brief.md" guard >"$GR/out" 2>&1 ); grc=$?
+check "guard: a non-dry-run spawn in the test sandbox is refused (rc 3)" [ "$grc" -eq 3 ]
+check "guard: ... and it created no spool dir" [ ! -e "$SPOOL_ROOT/CLE-99" ]
+check "guard: ... and says why" grep -q 'SPAWN_TEST_SANDBOX=1 without SPAWN_DRY_RUN=1' "$GR/out"
+
 check "parity: claude and grok prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-grok"
 check "parity: claude and agy prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-agy"
 check "parity: claude and qwen prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-qwen"

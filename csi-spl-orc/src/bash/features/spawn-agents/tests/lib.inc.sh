@@ -39,6 +39,7 @@ t_sandbox() {
   export SPOOL_TMUX_SOCKET="$T_TMP/tmux.sock"
   export SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)"
   export SPOOL_BOX_TAG=""
+  export SPAWN_TEST_SANDBOX=1
   mkdir -p "$SPOOL_ROOT"
   trap 't_cleanup' EXIT
 }

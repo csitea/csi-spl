@@ -156,6 +156,14 @@ spawn_main() {
   TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
   local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args="" _sp_shown
 
+  # A test sandbox (tests/lib.inc.sh t_sandbox) never launches a real agent:
+  # without SPAWN_DRY_RUN=1 it is refused before any side effect (2026-10-01,
+  # a debug run without the flag created a stray worktree + spool dir).
+  if [ "${SPAWN_TEST_SANDBOX:-0}" = 1 ] && _sp_live; then
+    echo "ERROR: spawn refused: SPAWN_TEST_SANDBOX=1 without SPAWN_DRY_RUN=1 (a test must never launch a real agent)" >&2
+    exit 3
+  fi
+
   # SPAWN_SCRIPTS_DIR: where the adapter was INVOKED from (what the prompt
   # quotes). _SP_DIR: its real directory, where the helpers are.
   SPAWN_SCRIPTS_DIR="$(cd "$(dirname "$SPAWN_ADAPTER")" && pwd)"

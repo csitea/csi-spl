@@ -18,7 +18,8 @@
 #      (+ --unarchive) and names the hub's issue_topic / not_allowed refusals
 #  13. do_spl_react (CLE-77895) refuses a bad TOPIC / MSG / EMOJI / MODE /
 #      agent, sends nothing in a dry run, then runs `spool react --task
-#      [--msg] --emoji --as` (+ --remove) and names the hub's refusals
+#      [--msg] --emoji --as` (+ --remove) after a `--list` read, prints
+#      RESULT added/already/removed/absent/failed; MODE=check only lists
 #   9. do_spl_issue_* (specs/039) refuse bad fields, send only the set ones
 #      before it reads anything, sends `spool send --channel` with the
 #      normalized channel and the put files' ids, and names a non-member
@@ -670,8 +671,13 @@ RX_MSG=1f8fad5b-d9cb-469f-a165-70867728950e
 cat >"$T/fakereact" <<'FAKE'
 #!/bin/sh
 printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
+case "$*" in *--list*)
+  [ -n "${FAKE_LIST_REFUSE:-}" ] && { echo "spool: hub refused: $FAKE_LIST_REFUSE (refused)" >&2; exit 78; }
+  echo "{\"msg_id\":\"0f8fad5b-d9cb-469f-a165-70867728950e\",\"task_id\":\"b2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f\",\"reactions\":${FAKE_BEFORE:-[]}}"; exit 0;;
+esac
 [ -n "${FAKE_REFUSE:-}" ] && { echo "spool: hub refused: $FAKE_REFUSE (refused)" >&2; exit 78; }
-echo '{"msg_id":"0f8fad5b-d9cb-469f-a165-70867728950e","task_id":"b2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f","reactions":[{"emoji":"⏸️","actors":["CLE-00"]}]}'
+case "$*" in *--remove*) R='[]';; *) R='[{"emoji":"⏸️","actors":["CLE-00"]}]';; esac
+echo "{\"msg_id\":\"0f8fad5b-d9cb-469f-a165-70867728950e\",\"task_id\":\"b2c3fbad-c8df-42d3-8233-2d7e8d5a0c2f\",\"reactions\":$R}"
 FAKE
 chmod +x "$T/fakereact"; : >"$T/react.log"
 RX='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_react'
@@ -689,17 +695,41 @@ for bad in "TOPIC=" "TOPIC=NOT-A-UUID" "TOPIC=B2C3FBAD-C8DF-42D3-8233-2D7E8D5A0C
 done
 [[ ! -s "$T/react.log" ]] && pass "CONTROL no refused reaction reached spool" || fail "a refused reaction ran spool: $(cat "$T/react.log")"
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$out" == *'"emoji": "⏸️"'* && "$out" == *'"mode": "add"'* && "$out" == *'"actors": ["CLE-00"]'* ]] &&
+[[ $rc -eq 0 && "$out" == *'"emoji": "⏸️"'* && "$out" == *'"mode": "add"'* && "$out" == *'"actors": ["CLE-00"]'* &&
+   "$out" == *$'\n'"RESULT added emoji=⏸️ msg=0f8fad5b-d9cb-469f-a165-70867728950e task=$RX_TOPIC by=CLE-00"* ]] &&
+  tail -2 "$T/react.log" | head -1 | grep -qx "react|--task|$RX_TOPIC|--list|--as|CLE-00|" &&
   tail -1 "$T/react.log" | grep -qx "react|--task|$RX_TOPIC|--emoji|⏸️|--as|CLE-00|" &&
-  pass "do_spl_react runs spool react --task --emoji --as and prints the hub's answer" ||
-  fail "react (rc=$rc): $out / $(tail -1 "$T/react.log")"
+  pass "do_spl_react reads the mark, runs spool react --task --emoji --as, prints RESULT added" ||
+  fail "react (rc=$rc): $out / $(tail -2 "$T/react.log")"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_BEFORE='[{"emoji":"⏸️","actors":["CLE-00"]}]' TENANT_ID=t1 \
+  DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸ DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"RESULT already emoji=⏸"* ]] && pass "a mark that was there reads RESULT already (bare ⏸ matches ⏸️)" ||
+  fail "already (rc=$rc): $out"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_LIST_REFUSE="bad_frame react_op must be add or remove" TENANT_ID=t1 \
+  DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"RESULT added"* ]] && pass "a hub without the list op still adds and says RESULT added" ||
+  fail "old hub add (rc=$rc): $out"
+: >"$T/react.log"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_BEFORE='[{"emoji":"⏸️","actors":["CLE-00","HUM-1"]}]' TENANT_ID=t1 \
+  DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=check 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"RESULT present emoji=⏸️ msg=0f8fad5b-d9cb-469f-a165-70867728950e task=$RX_TOPIC by=CLE-00,HUM-1"* ]] &&
+  [[ "$(wc -l <"$T/react.log")" -eq 1 ]] && grep -q -- "--list" "$T/react.log" &&
+  pass "MODE=check (default DRY_RUN) only lists and says RESULT present" || fail "check (rc=$rc): $out / $(cat "$T/react.log")"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=check 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"RESULT absent emoji=⏸️"*"by=-"* ]] && pass "MODE=check on an unmarked message says RESULT absent" || fail "check absent (rc=$rc): $out"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_LIST_REFUSE=not_found TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=check 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"RESULT failed"* && "$out" == *"never delivered to the desk"* ]] && pass "a refused check says RESULT failed and why" || fail "check refused (rc=$rc): $out"
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC= MSG=$RX_MSG EMOJI=✅ MODE=remove DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/react.log" | grep -qx "react|--msg|$RX_MSG|--emoji|✅|--as|CLE-00|--remove|" &&
-  pass "MSG alone and MODE=remove ride as --msg / --remove" || fail "react by msg (rc=$rc): $out / $(tail -1 "$T/react.log")"
+[[ $rc -eq 0 && "$out" == *"RESULT absent emoji=✅"* ]] && tail -1 "$T/react.log" | grep -qx "react|--msg|$RX_MSG|--emoji|✅|--as|CLE-00|--remove|" &&
+  pass "MSG alone and MODE=remove ride as --msg / --remove (nothing was there: RESULT absent)" || fail "react by msg (rc=$rc): $out / $(tail -1 "$T/react.log")"
+out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_BEFORE='[{"emoji":"⏸️","actors":["CLE-00"]}]' TENANT_ID=t1 \
+  DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=remove DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"RESULT removed emoji=⏸️"*"by=-"* ]] && pass "removing a mark that was there says RESULT removed" || fail "removed (rc=$rc): $out"
 for tok in "bad_emoji:the picker offers" "not_found:never delivered to the desk" "not_a_card:name the one with MSG"; do
   out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_REFUSE="${tok%%:*}" TENANT_ID=t1 DESK_AGENT=CLE-00 \
     TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
-  [[ $rc -ne 0 && "$out" == *"${tok#*:}"* ]] && pass "a ${tok%%:*} refusal is named" || fail "${tok%%:*} refusal (rc=$rc): $out"
+  [[ $rc -ne 0 && "$out" == *"${tok#*:}"* && "$out" == *"RESULT failed"* ]] && pass "a ${tok%%:*} refusal is named (RESULT failed)" ||
+    fail "${tok%%:*} refusal (rc=$rc): $out"
 done
 
 # --- 11. desk_down never takes the other seated agents offline (SPL-1004) ----------

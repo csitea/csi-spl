@@ -12,20 +12,26 @@
 # @description ⏸️ on a topic's opening message = on hold (not archived).
 # @description WHO MAY: a desk box that reads the message (it sent, was
 # @description addressed or was delivered it); the actor is DESK_AGENT.
-# @description Prints one JSON line (env, tenant, box, agent, mode, emoji, the
-# @description hub's answer: msg_id, task_id, reactions).
-# @description Dry run unless DRY_RUN=0.
+# @description MODE=check only READS the target's reactions (the hub's react
+# @description list op): no write, so it runs with the default DRY_RUN=1.
+# @description add / remove read the mark before and after the write.
+# @description Prints one JSON line (env, tenant, box, agent, mode, emoji,
+# @description result, the hub's answer: msg_id, task_id, reactions), then ONE
+# @description line on stdout: RESULT <added|already|removed|absent|present|failed>
+# @description emoji=<e> msg=<id> task=<id> by=<actors with that emoji>.
+# @description Dry run unless DRY_RUN=0 (MODE=check never writes).
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the acting agent (the reaction's actor)
 # @param TOPIC - the topic's task uuid (the ?topic= of the WUI URL); required unless MSG is set
 # @param MSG (optional) - the message uuid to react to (default: TOPIC's opening message)
 # @param EMOJI - required: one picker glyph, e.g. ⏸️ (on hold)
-# @param MODE (optional) - add (default) or remove
+# @param MODE (optional) - add (default), remove, or check (read-only)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=CLE-001 TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e EMOJI=⏸️ ./run -a do_spl_react
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=CLE-001 TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e EMOJI=⏸️ MODE=remove DRY_RUN=0 ./run -a do_spl_react
+# @example ENV=prd TENANT_ID=t1 DESK_AGENT=CLE-001 TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e EMOJI=⏸️ MODE=check ./run -a do_spl_react
 #------------------------------------------------------------------------------
 do_spl_react() {
   do_require_bin python3 yq || return 1
@@ -44,28 +50,38 @@ do_spl_react() {
     { do_log "FATAL MSG must be a lowercase message UUID, got: '$msg'"; return 1; }
   [[ -n "$emoji" && "$emoji" != *[[:space:]]* ]] ||
     { do_log "FATAL EMOJI must be one picker glyph, e.g. ⏸️ (on hold), got: '$emoji'"; return 1; }
-  [[ "$mode" == add || "$mode" == remove ]] ||
-    { do_log "FATAL MODE must be add or remove, got: '$mode'"; return 1; }
+  [[ "$mode" == add || "$mode" == remove || "$mode" == check ]] ||
+    { do_log "FATAL MODE must be add, remove or check, got: '$mode'"; return 1; }
 
   local hub d target
   hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   target="${msg:-the opening message}${topic:+ of topic $topic}"
-  if (( dry )); then
+  if (( dry )) && [[ "$mode" != check ]]; then
     do_log "INFO DRY_RUN would: $mode $emoji on $target as $agent on $box in $tenant ($hub)"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
-    do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to $mode."
+    do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to $mode (MODE=check reads the mark, writes nothing)."
     return 0
   fi
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
-  local args=(react) out rc=0
-  [[ -n "$topic" ]] && args+=(--task "$topic")
-  [[ -n "$msg" ]] && args+=(--msg "$msg")
-  args+=(--emoji "$emoji" --as "$agent")
-  [[ "$mode" == remove ]] && args+=(--remove)
-  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- "${args[@]}" 2>&1)" || rc=$?
+  local where=() before="" out rc=0
+  [[ -n "$topic" ]] && where+=(--task "$topic")
+  [[ -n "$msg" ]] && where+=(--msg "$msg")
+  # The mark before the write: tells "added" from "already". A hub without
+  # the list op (pre 51e527c1) leaves it unknown and the write still runs.
+  before="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- react "${where[@]}" --list --as "$agent" 2>&1)" || {
+    [[ "$mode" == check ]] && { out="$before"; rc=1; }
+    before=""
+  }
+  if [[ "$mode" == check ]]; then
+    out="${out:-$before}"
+  else
+    local args=(react "${where[@]}" --emoji "$emoji" --as "$agent")
+    [[ "$mode" == remove ]] && args+=(--remove)
+    out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- "${args[@]}" 2>&1)" || rc=$?
+  fi
   if (( rc != 0 )); then
     [[ "$out" == *bad_emoji* ]] &&
       do_log "FATAL $emoji is not a glyph the picker offers (csi-spl-wui/src/utils/emoji.mjs EMOJI_CHOICES)"
@@ -73,21 +89,39 @@ do_spl_react() {
       do_log "FATAL no message $target that $box reads in $tenant (absent, past retention, another topic's, or never delivered to the desk)"
     [[ "$out" == *not_a_card* ]] &&
       do_log "FATAL the lobby is many cards: name the one with MSG"
-    [[ "$out" == *'bad_frame'*'unknown frame type'* ]] &&
-      do_log "FATAL the hub at $hub predates box react (CLE-77895): roll the hub first"
+    [[ "$out" == *'bad_frame'*'unknown frame type'* || "$out" == *'react_op must be add or remove'* ]] &&
+      do_log "FATAL the hub at $hub predates box react (CLE-77895; MODE=check needs 51e527c1): roll the hub first"
     do_log "FATAL $mode $emoji on $target as $agent: $out"
+    echo "RESULT failed mode=$mode emoji=$emoji target=${msg:-${topic}} agent=$agent"
     return 1
   fi
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$mode" "$emoji" "$out" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$box" "$agent" "$mode" "$emoji" "$before" "$out" <<'EOF_PY'
 import json, sys
-env, tenant, box, agent, mode, emoji, out = sys.argv[1:]
-try:
-    out = json.loads(out)
-except ValueError:
-    pass
-print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "mode": mode, "emoji": emoji, "reaction": out},
-                 sort_keys=True, ensure_ascii=False))
+env, tenant, box, agent, mode, emoji, before, out = sys.argv[1:]
+bare = lambda e: e.replace("️", "")
+def parse(s):
+    try:
+        return json.loads(s)
+    except ValueError:
+        return None
+def actors(ans):
+    for r in (ans or {}).get("reactions") or []:
+        if bare(r.get("emoji", "")) == bare(emoji):
+            return r.get("actors") or []
+    return []
+pre, ans = parse(before), parse(out)
+had = None if pre is None else agent in actors(pre)
+has = agent in actors(ans)
+if mode == "check":
+    result = "present" if actors(ans) else "absent"
+elif mode == "add":
+    result = "already" if had else ("added" if has else "failed")
+else:
+    result = ("absent" if had is False else "removed") if not has else "failed"
+print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "mode": mode, "emoji": emoji, "result": result,
+                  "reaction": ans if ans is not None else out}, sort_keys=True, ensure_ascii=False))
+a = ans or {}
+print(f"RESULT {result} emoji={emoji} msg={a.get('msg_id', '?')} task={a.get('task_id', '?')} by={','.join(actors(ans)) or '-'}")
+sys.exit(1 if result == "failed" else 0)
 EOF_PY
-  local done_verb=added; [[ "$mode" == remove ]] && done_verb=removed
-  do_log "OK $agent $done_verb $emoji on $target on $box in $tenant"
 }

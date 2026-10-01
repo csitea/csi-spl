@@ -23,6 +23,8 @@ for k in claude grok agy qwen; do
   has "$k: prompt teaches spool-send.sh" "spool-send.sh --from ${p}-77 --to <PEER-ID>" "$prompt"
   has "$k: prompt says local mode is unsigned" "UNSIGNED" "$prompt"
   has "$k: prompt names the orchestrator" "orchestrator CLE-00" "$prompt"
+  # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
+  has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"
   hasnt "$k: no inbox-send.sh" "inbox-send" "$prompt"
   hasnt "$k: no git closing steps outside a repo" "INTEGRATION / CLOSING STEPS" "$prompt"

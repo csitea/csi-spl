@@ -155,6 +155,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onArchive(ctx, x, f)
 		case wire.TReact: // CLE-77895: a box agent adds / removes an emoji
 			s.onReact(ctx, x, f)
+		case wire.TLease: // CLE-77911: the fleet-wide lease, compare-and-set
+			s.onLease(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

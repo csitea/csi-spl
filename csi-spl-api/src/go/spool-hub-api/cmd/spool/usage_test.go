@@ -10,8 +10,9 @@ import (
 )
 
 // TestUsageNamesEveryVerb is specs/047 W17: `spool` with no arguments names
-// every verb run() dispatches. The verbs are read from main.go's switch
-// statements, so a new case without a usage line turns this red.
+// every verb run() dispatches. The verbs are read from the switch
+// statements of run and runBoxCmd (the verbs that need the box's config), so
+// a new case without a usage line turns this red.
 func TestUsageNamesEveryVerb(t *testing.T) {
 	f, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
 	if err != nil {
@@ -20,7 +21,7 @@ func TestUsageNamesEveryVerb(t *testing.T) {
 	var verbs []string
 	ast.Inspect(f, func(n ast.Node) bool {
 		fn, ok := n.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "run" {
+		if !ok || (fn.Name.Name != "run" && fn.Name.Name != "runBoxCmd") {
 			return true
 		}
 		ast.Inspect(fn.Body, func(n ast.Node) bool {

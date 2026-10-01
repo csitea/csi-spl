@@ -22,6 +22,8 @@
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
 //	react   (--task <uuid> [--msg <uuid>] | --msg <uuid>) (--emoji <e> [--remove] | --list) --as <id>   hub mode:
 //	          add an emoji reaction, default on the topic's opening message (CLE-77895)
+//	lease   --fleet <f> --role <r> [--holder <machine>:<id> --if-gen <n>]   hub mode: read, or
+//	          compare-and-set, one role's fleet-wide lease (CLE-77911)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -95,6 +97,7 @@ on a box (an agent's machine):
   edit, delete        edit or delete a message this box sent
   archive             archive (or --unarchive) a topic by its task id
   react               add (or --remove, or --list) an emoji reaction on a topic's message
+  lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
 
 a box and its hub ($SPOOL_HUB_URL):
   hub-pin             pin (or --revoke) a box key at the hub, signed by the
@@ -164,7 +167,11 @@ func run(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
+	return runBoxCmd(cfg, cmd, rest)
+}
 
+// runBoxCmd runs a command that needs the box's config.
+func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 	switch cmd {
 	case "keygen":
 		return cmdKeygen(cfg, rest)
@@ -206,6 +213,8 @@ func run(args []string) int {
 		return cmdArchive(cfg, rest)
 	case "react": // CLE-77895
 		return cmdReact(cfg, rest)
+	case "lease": // CLE-77911
+		return cmdLease(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

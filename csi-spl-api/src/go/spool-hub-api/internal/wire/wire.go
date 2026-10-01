@@ -52,6 +52,10 @@ const (
 	// the browser's PUT/DELETE /v1/messages/{msg_id}/reactions. Request and
 	// reply pair on MsgID, a request id the box picks.
 	TReact = "react"
+	// TLease is a box reading or compare-and-setting one role's fleet-wide
+	// lease, and the hub's answer (CLE-77911, rdb 0094). Request and reply
+	// pair on MsgID, a request id the box picks.
+	TLease = "lease"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -193,6 +197,17 @@ type Frame struct {
 	ReactMsg string          `json:"react_msg,omitempty"`
 	Emoji    string          `json:"emoji,omitempty"`
 	Reaction json.RawMessage `json:"reaction,omitempty"`
+
+	// lease (CLE-77911): LeaseOp get | cas, Fleet + LeaseRole name the lease;
+	// cas also carries Holder ("<machine>:<agent id>") and IfGen (the gen it
+	// read, 0 = no row yet). Lease is the answer object on the reply
+	// {fleet, role, holder, box, gen, age_s, won}.
+	LeaseOp   string          `json:"lease_op,omitempty"`
+	Fleet     string          `json:"fleet,omitempty"`
+	LeaseRole string          `json:"lease_role,omitempty"`
+	Holder    string          `json:"holder,omitempty"`
+	IfGen     int64           `json:"if_gen,omitempty"`
+	Lease     json.RawMessage `json:"lease,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

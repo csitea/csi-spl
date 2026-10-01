@@ -256,6 +256,9 @@ type Store interface {
 	// Archive / delete a topic card (specs/041, rdb 0065).
 	TopicArchive
 
+	// One fleet-wide lease per role across machines (rdb 0094, CLE-77911).
+	FleetLeases
+
 	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
 	Moves
 

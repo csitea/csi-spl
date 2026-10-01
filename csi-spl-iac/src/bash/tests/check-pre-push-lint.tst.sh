@@ -19,6 +19,12 @@
 #  12. deleting a file an UNTOUCHED .md links to -> lint-mdlinks FAIL (referrer)
 #  13. typos (real binary, when installed): a typo on an ADDED line WARNs and
 #      never blocks; the same typo on an untouched line is not reported
+#  14. a YAML duplicate key (yq/jq accept it) is a lint-syntax FAIL
+#  15. editing a migration that is already on the base is a lint-migration
+#      FAIL; SPL_MIGRATION_EDIT_OK=<file> allows it; a NEW one passes
+#  16. a new migration that is not PG16 SQL -> FAIL (pglast, when installed)
+#  17. a docker-compose file with an unknown service key -> lint-compose FAIL
+#      (when docker compose is installed)
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
 #   leg 8 uses the real binary that do_install_lint_tools puts on the box.
 #------------------------------------------------------------------------------
@@ -49,6 +55,11 @@ for f in "$@"; do
 done
 exit $rc
 EOF
+cat >"$STUB/gitleaks" <<'EOF'
+#!/usr/bin/env bash
+[[ "${SEC_SCAN_PHASE:-}" == control ]] && { echo "leaks found: 1"; exit 1; }
+exit 0
+EOF
 cat >"$STUB/trufflehog" <<'EOF'
 #!/usr/bin/env bash
 [[ "${SEC_TRUFFLEHOG_PHASE:-}" == control ]] && echo '{"DetectorName":"AWS"}'
@@ -64,6 +75,8 @@ do_check_dist_hygiene() { return 0; }
 . "$RUN_DIR/sec-shellcheck.func.sh"
 # shellcheck source=../run/sec-trufflehog.func.sh
 . "$RUN_DIR/sec-trufflehog.func.sh"
+# shellcheck source=../run/sec-scan.func.sh
+. "$RUN_DIR/sec-scan.func.sh"
 # shellcheck source=../run/check-pre-push.func.sh
 . "$RUN_DIR/check-pre-push.func.sh"
 
@@ -75,6 +88,7 @@ new_repo() {
   printf '#!/bin/bash\narr=(a b)\necho "$arr[1]"\n' >"$R/$SH/old-bad.sh"
   printf '#!/bin/bash\necho ok\n' >"$R/$SH/edited.sh"
   echo '{}' >"$R/seed.json"
+  echo 'title = "x"' >"$R/.gitleaks.toml"
   git -C "$R" add -A; git -C "$R" commit -qm seed; git -C "$R" branch -f base
 }
 commit() { git -C "$R" add -A; git -C "$R" commit -qm "$1"; }
@@ -122,6 +136,7 @@ rc="$(lint)"
 new_repo
 printf '#!/bin/bash\necho ok\n' >"$R/$SH/edited.sh"; echo '# x' >>"$R/$SH/edited.sh"; commit edit
 NOSC="$T/nosc"; mkdir -p "$NOSC"; cp "$STUB/trufflehog" "$NOSC/"
+cp "$STUB/gitleaks" "$NOSC/"
 rc="$(PP_PATH="$NOSC:/usr/local/bin:/usr/bin:/bin" lint)"
 if command -v -p shellcheck >/dev/null 2>&1 || [[ -x /usr/local/bin/shellcheck ]]; then
   pass "4. (system shellcheck present; missing-tool leg not applicable on this host)"
@@ -185,6 +200,56 @@ else
   echo "INFO: no typos binary on this host -- leg 13 not run (./run -a do_install_lint_tools)"
 fi
 
+# 14. YAML duplicate key
+new_repo
+printf 'a: 1\nb: 2\na: 3\n' >"$R/dup.yaml"; commit dup
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-syntax)" == FAIL ]] && grep -q 'duplicate key' "$T/out" \
+  && pass "14. a YAML duplicate key is a lint-syntax FAIL" || fail "14. dup key" "rc=$rc verdict=$(verdict lint-syntax)"
+
+# 15. migrations are forward-only
+MIG="csi-spl-rdb/src/sql/postgres/spool-hub"
+mig_repo() {
+  new_repo; mkdir -p "$R/$MIG"
+  printf 'CREATE TABLE a (id int);\n' >"$R/$MIG/0001_a.sql"
+  git -C "$R" add -A; git -C "$R" commit -qm mig; git -C "$R" branch -f base
+}
+mig_repo; printf -- '-- changed\n' >>"$R/$MIG/0001_a.sql"; commit edit-mig
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q 'add a NEW NNNN file' "$T/out" \
+  && pass "15a. editing a migration already on the base is REFUSED" || fail "15a. migration edit" "rc=$rc verdict=$(verdict lint-migration)"
+rc="$(SPL_MIGRATION_EDIT_OK="$MIG/0001_a.sql" lint)"
+[[ "$(verdict lint-migration)" != FAIL ]] \
+  && pass "15b. SPL_MIGRATION_EDIT_OK=<file> allows that one edit" || fail "15b. edit ok" "rc=$rc verdict=$(verdict lint-migration)"
+mig_repo; git -C "$R" rm -q "$R/$MIG/0001_a.sql"; commit rm-mig
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] \
+  && pass "15c. deleting a migration already on the base is REFUSED" || fail "15c. migration delete" "rc=$rc verdict=$(verdict lint-migration)"
+PGPY="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv-pglast/bin/python"
+if [[ -x "$PGPY" ]]; then
+  mig_repo; printf 'CREATE TABLE b (id int);\n' >"$R/$MIG/0002_b.sql"; commit new-mig
+  rc="$(lint)"
+  [[ "$rc" == 0 && "$(verdict lint-migration)" == PASS ]] \
+    && pass "15d. a NEW valid migration passes" || fail "15d. new migration" "rc=$rc verdict=$(verdict lint-migration)"
+  mig_repo; printf 'CREATE TABLE c (id int,;\n' >"$R/$MIG/0002_c.sql"; commit bad-mig
+  rc="$(lint)"
+  [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q 'PG16 parse' "$T/out" \
+    && pass "16. a new migration that is not PG16 SQL is a FAIL" || fail "16. pg parse" "rc=$rc verdict=$(verdict lint-migration)"
+else
+  echo "INFO: no pglast venv on this host -- legs 15d/16 not run (./run -a do_install_lint_tools)"
+fi
+
+# 17. compose schema
+if docker compose version >/dev/null 2>&1; then
+  new_repo
+  printf 'services:\n  a:\n    image: busybox\n    portz: ["1:1"]\n' >"$R/docker-compose.yml"; commit compose
+  rc="$(PP_PATH="$STUB:$(dirname "$(command -v docker)"):/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-compose)" == FAIL ]] \
+    && pass "17. a compose file with an unknown key is a lint-compose FAIL" || fail "17. compose" "rc=$rc verdict=$(verdict lint-compose)"
+else
+  echo "INFO: no docker compose on this host -- leg 17 not run"
+fi
+
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>
   local -A _PPL_FILES=()
@@ -210,7 +275,7 @@ unset _PPL_FILES
 
 # 8. the REAL shellcheck, when installed
 if [[ -n "$REAL_SC" ]]; then
-  REAL="$T/real"; mkdir -p "$REAL"; ln -s "$REAL_SC" "$REAL/shellcheck"; cp "$STUB/trufflehog" "$REAL/"
+  REAL="$T/real"; mkdir -p "$REAL"; ln -s "$REAL_SC" "$REAL/shellcheck"; cp "$STUB/trufflehog" "$STUB/gitleaks" "$REAL/"
   new_repo
   printf '#!/bin/bash\narr=(a b)\necho "$arr[0]"\n' >"$R/$SH/new-bad.sh"; commit bad
   rc="$(PP_PATH="$REAL:/usr/local/bin:/usr/bin:/bin" lint)"

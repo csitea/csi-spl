@@ -117,7 +117,10 @@ How to apply:
 
   | part | CI | checks | tier |
   |---|---|---|---|
-  | `lint-syntax` | — | `bash -n` (.sh, `#!..sh` scripts), yq (.yml/.yaml), jq (.json), `make -n` (orc Makefile) | hook |
+  | `lint-syntax` | — | `bash -n` (.sh, `#!..sh` scripts), YAML/JSON/TOML parse + duplicate keys (`config-syntax-check.py`), `make -n` (orc Makefile) | hook |
+  | `lint-migration` | — | a migration already on trunk is never edited/renamed/deleted (`SPL_MIGRATION_EDIT_OK=<file>` allows one, logged); a new one parses with the PG16 grammar (pglast 6.x) | hook |
+  | `lint-compose` | — | `docker compose config -q --no-interpolate` | hook |
+  | `lint-gitleaks` | 15 | `do_sec_scan` secrets, `.gitleaks.toml`, over the PUSHED commits only | hook |
   | `lint-shellcheck` | 67 | `do_sec_shellcheck` -S error, iac/orc/cnf bash trees | hook |
   | `lint-actionlint` | 85 | `do_sec_actionlint`, with a control proving its shellcheck leg ran | hook |
   | `lint-hadolint` | 66 | `do_sec_hadolint` vs `.hadolint.yaml` | hook |

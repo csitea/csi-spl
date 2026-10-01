@@ -19,6 +19,8 @@
 # @param SEC_SCAN_ROOT (optional) - repo root; default is the parent of APP_PATH
 # @param SEC_SCAN_GO_BIN SEC_SCAN_PNPM_BIN SEC_SCAN_GITLEAKS_BIN SEC_SCAN_TRIVY_BIN
 # @param        (optional) - override the tool, used by the hermetic test
+# @param SEC_SCAN_GITLEAKS_LOG_OPTS (optional) - git log range for secrets, default
+# @param        --all (full history); the pre-push lint part passes <base>..HEAD
 # @param SEC_SCAN_IMAGES (optional) - space-separated image refs; default the
 # @param        hub base gcr.io/distroless/static-debian12:nonroot
 # @example SEC_SCAN=go ./run -a do_sec_scan
@@ -231,9 +233,10 @@ _sec_scan_secrets() {
   rm -f "$log"
 
   log=$(mktemp)
-  do_log "INFO gitleaks --log-opts=--all on $root"
+  local opts="${SEC_SCAN_GITLEAKS_LOG_OPTS:---all}"
+  do_log "INFO gitleaks --log-opts=$opts on $root"
   rc=0
-  SEC_SCAN_PHASE=scan "$bin" detect --source "$root" --log-opts="--all" --no-banner --redact \
+  SEC_SCAN_PHASE=scan "$bin" detect --source "$root" --log-opts="$opts" --no-banner --redact \
     --config "$cfg" --exit-code 1 >"$log" 2>&1 || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     do_log "INFO gitleaks: no leaks outside the triaged allowlist"

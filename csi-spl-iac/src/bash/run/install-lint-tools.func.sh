@@ -12,6 +12,9 @@
 # @description   eslint    eslint + eslint-plugin-security (63) -> LINT_TOOLS_ESLINT_DIR
 # @description   python    checkov (65), semgrep (61) -> LINT_TOOLS_VENV, linked into LINT_TOOLS_BIN
 # @description   typos     typos-cli, the spelling WARN (no CI workflow yet, so pinned HERE)
+# @description   gitleaks  (15) -> LINT_TOOLS_BIN
+# @description   pglast    PG16 grammar for the migration parse (pinned HERE: 6.x is
+# @description             libpg_query 16, the hub's POSTGRES_16) -> its own venv
 # @param LINT_TOOLS_BIN (optional) - default ~/.local/bin (on the hook's PATH)
 # @param LINT_TOOLS_ESLINT_DIR (optional) - default ~/.cache/csi-spl/eslint
 # @param LINT_TOOLS_VENV (optional) - venv prefix, default ~/.cache/csi-spl/lint-venv (-<tool>)
@@ -28,6 +31,8 @@
 # lives here. Digest checked independently by two lanes (2026-10-01).
 _ILT_TYPOS_VER=1.50.3
 _ILT_TYPOS_SHA=aca6b5d546307092b8d0a8e0a89dd80f9da51f2f7617c5e45c5607c1684ffbf2
+# pglast 7+/8 parse the PG17/18 grammar and would pass SQL the PG16 hub rejects.
+_ILT_PGLAST_VER=6.16
 
 _ilt_root() {
   local base="${APP_PATH:-}"
@@ -99,6 +104,12 @@ _ilt_bin_tool() {  # <tool>
       v="$_ILT_TYPOS_VER"
       _ilt_fetch typos "$v" "$_ILT_TYPOS_SHA" \
         "https://github.com/crate-ci/typos/releases/download/v$v/typos-v$v-x86_64-unknown-linux-musl.tar.gz" ./typos ;;
+    gitleaks)
+      wf="$_ILT_WF/15_sec-deps-secrets.yml"
+      v="$(grep -oE 'gitleaks/releases/download/v[0-9.]+' "$wf" | head -1 | sed 's|.*/v||')"
+      sha="$(sed -n '/Install gitleaks/,/tar /s/.*sha=\([0-9a-f]\{64\}\).*/\1/p' "$wf" | head -1)"
+      _ilt_fetch gitleaks "$v" "$sha" \
+        "https://github.com/gitleaks/gitleaks/releases/download/v$v/gitleaks_${v}_linux_x64.tar.gz" gitleaks ;;
     gosec)
       wf="$_ILT_WF/62_gosec.yml"; v="$(_ilt_pin "$wf" v)"; sha="$(_ilt_pin "$wf" sha)"
       _ilt_fetch gosec "$v" "$sha" \
@@ -119,6 +130,19 @@ _ilt_eslint() {
   ( cd "$d" && npm install --no-save --no-audit --no-fund --silent "eslint@$ev" "eslint-plugin-security@$pv" ) \
     || { do_log "FATAL npm install eslint@$ev eslint-plugin-security@$pv failed in $d"; return 1; }
   do_log "INFO eslint $ev + eslint-plugin-security $pv installed in $d"
+}
+
+# pglast is a library, not a CLI: its own venv, probed by import + version.
+_ilt_pglast() {
+  local venv="$_ILT_VENV-pglast" ver="$_ILT_PGLAST_VER"
+  if [[ -x "$venv/bin/python" ]] && "$venv/bin/python" -c "import pglast,sys; sys.exit(0 if pglast.__version__.startswith('$ver') else 1)" 2>/dev/null; then
+    do_log "INFO pglast $ver already installed in $venv"; return 0
+  fi
+  [[ -x "$venv/bin/pip" ]] || python3 -m venv "$venv" \
+    || { do_log "FATAL python3 -m venv $venv failed (apt-get install python3-venv)"; return 1; }
+  "$venv/bin/pip" install --disable-pip-version-check --quiet "pglast==$ver.*" \
+    || { do_log "FATAL pip install pglast==$ver.* failed"; return 1; }
+  do_log "INFO pglast $ver installed in $venv"
 }
 
 _ilt_py() {  # <tool> (checkov | semgrep)
@@ -145,19 +169,20 @@ do_install_lint_tools() {
   local _ILT_BIN="${LINT_TOOLS_BIN:-$HOME/.local/bin}"
   local _ILT_ESLINT="${LINT_TOOLS_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"
   local _ILT_VENV="${LINT_TOOLS_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv}"
-  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos}"
+  local only="${LINT_TOOLS_ONLY:-shellcheck actionlint hadolint trufflehog gosec eslint checkov semgrep typos gitleaks pglast}"
   mkdir -p "$_ILT_BIN" || return 1
   local t fails=0
   for t in $only; do
     case "$t" in
-      shellcheck|actionlint|hadolint|trufflehog|gosec|typos) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
+      shellcheck|actionlint|hadolint|trufflehog|gosec|typos|gitleaks) _ilt_bin_tool "$t" || fails=$((fails + 1)) ;;
       eslint) _ilt_eslint || fails=$((fails + 1)) ;;
+      pglast) _ilt_pglast || fails=$((fails + 1)) ;;
       checkov|semgrep) _ilt_py "$t" || fails=$((fails + 1)) ;;
       *) do_log "FATAL unknown lint tool '$t'"; fails=$((fails + 1)) ;;
     esac
   done
   if [[ "${LINT_TOOLS_SYSTEM:-0}" == 1 ]]; then
-    for t in shellcheck actionlint hadolint trufflehog gosec typos; do
+    for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks; do
       [[ " $only " == *" $t "* && -x "$_ILT_BIN/$t" ]] || continue
       if sudo install -m 0755 -o root -g root "$_ILT_BIN/$t" "/usr/local/bin/$t"; then
         do_log "INFO $t copied to /usr/local/bin (root-owned, every user)"

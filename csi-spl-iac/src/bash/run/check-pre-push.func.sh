@@ -6,7 +6,7 @@
 # @description it, not after it has stalled every deploy.
 # @description PARTS (selected by the paths the push changes vs PRE_PUSH_BASE):
 # @description   hygiene     always (~1 s)
-# @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/workflows/
+# @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/ .zap/ root scanner configs
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ (unit tests + typecheck)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
@@ -59,7 +59,10 @@ _PP_CACHE_V=3
 # The paths each part reads: they select it AND key its green cache.
 _pp_paths() {  # <part>
   case "$1" in
-    iac)        echo "csi-spl-iac csi-spl-cnf .github/workflows" ;;
+    # .github (not only workflows: actionlint.yaml, dependabot.yml), .zap and
+    # the root scanner configs are read by iac tests: a .zap-only push once
+    # selected NO part and reddened trunk 13 times (domain-single-source).
+    iac)        echo "csi-spl-iac csi-spl-cnf .github .zap .hadolint.yaml .gitleaks.toml .trivyignore.yaml osv-scanner.toml docker-compose.yml" ;;
     wui)        echo "csi-spl-wui" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;

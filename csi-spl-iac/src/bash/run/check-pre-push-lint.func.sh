@@ -6,8 +6,15 @@
 # @description files the push TOUCHES, through the SAME named action, binary
 # @description version, config, severity and baseline as CI -- so a local PASS
 # @description is a CI PASS for those files:
-# @description   lint-syntax      bash -n (.sh + extension-less #!..sh scripts), yq (.yml/
-# @description                    .yaml), jq (.json), make -n (csi-spl-orc Makefile / *.mk)
+# @description   lint-syntax      bash -n (.sh + extension-less #!..sh scripts), YAML/JSON/
+# @description                    TOML parse + DUPLICATE keys (config-syntax-check.py; yq/jq
+# @description                    keep the last of two equal keys silently), make -n (orc)
+# @description   lint-migration   a migration already on the base is never edited, renamed
+# @description                    or deleted (migrate.go refuses a changed sha256 at deploy;
+# @description                    SPL_MIGRATION_EDIT_OK=<file> allows one, logged), and new
+# @description                    ones parse with the PG16 grammar (pglast 6.x)
+# @description   lint-compose     docker compose config -q --no-interpolate (schema)
+# @description   lint-gitleaks    15's gitleaks + .gitleaks.toml over the PUSHED commits only
 # @description   lint-shellcheck  67 do_sec_shellcheck  (.sh in the iac/orc/cnf bash trees)
 # @description   lint-actionlint  85 do_sec_actionlint  (.github/workflows/*)
 # @description   lint-hadolint    66 do_sec_hadolint    (Dockerfiles)
@@ -33,8 +40,11 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-trufflehog"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-trufflehog lint-gitleaks"
 _PPL_SLOW="lint-checkov lint-semgrep lint-gosec"
+
+# The hub migrations (forward-only; roles/*.sql carry psql variables, hub-pg's).
+_PPL_MIG_DIR="csi-spl-rdb/src/sql/postgres/spool-hub"
 
 # The bash trees workflow 67 scans; a .sh elsewhere (the hub's) is not CI's.
 _PPL_SC_DIRS="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash"
@@ -62,12 +72,19 @@ _ppl_select() {  # <scanner> <changed> <tree>
     [[ -z "$f" ]] && continue
     for b in "${own[@]}"; do [[ "$f" == "$b" ]] && { echo ALL; return 0; }; done
   done <<<"$changed"
+  if [[ "$sc" == lint-migration ]]; then
+    # an edited, renamed or deleted migration counts even when it is gone
+    while IFS= read -r f; do
+      [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f"
+    done <<<"$changed"
+    return 0
+  fi
   while IFS= read -r f; do
     [[ -n "$f" && -f "$tree/$f" ]] || continue
     b="${f##*/}"
     case "$sc" in
       lint-syntax)
-        if [[ "$f" == *.sh || "$f" == *.yml || "$f" == *.yaml || "$f" == *.json \
+        if [[ "$f" == *.sh || "$f" == *.yml || "$f" == *.yaml || "$f" == *.json || "$f" == *.toml \
               || "$f" == csi-spl-orc/Makefile || "$f" == csi-spl-orc/*.mk ]]; then echo "$f"
         elif [[ "$b" != *.* ]] && head -1 "$tree/$f" 2>/dev/null | grep -qE '^#!.*\b(ba)?sh\b'; then echo "$f"
         fi ;;
@@ -76,6 +93,9 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-hadolint)   [[ "$b" == Dockerfile || "$b" == Dockerfile.* || "$b" == *.dockerfile ]] && echo "$f" ;;
       lint-eslint)     [[ "$f" == csi-spl-wui/src/* && ( "$f" == *.mjs || "$f" == *.js ) && "$f" != */node_modules/* ]] && echo "$f" ;;
       lint-mdlinks)    [[ "$f" == *.md ]] && echo "$f" ;;
+      lint-migration)  [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f" ;;
+      lint-compose)    [[ "$b" == docker-compose*.yml || "$b" == docker-compose*.yaml ]] && echo "$f" ;;
+      lint-gitleaks)   echo ALL; return 0 ;;
       lint-trufflehog) echo "$f" ;;
       lint-checkov)    [[ "$f" == csi-spl-iac/src/terraform/* ]] && { echo ALL; return 0; } ;;
       lint-semgrep)    [[ "$f" == *.go || "$f" == csi-spl-wui/src/* ]] && { echo ALL; return 0; } ;;
@@ -101,7 +121,10 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
     if [[ "$mode" == full ]]; then
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
-      [[ "$sc" == lint-syntax || "$sc" == lint-mdlinks ]] && sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")"
+      case "$sc" in
+        lint-syntax|lint-mdlinks|lint-compose) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
+        lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
+      esac
     else
       sel="$(_ppl_select "$sc" "$changed" "$tree")"
       # a deleted / renamed path breaks the links that point AT it
@@ -133,7 +156,12 @@ _ppl_missing() {  # <scanner>
   local fix="cd csi-spl-iac && ./run -a do_install_lint_tools"
   _ppl_need() { command -v "$1" >/dev/null 2>&1 || echo "$1 -- $fix"; }
   case "$1" in
-    lint-syntax)     _ppl_need yq; _ppl_need jq; _ppl_need make ;;
+    lint-syntax)
+      _ppl_need make
+      python3 -c 'import yaml, tomllib' 2>/dev/null || echo "python3 PyYAML + tomllib (3.11+) -- apt-get install python3-yaml" ;;
+    lint-migration)  [[ -x "$(_ppl_pglast_py)" ]] || echo "pglast -- $fix" ;;
+    lint-compose)    docker compose version >/dev/null 2>&1 || echo "docker compose -- install docker with the compose plugin" ;;
+    lint-gitleaks)   _ppl_need gitleaks ;;
     lint-shellcheck) _ppl_need shellcheck ;;
     lint-actionlint) _ppl_need actionlint; _ppl_need shellcheck ;;
     lint-hadolint)   _ppl_need hadolint ;;
@@ -150,6 +178,8 @@ _ppl_missing() {  # <scanner>
 
 # The repo scripts the lint parts run (md-rel-links.py), beside this file's tree.
 _ppl_scripts() { (cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd); }
+
+_ppl_pglast_py() { printf '%s' "${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv-pglast/bin/python"; }
 
 _ppl_eslint_dir() { printf '%s' "${SEC_ESLINT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/eslint}"; }
 
@@ -169,6 +199,8 @@ _ppl_repro() {  # <scanner>
     lint-eslint)     var=SEC_ESLINT_FILES act=do_sec_eslint ;;
     lint-trufflehog) var=SEC_TRUFFLEHOG_FILES act=do_sec_trufflehog ;;
     lint-checkov)    act=do_sec_checkov ;; lint-semgrep) act=do_sec_semgrep ;; lint-gosec) act=do_sec_gosec ;;
+    lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
+    lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
     *) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
   esac
@@ -188,19 +220,33 @@ _ppl_files_env() {  # <tree> <scanner> -> the list for the action, or empty for 
 _ppl_run_one() {  # <scanner> <tree>
   local sc="$1" tree="$2" files rc=0 f
   files="$(_ppl_files_env "$tree" "$sc")"
-  if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" ]]; then return 0; fi
+  if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
   case "$sc" in
     lint-syntax)
+      local -a cfgs=()
       while IFS= read -r f; do
         case "$f" in
           csi-spl-orc/Makefile|csi-spl-orc/*.mk)
             make -C "$tree/csi-spl-orc" -n help >/dev/null || { echo "SYNTAX make -n: $f"; rc=1; } ;;
           *.sh)          bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
-          *.yml|*.yaml)  yq e '.' "$tree/$f" >/dev/null || { echo "SYNTAX yaml: $f"; rc=1; } ;;
-          *.json)        jq empty "$tree/$f" || { echo "SYNTAX json: $f"; rc=1; } ;;
+          *.yml|*.yaml|*.json|*.toml) cfgs+=("$f") ;;
           *)             bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
         esac
+      done <<<"$files"
+      if [[ "${#cfgs[@]}" -gt 0 ]]; then
+        ( cd "$tree" && python3 "$(_ppl_scripts)/config-syntax-check.py" "${cfgs[@]}" ) || rc=1
+      fi ;;
+    lint-migration)  _ppl_migration "$tree" || rc=$? ;;
+    lint-compose)
+      while IFS= read -r f; do
+        ( cd "$tree/$(dirname "$f")" && docker compose -f "${f##*/}" config -q --no-interpolate ) \
+          || { echo "COMPOSE schema: $f"; rc=1; }
       done <<<"$files" ;;
+    lint-gitleaks)
+      local gbase; gbase="$(git -C "$tree" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)"
+      if [[ -n "$gbase" && "$gbase" != "$(git -C "$tree" rev-parse HEAD)" ]]; then
+        SEC_SCAN_ROOT="$tree" SEC_SCAN_GITLEAKS_LOG_OPTS="$gbase..HEAD" _sec_scan_secrets || rc=$?
+      fi ;;
     lint-shellcheck) SEC_SHELLCHECK_ROOT="$tree" SEC_SHELLCHECK_FILES="$files" do_sec_shellcheck || rc=$? ;;
     lint-actionlint) SEC_ACTIONLINT_ROOT="$tree" SEC_ACTIONLINT_FILES="$files" do_sec_actionlint || rc=$? ;;
     lint-hadolint)   SEC_HADOLINT_ROOT="$tree" SEC_HADOLINT_FILES="$files" do_sec_hadolint || rc=$? ;;
@@ -222,6 +268,42 @@ _ppl_run_one() {  # <scanner> <tree>
   return 1
 }
 
+# Forward-only + PG16 parse. On the BASE tree there is no edit to refuse and
+# a new file is absent, so it passes there: a finding is always "new".
+_ppl_migration() {  # <tree>
+  local tree="$1" base="${PRE_PUSH_BASE:-origin/master}" f rc=0 ok="${SPL_MIGRATION_EDIT_OK:-}"
+  [[ "$tree" == "${_PP_TOP:-}" ]] || return 0
+  local -a parse=()
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if git -C "$tree" cat-file -e "$base:$f" 2>/dev/null; then
+      if [[ -f "$tree/$f" ]] && git -C "$tree" diff --quiet "$base" -- "$f" 2>/dev/null; then continue; fi
+      if [[ -n "$ok" && " $ok " == *" $f "* ]]; then
+        do_log "WARN pre-push: SPL_MIGRATION_EDIT_OK -- the edit of $f (already on $base) is ALLOWED by the pusher"
+        [[ -f "$tree/$f" ]] && parse+=("$f")
+        continue
+      fi
+      echo "MIGRATION $f is already on $base and was edited, renamed or deleted -- add a NEW NNNN file instead (migrate.go refuses a changed sha256 at deploy)"
+      rc=1
+    elif [[ -f "$tree/$f" && "$f" != */spool-hub-roles/* ]]; then
+      parse+=("$f")
+    fi
+  done <<<"${_PPL_FILES[lint-migration]:-}"
+  if [[ "${#parse[@]}" -gt 0 ]]; then
+    ( cd "$tree" && "$(_ppl_pglast_py)" -c '
+import sys, pglast
+bad = 0
+for f in sys.argv[1:]:
+    try:
+        pglast.parse_sql(open(f, encoding="utf-8").read())
+    except Exception as exc:
+        bad += 1
+        print("MIGRATION %s: PG16 parse: %s" % (f, " ".join(str(exc).split())))
+sys.exit(1 if bad else 0)' "${parse[@]}" ) || rc=1
+  fi
+  return "$rc"
+}
+
 # One function per lint part, the shape _pp_run calls: <fn> <tree>.
 _pp_part_lint_syntax()     { _ppl_run_one lint-syntax "$1"; }
 _pp_part_lint_shellcheck() { _ppl_run_one lint-shellcheck "$1"; }
@@ -230,6 +312,9 @@ _pp_part_lint_hadolint()   { _ppl_run_one lint-hadolint "$1"; }
 _pp_part_lint_eslint()     { _ppl_run_one lint-eslint "$1"; }
 _pp_part_lint_trufflehog() { _ppl_run_one lint-trufflehog "$1"; }
 _pp_part_lint_mdlinks()    { _ppl_run_one lint-mdlinks "$1"; }
+_pp_part_lint_migration()  { _ppl_run_one lint-migration "$1"; }
+_pp_part_lint_compose()    { _ppl_run_one lint-compose "$1"; }
+_pp_part_lint_gitleaks()   { _ppl_run_one lint-gitleaks "$1"; }
 _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }
 _pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }

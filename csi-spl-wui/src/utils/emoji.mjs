@@ -10,18 +10,25 @@
  * angry emoji is displayed twice ... 2 empty emoji places"). 48 also divides
  * by the 6, 12 and 16 columns of the phone sheet, so no grid ends in a hole.
  * No variation selector (U+FE0F) except where the glyph needs it to draw as
- * an emoji (the heart); canonicalEmoji maps the other spelling onto it.
+ * an emoji (the heart, ⏸️); canonicalEmoji maps the other spelling onto it.
  *
  * Order (owner, prd t1 da0c0e98): the two reactions people reach for most lead
  * the grid - ✅ in the top-left cell, 🔥 next to its right - and everything
  * else keeps the order it had. Owner (topic c2c4b527, CLE-77812): 👀 (eyes) is
  * the THIRD cell now, so it moves up from row 5; the glyphs between it and the
  * lead shift one place right and nothing falls off the end (still 48, 🐛 last).
+ * Owner (t1 df698805, CLE-77895): "We need an emoji which indicates that
+ * something is on hold. Remove some of the emojis and add the emoji." ⏸️ (on
+ * hold) takes 😆's cell, the end of row one: 😆 was the fifth laughing /
+ * grinning face (😀 😁 😂 🤣 😆), the most redundant glyph, so nothing else
+ * moves and the grid stays 48. ⏸️ keeps U+FE0F, like the heart. ⏸️ on a
+ * topic's opening message = on hold (not archived). The hub still accepts a
+ * retired 😆 (emoji.go retiredEmoji), so an old chip can be toggled.
  * The hub copy (internal/hub/emoji.go) is kept in lock-step;
  * TestEmojiChoicesMatchWUI compares the two lists in order.
  */
 export const EMOJI_CHOICES = [
-  '✅', '🔥', '👀', '😀', '😁', '😂', '🤣', '😆',
+  '✅', '🔥', '👀', '😀', '😁', '😂', '🤣', '⏸️',
   '😅', '🙂', '😉', '😊', '😇', '😍', '😎', '😜',
   '🥳', '🤗', '🤔', '😐', '😕', '😬', '🙄', '😴',
   '😢', '😭', '😱', '😡', '🤯', '👍', '👎', '👏',
@@ -61,7 +68,7 @@ export function validEmoji(s) {
  */
 export const EMOJI_NAME_SLUG = {
   '✅': 'check', '🔥': 'fire', '😀': 'grin', '😁': 'beam', '😂': 'joy',
-  '🤣': 'rofl', '😆': 'laugh', '😅': 'phew', '🙂': 'smile', '😉': 'wink',
+  '🤣': 'rofl', '⏸️': 'onhold', '😅': 'phew', '🙂': 'smile', '😉': 'wink',
   '😊': 'blush', '😇': 'angel', '😍': 'hearteyes', '😎': 'cool', '😜': 'cheeky',
   '🥳': 'party', '🤗': 'hug', '🤔': 'thinking', '😐': 'neutral', '😕': 'confused',
   '😬': 'grimace', '🙄': 'eyeroll', '😴': 'sleepy', '😢': 'sad', '😭': 'crying',

@@ -50,6 +50,9 @@ func TestCanonicalEmoji(t *testing.T) {
 		"hello": "",
 		"":      "",
 		"👍👍":    "",
+		"⏸️":    "⏸️", // CLE-77895: on hold
+		"⏸":     "⏸️",
+		"😆":     "😆", // retired from the picker, still accepted
 		"️":     "",
 	}
 	for in, want := range cases {

@@ -8,9 +8,10 @@ import "strings"
 // fails when the two lists differ. Six full rows of eight, each glyph once
 // (SPL-1002). Order (owner, prd t1 da0c0e98): ✅ in the top-left cell, 🔥 next
 // to it; and (topic c2c4b527) 👀 third, the rest unchanged - kept in lock-step
-// with EMOJI_CHOICES.
+// with EMOJI_CHOICES. Owner (t1 df698805, CLE-77895): ⏸️ (on hold) takes 😆's
+// cell - ⏸️ on a topic's opening message = on hold (not archived).
 var emojiChoices = []string{
-	"✅", "🔥", "👀", "😀", "😁", "😂", "🤣", "😆",
+	"✅", "🔥", "👀", "😀", "😁", "😂", "🤣", "⏸️",
 	"😅", "🙂", "😉", "😊", "😇", "😍", "😎", "😜",
 	"🥳", "🤗", "🤔", "😐", "😕", "😬", "🙄", "😴",
 	"😢", "😭", "😱", "😡", "🤯", "👍", "👎", "👏",
@@ -18,18 +19,26 @@ var emojiChoices = []string{
 	"✨", "❌", "⭐", "💯", "🚀", "💡", "🎯", "🐛",
 }
 
+// retiredEmoji left the picker but stay accepted, so a chip already on a
+// message can still be added to or taken off (CLE-77895: 😆 gave its cell
+// to ⏸️).
+var retiredEmoji = []string{"😆"}
+
 const vs16 = "\uFE0F"
 
 var emojiSet = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(emojiChoices))
+	m := make(map[string]struct{}, len(emojiChoices)+len(retiredEmoji))
 	for _, e := range emojiChoices {
+		m[e] = struct{}{}
+	}
+	for _, e := range retiredEmoji {
 		m[e] = struct{}{}
 	}
 	return m
 }()
 
-// validEmoji reports whether s is one picker glyph, spelled exactly as the
-// picker spells it. Two glyphs, a sentence, or an emoji the picker does not
+// validEmoji reports whether s is one picker (or retired) glyph, spelled
+// exactly as the picker spells it. Two glyphs, a sentence, or an emoji the picker does not
 // offer are false.
 func validEmoji(s string) bool {
 	_, ok := emojiSet[s]

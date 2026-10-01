@@ -39,7 +39,7 @@
 # @param DISPATCH_LEGACY_REGISTRY (optional) - a second registry.tsv to carry the rows
 # @param DISPATCH_SUBSCRIBE (optional) - 0 skips step 10 (no hub DB read or write)
 # @param DISPATCH_FLEET (optional) - fleet mode (CLE-77911): the fleet's name; with it lease.conf also gets
-# @param   LEASE_FLEET / LEASE_MACHINE (DISPATCH_MACHINE, default $SPOOL_BOX_TAG) / LEASE_PRIORITY
+# @param   LEASE_FLEET / LEASE_MACHINE (DISPATCH_MACHINE, default the desk box id: the <box> of <ID>@<box>) / LEASE_PRIORITY
 # @param   (DISPATCH_PRIORITY, e.g. pc,sat) / LEASE_ENV ($ENV) / LEASE_TENANT (DISPATCH_LEASE_TENANT) /
 # @param   LEASE_DESK_BOX (DESK_BOX: each machine needs its own desk box id in a workspace).
 # @param   Unset, the fleet lines already in lease.conf are KEPT: a re-run never silently leaves fleet mode
@@ -80,7 +80,7 @@ spl_dispatch_setup_steps() {
   conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
   if [[ -n "${DISPATCH_FLEET:-}" ]]; then
     conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_MACHINE=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s\nLEASE_DESK_BOX=%s' \
-      "$DISPATCH_FLEET" "${DISPATCH_MACHINE:-${SPOOL_BOX_TAG:-}}" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}" "${DESK_BOX:-$(spl_desk_box_default)}")"
+      "$DISPATCH_FLEET" "${DISPATCH_MACHINE:-$(spl_desk_box_default)}" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}" "${DESK_BOX:-$(spl_desk_box_default)}")"
   elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
     # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
     # this machine act beside the fleet's holder

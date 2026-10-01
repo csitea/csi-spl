@@ -203,7 +203,7 @@ type Frame struct {
 	Reaction json.RawMessage `json:"reaction,omitempty"`
 
 	// lease (CLE-77911): LeaseOp get | cas, Fleet + LeaseRole name the lease;
-	// cas also carries Holder ("<machine>:<agent id>") and IfGen (the gen it
+	// cas also carries Holder ("<agent id>@<box>") and IfGen (the gen it
 	// read, 0 = no row yet). Lease is the answer object on the reply
 	// {fleet, role, holder, box, gen, age_s, won}.
 	LeaseOp   string          `json:"lease_op,omitempty"`

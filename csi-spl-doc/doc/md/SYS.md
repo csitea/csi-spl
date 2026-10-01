@@ -329,11 +329,11 @@ master dispatcher act at a time across the box PC and the satellite. The
 design is [SPEC-spool-fleet-roles.md section 4.1](SPEC-spool-fleet-roles.md),
 and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers.md).
 
-| | box PC | satellite |
+| | box PC | satellite (box `sat`) |
 |---|---|---|
-| orchestrator | `CLE-001` | `CLE-101` |
-| master dispatcher | `CLE-002` | `CLE-102` |
-| failover dispatcher | `CLE-003` | `CLE-103` |
+| orchestrator | `CLE-001@<box>` | `CLE-001@sat` |
+| master dispatcher | `CLE-002@<box>` | `CLE-002@sat` |
+| failover dispatcher | `CLE-003@<box>` | `CLE-003@sat` |
 | leads | while it is on (priority 1 today) | when the PC is silent > 180 s; hands back when the PC returns |
 
 - The lease row is on the hub (rdb 0094), which the satellite reaches through
@@ -343,8 +343,10 @@ and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers
 - The satellite trio runs as the agent user, in auto mode on the current
   model, with the terminal mirror on. It is seated as prd desks in every
   workspace the PC trio serves, with the same channel subscriptions. Its desk
-  box id must differ from the PC's in each workspace.
-- Phasing out the PC is one config change: `LEASE_PRIORITY=sat,pc` on both
+  box is `sat` (box.env `SPOOL_DESK_BOX`), unlike the PC's. Ids `001`-`003`
+  are reserved on every box (owner, t1 2efb3e78), so a holder is always
+  written `<ID>@<box>`.
+- Phasing out the PC is one config change: `LEASE_PRIORITY=sat,<pc box>` on both
   machines (HOWTO 6.4).
 
 ### 1.8 Known gaps and next steps

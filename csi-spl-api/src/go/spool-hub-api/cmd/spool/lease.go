@@ -21,7 +21,7 @@ func cmdLease(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("lease", flag.ContinueOnError)
 	fleet := fs.String("fleet", "", "the fleet (a lowercase slug)")
 	role := fs.String("role", "", "the role, e.g. orch or dispatch")
-	holder := fs.String("holder", "", "write: the new holder, <machine>:<agent id>")
+	holder := fs.String("holder", "", "write: the new holder, <agent id>@<box>")
 	ifGen := fs.Int64("if-gen", -1, "write: the gen read (0 = no row yet)")
 	if err := fs.Parse(args); err != nil {
 		return 1

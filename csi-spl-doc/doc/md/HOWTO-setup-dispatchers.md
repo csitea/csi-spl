@@ -222,9 +222,11 @@ list and the workspace are the same on both.
 
 ### 6.2 Write the fleet lines into lease.conf
 
-The machine names are your own: this machine's `DISPATCH_MACHINE`, and both
-machines in `DISPATCH_PRIORITY`, the preferred one first. The example makes
-the box PC (`pc`) lead and the satellite (`sat`) stand by.
+A machine's name is its desk box id, the `<box>` of `<ID>@<box>` (box.env
+`SPOOL_DESK_BOX`). `DISPATCH_MACHINE` defaults to it. `DISPATCH_PRIORITY` lists
+both machines' boxes, the preferred one first. Both machines run
+`CLE-001/002/003`, because those ids are reserved on every box. The example
+makes the box PC (box `pc`) lead and the satellite (box `sat`) stand by.
 
 ```bash
 cd "$CHECKOUT/csi-spl-orc" && DRY_RUN=0 DISPATCH_FLEET=main DISPATCH_MACHINE=pc DISPATCH_PRIORITY=pc,sat DISPATCH_LEASE_TENANT=<workspace> ./run -a do_spl_dispatch_setup
@@ -252,7 +254,7 @@ To make the satellite lead, set `LEASE_PRIORITY=sat,pc` in BOTH machines'
 ### 6.5 The drill: takeover and handback
 
 On the box PC, stop its fleet loop. Within 180 to 240 s the satellite's log
-shows `takes over from pc:...`, and its orchestrator and master hear `you are
+shows `takes over from CLE-002@pc`, and its orchestrator and master hear `you are
 now ACTIVE`. Post one test message in each channel, and check that each one is
 answered once, by the satellite.
 

@@ -42,36 +42,36 @@ func TestBoxFleetLease(t *testing.T) {
 	if got := leaseCall(t, pc, action.LeaseArgs{Fleet: "main", Role: "dispatch"}); got.Gen != 0 || got.AgeS != -1 {
 		t.Fatalf("no row: %+v", got)
 	}
-	got := leaseCall(t, pc, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "pc:CLE-002", IfGen: 0})
-	if !got.Won || got.Gen != 1 || got.Holder != "pc:CLE-002" || got.Box != "box-b" {
+	got := leaseCall(t, pc, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "CLE-002@pc", IfGen: 0})
+	if !got.Won || got.Gen != 1 || got.Holder != "CLE-002@pc" || got.Box != "box-b" {
 		t.Fatalf("pc first write: %+v", got)
 	}
 	// the satellite raced on the same gen: it loses and reads the holder
-	got = leaseCall(t, sat, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "sat:CLE-102", IfGen: 0})
-	if got.Won || got.Holder != "pc:CLE-002" || got.Gen != 1 {
+	got = leaseCall(t, sat, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "CLE-102@sat", IfGen: 0})
+	if got.Won || got.Holder != "CLE-002@pc" || got.Gen != 1 {
 		t.Fatalf("sat lost race: %+v", got)
 	}
 	// on the gen it read, the satellite takes over; the box is its own
-	got = leaseCall(t, sat, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "sat:CLE-102", IfGen: 1})
-	if !got.Won || got.Holder != "sat:CLE-102" || got.Box != "box-c" || got.Gen != 2 {
+	got = leaseCall(t, sat, action.LeaseArgs{Fleet: "main", Role: "dispatch", Holder: "CLE-102@sat", IfGen: 1})
+	if !got.Won || got.Holder != "CLE-102@sat" || got.Box != "box-c" || got.Gen != 2 {
 		t.Fatalf("sat takeover: %+v", got)
 	}
-	if got := leaseCall(t, pc, action.LeaseArgs{Fleet: "main", Role: "dispatch"}); got.Holder != "sat:CLE-102" || got.AgeS < 0 {
+	if got := leaseCall(t, pc, action.LeaseArgs{Fleet: "main", Role: "dispatch"}); got.Holder != "CLE-102@sat" || got.AgeS < 0 {
 		t.Fatalf("pc reads: %+v", got)
 	}
 
 	// refusals: the client checks, and the hub checks a raw frame too
 	for _, in := range []action.LeaseArgs{
 		{Fleet: "Main", Role: "dispatch"},
-		{Fleet: "main", Role: "dispatch", Holder: "no-colon", IfGen: 0},
-		{Fleet: "main", Role: "dispatch", Holder: "pc:CLE-002", IfGen: -1},
+		{Fleet: "main", Role: "dispatch", Holder: "no-at", IfGen: 0},
+		{Fleet: "main", Role: "dispatch", Holder: "CLE-002@pc", IfGen: -1},
 	} {
 		in.Hub = pc.c
 		if _, err := action.Lease(context.Background(), pc.cfg, in); err == nil {
 			t.Fatalf("accepted %+v", in)
 		}
 	}
-	if _, err := pc.c.Lease(context.Background(), "steal", "main", "dispatch", "pc:CLE-002", 0); err == nil {
+	if _, err := pc.c.Lease(context.Background(), "steal", "main", "dispatch", "CLE-002@pc", 0); err == nil {
 		t.Fatalf("hub accepted lease_op steal")
 	}
 	if _, err := pc.c.Lease(context.Background(), "cas", "main", "dispatch", "bad holder", 2); err == nil {

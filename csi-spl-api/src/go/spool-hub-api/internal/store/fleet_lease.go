@@ -13,17 +13,17 @@ import (
 type FleetLease struct {
 	Fleet     string
 	Role      string
-	Holder    string // "<machine>:<agent id>"
+	Holder    string // "<agent id>@<box>", the fleet's session name (owner, t1 2efb3e78)
 	Box       string // the box that wrote it (from the authenticated hello)
 	Gen       int64
 	RenewedAt time.Time
 	Age       time.Duration
 }
 
-// The shapes 0094's CHECKs enforce, so a refusal is a 400, not a 500.
+// The shapes 0094/0095's CHECKs accept, so a refusal is a 400, not a 500.
 var (
 	FleetNameRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
-	FleetHolderRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}:[A-Za-z0-9_-]{1,32}$`)
+	FleetHolderRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+@[a-z0-9][a-z0-9-]{0,31}$`)
 )
 
 // FleetLeases is the lease half of the store contract.

@@ -90,7 +90,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	// fleet_leases (rdb 0094, CLE-77911): one lease row per tenant.
-	if _, err := pg.CASFleetLease(ctx, s.tenant, "main", "dispatch", "pc:CLE-02", "box-a", 0, now); err != nil {
+	if _, err := pg.CASFleetLease(ctx, s.tenant, "main", "dispatch", "CLE-02@pc", "box-a", 0, now); err != nil {
 		t.Fatal(err)
 	}
 	// fleet_lanes (rdb 0096, CLE-77920): one lane row per tenant.

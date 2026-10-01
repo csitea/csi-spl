@@ -22,7 +22,7 @@
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
 //	react   (--task <uuid> [--msg <uuid>] | --msg <uuid>) (--emoji <e> [--remove] | --list) --as <id>   hub mode:
 //	          add an emoji reaction, default on the topic's opening message (CLE-77895)
-//	lease   --fleet <f> --role <r> [--holder <machine>:<id> --if-gen <n>]   hub mode: read, or
+//	lease   --fleet <f> --role <r> [--holder <id>@<box> --if-gen <n>]   hub mode: read, or
 //	          compare-and-set, one role's fleet-wide lease (CLE-77911)
 //	lane    --fleet <f> [--agent <id> --box <b> [--repo --branch --scope --files --topic --state]]
 //	          hub mode: list, or write one row of, the fleet-wide lane map (CLE-77920)

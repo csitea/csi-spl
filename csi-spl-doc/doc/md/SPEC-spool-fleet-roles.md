@@ -194,11 +194,18 @@ on. When it goes silent (night, reboot), the satellite's trio takes over
 within about 3 minutes, and hands back when the PC returns. Later the
 priority flips to the satellite by one config change.
 
-| role | box PC | satellite |
+| role | box PC | satellite (box `sat`) |
 |---|---|---|
-| orchestrator | `CLE-001` | `CLE-101` |
-| master dispatcher | `CLE-002` | `CLE-102` |
-| failover dispatcher (local) | `CLE-003` | `CLE-103` |
+| orchestrator | `CLE-001@<box>` | `CLE-001@sat` |
+| master dispatcher | `CLE-002@<box>` | `CLE-002@sat` |
+| failover dispatcher (local) | `CLE-003@<box>` | `CLE-003@sat` |
+
+Owner rules (t1 2efb3e78, 2026-10-01): ids `001`, `002` and `003` are
+reserved on EVERY box (orchestrator, master, failover), and a session is
+named `<ID>@<box>`, where the box is the machine's desk box id (box.env
+`SPOOL_DESK_BOX`, 3 letters preferred). The format is owned by spec 058
+(CLE-77913). Because the same ids run on both machines, a bare id says
+nothing about the machine: every lease holder carries its box.
 
 **Where the lease lives: the hub**, not a bucket. Both machines already reach
 the hub (the satellite has no public IP, but reaches it through NAT), and the
@@ -208,10 +215,10 @@ compare-and-set is one SQL statement. A bucket would have needed a new GCP
 resource, and its age would have come from each machine's own clock.
 
 - The row: rdb `0094_fleet_leases`, one per (tenant, fleet, role), with
-  `holder = <machine>:<agent id>`, the writing box (from the authenticated
+  `holder = <ID>@<box>` (rdb 0095; 0094 wrote `<box>:<ID>`), the writing box (from the authenticated
   hello, never from the frame), `gen`, and `renewed_at`.
 - The primitive: the box frame `lease` (`lease_op get | cas`), CLI
-  `spool lease --fleet <f> --role <r> [--holder <machine>:<id> --if-gen <n>]`.
+  `spool lease --fleet <f> --role <r> [--holder <ID>@<box> --if-gen <n>]`.
   A `cas` writes only while the row's `gen` is still the one the caller read.
   A lost race answers `won=false` with the current row, not an error.
 - The rule lives in the loop, not in the hub: `do_spl_dispatch_lease
@@ -228,9 +235,9 @@ resource, and its age would have come from each machine's own clock.
 
 - **Only the holder acts.** The loop mirrors the result into the local lease
   files the agents read: `$SPOOL_ROOT/dispatch/lease` (dispatch) and
-  `lease.orch` (orchestrator), holding `<id> <epoch>` for a local holder and
-  `<machine>:<id> <epoch>` for a remote one. **An agent acts only while the
-  file names its own id AND is at most 180 s old.** Otherwise it stands by:
+  `lease.orch` (orchestrator), one line `<ID>@<box> <epoch>`. **An agent acts
+  only while the file names its own id AND its own box AND is at most 180 s
+  old.** Otherwise it stands by:
   it reads and stays ready, but does not route, spawn or post. The age rule
   covers a stopped loop: its machine's file goes stale at about the moment the
   hub row does, so a machine that stops renewing also stands its own agents
@@ -246,13 +253,14 @@ resource, and its age would have come from each machine's own clock.
 - On a standby machine, the unanswered sweep sends nothing: the holder's
   machine sends it, and sending from both would deliver every item twice. Its
   gap notes go to its own orchestrator.
-- Opt-in: `lease.conf` with `LEASE_FLEET`, `LEASE_MACHINE` (default
-  `$SPOOL_BOX_TAG`), `LEASE_PRIORITY` (e.g. `pc,sat`, preferred first),
+- Opt-in: `lease.conf` with `LEASE_FLEET`, `LEASE_MACHINE` (this machine's
+  box, default its desk box id), `LEASE_PRIORITY` (the boxes, preferred
+  first, e.g. `<pc box>,sat`),
   `LEASE_ENV`, `LEASE_TENANT` (the workspace whose hub row holds the lease;
   both machines' desk boxes must be pinned in it) and `LEASE_DESK_BOX` (default
   `box-desk`). With `LEASE_FLEET` set, `ensure` runs the fleet loop INSTEAD of
   renew + watch. **Flipping the priority to the satellite** = `LEASE_PRIORITY`
-  `sat,pc` in BOTH machines' `lease.conf`.
+  `sat` first in BOTH machines' `lease.conf`.
 - Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` simulates two
   machines against a hub stub (CAS, expiry at 181 s, priority handback, local
   order, lost race, unreachable hub, hub clock). The hub side is tested by

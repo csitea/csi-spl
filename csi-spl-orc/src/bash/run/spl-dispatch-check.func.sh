@@ -76,14 +76,16 @@ do_spl_dispatch_check() {
   fi
   spl_lease_read
   local age=$(( $(spl_lease_now) - LT ))
-  if spl_lease_remote && [[ "$LH" != unknown:* ]] && (( age <= LEASE_STALE )); then
+  spl_lease_conf
+  local hid; hid="$(spl_lease_holder_id)"
+  if spl_lease_remote && [[ "$LH" != *@unreachable ]] && (( age <= LEASE_STALE )); then
     row lease "$LH, ${age}s old" "ok (fleet: held on another machine, this one stands by)"
-  elif [[ "$LH" != "$DISPATCH_MASTER" && "$LH" != "$DISPATCH_FAILOVER" ]]; then
+  elif [[ "$hid" != "$DISPATCH_MASTER" && "$hid" != "$DISPATCH_FAILOVER" ]]; then
     row lease "$LH" "GAP holder is not a dispatcher"
   elif (( age > LEASE_STALE )); then
     row lease "$LH, ${age}s old" "GAP stale (over ${LEASE_STALE}s)"
   else
-    v=ok; [[ "$LH" == "$DISPATCH_FAILOVER" ]] && v="ok (failover active)"
+    v=ok; [[ "$hid" == "$DISPATCH_FAILOVER" ]] && v="ok (failover active)"
     row lease "$LH, ${age}s old" "$v"
   fi
   local loops=(renew watch)

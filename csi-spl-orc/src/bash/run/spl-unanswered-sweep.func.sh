@@ -122,7 +122,7 @@ spl_sweep_run() {
 spl_sweep_holder() {
   [[ -n "${SWEEP_TO:-}" ]] && { echo "$SWEEP_TO"; return 0; }
   spl_lease_read
-  if [[ "$LH" != none ]]; then echo "$LH"
+  if [[ "$LH" != none ]]; then spl_lease_holder_id
   elif [[ -n "${LEASE_MASTER:-}" ]]; then echo "$LEASE_MASTER"
   else echo "$SWEEP_ORCH"; fi
 }

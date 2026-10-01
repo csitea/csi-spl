@@ -102,7 +102,7 @@ do_spl_dispatch_tick() {
 _spl_dispatch_tick_holder() {
   spl_lease_read
   if spl_lease_remote; then echo "${LEASE_ORCH:-CLE-001}"
-  elif [[ "$LH" != none ]]; then echo "$LH"
+  elif [[ "$LH" != none ]]; then spl_lease_holder_id
   elif [[ -n "${LEASE_MASTER:-}" ]]; then echo "$LEASE_MASTER"
   else echo "${LEASE_ORCH:-CLE-001}"; fi
 }

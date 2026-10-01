@@ -5,13 +5,13 @@ set -uo pipefail
 t_sandbox
 NAI="$T_SCRIPTS/next-agent-id.sh"
 
-eq "empty root -> CLE-01" CLE-01 "$(bash "$NAI" --kind claude)"
-check "claim created inbox/outbox/archive" test -d "$SPOOL_ROOT/CLE-01/inbox" -a -d "$SPOOL_ROOT/CLE-01/outbox" -a -d "$SPOOL_ROOT/CLE-01/archive"
-eq "next claim -> CLE-02" CLE-02 "$(bash "$NAI" --kind claude)"
-eq "kinds are independent -> GRK-01" GRK-01 "$(bash "$NAI" --kind grok)"
-eq "--prefix AGY -> AGY-01" AGY-01 "$(bash "$NAI" --prefix agy)"
-eq "--kind qwen -> QWN-01 (specs/048)" QWN-01 "$(bash "$NAI" --kind qwen)"
-eq "--prefix QWN -> QWN-02" QWN-02 "$(bash "$NAI" --prefix qwn)"
+eq "empty root -> CLE-04 (1-3 are the reserved role ids)" CLE-04 "$(bash "$NAI" --kind claude)"
+check "claim created inbox/outbox/archive" test -d "$SPOOL_ROOT/CLE-04/inbox" -a -d "$SPOOL_ROOT/CLE-04/outbox" -a -d "$SPOOL_ROOT/CLE-04/archive"
+eq "next claim -> CLE-05" CLE-05 "$(bash "$NAI" --kind claude)"
+eq "kinds are independent -> GRK-04" GRK-04 "$(bash "$NAI" --kind grok)"
+eq "--prefix AGY -> AGY-04" AGY-04 "$(bash "$NAI" --prefix agy)"
+eq "--kind qwen -> QWN-04 (specs/048)" QWN-04 "$(bash "$NAI" --kind qwen)"
+eq "--prefix QWN -> QWN-05" QWN-05 "$(bash "$NAI" --prefix qwn)"
 
 mkdir -p "$SPOOL_ROOT/CLE-07"
 eq "an existing dir raises the floor" CLE-08 "$(bash "$NAI" --kind claude)"
@@ -44,15 +44,15 @@ eq "racing claims: one 0 and one 3" "0 3" "$(sort -n "$T_TMP/r1" "$T_TMP/r2" | t
 # band both start from the same empty floor and hand out the SAME id (the
 # one-machine assumption, kept as the control); with disjoint bands they can't.
 M1="$T_TMP/m1" M2="$T_TMP/m2"
-eq "control: no band, machine 1 -> QWN-01" QWN-01 "$(SPOOL_ROOT="$M1" bash "$NAI" --kind qwen)"
-eq "control: no band, machine 2 -> QWN-01 too (collision)" QWN-01 "$(SPOOL_ROOT="$M2" bash "$NAI" --kind qwen)"
+eq "control: no band, machine 1 -> QWN-04" QWN-04 "$(SPOOL_ROOT="$M1" bash "$NAI" --kind qwen)"
+eq "control: no band, machine 2 -> QWN-04 too (collision)" QWN-04 "$(SPOOL_ROOT="$M2" bash "$NAI" --kind qwen)"
 rm -rf "$M1" "$M2"
 ids1="" ids2=""
 for _ in 1 2 3; do
   ids1+="$(SPOOL_ROOT="$M1" SPOOL_AGENT_ID_RANGE=1-99999 bash "$NAI" --kind qwen) "
   ids2+="$(SPOOL_ROOT="$M2" SPOOL_AGENT_ID_RANGE=100000-199999 bash "$NAI" --kind qwen) "
 done
-eq "band 1-99999 allocates from the bottom" "QWN-01 QWN-02 QWN-03 " "$ids1"
+eq "band 1-99999 allocates from the bottom, past the reserved 1-3" "QWN-04 QWN-05 QWN-06 " "$ids1"
 eq "band 100000-199999 starts at its own floor" "QWN-100000 QWN-100001 QWN-100002 " "$ids2"
 eq "two machines with bands: no id in common" "" "$(comm -12 <(tr ' ' '\n' <<<"$ids1" | sort -u | grep .) <(tr ' ' '\n' <<<"$ids2" | sort -u | grep .))"
 mkdir -p "$M2/QWN-77913"
@@ -71,6 +71,9 @@ eq "an explicit claim outside the band still claims" 0 "$?"
 has "...and warns" "outside this machine's band" "$err"
 printf 'SPOOL_AGENT_ID_RANGE=200000-299999\n' >"$T_TMP/m4.env"
 eq "the band is read from box.env" QWN-200000 "$(SPOOL_ROOT="$T_TMP/m4" SPOOL_BOX_ENV="$T_TMP/m4.env" bash "$NAI" --kind qwen)"
+
+eq "a reserved role id is claimable explicitly" QWN-002 "$(SPOOL_ROOT="$T_TMP/m5" bash "$NAI" --claim QWN-002)"
+eq "...and a fresh box still never hands out 1-3" QWN-04 "$(SPOOL_ROOT="$T_TMP/m5" bash "$NAI" --kind qwen)"
 
 # The box user defaults to the owner of the spool root, not $SUDO_USER.
 got="$(env -u SPOOL_BOX_USER SUDO_USER=nobody bash -c '. "$1/lib/spool-env.inc.sh"; spool_env_resolve; printf %s "$SPOOL_BOX_USER"' _ "$T_FEAT")"

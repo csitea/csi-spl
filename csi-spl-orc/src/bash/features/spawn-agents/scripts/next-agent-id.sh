@@ -13,6 +13,9 @@
 #     its own number band, SPOOL_AGENT_ID_RANGE=<lo>-<hi> (box.env), so two
 #     machines that never see each other's spool root can never hand out the
 #     same id. Unset = the whole line (one machine, as before).
+#   - the numbers 1-3 are RESERVED on every box (owner, specs/058): CLE-001
+#     orchestrator, CLE-002 master dispatcher, CLE-003 failover. They are only
+#     ever --claim'ed, never handed out, so no CLE-01..03 look-alike appears.
 #   - no key and no pin: local mode is unsigned (trust-modes §2).
 #
 # The id is allocated from records that PERSIST, and the allocation is a claim
@@ -156,6 +159,7 @@ FLOOR="$REG_MAX"
 [ "$WIN_MAX" -gt "$FLOOR" ] && FLOOR="$WIN_MAX"
 [ "$DIR_MAX" -gt "$FLOOR" ] && FLOOR="$DIR_MAX"
 [ "$FLOOR" -lt "$((LO - 1))" ] && FLOOR="$((LO - 1))"
+[ "$FLOOR" -lt 3 ] && FLOOR=3   # 1-3: the reserved role ids
 say "floor ${FLOOR} (registry ${REG_MAX} / windows ${WIN_MAX} / dirs ${DIR_MAX}${RANGE:+ / band ${RANGE}})"
 
 [ "$RESERVE" -eq 1 ] && { mkdir -p "$SPOOL_ROOT" 2>/dev/null || true; }

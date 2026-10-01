@@ -76,7 +76,7 @@ has "2. MCP_BOT_AGENT_ID is used when there is no --as" "id: CLE-77" "$out"
 out="$(env -u MCP_BOT_AGENT_ID bash "$AGENT" --dry-run grok 2>&1)"
 has "2. a new id is above the spawner's registry (GRK-950)" "id: GRK-951" "$out"
 out="$(env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_REGISTRY_DIR bash "$AGENT" --dry-run grok 2>&1)"
-has "2. CONTROL: without SPOOL_AGENT_REGISTRY_DIR the desk alone decides" "id: GRK-01" "$out"
+has "2. CONTROL: without SPOOL_AGENT_REGISTRY_DIR the desk alone decides" "id: GRK-04" "$out"
 
 # --- a real (stubbed) run: grok, new id -----------------------------------------------------
 env -u MCP_BOT_AGENT_ID bash "$AGENT" grok --flag >/dev/null 2>&1; rc=$?

@@ -38,13 +38,31 @@
 # @param   poke lines again. A mute that a timer quietly reverses is worse than
 # @param   no mute, because nobody is watching at the moment it reverses
 # @param DESK_CRON_SRC (optional) - the checkout the cron line points at.
-# @param   Default: the SHARED checkout this action would name. A worktree is
-# @param   refused: it is deleted when its agent finishes and the job then stops
-# @param   silently while still looking installed
+# @param   Default: the dedicated SELF-UPDATING checkout <shared checkout>-desk-cron
+# @param   (a detached worktree of the shared repo, created on install when
+# @param   missing): every tick first moves it to origin/<trunk>, so the cron
+# @param   never runs code older than trunk (spec 028 T078/T079). An agent
+# @param   worktree (<repo>-wt/...) is refused: it is deleted when its agent
+# @param   finishes and the job then stops silently while still looking installed
+# @param DESK_CRON_SELF_UPDATE (optional) - 1 prefixes the line with the
+# @param   `cd <src> && git fetch && git checkout --detach origin/<trunk>;` step.
+# @param   Default 1 for the default source, 0 for an explicit DESK_CRON_SRC
+# @param DESK_CRON_TRUNK (optional) - default master
+# @param DESK_CRON_OFFSET (optional) - minute offset of the schedule, default
+# @param   0 on dev and 1 on any other env, so the dev and prd ticks never start
+# @param   in the same minute. 0 gives */N, k gives k-59/N
+# @param DESK_CRON_PROBE (optional) - 1 (default on prd) bakes PROBE_EMAIL /
+# @param   PROBE_PW_FILE of the m3-e2e member (<state>/m3-e2e/<DESK_CRON_PROBE_TENANT>,
+# @param   default e2e) into the line: the prd roster read signs in as a member
+# @param ONE LINE PER ENV: the tag is <org>-<app>:desk-reconcile on dev and
+# @param   <org>-<app>:desk-reconcile-<env> elsewhere, matched EXACTLY at the end
+# @param   of the line, so installing dev never touches the prd line (it did, as a
+# @param   prefix match, on 2026-10-01: prd stopped reconciling for 7 minutes)
 # @param DESK_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/desk-reconcile
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_desk_install_service
+# @example ENV=prd TENANT_ID=t1 DESK_MUTE=CLE-00 DESK_CRON_EVERY=3 ./run -a do_spl_desk_install_service
 #------------------------------------------------------------------------------
 do_spl_desk_install_service() {
   do_require_bin crontab python3 || return 1
@@ -64,8 +82,9 @@ do_spl_desk_install_service() {
   script="$src/$SPL_ORG_APP-orc/src/bash/scripts/desk-reconcile-cron.sh"
   # A check asks about the line that IS installed, not about the one this call
   # would write, so a missing source script must not stop it - that is the very
-  # fault it is there to report.
-  [[ "$act" == check || -x "$script" ]] ||
+  # fault it is there to report. A self-updating checkout that does not exist
+  # yet is created by the install itself.
+  [[ "$act" != install || -x "$script" || ( "$SPL_DESK_CRON_CREATE" == 1 ) ]] ||
     { do_log "FATAL $script is missing or not executable in $src"; return 1; }
   logdir="${DESK_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/desk-reconcile}"
 
@@ -73,7 +92,7 @@ do_spl_desk_install_service() {
   for a in $mute; do
     [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL DESK_MUTE holds '$a', which is not an agent id"; return 1; }
   done
-  line="*/$every * * * * ENV=$env_name TENANT_ID=$tenant${mute:+ DESK_MUTE='$mute'} $script >> $logdir/cron.out 2>&1 # $tag"
+  line="$(spl_desk_cron_build_line "$every" "$env_name" "$tenant" "$mute" "$src" "$script" "$logdir" "$tag")" || return 1
 
   local installed=0 current=""
   current="$(spl_desk_cron_line "$tag")"
@@ -114,7 +133,10 @@ EOF_PY
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
+    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
     if [[ "$act" == install ]]; then
+      [[ "$SPL_DESK_CRON_CREATE" == 1 ]] &&
+        do_log "INFO DRY_RUN would: git worktree add --detach $src origin/${DESK_CRON_TRUNK:-master} (the self-updating checkout)"
       do_log "INFO DRY_RUN would: mkdir -p $logdir"
       do_log "INFO DRY_RUN would: put ONE tagged line in the box user's crontab:"
       spl_desk_cron_say "$line"
@@ -137,6 +159,12 @@ EOF_PY
     return 0
   fi
 
+  if [[ "$SPL_DESK_CRON_CREATE" == 1 ]]; then
+    git -C "$SPL_DESK_CRON_REPO" fetch -q origin "${DESK_CRON_TRUNK:-master}" &&
+      git -C "$SPL_DESK_CRON_REPO" worktree add -q --detach "$src" "origin/${DESK_CRON_TRUNK:-master}" ||
+      { do_log "FATAL could not create the self-updating checkout $src"; return 1; }
+    [[ -x "$script" ]] || { do_log "FATAL $script is missing in the new checkout $src"; return 1; }
+  fi
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
   spl_desk_cron_write "$tag" "$line" || return 1
   current="$(spl_desk_cron_line "$tag")"
@@ -151,7 +179,63 @@ EOF_PY
 # install twice replaces rather than appends. Derived from <org>-<app>, like
 # every other name in this tree, so a fork of this repo does not fight this one
 # over the same crontab line.
-spl_desk_cron_tag() { printf '%s:desk-reconcile' "${SPL_ORG_APP:?SPL_ORG_APP unset}"; }
+# One tag per env: dev keeps the original tag (the line installed since
+# 2026-09-22), every other env gets -<env> (the prd line of spec 028 T079).
+spl_desk_cron_tag() {
+  local e="${ENV:-dev}"
+  printf '%s:desk-reconcile%s' "${SPL_ORG_APP:?SPL_ORG_APP unset}" "$([[ "$e" == dev ]] || printf -- '-%s' "$e")"
+}
+
+# spl_desk_cron_build_line <every> <env> <tenant> <mute> <src> <script> <logdir> <tag>
+spl_desk_cron_build_line() {
+  local every="$1" env_name="$2" tenant="$3" mute="$4" src="$5" script="$6" logdir="$7" tag="$8"
+  local off sched pre="" probe="" mutev="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
+  [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
+  off="${DESK_CRON_OFFSET:-$([[ "$env_name" == dev ]] && echo 0 || echo 1)}"
+  [[ "$off" =~ ^[0-9]+$ ]] && (( off < every || off == 0 )) ||
+    { do_log "FATAL DESK_CRON_OFFSET must be 0..$((every - 1)), got: '$off'"; return 1; }
+  if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
+  [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
+    pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+  if [[ -n "$mute" ]]; then
+    if [[ "$mute" == *" "* ]]; then mutev=" DESK_MUTE='$mute'"; else mutev=" DESK_MUTE=$mute"; fi
+  fi
+  if [[ "${DESK_CRON_PROBE:-$([[ "$env_name" == prd ]] && echo 1 || echo 0)}" == 1 ]]; then
+    local pt="${DESK_CRON_PROBE_TENANT:-e2e}"
+    [[ "$pt" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL DESK_CRON_PROBE_TENANT is not a tenant slug: '$pt'"; return 1; }
+    local d="\$HOME/.local/share/$SPL_ORG_APP/cloud/$env_name/m3-e2e/$pt"
+    probe=" PROBE_EMAIL=\$(cat $d/human-email) PROBE_PW_FILE=$d/pw-human"
+  fi
+  [[ "$env_name" == dev ]] || out="cron-$env_name.out"
+  printf '%s * * * * %sENV=%s TENANT_ID=%s%s%s %s >> %s/%s 2>&1 # %s\n' \
+    "$sched" "$pre" "$env_name" "$tenant" "$mutev" "$probe" "$script" "$logdir" "$out" "$tag"
+}
+
+# spl_desk_cron_diff <tag> <new line|"">: the crontab before and after, as a
+# unified diff, without writing anything.
+spl_desk_cron_diff() {
+  local tmp; tmp="$(mktemp -d)" || return 1
+  crontab -l 2>/dev/null >"$tmp/before"
+  spl_desk_cron_render "$1" "$2" <"$tmp/before" >"$tmp/after"
+  echo "    crontab diff (before -> after):"
+  diff -u --label before --label after "$tmp/before" "$tmp/after" | sed 's/^/    /'
+  cmp -s "$tmp/before" "$tmp/after" && echo "    (no change)"
+  rm -rf "$tmp"
+}
+
+# spl_desk_cron_render <tag> <line|"">: stdin (a crontab) with the line tagged
+# EXACTLY <tag> (the tag ends the line) replaced IN PLACE by <line>, further
+# copies dropped, <line> appended when there was none; an empty <line> removes.
+# Exact, not a prefix: a prefix match took the -prd line with a dev install on
+# 2026-10-01. In place: a re-install that changes nothing changes no byte.
+spl_desk_cron_render() {
+  # the line through ENVIRON, not -v: -v would interpret backslashes in it
+  SPL_CRON_LINE="$2" awk -v t="# $1" '
+    BEGIN { l = ENVIRON["SPL_CRON_LINE"] }
+    length($0) >= length(t) && substr($0, length($0) - length(t) + 1) == t { if (!done && l != "") print l; done = 1; next }
+    { print }
+    END { if (!done && l != "") print l }'
+}
 
 # spl_desk_cron_src: the checkout the cron line points at, into
 # SPL_DESK_CRON_SRC. A worktree is refused: it is removed when its agent
@@ -162,15 +246,30 @@ spl_desk_cron_tag() { printf '%s:desk-reconcile' "${SPL_ORG_APP:?SPL_ORG_APP uns
 # `src="$(spl_desk_cron_src)"` captures the refusal instead of showing it and
 # the operator sees an action that failed with no reason given.
 spl_desk_cron_src() {
-  local src="${DESK_CRON_SRC:-$APP_PATH}"
-  SPL_DESK_CRON_SRC=""
-  src="$(cd "$src" 2>/dev/null && pwd)" || { do_log "FATAL DESK_CRON_SRC '${DESK_CRON_SRC:-$APP_PATH}' is not a directory"; return 1; }
+  local src
+  SPL_DESK_CRON_SRC="" SPL_DESK_CRON_CREATE=0 SPL_DESK_CRON_REPO=""
+  if [[ -n "${DESK_CRON_SRC:-}" ]]; then
+    SPL_DESK_CRON_SELF_UPDATE="${DESK_CRON_SELF_UPDATE:-0}"
+    src="$(cd "$DESK_CRON_SRC" 2>/dev/null && pwd)" || { do_log "FATAL DESK_CRON_SRC '$DESK_CRON_SRC' is not a directory"; return 1; }
+  else
+    # <shared checkout>-desk-cron, next to the SHARED checkout even when this
+    # runs from an agent worktree (the common git dir names the shared one)
+    SPL_DESK_CRON_SELF_UPDATE="${DESK_CRON_SELF_UPDATE:-1}"
+    local common
+    common="$(git -C "$APP_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ||
+      { do_log "FATAL $APP_PATH is not a git checkout - set DESK_CRON_SRC"; return 1; }
+    SPL_DESK_CRON_REPO="$(dirname "$common")"
+    src="$SPL_DESK_CRON_REPO-desk-cron"
+    [[ -d "$src" ]] || SPL_DESK_CRON_CREATE=1
+  fi
   case "$src" in
     *-wt/*)
       do_log "FATAL $src is an agent worktree, and a crontab line into one keeps LOOKING installed after the worktree is removed."
       do_log "FATAL Point DESK_CRON_SRC at the shared checkout, e.g. DESK_CRON_SRC=${src%%-wt/*}"
       return 1 ;;
   esac
+  [[ "$SPL_DESK_CRON_SELF_UPDATE" == 0 || "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] ||
+    { do_log "FATAL DESK_CRON_SELF_UPDATE must be 0 or 1"; return 1; }
   SPL_DESK_CRON_SRC="$src"
 }
 
@@ -187,20 +286,23 @@ spl_desk_cron_say() {
 }
 
 # spl_desk_cron_script <crontab line>: the script path that line runs, or
-# nothing. The line is "<schedule> <VAR=v ...> <script> >> <log> 2>&1 # <tag>",
-# so the script is the first field that looks like an absolute path.
+# nothing. The line is "<schedule> [cd <src> && git ...;] <VAR=v ...> <script>
+# >> <log> 2>&1 # <tag>", so the script is the first absolute path ending .sh
+# (not the `cd <dir>` of the self-update step, which is a directory).
 spl_desk_cron_script() {
   local f
+  set -f
   for f in $1; do
-    case "$f" in /*) printf '%s' "$f"; return 0 ;; esac
+    case "$f" in /*.sh) printf '%s' "$f"; set +f; return 0 ;; esac
   done
+  set +f
   return 1
 }
 
 # spl_desk_cron_line <tag>: the tagged line in the box user's crontab, or
 # nothing.
 spl_desk_cron_line() {
-  crontab -l 2>/dev/null | grep -F "# $1" | tail -n 1
+  crontab -l 2>/dev/null | awk -v t="# $1" 'length($0) >= length(t) && substr($0, length($0) - length(t) + 1) == t' | tail -n 1
 }
 
 # spl_desk_cron_write <tag> <line|"">: put exactly LINE in the crontab under
@@ -212,8 +314,7 @@ spl_desk_cron_line() {
 spl_desk_cron_write() {
   local tag="$1" line="$2" tmp rc
   tmp="$(mktemp)" || return 1
-  crontab -l 2>/dev/null | grep -vF "# $tag" >"$tmp"
-  [[ -n "$line" ]] && printf '%s\n' "$line" >>"$tmp"
+  crontab -l 2>/dev/null | spl_desk_cron_render "$tag" "$line" >"$tmp"
   crontab "$tmp"; rc=$?
   rm -f "$tmp"
   (( rc == 0 )) || { do_log "FATAL crontab refused the new file (exit $rc)"; return 1; }

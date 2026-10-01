@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Delete this message?",
       "body": "It is removed for everyone. This cannot be undone.",
-      "confirm": "Delete"
+      "confirm": "Delete",
+      "undo": {
+        "done": "Deleted",
+        "action": "Undo"
+      }
     },
     "merge": {
       "pick_title": "Merge this topic into…",

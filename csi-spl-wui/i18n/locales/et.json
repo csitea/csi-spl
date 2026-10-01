@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Kas kustutada see sõnum?",
       "body": "See eemaldatakse kõigilt. Seda ei saa tagasi võtta.",
-      "confirm": "Kustuta"
+      "confirm": "Kustuta",
+      "undo": {
+        "done": "Kustutatud",
+        "action": "Võta tagasi"
+      }
     },
     "merge": {
       "pick_title": "Liida see teema teemaga…",

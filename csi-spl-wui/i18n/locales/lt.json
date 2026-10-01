@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Ištrinti šią žinutę?",
       "body": "Ji pašalinama visiems. To negalima atšaukti.",
-      "confirm": "Ištrinti"
+      "confirm": "Ištrinti",
+      "undo": {
+        "done": "Ištrinta",
+        "action": "Atšaukti"
+      }
     },
     "merge": {
       "pick_title": "Sujungti šią temą su…",

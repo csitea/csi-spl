@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Dit bericht verwijderen?",
       "body": "Het wordt voor iedereen verwijderd. Dit kan niet ongedaan worden gemaakt.",
-      "confirm": "Verwijderen"
+      "confirm": "Verwijderen",
+      "undo": {
+        "done": "Verwijderd",
+        "action": "Ongedaan maken"
+      }
     },
     "merge": {
       "pick_title": "Voeg dit onderwerp samen met…",

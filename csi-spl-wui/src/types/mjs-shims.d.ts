@@ -794,6 +794,7 @@ declare module '~/utils/scroll-anchor.mjs' {
 
 declare module '~/utils/pane-scroll.mjs' {
   export function scrollRowToTop(scroller: HTMLElement, row: Element): void
+  export function scrollRowIntoPane(scroller: HTMLElement, row: Element): void
   export function openThreadRow(row: HTMLElement | null | undefined): void
 }
 
@@ -1766,4 +1767,16 @@ declare module '~/utils/issues-colw.mjs' {
   export function withColWidth(widths: ColWidths, col: string, px: number | null): ColWidths
   export function colWidthVars(widths: ColWidths): Record<string, string>
   export function colWidthClasses(widths: ColWidths): string[]
+}
+
+declare module '~/utils/row-keys.mjs' {
+  import type { SpoolMessage } from './spool'
+  export function rowStep(ev: KeyboardEvent): -1 | 0 | 1
+  export function stepRow<T>(rows: Iterable<T> | ArrayLike<T>, current: T, step: number): T | null
+  export function isReply(msg: Partial<SpoolMessage> | null | undefined): boolean
+  export function deleteKeyAction(
+    ev: KeyboardEvent,
+    msg: Partial<SpoolMessage> | null | undefined,
+    opts?: { topicDelete?: boolean, editable?: boolean },
+  ): '' | 'confirm-topic' | 'confirm-message' | 'delete-undo'
 }

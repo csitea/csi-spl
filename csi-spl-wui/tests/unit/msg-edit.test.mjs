@@ -237,10 +237,11 @@ describe('Delete on a focused thread row removes that message', () => {
     }
   })
 
-  it('MessageCard deletes only a non-clickable editable row, through removeMessage', () => {
+  it('MessageCard: the Delete key follows utils/row-keys.mjs (CLE-77840: a reply at once with Undo, is_parent 1 asks)', () => {
     const card = src('src/components/MessageCard.vue')
-    assert.match(card, /wantsDelete\(ev, \{ deletable: props\.editable && !editing\.value && !props\.clickable \}\)/)
-    assert.match(card, /removeMessage\(/)
+    assert.match(card, /deleteKeyAction\(ev, props\.msg, \{ topicDelete: showTopicDelete\.value, editable: Boolean\(props\.editable\) && canEdit\(props\.msg\) \}\)/)
+    assert.match(card, /deleteUndo\.offer\(props\.msg\)/)
+    assert.match(card, /removeMessage\(/) /* the menu's confirmed Delete */
     assert.match(card, /ev\.preventDefault\(\)/)
   })
 })

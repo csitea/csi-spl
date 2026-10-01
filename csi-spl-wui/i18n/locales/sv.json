@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Ta bort det här meddelandet?",
       "body": "Det tas bort för alla. Det kan inte ångras.",
-      "confirm": "Ta bort"
+      "confirm": "Ta bort",
+      "undo": {
+        "done": "Borttaget",
+        "action": "Ångra"
+      }
     },
     "merge": {
       "pick_title": "Slå ihop det här ämnet med…",

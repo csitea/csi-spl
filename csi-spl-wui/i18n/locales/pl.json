@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Usunąć tę wiadomość?",
       "body": "Zostanie usunięta dla wszystkich. Tego nie można cofnąć.",
-      "confirm": "Usuń"
+      "confirm": "Usuń",
+      "undo": {
+        "done": "Usunięto",
+        "action": "Cofnij"
+      }
     },
     "merge": {
       "pick_title": "Scal ten temat z…",

@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Bu mesaj silinsin mi?",
       "body": "Herkes için kaldırılır. Bu geri alınamaz.",
-      "confirm": "Sil"
+      "confirm": "Sil",
+      "undo": {
+        "done": "Silindi",
+        "action": "Geri al"
+      }
     },
     "merge": {
       "pick_title": "Bu konuyu şununla birleştir…",

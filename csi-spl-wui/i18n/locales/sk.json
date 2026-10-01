@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Odstrániť túto správu?",
       "body": "Odstráni sa pre všetkých. Nedá sa to vrátiť späť.",
-      "confirm": "Odstrániť"
+      "confirm": "Odstrániť",
+      "undo": {
+        "done": "Odstránené",
+        "action": "Späť"
+      }
     },
     "merge": {
       "pick_title": "Zlúčiť túto tému s…",

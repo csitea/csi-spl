@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Poistetaanko tämä viesti?",
       "body": "Se poistetaan kaikilta. Tätä ei voi perua.",
-      "confirm": "Poista"
+      "confirm": "Poista",
+      "undo": {
+        "done": "Poistettu",
+        "action": "Kumoa"
+      }
     },
     "merge": {
       "pick_title": "Yhdistä tämä aihe aiheeseen…",

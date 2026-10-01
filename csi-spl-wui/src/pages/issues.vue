@@ -932,6 +932,7 @@ import { COLW_MAX, colMin, colWidthClasses, colWidthVars, dragWidth, keyWidth, l
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
+import { onDeleteRestore } from '~/composables/useDeleteUndo'
 import type { IssueMenuItem } from '~/components/IssueRowMenu.vue'
 import {
   ISSUE_LEVELS,
@@ -2130,9 +2131,26 @@ const actConfirmTitleKey = computed(() => {
 function onCommentEdited(row: SpoolMessage) {
   comments.value = applyEdit(comments.value, row) as Note[]
 }
+/* CLE-77840: a comment deleted with the Delete key comes back on Undo
+   (useDeleteUndo); it goes back where it was. */
+const commentDeletedAt = new Map<string, number>()
 function onCommentDeleted(row: { msg_id?: string }) {
-  comments.value = withoutMsg(comments.value, String(row?.msg_id || '')) as Note[]
+  const id = String(row?.msg_id || '')
+  const at = comments.value.findIndex((c) => c.msg_id === id)
+  if (at >= 0) commentDeletedAt.set(id, at)
+  comments.value = withoutMsg(comments.value, id) as Note[]
 }
+const offCommentRestore = onDeleteRestore((row) => {
+  const id = String(row.msg_id || '')
+  const at = commentDeletedAt.get(id)
+  if (at === undefined) return
+  commentDeletedAt.delete(id)
+  if (comments.value.some((c) => c.msg_id === id)) return
+  const next = comments.value.slice()
+  next.splice(Math.min(at, next.length), 0, row as Note)
+  comments.value = next
+})
+onUnmounted(() => offCommentRestore())
 function onCommentReacted(update: ReactionUpdate) {
   comments.value = patchReactions(comments.value, update) as Note[]
 }

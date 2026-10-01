@@ -71,6 +71,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { onDeleteRestore } from '~/composables/useDeleteUndo'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useMove } from '~/composables/useMove'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
@@ -241,6 +242,12 @@ function onReacted(update: ReactionUpdate) {
 function onDeleted(row: { msg_id?: string }) {
   liveRows.value = withoutMsg(liveRows.value, String(row?.msg_id || '')) as SpoolMessage[]
 }
+/* CLE-77840: Undo of a Delete-key delete hands the row back to this pane's own rows */
+const offRestore = onDeleteRestore((row) => {
+  if (String(row.task_id || '') !== String(topic.parentTaskId || '')) return
+  liveRows.value = mergeById(liveRows.value, [row]).rows as SpoolMessage[]
+})
+onUnmounted(() => offRestore())
 
 if (import.meta.client && !api.mock) {
   const liveEdits = useLive()

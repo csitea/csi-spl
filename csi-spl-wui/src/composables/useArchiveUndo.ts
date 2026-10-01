@@ -17,6 +17,20 @@ import { topicErrorKey } from '~/utils/topic-archive.mjs'
 /** Owner (topic f20c6052): the snackbar shows for this long. ONE constant. */
 export const ARCHIVE_UNDO_MS = 700
 
+/* The archive dropped the card from every feed and list of this tab
+   (useMessageEdit.dropEverywhere: the channel store, both live feeds, the
+   topic-list rows); the unarchive re-reads them so the card comes back where
+   it was. The other tabs get the hub's topic_archived(archived:false) frame.
+   CLE-77840: the Deleted · Undo snackbar (useDeleteUndo) re-reads the same way. */
+export async function rereadFeeds() {
+  await useChannelStore().catchUp().catch(() => {})
+  await useViewerStore().catchUp().catch(() => {})
+  for (const key of ['main', 'pane'] as const) {
+    const feed = useLiveFeed(key)
+    if (feed.taskId) await feed.open(String(feed.taskId)).catch(() => {})
+  }
+}
+
 type ArchiveToast = { id: number, msgId: string, busy: boolean }
 
 const toast = shallowRef<ArchiveToast | null>(null)
@@ -37,26 +51,13 @@ export function useArchiveUndo() {
     toast.value = { id: ++seq, msgId: id, busy: false }
   }
 
-  /* The archive dropped the card from every feed and list of this tab
-     (useMessageEdit.dropEverywhere: the channel store, both live feeds, the
-     topic-list rows); the unarchive re-reads them so the card comes back where
-     it was. The other tabs get the hub's topic_archived(archived:false) frame. */
-  async function restore() {
-    await useChannelStore().catchUp().catch(() => {})
-    await useViewerStore().catchUp().catch(() => {})
-    for (const key of ['main', 'pane'] as const) {
-      const feed = useLiveFeed(key)
-      if (feed.taskId) await feed.open(String(feed.taskId)).catch(() => {})
-    }
-  }
-
   async function undo() {
     const t = toast.value
     if (!t || t.busy) return
     toast.value = { ...t, busy: true }
     try {
       await api.archiveTopic(t.msgId, false)
-      await restore()
+      await rereadFeeds()
       toast.value = null
     } catch (e) {
       toast.value = null

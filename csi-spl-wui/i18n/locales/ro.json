@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Ștergeți acest mesaj?",
       "body": "Este eliminat pentru toată lumea. Acțiunea nu poate fi anulată.",
-      "confirm": "Șterge"
+      "confirm": "Șterge",
+      "undo": {
+        "done": "Șters",
+        "action": "Anulează"
+      }
     },
     "merge": {
       "pick_title": "Îmbină acest subiect cu…",

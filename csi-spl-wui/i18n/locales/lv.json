@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "Dzēst šo ziņu?",
       "body": "Tā tiek noņemta visiem. To nevar atsaukt.",
-      "confirm": "Dzēst"
+      "confirm": "Dzēst",
+      "undo": {
+        "done": "Dzēsts",
+        "action": "Atsaukt"
+      }
     },
     "merge": {
       "pick_title": "Apvienot šo tēmu ar…",

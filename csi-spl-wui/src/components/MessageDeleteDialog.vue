@@ -1,7 +1,8 @@
 <!-- SPL-1001: the confirm behind a message's Delete (spec 032, the card
      menu). Only the question: the caller deletes on `confirm`, so a failure
-     shows on the row as every other edit failure does. Loaded lazily
-     (LazyMessageDeleteDialog): it is needed only after the item is picked. -->
+     shows on the row as every other edit failure does. Mounted only when
+     asked; its code ships with MessageCard (CLE-77840: the Delete key opens
+     it, and a lazy chunk is gone on a tab older than the last deploy). -->
 <template>
   <UiConfirm
     :open="open"

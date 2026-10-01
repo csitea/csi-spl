@@ -168,14 +168,15 @@ describe('errors and the Archive rows', () => {
 })
 
 describe('wiring', () => {
-  it('the middle feed marks its cards, the card offers the entries, the dialog is lazy', () => {
+  it('the middle feed marks its cards, the card offers the entries, the dialog is mounted on demand', () => {
     assert.match(src('src/components/LiveFeed.vue'), /:topic-menu="openButton"/)
     const cardSrc = src('src/components/MessageCard.vue')
     assert.match(cardSrc, /:topic-archive="showTopicArchive"/)
     assert.match(cardSrc, /:topic-delete="showTopicDelete"/)
     assert.match(cardSrc, /mayChangeTopic\(props\.msg, editorId\.value, access\.me\)/)
     assert.match(cardSrc, /mayArchiveTopic\(props\.msg, editorId\.value, access\.me\)/)
-    assert.match(cardSrc, /<LazyTopicDeleteDialog\s+v-if="topicDeleteOpen"/)
+    /* CLE-77840: eager code (the Delete key opens it; a lazy chunk is gone on a stale tab) */
+    assert.match(cardSrc, /<TopicDeleteDialog\s+v-if="topicDeleteOpen"/)
     assert.match(cardSrc, /archiveTopic\(id, true\)/)
   })
   it('the dialog names the reply count from the hub before it deletes', () => {

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { openThreadRow, scrollRowToTop } from '../../src/utils/pane-scroll.mjs'
+import { openThreadRow, scrollRowIntoPane, scrollRowToTop } from '../../src/utils/pane-scroll.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -55,6 +55,33 @@ describe('scrollRowToTop', () => {
     assert.equal(row.getBoundingClientRect().top, scroller.getBoundingClientRect().top)
     assert.equal(scroller.scrollTop, 400 + (90 - 220))
     assert.equal(doc.scrollingElement.scrollTop, 12)
+  })
+})
+
+describe('scrollRowIntoPane (CLE-77840: the arrow-key walk)', () => {
+  const box = (top, h) => ({ top, bottom: top + h })
+  const mk = (sTop, sH, rTop, rH, scrollTop = 0) => {
+    const scroller = { scrollTop, getBoundingClientRect: () => box(sTop, sH) }
+    const row = { getBoundingClientRect: () => box(rTop - (scroller.scrollTop - scrollTop), rH) }
+    return { scroller, row }
+  }
+  it('a fully visible row moves nothing', () => {
+    const { scroller } = mk(100, 500, 200, 80, 40)
+    scrollRowIntoPane(scroller, mk(100, 500, 200, 80, 40).row)
+    assert.equal(scroller.scrollTop, 40)
+  })
+  it('a row below comes up to the bottom edge; one above down to the top edge', () => {
+    const below = mk(100, 500, 580, 80, 0)
+    scrollRowIntoPane(below.scroller, below.row)
+    assert.equal(below.row.getBoundingClientRect().bottom, 600)
+    const above = mk(100, 500, 60, 80, 300)
+    scrollRowIntoPane(above.scroller, above.row)
+    assert.equal(above.row.getBoundingClientRect().top, 100)
+  })
+  it('a row taller than the pane shows its top', () => {
+    const tall = mk(100, 300, 500, 900, 0)
+    scrollRowIntoPane(tall.scroller, tall.row)
+    assert.equal(tall.row.getBoundingClientRect().top, 100)
   })
 })
 

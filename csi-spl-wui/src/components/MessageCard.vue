@@ -329,15 +329,19 @@
       :topic-task="moveCtx?.topic || ''"
       @update:open="(v: boolean) => { if (!v) movePicker = '' }"
     />
-    <!-- SPL-983: mounted when Delete is picked on a topic card, not before -->
-    <LazyTopicDeleteDialog
+    <!-- SPL-983: mounted when Delete is picked on a topic card, not before.
+         CLE-77840: eager code (not Lazy), as the Delete KEY opens it: a lazy
+         chunk is gone on a tab older than the last deploy and the chunk-reload
+         would reload the page instead of asking. -->
+    <TopicDeleteDialog
       v-if="topicDeleteOpen"
       v-model:open="topicDeleteOpen"
       :msg-id="topicDeleteMsgId || String(msg.msg_id || '')"
       @deleted="onTopicDeleted"
     />
-    <!-- SPL-1001: the menu's Delete asks first; mounted only when picked -->
-    <LazyMessageDeleteDialog
+    <!-- SPL-1001: the menu's Delete asks first; mounted only when picked
+         (eager code, CLE-77840, as above) -->
+    <MessageDeleteDialog
       v-if="msgDeleteOpen"
       v-model:open="msgDeleteOpen"
       @confirm="remove"
@@ -368,7 +372,6 @@ import {
   editKeyAction,
   isEdited,
   wantsDblClickEdit,
-  wantsDelete,
   wantsEdit,
   withDraft,
 } from '~/utils/msg-edit.mjs'
@@ -382,6 +385,10 @@ import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, 
 import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
+import { useDeleteUndo } from '~/composables/useDeleteUndo'
+import { deleteKeyAction, rowStep, stepRow } from '~/utils/row-keys.mjs'
+import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
+import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -767,11 +774,39 @@ function onKey(ev: KeyboardEvent) {
     startEdit()
     return
   }
-  /* Delete / Backspace on the focused thread row removes that message.
-     preventDefault stops Backspace from walking the browser history. */
-  if (wantsDelete(ev, { deletable: props.editable && !editing.value && !props.clickable })) {
+  /* CLE-77840 (owner, topic bc1fd547): ArrowDown / ArrowUp walk the focus,
+     which is the selection, to the next / previous message of this feed. */
+  const step = editing.value ? 0 : rowStep(ev)
+  if (step) {
+    const feed = rowEl.value?.closest('[role="feed"]')
+    const rows = feed ? [...feed.querySelectorAll<HTMLElement>('article.msg')].filter((r) => r.closest('[role="feed"]') === feed) : []
+    const next = rowEl.value ? stepRow(rows, rowEl.value, step) : null
+    if (next) {
+      ev.preventDefault()
+      next.focus({ preventScroll: true })
+      /* the feed's own scroller, never the document (pane-scroll.mjs) */
+      const scroller = scrollerOf(next)
+      if (scroller !== document.scrollingElement && scroller !== document.documentElement) scrollRowIntoPane(scroller as HTMLElement, next)
+    }
+    return
+  }
+  /* Delete / Backspace on the selected row. A topic-level message
+     (is_parent 1) asks first, with the same confirm as the menu; a reply goes
+     at once and the "Deleted · Undo" snackbar offers it back. Who may delete
+     is the menu's gate, unchanged. preventDefault stops Backspace from
+     walking the browser history. */
+  const del = editing.value || removing.value
+    ? ''
+    : deleteKeyAction(ev, props.msg, { topicDelete: showTopicDelete.value, editable: Boolean(props.editable) && canEdit(props.msg) })
+  if (del) {
     ev.preventDefault()
-    void remove()
+    if (del === 'confirm-topic') void onMenuDeleteTopic()
+    else if (del === 'confirm-message') msgDeleteOpen.value = true
+    else {
+      /* the host drops it from its own rows; Undo hands it back (onDeleteRestore) */
+      deleteUndo.offer(props.msg)
+      emit('deleted', props.msg)
+    }
     return
   }
   if (!props.clickable) return
@@ -829,6 +864,7 @@ const msgDeleteOpen = ref(false)
  */
 const move = useMove()
 const archiveUndo = useArchiveUndo()
+const deleteUndo = useDeleteUndo()
 const lobbyTask = useLive().lobbyTaskId
 const canMoveTopic = computed(() => Boolean(props.topicMenu) && mayMoveTopic(props.msg, editorId.value, access.me, lobbyTask.value))
 const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && mayMoveMessage(props.msg, editorId.value, access.me, {

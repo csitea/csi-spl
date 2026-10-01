@@ -672,7 +672,11 @@
     "msg_delete": {
       "title": "¿Eliminar este mensaje?",
       "body": "Se elimina para todos. No se puede deshacer.",
-      "confirm": "Eliminar"
+      "confirm": "Eliminar",
+      "undo": {
+        "done": "Eliminado",
+        "action": "Deshacer"
+      }
     },
     "merge": {
       "pick_title": "Combinar este tema con…",

@@ -4,7 +4,9 @@
 # @description user's ~/.ssh/config (between marker lines, replaced on a
 # @description re-run), so `ssh satellite` reaches the VM through the IAP
 # @description tunnel as the csi-spl-all SA (satellite-iap-proxy.sh). The block
-# @description names the key minted by do_satellite_ssh_keygen.
+# @description names the key minted by do_satellite_ssh_keygen, and re-pins the
+# @description VM's host key (do_satellite_pin_host_key), so a destroy +
+# @description recreate never ends in "Host key ... has changed".
 # @param SSH_CONFIG (optional) - default $HOME/.ssh/config
 # @param SATELLITE_ALIAS (optional) - default satellite
 # @example ./run -a do_satellite_ssh_config
@@ -33,5 +35,6 @@ do_satellite_ssh_config() {
     printf '%s\n' "$end"
   } >>"$tmp"
   cat "$tmp" >"$cfg" && rm -f "$tmp"
+  do_satellite_pin_host_key || return 1
   do_log "OK $cfg: 'ssh $alias' -> $user@$vm over IAP ($proj/$zone)"
 }

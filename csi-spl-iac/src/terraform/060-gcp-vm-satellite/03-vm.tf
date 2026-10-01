@@ -62,6 +62,9 @@ resource "google_compute_instance" "satellite" {
     ssh-keys               = "${var.os_user}:${trimspace(file(pathexpand(var.ssh_public_key_file)))}"
     enable-oslogin         = "FALSE"
     block-project-ssh-keys = "TRUE"
+    # the guest publishes its ssh host keys (hostkeys/), so
+    # do_satellite_ssh_config pins them after every (re)create
+    enable-guest-attributes = "TRUE"
   }
 
   service_account {

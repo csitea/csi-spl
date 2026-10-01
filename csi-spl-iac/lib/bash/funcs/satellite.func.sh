@@ -66,3 +66,34 @@ do_satellite_ssh_opts() {
     "${user}@${vm}"
   )
 }
+
+#------------------------------------------------------------------------------
+# @description After a (re)create the VM has NEW host keys. Drop every entry
+# @description for it from ~/.ssh/known_hosts.satellite, then PIN the keys the
+# @description guest published (guest attributes hostkeys/, read as the
+# @description satellite project's SA; 060 sets enable-guest-attributes). When
+# @description the guest has not published them, the first connect accepts the
+# @description new key (StrictHostKeyChecking accept-new) and this says so.
+# @example do_satellite_pin_host_key
+#------------------------------------------------------------------------------
+do_satellite_pin_host_key() {
+  local vm zone proj kh out n
+  vm=$(do_satellite_cnf vm_name) || return 1
+  zone=$(do_satellite_cnf gcp_zone) || return 1
+  proj=$(do_satellite_cnf gcp_project) || return 1
+  kh="${HOME}/.ssh/known_hosts.satellite"
+  mkdir -p "$(dirname "$kh")"; touch "$kh"; chmod 600 "$kh"
+  ssh-keygen -R "$vm" -f "$kh" >/dev/null 2>&1; rm -f "${kh}.old"
+  unset ACCOUNT GCP_ACCOUNT
+  export PROJ_ID="$proj"
+  do_gcp_pin_account >/dev/null || { do_log "WARN no ${proj} SA: host key not pinned, the first connect accepts it"; return 0; }
+  out=$(gcloud compute instances get-guest-attributes "$vm" --zone="$zone" --project="$proj" \
+    --query-path=hostkeys/ --account="${GCP_ACCOUNT}" --format='value(key,value)' 2>/dev/null)
+  n=0
+  while IFS=$'\t' read -r t k; do
+    [[ "$t" == ssh-* || "$t" == ecdsa-* ]] && [[ -n "$k" ]] || continue
+    printf '%s %s %s\n' "$vm" "$t" "$k" >>"$kh"; n=$((n + 1))
+  done <<<"$out"
+  if ((n > 0)); then do_log "OK pinned $n host key(s) of $vm from its guest attributes into $kh"
+  else do_log "WARN $vm published no host keys (guest attributes): the stale entry is gone, the first connect accepts the new key"; fi
+}

@@ -13,6 +13,9 @@
 #   4. satellite-iap-proxy.sh refuses without the SA key and pins --account;
 #      satellite-box-setup.sh parses and only formats a BLANK disk (blkid
 #      guard before mkfs).
+#   2b. after a recreate the stale host key is dropped and the guest's
+#      published host keys are pinned (stub gcloud), and with none published
+#      the stale entry is still gone (the first connect accepts the new key).
 #   5. destroy + recreate path (owner 2026-10-01): make do-tf-plan-destroy and
 #      do-deprovision pass the billing id, do_tf_plan_destroy plans -destroy
 #      only, and do_satellite_verify runs as the csi-spl-all SA ONLY (drops
@@ -42,6 +45,15 @@ env:
       gh_repo: example/repo
 EOF
 do_log() { echo "$*"; }
+# offline stand-ins: the SA pin and a gcloud that serves guest-attribute host keys
+do_gcp_pin_account() { GCP_ACCOUNT=sa@test-proj.iam.gserviceaccount.com; }
+mkdir -p "$T/bin"
+cat >"$T/bin/gcloud" <<'STUB'
+#!/usr/bin/env bash
+[[ "$*" == *get-guest-attributes*--account=* && -n "${STUB_HOSTKEYS:-}" ]] && printf '%b\n' "$STUB_HOSTKEYS"
+exit 0
+STUB
+chmod +x "$T/bin/gcloud"; export PATH="$T/bin:$PATH"
 # shellcheck disable=SC1091
 source "$PROJ_PATH/lib/bash/funcs/satellite.func.sh"
 for f in satellite-ssh-keygen satellite-ssh-config satellite-creds-push; do
@@ -63,6 +75,9 @@ mv "$T/pub.bak" "$key.pub"
 
 # --- 2. ssh config -----------------------------------------------------------------
 printf 'Host other\n  HostName other.example\n' >"$HOME/.ssh/config"
+kh="$HOME/.ssh/known_hosts.satellite"
+printf 'test-satellite ssh-ed25519 AAAAOLDSTALEKEY\nother.example ssh-ed25519 AAAAKEEP\n' >"$kh"
+export STUB_HOSTKEYS='ssh-ed25519\tAAAANEWKEY1\necdsa-sha2-nistp256\tAAAANEWKEY2'
 ( do_satellite_ssh_config ) >/dev/null 2>&1
 ( do_satellite_ssh_config ) >/dev/null 2>&1
 c="$HOME/.ssh/config"
@@ -72,6 +87,16 @@ grep -q '^Host other$' "$c" && pass "the rest of ~/.ssh/config is kept" || fail 
 grep -qE "^  ProxyCommand bash .*/satellite-iap-proxy.sh test-proj europe-north1-a %h %p$" "$c" \
   && pass "ProxyCommand goes through the IAP proxy as the project" || fail "no IAP ProxyCommand in the block"
 grep -qx "  IdentityFile $key" "$c" && pass "the block names the minted private key" || fail "IdentityFile is not $key"
+
+grep -q AAAAOLDSTALEKEY "$kh" && fail "the stale host key of a recreated VM is kept" || pass "the stale host key is dropped"
+grep -qx 'test-satellite ssh-ed25519 AAAANEWKEY1' "$kh" && grep -qx 'test-satellite ecdsa-sha2-nistp256 AAAANEWKEY2' "$kh" \
+  && pass "the guest's published host keys are pinned" || fail "the published host keys are not pinned"
+grep -q AAAAKEEP "$kh" && pass "other hosts' keys are kept" || fail "another host's key was removed"
+printf 'test-satellite ssh-ed25519 AAAAOLDSTALEKEY\n' >"$kh"; STUB_HOSTKEYS='' 
+( STUB_HOSTKEYS='' do_satellite_ssh_config ) >/dev/null 2>&1
+[[ ! -s "$kh" ]] && pass "no published keys: the stale entry is still gone (accept-new on first connect)" || fail "no published keys: a stale entry survives"
+grep -q 'enable-guest-attributes\s*=\s*"TRUE"' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.tf" \
+  && pass "060 lets the guest publish its host keys" || fail "060 does not enable guest attributes"
 
 # --- 3. creds push: dry run, no content ---------------------------------------------
 mkdir -p "$HOME/.gcp/.csi" "$HOME/.github"

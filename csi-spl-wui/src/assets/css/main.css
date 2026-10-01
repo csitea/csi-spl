@@ -1092,13 +1092,32 @@ html.pane-dragging * {
    the theme-aware var(--focus-3d) drop shadow (zero spread) plus a 1px
    top-highlight / bottom-shade rgba bevel over the darker fill, and a heavier
    icon stroke. No ring here now, so no ring colour at all on the selected tab;
-   the keyboard :focus-visible ring below still marks focus. */
+   the keyboard :focus-visible ring below still marks focus.
+   CLE-77838 (owner, topic a3c2cf08): "the selected current icon should be 1
+   pxl smaller up down left right and a bit darker than the rest of the section
+   icons". The raised tile is drawn on a ::before inset 1px on every side, so it
+   is 2px narrower and 2px shorter than the button while the button (and so the
+   rail's row height and every unselected icon) keeps its box. The tile carries
+   the darker var(--color-selected) fill, which the component's own scoped
+   `background: transparent` used to win over on the button itself (the tile
+   rendered in the lighter rail colour). isolation keeps the z-index:-1 tile
+   above the rail and below the glyph. */
 .sidebar-tab[aria-selected="true"] {
+  background: transparent;
+  isolation: isolate;
+}
+.sidebar-tab[aria-selected="true"]::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--color-selected);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     inset 0 -1px 0 rgba(0, 0, 0, 0.18),
     var(--focus-3d);
+  pointer-events: none;
 }
 .sidebar-tab[aria-selected="true"] svg { stroke-width: 2.6; }
 /* Pressed: the same step down; an accent-filled control darkens its accent. */

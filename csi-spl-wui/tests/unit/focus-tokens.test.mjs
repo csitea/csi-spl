@@ -110,8 +110,36 @@ describe('focus + selection tokens', () => {
     assert.ok(rule, 'a rule of its own for the selected rail tab')
     /* the owner removed the ring box: no var(--focus-ring) on the selected tab now */
     assert.doesNotMatch(rule[1], /var\(--focus-ring\)/, 'the selected rail tab still draws a ring box')
-    /* it reads raised instead, via the theme-aware drop shadow token */
-    assert.match(rule[1], /box-shadow:[^}]*var\(--focus-3d\)/, 'the selected rail tab is not raised')
+    /* CLE-77838: the tile is the ::before, below; the button itself stays bare */
+    assert.match(rule[1], /background:\s*transparent/, 'the selected rail tab paints a full-size fill')
+  })
+
+  it('CLE-77838 (owner a3c2cf08): the selected rail tile is 1px smaller on every side and darker', () => {
+    const rule = MAIN.match(/\.sidebar-tab\[aria-selected="true"\]::before\s*\{([^}]*)\}/)
+    assert.ok(rule, 'a ::before tile for the selected rail tab')
+    /* 1px in from each edge: 2px less width and height than the button */
+    assert.match(rule[1], /inset:\s*1px;/, 'the selected tile is not inset 1px on every side')
+    /* the darker selected fill, a theme token, so light and dark both get it */
+    assert.match(rule[1], /background:\s*var\(--color-selected\)/, 'the selected tile lost the darker fill')
+    /* still raised via the theme-aware drop shadow token, still no ring colour */
+    assert.match(rule[1], /box-shadow:[^}]*var\(--focus-3d\)/, 'the selected rail tile is not raised')
+    assert.doesNotMatch(rule[1], /var\(--focus-ring\)/, 'the selected rail tile draws a ring box')
+    /* --color-selected is a step darker than the rail it sits on, in every theme */
+    const lum = (hex) => {
+      const c = hex.replace('#', '').match(/../g).map((h) => parseInt(h, 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+    const themes = [...VARS.matchAll(/(:root[^{]*)\{([^}]*)\}/g)]
+    let seen = 0
+    for (const [, sel, body] of themes) {
+      const selected = body.match(/--color-selected:\s*(#[0-9a-f]{6})/i)
+      const sidebar = body.match(/--color-sidebar:\s*(#[0-9a-f]{6})/i)
+      if (!selected || !sidebar) continue
+      seen++
+      assert.ok(lum(selected[1]) < lum(sidebar[1]), `${sel.trim()}: the selected tile is not darker than the rail`)
+    }
+    assert.ok(seen >= 2, 'expected light and dark themes to define both tokens')
   })
 
   it('the selected marker is the SAME colour as the focus ring, so a selected + focused row shows one', () => {

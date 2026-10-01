@@ -5,8 +5,9 @@
 #          do_spl_unanswered_sweep_install_cron over a fake crontab. No hub, no
 #          spool binary, no real crontab is touched.
 #   1. classification: human-last listed; agent-last, archived topic, archived
-#      channel, test workspace (list + name pattern), human DM, #issues and a
-#      fresh post left out; ack-only listed apart and never sent
+#      channel, test workspace (list + name pattern), human DM, a channel post
+#      to a human, a terminal-typed line, the probe human HUM-1 (prd), #issues
+#      and a fresh post left out; ack-only listed apart and never sent
 #   2. DELIVER=0 sends and writes nothing
 #   3. DELIVER=1: one note to the lease holder with the NEW items only; state
 #      + last written; an immediate second sweep sends nothing
@@ -14,6 +15,8 @@
 #      orchestrator (once); then silence
 #   5. a new human post in a known topic is a NEW item
 #   6. a failed send keeps the items NEW and marks last sent=FAILED
+#  5b. do_spl_unanswered_ack: an acked item is "handled", never sent; a new
+#      human post after the ack opens it again; refusals; ACK_LIST
 #   7. no lease: the master from lease.conf
 #   8. bad input is refused
 #   9. do_spl_dispatch_check's sweep row: never ran / fresh / stale / failed
@@ -58,6 +61,9 @@ ROWS="$T/rows.tsv"
   r csitea "" spool-hub 00000000-0000-4000-8000-00000000000a 10000000-0000-4000-8000-00000000000a $H HUM-3 box-desk human open live - "ok thanks!"
   r csitea "" spool-hub 00000000-0000-4000-8000-00000000000b 10000000-0000-4000-8000-00000000000b $H HUM-3 box-desk human open live - "👍"
   r csitea "" spool-hub 00000000-0000-4000-8000-00000000000c 10000000-0000-4000-8000-00000000000c $H HUM-3 box-desk human open live - "yes"
+  r t1 "" lobby 00000000-0000-4000-8000-0000000000e1 10000000-0000-4000-8000-0000000000e1 $H HUM-10 box-desk terminal open live - ""
+  r t1 "" dev 00000000-0000-4000-8000-0000000000e2 10000000-0000-4000-8000-0000000000e2 $H HUM-3 HUM-5 human open live - "for you, not an agent"
+  r t1 "" dev 00000000-0000-4000-8000-0000000000e3 10000000-0000-4000-8000-0000000000e3 $H HUM-1 box-desk human open live - "probe post"
   r leiden "" "" 00000000-0000-4000-8000-00000000000d 10000000-0000-4000-8000-00000000000d $H HUM-9 CLE-5 human open dm files ""
 } >"$ROWS"
 
@@ -84,13 +90,13 @@ open_rows="$(grep -c '^| open |' "$T/o")"
   grep -q '^| open | leiden | dm CLE-5 | .* | (files) |' "$T/o" &&
   pass "1. human-last topics are listed (a 'yes' and a files-only DM count)" || fail "1. open rows=$open_rows rc=$rc $(cat "$T/o")"
 grep -q 'broken on the release page \\| please look' "$T/o" && pass "1. a | in a body is escaped in the table" || fail "1. pipe escape"
-for t in 02 03 04 05 06 07 08 09; do
+for t in 02 03 04 05 06 07 08 09 e1 e2 e3; do
   grep -q "^| open .*0000000000$t" "$T/o" && fail "1. topic ..$t should be left out"
 done
-pass "1. agent-last, archived topic, archived channel, e2e, proof-*, human DM, #issues, fresh: left out"
+pass "1. agent-last, archived topic/channel, e2e, proof-*, to a human, terminal, HUM-1, #issues, fresh: left out"
 [[ "$(grep -c '^| ack |' "$T/o")" == 2 ]] && pass "1. 'ok thanks!' and an emoji-only post are listed as acks" || fail "1. acks: $(grep '^| ack' "$T/o")"
-grep -q '^| t1 | 1 | 0 | 0 | 2 | 1 | 0 | 0 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 1 | 0 | 0 | 1 | 1 | 0 |$' "$T/o" &&
-  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=3 ack=2 new=3 resend=0 escalate=0$' "$T/o" &&
+grep -q '^| t1 | 1 | 0 | 0 | 0 | 2 | 1 | 1 | 1 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | 0 | 0 |$' "$T/o" &&
+  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=3 ack=2 new=3 resend=0 escalate=0$' "$T/o" &&
   pass "1. per-workspace counts" || fail "1. counts: $(grep -A10 'Per workspace' "$T/o")"
 [[ ! -e "$T/sent" && ! -e "$S/dispatch/unanswered.state" && ! -e "$S/dispatch/unanswered.last" ]] &&
   grep -q '^PLAN send to CLE-002: \*\*Unanswered sweep\*\*' "$T/o" &&
@@ -125,6 +131,30 @@ sed -i 's/10000000-0000-4000-8000-000000000001\t[0-9]*/10000000-0000-4000-8000-0
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 31000)) >"$T/o" 2>&1
 [[ "$(sends)" == 4 ]] && [[ "$(tail -n 20 "$T/sent" | grep -c '^| NEW |')" == 1 ]] && [[ "$(wc -l <"$S/dispatch/unanswered.state")" == 3 ]] &&
   pass "5. a new post in a known topic is NEW; the answered item leaves the state" || fail "5. $(cat "$S/dispatch/unanswered.state") $(tail -12 "$T/sent")"
+
+# --- 5b. the dispatcher ack -----------------------------------------------------------------
+ack() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" LEASE_NOW="$NOW" SPOOL_AGENT_ID=CLE-002 "$@" bash -c '
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-unanswered-ack.func.sh"
+    do_spl_unanswered_ack'
+}
+LD=00000000-0000-4000-8000-00000000000d
+ack TOPIC=$LD REASON="a link, no question" >"$T/o" 2>&1 && grep -q "^ACK $LD by CLE-002" "$T/o" &&
+  grep -qP "^$NOW\t$LD\tCLE-002\ta link, no question$" "$S/dispatch/unanswered.acks" &&
+  pass "5b. the ack is recorded with its time, topic, who and why" || fail "5b. ack: $(cat "$T/o") $(cat "$S/dispatch/unanswered.acks" 2>/dev/null)"
+sweep >"$T/o" 2>&1
+! grep -q "^| open | leiden" "$T/o" && grep -q '^| leiden | 0 | 0 | 1 |' "$T/o" &&
+  pass "5b. an acked item is handled: not listed, not sent" || fail "5b. handled: $(grep leiden "$T/o")"
+cp "$ROWS" "$T/rows.keep"
+sed -i "s/10000000-0000-4000-8000-00000000000d\t[0-9]*/10000000-0000-4000-8000-0000000000fd\t$((NOW + 100))/" "$ROWS"
+sweep SWEEP_NOW=$((NOW + 2000)) >"$T/o" 2>&1
+grep -q "^| open | leiden | dm CLE-5 | $LD |" "$T/o" && pass "5b. a new human post after the ack opens it again" || fail "5b. reopen: $(grep leiden "$T/o")"
+cp "$T/rows.keep" "$ROWS"
+ack TOPIC=$LD >"$T/o" 2>&1 && fail "5b. an ack without REASON accepted" || pass "5b. REASON is required"
+ack TOPIC=zz REASON=x >"$T/o" 2>&1 && fail "5b. a bad TOPIC accepted" || pass "5b. a bad TOPIC is refused"
+ack ACK_LIST=1 >"$T/o" 2>&1; grep -q "| $LD | CLE-002 | a link, no question |" "$T/o" && pass "5b. ACK_LIST shows the acks" || fail "5b. list: $(cat "$T/o")"
 
 # --- 6. a failed send ------------------------------------------------------------------------
 rm -f "$S/dispatch/unanswered.state"; : >"$T/sent.fail"

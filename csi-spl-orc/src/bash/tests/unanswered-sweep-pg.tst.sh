@@ -11,6 +11,7 @@
 #   2. the last message decides: human-last -> human, agent-last -> agent
 #   3. an archived card -> archived; an archived channel -> archived channel
 #   4. a DM carries no channel and its to_id; a body's tab/newline collapse
+#   2b. a terminal-typed line (typed_by) is 'terminal', not a human post
 #   5. CONTROL: the classifier lists exactly the open topic of each workspace
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,17 +62,19 @@ INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('t1', decode(repeat('ab', 3
 INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('t1', 'dev', 'dev', 'HUM-1'), ('t1', 'old', 'old', 'HUM-1'), ('csi-rel', 'development', 'development', 'HUM-27');
 UPDATE channels SET archived_at = now(), archived_by = 'HUM-1' WHERE tenant_id = 't1' AND channel_id = 'old';
 PSQL
-m t1 1 1 dev HUM-1 box-desk 120 "agent first?"
-m t1 1 2 dev CLE-5 HUM-1 110 "agent reply"
-m t1 1 3 dev HUM-1 box-desk 100 "still broken"             # topic 1: human last
-m t1 2 4 dev HUM-1 box-desk 100 "question"
-m t1 2 5 dev CLE-5 HUM-1 90 "answer"                        # topic 2: agent last
-m t1 3 6 dev HUM-1 box-desk 100 "archived card"             # topic 3: archived
-m t1 4 7 old HUM-1 box-desk 100 "in an archived channel"    # topic 4: archived channel
+m t1 1 1 dev HUM-2 box-desk 120 "agent first?"
+m t1 1 2 dev CLE-5 HUM-2 110 "agent reply"
+m t1 1 3 dev HUM-2 box-desk 100 "still broken"             # topic 1: human last
+m t1 2 4 dev HUM-2 box-desk 100 "question"
+m t1 2 5 dev CLE-5 HUM-2 90 "answer"                        # topic 2: agent last
+m t1 3 6 dev HUM-2 box-desk 100 "archived card"             # topic 3: archived
+m t1 4 7 old HUM-2 box-desk 100 "in an archived channel"    # topic 4: archived channel
 m csi-rel 5 8 development HUM-27 box-desk 4000 "bug one"    # topic 5: the csi-rel shape, 3 days old
 m csi-rel 6 9 "" HUM-27 CLE-7 60 "dm with	a tab
 and a newline"                                              # topic 6: a DM to an agent
 psql_owner -c "UPDATE messages SET archived_at = now(), archived_by = 'HUM-1' WHERE msg_id = '10000000-0000-4000-8000-000000000006'" >/dev/null
+m t1 7 a dev CLE-5 box-desk 80 "typed in the terminal"     # topic 7: a terminal-typed line (specs/036)
+psql_owner -c "UPDATE messages SET typed_by = 'HUM-2' WHERE msg_id = '10000000-0000-4000-8000-00000000000a'" >/dev/null || fail "seed typed_by"
 
 env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows" bash -c '
   set -uo pipefail
@@ -79,12 +82,13 @@ env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows" bash -c '
   source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
   source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
   _spl_sweep_rows_read "$OUT"' >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(wc -l <"$T/rows")" == 6 ]] && [[ "$(cut -f1 "$T/rows" | sort -u | tr '\n' ' ')" == "csi-rel t1 " ]] &&
-  pass "1. the query runs on the migrated schema as the runtime role: 6 topics, both workspaces" ||
+[[ $rc -eq 0 && "$(wc -l <"$T/rows")" == 7 ]] && [[ "$(cut -f1 "$T/rows" | sort -u | tr '\n' ' ')" == "csi-rel t1 " ]] &&
+  pass "1. the query runs on the migrated schema as the runtime role: 7 topics, both workspaces" ||
   fail "1. rc=$rc rows=$(wc -l <"$T/rows" 2>/dev/null) $(cat "$T/o") $(cat "$T/rows" 2>/dev/null)"
 col() { awk -F'\t' -v t="$1" -v c="$2" '$4 == "00000000-0000-4000-8000-00000000000" t { print $c }' "$T/rows"; }
 [[ "$(col 1 9) $(col 1 5) $(col 1 13)" == "human 10000000-0000-4000-8000-000000000003 still broken" && "$(col 2 9)" == agent && -z "$(col 2 13)" ]] &&
-  pass "2. the last message decides; an agent's body is not read" || fail "2. $(col 1 9) $(col 1 5) $(col 1 13) / $(col 2 9) $(col 2 13)"
+  pass "2. the last message decides; an agent's body is not read"
+[[ "$(col 7 9) $(col 7 7)" == "terminal HUM-2" && -z "$(col 7 13)" ]] && pass "2. a typed_by line is 'terminal', shown as its human" || fail "2. typed_by: $(col 7 9) $(col 7 7) $(col 7 13)" || fail "2. $(col 1 9) $(col 1 5) $(col 1 13) / $(col 2 9) $(col 2 13)"
 [[ "$(col 3 10)" == archived && "$(col 4 11)" == archived && "$(col 1 10) $(col 1 11)" == "open live" ]] &&
   pass "3. archived card and archived channel are flagged; a live topic is open/live" || fail "3. $(col 3 10) $(col 4 11) $(col 1 10) $(col 1 11)"
 [[ -z "$(col 6 3)" && "$(col 6 8)" == CLE-7 && "$(col 6 11)" == dm && "$(col 6 13)" == "dm with a tab and a newline" ]] &&

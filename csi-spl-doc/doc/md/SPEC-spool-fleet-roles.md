@@ -102,7 +102,10 @@ topic whose LAST message is a human's and older than 15 minutes.
 | an agent's | leaves it: answered |
 | a human's, in a test workspace (`e2e`, or an id or name with `e2e`, `test` or `proof` as a word) | leaves it |
 | a human's, in an archived topic or an archived or deleted channel | leaves it: closed |
-| a human's DM to another human, or in `#issues` / `#tasks` | leaves it |
+| a line a human typed in an agent's terminal (`typed_by`, specs/036) | leaves it: the agent read it where it was typed |
+| a human's post addressed to another human (a DM or a channel post to `HUM-n`), or in `#issues` / `#tasks` | leaves it |
+| a post by the probe human (`SWEEP_SKIP_HUMANS`, default `HUM-1` on prd) | leaves it |
+| a post a dispatcher acked (`do_spl_unanswered_ack`) | leaves it: handled, until a new human post in that topic |
 | a human's, younger than 15 minutes | leaves it: the live delivery has it |
 | a pure acknowledgement ("ok", "thanks", emoji only) | lists it in its own table, never sends it |
 | any other human post | sends it to the lease holder |
@@ -114,7 +117,13 @@ memory is `<spool root>/dispatch/unanswered.state`, keyed by the topic's last
 message, so a new human post in a known topic is a new item. An item still
 open two hours after its note is sent once more (`AGAIN`); still open two
 hours after that, it is escalated to `CLE-001`, once. The dispatcher treats
-each item like a delivery under section 3.
+each item like a delivery under section 3. An item that needs no agent reply
+(an announcement, a link, a topic the owner closed in words) is acked, never
+answered with filler:
+`./run -a do_spl_unanswered_ack TOPIC=<uuid or its first 8 hex> REASON=<why>`
+appends to `<spool root>/dispatch/unanswered.acks`, and every human post in
+that topic up to that moment is left out from then on (`ACK_LIST=1` lists
+the acks). A new human post in the topic opens it again.
 
 `<spool root>/dispatch/unanswered.last` holds the last delivered sweep's time
 and open counts; `do_spl_dispatch_check` shows it as the `unanswered sweep`
@@ -197,4 +206,4 @@ end to end in every seated workspace.
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.3.3 · updated: 2026-10-01 · last-edit: 2026-10-01T11:10:00Z -->
+<!-- version: 0.3.4 · updated: 2026-10-01 · last-edit: 2026-10-01T11:30:00Z -->

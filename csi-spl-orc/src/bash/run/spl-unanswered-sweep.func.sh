@@ -11,10 +11,17 @@
 # @description message is a human's, older than SWEEP_MIN_AGE minutes.
 # @description A topic is one task_id; its last message decides. Left out:
 # @description   answered - the last message is an agent's
+# @description   terminal - a line a human typed in an agent's terminal and
+# @description              the agent mirrored (typed_by set, specs/036): the
+# @description              agent read it where it was typed
+# @description   handled  - a dispatcher acked it (do_spl_unanswered_ack)
+# @description              after its last human post
+# @description   human    - a post by SWEEP_SKIP_HUMANS (the probe human)
 # @description   test     - a test workspace (SWEEP_SKIP_TENANTS, SWEEP_SKIP_RE)
 # @description   closed   - the topic card is archived, or its channel is
 # @description              archived or deleted
-# @description   human-dm - a DM between humans (no agent is asked)
+# @description   to-human - a post addressed to a human (DM or channel
+# @description              post with to=HUM-n/GST-n): no agent is asked
 # @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks)
 # @description   fresh    - younger than SWEEP_MIN_AGE (the live path has it)
 # @description   ack      - a pure acknowledgement ("ok", "thanks", emoji
@@ -41,6 +48,7 @@
 # @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
 # @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks"
+# @param SWEEP_SKIP_HUMANS (optional) - posters left out; default HUM-1 on prd (the e2e probe owner), none on dev
 # @param SWEEP_MAX_ITEMS (optional) - rows per delivered note, default 40
 # @param SWEEP_ROWS_FILE (optional) - read the rows from this file instead of the hub (tests, an export)
 # @param SWEEP_TO / SWEEP_ORCH / SWEEP_FROM (optional) - recipient, escalation target, sender; default the lease holder, LEASE_ORCH (lease.conf) or CLE-001, the orchestrator
@@ -171,15 +179,15 @@ BEGIN READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
-       CASE WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' OR coalesce(l.typed_by, '') LIKE 'HUM-%'
-            THEN 'human' ELSE 'agent' END,
+       CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
+            WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human' ELSE 'agent' END,
        CASE WHEN EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
                           AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)
             THEN 'archived' ELSE 'open' END,
        CASE WHEN l.channel IS NULL THEN 'dm' WHEN c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN c.archived_at IS NOT NULL THEN 'archived' ELSE 'live' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
-       CASE WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' OR coalesce(l.typed_by, '') LIKE 'HUM-%'
+       CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
             THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END
   FROM (SELECT DISTINCT ON (m.tenant_id, m.task_id) m.*
           FROM messages m
@@ -196,7 +204,8 @@ SQL
 # orch.md (empty = nothing to send), state.new and last into <outdir>.
 spl_sweep_classify() {
   SKIP_T="${SWEEP_SKIP_TENANTS-e2e}" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
-  SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" \
+  SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks}" ACKS="$LEASE_DIR/unanswered.acks" \
+  SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 - "$@" <<'PY'
 import os, re, sys, time
 
@@ -209,6 +218,20 @@ max_items = int(e["MAX_ITEMS"])
 skip_t = set(e["SKIP_T"].split())
 skip_re = re.compile(e["SKIP_RE"], re.I) if e["SKIP_RE"] else None
 skip_ch = set(e["SKIP_CH"].split())
+skip_hum = set(e["SKIP_HUM"].split())
+
+# dispatcher acks (do_spl_unanswered_ack): <epoch> \t <topic or prefix> \t <by> \t <reason>
+done_acks = []
+try:
+    for line in open(e["ACKS"], encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if len(f) >= 2 and f[0].isdigit() and re.fullmatch(r"[0-9a-f-]{8,36}", f[1]):
+            done_acks.append((int(f[0]), f[1]))
+except OSError:
+    pass
+
+def acked(task, ts):
+    return any(task.startswith(p) and at >= ts for at, p in done_acks)
 to, orch, envn = e["SWEEP_TO_ID"], e["SWEEP_ORCH_ID"], e["ENVN"]
 
 # "ok", "thanks", "thank you", "got it", "👍" ... and nothing else. "yes" is
@@ -248,19 +271,25 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     body = "\t".join(f[12:])
     ts = int(ts)
     c = counts.setdefault(tenant, {k: 0 for k in
-        ("open", "ack", "fresh", "closed", "answered", "test", "human-dm", "channel")})
+        ("open", "ack", "fresh", "closed", "answered", "terminal", "handled", "test", "to-human", "channel", "human")})
     if tenant in skip_t or (skip_re and (skip_re.search(tenant) or (tname and skip_re.search(tname)))):
         c["test"] += 1; continue
+    if by == "terminal":
+        c["terminal"] += 1; continue
     if by != "human":
         c["answered"] += 1; continue
     if topic == "archived" or cstate in ("archived", "deleted"):
         c["closed"] += 1; continue
-    if cstate == "dm" and re.match(r"(HUM|GST)-|ALL-0$", to_id):
-        c["human-dm"] += 1; continue
+    if re.match(r"(HUM|GST)-", to_id) or (cstate == "dm" and to_id == "ALL-0"):
+        c["to-human"] += 1; continue
     if chan in skip_ch:
         c["channel"] += 1; continue
+    if who in skip_hum:
+        c["human"] += 1; continue
     if now - ts < min_age:
         c["fresh"] += 1; continue
+    if acked(task, ts):
+        c["handled"] += 1; continue
     where = "#" + chan if chan else "dm " + to_id
     row = dict(tenant=tenant, where=where, task=task, msg=msg, ts=ts, who=who,
                text=body[:120] if body else ("(files)" if files == "files" else "(empty)"))
@@ -310,11 +339,10 @@ rep = "## Unanswered sweep %s %s\n\n" % (envn, stamp)
 rep += "Topics whose last message is a human's, older than %d min (sent to %s; escalation %s).\n\n" % (min_age // 60, to, orch)
 rep += HDR + (table(items, "open") if items else "| - | (none) | | | | | | |\n")
 rep += "\n### Acknowledgements only (listed, never sent)\n\n" + HDR + (table(acks, "ack") if acks else "| - | (none) | | | | | | |\n")
-rep += "\n### Per workspace\n\n| workspace | open | ack | fresh | closed | answered | human-dm | channel | test |\n|---|---|---|---|---|---|---|---|---|\n"
+COLS = ("open", "ack", "handled", "fresh", "closed", "answered", "terminal", "to-human", "channel", "human", "test")
+rep += "\n### Per workspace\n\n| workspace | " + " | ".join(COLS) + " |\n|" + "---|" * (len(COLS) + 1) + "\n"
 for t in sorted(counts):
-    c = counts[t]
-    rep += "| %s | %d | %d | %d | %d | %d | %d | %d | %d |\n" % (cell(t), c["open"], c["ack"], c["fresh"], c["closed"],
-           c["answered"], c["human-dm"], c["channel"], c["test"])
+    rep += "| %s | " % cell(t) + " | ".join(str(counts[t][k]) for k in COLS) + " |\n"
 n_open = sum(c["open"] for c in counts.values())
 n_ack = sum(c["ack"] for c in counts.values())
 rep += "\nSUM open=%d ack=%d new=%d resend=%d escalate=%d\n" % (n_open, n_ack, len(send_new), len(send_again), len(escalate))
@@ -325,8 +353,9 @@ if send_new or send_again:
     holder = "**Unanswered sweep** (%s, %s): %d new, %d still unanswered after %s.\n\n" % (
         envn, stamp, len(send_new), len(send_again), age(resend))
     holder += ("A human posted last in each topic below and no agent answered. Answer or route each one "
-               "(one discussion per lane). An item still open %s after this note is sent once more, "
-               "then escalated to %s.\n\n" % (age(resend), orch))
+               "(one discussion per lane). An item that needs no agent reply: "
+               "`./run -a do_spl_unanswered_ack TOPIC=<uuid> REASON=<why>` and it is not sent again. "
+               "An item still open %s after this note is sent once more, then escalated to %s.\n\n" % (age(resend), orch))
     holder += HDR + table([dict(r, tag="NEW") for r in send_new] +
                           [dict(r, tag="AGAIN") for r in send_again], "", max_items)
 open(os.path.join(out, "holder.md"), "w").write(holder)

@@ -497,8 +497,11 @@ describe('Topics list avatar (owner, prd t1 432769d8)', async () => {
     assert.equal(feedRow(row).from, topicStarter(row).id)
     assert.deepEqual(topicStarter({ participants: ['HUM-10'] }), { id: 'HUM-10', box: '' })
   })
-  it('skips an @-address and is null for a row that names nobody', () => {
-    assert.deepEqual(topicStarter({ participants: ['@all', 'HUM-3@box-wui'] }), { id: 'HUM-3', box: 'box-wui' })
+  it('skips the broadcast ALL-0 (the hub lists it first) and an @-address; null for a row that names nobody', () => {
+    assert.deepEqual(topicStarter({ participants: ['ALL-0@box-wui', 'CLE-77848@box-desk'] }), { id: 'CLE-77848', box: 'box-desk' })
+    assert.deepEqual(topicStarter({ participants: ['ALL-0@box-wui', 'HUM-3@box-wui', 'CLE-1@box-a'] }), { id: 'HUM-3', box: 'box-wui' })
+    assert.deepEqual(topicStarter({ participants: ['@channel', 'HUM-3@box-wui'] }), { id: 'HUM-3', box: 'box-wui' })
+    assert.equal(topicStarter({ participants: ['ALL-0@box-wui'] }), null)
     assert.equal(topicStarter({ participants: [] }), null)
     assert.equal(topicStarter({}), null)
     assert.equal(topicStarter(null), null)

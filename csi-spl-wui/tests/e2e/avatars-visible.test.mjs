@@ -6,7 +6,7 @@
 // At 1440 and 390 px, light and dark, against the mock bundle:
 //   1. Topics (/, desktop: a phone opens on the sections, where the Topics
 //      tab is a text list like the channels): every row on screen paints its
-//      starter's avatar;
+//      starter's avatar, never the broadcast address ALL-0's;
 //   2. a person's card (#lobby) and an agent's card (#alerts, scrolled into
 //      view) each paint one;
 //   3. both kinds are really painted: loaded (naturalWidth > 0), at least
@@ -153,7 +153,8 @@ try {
       if (!touch) {
         const rows = await measureAt(p, '/', '.topic-row')
         ok(`1 ${at}: every Topics row on screen paints its starter's avatar`,
-          rows.length > 0 && rows.every(painted), { rows: rows.length, bad: rows.filter((a) => !painted(a)).slice(0, 3) })
+          rows.length > 0 && rows.every(painted) && !rows.some((a) => /ALL-0/.test(a.alt || '')),
+          { rows: rows.length, bad: rows.filter((a) => !painted(a) || /ALL-0/.test(a.alt || '')).slice(0, 3) })
       }
 
       // 2. #lobby cards: a person and an agent

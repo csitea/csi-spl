@@ -272,6 +272,17 @@ else
   echo "INFO: no csi-spl-wui/node_modules (vue + typescript) in this checkout -- leg 18 not run"
 fi
 
+# 19. a whole-scope part's cache key follows the tree (it once was constant)
+new_repo
+declare -A _PPL_FILES=([lint-gitleaks]=ALL)
+k1="$(_pp_key "$R" lint-gitleaks fast)"
+echo y >"$R/seed2.txt"; commit another
+k2="$(_pp_key "$R" lint-gitleaks fast)"
+[[ -n "$k1" && -n "$k2" && "$k1" != "$k2" ]] \
+  && pass "19. a whole-scope lint part's green verdict is keyed by the tree, not reused across trees" \
+  || fail "19. whole-scope cache key" "k1=$k1 k2=$k2"
+unset _PPL_FILES
+
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>
   local -A _PPL_FILES=()

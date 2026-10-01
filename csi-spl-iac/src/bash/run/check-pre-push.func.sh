@@ -55,7 +55,7 @@ declare -F _ppl_plan >/dev/null 2>&1 \
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
-_PP_CACHE_V=3
+_PP_CACHE_V=4
 
 # The paths each part reads: they select it AND key its green cache.
 _pp_paths() {  # <part>
@@ -117,7 +117,14 @@ _pp_key() {  # <tree> <part> <tier>
   [[ "${#paths[@]}" -gt 0 ]] || return 0
   [[ -z "$(git -C "$tree" status --porcelain -- "${paths[@]}" 2>/dev/null)" ]] || return 0
   for p in "${paths[@]}"; do
-    ids+="$p=$(git -C "$tree" rev-parse -q --verify "HEAD:$p" 2>/dev/null || echo -) "
+    # '.' (a whole-scope lint part) is the root tree: 'HEAD:.' does not
+    # resolve, and its '-' made one constant key re-use a green verdict
+    # across every tree.
+    if [[ "$p" == . ]]; then
+      ids+=".=$(git -C "$tree" rev-parse -q --verify "HEAD^{tree}" 2>/dev/null || echo -) "
+    else
+      ids+="$p=$(git -C "$tree" rev-parse -q --verify "HEAD:$p" 2>/dev/null || echo -) "
+    fi
   done
   printf '%s' "v$_PP_CACHE_V $part $tier $ids" | sha1sum | cut -c1-40
 }

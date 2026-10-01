@@ -4,7 +4,7 @@
 // Owner, 2026-09-27: "the pop-up on the version could be a bit bigger to fit
 // the whole hash properly" and "also the copy button should be in it".
 // /build.json is served by request interception (lde has none), with a full
-// 40-character sha. At 1440, 820, 390 and 360 px the pop-up opens by a click
+// 40-character sha. At 1440 and 1024 px (a phone: the bottom status strip, CLE-77888) the pop-up opens by a click
 // and:
 //   - the sha is on one line in a monospace font (at <= 390 px it may wrap
 //     into two lines, never cut): its text is not clipped, and every corner
@@ -226,7 +226,9 @@ const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
-  for (const [w, touch] of [[1440, false], [820, true], [390, true], [360, true]]) await run(browser, server.base, w, touch)
+  /* phones draw no footer row since t1 3c298fd9 (CLE-77888): their version
+     card is the bottom status strip's (mobile-status-strip.test.mjs) */
+  for (const [w, touch] of [[1440, false], [1024, false]]) await run(browser, server.base, w, touch)
 } catch (e) {
   console.error(e)
   code = 1

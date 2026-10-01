@@ -15,7 +15,11 @@
 //     6 tap the note = the desktop note: the chime flips (and back)
 //     7 tap the bell = the desktop bell: the alerts switch flips (and back)
 //     8 tap the dot opens the connection card; a tap outside closes it
-//     9 tap the version opens the version card (the version / commit)
+//     9 tap the version opens the version card: the commit from build.json
+//    11 owner t1 3c298fd9: "a version bar on top of the omnibox ... obsolete
+//       ... remove it in whatever view it is" - in every view (level 1 per
+//       section, a channel, a topic, Issues, Settings) no version is drawn
+//       anywhere but the strip, and no footer row sits above the composer
 //   desktop (1440x900):
 //    10 no strip; the sidebar footer row still has dot, bell, note, version;
 //       --composer-dock-h 0
@@ -34,6 +38,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const PATH = '/lobby'
 const TAP = 44
+const SHA = '0123456789abcdef0123456789abcdef01234567'
 
 if (OUT) mkdirSync(OUT, { recursive: true })
 
@@ -119,9 +124,19 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+  /* a build.json so the version card has a commit to show (lde has none) */
+  await p.setRequestInterception(true)
+  p.on('request', (req) => {
+    if (new URL(req.url()).pathname === '/build.json') {
+      return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ commit: SHA, built_at: '2026-10-01T10:30:00Z', run: '1' }) })
+    }
+    req.continue()
+  })
   await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
   await until(p, () => Boolean(document.querySelector('[data-test=status-strip]')), null, 15000)
+  /* the strip reads build.json once on mount; give it a moment */
+  await sleep(600)
   await sleep(400)
   const f = await facts(p)
   if (OUT) await p.screenshot({ path: `${OUT}/phone-390.png` })
@@ -187,16 +202,53 @@ try {
   ok('390 8b a tap outside closes it', await until(p, () => !document.querySelector('[data-test=status-strip-health-card]'), null, 3000))
 
   await tapSel(p, '[data-test=status-strip-version]')
-  const verCard = await until(p, () => {
+  const verCard = await until(p, (sha) => {
     const c = document.querySelector('[data-test=status-strip-version-card]')
     if (!c || !c.getClientRects().length) return false
     const r = c.getBoundingClientRect()
-    return Boolean(c.textContent.trim()) && r.left >= 0 && r.right <= window.innerWidth
-  }, null, 3000)
+    return c.textContent.includes(sha) && r.left >= 0 && r.right <= window.innerWidth
+  }, SHA, 3000)
   if (OUT) await p.screenshot({ path: `${OUT}/phone-390-version.png` })
-  ok('390 9 a tap on the version opens the version card, inside the screen', verCard)
+  ok('390 9 a tap on the version opens the version card with the commit, inside the screen', verCard)
   await tapSel(p, '[data-test=status-strip-version]')
   ok('390 9b a second tap closes it', await until(p, () => !document.querySelector('[data-test=status-strip-version-card]'), null, 3000))
+
+  /* 11: every view - no version but the strip's, no footer row over the dock */
+  const noOldBar = () => p.evaluate(() => {
+    const vis = (e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden'
+    const versions = [...document.querySelectorAll('[data-test=app-version], .version-stamp, .sidebar-foot')].filter(vis)
+    const dock = document.querySelector('form.composer.composer--dock')
+    const dt = dock ? dock.getBoundingClientRect().top : 0
+    /* anything showing a version-like token in the 40 px band above the dock */
+    const band = [...document.querySelectorAll('body *')].filter((e) => !e.closest('[data-test=status-strip]') && !e.closest('form.composer') && e.children.length === 0 && vis(e)
+      && /\bv\d+\.\d+\.\d+\b/.test(e.textContent || '') && Math.abs(e.getBoundingClientRect().bottom - dt) < 40)
+    return { url: location.pathname + location.search, level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'), versions: versions.length, band: band.map((e) => e.textContent.trim().slice(0, 30)), strip: Boolean(document.querySelector('[data-test=status-strip]')) }
+  })
+  const go = (path) => p.evaluate((path) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(path), path)
+  const views = []
+  /* `/` is level 1 (SPL-989): each section the strip at the top offers,
+     wherever its tap lands */
+  const home = async () => {
+    await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-testid=sidebar-tab-channels]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+    await sleep(500)
+  }
+  await home()
+  views.push({ view: 'level 1', ...(await noOldBar()) })
+  if (OUT) await p.screenshot({ path: `${OUT}/phone-390-level1.png` })
+  for (const tab of ['dm', 'topics', 'flow', 'issues', 'people', 'agents', 'boxes']) {
+    await home()
+    if (!(await tapSel(p, `[data-testid=sidebar-tab-${tab}]`))) continue
+    await sleep(700)
+    views.push({ view: 'section ' + tab, ...(await noOldBar()) })
+  }
+  for (const path of ['/lobby', '/issues', '/settings']) {
+    await go(path); await sleep(900)
+    views.push({ view: path, ...(await noOldBar()) })
+  }
+  if (OUT) await p.screenshot({ path: `${OUT}/phone-390-settings.png` })
+  ok('390 11 no version bar above the composer in any view (only the strip shows the version)',
+    views.length >= 8 && views[0].level === '1' && views.every((v) => v.versions === 0 && v.band.length === 0 && v.strip), views)
 
   ok('390 no page errors', errors.length === 0, errors)
   await p.close()

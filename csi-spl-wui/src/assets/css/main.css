@@ -829,8 +829,13 @@ html.pane-dragging * {
      the right" - a card list keeps 6 px each side (was 20, the pinned topic
      root 16) and the card its 4 px (MessageCard): text and avatar at 10 px */
   .feed-body, .feed-body.pinned-root { padding-inline: 6px; }
-  /* SPL-1005: the dock is on level 1 too - the whole sidebar (its footer
-     row, the version and health included) ends above it */
+  /* owner, t1 3c298fd9 (CLE-77888): "there is a version bar on top of the
+     omnibox. That version bar is obsolete already. Remove it in whatever
+     view it is." - the sidebar's footer row (the gear lives in the rail, the
+     dot / bell / note / version in the bottom status strip) is not drawn on
+     a phone */
+  .sidebar-foot { display: none; }
+  /* SPL-1005: the dock is on level 1 too - the whole sidebar ends above it */
   .spool-shell > .sidebar {
     box-sizing: border-box;
     padding-bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));

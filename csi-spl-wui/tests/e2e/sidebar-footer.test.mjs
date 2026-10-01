@@ -32,7 +32,9 @@ const VIEWPORTS = [
   { name: '1440', width: 1440, height: 560, mobile: false },
   { name: '1280', width: 1280, height: 520, mobile: false },
   { name: '1024', width: 1024, height: 480, mobile: false },
-  { name: '390', width: 390, height: 640, mobile: true },
+  /* no phone: since t1 3c298fd9 (CLE-77888) a phone draws no footer row -
+     its dot / bell / note / version are the bottom status strip
+     (mobile-status-strip.test.mjs) */
 ]
 const TABS = ['channels', 'dm', 'issues', 'topics', 'flow']
 

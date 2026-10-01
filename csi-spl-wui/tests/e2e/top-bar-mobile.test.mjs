@@ -108,14 +108,16 @@ async function phone(p, base, width) {
   }
   check(`${tag}: no horizontal scroll`, await noXScroll(p))
   /* owner 2026-09-27 (topic 86a570ea): the start screen shows no connection
-     dot (nor bell / note) on a phone - they live in the avatar sheet; the
-     version stays */
-  /* `/` is level 1 on a phone (SPL-989): the sidebar and its footer are the screen */
+     dot (nor bell / note) on a phone - they live in the avatar sheet.
+     CLE-77888 (t1 1701ae89 + 3c298fd9): nor the version - the sidebar's
+     footer row is gone on a phone; dot, bell, note and version are the
+     bottom status strip */
+  /* `/` is level 1 on a phone (SPL-989): the sidebar is the screen */
   await p.goto(`${base}/`, { waitUntil: 'load' })
-  await p.waitForSelector('[data-test=app-version]', { visible: true, timeout: 20000 }).catch(() => {})
+  await p.waitForSelector('[data-test=status-strip-version]', { visible: true, timeout: 20000 }).catch(() => {})
   await sleep(300)
-  const foot = await probe(p, ['[data-testid=connection-health]', '[data-test=app-version]'])
-  check(`${tag}: level 1 shows the footer (the version) but no connection dot`, foot['[data-test=app-version]']?.shown === true && !foot['[data-testid=connection-health]']?.shown, foot)
+  const foot = await probe(p, ['[data-testid=connection-health]', '[data-test=app-version]', '[data-test=status-strip-version]'])
+  check(`${tag}: level 1 shows no footer row (no version, no dot); the version is the strip's`, !foot['[data-test=app-version]']?.shown && !foot['[data-testid=connection-health]']?.shown && foot['[data-test=status-strip-version]']?.shown === true, foot)
   await open(p, base, width, 800, true)
 
   const vp = view

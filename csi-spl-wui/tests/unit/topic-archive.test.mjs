@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import {
   archivedRow,
   isTopicCard,
+  mayArchiveTopic,
   mayChangeTopic,
   openingCardId,
   topicErrorKey,
@@ -48,6 +49,39 @@ describe('who is offered Archive / Delete (owner rule, 2026-09-26)', () => {
   })
 })
 
+describe('who may Archive, per the workspace policy (CLE-77819, owner 2026-09-30)', () => {
+  // card.from = HUM-1 (the starter). me carries topicArchivePolicy, as
+  // normalizeMe fills from /v1/view/me.
+  const me = (policy, over = {}) => ({ role: 'developer', tenantOwner: false, topicArchivePolicy: policy, ...over })
+  const owner = (policy) => me(policy, { role: 'biz_owner', tenantOwner: true })
+  const admin = (policy) => me(policy, { role: 'admin' })
+
+  it("everyone (the default): any member archives any card they can see", () => {
+    assert.equal(mayArchiveTopic(card, 'HUM-2', me('everyone')), true)
+    assert.equal(mayArchiveTopic(card, 'HUM-1', me('everyone')), true)
+    assert.equal(mayArchiveTopic(card, 'HUM-9', admin('everyone')), true)
+  })
+  it('admins: only the tenant owner or an admin; the starter and a member no', () => {
+    assert.equal(mayArchiveTopic(card, 'HUM-8', owner('admins')), true)
+    assert.equal(mayArchiveTopic(card, 'HUM-9', admin('admins')), true)
+    assert.equal(mayArchiveTopic(card, 'HUM-1', me('admins')), false, 'the starter is not an admin')
+    assert.equal(mayArchiveTopic(card, 'HUM-2', me('admins')), false)
+  })
+  it('starter: the topic starter, plus owner / admin; a plain member no', () => {
+    assert.equal(mayArchiveTopic(card, 'HUM-1', me('starter')), true, 'the starter')
+    assert.equal(mayArchiveTopic(card, 'HUM-9', admin('starter')), true)
+    assert.equal(mayArchiveTopic(card, 'HUM-2', me('starter')), false)
+  })
+  it('offers nothing before /v1/view/me loads, or on a reply', () => {
+    assert.equal(mayArchiveTopic(card, 'HUM-2', null), false)
+    assert.equal(mayArchiveTopic({ ...card, is_parent: 0 }, 'HUM-1', me('everyone')), false, 'a reply is not a card')
+  })
+  it('Delete stays the three-role rule, unaffected by the policy', () => {
+    assert.equal(mayChangeTopic(card, 'HUM-2', me('everyone')), false, 'a member never deletes under everyone')
+    assert.equal(mayChangeTopic(card, 'HUM-1', me('everyone')), true, 'the author still deletes')
+  })
+})
+
 describe('the card menu', () => {
   it('ends with Archive then Delete on a card the viewer may change, the single-message Delete gone', () => {
     const items = msgMenuItems({ editable: true, topic: true })
@@ -58,6 +92,15 @@ describe('the card menu', () => {
   })
   it('is unchanged without the topic flag', () => {
     assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.id), ['open', 'copy', 'edit', 'delete'])
+  })
+  it('CLE-77819: Archive and Delete are gated apart', () => {
+    // The addressee: Archive, no Delete-topic, and no single-message Delete.
+    assert.deepEqual(msgMenuItems({ topicArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])
+    assert.deepEqual(msgMenuItems({ editable: false, topicArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])
+    // Delete-topic without Archive (a defensive shape) offers only Delete-topic.
+    assert.deepEqual(msgMenuItems({ topicDelete: true }).map((i) => i.id), ['open', 'copy', 'delete-topic'])
+    // Both flags = the author / owner / admin card, as `topic` shorthand does.
+    assert.deepEqual(msgMenuItems({ topicArchive: true, topicDelete: true }).map((i) => i.id), ['open', 'copy', 'archive', 'delete-topic'])
   })
   it('draws the Gmail-style archive glyph (tray + arrow in), unarchive (arrow out) and a Material delete can', () => {
     const icons = src('src/utils/uiIcons.ts')
@@ -127,8 +170,10 @@ describe('wiring', () => {
   it('the middle feed marks its cards, the card offers the entries, the dialog is lazy', () => {
     assert.match(src('src/components/LiveFeed.vue'), /:topic-menu="openButton"/)
     const cardSrc = src('src/components/MessageCard.vue')
-    assert.match(cardSrc, /:topic="showTopicActions"/)
+    assert.match(cardSrc, /:topic-archive="showTopicArchive"/)
+    assert.match(cardSrc, /:topic-delete="showTopicDelete"/)
     assert.match(cardSrc, /mayChangeTopic\(props\.msg, editorId\.value, access\.me\)/)
+    assert.match(cardSrc, /mayArchiveTopic\(props\.msg, editorId\.value, access\.me\)/)
     assert.match(cardSrc, /<LazyTopicDeleteDialog\s+v-if="topicDeleteOpen"/)
     assert.match(cardSrc, /archiveTopic\(id, true\)/)
   })

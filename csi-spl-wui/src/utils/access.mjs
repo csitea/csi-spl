@@ -15,8 +15,20 @@ import { normalizeChannelOrder } from './channel-order.mjs'
 export const ROLE_IDS = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent', 'biz_customer', 'regular_user']
 
 /**
- * A /v1/view/me body → { humanId, role, tenantOwner, permissions, channelOrder }
- * (permissions null = unrestricted; channelOrder null = never set, SPL-1034).
+ * "Who can archive topics", the workspace setting (CLE-77819). everyone is the
+ * default (and what an unknown value falls back to).
+ */
+export const TOPIC_ARCHIVE_POLICIES = Object.freeze(['everyone', 'admins', 'starter'])
+
+/** The policy in force from a /v1/view/me value, defaulting to everyone. */
+export function archivePolicyOf(v) {
+  return TOPIC_ARCHIVE_POLICIES.includes(v) ? v : 'everyone'
+}
+
+/**
+ * A /v1/view/me body → { humanId, role, tenantOwner, permissions, channelOrder,
+ * topicArchivePolicy } (permissions null = unrestricted; channelOrder null =
+ * never set, SPL-1034; topicArchivePolicy = the workspace archive setting).
  */
 export function normalizeMe(body) {
   const b = body && typeof body === 'object' ? body : {}
@@ -27,6 +39,7 @@ export function normalizeMe(body) {
     permissions: Array.isArray(b.permissions) ? b.permissions.filter((p) => typeof p === 'string') : null,
     channelOrder: Array.isArray(b.channel_order) ? normalizeChannelOrder(b.channel_order) : null,
     actAs: normalizeActAs(b.act_as),
+    topicArchivePolicy: archivePolicyOf(b.topic_archive_policy),
   }
 }
 

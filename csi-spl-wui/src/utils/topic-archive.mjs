@@ -7,6 +7,14 @@
 // The owner, 2026-09-26: the card's author, the tenant owner and an admin may
 // archive or delete; nobody else, and never an agent. An agent never runs a
 // browser, so "never an agent" is the hub's; here the rule is the three roles.
+//
+// CLE-77819 (owner 2026-09-30, csitea #spool-hub topic 85597e91): ARCHIVE /
+// unarchive follows the workspace setting "Who can archive topics" (me
+// .topicArchivePolicy from /v1/view/me): 'everyone' (the default) any member,
+// 'admins' the tenant owner or an admin, 'starter' the topic's starter plus
+// owner / admin. mayArchiveTopic applies it; the hub re-checks every write.
+// DELETE (the card and every child) stays the three-role rule (mayChangeTopic),
+// unaffected by the setting.
 
 /** Roles, besides the author, that may archive or delete any topic. */
 export const TOPIC_ADMIN_ROLES = Object.freeze(['biz_owner', 'admin'])
@@ -53,6 +61,26 @@ export function mayChangeTopic(msg, viewerId, me) {
   if (id && String(msg.from || '') === id) return true
   if (!me || typeof me !== 'object') return false
   return me.tenantOwner === true || TOPIC_ADMIN_ROLES.includes(String(me.role || ''))
+}
+
+/**
+ * The viewer may ARCHIVE / unarchive this card, per the workspace setting
+ * "Who can archive topics" (CLE-77819). `me` is utils/access.mjs normalizeMe;
+ * me.topicArchivePolicy is 'everyone' | 'admins' | 'starter'. null me (not
+ * loaded yet) offers nothing, so a menu never offers what the hub refuses; the
+ * hub re-checks every write (topic-archive-v1 §1). Delete stays mayChangeTopic.
+ */
+export function mayArchiveTopic(msg, viewerId, me) {
+  if (!isTopicCard(msg)) return false
+  if (!me || typeof me !== 'object') return false
+  switch (me.topicArchivePolicy) {
+    case 'admins':
+      return me.tenantOwner === true || TOPIC_ADMIN_ROLES.includes(String(me.role || ''))
+    case 'starter':
+      return mayChangeTopic(msg, viewerId, me)
+    default: // 'everyone' (and any unknown value) — any member may archive
+      return true
+  }
 }
 
 /**

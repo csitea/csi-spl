@@ -532,7 +532,7 @@ declare module '~/utils/touch-ui.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
@@ -628,6 +628,7 @@ declare module '~/utils/topic-archive.mjs' {
   export function isTopicCard(msg: unknown): boolean
   export function openingCardId(messages: unknown, fallbackId?: string): string
   export function mayChangeTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
+  export function mayArchiveTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function topicFrameDrops(frame: unknown): string[]
   export function topicFrameTasks(frame: unknown, lobbyTaskId?: string): string[]
   export function topicErrorKey(e: unknown, scope?: string): string
@@ -1190,9 +1191,11 @@ declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
   export const MEMBERS_INVITE: 'members.invite'
   export const MEMBERS_IMPERSONATE: 'members.impersonate'
+  export const TOPIC_ARCHIVE_POLICIES: readonly string[]
+  export function archivePolicyOf(v: unknown): string
   export type ActAs = { targetHum: string, targetName: string, expiresAt: string }
   export function normalizeActAs(a: unknown): ActAs | null
-  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null }
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, topicArchivePolicy: string }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
   export function canRemoveMember(
     me: { permissions?: string[] | null } | null | undefined,

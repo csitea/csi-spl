@@ -14,9 +14,11 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * after Open: the channel or DM the thread lives in, the parent card
  * selected there and the thread kept open (utils/parent-section.mjs).
  *
- * A topic card the viewer may change (`topic`, SPL-983 / specs/041: its
- * author, the tenant owner or an admin) ends with Archive and Delete, each
- * with its Material glyph on the left. That Delete removes the card AND every
+ * A topic card ends with Archive and/or Delete, each with its Material glyph
+ * on the left. Archive is offered when `topicArchive` (SPL-983 / specs/041 its
+ * author, the tenant owner or an admin; CLE-77819 also a member it is addressed
+ * to), Delete when `topicDelete` (the narrower author / owner / admin rule).
+ * `topic` is the shorthand for both. That Delete removes the card AND every
  * child, so it replaces the one-message Delete: deleting the card alone would
  * strand its replies.
  *
@@ -32,7 +34,7 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
  * unchanged.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }} [opts]
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean }} [opts]
  * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
@@ -61,12 +63,13 @@ export function msgMenuItems(opts = {}) {
   // 8f588edd: a reply can also be PROMOTED into a new topic of its own - the
   // keyboard / touch way to do what the drag into the topics list does.
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
-  if (o.topic) {
-    items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
-    items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })
-  } else if (editable) {
-    items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
-  }
+  // CLE-77819: Archive and Delete are gated apart - a member the card is
+  // addressed to may archive but not delete. `topic` stays the both-shorthand.
+  const wantArchive = Boolean(o.topic || o.topicArchive)
+  const wantDelete = Boolean(o.topic || o.topicDelete)
+  if (wantArchive) items.push({ id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' })
+  if (wantDelete) items.push({ id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' })
+  else if (editable && !wantArchive) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
   return items
 }
 

@@ -1,6 +1,6 @@
 // specs/025 FR-006/FR-008: the WUI's reading of GET /v1/view/me.
 // Run: node tests/unit/access.test.mjs
-import { accessAllows, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
+import { accessAllows, archivePolicyOf, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -19,6 +19,10 @@ ok('no answer (old hub / error): fails open', accessAllows(null, 'channels.manag
 ok('junk permissions are dropped', normalizeMe({ permissions: ['a', 3, null] }).permissions.length === 1)
 ok('role keys for the eight roles', ROLE_IDS.length === 8 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
 ok('unknown / empty role has no key', roleLabelKey('custom_x') === '' && roleLabelKey(null) === '')
+// CLE-77819: the workspace archive policy, defaulting to everyone.
+ok('archive policy: the three values pass through', archivePolicyOf('admins') === 'admins' && archivePolicyOf('starter') === 'starter' && archivePolicyOf('everyone') === 'everyone')
+ok('archive policy: unset / unknown falls back to everyone', archivePolicyOf(undefined) === 'everyone' && archivePolicyOf('nobody') === 'everyone')
+ok('normalizeMe carries the policy; absent = everyone', normalizeMe({ topic_archive_policy: 'admins' }).topicArchivePolicy === 'admins' && normalizeMe({ role: 'admin' }).topicArchivePolicy === 'everyone')
 
 // CLE-77799: the People card "Remove from workspace" guard (owner 1fc29f99).
 const admin = normalizeMe({ human_id: 'HUM-1', role: 'admin', permissions: ['members.invite', 'topics.read'] })

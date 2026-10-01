@@ -293,7 +293,8 @@
       :merge-prev="!!mergePrev"
       :merge-next="!!mergeNext"
       :parent="showParent"
-      :topic="showTopicActions"
+      :topic-archive="showTopicArchive"
+      :topic-delete="showTopicDelete"
       :kind="kindSettable"
       :move-channel="canMoveTopic"
       :merge-topic="canMoveTopic"
@@ -376,7 +377,7 @@ import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
-import { mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
+import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
@@ -805,10 +806,12 @@ const rowEl = ref<HTMLElement | null>(null)
 const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
 const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere } = useMessageEdit()
-/* SPL-983 (specs/041 §3.3): the card's author, the tenant owner or an admin.
-   The hub re-checks; this only decides what the menu offers. */
+/* SPL-983 (specs/041 §3.3) / CLE-77819: Delete is the author, the tenant owner
+   or an admin; Archive also a member the card is addressed to. The hub
+   re-checks; this only decides what the menu offers. */
 const access = useAccessStore()
-const showTopicActions = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
+const showTopicDelete = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
+const showTopicArchive = computed(() => Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me))
 const topicDeleteOpen = ref(false)
 // The opening card the delete dialog acts on: resolved from the clicked card's
 // task (topicOpenerId) so a non-opener card still deletes the topic.

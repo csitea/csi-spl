@@ -48,8 +48,12 @@ const props = defineProps<{
   mergeNext?: boolean
   /** a thread line: offer Open parent section */
   parent?: boolean
-  /** SPL-983: a topic card the viewer may archive / delete */
+  /** SPL-983: a topic card the viewer may archive / delete (both) */
   topic?: boolean
+  /** SPL-983 / CLE-77819: offer Archive (author, addressee, owner or admin) */
+  topicArchive?: boolean
+  /** SPL-983: offer Delete the topic (author, owner or admin) */
+  topicDelete?: boolean
   /** SPL-991: the viewer may re-type this message (the sheet's Kind item) */
   kind?: boolean
   /** SPL-1024: a card the viewer may move to another channel */
@@ -99,6 +103,8 @@ const items = computed(() => msgMenuItems({
   mergeNext: props.mergeNext,
   parent: props.parent,
   topic: props.topic,
+  topicArchive: props.topicArchive,
+  topicDelete: props.topicDelete,
   moveChannel: props.moveChannel,
   moveTopic: props.moveTopic,
   mergeTopic: props.mergeTopic,

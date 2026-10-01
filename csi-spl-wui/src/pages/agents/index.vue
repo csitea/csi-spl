@@ -4,7 +4,9 @@
   <div class="feed-col" data-test="agents-index">
     <header class="feed-header">
       <MobileBack />
+      <SectionClose side="start" />
       <h2>{{ t('sidebar.agents') }}</h2>
+      <SectionClose side="end" />
     </header>
     <div class="feed-body">
       <p class="muted agents-empty" data-test="agents-empty">{{ t('agents.empty') }}</p>

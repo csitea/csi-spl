@@ -10,7 +10,9 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
+      <SectionClose side="start" />
       <h2 id="tenant-settings-h">{{ heading }}</h2>
+      <SectionClose side="end" />
     </header>
     <div class="feed-body settings-page" data-test="tenant-settings">
       <p v-if="session.state === 'loading'" class="muted">{{ t('common.loading') }}</p>

@@ -720,6 +720,7 @@ import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
+import { useSectionExit } from '~/composables/useSectionExit'
 import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
@@ -881,6 +882,8 @@ const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join
    keeps this strip on top (layouts/default.vue data-mobile-section); the
    sidebar then shows the strip only. On Help / Workspace settings - rail
    links, not tabs - no tab reads as selected on a phone: the link does. */
+const sectionExit = useSectionExit()
+watch(() => route.fullPath, () => sectionExit.note(route.path, route.fullPath), { immediate: true })
 const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && isSectionPage(route.path))
 const onRailLink = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && Boolean(railLinkSection(route.path)))
 function railOn(id: SideTab) {
@@ -939,6 +942,14 @@ async function selectTab(next: SideTab) {
      the strip - from a section page's strip too - instead of a bare page */
   const phoneList = mobileStack.isMobile.value && PHONE_LIST_TABS.has(next)
   if (phoneList && mobileStack.level.value > 1) mobileStack.home()
+  /* CLE-77886 (HUM-24, csitea 7930dfbf: no exit from Issues): on a desktop
+     Channels / Direct messages / Flow picked over a section page (Issues,
+     Event log, ...) also bring back the conversation the reader left - the
+     list on the left alone kept the page and read as a dead end */
+  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && isSectionPage(route.path) && tabForPath(route.path) !== 'topics') {
+    const back = sectionExit.target(next)
+    if (back) await navigateTo(back.startsWith('/lobby') ? localePath(back) : back)
+  }
   if (next === 'topics') {
     if (viewer.topics.length === 0) void viewer.loadTopics()
     if (tabForPath(route.path) !== 'topics') await navigateTo(localePath('/'))

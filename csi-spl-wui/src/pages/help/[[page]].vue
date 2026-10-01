@@ -8,7 +8,9 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
+      <SectionClose side="start" />
       <h2 id="help-h">{{ t('help.title') }}</h2>
+      <SectionClose side="end" />
     </header>
     <div class="feed-body settings-page" data-test="help">
       <div class="settings-layout help-layout">

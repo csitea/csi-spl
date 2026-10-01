@@ -5,7 +5,7 @@
 // Run: node tests/unit/section-strip.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { isSectionPage, loopPosition, railLinkSection } from '../../src/utils/section-strip.mjs'
+import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath } from '../../src/utils/section-strip.mjs'
 
 describe('isSectionPage', () => {
   it('every section page the owner named, with or without a locale', () => {
@@ -40,5 +40,25 @@ describe('loopPosition', () => {
   it('no set width (not measured / nothing overflows) leaves it alone', () => {
     assert.equal(loopPosition(5, 0), 5)
     assert.equal(loopPosition(5, NaN), 5)
+  })
+})
+
+describe('the way out of a section page (HUM-24, 7930dfbf)', () => {
+  it('chatKind names the conversation a reader left', () => {
+    assert.equal(chatKind('/channel/general'), 'channel')
+    assert.equal(chatKind('/fi/lobby'), 'channel')
+    assert.equal(chatKind('/dm/HUM-2'), 'dm')
+    assert.equal(chatKind('/issues'), '')
+    assert.equal(chatKind('/people/HUM-2'), '')
+  })
+  it('Channels -> the last channel, DMs -> the last DM, Flow / X -> the last conversation, else the lobby', () => {
+    const last = { channel: '/channel/alerts?topic=a', dm: '/dm/HUM-2', chat: '/dm/HUM-2' }
+    assert.equal(sectionExitPath(last, 'channels'), '/channel/alerts?topic=a')
+    assert.equal(sectionExitPath(last, 'dm'), '/dm/HUM-2')
+    assert.equal(sectionExitPath(last, 'flow'), '/dm/HUM-2')
+    assert.equal(sectionExitPath(last), '/dm/HUM-2')
+    assert.equal(sectionExitPath({}, 'channels'), '/lobby')
+    assert.equal(sectionExitPath({}), '/lobby')
+    assert.equal(sectionExitPath({}, 'dm'), '')
   })
 })

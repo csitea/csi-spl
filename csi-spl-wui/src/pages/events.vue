@@ -7,6 +7,7 @@
   <div class="feed-col" data-test="events-page">
     <header class="feed-header">
       <MobileBack />
+      <SectionClose side="start" />
       <h2>{{ t('events.title') }}</h2>
       <span class="events-spacer" />
       <button
@@ -17,6 +18,7 @@
         :disabled="busy"
         @click="onClear"
       >{{ t('events.clear') }}</button>
+      <SectionClose side="end" />
     </header>
     <div class="feed-body">
       <p v-if="session.state === 'loading'" class="muted" data-test="events-loading">{{ t('common.loading') }}</p>

@@ -12,6 +12,7 @@
       <header class="feed-header issues-head">
         <!-- SPL-992: on a phone the list is level 2; Back goes to the sections (level 1) -->
         <MobileBack class="issues-mback" data-test="issues-back" />
+        <SectionClose side="start" />
         <h2 data-test="issues-heading">{{ epicTitle || t('issues.title') }}</h2>
         <!-- SPL-978: "just a button with + the google way": a round accent button, the plus only.
              SPL-992: on a phone it floats bottom right (CSS), and hides while an issue is open -->
@@ -59,6 +60,7 @@
         >
           <UiIcon name="menu" :size="16" />
         </button>
+        <SectionClose side="end" />
       </header>
       <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
@@ -2512,6 +2514,8 @@ onUnmounted(() => {
    so the tooltip explaining why still shows on hover (a real [disabled] button
    suppresses the title). */
 .issues-head__menu { flex: 0 0 auto; margin-inline-start: auto; margin-inline-end: 19px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; }
+/* CLE-77886: the section's close X (Windows side) sits right after the menu */
+.issues-head > .issues-head__menu + .section-close { margin-inline-start: 0; }
 .issues-head__menu[data-disabled='true'] { opacity: .45; cursor: default; }
 /* SPL-978: Material-style round + (accent fill, elevation, hover lift, press ripple) */
 .issues-fab {

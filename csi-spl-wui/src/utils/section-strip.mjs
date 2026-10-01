@@ -49,3 +49,31 @@ export function loopPosition(pos, set) {
   if (pos > set * 1.5) return pos - set
   return pos
 }
+
+/**
+ * CLE-77886 (HUM-24, csitea 7930dfbf: "there is no exit from the Issues
+ * window"): the conversation a reader left for a section page. 'channel'
+ * for a channel or the lobby, 'dm' for a direct message, '' for the rest.
+ * @param {string} path
+ */
+export function chatKind(path) {
+  const p = productPath(path)
+  if (p === '/lobby' || p.startsWith('/channel/')) return 'channel'
+  if (p.startsWith('/dm/')) return 'dm'
+  return ''
+}
+
+/**
+ * Where a way out of a section page leads: the rail's Channels to the last
+ * channel, Direct messages to the last DM, Flow and the close X to the last
+ * conversation of either kind; the lobby when there was none ('' for a DM:
+ * no DM to go back to, the list on the left is the way on).
+ * @param {{ channel?: string, dm?: string, chat?: string }} last
+ * @param {string} [tab]
+ */
+export function sectionExitPath(last, tab = '') {
+  const l = last || {}
+  if (tab === 'dm') return l.dm || ''
+  if (tab === 'channels') return l.channel || '/lobby'
+  return l.chat || '/lobby'
+}

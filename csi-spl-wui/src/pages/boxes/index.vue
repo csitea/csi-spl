@@ -4,7 +4,9 @@
   <div class="feed-col" data-test="boxes-index">
     <header class="feed-header">
       <MobileBack />
+      <SectionClose side="start" />
       <h2>{{ t('sidebar.boxes') }}</h2>
+      <SectionClose side="end" />
     </header>
     <div class="feed-body">
       <p class="muted boxes-empty" data-test="boxes-empty">{{ t('boxes.empty') }}</p>

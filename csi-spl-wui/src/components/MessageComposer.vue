@@ -10,11 +10,13 @@
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     @submit.prevent="onSend"
   >
-    <!-- SPL-1003: docked on a phone, the box says where the post goes before
-         it is sent: into the open thread, or a new topic in this feed.
-         Topic c6994436: the same line over the bottom dock on a desktop -->
+    <!-- Topic c6994436: over the bottom dock on a desktop the box says where
+         the post goes before it is sent. On a phone NO text line above the
+         box (owner, t1 dd98f8d7, 2026-10-01: "remove also all of the texts on
+         mobile above the omnibox"): the form's data-mode accent edge and the
+         placeholder carry the mode there (SPL-1003's line is gone) -->
     <p
-      v-if="(docked || bottom) && !searchMode && dockHint"
+      v-if="bottom && !docked && !searchMode && dockHint"
       class="composer-target"
       data-test="dock-target"
       :data-mode="dockHint.mode"
@@ -22,18 +24,6 @@
     >
       <UiIcon :name="modeIcon" :size="14" />
       <span>{{ modeText }}</span>
-    </p>
-    <!-- a phone page with no send target (/issues list, /events,
-         /settings) says so - GO there searches for the text, never nothing -->
-    <p
-      v-if="docked && !searchMode && !dockHint && sendBlocked"
-      class="composer-target"
-      data-test="dock-target"
-      data-mode="search"
-      aria-live="polite"
-    >
-      <UiIcon name="search" :size="14" />
-      <span>{{ t('composer.target_search_only') }}</span>
     </p>
     <div class="composer-box">
       <!-- HUM-24 (CLE-77879): in the top bar one short word in a calm chip at
@@ -680,7 +670,13 @@ const modeText = computed(() => {
   return label ? t(label.key, label.params) : ''
 })
 const modeIcon = computed(() => (dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment') ? 'reply' : 'plus'))
-const modeAttr = computed(() => (props.global && !searchMode.value && dockHint.value ? dockHint.value.mode : undefined))
+/* a phone page with no send target (/issues list, /events, /settings): GO
+   there searches for the text, never nothing - data-mode="search", no accent */
+const modeAttr = computed(() => {
+  if (!props.global || searchMode.value) return undefined
+  if (dockHint.value) return dockHint.value.mode
+  return docked.value && props.sendBlocked ? 'search' : undefined
+})
 const sendKey = computed(() => composerSendKey(searchMode.value ? null : dockHint.value))
 
 function caret(): number {
@@ -1345,10 +1341,10 @@ textarea.in-code {
  * field's start edge and border carry it, the label's icon too. Calm: a tint
  * and a 3px edge, never a fill. Search mode and no target stay neutral.
  */
-.composer[data-mode] { --composer-mode: var(--color-mode-new); }
+.composer:is([data-mode=new], [data-mode=dm]) { --composer-mode: var(--color-mode-new); }
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
-.composer.omnibox--global[data-mode] .omnibox-field {
+.composer.omnibox--global[data-mode]:not([data-mode=search]) .omnibox-field {
   border-color: color-mix(in srgb, var(--composer-mode) 45%, var(--color-border));
   border-inline-start: 3px solid var(--composer-mode);
   padding-inline-start: 6px;

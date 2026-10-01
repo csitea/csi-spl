@@ -92,8 +92,8 @@ describe('wiring', () => {
   it('B4: the send error sits above the box in the dock', () => {
     assert.match(topBar, /\.top-bar__omnibox--bottom \.top-bar__send-error \{ order: -1;/)
   })
-  it('B6: the dock names where the post goes (SPL-1003 hint) on a desktop too', () => {
-    assert.match(composer, /v-if="\(docked \|\| bottom\) && !searchMode && dockHint"/)
+  it('B6: the desktop bottom dock names where the post goes (SPL-1003 hint); a phone draws no line (owner, t1 dd98f8d7)', () => {
+    assert.match(composer, /v-if="bottom && !docked && !searchMode && dockHint"/)
   })
   it('the panes that overlay the middle one at <= 1100 px end above the dock', () => {
     assert.match(css, /\.live-pane \{[\s\S]*?bottom: var\(--omnibox-dock-h, 0px\);/)

@@ -45,7 +45,7 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.match(s, /onBeforeUnmount\(\(\) => omniboxStore\.unregister\(commentOwner\)\)/)
     const c = src('src/components/MessageComposer.vue')
     assert.match(c, /if \(docked\.value && q\) \{\n\s+emit\('search', q\)/)
-    assert.match(c, /data-mode="search"/)
+    assert.match(c, /return docked\.value && props\.sendBlocked \? 'search' : undefined/)
   })
 
   it('a page with no send target shows nothing', () => {
@@ -61,9 +61,10 @@ describe('the phone dock names its target (SPL-1003)', () => {
     }
   })
 
-  it('the line over the box shows on a docked composer - the phone dock, or the bottom dock (topic c6994436); the top bar has its own chip (HUM-24)', () => {
+  it('the line over the box shows ONLY over the desktop bottom dock (topic c6994436) - never on a phone (owner, t1 dd98f8d7: "remove also all of the texts on mobile above the omnibox"); the top bar has its own chip (HUM-24)', () => {
     const c = src('src/components/MessageComposer.vue')
-    assert.match(c, /v-if="\(docked \|\| bottom\) && !searchMode && dockHint"/)
+    assert.match(c, /v-if="bottom && !docked && !searchMode && dockHint"/)
+    assert.equal((c.match(/class="composer-target"/g) || []).length, 1)
     assert.match(src('src/components/TopBar.vue'), /:dock-target="dockTarget"/)
   })
 })
@@ -135,7 +136,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.match(c, /v-if="global && !docked && !bottom && !searchMode && dockHint"\n\s+class="composer-mode"/)
     assert.match(c, /:data-mode="modeAttr"/)
     assert.match(c, /t\(sendKey\)/)
-    assert.match(c, /\.composer\.omnibox--global\[data-mode\] \.omnibox-field \{/)
+    assert.match(c, /\.composer\.omnibox--global\[data-mode\]:not\(\[data-mode=search\]\) \.omnibox-field \{/)
     assert.match(c, /t\(composerModeChipKey\(dockHint\)\)/)
     assert.doesNotMatch(src('src/components/TopBar.vue'), /threadTitle/)
     assert.match(src('src/pages/dm/[peer].vue'), /dm: true \}\)/)

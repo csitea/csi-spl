@@ -67,13 +67,16 @@ async function openIssues(browser, vp) {
 function look(p) {
   return p.evaluate((dockSel) => {
     const dock = document.querySelector(dockSel)
-    const hint = dock && dock.querySelector('[data-test=dock-target]')
+    /* t1 dd98f8d7: no text line over the phone dock - the mode is the
+       form's data-mode, the words are the placeholder */
+    const line = dock && dock.querySelector('[data-test=dock-target]')
     const vis = (el) => Boolean(el && el.getClientRects().length > 0)
     return {
       docked: Boolean(dock && dock.classList.contains('composer--dock')),
       level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
-      mode: vis(hint) ? hint.getAttribute('data-mode') : '',
-      hint: vis(hint) ? hint.textContent.trim() : '',
+      mode: dock ? (dock.getAttribute('data-mode') || '') : '',
+      hint: dock ? (dock.querySelector('textarea')?.placeholder || '') : '',
+      line: vis(line),
       field: dock ? (dock.querySelector('textarea')?.value || '') : null,
       goDisabled: dock ? dock.querySelector('[data-testid=send]')?.getAttribute('aria-disabled') : null,
       path: location.pathname,
@@ -129,7 +132,7 @@ async function phoneCase(browser, width, height) {
   {
     const { p, errors } = await openIssues(browser, vp)
     const l = await look(p)
-    ok(`${tag} list: the dock says it is search-only`, l.docked && l.mode === 'search' && l.hint.length > 0, l)
+    ok(`${tag} list: the dock says it is search-only`, l.docked && l.mode === 'search' && l.hint.length > 0 && !l.line, l)
     const q = `cle35066list${width}`
     await typeAndGo(p, q)
     await p.waitForFunction(() => location.pathname.endsWith('/search'), { timeout: 8000 }).catch(() => {})
@@ -145,7 +148,7 @@ async function phoneCase(browser, width, height) {
     const key = await createIssue(p, 'Dock comment target')
     const l = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `issue-dock-comment-${width}-open.png`) })
-    ok(`${tag} issue open (level 3): the dock says "Commenting on <key>"`, l.docked && l.level === '3' && l.mode === 'comment' && l.hint.includes(key), { key, ...l })
+    ok(`${tag} issue open (level 3): the dock says "Commenting on <key>"`, l.docked && l.level === '3' && l.mode === 'comment' && l.hint.includes(key) && !l.line, { key, ...l })
     /* two earlier comments first: the discussion then runs below the dock,
        as it does on a real issue, so the on-screen check below can fail */
     for (const n of [1, 2]) {

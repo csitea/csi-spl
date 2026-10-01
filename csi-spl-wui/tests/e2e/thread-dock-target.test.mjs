@@ -15,6 +15,8 @@
 //     CONTROL: before SPL-1003 the dock named no target at all (1-3 fail on
 //     the hint).
 //   desktop (1440x900): no dock hint anywhere, the thread still takes the post.
+//   t1 dd98f8d7 (owner, 2026-10-01): on a phone the dock says it with its
+//   accent edge (data-mode) and placeholder only - no text line above it.
 //
 // Run:
 //   pnpm run test:e2e:thread-dock-target
@@ -54,15 +56,21 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/** The open thread, the phone level and the dock's hint as drawn. */
+/** The open thread, the phone level and the dock's mode as drawn. Since the
+ *  owner's t1 dd98f8d7 ("remove also all of the texts on mobile above the
+ *  omnibox") the phone dock draws NO line: its mode is the form's data-mode
+ *  (the accent edge) and its target the placeholder. `line` is any visible
+ *  text line over a composer - it must stay null on a phone. */
 function state(p) {
   return p.evaluate(() => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia.state.value
-    const hint = [...document.querySelectorAll('[data-test=dock-target]')].find((el) => el.getClientRects().length > 0)
+    const line = [...document.querySelectorAll('[data-test=dock-target]')].find((el) => el.getClientRects().length > 0)
+    const dock = document.querySelector('form.composer[data-docked=true]')
     return {
       thread: (s.topic && s.topic.open && s.topic.parentTaskId) || (s['live-pane'] && s['live-pane'].taskId) || '',
       level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
-      hint: hint ? { mode: hint.getAttribute('data-mode'), text: hint.textContent.trim() } : null,
+      hint: dock ? { mode: dock.getAttribute('data-mode'), text: dock.querySelector('textarea')?.placeholder || '' } : null,
+      line: line ? line.textContent.trim() : null,
     }
   })
 }
@@ -123,7 +131,7 @@ async function phoneCase(browser, width, height) {
   const { p, errors } = await open(browser, { width, height, isMobile: true, hasTouch: true })
   const s1 = await state(p)
   ok(`${tag} 1 the list (level 2): the dock says a post starts a new topic in #alerts`,
-    s1.level === '2' && Boolean(s1.hint && s1.hint.mode === 'new' && s1.hint.text.includes('#alerts')), s1)
+    s1.level === '2' && Boolean(s1.hint && s1.hint.mode === 'new' && s1.hint.text.includes('#alerts')) && s1.line === null, s1)
 
   const card = await firstCard(p)
   await p.touchscreen.tap(card.x, card.y)
@@ -135,7 +143,7 @@ async function phoneCase(browser, width, height) {
   const r2 = await sentRow(p, inThread)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `thread-dock-target-${width}-sent.png`) })
   ok(`${tag} 2 a thread open (level 3): the dock says the post replies in the open thread`,
-    s2.level === '3' && Boolean(s2.thread) && Boolean(s2.hint && s2.hint.mode === 'thread'), s2)
+    s2.level === '3' && Boolean(s2.thread) && Boolean(s2.hint && s2.hint.mode === 'thread' && s2.hint.text.startsWith('Reply')) && s2.line === null, s2)
   ok(`${tag} 2 the post is stored is_parent 0 on the thread's task, drawn in the thread, not as a list card`,
     isReplyInto(r2, s2.thread) && r2.thread === 1 && r2.list === 0, { thread: s2.thread, r2 })
 
@@ -150,7 +158,7 @@ async function phoneCase(browser, width, height) {
   const r3 = await sentRow(p, fresh)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `thread-dock-target-${width}-back.png`) })
   ok(`${tag} 3 Back (level 2): the dock says new topic again`,
-    s3.level === '2' && !s3.thread && Boolean(s3.hint && s3.hint.mode === 'new'), s3)
+    s3.level === '2' && !s3.thread && Boolean(s3.hint && s3.hint.mode === 'new') && s3.line === null, s3)
   ok(`${tag} 3 the post after Back is a new topic (is_parent 1), a card in the list`,
     Boolean(r3 && r3.is_parent === 1 && r3.task_id !== s2.thread && r3.list === 1), r3)
   ok(`${tag} no page error`, errors.length === 0, errors)

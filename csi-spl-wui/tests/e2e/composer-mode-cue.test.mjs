@@ -16,8 +16,8 @@
 //     5 /lobby, `e` on an own message: "Editing this message" over the box,
 //       the composer's chip unchanged
 //   phone 390x844 (touch), /channel/alerts:
-//     6 the dock line says "New topic in #alerts", tap a card -> "Replying in
-//       the open thread"
+//     6 NO text line above the dock (owner, t1 dd98f8d7): mode new, placeholder
+//       "Message #alerts"; tap a card -> mode thread, placeholder "Reply…"
 //     CONTROL: before HUM-24 the desktop had no chip and no data-mode (1-4
 //     fail), the edit box had no label (5 fails).
 //
@@ -201,15 +201,15 @@ async function phoneCase(browser) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, 'new-390-dark')
-  ok('390 6 the dock line says a new topic in #alerts, mode new, no desktop chip',
-    Boolean(c1 && c1.mode === 'new' && c1.line === 'New topic in #alerts' && c1.chip === null), c1)
+  ok('390 6 no text line above the dock, no chip: mode new (accent edge), placeholder "Message #alerts"',
+    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.edgeW === '3px' && c1.placeholder.startsWith('Message #alerts')), c1)
   await p.touchscreen.tap(card.x, card.y)
   await waitMode(p, 'thread')
   await sleep(300)
   const c2 = await cue(p)
   await shot(p, 'reply-390-dark')
-  ok('390 6 a thread open: the dock line says "Replying in the open thread" (no title), GO "Send reply"',
-    Boolean(c2 && c2.mode === 'thread' && c2.line === 'Replying in the open thread' && c2.go === 'Send reply'), c2)
+  ok('390 6 a thread open: still no line, mode thread (a different edge), placeholder "Reply", GO "Send reply"',
+    Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.placeholder.startsWith('Reply') && c2.edge !== c1.edge && c2.go === 'Send reply'), c2)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

@@ -190,7 +190,9 @@ func TestMoveTopicPermissionsAndRefusals(t *testing.T) {
 	}
 	_, feed = call(t, g.e, g.tid, http.MethodGet, "/v1/view/topics/"+g.T, "HUM-2", nil)
 	rows, _ = feed["messages"].([]any)
-	if v, _ := rows[0].(map[string]any); v["channel"] != nil || v["moved_at"] != nil {
+	// The stub env names no channel, so the row's own channel rides beside it
+	// (CLE-77845) - home, never the old override.
+	if v, _ := rows[0].(map[string]any); (v["channel"] != nil && v["channel"] != "devel") || v["moved_at"] != nil {
 		t.Fatalf("a row back home still carries an override: %v", v)
 	}
 

@@ -405,6 +405,7 @@ func scanViewMsg(rows pgx.Rows, lead ...any) (ViewMsg, error) {
 		return v, err
 	}
 	scanMove(&v.Move, mvAt, mvBy, mvCh, mvTask, ch, task, parent)
+	v.RowChannel = deref(ch)
 	v.TypedBy, v.EditedBy = deref(typedBy), deref(editedBy)
 	if kindSetAt != nil { // SPL-952: an override only once someone changed it
 		v.Kind, v.KindSetAt, v.KindSetBy = kind, *kindSetAt, deref(kindSetBy)

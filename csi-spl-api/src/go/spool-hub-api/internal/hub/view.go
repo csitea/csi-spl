@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -878,6 +879,17 @@ func (s *Server) rowReactions(ctx context.Context, tenant string, rows []store.V
 	return s.o.Store.ReactionsFor(ctx, tenant, ids)
 }
 
+// envNames reports whether the canonical envelope env carries channel ch.
+// A box reply into a channel topic is stored in that channel (channelOf) but
+// its signed envelope names none, so the view emits the row's channel beside
+// it: without it the WUI read every desk answer in a channel as a DM and
+// raised that agent's DM badge on a DM that holds nothing (CLE-77845, prd
+// csitea 2026-10-01). Canonical JSON has no whitespace, and a "channel" key
+// inside a string is escaped, so a byte match is exact.
+func envNames(env []byte, ch string) bool {
+	return bytes.Contains(env, []byte(`"channel":"`+ch+`"`))
+}
+
 // viewMsgs is the §4.4 message list of rows, with their reactions.
 func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []viewMsg {
 	out := make([]viewMsg, 0, len(rows))
@@ -895,6 +907,8 @@ func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []v
 			ch, parent, home := mv.Channel, mv.ParentTaskID, mv.FromChannel
 			v.Channel, v.TaskID, v.ParentTaskID = &ch, mv.TaskID, &parent
 			v.MovedAt, v.MovedBy, v.MovedFromChannel, v.MovedFromTask = rfc(mv.At), mv.By, &home, mv.FromTask
+		} else if ch := m.RowChannel; ch != "" && !envNames(m.Env, ch) {
+			v.Channel = &ch
 		}
 		for _, d := range m.Deliveries {
 			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})

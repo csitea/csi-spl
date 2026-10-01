@@ -248,7 +248,7 @@ func (s *Memory) ArchivedCards(_ context.Context, tenant string, q ArchivedQuery
 		}
 		out = append(out, ArchivedCard{
 			ViewMsg: ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-				EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy},
+				EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, RowChannel: m.Channel},
 			TaskID: m.TaskID, Channel: m.Channel, FromID: m.FromID, ArchivedAt: m.ArchivedAt, ArchivedBy: m.ArchivedBy,
 		})
 	}

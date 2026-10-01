@@ -35,6 +35,7 @@ import {
   CHIME_SOUND_KEY,
 } from '../../src/utils/notify.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
+import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -405,5 +406,27 @@ describe('alerts on/off (the bell)', () => {
     assert.ok(flip > 0 && ask > flip)
     assert.match(store, /if \(alertsOn\.value && typeof Notification/)
     assert.doesNotMatch(store, /if \(permission\.value !== 'granted'\)/)
+  })
+})
+
+/* CLE-77845 (prd csitea 2026-10-01): a desk answer in #spool-hub-biz raised the
+   agent's DM badge while its DM was empty. The hub stores a box reply in its
+   topic's channel, but the signed envelope names none; the view element now
+   carries the row's channel beside it, and that must key the unread as the
+   channel, never as a DM with the agent. */
+describe('a box reply in a channel is not a DM (CLE-77845)', () => {
+  const el = (extra = {}) => ({
+    cursor: 'c1', received_at: '2026-10-01T08:39:12Z', is_parent: 0,
+    env: { from_box: 'box-desk', to_box: 'box-wui', msg: { v: 1, msg_id: 'm1', task_id: 't1', from: 'CLE-35004', to: 'HUM-10', kind: 'note', body: 'answer' } },
+    ...extra,
+  })
+  it('the row channel beside the envelope keys the channel', () => {
+    const m = normalizeViewMessage(el({ channel: 'spool-hub-biz' }))
+    assert.equal(m.channel, 'spool-hub-biz')
+    assert.equal(channelKey(m, { channel: 'spool-hub-biz' }), 'ch:spool-hub-biz')
+  })
+  it('control: an envelope with no channel and no row channel is a DM with the agent', () => {
+    const m = normalizeViewMessage(el())
+    assert.equal(channelKey(m, {}), 'dm:CLE-35004@box-desk')
   })
 })

@@ -114,6 +114,11 @@ type ViewMsg struct {
 	// SPL-1024 (rdb 0069): a moved row's mark and its place now; zero while
 	// the row is at home, and the view then carries no override.
 	Move MoveMark
+	// RowChannel is messages.channel, where the row is stored ("" = a DM).
+	// A box reply inherits its topic's channel (hub channelOf) while its
+	// signed envelope names none, so the view emits it beside the envelope
+	// (CLE-77845: the WUI read such a channel reply as a DM).
+	RowChannel string
 }
 
 // ViewDelivery is a deliveries row as the viewer sees it (never changed).
@@ -249,7 +254,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 			continue
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Move: viewMove(m)}
+			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Move: viewMove(m), RowChannel: m.Channel}
 		if !m.KindSetAt.IsZero() {
 			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
 		}

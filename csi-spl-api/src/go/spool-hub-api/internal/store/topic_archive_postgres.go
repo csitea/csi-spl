@@ -164,6 +164,7 @@ func (s *Postgres) ArchivedCards(ctx context.Context, tenant string, q ArchivedQ
 			c.EditedAt = *editedAt
 		}
 		c.EditedBy, c.TypedBy, c.ArchivedBy = deref(editedBy), deref(typedBy), deref(archivedBy)
+		c.RowChannel = c.Channel
 		out = append(out, c)
 		return nil
 	})

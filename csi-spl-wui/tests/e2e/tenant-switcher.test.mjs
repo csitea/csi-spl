@@ -8,6 +8,10 @@
 // explanation (the wrapper's title), which names the tenant.
 // SPL-71: a drop box - the name and the arrow sit inside one bordered box,
 // and a press on the arrow focuses the select as a press on the name does.
+// HUM-10: the box is a combobox (an input + a page-drawn listbox), no longer
+// a native select. The geometry pins below are unchanged; only how they read
+// the box moved: the name is the input's value, the rows are the listbox's
+// options (rendered, hidden while closed), "open" is aria-expanded.
 //
 // Run:
 //   pnpm run test:e2e:tenant-switcher
@@ -52,7 +56,7 @@ async function readBox(p) {
     const sel = document.querySelector('[data-testid=tenant-switcher-select]')
     const dm = document.querySelector('[data-testid=sidebar-tab-dm]')
     const theme = document.querySelector('[data-test=theme-picker]')
-    if (!(sel instanceof HTMLSelectElement) || !(dm instanceof HTMLElement)) {
+    if (!(sel instanceof HTMLInputElement) || !(dm instanceof HTMLElement)) {
       return { missing: true }
     }
     const er = sel.getBoundingClientRect()
@@ -60,7 +64,8 @@ async function readBox(p) {
     const sw = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0
     const wrap = document.querySelector('[data-testid=tenant-switcher]')
     const wr = wrap instanceof HTMLElement ? wrap.getBoundingClientRect() : null
-    const label = sel.options[sel.selectedIndex] ? (sel.options[sel.selectedIndex].textContent || '').trim() : ''
+    const rows = [...document.querySelectorAll('[data-testid=tenant-switcher-option]')]
+    const label = sel.value.trim()
     const arrow = document.querySelector('[data-testid=tenant-switcher-arrow]')
     const cs = getComputedStyle(sel)
     const probe = document.createElement('span')
@@ -73,7 +78,8 @@ async function readBox(p) {
     probe.style.fontFeatureSettings = cs.fontFeatureSettings
     probe.style.fontVariant = cs.fontVariant
     document.body.appendChild(probe)
-    const drawn = [...sel.options].map((o) => o.textContent || '')
+    const drawn = rows.map((o) => o.textContent || '')
+    if (!sel.value) drawn.push(sel.placeholder)
     const widths = drawn.map((text) => { probe.textContent = text; return probe.getBoundingClientRect().width })
     probe.remove()
     const widest = widths.length ? Math.max(...widths) : 0
@@ -95,7 +101,8 @@ async function readBox(p) {
       hint: wrap instanceof HTMLElement ? wrap.title : '',
       label,
       ariaLabel: sel.getAttribute('aria-label') || '',
-      options: [...sel.options].map((o) => ({ value: o.value, text: (o.textContent || '').trim() })),
+      options: rows.map((o) => ({ value: o.getAttribute('data-tenant') || '', text: (o.textContent || '').trim() })),
+      role: sel.getAttribute('role'),
       disabled: sel.disabled,
       tabIndex: sel.tabIndex,
       focused: document.activeElement === sel,
@@ -147,7 +154,7 @@ try {
       await p.waitForSelector('[data-testid=sidebar-tab-dm]', { timeout: NAV_TIMEOUT })
       await p.waitForFunction(() => {
         const sel = document.querySelector('[data-testid=tenant-switcher-select]')
-        return sel instanceof HTMLSelectElement && sel.style.width.length > 0
+        return sel instanceof HTMLInputElement && sel.style.width.length > 0
       }, { timeout: NAV_TIMEOUT })
     } catch (e) {
       ok(tag + ' page ready', false, { error: String(e && e.message || e), harness: isViewportHarnessError(e) })
@@ -157,7 +164,7 @@ try {
     ok(tag + ' one option, in the top bar just before the theme icon', box.inTopBar === true && box.beforeTheme === true && box.options?.length === 1 && box.options[0].text.length > 0, box)
     ok(tag + ' the brand text is gone and the sidebar carries no second switcher', box.brandGone === true && box.notInSidebar === true, box)
     ok(tag + ' the logo loads and sits just before the drop box', box.logoBefore === true, box)
-    ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0, box)
+    ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0 && box.role === 'combobox', box)
     ok(tag + ' fits the bar without page scroll', box.selectWidth > 8 && box.docOverflow <= 1, box)
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
     /* SPL-989: on a phone the row is a 44 px touch target (level-1 header) */
@@ -176,12 +183,11 @@ try {
     if (box.arrowCenter) {
       await p.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() })
       await p.mouse.click(box.arrowCenter.x, box.arrowCenter.y)
-      /* SPL-980: where the page draws the list (base-select) the focus goes to
-         the selected entry inside the open list - still inside the select */
+      /* HUM-10: the press focuses the combobox and opens its list */
       const focusedByArrow = await p.evaluate(() => {
         const sel = document.querySelector('[data-testid=tenant-switcher-select]')
         const a = document.activeElement
-        return a && sel && (a === sel || sel.contains(a)) && (getComputedStyle(sel).appearance !== 'base-select' || sel.matches(':open')) ? 'tenant-switcher-select' : (a?.getAttribute('data-testid') || '')
+        return a && sel && a === sel && sel.getAttribute('aria-expanded') === 'true' ? 'tenant-switcher-select' : (a?.getAttribute('data-testid') || '')
       })
       await p.keyboard.press('Escape')
       ok(tag + ' SPL-71 a press on the arrow opens the drop box (focuses the select)', focusedByArrow === 'tenant-switcher-select', { focusedByArrow })
@@ -196,7 +202,8 @@ try {
     await p.keyboard.press('ArrowDown')
     await p.keyboard.press('Enter')
     if (value !== undefined) {
-      await p.select('[data-testid=tenant-switcher-select]', value).catch(() => {})
+      await p.keyboard.press('ArrowDown')
+      await p.click(`[data-testid=tenant-switcher-option][data-tenant="${value}"]`).catch(() => {})
     }
     const after = await readBox(p)
     ok(tag + ' choosing the option does not navigate', p.url() === url && after.options?.length === 1, { url, now: p.url(), n: after.options?.length })

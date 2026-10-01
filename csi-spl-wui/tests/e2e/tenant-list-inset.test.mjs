@@ -3,12 +3,12 @@
 // drop down control, the dropping list borders that is".
 //
 // The native popup ignores padding, so the selected row touched both list
-// borders. Where the browser has a styleable select (appearance:
-// base-select, Chrome 135+) the page draws the open list: 2 px of the list
-// between every row and its border, each name 4 px inside its row. At 1440
-// px, light and dark, with several synthetic tenants (the longest one
-// selected), the list is opened and measured:
-//   - the list is drawn by the page (appearance base-select), padding 2 px
+// borders. HUM-10: the switcher is a combobox and the page always draws the
+// open list (its listbox): 2 px of the list between every row and its
+// border, each name 4 px inside its row. At 1440 px, light and dark, with
+// several synthetic tenants (the longest one selected), the list is opened
+// and measured:
+//   - the list is drawn by the page (a listbox, aria-expanded), padding 2 px
 //   - every row, the selected one too, starts >= 2 px inside the list's
 //     inner edge on the left and ends >= 2 px inside it on the right
 //     (elementFromPoint 1 px outside a row still hits the list, not the page)
@@ -54,16 +54,17 @@ async function launch() {
 
 const measureOpen = (p) => p.evaluate(() => {
   const sel = document.querySelector('[data-testid=tenant-switcher-select]')
-  const pk = getComputedStyle(sel, '::picker(select)')
-  const rows = [...sel.options].map((o) => {
+  const list = document.querySelector('[data-testid=tenant-switcher-list]')
+  const pk = getComputedStyle(list)
+  const rows = [...list.querySelectorAll('[role=option]')].map((o) => {
     const r = o.getBoundingClientRect()
     const range = document.createRange()
     range.selectNodeContents(o)
     const t = range.getBoundingClientRect()
     const mid = r.top + r.height / 2
-    const hit = (x) => { const e = document.elementFromPoint(x, mid); return e === sel || sel.contains(e) }
+    const hit = (x) => { const e = document.elementFromPoint(x, mid); return e === list }
     return {
-      text: o.textContent.trim(), selected: o.selected,
+      text: o.textContent.trim(), selected: o.getAttribute('aria-selected') === 'true',
       left: +r.left.toFixed(2), right: +r.right.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2),
       textIn: +(t.left - r.left).toFixed(2), textOut: +(r.right - t.right).toFixed(2),
       clipped: o.scrollWidth > o.clientWidth + 1,
@@ -72,8 +73,8 @@ const measureOpen = (p) => p.evaluate(() => {
     }
   })
   return {
-    appearance: getComputedStyle(sel).appearance,
-    open: sel.matches(':open'),
+    role: list.getAttribute('role'),
+    open: sel.getAttribute('aria-expanded') === 'true' && pk.display !== 'none',
     pad: [pk.paddingLeft, pk.paddingRight, pk.paddingTop, pk.paddingBottom],
     border: [pk.borderLeftWidth, pk.borderRightWidth],
     rows,
@@ -99,14 +100,15 @@ try {
       session.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', active_tenant: 't1', tenants })
       return true
     }, TENANTS)
-    await p.waitForFunction((n) => document.querySelector('[data-testid=tenant-switcher-select]')?.options.length === n, { timeout: 15000 }, TENANTS.length).catch(() => null)
+    const countRows = () => document.querySelectorAll('[data-testid=tenant-switcher-option]').length
+    await p.waitForFunction((n) => document.querySelectorAll('[data-testid=tenant-switcher-option]').length === n, { timeout: 15000 }, TENANTS.length).catch(() => null)
     await sleep(400)
-    const n = await p.evaluate(() => document.querySelector('[data-testid=tenant-switcher-select]').options.length)
+    const n = await p.evaluate(countRows)
     check(`${tag}: ${TENANTS.length} tenants in the list, the longest selected`, seeded && n === TENANTS.length, { seeded, n })
     await p.click('[data-testid=tenant-switcher-select]')
     await sleep(400)
     const m = await measureOpen(p)
-    check(`${tag}: the page draws the open list (base-select)`, m.appearance === 'base-select' && m.open, { appearance: m.appearance, open: m.open })
+    check(`${tag}: the page draws the open list (a listbox)`, m.role === 'listbox' && m.open, { role: m.role, open: m.open })
     check(`${tag}: the list has 2 px between its border and the rows`, m.pad[0] === '2px' && m.pad[1] === '2px' && parseFloat(m.border[0]) >= 1, { pad: m.pad, border: m.border })
     const sel = m.rows.find((r) => r.selected)
     check(`${tag}: the selected row is the longest name`, sel?.text === 'northwind-trading', sel)
@@ -115,8 +117,7 @@ try {
     check(`${tag}: the selected row is highlighted`, Boolean(sel) && !/rgba\(0, 0, 0, 0\)|transparent/.test(sel.bg) && m.rows.filter((r) => !r.selected).every((r) => r.bg !== sel.bg), m.rows.map((r) => ({ t: r.text, bg: r.bg })))
     if (OUT) {
       const box = await p.evaluate(() => {
-        const sel = document.querySelector('[data-testid=tenant-switcher-select]')
-        const rs = [...sel.options].map((o) => o.getBoundingClientRect())
+        const rs = [...document.querySelectorAll('[data-testid=tenant-switcher-option]')].map((o) => o.getBoundingClientRect())
         const f = document.querySelector('[data-testid=tenant-switcher-box]').getBoundingClientRect()
         const left = Math.min(f.left, ...rs.map((r) => r.left)) - 16
         const right = Math.max(f.right, ...rs.map((r) => r.right)) + 16
@@ -126,7 +127,8 @@ try {
     }
     await p.keyboard.press('Escape')
     await sleep(300)
-    check(`${tag}: Esc closes the list`, await p.evaluate(() => !document.querySelector('[data-testid=tenant-switcher-select]').matches(':open')))
+    check(`${tag}: Esc closes the list`, await p.evaluate(() => document.querySelector('[data-testid=tenant-switcher-select]').getAttribute('aria-expanded') === 'false'
+      && getComputedStyle(document.querySelector('[data-testid=tenant-switcher-list]')).display === 'none'))
     await ctx.close()
   }
 } catch (e) {

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption, measureControlText, TENANT_ARROW_GAP_PX, TENANT_DESKTOP_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantNameArrowGapPx, tenantSwitchOptions, widestLabelWidth } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, measureControlText, tenantMatches, TENANT_ARROW_GAP_PX, TENANT_DESKTOP_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantNameArrowGapPx, tenantSwitchOptions, widestLabelWidth } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -163,7 +163,7 @@ describe('the drop box sits in the top bar where the brand text was', () => {
   const topBar = src('src/components/TopBar.vue')
   const css = src('src/assets/css/main.css')
 
-  it('one select, wired to the session; only a real switch calls the hub', () => {
+  it('one combobox, wired to the session; only a real switch calls the hub', () => {
     const box = vue.indexOf('data-testid="tenant-switcher"')
     const rail = vue.indexOf('</template>')
     assert.ok(box > 0 && rail > box)
@@ -175,19 +175,20 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     assert.match(start, /<img src="\/logo\.webp"/)
     assert.doesNotMatch(topBar, /top-bar__brand|>spool-hub</)
     assert.doesNotMatch(src('src/components/ChannelSidebar.vue'), /tenant-switcher|TENANT_TEXT_PAD_PX/)
-    assert.equal(vue.split('<option').length - 1, 1)
+    /* HUM-10: a combobox (input + listbox), not a native select */
+    assert.doesNotMatch(vue, /<select|<option/)
+    assert.equal(vue.split('role="option"').length - 1, 1)
     assert.match(vue, /tenantSwitchOptions\(session\.claims, api\.tenant\)/)
     // CLE-555 red on e443566: with no session and no configured tenant (the CI
     // mock bundle) the one row had an empty label and rendered as a blank
     // option. The row text falls back to the caption, as before e443566.
-    assert.match(vue, /<option v-for="o in tenantBox\.options"[^>]*>\{\{ o\.label \|\| t\('sidebar\.tenant'\) \}\}<\/option>/)
+    assert.match(vue, /<li\s+v-for="\(o, i\) in shownRows"[^>]*>\{\{ o\.label \|\| t\('sidebar\.tenant'\) \}\}<\/li>/)
     assert.match(vue, /data-testid="tenant-switcher-select"/)
     assert.doesNotMatch(vue.slice(box, rail), /disabled/)
-    const fn = vue.slice(vue.indexOf('async function onTenantChange'))
+    const fn = vue.slice(vue.indexOf('async function pickTenant'))
     const body = fn.slice(0, fn.indexOf('\n}'))
-    assert.match(body, /HTMLSelectElement/)
     // SPL-995: the switch is useTenantSwitch, shared with the phone top bar
-    assert.match(body, /tenantSwitch\.switchTo\(el\.value\)/)
+    assert.match(body, /tenantSwitch\.switchTo\(id\)/)
     assert.doesNotMatch(body, /fetch\(/)
     const sw = src('src/composables/useTenantSwitch.ts')
     const swBody = sw.slice(sw.indexOf('async function switchTo'))
@@ -227,7 +228,7 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     const field = box.slice(box.indexOf('class="tenant-switcher__field"'))
     assert.match(field, /data-testid="tenant-switcher-box"/)
     assert.match(field, /@mousedown="onTenantBoxPress"/)
-    assert.ok(field.indexOf('<select') > 0 && field.indexOf('tenant-switcher-arrow') > field.indexOf('</select>'), 'select then arrow inside the box')
+    assert.ok(field.indexOf('<input') > 0 && field.indexOf('tenant-switcher-arrow') > field.indexOf('<input'), 'the name (input) then the arrow inside the box')
     const style = vue.slice(vue.indexOf('<style'))
     const rule = style.slice(style.indexOf('.tenant-switcher__field {'), style.indexOf('}', style.indexOf('.tenant-switcher__field {')))
     assert.match(rule, /border:\s*1px solid var\(--color-border-strong\)/)
@@ -237,27 +238,20 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     assert.match(rule, /padding:\s*0 8px/)
     assert.match(rule, /box-sizing:\s*border-box/)
     const fnOf = (name) => { const f = vue.slice(vue.indexOf('function ' + name)); return f.slice(0, f.indexOf('\n}')) }
-    const open = fnOf('openTenantList')
-    assert.match(open, /sel\.focus\(\)/)
-    assert.match(open, /showPicker/)
-    /* SPL-980: the native popup opens on the press; a page-drawn list (base-select)
-       on the click, or the release of the press would shut it again */
-    assert.match(field, /@click="onTenantBoxClick"/)
+    /* HUM-10: a press anywhere in the box focuses the combobox and opens the
+       page-drawn list; a press inside the list is the list's own */
     const press = fnOf('onTenantBoxPress')
-    const click = fnOf('onTenantBoxClick')
-    for (const body of [press, click]) {
-      assert.match(body, /ev\.target === sel/)
-      assert.doesNotMatch(body, /switchTenant|fetch\(/)
-    }
-    assert.match(press, /if \(!pageDrawsList\(sel\)\) openTenantList\(sel\)/)
-    assert.match(click, /if \(pageDrawsList\(sel\)\) openTenantList\(sel\)/)
+    assert.match(press, /sel\.focus\(\)/)
+    assert.match(press, /openTenantList\(\)/)
+    assert.match(press, /closest\('\[role=listbox\]'\)/)
+    assert.doesNotMatch(press, /switchTenant|fetch\(/)
     /* SPL-980: the open list keeps 2 px between every row and its border */
-    const drawn = style.slice(style.indexOf('@supports (appearance: base-select)'))
-    assert.ok(drawn.length > 0, 'a page-drawn list where the browser can')
-    assert.match(drawn, /appearance:\s*base-select/)
-    assert.match(drawn, /::picker\(select\)\s*\{[^}]*padding:\s*2px/)
-    assert.match(drawn, /option\s*\{[^}]*padding-inline:\s*4px/)
-    assert.match(drawn, /min-inline-size:\s*0/)
+    const list = style.slice(style.indexOf('.tenant-switcher__list {'), style.indexOf('}', style.indexOf('.tenant-switcher__list {')))
+    assert.match(list, /(^|[^-])padding:\s*2px/)
+    assert.match(list, /border:\s*1px solid/)
+    const row = style.slice(style.indexOf('.tenant-switcher__option {'), style.indexOf('}', style.indexOf('.tenant-switcher__option {')))
+    assert.match(row, /padding-inline:\s*4px/)
+    assert.match(row, /white-space:\s*nowrap/)
     assert.match(src('src/utils/uiIcons.ts'), /building:\s*\[/)
   })
 
@@ -382,7 +376,7 @@ describe('the closed drop box is the widest name, then 3px, then the arrow', () 
     /* owner 2026-09-27: 2px more before and after every item of the open list,
        and the rows carry the theme's colours (the darkest theme's light text
        was drawn on the browser's white popup) */
-    const opt = style.slice(style.indexOf('.tenant-switcher__select option {'), style.indexOf('}', style.indexOf('.tenant-switcher__select option {')))
+    const opt = style.slice(style.indexOf('.tenant-switcher__option {'), style.indexOf('}', style.indexOf('.tenant-switcher__option {')))
     assert.match(opt, /padding-inline:\s*4px/)
     assert.match(opt, /background-color:\s*var\(--color-bg-2\)/)
     assert.match(opt, /(^|[^-])color:\s*var\(--color-fg\)/)
@@ -395,5 +389,47 @@ describe('the closed drop box is the widest name, then 3px, then the arrow', () 
     assert.match(sel, /appearance:\s*none/)
     assert.match(sel, /flex:\s*0\s*0\s*auto/)
     assert.doesNotMatch(sel, /width:\s*0/)
+  })
+})
+
+describe('HUM-10: the workspace switcher is a searchable combobox', () => {
+  const vue = src('src/components/TenantDropBox.vue')
+  const fnOf = (name) => { const f = vue.slice(vue.indexOf('function ' + name)); return f.slice(0, f.indexOf('\n}')) }
+
+  it('tenantMatches is a case-insensitive "contains" on the name', () => {
+    assert.equal(tenantMatches('Northwind-Trading', 'WIND-t'), true)
+    assert.equal(tenantMatches('globex', 'GLO'), true)
+    assert.equal(tenantMatches('initech', 'tech'), true)
+    assert.equal(tenantMatches('initech', ''), true)
+    assert.equal(tenantMatches('initech', null), true)
+    // CONTROL: no prefix-only or fuzzy match, a miss is a miss
+    assert.equal(tenantMatches('initech', 'itc'), false)
+    assert.equal(tenantMatches('globex', 'zzz'), false)
+    assert.equal(tenantMatches(undefined, 'a'), false)
+  })
+
+  it('ARIA combobox + listbox, filtered by tenantMatches, keyboard driven', () => {
+    assert.match(vue, /role="combobox"/)
+    assert.match(vue, /aria-autocomplete="list"/)
+    assert.match(vue, /:aria-expanded="listOpen \? 'true' : 'false'"/)
+    assert.match(vue, /:aria-controls="TENANT_LIST_ID"/)
+    assert.match(vue, /:aria-activedescendant="activeId"/)
+    assert.match(vue, /role="listbox"/)
+    assert.match(vue, /tenantMatches\(o\.label \|\| o\.id, query\.value \|\| ''\)/)
+    const key = fnOf('onTenantKey')
+    for (const k of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape']) assert.ok(key.includes(`'${k}'`), k)
+    /* Enter: the highlighted row, or the only one left; nothing when none match */
+    assert.match(key, /rows\[activeIndex\.value\] \|\| \(rows\.length === 1 \? rows\[0\] : null\)/)
+    assert.match(key, /if \(row\) void pickTenant\(row\.id\)/)
+    /* Esc closes and puts the current name back */
+    const close = fnOf('closeTenantList')
+    assert.match(close, /listOpen\.value = false/)
+    assert.match(close, /query\.value = null/)
+    assert.match(vue, /const inputText = computed\(\(\) => query\.value \?\? tenantSwitch\.name\.value\)/)
+    /* a click on a row switches; the press does not steal the input's focus */
+    assert.match(vue, /@mousedown\.prevent/)
+    assert.match(vue, /@click="pickTenant\(o\.id\)"/)
+    /* one workspace: still the same box, nothing to type */
+    assert.match(vue, /:readonly="!tenantBox\.canSwitch"/)
   })
 })

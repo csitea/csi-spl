@@ -29,6 +29,13 @@ export function useTenantSwitch() {
   /** false when nothing switched (the caller shows the old tenant again) */
   async function switchTo(want: string): Promise<boolean> {
     const b = box.value
+    /* HUM-10: the mock has no hub - a switch re-points the local session
+       (the switcher's e2e proves the pick reaches here), no reload. */
+    if (api.mock && b.canSwitch && !switching.value && want && want !== b.selected && session.claims) {
+      const next = { ...session.claims, active_tenant: want, t: want }
+      session.adopt(next)
+      return true
+    }
     if (!b.canSwitch || api.mock || switching.value || !want || want === b.selected) return false
     switching.value = true
     failed.value = false

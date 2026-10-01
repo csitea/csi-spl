@@ -79,6 +79,20 @@ export function tenantHint(box, t) {
 }
 
 
+/**
+ * HUM-10: the combobox filter - a case-insensitive "contains" on the
+ * workspace name. An empty query matches every name.
+ *
+ * @param {unknown} name
+ * @param {unknown} query
+ * @returns {boolean}
+ */
+export function tenantMatches(name, query) {
+  const q = typeof query === 'string' ? query : ''
+  return String(name ?? '').toLowerCase().includes(q.toLowerCase())
+}
+
+
 /** Px between the end of the widest drawn name and the start of the arrow. */
 export const TENANT_ARROW_GAP_PX = 3
 

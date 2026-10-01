@@ -83,7 +83,8 @@ describe('Remove from list: a DM row leaves this browser\'s list until a newer D
 
   it('both DM lists wire it, and the sidebar filters on it', () => {
     const vue = src('src/components/ChannelSidebar.vue')
-    assert.equal((vue.match(/@hide="hideFromList\((p|row)\)"/g) || []).length, 2)
+    /* topic 635f8072: Flow lists messages now, so the DM list is the one peer list */
+    assert.equal((vue.match(/@hide="hideFromList\((p|row)\)"/g) || []).length, 1)
     assert.match(vue, /peerHidden\(listHidden\.value, p\.label, channel\.dmAt\[p\.label\]\)/)
     assert.match(src('src/components/SidebarRowMenu.vue'), /emit\('hide'\)/)
   })
@@ -165,9 +166,6 @@ describe('the menu sits on objects, not the tab rail', () => {
       'v-for="(p, peerIndex) in peers"',
       'v-for="(c, channelIndex) in channelRows"',
       'v-for="(row, topicIndex) in topicRows"',
-      "row.kind === 'channel'",
-      "row.kind === 'dm'",
-      'v-else',
     ]
     let at = 0
     for (const marker of markers) {
@@ -176,8 +174,9 @@ describe('the menu sits on objects, not the tab rail', () => {
       assert.ok(i > at && menu > i, marker)
       at = menu
     }
-    assert.equal(vue.split('<SidebarRowMenu').length - 1, 6)
-    assert.equal(vue.split(':person="true"').length - 1, 2)
+    /* topic 635f8072: the Flow entries are messages (SideHitList), with no row menu */
+    assert.equal(vue.split('<SidebarRowMenu').length - 1, 3)
+    assert.equal(vue.split(':person="true"').length - 1, 1)
     const ch = vue.indexOf('v-for="(c, channelIndex) in channelRows"')
     const th = vue.indexOf('v-for="(row, topicIndex) in topicRows"')
     assert.equal(vue.slice(ch, th).includes(':person="true"'), false)
@@ -208,10 +207,10 @@ describe('channel rows', () => {
   it('right-click opens the same channel menu and a non-primary button does not drag', () => {
     const vue = src('src/components/ChannelSidebar.vue')
     assert.match(vue, /@contextmenu\.prevent="openChannelMenu\('ch:' \+ c\.channel_id\)"/)
-    assert.match(vue, /@contextmenu\.prevent="openChannelMenu\('flow:ch:' \+ row\.id\)"/)
     assert.match(vue, /if \(e\.button !== 0\) return/)
-    assert.equal(vue.split(':channel="true"').length - 1, 2)
-    const topic = vue.slice(vue.indexOf('v-for="(row, topicIndex) in topicRows"'), vue.indexOf("row.kind === 'channel'"))
+    /* topic 635f8072: Flow lists messages, so only the Channels list has channel rows */
+    assert.equal(vue.split(':channel="true"').length - 1, 1)
+    const topic = vue.slice(vue.indexOf('v-for="(row, topicIndex) in topicRows"'), vue.indexOf('id="sidebar-panel-flow"'))
     assert.doesNotMatch(topic, /openChannelMenu/)
     assert.doesNotMatch(topic, /:channel="true"/)
   })

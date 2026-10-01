@@ -1513,5 +1513,12 @@
     "archived": "Táto správa je v archivovanej téme. Nájdete ju v Archíve.",
     "error": "Správu sa nepodarilo otvoriť. Skúste to znova.",
     "home": "Na začiatok"
+  },
+  "flow": {
+    "list": "Správy v toku",
+    "loading": "Načítavajú sa správy…",
+    "unread": "Neprečítané",
+    "you": "Vy",
+    "reply_in": "Odpoveď vo vlákne v {place}"
   }
 }

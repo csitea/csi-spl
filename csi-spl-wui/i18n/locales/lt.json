@@ -1513,5 +1513,12 @@
     "archived": "Ši žinutė yra archyvuotoje temoje. Raskite ją archyve.",
     "error": "Nepavyko atidaryti žinutės. Bandykite dar kartą.",
     "home": "Į pradžią"
+  },
+  "flow": {
+    "list": "Srauto žinutės",
+    "loading": "Įkeliamos žinutės…",
+    "unread": "Neperskaityta",
+    "you": "Jūs",
+    "reply_in": "Atsakymas gijoje: {place}"
   }
 }

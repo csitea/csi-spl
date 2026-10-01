@@ -1513,5 +1513,12 @@
     "archived": "Bu mesaj arşivlenmiş bir konuda. Arşiv altında bulabilirsiniz.",
     "error": "Mesaj açılamadı. Tekrar deneyin.",
     "home": "Başa dön"
+  },
+  "flow": {
+    "list": "Akış mesajları",
+    "loading": "Mesajlar yükleniyor…",
+    "unread": "Okunmadı",
+    "you": "Siz",
+    "reply_in": "{place} içinde bir yanıt dizisinde yanıt"
   }
 }

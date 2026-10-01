@@ -92,13 +92,15 @@ describe('a failed roster read is not cached', () => {
 })
 
 describe('the name is shown where the id was', () => {
-  it('message cards, the DM list, the self row, flow DMs and the DM header use the name; the id stays in the popup', () => {
+  it('message cards, the DM list, the self row, Flow entries and the DM header use the name; the id stays in the popup', () => {
     const badge = read('src/components/AgentBadge.vue')
     assert.match(badge, /people\.label\(props\.id, props\.box\)/)
     const side = read('src/components/ChannelSidebar.vue')
     assert.match(side, /<HumanName class="label" :id="p\.id" :box="p\.box" \/>/)
     assert.match(side, /<HumanName class="label" :id="roster\.self\.id" :box="roster\.self\.box" \/>/)
-    assert.match(side, /<HumanName class="label" :id="row\.id" :box="row\.box" \/>/)
+    /* topic 635f8072: a Flow entry names its sender through the shared left list */
+    assert.match(read('src/components/SideHitList.vue'), /<HumanName v-if="item\.who && item\.who\.id"/)
+    assert.match(read('src/components/FlowList.vue'), /who: \{ id: e\.from, box: e\.from_box \}/)
     const name = read('src/components/HumanName.vue')
     assert.match(name, /personTitle/)
     assert.match(name, /shownPerson/)

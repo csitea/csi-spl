@@ -84,9 +84,10 @@ describe('client (mock)', () => {
 
 describe('ChannelSidebar wiring', () => {
   const vue = src('src/components/ChannelSidebar.vue')
-  it('both channel row menus pass archivable and handle archive-channel', () => {
-    assert.equal((vue.match(/:archivable="deletableChannel\(/g) || []).length, 2)
-    assert.equal((vue.match(/@archive-channel="askArchiveChannel\(/g) || []).length, 2)
+  it('the channel row menu passes archivable and handles archive-channel', () => {
+    /* topic 635f8072: Flow lists messages now, so Channels is the one channel list */
+    assert.equal((vue.match(/:archivable="deletableChannel\(/g) || []).length, 1)
+    assert.equal((vue.match(/@archive-channel="askArchiveChannel\(/g) || []).length, 1)
   })
   it('Archive opens the lazy confirm; nothing is archived from the menu itself', () => {
     assert.match(vue, /<LazyChannelArchiveDialog[\s\S]*?v-model:open="archiveOpen"/)

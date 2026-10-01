@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { flowRows, SIDE_TABS, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { SIDE_TABS, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -120,43 +120,9 @@ describe('the strip is icons, in that order', () => {
     const flow = vue.indexOf('data-testid="sidebar-panel-flow"')
     assert.ok(ch > 0 && topics > ch && flow > topics)
     assert.match(vue, /v-for="\(row, topicIndex\) in topicRows"/)
-    assert.match(vue, /v-for="row in flow"/)
-    assert.match(vue, /flowRows\(/)
+    assert.match(vue, /<LazyFlowList/)
     assert.match(vue, /t\('sidebar\.flow'\)/)
     assert.doesNotMatch(vue, /navigateTo\(localePath\('\/lobby'\)\)/)
-  })
-
-  it('flow mixes channels, direct messages and topics, newest first', () => {
-    const rows = flowRows({
-      channels: [
-        { channel_id: 'tasks', name: 'tasks', last_ts: '2026-09-18T10:00:00Z' },
-        { channel_id: 'alerts', name: 'alerts', last_ts: '2026-09-20T10:00:00Z' },
-      ],
-      peers: [
-        { id: 'CLE-07', box: 'box-a', label: 'CLE-07@box-a', online: true },
-        { id: 'GRK-03', box: 'box-a', label: 'GRK-03@box-a', online: false },
-      ],
-      topics: [
-        { task_id: 't-old', subject: 'older', last_ts: '2026-09-19T10:00:00Z' },
-        { task_id: 't-new', subject: 'newer', last_ts: '2026-09-21T10:00:00Z' },
-      ],
-      liveAt: { tasks: '2026-09-22T10:00:00Z' },
-      dmAt: { 'CLE-07@box-a': '2026-09-20T12:00:00Z' },
-    })
-    assert.deepEqual(rows.map((r) => r.key), [
-      'ch:tasks',
-      'th:t-new',
-      'dm:CLE-07@box-a',
-      'ch:alerts',
-      'th:t-old',
-      'dm:GRK-03@box-a',
-    ])
-    assert.deepEqual(rows.map((r) => r.kind), ['channel', 'topic', 'dm', 'channel', 'topic', 'dm'])
-    const stamped = rows.filter((r) => r.at)
-    for (let i = 1; i < stamped.length; i++) {
-      assert.ok(stamped[i].at <= stamped[i - 1].at, stamped.map((r) => r.at).join(' > '))
-    }
-    assert.equal(rows.at(-1).at, '')
   })
 
   it('starts on direct messages', () => {

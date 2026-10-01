@@ -1513,5 +1513,12 @@
     "archived": "This message is in an archived topic. Find it under Archive.",
     "error": "The message could not be opened. Try again.",
     "home": "Go to the start"
+  },
+  "flow": {
+    "list": "Flow messages",
+    "loading": "Loading messages…",
+    "unread": "Unread",
+    "you": "You",
+    "reply_in": "Reply in a thread in {place}"
   }
 }

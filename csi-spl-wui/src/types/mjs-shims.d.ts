@@ -244,21 +244,38 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const BOXES_TAB: 'boxes'
   export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
-  export function flowRows(src?: {
-    channels?: unknown[]
-    peers?: unknown[]
-    topics?: unknown[]
-    liveAt?: Record<string, string>
-    dmAt?: Record<string, string>
-  }): {
-    kind: 'channel' | 'dm' | 'topic'
+}
+
+declare module '~/utils/flow-entries.mjs' {
+  export interface FlowEntry {
     key: string
-    id: string
+    msg_id: string
+    task_id: string
+    parent_task_id: string | null
+    channel: string | null
+    from: string
+    from_box: string
+    to: string
+    to_box: string
+    typed_by: string
+    kind: 'channel' | 'dm'
+    where: string
+    reply: boolean
+    text: string
+    files: number
     at: string
-    label: string
-    box?: string
-    online?: boolean
-  }[]
+    mine: boolean
+  }
+  export const FLOW_CAP: number
+  export const FLOW_TEXT_CHARS: number
+  export function flowText(body: unknown, max?: number): string
+  export function isThreadReply(m: unknown): boolean
+  export function flowKeyOf(m: unknown, self?: string): string
+  export function flowEntry(m: unknown, self?: string): FlowEntry | null
+  export function mergeFlow(held: FlowEntry[], messages: unknown[], self?: string, cap?: number): FlowEntry[]
+  export function dropFlow(held: FlowEntry[], msgId: string): FlowEntry[]
+  export function flowUnread(entry: FlowEntry, cursors?: Record<string, { ts?: string, id?: string } | undefined>, opened?: Set<string> | null): boolean
+  export function flowEntryPath(entry: FlowEntry | null): string
 }
 
 declare module '~/utils/channel-feed.mjs' {

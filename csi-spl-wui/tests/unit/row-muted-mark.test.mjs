@@ -21,14 +21,12 @@ describe('muted row mark (CLE-77851)', () => {
     }
   })
 
-  it('every muted channel and DM row (channels, DMs, flow) carries the muted bell', () => {
+  it('every muted channel and DM row (channels, DMs) carries the muted bell', () => {
     const uses = [...sidebar.matchAll(/<RowMutedButton v-if="([^"]+)"[^>]*@unmute="([^"]+)"/g)]
     const conds = uses.map((u) => u[1]).sort()
     assert.deepEqual(conds, [
       'isChannelMuted(c.channel_id)',
-      'isChannelMuted(row.id)',
       'mutedPeers[p.label]',
-      'mutedPeers[row.label]',
     ])
     for (const [, cond, unmute] of uses) {
       assert.match(unmute, cond.startsWith('isChannelMuted') ? /^toggleChannelMute\(/ : /^togglePeer\('mute', /, `${cond} unmutes on click`)

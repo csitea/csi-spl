@@ -412,114 +412,8 @@
         data-testid="sidebar-panel-flow"
       >
         <h2>{{ t('sidebar.flow') }}</h2>
-        <div class="sidebar-scroll">
-        <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
-        <template v-for="row in flow" :key="row.key">
-          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length), 'nav-row--move-over': moveLit('flow', row.id), 'nav-row--move-denied': moveDenied('flow', row.id) }" data-move-drop="channel" data-move-scope="flow" :data-move-id="row.id" :data-move-ok="mover.drag.value ? String(moveTarget(row.id)) : undefined" :data-move-denied-label="moveDenied('flow', row.id) ? t('feed.move.not_allowed') : undefined" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
-          <NuxtLink
-            class="nav-item"
-            draggable="false"
-            :class="{ active: channel.active === row.id }"
-            :data-key="row.id"
-            :data-kind="row.kind"
-            :data-ts="row.at || undefined"
-            :to="localePath('/channel/' + row.id)"
-          >
-            <span class="hash">#</span>
-            <span class="label">{{ row.label }}</span>
-            <span v-if="notes.unread['ch:' + row.id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + row.id]) }}</span>
-          </NuxtLink>
-          <RowMutedButton v-if="isChannelMuted(row.id)" :name="row.label" @unmute="toggleChannelMute(row.id)" />
-          <SidebarRowMenu
-            :menu-id="'flow:ch:' + row.id"
-            :name="row.label"
-            :href="localePath('/channel/' + row.id)"
-            :unread="!!notes.unread['ch:' + row.id]"
-            :channel="true"
-            :properties="showProperties(row.id)"
-            :deletable="deletableChannel(row.id)"
-            :archivable="deletableChannel(row.id)"
-            :muted="isChannelMuted(row.id)"
-            :open="rowMenu === 'flow:ch:' + row.id"
-            @toggle="toggleRowMenu('flow:ch:' + row.id)"
-            @close="closeRowMenu()"
-            @open="navigateTo(localePath('/channel/' + row.id))"
-            @mark-read="notes.markRead('ch:' + row.id)"
-            @mute="toggleChannelMute(row.id)"
-            @properties="openProperties(row.id)"
-            @delete="askDeleteChannel(row.id)"
-            @archive-channel="askArchiveChannel(row.id)"
-          />
-          </div>
-          <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:dm:' + row.label)">
-          <NuxtLink
-            class="nav-item"
-            :class="{ active: channel.peer === row.label }"
-            :data-key="row.label"
-            :data-kind="row.kind"
-            :data-ts="row.at || undefined"
-            :to="localePath('/dm/' + encodeURIComponent(row.label))"
-          >
-            <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
-            <span class="dot" :class="{ on: row.online }" />
-            <HumanName class="label" :id="row.id" :box="row.box" />
-            <span v-if="notes.unread['dm:' + row.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + row.label) }}</span>
-            <span v-else-if="notes.dmTotalBadge('dm:' + row.label)" class="badge-total" data-test="dm-total">{{ notes.dmTotalBadge('dm:' + row.label) }}</span>
-          </NuxtLink>
-          <RowMutedButton v-if="mutedPeers[row.label]" :name="peerName(row.id, row.box)" @unmute="togglePeer('mute', row.label)" />
-          <SidebarRowMenu
-            :menu-id="'flow:dm:' + row.label"
-            :name="peerName(row.id, row.box)"
-            :href="localePath('/dm/' + encodeURIComponent(row.label))"
-            :unread="!!notes.unread['dm:' + row.label]"
-
-      :person="true"
-      :admin="peerAdmin"
-      :blocked="!!blockedPeers[row.label]"
-      :muted="!!mutedPeers[row.label]"
-      :pinned="flowOrder.includes(row.key)"
-      @block="togglePeer('block', row.label)"
-      @mute="togglePeer('mute', row.label)"
-      @pin="toggleFlowPin(row)"
-      @remove="removePeer(row)"
-      @hide="hideFromList(row)"
-            :open="rowMenu === 'flow:dm:' + row.label"
-            @toggle="toggleRowMenu('flow:dm:' + row.label)"
-            @close="closeRowMenu()"
-            @open="navigateTo(localePath('/dm/' + encodeURIComponent(row.label)))"
-            @mark-read="notes.markRead('dm:' + row.label)"
-          />
-          </div>
-          <div v-else class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openTopicMenu('flow:th:' + row.id, row.id)">
-          <a
-            class="nav-item"
-            :class="{ active: topicOpen === row.id }"
-            :data-key="row.id"
-            :data-kind="row.kind"
-            :data-ts="row.at || undefined"
-            :href="localePath('/t/' + row.id)"
-            @click.exact.prevent="pane.open(row.id)"
-          >
-            <span class="label" :title="flowTopic(row).title">{{ flowTopic(row).text }}</span>
-          </a>
-          <SidebarRowMenu
-            :menu-id="'flow:th:' + row.id"
-            :name="flowTopic(row).text"
-            :href="localePath('/t/' + row.id)"
-            :unread="false"
-            :open="rowMenu === 'flow:th:' + row.id"
-            :topic-archive="topicRowState(row.id)?.canArchive"
-            :topic-delete="topicRowState(row.id)?.canDelete"
-            :topic-state="topicRowState(row.id)?.state || ''"
-            @toggle="toggleTopicMenu('flow:th:' + row.id, row.id)"
-            @close="closeRowMenu()"
-            @open="pane.open(row.id)"
-            @archive="archiveTopicRow(row.id)"
-            @delete-topic="askDeleteTopic(row.id)"
-          />
-          </div>
-        </template>
-        </div>
+        <!-- topic 635f8072: message entries, not a list of channels / agents / topics -->
+        <LazyFlowList :active="tab === 'flow'" />
       </div>
       <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
@@ -781,7 +675,7 @@ import { isNewer } from '~/utils/build-watch.mjs'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
@@ -835,9 +729,6 @@ function topicRowTitle(subject: string, fallback: string) {
 }
 function peerName(id: string, box?: string) {
   return shownPerson(id, box, people.names.value)
-}
-function flowTopic(row: { label?: string }) {
-  return namedLine(String(row.label || ''), people.names.value)
 }
 const rowMenu = ref('')
 function toggleRowMenu(id: string) {
@@ -964,7 +855,6 @@ async function selectTab(next: SideTab) {
     if (tabForPath(route.path) !== 'topics') await navigateTo(localePath('/'))
     return
   }
-  if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
@@ -982,7 +872,7 @@ watch(() => sidePane.requested.value, (req) => {
   if (req.stay) {
     holdFlow.value = false
     tab.value = req.id
-    if ((req.id === 'topics' || req.id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
+    if (req.id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
     return
   }
   void selectTab(req.id)
@@ -990,7 +880,7 @@ watch(() => sidePane.requested.value, (req) => {
 watch(tab, (id) => {
   rowMenu.value = ''
   if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB) sidePane.setCurrent(id)
-  if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
+  if (id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -1035,7 +925,6 @@ const pinnedPeers = ref<string[]>([])
 /* SPL-1034: the Channels order is the person's, kept on the hub (per tenant) */
 const { order: channelOrder, set: setChannelOrder, step: stepChannelOrder } = useChannelOrder()
 const topicOrder = ref<string[]>([])
-const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
@@ -1101,11 +990,6 @@ function toggleOrder(order: string[], key: string) {
 }
 function togglePin(label: string) {
   pinnedPeers.value = toggleOrder(pinnedPeers.value, label)
-  flowOrder.value = toggleOrder(flowOrder.value, 'dm:' + label)
-}
-function toggleFlowPin(row: { key: string, kind: string, label: string }) {
-  flowOrder.value = toggleOrder(flowOrder.value, row.key)
-  if (row.kind === 'dm') pinnedPeers.value = toggleOrder(pinnedPeers.value, row.label)
 }
 
 function togglePeer(which: 'block' | 'mute', label: string) {
@@ -1130,35 +1014,23 @@ async function removePeer(p: { id?: string, label: string }) {
   }
   hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
   pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
-  flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
 }
 function hideFromList(p: { label: string }) {
   listHidden.value = saveHiddenPeers(hidePeer(listHidden.value, p.label, channel.dmAt[p.label] || ''))
   pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
-  flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
 }
-const flow = computed(() => pinRows(flowRows({
-  channels: shownChannels.value,
-  peers: peers.value,
-  topics: viewer.topics,
-  liveAt: channel.liveAt,
-  dmAt: channel.dmAt,
-}), flowOrder.value, (row) => String(row.key || '')))
-
-type DragList = 'peers' | 'channels' | 'topics' | 'flow'
+type DragList = 'peers' | 'channels' | 'topics'
 const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
 let suppressDragClick = false
 const dragPanel: Record<DragList, string> = {
   peers: 'sidebar-panel-dm',
   channels: 'sidebar-panel-channels',
   topics: 'sidebar-panel-topics',
-  flow: 'sidebar-panel-flow',
 }
 function orderBag(list: DragList) {
   if (list === 'peers') return pinnedPeers
   if (list === 'channels') return channelOrder
-  if (list === 'topics') return topicOrder
-  return flowOrder
+  return topicOrder
 }
 function dragging(list: DragList, key: string) {
   const d = drag.value
@@ -1408,7 +1280,6 @@ function leaveDeleted(id: string) {
 }
 function onChannelDeleted(id: string) {
   channelOrder.value = channelOrder.value.filter((k) => k !== id)
-  flowOrder.value = flowOrder.value.filter((k) => k !== 'ch:' + id)
   leaveDeleted(id)
 }
 /* another member deleted it: every open sidebar drops the row (store), and a

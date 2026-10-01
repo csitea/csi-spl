@@ -1513,5 +1513,12 @@
     "archived": "Ta wiadomość jest w zarchiwizowanym temacie. Znajdziesz ją w Archiwum.",
     "error": "Nie udało się otworzyć wiadomości. Spróbuj ponownie.",
     "home": "Na początek"
+  },
+  "flow": {
+    "list": "Wiadomości w strumieniu",
+    "loading": "Wczytywanie wiadomości…",
+    "unread": "Nieprzeczytane",
+    "you": "Ty",
+    "reply_in": "Odpowiedź w wątku w {place}"
   }
 }

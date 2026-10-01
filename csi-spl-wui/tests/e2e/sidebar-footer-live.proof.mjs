@@ -51,7 +51,7 @@ const measure = (p, tab) => p.evaluate((tab) => {
   const panel = document.getElementById('sidebar-panel-' + tab)
   const foot = panel?.closest('.sidebar')?.querySelector('.sidebar-foot')
   if (!panel || !foot || panel.offsetParent === null) return { missing: !panel ? 'panel' : !foot ? 'foot' : 'hidden' }
-  const rows = [...panel.querySelectorAll('.nav-row, .epic-row')].filter((e) => e.getClientRects().length)
+  const rows = [...panel.querySelectorAll('.nav-row, .epic-row, [data-testid=left-entry]')].filter((e) => e.getClientRects().length)
   const row = rows.at(-1)
   if (!row) return { rows: 0 }
   const scroller = panel.querySelector('.sidebar-scroll')

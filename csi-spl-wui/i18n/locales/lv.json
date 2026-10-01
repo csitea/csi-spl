@@ -1513,5 +1513,12 @@
     "archived": "Šī ziņa ir arhivētā tēmā. Atrodiet to arhīvā.",
     "error": "Ziņu neizdevās atvērt. Mēģiniet vēlreiz.",
     "home": "Uz sākumu"
+  },
+  "flow": {
+    "list": "Plūsmas ziņas",
+    "loading": "Ielādē ziņas…",
+    "unread": "Nelasīts",
+    "you": "Jūs",
+    "reply_in": "Atbilde pavedienā: {place}"
   }
 }

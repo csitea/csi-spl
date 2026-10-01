@@ -1513,5 +1513,12 @@
     "archived": "Este mensaje está en un tema archivado. Búscalo en Archivo.",
     "error": "No se pudo abrir el mensaje. Inténtalo de nuevo.",
     "home": "Ir al inicio"
+  },
+  "flow": {
+    "list": "Mensajes del flujo",
+    "loading": "Cargando mensajes…",
+    "unread": "No leído",
+    "you": "Tú",
+    "reply_in": "Respuesta en un hilo en {place}"
   }
 }

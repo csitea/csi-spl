@@ -1513,5 +1513,12 @@
     "archived": "Acest mesaj este într-un subiect arhivat. Îl găsiți în Arhivă.",
     "error": "Mesajul nu a putut fi deschis. Încercați din nou.",
     "home": "La început"
+  },
+  "flow": {
+    "list": "Mesajele fluxului",
+    "loading": "Se încarcă mesajele…",
+    "unread": "Necitit",
+    "you": "Tu",
+    "reply_in": "Răspuns într-un fir în {place}"
   }
 }

@@ -1513,5 +1513,12 @@
     "archived": "Tämä viesti on arkistoidussa aiheessa. Löydät sen arkistosta.",
     "error": "Viestiä ei voitu avata. Yritä uudelleen.",
     "home": "Alkuun"
+  },
+  "flow": {
+    "list": "Virran viestit",
+    "loading": "Ladataan viestejä…",
+    "unread": "Lukematon",
+    "you": "Sinä",
+    "reply_in": "Vastaus ketjussa kohteessa {place}"
   }
 }

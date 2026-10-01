@@ -95,9 +95,10 @@ describe('client', () => {
 
 describe('ChannelSidebar wiring', () => {
   const vue = src('src/components/ChannelSidebar.vue')
-  it('both channel row menus pass deletable and handle delete', () => {
-    assert.equal((vue.match(/:deletable="deletableChannel\(/g) || []).length, 2)
-    assert.equal((vue.match(/@delete="askDeleteChannel\(/g) || []).length, 2)
+  it('the channel row menu passes deletable and handles delete', () => {
+    /* topic 635f8072: Flow lists messages now, so Channels is the one channel list */
+    assert.equal((vue.match(/:deletable="deletableChannel\(/g) || []).length, 1)
+    assert.equal((vue.match(/@delete="askDeleteChannel\(/g) || []).length, 1)
   })
   it('Delete opens a confirm; nothing is deleted from the menu itself', () => {
     assert.match(vue, /<LazyChannelDeleteDialog[\s\S]*?v-model:open="deleteOpen"/)

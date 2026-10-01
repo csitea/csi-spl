@@ -1513,5 +1513,12 @@
     "archived": "Det här meddelandet finns i ett arkiverat ämne. Du hittar det under Arkiv.",
     "error": "Meddelandet kunde inte öppnas. Försök igen.",
     "home": "Till början"
+  },
+  "flow": {
+    "list": "Flödesmeddelanden",
+    "loading": "Läser in meddelanden…",
+    "unread": "Oläst",
+    "you": "Du",
+    "reply_in": "Svar i en tråd i {place}"
   }
 }

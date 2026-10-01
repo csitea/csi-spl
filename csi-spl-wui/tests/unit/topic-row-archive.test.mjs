@@ -81,11 +81,11 @@ describe('which rows a frame removes', () => {
 })
 
 describe('wiring', () => {
-  it('the rail Topics and Flow rows and the Topics home open the menu by right-click and by the button', () => {
+  it('the rail Topics rows and the Topics home open the menu by right-click and by the button', () => {
     const side = src('src/components/ChannelSidebar.vue')
     assert.match(side, /@contextmenu\.prevent="openTopicMenu\('th:' \+ row\.task_id, row\.task_id\)"/)
-    assert.match(side, /@contextmenu\.prevent="openTopicMenu\('flow:th:' \+ row\.id, row\.id\)"/)
-    assert.equal((side.match(/@delete-topic="askDeleteTopic\(/g) || []).length, 2)
+    /* topic 635f8072: Flow lists messages now, with no topic rows */
+    assert.equal((side.match(/@delete-topic="askDeleteTopic\(/g) || []).length, 1)
     assert.match(side, /<LazyTopicDeleteDialog/)
     const home = src('src/pages/index.vue')
     assert.match(home, /@contextmenu\.prevent="openTopicMenu\(t\.task_id\)"/)

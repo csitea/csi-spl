@@ -1513,5 +1513,12 @@
     "archived": "See sõnum on arhiveeritud teemas. Leiad selle arhiivist.",
     "error": "Sõnumit ei õnnestunud avada. Proovi uuesti.",
     "home": "Algusesse"
+  },
+  "flow": {
+    "list": "Voo sõnumid",
+    "loading": "Sõnumite laadimine…",
+    "unread": "Lugemata",
+    "you": "Sina",
+    "reply_in": "Vastus lõimes kohas {place}"
   }
 }

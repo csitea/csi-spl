@@ -1513,5 +1513,12 @@
     "archived": "Dit bericht staat in een gearchiveerd onderwerp. Je vindt het onder Archief.",
     "error": "Het bericht kon niet worden geopend. Probeer het opnieuw.",
     "home": "Naar het begin"
+  },
+  "flow": {
+    "list": "Stroomberichten",
+    "loading": "Berichten laden…",
+    "unread": "Ongelezen",
+    "you": "Jij",
+    "reply_in": "Antwoord in een draad in {place}"
   }
 }

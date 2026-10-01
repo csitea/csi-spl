@@ -14,7 +14,8 @@
 //                flow-open-shown = until it is first on screen, unmarked.
 //   flow-warm    Back, another rail tab, then Flow again: until the entries show.
 //   events-tab   click the Event log rail tab until its "Event log" link shows.
-//   events-paint click that link until the /events page shell is painted.
+//   events-paint click that link until the /events page shell is painted (a
+//                phone's rail tab opens /events itself: timed from the tab).
 //   events-full  ... until its table, empty line or error is painted.
 //   events-warm  Back, then click the link again: until full.
 //
@@ -166,10 +167,14 @@ async function round(p, cdp, rec, i, tag) {
   await sleep(600)
   await step(p, rec, s, 'flow-warm', FLOW_TAB, FLOW_ENTRY)
   await sleep(600)
-  // Event log: rail tab, then its link, then the page
-  await step(p, rec, s, 'events-tab', EVENTS_TAB, EVENTS_LINK)
+  // Event log: rail tab, then its link, then the page. On a phone the rail
+  // tab opens /events itself (level 2): the page is timed from the tab click.
   rec.take()
-  const t0 = await clickAt(p, EVENTS_LINK)
+  const tt = await clickAt(p, EVENTS_TAB)
+  const tl = tt < 0 ? -1 : await whenSel(p, `${EVENTS_LINK}, ${EVENTS_PAGE}`)
+  const direct = tl >= 0 && (await whenSel(p, EVENTS_PAGE, 50)) >= 0
+  s['events-tab'] = { ms: tt < 0 || tl < 0 ? -1 : Math.round(tl - tt), direct, ...(tt < 0 ? {} : { timeline: await timeline(p, tt) }) }
+  const t0 = direct ? tt : await clickAt(p, EVENTS_LINK)
   const [tp, tf] = t0 < 0 ? [-1, -1] : await Promise.all([whenSel(p, EVENTS_PAGE), whenSel(p, EVENTS_DONE)])
   const n = net(rec.take())
   s['events-paint'] = { ms: tp < 0 || t0 < 0 ? -1 : Math.round(tp - t0), ...n }
@@ -177,9 +182,13 @@ async function round(p, cdp, rec, i, tag) {
   await sleep(600)
   await p.evaluate(() => history.back())
   await sleep(800)
-  if ((await whenSel(p, EVENTS_LINK, 2000)) < 0) await clickAt(p, EVENTS_TAB)
-  await sleep(300)
-  await step(p, rec, s, 'events-warm', EVENTS_LINK, EVENTS_DONE)
+  if ((await whenSel(p, EVENTS_LINK, 2000)) < 0) {
+    // phone: back at level 1 the rail tab is the way in again
+    await step(p, rec, s, 'events-warm', EVENTS_TAB, EVENTS_DONE)
+  } else {
+    await sleep(300)
+    await step(p, rec, s, 'events-warm', EVENTS_LINK, EVENTS_DONE)
+  }
   return s
 }
 

@@ -212,10 +212,15 @@ case "$MODE" in
     old="$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')"
     [ -n "$old" ] && kill -0 "$old" 2>/dev/null && exit 0
     nohup bash "$HERE/agent-top.sh" --badge-loop --interval "$INTERVAL" >/dev/null 2>&1 8>&- &
-    echo $! > "$PIDFILE"
+    echo $! > "$PIDFILE.$$" && mv -f "$PIDFILE.$$" "$PIDFILE"
     ;;
   badge-loop)
-    echo $$ > "$PIDFILE"
-    trap 'rm -f "$PIDFILE"' EXIT
+    # Never a bare `echo $$ > PIDFILE`: that truncates then writes, OUTSIDE the
+    # ensure lock, and a locked reader in between saw an empty file and started
+    # a second loop (3 loops under load ~60, CLE-77907). ensure-loop already
+    # wrote this pid; a loop started by hand writes it atomically.
+    [ "$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')" = "$$" ] ||
+      { echo $$ > "$PIDFILE.$$" && mv -f "$PIDFILE.$$" "$PIDFILE"; }
+    trap '[ "$(cat "$PIDFILE" 2>/dev/null | tr -d "[:space:]")" = "$$" ] && rm -f "$PIDFILE"' EXIT
     while true; do collect_rows | apply_badges || true; sleep "$INTERVAL"; done ;;
 esac

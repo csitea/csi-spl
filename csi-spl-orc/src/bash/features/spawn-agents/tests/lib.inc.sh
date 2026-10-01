@@ -34,6 +34,12 @@ t_done() {
 # A fresh sandbox: SPOOL_ROOT, a socket path, and this user as both the box
 # and the agent user (no sudo hop).
 t_sandbox() {
+  # A test run from inside a live agent's pane inherits that agent's pane,
+  # socket and id; scripts that honour them would reach the REAL box tmux
+  # (CLE-77907: 4 tests red only when run from an agent pane).
+  unset TMUX TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID SPOOL_NOTIFY_CMD SPOOL_BOX_ENV
+  local k
+  for k in CLE GRK AGY QWN; do unset "${k}_TMUX_PANE" "${k}_TMUX_SOCK"; done
   T_TMP="$(mktemp -d)"
   export SPOOL_ROOT="$T_TMP/spool"
   export SPOOL_TMUX_SOCKET="$T_TMP/tmux.sock"

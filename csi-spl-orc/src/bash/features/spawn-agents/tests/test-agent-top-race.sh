@@ -94,9 +94,26 @@ AGENT_TOP_AFTER_SNAPSHOT="tmux -S '$SPOOL_TMUX_SOCKET' rename-window -t '$w30' '
 eq "4. a window renamed after the snapshot keeps the newer name" "CLE-30 renamed by hand" "$(tm display-message -p -t "$w30" '#{window_name}')"
 
 # --- 5. one badge loop, however many hooks fire at once ---------------------------
-for _ in 1 2 3 4 5 6; do bash "$TOP" --ensure-badge-loop --interval 91 & done; wait; sleep 1
-loops="$(pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval 91" | wc -l)"
-eq "5. six concurrent ensure calls start one loop" 1 "$loops"
-pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval 91" | xargs -r kill 2>/dev/null
+# Deterministic under load (CLE-77907, flaky at load ~23): wait for the loop
+# to come up (not a fixed sleep), and count only TOP-LEVEL loops - a $(...)
+# the loop forks carries the same cmdline and pgrep -f matched it as a second.
+# The interval is this run's own: pgrep is box-wide, and a sibling run of this
+# test (or its orphaned subshells) matched a shared "--interval 91".
+IV="$((100000 + $$ % 100000))"
+for _ in 1 2 3 4 5 6; do bash "$TOP" --ensure-badge-loop --interval "$IV" & done; wait
+# A fork that exits between pgrep and ps has no ppid: skipped, never counted.
+loops_top() {
+  local m p pp; m=" $(pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | tr '\n' ' ')"
+  for p in $m; do
+    pp="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
+    [ -n "$pp" ] || continue
+    case "$m" in *" $pp "*) ;; *) echo "$p" ;; esac
+  done
+}
+for _ in $(seq 50); do [ -n "$(loops_top)" ] && break; sleep 0.2; done
+sleep 1
+eq "5. six concurrent ensure calls start one loop" 1 "$(loops_top | wc -l)"
+eq "5. ... and it is the pidfile's loop" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" "$(loops_top | head -1)"
+pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | xargs -r kill 2>/dev/null
 
 t_done

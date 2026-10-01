@@ -175,7 +175,7 @@ inst DRY_RUN=0 IDENTITY_UNINSTALL=1 >/dev/null
 has "6. uninstall leaves a foreign [1] alone" "someone else" "$(tm show-hooks -g pane-exited)"
 
 # From a linked worktree the install refuses to write paths that vanish with it.
-wt="$T_TMP/wt-repo"; git init -q "$wt/main" && git -C "$wt/main" commit -q --allow-empty -m i && git -C "$wt/main" worktree add -q "$wt/lane" 2>/dev/null
+wt="$T_TMP/wt-repo"; git init -q "$wt/main" && git -C "$wt/main" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m i && git -C "$wt/main" worktree add -q "$wt/lane" 2>/dev/null
 mkdir -p "$wt/lane/src/bash/run" "$wt/lane/src/bash/features/spawn-agents"
 cp -r "$T_REPO/csi-spl-orc/src/bash/run/spl-agent-identity-install.func.sh" "$wt/lane/src/bash/run/"
 cp -r "$T_FEAT/lib" "$T_FEAT/scripts" "$wt/lane/src/bash/features/spawn-agents/"

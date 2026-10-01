@@ -60,16 +60,18 @@ spl_dispatch_with_subs() {
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  for t in $DISPATCH_TENANTS; do
-    spl_via_proxy _spl_dispatch_with_subs_one "$fn" "$t" || rc=1
-  done
-  return $rc
+  spl_via_proxy _spl_dispatch_with_subs_all "$fn"
 }
 
-_spl_dispatch_with_subs_one() {
-  local fn="$1" t="$2" data
-  data="$(_spl_dispatch_subs_read "$t")" || { do_log "FATAL could not read the channels of $t"; return 1; }
-  "$fn" "$t" "$data"
+# Every workspace through the ONE proxy session spl_via_proxy opened: the desk
+# cron runs this every tick, and a proxy per workspace cost a start each.
+_spl_dispatch_with_subs_all() {
+  local fn="$1" t data rc=0
+  for t in $DISPATCH_TENANTS; do
+    data="$(_spl_dispatch_subs_read "$t")" || { do_log "FATAL could not read the channels of $t"; rc=1; continue; }
+    "$fn" "$t" "$data" || rc=1
+  done
+  return $rc
 }
 
 # Read-only: the live channels and live subscriptions of one tenant, with

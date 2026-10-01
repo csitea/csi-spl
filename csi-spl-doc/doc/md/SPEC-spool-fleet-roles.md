@@ -58,6 +58,11 @@ The dispatchers are seated on every workspace desk the box serves
 (`do_spl_desk_up DESK_AGENT=CLE-002`, and `CLE-003`). `CLE-001` stays seated
 too, so a post that names it still reaches it.
 
+A channel created later gets both dispatchers on the next desk reconcile tick
+(`do_spl_dispatch_tick`: `do_spl_dispatch_subscribe DRY_RUN=0` every tick,
+dev and prd, while `lease.conf` exists; a changed `GAP`/`DEAD` set is logged and
+a new `GAP` is sent to the orchestrator).
+
 ## 3. The routing rule
 
 For each message the lease holder does exactly one thing, then archives it:
@@ -202,8 +207,9 @@ end to end in every seated workspace.
 | setup and verify on a new machine | `do_spl_dispatch_setup` (DRY_RUN plan, idempotent) + `do_spl_dispatch_check`; prompt: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md) |
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
 | web UI posts reach the dispatchers | done 2026-10-01: `do_spl_dispatch_subscribe` put both dispatchers in every channel of all 6 workspaces and took the orchestrator out (the hub delivers to a channel's subscribed agents; the fallback list only when none is online). `do_spl_dispatch_check`: no gap. t1 proven on live traffic: 227 human posts reached the master, the orchestrator only DMs and @mentions |
+| a channel created after the subscribe | done 2026-10-01: `do_spl_dispatch_tick` on every desk reconcile tick re-runs the subscribe (one read per workspace, no write when nothing changed) and reports a changed gap set: `DISPATCH` lines in the cron log, one `dispatch-gaps` note to the orchestrator per new `GAP` |
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.3.4 · updated: 2026-10-01 · last-edit: 2026-10-01T11:30:00Z -->
+<!-- version: 0.3.5 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->

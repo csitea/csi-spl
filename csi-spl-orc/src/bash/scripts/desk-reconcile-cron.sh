@@ -222,6 +222,22 @@ if [ "${DESK_ALL_TENANTS:-1}" != 0 ]; then
   [ "$rc" = 0 ] && [ "$trc" != 0 ] && rc=1
 fi
 
+# The dispatchers on every channel of every workspace (2026-10-01: two channels
+# created after the morning's do_spl_dispatch_subscribe reached nobody until it
+# was re-run by hand), and the dispatcher gaps reported when they CHANGE.
+# A no-op without <spool root>/dispatch/lease.conf; only its "DISPATCH " lines
+# reach this log, so a tick with nothing new logs nothing.
+# DESK_DISPATCH=0 turns it off without touching the reconcile.
+if [ "${DESK_DISPATCH:-1}" != 0 ]; then
+  dout="$(cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" ./run -a do_spl_dispatch_tick 2>&1)"
+  drc=$?
+  printf '%s\n' "$dout" | grep '^DISPATCH ' | while IFS= read -r l; do say "INFO $l"; done
+  if [ "$drc" != 0 ]; then
+    say "WARN do_spl_dispatch_tick exit $drc"
+    [ "$rc" = 0 ] && rc=1
+  fi
+fi
+
 # SPL-961: the seated bots welcome a person admitted since the last tick, in
 # #lobby of EVERY tenant with a desk on this box (not only $TENANT: the other
 # tenants' desks have no tick of their own). Its ledger makes a repeated tick a

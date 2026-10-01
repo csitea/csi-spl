@@ -107,6 +107,10 @@ Apply it.
 cd "$CHECKOUT/csi-spl-orc" && DRY_RUN=0 ./run -a do_spl_dispatch_subscribe
 ```
 
+You rarely need it by hand: the desk reconcile cron runs it with `DRY_RUN=0`
+on every tick (`do_spl_dispatch_tick`, while `lease.conf` exists) and logs
+only the `DISPATCH` lines of a tick that changed something.
+
 ### 3.5 Install the unanswered sweep only
 
 The same step 11 on its own. The dry run prints the crontab diff.
@@ -212,4 +216,4 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
-<!-- version: 0.2.1 · updated: 2026-10-01 · last-edit: 2026-10-01T11:00:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-01 · last-edit: 2026-10-01T11:28:09Z -->

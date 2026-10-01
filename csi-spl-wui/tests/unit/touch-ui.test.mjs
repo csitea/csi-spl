@@ -142,9 +142,19 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
     assert.match(vue, /\}>\(\), \{ dock: true \}\)/)
   })
   it('sits above the keyboard and publishes its height for the panes and the top bar', () => {
-    assert.match(vue, /bottom: var\(--kb-inset, 0px\);/)
+    assert.match(vue, /bottom: calc\(var\(--kb-inset, 0px\) \+ var\(--status-strip-h, 0px\)\);/)
     assert.match(vue, /setProperty\('--composer-dock-h'/)
     assert.match(vue, /const kbInset = useKeyboardInset\(\)/)
+  })
+  it('CLE-77888: sits on the bottom status strip and counts it in its dock height', () => {
+    assert.match(vue, /const total = px > 0 \? px \+ stripH\.value : 0/)
+    assert.match(vue, /watch\(stripH, \(\) => setDockHeight\(dockPx\)\)/)
+    const strip = readFileSync(join(WUI, 'src/components/MobileStatusStrip.vue'), 'utf8')
+    for (const t of ['status-strip-health', 'status-strip-version']) assert.ok(strip.includes(`data-test="${t}"`), t)
+    assert.match(strip, /<NotificationCenter placement="strip" \/>/)
+    assert.match(strip, /const shown = computed\(\(\) => kbInset\.value === 0\)/)
+    const layout = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
+    assert.match(layout, /<MobileStatusStrip v-if="stack\.isMobile\.value" \/>/)
   })
   it('keeps iOS from zooming, and every control is a 44 px target', () => {
     assert.match(vue, /\.composer--dock\.composer--dock textarea \{\s*font-size: max\(16px, 1rem\);/)

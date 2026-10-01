@@ -35,8 +35,9 @@
 import { useNotificationStore } from '~/stores/notification'
 
 /* SPL-990: 'rail' is the sidebar's copy (desktop); 'menu' is the one in the
-   phone avatar sheet. At <= 820 px the rail copy steps aside for it. */
-withDefaults(defineProps<{ placement?: 'rail' | 'menu' }>(), { placement: 'rail' })
+   phone avatar sheet. At <= 820 px the rail copy steps aside for it.
+   CLE-77888: 'strip' is the phone's bottom status strip (MobileStatusStrip). */
+withDefaults(defineProps<{ placement?: 'rail' | 'menu' | 'strip' }>(), { placement: 'rail' })
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
 const alertsWanted = computed(() => notes.alertsEnabled)
@@ -86,4 +87,9 @@ const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notif
   .notify-box--rail { display: none; }
   .notify-alerts, .notify-chime { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }
+/* CLE-77888: the bottom status strip is ~5 mm tall (owner, topic 1701ae89):
+   the buttons keep their 44 px width and fill its 22 px height (less its 1 px top border) */
+.notify-box--strip .notify-alerts, .notify-box--strip .notify-chime { min-width: 44px; min-height: 0; height: 21px; padding: 0 6px; }
+.notify-box--strip .notify-glyph { width: 16px; height: 16px; }
+.notify-box--strip .notify-warn-dot { top: 1px; right: 10px; }
 </style>

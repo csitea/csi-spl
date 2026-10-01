@@ -296,6 +296,7 @@ import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs
 import { useSidePane } from '~/composables/useSidePane'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
+import { useStatusStripHeight } from '~/composables/useStatusStrip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
@@ -392,10 +393,17 @@ const docked = computed(() => Boolean(props.global) && props.dock && phone.value
 /* SPL-1003: where the next post goes, shown above the docked box */
 const dockHint = computed(() => dockTargetHint(props.dockTarget, text.value))
 let dockObserver: ResizeObserver | null = null
+/* CLE-77888: the dock sits on the phone's bottom status strip, so the
+   height it reports is the two together (the strip is 0 while it is gone) */
+const stripH = useStatusStripHeight()
+let dockPx = 0
 function setDockHeight(px: number) {
+  dockPx = px
   if (typeof document === 'undefined') return
-  document.documentElement.style.setProperty('--composer-dock-h', `${Math.max(0, Math.round(px))}px`)
+  const total = px > 0 ? px + stripH.value : 0
+  document.documentElement.style.setProperty('--composer-dock-h', `${Math.max(0, Math.round(total))}px`)
 }
+watch(stripH, () => setDockHeight(dockPx))
 function watchDock(on: boolean) {
   dockObserver?.disconnect()
   dockObserver = null
@@ -1377,7 +1385,8 @@ textarea.in-code {
   .composer.composer--dock.composer--dock {
     position: fixed;
     inset-inline: 0;
-    bottom: var(--kb-inset, 0px);
+    /* CLE-77888: on top of the bottom status strip (0 while the keyboard is up) */
+    bottom: calc(var(--kb-inset, 0px) + var(--status-strip-h, 0px));
     z-index: calc(var(--z-sticky, 40) + 10);
     box-sizing: border-box;
     width: 100%;
@@ -1387,6 +1396,8 @@ textarea.in-code {
     background: var(--color-sidebar);
     border-top: 1px solid var(--color-border);
   }
+  /* the strip under it carries the home-indicator inset */
+  :global(html[data-status-strip]) .composer.composer--dock.composer--dock { padding-bottom: 6px; }
   /* SPL-1005: on every page now - a page sheet, dialog or menu is modal over
      it. The dock sits in the top bar's stacking context (z 40), above the
      pages' own sheets (z 38/39), so it steps out of sight while one is open

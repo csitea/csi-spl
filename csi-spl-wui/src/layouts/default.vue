@@ -78,6 +78,10 @@
         <LiveTopicPane v-if="section === LIVE" />
         <TopicPane v-else-if="section === CHANNEL" />
       </div>
+      <!-- CLE-77888 (owner, t1 topic 1701ae89): on a phone, the desktop
+           footer's dot, bell, note and version as a ~5 mm strip at the very
+           bottom, under the docked composer -->
+      <MobileStatusStrip v-if="stack.isMobile.value" />
       </div>
       <template #fallback>
         <!-- 047 W2: the prerendered shell is the document a stranger's first
@@ -144,6 +148,8 @@ import { useSessionStore } from '~/stores/session'
 import { debugPanelVisibleFor } from '~/composables/debugAudience.mjs'
 import TopBar from '@/components/TopBar.vue'
 import BuyWorkspaceLink from '@/components/BuyWorkspaceLink.vue'
+/* CLE-77888: phones only, so its chunk is fetched only there */
+const MobileStatusStrip = defineAsyncComponent(() => import('@/components/MobileStatusStrip.vue'))
 import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'

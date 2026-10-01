@@ -97,7 +97,8 @@ describe('the redirect lives in one middleware, not on each page', () => {
     'src/pages/channel/[name].vue',
     'src/pages/dm/[peer].vue',
     'src/pages/t/[task_id].vue',
-    'src/pages/settings.vue',
+    'src/pages/settings/[[section]].vue',
+    'src/components/SettingsDialog.vue',
   ]
 
   it('the global middleware probes only in the browser and sends product screens to /login', () => {

@@ -143,6 +143,6 @@ describe('every multi-line field uses the helper', () => {
   }
   it('Settings -> Behaviour is a section with the Text fields radios', () => {
     assert.match(read('src/utils/settings-nav.mjs'), /id: 'behaviour'/)
-    assert.match(read('src/pages/settings/behaviour.vue'), /<SubmitKeySetting/)
+    assert.match(read('src/components/settings/behaviour.vue'), /<SubmitKeySetting/)
   })
 })

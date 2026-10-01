@@ -83,11 +83,24 @@ function answer(req) {
   return json(404, { error: 'not_found' })
 }
 
+/* CLE-77853: Settings is a modal over the view, and the user menu sits behind
+   its backdrop - close it (Escape), read the menu, then reopen Settings from
+   the menu's own entry (the gear) on the same Profile section. */
 async function menuName(p) {
+  const modal = Boolean(await p.$('[data-test=settings]'))
+  if (modal) {
+    await p.keyboard.press('Escape')
+    await p.waitForFunction(() => !document.querySelector('[data-test=settings]'), { timeout: 5000 }).catch(() => null)
+  }
   await p.click('[data-test=user-menu-trigger]')
   const el = await p.waitForSelector('[data-test=user-menu-primary]', { visible: true, timeout: 5000 }).catch(() => null)
   const text = el ? (await el.evaluate((e) => e.textContent || '')).trim() : null
-  await p.keyboard.press('Escape')
+  if (modal) {
+    await p.click('[data-test=user-menu-settings]')
+    await p.waitForSelector(FIELD, { visible: true, timeout: 10000 }).catch(() => null)
+  } else {
+    await p.keyboard.press('Escape')
+  }
   await sleep(150)
   return text
 }

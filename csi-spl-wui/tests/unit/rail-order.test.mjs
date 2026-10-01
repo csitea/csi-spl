@@ -145,7 +145,7 @@ describe('wiring', () => {
     assert.doesNotMatch(src, /id: USERS_TAB/)
   })
   it('Settings -> Behaviour lists the same order with up / down and a reset', () => {
-    assert.match(read('src/pages/settings/behaviour.vue'), /<RailOrderSetting/)
+    assert.match(read('src/components/settings/behaviour.vue'), /<RailOrderSetting/)
     const s = read('src/components/RailOrderSetting.vue')
     assert.match(s, /useRailOrder\(\)/)
     assert.match(s, /useDragReorder<RailId>\(/)

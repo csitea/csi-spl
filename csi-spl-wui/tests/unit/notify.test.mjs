@@ -161,7 +161,7 @@ describe('notify escalation', () => {
     /* CLE-35075/051: the synth lives in notify.mjs; the gated store path plays
        it, and the Settings picker previews it. Nowhere else. */
     const sounds = execSync(`grep -rlE "playSound\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
-    assert.deepEqual(sounds, ['src/pages/settings/notifications.vue', 'src/stores/notification.ts', 'src/utils/notify.mjs'])
+    assert.deepEqual(sounds, ['src/components/settings/notifications.vue', 'src/stores/notification.ts', 'src/utils/notify.mjs'])
     assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
     /* nothing else in src makes a sound: add it to this list AND gate it on the note */
     const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
@@ -257,7 +257,7 @@ describe('notify escalation', () => {
   })
 
   it('051: Settings -> Notifications is the sound picker, each option playable, all sounds i18n-keyed', () => {
-    const vue = readFileSync(join(WUI, 'src/pages/settings/notifications.vue'), 'utf8')
+    const vue = readFileSync(join(WUI, 'src/components/settings/notifications.vue'), 'utf8')
     assert.match(vue, /data-test="settings-notify-sound"/)
     assert.match(vue, /role="radiogroup"/)
     assert.match(vue, /playSound\(name\)/)
@@ -403,7 +403,7 @@ describe('alerts on/off (the bell)', () => {
   })
   it('the bell glyph follows the reader switch, not whether messages are popping', () => {
     const center = readFileSync(join(WUI, 'src/components/NotificationCenter.vue'), 'utf8')
-    const settings = readFileSync(join(WUI, 'src/pages/settings/notifications.vue'), 'utf8')
+    const settings = readFileSync(join(WUI, 'src/components/settings/notifications.vue'), 'utf8')
     assert.match(center, /notes\.toggleAlerts\(\)/)
     assert.match(center, /notes\.alertsEnabled/)
     assert.match(settings, /notes\.alertsEnabled/)

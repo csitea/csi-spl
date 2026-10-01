@@ -103,7 +103,7 @@ await it('the user menu renders the mirrored name', () => {
 })
 
 await it('the field is on /settings/profile and every locale has its copy', () => {
-  const page = readFileSync(join(WUI, 'src/pages/settings/profile.vue'), 'utf8')
+  const page = readFileSync(join(WUI, 'src/components/settings/profile.vue'), 'utf8')
   assert.match(page, /<DisplayNameSetting \/>/)
   const comp = readFileSync(join(WUI, 'src/components/DisplayNameSetting.vue'), 'utf8')
   const keys = [...comp.matchAll(/t\('(settings\.display_name\.[a-z_]+)'\)/g)].map((m) => m[1])

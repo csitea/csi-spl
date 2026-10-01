@@ -3,6 +3,8 @@
     <NuxtPage />
   </NuxtLayout>
   <LazyTenantNotMember v-if="tenantNotMember.tenant" />
+  <!-- CLE-77853: Settings is a modal over whatever view is open (?settings=) -->
+  <ClientOnly><SettingsDialog /></ClientOnly>
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
 </template>

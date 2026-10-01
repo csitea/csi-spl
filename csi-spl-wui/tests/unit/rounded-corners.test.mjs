@@ -67,13 +67,13 @@ describe('rounded corners', () => {
   })
 
   it('settings nav keeps a radius on the mobile row (no sharp tabs)', () => {
-    const src = read('src/pages/settings.vue')
+    const src = read('src/components/SettingsDialog.vue')
     assert.match(src, /\.settings-nav__link\s*\{[^}]*border-radius:\s*var\(--radius/)
     assert.equal(/border-radius:\s*0/.test(src), false)
   })
 
   it('selected/active marker bars are one colour and at most 3px in settings nav', () => {
-    const src = read('src/pages/settings.vue')
+    const src = read('src/components/SettingsDialog.vue')
     assert.match(src, /border-inline-start:\s*3px solid transparent/)
     /* CLE-3427 owns the colour (--focus-ring); we assert the 3px ceiling. */
     assert.match(src, /border-inline-start-color:\s*var\(--focus-ring\)/)

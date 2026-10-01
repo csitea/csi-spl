@@ -289,7 +289,7 @@ describe('the "Debug pane" checkbox', () => {
       .filter((f) => f.endsWith('.vue') && !f.endsWith('DebugPaneSetting.vue'))
       .filter((f) => /<DebugPaneSetting\b/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(SRC, f))
-    assert.deepEqual(mounts, ['pages/settings/appearance.vue'])
+    assert.deepEqual(mounts, ['components/settings/appearance.vue'])
     const src = readFileSync(join(SRC, 'components/DebugPaneSetting.vue'), 'utf8')
     assert.match(src, /data-test="settings-debug-pane"/)
     assert.match(src, /session\.setDiagnosticsEnabled/)

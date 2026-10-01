@@ -144,7 +144,7 @@ describe('theme picker wiring', () => {
   })
 
   it('settings appearance keeps a labelled ThemeToggle (same component)', () => {
-    const src = read('src/pages/settings/appearance.vue')
+    const src = read('src/components/settings/appearance.vue')
     assert.match(src, /t\('settings\.theme'\)/)
     assert.match(src, /<ThemeToggle/)
   })

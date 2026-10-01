@@ -35,7 +35,7 @@
       <div
         ref="panelEl"
         class="ui-dialog"
-        :class="size"
+        :class="[size, { routed }]"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="titleId"
@@ -83,8 +83,10 @@ const props = withDefaults(
     title: string
     /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001); `card` is a compact, centred card that fades in (the logo, SPL-1150). */
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'card'
+    /** CLE-77853: `open` IS the route (Settings, ?settings=): browser Back is the router's, so no overlay history entry of its own, and on a phone it keeps its X instead of the Back chevron. */
+    routed?: boolean
   }>(),
-  { size: 'lg' },
+  { size: 'lg', routed: false },
 )
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -105,7 +107,7 @@ function close() {
 
 /* SPL-994: on a phone an open dialog is the top level - browser Back / the
    Android gesture closes it, and the page and level under it stay put */
-useMobileStack().overlay(() => props.open, close)
+useMobileStack().overlay(() => props.open, close, { history: !props.routed })
 
 function onBackdrop() {
   close()
@@ -398,6 +400,11 @@ onUnmounted(() => {
   .ui-dialog__back:focus-visible { border-color: var(--color-border); }
   .ui-dialog__back:dir(rtl) .ui-icon { transform: scaleX(-1); }
   .ui-dialog__close { display: none; }
+  /* CLE-77853: a routed dialog (Settings) is a full-screen sheet that keeps
+     its X at the chosen corner (SPL-1133); Back is the browser's */
+  .ui-dialog.routed .ui-dialog__back { display: none; }
+  .ui-dialog.routed .ui-dialog__close { display: inline-flex; }
+  .ui-dialog.routed .ui-dialog__head { padding-inline: 8px; }
   .ui-dialog__title {
     flex: 1 1 0;
     font-size: 1rem;

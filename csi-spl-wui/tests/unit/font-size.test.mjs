@@ -123,7 +123,7 @@ describe('font size CSS contract', () => {
     const allowed = new Set([
       'src/components/FontSizeSetting.vue',
       'src/components/UserMenu.vue',
-      'src/pages/settings/profile.vue',
+      'src/components/settings/profile.vue',
       'src/assets/css/main.css',
       'src/components/MessageBody.vue',
       'src/components/ChannelPropertiesDialog.vue',

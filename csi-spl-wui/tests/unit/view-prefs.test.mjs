@@ -89,7 +89,7 @@ describe('view pref values', () => {
     }
   })
   it('Settings -> Behaviour holds both radio groups', () => {
-    assert.match(read('src/pages/settings/behaviour.vue'), /<ViewPrefsSetting \/>/)
+    assert.match(read('src/components/settings/behaviour.vue'), /<ViewPrefsSetting \/>/)
     const c = read('src/components/ViewPrefsSetting.vue')
     assert.match(c, /MESSAGE_ORDERS/)
     assert.match(c, /COMPOSER_POSITIONS/)

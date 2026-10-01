@@ -46,7 +46,7 @@ const method = computed(() => {
   const k = methodLabelKey(me.value.method)
   return t(k.key, k.params)
 })
-/* read by pages/settings.vue once the 204 has signed this browser out */
+/* read by pages/login.vue once the 204 has signed this browser out */
 const changed = useState('settings-password-changed', () => false)
 </script>
 

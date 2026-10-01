@@ -155,7 +155,7 @@ describe('palette keyboard', () => {
   })
 
   it('settings opens the same picker toward the end of the row', () => {
-    const src = read('src/pages/settings/appearance.vue')
+    const src = read('src/components/settings/appearance.vue')
     assert.match(src, /<ThemeToggle align="end"/)
   })
 })

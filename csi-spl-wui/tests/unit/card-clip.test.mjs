@@ -174,7 +174,7 @@ describe('appearance default and a per-view session override', () => {
   })
 
   it('the appearance page offers the three list modes', () => {
-    const src = read('src/pages/settings/appearance.vue')
+    const src = read('src/components/settings/appearance.vue')
     assert.match(src, /data-test="list-clip-default"/)
     assert.match(src, /data-test="`list-clip-\$\{m\}`"/)
     assert.match(src, /setClipDefault/)

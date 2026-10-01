@@ -6,7 +6,7 @@
 //   - the docked composer's bottom-right Send is the GO: the go (play) icon,
 //     accent fill, >= 44 px, "Go / Send"
 //   - the dock is on EVERY phone level (the section chooser too) and on pages
-//     with no send target (/issues, /events, /settings), so `/search` is
+//     with no send target (/issues, /events), so `/search` is
 //     always reachable; `/search <q>` from the dock opens /search?q= from
 //     levels 1, 2 and 3
 //   - 1440: no dock, no floating button
@@ -116,8 +116,9 @@ const goOk = (l) => Boolean(l.dock && l.goIcon === 'go' && l.goSize && l.goSize[
 async function phoneCase(browser, width, height) {
   const tag = `${width}px`
   const vp = { width, height, isMobile: true, hasTouch: true }
-  /* every level and a page with no send target */
-  for (const [name, path, want] of [['level 1 (sections)', '/', '1'], ['level 2 channel', '/channel/alerts', '2'], ['issues (no send target)', '/issues', '2'], ['events (no send target)', '/events', '2'], ['settings (no send target)', '/settings', '2']]) {
+  /* every level and a page with no send target (CLE-77853: /settings is a
+     modal over the lobby now, the dock yields to it, so it is not a page here) */
+  for (const [name, path, want] of [['level 1 (sections)', '/', '1'], ['level 2 channel', '/channel/alerts', '2'], ['issues (no send target)', '/issues', '2'], ['events (no send target)', '/events', '2']]) {
     const { p, errors } = await open(browser, vp, path)
     const l = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-go-dock-${width}-${path.replace(/\W+/g, '_') || 'root'}.png`) })

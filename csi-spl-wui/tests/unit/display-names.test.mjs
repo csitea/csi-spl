@@ -110,7 +110,7 @@ describe('the name is shown where the id was', () => {
   })
 
   it('each member changes their own name in Settings > Profile, and it shows at once', () => {
-    assert.match(read('src/pages/settings/profile.vue'), /DisplayNameSetting/)
+    assert.match(read('src/components/settings/profile.vue'), /DisplayNameSetting/)
     assert.match(read('src/components/DisplayNameSetting.vue'), /void people\.refresh\(\)/)
   })
 })

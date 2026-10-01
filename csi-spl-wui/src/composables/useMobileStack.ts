@@ -237,9 +237,12 @@ function overlayClosed(o: Overlay) {
  * panel under it. Closing it any other way steps back over its history entry.
  * Unregisters itself when the calling component's scope ends.
  */
-function overlay(open: MaybeRefOrGetter<boolean>, close: () => void, opts: { keepsDock?: boolean } = {}) {
+function overlay(open: MaybeRefOrGetter<boolean>, close: () => void, opts: { keepsDock?: boolean, history?: boolean } = {}) {
   if (!import.meta.client) return () => {}
-  const o: Overlay = { id: ++overlaySeq, open: () => toValue(open), close, state: null, url: '' }
+  /* CLE-77853: `history: false` - the overlay's open state is a route of its
+     own (Settings' ?settings=), so the router already gave it an entry and
+     Back is the router's; it still covers the dock */
+  const o: Overlay = { id: ++overlaySeq, open: opts.history === false ? () => false : () => toValue(open), close, state: null, url: '' }
   const stop = watch(o.open, (v) => { if (v) overlayOpened(o); else overlayClosed(o) }, { immediate: true, flush: 'sync' })
   const covers = () => toValue(open)
   if (!opts.keepsDock) dockSheets.value = [...dockSheets.value, covers]

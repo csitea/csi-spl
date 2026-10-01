@@ -7,12 +7,13 @@
 //             and the title; the desktop X is hidden; inputs are >= 16 px so
 //             iOS does not zoom. At 820 the dialog stays a card, its X a 44 px
 //             target, inputs still >= 16 px; 1440 is the desktop, unchanged.
-//   settings - at <= 820 px /settings is the LIST of sections (no redirect),
-//             one >= 44 px row each; a tap opens the section alone (list
-//             hidden, heading = the section), and Back (the MobileBack
-//             chevron, browser Back) returns to the list. <= 480 px: the
-//             profile facts stack label over value. 1440: /settings still
-//             redirects to /settings/profile with the nav beside it.
+//   settings - CLE-77853: Settings is a modal over the view (?settings=).
+//             At <= 820 px the bare ?settings= is the LIST of sections, one
+//             >= 44 px row each; a tap opens the section alone (list hidden,
+//             heading = the section), its "Settings" back row returns to the
+//             list, and browser Back closes the modal. <= 480 px: the
+//             profile facts stack label over value. 1440: /settings opens
+//             the modal on Profile with the nav beside it.
 //             Every button, link and select in every section is >= 44 px,
 //             and a checkbox / radio has a label (or row) >= 44 px tall.
 //   rail     - Settings -> Behaviour -> Left panel order reorders by TOUCH:
@@ -211,6 +212,8 @@ async function checkDialog(browser, base, vp) {
 
 const shown = (p, sel) => p.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width > 0 && r.height > 0 }).catch(() => false)
 
+const settingsQ = (p) => new URL(p.url()).searchParams.get('settings')
+
 async function checkSettings(browser, base, vp) {
   const p = await page(browser, vp)
   const tag = `settings@${vp.w}`
@@ -219,41 +222,43 @@ async function checkSettings(browser, base, vp) {
     await p.waitForSelector('[data-test=settings-nav]', { timeout: NAV_TIMEOUT })
     await sleep(300)
     const path0 = new URL(p.url()).pathname
+    const q0 = settingsQ(p)
     const rows = await p.$$eval('[data-test=settings-nav] a', (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { w: r.width, h: r.height } }))
-    const content0 = await shown(p, '[data-test=settings-content]')
+    const content0 = await shown(p, '[data-test=settings-profile]')
     if (!vp.mobile) {
-      ok(`${tag} CONTROL: /settings redirects to profile, nav beside the content`, path0.endsWith('/settings/profile') && content0 && await shown(p, '[data-test=settings-nav]'), { path0, content0 })
+      ok(`${tag} CONTROL: /settings opens the modal over the lobby on Profile, nav beside the content`, path0.endsWith('/lobby') && q0 === '' && content0 && await shown(p, '[data-test=settings-nav]'), { path0, q0, content0 })
       return
     }
     const vw = vp.w
-    ok(`${tag} /settings stays the list (no redirect), content hidden`, /\/settings\/?$/.test(path0) && !content0, { path0, content0 })
-    ok(`${tag} 7 rows, each >= 44 px high and near full width`, rows.length === 7 && rows.every((r) => r.h >= 44 && r.w >= vw - 64), rows)
+    ok(`${tag} /settings is the list over the lobby, content hidden`, path0.endsWith('/lobby') && q0 === '' && !content0, { path0, q0, content0 })
+    ok(`${tag} 7 rows, each >= 44 px high and near full width`, rows.length === 7 && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
     let x = await noXScroll(p)
     ok(`${tag} list: no horizontal page scroll`, x.ok, x)
 
     await p.click('[data-test=settings-nav-keys]')
-    await p.waitForFunction(() => location.pathname.endsWith('/settings/keys'), { timeout: 10000 }).catch(() => null)
+    await p.waitForFunction(() => new URL(location.href).searchParams.get('settings') === 'keys', { timeout: 10000 }).catch(() => null)
     await sleep(300)
-    const h = await p.$eval('#settings-h', (e) => e.textContent.trim()).catch(() => '')
+    const h = await p.$eval('[data-testid=ui-dialog] .ui-dialog__title', (e) => e.textContent.trim()).catch(() => '')
     const navGone = !(await shown(p, '[data-test=settings-nav]'))
     ok(`${tag} a tap opens the section alone, heading = the section`, navGone && await shown(p, '[data-test=settings-content]') && h !== 'Settings' && h.length > 0, { h, navGone })
-    ok(`${tag} the MobileBack chevron is shown`, await shown(p, '[data-testid=mobile-back]'))
+    ok(`${tag} the "Settings" back row is shown`, await shown(p, '[data-test=settings-back-list]'))
     x = await noXScroll(p)
     ok(`${tag} section: no horizontal page scroll`, x.ok, x)
 
-    await p.goBack({ waitUntil: 'networkidle2' }).catch(() => null)
+    await p.click('[data-test=settings-back-list]').catch(() => null)
     await sleep(400)
-    ok(`${tag} browser Back returns to the list`, /\/settings\/?$/.test(new URL(p.url()).pathname) && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
+    ok(`${tag} the back row returns to the list`, settingsQ(p) === '' && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
 
     await p.click('[data-test=settings-nav-profile]')
-    await p.waitForFunction(() => location.pathname.endsWith('/settings/profile'), { timeout: 10000 }).catch(() => null)
+    await p.waitForFunction(() => new URL(location.href).searchParams.get('settings') === 'profile', { timeout: 10000 }).catch(() => null)
     await sleep(300)
     const facts = await p.$$eval('.settings__facts dt, .settings__facts dd', (es) => es.slice(0, 2).map((e) => e.getBoundingClientRect().left))
     if (vp.w <= 480) ok(`${tag} profile facts stack label over value`, facts.length === 2 && Math.abs(facts[0] - facts[1]) < 1, facts)
     else ok(`${tag} CONTROL: profile facts keep two columns above 480 px`, facts.length === 2 && facts[1] > facts[0] + 20, facts)
-    await p.click('[data-testid=mobile-back]').catch(() => null)
+
+    await p.goBack({ waitUntil: 'networkidle2' }).catch(() => null)
     await sleep(400)
-    ok(`${tag} the Back chevron returns to the list`, /\/settings\/?$/.test(new URL(p.url()).pathname) && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
+    ok(`${tag} browser Back closes the modal (the lobby behind it)`, settingsQ(p) === null && !(await shown(p, '[data-test=settings]')), { url: p.url() })
 
     // every section: touch targets
     const small = []
@@ -278,12 +283,12 @@ async function checkSettings(browser, base, vp) {
     }
     ok(`${tag} every settings control is a >= 44 px touch target`, small.length === 0, small)
 
-    // a deep link: no list entry below it in history, Back still lands on the list
+    // a deep link: the back row still lands on the list
     await p.goto(base + '/settings/behaviour', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    await p.waitForSelector('[data-testid=mobile-back]', { visible: true, timeout: 10000 }).catch(() => null)
-    await p.click('[data-testid=mobile-back]').catch(() => null)
+    await p.waitForSelector('[data-test=settings-back-list]', { visible: true, timeout: 10000 }).catch(() => null)
+    await p.click('[data-test=settings-back-list]').catch(() => null)
     await sleep(500)
-    ok(`${tag} deep link: Back lands on the list`, /\/settings\/?$/.test(new URL(p.url()).pathname) && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
+    ok(`${tag} deep link: the back row lands on the list`, settingsQ(p) === '' && await shown(p, '[data-test=settings-nav]'), { url: p.url() })
   } catch (e) {
     ok(`${tag} ran`, false, String(e.message || e))
   } finally {

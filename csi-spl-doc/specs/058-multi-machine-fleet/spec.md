@@ -1,6 +1,7 @@
 # 058: the fleet on many machines (one to many)
 
-Status: **analysis done; fixes F1 + F2 + N1 on trunk; the rest is assigned** (2026-10-02; CLE-77913, N1 CLE-77919).
+Status: **analysis done; fixes F1-F5 + N1 on trunk; the rest is assigned** (2026-10-02; CLE-77913, N1 CLE-77919).
+Owner decisions on topic t1 `2efb3e78` (19:50Z, 19:51Z) are folded in: names `<ID>@<box>`, satellite box `sat`, ids 001-003 reserved on every box.
 Plan: [plan.md](plan.md). Related: [057 the satellite](../057-satellite/spec.md),
 rdb `0094_fleet_leases.sql` (CLE-77911), the satellite ansible port (CLE-77912).
 
@@ -81,11 +82,44 @@ today. **FIXED** means it was broken and is now fixed on trunk by this lane.
 
 ## 3. The target model
 
+### 3.0 Naming (owner, t1 2efb3e78)
+
+> "so let's change the naming convention of the sessions names to be
+> CLE-<<id>>@<<box> where box shold be preferably a 3 letter ... aka the new
+> boxname should be just sat"
+>
+> "let's establish the rule that the 001 , 002 and 003 id's will "special" for
+> now for the orchestrator and for the master and the fail-over dispatchers"
+
+| thing | format | where it is enforced |
+|---|---|---|
+| an agent, everywhere (address, tmux window, claude `--name`, lease holder) | `<ID>@<box>`, e.g. `CLE-002@sat` | windows/sessions: `spool_decorate`, `an_decorate`, `agent-identity.py want_name` (F5); lease: rdb 0095 (CLE-77911); WUI commands: F3 |
+| `<ID>` | `^[A-Z]{2,4}-[0-9]+$`, unchanged | `msg.ValidID`, `spool_valid_id` |
+| `<box>` | the machine's desk box id, `^[a-z0-9][a-z0-9-]{0,31}$`, 3 letters preferred, from box.env `SPOOL_DESK_BOX` | `spl_desk_box_default` (F2), `box-config.sh` |
+| reserved on every box | `CLE-001` orchestrator, `CLE-002` master dispatcher, `CLE-003` failover | the allocator never hands out 1-3 (F4); they are only `--claim`ed |
+
+Every parser reads both `<ID>@<box>` and the older `<tag>: <ID>` during the
+switch. `SPOOL_NAME_STYLE=colon` writes the old shape.
+
+The owner's point, "the cle<<n>> will never have collision", holds for the hub:
+it routes on `(box, ID)`. A send or WUI command that NAMES the box (`--to-box`,
+`to_box`, `@ID@box`) reaches exactly that agent (`TestWUIDispatchToBoxPinsTheSameIDOnTwoBoxes`).
+What still keys on the bare id:
+1. a send or WUI `@ID` command WITHOUT a box. When the id is live on two
+   boxes it is refused with `ambiguous_to_box` (409), never delivered to the
+   wrong agent. The reserved ids 001-003 are such ids by design, so commands
+   to them must name the box.
+2. each machine's local spool dirs (`$SPOOL_ROOT/<ID>`). These are per
+   machine, so a bare id is enough there.
+Lane ids therefore keep the per-machine band (F1) during the switch, so that
+older tools sending a bare id still find exactly one agent.
+
 ### 3.1 One machine = one box id per tenant
 
-- Each machine answers from its own desk box: the home box keeps `box-desk`
-  (no change to any live DM URL, pin or seat), and the satellite uses
-  `box-desk-sat`. It is set once in the machine's box.env
+- Each machine answers from its own desk box. During the switch the home box
+  keeps its hub box `box-desk`, so no live DM URL, pin or seat changes; its
+  3-letter name goes into its own box.env at migration step M5. The
+  satellite's box is `sat`. It is set once in the machine's box.env
   (`SPOOL_DESK_BOX`, F2), with its own key minted on the satellite and pinned
   from the home box (P1).
 - A box id is never live on two machines at once. It moves only as a serial
@@ -111,10 +145,10 @@ Every machine allocates fresh ids inside its own **band**
 | satellite | `100000-199999` | |
 | next machine | `200000-299999` | one line per machine |
 
-Fixed role ids (the orchestrator `CLE-001`, dispatchers `CLE-002`/`CLE-003`,
-the satellite standby trio `CLE-101..103`) are claimed explicitly
-(`--claim`). An explicit claim outside the band works but warns. Role ids
-are listed here and are never claimed on two machines at once.
+The role ids `CLE-001`/`002`/`003` exist on EVERY box (section 3.0). The
+allocator never hands out the numbers 1-3; the role ids are claimed
+explicitly (`--claim`), and an explicit claim outside the band works but warns.
+The fleet lease decides which machine's trio acts.
 
 A hub-issued id (one counter per tenant) was considered and not chosen. It
 needs a hub round trip on every spawn, and a spawn while the hub is down would
@@ -122,7 +156,8 @@ fail. Bands keep spawning offline and need no new table.
 
 ### 3.4 One post, handled once fleet-wide
 
-1. A DM / `agent@box` send goes to exactly one box (H5).
+1. A DM / `agent@box` send goes to exactly one box (H5). A WUI command names
+   the box with the frame's `to_box` or an `@ID@box` mention (F3).
 2. An unheard human post goes to ONE responder across all boxes (H6).
 3. A channel post fans out per seated box (H7). So the rule is that a role
    which ACTS on posts (orchestrator, dispatcher, greeter, sweeps) is
@@ -154,11 +189,11 @@ fail. Bands keep spawning offline and need no new table.
 | step | what | gate |
 |---|---|---|
 | M0 | now: the home box is primary; the satellite runs the standby trio under the fleet lease | CLE-77911 |
-| M1 | satellite box.env: `SPOOL_DESK_BOX=box-desk-sat`, `SPOOL_AGENT_ID_RANGE=100000-199999`, `SPOOL_AGENT_USER`; key minted on the satellite; pin from the home box via `do_spl_desk_pin` admin mode, per tenant and env; box operator grant | CLE-77912 (box.env); owner go for each prd pin |
+| M1 | satellite box.env: `SPOOL_DESK_BOX=sat`, `SPOOL_AGENT_ID_RANGE=100000-199999`, `SPOOL_AGENT_USER`; key minted on the satellite; pin from the home box via `do_spl_desk_pin` admin mode, per tenant and env; box operator grant | box.env: done by CLE-77912 (`0fda3b8f`, playbook role 08); owner go for each prd pin |
 | M2 | the side-effect crons are gated on the lease holder (O6-O10); new lanes spawn on the satellite | CLE-77911 |
 | M3 | cross-machine reports via the hub (O3, O4: done, N1), plus the lane map on the hub (G4) | N1 done (CLE-77919); N2 open. Live needs M1 (the satellite desk pinned) and `SPOOL_FLEET_ENV`/`SPOOL_FLEET_TENANT` (or `LEASE_ENV`/`LEASE_TENANT`) on each machine |
 | M4 | the roles flip: the fleet lease is handed to the satellite | owner go |
-| M5 | home box retired: its lanes finish or move (3.5); then EITHER `box-desk` is taken over serially by the satellite, OR it is unpinned and `box-desk-sat` stays the only desk | owner choice |
+| M5 | home box retired: its lanes finish or move (3.5); then EITHER `box-desk` is taken over serially by the satellite, OR the home box re-seats under its own 3-letter box and `box-desk` is unpinned | owner choice |
 
 ## 4. Fixes made in this lane
 
@@ -167,6 +202,9 @@ fail. Bands keep spawning offline and need no new table.
 | F1 | per-machine agent-id band `SPOOL_AGENT_ID_RANGE` (box.env); allocator floor, band full = exit 1, explicit claims outside the band warn | `d8905f7a` | `spawn-agents/tests/test-next-agent-id.sh` (two simulated machines: no common id; the control shows the collision without bands) |
 | F2 | per-machine desk box `SPOOL_DESK_BOX` (box.env) is the default of every `DESK_BOX`/`AGENT_BOX` | `f7efacbf` | `spawn-agents/tests/test-desk-box-default.sh` |
 | N1 | cross-machine sends and reports: unknown local id refused (`unknown_local_agent`, exit 3); `spool-send.sh` relays a non-local id via the desk sidecar + hub roster (`spool-fleet-relay.sh`); the receiving sidecar copies agent DMs into `SPOOL_FLEET_ROOT`; `--to orchestrator` = the orch lease holder. Details: `SPEC-spool-fleet-roles.md` 4.2 | CLE-77919 | `internal/hub/fleet_send_test.go` (two machines, both ways, reports while the lease flips), `internal/spool/fleet_test.go`, `spawn-agents/tests/test-fleet-send.sh` |
+| F3 | a WUI command names its agent's box: frame `to_box` or `@ID@box` pins the route; a bare id on two boxes stays `ambiguous_to_box` | `d02b84d3` | `TestWUIDispatchToBoxPinsTheSameIDOnTwoBoxes` |
+| F4 | the allocator never hands out 1-3 (reserved role ids) | `761ddac9` | `test-next-agent-id.sh` |
+| F5 | windows and claude sessions are named `<ID>@<box>`; every parser reads both shapes; `SPOOL_NAME_STYLE=colon` | `94ced000` | `test-agent-top.sh`, `test-restore.sh`, `test-spawn-window-riname.sh`, `test-tmux-close-window.sh`, `test-agent-identity*.sh` |
 | T1 | hub tests for the one-to-many cases | `d5b5a8bd` | `internal/hub/multimachine_test.go`: two machines seated in one tenant, routed once; takeover mid-message loses nothing (memory, `-race` x15, Postgres x5) |
 | N2 | the fleet-wide lane map (G4): hub table + `lane` frame + `spool lane`; `do_spl_lane_map` (read, joined with this machine's worktrees; `LANE_CHECK` = the collision check) and `do_spl_lane_put` (spawn: live, exit-clean: done); the seed prompt SCOPE block and the spawn commands read it instead of `git worktree list`. Shared once the machine has a fleet (`LANE_FLEET`, else lease.conf `LEASE_FLEET` / `LEASE_ENV` / `LEASE_TENANT`); without one it is the local worktrees | CLE-77920 `6f9f50ac` (hub) + the orc commit | `internal/hub/box_lane_test.go`, `internal/store/fleet_lane_test.go` (memory + Postgres), `csi-spl-orc/src/bash/tests/lane-map.tst.sh`, `spawn-agents/tests/test-spawn-dry-run.sh` |
 

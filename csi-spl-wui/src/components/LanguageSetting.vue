@@ -133,8 +133,14 @@ onMounted(() => { if (session.state === 'loading') void session.probe() })
 .lang-setting__status--error {
   color: var(--color-error);
 }
-/* SPL-993: the combobox arrow is a 44 px target on a touch screen */
+/* SPL-993: the combobox arrow is a 44 px target on a touch screen.
+   CLE-77887 (owner, topic 9417ccf3: "on mobile the language switcher is too
+   narrow"): on a phone the field takes the whole column and Save its own row
+   below it, instead of both squeezed side by side; the open list follows the
+   field's width, so every language name shows whole. */
 @media (max-width: 820px) {
   .lang-setting :deep(.locale-cbx__button) { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .lang-setting__cbx { flex: 1 1 100%; max-width: none; }
+  .lang-setting__row .btn { min-height: var(--tap, 44px); }
 }
 </style>

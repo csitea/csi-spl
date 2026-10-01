@@ -9,6 +9,10 @@
 #     taken.
 #   - ids match ^[A-Z]{2,4}-[0-9]+$ and BOX is never an agent prefix
 #     (SPEC-spool-identity-routing.md §2); uniqueness is per box.
+#   - a fleet of MANY machines (specs/058): each machine allocates only inside
+#     its own number band, SPOOL_AGENT_ID_RANGE=<lo>-<hi> (box.env), so two
+#     machines that never see each other's spool root can never hand out the
+#     same id. Unset = the whole line (one machine, as before).
 #   - no key and no pin: local mode is unsigned (trust-modes §2).
 #
 # The id is allocated from records that PERSIST, and the allocation is a claim
@@ -16,6 +20,12 @@
 #
 #   floor = max(id in registry.tsv, id on a live tmux window, id with a dir)
 #   claim = the first id above that floor whose dir can be CREATED
+#
+# With a band, only ids inside it count toward the floor, the floor is at least
+# <lo>-1, and an id past <hi> is never handed out (exit 1: the band is full).
+# --claim of an id outside the band still works - an explicit id is a
+# deliberate act (a role id, a takeover from another machine) - but says so on
+# stderr.
 #
 # A live window alone is the one record that does not survive (the agent exits,
 # tmux restarts), so it may only RAISE the floor. `mkdir` without -p fails on an
@@ -29,8 +39,8 @@
 #   next-agent-id.sh --kind claude --explain     # decision to stderr
 #   next-agent-id.sh --claim CLE-4441            # claim THAT id, or fail (exit 3)
 #
-# Output: the id on stdout, nothing else. Exit 0 ok, 1 no id, 2 usage,
-# 3 --claim of an id that is taken.
+# Output: the id on stdout, nothing else. Exit 0 ok, 1 no id, 2 usage
+# (also a malformed SPOOL_AGENT_ID_RANGE), 3 --claim of an id that is taken.
 set -euo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -68,6 +78,23 @@ done
 
 say() { [ "$EXPLAIN" -eq 1 ] && printf 'next-agent-id: %s\n' "$*" >&2; return 0; }
 
+# ---- this machine's band (specs/058) --------------------------------------
+LO=1; HI=0
+RANGE="${SPOOL_AGENT_ID_RANGE:-}"
+if [ -n "$RANGE" ]; then
+  if ! [[ "$RANGE" =~ ^([0-9]{1,9})-([0-9]{1,9})$ ]] \
+     || [ "$((10#${BASH_REMATCH[1]}))" -lt 1 ] \
+     || [ "$((10#${BASH_REMATCH[1]}))" -gt "$((10#${BASH_REMATCH[2]}))" ]; then
+    echo "ERROR: SPOOL_AGENT_ID_RANGE must be <lo>-<hi> with 1 <= lo <= hi, got: ${RANGE}" >&2
+    exit 2
+  fi
+  LO="$((10#${BASH_REMATCH[1]}))"; HI="$((10#${BASH_REMATCH[2]}))"
+fi
+# in_band N: 0 when N lies inside this machine's band (always, with no band).
+in_band() { [ "$1" -ge "$LO" ] && { [ "$HI" -eq 0 ] || [ "$1" -le "$HI" ]; }; }
+# band_max: the largest number on stdin inside the band, else 0.
+band_max() { awk -v lo="$LO" -v hi="$HI" '{ n = $0 + 0; if (n >= lo && (hi == 0 || n <= hi) && n > m) m = n } END { print m + 0 }'; }
+
 _mkdirs() {  # ID — the dir itself already exists
   mkdir -p "${SPOOL_ROOT}/$1/inbox" "${SPOOL_ROOT}/$1/outbox" "${SPOOL_ROOT}/$1/archive"
   # 0775 dirs (local-folder-layout.md); the group bit is how the box user and
@@ -78,6 +105,8 @@ _mkdirs() {  # ID — the dir itself already exists
 # ---- an explicit id: validate and claim it, never renumber ----------------
 if [ -n "$CLAIM" ]; then
   spool_valid_id "$CLAIM" || exit 2
+  in_band "$((10#${CLAIM##*-}))" \
+    || echo "WARN: ${CLAIM} is outside this machine's band SPOOL_AGENT_ID_RANGE=${RANGE} (an explicit claim: no other machine may run it)" >&2
   if [ "$RESERVE" -eq 0 ]; then
     [ -e "${SPOOL_ROOT}/${CLAIM}" ] && { echo "ERROR: ${CLAIM} is taken (${SPOOL_ROOT}/${CLAIM} exists)" >&2; exit 3; }
     printf '%s\n' "$CLAIM"; exit 0
@@ -101,8 +130,7 @@ REGISTRY="${SPOOL_ROOT}/registry.tsv"
 REG_MAX=0
 if [ -r "$REGISTRY" ]; then
   REG_MAX="$(awk -F'\t' -v p="$PREFIX" '
-      $1 ~ "^" p "-[0-9]+$" { n = $1; sub(/^[A-Z]+-/, "", n); n += 0; if (n > m) m = n }
-      END { print m + 0 }' "$REGISTRY")"
+      $1 ~ "^" p "-[0-9]+$" { n = $1; sub(/^[A-Z]+-/, "", n); print n + 0 }' "$REGISTRY" | band_max)"
 fi
 say "registry ${REGISTRY}: max ${REG_MAX}"
 
@@ -111,8 +139,7 @@ say "registry ${REGISTRY}: max ${REG_MAX}"
 # id must still count, and over-reading only skips an id, never reuses one.
 spool_tmux_argv
 WIN_MAX="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null \
-  | grep -oE "${PREFIX}-[0-9]+" | grep -oE '[0-9]+$' \
-  | awk '{ n = $0 + 0; if (n > m) m = n } END { print m + 0 }' || true)"
+  | grep -oE "${PREFIX}-[0-9]+" | grep -oE '[0-9]+$' | band_max || true)"
 [ -n "$WIN_MAX" ] || WIN_MAX=0
 say "live windows on ${SPOOL_TMUX_SOCKET}: max ${WIN_MAX}"
 
@@ -120,8 +147,7 @@ say "live windows on ${SPOOL_TMUX_SOCKET}: max ${WIN_MAX}"
 DIR_MAX=0
 if [ -d "$SPOOL_ROOT" ]; then
   DIR_MAX="$(find "$SPOOL_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null \
-    | grep -E "^${PREFIX}-[0-9]+$" | grep -oE '[0-9]+$' \
-    | awk '{ n = $0 + 0; if (n > m) m = n } END { print m + 0 }' || true)"
+    | grep -E "^${PREFIX}-[0-9]+$" | grep -oE '[0-9]+$' | band_max || true)"
   [ -n "$DIR_MAX" ] || DIR_MAX=0
 fi
 say "agent dirs under ${SPOOL_ROOT}: max ${DIR_MAX}"
@@ -129,12 +155,17 @@ say "agent dirs under ${SPOOL_ROOT}: max ${DIR_MAX}"
 FLOOR="$REG_MAX"
 [ "$WIN_MAX" -gt "$FLOOR" ] && FLOOR="$WIN_MAX"
 [ "$DIR_MAX" -gt "$FLOOR" ] && FLOOR="$DIR_MAX"
-say "floor ${FLOOR} (registry ${REG_MAX} / windows ${WIN_MAX} / dirs ${DIR_MAX})"
+[ "$FLOOR" -lt "$((LO - 1))" ] && FLOOR="$((LO - 1))"
+say "floor ${FLOOR} (registry ${REG_MAX} / windows ${WIN_MAX} / dirs ${DIR_MAX}${RANGE:+ / band ${RANGE}})"
 
 [ "$RESERVE" -eq 1 ] && { mkdir -p "$SPOOL_ROOT" 2>/dev/null || true; }
 n="$FLOOR"; tries=0
 while [ "$tries" -lt 1000 ]; do
   tries=$((tries + 1)); n=$((n + 1))
+  if [ "$HI" -ne 0 ] && [ "$n" -gt "$HI" ]; then
+    echo "ERROR: this machine's ${PREFIX} band ${RANGE} is full (SPOOL_AGENT_ID_RANGE)" >&2
+    exit 1
+  fi
   ID="$(printf '%s-%02d' "$PREFIX" "$n")"
   if [ "$RESERVE" -eq 0 ]; then
     if [ -e "${SPOOL_ROOT}/${ID}" ]; then say "skip ${ID}: exists"; continue; fi

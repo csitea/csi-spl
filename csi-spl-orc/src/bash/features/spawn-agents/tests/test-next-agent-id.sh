@@ -40,6 +40,38 @@ bash "$NAI" --kind hum >/dev/null 2>&1;       eq "unknown kind refused (exit 2)"
 wait
 eq "racing claims: one 0 and one 3" "0 3" "$(sort -n "$T_TMP/r1" "$T_TMP/r2" | tr '\n' ' ' | sed 's/ $//')"
 
+# specs/058: two machines, two spool roots that never see each other. With no
+# band both start from the same empty floor and hand out the SAME id (the
+# one-machine assumption, kept as the control); with disjoint bands they can't.
+M1="$T_TMP/m1" M2="$T_TMP/m2"
+eq "control: no band, machine 1 -> QWN-01" QWN-01 "$(SPOOL_ROOT="$M1" bash "$NAI" --kind qwen)"
+eq "control: no band, machine 2 -> QWN-01 too (collision)" QWN-01 "$(SPOOL_ROOT="$M2" bash "$NAI" --kind qwen)"
+rm -rf "$M1" "$M2"
+ids1="" ids2=""
+for _ in 1 2 3; do
+  ids1+="$(SPOOL_ROOT="$M1" SPOOL_AGENT_ID_RANGE=1-99999 bash "$NAI" --kind qwen) "
+  ids2+="$(SPOOL_ROOT="$M2" SPOOL_AGENT_ID_RANGE=100000-199999 bash "$NAI" --kind qwen) "
+done
+eq "band 1-99999 allocates from the bottom" "QWN-01 QWN-02 QWN-03 " "$ids1"
+eq "band 100000-199999 starts at its own floor" "QWN-100000 QWN-100001 QWN-100002 " "$ids2"
+eq "two machines with bands: no id in common" "" "$(comm -12 <(tr ' ' '\n' <<<"$ids1" | sort -u | grep .) <(tr ' ' '\n' <<<"$ids2" | sort -u | grep .))"
+mkdir -p "$M2/QWN-77913"
+eq "an id below the band does not raise the floor" QWN-100003 "$(SPOOL_ROOT="$M2" SPOOL_AGENT_ID_RANGE=100000-199999 bash "$NAI" --kind qwen)"
+printf 'QWN-150000\tqwen\t\t/x\t20261001T000000Z\n' >"$M2/registry.tsv"
+eq "an id inside the band does" QWN-150001 "$(SPOOL_ROOT="$M2" SPOOL_AGENT_ID_RANGE=100000-199999 bash "$NAI" --kind qwen)"
+SPOOL_ROOT="$T_TMP/m3" SPOOL_AGENT_ID_RANGE=5-6 bash "$NAI" --kind qwen >/dev/null
+SPOOL_ROOT="$T_TMP/m3" SPOOL_AGENT_ID_RANGE=5-6 bash "$NAI" --kind qwen >/dev/null
+SPOOL_ROOT="$T_TMP/m3" SPOOL_AGENT_ID_RANGE=5-6 bash "$NAI" --kind qwen >/dev/null 2>&1
+eq "a full band exits 1, never spills over" 1 "$?"
+check "...and claimed nothing past it" test ! -e "$T_TMP/m3/QWN-07"
+SPOOL_AGENT_ID_RANGE=9-3 bash "$NAI" --kind qwen >/dev/null 2>&1; eq "lo > hi refused (exit 2)" 2 "$?"
+SPOOL_AGENT_ID_RANGE=abc bash "$NAI" --kind qwen >/dev/null 2>&1; eq "malformed band refused (exit 2)" 2 "$?"
+err="$(SPOOL_ROOT="$M2" SPOOL_AGENT_ID_RANGE=100000-199999 bash "$NAI" --claim CLE-101 2>&1 >/dev/null)"
+eq "an explicit claim outside the band still claims" 0 "$?"
+has "...and warns" "outside this machine's band" "$err"
+printf 'SPOOL_AGENT_ID_RANGE=200000-299999\n' >"$T_TMP/m4.env"
+eq "the band is read from box.env" QWN-200000 "$(SPOOL_ROOT="$T_TMP/m4" SPOOL_BOX_ENV="$T_TMP/m4.env" bash "$NAI" --kind qwen)"
+
 # The box user defaults to the owner of the spool root, not $SUDO_USER.
 got="$(env -u SPOOL_BOX_USER SUDO_USER=nobody bash -c '. "$1/lib/spool-env.inc.sh"; spool_env_resolve; printf %s "$SPOOL_BOX_USER"' _ "$T_FEAT")"
 eq "SPOOL_BOX_USER defaults to the spool root's owner" "$(stat -c %U "$SPOOL_ROOT")" "$got"

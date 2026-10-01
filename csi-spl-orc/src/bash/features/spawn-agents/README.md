@@ -65,8 +65,8 @@ the reference does it:
 
 Everything is set through env vars. None of them bakes in a user, a host or a
 box. The box config `$SPOOL_BOX_ENV` (default `$SPOOL_ROOT/box.env`) holds this
-box's defaults for `SPOOL_AGENT_USER`, `SPOOL_RUN_AS_AGENT` and the `*_BIN`
-paths, so a spawn with no env still runs the agent as the right user; the
+box's defaults for `SPOOL_AGENT_USER`, `SPOOL_RUN_AS_AGENT`, `SPOOL_AGENT_ID_RANGE`
+and the `*_BIN` paths, so a spawn with no env still runs the agent as the right user; the
 environment always wins over it.
 
 | var | default |
@@ -78,6 +78,7 @@ environment always wins over it.
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |
 | `SPOOL_BOX_TAG` | empty. When set, window names read `<tag>: <ID>` |
 | `SPOOL_ORCHESTRATOR_ID` | `CLE-00`. Spawned agents report to this id |
+| `SPOOL_AGENT_ID_RANGE` | empty (the whole line). `<lo>-<hi>`: this machine allocates ids only inside that band, so two machines of one fleet never hand out the same id (`csi-spl-doc/specs/058-multi-machine-fleet`). Set it in the box config |
 | `SPOOL_LEGACY_INBOX_ROOT` `SPOOL_LEGACY_SEND` | unset. During a switch-over: the older markdown message root and its sender; `agent-send.sh` / `agent-inbox.sh` use them for agents spawned before it |
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
 | `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |

@@ -228,7 +228,16 @@ mig_repo() {
   printf 'CREATE TABLE a (id int);\n' >"$R/$MIG/0001_a.sql"
   git -C "$R" add -A; git -C "$R" commit -qm mig; git -C "$R" branch -f base
 }
+# The forward-only legs need no parser: where pglast is not installed (CI),
+# a stand-in python that accepts everything satisfies the tool check.
+PGPY="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv-pglast/bin/python"
+MIG_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+if [[ ! -x "$PGPY" ]]; then
+  MIG_CACHE="$T/xdg"; mkdir -p "$MIG_CACHE/csi-spl/lint-venv-pglast/bin"
+  printf '#!/bin/sh\nexit 0\n' >"$MIG_CACHE/csi-spl/lint-venv-pglast/bin/python"; chmod +x "$MIG_CACHE/csi-spl/lint-venv-pglast/bin/python"
+fi
 mig_repo; printf -- '-- changed\n' >>"$R/$MIG/0001_a.sql"; commit edit-mig
+export XDG_CACHE_HOME_SAVED="${XDG_CACHE_HOME:-}"; export XDG_CACHE_HOME="$MIG_CACHE"
 rc="$(lint)"
 [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q 'add a NEW NNNN file' "$T/out" \
   && pass "15a. editing a migration already on the base is REFUSED" || fail "15a. migration edit" "rc=$rc verdict=$(verdict lint-migration)"
@@ -239,7 +248,7 @@ mig_repo; git -C "$R" rm -q "$R/$MIG/0001_a.sql"; commit rm-mig
 rc="$(lint)"
 [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] \
   && pass "15c. deleting a migration already on the base is REFUSED" || fail "15c. migration delete" "rc=$rc verdict=$(verdict lint-migration)"
-PGPY="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/lint-venv-pglast/bin/python"
+if [[ -n "$XDG_CACHE_HOME_SAVED" ]]; then export XDG_CACHE_HOME="$XDG_CACHE_HOME_SAVED"; else unset XDG_CACHE_HOME; fi
 if [[ -x "$PGPY" ]]; then
   mig_repo; printf 'CREATE TABLE b (id int);\n' >"$R/$MIG/0002_b.sql"; commit new-mig
   rc="$(lint)"
@@ -266,7 +275,7 @@ fi
 
 # 18. Vue SFC compile
 WUI_NM="$(cd "$TEST_DIR/../../../.." && pwd)/csi-spl-wui/node_modules"
-if [[ -d "$WUI_NM/vue" && -d "$WUI_NM/typescript" ]]; then
+if [[ -d "$WUI_NM/vue" && -d "$WUI_NM/typescript" ]] && _pp_pnpm >/dev/null; then
   NODE_DIR="$(dirname "$(command -v node)")"
   wui_repo() { new_repo; mkdir -p "$R/csi-spl-wui/src"; ln -s "$WUI_NM" "$R/csi-spl-wui/node_modules"; echo '{}' >"$R/csi-spl-wui/package.json"
     printf 'node_modules\n' >"$R/.gitignore"; git -C "$R" add -A; git -C "$R" commit -qm wui; git -C "$R" branch -f base; }
@@ -281,7 +290,7 @@ if [[ -d "$WUI_NM/vue" && -d "$WUI_NM/typescript" ]]; then
   [[ "$rc" == 0 && "$(verdict lint-wui-syntax)" == PASS ]] \
     && pass "18b. a clean .vue passes" || fail "18b. sfc clean" "rc=$rc verdict=$(verdict lint-wui-syntax) $(grep -m3 -E 'Good|FATAL' "$T/out")"
 else
-  echo "INFO: no csi-spl-wui/node_modules (vue + typescript) in this checkout -- leg 18 not run"
+  echo "INFO: no csi-spl-wui/node_modules (vue + typescript) or no pnpm here -- leg 18 not run"
 fi
 
 # 19. a whole-scope part's cache key follows the tree (it once was constant)

@@ -172,7 +172,9 @@ async function round(p, cdp, rec, i, tag) {
   rec.take()
   const tt = await clickAt(p, EVENTS_TAB)
   const tl = tt < 0 ? -1 : await whenSel(p, `${EVENTS_LINK}, ${EVENTS_PAGE}`)
-  const direct = tl >= 0 && (await whenSel(p, EVENTS_PAGE, 50)) >= 0
+  // the link paints first on a phone while the tab is already routing to
+  // /events: give the route 1.5 s to show the page before clicking the link
+  const direct = tl >= 0 && (await whenSel(p, EVENTS_PAGE, 1500)) >= 0
   s['events-tab'] = { ms: tt < 0 || tl < 0 ? -1 : Math.round(tl - tt), direct, ...(tt < 0 ? {} : { timeline: await timeline(p, tt) }) }
   const t0 = direct ? tt : await clickAt(p, EVENTS_LINK)
   const [tp, tf] = t0 < 0 ? [-1, -1] : await Promise.all([whenSel(p, EVENTS_PAGE), whenSel(p, EVENTS_DONE)])

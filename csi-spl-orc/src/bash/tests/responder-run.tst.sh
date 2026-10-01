@@ -9,7 +9,10 @@
 #   2. dry run: for a canned inbox of two HUM escalations + one box message,
 #      it says it WOULD reply+file+ack the TWO humans only, and makes NO real
 #      reply/send (the stub reply is never called)
-#   3. DRY_RUN=0: it calls do_spl_desk_reply once per escalation
+#   3. DRY_RUN=0: it calls do_spl_desk_reply once per escalated topic
+#   4. CLE-77847: five posts in ONE topic, swept 4 times (the inbox re-delivered
+#      each time) -> exactly ONE "Seen" reply; a lost ledger with the "Seen"
+#      still in the outbox -> no second reply; a held lock -> no reply at all
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -75,6 +78,45 @@ if [ "$(grep -c '^reply ' "$T/reply.log")" = "2" ] && grep -q "DESK_TO=HUM-10 DE
   pass "DRY_RUN=0 replies once per escalation, in the right topic"
 else
   fail "DRY_RUN=0 reply set wrong: $(cat "$T/reply.log")"
+fi
+
+# --- 4. one "Seen" per topic, ever (CLE-77847) ---------------------------------------
+cat >"$T/inbox.json" <<'JSON'
+[
+ {"v":1,"msg_id":"b1","from":"HUM-10","task_id":"t-ddd","ts":"2026-10-01T08:17:11Z","to":"ALL-0","kind":"note","body":"the counter is off"},
+ {"v":1,"msg_id":"b2","from":"HUM-10","task_id":"t-ddd","ts":"2026-10-01T08:17:17Z","to":"ALL-0","kind":"note","body":"see this one"},
+ {"v":1,"msg_id":"b3","from":"HUM-10","task_id":"t-ddd","ts":"2026-10-01T08:17:25Z","to":"ALL-0","kind":"note","body":"this one"},
+ {"v":1,"msg_id":"b4","from":"HUM-10","task_id":"t-ddd","ts":"2026-10-01T08:17:35Z","to":"ALL-0","kind":"note","body":"and this one"},
+ {"v":1,"msg_id":"b5","from":"HUM-10","task_id":"t-ddd","ts":"2026-10-01T08:17:42Z","to":"ALL-0","kind":"note","body":"a minute ago"}
+]
+JSON
+D="$T/state/dev/desk/t1/box-rsp"
+rm -f "$D/seen-topics"; : >"$T/reply.log"
+for i in 1 2 3 4; do
+  SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+done
+if [ "$(grep -c '^reply ' "$T/reply.log")" = "1" ] && grep -q "DESK_TO=HUM-10 DESK_TASK=t-ddd" "$T/reply.log"; then
+  pass "five posts in one topic, four sweeps: exactly one Seen reply"
+else
+  fail "one-topic sweep reply set wrong: $(cat "$T/reply.log")"
+fi
+grep -q "1 already seen" "$T/o" && pass "a re-delivered topic is logged as already seen" ||
+  fail "the repeat sweep did not say already seen: $(cat "$T/o")"
+
+rm -f "$D/seen-topics"; : >"$T/reply.log"
+mkdir -p "$D/spool/RSP-01/outbox"
+echo '{"v":1,"msg_id":"s1","from":"RSP-01","to":"HUM-10","task_id":"t-ddd","kind":"note","body":"Seen: routed to the team."}' >"$D/spool/RSP-01/outbox/s1.json"
+SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+[ ! -s "$T/reply.log" ] && pass "a lost ledger: the outbox Seen still blocks a second reply" ||
+  fail "replied again although the outbox holds the Seen: $(cat "$T/reply.log")"
+rm -f "$D/spool/RSP-01/outbox/s1.json" "$D/seen-topics"
+
+: >"$T/reply.log"
+( exec 9>"$D/responder.lock"; flock -n 9; SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1 )
+if [ ! -s "$T/reply.log" ] && grep -q "another responder run holds" "$T/o"; then
+  pass "a concurrent run (lock held) does not answer"
+else
+  fail "answered under a held lock: $(cat "$T/reply.log") / $(cat "$T/o")"
 fi
 
 echo "----"

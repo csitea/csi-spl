@@ -73,7 +73,14 @@ do_sec_actionlint() {
   do_log "INFO actionlint on $root/.github/workflows"
   local log; log=$(mktemp)
   rc=0
-  ( cd "$root" && SEC_ACTIONLINT_PHASE=scan "$bin" -no-color ) >"$log" 2>&1 || rc=$?
+  # actionlint shells out to shellcheck for each `run:` block. Exclude the pure
+  # style/info codes that are noise in CI step scripts: SC2015 (A && B || C is
+  # not if-then-else, info), SC2034 (a `for i in` counter read as "unused",
+  # warning), SC2001 (sed vs ${v//}, style). All actionlint-native checks and
+  # the security-relevant shellcheck codes (injection SC2086, etc.) still fail
+  # the gate. Override with SEC_ACTIONLINT_SHELLCHECK_OPTS.
+  local sc_opts="${SEC_ACTIONLINT_SHELLCHECK_OPTS:--e SC2015 -e SC2034 -e SC2001}"
+  ( cd "$root" && SEC_ACTIONLINT_PHASE=scan SHELLCHECK_OPTS="$sc_opts" "$bin" -no-color ) >"$log" 2>&1 || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     do_log "INFO actionlint: no findings"
     rm -f "$log"

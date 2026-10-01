@@ -47,12 +47,16 @@
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's name, default $SPOOL_BOX_TAG
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
-# @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default box-desk)
+# @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=watch LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003 ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease
 #------------------------------------------------------------------------------
+# this machine's desk box id (specs/058), also when sourced on its own
+declare -F spl_desk_box_default >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+
 do_spl_dispatch_lease() {
   spl_lease_init || return 1
   case "${LEASE_CMD:-}" in
@@ -446,7 +450,7 @@ spl_fleet_hub_init() {
   [[ -n "${LEASE_HUB_CMD:-}" ]] && return 0
   [[ "${LEASE_TENANT:-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL LEASE_TENANT is not set (env or $LEASE_CONF)"; return 1; }
   [[ "${LEASE_ENV:-}" =~ ^(dev|prd|self)$ ]] || { do_log "FATAL LEASE_ENV must be dev, prd or self"; return 1; }
-  LEASE_DESK_BOX="${LEASE_DESK_BOX:-box-desk}"
+  LEASE_DESK_BOX="${LEASE_DESK_BOX:-$(spl_desk_box_default)}"
   ENV="$LEASE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
   LEASE_DESK_DIR="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"

@@ -33,8 +33,7 @@ eq "6. box-config refuses a malformed id band" 2 "$rc"
 out="$(env -u SPOOL_DESK_BOX bash "$T_SCRIPTS/spool-agent.sh" --dry-run --as CLE-58 --env dev claude 2>&1)"
 has "7. spool-agent seats on the configured desk box" "DESK_BOX=box-desk-sat " "$out"
 
-left="$(grep -rnE --include='*.sh' -e '[A-Z_]BOX:-box-desk\}|\{3:-box-desk\}|BOX="box-desk"' "$ORC/src/bash/run" "$ORC/src/bash/scripts" "$ORC/lib/bash/funcs" "$T_SCRIPTS" \
-  | grep -v 'spl-dispatch-lease.func.sh\|spl-dispatch-setup.func.sh' || true)"
-eq "8. no literal box-desk default left (dispatch-lease/setup: CLE-77911's lane)" "" "$left"
+left="$(grep -rnE --include='*.sh' -e '[A-Z_]BOX:-box-desk\}|\{3:-box-desk\}|BOX="box-desk"' "$ORC/src/bash/run" "$ORC/src/bash/scripts" "$ORC/lib/bash/funcs" "$T_SCRIPTS" || true)"
+eq "8. no literal box-desk default left" "" "$left"
 
 t_done

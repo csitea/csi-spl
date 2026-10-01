@@ -97,15 +97,32 @@ registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else th
 
 trunc() { local s="$1" n="$2"; if [ "${#s}" -le "$n" ]; then printf '%s' "$s"; else printf '%s' "${s:0:$((n - 1))}…"; fi; }
 
+# ONE snapshot of every window's first pane: index, name, window id, role, and
+# that pane's id + pid, all from the SAME tmux call. The pane id is what a
+# badge renames, so it must be read together with the name it is computed
+# from. This used to read the window list once and then look each pane up
+# again BY INDEX (`list-panes -t session:index`), seconds later on a busy
+# fleet. A spawn in between fires the sorter, which swap-windows and shifts
+# every later index by one, so each lookup found the NEIGHBOUR's pane and the
+# badge wrote one agent's name onto the next agent's window (2026-10-01: six to
+# nine windows shifted by one after every spawn).
+_window_panes() {  # -> target|name|window_id|role|pane_id|pane_pid, first pane per window
+  "${TM[@]}" list-panes -a -F '#{session_name}:#{window_index}|#{window_name}|#{window_id}|#{@agent-role}|#{pane_id}|#{pane_pid}' 2>/dev/null \
+    | awk -F'|' '!seen[$3]++'
+}
+
 collect_rows() {  # TSV: id kind state window branch rundir pending pane target
-  local live target wname role bare id pane pid sid launch has_launcher kind is_orc n scr row rundir branch
+  local live target wname role bare id pane pid sid launch has_launcher kind is_orc n scr row rundir branch snap
   live="$("${TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null)"
-  while IFS='|' read -r target wname _wid role; do
+  snap="$(_window_panes)"
+  # Test seam: runs once between the snapshot and the per-window work, where a
+  # spawn + sort lands on a live box. Unset in production.
+  [ -n "${AGENT_TOP_AFTER_SNAPSHOT:-}" ] && bash -c "$AGENT_TOP_AFTER_SNAPSHOT" >/dev/null 2>&1
+  while IFS='|' read -r target wname _wid role pane pid; do
+    [ -n "$pane" ] || continue
     bare="$(an_strip "$wname")"
     printf '%s' "$bare" | grep -qE '^(CLE|GRK|AGY|QWN)-[0-9]+' || continue
     id="$(printf '%s' "$bare" | grep -oE '^[A-Za-z]+-[0-9]+')"
-    pane="$("${TM[@]}" list-panes -t "$target" -F '#{pane_id}|#{pane_pid}' 2>/dev/null | head -1)"
-    pid="${pane#*|}"; pane="${pane%%|*}"
     has_launcher=0 kind=- launch=""
     if [ -n "$pid" ]; then
       sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ')"
@@ -130,7 +147,7 @@ collect_rows() {  # TSV: id kind state window branch rundir pending pane target
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "${kind:--}" \
       "$(classify_agent "$id" "$scr" "$has_launcher" "$n" "$is_orc")" "$wname" "$branch" "${rundir:--}" \
       "$(pending_age "$id")" "$pane" "$target"
-  done < <("${TM[@]}" list-windows -a -F '#{session_name}:#{window_index}|#{window_name}|#{window_id}|#{@agent-role}' 2>/dev/null)
+  done <<< "$snap"
 }
 
 count_states() {  # rows on stdin -> "n busy dialog awaiting ended idle orc"
@@ -166,7 +183,15 @@ apply_badges() {
     [ "$want" = "$(name_badge "$wname")" ] && [ -z "$(an_tag)" ] && continue
     new="$(an_with_badge "$wname" "$want")"
     [ "$new" = "$wname" ] && continue
-    # The pane, never the title, is the target; a window only.
+    # A badge only re-decorates the name a window already has: it never writes
+    # an id the process in that pane does not carry ($id is the process's id
+    # when a launcher or run-as env was found, else the name's own).
+    [ "$(printf '%s' "$(an_strip "$wname")" | grep -oE '^[A-Za-z]+-[0-9]+')" = "$id" ] || continue
+    # Compare-and-set: the window must still carry the name this badge was
+    # computed from. Anything that renamed it since (a sort is harmless, it
+    # moves the pane with its window; a riname or a human is not) wins.
+    [ "$("${TM[@]}" display-message -p -t "$pane" '#{window_name}' 2>/dev/null)" = "$wname" ] || continue
+    # The pane, never the title or an index, is the target; a window only.
     "${TM[@]}" set-window-option -t "$pane" automatic-rename off >/dev/null 2>&1
     "${TM[@]}" rename-window -t "$pane" "$new" >/dev/null 2>&1
   done
@@ -180,9 +205,13 @@ case "$MODE" in
   ensure-loop)
     # A live pid in the pidfile - this copy's loop or the frozen engine's - wins.
     # Not pgrep: tmux run-shell's `sh -c "... --badge-loop"` would match itself.
+    # The check and the start run under one lock: hooks fire this several times
+    # at once (attach, new session), and each unlocked caller saw no live pid
+    # and started its own loop - three ran side by side on 2026-10-01.
+    exec 8>>"$PIDFILE.lock" 2>/dev/null && { flock -w 5 8 || exit 0; }
     old="$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')"
     [ -n "$old" ] && kill -0 "$old" 2>/dev/null && exit 0
-    nohup bash "$HERE/agent-top.sh" --badge-loop --interval "$INTERVAL" >/dev/null 2>&1 &
+    nohup bash "$HERE/agent-top.sh" --badge-loop --interval "$INTERVAL" >/dev/null 2>&1 8>&- &
     echo $! > "$PIDFILE"
     ;;
   badge-loop)

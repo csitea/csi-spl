@@ -16,7 +16,7 @@
 # @description handleViewTopics calls it (Roots, NoIssues, read door, limit 51;
 # @description walk_dm adds DM + Viewer); walk_all_pre = walk_all with the
 # @description aggregate before CLE-35061 ((array_agg(m.msg))[1]), the CONTROL;
-# @description the defaults (bitmap off, custom plans) are the walk's scope; thread = ViewTopic desc page of the
+# @description the defaults (bitmap off, sort off, custom plans) are the walk's scope; thread = ViewTopic desc page of the
 # @description tenant's biggest topic; channels = ViewChannels; issues =
 # @description ListIssues; file_door = FileReadableByHuman.
 # @param ENV - required: dev or prd
@@ -26,6 +26,8 @@
 # @param MEASURE_JIT (optional) - both (default) | on | off
 # @param MEASURE_ONLY (optional) - a comma list of statement names; default all
 # @param MEASURE_BITMAPSCAN (optional) - both | on | off (default); the walk's scope turns it off since SPL-984
+# @param MEASURE_SORT (optional) - both | on | off (default): enable_sort; the walk's scope turns it off
+# @param   since CLE-77914 (the recursive step stays on the ordered messages_received scan)
 # @param MEASURE_PLAN_CACHE (optional) - force_custom_plan (default, the walk's scope since CLE-35061) | auto (pgx without it) | force_generic_plan
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per statement
 # @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 10000
@@ -87,7 +89,9 @@ spl_db_hot_measure_sql() {
   local pc="${MEASURE_PLAN_CACHE:-force_custom_plan}"
   [[ "$pc" =~ ^(auto|force_custom_plan|force_generic_plan)$ ]] ||
     { do_log "FATAL MEASURE_PLAN_CACHE must be auto, force_custom_plan or force_generic_plan, got: $pc" >&2; return 1; }
-  local -a jits bms
+  local -a jits bms sorts
+  case "${MEASURE_SORT:-off}" in both) sorts=(on off) ;; on|off) sorts=("${MEASURE_SORT:-off}") ;;
+    *) do_log "FATAL MEASURE_SORT must be both, on or off, got: ${MEASURE_SORT}" >&2; return 1 ;; esac
   case "${MEASURE_BITMAPSCAN:-off}" in both) bms=(on off) ;; on|off) bms=("${MEASURE_BITMAPSCAN:-off}") ;;
     *) do_log "FATAL MEASURE_BITMAPSCAN must be both, on or off, got: ${MEASURE_BITMAPSCAN}" >&2; return 1 ;; esac
   case "$jit" in both) jits=(on off) ;; on|off) jits=("$jit") ;; *) do_log "FATAL MEASURE_JIT must be both, on or off, got: $jit" >&2; return 1 ;; esac
@@ -108,13 +112,16 @@ spl_db_hot_measure_sql() {
   echo "SELECT COALESCE((SELECT f->>'file_id' FROM messages m, jsonb_array_elements(m.files) f WHERE m.tenant_id = '$tenant' AND f ? 'file_id' ORDER BY m.received_at LIMIT 1), 'none') AS fid \\gset"
   echo "\\echo @@args tenant=:t reader=:r mine=:mine task=:task"
   spl_db_hot_measure_prepare
-  local b tag
+  local b tag so
+  for so in "${sorts[@]}"; do
   for b in "${bms[@]}"; do
     for j in "${jits[@]}"; do
       echo "SET enable_bitmapscan = $b;"
+      echo "SET enable_sort = $so;"
       echo "SET jit = $j;"
       tag="jit_$j"
       [[ "$b" == off ]] && tag="$tag.nobitmap"
+      [[ "$so" == on ]] && tag="$tag.sort"
       while IFS= read -r name; do
         [[ -z "$only" || ",$only," == *",$name,"* ]] || continue
         found=1
@@ -128,6 +135,7 @@ spl_db_hot_measure_sql() {
         done
       done < <(spl_db_hot_measure_names)
     done
+  done
   done
   ((found)) || { do_log "FATAL MEASURE_ONLY names no statement: $only" >&2; return 1; }
 }

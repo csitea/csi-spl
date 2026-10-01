@@ -81,6 +81,11 @@ grep -q "plan_cache_mode', 'force_custom_plan'" <<<"$one" && pass "plan_cache_mo
 bm=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_all 0' in_orc MEASURE_BITMAPSCAN=both 2>&1)
 grep -q '@@ walk_all.jit_off$' <<<"$bm" && grep -q '@@ walk_all.jit_off.nobitmap$' <<<"$bm" &&
   grep -q '^SET enable_bitmapscan = off;' <<<"$bm" && pass "MEASURE_BITMAPSCAN=both measures with and without bitmap scans" || fail "bitmap pair: $bm"
+so=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_all 0' in_orc MEASURE_SORT=both 2>&1)
+grep -q '@@ walk_all.jit_off.nobitmap$' <<<"$so" && grep -q '@@ walk_all.jit_off.nobitmap.sort$' <<<"$so" &&
+  grep -q '^SET enable_sort = on;' <<<"$so" && pass "MEASURE_SORT=both measures with and without sorts (CLE-77914)" || fail "sort pair: $so"
+grep -q '^SET enable_sort = off;' <<<"$one" && ! grep -q '\.sort$' <<<"$one" && pass "the default turns enable_sort off (the walk's scope, CLE-77914)" || fail "sort default: $one"
+SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_all 0' in_orc MEASURE_SORT=maybe >/dev/null 2>&1 && fail "MEASURE_SORT=maybe: ran" || pass "MEASURE_SORT=maybe: refused"
 grep -q '^SET enable_bitmapscan = off;' <<<"$one" && grep -q '@@ walk_dm.jit_off.nobitmap$' <<<"$one" &&
   pass "the default measures without bitmap scans (the walk's scope, SPL-984)" || fail "bitmap default: $one"
 

@@ -114,8 +114,22 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 // 2026-09-27 (do_spl_db_hot_measure, n=15, execution only): generic 71 ms
 // p50, custom 27 ms (plus ~4 ms planning). plan_cache_mode is read at every
 // Bind, so a transaction-local setting sent first in the batch applies.
+//
+// And no explicit Sort (CLE-77914, owner topic 73c9704c "the clicking on
+// the flow ... is really slow"): since rdb 0083 made messages_task_received
+// covering, the recursive step took an Index ONLY Scan of that index over
+// every older message of the tenant (received_at is not its leading column,
+// so no range) plus a Sort for its LIMIT 1, instead of the ordered backward
+// scan of messages_received - the same rows=1 misestimate as above. prd t1
+// 2026-10-01: ~9 900 rows per step, 60 ms x 50 steps; the Flow read
+// (limit=40, per_topic=3) answered p50 4.5 s / p95 30.5 s with 35 of 181
+// 5xx. With enable_sort off the step is the ordered scan again (its
+// Incremental Sort on the task_id tie-break is a separate setting and stays):
+// do_spl_db_hot_measure walk_all, prd t1, reader HUM-10, n=10:
+// p50 2 900 -> 22 ms, p95 42 002 -> 250 ms.
 const pgScopeTenantNoJIT = `SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true),
-	set_config('enable_bitmapscan', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true)`
+	set_config('enable_bitmapscan', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true),
+	set_config('enable_sort', 'off', true)`
 
 // queryTenantNoJIT is queryTenant (one round trip, rls.go) with JIT off.
 func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, args []any, each func(pgx.Rows) error) error {

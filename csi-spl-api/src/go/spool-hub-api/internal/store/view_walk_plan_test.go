@@ -24,6 +24,7 @@ func TestPgScopeTenantNoJITPlannerSettings(t *testing.T) {
 		`set_config('jit', 'off', true)`,
 		`set_config('enable_bitmapscan', 'off', true)`,
 		`set_config('plan_cache_mode', 'force_custom_plan', true)`,
+		`set_config('enable_sort', 'off', true)`, // CLE-77914
 	} {
 		if !strings.Contains(pgScopeTenantNoJIT, want) {
 			t.Errorf("pgScopeTenantNoJIT lacks %s: %s", want, pgScopeTenantNoJIT)
@@ -89,6 +90,18 @@ func TestViewTopicsWalkPlanShape(t *testing.T) {
 		if strings.Contains(plan, "Bitmap Heap Scan on messages") {
 			t.Errorf("%s: the walk bitmap-scans messages under pgScopeTenantNoJIT:\n%s", qc.name, plan)
 		}
+		// CLE-77914: no step reads every older message through the covering
+		// task index and sorts them for its LIMIT 1 (prd t1: 60 ms a step).
+		const taskScan = "Index Only Scan using messages_task_received on messages l"
+		if strings.Contains(plan, taskScan) {
+			t.Errorf("%s: a walk step scans messages_task_received for l under pgScopeTenantNoJIT:\n%s", qc.name, plan)
+		}
+		withSort := strings.Replace(pgScopeTenantNoJIT, ",\n\tset_config('enable_sort', 'off', true)", "", 1)
+		if withSort == pgScopeTenantNoJIT {
+			t.Fatalf("CONTROL: could not drop enable_sort from %s", pgScopeTenantNoJIT)
+		}
+		sorted := strings.Join(walkLines(t, pg, withSort, explain, tn, qc.q), "\n")
+		t.Logf("%s: CONTROL with enable_sort on a step scans messages_task_received: %v", qc.name, strings.Contains(sorted, taskScan))
 		old := strings.Join(walkLines(t, pg, preSPL984Scope, explain, tn, qc.q), "\n")
 		t.Logf("%s: CONTROL the pre-SPL-984 scope bitmap-scans messages: %v", qc.name, strings.Contains(old, "Bitmap Heap Scan on messages"))
 		// A planner setting must never change the answer.

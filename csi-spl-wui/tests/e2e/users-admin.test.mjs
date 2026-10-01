@@ -147,7 +147,8 @@ try {
   await p.click('[data-test=users-pane-copy-link]').catch(() => null)
   await sleep(200)
   const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => 'ERR ' + e)
-  ok('10c Copy invite link copies <origin>/login?tenant=<the tenant>', /^http:\/\/127\.0\.0\.1:\d+\/login\?tenant=[a-z0-9-]+$/.test(link) && clip === link &&
+  // SPL-1231: the link also carries the invitee's address as login_hint
+  ok('10c Copy invite link copies <origin>/login?tenant=<the tenant>&login_hint=<the invitee>', /^http:\/\/127\.0\.0\.1:\d+\/login\?tenant=[a-z0-9-]+&login_hint=e2e-invitee%40example\.com$/.test(link) && clip === link &&
     /copied/i.test(await text(p, '[data-test=users-pane-copy-link]')), { link, clip })
 
   // 6b. CLE-77780: the create never mails (no mail without a click). An unmailed

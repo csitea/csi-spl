@@ -170,6 +170,39 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as CL
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh
 ```
 
+### 3.10 The identity map: one record per agent
+
+The map in `$SPOOL_ROOT/agents/` holds one `<ID>.json` per agent and an
+`index.json`. The index hash changes exactly when a record changes. Every value
+comes from the agent's **process**: `SPOOL_AGENT_ID`, its own session file or
+resume argument, its cwd, and the tmux pane whose process tree holds it. A
+window name or a registry row is never read as identity. Design:
+`csi-spl-doc/doc/md/SPEC-agent-identity-map.md`.
+
+#### 3.10.1 See what a record pass would change (dry run, the default)
+
+```bash
+./run -a do_spl_agent_identity_record
+```
+
+#### 3.10.2 Write the records and the index
+
+```bash
+DRY_RUN=0 ./run -a do_spl_agent_identity_record
+```
+
+#### 3.10.3 Compare the map with the live box (exit 1 on drift)
+
+```bash
+./run -a do_spl_agent_identity_check
+```
+
+#### 3.10.4 Is an agent alive (prints its pid)
+
+```bash
+bash -c '. csi-spl-orc/src/bash/features/spawn-agents/lib/agent-identity.inc.sh && ai_alive CLE-002'
+```
+
 ## 4. Exit codes of spool-send.sh and spool-notify.sh
 
 The message file is written before the pane is touched. Any exit code below 10

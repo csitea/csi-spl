@@ -22,6 +22,7 @@ import {
   showAlert,
   pingThrottle,
   notificationTarget,
+  PENDING_OPEN_KEY,
 } from '~/utils/notify.mjs'
 import { isAiMessage, isViewersOwn } from '~/utils/typed-by.mjs'
 import {
@@ -205,7 +206,13 @@ export const useNotificationStore = defineStore('notification', () => {
   /** CLE-77890: a tapped alert opens its message (sw.js on Android, onclick on a desktop). */
   function openTarget(data: { url?: string } | null | undefined) {
     const url = String((data && data.url) || '')
-    if (url.startsWith('/') && !url.startsWith('//')) void navigateTo(url)
+    if (!url.startsWith('/') || url.startsWith('//')) return
+    /* kept until the route is there, so a reload in between (build-watch on
+       becoming visible) opens it again on boot (plugins/notify-open) */
+    try { sessionStorage.setItem(PENDING_OPEN_KEY, JSON.stringify({ url, at: Date.now() })) } catch { /* private mode */ }
+    void Promise.resolve(navigateTo(url)).finally(() => {
+      try { sessionStorage.removeItem(PENDING_OPEN_KEY) } catch { /* private mode */ }
+    })
   }
 
   function ping(title: string, body: string, tag = '', m: Msg | null = null) {

@@ -37,10 +37,22 @@ self.addEventListener('activate', (event) => {
 const NOTIFY_OPEN = 'spool:notification-open'
 const ACK_MS = 1500
 
-/** A same-origin path from the alert's data, '/' for anything else. */
-function targetUrl(data) {
-  const url = String((data && data.url) || '/')
-  return url.startsWith('/') && !url.startsWith('//') ? url : '/'
+/**
+ * Where a tap goes: the alert's own deep link (a same-origin path), else the
+ * feed its tag names (ch:<name> / dm:<peer>, the tag every alert has carried
+ * since bug A) - an alert raised by a page still on an older bundle has no
+ * data, and its tap must still leave "where I was" (owner, bd6d7291 msg
+ * 5f40daa7) - else '/'.
+ */
+function targetUrl(data, tag) {
+  const url = String((data && data.url) || '')
+  if (url.startsWith('/') && !url.startsWith('//')) return url
+  const t = String(tag || '')
+  const ch = t.startsWith('ch:') ? t.slice(3) : ''
+  if (ch) return '/channel/' + encodeURIComponent(ch)
+  const dm = t.startsWith('dm:') ? t.slice(3) : ''
+  if (dm) return '/dm/' + encodeURIComponent(dm)
+  return '/'
 }
 
 /** Post the target to one tab; true once it answers, false after ACK_MS. */
@@ -64,8 +76,8 @@ function handOver(client, msg) {
   })
 }
 
-async function openFromNotification(data) {
-  const url = targetUrl(data)
+async function openFromNotification(data, tag) {
+  const url = targetUrl(data, tag)
   const msg = { type: NOTIFY_OPEN, msgId: String((data && data.msgId) || ''), url }
   const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
   /* the tab the reader last looked at first */
@@ -89,5 +101,5 @@ async function openFromNotification(data) {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  event.waitUntil(openFromNotification(event.notification.data))
+  event.waitUntil(openFromNotification(event.notification.data, event.notification.tag))
 })

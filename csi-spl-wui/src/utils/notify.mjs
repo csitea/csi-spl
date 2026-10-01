@@ -187,6 +187,26 @@ export function notificationTarget(msg, pathFor = (p) => p) {
   return { msgId, url: String(pathFor(path) || path) }
 }
 
+/** sessionStorage: a tapped alert's target until its route is reached. */
+export const PENDING_OPEN_KEY = 'spool.notify-open'
+
+/** How long a pending tap stays worth opening after a reload. */
+export const PENDING_OPEN_MS = 30000
+
+/**
+ * The tap a reload cut short, from its stored JSON: { url } while it is
+ * younger than PENDING_OPEN_MS and names a same-origin path, else null.
+ */
+export function pendingOpen(raw, now) {
+  let v = null
+  try { v = JSON.parse(String(raw || 'null')) } catch { return null }
+  const url = String((v && v.url) || '')
+  const at = Number(v && v.at)
+  if (!url.startsWith('/') || url.startsWith('//')) return null
+  if (!Number.isFinite(at) || now - at < 0 || now - at > PENDING_OPEN_MS) return null
+  return { url }
+}
+
 /**
  * Raise one browser alert. Desktop browsers take `new Notification()`; Android
  * Chrome THROWS on it ("Illegal constructor", bug A: the phone never showed an

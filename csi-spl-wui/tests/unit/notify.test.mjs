@@ -552,10 +552,28 @@ describe('bug A: a new message signals', () => {
     const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
     assert.match(note, /notificationTarget\(m, \(p: string\) => nuxtApp\.\$localePath\(p\)\)/)
     /* and routes a tapped alert to it; the worker's hand-over reaches the same function */
-    assert.match(note, /function openTarget[\s\S]{0,200}navigateTo\(url\)/)
+    assert.match(note, /function openTarget[\s\S]{0,600}navigateTo\(url\)/)
     const plugin = readFileSync(join(WUI, 'src/plugins/notify-open.client.ts'), 'utf8')
     assert.match(plugin, /serviceWorker\.addEventListener\('message'/)
     assert.match(plugin, /e\.ports\[0\]\.postMessage\('ok'\)[\s\S]{0,40}notes\.openTarget\(d\)/)
+  })
+
+  it('CLE-77890: a tap cut short by a reload is opened again on boot, for 30 s', async () => {
+    const { pendingOpen, PENDING_OPEN_MS } = await import('../../src/utils/notify.mjs')
+    const raw = JSON.stringify({ url: '/m/abc', at: 1000 })
+    assert.deepEqual(pendingOpen(raw, 1000 + 5000), { url: '/m/abc' })
+    assert.equal(pendingOpen(raw, 1000 + PENDING_OPEN_MS + 1), null, 'stale')
+    assert.equal(pendingOpen(raw, 500), null, 'from the future')
+    assert.equal(pendingOpen(JSON.stringify({ url: '//evil.example.com', at: 1000 }), 2000), null)
+    assert.equal(pendingOpen('{oops', 2000), null)
+    assert.equal(pendingOpen(null, 2000), null)
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /sessionStorage\.setItem\(PENDING_OPEN_KEY[\s\S]{0,120}navigateTo\(url\)\)\.finally/)
+    const plugin = readFileSync(join(WUI, 'src/plugins/notify-open.client.ts'), 'utf8')
+    assert.match(plugin, /pendingOpen\(sessionStorage\.getItem\(PENDING_OPEN_KEY\), Date\.now\(\)\)/)
+    /* a long-lived phone tab looks for a new worker when it comes back */
+    const pwa = readFileSync(join(WUI, 'src/plugins/pwa.client.ts'), 'utf8')
+    assert.match(pwa, /visibilitychange[\s\S]{0,300}reg\.update\(\)/)
   })
 
   it('CLE-77890: clicking a desktop alert focuses the tab and opens its message', async () => {

@@ -13,6 +13,10 @@
 //   - the app leaves where it was for the message's channel, topic open
 //   - the message is marked (open-focus) and in view
 //   - a foreign url in the hand-over goes nowhere
+//   - a tap cut short by the tab's own new-version reload opens after it
+//   - built bundle only: the REAL sw.js's notificationclick, fired inside the
+//     worker, opens the message (and an alert with no target, from an older
+//     page, opens its feed from the tag) in the open tab
 //
 //   node tests/e2e/notification-open.test.mjs          (mock tenant, nuxi dev)
 //   BASE_URL=<generated bundle> node tests/e2e/notification-open.test.mjs
@@ -137,6 +141,46 @@ try {
     await handOver(p, 'x', '//evil.example.com/x')
     await new Promise((r) => setTimeout(r, 500))
     ok(`${W} 6 a foreign url in the hand-over goes nowhere`, p.url() === before, p.url())
+    /* 8: a tap the tab's own new-version reload cut short opens on boot */
+    await p.goto(server.base + '/issues', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+    await appReady(p)
+    await p.evaluate((url) => sessionStorage.setItem('spool.notify-open', JSON.stringify({ url, at: Date.now() })), '/m/' + REPLY)
+    await p.reload({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+    url = await settle(p, '/issues')
+    m = await markedInView(p, REPLY)
+    ok(`${W} 8 a tap cut short by a reload opens after it`, url.hash === '#' + REPLY && m.marked, { url: url.href, m })
+
+    /* 9..: the REAL worker (a built bundle registers public/sw.js; nuxi dev does not) */
+    if (W === WIDTHS[0].width) {
+      await p.goto(server.base + '/issues', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+      const controlled = await p.waitForFunction(() => Boolean(navigator.serviceWorker.controller), { timeout: 15000 }).then(() => true).catch(() => false)
+      if (!controlled) {
+        console.log('  SKIP 9..11 real worker: no service worker in this run (nuxi dev); BASE_URL=<generated bundle> runs them')
+      } else {
+        await appReady(p)
+        const target = await browser.waitForTarget((t) => t.type() === 'service_worker' && t.url().endsWith('/sw.js'), { timeout: 15000 })
+        const sw = await target.worker()
+        /* the worker's own notificationclick listener, fired inside the worker (headless Chrome shows no tray to tap) */
+        const tap = (data, tag) => sw.evaluate((data, tag) => {
+          const e = new Event('notificationclick')
+          Object.defineProperty(e, 'notification', { value: { data, tag, close() {} } })
+          e.waitUntil = (job) => job
+          self.dispatchEvent(e)
+        }, data, tag)
+        const tabsBefore = (await browser.pages()).length
+        let from = new URL(p.url()).pathname
+        await tap({ msgId: REPLY, url: '/m/' + REPLY }, 'ch:lobby')
+        url = await settle(p, from)
+        m = await markedInView(p, REPLY)
+        ok(`${W} 9 real sw.js: a tap opens the reply in its thread, marked`, url.searchParams.get('topic') === TOPIC && url.hash === '#' + REPLY && m.marked, { url: url.href, m })
+        from = url.pathname
+        await tap(null, 'ch:alerts')
+        url = await settle(p, from)
+        ok(`${W} 10 real sw.js: an alert with no target (an older page) opens its feed from the tag`, url.pathname.endsWith('/channel/alerts'), url.href)
+        const tabsAfter = (await browser.pages()).length
+        ok(`${W} 11 real sw.js: the open tab is used, no new window`, tabsAfter === tabsBefore, { tabsBefore, tabsAfter })
+      }
+    }
     await p.close()
   }
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))

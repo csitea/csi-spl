@@ -1,5 +1,5 @@
 import { useNotificationStore } from '~/stores/notification'
-import { NOTIFY_OPEN } from '~/utils/notify.mjs'
+import { NOTIFY_OPEN, PENDING_OPEN_KEY, pendingOpen } from '~/utils/notify.mjs'
 
 /**
  * CLE-77890 (owner, t1 bd6d7291): a tapped Android alert opens its message.
@@ -11,6 +11,14 @@ import { NOTIFY_OPEN } from '~/utils/notify.mjs'
 export default defineNuxtPlugin(() => {
   if (!('serviceWorker' in navigator)) return
   const notes = useNotificationStore()
+  /* a tap the tab's own new-version reload (build-watch, on becoming
+     visible) cut short: open it now */
+  try {
+    const left = pendingOpen(sessionStorage.getItem(PENDING_OPEN_KEY), Date.now())
+    sessionStorage.removeItem(PENDING_OPEN_KEY)
+    /* after the first navigation: a push during it becomes part of it and is lost */
+    if (left) void useRouter().isReady().then(() => setTimeout(() => notes.openTarget(left), 0))
+  } catch { /* no sessionStorage */ }
   navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
     const d = e.data as { type?: string, url?: string } | null
     if (!d || d.type !== NOTIFY_OPEN) return

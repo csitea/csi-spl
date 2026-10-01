@@ -27,11 +27,11 @@ function worker(tabs, { openWindow = true } = {}) {
     clients,
   }
   vm.runInNewContext(SW, { self, caches: { keys: async () => [] }, MessageChannel, setTimeout, console })
-  async function click(data) {
+  async function click(data, tag = '') {
     let closed = false
     let job = null
     handlers.notificationclick({
-      notification: { data, close: () => { closed = true } },
+      notification: { data, tag, close: () => { closed = true } },
       waitUntil: (p) => { job = p },
     })
     assert.equal(closed, true, 'the tapped alert is dismissed')
@@ -111,6 +111,25 @@ describe('sw.js notificationclick (CLE-77890)', () => {
     const none = worker([])
     await none.click(null)
     assert.deepEqual(none.opened, ['/'])
+  })
+
+  it('an alert from an older page (no data) opens the feed its tag names', async () => {
+    /* owner bd6d7291 msg 5f40daa7: a phone tab still on a pre-4.9.6 bundle raises alerts without a target */
+    const a = tab({ answers: false })
+    const w = worker([a])
+    await w.click(undefined, 'ch:alerts')
+    assert.deepEqual(a.navigated, ['/channel/alerts'])
+    const b = tab()
+    const w2 = worker([b])
+    await w2.click(null, 'dm:GRK-03@box1')
+    assert.equal(b.posted[0].url, '/dm/GRK-03%40box1')
+    const none = worker([])
+    await none.click(undefined, 'ch:lobby')
+    assert.deepEqual(none.opened, ['/channel/lobby'])
+    /* the data's own link wins over the tag */
+    const c = tab()
+    await worker([c]).click(DATA, 'ch:lobby')
+    assert.equal(c.posted[0].url, DATA.url)
   })
 
   it('only a same-origin path is ever opened', async () => {

@@ -12,6 +12,13 @@
 //   3  drag again and Confirm: the toast says "Merged", topic TWO leaves the
 //      list; Undo brings it back
 //   4  refusal: a topic dragged onto ITS OWN card never lights, opens no confirm
+//   CLE-77840: step 2 runs on a tab "older than the last deploy" (every NEW
+//   /_nuxt/ fetch answered 404): the confirm must still open, without the page
+//   reloading (a lazy chunk 404s there and chunk-reload reloads the page
+//   instead - the owner's "cannot see this snackbar at all"). Step 3 cannot:
+//   the MOCK's merge is itself a lazy import (mock-merge.mjs), which a real
+//   hub never needs; the toast's eagerness is pinned by
+//   tests/unit/shell-eager-overlays.test.mjs and the live proof.
 //
 // Run:
 //   node tests/e2e/merge-by-drag.test.mjs
@@ -123,6 +130,20 @@ try {
   await sleep(400)
   ok('1 both own cards have a drag handle', await p.evaluate((ids) => ids.every((id) => document.querySelector(`.spool-main article.msg[data-msg-id="${id}"] [data-testid=move-handle]`)), [s.one.msg_id, s.two.msg_id]))
 
+  /* CLE-77840: from here the build "was redeployed": new chunk fetches 404 */
+  const goneChunks = []
+  await p.setRequestInterception(true)
+  const onRequest = (r) => {
+    if (r.isInterceptResolutionHandled()) return
+    if (new URL(r.url()).pathname.startsWith('/_nuxt/')) {
+      goneChunks.push(new URL(r.url()).pathname)
+      return r.respond({ status: 404, contentType: 'text/plain', body: 'gone after a deploy' })
+    }
+    return r.continue()
+  }
+  p.on('request', onRequest)
+  await p.evaluate(() => { window.__cle77840 = 'same page' })
+
   /* ---- 2. drag TWO onto ONE, then Cancel -------------------------------- */
   const litOnOne = await dragOnto(p, s.two.msg_id, midCard(s.one.msg_id), { drop: true })
   ok('2 only the target topic lights up while dragging a topic', litOnOne.length === 1 && litOnOne[0] === s.one.msg_id, litOnOne)
@@ -134,6 +155,10 @@ try {
   await p.evaluate(() => document.querySelector('[data-testid=merge-confirm-cancel]')?.click())
   await sleep(200)
   ok('2 Cancel closes it and merges nothing (topic two still on screen)', !(await confirmOpen(p)) && (await onScreen(p, s.two.msg_id)))
+  ok('2 ... on a tab older than the last deploy, without fetching a chunk or reloading',
+    asked && await p.evaluate(() => window.__cle77840 === 'same page').catch(() => false), goneChunks)
+  p.off('request', onRequest)
+  await p.setRequestInterception(false)
 
   /* ---- 3. drag again and Confirm; then Undo ----------------------------- */
   await dragOnto(p, s.two.msg_id, midCard(s.one.msg_id), { drop: true })

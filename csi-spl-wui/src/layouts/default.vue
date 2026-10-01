@@ -92,9 +92,11 @@
     <ClientOnly>
       <ErrorSnackbar />
     </ClientOnly>
-    <!-- SPL-1024: "Moved to ... · Undo"; its chunk loads on the first move only -->
+    <!-- SPL-1024: "Moved to ... · Undo". CLE-77840: EAGER, like the archive
+         one below - a lazy chunk is gone on a tab older than the last deploy,
+         and chunk-reload then reloads the page instead of showing it -->
     <ClientOnly>
-      <LazyMoveUndoToast v-if="move.toast.value" />
+      <MoveUndoToast v-if="move.toast.value" />
     </ClientOnly>
     <!-- SPL-1264: "Archived · Undo". CLE-77840: EAGER, not Lazy - a lazy chunk
          is fetched on the first archive, and on a tab older than the last
@@ -103,9 +105,10 @@
     <ClientOnly>
       <ArchiveUndoToast v-if="archiveUndo.toast.value" />
     </ClientOnly>
-    <!-- 714c7028: "Merge topic (N messages) into Y?"; loads when a topic is dropped on a topic -->
+    <!-- 714c7028: "Merge topic (N messages) into Y?" when a topic is dropped
+         on a topic; eager for the same reason (CLE-77840) -->
     <ClientOnly>
-      <LazyMergeConfirmDialog v-if="move.mergeAsk.value" />
+      <MergeConfirmDialog v-if="move.mergeAsk.value" />
     </ClientOnly>
     <ClientOnly>
       <DebugPanel v-if="debugAllowed" />

@@ -313,14 +313,15 @@ describe('menu and wiring', () => {
     assert.match(card, /class="msg-move-handle"[\s\S]*?@pointerdown\.stop="onHandleDown"/)
     assert.match(card, /\.msg-move-handle \{[^}]*width: 12px;[^}]*cursor: grab;[^}]*touch-action: none;/)
   })
-  it('the rail rows name themselves as drop rows; the shell routes the frames; the toast is lazy', () => {
+  it('the rail rows name themselves as drop rows; the shell routes the frames; the toast is eager (CLE-77840)', () => {
     const side = src('src/components/ChannelSidebar.vue')
     assert.match(side, /data-move-drop="channel"\s+data-move-scope="channels"\s+:data-move-id="c\.channel_id"/)
     assert.doesNotMatch(side, /@drop=|dataTransfer/)
     assert.match(side, /isChannelDropTarget\(mover\.drag\.value, id, channel\.channels\)/)
     const layout = src('src/layouts/default.vue')
     assert.match(layout, /move\.dispatch\(f\)/)
-    assert.match(layout, /<LazyMoveUndoToast v-if="move\.toast\.value" \/>/)
+    /* CLE-77840: eager - a lazy chunk is gone on a tab older than the last deploy */
+    assert.match(layout, /<MoveUndoToast v-if="move\.toast\.value" \/>/)
     const ws = src('src/utils/live-ws.mjs')
     assert.match(ws, /topicMoved: 'topic_moved'/)
     assert.match(ws, /messageMoved: 'message_moved'/)

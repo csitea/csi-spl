@@ -1,6 +1,7 @@
 <!-- SPL-1024 (specs/045 §3.3): "Moved to ... · Undo" for 8 s after a move.
-     Undo is the same endpoint with the answer's `undo` as the target. Loaded
-     lazily by the shell (LazyMoveUndoToast), on the first move only.
+     Undo is the same endpoint with the answer's `undo` as the target. Mounted by
+     the shell on the first move; its code ships WITH the shell (CLE-77840: a
+     lazy chunk is gone on a tab older than the last deploy).
 
      CLE-77809: a thin adapter over the shared UndoSnackbar. The 8 s timer stays
      in useMove (no `duration` here), so behaviour is unchanged; only the markup

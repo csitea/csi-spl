@@ -2,8 +2,9 @@
      merge folds the WHOLE source topic (opener + every reply + thread) into the
      target, ordered by the original timestamps, and the source topic then
      disappears - so, unlike a plain move, it asks first. The message count is
-     read from the hub (topicSize), not guessed from the screen. Loaded lazily
-     (LazyMergeConfirmDialog): needed only once a topic is dropped on a topic. -->
+     read from the hub (topicSize), not guessed from the screen. Mounted
+     once a topic is dropped on a topic; its code ships WITH the shell
+     (CLE-77840: a lazy chunk is gone on a tab older than the last deploy). -->
 <template>
   <UiConfirm
     :open="Boolean(ask)"

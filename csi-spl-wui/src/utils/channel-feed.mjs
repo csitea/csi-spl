@@ -886,6 +886,42 @@ export function unreadFromDms(topics, cursors, self = '') {
 }
 
 /**
+ * CLE-77845 (owner, topic 5dc55d94): the per-peer DM TOTAL beside the unread
+ * count, so the rail badge reads "<new>/<total>" as a topic card does. From the
+ * same `?dm=true` rows unreadFromDms reads: a topic whose inline page holds all
+ * of it counts each line under its own peer (dmPeerOf); a topic held only in
+ * part adds the hub's row count to each end that is not us. Own lines count -
+ * a total is every message of the DM, not only the incoming ones.
+ *
+ * @param {Array<{ count?: number, participants?: string[], inline?: { messages?: any[] } }>} topics
+ * @param {string} self our own v:1 id (live.identity)
+ * @returns {Record<string, number>} `dm:<peer>` → total messages
+ */
+export function dmTotalsFromDms(topics, self = '') {
+  const me = String(self || '')
+  const out = {}
+  const add = (peer, n) => {
+    if (peer) out[`dm:${peer}`] = (out[`dm:${peer}`] || 0) + n
+  }
+  for (const t of topics || []) {
+    if (!t) continue
+    const msgs = t.inline && Array.isArray(t.inline.messages) ? t.inline.messages : null
+    const count = Number(t.count) || 0
+    if (msgs && msgs.length >= count) {
+      for (const m of msgs) if (m && !m.channel) add(dmPeerOf(m, me), 1)
+      continue
+    }
+    for (const p of t.participants || []) {
+      const label = String(p || '')
+      const id = label.split('@')[0]
+      if (!id || id === me || /^ALL-0$/.test(id)) continue
+      add(label, count)
+    }
+  }
+  return out
+}
+
+/**
  * the DM peer of one message, as the sidebar labels peers
  * ("<id>@<box>"): the end that is not us. `self` is our v:1 id (live.identity);
  * a broadcast (ALL-0) and a message with no other end give ''.

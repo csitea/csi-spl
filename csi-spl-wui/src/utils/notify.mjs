@@ -173,6 +173,21 @@ export function previewUnread(n) {
 }
 
 /**
+ * CLE-77845 (owner, topic 5dc55d94): a DM's rail badge reads "<new>/<total>"
+ * (e.g. "2/7"), the new part capped like previewUnread. No new message: no
+ * badge. A total we do not know (0, or below the new count while a refetch is
+ * behind a live bump) falls back to the plain new count.
+ */
+export function dmBadgeText(unread, total) {
+  const n = previewUnread(unread)
+  if (!n) return ''
+  const u = Number(unread) || 0
+  const t = Number(total) || 0
+  if (t < u) return n
+  return `${n}/${t > 999 ? '999+' : t}`
+}
+
+/**
  * 051: the sound the chime plays. Each is a short motif of one or more
  * oscillator segments, all generated in code — no audio files, no licensing,
  * nothing bundled (distribution hygiene). A segment:

@@ -123,7 +123,7 @@
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
       <HumanName class="label" :id="p.id" :box="p.box" />
-      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
+      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + p.label) }}</span>
     </NuxtLink>
     <SidebarRowMenu
       :menu-id="'dm:' + p.label"
@@ -450,7 +450,7 @@
             <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
             <span class="dot" :class="{ on: row.online }" />
             <HumanName class="label" :id="row.id" :box="row.box" />
-            <span v-if="notes.unread['dm:' + row.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + row.label]) }}</span>
+            <span v-if="notes.unread['dm:' + row.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + row.label) }}</span>
           </NuxtLink>
           <SidebarRowMenu
             :menu-id="'flow:dm:' + row.label"

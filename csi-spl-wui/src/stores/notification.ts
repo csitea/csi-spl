@@ -11,6 +11,7 @@ import {
   saveAlerts,
   alertsActive,
   previewUnread,
+  dmBadgeText,
   shouldPing,
   loadMutedChannels,
   playSound,
@@ -27,7 +28,7 @@ import {
   topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
-import { namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, dmTotalsFromDms, namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 type Ctx = {
@@ -59,6 +60,9 @@ export const useNotificationStore = defineStore('notification', () => {
   const alertsEnabled = ref(true)
   const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
   const unread = ref<Record<string, number>>({})
+  /** CLE-77845: every message per DM key (`dm:<peer>`), for the "<new>/<total>" rail badge. */
+  const dmTotal = ref<Record<string, number>>({})
+  const totalSeen = new Set<string>()
   /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
   const mentions = ref<Record<string, number>>({})
   const seen = new Set<string>()
@@ -205,6 +209,23 @@ export const useNotificationStore = defineStore('notification', () => {
     const dm = unreadFromDms(topics, loadCursors(), self) as Record<string, number>
     if (activeKey) delete dm[activeKey]
     unread.value = { ...unread.value, ...dm }
+    /* CLE-77845: the hub's totals win on every (re)load; live frames add between */
+    dmTotal.value = { ...dmTotal.value, ...(dmTotalsFromDms(topics, self) as Record<string, number>) }
+  }
+
+  /** One live frame: a DM (ours or theirs) adds one to its peer's total, once per msg_id. */
+  function countDmLive(m: Msg | null | undefined, self = '') {
+    if (!m || m.channel || !m.msg_id || totalSeen.has(m.msg_id)) return
+    totalSeen.add(m.msg_id)
+    const peer = dmPeerOf(m, self) as string
+    if (!peer) return
+    const key = `dm:${peer}`
+    dmTotal.value = { ...dmTotal.value, [key]: (dmTotal.value[key] || 0) + 1 }
+  }
+
+  /** The rail badge of a DM: "<new>/<total>", '' when nothing is new. */
+  function dmBadge(key: string) {
+    return dmBadgeText(unread.value[key] || 0, dmTotal.value[key] || 0) as string
   }
 
   function bump(key: string, reason: string | null) {
@@ -273,6 +294,9 @@ export const useNotificationStore = defineStore('notification', () => {
     markChannelRead,
     applyChannels,
     applyDms,
+    dmTotal,
+    countDmLive,
+    dmBadge,
     hydrate,
     previewUnread,
   }

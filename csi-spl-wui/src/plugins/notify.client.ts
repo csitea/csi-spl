@@ -84,6 +84,7 @@ export default defineNuxtPlugin(() => {
    */
   live.onMessage((m) => {
     const page = ctx()
+    notes.countDmLive(m, page.selfId)
     notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey }, { hydrate: false })
   })
 })

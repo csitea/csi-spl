@@ -18,6 +18,7 @@ import {
   isSoundPrefKey,
   ALERTS_KEY,
   previewUnread,
+  dmBadgeText,
   CHIME_KEY,
   shouldPing,
   loadMutedChannels,
@@ -36,6 +37,7 @@ import {
 } from '../../src/utils/notify.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
+import { dmTotalsFromDms } from '../../src/utils/channel-feed.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -428,5 +430,36 @@ describe('a box reply in a channel is not a DM (CLE-77845)', () => {
   it('control: an envelope with no channel and no row channel is a DM with the agent', () => {
     const m = normalizeViewMessage(el())
     assert.equal(channelKey(m, {}), 'dm:CLE-35004@box-desk')
+  })
+})
+
+/* CLE-77845 (owner, topic 5dc55d94): "the direct messages should have the
+   <<new>> / <<total>> type of rendering". */
+describe('DM rail badge "<new>/<total>" (CLE-77845)', () => {
+  it('reads new/total, hides at 0, caps like the plain badge', () => {
+    assert.equal(dmBadgeText(2, 7), '2/7')
+    assert.equal(dmBadgeText(0, 7), '')
+    assert.equal(dmBadgeText(100, 250), '99+/250')
+    assert.equal(dmBadgeText(1, 1000), '1/999+')
+  })
+  it('an unknown total falls back to the plain new count', () => {
+    assert.equal(dmBadgeText(3, 0), '3')
+    assert.equal(dmBadgeText(3, 2), '3')
+  })
+  const msg = (id, from, to, extra = {}) => ({ msg_id: id, from, from_box: from.startsWith('HUM') ? 'box-wui' : 'box-desk', to, to_box: to.startsWith('HUM') ? 'box-wui' : 'box-desk', channel: null, ...extra })
+  it('totals count every line of a fully inlined DM topic, ours too, per peer', () => {
+    const topics = [
+      { count: 3, participants: ['CLE-1@box-desk', 'HUM-1@box-wui'], inline: { messages: [msg('a', 'CLE-1', 'HUM-1'), msg('b', 'HUM-1', 'CLE-1'), msg('c', 'CLE-1', 'HUM-1')] } },
+      { count: 1, participants: ['CLE-2@box-desk', 'HUM-1@box-wui'], inline: { messages: [msg('d', 'CLE-2', 'HUM-1')] } },
+    ]
+    assert.deepEqual(dmTotalsFromDms(topics, 'HUM-1'), { 'dm:CLE-1@box-desk': 3, 'dm:CLE-2@box-desk': 1 })
+  })
+  it('a topic held only in part adds the hub row count to the other end', () => {
+    const topics = [{ count: 60, participants: ['CLE-1@box-desk', 'HUM-1@box-wui'], inline: { messages: [msg('a', 'CLE-1', 'HUM-1')] } }]
+    assert.deepEqual(dmTotalsFromDms(topics, 'HUM-1'), { 'dm:CLE-1@box-desk': 60 })
+  })
+  it('a channel line never counts toward a DM total', () => {
+    const topics = [{ count: 2, participants: [], inline: { messages: [msg('a', 'CLE-1', 'HUM-1', { channel: 'ops' }), msg('b', 'CLE-1', 'HUM-1')] } }]
+    assert.deepEqual(dmTotalsFromDms(topics, 'HUM-1'), { 'dm:CLE-1@box-desk': 1 })
   })
 })

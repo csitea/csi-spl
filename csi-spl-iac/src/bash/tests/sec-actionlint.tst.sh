@@ -53,6 +53,17 @@ set -e
 [[ "$rc" -ne 0 ]] && grep -q 'control:' <<<"$out" \
   && pass "CONTROL: a silent actionlint fails the action" || fail "CONTROL: silent actionlint accepted (rc=$rc)"
 
+# --- CONTROL: a tool error on the control (non-zero but no finding) fails -----
+# Regression: actionlint's bare auto-discovery exits 3 "no project was found" in
+# a non-git dir -- a tool error, not a finding. That must fail closed, not pass.
+stub actionlint 'echo "no project was found in any parent directories"; exit 3'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ACTIONLINT_ROOT="$ROOT" do_sec_actionlint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'control:' <<<"$out" \
+  && pass "CONTROL: a tool error (exit 3, no finding) fails the action" \
+  || fail "CONTROL: an actionlint tool error was accepted as a finding (rc=$rc)"
+
 # --- control fires, scan clean -> passes ------------------------------------
 stub actionlint 'if [[ "${SEC_ACTIONLINT_PHASE:-}" == control ]]; then echo "bad.yml:6:5: error: needs does-not-exist"; exit 1; fi; exit 0'
 set +e

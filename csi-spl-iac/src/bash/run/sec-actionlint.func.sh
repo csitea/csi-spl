@@ -57,7 +57,11 @@ do_sec_actionlint() {
   ctl=$(_sec_actionlint_control_dir) || return 1
   do_log "INFO actionlint $_SEC_ACTIONLINT_VER control (want a finding, non-zero exit)"
   rc=0
-  ( cd "$ctl" && SEC_ACTIONLINT_PHASE=control "$bin" -no-color ) >"$ctl/out" 2>&1 || rc=$?
+  # Lint the planted file explicitly: actionlint's bare auto-discovery needs a
+  # git project in a parent dir and exits 3 ("no project was found") in a bare
+  # temp dir, which is a tool error, not a finding. An explicit path lints the
+  # file and exits 1 on the job-needs error, which is the finding the control wants.
+  SEC_ACTIONLINT_PHASE=control "$bin" -no-color "$ctl/.github/workflows/bad.yml" >"$ctl/out" 2>&1 || rc=$?
   if [[ "$rc" -eq 0 ]] || ! grep -qiE 'needs|does-not-exist|error' "$ctl/out"; then
     do_log "FATAL control: actionlint reported no finding on a broken workflow (exit $rc) -- the check proved nothing"
     sed 's/^/  /' "$ctl/out"

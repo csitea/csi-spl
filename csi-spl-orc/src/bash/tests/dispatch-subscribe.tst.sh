@@ -71,7 +71,7 @@ grep -qx 'PLAN add w1 #alerts c-002 c-003' "$T/o" && grep -qx 'PLAN add w1 #lobb
 grep -qx 'PLAN remove w1 #devel c-001 (box-desk)' "$T/o" && grep -qx 'PLAN remove w1 #devel c-001 (box-other)' "$T/o" &&
   grep -qx 'PLAN remove w1 #ops c-001 (box-desk)' "$T/o" && ! grep -q 'PLAN add w1 #ops' "$T/o" &&
   pass "1. the orchestrator is removed on every box it sits on" || fail "1. removes: $(cat "$T/o")"
-! grep -q '#right' <(grep '^PLAN' "$T/o") && grep -q 'SUM  w1: 5 channel(s), 1 already right, 3 to add the dispatchers, 3 orchestrator seat(s) to remove, 1 with dead subscriptions' "$T/o" &&
+! grep -q '#right' <(grep '^PLAN' "$T/o") && grep -q 'SUM  w1: 5 channel(s), 1 already right, 3 to add the dispatchers, 3 orchestrator seat(s) to remove, 0 legacy role row(s) to remove, 1 with dead subscriptions' "$T/o" &&
   pass "1. a right channel plans nothing; the summary counts it" || fail "1. sum: $(grep SUM "$T/o")"
 
 # --- 2. dead subscriptions -----------------------------------------------------------------
@@ -122,6 +122,24 @@ run DISPATCH_TENANTS="w4 w5 w6 e2e"; rc=$?
 grep -qE '^(SILENT|UNSIGNED) (w5|w6|e2e) ' "$T/o" && fail "6. a healthy / quiet / test workspace was flagged: $(grep -E '^(SILENT|UNSIGNED)' "$T/o")" ||
   pass "6. a desk that received, a single post and a test workspace are not flagged"
 run DISPATCH_TENANTS=w2; grep -qE '^(SILENT|UNSIGNED)' "$T/o" && fail "6. no hum line flagged w2" || pass "6. no hum line = nothing to judge"
+
+# --- 7. spec 061 L6: a role's legacy rows go where its new id is subscribed ---------------------
+mkdir -p "$T/spool"; printf 'CLE-002\tc-002\tclaude\tbox-desk\t2026-10-02T16:35:05Z\nCLE-003\tc-003\tclaude\tbox-desk\t2026-10-02T16:35:05Z\n' >"$T/spool/agent-id-aliases.tsv"
+printf 'chan|lobby\nchan|ops\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nsub|ops|box-desk|CLE-002|invite\n' >"$SUBS/w7.txt"
+: >"$T/calls"
+run DISPATCH_TENANTS=w7; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'PLAN remove w7 #lobby CLE-002 (box-desk; legacy id of c-002, which is subscribed)' "$T/o" &&
+  grep -qx 'PLAN remove w7 #lobby CLE-003 (box-desk; legacy id of c-003, which is subscribed)' "$T/o" &&
+  pass "7. the legacy role rows are planned for removal where the new ids are subscribed" || fail "7. legacy plan: rc=$rc $(cat "$T/o")"
+grep -q 'PLAN remove w7 #ops CLE-002' "$T/o" && fail "7. a legacy row with NO new row beside it was removed" ||
+  pass "7. ... and kept where the new id is not subscribed yet (#ops: add first)"
+grep -q 'PLAN add w7 #ops c-002 c-003' "$T/o" && pass "7. ... #ops adds the new ids" || fail "7. ops add: $(cat "$T/o")"
+grep -q '^DEAD w7 #lobby' "$T/o" && fail "7. legacy role rows reported DEAD too" || pass "7. ... not reported DEAD"
+grep -q 'SUM  w7: 2 channel(s), 1 already right, 1 to add the dispatchers, 0 orchestrator seat(s) to remove, 2 legacy role row(s) to remove' "$T/o" &&
+  pass "7. the summary counts them" || fail "7. sum: $(grep SUM "$T/o")"
+run DISPATCH_TENANTS=w7 DRY_RUN=0
+grep -q 'remove w7 lobby box-desk CLE-002' "$T/calls" && grep -q 'remove w7 lobby box-desk CLE-003' "$T/calls" &&
+  pass "7. DRY_RUN=0 removes them through the remove op" || fail "7. calls: $(cat "$T/calls")"
 
 echo "dispatch-subscribe: $fails failure(s)"
 [[ $fails -eq 0 ]]

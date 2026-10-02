@@ -15,6 +15,11 @@
 # @description   remove - the orchestrator's subscriptions (the remove op's
 # @description            runner); its desk seat stays, so DMs and @mentions
 # @description            still reach it
+# @description   legacy - spec 061 L6: a role's OLD id (CLE-002 for c-002,
+# @description            from <spool root>/agent-id-aliases.tsv) is removed
+# @description            where the role's new id is already subscribed on
+# @description            that box; the old row would be refused after the
+# @description            2026-10-03T20:59:59Z cutoff
 # @description   DEAD   - REPORT ONLY: subscribed agents on the desk box with no
 # @description            live claude process on this box. Nothing is removed
 # @description   SILENT - REPORT ONLY (CLE-77876, prd csitea 2026-10-01: two
@@ -129,7 +134,7 @@ SQL
 
 # The plan for one workspace; applied when SPL_DISPATCH_DRY=0.
 spl_dispatch_subscribe_tenant() {
-  local t="$1" data="$2" ch missing a n_ok=0 n_add=0 n_rm=0 n_dead=0 box="$DISPATCH_DESK_BOX" dead obox
+  local t="$1" data="$2" ch missing a old n_ok=0 n_add=0 n_rm=0 n_leg=0 n_dead=0 box="$DISPATCH_DESK_BOX" dead obox
   local -a chans=()
   mapfile -t chans < <(sed -n 's/^chan|//p' <<<"$data")
   (( ${#chans[@]} )) || { do_log "FATAL $t: no channel at all - is that the right workspace?"; return 1; }
@@ -150,16 +155,31 @@ spl_dispatch_subscribe_tenant() {
       (( SPL_DISPATCH_DRY )) || _spl_channel_agent_remove_op_run "$t" "$ch" "$obox" "$DISPATCH_ORCH" ||
         SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
     done
+    for a in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
+      old="$(spl_dispatch_legacy_of "$a")"
+      [[ -n "$old" ]] && spl_dispatch_subbed "$data" "$ch" "$box" "$a" && spl_dispatch_subbed "$data" "$ch" "$box" "$old" || continue
+      n_leg=$((n_leg + 1))
+      echo "PLAN remove $t #$ch $old ($box; legacy id of $a, which is subscribed)"
+      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_remove_op_run "$t" "$ch" "$box" "$old" ||
+        SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
+    done
     [[ -z "$missing" ]] && [[ -z "$(spl_dispatch_boxes_of "$data" "$ch" "$DISPATCH_ORCH")" ]] && n_ok=$((n_ok + 1))
     dead=""
     for a in $(sed -n "s/^sub|$ch|$box|\([^|]*\)|.*/\1/p" <<<"$data"); do
       [[ "$a" == "$DISPATCH_MASTER" || "$a" == "$DISPATCH_FAILOVER" || "$a" == "$DISPATCH_ORCH" ]] && continue
+      [[ -n "$(spl_dispatch_legacy_of "$DISPATCH_MASTER")" && "$a" == "$(spl_dispatch_legacy_of "$DISPATCH_MASTER")" ]] && continue
+      [[ -n "$(spl_dispatch_legacy_of "$DISPATCH_FAILOVER")" && "$a" == "$(spl_dispatch_legacy_of "$DISPATCH_FAILOVER")" ]] && continue
       [[ "$SPL_DISPATCH_LIVE_IDS" == *" $a "* ]] || dead+="${dead:+ }$a"
     done
     [[ -n "$dead" ]] && { n_dead=$((n_dead + 1)); echo "DEAD $t #$ch $dead (no live process on this box; report only)"; }
   done
   spl_dispatch_inbound "$t" "$data"
-  echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add to add the dispatchers, $n_rm orchestrator seat(s) to remove, $n_dead with dead subscriptions"
+  echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add to add the dispatchers, $n_rm orchestrator seat(s) to remove, $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions"
+}
+
+# The legacy id an agent id was mapped from (agent-id-aliases.tsv), or nothing.
+spl_dispatch_legacy_of() {
+  awk -F'\t' -v id="$1" '$2 == id && $1 ~ /^(CLE|GRK|AGY|QWN)-[0-9]+$/ {print $1; exit}' "${SPOOL_ROOT:-/var/spool-hub}/agent-id-aliases.tsv" 2>/dev/null
 }
 
 # 0 when <agent> on <box> is subscribed to <channel> in <data>.

@@ -15,6 +15,7 @@
 # @description dispatchers installs it (the satellite too); a box without
 # @description lease.conf rotates nothing. Dry run unless DRY_RUN=0.
 # @param ROTATE_CRON_ACTION (optional) - install (default) | remove | check
+# @param CRON_REMOVE (optional) - 1 = ROTATE_CRON_ACTION=remove (spec 060 FR-092)
 # @param ROTATE_CRON_MINUTE (optional) - minute of the hour, default 15
 # @param ROTATE_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/dispatch-rotate
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
@@ -26,6 +27,7 @@
 do_spl_dispatch_rotate_install_cron() {
   do_require_bin crontab || return 1
   local act="${ROTATE_CRON_ACTION:-install}" min="${ROTATE_CRON_MINUTE:-15}"
+  [[ "${CRON_REMOVE:-0}" == 1 ]] && act=remove
   case "$act" in install|remove|check) ;; *) do_log "FATAL ROTATE_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL ROTATE_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }

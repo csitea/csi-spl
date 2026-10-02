@@ -309,7 +309,7 @@ spl_lease_agent_able() {
   return 0
 }
 
-# "held: rotation ..." while <dir>/rotate.hold names <id> and is younger than
+# "held: rotation ..." while <dir>/rotate.hold ("<id> <epoch> [rid]") names <id> and is younger than
 # ROTATE_HOLD_MAX s (default 1800): do_spl_dispatch_rotate is replacing that
 # session by a fresh one, so every process of the id is off the lease and the
 # failover acts (SPEC-spool-fleet-roles.md 4.4). An older hold is ignored,
@@ -317,7 +317,7 @@ spl_lease_agent_able() {
 spl_lease_held() {
   local f="$LEASE_DIR/rotate.hold" hid ht age
   [[ -s "$f" ]] || return 0
-  read -r hid ht < "$f" 2>/dev/null
+  read -r hid ht _ < "$f" 2>/dev/null || true
   [[ "$hid" == "$1" && "$ht" =~ ^[0-9]+$ ]] || return 0
   age=$(( $(spl_lease_now) - ht ))
   if (( age > ${ROTATE_HOLD_MAX:-1800} )); then

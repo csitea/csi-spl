@@ -1,556 +1,465 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Rotate this machine's dispatchers every hour (owner 2026-10-02,
-# @description SPEC-spool-fleet-roles.md 4.4, specs/060): a long-running
-# @description dispatcher carries an ever larger context, burns usage and
-# @description stalls, so each role gets a FRESH session under the SAME id -
-# @description the master M first while the failover F acts for it, then F.
-# @description The ids stay bound to their roles (spec 058 3.0: CLE-002
-# @description master, CLE-003 failover), so text sent to CLE-002 always
-# @description reaches the master. Mechanical: no model decides or writes
-# @description anything here; one line per step in <dir>/rotate.log.
-# @description   1 precheck  lease.conf present, the last rotation old enough
-# @description   2 heal      F has no live process: spawn what is missing, stop
-# @description   3 handoff   <dir>/handoff/<stamp>-<M>.md, assembled by script:
-# @description               lease, M's unread inbox, M's last-hour outbox, M's
-# @description               last terminal lines (redacted), open asks, lane map
-# @description   4 hold      <dir>/rotate.hold names M: the lease loops treat M
-# @description               as not able to act, F takes the lease (local:
-# @description               written here; fleet: the fleet loop) and acts.
-# @description               A busy M is rotated anyway (owner decision 1)
-# @description   5 replace   the fresh M starts BESIDE the old one, seeded with
-# @description               its brief + the handoff + the ack command; ack =
-# @description               a message on task dispatch-rotate-<stamp> in M's
-# @description               outbox. No start / no ack -> the fresh one is
-# @description               killed, the OLD session keeps the role, and an
-# @description               ask + an owner DM raise it (owner decision 2).
-# @description               Ack -> /exit-clean no-close in the old pane, force-
-# @description               killed after ROTATE_EXIT_WAIT s (decision 4), old
-# @description               window closed
-# @description   6 release   the hold goes: M renews, the handback tells F STANDBY
-# @description   7 refresh   once M has held the lease ROTATE_SETTLE s, F is
-# @description               replaced the same way (when older than
-# @description               ROTATE_MIN_AGE s)
-# @description Never zero dispatchers (the old session lives until the new one
-# @description acks) and never two masters (the hold keeps every M process off
-# @description the lease while two run). One run at a time (flock rotate.dispatch.lock).
-# @description Dry run unless DRY_RUN=0: PLAN lines, nothing touched, no wait.
-# @param ROTATE_MIN_AGE (optional) - s: the last rotation and the session replaced must be this old, default 3300
-# @param ROTATE_FORCE (optional) - 1 rotates even when the last rotation is recent
-# @param ROTATE_IDLE_WAIT (optional) - s to wait for an idle pane before rotating anyway, default 60
-# @param ROTATE_SPAWN_WAIT (optional) - s to wait for the fresh process, default 180
-# @param ROTATE_ACK_WAIT (optional) - s to wait for the fresh session's ack, default 600
-# @param ROTATE_EXIT_WAIT (optional) - s after /exit-clean before SIGTERM, default 300
-# @param ROTATE_LEASE_WAIT (optional) - s to wait for the lease to move, default 180
+# @description The hourly dispatcher rotation (spec 060 section 4.3, owner
+# @description 2026-10-02): CLE-002 (master) and then CLE-003 (failover) each
+# @description get a FRESH session under the SAME id, so no dispatcher carries
+# @description an ever larger context. The ids never swap roles (lease.conf is
+# @description never written). Mechanical (FR-001): every step reads files,
+# @description /proc, tmux or a run action, and nothing calls a model; one line
+# @description per step in <spool root>/dispatch/rotate.log, the phase in
+# @description rotate.dispatch.state / .ctx (resumable, FR-003). The shared
+# @description pieces are spl-rotate-lib.func.sh (CLE-77939).
+# @description   GATE     switch, lease.conf, this machine holds the dispatch
+# @description            lease (FR-044), boot grace, the last rotation and
+# @description            the master at least ROTATE_MIN_AGE old, no orch
+# @description            rotation in flight (FR-051), not stalled (FR-022)
+# @description   HEAL     a dispatcher with no live process is spawned by
+# @description            do_spl_dispatch_setup, nothing else this run (FR-021)
+# @description   HOLD     <dir>/rotate.hold names M: the lease loops skip M,
+# @description            F takes the lease and acts (FR-023)
+# @description   QUIESCE, HANDOFF, SPAWN (the old window renamed retiring, a
+# @description            new session beside the old one, seeded with the
+# @description            dispatcher brief + the rotation line; the handoff
+# @description            also arrives as a task in its inbox, FR-026), ACK
+# @description            (a result on dispatch-rotate-<rid> in its outbox,
+# @description            FR-041), RETIRE (/exit-clean, TERM, KILL), CLOSE
+# @description   RELEASE  the hold goes, M takes the lease back (FR-028)
+# @description   REFRESH  the same for F, without a hold (FR-029)
+# @description   DONE     rotate.dispatch.last, a result note to the orchestrator
+# @description A new session that does not start or ack is closed, the OLD one
+# @description keeps the role (the hold is removed), and an ask + an owner DM
+# @description raise it (owner D2, FR-027, FR-075). Dry run unless DRY_RUN=0.
+# @param ROTATE_CMD (optional) - auto (default), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
+# @param ROTATE_ID (optional) - with ROTATE_CMD=ack: the rotation id from the seed
+# @param ROTATE_FORCE (optional) - 1 skips the age and boot gates
+# @param ROTATE_ACK_TIMEOUT (optional) - s, default 600 here (the orchestrator's is 900)
+# @param ROTATE_PROMOTE_WAIT (optional) - s for the lease to move to F and back, default 240
 # @param ROTATE_SETTLE (optional) - s the fresh master holds the lease before F is refreshed, default 120
+# @param ROTATE_SEQ_WAIT (optional) - s to wait for an orch rotation in flight, default 600
 # @param ROTATE_HOLD_MAX (optional) - s after which the lease loops ignore a hold, default 1800
-# @param ROTATE_REPO (optional) - the checkout the dispatcher worktrees branch off, default the main checkout of this tree
+# @param ROTATE_* (optional) - every other knob and switch of spl_rotate_conf (env > rotate.conf > default)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_dispatch_rotate
 # @example DRY_RUN=0 ./run -a do_spl_dispatch_rotate
-# @example DRY_RUN=0 ROTATE_FORCE=1 ./run -a do_spl_dispatch_rotate
+# @example ROTATE_CMD=abort DRY_RUN=0 ./run -a do_spl_dispatch_rotate
 #------------------------------------------------------------------------------
-# the lease helpers (ids, lock, pid walk, hold), also when sourced on its own
-declare -F spl_lease_init >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
-# classify_screen, for the short idle wait
-# shellcheck source=../features/spawn-agents/lib/agent-state.inc.sh
-. "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/agent-state.inc.sh" 2>/dev/null || true
+declare -F spl_rotate_conf >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 
 do_spl_dispatch_rotate() {
-  spl_lease_init || return 1
-  [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
-  ROT_DRY=1; [[ "${DRY_RUN:-1}" == 0 ]] && ROT_DRY=0
-  [[ -f "$LEASE_CONF" ]] || { spl_rot_say precheck "SKIP no $LEASE_CONF - this box runs no dispatchers"; return 0; }
-  spl_rot_switch_on || { spl_rot_say precheck "SKIP switched off ($LEASE_DIR/rotate.conf ROTATE / ROTATE_DISPATCH)"; return 0; }
-  local rc
-  exec 7> "$LEASE_DIR/rotate.dispatch.lock"
-  flock -n 7 || { spl_rot_say precheck "SKIP another rotation runs"; return 0; }
-  spl_rot_run; rc=$?
-  exec 7>&-
-  return $rc
+  # the dispatchers' ack window is shorter than the orchestrator's (FR-027)
+  ROTATE_ACK_TIMEOUT="${ROTATE_ACK_TIMEOUT:-600}"
+  spl_rotate_conf || return 1
+  : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
+  [[ "${LEASE_MASTER:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ && "${LEASE_FAILOVER:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ &&
+     "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
+    { spl_rotate_log - GATE SKIP "no master + failover pair in $LEASE_CONF"; return 0; }
+  case "${ROTATE_CMD:-auto}" in
+    auto)    spl_disp_rotate_auto ;;
+    ack)     spl_rotate_ack_send "${ROTATE_ID##*-}" "$(spl_rotate_role_id "${ROTATE_ID##*-}")" ;;
+    abort)   spl_disp_rotate_abort ;;
+    handoff) ROTATE_QUIESCE="not run (preview)" spl_rotate_handoff master "$LEASE_MASTER" preview - ;;
+    *) do_log "FATAL ROTATE_CMD must be auto, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
+  esac
 }
 
-spl_rot_run() {
-  # lease.conf is the ONE source of the roles, never the caller's environment
-  unset LEASE_MASTER LEASE_FAILOVER
-  spl_lease_ids master failover orch || return 1
-  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" minage="${ROTATE_MIN_AGE:-3300}" now last mpid fpid why
-  [[ "$m" != "$f" ]] || { spl_rot_say precheck "FATAL lease.conf names $m as master AND failover"; return 1; }
-  [[ "$minage" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL ROTATE_MIN_AGE must be seconds, got '$minage'"; return 1; }
-  now="$(spl_lease_now)"
-  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( now - last < minage )); then
-    spl_rot_say precheck "SKIP last rotation $(( now - last ))s ago (< ${minage}s)"; return 0
-  fi
-  # FR-044: only the machine that holds the dispatch lease rotates its pair
-  spl_lease_conf; spl_lease_read
-  if spl_lease_remote; then spl_rot_say precheck "SKIP standby - the dispatch lease is $LH"; return 0; fi
-  ROT_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-  mpid="$(spl_lease_agent_pid "$m")"; fpid="$(spl_lease_agent_pid "$f")"
-  spl_rot_say precheck "master=$m pid=${mpid:-none} failover=$f pid=${fpid:-none} lease=$LH"
-
-  # 2. heal (FR-021): a missing dispatcher is spawned, nothing else this run
-  if [[ -z "$fpid" || -z "$mpid" ]]; then
-    [[ -z "$fpid" ]] && { spl_rot_say heal "$f has no live process: spawn it fresh"; spl_rot_replace "$f" failover "" || return 1; }
-    [[ -z "$mpid" ]] && { spl_rot_say heal "$m has no live process: spawn it fresh"; spl_rot_replace "$m" master "" || return 1; }
-    spl_rot_say heal "OK no rotation this run"
-    return 0
-  fi
-  # FR-022: a stalled master would stall again on the same login; the lease
-  # has already moved to F
-  why="$(spl_lease_stall "$mpid" 2>/dev/null)"
-  [[ -n "$why" ]] && { spl_rot_say precheck "SKIP stalled $m: $why"; return 0; }
-  # FR-008: a session younger than ROTATE_MIN_AGE is left alone
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rot_age "$mpid") < minage )); then
-    spl_rot_say precheck "SKIP young $m ($(spl_rot_age "$mpid")s < ${minage}s)"; return 0
-  fi
-
-  # 3. handoff
-  local handoff="$LEASE_DIR/handoff/$ROT_STAMP-$m.md"
-  if (( ROT_DRY )); then
-    spl_rot_say handoff "PLAN write $handoff"
-  else
-    mkdir -p "$LEASE_DIR/handoff" && spl_rot_handoff "$m" "$f" > "$handoff" ||
-      { spl_rot_say handoff "FATAL could not write $handoff"; return 1; }
-    spl_rot_say handoff "$handoff ($(wc -l < "$handoff") lines)"
-  fi
-
-  # 4. hold: F acts for M from here until the release
-  spl_rot_hold "$m" "$f" "$handoff" || return 1
-
-  # 5. replace M; on failure the old M keeps the role
-  if ! spl_rot_replace "$m" master "$handoff"; then
-    spl_rot_release "$m"
-    [[ -n "$mpid" ]] && spl_rot_send "$m" note dispatch-lease "DISPATCH LEASE: you are ACTIVE again - the rotation failed and you keep the master role." >/dev/null
-    spl_rot_alert "dispatch rotation FAILED on $(spl_rot_machine): no fresh $m - the old session keeps the master role. Log: $LEASE_DIR/rotate.log"
-    return 1
-  fi
-
-  # 6. release
-  spl_rot_release "$m"
-  spl_rot_wait_holder "$m" || spl_rot_say release "WARN the lease did not come back to $m in ${ROTATE_LEASE_WAIT:-180}s"
-
-  # 7. refresh the failover too
-  spl_rot_refresh_failover "$m" "$f"
-
-  if (( ROT_DRY )); then
-    do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to rotate"
-  else
-    spl_lease_now > "$LEASE_DIR/rotate.dispatch.last"
-    spl_rot_say "done" "fresh master $m (handoff $handoff)"
-    spl_rot_send "$LEASE_ORCH" note dispatch-rotate "dispatch rotation done on $(spl_rot_machine): a fresh $m holds the lease; handoff $handoff; log $LEASE_DIR/rotate.log" >/dev/null
-  fi
-  return 0
-}
-
-# 0 unless ROTATE=0 or ROTATE_DISPATCH=0 (environment, else
-# <dir>/rotate.conf, read, never sourced): the rollback switch (spec 060 FR-090).
-spl_rot_switch_on() {
+# 0 unless ROTATE=0 or ROTATE_DISPATCH=0 (environment, else rotate.conf):
+# the rollback switch (FR-090), also read by do_spl_dispatch_check.
+spl_dispatch_rotate_on() {
   local k v
   for k in ROTATE ROTATE_DISPATCH; do
     v="${!k:-}"
-    [[ -z "$v" ]] && v="$(sed -n "s/^$k=\([01]\)\$/\1/p" "$LEASE_DIR/rotate.conf" 2>/dev/null | tail -1)"
+    [[ -z "$v" ]] && v="$(sed -n "s/^$k=\([01]\)\$/\1/p" "${LEASE_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}/rotate.conf" 2>/dev/null | tail -1)"
     [[ "$v" == 0 ]] && return 1
   done
   return 0
 }
 
-# One line per step, to stdout and rotate.log (a dry run logs nothing).
-spl_rot_say() {
-  echo "STEP $1 $2"
-  (( ${ROT_DRY:-1} )) || echo "$(date -u +%FT%TZ) $1 $2" >> "$LEASE_DIR/rotate.log"
-}
-
-spl_rot_machine() { echo "${LEASE_MACHINE:-$(spl_desk_box_default)}"; }
-
-# Owner decision 2: an ask in the ask book (a blocker to the orchestrator is
-# one) AND a DM to the owner (lease.conf ASKS_OWNER).
-spl_rot_alert() {
-  local owner
-  spl_rot_say alert "$1"
-  (( ROT_DRY )) && return 0
-  spl_rot_send "$LEASE_ORCH" blocker dispatch-rotate "BLOCKER (dispatch rotation): $1" ask >/dev/null
-  owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | tail -1)"
-  if [[ -n "${ROTATE_OWNER_CMD:-}" ]]; then
-    # shellcheck disable=SC2086 # a command line, split on purpose
-    $ROTATE_OWNER_CMD <<<"$1"
-  elif [[ -n "$owner" && -n "${LEASE_TENANT:-}" && -n "${LEASE_ENV:-}" ]]; then
-    ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="${LEASE_DESK_BOX:-$(spl_desk_box_default)}" \
-        DESK_AGENT="$LEASE_ORCH" DESK_TO="$owner" DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" \
-        DESK_KIND=blocker DESK_BODY="BLOCKER (dispatch rotation): $1" DRY_RUN=0 "$PROJ_PATH/run" -a do_spl_desk_reply ) \
-      >> "$LEASE_DIR/rotate.out" 2>&1 || spl_rot_say alert "WARN the owner DM failed (log $LEASE_DIR/rotate.out)"
-  else
-    spl_rot_say alert "WARN no owner DM: lease.conf has no ASKS_OWNER / LEASE_TENANT / LEASE_ENV"
-  fi
-  return 0
-}
-
-# tmux as the box user (ROTATE_TMUX replaces it in the tests).
-spl_rot_tm() {
-  if [[ -n "${ROTATE_TMUX:-}" ]]; then "$ROTATE_TMUX" "$@"; return; fi
-  if [[ -z "${SPOOL_TM+x}" ]]; then
-    # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
-    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" && spool_env_resolve && spool_tmux_argv || return 1
-  fi
-  "${SPOOL_TM[@]}" "$@"
-}
-
-# The pane of <id>: the tmux pane whose pane_pid is an ancestor of the id's
-# (lowest) claude process - a registry row goes stale when a session is
-# restarted outside the spawn path (measured 2026-10-02: CLE-002's row named
-# %56, its process ran in %108).
-spl_rot_pane() {
-  local pid; pid="$(spl_lease_agent_pid "$1")"
-  [[ -n "$pid" ]] && spl_rot_pane_of_pid "$pid"
-  return 0
-}
-
-spl_rot_pane_of_pid() {
-  local root="${LEASE_PROC_ROOT:-/proc}" panes p="$1" pane="" stat i
-  panes="$(spl_rot_tm list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)" || return 0
-  for ((i = 0; i < 10; i++)); do
-    pane="$(awk -v p="$p" '$1 == p {print $2; exit}' <<<"$panes")"
-    [[ -n "$pane" ]] && { echo "$pane"; return 0; }
-    # /proc/<pid>/stat: "pid (comm) state ppid ..."; comm may hold spaces
-    stat=""; { read -r stat < "$root/$p/stat"; } 2>/dev/null
-    stat="${stat##*) }"; read -r _ p _ <<<"$stat"
-    [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 0
-  done
-  return 0
-}
-
-# Every live claude pid carrying SPOOL_AGENT_ID=<id>, one per line (the lease
-# picks the lowest; here the old and the fresh session run side by side).
-spl_rot_pids() {
-  local id="$1" root="${LEASE_PROC_ROOT:-/proc}" d comm
-  local -a other=()
-  {
-    for d in "$root"/[0-9]*; do
-      comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
-      [[ "$comm" == claude ]] || continue
-      if [[ -r "$d/environ" ]]; then
-        grep -qzx "SPOOL_AGENT_ID=$id" "$d/environ" 2>/dev/null && echo "${d##*/}"
-      else
-        other+=("${d##*/}")
-      fi
-    done
-    if (( ${#other[@]} )) && declare -F spool_proc_env_get >/dev/null; then
-      spool_proc_env_get "$root" SPOOL_AGENT_ID "${other[@]}" | awk -v id="$id" '$2 == id {print $1}'
-    fi
-  } | sort -n
-}
-
-# Wait up to ROTATE_IDLE_WAIT s for an idle pane; busy is logged, never a stop.
-spl_rot_wait_idle() {
-  local id="$1" pane="$2" waited=0 wait="${ROTATE_IDLE_WAIT:-60}" scr prev=""
-  (( ROT_DRY )) && { spl_rot_say idle "PLAN wait up to ${wait}s for $id (${pane:-no pane}) to be idle, then go on anyway"; return 0; }
-  [[ -n "$pane" ]] && declare -F classify_screen >/dev/null || return 0
-  while (( waited < wait )); do
-    scr="$(spl_rot_tm capture-pane -p -t "$pane" 2>/dev/null)"
-    [[ "$(classify_screen "$scr")" == idle && "$scr" == "$prev" ]] && { spl_rot_say idle "$id ($pane) idle"; return 0; }
-    prev="$scr"
-    spl_rot_sleep "${ROTATE_IDLE_POLL:-10}"; waited=$((waited + ${ROTATE_IDLE_POLL:-10} + 1))
-  done
-  spl_rot_say idle "$id ($pane) busy after ${wait}s - rotating anyway (owner decision 1)"
-}
-
-spl_rot_sleep() { (( $1 > 0 )) && sleep "$1"; return 0; }
-
-# The handoff, assembled from files and actions only.
-spl_rot_handoff() {
-  local m="$1" f="$2" root="${SPOOL_ROOT:-/var/spool-hub}" n=0 x pane
-  printf '# Dispatcher handoff: %s, rotated %s\n\n' "$m" "$ROT_STAMP"
-  printf -- '- written by do_spl_dispatch_rotate on %s - assembled by script, no model wrote it\n' "$(spl_rot_machine)"
-  printf -- '- %s acts for %s until the fresh session acks\n' "$f" "$m"
-  printf -- '- dispatch lease: %s; orch lease: %s\n\n' "$(cat "$LEASE_FILE" 2>/dev/null || echo none)" "$(cat "$LEASE_FILE.orch" 2>/dev/null || echo none)"
-  printf '## Unread in the %s inbox (`spool recv --as %s`)\n\n' "$m" "$m"
-  for x in "$root/$m/inbox"/*.json; do
-    [[ -f "$x" ]] || continue
-    n=$((n + 1)); spl_rot_msg_line "$x"
-  done
-  (( n )) || echo "none"
-  printf '\n## %s outbox, last hour (newest last, at most %s)\n\n' "$m" "${ROTATE_HANDOFF_OUT:-25}"
-  n=0
-  while IFS= read -r x; do
-    n=$((n + 1)); spl_rot_msg_line "$x"
-  done < <(find "$root/$m/outbox" -maxdepth 1 -name '*.json' -mmin -60 2>/dev/null | sort | tail -n "${ROTATE_HANDOFF_OUT:-25}")
-  (( n )) || echo "none"
-  printf '\n## The old session'"'"'s last terminal lines (redacted)\n\n'
-  pane="$(spl_rot_pane "$m")"
-  if [[ -n "$pane" ]]; then
-    echo '```'
-    spl_rot_tm capture-pane -p -J -S -200 -t "$pane" 2>/dev/null | grep -v '^[[:space:]]*$' |
-      tail -n "${ROTATE_HANDOFF_TERM:-40}" | spl_rot_redact
-    echo '```'
-  else
-    echo "no pane"
-  fi
-  printf '\n## Open asks to the orchestrator\n\n'
-  spl_rot_cmd_out "${ROTATE_ASKS_CMD:-$PROJ_PATH/run -a do_spl_asks_open}"
-  printf '\n## Lane map\n\n'
-  spl_rot_cmd_out "${ROTATE_LANES_CMD:-bash $PROJ_PATH/src/bash/features/spawn-agents/scripts/lane-map.sh}"
-}
-
-# The box's one redaction pass; without it the lines are left out, not leaked.
-spl_rot_redact() {
-  local py="$PROJ_PATH/src/bash/features/spawn-agents/lib/spool_redact.py"
-  if [[ -f "$py" ]]; then python3 "$py" 2>/dev/null; else cat > /dev/null; echo "(no spool_redact.py - lines left out)"; fi
-}
-
-# "- <ts> <from> -> <to> [<kind>, task <t>] <id8>: <first 200 chars>"
-spl_rot_msg_line() {
-  jq -r '"- \(.ts // "?") \(.from // "?") -> \(.to // "?") [\(.kind // "?"), task \(.task_id // "-")] \(.msg_id // "" | .[0:8]): \(.body // "" | gsub("\n"; " ") | .[0:200])"' "$1" 2>/dev/null ||
-    echo "- (unreadable) ${1##*/}"
-}
-
-# A command's output in a fence, capped; a failure is a line, never a stop.
-spl_rot_cmd_out() {
-  local out rc
-  # shellcheck disable=SC2086 # a command line, split on purpose
-  out="$(timeout "${ROTATE_CMD_TIMEOUT:-60}" $1 2>&1)"; rc=$?
-  echo '```'
-  printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | grep -vE '\[(DEBUG|INFO)\]' | head -n "${ROTATE_HANDOFF_LINES:-60}"
-  echo '```'
-  (( rc )) && echo "(exit $rc)"
-  return 0
-}
-
-# Write the hold and move the lease to F. Local mode writes the lease here
-# (under its lock) with the failover marker, so M's first renewal after the
-# release is the ordinary handback; fleet mode waits for the fleet loop.
-spl_rot_hold() {
-  local m="$1" f="$2" handoff="$3" me
-  if (( ROT_DRY )); then
-    spl_rot_say hold "PLAN $LEASE_DIR/rotate.hold = $m; lease -> $f; $f ACTIVE, $m STANDBY"; return 0
-  fi
-  printf '%s %s\n' "$m" "$(spl_lease_now)" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
-    mv -f "$LEASE_DIR/rotate.hold.tmp.$$" "$LEASE_DIR/rotate.hold" ||
-    { spl_rot_say hold "FATAL cannot write $LEASE_DIR/rotate.hold"; return 1; }
-  spl_lease_log "ROTATE hold $m (do_spl_dispatch_rotate)"
-  spl_rot_say hold "rotate.hold = $m"
-  spl_lease_conf
-  me="$(spl_rot_machine)"
-  if [[ -z "${LEASE_FLEET:-}" ]]; then
-    spl_lease_locked spl_rot_lease_to "$f"
-    spl_rot_say hold "lease -> $f"
-  else
-    spl_lease_read
-    if [[ "$LH" == "$m@$me" ]]; then
-      spl_rot_wait_holder "$f" || {
-        spl_rot_release "$m"
-        spl_rot_alert "dispatch rotation stopped on $me: the fleet lease did not move to $f@$me in ${ROTATE_LEASE_WAIT:-180}s - $m keeps the role"
-        return 1
-      }
-    else
-      spl_rot_say hold "the fleet dispatch lease is $LH, not $m@$me - nothing to move"
-    fi
-  fi
-  spl_rot_send "$f" note dispatch-lease "DISPATCH LEASE: you are now ACTIVE (hourly rotation: $m gets a fresh session). Dispatch, including $m's unread inbox (spool recv --as $m), until told STANDBY. Handoff: $handoff" >/dev/null
-  spl_rot_send "$m" note dispatch-lease "DISPATCH LEASE: STANDBY - hourly rotation, a fresh $m session takes over from you in a moment and $f acts meanwhile. Finish the line you are typing, then route, spawn and post nothing more." >/dev/null
-  return 0
-}
-
-spl_rot_lease_to() {
-  spl_lease_write "$1"; touch "$LEASE_FILE.failover"
-  spl_lease_log "ROTATE: lease -> $1"
-}
-
-spl_rot_release() {
-  (( ROT_DRY )) && { spl_rot_say release "PLAN remove $LEASE_DIR/rotate.hold"; return 0; }
-  rm -f "$LEASE_DIR/rotate.hold"
-  spl_lease_log "ROTATE release $1"
-  spl_rot_say release "rotate.hold removed - $1 renews"
-  # local mode: the lease names M at once (the renew loop would within a
-  # tick); the failover marker stays, so the watch's handback tells F STANDBY
-  spl_lease_conf
-  [[ -z "${LEASE_FLEET:-}" && -n "$(spl_lease_agent_able "$1")" ]] && spl_lease_locked spl_rot_lease_to "$1"
-  return 0
-}
-
-# 0 once the lease names <id> (bare, or <id>@<this machine> in fleet mode).
-spl_rot_wait_holder() {
-  local id="$1" waited=0 me
-  (( ROT_DRY )) && return 0
-  me="$(spl_rot_machine)"
-  while :; do
-    spl_lease_read
-    [[ "$LH" == "$id" || "$LH" == "$id@$me" ]] && { spl_rot_say lease "holder $LH"; return 0; }
-    (( waited >= ${ROTATE_LEASE_WAIT:-180} )) && return 1
-    spl_rot_sleep "${ROTATE_LEASE_POLL:-5}"; waited=$((waited + ${ROTATE_LEASE_POLL:-5} + 1))
-  done
-}
-
-# spool-send on <task> (5th arg "ask": an ask in the ask book); prints the
-# msg_id (empty when nothing was delivered).
-spl_rot_send() {
-  local to="$1" kind="$2" task="$3" body="$4" out rc
-  local send="${ROTATE_SEND:-${LEASE_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}}"
-  local -a ask=(--no-ask)
-  [[ "${5:-}" == ask ]] && ask=(--ask "$kind")
-  out="$(SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$LEASE_ORCH" --to "$to" \
-    --kind "$kind" --task "$task" "${ask[@]}" --body "$body" 2>/dev/null 7>&- 8>&-)"; rc=$?
-  # spool-send.sh: 1-9 = delivered, only the poke did not ring
-  (( rc >= 10 || rc == 2 )) && { spl_rot_say send "WARN could not tell $to (spool-send exit $rc)"; return 0; }
-  sed -n 's/.*"msg_id": *"\([^"]*\)".*/\1/p' <<<"$out" | head -1
-}
-
-# Replace <id> (role master|failover) by a fresh session beside the old one.
-# 0 = the fresh one acked and the old one is gone; 1 = the old one (if any)
-# still holds the role and the fresh one was killed.
-spl_rot_replace() {
-  local id="$1" role="$2" handoff="$3" old oldpane task brief new waited=0
-  task="dispatch-rotate-$ROT_STAMP-$id"
-  old="$(spl_rot_pids "$id" | tr '\n' ' ')"; old="${old% }"
-  oldpane="$(spl_rot_pane "$id")"
-  [[ -n "$old" ]] && spl_rot_wait_idle "$id" "$oldpane"
-  brief="$LEASE_DIR/handoff/$ROT_STAMP-$id.brief.md"
-  if (( ROT_DRY )); then
-    spl_rot_say replace "PLAN spawn a fresh $id ($role) beside pid ${old:-none}, seeded with $brief; wait ${ROTATE_ACK_WAIT:-600}s for a message on $task in its outbox; then /exit-clean no-close in ${oldpane:-<no pane>}, SIGTERM after ${ROTATE_EXIT_WAIT:-300}s"
+spl_disp_rotate_auto() {
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" rid last mpid fpid age pane why
+  rid="$(spl_rotate_new_rid master)"
+  exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
+  flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
+  if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
+    if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
+    spl_disp_rotate_resume || return 1
     return 0
   fi
-  mkdir -p "$LEASE_DIR/handoff" && spl_rot_brief "$id" "$role" "$handoff" "$task" > "$brief" ||
-    { spl_rot_say replace "FATAL no brief for $id (run do_spl_dispatch_setup once)"; return 1; }
-  spl_rot_spawn "$id" "$role" "$brief" || { spl_rot_say replace "FAIL the spawn of $id failed (log $LEASE_DIR/rotate.out)"; return 1; }
+  spl_dispatch_rotate_on || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_DISPATCH=$ROTATE_DISPATCH)"; return 0; }
+  # FR-044: only the machine that holds the dispatch lease rotates its pair
+  spl_lease_read
+  if spl_lease_remote; then spl_rotate_log "$rid" GATE SKIP "standby (dispatch lease: $LH)"; return 0; fi
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
+    spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
+  fi
+  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null || true)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(date +%s) - last < ROTATE_MIN_AGE )); then
+    spl_rotate_log "$rid" GATE SKIP "young: the last rotation was $(( $(date +%s) - last ))s ago"; return 0
+  fi
+  spl_disp_wait_orch "$rid" || return 0
+
+  local -a mp fp
+  mapfile -t mp < <(spl_rotate_pids "$m"); mapfile -t fp < <(spl_rotate_pids "$f")
+  # HEAL (FR-021): never zero dispatchers
+  if (( ${#mp[@]} == 0 || ${#fp[@]} == 0 )); then
+    spl_disp_heal "$rid" "${#mp[@]}" "${#fp[@]}"; return $?
+  fi
+  if (( ${#mp[@]} > 1 || ${#fp[@]} > 1 )); then
+    spl_rotate_log "$rid" GATE SKIP "duplicate: $m pids ${mp[*]}, $f pids ${fp[*]}"
+    spl_disp_once "dup.${mp[*]// /_}.${fp[*]// /_}" "ROTATION SKIP duplicate: $m pids ${mp[*]} / $f pids ${fp[*]} on $ROTATE_BOX; no rotation until one each is left"
+    return 0
+  fi
+  mpid="${mp[0]}"; fpid="${fp[0]}"
+  age="$(spl_rotate_age "$mpid")"; age="${age:-0}"
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then
+    spl_rotate_log "$rid" GATE SKIP "young: $m pid $mpid is ${age}s old (< $ROTATE_MIN_AGE)"; return 0
+  fi
+  pane="$(spl_rotate_pane_of_pid "$mpid")"
+  [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "absent: $m pid $mpid is in no tmux pane"; return 0; }
+  why="$(spl_rotate_stalled "$pane")"
+  if [[ -n "$why" ]]; then
+    spl_rotate_log "$rid" GATE SKIP "stalled $why"
+    spl_disp_once "stall.$(tr -c 'a-z0-9' '_' <<<"${why,,}")" "ROTATION SKIP stalled: $m@$ROTATE_BOX pane shows '$why'; the lease has moved to $f and a new session would stall too"
+    return 0
+  fi
+
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_disp_plan "$rid" "$m" "$mpid" "$pane" "$age" "$f" "$fpid"; return 0
+  fi
+  spl_disp_begin master "$rid" "$mpid" "$pane"
+  spl_disp_step GATE OK "$m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
+  spl_disp_hold || return 1
+  spl_disp_run || return 1
+  spl_disp_run_all
+}
+
+spl_disp_in_flight() { [[ -n "$1" && "$1" != DONE && "$1" != FAIL && "$1" != ABORT ]]; }
+
+# FR-051: an orch rotation of this machine in flight goes first.
+spl_disp_wait_orch() {
+  local t0=$SECONDS ph
   while :; do
-    new="$(spl_rot_pids "$id" | grep -vxF -f <(tr ' ' '\n' <<<"${old:-none}") | tail -1)"
-    [[ -n "$new" ]] && break
-    (( waited >= ${ROTATE_SPAWN_WAIT:-180} )) && { spl_rot_say replace "FAIL the fresh $id did not start in ${ROTATE_SPAWN_WAIT:-180}s"; return 1; }
-    spl_rot_sleep "${ROTATE_SPAWN_POLL:-5}"; waited=$((waited + ${ROTATE_SPAWN_POLL:-5} + 1))
+    ph="$(cut -d' ' -f2 "$LEASE_DIR/rotate.orch.state" 2>/dev/null || true)"
+    spl_disp_in_flight "$ph" && [[ "$ph" != GATE ]] || return 0
+    (( SECONDS - t0 >= ROTATE_SEQ_WAIT )) && { spl_rotate_log "$1" GATE SKIP "orch-busy (orch rotation at $ph)"; return 1; }
+    sleep "$ROTATE_POLL"
   done
-  spl_rot_say replace "fresh $id pid=$new beside ${old:-none}"
-  if ! spl_rot_wait_ack "$id" "$task"; then
-    spl_rot_kill_pids "$id" "$new"
+}
+
+# FR-021: do_spl_dispatch_setup spawns whichever dispatcher has no process.
+spl_disp_heal() {
+  local rid="$1" nm="$2" nf="$3" what="" id t0
+  (( nm )) || what+="$LEASE_MASTER "
+  (( nf )) || what+="$LEASE_FAILOVER "
+  what="${what% }"
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$rid" HEAL PLAN "do_spl_dispatch_setup spawns: $what"; return 0; fi
+  spl_rotate_log "$rid" HEAL WAIT "no live process: $what - do_spl_dispatch_setup, no rotation this run"
+  if ! env ENV="${ENV:-${LEASE_ENV:-prd}}" DISPATCH_MASTER="$LEASE_MASTER" DISPATCH_FAILOVER="$LEASE_FAILOVER" DISPATCH_ORCH="$LEASE_ORCH" \
+      DISPATCH_SUBSCRIBE=0 DISPATCH_SWEEP=0 DRY_RUN=0 timeout 600 "$ROTATE_RUN" -a do_spl_dispatch_setup \
+      >> "$LEASE_DIR/rotate.out" 2>&1 7>&- 8>&- 9>&-; then
+    spl_rotate_log "$rid" HEAL FAIL "do_spl_dispatch_setup failed (log $LEASE_DIR/rotate.out)"
+    spl_rotate_alert master "$rid" HEAL "no live $what and do_spl_dispatch_setup failed"
     return 1
   fi
-  if [[ -n "$old" ]]; then
-    spl_rot_retire "$id" "$oldpane" "$old" "$new"
-  fi
-  return 0
+  t0=$SECONDS
+  for id in $what; do
+    while [[ -z "$(spl_rotate_pids "$id")" ]]; do
+      if (( SECONDS - t0 >= ROTATE_START_WAIT )); then
+        spl_rotate_log "$rid" HEAL FAIL "$id did not start in ${ROTATE_START_WAIT}s"
+        spl_rotate_alert master "$rid" HEAL "$id did not start"; return 1
+      fi
+      sleep "$ROTATE_POLL"
+    done
+  done
+  spl_rotate_log "$rid" HEAL OK "running again: $what"
 }
 
-# The role's brief (rendered by do_spl_dispatch_setup) + this rotation's part.
-spl_rot_brief() {
-  local id="$1" role="$2" handoff="$3" task="$4" base="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}/brief-dispatcher-$1.md"
-  [[ -f "$base" ]] || return 1
-  cat "$base"
-  printf '\n## Hourly rotation (%s)\n\n' "$ROT_STAMP"
-  printf 'You are a FRESH %s session for %s; the previous one is retired once you ack.\n\n' "$role" "$id"
-  if [[ -n "$handoff" ]]; then
-    printf '1. Read the handoff %s and take over every routing, owed answer and unread message it lists.\n' "$handoff"
-  else
-    printf '1. Read nothing more: confirm the lease (do_spl_dispatch_lease LEASE_CMD=show) and stay as your role says.\n'
-  fi
-  printf '2. Ack, exactly once, before anything else is sent:\n\n'
-  printf '   bash %s/src/bash/features/spawn-agents/scripts/spool-send.sh --from %s --to %s --kind note --task %s --body "%s fresh session up"\n\n' \
-    "$PROJ_PATH" "$id" "$LEASE_ORCH" "$task" "$id"
-  printf 'No ack in %s s and this session is stopped, the old one keeps the role.\n' "${ROTATE_ACK_WAIT:-600}"
+# One note per distinct condition, to the orchestrator (FR-009, FR-073).
+spl_disp_once() {
+  local mark="$LEASE_DIR/rotate.dispatch.told.$1"
+  [[ -e "$mark" ]] && return 0
+  rm -f "$LEASE_DIR"/rotate.dispatch.told.* 2>/dev/null || true
+  touch "$mark"
+  spl_rotate_note "$LEASE_ORCH" dispatch-rotate "$2"
 }
 
-# A fresh session for <id> in a NEW window (spawn-window.sh: auto mode, the
-# mirror on, as the agent user, the same mailbox: SPAWN_REUSE_ID=1).
-spl_rot_spawn() {
-  local id="$1" role="$2" brief="$3" repo common
-  if [[ -n "${ROTATE_SPAWN:-}" ]]; then "$ROTATE_SPAWN" "$id" "$role" "$brief" >> "$LEASE_DIR/rotate.out" 2>&1; return; fi
-  repo="${ROTATE_REPO:-}"
-  if [[ -z "$repo" ]]; then
-    common="$(git -C "$PROJ_PATH/.." rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-    if [[ "$common" == */.git ]]; then repo="${common%/.git}"; else repo="$(cd "$PROJ_PATH/.." && pwd)"; fi
-  fi
-  env SPAWN_REUSE_ID=1 bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/spawn-window.sh" \
-    claude "$id" "$repo" "$brief" "dispatcher-$role" >> "$LEASE_DIR/rotate.out" 2>&1
+spl_disp_plan() {
+  local rid="$1" m="$2" mpid="$3" pane="$4" age="$5" f="$6" fpid="$7"
+  spl_rotate_log "$rid" GATE PLAN "pass: $m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
+  spl_rotate_log "$rid" HOLD PLAN "$LEASE_DIR/rotate.hold = $m; the lease moves to $f (wait ${ROTATE_PROMOTE_WAIT}s)"
+  spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
+  spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF_DIR/$rid-$m.md"
+  spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN claude $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox"
+  spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$m/outbox"
+  spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more; close it"
+  spl_rotate_log "$rid" RELEASE PLAN "remove the hold; $m takes the lease back, $f STANDBY"
+  spl_rotate_log "${rid%-master}-failover" REFRESH PLAN "after ${ROTATE_SETTLE}s with $m holding: $f (pid $fpid, $(spl_rotate_age "$fpid")s old) the same way, no hold"
+  spl_rotate_log "$rid" DONE PLAN "$LEASE_DIR/rotate.dispatch.last; a result note to $LEASE_ORCH"
+  echo "---- DRY_RUN, nothing was touched. Re-run with DRY_RUN=0."
 }
 
-# 0 once <id>'s outbox holds a message on <task>.
-spl_rot_wait_ack() {
-  local id="$1" task="$2" waited=0 wait="${ROTATE_ACK_WAIT:-600}"
+# The globals of one role's rotation (the lib reads them).
+spl_disp_begin() {  # ROLE RID OLD_PID OLD_PANE
+  local id; id="$(spl_rotate_role_id "$1")"
+  ROTATE_RID="$2" ROTATE_OLD_PID="$3" ROTATE_OLD_PANE="$4" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE=""
+  # shellcheck disable=SC2034 # read by spl_rotate_restore (spl-rotate-lib)
+  ROTATE_OLD_NAME="$(spl_rotate_tmux display-message -p -t "$4" '#{window_name}' 2>/dev/null || true)"
+  ROTATE_HANDOFF="$ROTATE_HANDOFF_DIR/$2-$id.md"
+}
+
+# Record the phase (log + .state + ctx).
+spl_disp_step() {
+  ROTATE_PHASE="$1"
+  spl_rotate_ctx_save dispatch
+  spl_rotate_log "$ROTATE_RID" "$1" "$2" "${3:-}"
+}
+
+spl_disp_role() { echo "${ROTATE_RID##*-}"; }
+
+# ---- the lease: HOLD and RELEASE (FR-023, FR-028) ------------------------------
+
+# 0 once the dispatch lease names <id> (bare, or <id>@<this box>).
+spl_disp_wait_holder() {
+  local t0=$SECONDS
   while :; do
-    if grep -lqE "\"task_id\": *\"$task\"" "${SPOOL_ROOT:-/var/spool-hub}/$id/outbox"/*.json 2>/dev/null; then
-      spl_rot_say ack "$id acked $task after ~${waited}s"; return 0
-    fi
-    (( waited >= wait )) && { spl_rot_say ack "FAIL $id did not ack $task in ${wait}s"; return 1; }
-    spl_rot_sleep "${ROTATE_ACK_POLL:-10}"; waited=$((waited + ${ROTATE_ACK_POLL:-10} + 1))
+    spl_lease_read
+    [[ "$LH" == "$1" || "$LH" == "$1@$ROTATE_BOX" ]] && return 0
+    (( SECONDS - t0 >= ROTATE_PROMOTE_WAIT )) && return 1
+    sleep "$ROTATE_POLL"
   done
 }
 
-# Owner decision 4: /exit-clean (no-close: the window close by id would find
-# the fresh session's window) in the OLD pane, force-killed after
-# ROTATE_EXIT_WAIT s; then the old window is closed - never the fresh one's.
-spl_rot_retire() {
-  local id="$1" pane="$2" old="$3" new="$4" waited=0 wait="${ROTATE_EXIT_WAIT:-300}" p alive newpane
-  newpane="$(spl_rot_pane_of_pid "$new")"
-  if [[ -n "$pane" && "$pane" != "$newpane" ]]; then
-    spl_rot_tm send-keys -t "$pane" -l '/exit-clean no-close' && spl_rot_tm send-keys -t "$pane" Enter
-    spl_rot_say retire "/exit-clean no-close typed in $pane (pid $old)"
+spl_disp_lease_to() {
+  spl_lease_write "$1"; touch "$LEASE_FILE.failover"
+  spl_lease_log "ROTATE ${ROTATE_RID:-}: lease -> $1"
+}
+
+# HOLD: every process of M is off the lease from here; F acts. Local mode
+# writes the lease (no loop tells anyone then, so F and M are told here);
+# fleet mode waits for the fleet loop's CAS, which tells them.
+spl_disp_hold() {
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER"
+  printf '%s %s %s\n' "$m" "$(date +%s)" "$ROTATE_RID" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
+    mv -f "$LEASE_DIR/rotate.hold.tmp.$$" "$LEASE_DIR/rotate.hold"
+  spl_lease_log "ROTATE $ROTATE_RID: hold $m"
+  if [[ -z "${LEASE_FLEET:-}" ]]; then
+    spl_lease_locked spl_disp_lease_to "$f"
+    spl_rotate_note "$f" dispatch-lease "DISPATCH LEASE: you are now ACTIVE (hourly rotation $ROTATE_RID: $m gets a fresh session). Dispatch, including $m's unread inbox (spool recv --as $m), until told STANDBY."
+    spl_rotate_note "$m" dispatch-lease "DISPATCH LEASE: STANDBY - hourly rotation $ROTATE_RID, $f acts while a fresh $m session starts. Route, spawn and post nothing more."
   fi
-  while (( waited < wait )); do
-    alive=""; for p in $old; do [[ -d "${LEASE_PROC_ROOT:-/proc}/$p" ]] && alive+=" $p"; done
-    [[ -z "$alive" ]] && break
-    spl_rot_sleep "${ROTATE_EXIT_POLL:-5}"; waited=$((waited + ${ROTATE_EXIT_POLL:-5} + 1))
-  done
-  spl_rot_kill_pids "$id" "$old"
-  if [[ -n "$pane" && "$pane" != "$newpane" && "$(spl_rot_tm display-message -p -t "$pane" '#{window_name}' 2>/dev/null)" == *"$id"* ]]; then
-    spl_rot_tm kill-window -t "$pane" 2>/dev/null && spl_rot_say retire "closed the old window of $id ($pane)"
+  if ! spl_disp_wait_holder "$f"; then
+    rm -f "$LEASE_DIR/rotate.hold"
+    spl_disp_step FAIL FAIL "HOLD: the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s (it is $LH); $m keeps acting"
+    spl_rotate_alert master "$ROTATE_RID" PROMOTE "the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s"
+    return 1
+  fi
+  spl_disp_step HOLD OK "rotate.hold = $m; the lease is $LH"
+}
+
+# RELEASE: the hold goes and M renews; local mode writes it back at once and
+# keeps the failover marker, so the watch's handback tells F STANDBY.
+spl_disp_release() {
+  local m="$LEASE_MASTER"
+  rm -f "$LEASE_DIR/rotate.hold"
+  spl_lease_log "ROTATE ${ROTATE_RID:-}: release $m"
+  if [[ -z "${LEASE_FLEET:-}" && -n "$(spl_lease_agent_able "$m")" ]]; then spl_lease_locked spl_disp_lease_to "$m"; fi
+  return 0
+}
+
+# ---- one role: QUIESCE .. CLOSE ------------------------------------------------
+
+spl_disp_run() {
+  local id seed
+  id="$(spl_rotate_role_id "$(spl_disp_role)")"
+  seed="$ROTATE_HANDOFF_DIR/$ROTATE_RID-$id.seed.md"
+  ROTATE_QUIESCE="$(spl_rotate_quiesce "$ROTATE_OLD_PANE")"
+  spl_disp_step QUIESCE "$([[ "$ROTATE_QUIESCE" == busy-rotated ]] && echo WAIT || echo OK)" "$ROTATE_QUIESCE"
+  mkdir -p "$ROTATE_HANDOFF_DIR" 2>/dev/null || true
+  spl_rotate_handoff_prune
+  spl_rotate_handoff "$(spl_disp_role)" "$id" "$ROTATE_RID" "$ROTATE_HANDOFF"
+  chmod 0640 "$ROTATE_HANDOFF" 2>/dev/null || true
+  if ! spl_disp_seed "$id" > "$seed"; then
+    spl_disp_fail SPAWN "no dispatcher brief for $id (run do_spl_dispatch_setup once)"; return 1
+  fi
+  chmod 0640 "$seed" 2>/dev/null || true
+  spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
+  if ! spl_rotate_spawn "$id" "$seed"; then
+    spl_disp_fail SPAWN "$ROTATE_ERR"; return 1
+  fi
+  # FR-026: the handoff also arrives as a task in the inbox
+  spl_rotate_note "$id" "$(spl_rotate_ack_task "$ROTATE_RID")" \
+    "ROTATION $ROTATE_RID: you are the fresh $id@$ROTATE_BOX. Read $ROTATE_HANDOFF, then your inbox (spool recv --as $id; skip what $LEASE_FAILOVER's outbox shows handled since the hold), then run the ACK-COMMAND of your seed $seed." task
+  spl_disp_step SPAWN OK "new pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
+  spl_disp_from_spawn
+}
+
+spl_disp_from_spawn() {
+  local id rc=0
+  id="$(spl_rotate_role_id "$(spl_disp_role)")"
+  spl_disp_step ACK WAIT "up to ${ROTATE_ACK_TIMEOUT}s for $(spl_rotate_ack_task "$ROTATE_RID")"
+  spl_rotate_ack_wait "$id" "$ROTATE_RID" "$ROTATE_ACK_TIMEOUT" || rc=$?
+  case "$rc" in
+    0) ;;
+    2) spl_disp_fail ACK "the new session (pid $ROTATE_NEW_PID) ended before it acked"; return 1 ;;
+    *) spl_disp_fail ACK "no ack within ${ROTATE_ACK_TIMEOUT}s"; return 1 ;;
+  esac
+  spl_disp_step ACK OK "acked by pid $ROTATE_NEW_PID"
+  spl_disp_from_ack
+}
+
+spl_disp_from_ack() {
+  local role
+  role="$(spl_disp_role)"
+  spl_disp_step RETIRE WAIT "/exit-clean into $ROTATE_OLD_PANE (pid $ROTATE_OLD_PID)"
+  if ! spl_rotate_retire "$ROTATE_OLD_PANE" "$ROTATE_OLD_PID"; then
+    # the hold stays: two processes on one id never take the lease
+    spl_disp_step FAIL FAIL "RETIRE: pid $ROTATE_OLD_PID survived SIGKILL; the duplicate gate refuses until a human clears it"
+    spl_rotate_alert "$role" "$ROTATE_RID" RETIRE "old pid $ROTATE_OLD_PID survived SIGKILL"
+    return 1
+  fi
+  spl_disp_step RETIRE OK "pid $ROTATE_OLD_PID gone"
+  spl_disp_close
+}
+
+# CLOSE (FR-017), then RELEASE for the master.
+spl_disp_close() {
+  local role id n mp warn=""
+  role="$(spl_disp_role)"; id="$(spl_rotate_role_id "$role")"
+  if spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{pane_id}' >/dev/null 2>&1; then
+    spl_rotate_tmux kill-window -t "$ROTATE_OLD_PANE" 2>/dev/null || true
+  fi
+  n="$(spl_rotate_pids "$id" | grep -c . || true)"
+  [[ "$n" == 1 ]] || warn+=" processes=$n"
+  mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
+  [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
+  spl_disp_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, map -> $ROTATE_NEW_PANE}"
+  spl_lease_log "ROTATE $role $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
+  [[ "$role" == master ]] || return 0
+  spl_disp_release
+  if ! spl_disp_wait_holder "$LEASE_MASTER"; then
+    spl_disp_step RELEASE FAIL "the lease is still $LH ${ROTATE_PROMOTE_WAIT}s after the release; $LEASE_FAILOVER keeps acting"
+    spl_rotate_alert master "$ROTATE_RID" RELEASE "the lease did not come back to $LEASE_MASTER"
+    return 1
+  fi
+  spl_disp_step RELEASE OK "the lease is $LH"
+}
+
+# A failure before RETIRE (owner D2): the new session closed, the old one keeps
+# the role (for the master: the hold goes, so it takes the lease back), ALERT;
+# after an ack timeout the old pane is told where the handoff is (FR-014).
+spl_disp_fail() {
+  local phase="$1" reason="$2" role id
+  role="$(spl_disp_role)"; id="$(spl_rotate_role_id "$role")"
+  spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
+  if [[ "$role" == master ]]; then
+    spl_disp_release
+    spl_rotate_note "$id" dispatch-lease "DISPATCH LEASE: you are ACTIVE again - rotation $ROTATE_RID failed and you keep the master role."
+  fi
+  spl_disp_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the role"
+  spl_rotate_alert "$role" "$ROTATE_RID" "$phase" "$reason"
+  if [[ "$phase" == ACK ]] && spl_rotate_alive "$ROTATE_OLD_PID"; then
+    spl_rotate_tmux send-keys -t "$ROTATE_OLD_PANE" -l \
+      "Rotation $ROTATE_RID failed; you keep the role. Read $ROTATE_HANDOFF for anything you were interrupted on." 2>/dev/null || true
+    sleep 1
+    spl_rotate_tmux send-keys -t "$ROTATE_OLD_PANE" Enter 2>/dev/null || true
   fi
   return 0
 }
 
-# TERM, then KILL, the given pids of <id>; logs what is left.
-spl_rot_kill_pids() {
-  local id="$1" pids="$2" sig p left
-  for sig in TERM KILL; do
-    left=""; for p in $pids; do [[ -d "${LEASE_PROC_ROOT:-/proc}/$p" ]] && left+=" $p"; done
-    [[ -z "$left" ]] && { spl_rot_say retire "$id pid(s) $pids gone"; return 0; }
-    for p in $left; do spl_rot_kill "$sig" "$p"; done
-    spl_rot_say retire "SIG$sig $id pid(s)$left"
-    spl_rot_sleep "${ROTATE_KILL_GRACE:-10}"
-  done
-  left=""; for p in $pids; do [[ -d "${LEASE_PROC_ROOT:-/proc}/$p" ]] && left+=" $p"; done
-  [[ -z "$left" ]] && { spl_rot_say retire "$id pid(s) $pids gone"; return 0; }
-  spl_rot_say retire "FAIL $id pid(s)$left still run after SIGKILL"
-  return 1
+# The seed (FR-040): the role's brief (do_spl_dispatch_setup renders it), the
+# rotation line with the ack command, the standing rules.
+spl_disp_seed() {
+  local id="$1" brief="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}/brief-dispatcher-$1.md" as="${SPOOL_BOX_USER:-$USER}" ack
+  [[ -f "$brief" ]] || return 1
+  ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
+  cat "$brief"
+  cat <<EOF
+
+## Hourly rotation $ROTATE_RID (spec 060)
+
+You are the new $id@$ROTATE_BOX, rotated at $ROTATE_RID: same id, same inbox,
+same role. Read $ROTATE_HANDOFF, then your inbox (spool recv --as $id), then
+run the ack below. Do not greet; post nothing about the rotation. Without the
+ack in ${ROTATE_ACK_TIMEOUT}s you are closed and the previous session keeps
+the role.
+ACK-COMMAND: $ack
+
+Standing rules: agents run as the agent user only; one agent = one small
+task; never spawn Grok.
+EOF
 }
 
-# Signal as the process owner: the box user cannot signal the agent user's.
-spl_rot_kill() {
-  local sig="$1" pid="$2" owner
-  if [[ -n "${ROTATE_KILL:-}" ]]; then "$ROTATE_KILL" "$sig" "$pid"; return; fi
-  owner="$(stat -c %U "/proc/$pid" 2>/dev/null)"
-  if [[ -z "$owner" || "$owner" == "$(id -un)" ]]; then kill -s "$sig" "$pid" 2>/dev/null
-  else sudo -n -u "$owner" kill -s "$sig" "$pid" 2>/dev/null; fi
-}
+# ---- REFRESH F (FR-029) and DONE ------------------------------------------------
 
-# Seconds since <pid> started: ps etimes; under a fake /proc (the tests,
-# LEASE_PROC_ROOT) the mtime of its dir.
-spl_rot_age() {
-  local start
-  if [[ -z "${LEASE_PROC_ROOT:-}" ]]; then
-    start="$(ps -o etimes= -p "$1" 2>/dev/null | tr -d ' ')"; echo "${start:-0}"; return
-  fi
-  start="$(stat -c %Y "$LEASE_PROC_ROOT/$1" 2>/dev/null)" || { echo 0; return; }
-  echo $(( $(spl_lease_now) - start ))
-}
-
-# Step 7: the failover is replaced too, once the fresh master has held the
-# lease ROTATE_SETTLE s; a failure there leaves the old F in its role.
-spl_rot_refresh_failover() {
-  local m="$1" f="$2" fpid age
-  if (( ROT_DRY )); then
-    spl_rot_say refresh "PLAN after ${ROTATE_SETTLE:-120}s with $m holding the lease: $f older than ${ROTATE_MIN_AGE:-3300}s gets a fresh session"
-    spl_rot_replace "$f" failover ""
-    return 0
-  fi
-  spl_rot_sleep "${ROTATE_SETTLE:-120}"
+spl_disp_refresh() {
+  local f="$LEASE_FAILOVER" rid fpid age pane t0=$SECONDS
+  rid="${ROTATE_RID%-master}-failover"
+  while (( SECONDS - t0 < ROTATE_SETTLE )); do sleep "$ROTATE_POLL"; done
   spl_lease_read
-  [[ "$LH" == "$m" || "$LH" == "$m@$(spl_rot_machine)" || "$LH" == *@* && "${LH##*@}" != "$(spl_rot_machine)" ]] ||
-    { spl_rot_say refresh "SKIP the lease is $LH, not $m - $f stays as it is"; return 0; }
-  fpid="$(spl_lease_agent_pid "$f")"
-  if [[ -n "$fpid" ]]; then
-    age="$(spl_rot_age "$fpid")"
-    (( age >= ${ROTATE_MIN_AGE:-3300} )) || { spl_rot_say refresh "SKIP young $f (${age}s)"; return 0; }
+  if [[ "$LH" != "$LEASE_MASTER" && "$LH" != "$LEASE_MASTER@$ROTATE_BOX" ]]; then
+    spl_rotate_log "$rid" REFRESH SKIP "the lease is $LH, not $LEASE_MASTER: $f stays"; return 0
   fi
-  spl_rot_replace "$f" failover "" ||
-    spl_rot_alert "failover refresh FAILED on $(spl_rot_machine): no fresh $f - the old session keeps the failover role"
+  fpid="$(spl_rotate_pids "$f" | head -1)"
+  [[ -n "$fpid" ]] || { spl_rotate_log "$rid" REFRESH SKIP "$f has no live process: the next run heals it"; return 0; }
+  age="$(spl_rotate_age "$fpid")"; age="${age:-0}"
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then
+    spl_rotate_log "$rid" REFRESH SKIP "young: $f pid $fpid is ${age}s old"; return 0
+  fi
+  pane="$(spl_rotate_pane_of_pid "$fpid")"
+  [[ -n "$pane" ]] || { spl_rotate_log "$rid" REFRESH SKIP "absent: $f pid $fpid is in no tmux pane"; return 0; }
+  spl_disp_begin failover "$rid" "$fpid" "$pane"
+  spl_disp_step REFRESH OK "$f pid $fpid, ${age}s old, pane $pane"
+  spl_disp_run
+}
+
+spl_disp_run_all() {
+  local master_rid="$ROTATE_RID" rc=0
+  date +%s > "$LEASE_DIR/rotate.dispatch.last"
+  spl_disp_refresh || rc=1
+  ROTATE_RID="$master_rid"
+  spl_rotate_log "$ROTATE_RID" DONE "$( ((rc)) && echo WAIT || echo OK)" "fresh $LEASE_MASTER$( ((rc)) && echo "; the $LEASE_FAILOVER refresh failed (alerted)")"
+  spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$ROTATE_RID")" \
+    "ROTATION DONE $ROTATE_RID on $ROTATE_BOX: a fresh $LEASE_MASTER holds the dispatch lease$( ((rc)) && echo "; the $LEASE_FAILOVER refresh FAILED, the old one kept"). Log: $LEASE_DIR/rotate.log" result
+  return $rc
+}
+
+# ---- resume (FR-003) and abort (FR-091) ------------------------------------------
+
+spl_disp_rotate_resume() {
+  local old=0 new=0 role
+  role="$(spl_disp_role)"
+  spl_rotate_alive "$ROTATE_OLD_PID" && old=1
+  [[ -n "$ROTATE_NEW_PID" ]] && spl_rotate_alive "$ROTATE_NEW_PID" && new=1
+  spl_rotate_log "$ROTATE_RID" RESUME OK "from $ROTATE_PHASE (old alive=$old, new alive=$new)"
+  case "$ROTATE_PHASE:$old$new" in
+    SPAWN:11|ACK:11)  spl_disp_from_spawn || return 1 ;;
+    RETIRE:11)        spl_disp_from_ack || return 1 ;;
+    RETIRE:01|CLOSE:01|ACK:01|RELEASE:01|RELEASE:11) spl_disp_close || return 1 ;;
+    *:10|GATE:*|HOLD:*|QUIESCE:*|HANDOFF:*|REFRESH:*)
+      spl_disp_fail "$ROTATE_PHASE" "resumed with no live new session"; return 1 ;;
+    *) [[ "$role" == master ]] && spl_disp_release
+       spl_disp_step FAIL FAIL "resumed at $ROTATE_PHASE with neither session alive - the next run heals"
+       spl_rotate_alert "$role" "$ROTATE_RID" "$ROTATE_PHASE" "neither session alive"; return 1 ;;
+  esac
+  if [[ "$role" == master ]]; then spl_disp_run_all; return $?; fi
   return 0
+}
+
+spl_disp_rotate_abort() {
+  exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
+  if ! spl_rotate_ctx_load dispatch || ! spl_disp_in_flight "$ROTATE_PHASE"; then
+    echo "no dispatch rotation in flight"; return 0
+  fi
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_rotate_log "$ROTATE_RID" ABORT PLAN "at $ROTATE_PHASE: restore the old session, close the new one, remove the hold"; return 0
+  fi
+  if [[ "$ROTATE_PHASE" == RETIRE || "$ROTATE_PHASE" == CLOSE || "$ROTATE_PHASE" == RELEASE ]]; then
+    [[ "$(spl_disp_role)" == master ]] && spl_disp_release
+    spl_rotate_log "$ROTATE_RID" ABORT FAIL "at $ROTATE_PHASE the old session is already being retired: hold removed, nothing to restore"
+    return 1
+  fi
+  spl_rotate_restore "$(spl_rotate_role_id "$(spl_disp_role)")" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
+  [[ "$(spl_disp_role)" == master ]] && spl_disp_release
+  spl_disp_step ABORT ABORT "at $ROTATE_PHASE by hand; the old session (pid $ROTATE_OLD_PID) keeps the role"
 }

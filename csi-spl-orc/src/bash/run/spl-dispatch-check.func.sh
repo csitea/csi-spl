@@ -183,7 +183,7 @@ spl_dispatch_worktree() {
 # holds the dispatch lease. Needs the lease read (LH) and row().
 spl_rotate_check_row() {
   local last age stale="${DISPATCH_ROTATE_STALE:-10800}"
-  if declare -F spl_rot_switch_on >/dev/null && ! spl_rot_switch_on; then
+  if declare -F spl_dispatch_rotate_on >/dev/null && ! spl_dispatch_rotate_on; then
     row "dispatch rotation" "switched off (rotate.conf)" ok; return 0
   fi
   if spl_lease_remote; then

@@ -3,12 +3,15 @@
 // it read "alerts on" in a browser never asked for permission, or one that
 // blocks it. Settings -> Notifications now names the real state, in a real
 // browser, mock tenant signed in, with a fake Notification per case:
-//   A  undecided ('default'): state "ask", the bell carries the warn dot;
-//      Allow asks the browser -> state "on", the dot is gone
+//   A  undecided ('default'): state "ask"; the bell draws NO dot (HUM-10,
+//      topic f4316e89: "remove that dot") - its hover text names the state;
+//      Allow asks the browser -> state "on"
 //   T  "send a test notification" raises a real alert through the same path
 //      a message takes: tag spool-test, renotify (a same-tag alert must not
 //      replace the last one silently)
-//   K  blocked ('denied'): state "blocked", no test button, the dot
+//   K  blocked ('denied'): state "blocked", no test button, still no dot
+//   B  the bell's off state keeps its strike (bell-off's slash); on again is
+//      the plain bell
 //   I  an iPhone Safari tab (no Notification at all): state "install"
 //   F  undecided: the first click anywhere asks the browser, once
 //   S  the chime off (005's default): Settings says alerts arrive silently
@@ -95,7 +98,17 @@ async function open(mode, opts = {}) {
 }
 
 const state = (p) => p.evaluate(() => document.querySelector('[data-test=settings-notify-state]')?.getAttribute('data-state') || null)
-const dot = (p) => p.evaluate(() => Boolean(document.querySelector('[data-testid=notify-alerts] .notify-warn-dot')))
+/* a dot is anything the bell button draws besides its glyph: a child element
+   or a ::before/::after with content, on every copy of the bell */
+const dot = (p) => p.evaluate(() => [...document.querySelectorAll('[data-testid=notify-alerts]')].some((b) => {
+  if ([...b.children].some((c) => !c.matches('svg.ui-icon'))) return true
+  return ['::before', '::after'].some((pe) => !['none', 'normal'].includes(getComputedStyle(b, pe).content))
+}))
+const bell = (p) => p.evaluate(() => {
+  const b = document.querySelector('[data-testid=notify-alerts]')
+  const svg = b?.querySelector('svg.ui-icon')
+  return { icon: svg?.getAttribute('data-icon') || null, strike: Boolean(svg?.querySelector('path[d="M2 2 22 22"]')), title: b?.getAttribute('title') || '' }
+})
 const has = async (p, sel) => (await p.$(sel)) !== null
 
 try {
@@ -110,17 +123,33 @@ try {
   await p.click('[data-test=settings-notify-chime]')
   await sleep(300)
   ok('S2 chime on: the silent warning is gone', !(await has(p, '[data-test=settings-notify-silent]')))
+  /* B (HUM-10): the dot is gone, the strike stays */
+  const on0 = await bell(p)
+  ok('B0 CONTROL on: the plain bell, no strike', on0.icon === 'bell' && !on0.strike, on0)
+  const flip = async (want) => {
+    await p.evaluate(() => document.querySelector('[data-testid=notify-alerts]').click())
+    await p.waitForFunction((w) => document.querySelector('[data-testid=notify-alerts] svg.ui-icon')?.getAttribute('data-icon') === w, { timeout: 5000 }, want).catch(() => {})
+  }
+  await flip('bell-off')
+  const off = await bell(p)
+  ok('B1 off: bell-off with its strike', off.icon === 'bell-off' && off.strike, off)
+  ok('B2 off: no dot', !(await dot(p)))
+  await flip('bell')
+  const on1 = await bell(p)
+  ok('B3 on again: the plain bell', on1.icon === 'bell' && !on1.strike, on1)
   await p.close()
 
   /* A + T */
   p = await open('default')
   ok('A1 undecided: state ask', (await state(p)) === 'ask', { state: await state(p) })
-  ok('A2 undecided: the bell carries the warn dot', await dot(p))
+  ok('A2 undecided: the bell draws no dot (HUM-10)', !(await dot(p)))
+  const askBell = await bell(p)
+  ok('A2b undecided: the bell is on and its hover text names the state', askBell.icon === 'bell' && askBell.title.includes(':'), askBell)
   ok('A3 undecided: Allow is offered', await has(p, '[data-test=settings-notify-allow]'))
   await p.click('[data-test=settings-notify-allow]')
   await p.waitForFunction(() => document.querySelector('[data-test=settings-notify-state]')?.getAttribute('data-state') === 'on', { timeout: 5000 }).catch(() => {})
   ok('A4 Allow asked the browser and the state is on', (await state(p)) === 'on' && (await p.evaluate(() => window.__asked)) >= 1)
-  ok('A5 the warn dot is gone', !(await dot(p)))
+  ok('A5 still no dot', !(await dot(p)))
   await p.click('[data-test=settings-notify-test]')
   await p.waitForSelector('[data-test=settings-notify-test-result]', { timeout: 5000 }).catch(() => {})
   const alerts = await p.evaluate(() => window.__alerts)
@@ -134,7 +163,7 @@ try {
   p = await open('denied')
   ok('K1 blocked: state blocked', (await state(p)) === 'blocked', { state: await state(p) })
   ok('K2 blocked: no test button, no Allow', !(await has(p, '[data-test=settings-notify-test]')) && !(await has(p, '[data-test=settings-notify-allow]')))
-  ok('K3 blocked: the warn dot', await dot(p))
+  ok('K3 blocked: the bell draws no dot (HUM-10)', !(await dot(p)))
   await p.close()
 
   /* I */

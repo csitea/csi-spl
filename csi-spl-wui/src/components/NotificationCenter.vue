@@ -13,8 +13,6 @@
       @click="notes.toggleAlerts()"
     >
       <UiIcon class="notify-glyph" :name="alertsWanted ? 'bell' : 'bell-off'" :size="18" />
-      <!-- HUM-24 (311427c6): on, but the browser cannot alert (not asked, blocked, iOS tab) -->
-      <span v-if="warn" class="notify-warn-dot" aria-hidden="true" />
     </button>
     <button
       class="icon-btn notify-chime"
@@ -42,7 +40,9 @@ const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
 const alertsWanted = computed(() => notes.alertsEnabled)
 const chimeLabel = computed(() => (notes.chime ? t('notify.chime_on') : t('notify.chime_off')))
-/* the bell is the reader's switch; the dot says the browser does not follow it */
+/* the bell is the reader's switch; when the browser does not follow it (not
+   asked, blocked, iOS tab) the hover text says so. HUM-10 (f4316e89): the bell
+   draws no dot for it any more - Settings -> Notifications names the state */
 const warn = computed(() => ['ask', 'blocked', 'install', 'unsupported'].includes(notes.alertStatus))
 const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notify.state_${notes.alertStatus}`)}` : alertsLabel.value))
@@ -68,16 +68,6 @@ const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notif
 /* SPL-998: off is drawn exactly like the bell when off (the owner: "the same
    width and color as on the bell"), so there is no chime-only off rule */
 .notify-glyph { display: block; }
-.notify-alerts { position: relative; }
-.notify-warn-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-warn);
-}
 
 /* SPL-990: at <= 820 px there is no collapsed rail any more (M1's level 1
    is full width) and the bell + chime live in the avatar sheet, so the
@@ -91,5 +81,4 @@ const bellTitle = computed(() => (warn.value ? `${alertsLabel.value}: ${t(`notif
    the buttons keep their 44 px width and fill its 22 px height (less its 1 px top border) */
 .notify-box--strip .notify-alerts, .notify-box--strip .notify-chime { min-width: 44px; min-height: 0; height: 21px; padding: 0 6px; }
 .notify-box--strip .notify-glyph { width: 16px; height: 16px; }
-.notify-box--strip .notify-warn-dot { top: 1px; right: 10px; }
 </style>

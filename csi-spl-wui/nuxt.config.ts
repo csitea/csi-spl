@@ -9,12 +9,12 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
 import type { NuxtPage } from "@nuxt/schema"
-import { addTemplate, addTypeTemplate } from "@nuxt/kit"
+import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
-import { writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
+import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
 // nuxt.config.ts is loaded by jiti BEFORE Nuxt injects `import.meta.dev`, so
@@ -268,12 +268,23 @@ if (I18N_SPLIT) writeSplitCatalogues(I18N_LOCALES.map((l) => l.file))
 const I18N_MODULE_LOCALES = I18N_SPLIT
   ? I18N_LOCALES.map((l) => ({ ...l, file: `../.split/${l.file}` }))
   : I18N_LOCALES
+const I18N_SPLIT_CORE = join(dirname(fileURLToPath(import.meta.url)), "i18n/.split/")
 /**
  * Never hint the second catalogues as prefetch: a page needs one of the 19,
- * which the plugin fetches itself when the browser is idle.
+ * which the plugin fetches itself when the browser is idle. And ship the core
+ * ones' static messages as plain strings, as the second ones are (P3-20,
+ * plainStatics; i18n/i18n.config.ts compiles them back).
  */
 function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest", fn: (m: Record<string, { prefetch?: boolean }>) => void) => void }) {
   if (!I18N_SPLIT) return
+  addVitePlugin({
+    name: "spool:i18n-plain-statics",
+    enforce: "post",
+    transform(code: string, id: string) {
+      const file = id.split("?")[0]
+      return file.startsWith(I18N_SPLIT_CORE) && file.endsWith(".json") ? { code: plainStatics(code), map: null } : null
+    },
+  })
   nuxt.hook("build:manifest", (manifest) => {
     for (const [src, chunk] of Object.entries(manifest)) {
       if (src.includes("i18n/.split/more/")) chunk.prefetch = false

@@ -73,8 +73,9 @@ describe('split', () => {
   })
   it('writes the rest as compiled messages (runtime-only vue-i18n has no compiler)', () => {
     const code = compiledModule({ x: { y: 'Hello', z: 'Hi {name}' } }, 'x.mjs')
-    assert.match(code, /"y": \{"t":0,"b":\{"t":2/)
+    assert.match(code, /"z": \{"t":0,"b":\{"t":2/)
     assert.match(code, /"k":"name"/)
+    assert.match(code, /"y": "Hello"/) // P3-20: a static message stays its plain string
     assert.match(code, /export default resource/)
   })
 })

@@ -175,9 +175,22 @@ export function splitCatalogue(catalogue, keep, prefix = "") {
   return { core, more }
 }
 
+// Perf round 3, P3-20: the compiled form of a message without a placeholder,
+// link, plural or escape is a fixed AST around its text. 1 123 of 1 271 `en`
+// messages are that; as the plain string they are about a third the bytes,
+// and nothing for vue-i18n to deep-copy or proxy. i18n/i18n.config.ts gives
+// vue-i18n a message compiler that turns such a string back into exactly
+// what the AST would have produced.
+const STATIC_AST = /\{"t":0,"b":\{"t":2,"i":\[\{"t":3\}\],"s":("(?:[^"\\]|\\.)*")\}\}/g
+
+/** Compiled-catalogue module code with every static message as its plain string. */
+export function plainStatics(code) {
+  return code.replace(STATIC_AST, "$1")
+}
+
 /** A catalogue as the ES module unplugin-vue-i18n would make of it (compiled messages). */
 export function compiledModule(catalogue, filename) {
-  return generateJSON(JSON.stringify(catalogue), {
+  return plainStatics(generateJSON(JSON.stringify(catalogue), {
     type: "plain",
     filename,
     env: "production",
@@ -191,7 +204,7 @@ export function compiledModule(catalogue, filename) {
     onError: (msg) => {
       throw new Error(`${filename}: ${msg}`)
     },
-  }).code + "\n"
+  }).code) + "\n"
 }
 
 /**

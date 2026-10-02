@@ -3,11 +3,9 @@ package hubclient
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
-	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -42,40 +40,21 @@ func (s *Session) receiveBackfill(ctx context.Context, raw []byte, agents []stri
 	if e.Channel == "" || normChannel(e.Channel) != normChannel(channel) {
 		return fmt.Errorf("back-fill frame for #%s carries an envelope tagged %q", channel, e.Channel)
 	}
-	local, err := s.c.scanAgents()
+	targets, err := s.hosted(agents)
 	if err != nil {
 		return err
-	}
-	var targets []string
-	for _, a := range agents {
-		if slices.Contains(local, a) {
-			targets = append(targets, a)
-		}
 	}
 	if len(targets) == 0 {
 		return fmt.Errorf("back-fill frame for agents %v hosts none of them at box %q", agents, s.box)
 	}
-	pub, err := sign.LoadPin(s.c.Cfg.PinsDir, e.FromBox)
-	if err != nil {
-		return fmt.Errorf("sender box %s: %w", e.FromBox, err)
-	}
-	if err := e.Verify(pub); err != nil {
-		return fmt.Errorf("envelope from %s: %w", e.FromBox, err)
-	}
-	m, err := e.Inner()
+	m, err := s.open(e)
 	if err != nil {
 		return err
 	}
-	if e.FromBox == wuiBox && m.Kind != "task" && m.Kind != "note" {
-		return fmt.Errorf("envelope from %s with kind %q: %w", wuiBox, m.Kind, sign.ErrVerify)
+	if err := checkWUIKind(e, m); err != nil {
+		return err
 	}
-	for _, a := range m.Files {
-		if a.Mode == "blob" {
-			if err := s.fetchFile(ctx, a.FileID); err != nil {
-				s.c.Log.Warn().Err(err).Str("file_id", a.FileID).Msg("attachment not fetched")
-			}
-		}
-	}
+	s.fetchBlobs(ctx, m)
 	for _, id := range targets {
 		wrote, err := spool.New(s.c.Cfg).DeliverQuiet(m, id)
 		if err != nil {

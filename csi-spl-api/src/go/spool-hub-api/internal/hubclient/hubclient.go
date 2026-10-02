@@ -713,27 +713,14 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 		return fmt.Errorf("frame for to_box %q arrived at box %q", e.ToBox, s.box)
 	}
 	if e.Channel != "" && len(agents) > 0 {
-		local, err := s.c.scanAgents()
-		if err != nil {
+		if targets, err = s.hosted(agents); err != nil {
 			return err
-		}
-		for _, a := range agents {
-			if slices.Contains(local, a) {
-				targets = append(targets, a)
-			}
 		}
 		if !own && len(targets) == 0 {
 			return fmt.Errorf("channel frame for agents %v hosts none of them at box %q", agents, s.box)
 		}
 	}
-	pub, err := sign.LoadPin(s.c.Cfg.PinsDir, e.FromBox)
-	if err != nil {
-		return fmt.Errorf("sender box %s: %w", e.FromBox, err)
-	}
-	if err := e.Verify(pub); err != nil {
-		return fmt.Errorf("envelope from %s: %w", e.FromBox, err)
-	}
-	m, err := e.Inner()
+	m, err := s.open(e)
 	if err != nil {
 		return err
 	}
@@ -741,16 +728,10 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	// before it - the hub's work and two network legs - is measured from the
 	// sender's clock instead; everything after it is this clock's to subtract.
 	trace.Mark(trace.Event{Stage: trace.StageWSRecv, MsgID: m.MsgID, To: m.To})
-	if e.FromBox == wuiBox && m.Kind != "task" && m.Kind != "note" {
-		return fmt.Errorf("envelope from %s with kind %q: %w", wuiBox, m.Kind, sign.ErrVerify)
+	if err := checkWUIKind(e, m); err != nil {
+		return err
 	}
-	for _, a := range m.Files {
-		if a.Mode == "blob" {
-			if err := s.fetchFile(ctx, a.FileID); err != nil {
-				s.c.Log.Warn().Err(err).Str("file_id", a.FileID).Msg("attachment not fetched")
-			}
-		}
-	}
+	s.fetchBlobs(ctx, m)
 	if own && !slices.Contains(targets, m.To) {
 		targets = append(targets, m.To)
 	}
@@ -766,6 +747,55 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 		}
 	}
 	return nil
+}
+
+// hosted is the subset of agents this box hosts, in the frame's order.
+func (s *Session) hosted(agents []string) ([]string, error) {
+	local, err := s.c.scanAgents()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, a := range agents {
+		if slices.Contains(local, a) {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+// open verifies e against its sender box's pin and returns the message it
+// carries.
+func (s *Session) open(e *wire.Envelope) (*msg.Message, error) {
+	pub, err := sign.LoadPin(s.c.Cfg.PinsDir, e.FromBox)
+	if err != nil {
+		return nil, fmt.Errorf("sender box %s: %w", e.FromBox, err)
+	}
+	if err := e.Verify(pub); err != nil {
+		return nil, fmt.Errorf("envelope from %s: %w", e.FromBox, err)
+	}
+	return e.Inner()
+}
+
+// checkWUIKind: the WUI box may only send a task or a note (what a person
+// types); anything else from it is refused as a verification failure.
+func checkWUIKind(e *wire.Envelope, m *msg.Message) error {
+	if e.FromBox == wuiBox && m.Kind != "task" && m.Kind != "note" {
+		return fmt.Errorf("envelope from %s with kind %q: %w", wuiBox, m.Kind, sign.ErrVerify)
+	}
+	return nil
+}
+
+// fetchBlobs pulls m's blob attachments into this box's file store; a failed
+// fetch is logged and the message is delivered anyway.
+func (s *Session) fetchBlobs(ctx context.Context, m *msg.Message) {
+	for _, a := range m.Files {
+		if a.Mode == "blob" {
+			if err := s.fetchFile(ctx, a.FileID); err != nil {
+				s.c.Log.Warn().Err(err).Str("file_id", a.FileID).Msg("attachment not fetched")
+			}
+		}
+	}
 }
 
 // ---- REST: pins and files ------------------------------------------------------

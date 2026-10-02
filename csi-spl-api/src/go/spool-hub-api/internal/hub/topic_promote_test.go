@@ -31,6 +31,7 @@ func TestPromoteTopic(t *testing.T) {
 		{"a topic's card", g.card, "HUM-1", map[string]any{}, http.StatusConflict, "is_card"},
 		{"an unknown field", g.r3, "HUM-1", map[string]any{"to_task": g.U}, http.StatusBadRequest, "bad_json"},
 		{"an empty undo", g.r3, "HUM-1", map[string]any{"undo": map[string]any{"from_task": g.T, "msg_ids": []string{}}}, http.StatusBadRequest, "bad_json"},
+		{"an undo from a task that is not a uuid", g.r3, "HUM-1", map[string]any{"undo": map[string]any{"from_task": "nope", "msg_ids": []string{g.r}}}, http.StatusBadRequest, "bad_json"},
 	}
 	for _, c := range refused {
 		code, out := promote(c.id, c.as, c.body)

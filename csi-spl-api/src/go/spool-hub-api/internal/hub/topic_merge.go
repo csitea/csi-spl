@@ -124,24 +124,9 @@ func (s *Server) mergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, 
 // unmergeTopic reverses a merge from its answer's undo payload.
 func (s *Server) unmergeTopic(w http.ResponseWriter, r *http.Request, mr moveRow, u *mergeUndo) {
 	c := mr.card
-	from := strings.ToLower(u.FromTask)
-	switch {
-	case !uuidRe.MatchString(from):
-		writeErr(w, http.StatusBadRequest, "bad_json", "undo.from_task must be a UUID")
+	from, ids, ok := undoRows(w, c.may, u.FromTask, u.MsgIDs, "merge")
+	if !ok {
 		return
-	case !c.may:
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may undo this merge")
-		return
-	case len(u.MsgIDs) == 0 || len(u.MsgIDs) > maxUndoRows:
-		writeErr(w, http.StatusBadRequest, "bad_json", "undo.msg_ids is empty or too long")
-		return
-	}
-	ids := make([]string, 0, len(u.MsgIDs))
-	for _, id := range u.MsgIDs {
-		lid := strings.ToLower(id)
-		if uuidRe.MatchString(lid) {
-			ids = append(ids, lid)
-		}
 	}
 	if err := s.o.Store.UnmergeTopic(r.Context(), c.t.ID, c.m.MsgID, ids); !s.moveStored(w, err, c.m.MsgID) {
 		return

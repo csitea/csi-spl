@@ -382,3 +382,30 @@ func (s *Server) moveTarget(w http.ResponseWriter, r *http.Request, mr moveRow, 
 	}
 	return card, true
 }
+
+// undoRows checks an undo payload a merge and a promote share: from_task is a
+// UUID, the caller may undo (the author / owner / admin rule), and msg_ids
+// holds 1..maxUndoRows ids. It returns from_task and the ids lower-cased,
+// dropping any that is not a UUID. what names the operation in the refusal.
+// ok=false means it answered.
+func undoRows(w http.ResponseWriter, may bool, fromTask string, msgIDs []string, what string) (string, []string, bool) {
+	from := strings.ToLower(fromTask)
+	switch {
+	case !uuidRe.MatchString(from):
+		writeErr(w, http.StatusBadRequest, "bad_json", "undo.from_task must be a UUID")
+		return "", nil, false
+	case !may:
+		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may undo this "+what)
+		return "", nil, false
+	case len(msgIDs) == 0 || len(msgIDs) > maxUndoRows:
+		writeErr(w, http.StatusBadRequest, "bad_json", "undo.msg_ids is empty or too long")
+		return "", nil, false
+	}
+	ids := make([]string, 0, len(msgIDs))
+	for _, id := range msgIDs {
+		if lid := strings.ToLower(id); uuidRe.MatchString(lid) {
+			ids = append(ids, lid)
+		}
+	}
+	return from, ids, true
+}

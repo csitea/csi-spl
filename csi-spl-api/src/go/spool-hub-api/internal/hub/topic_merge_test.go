@@ -35,6 +35,8 @@ func TestMergeTopic(t *testing.T) {
 		{"into a thread that has no card", g.card, "HUM-1", map[string]any{"to_task": g.r3}, http.StatusConflict, "not_a_card"},
 		{"no target", g.card, "HUM-1", map[string]any{}, http.StatusBadRequest, "bad_json"},
 		{"both a target and an undo", g.card, "HUM-1", map[string]any{"to_task": g.U, "undo": map[string]any{"from_task": g.T}}, http.StatusBadRequest, "bad_json"},
+		{"an undo from a task that is not a uuid", g.card, "HUM-1", map[string]any{"undo": map[string]any{"from_task": "nope", "msg_ids": []string{g.r}}}, http.StatusBadRequest, "bad_json"},
+		{"an empty undo", g.card, "HUM-1", map[string]any{"undo": map[string]any{"from_task": g.T, "msg_ids": []string{}}}, http.StatusBadRequest, "bad_json"},
 	}
 	for _, c := range refused {
 		code, out := merge(c.id, c.as, c.body)

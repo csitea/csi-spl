@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -115,24 +114,9 @@ func (s *Server) promoteMessage(w http.ResponseWriter, r *http.Request, mr moveR
 // demoteTopic reverses a promote from its answer's undo payload.
 func (s *Server) demoteTopic(w http.ResponseWriter, r *http.Request, mr moveRow, u *promoteUndo) {
 	c := mr.card
-	from := strings.ToLower(u.FromTask)
-	switch {
-	case !uuidRe.MatchString(from):
-		writeErr(w, http.StatusBadRequest, "bad_json", "undo.from_task must be a UUID")
+	from, ids, ok := undoRows(w, c.may, u.FromTask, u.MsgIDs, "promote")
+	if !ok {
 		return
-	case !c.may:
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may undo this promote")
-		return
-	case len(u.MsgIDs) == 0 || len(u.MsgIDs) > maxUndoRows:
-		writeErr(w, http.StatusBadRequest, "bad_json", "undo.msg_ids is empty or too long")
-		return
-	}
-	ids := make([]string, 0, len(u.MsgIDs))
-	for _, id := range u.MsgIDs {
-		lid := strings.ToLower(id)
-		if uuidRe.MatchString(lid) {
-			ids = append(ids, lid)
-		}
 	}
 	home := c.m.Move.FromTask // the topic the message came from (recorded by the promote)
 	if err := s.o.Store.DemoteTopic(r.Context(), c.t.ID, c.m.MsgID, ids); !s.moveStored(w, err, c.m.MsgID) {

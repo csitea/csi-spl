@@ -1,25 +1,32 @@
 <!-- Owner 2026-09-27 (topic 38ba1dae): the top-bar logo is small; a click
      opens it in the centre of the screen, with the slogan "spool-hub - where
-     humans and ai meet". Loaded lazily (LazyLogoDialog): the 1920 px picture
-     is fetched only when the dialog opens.
+     humans and ai meet". Loaded lazily (LazyLogoDialog): the picture is
+     fetched only when the dialog opens.
      SPL-1150 (owner, topic 3d6c9caf): "more stylish ... a bit smaller modal
      dialog box" and "it should contain a short description of what spool-hub
      is". A compact UiDialog `card` (fades in, none under reduced motion): the
      picture, the slogan, what spool-hub is, the running version and the links
-     to the public source and its docs. The X follows SPL-1133. -->
+     to the public source and its docs. The X follows SPL-1133.
+     Owner (topic 87eaa57b): the picture ships at the size it is shown -
+     560 px wide (.logo-card__img max-width) and 1120 px for 2x screens -
+     as AVIF with a WebP fallback, not the 1920 px original (270 KB). -->
 <template>
   <UiDialog :open="open" :title="t('logo.open')" size="card" @update:open="emit('update:open', $event)">
     <div class="logo-card" data-testid="logo-dialog">
       <figure class="logo-card__fig">
-        <img
-          class="logo-card__img"
-          src="/spool-hub-emblem.webp"
-          width="1920"
-          height="1047"
-          :alt="t('logo.slogan')"
-          decoding="async"
-          data-testid="logo-dialog-img"
-        >
+        <picture class="logo-card__pic">
+          <source type="image/avif" srcset="/spool-hub-emblem-560.avif 1x, /spool-hub-emblem-1120.avif 2x">
+          <img
+            class="logo-card__img"
+            src="/spool-hub-emblem-560.webp"
+            srcset="/spool-hub-emblem-560.webp 1x, /spool-hub-emblem-1120.webp 2x"
+            width="560"
+            height="305"
+            :alt="t('logo.slogan')"
+            decoding="async"
+            data-testid="logo-dialog-img"
+          >
+        </picture>
         <figcaption class="logo-card__slogan" data-testid="logo-dialog-slogan">
           <strong>spool-hub</strong> - {{ t('logo.slogan') }}
         </figcaption>
@@ -66,6 +73,8 @@ const version = computed(() => String(useRuntimeConfig().public.appVersion || ''
   gap: 12px;
   width: 100%;
 }
+/* the <picture> wrapper takes no box: the img stays the flex item */
+.logo-card__pic { display: contents; }
 .logo-card__img {
   display: block;
   width: 100%;

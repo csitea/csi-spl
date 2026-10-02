@@ -25,10 +25,15 @@ describe('the logo dialog', () => {
 
   it('shows the true-size picture and the slogan in the shared UiDialog', () => {
     assert.match(dialog, /<UiDialog :open="open"/)
-    assert.match(dialog, /src="\/spool-hub-emblem\.webp"/)
+    /* owner topic 87eaa57b: shown-size AVIF + WebP fallback, 1x and 2x, never the 1920 px original */
+    assert.match(dialog, /<source type="image\/avif" srcset="\/spool-hub-emblem-560\.avif 1x, \/spool-hub-emblem-1120\.avif 2x">/)
+    assert.match(dialog, /src="\/spool-hub-emblem-560\.webp"/)
+    assert.match(dialog, /srcset="\/spool-hub-emblem-560\.webp 1x, \/spool-hub-emblem-1120\.webp 2x"/)
+    assert.match(dialog, /width="560"\n\s*height="305"/)
     assert.match(dialog, /data-testid="logo-dialog-slogan"/)
     assert.match(dialog, /t\('logo\.slogan'\)/)
-    assert.ok(existsSync(join(WUI, 'src/public/spool-hub-emblem.webp')))
+    for (const f of ['560.avif', '560.webp', '1120.avif', '1120.webp']) assert.ok(existsSync(join(WUI, `src/public/spool-hub-emblem-${f}`)), f)
+    assert.ok(!existsSync(join(WUI, 'src/public/spool-hub-emblem.webp')))
     assert.ok(existsSync(join(WUI, 'src/public/logo.webp')))
   })
 

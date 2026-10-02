@@ -175,27 +175,9 @@ do_spl_spec_import_issues() {
       do_log "INFO label $name is in the catalogue"
     fi
     rc=0
-  done < <(python3 -c 'import json,sys
-for n in json.load(open(sys.argv[1], encoding="utf-8"))["needed_labels"]:
-    print(n)' "$work/ops.json")
+  done < <(_spl_spec_needed_labels "$work/ops.json")
 
-  python3 - "$work/ops.json" "$work/ops.tsv" "$work/keys.tsv" <<'PY' || return 1
-import base64, json, sys
-doc = json.load(open(sys.argv[1], encoding="utf-8"))
-ops = sorted(doc["ops"], key=lambda o: (0 if o["kind"] == "task" else 1, o["spec"], o["id"]))
-with open(sys.argv[2], "w", encoding="utf-8") as fh:
-    for op in ops:
-        if op["action"] == "skip":
-            continue
-        title = base64.b64encode(op["title"].encode()).decode()
-        cols = [op["action"], op["item"], op.get("ref") or "", op.get("parent_key") or "",
-                op.get("parent_item") or "", op["status"], ",".join(op["labels"]),
-                op["description_path"], op["kind"], title]
-        fh.write("\x1f".join(cols) + "\n")
-with open(sys.argv[3], "w", encoding="utf-8") as fh:
-    for item, key in doc["known_keys"].items():
-        fh.write(f"{item}\t{key}\n")
-PY
+  _spl_spec_ops_tsv "$work/ops.json" "$work/ops.tsv" "$work/keys.tsv" || return 1
 
   local n=0 fails=0 action item ref pkey pitem status labels desc kind title_b64 title key out try
   while IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64; do
@@ -248,7 +230,58 @@ PY
       n=$((n + 1))
       continue
     fi
-    key="$(printf '%s\n' "$out" | python3 -c '
+    key="$(printf '%s\n' "$out" | _spl_spec_reply_key)"
+    if [[ "$action" == create && -z "$key" ]]; then
+      do_log "FATAL $item was created but the reply had no key"
+      fails=$((fails + 1))
+      n=$((n + 1))
+      continue
+    fi
+    [[ -n "$key" ]] && printf '%s\t%s\n' "$item" "$key" >>"$work/keys.tsv"
+    n=$((n + 1))
+    do_log "INFO $action $item -> ${key:-$ref}"
+    sleep "$interval"
+  done <"$work/ops.tsv"
+
+  do_log "INFO spec import wrote $n issue(s), $fails failed. Report: $report"
+  (( fails == 0 ))
+}
+
+# _spl_spec_needed_labels <ops.json>: the label names the plan needs in the
+# tenant's catalogue, one per line.
+_spl_spec_needed_labels() {
+  python3 -c 'import json,sys
+for n in json.load(open(sys.argv[1], encoding="utf-8"))["needed_labels"]:
+    print(n)' "$1"
+}
+
+# _spl_spec_ops_tsv <ops.json> <ops.tsv> <keys.tsv>: the plan's write ops as
+# \x1f-separated rows (tasks first; skips dropped; the title base64), and the
+# keys already known per item as item<TAB>key.
+_spl_spec_ops_tsv() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import base64, json, sys
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+ops = sorted(doc["ops"], key=lambda o: (0 if o["kind"] == "task" else 1, o["spec"], o["id"]))
+with open(sys.argv[2], "w", encoding="utf-8") as fh:
+    for op in ops:
+        if op["action"] == "skip":
+            continue
+        title = base64.b64encode(op["title"].encode()).decode()
+        cols = [op["action"], op["item"], op.get("ref") or "", op.get("parent_key") or "",
+                op.get("parent_item") or "", op["status"], ",".join(op["labels"]),
+                op["description_path"], op["kind"], title]
+        fh.write("\x1f".join(cols) + "\n")
+with open(sys.argv[3], "w", encoding="utf-8") as fh:
+    for item, key in doc["known_keys"].items():
+        fh.write(f"{item}\t{key}\n")
+PY
+}
+
+# _spl_spec_reply_key: the issue key in a do_spl_issue_create / _update reply
+# on stdin (its last JSON line that carries one), or "".
+_spl_spec_reply_key() {
+  python3 -c '
 import json, sys
 key = ""
 for line in sys.stdin:
@@ -264,19 +297,5 @@ for line in sys.stdin:
     if isinstance(iss, dict) and iss.get("key"):
         key = iss["key"]
 print(key)
-')"
-    if [[ "$action" == create && -z "$key" ]]; then
-      do_log "FATAL $item was created but the reply had no key"
-      fails=$((fails + 1))
-      n=$((n + 1))
-      continue
-    fi
-    [[ -n "$key" ]] && printf '%s\t%s\n' "$item" "$key" >>"$work/keys.tsv"
-    n=$((n + 1))
-    do_log "INFO $action $item -> ${key:-$ref}"
-    sleep "$interval"
-  done <"$work/ops.tsv"
-
-  do_log "INFO spec import wrote $n issue(s), $fails failed. Report: $report"
-  (( fails == 0 ))
+'
 }

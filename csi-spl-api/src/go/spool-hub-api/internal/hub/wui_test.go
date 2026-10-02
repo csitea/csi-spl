@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -606,5 +607,43 @@ func TestWUIDMHumanSenderReachesRecipient(t *testing.T) {
 	}
 	if got := fromBoxOf(t, f); got != "box-wui" {
 		t.Fatalf("human sender from_box = %q, want box-wui (else the rail keys dm:<id>@<box> wrong)", got)
+	}
+}
+
+// R2-1 (db-payload-audit-round2): /v1/wui/ws negotiates permessage-deflate
+// without context takeover, a compressed message frame round-trips intact,
+// and a client that does not offer the extension still gets plain frames.
+func TestWUIWSPermessageDeflate(t *testing.T) {
+	e := wuiEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	u := "ws://" + tid + domain + "/v1/wui/ws"
+
+	c, resp, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: e.client, CompressionMode: websocket.CompressionContextTakeover})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.CloseNow() //nolint:errcheck
+	if ext := resp.Header.Get("Sec-WebSocket-Extensions"); !strings.Contains(ext, "permessage-deflate") || !strings.Contains(ext, "server_no_context_takeover") {
+		t.Fatalf("extensions %q, want permessage-deflate; server_no_context_takeover", ext)
+	}
+	w := &wuiClient{t: t, c: c}
+	w.send(map[string]string{"type": "hello", "as": "HUM-2"})
+	w.read("welcome")
+	w.send(map[string]string{"type": "subscribe", "task_id": "lobby"})
+	w.read("subscribed")
+	body := strings.Repeat("compressed frame body ", 40) // well past the 512 B threshold
+	w.send(map[string]any{"type": "send", "task_id": "lobby", "body": body})
+	if m := innerOf(t, w.read("message")); m["body"] != body {
+		t.Fatalf("body after inflate: %v", m["body"])
+	}
+
+	p, presp, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: e.client})
+	if err != nil {
+		t.Fatalf("plain dial: %v", err)
+	}
+	defer p.CloseNow() //nolint:errcheck
+	if ext := presp.Header.Get("Sec-WebSocket-Extensions"); ext != "" {
+		t.Fatalf("plain client got extensions %q", ext)
 	}
 }

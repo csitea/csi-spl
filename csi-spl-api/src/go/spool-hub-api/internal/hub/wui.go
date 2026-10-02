@@ -190,7 +190,15 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wuiOrigins(r)})
+	// permessage-deflate, without context takeover (db-payload-audit-round2
+	// R2-1): a ~675 B message frame goes out as ~440 B. Takeover would reach
+	// ~130..310 B but pins a 1.2 MB flate.Writer per open socket (measured
+	// +258 MB heap at 200 sockets) against the hub's 512Mi single instance.
+	// Browsers negotiate it themselves; Safari and old clients get plain frames.
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns:  s.wuiOrigins(r),
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	})
 	if err != nil {
 		return
 	}

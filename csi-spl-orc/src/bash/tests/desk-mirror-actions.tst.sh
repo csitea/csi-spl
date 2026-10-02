@@ -109,7 +109,9 @@ then pass "3. both events call spool-mirror.py hook of this checkout"; else fail
 SNIPPET=do_spl_desk_mirror_settings in_orc MIRROR_PY="$T/absent.py" >"$T/o" 2>&1 &&
   fail "3. an absent MIRROR_PY was accepted" || pass "3. an absent MIRROR_PY is refused"
 cmd="$(SNIPPET='spl_desk_mirror_settings_json "$T/absent.py"' in_orc T="$T" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hooks"]["Stop"][0]["hooks"][0]["command"])')"
-printf '{}' | bash -c "$cmd" >"$T/o" 2>&1; rc=$?
+# a here-string, not 'printf | bash': the no-op hook never reads stdin, so under
+# pipefail printf could take SIGPIPE and the pipeline read rc 141.
+bash -c "$cmd" <<<'{}' >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -s "$T/o" ]] && pass "3. the hook is a silent no-op when the script is absent" || fail "3. absent script: rc $rc $(cat "$T/o")"
 
 # --- 4. the check ------------------------------------------------------------------------------

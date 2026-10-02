@@ -19,8 +19,8 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [ ] T016 L1b store look-ups by bare id take the box, resolve rule single box / refused when ambiguous; `spool` + HTTP API accept `c-004@<box>`; `agentid.LegacyUntil` (and its bash/WUI copies) = `2026-10-03T20:59:59Z`
 - [ ] T017 L1b PG collision test: `c-004@box-desk` and `c-004@<sat box>` coexist in roster, lanes, asks, leases; each one's mail reaches only that agent
 - [ ] T018 L1b deploy hub dev+prd; migration applied with `do_spl_db_bootstrap` on both; dev `spool send` to `c-004@box-desk` and a legacy id
-- [ ] T020 L2 `src/utils/agent-id.mjs` + the FR-005 pin test against the Go constant
-- [ ] T021 L2 the 15 WUI regex sites call it; mention chips for `@c-004@<box>`
+- [x] T020 L2 `src/utils/agent-id.mjs` + the FR-005 pin test against the Go constant
+- [x] T021 L2 the 15 WUI regex sites call it; mention chips for `@c-004@<box>`
 - [ ] T022 L2 deploy WUI dev+prd; e2e on the generated bundle
 - [x] T030 L3a `spool-env.inc.sh`: `spl_is_agent_id`, `spl_is_participant_id`, `SPOOL_LEGACY_ID_UNTIL`, `SPOOL_NOW` + FR-005 pin test
 - [x] T031 L3a spawn-agents scripts, libs and python parsers use the helpers; window parsing accepts `c-NNN`

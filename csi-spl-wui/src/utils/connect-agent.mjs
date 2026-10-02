@@ -9,10 +9,13 @@
  * this file.
  */
 
+import { isWritableAgentId } from './agent-id.mjs'
+
 export const SPOOL_REPO = 'https://github.com/csitea/csi-spl'
 
-/* the hub's id rules (internal/msg: idRe, boxRe) */
-export const validAgentId = (s) => typeof s === 'string' && /^[A-Z]{2,4}-\d+$/.test(s) && !s.startsWith('BOX-') && !s.startsWith('HUM-')
+/* the hub's id rules (internal/msg: idRe, boxRe; spec 061: c-004, or a legacy
+   id until LEGACY_ID_UNTIL - this is a write path) */
+export const validAgentId = (s) => typeof s === 'string' && isWritableAgentId(s)
 export const validBoxId = (s) => typeof s === 'string' && /^[a-z0-9][a-z0-9-]{0,31}$/.test(s)
 
 /* a single-quoted shell word: the values are checked, this is belt and braces */

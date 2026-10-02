@@ -5,6 +5,7 @@
 // ride with those chunks. Import them from here, never re-export them from
 // spool-client.mjs (that would put them back in the initial JS).
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
+import { isParticipantId } from './agent-id.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -105,8 +106,6 @@ export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {
   return by !== '' && !HUMAN_ID_RE.test(by)
 }
 
-const AGENT_ID_RE = /^[A-Z]{2,4}-[0-9]+$/
-
 /**
  * Announced agents the channel can still invite. Humans and the browser
  * box are not agents. An agent already in the channel is left out.
@@ -122,7 +121,7 @@ export function channelAgentCandidates(roster, current) {
     const ids = Array.isArray(roster[box]) ? roster[box] : []
     for (const raw of ids) {
       const id = String(raw || '')
-      if (!AGENT_ID_RE.test(id) || id.startsWith('HUM-')) continue
+      if (!isParticipantId(id) || id.startsWith('HUM-')) continue
       const key = id + '\0' + box
       if (have.has(key) || seen.has(key)) continue
       seen.add(key)
@@ -179,7 +178,7 @@ export function channelAgentState(raw) {
 export function channelFallbackLine(raw) {
   if (!raw || typeof raw !== 'object') return null
   const rawId = String(raw.id || '')
-  const id = /^[A-Z]{2,4}-[0-9]+$/.test(rawId) && !rawId.startsWith('HUM-') ? rawId : ''
+  const id = isParticipantId(rawId) && !rawId.startsWith('HUM-') ? rawId : ''
   const box = id ? String(raw.box || '') : ''
   const rec = raw.recent && typeof raw.recent === 'object' ? raw.recent : {}
   const count = Number.isInteger(rec.count) && rec.count > 0 ? rec.count : 0

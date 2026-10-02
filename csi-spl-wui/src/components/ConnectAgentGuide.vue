@@ -53,6 +53,7 @@
 <script setup lang="ts">
 import CodeBlock from '~/components/CodeBlock.vue'
 import { connectAgentScript, cursorMcpJson, firstPrompt, validAgentId, validBoxId } from '~/utils/connect-agent.mjs'
+import { normalizeId } from '~/utils/agent-id.mjs'
 
 const props = defineProps<{ tenant: string, hubUrl: string, open: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -63,7 +64,8 @@ const box = ref('box-laptop')
 const keyFile = ref('')
 watch(() => props.tenant, (tn) => { if (!keyFile.value) keyFile.value = `~/Downloads/${tn || 'tenant'}.root.key` }, { immediate: true })
 
-const agentId = computed(() => agent.value.trim().toUpperCase())
+/* spec 061: c-004 stays lower case, a legacy id is upper-cased */
+const agentId = computed(() => normalizeId(agent.value) || agent.value.trim().toUpperCase())
 const boxId = computed(() => box.value.trim().toLowerCase())
 const valid = computed(() => validAgentId(agentId.value) && validBoxId(boxId.value) && Boolean(keyFile.value.trim()) && Boolean(props.hubUrl) && Boolean(props.tenant))
 const script = computed(() => connectAgentScript({ hubUrl: props.hubUrl, tenant: props.tenant, box: boxId.value, agent: agentId.value, keyFile: keyFile.value.trim() }))

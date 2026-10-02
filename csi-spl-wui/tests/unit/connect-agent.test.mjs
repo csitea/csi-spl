@@ -9,6 +9,11 @@ import {
   boxHubUrl, connectAgentScript, cursorMcpJson, firstPrompt, keyFileArg, validAgentId, validBoxId,
 } from '../../src/utils/connect-agent.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { setAgentIdNow } from '../../src/utils/agent-id.mjs'
+
+/* spec 061 FR-004: these ids are legacy (CLE-01); pin the clock before
+   LEGACY_ID_UNTIL so this file does not turn red at the deadline on its own */
+setAgentIdNow('2026-10-02T12:00:00Z')
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -31,7 +36,7 @@ ok('no secret in the block: the key stays a file path', !/[A-Za-z0-9+/]{80,}={0,
 const c = JSON.parse(cursorMcpJson({ agent: 'CLE-02' }))
 ok('Cursor mcp.json seats the same server', c.mcpServers.spool.command === 'bash' && c.mcpServers.spool.args[1] === '. ~/.spool/env && exec spool mcp --as CLE-02')
 ok('the first prompt names the agent and the tools', /CLE-01/.test(firstPrompt('CLE-01')) && /spool_recv/.test(firstPrompt('CLE-01')) && /spool_send/.test(firstPrompt('CLE-01')))
-ok('ids follow the hub rules', validAgentId('CLE-01') && validAgentId('GRK-3') && !validAgentId('cle-01') && !validAgentId('HUM-4') && !validAgentId('BOX-1') &&
+ok('ids follow the hub rules', validAgentId('c-004') && !validAgentId('C-004') && validAgentId('CLE-01') && validAgentId('GRK-3') && !validAgentId('cle-01') && !validAgentId('HUM-4') && !validAgentId('BOX-1') &&
   validBoxId('box-laptop') && !validBoxId('Box') && !validBoxId('-x') && !validBoxId('a'.repeat(33)))
 ok('a ~/ key path stays expandable, others are one quoted word', keyFileArg('~/k.key') === '"$HOME/k.key"' && keyFileArg("/a b/c'd") === "'/a b/c'\\''d'")
 ok('hub url: the api base, {tenant} filled, else this origin', boxHubUrl('https://api.example.com/', 'https://w.example.com') === 'https://api.example.com' &&

@@ -4,13 +4,14 @@
  */
 
 import { storageGet, storageGetJson, storageSet, storageSetJson } from './prefs.mjs'
+import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { isViewersOwn } from './typed-by.mjs'
 
 export const CHIME_KEY = 'spool.chime'
 /* 051: which sound the chime plays, per device (owner dd88348d: "the beep
    sound is too plain. Could it be something more funny"). */
 export const CHIME_SOUND_KEY = 'spool.chime-sound'
-export const MENTION_RE = /@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b/g
+export const MENTION_RE = new RegExp(String.raw`@(${PARTICIPANT_ID_SRC})(?:@${BOX_ID_SRC})?\b`, 'g')
 
 export function normalizeChannel(name) {
   const s = String(name || '').replace(/^#/, '').trim().toLowerCase()

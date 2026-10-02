@@ -8,6 +8,11 @@ import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSectio
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { setAgentIdNow } from '../../src/utils/agent-id.mjs'
+
+/* spec 061 FR-004: these ids are legacy (CLE-01); pin the clock before
+   LEGACY_ID_UNTIL so this file does not turn red at the deadline on its own */
+setAgentIdNow('2026-10-02T12:00:00Z')
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -66,7 +71,7 @@ const rows = normalizeTenantChannels({ channels: [
 ok('channels: defaults first, junk dropped', rows.map((r) => r.channel).join() === 'lobby,zeta')
 ok('channels: name falls back to the id', rows[0].name === 'lobby' && rows[0].noFallback === true && rows[0].archivable === false)
 
-ok('responder ids', validResponderId('CLE-01') && validResponderId(' GRK-3 ') && validResponderId('AGY-02'))
+ok('responder ids', validResponderId('c-004') && validResponderId('CLE-01') && validResponderId(' GRK-3 ') && validResponderId('AGY-02'))
 ok('CONTROL: a human is not a responder', !validResponderId('HUM-4') && !validResponderId('cle-01') && !validResponderId('CLE01'))
 ok('move up', moveItem(['a', 'b', 'c'], 2, -1).join() === 'a,c,b')
 ok('move past the end is a no-op', moveItem(['a', 'b'], 1, 1).join() === 'a,b' && moveItem(['a', 'b'], 0, -1).join() === 'a,b')

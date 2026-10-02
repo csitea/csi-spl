@@ -6,6 +6,8 @@
  * tests import this file.
  */
 
+import { isWritableAgentId } from './agent-id.mjs'
+
 const str = (v) => (typeof v === 'string' ? v : '')
 
 /** A GET/PATCH /v1/tenant/settings body with safe types. */
@@ -53,10 +55,9 @@ export function normalizeTenantChannels(body) {
   return rows
 }
 
-/** An agent id the hub accepts as a responder (CLE-01, GRK-3); never a HUM-*. */
+/** An agent id the hub accepts as a responder (c-004; CLE-01 until LEGACY_ID_UNTIL); never a HUM-*. */
 export function validResponderId(s) {
-  const v = String(s || '').trim()
-  return /^[A-Z]{2,4}-[0-9]+$/.test(v) && !v.startsWith('HUM-')
+  return isWritableAgentId(String(s || '').trim())
 }
 
 /** Move item i of list by delta (-1 up, +1 down); a new array, unchanged when out of range. */

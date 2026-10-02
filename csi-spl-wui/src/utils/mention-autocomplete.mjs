@@ -1,13 +1,17 @@
 /** @mention picker over the roster. Node tests import this file; Vue wraps it. */
 
-const AGENT_ID_RE = /^(CLE|GRK|AGY|HUM|GST)-\d+$/
+import { agentKindOf } from './agent-id.mjs'
+
+const HUMAN_RE = /^(HUM|GST)-[0-9]+$/
 
 /* The @token at the caret: an id (CLE-07) or the start of a display name in
    any script (@first, @име), so a person is found by the name they chose. */
 const MENTION_TOKEN_RE = /(^|[\s])@([\p{L}\p{N}._-]*)$/u
 
 export function isAgentId(id) {
-  return AGENT_ID_RE.test(String(id || ''))
+  /* a known kind (c-004, CLE-07, ...) or a person; EZB-1 / ALL-0 are not offered */
+  const s = String(id || '')
+  return agentKindOf(s) !== 'agent' || HUMAN_RE.test(s)
 }
 
 /**

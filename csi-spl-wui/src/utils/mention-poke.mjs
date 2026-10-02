@@ -4,6 +4,7 @@
  * to act. Node tests import this file; composables/useMentionPoke.ts wraps it.
  */
 
+import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { mentionedIds } from './notify.mjs'
 
 export const EXCERPT_MAX = 200
@@ -35,9 +36,11 @@ export function pokeTargets({ text, before = '', selfId = '', addressee = '' }) 
  * @param {string} text
  * @returns {Record<string, string>} id -> box
  */
+const MENTION_BOX_RE = new RegExp(`(?<![\\w@])@(${PARTICIPANT_ID_SRC})@(${BOX_ID_SRC})\\b`, 'g')
+
 export function mentionBoxes(text) {
   const out = {}
-  for (const m of String(text || '').matchAll(/(?<![\w@])@([A-Z]{2,4}-\d+)@([a-z0-9][a-z0-9-]{0,31})\b/g)) {
+  for (const m of String(text || '').matchAll(MENTION_BOX_RE)) {
     if (!(m[1] in out)) out[m[1]] = m[2]
   }
   return out

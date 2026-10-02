@@ -49,12 +49,17 @@ async function setField(p, sel, value) {
 
 const scriptText = (p) => p.$eval('[data-test=connect-agent-script] pre, [data-test=connect-agent-script] code', (el) => el.textContent || '').catch(() => '')
 
+/* spec 061 FR-004: the mock ids are legacy (CLE-01); pin the browser's
+   agent-id clock before LEGACY_ID_UNTIL so the run never turns red at it */
+const pinAgentIdClock = (p) => p.evaluateOnNewDocument(() => { globalThis.SPOOL_AGENT_ID_NOW = '2026-10-02T12:00:00Z' })
+
 const server = await startServer()
 const browser = await launch()
 try {
   for (const vp of [{ name: '1280', width: 1280, height: 900, mobile: false }, { name: '390', width: 390, height: 800, mobile: true }]) {
     console.log(`-- ${vp.name}`)
     const p = await browser.newPage()
+    await pinAgentIdClock(p)
     await p.setViewport({ width: vp.width, height: vp.height, isMobile: vp.mobile, hasTouch: vp.mobile })
     await p.goto(server.base + '/tenant-settings/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const guide = await p.waitForSelector('[data-test=connect-agent]', { timeout: 15000 }).catch(() => null)
@@ -80,6 +85,10 @@ try {
     await p.click('[data-test=connect-agent-cursor] summary')
     const cursor = await p.$eval('[data-test=connect-agent-cursor]', (el) => el.textContent || '')
     ok('Cursor gets an mcp.json', /mcpServers/.test(cursor) && /exec spool mcp --as GRK-7/.test(cursor))
+    /* spec 061: a new-form id stays lower case (C-004 typed reads c-004) */
+    await setField(p, '[data-test=connect-agent-id]', 'C-004')
+    const s3 = await scriptText(p)
+    ok('a c-NNN id rewrites the block, lower case', /mkdir -p "\$SPOOL_ROOT\/c-004"/.test(s3) && /spool mcp --as c-004/.test(s3))
     await setField(p, '[data-test=connect-agent-id]', 'nope')
     ok('a bad id says so and hides the lines', Boolean(await p.waitForSelector('[data-test=connect-agent-invalid]', { timeout: 3000 }).catch(() => null)) &&
       !(await p.$('[data-test=connect-agent-script]')))

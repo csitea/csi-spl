@@ -58,10 +58,15 @@ const text = (p, sel) => p.$eval(sel, (e) => e.textContent.trim()).catch(() => '
 const attrs = (p, sel, a) => p.$$eval(sel, (els, a) => els.map((e) => e.getAttribute(a)), a)
 const path = (p) => new URL(p.url()).pathname
 
+/* spec 061 FR-004: the mock ids are legacy (CLE-01); pin the browser's
+   agent-id clock before LEGACY_ID_UNTIL so the run never turns red at it */
+const pinAgentIdClock = (p) => p.evaluateOnNewDocument(() => { globalThis.SPOOL_AGENT_ID_NOW = '2026-10-02T12:00:00Z' })
+
 const server = await startServer()
 const browser = await launch()
 try {
   const p = await browser.newPage()
+  await pinAgentIdClock(p)
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   // specs/054 (CLE-77781): the mock is signed-OUT by default and its /session no

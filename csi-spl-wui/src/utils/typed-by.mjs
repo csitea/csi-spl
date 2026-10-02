@@ -6,6 +6,7 @@
  * "via terminal <agent>" badge; every other row keeps its sender.
  */
 import { BROWSER_BOX } from './view-api.mjs'
+import { isParticipantId } from './agent-id.mjs'
 
 const HUMAN_ID = /^HUM-[0-9]+$/
 
@@ -26,9 +27,8 @@ export function typedByAuthor(msg) {
   return { id: from, box, via: '', viaBox: '' }
 }
 
-/* an agent id: <PREFIX>-<n> (CLE-, GRK-, AGY-, QWN-, a new CLI), never a
-   member HUM-<n> nor a door-off guest GST-<n> */
-const AGENT_ID = /^[A-Z]{2,4}-[0-9]+$/
+/* an agent id: c-004 or a legacy <PREFIX>-<n> (spec 061), never a member
+   HUM-<n> nor a door-off guest GST-<n> */
 const PERSON_ID = /^(HUM|GST)-/
 
 /**
@@ -42,7 +42,7 @@ const PERSON_ID = /^(HUM|GST)-/
  */
 export function isAiMessage(msg) {
   const id = typedByAuthor(msg).id
-  return AGENT_ID.test(id) && !PERSON_ID.test(id)
+  return isParticipantId(id) && !PERSON_ID.test(id)
 }
 
 /**

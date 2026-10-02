@@ -6,6 +6,8 @@
  * user text inside the SVG (only numbers and colours), so nothing to escape.
  */
 
+import { idPrefix } from './agent-id.mjs'
+
 /** FNV-1a 32-bit, then a small xorshift stream for independent picks. */
 export function hashSeed(s) {
   let h = 0x811c9dc5
@@ -26,7 +28,8 @@ function stream(seed) {
   }
 }
 
-const PREFIX_HUE = { CLE: 175, GRK: 28, AGY: 275 }
+/* one hue per kind: the spec 061 letter and its legacy prefix share it */
+const PREFIX_HUE = { c: 175, CLE: 175, g: 28, GRK: 28, a: 275, AGY: 275 }
 
 /** A human: a member HUM-* or a door-off guest GST-* (wui-live-ws 0.4.1 §3.1). */
 export function isHuman(id) {
@@ -39,8 +42,7 @@ export function isMember(id) {
 }
 
 export function prefixOf(id) {
-  const m = String(id || '').match(/^([A-Z]{2,4})-/)
-  return m ? m[1] : ''
+  return idPrefix(id)
 }
 
 function hsl(h, s, l) {

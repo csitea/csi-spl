@@ -1,6 +1,7 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
 import { stripBidiControls } from './bidi.mjs'
+import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { isoClock, isoDate, isoDateTime, isoDateTimeSec } from './date-iso.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 import { isUnread } from './read-cursor.mjs'
@@ -25,9 +26,12 @@ export function replyCount(messages, taskId) {
   return messages.filter((m) => m.parent_task_id === taskId).length
 }
 
+/* a leading @<ID>[@<box>]: either id form (spec 061), its box (spec 058) */
+const LEAD_MENTION_RE = new RegExp(String.raw`^@(${PARTICIPANT_ID_SRC})(?:@(${BOX_ID_SRC}))?\b\s*([\s\S]*)$`)
+
 export function parseMention(text) {
   const raw = String(text || '')
-  const m = raw.match(/^@([A-Z]{2,4}-\d+)(?:@([a-z0-9][a-z0-9-]{0,31}))?\b\s*([\s\S]*)$/)
+  const m = raw.match(LEAD_MENTION_RE)
   /* A leading `@ID` FOLLOWED BY TEXT dispatches a task to that id; the text is
      the body. A BARE mention (nothing after it) is not a task - it is a message
      that mentions someone - so it stays a channel note with the mention itself

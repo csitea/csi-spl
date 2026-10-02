@@ -28,6 +28,7 @@
  */
 import { classifyHref, linkOpen } from './link-target.mjs'
 import { BIDI_CLASS } from './bidi.mjs'
+import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -159,11 +160,13 @@ export function tokenize(src, { openAnywhere = false } = {}) {
 // Re-exported here so existing importers of code-blocks keep working.
 export { stripBidiControls } from './bidi.mjs'
 
+/* an @mention: an id in either form (spec 061), with its @<box> (spec 058) */
+const MENTION_ID_SRC = `${PARTICIPANT_ID_SRC}(?:@${BOX_ID_SRC})?`
 const URL_SRC = String.raw`(?<![\w/.:@-])(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/|[Ww][Ww][Ww]\.)[^\s<>\x60${BIDI_CLASS}]+`
 const EMAIL_SRC = String.raw`(?<![\w.%+/:@-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`
 const LINK_RE = new RegExp(`(${URL_SRC})|(${EMAIL_SRC})`, 'g')
 const RICH_RE = new RegExp(
-  String.raw`\*\*([^*\n]+)\*\*|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)|(${URL_SRC})|(${EMAIL_SRC})`,
+  String.raw`\*\*([^*\n]+)\*\*|@(${MENTION_ID_SRC})|(${URL_SRC})|(${EMAIL_SRC})`,
   'g',
 )
 
@@ -249,7 +252,7 @@ function trimPara(p) {
 const WIKI_OPEN_RE = /^\{\{wiki\}\}[ \t]*$/i
 const WIKI_CLOSE_RE = /^\{\{\/wiki\}\}[ \t]*$/i
 const WIKI_RE = new RegExp(
-  String.raw`\[([^\]\n]{1,200})\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(?<![\w*])\*([^*\n]+)\*(?!\*)|(?<![\w])_([^_\n]+)_(?![\w])|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)|` + `(${URL_SRC})|(${EMAIL_SRC})`,
+  String.raw`\[([^\]\n]{1,200})\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(?<![\w*])\*([^*\n]+)\*(?!\*)|(?<![\w])_([^_\n]+)_(?![\w])|@(${MENTION_ID_SRC})|` + `(${URL_SRC})|(${EMAIL_SRC})`,
   'g',
 )
 
@@ -629,7 +632,7 @@ export function markdownSource(src) {
   return out.replace(/\n+$/, '')
 }
 
-const MENTION_RE = /(?<![\w@])@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)/g
+const MENTION_RE = new RegExp(String.raw`(?<![\w@])@(${MENTION_ID_SRC})`, 'g')
 
 /** Split rendered markdown text into text / mention parts (MessageRuns). */
 export function mentionParts(text) {

@@ -10,6 +10,8 @@
  * in a queue.
  */
 
+import { normalizeId, PARTICIPANT_ID_SRC } from './agent-id.mjs'
+
 import { copyEditFields } from './view-api.mjs'
 
 export const FRAMES = {
@@ -62,12 +64,11 @@ export const FRAMES = {
   issue_label: 'issue_label',
 }
 
-/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
-export const AGENT_ID_RE = /^[A-Z]{2,4}-[0-9]+$/
+/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2, c-004); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
+export const AGENT_ID_RE = new RegExp(`^${PARTICIPANT_ID_SRC}$`)
 
 export function cleanAs(s) {
-  const v = String(s || '').trim().toUpperCase()
-  return AGENT_ID_RE.test(v) ? v : ''
+  return normalizeId(s)
 }
 
 /** true when the upload token is missing or expires within `skewMs`. */

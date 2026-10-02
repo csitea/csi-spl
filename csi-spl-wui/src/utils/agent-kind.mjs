@@ -2,29 +2,23 @@
 // plainly (owner 2026-09-30, topic 1fc29f99: "for the agents it should be clear
 // are they antigravity, claude, grok etc.").
 //
-// The hub roster carries only the agent id (rdb 0001 roster.agent_id ~
-// '^[A-Z]{2,4}-[0-9]+$'), never a CLI/model field, so the kind is derived from
-// the id PREFIX — the same convention the spawn registry and the tmux windows
-// use (CLE-* Claude, AGY-* Antigravity, GRK-* Grok, QWN-* Qwen). If the hub
-// ever exposes a real kind field, prefer it and keep this as the fallback.
+// The hub roster carries only the agent id, never a CLI/model field, so the
+// kind is derived from the id: its letter (spec 061: c- Claude, a-
+// Antigravity, g- Grok, q- Qwen) or its legacy prefix (CLE-, AGY-, GRK-,
+// QWN-). The one map lives in agent-id.mjs. If the hub ever exposes a real
+// kind field, prefer it and keep this as the fallback.
 
-/** id prefix -> a stable kind key; its label lives at agents.kinds.<key>. */
-const KIND_BY_PREFIX = Object.freeze({
-  CLE: 'claude',
-  AGY: 'antigravity',
-  GRK: 'grok',
-  QWN: 'qwen',
-})
+import { agentKindOf, isParticipantId } from './agent-id.mjs'
 
 /** A member id (HUM-<n>) is a person, not an agent. */
 export function isHumanId(id) {
   return /^HUM-[0-9]+$/.test(String(id || ''))
 }
 
-/** true when id looks like an agent id (a <PREFIX>-<n>, not a human). */
+/** true when id looks like an agent id (c-004 or a legacy <PREFIX>-<n>, not a human). */
 export function isAgentId(id) {
   const s = String(id || '')
-  return /^[A-Z]{2,4}-[0-9]+$/.test(s) && !isHumanId(s)
+  return isParticipantId(s) && !isHumanId(s)
 }
 
 /**
@@ -34,8 +28,7 @@ export function isAgentId(id) {
  * @returns {'claude' | 'antigravity' | 'grok' | 'qwen' | 'agent'}
  */
 export function agentKind(id) {
-  const m = String(id || '').match(/^([A-Z]{2,4})-[0-9]+$/)
-  return (m && KIND_BY_PREFIX[m[1]]) || 'agent'
+  return agentKindOf(id)
 }
 
 /** The i18n key for an agent id's kind label (agents.kinds.<key>). */

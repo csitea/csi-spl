@@ -106,6 +106,7 @@ import { boxHubUrl } from '~/utils/connect-agent.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '~/utils/tenant-settings.mjs'
+import { normalizeId } from '~/utils/agent-id.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
@@ -173,7 +174,7 @@ async function load() {
 }
 
 function addResponder() {
-  const id = candidate.value.trim().toUpperCase()
+  const id = normalizeId(candidate.value) || candidate.value.trim().toUpperCase()
   error.value = ''
   if (!validResponderId(id)) {
     error.value = t('tenant_settings.error.bad_responder')

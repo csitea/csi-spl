@@ -104,8 +104,14 @@ grep -qx 'LEASE_PRIORITY=pc,sat' "$S/dispatch/lease.conf" && grep -qx 'LEASE_TEN
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
 grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" && grep -qx 'LEASE_MASTER=CLE-002' "$S/dispatch/lease.conf" &&
   pass "2. a re-run without DISPATCH_FLEET keeps fleet mode (never leaves it silently)" || fail "2. fleet dropped: $(cat "$S/dispatch/lease.conf")"
+# the asks timer's knobs (CLE-77929): written when given, kept on a re-run, a bad owner id refused
+setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_ASKS_OWNER=HUM-10 DISPATCH_ASKS_RERAISE_MIN=20 >"$T/o" 2>&1
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
+grep -qx 'ASKS_OWNER=HUM-10' "$S/dispatch/lease.conf" && grep -qx 'ASKS_RERAISE_MIN=20' "$S/dispatch/lease.conf" && grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" &&
+  pass "2. DISPATCH_ASKS_* write the asks knobs; a re-run keeps them" || fail "2. asks knobs: $(cat "$S/dispatch/lease.conf")"
+setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_ASKS_OWNER=owner >"$T/o" 2>&1 && fail "2. accepted DISPATCH_ASKS_OWNER=owner" || pass "2. a non-HUM owner id is refused"
 # back to the local-only conf the rest of this file checks
-grep -vE '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
+grep -vE '^(LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)|ASKS_[A-Z_]+)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
 
 # --- 3. settings newer than the session ----------------------------------------------
 touch "$R-wt/CLE-003/.claude/settings.local.json"

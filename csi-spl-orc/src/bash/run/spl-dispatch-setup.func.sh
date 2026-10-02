@@ -46,6 +46,10 @@
 # @param   set; otherwise both follow box.env SPOOL_DESK_BOX (a box rename needs no edit here).
 # @param   Unset, the fleet lines already in lease.conf are KEPT: a re-run never silently leaves fleet mode
 # @param DISPATCH_SWEEP (optional) - 0 skips step 11 (the sweep cron)
+# @param DISPATCH_ASKS_OWNER / DISPATCH_ASKS_RERAISE_MIN / DISPATCH_ASKS_OWNER_MIN (optional) - the asks
+# @param   timer's knobs (CLE-77929, do_spl_asks_tick): written to lease.conf as ASKS_OWNER (the owner's
+# @param   HUM-<n>: the DM leg for an ask unacked ASKS_OWNER_MIN), ASKS_RERAISE_MIN, ASKS_OWNER_MIN.
+# @param   Unset, the ASKS_ lines already in lease.conf are KEPT
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_dispatch_setup
@@ -92,6 +96,19 @@ spl_dispatch_setup_steps() {
     # this machine act beside the fleet's holder
     conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
   fi
+  # the asks timer's knobs (CLE-77929): given ones are written, the others
+  # carried over from the current file, so a re-run never drops them
+  local k v
+  for k in OWNER RERAISE_MIN OWNER_MIN; do
+    v="DISPATCH_ASKS_$k"; v="${!v:-}"
+    if [[ -z "$v" ]]; then
+      v="$(sed -n "s/^ASKS_$k=//p" "$LEASE_CONF" 2>/dev/null | tail -1)"
+    fi
+    [[ -z "$v" ]] && continue
+    [[ "$k" == OWNER && ! "$v" =~ ^HUM-[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_OWNER must be a human id (HUM-<n>), got '$v'"; return 1; }
+    [[ "$k" != OWNER && ! "$v" =~ ^[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_$k must be minutes, got '$v'"; return 1; }
+    conf+=$'\n'"ASKS_$k=$v"
+  done
   if [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
     spl_dispatch_ok lease-conf "$LEASE_CONF"
   else

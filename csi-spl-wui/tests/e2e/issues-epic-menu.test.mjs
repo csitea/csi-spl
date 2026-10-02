@@ -7,6 +7,9 @@
 //
 //   pnpm run test:e2e issues-epic-menu
 //   BASE_URL=<generated bundle> pnpm run test:e2e issues-epic-menu
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -49,6 +52,9 @@ async function newIssue(p, title) {
 }
 const menuUp = (p) => p.$('[data-test=issues-ctxmenu]').then(Boolean)
 
+// a private per-run dir by default: a fixed name in the shared /tmp is owned by
+// whichever OS user ran first, and the next user's screenshot fails EACCES.
+const shot = process.env.SHOT_DIR || mkdtempSync(join(tmpdir(), 'spl-e2e-'))
 const server = await startServer()
 const browser = await launch()
 try {
@@ -88,7 +94,6 @@ try {
   })
   ok('4 the button sits ~19px (5 mm) from the content right edge, well clear of Clear filters',
     Math.abs(pos.gapFromRight - 19) <= 6 && (pos.gapFromClear === null || pos.gapFromClear > 40), pos)
-  const shot = process.env.SHOT_DIR || '/tmp'
   await p.screenshot({ path: `${shot}/CLE-77800-title-row-1440.png` })
 
   // 3) the button opens the shared menu, targeting the epic: copy / archive /

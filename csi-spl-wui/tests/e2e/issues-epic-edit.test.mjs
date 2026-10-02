@@ -8,6 +8,9 @@
 //
 //   pnpm run test:e2e issues-epic-edit
 //   BASE_URL=<generated bundle> pnpm run test:e2e issues-epic-edit
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -66,7 +69,9 @@ async function closeModal(p) {
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 }).catch(() => {})
 }
 
-const shot = process.env.SHOT_DIR || '/tmp'
+// a private per-run dir by default: a fixed name in the shared /tmp is owned by
+// whichever OS user ran first, and the next user's screenshot fails EACCES.
+const shot = process.env.SHOT_DIR || mkdtempSync(join(tmpdir(), 'spl-e2e-'))
 const server = await startServer()
 const browser = await launch()
 try {

@@ -13,6 +13,9 @@
 //
 //   pnpm run test:e2e issues-views
 //   BASE_URL=<generated bundle> pnpm run test:e2e issues-views
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -55,6 +58,9 @@ const layout = (p) => p.evaluate(() => [...document.querySelectorAll('[data-test
   rows: [...g.querySelectorAll('[data-test=issues-row]')].map((r) => ({ key: r.getAttribute('data-key'), status: r.querySelector('[data-test=issues-row-status]').getAttribute('data-status') })),
 })))
 
+// a private per-run dir by default: a fixed name in the shared /tmp is owned by
+// whichever OS user ran first, and the next user's screenshot fails EACCES.
+const shot = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spl-e2e-'))
 const server = await startServer()
 const browser = await launch()
 try {
@@ -107,7 +113,7 @@ try {
   ok('V1 By status: one group per status in the workflow order, each with its count, every row under its status',
     JSON.stringify(v1.map((g) => g.status)) === JSON.stringify(ORDER) && v1.every((g) => g.head) && placed &&
       counts.todo === 2 && counts.wip === 1 && counts.qas === 1 && counts.eval === 0, { order: v1.map((g) => g.status), counts, placed })
-  await p.screenshot({ path: `${process.env.ISSUES_SHOTS || '/tmp'}/views-status.png` }).catch(() => {})
+  await p.screenshot({ path: `${shot}/views-status.png` }).catch(() => {})
 
   /* V2: fold and unfold */
   await p.click('[data-test=issues-group][data-status="todo"] [data-test=issues-group-fold]')

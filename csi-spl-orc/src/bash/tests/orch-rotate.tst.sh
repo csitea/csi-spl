@@ -108,7 +108,7 @@ case "$cmd" in
     elif [ "$k" = Enter ]; then
       b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; echo "submit $tgt $(printf '%s' "$b" | tr '\n' '|')" >>"$L"
       if [ "$b" = /exit-clean ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
-        [ -f "$T/tmux/skillbusy.$tgt" ] || printf 'Handoff sent. I cannot run /exit myself.\n❯ \n' >"$T/tmux/screen.$tgt"
+        [ -f "$T/tmux/skillbusy.$tgt" ] || printf 'Handoff sent. I cannot run /exit myself.\n✻ Crunched for 4s · done 12.34 · 1 shell still running\n❯ \n' >"$T/tmux/screen.$tgt"
       else case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
       : >"$T/tmux/typed.$tgt"
     fi ;;

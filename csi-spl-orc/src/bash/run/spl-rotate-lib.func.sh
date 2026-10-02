@@ -214,13 +214,21 @@ spl_rotate_claude_ancestor() {
 spl_rotate_screen() { spl_rotate_tmux capture-pane -p -t "$1" 2>/dev/null || true; }
 
 # spl_rotate_idle PANE: 0 when the screen reads idle (classify_screen) AND is
-# byte-identical over ROTATE_IDLE_SEC (spec section 2, "idle pane").
+# byte-identical over ROTATE_IDLE_SEC (spec section 2, "idle pane"). The
+# finished-turn line ("✻ Crunched for 4s · done 12.34") is dropped first:
+# classify_screen's spinner words match its past tense, so every pane that
+# had finished a turn read busy (QUIESCE busy-rotated, and RETIRE never saw
+# the /exit-clean turn end; measured 2026-10-02 1005Z). A running turn keeps
+# its "(12s · " spinner and "esc to interrupt" footer.
+spl_rotate_idle_screen() {
+  spl_rotate_screen "$1" | grep -vE '^[^[:alnum:][:space:]]+ [[:upper:]][^ ]* for [0-9]+(m|s)' || true
+}
 spl_rotate_idle() {
   local a b
-  a="$(spl_rotate_screen "$1")"
+  a="$(spl_rotate_idle_screen "$1")"
   [[ -n "$a" && "$(classify_screen "$a")" == idle ]] || return 1
   sleep "$ROTATE_IDLE_SEC"
-  b="$(spl_rotate_screen "$1")"
+  b="$(spl_rotate_idle_screen "$1")"
   [[ "$a" == "$b" ]]
 }
 

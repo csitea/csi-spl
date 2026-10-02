@@ -102,6 +102,7 @@ type Channel struct {
 type ReadMark struct {
 	At    time.Time
 	MsgID string
+	Seen  int // a thread mark: the reply total the reader had seen (rdb 0098)
 }
 
 // OwnLine reports whether a line (its from_id, typed_by) is the reader's

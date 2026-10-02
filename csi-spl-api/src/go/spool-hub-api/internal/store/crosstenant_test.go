@@ -167,6 +167,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.AppendMemberActivity(ctx, MemberActivity{TenantID: s.tenant, SubjectHum: hum, ActorHum: hum, Kind: "role_changed", Detail: "developer", CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
+	// read_marks (rdb 0098, CLE-77930): one channel mark of the seeded member.
+	if err := pg.SaveReadMarks(ctx, s.tenant, hum, map[string]ReadMark{"ch:lobby": {At: now, MsgID: "m"}}, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

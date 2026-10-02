@@ -26,6 +26,9 @@ fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 ME="$(id -un)"
 
 # ── fixture: <T>/share/mcp holds the box half, <T>/share/cloud/dev the desk ──
+# The desk box defaults to this machine's (box.env SPOOL_DESK_BOX): pin it to a
+# fixture file that does not exist, so the live box id never changes a verdict.
+unset SPOOL_DESK_BOX; export SPOOL_BOX_ENV="$T/box.env"
 MCP="$T/share/mcp"; D="$T/share/cloud/dev/desk/t1/box-desk"
 mkdir -p "$MCP" "$D/spool/CLE-07/inbox" "$D/spool/.hub" "$D/keys"
 cp "$SH" "$MCP/spool-mcp.sh"

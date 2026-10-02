@@ -818,13 +818,24 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 	}
-	inserted, err := s.o.Store.InsertMessage(ctx, row)
+	// DB payload cut 7: box-wui's row is written sent with the message, one
+	// round trip instead of insert + enqueue + claim.
+	si, sentInOne := s.o.Store.(store.SentInserter)
+	sentInOne = sentInOne && env.ToBox == WUIBox
+	var inserted bool
+	if sentInOne {
+		inserted, err = si.InsertMessageSent(ctx, row, now.Add(s.o.QueueTTL))
+	} else {
+		inserted, err = s.o.Store.InsertMessage(ctx, row)
+	}
 	if err != nil {
 		return c, err
 	}
 	c.inserted, c.receivedAt = inserted, now
-	if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, env.ToBox, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
-		return c, err
+	if !sentInOne {
+		if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, env.ToBox, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
+			return c, err
+		}
 	}
 	if inserted {
 		s.fanoutWUI(ctx, row)
@@ -838,8 +849,10 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		s.notifyTail(ctx, tenant, m.TaskID, m.MsgID, env.FromBox, env.ToBox, canon)
 	}
 	if env.ToBox == WUIBox {
-		if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
-			return c, err
+		if !sentInOne {
+			if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
+				return c, err
+			}
 		}
 		c.delivery = wire.DeliverySent
 		return c, nil

@@ -106,7 +106,9 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
 		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
-		{"WS wui send (lobby) -> ack", 5, func() error { send("probe"); return nil }},
+		// DB payload cut 7: the message and its box-wui delivery (sent) in one
+		// statement; insert + enqueue + claim took three (it was 5).
+		{"WS wui send (lobby) -> ack", 3, func() error { send("probe"); return nil }},
 	}
 	const n = 5
 	t.Logf("%-30s DB round trips (n=%d, min/max, budget)", "request", n)

@@ -29,6 +29,18 @@ type Acks interface {
 	ReclaimUnacked(ctx context.Context, tenant, msgID, toBox string, now, sentBefore time.Time) (bool, error)
 }
 
+// SentInserter is implemented by stores that store a message and its
+// delivered row in one pass (DB payload cut 7). A to_box the hub delivers
+// itself (box-wui: the browser fan-out) needs no queued row to claim: one
+// round trip where InsertMessage + Enqueue + ClaimSent took three.
+type SentInserter interface {
+	// InsertMessageSent is InsertMessage plus the (m.MsgID, m.ToBox) delivery
+	// row, sent and acked at m.ReceivedAt and expiring at deliveryExpires. An
+	// identical resend claims a row left queued, as ClaimSent would; a
+	// conflicting envelope (ErrConflict) writes no delivery row.
+	InsertMessageSent(ctx context.Context, m Message, deliveryExpires time.Time) (inserted bool, err error)
+}
+
 func (s *Postgres) ClaimSentUnacked(ctx context.Context, tenant, msgID, toBox string, now time.Time) (bool, error) {
 	tag, err := s.execTenant(ctx, tenant, `UPDATE deliveries SET state = 'sent', sent_at = $4, acked_at = NULL
 		WHERE tenant_id = $1 AND msg_id = $2 AND to_box = $3 AND state = 'queued' AND expires_at > $4`,
@@ -71,6 +83,26 @@ func (s *Postgres) ReclaimUnacked(ctx context.Context, tenant, msgID, toBox stri
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+func (s *Memory) InsertMessageSent(ctx context.Context, m Message, deliveryExpires time.Time) (bool, error) {
+	inserted, err := s.InsertMessage(ctx, m)
+	if err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := [3]string{m.TenantID, m.MsgID, m.ToBox}
+	d, ok := s.deliveries[k]
+	if !ok {
+		s.seq++
+		d = &memDelivery{state: StateQueued, receivedAt: m.ReceivedAt, expiresAt: deliveryExpires, seq: s.seq}
+		s.deliveries[k] = d
+	}
+	if d.state == StateQueued && m.ReceivedAt.Before(d.expiresAt) {
+		d.state, d.sentAt, d.acked = StateSent, m.ReceivedAt, true
+	}
+	return inserted, nil
 }
 
 func (s *Memory) ClaimSentUnacked(_ context.Context, tenant, msgID, toBox string, now time.Time) (bool, error) {

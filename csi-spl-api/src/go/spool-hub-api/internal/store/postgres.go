@@ -316,7 +316,54 @@ func (s *Postgres) Roster(ctx context.Context, tenant string) (map[string][]stri
 	return out, err
 }
 
+// insertMessageSQL stores a message and, when it was already stored, returns
+// the stored envelope in the same round trip (DB payload cut 7): the CTE's
+// INSERT .. ON CONFLICT DO NOTHING RETURNING says whether this call wrote the
+// row, and `old` reads the statement's snapshot, which holds a row committed
+// before it and never the one ins writes. %s is the delivery CTE, or "".
+const insertMessageSQL = `WITH ins AS (
+		INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts,
+			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, parent_task_id, is_parent, typed_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		ON CONFLICT (tenant_id, msg_id) DO NOTHING
+		RETURNING 1),
+	old AS (SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2)%s
+	SELECT EXISTS (SELECT 1 FROM ins), (SELECT env FROM old)`
+
+// sentDeliveryClaim makes a delivery insert claim a row left queued, as
+// ClaimSent would; the row it inserts is already sent and acked.
+const sentDeliveryClaim = `
+		ON CONFLICT (tenant_id, msg_id, to_box) DO UPDATE SET state = 'sent', sent_at = EXCLUDED.sent_at, acked_at = EXCLUDED.acked_at
+		WHERE deliveries.state = 'queued' AND deliveries.expires_at > EXCLUDED.sent_at`
+
+var (
+	insertMessageOnly = fmt.Sprintf(insertMessageSQL, "")
+	// insertMessageSent adds the (msg_id, to_box) delivery row, sent and
+	// acked at received_at, $21 its expiry, for a new message or a resend of
+	// the identical envelope ($15) - never for a conflicting one.
+	insertMessageSent = fmt.Sprintf(insertMessageSQL, `,
+	del AS (INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at, sent_at, acked_at)
+		SELECT $1, $2, $8, 'sent', $16, $21::timestamptz, $16, $16
+		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15`+sentDeliveryClaim+`)`)
+)
+
+// insertSentDelivery is that delivery leg alone, for the resend that raced
+// its original's commit.
+const insertSentDelivery = `INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at, sent_at, acked_at)
+		VALUES ($1, $2, $3, 'sent', $4, $5, $4, $4)` + sentDeliveryClaim
+
 func (s *Postgres) InsertMessage(ctx context.Context, m Message) (bool, error) {
+	return s.insertMessage(ctx, m, time.Time{})
+}
+
+// InsertMessageSent: see SentInserter.
+func (s *Postgres) InsertMessageSent(ctx context.Context, m Message, deliveryExpires time.Time) (bool, error) {
+	return s.insertMessage(ctx, m, deliveryExpires)
+}
+
+// insertMessage is InsertMessage, plus the sent delivery row when
+// sentExpires is set; one round trip for a new message and for a resend.
+func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires time.Time) (bool, error) {
 	var channel, parent, typedBy any
 	if m.Channel != "" {
 		channel = m.Channel
@@ -327,22 +374,33 @@ func (s *Postgres) InsertMessage(ctx context.Context, m Message) (bool, error) {
 	if m.TypedBy != "" {
 		typedBy = m.TypedBy
 	}
-	tag, err := s.execTenant(ctx, m.TenantID, `INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts,
-			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, parent_task_id, is_parent, typed_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-		ON CONFLICT (tenant_id, msg_id) DO NOTHING`,
-		m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
-		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent, parentBit(m.IsParent), typedBy)
-	if err != nil {
+	args := []any{m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
+		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent, parentBit(m.IsParent), typedBy}
+	sql, sent := insertMessageOnly, !sentExpires.IsZero()
+	if sent {
+		sql, args = insertMessageSent, append(args, sentExpires)
+	}
+	var inserted bool
+	var old []byte
+	if err := s.queryRowTenant(ctx, m.TenantID, sql, args, &inserted, &old); err != nil {
 		return false, mapFK(err)
 	}
-	if tag.RowsAffected() == 1 {
+	if inserted {
 		return true, nil
 	}
-	var old []byte
-	if err := s.queryRowTenant(ctx, m.TenantID, `SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2`,
-		[]any{m.TenantID, m.MsgID}, &old); err != nil {
-		return false, err
+	if old == nil {
+		// The row's writer committed after this statement's snapshot (ON
+		// CONFLICT waited for it), so neither `old` nor the delivery leg saw it.
+		if err := s.queryRowTenant(ctx, m.TenantID, `SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2`,
+			[]any{m.TenantID, m.MsgID}, &old); err != nil {
+			return false, err
+		}
+		if sent && bytes.Equal(old, m.Env) {
+			if _, err := s.execTenant(ctx, m.TenantID, insertSentDelivery,
+				m.TenantID, m.MsgID, m.ToBox, m.ReceivedAt, sentExpires); err != nil {
+				return false, err
+			}
+		}
 	}
 	if bytes.Equal(old, m.Env) {
 		return false, nil

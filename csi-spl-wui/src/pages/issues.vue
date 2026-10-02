@@ -926,6 +926,7 @@ import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
+import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
@@ -1224,36 +1225,14 @@ function toggleFold(status: string) {
   folded.value = folded.value.includes(status) ? folded.value.filter((s) => s !== status) : [...folded.value, status]
   try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded.value)) } catch { /* private window: this visit only */ }
 }
-/* drag a row onto another status group = that status (the Status cell does the same) */
-const dragKey = ref('')
-const dropStatus = ref('')
-function onRowDragStart(ev: DragEvent, issue: Issue) {
-  if (viewBy.value !== 'status') return
-  dragKey.value = issue.key
-  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', issue.key) }
-}
-function onRowDragEnd() {
-  dragKey.value = ''
-  dropStatus.value = ''
-}
-function onGroupDragOver(ev: DragEvent, status: string) {
-  if (!dragKey.value || !status) return
-  ev.preventDefault()
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
-  dropStatus.value = status
-}
-function onGroupDragLeave(ev: DragEvent, status: string) {
-  const to = ev.relatedTarget
-  if (dropStatus.value === status && !(to instanceof Node && (ev.currentTarget as HTMLElement).contains(to))) dropStatus.value = ''
-}
-function onGroupDrop(ev: DragEvent, status: string) {
-  const key = dragKey.value || ev.dataTransfer?.getData('text/plain') || ''
-  onRowDragEnd()
-  if (!key || !status) return
-  ev.preventDefault()
-  const issue = issues.value.find((i) => i.key === key)
-  if (issue && issue.status !== status) void save(issue.key, { status })
-}
+/* drag a row onto another status group: composables/useIssueGroupDrag */
+const { dropStatus, onRowDragStart, onRowDragEnd, onGroupDragOver, onGroupDragLeave, onGroupDrop } = useIssueGroupDrag({
+  enabled: () => viewBy.value === 'status',
+  drop: (key, status) => {
+    const issue = issues.value.find((i) => i.key === key)
+    if (issue && issue.status !== status) void save(issue.key, { status })
+  },
+})
 const sheetColumns = computed(() => [
   { col: 'key', name: t('issues_view.col_key'), cls: 'issues-c-key' },
   { col: 'title', name: t('issues_view.col_title'), cls: 'issues-c-title' },

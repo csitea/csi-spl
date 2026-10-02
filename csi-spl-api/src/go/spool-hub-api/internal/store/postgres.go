@@ -381,7 +381,7 @@ func (s *Postgres) Enqueue(ctx context.Context, tenant, msgID, toBox string, now
 }
 
 func (s *Postgres) ClaimSent(ctx context.Context, tenant, msgID, toBox string, now time.Time) (bool, error) {
-	tag, err := s.execTenant(ctx, tenant, `UPDATE deliveries SET state = 'sent', sent_at = $4
+	tag, err := s.execTenant(ctx, tenant, `UPDATE deliveries SET state = 'sent', sent_at = $4, acked_at = $4
 		WHERE tenant_id = $1 AND msg_id = $2 AND to_box = $3 AND state = 'queued' AND expires_at > $4`,
 		tenant, msgID, toBox, now)
 	if err != nil {
@@ -391,7 +391,7 @@ func (s *Postgres) ClaimSent(ctx context.Context, tenant, msgID, toBox string, n
 }
 
 func (s *Postgres) Unclaim(ctx context.Context, tenant, msgID, toBox string) error {
-	_, err := s.execTenant(ctx, tenant, `UPDATE deliveries SET state = 'queued', sent_at = NULL
+	_, err := s.execTenant(ctx, tenant, `UPDATE deliveries SET state = 'queued', sent_at = NULL, acked_at = NULL
 		WHERE tenant_id = $1 AND msg_id = $2 AND to_box = $3 AND state = 'sent'`, tenant, msgID, toBox)
 	return err
 }

@@ -80,6 +80,17 @@ const FeatureBackfill = "backfill"
 // frames carrying Fallback (SPL-997, specs/038 FR-033).
 const FeatureFallback = "fallback"
 
+// FeatureCommit is the hello feature of a box client that sends a TCommit
+// frame (MsgID) once a recv frame's inbox copy is written (spec 059 §11 S2).
+// The hub then keeps the delivery unacked until that frame, and sends an
+// unacked row again at the next hello or after its acquisition lock. Without
+// the feature a delivery counts as acked the moment its frame is written.
+const FeatureCommit = "commit"
+
+// TCommit is the box's commit of one delivery (spec 059 §11 S2): MsgID names
+// it. Fire and forget: the hub sends no reply.
+const TCommit = "commit"
+
 // Hello roles (http-v1.md §2.2).
 const (
 	RoleBox = "box" // the session socket: recv frames, roster, last hello wins

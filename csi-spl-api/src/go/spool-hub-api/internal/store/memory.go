@@ -66,6 +66,8 @@ type memDelivery struct {
 	receivedAt time.Time
 	expiresAt  time.Time
 	seq        int
+	sentAt     time.Time
+	acked      bool // rdb 0100 acked_at IS NOT NULL
 }
 
 // NewMemory returns an empty in-memory store.
@@ -293,7 +295,7 @@ func (s *Memory) ClaimSent(_ context.Context, tenant, msgID, toBox string, now t
 	if !ok || d.state != StateQueued || !now.Before(d.expiresAt) {
 		return false, nil
 	}
-	d.state = StateSent
+	d.state, d.sentAt, d.acked = StateSent, now, true
 	return true, nil
 }
 
@@ -301,7 +303,7 @@ func (s *Memory) Unclaim(_ context.Context, tenant, msgID, toBox string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if d, ok := s.deliveries[[3]string{tenant, msgID, toBox}]; ok && d.state == StateSent {
-		d.state = StateQueued
+		d.state, d.acked = StateQueued, false
 	}
 	return nil
 }

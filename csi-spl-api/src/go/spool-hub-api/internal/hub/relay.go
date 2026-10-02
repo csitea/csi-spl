@@ -62,7 +62,9 @@ func (s *Server) Relay(ctx context.Context) {
 	tenants := map[string]bool{}
 	for _, x := range boxes {
 		tenants[x.tenant] = true
-		if n := s.pushQueued(ctx, x); n > 0 {
+		// spec 059 S2: a row a committing box has held unacked past the
+		// acquisition lock goes to it again.
+		if n := s.pushQueued(ctx, x) + s.pushUnacked(ctx, x, s.o.Now().Add(-ackTimeout)); n > 0 {
 			s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Int("relayed", n).Msg("relay delivered queued rows")
 		}
 	}

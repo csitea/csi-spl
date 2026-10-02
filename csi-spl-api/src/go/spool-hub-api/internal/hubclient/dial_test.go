@@ -115,7 +115,7 @@ func TestDialHelloPerRole(t *testing.T) {
 			t.Errorf("%s: hello %+v", role, hl)
 		}
 		box := role == wire.RoleBox
-		if want := []string{wire.FeatureBackfill, wire.FeatureFallback}; box != reflect.DeepEqual(hl.Features, want) {
+		if want := []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit}; box != reflect.DeepEqual(hl.Features, want) {
 			t.Errorf("%s: features %v", role, hl.Features)
 		}
 		if !box && (hl.Agents != nil || hl.Channels != nil || hl.Features != nil) {

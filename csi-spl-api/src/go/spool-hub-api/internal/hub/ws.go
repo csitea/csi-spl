@@ -161,6 +161,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onLane(ctx, x, f)
 		case wire.TAsk: // CLE-77929: asks to the orchestrator, tracked until closed
 			s.onAsk(ctx, x, f)
+		case wire.TCommit: // spec 059 S2: the box wrote a delivery's inbox copy
+			s.onCommit(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
@@ -370,7 +372,9 @@ func (s *Server) drain(ctx context.Context, x *session) {
 	if err != nil {
 		s.o.Log.Error().Err(err).Msg("queue drain")
 	}
-	n := 0
+	// A committing box first gets what it was sent but never acked: the
+	// frames its last session lost (spec 059 S2).
+	n := s.pushUnacked(ctx, x, s.o.Now())
 	for _, d := range q {
 		if s.push(ctx, x, d.MsgID, d.Env) {
 			n++
@@ -393,7 +397,11 @@ func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte)
 	if !ok {
 		return false
 	}
-	ok, err := s.o.Store.ClaimSent(ctx, x.tenant, msgID, x.box, s.o.Now())
+	claim := s.o.Store.ClaimSent
+	if a := s.acks(x); a != nil {
+		claim = a.ClaimSentUnacked // acked by the box's commit frame (commit.go)
+	}
+	ok, err := claim(ctx, x.tenant, msgID, x.box, s.o.Now())
 	if err != nil || !ok {
 		return false
 	}

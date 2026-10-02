@@ -356,7 +356,8 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string) 
 	if role != wire.RoleBox {
 		return hello, nil
 	}
-	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback} // SPL-987 backfill.go, SPL-997 fallback.go
+	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop)
+	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit}
 	agents, err := c.scanAgents()
 	if err != nil {
 		return wire.Frame{}, err
@@ -468,6 +469,7 @@ func (s *Session) readLoop() {
 				err = s.receiveFallback(context.Background(), f.Env, f.Agents, f.Fallback)
 			default:
 				err = s.receive(context.Background(), f.Env, f.Agents)
+				s.commit(f.Env, err)
 			}
 			if err != nil {
 				s.c.Log.Warn().Err(err).Msg("recv frame refused")
@@ -755,7 +757,7 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	for _, id := range targets {
 		wrote, err := spool.New(s.c.Cfg).DeliverTo(m, id)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", errInboxWrite, err)
 		}
 		if wrote {
 			s.mu.Lock()

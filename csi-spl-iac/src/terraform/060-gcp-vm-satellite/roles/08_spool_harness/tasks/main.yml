@@ -141,3 +141,105 @@
 - name: install.sh verdict (owner)
   ansible.builtin.debug:
     msg: "{{ spool_install_owner.stdout_lines[-5:] }}"
+
+# Claude Code's FIRST-RUN onboarding (theme picker, "Select login method")
+# stopped all three satellite agents on 2026-10-02 although `claude auth
+# status` read loggedIn:true, and spool pokes were typed into those menus. The
+# login is the owner's (one interactive command); the first-run STATE is not a
+# credential, so it is seeded here: the keys the box PC's agent user carries.
+# Only these keys are set, only when missing or false; the rest of
+# ~/.claude.json (the oauth account included) is never read out or changed.
+# The per-folder trust dialog stays the spawner's (trust-workdir.sh).
+- name: Claude Code first-run state for the agent (no onboarding menus at an agent's start)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    ver=$("$HOME/.local/bin/claude" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+    VER="$ver" python3 - <<'PY'
+    import json, os, tempfile
+    p = os.path.expanduser("~/.claude.json")
+    try:
+        d = json.load(open(p))
+    except FileNotFoundError:
+        d = {}
+    want = {
+        "hasCompletedOnboarding": True,
+        "hasSeenAutoModeEntryWarning": True,
+        "hasSeenAutoModeOutsideReadPrompt": True,
+        "hasResetAutoModeOptInForDefaultOffer": True,
+        "hasSeenTasksHint": True,
+    }
+    if os.environ.get("VER"):
+        want["lastOnboardingVersion"] = os.environ["VER"]
+    changed = [k for k, v in want.items() if not d.get(k)]
+    if not changed:
+        print("OK")
+        raise SystemExit(0)
+    for k in changed:
+        d[k] = want[k]
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
+    with os.fdopen(fd, "w") as f:
+        json.dump(d, f, indent=2)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, p)
+    print("CHANGED " + " ".join(sorted(changed)))
+    PY
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ agent_user }}"
+  register: claude_firstrun
+  changed_when: "'CHANGED' in claude_firstrun.stdout"
+
+# The owner's tmux session `main` (the agents' windows live in it; SYS.md
+# 1.5.10): a systemd USER unit, enabled, so it comes back after a reboot or a
+# recreate without anyone typing `tmux new -s main` (linger is on, role 05).
+- name: The owner's tmux session `main` as a systemd user unit
+  ansible.builtin.copy:
+    dest: "{{ owner_home }}/.config/systemd/user/tmux-main.service"
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "0644"
+    content: |
+      # written by box-playbook.yaml role 08_spool_harness; do not edit
+      [Unit]
+      Description=tmux session main (the agents' windows)
+
+      [Service]
+      Type=forking
+      ExecStart=/usr/bin/tmux new-session -d -s main
+      ExecStop=/usr/bin/tmux kill-session -t main
+      # the agents run inside this tmux server: never kill them on a unit stop/restart
+      KillMode=none
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=default.target
+
+- name: The owner's systemd user dir is the owner's
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "0755"
+  loop:
+    - "{{ owner_home }}/.config"
+    - "{{ owner_home }}/.config/systemd"
+    - "{{ owner_home }}/.config/systemd/user"
+
+- name: Enable + start tmux-main (an already running `main` is left alone)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    systemctl --user daemon-reload
+    c=0
+    systemctl --user is-enabled -q tmux-main.service || { systemctl --user enable -q tmux-main.service && c=1; }
+    if tmux has-session -t main 2>/dev/null; then :; else systemctl --user start tmux-main.service && c=1; fi
+    tmux has-session -t main 2>/dev/null || { echo "FAIL no tmux session main"; exit 1; }
+    [ "$c" = 1 ] && echo CHANGED || echo OK
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ owner_user }}"
+  register: tmux_main
+  changed_when: "'CHANGED' in tmux_main.stdout"

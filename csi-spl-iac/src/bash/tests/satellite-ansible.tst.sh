@@ -21,6 +21,9 @@
 #   8. yq (pinned), psql and pandoc are system-wide (the box user runs the
 #      actions), and verify checks every tool the orc actions require on the
 #      box user's login PATH.
+#  10. the agent's claude first-run state is seeded (only those keys), the
+#      owner's tmux main is a systemd user unit, and verify starts claude
+#      (--print + an interactive no-menu smoke).
 #   9. /var/csi lives on the data disk, /var/csi/csi-spl is the owner's and
 #      group-writable, and verify checks both users can write it.
 #------------------------------------------------------------------------------
@@ -206,6 +209,27 @@ grep -q 'test -w /var/csi/csi-spl && echo "varcsi writable $u"' "$v" && grep -q 
 bad=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | grep -vE '^/var/(csi/csi-spl|\$\{?(org|ORG|SPL_ORG_APP%%-\*|ORG_APP%%-\*)\}?/)' || true)
 n_sd=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | sort -u | wc -l)
 [[ -z "$bad" && "$n_sd" -ge 5 ]] && pass "every state dir the actions write ($n_sd paths, desk-reconcile included) is under /var/<org>/<org>-<app>" || fail "state dirs outside /var/<org>/<org>-<app>: $bad"
+
+# 10. claude starts with no first-run menu; tmux main is a user unit (2026-10-02)
+H="$T/home"; mkdir -p "$H/.local/bin"
+printf '#!/bin/sh\necho "2.1.160 (Claude Code)"\n' >"$H/.local/bin/claude"; chmod +x "$H/.local/bin/claude"
+printf '{"oauthAccount": {"emailAddress": "x@example.com"}, "hasCompletedOnboarding": false, "numStartups": 3}' >"$H/.claude.json"
+fr=$(python3 -c "
+import yaml,sys
+for t in yaml.safe_load(open('$h8')):
+    if t.get('name','').startswith('Claude Code first-run state'): print(t['ansible.builtin.shell'])")
+[[ -n "$fr" ]] || fail "10. no first-run task in role 08"
+o1=$(HOME="$H" bash -c "$fr" 2>&1); o2=$(HOME="$H" bash -c "$fr" 2>&1)
+python3 -c "
+import json,sys
+d=json.load(open('$H/.claude.json'))
+ok = d['hasCompletedOnboarding'] is True and d['lastOnboardingVersion']=='2.1.160' and d['oauthAccount']=={'emailAddress':'x@example.com'} and d['numStartups']==3 and d['hasSeenAutoModeEntryWarning'] is True
+sys.exit(0 if ok else 1)" && [[ "$o1" == CHANGED* && "$o2" == OK && "$(stat -c %a "$H/.claude.json")" == 600 ]] \
+  && pass "10. the first-run seed sets onboarding + version, keeps every other key (the login too), 0600, idempotent" || fail "10. first-run seed: o1=$o1 o2=$o2 $(cat "$H/.claude.json")"
+grep -q 'ExecStart=/usr/bin/tmux new-session -d -s main' "$h8" && grep -q 'KillMode=none' "$h8" && grep -q 'systemctl --user enable -q tmux-main.service' "$h8" \
+  && pass "10. role 08 keeps the owner's tmux main as an enabled systemd user unit (agents survive a unit restart)" || fail "10. no tmux-main user unit"
+grep -q '^_satellite_verify_claude_start()' "$v" && grep -q 'claude -p "Reply with exactly the word ok"' "$v" && grep -q 'select login method' "$v" && grep -q 'trust-workdir.sh "$d"' "$v" && grep -q 'owner tmux-unit' "$v" \
+  && pass "10. verify: claude --print, the interactive no-menu smoke (pre-trusted dir), tmux main + its unit" || fail "10. verify lacks the claude-start or tmux rows"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

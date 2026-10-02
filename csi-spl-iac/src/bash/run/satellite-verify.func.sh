@@ -88,6 +88,7 @@ REMOTE
   fi
 
   _satellite_verify_replica
+  _satellite_verify_claude_start
 
   echo "SATELLITE-VERIFY fails=${fails}"
   return $((fails > 0))
@@ -204,6 +205,9 @@ echo "owner tools-checked"
 # the run actions' state + log dir: writable by the owner, and by the agent
 # through the owner's group (2026-10-02: desk-reconcile could not be created)
 for u in "$O" "$A"; do sudo -n -u "$u" test -w /var/csi/csi-spl && echo "varcsi writable $u"; done
+# the owner's tmux session main, kept by the systemd user unit tmux-main (role 08)
+sudo -n -u "$O" tmux has-session -t main 2>/dev/null && echo "owner tmux-main"
+sudo -n -u "$O" env XDG_RUNTIME_DIR="/run/user/$(id -u "$O")" systemctl --user is-enabled -q tmux-main.service 2>/dev/null && echo "owner tmux-unit"
 # the clone: on master, clean, and its HEAD (compared with trunk on this box)
 r=/opt/csi/csi-spl
 g() { git -c safe.directory="$r" -C "$r" "$@"; }
@@ -227,6 +231,14 @@ REMOTE
   box=$(sed -n 's/^BOX_TAG=\([a-z0-9-]*\)$/\1/p' <<<"$envf")
   grep -qx "hostname ${box}" <<<"$out" && ok "hostname -s = ${box}" || ko "hostname -s = ${box} (is $(sed -n 's/^hostname //p' <<<"$out"))"
   grep -qx "boxenv SPOOL_DESK_BOX=${box}" <<<"$out" && ok "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}" || ko "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}"
+  _satellite_verify_owner_rows "$out" "$owner" "$agent"
+}
+
+
+# The owner-side rows of _satellite_verify_users (its remote script's output):
+# the box user's harness and tools, its tmux main, /var/csi, the clone.
+_satellite_verify_owner_rows() {
+  local out="$1" owner="$2" agent="$3" b u
   for b in spool spool-agent; do
     grep -qx "owner bin $b" <<<"$out" && ok "$b installed for $owner (the box user runs the desks)" || ko "$b installed for $owner (the box user runs the desks)"
   done
@@ -234,6 +246,8 @@ REMOTE
   missing=$(sed -n 's/^owner tool-missing //p' <<<"$out" | tr '\n' ' ')
   if grep -qx "owner tools-checked" <<<"$out" && [[ -z "$missing" ]]; then ok "$owner has the actions' required tools on its login PATH ($owner_tools)"
   else ko "$owner has the actions' required tools on its login PATH (missing: ${missing:-unreadable})"; fi
+  grep -qx "owner tmux-main" <<<"$out" && ok "$owner's tmux session main runs" || ko "$owner's tmux session main runs"
+  grep -qx "owner tmux-unit" <<<"$out" && ok "$owner's systemd user unit tmux-main is enabled (back after a reboot)" || ko "$owner's systemd user unit tmux-main is enabled"
   for u in "$owner" "$agent"; do
     grep -qx "varcsi writable $u" <<<"$out" && ok "/var/csi/csi-spl is writable by $u (the run actions' state + logs)" || ko "/var/csi/csi-spl is writable by $u (the run actions' state + logs)"
   done
@@ -259,4 +273,37 @@ _satellite_verify_repo() {
   else
     ko "/opt/csi/csi-spl is at trunk (HEAD ${head:-unreadable} is not on origin/master)"
   fi
+}
+
+# Claude Code starts for the agent with NO first-run menu (2026-10-02: the
+# three satellite agents stopped at the theme picker / "Select login method"
+# with loggedIn:true). Two rows, as the agent: `claude --print` answers, and an
+# interactive claude in a throwaway tmux server (its own -L socket; the owner's
+# server is not touched) shows no onboarding text within 20 s. The folder is
+# pre-trusted the way a spawn does it (trust-workdir.sh), so the trust dialog
+# cannot make a false FAIL. Costs one tiny model call.
+_satellite_verify_claude_start() {
+  local out
+  # shellcheck disable=SC2016
+  out=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
+export PATH="$HOME/.local/bin:$PATH"
+p=$(timeout 120 claude -p "Reply with exactly the word ok" 2>&1 | tr -d '\r' | tr '[:upper:]' '[:lower:]' | head -c 300)
+grep -qw ok <<<"$p" && echo "print ok" || echo "print fail $(tr '\n' ' ' <<<"$p" | cut -c1-120)"
+d=$(mktemp -d)
+bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh "$d" "$(id -un)" claude >/dev/null 2>&1
+s="verify-smoke-$$"
+tmux -L "$s" new-session -d -s smoke -x 200 -y 50 -c "$d" "$HOME/.local/bin/claude" 2>/dev/null
+sleep 20
+screen=$(tmux -L "$s" capture-pane -p -t smoke 2>/dev/null)
+tmux -L "$s" kill-server 2>/dev/null
+rm -rf "$d"
+hit=$(grep -m1 -iE "select login method|choose the text style|let.s get started|trust this folder|do you trust|dark mode|light mode" <<<"$screen")
+if [ -z "$screen" ]; then echo "smoke none"
+elif [ -n "$hit" ]; then echo "smoke onboarding $hit"
+else echo "smoke ok"; fi
+REMOTE
+)
+  grep -qx "print ok" <<<"$out" && ok "${SATELLITE_AGENT}: claude --print answers" || ko "${SATELLITE_AGENT}: claude --print answers ($(sed -n 's/^print fail //p' <<<"$out"))"
+  if grep -qx "smoke ok" <<<"$out"; then ok "${SATELLITE_AGENT}: an interactive claude starts with no first-run menu (20 s)"
+  else ko "${SATELLITE_AGENT}: an interactive claude starts with no first-run menu ($(sed -n 's/^smoke //p' <<<"$out" | cut -c1-120))"; fi
 }

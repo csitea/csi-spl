@@ -90,11 +90,11 @@ describe('ChannelSidebar wiring', () => {
     assert.equal((vue.match(/@archive-channel="askArchiveChannel\(/g) || []).length, 1)
   })
   it('Archive opens the lazy confirm; nothing is archived from the menu itself', () => {
-    assert.match(vue, /<LazyChannelArchiveDialog[\s\S]*?v-model:open="archiveOpen"/)
+    assert.match(vue, /<LazyChannelConfirmDialog[\s\S]*?v-model:open="archiveOpen"[\s\S]*?action="archive"/)
     assert.doesNotMatch(vue, /channel\.archiveChannel\(/)
-    const dlg = src('src/components/ChannelArchiveDialog.vue')
-    assert.match(dlg, /<UiConfirm[\s\S]*?testid="archive-channel"[\s\S]*?@confirm="confirm"/)
-    assert.match(dlg, /await channel\.archiveChannel\(id\)/)
+    const dlg = src('src/components/ChannelConfirmDialog.vue')
+    assert.match(dlg, /<UiConfirm[\s\S]*?testid="`\$\{action\}-channel`"[\s\S]*?@confirm="confirm"/)
+    assert.match(dlg, /channel\.archiveChannel\(id\)/)
   })
   it('the create dialog offers Unarchive on a channel_archived conflict', () => {
     assert.match(vue, /data-testid="create-channel-unarchive"/)

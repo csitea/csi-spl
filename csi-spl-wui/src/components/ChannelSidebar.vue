@@ -357,20 +357,22 @@
       </template>
     </UiDialog>
     <!-- SPL-72: Delete channel, its creator only, always behind this confirm -->
-    <LazyChannelDeleteDialog
+    <LazyChannelConfirmDialog
       v-if="deleteTarget.channel_id"
       v-model:open="deleteOpen"
+      action="delete"
       :channel-id="deleteTarget.channel_id"
       :name="deleteTarget.name"
-      @deleted="onChannelDeleted"
+      @done="onChannelDeleted"
     />
     <!-- rdb 0092: Archive channel, its creator only, always behind this confirm -->
-    <LazyChannelArchiveDialog
+    <LazyChannelConfirmDialog
       v-if="archiveTarget.channel_id"
       v-model:open="archiveOpen"
+      action="archive"
       :channel-id="archiveTarget.channel_id"
       :name="archiveTarget.name"
-      @archived="onChannelArchived"
+      @done="onChannelArchived"
     />
     <!-- SPL-986: a topic row's Delete, the card's own confirm (specs/041 §3.5) -->
     <LazyTopicDeleteDialog
@@ -671,7 +673,7 @@
     </div>
     </div>
     </div>
-    <!-- SPL-1204: like LazyChannelDeleteDialog above, gate on the target so the
+    <!-- SPL-1204: like LazyChannelConfirmDialog above, gate on the target so the
          async chunk loads on the first Properties open, not on every sidebar
          mount; it stays mounted after (channel_id persists) so the close
          animation still plays. -->
@@ -1371,14 +1373,14 @@ function deletableChannel(id: string) {
   const row = shownChannels.value.find((c) => c.channel_id === id)
   return !!row && canDeleteChannel({ selfId: selfId.value, row })
 }
-/* the confirm is LazyChannelDeleteDialog: off the initial script (027 §6) */
+/* the confirm is LazyChannelConfirmDialog: off the initial script (027 §6) */
 function askDeleteChannel(id: string) {
   const row = shownChannels.value.find((c) => c.channel_id === id)
   deleteTarget.value = { channel_id: id, name: String(row?.name || id) }
   deleteOpen.value = true
 }
 /* rdb 0092: Archive channel - the creator only, same door as delete. The
-   confirm is LazyChannelArchiveDialog. */
+   confirm is LazyChannelConfirmDialog. */
 const archiveOpen = ref(false)
 const archiveTarget = ref({ channel_id: '', name: '' })
 function askArchiveChannel(id: string) {

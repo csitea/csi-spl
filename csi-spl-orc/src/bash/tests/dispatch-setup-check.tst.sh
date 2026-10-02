@@ -23,7 +23,7 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+trap 'kill ${H1:-} ${H2:-} 2>/dev/null; rm -rf "$T"' EXIT
 
 P="$T/proc" S="$T/spool" ST="$T/state" R="$T/repo"
 mkdir -p "$P" "$S" "$ST" "$T/home"
@@ -138,8 +138,10 @@ setup DISPATCH_FAILOVER=c-002 >/dev/null 2>&1 && fail "5. master == failover acc
 
 # --- 6. check: complete box ---------------------------------------------------------------
 echo "c-002 $(date +%s)" >"$S/dispatch/lease"
-( exec 7>"$S/dispatch/renew.run"; flock 7; sleep 30 ) & H1=$!
-( exec 7>"$S/dispatch/watch.run"; flock 7; sleep 30 ) & H2=$!
+# The holders outlive every check below, however loaded the box (a 30 s hold
+# ran out before check 7 under a parallel suite); the trap stops them.
+( exec 7>"$S/dispatch/renew.run"; flock 7; exec sleep 600 ) & H1=$!
+( exec 7>"$S/dispatch/watch.run"; flock 7; exec sleep 600 ) & H2=$!
 sleep 0.3
 printf 'ts=%s\nopen=2\nper=w1=2\nto=c-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
 date +%s >"$S/dispatch/rotate.dispatch.last"

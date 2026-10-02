@@ -117,6 +117,11 @@ for sf in sorted(glob.glob(os.path.join(E["SESS"], "*.json"))):
     if not apply: continue
     if not pw or not sid or not cwd:
         print("FAIL %s %s: no pane, session or cwd" % (pid, aid)); rc = 1; continue
+    # The restore resumes IN the session's dir: a lane whose worktree was torn
+    # down cannot come back, so it is never stopped (the satellite, 2026-10-02:
+    # c-010 / c-011 stopped, then "RUNDIR ... does not exist").
+    if not os.path.isdir(cwd):
+        print("FAIL %s %s: its dir %s is gone; nothing stopped" % (pid, aid, cwd)); rc = 1; continue
     # The pane must exist NOW, and outlive the process: a pane whose command
     # was the claude itself closes when it exits, and a respawn into it then
     # finds nothing (c-001, 2026-10-02: three agents left down). Checked and

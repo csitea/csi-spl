@@ -110,5 +110,16 @@ mkdir -p "$P/$GP"; printf '%s (bash) S 1 0 0\n' "$GP" >"$P/$GP/stat"
 out="$(bash "$T_SCRIPTS/agent-name-resume.sh" --apply --only c-035 2>&1)"
 check "6. a gone pane: the process is NOT stopped" kill -0 "$VICTIM"
 kill "$VICTIM" 2>/dev/null
+# the satellite, 2026-10-02: a finished lane's worktree was gone; the agent
+# was stopped and the restore then refused "RUNDIR does not exist"
+PANE3="$(t_window 'tg: c-036 x' 'sleep 600')"; P3="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$PANE3" '#{pane_pid}')"
+sleep 600 & VICTIM=$!
+mk "$VICTIM" "$P3" 'tg: c-036' ''
+mkdir -p "$P/$P3"; printf '%s (bash) S 1 0 0\n' "$P3" >"$P/$P3/stat"
+printf '{"pid":%s,"sessionId":"s-%s","cwd":"%s/gone-worktree"}\n' "$VICTIM" "$VICTIM" "$T_TMP" >"$S/$VICTIM.json"
+out="$(RESUME_RESTORE="$T_TMP/fake-restore.sh" bash "$T_SCRIPTS/agent-name-resume.sh" --apply --only c-036 2>&1)"
+has "7. a gone session dir is refused, by name" "its dir $T_TMP/gone-worktree is gone; nothing stopped" "$out"
+check "7. ... and the agent is NOT stopped" kill -0 "$VICTIM"
+kill "$VICTIM" 2>/dev/null
 
 t_done

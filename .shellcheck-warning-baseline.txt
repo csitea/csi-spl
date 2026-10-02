@@ -17,7 +17,6 @@ SC2034|csi-spl-iac/lib/bash/funcs/satellite.func.sh|2
 SC2154|csi-spl-iac/lib/bash/funcs/tf-each-target.func.sh|2
 SC2320|csi-spl-iac/src/bash/run/divest.func.sh|1
 SC2034|csi-spl-iac/src/bash/run/gcp-backup-env.func.sh|1
-SC2088|csi-spl-iac/src/bash/run/gcp-export-dns.func.sh|3
 SC2155|csi-spl-iac/src/bash/run/gcp-project-delete.func.sh|1
 SC2024|csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh|1
 SC2155|csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh|1

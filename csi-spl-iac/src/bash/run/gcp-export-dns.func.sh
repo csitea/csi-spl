@@ -28,13 +28,13 @@ do_gcp_export_dns() {
   do_resolve_oap APP
 
 declare -A env_keys=(
-  ["dev"]="~/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-dev.json"
-  ["prd"]="~/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-prd.json"
-  ["tst"]="~/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-tst.json"
+  ["dev"]="$HOME/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-dev.json"
+  ["prd"]="$HOME/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-prd.json"
+  ["tst"]="$HOME/.gcp/.${ORG:-}/key-${ORG:-}-${APP:-}-tst.json"
 )
 
 for env in "${!env_keys[@]}"; do
-  expanded_key_path=$(eval echo ${env_keys[$env]})
+  expanded_key_path="${env_keys[$env]}"
   export GOOGLE_APPLICATION_CREDENTIALS="${expanded_key_path}"
 
   do_log "INFO Exporting DNS configuration for $env environment"

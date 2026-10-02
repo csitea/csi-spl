@@ -77,44 +77,41 @@ do_tf_030_import_existing_cloud_run() {
   local gcp_key_in_ctr="${tf_home}/.gcp/.${org}/key-${project}.json"
 
   do_log "INFO INIT  ${step} env=${env_name} work=${work} image=${tf_image}"
-  if ! docker run --rm \
-      --user "$(id -u):$(id -g)" \
-      -v "${work}:/tf" -w /tf \
-      -v "${HOME}/.gcp:${tf_home}/.gcp:ro" \
-      -e HOME="${tf_home}" \
-      -e GOOGLE_APPLICATION_CREDENTIALS="${gcp_key_in_ctr}" \
-      -e TF_VAR_STEP="${step}" \
-      -e TF_VAR_proj_path=/tf \
-      -e TF_VAR_base_path=/ \
-      -e TF_VAR_TERRAFORM_VERSION=1.9 \
-      -e TF_VAR_INFRA_VERSION=0 \
-      -e TF_VAR_CNF_VER=import \
-      -e TF_IN_AUTOMATION=1 \
+  if ! _tf030_docker "$work" "$tf_home" "$gcp_key_in_ctr" "$step" \
       "$tf_image" init -input=false -backend-config="${step}.backend-config.tfvars"; then
     do_log "ERROR terraform init failed for ${step} ${env_name}"
     return 1
   fi
 
   do_log "INFO IMPORT ${step} env=${env_name} (import only; will not apply)"
-  if ! docker run --rm \
-      --user "$(id -u):$(id -g)" \
-      -v "${work}:/tf" -w /tf \
-      -v "${HOME}/.gcp:${tf_home}/.gcp:ro" \
-      -e HOME="${tf_home}" \
-      -e GOOGLE_APPLICATION_CREDENTIALS="${gcp_key_in_ctr}" \
-      -e TF_VAR_STEP="${step}" \
-      -e TF_VAR_proj_path=/tf \
-      -e TF_VAR_base_path=/ \
-      -e TF_VAR_TERRAFORM_VERSION=1.9 \
-      -e TF_VAR_INFRA_VERSION=0 \
-      -e TF_VAR_CNF_VER=import \
-      -e TF_IN_AUTOMATION=1 \
-      --entrypoint sh \
-      "$tf_image" /tf/tf-030-import-existing-cloud-run.sh "${step}.vars.tfvars"; then
+  if ! _tf030_docker "$work" "$tf_home" "$gcp_key_in_ctr" "$step" \
+      --entrypoint sh "$tf_image" /tf/tf-030-import-existing-cloud-run.sh "${step}.vars.tfvars"; then
     do_log "ERROR importer failed for ${step} ${env_name}"
     return 1
   fi
 
   do_log "OK ${step} ${env_name} import finished (import only). Next: terraform plan. Do NOT apply."
   return 0
+}
+
+# _tf030_docker <work dir> <container home> <key in container> <step> <args...>:
+# one terraform-image run over <work> as the caller's uid, the per-env key
+# mounted read-only, the TF_VAR_* the steps expect; <args...> follow the
+# environment flags (an optional --entrypoint, the image, its arguments).
+_tf030_docker() {
+  local work="$1" tf_home="$2" gcp_key_in_ctr="$3" step="$4"; shift 4
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -v "${work}:/tf" -w /tf \
+    -v "${HOME}/.gcp:${tf_home}/.gcp:ro" \
+    -e HOME="${tf_home}" \
+    -e GOOGLE_APPLICATION_CREDENTIALS="${gcp_key_in_ctr}" \
+    -e TF_VAR_STEP="${step}" \
+    -e TF_VAR_proj_path=/tf \
+    -e TF_VAR_base_path=/ \
+    -e TF_VAR_TERRAFORM_VERSION=1.9 \
+    -e TF_VAR_INFRA_VERSION=0 \
+    -e TF_VAR_CNF_VER=import \
+    -e TF_IN_AUTOMATION=1 \
+    "$@"
 }

@@ -113,13 +113,21 @@ _skeleton() {
 }
 # _rm_skeleton DIR [KEEP]: remove the claim; every file of its inbox, outbox,
 # archive and .pokes moves into the same sub-dir of the mailbox KEEP (made if
-# missing) first, so nothing is lost; a name already there stays and fails it.
+# missing) first, so nothing is lost. A name in both: a .pokes log is appended
+# to KEEP's (the satellite, 23:05Z: .pokes/notices.log in both stopped the
+# switch), a byte-identical copy is dropped, anything else stays and fails it.
 _rm_skeleton() {
-  local sub
+  local sub f
   if [ -n "${2:-}" ]; then
     for sub in inbox outbox archive .pokes; do
       [ -n "$(ls -A "$1/$sub" 2>/dev/null)" ] || continue
       mkdir -p "$2/$sub" && find "$1/$sub" -maxdepth 1 -type f -exec mv -n -t "$2/$sub" {} +
+      for f in "$1/$sub"/* "$1/$sub"/.[!.]*; do
+        [ -f "$f" ] || continue
+        if cmp -s "$f" "$2/$sub/${f##*/}"; then rm -f "$f"
+        elif [ "$sub" = .pokes ]; then cat "$f" >>"$2/$sub/${f##*/}" && rm -f "$f"
+        fi
+      done
     done
   fi
   rmdir "$1/inbox" "$1/outbox" "$1/archive" "$1/.pokes" 2>/dev/null || true; rmdir "$1"

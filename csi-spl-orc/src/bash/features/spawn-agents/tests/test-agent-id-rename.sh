@@ -104,11 +104,21 @@ eq "...CLE-001 links to c-001" c-001 "$(readlink "$R/CLE-001")"
 # through the alias; a role switch merges it, it does not refuse
 mkdir -p "$R/CLE-003@box-t/inbox" "$R/c-003/inbox" "$R/c-003/outbox"; ln -s CLE-003@box-t "$R/CLE-003"
 : >"$R/c-003/inbox/note-to-orch.json"; : >"$R/c-003/outbox/sent.json"
+mkdir -p "$R/c-003/.pokes" "$R/CLE-003@box-t/.pokes" "$R/CLE-003@box-t/outbox"
+echo "old poke" >"$R/CLE-003@box-t/.pokes/notices.log"; echo "new poke" >"$R/c-003/.pokes/notices.log"
+echo same >"$R/CLE-003@box-t/outbox/dup.json"; echo same >"$R/c-003/outbox/dup.json"
 printf 'CLE-003\tc-003\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
 t_window 'c-003@tg x' 'sleep 600' >/dev/null
+echo a >"$R/CLE-003@box-t/inbox/x.json"; echo b >"$R/c-003/inbox/x.json"
+out="$(bash "$REN" --roles --apply CLE-003 2>&1)"
+has "control: two DIFFERENT messages under one name stop the switch" "a file name is in both mailboxes" "$out"
+check "...and CLE-003 stays where it was" test "$(readlink "$R/CLE-003")" = CLE-003@box-t
+mv "$R/c-003/inbox/x.json" "$R/c-003/inbox/y.json"
 out="$(bash "$REN" --roles --apply CLE-003 2>&1)"; eq "role with unread mail under its new id: --apply exits 0 ($out)" 0 "$?"
 check "...the unread mail is in the role's mailbox now" test -e "$R/c-003@box-t/inbox/note-to-orch.json" -a -e "$R/c-003@box-t/outbox/sent.json"
 eq "...c-003 links to c-003@box-t" c-003@box-t "$(readlink "$R/c-003")"
+eq "...a .pokes log in both is appended, not a clash (sat 23:05Z)" "old poke|new poke" "$(paste -sd'|' "$R/c-003@box-t/.pokes/notices.log")"
+eq "...a byte-identical copy in both is kept once" same "$(cat "$R/c-003@box-t/outbox/dup.json")"
 mkdir -p "$R/CLE-009/inbox" "$R/c-009/inbox"; : >"$R/c-009/inbox/unread.json"
 printf 'CLE-009\tc-009\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
 t_window 'CLE-009 x' 'sleep 600' >/dev/null

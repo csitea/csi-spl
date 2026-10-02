@@ -1,0 +1,581 @@
+package hub_test
+
+// CLE-77953 SCRATCH, round 2 (+ dm_counts probe, wall/db-wait timing) (not committed): bytes per hub <-> Postgres query and
+// per hub -> browser route/frame, over the real session door.
+//
+//	SPOOL_TEST_PG_DSN=... AUDIT_OUT=<dir> go test ./internal/hub -run TestPayloadAudit -v -count=1
+
+import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+)
+
+type aq struct {
+	SQL      string
+	Rows     int
+	Bytes    int // DataRow messages incl. headers
+	Cols     []string
+	ColBytes []int
+}
+
+type auditProxy struct {
+	ln    net.Listener
+	mu    sync.Mutex
+	on    bool
+	q     []*aq
+	rt    int
+	upB   int
+	downB int
+	dbNs  int64
+}
+
+func (p *auditProxy) reset() {
+	p.mu.Lock()
+	p.q, p.rt, p.upB, p.downB, p.dbNs, p.on = nil, 0, 0, 0, 0, true
+	p.mu.Unlock()
+}
+
+func (p *auditProxy) take() ([]*aq, int, int, int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.on = false
+	return p.q, p.rt, p.upB, p.downB
+}
+
+type pgConn struct {
+	p     *auditProxy
+	mu    sync.Mutex
+	stmts map[string]*pstmt
+	bound *pstmt
+	execs []*pstmt
+	descs []*pstmt
+	cur   *aq
+	pend  int
+	t0    time.Time
+}
+
+type pstmt struct {
+	sql  string
+	cols []string
+}
+
+func newAuditProxy(t testing.TB, target string) *auditProxy {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &auditProxy{ln: ln}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			s, err := net.Dial("tcp", target)
+			if err != nil {
+				c.Close()
+				continue
+			}
+			pc := &pgConn{p: p, stmts: map[string]*pstmt{}}
+			go pc.pump(c, s, false)
+			go pc.pump(s, c, true)
+		}
+	}()
+	return p
+}
+
+func cstr(b []byte) (string, []byte) {
+	i := bytes.IndexByte(b, 0)
+	if i < 0 {
+		return string(b), nil
+	}
+	return string(b[:i]), b[i+1:]
+}
+
+func (pc *pgConn) pump(src, dst net.Conn, down bool) {
+	defer dst.Close()
+	var buf []byte
+	tmp := make([]byte, 64<<10)
+	startup := !down
+	for {
+		n, err := src.Read(tmp)
+		if n > 0 {
+			pc.p.mu.Lock()
+			if pc.p.on {
+				if down {
+					pc.p.downB += n
+				} else {
+					pc.p.upB += n
+				}
+			}
+			pc.p.mu.Unlock()
+			buf = append(buf, tmp[:n]...)
+			for {
+				if startup {
+					if len(buf) < 4 {
+						break
+					}
+					l := int(binary.BigEndian.Uint32(buf))
+					if len(buf) < l {
+						break
+					}
+					buf = buf[l:]
+					startup = false
+					continue
+				}
+				if len(buf) < 5 {
+					break
+				}
+				l := int(binary.BigEndian.Uint32(buf[1:]))
+				if len(buf) < 1+l {
+					break
+				}
+				pc.msg(buf[0], buf[5:1+l], down)
+				buf = buf[1+l:]
+			}
+			if _, werr := dst.Write(tmp[:n]); werr != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func (pc *pgConn) msg(typ byte, b []byte, down bool) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	if !down {
+		if typ == 'S' || typ == 'Q' {
+			if pc.pend == 0 {
+				pc.t0 = time.Now()
+			}
+			pc.pend++
+		}
+		switch typ {
+		case 'P':
+			name, rest := cstr(b)
+			q, _ := cstr(rest)
+			pc.stmts[name] = &pstmt{sql: q}
+		case 'B':
+			_, rest := cstr(b)
+			st, _ := cstr(rest)
+			pc.bound = pc.stmts[st]
+			if pc.bound == nil {
+				pc.bound = &pstmt{sql: "?" + st}
+			}
+		case 'D':
+			name, _ := cstr(b[1:])
+			if b[0] == 'S' {
+				pc.descs = append(pc.descs, pc.stmts[name])
+			} else {
+				pc.descs = append(pc.descs, pc.bound)
+			}
+		case 'E':
+			pc.execs = append(pc.execs, pc.bound)
+		case 'Q':
+			q, _ := cstr(b)
+			st := &pstmt{sql: q}
+			pc.execs = append(pc.execs, st)
+			pc.descs = append(pc.descs, st)
+		}
+		return
+	}
+	p := pc.p
+	switch typ {
+	case 'T', 'n':
+		var key *pstmt
+		if len(pc.descs) > 0 {
+			key, pc.descs = pc.descs[0], pc.descs[1:]
+		}
+		if typ == 'T' && key != nil {
+			nf := int(binary.BigEndian.Uint16(b))
+			rest := b[2:]
+			var cols []string
+			for i := 0; i < nf && len(rest) > 0; i++ {
+				var name string
+				name, rest = cstr(rest)
+				if len(rest) < 18 {
+					break
+				}
+				rest = rest[18:]
+				cols = append(cols, name)
+			}
+			key.cols = cols
+		}
+	case 'D':
+		if pc.cur == nil {
+			pc.cur = &aq{}
+		}
+		nc := int(binary.BigEndian.Uint16(b))
+		if pc.cur.ColBytes == nil {
+			pc.cur.ColBytes = make([]int, nc)
+		}
+		rest := b[2:]
+		for i := 0; i < nc && len(rest) >= 4; i++ {
+			l := int(int32(binary.BigEndian.Uint32(rest)))
+			rest = rest[4:]
+			if l > 0 && l <= len(rest) {
+				rest = rest[l:]
+				if i < len(pc.cur.ColBytes) {
+					pc.cur.ColBytes[i] += l
+				}
+			}
+		}
+		pc.cur.Rows++
+		pc.cur.Bytes += len(b) + 5
+	case 'C', 'I', 'E':
+		var key *pstmt
+		if len(pc.execs) > 0 {
+			key, pc.execs = pc.execs[0], pc.execs[1:]
+		}
+		if key == nil {
+			key = &pstmt{sql: "?"}
+		}
+		q := pc.cur
+		if q == nil {
+			q = &aq{}
+		}
+		pc.cur = nil
+		q.SQL = key.sql
+		q.Cols = key.cols
+		if typ == 'E' {
+			q.SQL = "ERROR " + q.SQL
+		}
+		p.mu.Lock()
+		if p.on {
+			p.q = append(p.q, q)
+		}
+		p.mu.Unlock()
+	case 'Z':
+		if pc.pend > 0 {
+			pc.pend--
+		}
+		p.mu.Lock()
+		if p.on {
+			p.rt++
+			if pc.pend == 0 {
+				p.dbNs += int64(time.Since(pc.t0))
+			}
+		}
+		p.mu.Unlock()
+	}
+}
+
+func jsonBytes(v any, path string, depth int, out map[string]int) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, vv := range x {
+			b, _ := json.Marshal(vv)
+			p := path + "." + k
+			out[p] += len(b) + len(k) + 4
+			if depth < 6 {
+				jsonBytes(vv, p, depth+1, out)
+			}
+		}
+	case []any:
+		for _, vv := range x {
+			jsonBytes(vv, path+"[]", depth, out)
+		}
+	}
+}
+
+func gzLen(b []byte) int {
+	var w bytes.Buffer
+	zw, _ := gzip.NewWriterLevel(&w, gzip.BestSpeed)
+	zw.Write(b) //nolint:errcheck
+	zw.Close()
+	return w.Len()
+}
+
+func oneLine(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > n {
+		s = s[:n] + "..."
+	}
+	return s
+}
+
+func writeQueries(sb *strings.Builder, qs []*aq) {
+	seen := map[string]int{}
+	for _, q := range qs {
+		seen[q.SQL]++
+	}
+	for _, q := range qs {
+		dup := ""
+		if seen[q.SQL] > 1 {
+			dup = fmt.Sprintf(" **x%d same SQL in this request**", seen[q.SQL])
+		}
+		fmt.Fprintf(sb, "- rows=%d bytes=%d cols=%d%s: `%s`\n", q.Rows, q.Bytes, len(q.Cols), dup, oneLine(q.SQL, 220))
+		type cb struct {
+			n string
+			b int
+		}
+		var cbs []cb
+		for i, b := range q.ColBytes {
+			name := fmt.Sprintf("#%d", i)
+			if i < len(q.Cols) {
+				name = q.Cols[i]
+			}
+			cbs = append(cbs, cb{name, b})
+		}
+		sort.Slice(cbs, func(i, j int) bool { return cbs[i].b > cbs[j].b })
+		var parts []string
+		for _, x := range cbs {
+			if x.b > 0 {
+				parts = append(parts, fmt.Sprintf("%s=%d", x.n, x.b))
+			}
+		}
+		if len(parts) > 0 {
+			fmt.Fprintf(sb, "  - col bytes: %s\n", strings.Join(parts, " "))
+		}
+	}
+}
+
+func TestPayloadAudit(t *testing.T) {
+	dsn := os.Getenv("SPOOL_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("SPOOL_TEST_PG_DSN unset")
+	}
+	out := os.Getenv("AUDIT_OUT")
+	if out == "" {
+		out = t.TempDir()
+	}
+	u, _ := url.Parse(dsn)
+	proxy := newAuditProxy(t, u.Host)
+	u.Host = proxy.ln.Addr().String()
+	t.Setenv("SPOOL_TEST_PG_DSN", u.String())
+
+	r := newDoorRig(t)
+	pool := r.e.st.(*store.Postgres).Pool()
+	tenant, _ := r.e.tenant()
+	if landed := r.signIn(t, tenant); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	ctx := context.Background()
+	c, _, err := websocket.Dial(ctx, "ws://"+tenant+domain+"/v1/wui/ws", &websocket.DialOptions{HTTPClient: r.browser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()                                       //nolint:errcheck
+	wsjson.Write(ctx, c, map[string]string{"type": "hello"}) //nolint:errcheck
+	w := &wuiClient{t: t, c: c}
+	w.w = w.read("welcome")
+
+	bx := r.e.box(tenant, "box-a", "CLE-07", "CLE-08", "GRK-03", "QWN-04")
+	r.e.pin(tenant, bx)
+
+	body := func(i int) string {
+		return fmt.Sprintf("Line %d: **status** - the `hub` read the channel page in one round trip; next step is the "+
+			"rebase onto trunk and the pre-push gate, then a deploy to dev and prd. See csi-spl-doc/specs/027.", i)
+	}
+	nLobby, nTopics, perTopic, perPeer := 20, 12, 3, 25
+	for i := 0; i < nLobby; i++ {
+		wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": lobby, "body": body(i)}) //nolint:errcheck
+		w.read("ack")
+	}
+	for i := 0; i < nTopics; i++ {
+		task := uuid4()
+		for j := 0; j < perTopic; j++ {
+			channelFrame(t, c, uuid4(), task, "lobby", body(i*10+j))
+		}
+	}
+	for _, pe := range []string{"CLE-07", "CLE-08", "GRK-03", "QWN-04"} {
+		task := uuid4()
+		for j := 0; j < perPeer; j++ {
+			wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": task, "to": pe, "to_box": "box-a", "body": body(j)}) //nolint:errcheck
+			w.read("ack")
+		}
+	}
+	if os.Getenv("AUDIT_BOX_REPLIES") != "" {
+		for _, pe := range []string{"CLE-07", "CLE-08", "GRK-03", "QWN-04"} {
+			for j := 0; j < 5; j++ {
+				send(t, bx, pe, "HUM-1", "note", body(200+j), "box-wui")
+			}
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	type probe struct{ name, path string }
+	probes := []probe{
+		{"session", "/api/v1/auth/session"},
+		{"me", "/v1/view/me"},
+		{"channels", "/v1/view/channels"},
+		{"roster", "/v1/view/roster"},
+		{"dm-seed-r1", "/v1/view/topics?dm=true&limit=50&per_topic=50"},
+		{"dm-seed", "/v1/view/topics?dm=true&limit=50&dm_counts=true"},
+		{"flow", "/v1/view/topics?limit=12&per_topic=3"},
+		{"channel-page", "/v1/view/topics?channel=lobby&limit=20&per_topic=30"},
+		{"lobby-topic", "/v1/view/topics/" + lobby},
+	}
+	const n = 5
+	var md strings.Builder
+	fmt.Fprintf(&md, "| route | DB rt | DB queries | DB rows | DB down B | DB up B | JSON B | gzip B | pool acquired after | wall us | db wait us |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
+	var detail strings.Builder
+	mm := func(v []int) string {
+		lo, hi := v[0], v[0]
+		for _, x := range v {
+			lo, hi = min(lo, x), max(hi, x)
+		}
+		if lo == hi {
+			return fmt.Sprint(lo)
+		}
+		return fmt.Sprintf("%d..%d", lo, hi)
+	}
+	for _, p := range probes {
+		var rts, nq, rows, downs, ups, jb, gb, acq, wall, dbw []int
+		var lastQ []*aq
+		var lastBody string
+		for i := 0; i < n; i++ {
+			time.Sleep(40 * time.Millisecond)
+			proxy.reset()
+			t0 := time.Now()
+			code, _, b := r.get(t, tenant, p.path)
+			wall = append(wall, int(time.Since(t0).Microseconds()))
+			proxy.mu.Lock()
+			dbw = append(dbw, int(proxy.dbNs/1000))
+			proxy.mu.Unlock()
+			time.Sleep(40 * time.Millisecond)
+			qs, rt, up, down := proxy.take()
+			if code != 200 {
+				t.Fatalf("%s: %d %s", p.path, code, b)
+			}
+			rr := 0
+			for _, q := range qs {
+				rr += q.Rows
+			}
+			rts, nq, rows, downs, ups = append(rts, rt), append(nq, len(qs)), append(rows, rr), append(downs, down), append(ups, up)
+			jb, gb = append(jb, len(b)), append(gb, gzLen([]byte(b)))
+			acq = append(acq, int(pool.Stat().AcquiredConns()))
+			lastQ, lastBody = qs, b
+		}
+		sort.Ints(wall)
+		sort.Ints(dbw)
+		fmt.Fprintf(&md, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %d | %d |\n", p.name, mm(rts), mm(nq), mm(rows), mm(downs), mm(ups), mm(jb), mm(gb), mm(acq), wall[n/2], dbw[n/2])
+		fmt.Fprintf(&detail, "\n### %s `%s`\n\n", p.name, p.path)
+		writeQueries(&detail, lastQ)
+		var v any
+		json.Unmarshal([]byte(lastBody), &v) //nolint:errcheck
+		kb := map[string]int{}
+		jsonBytes(v, "$", 0, kb)
+		type kv struct {
+			k string
+			b int
+		}
+		var kvs []kv
+		for k, b := range kb {
+			kvs = append(kvs, kv{k, b})
+		}
+		sort.Slice(kvs, func(i, j int) bool { return kvs[i].b > kvs[j].b })
+		fmt.Fprintf(&detail, "- JSON key bytes (top 45):\n")
+		for i, x := range kvs {
+			if i >= 45 {
+				break
+			}
+			fmt.Fprintf(&detail, "  - %s = %d\n", x.k, x.b)
+		}
+		os.WriteFile(filepath.Join(out, p.name+".json"), []byte(lastBody), 0o644) //nolint:errcheck
+	}
+
+	// WS: a second tab's hello, then sends from tab 1 observed on both.
+	c2, _, err := websocket.Dial(ctx, "ws://"+tenant+domain+"/v1/wui/ws", &websocket.DialOptions{HTTPClient: r.browser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c2.CloseNow() //nolint:errcheck
+	frames := map[*websocket.Conn]chan []byte{}
+	for _, cc := range []*websocket.Conn{c, c2} {
+		ch := make(chan []byte, 256)
+		frames[cc] = ch
+		go func(cc *websocket.Conn) {
+			for {
+				_, b, err := cc.Read(ctx)
+				if err != nil {
+					return
+				}
+				ch <- b
+			}
+		}(cc)
+	}
+	tally := func(cc *websocket.Conn, d time.Duration, tag string) map[string][]int {
+		res := map[string][]int{}
+		tm := time.After(d)
+		for {
+			var b []byte
+			select {
+			case b = <-frames[cc]:
+			case <-tm:
+				return res
+			}
+			var f struct {
+				Type string `json:"type"`
+			}
+			json.Unmarshal(b, &f) //nolint:errcheck
+			res[f.Type] = append(res[f.Type], len(b))
+			os.WriteFile(filepath.Join(out, "ws-"+tag+"-"+f.Type+".json"), b, 0o644) //nolint:errcheck
+		}
+	}
+	proxy.reset()
+	wsjson.Write(ctx, c2, map[string]string{"type": "hello"}) //nolint:errcheck
+	hello := tally(c2, 1000*time.Millisecond, "hello")
+	qs, rt, up, down := proxy.take()
+	fmt.Fprintf(&md, "\nWS hello (second tab): DB rt=%d queries=%d down=%d up=%d frames(type:bytes)=%v\n\n", rt, len(qs), down, up, hello)
+	fmt.Fprintf(&detail, "\n### WS hello\n\n")
+	writeQueries(&detail, qs)
+	proxy.reset()
+	wsjson.Write(ctx, c2, map[string]any{"type": "subscribe", "all": true}) //nolint:errcheck
+	wsjson.Write(ctx, c, map[string]any{"type": "subscribe", "all": true})  //nolint:errcheck
+	sub := tally(c2, 800*time.Millisecond, "sub")
+	tally(c, 300*time.Millisecond, "sub1")
+	qs, rt, up, down = proxy.take()
+	fmt.Fprintf(&md, "WS subscribe all (x2 tabs): DB rt=%d queries=%d down=%d up=%d frames=%v\n\n", rt, len(qs), down, up, sub)
+	fmt.Fprintf(&detail, "\n### WS subscribe all (two tabs)\n\n")
+	writeQueries(&detail, qs)
+	for i := 0; i < n; i++ {
+		proxy.reset()
+		wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": lobby, "body": body(100 + i)}) //nolint:errcheck
+		var wg sync.WaitGroup
+		var f1, f2 map[string][]int
+		wg.Add(2)
+		go func() { defer wg.Done(); f1 = tally(c, 700*time.Millisecond, "sender") }()
+		go func() { defer wg.Done(); f2 = tally(c2, 700*time.Millisecond, "other") }()
+		wg.Wait()
+		qs, rt, up, down := proxy.take()
+		fmt.Fprintf(&md, "WS send %d: DB rt=%d queries=%d down=%d up=%d sender=%v other=%v pool-acquired=%d\n", i, rt, len(qs), down, up, f1, f2, pool.Stat().AcquiredConns())
+		fmt.Fprintf(&detail, "\n### WS send %d (lobby)\n\n", i)
+		writeQueries(&detail, qs)
+	}
+	proxy.reset()
+	for i := 0; i < 3; i++ {
+		r.e.st.GetTenant(ctx, tenant) //nolint:errcheck
+	}
+	qs, _, _, _ = proxy.take()
+	fmt.Fprintf(&md, "\nGetTenant x3 back to back: %d DB queries\n", len(qs))
+	st := pool.Stat()
+	fmt.Fprintf(&md, "\npool at end: total=%d acquired=%d idle=%d max=%d acquireCount=%d emptyAcquire=%d\n", st.TotalConns(), st.AcquiredConns(), st.IdleConns(), st.MaxConns(), st.AcquireCount(), st.EmptyAcquireCount())
+	res := md.String() + "\n" + detail.String()
+	os.WriteFile(filepath.Join(out, "audit.md"), []byte(res), 0o644) //nolint:errcheck
+	t.Log("\n" + md.String())
+	if os.Getenv("AUDIT_HOLD") != "" { // time to read pg_stat_activity from outside
+		time.Sleep(10 * time.Second)
+	}
+}

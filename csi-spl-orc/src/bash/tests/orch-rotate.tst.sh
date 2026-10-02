@@ -62,7 +62,7 @@ echo x >"$T/mem/orchestrator-never-codes.md"
 cat >"$T/bin/proc" <<'EOF'
 #!/usr/bin/env bash
 d="$T/proc/$1"; mkdir -p "$d"; echo claude >"$d/comm"
-printf 'SPOOL_AGENT_ID=CLE-900\0' >"$d/environ"
+printf 'SPOOL_AGENT_ID=%s\0' "${3:-CLE-900}" >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $2) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
 EOF
@@ -131,7 +131,7 @@ echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} SPOOL_SESSION=${SPOOL_SESSION:
 mode="$(cat "$T/spawn.mode" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
-[ "$mode" = nostart ] || "$T/bin/proc" 2001 0
+[ "$mode" = nostart ] || "$T/bin/proc" 2001 0 "$2"
 # a message lands mid-rotation (T-MSG-IN-FLIGHT)
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"CLE-002","to":"CLE-900","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/CLE-900/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
@@ -445,6 +445,51 @@ mkdir -p "$T/repo-wt/X"
 cron DESK_CRON_SRC="$T/repo-wt/X" >"$T/o" 2>&1 && fail "10. a worktree source accepted" || pass "10. an agent worktree is refused"
 ROTATE_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/orch-rotate-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
+
+# --- 13. spec 061 L6: the rotation switches a legacy LEASE_ORCH to its new id ------------------
+# (owner 2026-10-02 21:37Z: "Why the orc does not restart from cron")
+cat >"$T/bin/rename" <<'EOF2'
+#!/usr/bin/env bash
+echo "rename-tool $*" >>"$T/rename.log"
+mv "$SPOOL_ROOT/CLE-900" "$SPOOL_ROOT/c-900" && ln -s c-900 "$SPOOL_ROOT/CLE-900"
+awk -F'\t' -v OFS='\t' '{ sub(/^CLE-900@/, "c-900@", $4) } {print}' "$T/tmux/panes" >"$T/tmux/panes.new" && mv "$T/tmux/panes.new" "$T/tmux/panes"
+echo "DO spool CLE-900"; echo "DO window CLE-900"
+EOF2
+chmod +x "$T/bin/rename"
+printf 'CLE-900\tc-900\tclaude\tbox-desk\t2026-10-02T16:35:05Z\n' >"$S/agent-id-aliases.tsv"
+world
+act >"$T/o" 2>&1
+grep -q " SWITCH PLAN CLE-900 -> c-900: role rename" "$T/o" && grep -qx 'LEASE_ORCH=CLE-900' "$D/lease.conf" &&
+  pass "13. dry run plans the switch, touches nothing" || fail "13. dry: $(cat "$T/o")"
+echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"
+act LEASE_FLEET=main >"$T/o" 2>&1
+grep -q ' GATE PLAN pass' "$T/o" && pass "13. the holder already named c-900@<box> passes the gate (it read standby before)" || fail "13. holder gate: $(cat "$T/o")"
+echo "c-900@sat $(date +%s)" >"$D/lease.orch"
+act LEASE_FLEET=main >"$T/o" 2>&1
+grep -q 'GATE OK standby (orch lease: c-900@sat), but CLE-900 -> c-900 is pending' "$T/o" && grep -q ' SWITCH PLAN' "$T/o" &&
+  pass "13. a standby with the switch pending switches too (both boxes move)" || fail "13. standby: $(cat "$T/o")"
+rm -f "$D/lease.orch"
+world
+act DRY_RUN=0 ROTATE_RENAME="$T/bin/rename" >"$T/o" 2>&1; rc=$?
+rid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && pass "13. the switching rotation reaches DONE ($rid)" || fail "13. rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+grep -q ' SWITCH OK CLE-900 -> c-900: 2 rename step(s), lease.conf LEASE_ORCH=c-900' "$T/o" && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
+  grep -q 'rename-tool --apply --roles --desk-envs dev prd CLE-900' "$T/rename.log" &&
+  pass "13. the role rename ran (dev+prd desks) and lease.conf names c-900" || fail "13. switch: $(grep SWITCH "$T/o"; cat "$D/lease.conf")"
+grep -q "^spawn claude c-900 " "$T/spawn.log" && grep -qx 'adopt c-900 2001' "$T/ai.log" &&
+  pass "13. the successor starts as c-900 (SPOOL_AGENT_ID=c-900) and the map adopts it" || fail "13. spawn: $(cat "$T/spawn.log" "$T/ai.log")"
+grep -q "send c-900 -> c-900 result orch-rotate-$rid: ACK" "$T/send.log" && [[ ! -d "$T/proc/1001" ]] &&
+  pass "13. the ack comes from c-900; the old CLE-900 session is retired" || fail "13. ack/retire: $(cat "$T/send.log")"
+grep -q " DONE OK c-900@box-desk is pid 2001" "$T/o" && ! grep -q 'CLE-900' "$D/handoff/$rid-CLE-900.seed.md" &&
+  pass "13. DONE as c-900@box-desk; the seed names only the new id" || fail "13. done: $(grep -E 'DONE|CLOSE' "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+# a failed spawn after the switch puts lease.conf back, so the old session keeps the role
+rm -rf "$S/c-900"; rm -f "$S/CLE-900"; mkdir -p "$S/CLE-900/inbox" "$S/CLE-900/outbox"; printf 'LEASE_ORCH=CLE-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+world; echo nopane >"$T/spawn.mode"
+act DRY_RUN=0 ROTATE_RENAME="$T/bin/rename" >"$T/o" 2>&1
+grep -qx 'LEASE_ORCH=CLE-900' "$D/lease.conf" && grep -q 'lease.conf LEASE_ORCH back to CLE-900' "$T/o" && [[ -d "$T/proc/1001" ]] &&
+  pass "13. a failed spawn after the switch: lease.conf back to CLE-900, the old session kept" || fail "13. fail path: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf")"
+rm -f "$T/spawn.mode" "$S/agent-id-aliases.tsv"
 
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }

@@ -53,7 +53,11 @@ do_spl_orch_rotate() {
 }
 
 spl_orch_rotate_auto() {
-  local id="$LEASE_ORCH" rid pid age pane why holder
+  local id="$LEASE_ORCH" rid pid age pane why holder new
+  # spec 061 L6 (owner 2026-10-02 21:37Z: the role switch is the rotation's,
+  # not a command for him): LEASE_ORCH still a legacy id with a row in the
+  # alias table = this rotation switches it (spl_orch_rotate_switch).
+  new="$(spl_orch_rotate_new_id "$id")"
   rid="$(spl_rotate_new_rid orch)"
   exec 7>> "$LEASE_DIR/rotate.orch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
@@ -66,7 +70,13 @@ spl_orch_rotate_auto() {
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
   if [[ -n "${LEASE_FLEET:-}" ]]; then
     holder="$(spl_orch_rotate_holder)"
-    [[ "$holder" == "$id@$ROTATE_BOX" ]] || { spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 0; }
+    # the hub writes the holder under the NEW id once the alias exists
+    # (c-001@box-desk while lease.conf says CLE-001: every rotation skipped);
+    # a standby with a switch pending switches too, so both boxes move
+    if [[ "$holder" != "$id@$ROTATE_BOX" && ( -z "$new" || "$holder" != "$new@$ROTATE_BOX" ) ]]; then
+      [[ -n "$new" ]] || { spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 0; }
+      spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id -> $new is pending: switching this machine's session"
+    fi
   fi
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
@@ -100,6 +110,7 @@ spl_orch_rotate_auto() {
     spl_rotate_log "$rid" GATE PLAN "pass: $id pid $pid, ${age}s old, pane $pane '$ROTATE_OLD_NAME'"
     spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
     spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF"
+    [[ -n "$new" ]] && spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: role rename (spool dir, registry, identity, window, dev+prd desks), lease.conf LEASE_ORCH=$new; the successor starts as $new"
     spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN claude $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1); adopt the new pid"
     spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$id/outbox"
     spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more"
@@ -111,6 +122,30 @@ spl_orch_rotate_auto() {
   fi
   spl_orch_rotate_step GATE OK "pid $pid, ${age}s old, pane $pane"
   spl_orch_rotate_run || return 1
+}
+
+# The new id of a legacy LEASE_ORCH (spec 061 L6), from this machine's alias
+# table; nothing when it is already a new id or has no row.
+spl_orch_rotate_new_id() {
+  [[ "$1" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] || return 0
+  awk -F'\t' -v id="$1" '$1 == id && $2 ~ /^[acgq]-[0-9]{3}$/ {print $2; exit}' "$SPOOL_ROOT/agent-id-aliases.tsv" 2>/dev/null
+}
+
+# spl_orch_rotate_switch OLD: the role switch of do_spl_role_id_switch, done
+# by the rotation (owner, 2026-10-02 21:37Z): agent-id-rename --roles (spool
+# dir, registry, identity, the window, the dev+prd desks), then lease.conf
+# LEASE_ORCH=<new>. Sets LEASE_ORCH and ROTATE_SWITCH_FROM; ROTATE_RENAME
+# replaces the rename in tests. Non-zero = nothing in lease.conf changed.
+spl_orch_rotate_switch() {
+  local old="$1" new out
+  new="$(spl_orch_rotate_new_id "$old")"
+  out="$(${ROTATE_RENAME:-bash "$ROTATE_FEAT/scripts/agent-id-rename.sh"} --apply --roles --desk-envs "${ROTATE_SWITCH_DESK_ENVS-dev prd}" "$old" 2>&1)" ||
+    { ROTATE_ERR="the rename $old -> $new failed: $(tr '\n' ' ' <<<"$out" | cut -c1-300)"; return 1; }
+  cp -p "$LEASE_CONF" "$LEASE_CONF.bak-$ROTATE_RID" 2>/dev/null || true
+  sed -i "s/^LEASE_ORCH=$old\$/LEASE_ORCH=$new/" "$LEASE_CONF" && grep -qx "LEASE_ORCH=$new" "$LEASE_CONF" ||
+    { ROTATE_ERR="lease.conf did not take LEASE_ORCH=$new"; return 1; }
+  ROTATE_SWITCH_FROM="$old" LEASE_ORCH="$new"
+  spl_orch_rotate_step SWITCH OK "$old -> $new: $(grep -c '^DO ' <<<"$out") rename step(s), lease.conf LEASE_ORCH=$new"
 }
 
 # The orch fleet lease holder as this machine mirrors it, when fresh.
@@ -153,6 +188,12 @@ spl_orch_rotate_run() {
   chmod 0640 "$seed" 2>/dev/null || true
   spl_orch_rotate_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
 
+  ROTATE_SWITCH_FROM=""
+  if [[ -n "$(spl_orch_rotate_new_id "$id")" ]]; then
+    spl_orch_rotate_switch "$id" || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
+    id="$LEASE_ORCH"
+    sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
+  fi
   if ! spl_rotate_spawn "$id" "$seed"; then
     spl_orch_rotate_fail SPAWN "$ROTATE_ERR"; return 1
   fi
@@ -214,6 +255,11 @@ spl_orch_rotate_close() {
 # the handoff is (FR-014). Returns 0; the caller returns 1.
 spl_orch_rotate_fail() {
   local phase="$1" reason="$2"
+  if [[ -n "${ROTATE_SWITCH_FROM:-}" ]]; then
+    sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+    reason+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM (the renamed dirs stay, the old id links to them)"
+    LEASE_ORCH="$ROTATE_SWITCH_FROM"
+  fi
   spl_rotate_restore "$LEASE_ORCH" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   spl_orch_rotate_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the role"
   spl_rotate_alert orch "$ROTATE_RID" "$phase" "$reason"

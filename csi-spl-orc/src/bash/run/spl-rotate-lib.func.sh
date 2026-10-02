@@ -111,7 +111,7 @@ spl_rotate_log() {
 }
 
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
-ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF)
+ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM)
 spl_rotate_ctx_save() {  # FAMILY
   local k f="$LEASE_DIR/rotate.$1.ctx"
   { for k in "${ROTATE_CTX_KEYS[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"

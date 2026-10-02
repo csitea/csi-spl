@@ -133,6 +133,29 @@ spl_agent_id_resolve() {  # ID[@BOX]
   printf '%s' "$id"
 }
 
+# Every name one agent answers to, space-separated with a space at each end
+# (" c-001 CLE-001 "), into VAR: ID itself, the new id a legacy ID was renamed
+# to, and every legacy id the alias table renamed TO ID. Fork-free: it runs on
+# the poke hot path. The pane lookup matches on this set, because a rename
+# moves the id before it moves the window title, the registry rows or the
+# identity record - measured 2026-10-02 (27f01e16): the orchestrator became
+# c-001 while all three still said CLE-001, and no poke reached it for ~2 h.
+spl_agent_id_names_var() {  # VAR ID
+  local __nv="$1" id="${2:-}" out old new _k _b _r f="${SPOOL_ROOT:-/var/spool-hub}/agent-id-aliases.tsv"
+  out=" $id "
+  if [ -n "$id" ] && [ -r "$f" ]; then
+    while IFS=$'\t' read -r old new _k _b _r; do
+      [ -n "$old" ] && [ -n "$new" ] || continue
+      if [ "$new" = "$id" ]; then
+        case "$out" in *" $old "*) ;; *) out+="$old " ;; esac
+      elif [ "$old" = "$id" ] && [[ "$new" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]]; then
+        case "$out" in *" $new "*) ;; *) out+="$new " ;; esac
+      fi
+    done < "$f"
+  fi
+  printf -v "$__nv" '%s' "$out"
+}
+
 # 0 when agent id ID may be used on a write path, else 1 with the FR-003
 # reason on stderr: the new form always, the legacy form until the cutoff.
 _spl_id_write_ok() {  # ID
@@ -454,10 +477,17 @@ spool_id_of_window() {  # WINDOW_NAME
 # `pane="$(spool_pane_of "$to")"` is a subshell: it forks, and it drops
 # SPOOL_PANE_TTY on the floor, so the poke then paid a `display-message` round
 # trip to re-learn a tty this function already had.
+#
+# BY PANE, not by title (27f01e16 item 3): every lookup below matches the
+# agent's whole name set (spl_agent_id_names_var), so a renamed agent whose
+# window, registry rows and identity record still carry its OLD id is found.
+# A registry row's pane is trusted on its own - the window title is only a
+# veto, when it names a DIFFERENT agent - unless a LATER registry row gave
+# that pane to another agent (respawn-pane keeps the pane id).
 spool_pane_of_var() {  # VAR ID
-  local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty cmd w rid i
+  local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty cmd w rid i names n
   local -a order=() regrows=()
-  local -A pid=() ptty=() pcmd=()
+  local -A pid=() ptty=() pcmd=() claimed=()
   SPOOL_PANE_TTY=""; SPOOL_PANE_CMD=""
   printf -v "$__pv" '%s' ""
   spool_tmux_argv
@@ -470,35 +500,43 @@ spool_pane_of_var() {  # VAR ID
     pcmd["$p"]="$cmd"
   done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{pane_current_command}	#{window_name}' 2>/dev/null || true)
   [ "${#order[@]}" -gt 0 ] || return 0
+  spl_agent_id_names_var names "$id"
 
   # The identity map first (SPEC-agent-identity-map.md): the pane of the
   # process that carries SPOOL_AGENT_ID=<id>, proven live (pid, start time,
   # env) and present on the server. A window NAME cannot mislead it - after a
   # restart or a sort, names and registry rows were what pointed pokes at the
   # wrong agent. No record, or not provably alive: the old lookup below.
-  if [ -r "$SPOOL_ROOT/agents/$id.json" ]; then
+  for n in $names; do
+    [ -r "$SPOOL_ROOT/agents/$n.json" ] || continue
     type ai_pane_of >/dev/null 2>&1 || . "$_SPOOL_ENV_LIB_DIR/agent-identity.inc.sh" 2>/dev/null
-    if p="$(ai_pane_of "$id" "$(printf '%s\n' "${order[@]}")" 2>/dev/null)" && [ -n "$p" ]; then
+    if p="$(ai_pane_of "$n" "$(printf '%s\n' "${order[@]}")" 2>/dev/null)" && [ -n "$p" ]; then
       SPOOL_PANE_TTY="${ptty[$p]:-}"; SPOOL_PANE_CMD="${pcmd[$p]:-}"
       printf -v "$__pv" '%s' "$p"; return 0
     fi
-  fi
+  done
 
   # The registry appends, so its rows for an id are oldest-first: walk back.
+  # A pane is skipped when a later row handed it to an agent outside the set,
+  # or when its window title names such an agent.
   if [ -r "$reg" ]; then
     while IFS=$'\t' read -r rid _ p _; do
-      [ "$rid" = "$id" ] && regrows+=("$p")
+      [ -n "$p" ] || continue
+      case "$names" in
+        *" $rid "*) regrows+=("$p"); unset 'claimed[$p]' ;;
+        *) claimed["$p"]="$rid" ;;
+      esac
     done < "$reg"
     for (( i=${#regrows[@]}-1; i>=0; i-- )); do
       p="${regrows[$i]}"
-      if [ -n "$p" ] && [ "${pid[$p]:-}" = "$id" ]; then
-        SPOOL_PANE_TTY="${ptty[$p]}"; SPOOL_PANE_CMD="${pcmd[$p]}"
-        printf -v "$__pv" '%s' "$p"; return 0
-      fi
+      [ -n "${ptty[$p]+x}" ] && [ -z "${claimed[$p]:-}" ] || continue
+      case "${pid[$p]:-}" in '') ;; *) case "$names" in *" ${pid[$p]} "*) ;; *) continue ;; esac ;; esac
+      SPOOL_PANE_TTY="${ptty[$p]}"; SPOOL_PANE_CMD="${pcmd[$p]}"
+      printf -v "$__pv" '%s' "$p"; return 0
     done
   fi
   for p in "${order[@]}"; do
-    if [ "${pid[$p]}" = "$id" ]; then
+    if [ -n "${pid[$p]}" ] && [[ "$names" == *" ${pid[$p]} "* ]]; then
       SPOOL_PANE_TTY="${ptty[$p]}"; SPOOL_PANE_CMD="${pcmd[$p]}"
       printf -v "$__pv" '%s' "$p"; return 0
     fi

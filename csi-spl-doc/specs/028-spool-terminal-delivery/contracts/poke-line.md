@@ -109,10 +109,50 @@ case for the one- and two-line messages agents actually send.
 Every one of them means the file was written: the notification is the second
 leg, and 002 keeps the file as the record.
 
+## 3.1 A refusal that does not end (27f01e16 item 3, 2026-10-02)
+
+Measured 2026-10-02: from 16:37Z the orchestrator got no pokes for ~2 h. (a)
+It had been renamed `CLE-001` -> `c-001`, while its window title, registry rows
+and identity record still said `CLE-001`, so the lookup by `c-001` found no
+pane (exit 5). (b) Its composer held one stray character (`p`), so every poke
+that did reach it was refused (exit 6), re-offered every 2 s and dropped at
+300 s. Decision, implemented in `spool-env.inc.sh` / `spool-notify.inc.sh` and
+tested by `tests/test-poke-by-pane.sh`:
+
+1. **By pane, under every name.** `spool_pane_of` matches the agent's whole
+   name set - the id, the new id a legacy id was renamed to, and every legacy
+   id renamed to it (`agent-id-aliases.tsv`) - in the identity record, the
+   registry and, last, the window title. A registry row's pane is trusted on
+   its own; the title is only a veto when it names a DIFFERENT agent, and a
+   later registry row that gave the pane to another agent wins.
+2. **A stale draft is swapped, never lost and never sent.** When the SAME
+   unsent text has stood `SPOOL_POKE_STALE_SECS` (60) unchanged, is at most
+   `SPOOL_POKE_STALE_MAX` (200) characters on one line, and the CLI's cursor
+   cell (if it draws one) is after it, the poke path sends `C-e C-u`, checks
+   the line is now empty, types and submits the poke, then types the draft
+   back WITHOUT Enter. Measured on Claude Code v2.1.287 in a private tmux
+   server: `❯ p` -> `C-e C-u` -> the empty composer (ghost back) -> `p` typed
+   back. Never swapped: a line that changed since the last refusal (someone
+   is typing), a multi-line draft (text on the row under the prompt row,
+   measured with a pasted two-line draft), a cursor ON a character (the text
+   after it is unreadable), a `[Pasted text #N …]` / `[Image #N]` placeholder,
+   or `SPOOL_POKE_RESTORE=0`. The dim autosuggest is never a draft (§4), so it
+   is never saved, cleared or submitted.
+3. **Counted and surfaced.** Every refusal is appended to
+   `<id>/.pokes/refused.log` (`ts pane refused count age chars`) and the
+   current streak kept in `<id>/.pokes/unsent.state`; a delivered or swapped
+   poke ends the streak with one `delivered`/`swapped` line. When a streak
+   reaches `SPOOL_POKE_DEAF_MIN` (3) refusals and `SPOOL_POKE_DEAF_SECS` (180 s),
+   ONE `[poke-watch] <id> is DEAF` note goes to the orchestrator, or - when the
+   deaf agent is the orchestrator under any of its names - to the dispatch
+   lease holder, who speaks to the owner. `SPOOL_POKE_DEAF_ALERT=0` counts
+   without alerting.
+
 ## 4. What it must never do
 
 - Resolve a target by window **index**. Indices renumber; `spool_pane_of`
-  returns a pane id (`%NN`) and checks the window still carries the id.
+  returns a pane id (`%NN`), found by registry row or identity record under
+  any of the agent's names (§3.1), never by the window title alone.
 - Poke a pane with unsent text **on a TUI input line**. `send-keys` appends to
   the input line and the `Enter` then submits whatever the human had
   half-typed. Measured 2026-09-21 on a real pane showing `❯ half typed and never
@@ -140,4 +180,4 @@ leg, and 002 keeps the file as the record.
   through them and the CLI runs on its own pty.
 - Send more than one line, or a line whose inertness depends on the body.
 
-<!-- version: 1.2.0 · updated: 2026-09-23 · last-edit: 2026-09-23T12:28:00Z -->
+<!-- version: 1.3.0 · updated: 2026-10-02 · last-edit: 2026-10-02T18:55:00Z -->

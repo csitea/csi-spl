@@ -237,24 +237,33 @@ spool_notify_is_shell() {  # CMD
 # dev desk 2026-09-23: three notes from a human sat in the inbox and the
 # retry log said the pane held unsent text; the remnant was the one character │.
 spool_notify_has_unsent() {  # LINE
-  local last="${1:-}" typed
-  typed="${last##*❯}"
-  [ "$typed" = "$last" ] && typed="${last##*> }"
-  typed="${typed//[│╭╰╮╯─┌┐└┘├┤┬┴┼]/}"
+  local typed
+  spool_notify_unsent_var typed "${1:-}"
+  [ -n "$typed" ]
+}
+
+# The unsent text on LINE (CSI already stripped), trimmed, into VAR; empty for
+# an idle composer (the rules spool_notify_has_unsent documents).
+spool_notify_unsent_var() {  # VAR LINE
+  local __uv="$1" __ul="${2:-}" __ut
+  __ut="${__ul##*❯}"
+  [ "$__ut" = "$__ul" ] && __ut="${__ul##*> }"
+  __ut="${__ut//[│╭╰╮╯─┌┐└┘├┤┬┴┼]/}"
   # Claude draws an empty composer as ❯, a NBSP, then DIM ghost text.
   # The dim run is removed before this runs. NBSP is not [:space:] in the
-  # C locale, so the gap alone counted as typed text and every note was
+  # C locale, so the gap alone counted as __ut text and every note was
   # refused. Measured on the dev desk 2026-09-23: capture-pane -e of an
   # idle Claude pane was ❯, C2 A0, ESC[2m, "hello from HUM-9", ESC[0m.
   # Two notes sat in the inbox until the retry dropped them at 300s.
-  typed="${typed//$'\u00a0'/}"
-  typed="${typed//$'\u200b'/}"
-  typed="${typed//$'\u2009'/}"
-  typed="${typed//$'\u202f'/}"
-  typed="${typed//$'\ufeff'/}"
-  typed="${typed#"${typed%%[![:space:]]*}"}"
-  typed="${typed%"${typed##*[![:space:]]}"}"
-  [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]
+  __ut="${__ut//$'\u00a0'/}"
+  __ut="${__ut//$'\u200b'/}"
+  __ut="${__ut//$'\u2009'/}"
+  __ut="${__ut//$'\u202f'/}"
+  __ut="${__ut//$'\ufeff'/}"
+  __ut="${__ut#"${__ut%%[![:space:]]*}"}"
+  __ut="${__ut%"${__ut##*[![:space:]]}"}"
+  [ "${__ut#: \'SPOOL }" = "$__ut" ] || __ut=""
+  printf -v "$__uv" '%s' "$__ut"
 }
 
 # Given a captured (-e, colours kept) prompt line, print the REAL typed text
@@ -272,6 +281,194 @@ spool_notify_strip_ghost() {  # RAW_E_LINE
   local esc=$'\033'
   printf '%s' "${1:-}" \
     | sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g"
+}
+
+# ── a refused poke: stale-text swap, refusal count, deaf alert ─────────────
+# 27f01e16 item 3, measured 2026-10-02: the orchestrator's input box held ONE
+# stray character ('p') and every poke for ~2 h was refused (exit 6), queued,
+# re-offered every 2 s and dropped at 300 s. The safe-poke rule protects a
+# person typing; a line that has not changed in minutes is nobody typing. So:
+#
+#   1. Every refusal is COUNTED per agent: <id>/.pokes/unsent.state holds
+#      first-seen epoch, refusals, alerted flag and the text, and every one is
+#      appended to <id>/.pokes/refused.log. A delivered poke clears the state.
+#   2. SWAP: when the SAME unsent text has stood for SPOOL_POKE_STALE_SECS, is
+#      one line of at most SPOOL_POKE_STALE_MAX chars, and the TUI's cursor
+#      (if it draws one) sits AFTER it, the text is saved, the line is cleared (C-e C-u), the
+#      poke is typed and submitted, and the saved text is typed back WITHOUT
+#      Enter. Nothing is lost and nothing the human typed is ever submitted.
+#      A changing line (someone is typing), a multi-line draft, a cursor in
+#      mid-text, or a clear that did not take: no swap, still refused.
+#      Claude's dim autosuggest is never "unsent text" (spool_notify_strip_ghost),
+#      so it is never saved, cleared or submitted by this.
+#   3. DEAF ALERT: once refusals for one unchanged line reach SPOOL_POKE_DEAF_MIN
+#      and it has stood SPOOL_POKE_DEAF_SECS, ONE note per streak goes to the
+#      orchestrator; when the deaf agent IS the orchestrator it goes to the
+#      dispatch lease holder, the agent that speaks to the owner.
+#
+#   SPOOL_POKE_RESTORE      1 (default) | 0 never swap, refuse as before
+#   SPOOL_POKE_STALE_SECS   unchanged-text age before a swap, default 60
+#   SPOOL_POKE_STALE_MAX    longest text that is swapped, default 200
+#   SPOOL_POKE_DEAF_SECS    unchanged-text age before the alert, default 180
+#   SPOOL_POKE_DEAF_MIN     refusals before the alert, default 3
+#   SPOOL_POKE_DEAF_ALERT   1 (default) | 0 count only, never alert
+#   SPOOL_POKE_DEAF_CMD     replaces the alert sender, run as
+#                           CMD <to> <from> <body> (tests); default: a detached
+#                           spool-send.sh note
+
+# Record one refusal of TO's pane PANE holding TEXT. Sets SPOOL_UNSENT_AGE
+# (seconds the same text has stood), SPOOL_UNSENT_COUNT and SPOOL_UNSENT_ALERTED.
+spool_poke_unsent_track() {  # TO PANE TEXT
+  local to="$1" pane="$2" text="${3//$'\t'/ }" dir st first=0 count=0 alerted=0 old="" now
+  dir="$(spool_poke_queue_dir_of "$to")"; st="$dir/unsent.state"
+  mkdir -p "$dir" 2>/dev/null || return 1
+  printf -v now '%(%s)T' -1
+  [ -r "$st" ] && IFS=$'\t' read -r first count alerted old <"$st"
+  if [ "$old" != "$text" ] || ! [[ "$first" =~ ^[0-9]+$ ]]; then first="$now" count=0 alerted=0; fi
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  count=$((count + 1))
+  printf '%s\t%s\t%s\t%s\n' "$first" "$count" "${alerted:-0}" "$text" >"$st.$$" 2>/dev/null && mv -f "$st.$$" "$st"
+  SPOOL_UNSENT_AGE=$((now - first)); SPOOL_UNSENT_COUNT="$count"; SPOOL_UNSENT_ALERTED="${alerted:-0}"
+  printf '%(%Y-%m-%dT%H:%M:%SZ)T\t%s\trefused\t%s\t%s\t%s\n' -1 "$pane" "$count" "$SPOOL_UNSENT_AGE" "${#text}" \
+    >>"$dir/refused.log" 2>/dev/null
+  return 0
+}
+
+# A poke reached TO's prompt: the streak is over. Logged once when it had one.
+spool_poke_unsent_clear() {  # TO PANE HOW
+  local dir st first count alerted
+  dir="$(spool_poke_queue_dir_of "$1")"; st="$dir/unsent.state"
+  [ -e "$st" ] || return 0
+  IFS=$'\t' read -r first count alerted _ <"$st" 2>/dev/null
+  rm -f "$st"
+  printf '%(%Y-%m-%dT%H:%M:%SZ)T\t%s\t%s\t%s\t-\t-\n' -1 "$2" "$3" "${count:-0}" >>"$dir/refused.log" 2>/dev/null
+  return 0
+}
+
+# The queue dir of an agent. spool_poke_queue_dir lives in the queue lib, which
+# not every caller of this lib sources; the layout is the same.
+spool_poke_queue_dir_of() {  # ID
+  printf '%s/%s/.pokes' "$SPOOL_ROOT" "$1"
+}
+
+# Where a deaf alert about TO goes: the orchestrator, or - when TO is the
+# orchestrator under any of its names - the dispatch lease holder.
+spool_poke_deaf_target() {  # TO
+  local to="$1" names orch="" disp=""
+  type spool_fleet_orchestrator >/dev/null 2>&1 || . "$_SPOOL_ENV_LIB_DIR/spool-fleet.inc.sh" 2>/dev/null
+  orch="$(spool_fleet_orchestrator 2>/dev/null)"
+  spl_agent_id_names_var names "$to"
+  if [ -n "$orch" ] && [[ "$names" != *" ${orch%@*} "* ]]; then printf '%s' "$orch"; return 0; fi
+  [ -r "$SPOOL_ROOT/dispatch/lease" ] && read -r disp _ <"$SPOOL_ROOT/dispatch/lease"
+  case "$disp" in none@*|'') return 1 ;; esac
+  [[ "$names" == *" ${disp%@*} "* ]] && return 1
+  printf '%s' "$disp"
+}
+
+# After a refusal: send the ONE alert for this streak when it is due.
+spool_poke_deaf_check() {  # TO PANE TEXT
+  local to="$1" pane="$2" text="$3" target body st dir
+  [ "${SPOOL_POKE_DEAF_ALERT:-1}" = 1 ] || return 0
+  [ "${SPOOL_UNSENT_ALERTED:-0}" = 0 ] || return 0
+  [ "${SPOOL_UNSENT_COUNT:-0}" -ge "${SPOOL_POKE_DEAF_MIN:-3}" ] || return 0
+  [ "${SPOOL_UNSENT_AGE:-0}" -ge "${SPOOL_POKE_DEAF_SECS:-180}" ] || return 0
+  dir="$(spool_poke_queue_dir_of "$to")"; st="$dir/unsent.state"
+  # Mark first, so a concurrent refusal cannot send a second alert.
+  [ -r "$st" ] && sed -i '1s/^\([0-9]*\t[0-9]*\t\)0\t/\11\t/' "$st" 2>/dev/null
+  SPOOL_UNSENT_ALERTED=1
+  target="$(spool_poke_deaf_target "$to")" || {
+    printf '%(%Y-%m-%dT%H:%M:%SZ)T\t%s\talert-none\t%s\t%s\t-\n' -1 "$pane" "$SPOOL_UNSENT_COUNT" "$SPOOL_UNSENT_AGE" >>"$dir/refused.log" 2>/dev/null
+    return 0; }
+  body="[poke-watch] ${to} is DEAF: its prompt (pane ${pane}) has held unsent text for ${SPOOL_UNSENT_AGE}s and refused ${SPOOL_UNSENT_COUNT} pokes; its messages wait in ${SPOOL_ROOT}/${to}/inbox/. Text: '$(spool_notify_cut "$text" 60)'. Clear or send that line in the pane (tmux send-keys -t ${pane} C-e C-u) or tell the owner. Log: ${dir}/refused.log"
+  printf '%(%Y-%m-%dT%H:%M:%SZ)T\t%s\talert\t%s\t%s\t%s\n' -1 "$pane" "$SPOOL_UNSENT_COUNT" "$SPOOL_UNSENT_AGE" "$target" >>"$dir/refused.log" 2>/dev/null
+  echo "poke: ALERT - ${to} deaf for ${SPOOL_UNSENT_AGE}s (${SPOOL_UNSENT_COUNT} refusals); told ${target}"
+  if [ -n "${SPOOL_POKE_DEAF_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $SPOOL_POKE_DEAF_CMD "$target" "$to" "$body" >/dev/null 2>&1 || true
+    return 0
+  fi
+  # Detached, like the retry daemon: this runs inside the notifier's deadline.
+  setsid bash -c 'exec </dev/null >>"$1" 2>&1; shift; exec timeout 90 "$@"' _ "$dir/refused.alert.log" \
+    bash "$SPOOL_FEATURE_DIR/scripts/spool-send.sh" --from "$to" --to "$target" --kind note --no-ask --body "$body" \
+    7>&- 8>&- 9>&- &
+  return 0
+}
+
+# 0 when the whole draft on the prompt row RAW (capture -e) was read, and NEXT
+# (the plain row below it) is empty or input-box border, i.e. the draft is one
+# line. "Whole" means the TUI's cursor cell (reverse video), when it draws one,
+# holds only blank: a cursor ON a character is mid-text, and the text after it
+# was cut off with the ghost (spool_notify_strip_ghost), so it could not be
+# typed back. An unfocused Claude pane draws no cursor cell at all - measured
+# 2026-10-02 on this box, 15 of 15 live idle panes - and then every character
+# up to the dim ghost is the draft.
+#
+# A placeholder the CLI stands in for content it holds elsewhere - Claude's
+# "[Pasted text #1 +20 lines]" or "[Image #1]" - is not the draft: typed back,
+# it would be literal text and the paste would be gone. Never swapped.
+spool_notify_swap_shape_ok() {  # RAW NEXT
+  local raw="$1" next="$2" esc=$'\033' cell
+  case "$raw" in *"[Pasted text #"*|*"[Image #"*) return 1 ;; esac
+  if [[ "$raw" == *"${esc}[7m"* ]]; then
+    cell="${raw#*"${esc}[7m"}"; cell="${cell%%"${esc}"*}"
+    cell="${cell//$'\u00a0'/}"; cell="${cell//[[:space:]]/}"
+    [ -z "$cell" ] || return 1
+  fi
+  next="${next//[│╭╰╮╯─┌┐└┘├┤┬┴┼━]/}"; next="${next//$'\u00a0'/}"; next="${next//[[:space:]]/}"
+  [ -z "$next" ]
+}
+
+# The prompt row of PANE: the last row carrying the marker, as captured with
+# escapes, into RAWVAR; the plain row under it into NEXTVAR.
+spool_notify_prompt_rows() {  # RAWVAR NEXTVAR PANE
+  local __r="$1" __n="$2" pane="$3" i k=-1 raw_rows plain_rows
+  local -a R=() P=()
+  raw_rows="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null || true)"
+  plain_rows="$("${SPOOL_TM[@]}" capture-pane -p -t "$pane" 2>/dev/null || true)"
+  mapfile -t R <<<"$raw_rows"; mapfile -t P <<<"$plain_rows"
+  for i in "${!R[@]}"; do [[ "${R[$i]}" == *❯* || "${R[$i]}" == '> '* ]] && k="$i"; done
+  if [ "$k" -lt 0 ]; then printf -v "$__r" '%s' ""; printf -v "$__n" '%s' ""; return 0; fi
+  printf -v "$__r" '%s' "${R[$k]}"
+  printf -v "$__n" '%s' "${P[$((k + 1))]:-}"
+}
+
+# Save TEXT, clear PANE's input line, type LINE (submitted), type TEXT back
+# (not submitted). 0 when the poke went in; 1 when the clear did not take, in
+# which case nothing was typed.
+spool_notify_swap_poke() {  # TO PANE TEXT LINE
+  local to="$1" pane="$2" text="$3" line="$4" i raw next left
+  "${SPOOL_TM[@]}" send-keys -t "$pane" C-e C-u || return 1
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    sleep 0.02
+    spool_notify_prompt_rows raw next "$pane"
+    spool_notify_unsent_var left "$(spool_notify_strip_ghost "$raw")"
+    [ -z "$left" ] && break
+  done
+  [ -z "$left" ] || return 1
+  spool_notify_type "$to" "$pane" "$line" || return 1
+  sleep "${SPOOL_POKE_RESTORE_DELAY:-0.5}"
+  "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$text"
+  spool_notify_wait_composer "$pane" "$text"
+  return 0
+}
+
+# Type LINE into PANE and submit it: a body as one bracketed paste, the
+# shell-inert poke line with send-keys. The two shapes are explained in
+# spool_notify_poke.
+spool_notify_type() {  # TO PANE LINE
+  local to="$1" pane="$2" line="$3"
+  if [ "${line#: \'SPOOL }" = "$line" ]; then
+    spool_notify_mark_typed "$to" "$line"
+    spool_notify_paste "$pane" "$line" \
+      && spool_notify_trace notify_visible \
+      && spool_notify_wait_composer "$pane" "$line" \
+      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
+  else
+    "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
+      && spool_notify_trace notify_visible \
+      && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
+      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
+  fi
 }
 
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
@@ -342,12 +539,25 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # doorbell we type simply replaces the suggestion; Enter submits the doorbell,
   # never the suggestion. (Old ESC[2m-only strip missed ESC[0;2m and refused
   # every poke to an idle Claude pane -- SPL-1253 harness fix.)
-  local last_raw
-  last_raw="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
-    | grep -E '❯|^> ' | tail -1 || true)"
+  local last_raw next_row typed
+  spool_notify_prompt_rows last_raw next_row "$pane"
   last="$(spool_notify_strip_ghost "$last_raw")"
-  if spool_notify_has_unsent "$last"; then
-    echo "poke: REFUSED - ${to} pane ${pane} holds unsent text; the message waits in its inbox"
+  spool_notify_unsent_var typed "$last"
+  if [ -n "$typed" ]; then
+    # A refusal is counted, and a line nobody has touched for a while is
+    # swapped round the poke instead of blocking it (see the section above).
+    spool_poke_unsent_track "$to" "$pane" "$typed"
+    if [ "${SPOOL_POKE_RESTORE:-1}" = 1 ] &&
+       [ "${SPOOL_UNSENT_AGE:-0}" -ge "${SPOOL_POKE_STALE_SECS:-60}" ] &&
+       [ "${#typed}" -le "${SPOOL_POKE_STALE_MAX:-200}" ] &&
+       spool_notify_swap_shape_ok "$last_raw" "$next_row" &&
+       spool_notify_swap_poke "$to" "$pane" "$typed" "$line"; then
+      spool_poke_unsent_clear "$to" "$pane" swapped
+      echo "poke: ${pane} (${to}) - its unsent text (${#typed} chars, ${SPOOL_UNSENT_AGE}s unchanged) was set aside, the poke submitted, the text typed back unsent"
+      return 0
+    fi
+    spool_poke_deaf_check "$to" "$pane" "$typed"
+    echo "poke: REFUSED - ${to} pane ${pane} holds unsent text (${SPOOL_UNSENT_COUNT:-1} refusal(s), ${SPOOL_UNSENT_AGE:-0}s unchanged); the message waits in its inbox"
     return 6
   fi
 
@@ -357,25 +567,16 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # and needed that sleep so the CLI did not read a half line; a paste does not.
   # The shell poke line stays on send-keys, because it is one short inert line
   # and the sleep is what the existing measurements were taken around.
-  if [ "${line#: \'SPOOL }" = "$line" ]; then
-    # The terminal mirror (specs/036) posts every prompt of this pane into the
-    # human's DM. These words came FROM that DM, so they are recorded before
-    # the paste, and the mirror's prompt hook drops them instead of echoing.
-    spool_notify_mark_typed "$to" "$line"
-    # Enter before the paste is in the composer leaves the body sitting there,
-    # and the next message is refused as unsent text. Wait until the words
-    # are visible, then Enter. While the agent is in a turn, that Enter queues
-    # the follow-up instead of sending it now.
-    spool_notify_paste "$pane" "$line" \
-      && spool_notify_trace notify_visible \
-      && spool_notify_wait_composer "$pane" "$line" \
-      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
-  else
-    "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
-      && spool_notify_trace notify_visible \
-      && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
-      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
-  fi
+  #
+  # The terminal mirror (specs/036) posts every prompt of this pane into the
+  # human's DM. A body came FROM that DM, so spool_notify_type records it
+  # before the paste, and the mirror's prompt hook drops it instead of echoing.
+  # Enter before the paste is in the composer leaves the body sitting there,
+  # and the next message is refused as unsent text, so it waits until the
+  # words are visible. While the agent is in a turn, that Enter queues the
+  # follow-up instead of sending it now.
+  spool_notify_type "$to" "$pane" "$line"
+  spool_poke_unsent_clear "$to" "$pane" delivered
   echo "poke: ${pane} (${to})"
   return 0
 }

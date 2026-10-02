@@ -30,12 +30,12 @@
 # @description   6 release   the hold goes: M renews, the handback tells F STANDBY
 # @description   7 refresh   once M has held the lease ROTATE_SETTLE s, F is
 # @description               replaced the same way (when older than
-# @description               ROTATE_REFRESH_MIN minutes)
+# @description               ROTATE_MIN_AGE s)
 # @description Never zero dispatchers (the old session lives until the new one
 # @description acks) and never two masters (the hold keeps every M process off
 # @description the lease while two run). One run at a time (flock rotate.dispatch.lock).
 # @description Dry run unless DRY_RUN=0: PLAN lines, nothing touched, no wait.
-# @param DISPATCH_ROTATE_MIN (optional) - minutes between rotations, default 60
+# @param ROTATE_MIN_AGE (optional) - s: the last rotation and the session replaced must be this old, default 3300
 # @param ROTATE_FORCE (optional) - 1 rotates even when the last rotation is recent
 # @param ROTATE_IDLE_WAIT (optional) - s to wait for an idle pane before rotating anyway, default 60
 # @param ROTATE_SPAWN_WAIT (optional) - s to wait for the fresh process, default 180
@@ -43,7 +43,6 @@
 # @param ROTATE_EXIT_WAIT (optional) - s after /exit-clean before SIGTERM, default 300
 # @param ROTATE_LEASE_WAIT (optional) - s to wait for the lease to move, default 180
 # @param ROTATE_SETTLE (optional) - s the fresh master holds the lease before F is refreshed, default 120
-# @param ROTATE_REFRESH_MIN (optional) - F older than this (minutes) is refreshed, default 50
 # @param ROTATE_HOLD_MAX (optional) - s after which the lease loops ignore a hold, default 1800
 # @param ROTATE_REPO (optional) - the checkout the dispatcher worktrees branch off, default the main checkout of this tree
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -77,24 +76,35 @@ spl_rot_run() {
   # lease.conf is the ONE source of the roles, never the caller's environment
   unset LEASE_MASTER LEASE_FAILOVER
   spl_lease_ids master failover orch || return 1
-  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" min="${DISPATCH_ROTATE_MIN:-60}" now last mpid fpid
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" minage="${ROTATE_MIN_AGE:-3300}" now last mpid fpid why
   [[ "$m" != "$f" ]] || { spl_rot_say precheck "FATAL lease.conf names $m as master AND failover"; return 1; }
-  [[ "$min" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL DISPATCH_ROTATE_MIN must be minutes, got '$min'"; return 1; }
+  [[ "$minage" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL ROTATE_MIN_AGE must be seconds, got '$minage'"; return 1; }
   now="$(spl_lease_now)"
   last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
-  # 5 min of slack: an hourly cron must not skip a turn over a few seconds
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( now - last < min * 60 - 300 )); then
-    spl_rot_say precheck "SKIP last rotation $(( (now - last) / 60 )) min ago (< $min)"; return 0
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( now - last < minage )); then
+    spl_rot_say precheck "SKIP last rotation $(( now - last ))s ago (< ${minage}s)"; return 0
   fi
+  # FR-044: only the machine that holds the dispatch lease rotates its pair
+  spl_lease_conf; spl_lease_read
+  if spl_lease_remote; then spl_rot_say precheck "SKIP standby - the dispatch lease is $LH"; return 0; fi
   ROT_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
   mpid="$(spl_lease_agent_pid "$m")"; fpid="$(spl_lease_agent_pid "$f")"
-  spl_rot_say precheck "master=$m pid=${mpid:-none} failover=$f pid=${fpid:-none}"
+  spl_rot_say precheck "master=$m pid=${mpid:-none} failover=$f pid=${fpid:-none} lease=$LH"
 
-  # 2. heal: with no live failover nobody could act while M is replaced
-  if [[ -z "$fpid" ]]; then
-    spl_rot_say heal "failover $f has no live process: spawn it fresh, no rotation this run"
-    spl_rot_replace "$f" failover "" || return 1
+  # 2. heal (FR-021): a missing dispatcher is spawned, nothing else this run
+  if [[ -z "$fpid" || -z "$mpid" ]]; then
+    [[ -z "$fpid" ]] && { spl_rot_say heal "$f has no live process: spawn it fresh"; spl_rot_replace "$f" failover "" || return 1; }
+    [[ -z "$mpid" ]] && { spl_rot_say heal "$m has no live process: spawn it fresh"; spl_rot_replace "$m" master "" || return 1; }
+    spl_rot_say heal "OK no rotation this run"
     return 0
+  fi
+  # FR-022: a stalled master would stall again on the same login; the lease
+  # has already moved to F
+  why="$(spl_lease_stall "$mpid" 2>/dev/null)"
+  [[ -n "$why" ]] && { spl_rot_say precheck "SKIP stalled $m: $why"; return 0; }
+  # FR-008: a session younger than ROTATE_MIN_AGE is left alone
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rot_age "$mpid") < minage )); then
+    spl_rot_say precheck "SKIP young $m ($(spl_rot_age "$mpid")s < ${minage}s)"; return 0
   fi
 
   # 3. handoff
@@ -187,14 +197,27 @@ spl_rot_tm() {
   "${SPOOL_TM[@]}" "$@"
 }
 
-# The pane of <id>: its newest registry row, accepted only while that pane's
-# window still carries the id (a reused pane number is someone else's).
+# The pane of <id>: the tmux pane whose pane_pid is an ancestor of the id's
+# (lowest) claude process - a registry row goes stale when a session is
+# restarted outside the spawn path (measured 2026-10-02: CLE-002's row named
+# %56, its process ran in %108).
 spl_rot_pane() {
-  local id="$1" pane name
-  pane="$(awk -F'\t' -v id="$id" '$1 == id {p = $3} END {print p}' "${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" 2>/dev/null)"
-  [[ "$pane" =~ ^%[0-9]+$ ]] || return 0
-  name="$(spl_rot_tm display-message -p -t "$pane" '#{window_name}' 2>/dev/null)"
-  [[ "$name" == *"$id"* ]] && echo "$pane"
+  local pid; pid="$(spl_lease_agent_pid "$1")"
+  [[ -n "$pid" ]] && spl_rot_pane_of_pid "$pid"
+  return 0
+}
+
+spl_rot_pane_of_pid() {
+  local root="${LEASE_PROC_ROOT:-/proc}" panes p="$1" pane="" stat i
+  panes="$(spl_rot_tm list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)" || return 0
+  for ((i = 0; i < 10; i++)); do
+    pane="$(awk -v p="$p" '$1 == p {print $2; exit}' <<<"$panes")"
+    [[ -n "$pane" ]] && { echo "$pane"; return 0; }
+    # /proc/<pid>/stat: "pid (comm) state ppid ..."; comm may hold spaces
+    stat=""; { read -r stat < "$root/$p/stat"; } 2>/dev/null
+    stat="${stat##*) }"; read -r _ p _ <<<"$stat"
+    [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 0
+  done
   return 0
 }
 
@@ -456,7 +479,7 @@ spl_rot_wait_ack() {
 # ROTATE_EXIT_WAIT s; then the old window is closed - never the fresh one's.
 spl_rot_retire() {
   local id="$1" pane="$2" old="$3" new="$4" waited=0 wait="${ROTATE_EXIT_WAIT:-300}" p alive newpane
-  newpane="$(spl_rot_pane "$id")"
+  newpane="$(spl_rot_pane_of_pid "$new")"
   if [[ -n "$pane" && "$pane" != "$newpane" ]]; then
     spl_rot_tm send-keys -t "$pane" -l '/exit-clean no-close' && spl_rot_tm send-keys -t "$pane" Enter
     spl_rot_say retire "/exit-clean no-close typed in $pane (pid $old)"
@@ -498,10 +521,14 @@ spl_rot_kill() {
   else sudo -n -u "$owner" kill -s "$sig" "$pid" 2>/dev/null; fi
 }
 
-# Seconds since <pid> started (its /proc dir's mtime; the fake one in tests).
+# Seconds since <pid> started: ps etimes; under a fake /proc (the tests,
+# LEASE_PROC_ROOT) the mtime of its dir.
 spl_rot_age() {
   local start
-  start="$(stat -c %Y "${LEASE_PROC_ROOT:-/proc}/$1" 2>/dev/null)" || { echo 0; return; }
+  if [[ -z "${LEASE_PROC_ROOT:-}" ]]; then
+    start="$(ps -o etimes= -p "$1" 2>/dev/null | tr -d ' ')"; echo "${start:-0}"; return
+  fi
+  start="$(stat -c %Y "$LEASE_PROC_ROOT/$1" 2>/dev/null)" || { echo 0; return; }
   echo $(( $(spl_lease_now) - start ))
 }
 
@@ -510,7 +537,7 @@ spl_rot_age() {
 spl_rot_refresh_failover() {
   local m="$1" f="$2" fpid age
   if (( ROT_DRY )); then
-    spl_rot_say refresh "PLAN after ${ROTATE_SETTLE:-120}s with $m holding the lease: $f older than ${ROTATE_REFRESH_MIN:-50} min gets a fresh session"
+    spl_rot_say refresh "PLAN after ${ROTATE_SETTLE:-120}s with $m holding the lease: $f older than ${ROTATE_MIN_AGE:-3300}s gets a fresh session"
     spl_rot_replace "$f" failover ""
     return 0
   fi
@@ -521,7 +548,7 @@ spl_rot_refresh_failover() {
   fpid="$(spl_lease_agent_pid "$f")"
   if [[ -n "$fpid" ]]; then
     age="$(spl_rot_age "$fpid")"
-    (( age >= ${ROTATE_REFRESH_MIN:-50} * 60 )) || { spl_rot_say refresh "SKIP $f is $((age / 60)) min old"; return 0; }
+    (( age >= ${ROTATE_MIN_AGE:-3300} )) || { spl_rot_say refresh "SKIP young $f (${age}s)"; return 0; }
   fi
   spl_rot_replace "$f" failover "" ||
     spl_rot_alert "failover refresh FAILED on $(spl_rot_machine): no fresh $f - the old session keeps the failover role"

@@ -18,9 +18,11 @@
 #   6. no start: same, the old M keeps the role
 #   7. a busy master is rotated anyway (owner decision 1)
 #   8. heal: a dead failover is spawned, M is not touched
-#   9. a recent rotation is skipped; a second concurrent run is skipped
+#   9. skips: a recent rotation, a concurrent run, ROTATE=0, a stalled or a
+#      young master
 #  10. a stale hold is ignored with one WARN
-#  11. fleet mode: the lease does not move -> stop, M keeps the role
+#  11. fleet mode: the lease does not move -> stop, M keeps the role; a
+#      standby machine rotates nothing (FR-044)
 #  12. the cron installer writes one tagged line at :15 (dry run)
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -74,12 +76,17 @@ echo "$*" >>"$T/tmux.log"
 t=""; a=("$@"); for ((i=0; i<${#a[@]}; i++)); do [ "${a[$i]}" = -t ] && t="${a[$((i+1))]}"; done
 row="$(awk -v p="$t" '$1 == p' "$T/panes" | tail -1)"
 case "$1" in
+  list-panes) awk '{print $3, $1}' "$T/panes" ;;
   display-message) [ -n "$row" ] && echo "$(cut -d' ' -f2 <<<"$row") dispatcher" ;;
   capture-pane) if [ -f "$T/busy" ]; then printf 'working\n(12s · esc to interrupt)\n'; else printf 'routed t1 post to CLE-77\npassword=hunter2secret\n❯ \n'; fi ;;
   send-keys) [ "$4" = '/exit-clean no-close' ] && [ ! -f "$T/stubborn" ] && rm -rf "${P:?}/$(cut -d' ' -f3 <<<"$row")" ;;
   kill-window) echo "$t" >>"$T/closed" ;;
 esac
 exit 0
+EOF
+cat >"$T/bin/screen" <<'EOF'
+#!/usr/bin/env bash
+if [ -f "$T/stalled" ]; then printf '\u276f \n  Usage limit reached \u00b7 resets 7:20am\n'; else printf '\u276f \n'; fi
 EOF
 cat >"$T/bin/kill" <<'EOF'
 #!/usr/bin/env bash
@@ -100,7 +107,7 @@ agent() {
 }
 # fresh sandbox: M-1 pid 100 pane %10 holds the lease, F-1 pid 200 pane %20
 reset() {
-  rm -rf "$S" "$P" "$T"/{panes,spawned,tmux.log,closed,killed,owner,sent,noack,nostart,busy,stubborn}
+  rm -rf "$S" "$P" "$T"/{panes,spawned,tmux.log,closed,killed,owner,sent,noack,nostart,busy,stubborn,stalled}
   mkdir -p "$D/briefs" "$P" "$S/M-1/inbox" "$S/M-1/outbox"
   echo 900 >"$T/nextpid"
   printf 'LEASE_MASTER=M-1\nLEASE_FAILOVER=F-1\nLEASE_ORCH=O-1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
@@ -114,7 +121,7 @@ reset() {
 rot() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" T="$T" P="$P" LEASE_PROC_ROOT="$P" SENT="$T/sent" \
     ROTATE_SEND="$T/bin/send" ROTATE_SPAWN="$T/bin/spawn" ROTATE_TMUX="$T/bin/tmux" ROTATE_KILL="$T/bin/kill" \
-    ROTATE_OWNER_CMD="$T/bin/owner" ROTATE_ASKS_CMD="echo ask-1 open" ROTATE_LANES_CMD="echo CLE-9 live" \
+    LEASE_PANE_CMD="$T/bin/screen" ROTATE_OWNER_CMD="$T/bin/owner" ROTATE_ASKS_CMD="echo ask-1 open" ROTATE_LANES_CMD="echo CLE-9 live" \
     SPOOL_DESK_BOX=boxa ROTATE_IDLE_POLL=0 ROTATE_IDLE_WAIT=2 ROTATE_SPAWN_POLL=0 ROTATE_SPAWN_WAIT=3 ROTATE_ACK_POLL=0 \
     ROTATE_ACK_WAIT=3 ROTATE_EXIT_POLL=0 ROTATE_EXIT_WAIT=3 ROTATE_KILL_GRACE=0 ROTATE_SETTLE=0 ROTATE_LEASE_POLL=0 \
     ROTATE_LEASE_WAIT=2 ROTATE_FORCE="${FORCE-1}" DRY_RUN="${DRY-0}" bash -c '
@@ -213,7 +220,7 @@ out="$(rot 2>&1)"; rc=$?
 # --- 9. skips ------------------------------------------------------------------------
 reset; date +%s >"$D/rotate.dispatch.last"
 out="$(FORCE=0 rot 2>&1)"
-[[ "$out" == *"SKIP last rotation 0 min ago"* && ! -e "$T/spawned" ]] && pass "9. a rotation less than an hour old is skipped" || fail "9. recent: $out"
+[[ "$out" == *"SKIP last rotation "* && ! -e "$T/spawned" ]] && pass "9. a rotation less than an hour old is skipped" || fail "9. recent: $out"
 reset
 out="$( (exec 7>"$D/rotate.dispatch.lock"; flock 7; rot) 2>&1)"
 [[ "$out" == *"SKIP another rotation runs"* && ! -e "$T/spawned" ]] && pass "9. a second concurrent run is skipped" || fail "9. lock: $out"
@@ -221,6 +228,14 @@ out="$( (exec 7>"$D/rotate.dispatch.lock"; flock 7; rot) 2>&1)"
 reset; echo ROTATE=0 >"$D/rotate.conf"
 out="$(rot 2>&1)"
 [[ "$out" == *"SKIP switched off"* && ! -e "$T/spawned" ]] && pass "9. ROTATE=0 in rotate.conf stops the rotation at its first gate (FR-090)" || fail "9. switch: $out"
+
+reset; touch "$T/stalled"
+out="$(rot 2>&1)"
+[[ "$out" == *"SKIP stalled M-1: Usage limit reached"* && ! -e "$T/spawned" && ! -e "$D/rotate.hold" ]] &&
+  pass "9. a stalled master is not rotated (FR-022)" || fail "9. stalled: $out"
+reset; touch "$P/100"
+out="$(FORCE=0 rot 2>&1)"
+[[ "$out" == *"SKIP young M-1"* && ! -e "$T/spawned" ]] && pass "9. a master younger than ROTATE_MIN_AGE is left alone (FR-008)" || fail "9. young: $out"
 
 # --- 11. fleet ---------------------------------------------------------------------
 reset
@@ -233,8 +248,8 @@ reset
 printf 'LEASE_FLEET=main\nLEASE_PRIORITY=boxa,boxb\n' >>"$D/lease.conf"
 echo "CLE-002@boxb $(date +%s)" >"$D/lease"
 out="$(rot 2>&1)"; rc=$?
-[[ $rc == 0 && "$(pids_of M-1)" == 1 ]] && ! live 100 && grep -q 'fleet dispatch lease is CLE-002@boxb' "$D/rotate.log" &&
-  pass "11. fleet, held by another machine: nothing to move, the sessions are still refreshed" || fail "11. remote: rc=$rc $out"
+[[ $rc == 0 && "$out" == *"SKIP standby - the dispatch lease is CLE-002@boxb"* ]] && live 100 && live 200 && [[ ! -e "$T/spawned" ]] &&
+  pass "11. fleet, the lease held by another machine: SKIP standby, nothing touched (FR-044)" || fail "11. remote: rc=$rc $out"
 
 # --- 12. cron installer -------------------------------------------------------------
 mkdir -p "$T/src"

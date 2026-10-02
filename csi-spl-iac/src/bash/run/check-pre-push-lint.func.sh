@@ -81,7 +81,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
   local -a own=() sc_dirs
   read -r -a sc_dirs <<<"$_PPL_SC_DIRS"
   case "$sc" in
-    lint-shellcheck) own=(csi-spl-iac/src/bash/run/sec-shellcheck.func.sh .github/workflows/67_shellcheck.yml) ;;
+    lint-shellcheck) own=(csi-spl-iac/src/bash/run/sec-shellcheck.func.sh .shellcheck-warning-baseline.txt .github/workflows/67_shellcheck.yml) ;;
     lint-actionlint) own=(csi-spl-iac/src/bash/run/sec-actionlint.func.sh .github/actionlint.yaml .github/actionlint.yml) ;;
     lint-hadolint)   own=(csi-spl-iac/src/bash/run/sec-hadolint.func.sh .hadolint.yaml .github/workflows/66_hadolint.yml) ;;
     lint-eslint)     own=(csi-spl-iac/src/bash/run/sec-eslint.func.sh .eslint-security.config.mjs .eslint-security-baseline.txt .github/workflows/63_eslint-security.yml) ;;

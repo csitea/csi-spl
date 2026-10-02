@@ -129,7 +129,8 @@ spl_dispatch_model() {
   [[ -z "$cwd" ]] && declare -F spool_proc_as_owner >/dev/null &&
     cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
   [[ -n "$home" && -n "$cwd" ]] || return 0
-  local dir="$home/.claude/projects/$(tr '/.' '--' <<<"$cwd")"
+  local dir
+  dir="$home/.claude/projects/$(tr '/.' '--' <<<"$cwd")"
   sid="$(spl_dispatch_cmd_flag "$pid" --resume)"
   # shellcheck disable=SC2016
   local pick='f=""; [ -n "$2" ] && [ -f "$1/$2.jsonl" ] && f="$1/$2.jsonl"

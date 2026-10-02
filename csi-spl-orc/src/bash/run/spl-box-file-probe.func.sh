@@ -39,7 +39,8 @@ do_spl_box_file_probe() {
   [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
   [[ "$mib" =~ ^[0-9]+$ ]] && (( mib >= 1 && mib <= 32 )) || { do_log "FATAL PROBE_FILE_MIB must be 1..32 (the hub's per-file limit), got: '$mib'"; return 1; }
 
-  local hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")" d="$SPL_STATE_DIR/probe/$tenant/$box"
+  local hub d="$SPL_STATE_DIR/probe/$tenant/$box"
+  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   if (( dry )); then
     do_log "INFO DRY_RUN would: upload $mib MiB of random bytes from $agent@$box to $hub as tenant $tenant (POST /v1/files) as a self-note attachment, then hub-tail it"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to upload."

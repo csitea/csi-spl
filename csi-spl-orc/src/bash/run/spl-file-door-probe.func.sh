@@ -40,7 +40,8 @@ do_spl_file_door_probe() {
   [[ "$box" != "$other" ]] || { do_log "FATAL PROBE_BOX and STRANGER_BOX must differ, both are '$box'"; return 1; }
   [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
 
-  local hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  local hub
+  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   if (( dry )); then
     do_log "INFO DRY_RUN would: send a 4 KiB self-note file from $agent@$box to $hub as tenant $tenant, then GET it as $box (want 200) and as $other (want 404)"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to probe."

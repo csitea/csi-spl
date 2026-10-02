@@ -103,6 +103,7 @@ new_repo() {
   echo '{}' >"$R/seed.json"
   echo 'title = "x"' >"$R/.gitleaks.toml"
   echo '# rule|path|count' >"$R/.semgrep-baseline.txt"
+  echo '# code|path|count' >"$R/.shellcheck-warning-baseline.txt"
   git -C "$R" add -A; git -C "$R" commit -qm seed; git -C "$R" branch -f base
 }
 commit() { git -C "$R" add -A; git -C "$R" commit -qm "$1"; }

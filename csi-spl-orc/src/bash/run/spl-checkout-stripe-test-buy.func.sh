@@ -81,7 +81,8 @@ do_spl_checkout_stripe_test_buy() {
   # tenant probe (specs/026): the hub API host's box door with the tenant named
   # in X-Spool-Tenant: unknown -> 404 unknown_tenant, known -> 426 (a plain GET
   # is no websocket). tenant_url is the WUI sign-in page, never a host.
-  local turl hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  local turl hub
+  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   _tenant() { _req GET "$hub/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
   local id tok pi

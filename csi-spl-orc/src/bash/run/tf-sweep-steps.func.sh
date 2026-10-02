@@ -64,7 +64,8 @@ _tf_sweep_dry() {
 # every step must be a csi-spl-iac src/terraform dir, every env dev or prd.
 _tf_sweep_lists() {
   local -n _st="$1" _en="$2"
-  local tf_root="$APP_PATH/$(basename "$PROJ_PATH" -orc)-iac/src/terraform" x
+  local tf_root x
+  tf_root="$APP_PATH/$(basename "$PROJ_PATH" -orc)-iac/src/terraform"
   [[ -d "$tf_root" ]] || { do_log "FATAL no terraform steps dir $tf_root"; return 1; }
   if [[ -n "$3" ]]; then
     read -ra _st <<<"$3"

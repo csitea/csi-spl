@@ -54,7 +54,8 @@ do_spl_msg_dedup() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   if (( ! dry )); then
-    local prefix="$ENV/pre-msg-dedup-$(date -u +%Y%m%d)/"
+    local prefix
+    prefix="$ENV/pre-msg-dedup-$(date -u +%Y%m%d)/"
     do_log "INFO backup first: $ENV -> <045 bucket>/$prefix"
     DRY_RUN=0 SPL_BACKUP_PREFIX="$prefix" do_spl_db_backup ||
       { do_log "FATAL the backup failed: nothing was deleted"; return 1; }

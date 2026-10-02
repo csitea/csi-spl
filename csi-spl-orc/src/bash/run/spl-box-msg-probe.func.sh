@@ -56,7 +56,8 @@ do_spl_box_msg_probe() {
   [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON must name the tenant's saved create JSON (got '$rkj')"; return 1; }
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
 
-  local hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")" d="$SPL_STATE_DIR/probe/$tenant/$box"
+  local hub d="$SPL_STATE_DIR/probe/$tenant/$box"
+  hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   if (( dry )); then
     do_log "INFO DRY_RUN would: keygen + hub-pin $box under $tenant at $hub (first run only; state $d)"
     do_log "INFO DRY_RUN would: send one note $agent@$box -> $agent@$box${ptask:+ into task $ptask} body '[orc-probe] $label <utc>', hub-sync, hub-tail"

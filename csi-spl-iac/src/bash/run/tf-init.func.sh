@@ -45,7 +45,8 @@ do_tf_init() {
   export TF_LOG=ERROR # DEBUG, TRACE, INFO, WARN or ERROR
   export TF_VAR_TERRAFORM_VERSION=${TERRAFORM_VERSION}
   export TF_VAR_INFRA_VERSION=${INFRA_VERSION}
-  export TF_VAR_CNF_VER="$(git rev-parse --short HEAD)"
+  TF_VAR_CNF_VER="$(git rev-parse --short HEAD)"
+  export TF_VAR_CNF_VER
   export TF_VAR_STEP=${STEP:-}
   export TF_GITHUB_TOKEN=${GITHUB_TOKEN:-}
   # A step that works in ANOTHER project names it as steps.<step>.tf_key_project

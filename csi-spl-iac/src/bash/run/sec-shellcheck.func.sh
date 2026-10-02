@@ -5,10 +5,12 @@
 # @description script shellcheck MUST flag. A tool that reports nothing on it
 # @description proves nothing and the action fails closed. Then it scans every
 # @description *.sh under the iac + orc + cnf bash trees at severity error.
-# @description A missing tool fails closed; it is never a skip.
+# @description A missing tool fails closed; it is never a skip. Then the
+# @description warning level is held to .shellcheck-warning-baseline.txt.
 # @param SEC_SHELLCHECK_ROOT (optional) - repo root; default the parent of APP_PATH
 # @param SEC_SHELLCHECK_BIN (optional) - override the tool, used by the hermetic test
 # @param SEC_SHELLCHECK_SEVERITY (optional) - default error
+# @param SEC_SHELLCHECK_WARN_BASELINE (optional) - default <root>/.shellcheck-warning-baseline.txt
 # @param SEC_SHELLCHECK_FILES (optional) - newline list of root-relative *.sh to scan
 # @param        INSTEAD of the whole tree (the pre-push lint part: touched files only)
 # @example ./run -a do_sec_shellcheck
@@ -96,13 +98,62 @@ do_sec_shellcheck() {
   local log; log=$(mktemp)
   rc=0
   SEC_SHELLCHECK_PHASE=scan "$bin" -S "$sev" -f gcc "${files[@]}" >"$log" 2>&1 || rc=$?
-  if [[ "$rc" -eq 0 ]]; then
-    do_log "INFO shellcheck: no $sev-level findings"
+  if [[ "$rc" -ne 0 ]]; then
+    do_log "FATAL shellcheck: $sev-level findings (or tool error, exit $rc)"
+    sed 's/^/  /' "$log"
     rm -f "$log"
-    return 0
+    return 1
   fi
-  do_log "FATAL shellcheck: $sev-level findings (or tool error, exit $rc)"
-  sed 's/^/  /' "$log"
+  do_log "INFO shellcheck: no $sev-level findings"
   rm -f "$log"
-  return 1
+  _sec_shellcheck_warn_ratchet "$bin" "$root" "${files[@]}"
+}
+
+# Warning level is a RATCHET, not a wall (CLE-77915, refactor item 4): 328
+# warnings sat below the error gate on 2026-10-01, most of them deliberate
+# (a tilde in a message, `yes | cp`, a constant-word `case` membership test).
+# Counts per (code, file) may not grow past .shellcheck-warning-baseline.txt;
+# a NEW warning fails, a fixed one is reported so the baseline can shrink.
+# Counts, not line numbers, so ordinary edits do not churn.
+_sec_shellcheck_warn_ratchet() {
+  local bin="$1" root="$2"; shift 2
+  local wbase="${SEC_SHELLCHECK_WARN_BASELINE:-$root/.shellcheck-warning-baseline.txt}"
+  [[ -f "$wbase" ]] || { do_log "FATAL no $wbase -- the warning ratchet has nothing to hold"; return 1; }
+  local log; log=$(mktemp)
+  SEC_SHELLCHECK_PHASE=warn "$bin" -S warning -f gcc "$@" >"$log" 2>&1
+  local verdict rc=0
+  verdict=$(python3 - "$log" "$wbase" "$root" "$@" <<'PY'
+import collections, re, sys
+log, bl, root, files = sys.argv[1], sys.argv[2], sys.argv[3].rstrip("/") + "/", sys.argv[4:]
+rel = lambda f: f[len(root):] if f.startswith(root) else f
+scanned = {rel(f) for f in files}
+base = collections.Counter()
+for line in open(bl):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        code, path, n = line.split("|")
+        base[(code, path)] = int(n)
+cur = collections.Counter()
+for line in open(log):
+    m = re.match(r"^(.+?):\d+:\d+: (?:warning|error): .*\[(SC\d+)\]$", line.rstrip())
+    if m:
+        cur[(m.group(2), rel(m.group(1)))] += 1
+new = [f"NEW {c} {f}: {n} found, {base.get((c, f), 0)} baselined" for (c, f), n in sorted(cur.items()) if n > base.get((c, f), 0)]
+fixed = [f"FIXED {c} {f}: {n} baselined, {cur.get((c, f), 0)} found" for (c, f), n in sorted(base.items()) if f in scanned and cur.get((c, f), 0) < n]
+print("\n".join(new + fixed))
+PY
+) || rc=$?
+  rm -f "$log"
+  [[ "$rc" -eq 0 ]] || { do_log "FATAL shellcheck warning ratchet could not read $wbase (exit $rc)"; return 1; }
+  if grep -q '^NEW ' <<<"$verdict"; then
+    do_log "FATAL shellcheck: NEW warning-level finding(s) beyond $wbase (fix it, or add a line with the reason):"
+    grep '^NEW ' <<<"$verdict" | sed 's/^/  /'
+    return 1
+  fi
+  if grep -q '^FIXED ' <<<"$verdict"; then
+    do_log "INFO shellcheck: fewer warnings than baselined -- lower these lines in $wbase:"
+    grep '^FIXED ' <<<"$verdict" | sed 's/^/  /'
+  fi
+  do_log "INFO shellcheck: no new warning-level findings (baseline holds)"
+  return 0
 }

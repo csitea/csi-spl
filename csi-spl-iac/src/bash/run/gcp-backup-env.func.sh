@@ -145,7 +145,8 @@ _gcp_backup_sql() {
 
   local lde="${RESTORE_CHECK_PG_CONTAINER:-}" u="${RESTORE_CHECK_PG_USER:-spool}"
   [[ -n "$lde" ]] || return 0
-  local scratch="restorecheck_${ENV}_$(date -u +%H%M%S)"
+  local scratch
+  scratch="restorecheck_${ENV}_$(date -u +%H%M%S)"
   docker exec "$lde" createdb -U "$u" "$scratch" &&
     docker exec -i "$lde" psql -q -U "$u" -d "$scratch" -v ON_ERROR_STOP=0 <"$out/sql/$db.sql" >"$out/sql/restore.log" 2>&1
   docker exec "$lde" psql -U "$u" -d "$scratch" -XAtc "SELECT format('%I.%I', table_schema, table_name) FROM information_schema.tables

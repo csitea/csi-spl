@@ -29,7 +29,8 @@ do_resolve_oap() {
   canonical_app_path="$(_do_oap_canonical_app_path)"
   case "$1" in
     ORG)
-      local derived_org="$(basename "$(dirname "$canonical_app_path")")"
+      local derived_org
+      derived_org="$(basename "$(dirname "$canonical_app_path")")"
       if [[ -n "${ORG:-}" ]] && [[ "$ORG" == "$derived_org" ]]; then
         return 0
       fi
@@ -37,7 +38,8 @@ do_resolve_oap() {
       return 0
       ;;
     APP)
-      local derived_app="$(basename "$canonical_app_path")"
+      local derived_app
+      derived_app="$(basename "$canonical_app_path")"
       if [[ -n "${APP:-}" ]] && [[ "$APP" == "$derived_app" ]]; then
         return 0
       fi
@@ -45,7 +47,8 @@ do_resolve_oap() {
       return 0
       ;;
     PROJ)
-      local derived_proj="$(basename "$PROJ_PATH" | cut -d'-' -f3)"
+      local derived_proj
+      derived_proj="$(basename "$PROJ_PATH" | cut -d'-' -f3)"
       if [[ -n "${PROJ:-}" ]] && [[ "$PROJ" == "$derived_proj" ]]; then
         return 0
       fi

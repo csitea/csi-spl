@@ -15,7 +15,8 @@ _oap_field() { basename "$PROJ_PATH" | cut -d'-' -f"$1"; }
 do_resolve_oap() {
   case "$1" in
     ORG)
-      local derived_org="$(_oap_field 1)"
+      local derived_org
+      derived_org="$(_oap_field 1)"
       if [[ -n "${ORG:-}" ]] && [[ "$ORG" == "$derived_org" ]]; then
         return 0
       fi
@@ -23,7 +24,8 @@ do_resolve_oap() {
       return 0
       ;;
     APP)
-      local derived_app="$(_oap_field 2)"
+      local derived_app
+      derived_app="$(_oap_field 2)"
       if [[ -n "${APP:-}" ]] && [[ "$APP" == "$derived_app" ]]; then
         return 0
       fi
@@ -31,7 +33,8 @@ do_resolve_oap() {
       return 0
       ;;
     PROJ)
-      local derived_proj="$(_oap_field 3)"
+      local derived_proj
+      derived_proj="$(_oap_field 3)"
       if [[ -n "${PROJ:-}" ]] && [[ "$PROJ" == "$derived_proj" ]]; then
         return 0
       fi

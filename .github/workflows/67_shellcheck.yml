@@ -18,6 +18,7 @@ on:
     paths:
       - "**/*.sh"
       - "csi-spl-iac/src/bash/run/sec-shellcheck.func.sh"
+      - ".shellcheck-warning-baseline.txt"
       - "csi-spl-iac/src/bash/tests/sec-shellcheck.tst.sh"
       - ".github/workflows/67_shellcheck.yml"
 

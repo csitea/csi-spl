@@ -101,7 +101,10 @@ classify_screen() {
   if printf '%s' "$scr" | grep -qE 'esc to interrupt|Esc:cancel|Waiting for response'; then
     printf '%s\n' busy; return
   fi
-  if printf '%s' "$scr" | grep -qE '\([0-9]+m? ?[0-9]*s · |↓ [0-9.]+k tokens|Cogitat|Spinning|Crunch|Skedaddl|Razzle|Brew|Churn|Ebbing|Cooking'; then
+  # A spinner word counts only in its LIVE form, "Crunching…": a finished
+  # turn leaves "✻ Crunched for 4s · done 12.34", whose past tense matched the
+  # bare stem and read every finished pane as busy (CLE-77975, 2026-10-02).
+  if printf '%s' "$scr" | grep -qE '\([0-9]+m? ?[0-9]*s · |↓ [0-9.]+k tokens|(Cogitat|Spinn|Crunch|Skedaddl|Razzle|Brew|Churn|Ebb|Cook)[[:alpha:]-]*(…|\.\.\.)'; then
     printf '%s\n' busy; return
   fi
   printf '%s\n' idle

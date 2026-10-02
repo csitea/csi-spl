@@ -43,6 +43,9 @@ err="$(spl_is_agent_id CLE-77952 2>&1)"
 has "2. FR-003 text names the alias" "CLE-77952 is retired as an id; use c-007" "$err"
 eq "2. resolve through the alias table" c-007 "$(spl_agent_id_resolve CLE-77952)"
 eq "2. no alias row resolves to itself" CLE-5 "$(spl_agent_id_resolve CLE-5)"
+printf 'CLE-9\tc-010\tclaude\tbox-a\tx\nCLE-9\tc-011\tclaude\tbox-b\tx\n' >>"$SPOOL_ROOT/agent-id-aliases.tsv"
+eq "2. a bare id with two box rows stays itself" CLE-9 "$(spl_agent_id_resolve CLE-9)"
+eq "2. id@box picks that box's row" c-011 "$(spl_agent_id_resolve CLE-9@box-b)"
 check "2. c-004 still accepted after the cutoff" spl_is_agent_id c-004
 check "2. HUM-17 still a participant after the cutoff" spl_is_participant_id HUM-17
 check "2. spool_valid_id refuses CLE-7 after the cutoff" nope spool_valid_id CLE-7

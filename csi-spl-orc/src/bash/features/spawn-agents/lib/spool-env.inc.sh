@@ -116,13 +116,19 @@ spl_is_legacy_id() {  # ID
 }
 
 # The new id a legacy id was renamed to (specs/061 §5: the alias table
-# $SPOOL_ROOT/agent-id-aliases.tsv, old<TAB>new<TAB>...), else ID itself.
-spl_agent_id_resolve() {  # ID
-  local id="${1:-}" old new _r f="${SPOOL_ROOT:-/var/spool-hub}/agent-id-aliases.tsv"
+# $SPOOL_ROOT/agent-id-aliases.tsv, old<TAB>new<TAB>kind<TAB>box<TAB>mapped-utc,
+# keyed (old, box) as the Go cmd/spool reader). ID@<box> picks that box's row;
+# a bare ID resolves only when exactly one row names it. Else ID itself.
+spl_agent_id_resolve() {  # ID[@BOX]
+  local id="${1:-}" box="" old new _k b _r hit="" n=0 f="${SPOOL_ROOT:-/var/spool-hub}/agent-id-aliases.tsv"
+  case "$id" in *@*) box="${id#*@}"; id="${id%%@*}" ;; esac
   if spl_is_legacy_id "$id" && [ -r "$f" ]; then
-    while IFS=$'\t' read -r old new _r; do
-      [ "$old" = "$id" ] && [ -n "$new" ] && { printf '%s' "$new"; return 0; }
+    while IFS=$'\t' read -r old new _k b _r; do
+      [ "$old" = "$id" ] && [[ "$new" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]] || continue
+      [ -z "$box" ] || [ "$b" = "$box" ] || continue
+      hit="$new"; n=$((n + 1))
     done < "$f"
+    [ "$n" = 1 ] && { printf '%s' "$hit"; return 0; }
   fi
   printf '%s' "$id"
 }

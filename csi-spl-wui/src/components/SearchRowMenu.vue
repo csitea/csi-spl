@@ -34,9 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextMenuIndex } from '~/utils/user-menu.mjs'
-import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
-import { usePhone } from '~/composables/useTouchUi'
+import { usePointMenu } from '~/composables/usePointMenu'
 
 type Item = { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string }
 const props = defineProps<{
@@ -53,76 +51,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const root = ref<HTMLElement | null>(null)
-const focused = ref(-1)
-/* SPL-991: a phone gets the sheet; the desktop popover is untouched */
-const sheet = usePhone()
-/* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
-useMobileStack().overlay(() => props.open, () => emit('close'))
+const { root, sheet, onMenuKey } = usePointMenu({
+  open: () => props.open, x: () => props.x, y: () => props.y,
+  close: () => emit('close'), escape: () => emit('escape'),
+})
 const items = computed(() => props.items)
-
-function itemEls(): HTMLElement[] {
-  return [...(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
-}
-
-async function focusItem(i: number) {
-  focused.value = i
-  await nextTick()
-  focusWithoutScroll(itemEls()[i])
-}
-
-async function place() {
-  await nextTick()
-  if (sheet.value) return
-  applyPopoverAtPoint(root.value, props.x, props.y)
-}
-
-function onDocPointer(e: PointerEvent) {
-  const target = e.target
-  if (!(target instanceof Node) || root.value?.contains(target)) return
-  /* the backdrop closes on its click, so the tap reaches nothing under it */
-  if (target instanceof Element && target.closest('.touch-sheet-backdrop')) return
-  emit('close')
-}
-
-async function onOpen() {
-  document.addEventListener('pointerdown', onDocPointer, true)
-  await place()
-  if (!props.open) return
-  /* a finger has no focus ring to follow: the sheet does not steal focus
-     (that would also drop the on-screen keyboard mid-sentence) */
-  if (sheet.value) return
-  await focusItem(0)
-}
-
-watch(() => props.open, (v) => {
-  if (v) {
-    onOpen()
-  } else {
-    document.removeEventListener('pointerdown', onDocPointer, true)
-    focused.value = -1
-  }
-})
-/* search.vue mounts this lazily, already open: the items exist only now */
-onMounted(() => {
-  if (props.open) onOpen()
-})
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer, true))
-
-function onMenuKey(e: KeyboardEvent) {
-  const n = itemEls().length
-  const next = nextMenuIndex(focused.value, e.key, n)
-  if (next === -1) {
-    e.preventDefault()
-    emit('close')
-    if (e.key === 'Escape') emit('escape')
-    return
-  }
-  if (next !== focused.value) {
-    e.preventDefault()
-    void focusItem(next)
-  }
-}
 
 /* choose first: the host reads its open row before close clears it */
 function choose(id: string) {

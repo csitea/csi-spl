@@ -88,8 +88,11 @@ describe('the document never scrolls', () => {
 })
 
 describe('menus are placed before they take focus', () => {
+  // MessageMenu / SearchRowMenu / IssueRowMenu place and focus through
+  // usePointMenu (CLE-77915): the composable carries the placer for all three.
+  const pointMenus = ['src/components/MessageMenu.vue', 'src/components/SearchRowMenu.vue', 'src/components/IssueRowMenu.vue']
   const menus = [
-    'src/components/MessageMenu.vue',
+    'src/composables/usePointMenu.ts',
     'src/components/SidebarRowMenu.vue',
     'src/components/EmojiPicker.vue',
     'src/components/KindPicker.vue',
@@ -100,17 +103,23 @@ describe('menus are placed before they take focus', () => {
       const src = read(rel)
       assert.match(src, /focusWithoutScroll\(/, rel)
       assert.match(src, /applyPopover/, rel)
-      assert.match(src, /position:\s*fixed/, rel)
+      if (!rel.endsWith('.ts')) assert.match(src, /position:\s*fixed/, rel)
       assert.doesNotMatch(src, /\.focus\(/, rel)
     }
   })
 
-  it('the message menu is placed, then focused, and it does not paint off-screen first', () => {
-    const src = read('src/components/MessageMenu.vue')
-    const open = src.slice(src.indexOf('async function onOpen'), src.indexOf('watch(() => props.open'))
+  it('the point menus are placed, then focused, and do not paint off-screen first', () => {
+    const src = read('src/composables/usePointMenu.ts')
+    const open = src.slice(src.indexOf('async function onOpen'), src.indexOf('watch(opts.open'))
     assert.match(open, /await place\(\)[\s\S]*focusItem\(0\)/)
-    assert.doesNotMatch(src, /left\.value = props/)
-    assert.match(src, /visibility:\s*hidden/)
+    for (const rel of pointMenus) {
+      const vue = read(rel)
+      assert.match(vue, /usePointMenu\(/, rel)
+      assert.match(vue, /position:\s*fixed/, rel)
+      assert.match(vue, /visibility:\s*hidden/, rel)
+      assert.doesNotMatch(vue, /left\.value = props/, rel)
+      assert.doesNotMatch(vue, /\.focus\(/, rel)
+    }
   })
 
   it('the user menu, the theme list and the locale lists focus without scrolling the page', () => {

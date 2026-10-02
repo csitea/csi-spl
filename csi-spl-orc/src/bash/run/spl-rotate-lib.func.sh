@@ -570,10 +570,14 @@ spl_rotate_type() {
 # TERM_WAIT s more. A box that never reads CMD gets no Enter and goes straight
 # to SIGTERM. THEN (once): typed the same way when the pid is still alive
 # ROTATE_EXIT_SETTLE s after the Enter and the pane reads idle, i.e. CMD's
-# turn has ended without ending the process. Each fallback logged, the
+# turn has ended without ending the process. A session with background work
+# answers THEN with a "Background work is running" picker: its highlighted
+# "1. Exit and stop tasks" gets one Enter (1105Z, 2026-10-02: the old
+# orchestrator's dispatcher refresh shell held it open until SIGTERM, which
+# stops those tasks anyway). Each fallback logged, the
 # SIGTERM one with the pane's last rows. 0 once gone.
 spl_rotate_end() {
-  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" then="${6:-}" t0 try typed=0
+  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" then="${6:-}" t0 try typed=0 stop_asked=0
   spl_rotate_alive "$pid" || return 0
   for try in 1 2; do
     spl_rotate_type "$pane" "$cmd" && { typed=1; break; }
@@ -583,6 +587,11 @@ spl_rotate_end() {
     spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
     t0=$SECONDS; while (( SECONDS - t0 < wait )); do
       spl_rotate_alive "$pid" || return 0
+      if (( stop_asked == 0 )) && [[ -n "${6:-}" && -z "$then" ]] && spl_rotate_screen "$pane" | grep -qE '❯ 1\. Exit and stop tasks'; then
+        spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
+        spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid: '${6}' asked about running background work: 'Exit and stop tasks' confirmed"
+        stop_asked=1
+      fi
       if [[ -n "$then" ]] && (( SECONDS - t0 >= ${ROTATE_EXIT_SETTLE:-10} )) && spl_rotate_idle "$pane"; then
         spl_rotate_alive "$pid" || return 0
         if spl_rotate_type "$pane" "$then"; then

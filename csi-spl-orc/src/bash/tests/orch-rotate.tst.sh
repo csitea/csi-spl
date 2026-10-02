@@ -32,7 +32,8 @@
 #      whole and exactly /exit-clean is submitted; control: an empty box gets
 #      no C-c; a box that never reads the command: no Enter, SIGTERM
 #  12. T-ORCH-EXIT-SKILL-ONLY: /exit-clean's turn ends with the pid alive ->
-#      RETIRE types /exit, no SIGTERM; control: a pane that never turns idle
+#      RETIRE types /exit, no SIGTERM; background work: the /exit picker's
+#      "Exit and stop tasks" gets Enter; control: a pane that never turns idle
 #      gets no /exit, and the SIGTERM line carries the screen
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -75,6 +76,8 @@ EOF
 # skillonly.<pane>: /exit-clean runs the skill and ENDS THE TURN with the
 # process alive (a model cannot run the built-in /exit, 2026-10-02 0805Z and
 # 0905Z); the screen turns idle unless skillbusy.<pane>; only /exit ends it.
+# bgtasks.<pane>: /exit opens the "Background work is running" picker (no
+# input box); an Enter on it (1. Exit and stop tasks) ends the process.
 cat >"$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 P="$T/tmux/panes"; L="$T/tmux/log"
@@ -107,7 +110,11 @@ case "$cmd" in
       [ -f "$T/tmux/escape-stops.$tgt" ] && printf 'working on the satellite drill\n  ⎿  Interrupted · What should Claude do instead?\n❯ \n' >"$T/tmux/screen.$tgt"
     elif [ "$k" = Enter ]; then
       b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; echo "submit $tgt $(printf '%s' "$b" | tr '\n' '|')" >>"$L"
-      if [ "$b" = /exit-clean ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
+      if [ -z "$b" ] && [ -f "$T/tmux/bgdialog.$tgt" ]; then echo "confirm $tgt" >>"$L"; rm -rf "$T/proc/$(field 2)"
+      elif [ "$b" = /exit ] && [ -f "$T/tmux/bgtasks.$tgt" ]; then
+        printf 'Background work is running\n   The following will stop when you exit:\n   shell · sleep 600\n   ❯ 1. Exit and stop tasks\n     2. Move to background and exit\n     3. Stay\n   Enter to confirm · Esc to cancel\n' >"$T/tmux/screen.$tgt"
+        touch "$T/tmux/bgdialog.$tgt" "$T/tmux/nobox.$tgt"
+      elif [ "$b" = /exit-clean ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
         [ -f "$T/tmux/skillbusy.$tgt" ] || printf 'Handoff sent. I cannot run /exit myself.\n✻ Crunched for 4s · done 12.34 · 1 shell still running\n❯ \n' >"$T/tmux/screen.$tgt"
       else case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
       : >"$T/tmux/typed.$tgt"
@@ -384,6 +391,13 @@ act DRY_RUN=0 ROTATE_EXIT_WAIT=6 ROTATE_EXIT_SETTLE=1 >"$T/o" 2>&1; rc=$?
   ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null && grep -q ' RETIRE OK pid 1001 gone' "$T/o" &&
   pass "12. /exit-clean ends its turn alive: RETIRE types /exit, no SIGTERM" ||
   fail "12. skill-only rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"
+world; touch "$T/tmux/skillonly.%2" "$T/tmux/bgtasks.%2"
+act DRY_RUN=0 ROTATE_EXIT_WAIT=8 ROTATE_EXIT_SETTLE=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -qx 'confirm %2' "$T/tmux/log" &&
+  grep -q "RETIRE WAIT pid 1001: '/exit' asked about running background work: 'Exit and stop tasks' confirmed" "$T/o" &&
+  ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null &&
+  pass "12. background work: the /exit picker gets one Enter (Exit and stop tasks), no SIGTERM" ||
+  fail "12. bgtasks rc=$rc $(grep -E '^(submit|confirm)' "$T/tmux/log") $(grep RETIRE "$T/o")"
 world; touch "$T/tmux/skillonly.%2" "$T/tmux/skillbusy.%2"
 act DRY_RUN=0 ROTATE_EXIT_WAIT=3 ROTATE_EXIT_SETTLE=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] &&

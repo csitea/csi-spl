@@ -86,6 +86,10 @@ has "git: worktree planned beside the repo" "PLAN worktree   add ${T_TMP}/repo-w
 check "git: dry run added no worktree" test ! -e "$T_TMP/repo-wt"
 prompt="$(cat "$T_TMP/plan-git/prompt.txt")"
 has "git: closing steps present" "INTEGRATION / CLOSING STEPS" "$prompt"
+# CLE-77965: a backticked word in the double-quoted seed ran as a command and
+# dropped out of every seed ("PUT THE PATHSPEC ON THE , THEN COMMIT").
+has "git: seed keeps the quoted word 'add'" "PUT THE PATHSPEC ON THE 'add', THEN COMMIT" "$prompt"
+hasnt "git: dry run runs no seed word as a command" "command not found" "$out"
 has "git: scope control present" "SCOPE + COLLISION CONTROL" "$prompt"
 # CLE-77920 (specs/058 N2): the scope check reads the FLEET-WIDE lane map,
 # and the spawn writes this agent's row (dry run: planned, nothing sent).

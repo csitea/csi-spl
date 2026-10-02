@@ -287,7 +287,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	defer cancel()
 	conn, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPClient: c.http(), HTTPHeader: c.TenantHeader()})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	conn.SetReadLimit(maxFrameBytes)
 	wel, err := c.handshake(dctx, conn, role, box, priv)
@@ -330,7 +330,7 @@ func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box 
 		return wire.Frame{}, err
 	}
 	if err := wsjson.Write(ctx, conn, hello); err != nil {
-		return wire.Frame{}, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return wire.Frame{}, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	var wel wire.Frame
 	if err := wsjson.Read(ctx, conn, &wel); err != nil {
@@ -338,7 +338,7 @@ func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box 
 		if errors.As(err, &ce) && ce.Code >= 4000 {
 			return wire.Frame{}, &HubError{Token: ce.Reason, Status: int(ce.Code)}
 		}
-		return wire.Frame{}, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return wire.Frame{}, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	if wel.Type != wire.TWelcome {
 		return wire.Frame{}, fmt.Errorf("%w: expected welcome, got %q", ErrUnreachable, wel.Type)
@@ -540,7 +540,7 @@ func (s *Session) request(ctx context.Context, f wire.Frame, want string, match 
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
 	if err := wsjson.Write(wctx, s.conn, f); err != nil {
-		return wire.Frame{}, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return wire.Frame{}, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	for {
 		select {
@@ -610,7 +610,7 @@ func (s *Session) Tail(ctx context.Context, taskID string, follow bool, fn func(
 	err := wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TTail, TaskID: taskID, Follow: follow})
 	cancel()
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return 0, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	n := 0
 	ended := false
@@ -790,7 +790,7 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 	}
 	resp, err := s.c.http().Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	defer func() {
 		// read to the end so an HTTP/1.1 connection goes back to the pool

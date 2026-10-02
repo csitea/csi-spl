@@ -55,13 +55,13 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 	form.Set("redirect_uri", o.RedirectURI)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := httpClient(o.HTTP).Do(req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
@@ -73,13 +73,13 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 
 	ui, err := http.NewRequestWithContext(ctx, http.MethodGet, o.UserinfoURL, nil)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	ui.Header.Set("Authorization", "Bearer "+tok.AccessToken)
 	ui.Header.Set("Accept", "application/json")
 	uresp, err := httpClient(o.HTTP).Do(ui)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: userinfo: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: userinfo: %w", errExchange, err)
 	}
 	var info struct {
 		Sub           string          `json:"sub"`

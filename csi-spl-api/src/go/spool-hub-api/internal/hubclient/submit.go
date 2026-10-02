@@ -100,11 +100,11 @@ func (c *Client) submit(ctx context.Context, raw []byte, typedBy string) (string
 	if _, err := conn.Write(append(line, '\n')); err != nil {
 		// Half-written: the pending file still holds it, so a later flush
 		// sends it and the hub dedups on msg_id. Never a duplicate delivery.
-		return "", fmt.Errorf("%w: submit write: %v", ErrUnreachable, err)
+		return "", fmt.Errorf("%w: submit write: %w", ErrUnreachable, err)
 	}
 	var resp submitResponse
 	if err := json.NewDecoder(bufio.NewReader(conn)).Decode(&resp); err != nil {
-		return "", fmt.Errorf("%w: submit reply: %v", ErrUnreachable, err)
+		return "", fmt.Errorf("%w: submit reply: %w", ErrUnreachable, err)
 	}
 	if resp.Token != "" {
 		return "", &HubError{Token: resp.Token, Status: resp.Status, Detail: resp.Error}

@@ -132,7 +132,7 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 	}
 	resp, err := hc.HTTPClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", hubclient.ErrUnreachable, err)
+		return nil, fmt.Errorf("%w: %w", hubclient.ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	out, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))

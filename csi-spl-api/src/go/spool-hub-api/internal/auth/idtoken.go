@@ -145,7 +145,7 @@ func verifyRS256(ctx context.Context, keys *jwksCache, token string, claims any)
 	}
 	pub, err := keys.key(ctx, h.Kid)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errIDToken, err)
+		return fmt.Errorf("%w: %w", errIDToken, err)
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {

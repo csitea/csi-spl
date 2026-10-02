@@ -318,7 +318,7 @@ func (r *Request) Normalize() error {
 	if r.URL != "" {
 		owner, repo, run, job, err := ParseRunURL(r.URL)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrBadRequest, err)
+			return fmt.Errorf("%w: %w", ErrBadRequest, err)
 		}
 		if r.Owner == "" {
 			r.Owner = owner

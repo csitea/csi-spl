@@ -119,12 +119,12 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 	form.Set("grant_type", "authorization_code")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := httpClient(g.HTTP).Do(req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
@@ -136,12 +136,12 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 
 	ui, err := http.NewRequestWithContext(ctx, http.MethodGet, g.UserinfoURL, nil)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	ui.Header.Set("Authorization", "Bearer "+tok.AccessToken)
 	uresp, err := httpClient(g.HTTP).Do(ui)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: userinfo: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: userinfo: %w", errExchange, err)
 	}
 	var info struct {
 		Sub           string `json:"sub"`
@@ -201,11 +201,11 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 	q.Set("code", code)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.GraphBase+FacebookTokenPath+"?"+q.Encode(), nil)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	resp, err := httpClient(f.HTTP).Do(req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
@@ -220,11 +220,11 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 	mq.Set("appsecret_proof", f.appSecretProof(tok.AccessToken))
 	me, err := http.NewRequestWithContext(ctx, http.MethodGet, f.GraphBase+FacebookMePath+"?"+mq.Encode(), nil)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	mresp, err := httpClient(f.HTTP).Do(me)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: me: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: me: %w", errExchange, err)
 	}
 	var who struct {
 		ID    string `json:"id"`
@@ -331,12 +331,12 @@ func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+		return nil, "", fmt.Errorf("%w: %w", errAvatar, err)
 	}
 	req.Header.Set("Accept", "image/png, image/jpeg, image/gif, image/webp")
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+		return nil, "", fmt.Errorf("%w: %w", errAvatar, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -352,7 +352,7 @@ func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, AvatarMaxBytes+1))
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+		return nil, "", fmt.Errorf("%w: %w", errAvatar, err)
 	}
 	if len(body) > AvatarMaxBytes {
 		return nil, "", fmt.Errorf("%w: body over the cap", errAvatar)

@@ -169,13 +169,13 @@ func (m *Microsoft) ExchangeNonce(ctx context.Context, code, nonce string) (Iden
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.LoginBase+MicrosoftTokenPath(m.Tenant),
 		strings.NewReader(form.Encode()))
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := httpClient(m.HTTP).Do(req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
 	}
 	var tok struct {
 		IDToken string `json:"id_token"`
@@ -188,10 +188,10 @@ func (m *Microsoft) ExchangeNonce(ctx context.Context, code, nonce string) (Iden
 	}
 	var c microsoftClaims
 	if err := verifyRS256(ctx, m.jwks, tok.IDToken, &c); err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	if err := m.checkClaims(c, nonce); err != nil {
-		return Identity{}, fmt.Errorf("%w: %v", errExchange, err)
+		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	email := strings.ToLower(strings.TrimSpace(c.Email))
 	if email == "" {

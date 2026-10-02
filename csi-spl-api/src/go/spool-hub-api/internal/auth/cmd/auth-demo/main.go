@@ -185,12 +185,12 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		}
 		fid, err := st.Avatar(context.Background(), sess.HumanID)
 		if err != nil || fid == "" {
-			return fmt.Errorf("%s: no avatar stored for %q: %v", p, sess.HumanID, err)
+			return fmt.Errorf("%s: no avatar stored for %q: %w", p, sess.HumanID, err)
 		}
 		key, _ := blob.Key("t1", fid)
 		fi, err := os.Stat(blobDir + "/" + key)
 		if err != nil {
-			return fmt.Errorf("%s: avatar blob missing: %v", p, err)
+			return fmt.Errorf("%s: avatar blob missing: %w", p, err)
 		}
 		fmt.Printf("  avatar: %s avatar_file_id=%s (%d bytes at %s)\n", sess.HumanID, fid, fi.Size(), key)
 	}

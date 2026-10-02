@@ -23,9 +23,7 @@ const (
 // longFuncs are the functions over maxFuncLines when the gate landed. The
 // list may only shrink: split one and delete its line. A NEW long function
 // fails the gate; add it here only with a reason in the commit.
-var longFuncs = map[string]bool{
-	"internal/auth/fakeidp/fakeidp.go (*IdP).Handler": true,
-}
+var longFuncs = map[string]bool{}
 
 // folded are helpers that exist ONCE; the pattern may appear only in the
 // named file (SPL-1030, SPL-1031).

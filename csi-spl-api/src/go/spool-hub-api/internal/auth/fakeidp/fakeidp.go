@@ -142,15 +142,7 @@ func (f *IdP) current() (Person, bool) {
 
 func (f *IdP) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+AvatarPath+"{file}", func(w http.ResponseWriter, r *http.Request) {
-		sub, ok := strings.CutSuffix(r.PathValue("file"), ".png")
-		if !ok || sub == "" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "image/png")
-		w.Write(Avatar(sub)) //nolint:errcheck
-	})
+	mux.HandleFunc("GET "+AvatarPath+"{file}", serveAvatar)
 	mux.HandleFunc("GET "+auth.GoogleAuthPath, func(w http.ResponseWriter, r *http.Request) {
 		f.authorize(w, r, auth.ProviderGoogle, f.Google)
 	})
@@ -164,75 +156,94 @@ func (f *IdP) Handler() http.Handler {
 	mux.HandleFunc("GET "+auth.FacebookTokenPath, func(w http.ResponseWriter, r *http.Request) {
 		f.token(w, auth.ProviderFacebook, f.Facebook, r.URL.Query())
 	})
-	mux.HandleFunc("GET "+auth.GoogleUserinfoPath, func(w http.ResponseWriter, r *http.Request) {
-		tok := ""
-		if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
-			tok = h[7:]
-		}
-		if !f.validToken(tok, auth.ProviderGoogle) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
-			return
-		}
-		p, _ := f.current()
-		body := map[string]any{"sub": p.Subject, "email": p.Email,
-			"email_verified": p.EmailVerified, "name": p.Name}
-		if u := pictureURL(r, p); u != "" {
-			body["picture"] = u
-		}
-		writeJSON(w, http.StatusOK, body)
-	})
-	mux.HandleFunc("GET "+auth.FacebookMePath, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		tok := q.Get("access_token")
-		m := hmac.New(sha256.New, []byte(f.Facebook.Secret))
-		m.Write([]byte(tok))
-		if !f.validToken(tok, auth.ProviderFacebook) || q.Get("appsecret_proof") != hex.EncodeToString(m.Sum(nil)) {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]string{"message": "bad token or proof"}})
-			return
-		}
-		p, _ := f.current()
-		body := map[string]any{"id": p.Subject, "name": p.Name}
-		if p.EmailVerified && p.Email != "" { // Graph omits unconfirmed email
-			body["email"] = p.Email
-		}
-		if u := pictureURL(r, p); u != "" && strings.Contains(q.Get("fields"), "picture") {
-			body["picture"] = map[string]any{"data": map[string]any{"url": u, "is_silhouette": false}}
-		}
-		writeJSON(w, http.StatusOK, body)
-	})
+	mux.HandleFunc("GET "+auth.GoogleUserinfoPath, f.googleUserinfo)
+	mux.HandleFunc("GET "+auth.FacebookMePath, f.facebookMe)
 	if f.ms != nil {
 		f.microsoftRoutes(mux)
 	}
 	for prov, c := range f.oidc {
-		prov, c := prov, c
-		mux.HandleFunc("GET "+auth.OIDCAuthPath(prov), func(w http.ResponseWriter, r *http.Request) {
-			f.authorize(w, r, prov, c)
-		})
-		mux.HandleFunc("POST "+auth.OIDCTokenPath(prov), func(w http.ResponseWriter, r *http.Request) {
-			r.ParseForm() //nolint:errcheck
-			f.token(w, prov, c, r.PostForm)
-		})
-		mux.HandleFunc("GET "+auth.OIDCUserinfoPath(prov), func(w http.ResponseWriter, r *http.Request) {
-			tok := ""
-			if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
-				tok = h[7:]
-			}
-			if !f.validToken(tok, prov) {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
-				return
-			}
-			p, _ := f.current()
-			body := map[string]any{"sub": p.Subject, "email": p.Email, "name": p.Name}
-			if u := pictureURL(r, p); u != "" {
-				body["picture"] = u
-			}
-			if !c.NoEmailVerifiedClaim {
-				body["email_verified"] = p.EmailVerified
-			}
-			writeJSON(w, http.StatusOK, body)
-		})
+		f.oidcRoutes(mux, prov, c)
 	}
 	return mux
+}
+
+// serveAvatar answers AvatarPath<subject>.png with the subject's picture.
+func serveAvatar(w http.ResponseWriter, r *http.Request) {
+	sub, ok := strings.CutSuffix(r.PathValue("file"), ".png")
+	if !ok || sub == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(Avatar(sub)) //nolint:errcheck
+}
+
+// bearer is the token of an "Authorization: Bearer <token>" header, or "".
+func bearer(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
+		return h[7:]
+	}
+	return ""
+}
+
+func (f *IdP) googleUserinfo(w http.ResponseWriter, r *http.Request) {
+	if !f.validToken(bearer(r), auth.ProviderGoogle) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+		return
+	}
+	p, _ := f.current()
+	body := map[string]any{"sub": p.Subject, "email": p.Email,
+		"email_verified": p.EmailVerified, "name": p.Name}
+	if u := pictureURL(r, p); u != "" {
+		body["picture"] = u
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+func (f *IdP) facebookMe(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	tok := q.Get("access_token")
+	m := hmac.New(sha256.New, []byte(f.Facebook.Secret))
+	m.Write([]byte(tok))
+	if !f.validToken(tok, auth.ProviderFacebook) || q.Get("appsecret_proof") != hex.EncodeToString(m.Sum(nil)) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]string{"message": "bad token or proof"}})
+		return
+	}
+	p, _ := f.current()
+	body := map[string]any{"id": p.Subject, "name": p.Name}
+	if p.EmailVerified && p.Email != "" { // Graph omits unconfirmed email
+		body["email"] = p.Email
+	}
+	if u := pictureURL(r, p); u != "" && strings.Contains(q.Get("fields"), "picture") {
+		body["picture"] = map[string]any{"data": map[string]any{"url": u, "is_silhouette": false}}
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// oidcRoutes mounts a generic OIDC provider's authorize, token and userinfo.
+func (f *IdP) oidcRoutes(mux *http.ServeMux, prov string, c Client) {
+	mux.HandleFunc("GET "+auth.OIDCAuthPath(prov), func(w http.ResponseWriter, r *http.Request) {
+		f.authorize(w, r, prov, c)
+	})
+	mux.HandleFunc("POST "+auth.OIDCTokenPath(prov), func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm() //nolint:errcheck
+		f.token(w, prov, c, r.PostForm)
+	})
+	mux.HandleFunc("GET "+auth.OIDCUserinfoPath(prov), func(w http.ResponseWriter, r *http.Request) {
+		if !f.validToken(bearer(r), prov) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+			return
+		}
+		p, _ := f.current()
+		body := map[string]any{"sub": p.Subject, "email": p.Email, "name": p.Name}
+		if u := pictureURL(r, p); u != "" {
+			body["picture"] = u
+		}
+		if !c.NoEmailVerifiedClaim {
+			body["email_verified"] = p.EmailVerified
+		}
+		writeJSON(w, http.StatusOK, body)
+	})
 }
 
 func (f *IdP) authorize(w http.ResponseWriter, r *http.Request, prov string, c Client) {

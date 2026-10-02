@@ -63,21 +63,25 @@ _sp_fail() {
   exit 1
 }
 
+# The checkout WORKDIR belongs to; inside a linked worktree, its MAIN checkout
+# (the do_spl_dispatch_setup rule): one "<repo>-wt/<TITLE>" per id. A rotation
+# restarts a dispatcher from its own worktree, and the toplevel of that made
+# "<wt>-wt/<TITLE>": a fresh worktree without the settings setup wrote.
+_spawn_main_checkout() {
+  local top common
+  top="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  common="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  case "$common" in */.git) [ -d "${common%/.git}" ] && top="${common%/.git}" ;; esac
+  echo "$top"
+}
+
 # RUNDIR REPO BRANCH WORKTREE_DIR DEFBRANCH, creating the worktree when live.
 _spawn_worktree() {
-  local rv n cand main_br main_dirty safe_slug common
+  local rv n cand main_br main_dirty safe_slug
   RUNDIR="$WORKDIR"
   REPO=""; BRANCH=""; WORKTREE_DIR=""; DEFBRANCH="master"
 
-  REPO="$(git -C "$WORKDIR" rev-parse --show-toplevel 2>/dev/null)"
-  # A WORKDIR inside a linked worktree means its MAIN checkout (the
-  # do_spl_dispatch_setup rule): one "<repo>-wt/<TITLE>" per id. A rotation
-  # restarts a dispatcher from its own worktree, and the toplevel of that made
-  # "<wt>-wt/<TITLE>": a fresh worktree without the settings setup wrote.
-  if [ -n "$REPO" ]; then
-    common="$(git -C "$WORKDIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-    case "$common" in */.git) [ -d "${common%/.git}" ] && REPO="${common%/.git}" ;; esac
-  fi
+  REPO="$(_spawn_main_checkout "$WORKDIR")"
   if [ -z "$REPO" ] || ! git -C "$REPO" remote get-url origin >/dev/null 2>&1; then
     REPO=""
     _sp_plan worktree "none: ${WORKDIR} is not a git checkout with an origin; the session runs in it"

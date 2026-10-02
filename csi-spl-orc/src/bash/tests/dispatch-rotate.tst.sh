@@ -237,6 +237,12 @@ phases="$(awk -v r="$rid" '$2 == r && !seen[$3]++ {printf "%s ", $3}' "$D/rotate
 [[ -s "$D/rotate.dispatch.last" ]] && grep -q "send CLE-900 -> CLE-900 result dispatch-rotate-$rid .*ROTATION DONE" "$T/send.log" &&
   pass "3. DONE: rotate.dispatch.last + a result note to the orchestrator (FR-030)" || fail "3. done"
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "3. no stray failing command under the ERR trap" || fail "3. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+# 2026-10-02: DONE went to the log only, the ctx kept the failover's CLOSE,
+# and every later run resumed that instead of rotating
+[[ "$(ctx ROTATE_PHASE)" == DONE ]] && pass "3. the ctx ends at DONE" || fail "3. ctx phase: $(ctx ROTATE_PHASE)"
+act DRY_RUN=0 >"$T/o" 2>&1
+grep -q ' GATE SKIP young' "$T/o" && ! grep -q RESUME "$T/o" &&
+  pass "3. the next run gates afresh, no RESUME" || fail "3. next run: $(cat "$T/o")"
 
 # --- 4. T-DISP-ACK-FAIL ----------------------------------------------------------------------
 world; echo no >"$T/ack.mode.CLE-902"
@@ -309,6 +315,17 @@ at_ack
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q " RESUME OK from ACK (old alive=1, new alive=1)" "$T/o" && [[ ! -d "$T/proc/102" && "$(holder)" == CLE-902 && ! -e "$D/rotate.hold" ]] &&
   grep -q " $rid DONE OK" "$T/o" && pass "9. resumed at ACK with its ack on disk: retired, released, refreshed, DONE (FR-003)" || fail "9. resume rc=$rc $(cat "$T/o")"
+# the live shape of 2026-10-02 13:15Z: a ctx left at the failover's CLOSE
+# (old gone, new alive) is closed once, ends at DONE, and is not resumed again
+world; "$T/bin/proc" 2903 CLE-903 0; printf '%%2903\t2903\t$0\tCLE-903@box\n' >>"$T/tmux/panes"; echo 2903 >"$T/ai.CLE-903"
+rm -rf "$T/proc/103"; date +%s >"$D/rotate.dispatch.last"
+printf 'ROTATE_RID=20261002T1100Z-failover\nROTATE_PHASE=CLOSE\nROTATE_OLD_PID=103\nROTATE_OLD_PANE=%%3\nROTATE_NEW_PID=2903\nROTATE_NEW_PANE=%%2903\n' >"$D/rotate.dispatch.ctx"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q ' RESUME OK from CLOSE (old alive=0, new alive=1)' "$T/o" &&
+  pass "9. a failover left at CLOSE: resumed once, the ctx ends at DONE" || fail "9. CLOSE resume rc=$rc phase=$(ctx ROTATE_PHASE) $(cat "$T/o")"
+act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q RESUME "$T/o" && grep -q ' GATE ' "$T/o" &&
+  pass "9. ... and the next run gates afresh" || fail "9. resumed again: $(cat "$T/o")"
 
 # --- 10. T-CRON ---------------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

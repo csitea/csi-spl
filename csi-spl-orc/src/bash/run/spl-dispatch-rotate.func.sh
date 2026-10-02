@@ -418,7 +418,9 @@ spl_disp_run_all() {
   date +%s > "$LEASE_DIR/rotate.dispatch.last"
   spl_disp_refresh || rc=1
   ROTATE_RID="$master_rid"
-  spl_rotate_log "$ROTATE_RID" DONE "$( ((rc)) && echo WAIT || echo OK)" "fresh $LEASE_MASTER$( ((rc)) && echo "; the $LEASE_FAILOVER refresh failed (alerted)")"
+  # through the ctx too: a phase left at the failover's CLOSE reads as in
+  # flight, and every later run only resumed it (2026-10-02 11:09Z..)
+  spl_disp_step DONE "$( ((rc)) && echo WAIT || echo OK)" "fresh $LEASE_MASTER$( ((rc)) && echo "; the $LEASE_FAILOVER refresh failed (alerted)")"
   spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$ROTATE_RID")" \
     "ROTATION DONE $ROTATE_RID on $ROTATE_BOX: a fresh $LEASE_MASTER holds the dispatch lease$( ((rc)) && echo "; the $LEASE_FAILOVER refresh FAILED, the old one kept"). Log: $LEASE_DIR/rotate.log" result
   return $rc
@@ -443,7 +445,7 @@ spl_disp_rotate_resume() {
        spl_rotate_alert "$role" "$ROTATE_RID" "$ROTATE_PHASE" "neither session alive"; return 1 ;;
   esac
   if [[ "$role" == master ]]; then spl_disp_run_all; return $?; fi
-  return 0
+  spl_disp_step DONE OK "resumed $ROTATE_RID to its end"
 }
 
 spl_disp_rotate_abort() {

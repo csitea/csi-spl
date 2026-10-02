@@ -11,6 +11,10 @@
 #      dead box's rows are counted as lag (uncommitted_dead), never an alert;
 #      CONTROL: no rows -> boxes=0, no ALERT; garbage -> non-zero
 #   4. with no key readable, the action stops before gcloud
+#   5. spl_consumer_lag_render: ndjson prints the rows byte for byte (CONTROL:
+#      the old output, which scripts and the S4 alert read); table prints a
+#      header plus one aligned row per box, no colour off a tty; a bad
+#      LAG_FORMAT is refused before any call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -63,6 +67,27 @@ SNIPPET="spl_consumer_lag_summary 'not json'" in_orc >/dev/null 2>&1 && fail "ga
 out=$(SNIPPET=do_spl_consumer_lag in_orc ENV=dev SPL_SA_KEY="$T/none.json" 2>&1); rc=$?
 [[ $rc -ne 0 ]] && grep -q "no service-account key" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "no key: refused, no gcloud call" \
   || fail "no key: rc=$rc calls=$(cat "$T/calls.log") out=$out"
+
+# --- 5. render ------------------------------------------------------------------------
+ren_of() { SNIPPET="spl_consumer_lag_render '$1' $2" in_orc 2>&1; }
+out=$(ren_of "$rows" ndjson)
+[[ "$out" == "$rows" ]] && pass "CONTROL: ndjson is the rows byte for byte" || fail "ndjson changed: $out"
+[[ -z "$(ren_of "" ndjson)" && -z "$(ren_of "" table)" ]] && pass "no rows: nothing printed in either format" || fail "empty render printed"
+out=$(ren_of "$rows" table)
+[[ $(wc -l <<<"$out") -eq 4 ]] && grep -q "^TENANT  BOX  *UNCOMMITTED  QUEUED  OLDEST_AGE  LAST_HELLO  *DEAD  ALERT$" <<<"$out" \
+  && pass "table: one header plus one line per box" || fail "table shape: $out"
+grep -qE "^t1 +box-live +2 +1 +2h00m +2026-10-02T09:00:00Z +- +ALERT$" <<<"$out" \
+  && grep -qE "^t1 +box-ok +0 +3 +- +2026-10-02T09:00:00Z +- +-$" <<<"$out" \
+  && grep -qE "^t1 +box-test-9 +70 +0 +10d10h +never +dead +-$" <<<"$out" \
+  && pass "table: every box with its lag, age, hello, dead and alert" || fail "table rows: $out"
+[[ $(awk 'NR==1{c=index($0,"LAST_HELLO")} NR>1{p=index($0,"2026-10-02T09"); if(!p) p=index($0,"never"); print (p==c)}' <<<"$out" | sort -u) == 1 ]] \
+  && pass "table: LAST_HELLO column aligned under its header" || fail "table alignment: $out"
+grep -q $'\033' <<<"$out" && fail "table off a tty carries colour codes" || pass "table off a tty: no colour codes"
+SNIPPET="spl_consumer_lag_render 'not json' table" in_orc >/dev/null 2>&1 && fail "table: garbage parsed" || pass "table: garbage -> non-zero"
+: >"$T/calls.log"
+out=$(SNIPPET=do_spl_consumer_lag in_orc ENV=dev SPL_SA_KEY="$T/key.json" LAG_FORMAT=yaml 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q "LAG_FORMAT must be auto, table or ndjson" <<<"$out" && [[ ! -s "$T/calls.log" ]] \
+  && pass "refuses LAG_FORMAT=yaml before any call" || fail "LAG_FORMAT: rc=$rc out=$out"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all consumer-lag.tst.sh assertions"

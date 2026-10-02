@@ -1,7 +1,7 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
-import { channelSlug, parseMention } from './channel-feed.mjs'
+import { belongsTo, channelSlug, parseMention } from './channel-feed.mjs'
 import {
   channelReadQuery,
   channelsFromView,
@@ -823,10 +823,8 @@ export function createSpoolClient({
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
-        else if (peer) {
-          const [id] = String(peer).split('@')
-          rows = rows.filter((m) => !m.channel && (m.from === id || m.to === id))
-        }
+        /* specs/058: a DM is per <ID>@<box>, as the hub's peer filter is */
+        else if (peer) rows = rows.filter((m) => belongsTo(m, { peer: String(peer) }))
         if (since) rows = rows.filter((m) => m.ts > since)
         return { messages: rows.slice(-limit), next: null }
       }
@@ -927,6 +925,8 @@ export function createSpoolClient({
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
+      /* specs/058: the DM peer's box, or the one a leading @ID@box named */
+      const toBox = peer ? (String(peer).includes('@') ? String(peer).split('@')[1] : undefined) : parsed.toBox
       const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
@@ -938,7 +938,7 @@ export function createSpoolClient({
           from: state.me.id,
           from_box: state.me.box,
           to,
-          to_box: peer && String(peer).includes('@') ? String(peer).split('@')[1] : undefined,
+          to_box: toBox,
           kind,
           body,
           files: files || [],
@@ -957,7 +957,7 @@ export function createSpoolClient({
       if (to && to !== '@channel') frame.to = to
       // specs/058: a DM peer is <ID>@<box>; the box pins the route, because the
       // reserved ids CLE-001..003 run on every box (a bare id would be ambiguous_to_box).
-      if (peer && String(peer).includes('@')) frame.to_box = String(peer).split('@')[1]
+      if (frame.to && toBox) frame.to_box = toBox
       if (channel) frame.channel = String(channel)
       if (parent_task_id) frame.parent_task_id = String(parent_task_id)
       if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent

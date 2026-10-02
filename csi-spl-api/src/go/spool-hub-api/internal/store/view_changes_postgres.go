@@ -32,7 +32,7 @@ const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE
 		UNION ALL SELECT 6, 'react', r.msg_id FROM (
 			SELECT msg_id FROM message_reactions WHERE tenant_id = $1 AND created_at > $2
 			UNION
-			SELECT h.msg_id FROM unnest($3::uuid[], $4::int[]) AS h (msg_id, n)
+			SELECT h.msg_id FROM unnest($3::uuid[], $4::bigint[]) AS h (msg_id, n)
 			WHERE h.n <> (SELECT count(*) FROM message_reactions x WHERE x.tenant_id = $1 AND x.msg_id = h.msg_id)
 		) r
 	) c
@@ -41,10 +41,10 @@ const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE
 	LIMIT $6`
 
 func (s *Postgres) ViewChanges(ctx context.Context, tenant string, q ChangeQuery) ([]TopicChange, error) {
-	ids, ns := make([]string, 0, len(q.Held)), make([]int32, 0, len(q.Held))
+	ids, ns := make([]string, 0, len(q.Held)), make([]int64, 0, len(q.Held))
 	for id, n := range q.Held {
 		if canonUUIDRe.MatchString(id) {
-			ids, ns = append(ids, id), append(ns, int32(n))
+			ids, ns = append(ids, id), append(ns, int64(n))
 		}
 	}
 	var out []TopicChange

@@ -32,7 +32,13 @@
 //   BASE=https://<tenant host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=e2e] [N=10] [PROFILES=d1440,m390] [COLD_CACHE=0] [CPU_PROFILE=0] \
 //     [USER_DATA_DIR=<dir>] [LOCAL_MAP=127.0.0.1:8443] [CHROME_PATH=...] \
+//     [LOCAL_MAP_B=127.0.0.1:8444 USER_DATA_DIR_B=<dir>] \
 //     [PUPPETEER_CORE=<path>] node tests/e2e/perf-first-load.timing.mjs
+//
+// A/B without deploying: generate both bundles with the env's NUXT_PUBLIC_*
+// values, serve each with tests/e2e/lib/serve-hosting-h2.mjs, and set LOCAL_MAP
+// (A) and LOCAL_MAP_B (B): the rounds interleave A,B / B,A in one run, so a
+// loaded box slows both alike, and the table has a column per variant.
 //
 // The action csi-spl-orc `do_spl_wui_perf_first_load` runs it per env. The
 // password is read from PW_FILE and never printed. Output: OUT/first-load.json
@@ -197,56 +203,87 @@ const pct = (xs, q) => {
 
 const puppeteer = await loadPuppeteer()
 const LOCAL_MAP = process.env.LOCAL_MAP || ''
-const chromeArgs = ['--no-sandbox']
-if (LOCAL_MAP) chromeArgs.push(`--host-resolver-rules=MAP ${new URL(BASE).hostname} ${LOCAL_MAP}`, '--ignore-certificate-errors')
-const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: chromeArgs, ...(process.env.USER_DATA_DIR ? { userDataDir: process.env.USER_DATA_DIR } : {}) })
+const LOCAL_MAP_B = process.env.LOCAL_MAP_B || ''
+/** One headless Chrome; `map` resolves the BASE host to a local bundle server. */
+async function openBrowser(map, udd) {
+  const args = ['--no-sandbox']
+  if (map) args.push(`--host-resolver-rules=MAP ${new URL(BASE).hostname} ${map}`, '--ignore-certificate-errors')
+  const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args, ...(udd ? { userDataDir: udd } : {}) })
+  const ctx = udd ? browser.defaultBrowserContext() : await browser.createBrowserContext()
+  return { browser, ctx }
+}
+/** The kept session, else ONE native sign-in; 'kept' | 'native'. */
+async function signIn(ctx) {
+  const p = await ctx.newPage()
+  try {
+    await p.setViewport({ width: 1440, height: 900 })
+    await p.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    const already = await p.waitForSelector('[data-test=user-menu-trigger], [data-test=native-auth-email]', { timeout: 45000 })
+      .then((h) => h.evaluate((e) => e.matches('[data-test=user-menu-trigger]'))).catch(() => false)
+    if (!already) {
+      await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2F', { waitUntil: 'domcontentloaded', timeout: 60000 })
+      await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 })
+      await p.type('[data-test=native-auth-email]', email)
+      await p.type('[data-test=native-auth-password]', pw)
+      await p.click('[data-test=native-auth-submit]')
+      if (!(await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).catch(() => null))) throw new Error('sign-in failed at ' + p.url())
+    }
+    await sleep(1500)
+    return already ? 'kept' : 'native'
+  } finally {
+    await p.close().catch(() => {})
+  }
+}
+
+// LOCAL_MAP_B: an A/B of two local bundles in ONE run. Two browsers (A at
+// LOCAL_MAP, B at LOCAL_MAP_B, USER_DATA_DIR_B for B's session), rounds
+// interleaved A,B / B,A so a busy box slows both variants alike.
+const variants = [{ tag: '', map: LOCAL_MAP, udd: process.env.USER_DATA_DIR }]
+if (LOCAL_MAP_B) {
+  variants[0].tag = ':A'
+  variants.push({ tag: ':B', map: LOCAL_MAP_B, udd: process.env.USER_DATA_DIR_B })
+}
 const res = { base: BASE, tenant: TENANT, n: N, coldCache: COLD_CACHE, at: new Date().toISOString(), profiles: {}, cpu: {} }
 let failed = false
 try {
-  res.build = LOCAL_MAP ? { local: LOCAL_MAP } : await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => ({}))
-  const ctx = process.env.USER_DATA_DIR ? browser.defaultBrowserContext() : await browser.createBrowserContext()
-  const p = await ctx.newPage()
-  await p.setViewport({ width: 1440, height: 900 })
-  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 60000 })
-  const already = await p.waitForSelector('[data-test=user-menu-trigger], [data-test=native-auth-email]', { timeout: 45000 })
-    .then((h) => h.evaluate((e) => e.matches('[data-test=user-menu-trigger]'))).catch(() => false)
-  res.signIn = already ? 'kept' : 'native'
-  if (!already) {
-    await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2F', { waitUntil: 'domcontentloaded', timeout: 60000 })
-    await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 })
-    await p.type('[data-test=native-auth-email]', email)
-    await p.type('[data-test=native-auth-password]', pw)
-    await p.click('[data-test=native-auth-submit]')
-    if (!(await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).catch(() => null))) throw new Error('sign-in failed at ' + p.url())
+  res.build = LOCAL_MAP ? { local: variants.map((v) => v.map).join(' vs ') } : await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => ({}))
+  res.signIn = []
+  for (const v of variants) {
+    Object.assign(v, await openBrowser(v.map, v.udd))
+    res.signIn.push(await signIn(v.ctx))
   }
-  await sleep(1500)
   for (const name of PROFILES) {
     const prof = PROFILE[name]
     if (!prof) { console.error('unknown profile', name); continue }
-    // one discarded round: the first tab of a profile pays Chrome's own warm-up
-    await round(ctx, prof, false).catch(() => {})
-    const samples = []
+    // one discarded round each: the first tab of a profile pays Chrome's own warm-up
+    for (const v of variants) await round(v.ctx, prof, false).catch(() => {})
+    const samples = Object.fromEntries(variants.map((v) => [name + v.tag, []]))
     for (let i = 0; i < N; i++) {
-      try { samples.push((await round(ctx, prof, false)).sample) } catch (e) { samples.push({ error: String(e?.message || e) }) }
-      const s = samples.at(-1)
-      console.log(name, 'round', i, s.error ? 'ERROR ' + s.error : KEYS.map((k) => `${k}=${s[k]}`).join(' '))
+      const order = i % 2 ? [...variants].reverse() : variants
+      for (const v of order) {
+        const xs = samples[name + v.tag]
+        try { xs.push((await round(v.ctx, prof, false)).sample) } catch (e) { xs.push({ error: String(e?.message || e) }) }
+        const s = xs.at(-1)
+        console.log(name + v.tag, 'round', i, s.error ? 'ERROR ' + s.error : KEYS.map((k) => `${k}=${s[k]}`).join(' '))
+      }
     }
-    res.profiles[name] = samples
+    Object.assign(res.profiles, samples)
     if (CPU_PROFILE) {
-      const r = await round(ctx, prof, true).catch((e) => ({ error: String(e?.message || e) }))
-      if (r.cpuProfile) {
-        writeFileSync(`${OUT}/${name}.cpuprofile`, JSON.stringify(r.cpuProfile))
-        res.cpu[name] = attribute(r.cpuProfile)
-      } else res.cpu[name] = { error: r.error }
+      for (const v of variants) {
+        const r = await round(v.ctx, prof, true).catch((e) => ({ error: String(e?.message || e) }))
+        if (r.cpuProfile) {
+          writeFileSync(`${OUT}/${name}${v.tag.replace(':', '-')}.cpuprofile`, JSON.stringify(r.cpuProfile))
+          res.cpu[name + v.tag] = attribute(r.cpuProfile)
+        } else res.cpu[name + v.tag] = { error: r.error }
+      }
     }
   }
-  await p.close().catch(() => {})
 } catch (e) {
   failed = true
   res.error = String((e && e.message) || e)
   console.log('FAIL', res.error)
 } finally {
-  await browser.close()
+  for (const v of variants) await v.browser?.close().catch(() => {})
 }
 
 const summary = {}

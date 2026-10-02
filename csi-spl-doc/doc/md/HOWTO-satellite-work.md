@@ -57,7 +57,7 @@ until the envelope carries it.
 
 ## 2. Starting an execution agent on the satellite
 
-The satellite's `/var/spool-hub/box.env` sets `SPOOL_AGENT_USER=ai-usr` and the
+The satellite's `/var/spool-hub/box.env` sets `SPOOL_AGENT_USER=<AGENT_USER>` and the
 id range `100000-199999`, so `auto` ids never collide with the PC's. Copy the
 brief over, then spawn (dry run first):
 
@@ -69,7 +69,7 @@ It prints `<ID> <pane>`. Watch it:
 
     ssh satellite 'ps -o user=,etime=,args= -C claude | cut -c1-100; uptime; sudo -iu <BOX_USER> tmux capture-pane -p -t <pane> | tail -20'
 
-The agent runs as ai-usr in the box user's tmux session `main`, in its own
+The agent runs as `<AGENT_USER>` in the box user's tmux session `main`, in its own
 worktree `/opt/csi/csi-spl-wt/<ID>`. The satellite's desk crons live in the
-box user's crontab (`crontab -l` as the box user; `debian`, root and ai-usr
-have none).
+box user's crontab (`crontab -l` as the box user; the login user, root and
+`<AGENT_USER>` have none).

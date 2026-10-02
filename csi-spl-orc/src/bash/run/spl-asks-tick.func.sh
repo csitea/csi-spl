@@ -98,14 +98,23 @@ spl_asks_footer() {
 }
 
 # Send ONE blocker to the holder (never recorded as an ask). 0 = delivered.
+# The spool binary is the host one the hub calls use (SPL_SPOOL, built from
+# this tree): spool-send.sh otherwise prefers the tree's own bin/spool, which
+# in the box user's checkout was a 2026-09-18 build that refuses kind blocker
+# (measured 2026-10-02: every re-raise failed there, exit 11).
 spl_asks_send() {
-  local holder="$1" body="$2" id="${1%@*}" box="${1##*@}" to rc=0
+  local holder="$1" body="$2" id="${1%@*}" box="${1##*@}" to rc=0 err
   local send="${ASKS_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   to="$id"; [[ "$box" != "$ASKS_BOX" ]] && to="$id@$box"
-  SPOOL_ROOT="$SPOOL_ROOT" SPOOL_ASKS=0 bash "$send" --from "$id" --to "$to" --kind blocker \
-    --task asks-open --no-ask --body "$body" >/dev/null 2>&1 7>&- 8>&- || rc=$?
+  err="$(mktemp)"
+  SPOOL_ROOT="$SPOOL_ROOT" SPOOL_ASKS=0 SPOOL_BIN="${SPL_SPOOL:-${SPOOL_BIN:-}}" bash "$send" --from "$id" --to "$to" --kind blocker \
+    --task asks-open --no-ask --body "$body" >/dev/null 2>"$err" 7>&- 8>&- || rc=$?
   # spool-send.sh: 1-9 = delivered, only the poke did not ring
-  if (( rc >= 10 || rc == 2 )); then do_log "WARN could not reach $holder (spool-send exit $rc)"; return 1; fi
+  if (( rc >= 10 || rc == 2 )); then
+    do_log "WARN the asks blocker did NOT reach $holder (spool-send exit $rc): $(grep -v '^to:' "$err" | tr '\n' ' ' | cut -c1-300)"
+    rm -f "$err"; return 1
+  fi
+  rm -f "$err"
   return 0
 }
 

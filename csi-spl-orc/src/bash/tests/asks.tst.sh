@@ -243,6 +243,19 @@ if grep -q "ASKS STILL OPEN: 1 ask(s)" "$T/sat/send.log" && grep -q "${A2:0:8}" 
   pass "re-raise: the unacked ask goes again in one message; the acked one (no deadline) does not"
 else fail "re-raise: $(cat "$T/sat/send.log")"; fi
 
+# 5b. the REAL send leg: the tick's blocker lands in the holder's inbox through
+# spool-send.sh with the host spool (SPL_SPOOL), never a stale tree build that
+# refuses kind blocker; a failed send says why
+printf '#!/usr/bin/env bash\necho "spool: kind \\"blocker\\" is not one of task|result|note|reject" >&2; exit 1\n' >"$T/bin/oldspool"; chmod +x "$T/bin/oldspool"
+before="$(ls "$T/sat/spool/CLE-001/inbox" | wc -l)"
+out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 ASKS_SEND= SPOOL_BIN="$T/bin/oldspool" SPL_SPOOL="$T/bin/spool")"
+if [[ "$(ls "$T/sat/spool/CLE-001/inbox" | wc -l)" -eq $((before + 1)) ]] && grep -l '"task_id":"asks-open"' "$T/sat/spool/CLE-001/inbox/"*.json >/dev/null && [[ "$out" == *"re-raised 1 ask(s)"* ]]; then
+  pass "the real send leg: the re-raise blocker lands in CLE-001's inbox (task asks-open) via the host spool, past a stale tree build"
+else fail "real send: $out / $(ls "$T/sat/spool/CLE-001/inbox")"; fi
+out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 ASKS_SEND= SPOOL_BIN="$T/bin/oldspool" SPL_SPOOL="$T/bin/oldspool")"
+[[ "$out" == *"did NOT reach CLE-001@sat (spool-send exit 11)"* && "$out" == *'kind "blocker" is not one of'* && "$out" != *"re-raised"* ]] &&
+  pass "a failed send is a WARN naming the exit code and the spool error, never a silent tick" || fail "failed send: $out"
+
 # 6. owner leg -----------------------------------------------------------------
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0)"
 out2="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0)"

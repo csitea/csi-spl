@@ -52,8 +52,8 @@ do_spl_dispatch_rotate() {
   ROTATE_ACK_TIMEOUT="${ROTATE_ACK_TIMEOUT:-600}"
   spl_rotate_conf || return 1
   : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
-  [[ "${LEASE_MASTER:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ && "${LEASE_FAILOVER:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ &&
-     "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
+  spl_is_agent_id "${LEASE_MASTER:-}" && spl_is_agent_id "${LEASE_FAILOVER:-}" &&
+     [[ "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
     { spl_rotate_log - GATE SKIP "no master + failover pair in $LEASE_CONF"; return 0; }
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_disp_rotate_auto ;;

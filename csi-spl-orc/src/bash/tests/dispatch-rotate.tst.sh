@@ -202,6 +202,10 @@ world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/scr
 grep -q 'send CLE-900 -> CLE-900 note dispatch-rotate .*ROTATION SKIP stalled' "$T/send.log" && pass "2. ... the orchestrator gets one note" || fail "2. stall note: $(cat "$T/send.log" 2>&1)"
 world; "$T/bin/proc" 112 CLE-902 7200; gate "duplicate: CLE-902 pids 102 112" "two processes on one id: SKIP duplicate"
 world; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5; gate "locked" "the lock held: SKIP locked"; wait
+# spec 061 L6: c-002 / c-003 pass the id gate (they read "no master + failover pair" before)
+world; act DRY_RUN=0 LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 >"$T/o" 2>&1
+! grep -q 'no master + failover pair' "$T/o" && pass "2. LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 pass the id gate" || fail "2. c-002/c-003: $(cat "$T/o")"
+world; gate "no master + failover pair" "LEASE_MASTER=bogus: SKIP no pair" LEASE_MASTER=bogus
 world; echo "20261002T0505Z-orch ACK $(date +%s)" >"$D/rotate.orch.state"; gate "orch-busy (orch rotation at ACK)" "an orch rotation in flight: wait, then SKIP orch-busy (FR-051)"
 # a FAILED orch rotation ends at ALERT (the ask + the owner DM): over, not in flight
 world; echo "20261002T1505Z-orch ALERT $(date +%s)" >"$D/rotate.orch.state"

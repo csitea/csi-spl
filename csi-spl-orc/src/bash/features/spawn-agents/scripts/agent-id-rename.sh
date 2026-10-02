@@ -17,13 +17,20 @@
 #                  is re-seated with its inbox, pokes and mute marker
 #   6. note        ONE spool note to the agent: "your id is now <new>; use
 #                  --from <new>"
-# Role ids (001-003) are never renamed here (L6: rotations). An agent already
-# renamed (<old> is a link) is skipped, so a re-run is safe.
+# Role ids (001-003) are renamed only with --roles (spec 061 L6), and then
+# only they: CLE-001/002/003 -> c-001/002/003. A stop-gap link <new> -> <old>
+# (the orchestrator's 2026-10-02 bridge) is replaced by the real layout:
+# <new> the dir, <old> the link. The role's process keeps its old env id until
+# agent-name-resume.sh resumes it under the new one, and lease.conf
+# (LEASE_ORCH / LEASE_MASTER / LEASE_FAILOVER) must name the new id at that
+# same moment. An agent already renamed (<old> is a link) is skipped, so a
+# re-run is safe.
 #
 # Usage:
-#   agent-id-rename.sh [--apply] [--desk-envs "dev prd"] [--note-from ID] [OLD ...]
+#   agent-id-rename.sh [--apply] [--roles] [--desk-envs "dev prd"] [--note-from ID] [OLD ...]
 #     OLD          the legacy ids to rename (default: every non-role row of
 #                  the table whose old id this machine still holds)
+#     --roles      rename the role rows (001-003) of the table instead
 #     --desk-envs  the hub envs whose desks are re-seated (default: none;
 #                  prd needs the owner's go)
 #     --note-from  the id the FR-011 note is sent from (default SPOOL_AGENT_ID;
@@ -43,10 +50,11 @@ spool_env_resolve
 # shellcheck source=/dev/null
 . "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
-APPLY=0; DESK_ENVS=""; NOTE_FROM="${SPOOL_AGENT_ID:-}"; IDS=()
+APPLY=0; ROLES=0; DESK_ENVS=""; NOTE_FROM="${SPOOL_AGENT_ID:-}"; IDS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
+    --roles) ROLES=1; shift ;;
     --desk-envs) [ "$#" -ge 2 ] || exit 2; DESK_ENVS="$2"; shift 2 ;;
     --note-from) [ "$#" -ge 2 ] || exit 2; NOTE_FROM="$2"; shift 2 ;;
     -h|--help) sed -n '/^# Usage:/,/^# Exit/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
@@ -70,15 +78,18 @@ VERB=PLAN; [ "$APPLY" = 1 ] && VERB=DO
 step() { printf '%s %-9s %-10s %s\n' "$VERB" "$1" "$2" "$3"; }
 spool_tmux_argv
 
-# The table's rows this run renames: OLD NEW, roles left out.
+# The table's rows this run renames: OLD NEW, the roles only with --roles.
 declare -A NEW_OF=()
 while IFS=$'\t' read -r old new _kind b _t; do
   [[ "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ && "$new" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]] || continue
   [ "$b" = "$BOX" ] || continue
-  [ "$((10#${new#?-}))" -ge 4 ] || continue
+  if [ "$ROLES" = 1 ]; then [ "$((10#${new#?-}))" -le 3 ] || continue
+  else [ "$((10#${new#?-}))" -ge 4 ] || continue; fi
   NEW_OF[$old]="$new"
 done <"$TABLE"
+NAMED=1
 if [ "${#IDS[@]}" -eq 0 ]; then
+  NAMED=0
   for old in "${!NEW_OF[@]}"; do IDS+=("$old"); done
   mapfile -t IDS < <(printf '%s\n' "${IDS[@]}" | sort)
 fi
@@ -116,7 +127,10 @@ _swap() {
     [ "$APPLY" = 1 ] && { mv "$root/$tgt" "$root/$new@$qb"; ln -s "$new@$qb" "$root/$new"; ln -sfn "$new" "$root/$old"; }
     return 0
   fi
-  if [ -e "$root/$new" ] || [ -L "$root/$new" ]; then
+  # a stop-gap bridge <new> -> <old>: the move below replaces it
+  if [ -L "$root/$new" ] && [ "$(readlink "$root/$new")" = "$old" ]; then
+    [ "$APPLY" = 1 ] && rm -f "$root/$new"
+  elif [ -e "$root/$new" ] || [ -L "$root/$new" ]; then
     [ ! -L "$root/$new" ] && [ -d "$root/$new" ] && _skeleton "$root/$new" || { echo "$root/$new is held"; return 1; }
     [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new"
   fi
@@ -127,11 +141,12 @@ _swap() {
 rc=0; done_n=0
 for old in "${IDS[@]}"; do
   new="${NEW_OF[$old]:-}"
-  [ -n "$new" ] || { echo "SKIP     ${old}: no non-role row for it in ${TABLE} (box ${BOX})" >&2; rc=1; continue; }
+  [ -n "$new" ] || { echo "SKIP     ${old}: no $([ "$ROLES" = 1 ] && echo role || echo non-role) row for it in ${TABLE} (box ${BOX})" >&2; rc=1; continue; }
   if [ -L "$R/$old" ] && [ "$(readlink "$R/$old")" = "$new" ]; then
     echo "SKIP     ${old}: already renamed to ${new}"; continue
   fi
-  [ -e "$R/$old" ] || { echo "SKIP     ${old}: no spool dir ${R}/${old} on this machine" >&2; rc=1; continue; }
+  # a role row the map writes on every machine is no error where that role is not held
+  [ -e "$R/$old" ] || { echo "SKIP     ${old}: no spool dir ${R}/${old} on this machine" >&2; [ "$NAMED$ROLES" = 01 ] || rc=1; continue; }
   wins="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_id}	#{window_name}' 2>/dev/null \
     | awk -F'\t' -v id="$old" '{ n = $2; if (match(n, "(^|[^A-Za-z0-9])" id "([^0-9]|$)")) print }' || true)"
   [ -n "$wins" ] || { echo "SKIP     ${old}: no tmux window carries it (not live; L9 retires it)" >&2; continue; }

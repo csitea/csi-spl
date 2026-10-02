@@ -247,6 +247,9 @@ act DRY_RUN=0 >/dev/null 2>&1; [[ "$(grep -c 'SKIP duplicate' "$T/send.log")" ==
 world; rm -rf "$T/proc/1001"; "$T/bin/proc" 1001 600; gate "young: pid 1001 is 600s old" "a young session: SKIP young"
 world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"; gate "stalled Usage limit reached" "a usage-limit footer: SKIP stalled"
 world; ( flock 9; sleep 3 ) 9>>"$D/rotate.orch.lock" & sleep 0.5; gate "locked" "the lock held: SKIP locked"; wait
+# spec 061 L6: the role id c-001 passes the id gate (it read "no LEASE_ORCH" before)
+world; gate "absent: no live claude carries c-001" "LEASE_ORCH=c-001 is a role id: the gate looks for its process" LEASE_ORCH=c-001
+world; gate "no LEASE_ORCH" "LEASE_ORCH=bogus: SKIP no LEASE_ORCH" LEASE_ORCH=bogus
 
 # --- 3. T-ORCH-HAPPY + BUSY + POKE-ROUTE + MSG-IN-FLIGHT ------------------------------------
 world; touch "$T/tmux/escape-stops.%2"

@@ -42,7 +42,7 @@ declare -F spl_rotate_conf >/dev/null ||
 
 do_spl_orch_rotate() {
   spl_rotate_conf || return 1
-  [[ "${LEASE_ORCH:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ ]] || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
+  spl_is_agent_id "${LEASE_ORCH:-}" || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_orch_rotate_auto ;;
     ack)     spl_rotate_ack_send orch "$LEASE_ORCH" ;;

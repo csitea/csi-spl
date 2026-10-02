@@ -75,7 +75,7 @@ eq "4. a badge written in front of the tag moves after the id" "CLE-07@tbx > bui
 SPOOL_BOX_TAG=zzz bash "$TOP" --badges >/dev/null 2>&1
 eq "4. a configured tag wins over the inferred one" "CLE-07@zzz > build x" "$(name "$P1")"
 SPOOL_BOX_TAG=zzz SPOOL_NAME_STYLE=colon bash "$TOP" --badges >/dev/null 2>&1
-eq "4. SPOOL_NAME_STYLE=colon writes the old shape back" "zzz: CLE-07 > build x" "$(name "$P1")"
+eq "4. SPOOL_NAME_STYLE=colon no longer writes the old shape (spec 061: one name)" "CLE-07@zzz > build x" "$(name "$P1")"
 SPOOL_BOX_TAG=zzz bash "$TOP" --badges >/dev/null 2>&1
 eq "4. ... and the default writes <ID>@<box> again" "CLE-07@zzz > build x" "$(name "$P1")"
 

@@ -525,7 +525,7 @@ def badge_of(name):
 
 
 def want_name(tag, aid, badge, title):
-    if tag and aid and os.environ.get("SPOOL_NAME_STYLE", "at") != "colon":
+    if tag and aid:
         return " ".join(x for x in ("%s@%s" % (aid, tag), badge, title) if x)
     out = " ".join(x for x in (aid, badge, title) if x)
     return "%s: %s" % (tag, out) if tag else out

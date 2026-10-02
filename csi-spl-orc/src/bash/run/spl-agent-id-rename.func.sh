@@ -8,7 +8,8 @@
 # @description in RENAME_DESK_ENVS move to the new id (the box sidecar
 # @description announces it on its next scan: the re-seat), and the agent gets
 # @description ONE note "your id is now c-0NN; use --from c-0NN". Role ids
-# @description (001-003) are never renamed here (L6). An agent already renamed
+# @description (001-003) are renamed only with RENAME_ROLES=1 (L6), and then
+# @description only they. An agent already renamed
 # @description is skipped, so a re-run is safe.
 # @description Dry run unless DRY_RUN=0.
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -18,14 +19,17 @@
 # @param   desks are re-seated (default none; prd needs the owner's go)
 # @param RENAME_NOTE_FROM (optional) - the id the note is sent from (default
 # @param   SPOOL_AGENT_ID)
+# @param RENAME_ROLES (optional) - 1: rename the role rows 001-003 instead
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_id_rename
 # @example DRY_RUN=0 RENAME_DESK_ENVS="dev prd" RENAME_NOTE_FROM=c-015 ./run -a do_spl_agent_id_rename
+# @example DRY_RUN=0 RENAME_ROLES=1 RENAME_IDS=CLE-003 RENAME_DESK_ENVS="dev prd" ./run -a do_spl_agent_id_rename
 #------------------------------------------------------------------------------
 do_spl_agent_id_rename() {
   local dry=1 args=() id
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   (( dry )) || args+=(--apply)
+  [[ "${RENAME_ROLES:-0}" == 1 ]] && args+=(--roles)
   [[ -n "${RENAME_DESK_ENVS:-}" ]] && args+=(--desk-envs "$RENAME_DESK_ENVS")
   [[ -n "${RENAME_NOTE_FROM:-}" ]] && args+=(--note-from "$RENAME_NOTE_FROM")
   for id in ${RENAME_IDS:-}; do args+=("$id"); done

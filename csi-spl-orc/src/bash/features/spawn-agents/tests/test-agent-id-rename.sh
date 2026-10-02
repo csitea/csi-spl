@@ -69,6 +69,23 @@ out="$(bash "$REN" --apply CLE-88 2>&1)"; eq "a new id that holds mail is refuse
 has "...naming it" "$R/c-006 is held" "$out"
 check "...and CLE-88 stays as it was" test -d "$R/CLE-88/inbox" -a ! -L "$R/CLE-88"
 
+# --- spec 061 L6: --roles renames the role rows, replacing a stop-gap bridge --------
+mkdir -p "$R/CLE-002/inbox"; : >"$R/CLE-002/inbox/m.json"; ln -s CLE-002 "$R/c-002"
+printf 'CLE-002\tclaude\t%%5\t/r\t20261002T160000Z\n' >>"$R/registry.tsv"
+printf 'CLE-002\tc-002\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
+t_window 'CLE-002@tg dispatcher' 'sleep 600' >/dev/null
+out="$(bash "$REN" --apply CLE-002 2>&1)"; eq "without --roles a role row is not renamed (1)" 1 "$?"
+has "...naming why" "SKIP     CLE-002: no non-role row" "$out"
+out="$(bash "$REN" --roles 2>&1)"; eq "--roles dry run exits 0 ($out)" 0 "$?"
+has "...it plans only the role" "PLAN spool     CLE-002    $R/CLE-002 -> $R/c-002" "$out"
+hasnt "...not a lane" "CLE-88" "$out"
+check "...and moves nothing" test -L "$R/c-002" -a -d "$R/CLE-002" -a ! -L "$R/CLE-002"
+out="$(bash "$REN" --roles --apply 2>&1)"; eq "--roles --apply exits 0 ($out)" 0 "$?"
+check "c-002 is the dir now, the mail with it" test -d "$R/c-002" -a ! -L "$R/c-002" -a -e "$R/c-002/inbox/m.json"
+eq "CLE-002 is the link to c-002" c-002 "$(readlink "$R/CLE-002")"
+has "the role window carries c-002@tg" "c-002@tg dispatcher" "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}')"
+has "the registry row too" "c-002" "$(cut -f1 "$R/registry.tsv")"
+
 # --- the identity map reads the renamed process as its new id ----------------------
 P="$T_TMP/proc"; export AI_PROC_ROOT="$P" AI_PANES_FILE="$T_TMP/panes.tsv"
 mkdir -p "$P/100" "$P/102"

@@ -398,14 +398,18 @@ spool_dq_escape() {  # VAR STRING
   printf -v "$1" '%s' "$_dq"
 }
 
-# The display name of an id: "<tag>: <id>" when SPOOL_BOX_TAG is set.
-# specs/058 (owner 2efb3e78): an agent is named <ID>@<box>, so the default
-# reads "CLE-07@<tag>"; SPOOL_NAME_STYLE=colon keeps the old "<tag>: CLE-07".
-# Every parser reads both shapes during the switch.
+# The ONE name of an agent (spec 061, owner 07af027a): "<id>@<tag>", e.g.
+# c-036@<tag>. It is the `claude --name`, the FIRST token of the tmux window
+# (a title may follow after a space), and what every spawn, restore, rotation
+# and rename writes. The tag is SPOOL_BOX_TAG, else the box config (box.env),
+# so a cron or @reboot launcher that read no profile names alike; no tag
+# anywhere = the bare id. The old "<tag>: <id>" shape (SPOOL_NAME_STYLE=colon)
+# is gone: parsers still read it, nothing writes it.
+# tests/test-agent-name-shape.sh fails when a launcher writes another shape.
 spool_decorate() {  # ID
-  if [ -z "$SPOOL_BOX_TAG" ]; then printf '%s' "$1"
-  elif [ "${SPOOL_NAME_STYLE:-at}" = colon ]; then printf '%s: %s' "$SPOOL_BOX_TAG" "$1"
-  else printf '%s@%s' "$1" "$SPOOL_BOX_TAG"; fi
+  local t="${SPOOL_BOX_TAG:-}"
+  [ -n "$t" ] || t="$(SPOOL_BOX_TAG=''; SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; _spool_box_env_load; printf '%s' "$SPOOL_BOX_TAG")"
+  if [ -z "$t" ]; then printf '%s' "$1"; else printf '%s@%s' "$1" "$t"; fi
 }
 
 # The agent id a window name carries, or nothing. Accepts an optional

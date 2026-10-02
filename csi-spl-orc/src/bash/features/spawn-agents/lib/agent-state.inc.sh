@@ -5,8 +5,8 @@
 # format, so a badge written by either copy reads the same to the other.
 #
 # A window name is "<ID>@<tag> [<badge>] [<title>]" (specs/058, the owner's
-# <ID>@<box> naming), or the older "<tag>: <ID> [<badge>] [<title>]"
-# (SPOOL_NAME_STYLE=colon); both always parse. The tag is DISPLAY only
+# <ID>@<box> naming); the older "<tag>: <ID> [<badge>] [<title>]" still
+# parses, but nothing writes it (spec 061, one name everywhere). The tag is DISPLAY only
 # (the box tag, SPOOL_BOX_TAG); the badge is one token right after the id:
 #   >  busy       ?  a dialog, or reports the orchestrator has not seen
 #   !  ended      (none) idle
@@ -63,12 +63,12 @@ an_strip() {
   printf '%s' "$n"
 }
 
-an_decorate() {  # NAME -> "<ID>@<tag> rest" (or "<tag>: NAME"); never double-tags
+an_decorate() {  # NAME -> "<ID>@<tag> rest" (a name with no id: "<tag>: NAME"); never double-tags
   local n tag id
   n="$(an_strip "${1-}")"; tag="$(an_tag)"
   [ -n "$tag" ] || { printf '%s' "$n"; return 0; }
   id="$(printf '%s' "$n" | grep -oE "^${SPOOL_PARTICIPANT_RX}" || true)"
-  if [ "${SPOOL_NAME_STYLE:-at}" != colon ] && [ -n "$id" ]; then
+  if [ -n "$id" ]; then
     printf '%s@%s%s' "$id" "$tag" "${n#"$id"}"
   else
     printf '%s: %s' "$tag" "$n"

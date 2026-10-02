@@ -26,6 +26,8 @@ for k in claude grok agy qwen; do
   has "$k: reports go to the lease holder (specs/058 N1)" "--to orchestrator" "$prompt"
   # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
+  # CLE-77938 (owner 2026-10-02): one agent does one small task, then exits.
+  has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell CLE-00 so it spawns a new lane. When your task is verified done: report and /exit-clean." "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"
   hasnt "$k: no inbox-send.sh" "inbox-send" "$prompt"
   hasnt "$k: no git closing steps outside a repo" "INTEGRATION / CLOSING STEPS" "$prompt"

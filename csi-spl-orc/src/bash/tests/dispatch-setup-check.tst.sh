@@ -125,6 +125,10 @@ b="$S/dispatch/briefs/brief-dispatcher-CLE-002.md"
 grep -q 'You are \*\*CLE-002\*\*, the \*\*master dispatcher' "$b" && grep -q 'w1, w2' "$b" && grep -q 'sudo -u boxuser env ENV=prd' "$b" &&
   ! grep -qE '\{(ID|ROLE|PEER|ORCH|MASTER|FAILOVER|SPOOL_ROOT|POSTS_DIR|ENV|TENANTS|ORC|BOX_USER|LEASE_RULE|FIRST_STEP)\}' "$b" &&
   pass "4. the brief is rendered with ids, workspaces and the box user" || fail "4. brief: $(head -5 "$b")"
+# CLE-77938 (owner 2026-10-02): a new ask never goes to a running lane; the orchestrator spawns a new one.
+grep -q 'You never forward a new ask to a running lane' "$b" && grep -q '^| a \*\*new ask\*\* .*| escalate to \*\*CLE-001\*\*' "$b" &&
+  ! grep -q 'about an area a \*\*live lane owns\*\*' "$b" &&
+  pass "4. the brief escalates every new ask for a new lane" || fail "4. new-ask rule: $(grep -n 'new ask\|lane owns' "$b")"
 
 # --- 5. refusals ---------------------------------------------------------------------------
 setup ENV=stg >/dev/null 2>&1 && fail "5. ENV=stg accepted" || pass "5. ENV=stg refused"

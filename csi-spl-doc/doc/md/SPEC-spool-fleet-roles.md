@@ -19,23 +19,30 @@ spawner sets `--permission-mode auto`; the model comes from the agent user's
 settings, and a relaunch (`restore-claude-plain.sh`) passes it explicitly
 because `--resume` keeps the session's old model.
 
-### 1.1 One agent, one discussion
+### 1.1 One agent, one small task
 
-Owner decision 2026-10-01. A lane agent serves **one discussion**: one owner
-topic, one bug or one feature. Every live agent costs memory and CPU on the box,
-and every turn re-reads its whole context, so an agent carrying three
-discussions pays for all three on every turn.
+Owner decision 2026-10-01, tightened 2026-10-02: *"the same agent is re-used
+for completely different new tasks and that should NOT be the case - the agents
+should do 1 small task and then killed / exited"*. A lane agent does **one small
+task**: one owner ask, one bug or one feature, and exits as soon as that task
+is verified. Every live agent costs memory and CPU on the box, and every turn
+re-reads its whole context, so an agent carrying three tasks pays for all three
+on every turn.
 
 | situation | do |
 |---|---|
-| a new ask in a **new** topic | spawn a new lane, or route it to the lane that owns that topic; never hand it to an idle agent because it is alive or "already in that code" |
-| a follow-up in the **same** topic | the owning lane if it is alive; if it has closed, a fresh lane that starts from its branch and notes |
-| the new discussion is genuinely intertwined (a regression in the lane's own just-shipped change, or work that needs its full context) | the same lane; `CLE-001` says why in the routing message |
-| a lane reports done | verify the claim (section 3.1), then close it at once (`/exit-clean`) |
+| a **new ask**, in any topic, even in the same code or the same topic | **always a new small lane**, spawned by `CLE-001`; its brief names the old lane's notes and commits as context. Never hand it to a running lane because it is alive, idle or "already in that code" |
+| a follow-up that is part of the lane's **own task** (an answer it asked for, a correction to the same ask) | the owning lane if it is alive; if it has closed, a fresh lane that starts from its branch and notes |
+| a defect in the lane's **own just-shipped commit**, inside its own task | the same lane fixes it before it exits; this is the only exception, and anything beyond that commit is a new ask |
+| a lane is sent a different task | it refuses it and tells `CLE-001`, which spawns a new lane for it |
+| a lane's task is verified | it reports and exits (`/exit-clean`); `CLE-001` verifies the claim (section 3.1) and closes it at once if it has not |
 | a lane waits more than about an hour for an owner answer | park its context (branch, held commit, the open question) in `/var/tmp/CLE-parent-level/dispatch/hold/<topic>/`, close it, and respawn from the hold dir when the answer comes |
 
 "Stand by in case the owner answers later" is not a reason to keep an agent
-open. The dispatchers apply the first two rows; `CLE-001` applies the rest.
+open, and neither is "it could take the next ask". The dispatchers apply the
+first two rows: they forward only a follow-up to the owning lane, and escalate
+every new ask to the acting orchestrator for a new lane. `CLE-001` applies the
+rest.
 
 **When a human ends the discussion, the agent ends too.** A human closes or
 archives the topic, or says in any words that it is done or no longer active:
@@ -72,10 +79,10 @@ For each message the lease holder does exactly one thing, then archives it:
 
 | the message is | the dispatcher |
 |---|---|
-| a post about an area a live lane owns | forwards it verbatim, with topic and message id, to that lane |
+| a follow-up to a live lane's own task (an answer it asked for, a correction to that same ask) | forwards it verbatim, with topic and message id, to that lane |
 | a status question | asks the owning lane for a one-paragraph status and posts it in the asker's topic |
 | an agent's owner text ("post this in topic X") | checks the claim (section 3.1), then posts it verbatim with its screenshots |
-| a decision, an approval, work no lane owns, anything needing a spawn, close, deploy or production action, or anything unclear | escalates to `CLE-001` in one message: who asked, where, the exact words, what it needs |
+| a new ask (any new piece of work, even in a live lane's code or topic; section 1.1), a decision, an approval, anything needing a spawn, close, deploy or production action, or anything unclear | escalates to `CLE-001` in one message: who asked, where, the exact words, what it needs |
 | a duplicate or chatter | archives it, no reply |
 
 Ownership comes from the spool registry, the window names and the

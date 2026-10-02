@@ -13,6 +13,7 @@
 # @param SEC_SHELLCHECK_WARN_BASELINE (optional) - default <root>/.shellcheck-warning-baseline.txt
 # @param SEC_SHELLCHECK_FILES (optional) - newline list of root-relative *.sh to scan
 # @param        INSTEAD of the whole tree (the pre-push lint part: touched files only)
+# @param SEC_SHELLCHECK_JOBS (optional) - parallel shellcheck processes; default nproc
 # @example ./run -a do_sec_shellcheck
 #------------------------------------------------------------------------------
 
@@ -94,19 +95,76 @@ do_sec_shellcheck() {
     return 1
   fi
 
-  do_log "INFO shellcheck -S $sev on ${#files[@]} script(s) (iac + orc + cnf)"
+  _sec_shellcheck_scan "$bin" "$root" "$sev" "${files[@]}"
+}
+
+# One parallel -S warning pass serves both gates when the gate is error
+# level (perf round 4, C4): an error pass then a warning pass read the same
+# ~690 files twice, serially (wf67 step median 110 s, n=12). Warning output
+# holds every error line, so the error verdict is its `: error:` lines.
+_sec_shellcheck_scan() {
+  local bin="$1" root="$2" sev="$3" rc; shift 3
+  local files=("$@")
   local log; log=$(mktemp)
+  if [[ "$sev" == error ]]; then
+    do_log "INFO shellcheck -S warning on ${#files[@]} script(s) (iac + orc + cnf), error gate + warning ratchet"
+    rc=0
+    _sec_shellcheck_par "$bin" warning warn "$log" "${files[@]}" || rc=$?
+    if [[ "$rc" -ne 0 ]] || grep -q ': error: ' "$log"; then
+      do_log "FATAL shellcheck: error-level findings (or tool error, exit $rc)"
+      if [[ "$rc" -ne 0 ]]; then sed 's/^/  /' "$log"; else grep ': error: ' "$log" | sed 's/^/  /'; fi
+      rm -f "$log"
+      return 1
+    fi
+    do_log "INFO shellcheck: no error-level findings"
+    _sec_shellcheck_warn_ratchet "$root" "$log" "${files[@]}"
+    rc=$?
+    rm -f "$log"
+    return "$rc"
+  fi
+  do_log "INFO shellcheck -S $sev on ${#files[@]} script(s) (iac + orc + cnf)"
   rc=0
-  SEC_SHELLCHECK_PHASE=scan "$bin" -S "$sev" -f gcc "${files[@]}" >"$log" 2>&1 || rc=$?
-  if [[ "$rc" -ne 0 ]]; then
+  _sec_shellcheck_par "$bin" "$sev" scan "$log" "${files[@]}" || rc=$?
+  if [[ "$rc" -ne 0 ]] || [[ -s "$log" ]]; then
     do_log "FATAL shellcheck: $sev-level findings (or tool error, exit $rc)"
     sed 's/^/  /' "$log"
     rm -f "$log"
     return 1
   fi
   do_log "INFO shellcheck: no $sev-level findings"
+  : >"$log"
+  _sec_shellcheck_par "$bin" warning warn "$log" "${files[@]}" || {
+    do_log "FATAL shellcheck warning pass: tool error"; sed 's/^/  /' "$log"; rm -f "$log"; return 1
+  }
+  _sec_shellcheck_warn_ratchet "$root" "$log" "${files[@]}"
+  rc=$?
   rm -f "$log"
-  _sec_shellcheck_warn_ratchet "$bin" "$root" "${files[@]}"
+  return "$rc"
+}
+
+# _sec_shellcheck_par <bin> <severity> <phase> <log> <file>...
+# Runs the tool over the files in batches of 40, SEC_SHELLCHECK_JOBS (default
+# nproc) at a time. Each batch writes its own file, so lines never interleave;
+# the log is their lines stably sorted by file name. Exit 1 (findings) is not
+# an error here, the caller reads the lines; any other exit of any batch is a
+# tool error: its output stays in the log and this returns 2.
+_sec_shellcheck_par() {
+  local bin="$1" sev="$2" phase="$3" log="$4" d; shift 4
+  local jobs="${SEC_SHELLCHECK_JOBS:-$(nproc 2>/dev/null || echo 4)}"
+  d=$(mktemp -d) || return 1
+  printf '%s\0' "$@" | SEC_SHELLCHECK_PHASE="$phase" xargs -0 -P "$jobs" -n 40 bash -c '
+    d="$1" bin="$2" sev="$3"; shift 3
+    out=$(mktemp "$d/b.XXXXXX") || exit 255
+    rc=0; "$bin" -S "$sev" -f gcc "$@" >"$out" 2>&1 || rc=$?
+    [[ "$rc" -le 1 ]] || echo "$rc" >"$out.rc"
+    exit 0' _ "$d" "$bin" "$sev"
+  local xrc=$? bad
+  find "$d" -name 'b.*' ! -name '*.rc' -exec cat {} + | LC_ALL=C sort -s -t: -k1,1 >"$log"
+  bad=$(find "$d" -name '*.rc' -exec cat {} + | sort -u | tr '\n' ' ')
+  rm -rf "$d"
+  [[ "$xrc" -eq 0 && -z "$bad" ]] && return 0
+  printf 'shellcheck tool error: exit %s(xargs %s)\n' "$bad" "$xrc" >>"$log"
+  return 2
 }
 
 # Warning level is a RATCHET, not a wall (CLE-77915, refactor item 4): 328
@@ -115,12 +173,11 @@ do_sec_shellcheck() {
 # Counts per (code, file) may not grow past .shellcheck-warning-baseline.txt;
 # a NEW warning fails, a fixed one is reported so the baseline can shrink.
 # Counts, not line numbers, so ordinary edits do not churn.
+# <log> is the -S warning output of the files (from _sec_shellcheck_par).
 _sec_shellcheck_warn_ratchet() {
-  local bin="$1" root="$2"; shift 2
+  local root="$1" log="$2"; shift 2
   local wbase="${SEC_SHELLCHECK_WARN_BASELINE:-$root/.shellcheck-warning-baseline.txt}"
   [[ -f "$wbase" ]] || { do_log "FATAL no $wbase -- the warning ratchet has nothing to hold"; return 1; }
-  local log; log=$(mktemp)
-  SEC_SHELLCHECK_PHASE=warn "$bin" -S warning -f gcc "$@" >"$log" 2>&1
   local verdict rc=0
   verdict=$(python3 - "$log" "$wbase" "$root" "$@" <<'PY'
 import collections, re, sys
@@ -143,7 +200,6 @@ fixed = [f"FIXED {c} {f}: {n} baselined, {cur.get((c, f), 0)} found" for (c, f),
 print("\n".join(new + fixed))
 PY
 ) || rc=$?
-  rm -f "$log"
   [[ "$rc" -eq 0 ]] || { do_log "FATAL shellcheck warning ratchet could not read $wbase (exit $rc)"; return 1; }
   if grep -q '^NEW ' <<<"$verdict"; then
     do_log "FATAL shellcheck: NEW warning-level finding(s) beyond $wbase (fix it, or add a line with the reason):"

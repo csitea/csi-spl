@@ -15,6 +15,9 @@ import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
+import {
+  addFirstScreenHints, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout, firstScreenRoutePage,
+} from "./src/utils/first-screen-hints.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
 // nuxt.config.ts is loaded by jiti BEFORE Nuxt injects `import.meta.dev`, so
@@ -336,6 +339,63 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
   })
 }
 
+// ── First-screen hints (perf round 3 P3-01) ─────────────────────────────
+// Each prerendered document modulepreloads the scripts and preloads the CSS
+// its first screen runs before the rail (page + layout + locale catalogue and
+// their static imports), straight from the client build's chunk graph, and
+// stops prefetching those files. The rail no longer waits for ~6 import
+// waves (src/utils/first-screen-hints.mjs). 200.html is not touched: it is
+// every non-prerendered route, so it cannot know its page (and it is the
+// document perf-budget's ci_initial_gzip_kb reads).
+// the catalogue file i18n loads per locale (P3-06: the split first-screen one),
+// read at config load: @nuxtjs/i18n later rewrites each locale's `file` in place
+const LOCALE_FILES: Record<string, string> = Object.fromEntries(I18N_MODULE_LOCALES.map((l) => [l.code, l.file]))
+function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  let graph: ReturnType<typeof firstScreenChunkGraph> | null = null
+  let pages: NuxtPage[] = []
+  nuxt.hook("pages:resolved", (resolved) => {
+    pages = resolved.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
+  })
+  addVitePlugin({
+    name: "spool:first-screen-graph",
+    apply: "build",
+    generateBundle(_opts, bundle) {
+      graph = firstScreenChunkGraph(bundle)
+    },
+  }, { server: false })
+  nuxt.hook("nitro:init", (nitro) => {
+    // Rollup's fileName already carries the assets dir ("_nuxt/x.js")
+    const base = nuxt.options.app.baseURL.replace(/\/*$/, "/")
+    const failed: string[] = []
+    nitro.hooks.hook("prerender:generate", (route) => {
+      const name = route.fileName || ""
+      if (!name.endsWith(".html") || /^\/(200|404)\.html$/.test(name) || typeof route.contents !== "string") return
+      const hit = firstScreenRoutePage(route.route, pages, LOCALE_CODES, DEFAULT_LOCALE)
+      if (!graph || !hit || !hit.file) {
+        failed.push(`${route.route}: no ${graph ? "page" : "client chunk graph"}`)
+        return
+      }
+      const layout = firstScreenPageLayout(readFileSync(hit.file, "utf8"))
+      const roots = [
+        hit.file,
+        join(nuxt.options.srcDir, "layouts", `${layout}.vue`),
+        join(nuxt.options.rootDir, "i18n", "locales", LOCALE_FILES[hit.locale]),
+      ]
+      const files = firstScreenFiles(graph, roots)
+      if (files.scripts.length < roots.length) {
+        failed.push(`${route.route}: roots ${roots.join(" ")} map to ${files.scripts.length} chunks`)
+        return
+      }
+      route.contents = addFirstScreenHints(route.contents, files, base).html
+    })
+    // A throw inside prerender:generate only drops that document (and nitro
+    // still exits 0), so collect and fail the whole generate here instead.
+    nitro.hooks.hook("prerender:done", () => {
+      if (failed.length) throw new Error(`first-screen hints (P3-01) failed for ${failed.length} documents:\n${failed.join("\n")}`)
+    })
+  })
+}
+
 export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2026-09-18",
@@ -366,7 +426,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches

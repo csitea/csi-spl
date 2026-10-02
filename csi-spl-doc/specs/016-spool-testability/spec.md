@@ -27,7 +27,7 @@ Re-measured on that tree, n=1 per count. The 2026-09-19 inventory at `35ed54c` i
 | Distribution hygiene | `10_ci-quality.yml` sweeps | — | **yes** |
 | WUI unit | `csi-spl-wui/tests/unit/*.test.mjs` | 87 files | **yes** — `wui-suite` |
 | WUI typecheck | `pnpm run typecheck` | — | **yes** |
-| WUI browser e2e | job `wui-e2e` runs `test:e2e`, `test:e2e:console-errors`, `test:e2e:topic-pane`, `test:e2e:msg-edit`, `test:e2e:dm-remove`, `test:e2e:display-name`, `test:e2e:typed-by` | those scripts | **yes** — T021, since widened |
+| WUI browser e2e | job `wui-e2e` runs `pnpm run test:e2e` (`run-e2e-tests.mjs`: every `tests/e2e/*.test.mjs`, minus the files `tests/e2e/ci-skip.txt` names with a reason) | every discovered file | **yes** — T021, since widened |
 | WUI live-interop | `tests/e2e/live-interop.test.mjs` | 1 | **no** — not a job. `CI=1` and unset `HUB_URL` exits 1 (T006) |
 | IAC bash | `csi-spl-iac/src/bash/tests/*.tst.sh` (one directory) | 36 | **yes** — `iac-suite` |
 | ORC bash | `csi-spl-orc/src/bash/tests/*.tst.sh` (one directory) | 56 | **yes** — `orc-suite` |

@@ -13,7 +13,7 @@
 | D. Local CLI | `bash csi-spl-api/src/bash/tests/spool-smoke.tst.sh` | 002 unsigned send/recv/files/mcp | no skip |
 | E. WUI unit | `cd csi-spl-wui && pnpm run test:unit` | view-v1 client, avatars, live-ws fakes, auth-client | empty dir → fail |
 | F. WUI typecheck | `pnpm run typecheck` | TS | no skip |
-| G. WUI browser | `pnpm run test:e2e` plus `test:e2e:console-errors`, `test:e2e:topic-pane`, `test:e2e:msg-edit`, `test:e2e:dm-remove`, `test:e2e:display-name`, `test:e2e:typed-by` | no-x-scroll at 390×844 / 1280×800; viewport must apply or the harness fails (`harness: viewport not applied`) | in CI (`wui-e2e`, 016 T021, widened by later jobs). Missing Chrome fails the job. |
+| G. WUI browser | `pnpm run test:e2e` (`run-e2e-tests.mjs`: every `tests/e2e/*.test.mjs`, minus the files `tests/e2e/ci-skip.txt` names with a reason); one file: `pnpm test:e2e <name>` | no-x-scroll at 390×844 / 1280×800; viewport must apply or the harness fails (`harness: viewport not applied`) | in CI (`wui-e2e`, 016 T021, widened by later jobs). Missing Chrome fails the job. |
 | H. WUI live | `HUB_URL=… pnpm run test:live` | two sockets vs a real hub | local unset `HUB_URL` exits 0. `CI=1` with `HUB_URL` unset exits 1 (T006). Still not a CI job |
 | I. IAC bash | `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` | tfvars parity, 025/028/030/031/017/019/120, hygiene, no keys in tf | missing terraform = FAIL unless `SPL_TF_ALLOW_SKIP=1` |
 | J. ORC bash | `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` | lde stack, tenant-create, wui-actions, deploy-check, DNS helpers | skip → CI fail; needs a cached `postgres:16-alpine` + the `<ORG>/<ORG>-<APP>` checkout layout |

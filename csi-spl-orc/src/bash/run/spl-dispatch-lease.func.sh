@@ -606,7 +606,7 @@ spl_lease_asks_tick() {
   local on="${LEASE_ASKS:-1}"
   [[ "${SPOOL_TEST:-0}" == 1 ]] && on="${LEASE_ASKS:-0}"
   [[ "$on" == 1 ]] || return 0
-  ( SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" timeout "${LEASE_ASKS_TIMEOUT:-120}" "${LEASE_RUN:-$PROJ_PATH/run}" \
+  ( SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" timeout "${LEASE_ASKS_TIMEOUT:-120}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
       -a do_spl_asks_tick >>"$LEASE_DIR/asks.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
   return 0
 }

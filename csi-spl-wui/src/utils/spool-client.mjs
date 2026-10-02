@@ -571,7 +571,7 @@ export function createSpoolClient({
           const row = normalizeTopicRow(raw)
           if (raw && raw.dm && typeof raw.dm === 'object') row.dm = raw.dm
           if (inlineN && raw && Array.isArray(raw.messages)) {
-            row.inline = { task_id: row.task_id, messages: raw.messages.map(normalizeViewMessage), next: raw.messages_next || null }
+            row.inline = { task_id: row.task_id, messages: raw.messages.map((m) => normalizeViewMessage(m, row.task_id)), next: raw.messages_next || null }
           }
           return row
         }),
@@ -612,7 +612,7 @@ export function createSpoolClient({
         throw e
       }
       const rows = (data && data.messages) || []
-      return { task_id: id, messages: rows.map(normalizeViewMessage), next: (data && data.next) || null }
+      return { task_id: id, messages: rows.map((m) => normalizeViewMessage(m, id)), next: (data && data.next) || null }
     },
     /**
      * specs/025 FR-006: the caller's role and permissions in the active
@@ -1266,7 +1266,7 @@ export function createSpoolClient({
       const body = await live(`/v1/view/archived${q}`)
       const cards = Array.isArray(body && body.cards) ? body.cards : []
       return {
-        cards: cards.map((c) => ({ ...c, message: normalizeViewMessage(c.message || {}) })),
+        cards: cards.map((c) => ({ ...c, message: normalizeViewMessage(c.message || {}, '') })),
         next: (body && body.next) || null,
       }
     },

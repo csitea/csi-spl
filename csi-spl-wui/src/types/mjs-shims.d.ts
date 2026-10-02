@@ -535,7 +535,8 @@ declare module '~/utils/view-api.mjs' {
   export function hubField(v: unknown): string | null
   export function channelReadQuery(read: Record<string, string>): string[]
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
-  export function normalizeViewMessage(el: unknown): import('./spool').SpoolMessage
+  export const DEFAULT_DELIVERY: Readonly<{ to_box: string; state: string }>
+  export function normalizeViewMessage(el: unknown, topic?: string): import('./spool').SpoolMessage
   export function copyEditFields<T extends Record<string, unknown>>(src: unknown, out: T): T
   export function copyMoveFields<T extends Record<string, unknown>>(src: unknown, out: T): T
 }

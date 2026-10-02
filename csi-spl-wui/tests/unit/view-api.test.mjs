@@ -5,6 +5,7 @@ import {
   isDownloadable,
   normalizeTopicRow,
   normalizeViewMessage,
+  DEFAULT_DELIVERY,
   rosterFromView,
   topicMessages,
   topicOpening,
@@ -246,5 +247,75 @@ describe('rosterFromView owners', () => {
   })
   it('CONTROL: no humans, no owners', () => {
     assert.deepEqual(rosterFromView({}).owners, [])
+  })
+})
+
+/* DB payload cut 4 (hub view.go viewMsgsIn): a list element leaves out
+   env.sig, an empty msg.files, empty reactions, the default [box-wui sent]
+   and a msg.task_id equal to the topic's. Each test fails without its
+   default in normalizeViewMessage. */
+describe('view list element defaults (DB payload cut 4)', () => {
+  const trimmed = () => ({ cursor: 'c', received_at: 'r', is_parent: 1,
+    env: { from_box: 'box-wui', to_box: 'box-wui', msg: { v: 1, msg_id: 'm', from: 'HUM-1', to: '@lobby', kind: 'msg', body: 'hi' } } })
+
+  it('files default to []', () => {
+    assert.deepEqual(normalizeViewMessage(trimmed(), T).files, [])
+  })
+  it('reactions default to []', () => {
+    assert.deepEqual(normalizeViewMessage(trimmed(), T).reactions, [])
+  })
+  it('deliveries default to [box-wui sent]', () => {
+    assert.deepEqual(normalizeViewMessage(trimmed(), T).deliveries, [{ to_box: 'box-wui', state: 'sent' }])
+    assert.deepEqual(DEFAULT_DELIVERY, { to_box: 'box-wui', state: 'sent' })
+  })
+  it('task_id defaults to the topic it was read under', () => {
+    assert.equal(normalizeViewMessage(trimmed(), T).task_id, T)
+  })
+  it('CONTROL: what the hub did send wins over every default', () => {
+    const el = trimmed()
+    el.env.msg.task_id = 'other'
+    el.env.msg.files = [{ file_id: 'f' }]
+    el.deliveries = []
+    el.reactions = [{ emoji: '👍', actors: ['HUM-2'] }]
+    const m = normalizeViewMessage(el, T)
+    assert.equal(m.task_id, 'other')
+    assert.deepEqual(m.files, [{ file_id: 'f' }])
+    assert.deepEqual(m.deliveries, [])
+    assert.equal(m.reactions.length, 1)
+  })
+  it('CONTROL: a moved row keeps its place, not the topic default', () => {
+    const el = trimmed()
+    el.task_id = 'moved-here'
+    assert.equal(normalizeViewMessage(el, T).task_id, 'moved-here')
+  })
+  it('archive cards (topic "") default the arrays but never a task_id', () => {
+    const m = normalizeViewMessage(trimmed(), '')
+    assert.deepEqual(m.files, [])
+    assert.equal('task_id' in m, false)
+  })
+  it('CONTROL: an edit answer (no topic) gets no default, so applyEdit keeps the held reactions', () => {
+    const m = normalizeViewMessage({ ...trimmed(), deliveries: [{ to_box: 'box-b', state: 'queued' }] })
+    assert.equal('reactions' in m, false)
+    assert.equal('files' in m, false)
+  })
+  it('getTopic defaults every element under its topic id', async () => {
+    const { fn } = stubFetch({ [`/v1/view/topics/${T}`]: [200, { task_id: T, messages: [trimmed(), trimmed()], next: null }] })
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const out = await c.getTopic(T)
+    for (const m of out.messages) {
+      assert.equal(m.task_id, T)
+      assert.deepEqual(m.reactions, [])
+      assert.deepEqual(m.deliveries, [{ to_box: 'box-wui', state: 'sent' }])
+    }
+  })
+  it('per_topic inline messages default under their own topic id', async () => {
+    const row = { task_id: T, first_ts: 'a', last_ts: 'b', count: 2, kinds: {}, participants: [], subject: 'hi', messages: [trimmed(), trimmed()] }
+    const { fn } = stubFetch({ '/v1/view/topics?': [200, { topics: [row], next: null }] })
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const out = await c.listTopics({ perTopic: 2 })
+    for (const m of out.topics[0].inline.messages) {
+      assert.equal(m.task_id, T)
+      assert.deepEqual(m.files, [])
+    }
   })
 })

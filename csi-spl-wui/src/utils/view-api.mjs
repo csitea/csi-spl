@@ -124,12 +124,42 @@ export function normalizeTopicRow(row) {
 }
 
 /**
- * One §4.4 element ({ cursor, received_at, env: { from_box, to_box, channel?,
- * parent_task_id?, msg, sig }, deliveries }) → a flat v:1 message plus
- * from_box / to_box / channel / parent_task_id. A flat element (already v:1 +
- * boxes) passes through. The envelope sig is dropped.
+ * DB payload cut 4: the one delivery of a WUI post nobody else receives. A
+ * view element leaves it out; the list normaliser puts it back.
  */
-export function normalizeViewMessage(el) {
+export const DEFAULT_DELIVERY = Object.freeze({ to_box: 'box-wui', state: 'sent' })
+
+/**
+ * One §4.4 element ({ cursor, received_at, env: { from_box, to_box, channel?,
+ * parent_task_id?, msg }, deliveries?, reactions? }) → a flat v:1 message
+ * plus from_box / to_box / channel / parent_task_id. A flat element (already
+ * v:1 + boxes) passes through. An envelope sig, if any, is dropped.
+ *
+ * `topic` (a string) says the element came from a view LIST read under that
+ * topic (§4.4 / per_topic inline: the topic's task_id; archive cards: '').
+ * DB payload cut 4 trims such elements (view.go viewMsgsIn), so a list
+ * element gets back what the hub left out: `files: []`, `reactions: []`,
+ * `deliveries: [DEFAULT_DELIVERY]` and `task_id: topic`. Without `topic`
+ * (an edit / kind / merge answer) nothing is defaulted: those carry no
+ * reactions, and applyEdit spreads the answer over the held row, so a
+ * defaulted `reactions: []` would wipe the row's emoji.
+ */
+export function normalizeViewMessage(el, topic) {
+  const out = flattenViewMessage(el)
+  if (typeof topic === 'string') defaultListFields(out, topic)
+  return out
+}
+
+/** The fields a cut-4 list element omits when they hold their default. */
+function defaultListFields(out, topic) {
+  if (!Array.isArray(out.files)) out.files = []
+  if (!Array.isArray(out.reactions)) out.reactions = []
+  if (!Array.isArray(out.deliveries)) out.deliveries = [{ ...DEFAULT_DELIVERY }]
+  if (topic && !out.task_id) out.task_id = topic
+  return out
+}
+
+function flattenViewMessage(el) {
   const e = el || {}
   if (e.env && typeof e.env === 'object') {
     const inner = e.env.msg && typeof e.env.msg === 'object' ? e.env.msg : {}

@@ -28,6 +28,9 @@
 #  this machine's own.
 #  12. a remote holder silences this machine's unanswered sweep and sends its
 #      gap notes to its own orchestrator
+#  14. a STALLED agent (CLE-77935: alive, pane on "Usage limit reached") is
+#      no candidate: pc's stalled master hands to pc's failover; pc's whole
+#      trio stalled lets the lease go stale and the satellite takes over
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -63,7 +66,10 @@ if [ -n "$holder" ] && [ "$ifgen" = "$g" ]; then g=$((g + 1)); h="$holder"; at="
 age=-1; [ "$g" -gt 0 ] && age=$((HUB_NOW - at))
 printf '{"fleet":"%s","role":"%s","holder":"%s","box":"b","gen":%s,"age_s":%s,"won":%s}\n' "$fleet" "$role" "$h" "$g" "$age" "$won"
 STUB
-chmod +x "$T/bin/send" "$T/bin/hub"
+# The pane stub (LEASE_PANE_CMD): the screen of pid N is $T/pane/N; none = able.
+mkdir -p "$T/pane"
+printf '#!/usr/bin/env bash\ncat "%s/pane/$1" 2>/dev/null\n' "$T" >"$T/bin/pane"
+chmod +x "$T/bin/send" "$T/bin/hub" "$T/bin/pane"
 
 # agent <machine> <pid> <id> / kill_agent <machine> <pid>
 agent() { mkdir -p "$T/$1/proc/$2"; echo claude >"$T/$1/proc/$2/comm"; printf 'SPOOL_AGENT_ID=%s\0' "$3" >"$T/$1/proc/$2/environ"; }
@@ -75,7 +81,7 @@ tick() {
   local m="$1" now="$2"; shift 2
   local ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
   [[ "$m" == sat ]] && ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
-  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" \
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
     SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
     LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" "${ids[@]}" "$@" bash -c '
     set -uo pipefail
@@ -239,6 +245,28 @@ out=$(rem ENV=prd DELIVER=1 CALL=do_spl_unanswered_sweep); rc=$?
 echo "CLE-002@pc 4990" >"$R/spool/dispatch/lease"
 [[ "$(rem CALL=_spl_dispatch_tick_holder)" == CLE-002 ]] &&
   pass "12. local holder: gap notes go to it as before" || fail "12. local tick holder"
+# --- 14. a stalled agent is no candidate ----------------------------------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+stall() { printf '❯ a\n────\n  ⚠ Usage limit reached · limit resets 7:20am\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
+tick pc 20000; tick sat 20000
+stall 101
+tick pc 20060
+[[ "$(hubh dispatch)" == CLE-003@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
+  pass "14. pc's master stalled: pc's failover holds at once" || fail "14. hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+stall 100; stall 102
+tick pc 20120; tick pc 20180
+[[ "$(logc pc 'NO-LOCAL-AGENT dispatch')" == 1 && "$(logc pc 'CLE-002: stalled pid=101: Usage limit reached')" -ge 1 ]] &&
+  pass "14. pc's trio stalled: no local candidate, logged once with why" || fail "14. log: $(cat "$T/pc/spool/dispatch/lease.log")"
+tick sat 20241
+[[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh orch)" == CLE-001@sat ]] &&
+  pass "14. 181 s later the satellite takes both roles" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
+rm -f "$T/pane/100" "$T/pane/101" "$T/pane/102"
+tick pc 20300
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc ]] &&
+  pass "14. the notices gone, pc takes both back on priority" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
+
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease.tst.sh assertion(s)"; exit 1

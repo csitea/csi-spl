@@ -155,7 +155,7 @@ sequenceDiagram
     participant W as lease watcher
     participant F as CLE-003 (failover)
     participant O as CLE-001
-    loop every 60 s while the master's claude process lives
+    loop every 60 s while the master's claude process lives and is able to act
         M->>L: write "CLE-002 <epoch>"
     end
     W->>L: read every 60 s
@@ -175,6 +175,18 @@ sequenceDiagram
   live claude process whose environment carries `SPOOL_AGENT_ID=<master>`, so a
   relaunched master is picked up with no manual step. No such process, no
   renewal, and the lease goes stale.
+- **Live means able to act** (CLE-77935): a live process is not enough. On
+  2026-10-02 the master sat on `Usage limit reached · Continuing
+  automatically at 7:20am` with an owner post in its prompt while the lease
+  stayed fresh. Each tick also reads the footer of the agent's own tmux pane
+  (the last 8 non-blank lines of the visible screen, found by walking the
+  pid's parents to a `pane_pid`); a usage-limit, `/login`, invalid-key,
+  onboarding or trust screen there means stalled: no renewal, logged once as
+  `renew stop <id> (stalled pid=<n>: <text>)`, and the 180 s failover fires.
+  The same rule picks the fleet lease's local candidates (section 4.1), so a
+  machine whose whole trio is stalled lets the fleet lease go stale and the
+  other machine takes over. No pane found fails open (process-only rule).
+  Patterns: `LEASE_STALL_RE`; footer depth: `LEASE_PANE_TAIL`.
 - The **watch loop** promotes the failover after 180 s without renewal (never
   a failover with no live process: that is logged once as `NO-FAILOVER`) and
   keeps the lease fresh in its name, under a lock so it cannot overwrite a

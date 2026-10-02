@@ -4,7 +4,8 @@
 # @description section 4): exactly one dispatcher holds the lease and
 # @description dispatches. LEASE_CMD picks the verb:
 # @description   show   - print "<holder> <age-seconds>"
-# @description   renew  - loop: every LEASE_PERIOD s, while a live claude
+# @description   renew  - loop: every LEASE_PERIOD s, while a live (and not
+# @description            stalled: usage-limit/login pane, CLE-77935) claude
 # @description            process carries SPOOL_AGENT_ID=<master>, write
 # @description            "<master> <epoch>". It follows the master BY ID,
 # @description            so a relaunched master is picked up with no manual
@@ -231,17 +232,75 @@ spl_lease_live_ids() {
   } | sort -u
 }
 
-# One renew tick. The bound pid lives in renew.<id>.pid so a rebind or a loss
-# is logged once, not every tick.
-spl_lease_renew_tick() {
-  local id="$LEASE_MASTER" state="$LEASE_DIR/renew.$LEASE_MASTER.pid" pid last=""
-  [[ -f "$state" ]] && last="$(cat "$state")"
+# A live process is not enough (CLE-77935): on 2026-10-02 the master sat on
+# "Usage limit reached ... Continuing automatically at 7:20am" with an owner
+# post in its prompt while the lease stayed fresh every minute, so the 180 s
+# failover never fired. The agent must also be ABLE to act: the footer of its
+# tmux pane (the last LEASE_PANE_TAIL non-blank lines of the visible screen,
+# where claude draws that notice under the prompt) shows no usage-limit,
+# login, onboarding or trust screen. Prints the matched text when stalled,
+# nothing otherwise. Fails OPEN: no pane found (no tmux, an agent outside
+# tmux) keeps the process-only rule, so a missing tmux never drops a master.
+LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired|select login method|do you trust the files|choose the text style'
+spl_lease_stall() {
+  local text
+  text="$(spl_lease_pane_text "$1" 2>/dev/null)" || return 0
+  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-8}" |
+    grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" | head -1
+  return 0
+}
+
+# The visible screen of the tmux pane that runs <pid>: the pane whose
+# pane_pid is <pid> or one of its ancestors (two panes may carry an agent's
+# name; only the one it runs in counts). LEASE_PANE_CMD (called with the pid)
+# replaces it in the tests. Non-zero = no pane.
+spl_lease_pane_text() {
+  local root="${LEASE_PROC_ROOT:-/proc}" panes pane="" p="$1" stat i
+  local -a tm=(tmux)
+  [[ -n "${LEASE_PANE_CMD:-}" ]] && { $LEASE_PANE_CMD "$1"; return; }
+  [[ -n "${LEASE_TMUX_SOCKET:-}" ]] && tm+=(-S "$LEASE_TMUX_SOCKET")
+  command -v tmux >/dev/null || return 1
+  panes="$("${tm[@]}" list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)" || return 1
+  for ((i = 0; i < 8; i++)); do
+    pane="$(awk -v p="$p" '$1 == p {print $2; exit}' <<<"$panes")"
+    [[ -n "$pane" ]] && break
+    # /proc/<pid>/stat: "pid (comm) state ppid ..."; comm may hold spaces
+    stat=""; { read -r stat < "$root/$p/stat"; } 2>/dev/null
+    stat="${stat##*) }"; read -r _ p _ <<<"$stat"
+    [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 1
+  done
+  [[ -n "$pane" ]] || return 1
+  "${tm[@]}" capture-pane -p -t "$pane" 2>/dev/null
+}
+
+# The pid of <id> when it is live AND able to act (spl_lease_stall); empty
+# otherwise. Why not is left in $LEASE_DIR/able.<id> for the loggers.
+spl_lease_agent_able() {
+  local id="$1" pid why
   pid="$(spl_lease_agent_pid "$id")"
+  if [[ -z "$pid" ]]; then why="no live process"
+  else why="$(spl_lease_stall "$pid")"; [[ -n "$why" ]] && why="stalled pid=$pid: $why"
+  fi
+  printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
+  [[ -z "$why" ]] && echo "$pid"
+  return 0
+}
+
+# One renew tick. The bound pid lives in renew.<id>.pid so a rebind, a loss or
+# a stall is logged once, not every tick. A stalled master is not renewed.
+spl_lease_renew_tick() {
+  local id="$LEASE_MASTER" state="$LEASE_DIR/renew.$LEASE_MASTER.pid" pid last="" why st
+  [[ -f "$state" ]] && last="$(cat "$state")"
+  pid="$(spl_lease_agent_able "$id")"
   if [[ -n "$pid" ]]; then
     spl_lease_locked spl_lease_write "$id"
     [[ "$pid" != "$last" ]] && { echo "$pid" > "$state"; spl_lease_log "renew bind $id pid=$pid"; }
-  elif [[ "$last" != gone ]]; then
-    echo gone > "$state"; spl_lease_log "renew stop $id (no live process)"
+  else
+    why="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
+    st=gone; [[ "$why" == stalled* ]] && st=stalled
+    if [[ "$st" != "$last" ]]; then
+      echo "$st" > "$state"; spl_lease_log "renew stop $id (${why:-no live process})"
+    fi
   fi
   return 0
 }
@@ -270,18 +329,18 @@ spl_lease_watch_tick() {
     fi
   fi
   if [[ "$LH" != "$f" && "$age" -gt "$LEASE_STALE" ]]; then
-    fpid="$(spl_lease_agent_pid "$f")"
+    fpid="$(spl_lease_agent_able "$f")"
     if [[ -n "$fpid" ]]; then
       spl_lease_locked spl_lease_promote "$m" "$f" "$age" || return 0
       rm -f "$LEASE_FILE.nofailover"
     elif [[ ! -f "$LEASE_FILE.nofailover" ]]; then
       touch "$LEASE_FILE.nofailover"
-      spl_lease_log "NO-FAILOVER: $LH silent ${age}s and $f has no live process"
-      spl_lease_tell "$LEASE_ORCH" "DISPATCH LEASE: nobody dispatches - master $m silent ${age}s and failover $f has no live process."
+      spl_lease_log "NO-FAILOVER: $LH silent ${age}s and $f is not able to act ($(cat "$LEASE_DIR/able.$f" 2>/dev/null))"
+      spl_lease_tell "$LEASE_ORCH" "DISPATCH LEASE: nobody dispatches - master $m silent ${age}s and failover $f is not able to act ($(cat "$LEASE_DIR/able.$f" 2>/dev/null))."
     fi
   elif [[ "$LH" == "$f" ]]; then
     # keep it fresh while the failover lives; a dead failover lets it go stale
-    [[ -n "$(spl_lease_agent_pid "$f")" ]] && spl_lease_locked spl_lease_refresh "$f"
+    [[ -n "$(spl_lease_agent_able "$f")" ]] && spl_lease_locked spl_lease_refresh "$f"
   fi
   return 0
 }
@@ -504,12 +563,19 @@ spl_fleet_rank() {
 spl_fleet_candidate() {
   local id
   case "$1" in
-    orch) [[ -n "$(spl_lease_agent_pid "$LEASE_ORCH")" ]] && echo "$LEASE_ORCH" ;;
+    orch) [[ -n "$(spl_lease_agent_able "$LEASE_ORCH")" ]] && echo "$LEASE_ORCH" ;;
     dispatch)
       for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
-        [[ -n "$(spl_lease_agent_pid "$id")" ]] && { echo "$id"; return; }
+        [[ -n "$(spl_lease_agent_able "$id")" ]] && { echo "$id"; return; }
       done ;;
   esac
+}
+
+# Why each local agent of a role is not a candidate: "<id>: <why>; ...".
+spl_fleet_why() {
+  local id out=""
+  for id in $(spl_fleet_role_agents "$1"); do out+="${out:+; }$id: $(cat "$LEASE_DIR/able.$id" 2>/dev/null)"; done
+  echo "$out"
 }
 
 # The local agents of a role (who hears ACTIVE / STANDBY).
@@ -530,7 +596,7 @@ spl_fleet_role_tick() {
   fi
   hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
   if [[ -z "$cand" ]]; then
-    [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate; it goes stale in ${LEASE_STALE}s"
+    [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
   elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )) ||
        (( $(spl_fleet_rank "$me") < $(spl_fleet_rank "$hm") )); then
     want="$cand@$me"

@@ -1,0 +1,169 @@
+package hub
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+)
+
+// A member's read marks on the hub (rdb 0098, CLE-77930). The owner, t1
+// bf737f3f: unread is "for me and me only ... not the new messages which I
+// have seen" - and the cursors lived only in one browser's storage, so a line
+// read on the phone stayed new on the desktop. GET /v1/me/reads answers every
+// mark; PUT /v1/me/reads moves the marks it names forward (never back) and
+// answers them all, so a tab merges what other devices read. GET
+// /v1/view/channels counts unread against these marks as well as its read=.
+
+// wireReadMark is one mark on the wire: ts/id are the WUI cursor's, cursor
+// the view-v1 one (a channel row's last_cursor), count a thread's seen total.
+type wireReadMark struct {
+	TS     string `json:"ts,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
+// readMarkSkew is how far ahead of the hub's clock a mark may claim to be: a
+// device clock running fast must not mark lines read before they arrive.
+const readMarkSkew = time.Minute
+
+func (s *Server) readMarkStore() (store.ReadMarks, bool) {
+	rm, ok := s.o.Store.(store.ReadMarks)
+	return rm, ok
+}
+
+// storedChannelReads merges the reader's stored ch: marks into reads (the
+// later one wins per channel). A lookup error leaves reads as the client
+// sent them: the badge then counts as it did before rdb 0098.
+func (s *Server) storedChannelReads(ctx context.Context, tenant, hum string, reads map[string]store.ReadMark) {
+	rm, ok := s.readMarkStore()
+	if !ok || hum == "" {
+		return
+	}
+	marks, err := rm.ReadMarksOf(ctx, tenant, hum)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("read marks read")
+		return
+	}
+	for k, m := range marks {
+		id, ok := strings.CutPrefix(k, "ch:")
+		if !ok {
+			continue
+		}
+		id = store.NormalizeChannel(id)
+		if was, ok := reads[id]; !ok || m.At.After(was.At) || (m.At.Equal(was.At) && m.MsgID > was.MsgID) {
+			reads[id] = store.ReadMark{At: m.At, MsgID: m.MsgID}
+		}
+	}
+}
+
+func wireReadMarks(marks map[string]store.ReadMark) map[string]wireReadMark {
+	out := make(map[string]wireReadMark, len(marks))
+	for k, m := range marks {
+		w := wireReadMark{TS: rfc(m.At), ID: m.MsgID, Count: m.Seen}
+		if m.MsgID != "" {
+			w.Cursor = encCursor(m.At, m.MsgID)
+		}
+		out[k] = w
+	}
+	return out
+}
+
+// parseReadMarkBody validates PUT /v1/me/reads: at most store.MaxReadMarks
+// keys, each ch:/t:/dm:, each with a cursor or an RFC 3339 ts; a mark ahead of
+// now is clamped to now.
+func parseReadMarkBody(in map[string]wireReadMark, now time.Time) (map[string]store.ReadMark, bool) {
+	if len(in) > store.MaxReadMarks {
+		return nil, false
+	}
+	out := make(map[string]store.ReadMark, len(in))
+	for k, w := range in {
+		if !store.ValidReadMarkKey(k) || w.Count < 0 {
+			return nil, false
+		}
+		m := store.ReadMark{MsgID: w.ID, Seen: w.Count}
+		if w.Cursor != "" {
+			at, id, err := decCursor(w.Cursor)
+			if err != nil {
+				return nil, false
+			}
+			m.At, m.MsgID = at, id
+		} else {
+			at, err := time.Parse(time.RFC3339Nano, w.TS)
+			if err != nil {
+				return nil, false
+			}
+			m.At = at
+		}
+		if len(m.MsgID) > 200 {
+			return nil, false
+		}
+		if m.At.After(now.Add(readMarkSkew)) {
+			m.At = now
+		}
+		out[k] = m
+	}
+	return out, true
+}
+
+// handleReadMarks is GET and PUT /v1/me/reads.
+func (s *Server) handleReadMarks(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r)
+	t, hum, ok := s.humanTenant(w, r)
+	if !ok {
+		return
+	}
+	if hum == "" {
+		writeForbidden(w, rbac.TopicsRead, "read marks need a signed-in member session")
+		return
+	}
+	rm, ok := s.readMarkStore()
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "read marks unavailable")
+		return
+	}
+	if r.Method == http.MethodPut {
+		var body struct {
+			Marks map[string]wireReadMark `json:"marks"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&body); err != nil || body.Marks == nil {
+			writeErr(w, http.StatusBadRequest, "bad_json", "body must be {marks: {<ch:|t:|dm:key>: {ts|cursor, id, count}}}")
+			return
+		}
+		marks, valid := parseReadMarkBody(body.Marks, s.o.Now())
+		if !valid {
+			writeErr(w, http.StatusBadRequest, "bad_json", "at most 200 marks; keys ch:/t:/dm:<id>; each a cursor or an RFC 3339 ts")
+			return
+		}
+		if err := rm.SaveReadMarks(r.Context(), t.ID, hum, marks, s.o.Now()); err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("read marks write")
+			writeErr(w, http.StatusInternalServerError, "internal", "read marks not stored")
+			return
+		}
+	}
+	marks, err := rm.ReadMarksOf(r.Context(), t.ID, hum)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("read marks read")
+		writeErr(w, http.StatusInternalServerError, "internal", "read marks unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"marks": wireReadMarks(marks)})
+}
+
+// readMarksPreflight: GET/PUT with the headers every browser route allows.
+func (s *Server) readMarksPreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "GET, PUT")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

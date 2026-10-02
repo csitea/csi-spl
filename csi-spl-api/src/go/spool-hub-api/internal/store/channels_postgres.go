@@ -391,7 +391,10 @@ func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {
 		}}
 }
 
-// unreadReads counts, per read mark, the messages after it. A mark only
+// unreadReads counts, per read mark, the messages after it - less the lines
+// the reader already read inside their thread (rdb 0098 t: marks, CLE-77930:
+// a thread read from Flow or on another device is not new in its channel).
+// A mark only
 // matters for a channel with messages, which is known only once the counts
 // read is scanned: every mark is queued, and one for a channel without
 // messages is scanned and dropped.
@@ -406,7 +409,7 @@ func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time, re
 		mark := reads[id]
 		out = append(out, tenantRead{`SELECT count(*)::int FROM messages
 				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)
-				AND ($6::text IS NULL OR (from_id IS DISTINCT FROM $6 AND typed_by IS DISTINCT FROM $6))`,
+				AND ($6::text IS NULL OR (from_id IS DISTINCT FROM $6 AND typed_by IS DISTINCT FROM $6))` + threadReadSQL("messages", "$1", "$6"),
 			[]any{cs.tenant, id, now, mark.At, mark.MsgID, nullIfEmpty(reader)}, func(r pgx.Rows) error {
 				var unread int
 				if err := r.Scan(&unread); err != nil {
@@ -429,8 +432,8 @@ func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time, re
 // landed in a topic already archived, and every line of a topic archived
 // before it was read stayed counted. Driven from the archived cards (222 in
 // t1), so the counts read keeps its index-only scan. Same unread test as
-// countsRead / unreadReads: after the channel's mark when it has one, and
-// not the reader's own line (OwnLine).
+// countsRead / unreadReads: after the channel's mark when it has one (and
+// then not read inside its thread), and not the reader's own line (OwnLine).
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	ids := make([]string, 0, len(reads))
 	ats := make([]time.Time, 0, len(reads))
@@ -449,6 +452,7 @@ func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Tim
 		WHERE m.channel IS NOT NULL AND m.expires_at > $2
 			AND (mk.ch IS NULL OR (m.received_at, m.msg_id::text) > (mk.at, mk.id))
 			AND ($3::text IS NULL OR (m.from_id IS DISTINCT FROM $3 AND (mk.ch IS NULL OR m.typed_by IS DISTINCT FROM $3)))
+			AND (mk.ch IS NULL OR (TRUE` + threadReadSQL("m", "$1", "$3") + `))
 		GROUP BY m.channel`,
 		[]any{cs.tenant, now, nullIfEmpty(reader), lobby, ids, ats, msgs}, func(r pgx.Rows) error {
 			var id string

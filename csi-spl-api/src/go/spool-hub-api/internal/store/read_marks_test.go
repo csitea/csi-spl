@@ -52,3 +52,53 @@ func TestReadMarksMoveForwardOnly(t *testing.T) {
 		})
 	}
 }
+
+// CLE-77930: a line the reader already read inside its thread (a t: mark at or
+// past it - Flow, a link, another device) is not unread in its channel; a
+// later reply of that thread is.
+func TestChannelUnreadSkipsLinesReadInTheirThread(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			rm := s.(ReadMarks)
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			line := func(ago time.Duration, task string) Message {
+				m := msgFor(tid, task, "box-wui", now, now.Add(-ago), "e")
+				m.Channel, m.FromID, m.FromBox = "devel", "CLE-07", "box-a"
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+				return m
+			}
+			read, other := uuid4(), uuid4()
+			mark := line(10*time.Minute, other)
+			line(9*time.Minute, read)
+			r2 := line(8*time.Minute, read)
+			line(7*time.Minute, other)
+			line(6*time.Minute, read) // after the thread mark: new
+			if err := rm.SaveReadMarks(ctx, tid, "HUM-1", map[string]ReadMark{ThreadMarkKey(read): {At: r2.ReceivedAt, MsgID: r2.MsgID, Seen: 1}}, now); err != nil {
+				t.Fatal(err)
+			}
+			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"devel": {At: mark.ReceivedAt, MsgID: mark.MsgID}}, "HUM-1", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, st := range stats {
+				if st.ChannelID == "devel" && st.Unread != 2 {
+					t.Fatalf("devel unread = %d, want 2 (the other thread's reply + the read thread's newer reply)", st.Unread)
+				}
+			}
+			// another member has no thread mark: all 4 lines past the channel mark
+			stats, err = s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"devel": {At: mark.ReceivedAt, MsgID: mark.MsgID}}, "HUM-2", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, st := range stats {
+				if st.ChannelID == "devel" && st.Unread != 4 {
+					t.Fatalf("HUM-2 devel unread = %d, want 4", st.Unread)
+				}
+			}
+		})
+	}
+}

@@ -209,11 +209,48 @@ permission control).
 - `read` (repeatable) = the reader's last-read cursor per channel (a cursor
   from `./view-v1.md` §4.4). `unread` = messages after it; without one,
   `unread = count`. A cursor the hub cannot decode → `400 bad_cursor`. Read
-  state is **client-held** (OQ-CH2). The reading member's OWN lines are never
+  state is client-held AND hub-stored (OQ-CH2 (b), §5.2.1). The reading member's OWN lines are never
   unread for them (CLE-77889): their posts, and, after a `read` cursor, a line
   they typed at an agent's terminal (`typed_by`). Another reader counts them.
   Tests: `TestChannelUnreadSkipsReadersOwnLines` (store),
   `TestViewChannelsOwnPostNotUnread` (hub).
+- **One unread rule, hub and WUI** (CLE-77930, owner t1 bf737f3f: unread is
+  "for me and me only ... not the new messages which I have seen"). A line
+  of channel C is new for member V when it is not V's own, it is after V's
+  read position in C, V has not read it inside its thread (a `t:<task_id>`
+  mark at or past it), and the channel feed does not hide it as archived
+  (specs/041: its card, its task's card or the lobby card whose thread it
+  is in is archived). The read position is the later of the `read` cursor
+  and V's stored `ch:<C>` mark (§5.2.1). In the WUI, opening C marks every
+  thread with replies after V's position and no mark of its own AT that
+  position, so its card reads `<new>/<total>` until the thread is opened.
+  Tests: `TestChannelUnreadSkipsArchivedLines`,
+  `TestChannelUnreadSkipsLinesReadInTheirThread` (store),
+  `TestReadMarksFollowTheMemberAcrossDevices` (hub),
+  `read-cursor.test.mjs`, `read-sync.test.mjs` (WUI unit),
+  `channel-thread-unread.test.mjs` (WUI e2e).
+
+#### 5.2.1 `GET` / `PUT /v1/me/reads` (rdb 0098, CLE-77930)
+
+A member's read marks, kept on the hub so a read on one device is a read on
+every other. Signed-in member session only (`403` otherwise).
+
+```json
+{ "marks": { "ch:devel": { "ts": "…", "id": "<msg_id>", "cursor": "<view cursor>" },
+             "t:<task_id>": { "ts": "…", "count": 7 },
+             "dm:CLE-07@box-a": { "ts": "…", "id": "<msg_id>" } } }
+```
+
+- `PUT` names at most 200 marks, each `ch:` / `t:` / `dm:` + 1..200
+  non-space characters, with a `cursor` (wins) or an RFC 3339 `ts`; `count`
+  is a thread's seen reply total. Anything else is `400 bad_json`. A mark
+  ahead of the hub's clock by more than a minute is clamped to now.
+- A write only moves a mark forward: `(ts, id)` takes the later, `count` the
+  higher, so tabs and devices pushing in any order converge. Both answer
+  every mark the member has.
+- The WUI pulls on its first feed page and when the tab becomes visible,
+  and pushes the cursors that moved every 5 s and when the tab is hidden
+  (`utils/read-sync.mjs`, a lazy chunk).
 - `members.agents` / `members.boxes` = subscribed agents / their boxes
   (a default channel: the agents a member added, origin `removed` not
   counted); `members.posters` = distinct `from` ids.
@@ -434,10 +471,11 @@ ratification (`../spec.md` → **Open owner questions (sync 2026-09-25)**, Q2).
   too, now (needs a signed `channel_create` frame and its replay rule).
   Evidence: creation also needs RBAC `channels.manage` (`internal/hub/channels.go:325`,
   spec 025); `grep -rn channel_create csi-spl-api/src/go/spool-hub-api --include=*.go` → 0.
-- **OQ-CH2** — read state: (a) *recommended, implemented*: client-held
-  cursors passed as `read=`; (b) hub-stored per-human cursors (needs the
-  humans table, HUMANS 0006).
-  Evidence: `internal/hub/view.go:259` computes unread from `read=`; no hub read-state column.
+- **OQ-CH2** — read state: (a) client-held cursors passed as `read=`;
+  (b) hub-stored per-member marks. *Implemented: both* (CLE-77930, rdb
+  0098): client cursors still go as `read=`, and the hub counts against the
+  later of each and the stored mark (§5.2.1), because client-only state made
+  a line read on one device stay new on another.
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
   Evidence: still accepted (`internal/store/channels.go:20` `ChannelGeneralAlias`); no end release is set.

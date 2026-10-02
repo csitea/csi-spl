@@ -76,6 +76,25 @@ func (s *Memory) SaveReadMarks(_ context.Context, tenant, humanID string, marks 
 	return nil
 }
 
+// threadReadLocked: the reader read this line inside its thread (a t: mark at
+// or past it). Memory twin of threadReadSQL.
+func (s *Memory) threadReadLocked(tenant, reader string, m *Message) bool {
+	if reader == "" || m.TaskID == "" {
+		return false
+	}
+	tm, ok := s.readMarks[[3]string{tenant, reader, ThreadMarkKey(m.TaskID)}]
+	return ok && !newer(m.ReceivedAt, m.MsgID, tm.At, tm.MsgID)
+}
+
+// threadReadSQL is the unread filter on alias a: unless the reader ($reader,
+// NULL = none) has a
+// thread mark at or past the line - read inside its thread, wherever that was
+// opened (Flow, a link, another device). One PK probe per counted line.
+func threadReadSQL(a, tenant, reader string) string {
+	return ` AND (` + reader + `::text IS NULL OR NOT EXISTS (SELECT 1 FROM read_marks tm WHERE tm.tenant_id = ` + tenant + ` AND tm.member_id = ` + reader + `
+		AND tm.mark_key = 't:' || ` + a + `.task_id::text AND (` + a + `.received_at, ` + a + `.msg_id::text) <= (tm.at, tm.msg_id)))`
+}
+
 func (s *Postgres) ReadMarksOf(ctx context.Context, tenant, humanID string) (map[string]ReadMark, error) {
 	out := map[string]ReadMark{}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -103,9 +122,9 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 	keys := make([]string, 0, len(marks))
 	ats := make([]time.Time, 0, len(marks))
 	ids := make([]string, 0, len(marks))
-	seen := make([]int32, 0, len(marks))
+	seen := make([]int, 0, len(marks))
 	for k, m := range marks {
-		keys, ats, ids, seen = append(keys, k), append(ats, m.At), append(ids, strings.TrimSpace(m.MsgID)), append(seen, int32(max(0, m.Seen)))
+		keys, ats, ids, seen = append(keys, k), append(ats, m.At), append(ids, strings.TrimSpace(m.MsgID)), append(seen, max(0, m.Seen))
 	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)

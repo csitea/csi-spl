@@ -397,7 +397,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 		st := get(m.Channel)
 		st.Count++
 		st.LastAt, st.LastMsgID = m.ReceivedAt, m.MsgID
-		if r, ok := reads[m.Channel]; (!ok || newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID)) && !OwnLine(m.FromID, m.TypedBy, reader, ok) && !s.archivedHiddenLocked(tenant, m, lobby) {
+		if r, ok := reads[m.Channel]; (!ok || newer(m.ReceivedAt, m.MsgID, r.At, r.MsgID)) && !OwnLine(m.FromID, m.TypedBy, reader, ok) && !s.archivedHiddenLocked(tenant, m, lobby) && !(ok && s.threadReadLocked(tenant, reader, m)) {
 			st.Unread++
 		}
 		if posters[m.Channel] == nil {

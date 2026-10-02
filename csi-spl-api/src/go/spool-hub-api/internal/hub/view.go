@@ -51,6 +51,9 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045
 	s.routeSearch(mux)                                                      // search-v1.md
+	mux.HandleFunc("GET /v1/me/reads", s.handleReadMarks)                   // CLE-77930, rdb 0098
+	mux.HandleFunc("PUT /v1/me/reads", s.handleReadMarks)
+	mux.HandleFunc("OPTIONS /v1/me/reads", s.readMarksPreflight)
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)
@@ -345,6 +348,8 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	var rows []store.ChannelStat
 	err := errChannelsDoor
 	if member {
+		// CLE-77930: what this member read on any device counts too (rdb 0098)
+		s.storedChannelReads(r.Context(), t.ID, hum, reads)
 		rows, err = s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads, hum, s.o.LobbyTaskID)
 	}
 	if err == nil {

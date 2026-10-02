@@ -24,6 +24,9 @@ for k in claude grok agy qwen; do
   has "$k: prompt says local mode is unsigned" "UNSIGNED" "$prompt"
   has "$k: prompt names the orchestrator" "today CLE-00 here" "$prompt"
   has "$k: reports go to the lease holder (specs/058 N1)" "--to orchestrator" "$prompt"
+  # CLE-77943 (2026-10-02): owner text went to the standby dispatcher that last posted in the topic.
+  has "$k: owner text goes to the dispatch lease holder" "csi-spl-orc && sudo -u ${SPOOL_BOX_USER} env SPOOL_ROOT=${SPOOL_ROOT} LEASE_CMD=show ./run -a do_spl_dispatch_lease" "$prompt"
+  has "$k: ... never to the last dispatcher in the topic" "never to a fixed dispatcher id and never to the dispatcher that last posted in that topic" "$prompt"
   # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   # CLE-77938 (owner 2026-10-02): one agent does one small task, then exits.

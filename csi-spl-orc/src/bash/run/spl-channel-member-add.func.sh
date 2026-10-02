@@ -73,8 +73,53 @@ do_spl_channel_member_add() {
 _spl_channel_member_add_run() {
   local out rc=0 n_added n_already line who="$2" mark
   [[ -n "$who" ]] || who="$3"
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v human="$2" -v email="$3" -v channel="$4" <<'SQL'
+  out="$(_spl_channel_member_add_sql |
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+      -v tenant="$1" -v human="$2" -v email="$3" -v channel="$4")" || rc=$?
+  # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
+  # refusal is recognised from the line the script printed, not from rc.
+  if mark="$(spl_psql_mark "$out" refuse-human)"; then
+    do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
+    do_log "FATAL human $mark is not in humans"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
+    do_log "FATAL not_a_member: $mark is not a member of $1"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
+    do_log "FATAL no channel $mark in $1"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
+    do_log "FATAL #$mark is a default channel: a membership row is not stored"
+    return 1
+  elif grep -q '^refuse-count$' <<<"$out"; then
+    do_log "FATAL member add of $who to #$4 in $1 changed an unexpected number of rows; rolled back"
+    return 1
+  elif (( rc != 0 )); then
+    do_log "FATAL member add of $who to #$4 in $1 failed: $out"
+    return 1
+  fi
+  n_added="$(grep -c '^added | ' <<<"$out" || true)"
+  n_already="$(grep -c '^already | ' <<<"$out" || true)"
+  if (( n_added + n_already != 1 )); then
+    do_log "FATAL member add of $who to #$4 in $1 returned no single membership result: $out"
+    return 1
+  fi
+  if (( n_added == 1 )); then
+    line="$(grep '^added | ' <<<"$out" | head -n 1)"
+    do_log "OK added $who to #$4 in $1 ($GCP_ACCOUNT): $line"
+  else
+    line="$(grep '^already | ' <<<"$out" | head -n 1)"
+    do_log "OK ${line#already | } is already a member of #$4 in $1 ($GCP_ACCOUNT)"
+  fi
+}
+
+# _spl_channel_member_add_sql: the one-transaction add script - refuse a public or
+# missing channel, an email that is not exactly one human, a human not in the
+# tenant; else upsert the membership and print "added | ..." / "already | ...".
+_spl_channel_member_add_sql() {
+  cat <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT (:'channel' IN ('lobby', 'alerts', 'feedback', 'tasks', 'issues', 'general'))::int AS ispub \gset
@@ -147,42 +192,4 @@ SELECT 'refuse-count';
 \endif
 \endif
 SQL
-)" || rc=$?
-  # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
-  # refusal is recognised from the line the script printed, not from rc.
-  if mark="$(spl_psql_mark "$out" refuse-human)"; then
-    do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
-    do_log "FATAL human $mark is not in humans"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
-    do_log "FATAL not_a_member: $mark is not a member of $1"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
-    do_log "FATAL no channel $mark in $1"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
-    do_log "FATAL #$mark is a default channel: a membership row is not stored"
-    return 1
-  elif grep -q '^refuse-count$' <<<"$out"; then
-    do_log "FATAL member add of $who to #$4 in $1 changed an unexpected number of rows; rolled back"
-    return 1
-  elif (( rc != 0 )); then
-    do_log "FATAL member add of $who to #$4 in $1 failed: $out"
-    return 1
-  fi
-  n_added="$(grep -c '^added | ' <<<"$out" || true)"
-  n_already="$(grep -c '^already | ' <<<"$out" || true)"
-  if (( n_added + n_already != 1 )); then
-    do_log "FATAL member add of $who to #$4 in $1 returned no single membership result: $out"
-    return 1
-  fi
-  if (( n_added == 1 )); then
-    line="$(grep '^added | ' <<<"$out" | head -n 1)"
-    do_log "OK added $who to #$4 in $1 ($GCP_ACCOUNT): $line"
-  else
-    line="$(grep '^already | ' <<<"$out" | head -n 1)"
-    do_log "OK ${line#already | } is already a member of #$4 in $1 ($GCP_ACCOUNT)"
-  fi
 }

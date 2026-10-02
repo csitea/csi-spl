@@ -61,7 +61,11 @@ function onMoved(moved: string[], marks: Record<string, Mark>) {
   if (moved.some((k) => k.startsWith('dm:'))) {
     const session = useSessionStore()
     const self = String((session.claims && (session.claims as { hum?: string }).hum) || '')
-    notes.applyDms(channel.dmSeed, self, '')
+    /* DB payload cut 1: the seed's dm counts were made by the hub against the
+       dm_read= cursors it was sent, so moved dm: cursors need a fresh seed -
+       re-applying the cached rows would keep the old counts. notify.client.ts
+       applies the new rows (its dmSeed watch), as for the first paint. */
+    void channel.loadDmActivity(self)
   }
   if (moved.some((k) => k.startsWith('ch:'))) void channel.loadChannels().catch(() => {})
 }

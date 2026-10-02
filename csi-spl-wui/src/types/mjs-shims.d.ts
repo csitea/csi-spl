@@ -62,8 +62,13 @@ declare module '~/utils/spool-client.mjs' {
       agent?: string
       roots?: boolean
       perTopic?: number
+      dmCounts?: boolean
+      dmRead?: string[]
     }): Promise<{
-      topics: Array<import('./spool').TopicRow & { inline?: { task_id: string, messages: import('./spool').SpoolMessage[], next: string | null } }>
+      topics: Array<import('./spool').TopicRow & {
+        inline?: { task_id: string, messages: import('./spool').SpoolMessage[], next: string | null }
+        dm?: { unread: Record<string, number>, total: Record<string, number> }
+      }>
       next: string | null
     }>
     getTopic(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{
@@ -341,6 +346,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function dmActivity(topics: unknown[], self?: string): Record<string, string>
   export function unreadFromDms(topics: unknown, cursors: Record<string, unknown>, self?: string): Record<string, number>
   export function dmTotalsFromDms(topics: unknown, self?: string): Record<string, number>
+  export function dmReadParams(cursors: Record<string, unknown>): string[]
   export function dmPeerOf(msg: unknown, self?: string): string
   export function noteActivity(
     maps: { channels?: Record<string, string>, peers?: Record<string, string> },

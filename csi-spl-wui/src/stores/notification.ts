@@ -340,9 +340,9 @@ export const useNotificationStore = defineStore('notification', () => {
     unread.value = { ...unread.value, ...hub }
   }
 
-  /** DM unread from our cursors + the ?dm=true topic rows, on load and every
-   *  reconnect — the DM twin of applyChannels (the hub counts channels only, so
-   *  a DM that arrived while the tab was closed showed no badge). Live bumps
+  /** DM unread from the ?dm=true topic rows (the hub's dm_counts against our
+   *  dm_read= cursors, or an older hub's inline page against loadCursors), on
+   *  load and every reconnect — the DM twin of applyChannels. Live bumps
    *  add between refetches; a refetch overwrites the peer with the fresh count,
    *  and the open DM is left alone (it is read as it is viewed). */
   function applyDms(topics: unknown, self = '', activeKey = '') {

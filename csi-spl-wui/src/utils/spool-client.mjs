@@ -538,7 +538,7 @@ export function createSpoolClient({
      * returns. A hub without it ignores the parameter and rows carry no
      * `inline` (callers read those topics one by one, as before).
      */
-    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0 } = {}) {
+    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0, dmCounts = false, dmRead = [] } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -559,11 +559,17 @@ export function createSpoolClient({
       if (roots === false) q.set('roots', 'false')
       const inlineN = Number(perTopic) || 0
       if (inlineN >= 1 && inlineN <= PER_TOPIC_MAX) q.set('per_topic', String(inlineN))
+      /* DB payload cut 1: the hub counts the per-peer DM unread/total against our dm_read= cursors */
+      if (dmCounts) {
+        q.set('dm_counts', 'true')
+        for (const mark of dmRead || []) q.append('dm_read', String(mark))
+      }
       const data = await live(`/v1/view/topics?${q}`)
       const rows = (data && data.topics) || []
       return {
         topics: rows.map((raw) => {
           const row = normalizeTopicRow(raw)
+          if (raw && raw.dm && typeof raw.dm === 'object') row.dm = raw.dm
           if (inlineN && raw && Array.isArray(raw.messages)) {
             row.inline = { task_id: row.task_id, messages: raw.messages.map(normalizeViewMessage), next: raw.messages_next || null }
           }

@@ -4,7 +4,8 @@
 // Real browser, mock tenant.
 //
 //   load      the ?dm=true rows (5 lines, 2 after the stored cursor, 1 our own)
-//             give "2/5" on the peer's row
+//             give "2/5" on the peer's row - from the inline page and from
+//             the hub's dm_counts row alike (DB payload cut 1)
 //   live      one more DM from the peer -> "3/6" with no reload
 //   channel   the peer's answer in a CHANNEL, addressed to us, moves neither
 //             number (the 5dc55d94 phantom badge)
@@ -105,6 +106,14 @@ async function run(browser, base, width) {
   await sleep(300)
   const load = await badgeOf(p)
   check(W + 'load: 2 new of 5 reads "2/5", painted in its row', load.text === '2/5' && load.shown === true && load.total === '', load)
+
+  /* DB payload cut 1: the same topic as the hub now sends it (dm_counts=true),
+     its counts and no inline page, reads the same "2/5" */
+  const hubRow = { task_id: 'dm-topic', count: 5, participants: [PEER, 'HUM-1@box-wui'], dm: { unread: { [PEER]: 2 }, total: { [PEER]: 5 } } }
+  await notes(p, 'applyDms', [hubRow], 'HUM-1', '')
+  await sleep(300)
+  const hub = await badgeOf(p)
+  check(W + 'load (hub dm_counts row): the same "2/5", painted in its row', hub.text === '2/5' && hub.shown === true && hub.total === '', hub)
 
   const live = line('l6', 6, true)
   await notes(p, 'countDmLive', live, 'HUM-1')

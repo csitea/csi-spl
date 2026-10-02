@@ -885,6 +885,7 @@ export function unreadFromDms(topics, cursors, self = '') {
   const me = String(self || '')
   const out = {}
   for (const t of topics || []) {
+    if (addHubDmCounts(out, t, 'unread')) continue
     const msgs = t && t.inline && Array.isArray(t.inline.messages) ? t.inline.messages : []
     for (const m of msgs) {
       if (!m || m.channel || !m.from) continue
@@ -918,7 +919,7 @@ export function dmTotalsFromDms(topics, self = '') {
     if (peer) out[`dm:${peer}`] = (out[`dm:${peer}`] || 0) + n
   }
   for (const t of topics || []) {
-    if (!t) continue
+    if (!t || addHubDmCounts(out, t, 'total')) continue
     const msgs = t.inline && Array.isArray(t.inline.messages) ? t.inline.messages : null
     const count = Number(t.count) || 0
     if (msgs && msgs.length >= count) {
@@ -933,6 +934,32 @@ export function dmTotalsFromDms(topics, self = '') {
     }
   }
   return out
+}
+
+/**
+ * DB payload cut 1 (audit 2026-10-02): a `?dm=true&dm_counts=true` row carries
+ * the hub's own per-peer counts, `dm: { unread, total }` keyed "<id>@<box>",
+ * made by the rules above against the dm_read= cursors we sent
+ * (dmReadParams), so the seed needs no inline page. Adds the row's `which`
+ * map into out under `dm:<peer>`; false = the row has none (an older hub).
+ */
+function addHubDmCounts(out, t, which) {
+  const m = t && t.dm && t.dm[which]
+  if (!m || typeof m !== 'object') return false
+  for (const [peer, n] of Object.entries(m)) {
+    if (peer && Number.isFinite(n)) out[`dm:${peer}`] = (out[`dm:${peer}`] || 0) + n
+  }
+  return true
+}
+
+/**
+ * the `dm_read=<id>@<box>~<ts>~<msg-id>` marks of our DM cursors, for the
+ * hub's dm_counts (one per `dm:` cursor that has a time).
+ */
+export function dmReadParams(cursors) {
+  return Object.entries(cursors || {})
+    .filter(([k, c]) => k.startsWith('dm:') && k.length > 3 && c && c.ts)
+    .map(([k, c]) => `${k.slice(3)}~${c.ts}~${c.id || ''}`)
 }
 
 /**

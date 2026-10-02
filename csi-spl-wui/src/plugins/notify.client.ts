@@ -66,9 +66,10 @@ export default defineNuxtPlugin(() => {
     },
   )
 
-  /* the DM twin: the hub counts unread for channels only, so DM badges are
-     recomputed here from our cursors + the ?dm=true rows loadDmActivity fetched
-     (plugins/spool-live.client.ts), on first paint and every reconnect. */
+  /* the DM twin: DM badges are reseeded here from the ?dm=true rows
+     loadDmActivity fetched (plugins/spool-live.client.ts) with the hub's
+     per-peer counts against our dm_read= cursors, on first paint and every
+     reconnect. */
   watch(
     () => channel.dmSeed,
     (topics) => {

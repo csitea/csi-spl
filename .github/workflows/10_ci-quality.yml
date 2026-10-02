@@ -177,8 +177,17 @@ jobs:
   # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
-    name: "wui: browser e2e (mock, generated)"
+    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
     runs-on: [self-hosted, spool-ci]
+    # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
+    # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
+    # 45 min timeout under load (run 36962189149), so this gate finished once
+    # per ~45 min and every push in between was cancelled while pending
+    # (36968259163 and ~40 before it). Each shard is ~10-13 min green.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
@@ -239,6 +248,7 @@ jobs:
       - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
           CI: "1"
+          E2E_SHARD: "${{ matrix.shard }}/3"
         run: |
           set -euo pipefail
           # Free ports, a signed-out API stub, the generated bundle served, then
@@ -251,8 +261,9 @@ jobs:
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.
+      # Once, on shard 1: every shard generates the same bundle.
       - name: Initial JS gzip stays within the performance budget
-        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' && matrix.shard == 1 }}
         run: |
           set -euo pipefail
           command -v python3 >/dev/null

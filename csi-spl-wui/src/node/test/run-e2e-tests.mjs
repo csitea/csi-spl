@@ -30,6 +30,7 @@
 //   node src/node/test/run-e2e-tests.mjs tests/e2e/a.test.mjs # exact paths
 //   node src/node/test/run-e2e-tests.mjs --list              # print the selection, run none
 //   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs         # stop at first failure
+//   E2E_SHARD=2/3 node src/node/test/run-e2e-tests.mjs       # the 2nd of 3 round-robin shards
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -94,13 +95,29 @@ if (paths.length) {
   if (files.length === 0) die('every discovered file is in ci-skip.txt — refusing to pass')
 }
 
+// E2E_SHARD=<i>/<n>: run only every n-th file of the selection, starting at
+// the i-th (1-based), so workflow 10 splits the suite across n parallel jobs.
+// One serial job took 35 min green and hit its 45 min timeout under load,
+// so the gate finished once per ~45 min and every push in between was
+// cancelled while pending (CLE-77945, 2026-10-02). Round-robin over the
+// sorted list keeps the slow mobile-* files spread across shards; the union
+// of shards 1..n is exactly the unsharded selection.
+const shard = process.env.E2E_SHARD || ''
+if (shard) {
+  const m = /^(\d+)\/(\d+)$/.exec(shard)
+  const [i, n] = m ? [Number(m[1]), Number(m[2])] : [0, 0]
+  if (!m || n < 1 || i < 1 || i > n) die(`E2E_SHARD="${shard}" is not <i>/<n> with 1 <= i <= n`)
+  files = files.filter((_, k) => k % n === i - 1)
+  if (files.length === 0) die(`E2E_SHARD=${shard} selects no file — refusing to pass`)
+}
+
 if (listOnly) {
   for (const f of files) console.log(f)
   process.exit(0)
 }
 
 const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`
-console.log(`e2e runner: ${files.length} file(s)${scope}\n`)
+console.log(`e2e runner: ${files.length} file(s)${scope}${shard ? `, shard ${shard}` : ''}\n`)
 
 const failures = []
 for (const [i, file] of files.entries()) {

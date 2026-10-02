@@ -89,6 +89,17 @@ try {
   r = spawnSync(process.execPath, [join(tmp, RUNNER_REL)], { cwd: tmp, encoding: 'utf8', env: { ...process.env, E2E_SKIP: 'gone.test.mjs' } })
   check('a stale E2E_SKIP name fails', r.status === 1 && /E2E_SKIP: "gone\.test\.mjs" is not a file/.test(r.stderr), r.stderr)
 
+  const shardRun = (v) => spawnSync(process.execPath, [join(tmp, RUNNER_REL), '--list'], { cwd: tmp, encoding: 'utf8', env: { ...process.env, E2E_SHARD: v } })
+  const shards = ['1/2', '2/2'].map((v) => shardRun(v).stdout.trim().split('\n').filter(Boolean))
+  check('E2E_SHARD 1/2 + 2/2 = the whole selection, round-robin, disjoint',
+    shards[0].join() === 'tests/e2e/a.test.mjs,tests/e2e/c.test.mjs' && shards[1].join() === 'tests/e2e/b.test.mjs', JSON.stringify(shards))
+  for (const bad of ['0/2', '3/2', '1/0', 'x']) {
+    r = shardRun(bad)
+    check(`E2E_SHARD="${bad}" fails`, r.status === 1 && /E2E_SHARD/.test(r.stderr), r.stderr)
+  }
+  r = shardRun('4/4')
+  check('a shard that selects nothing refuses to pass', r.status === 1 && /selects no file/.test(r.stderr), r.stderr)
+
   r = run(tmp, 'nomatch')
   check('a filter that matches nothing fails', r.status === 1 && /matched none/.test(r.stderr), r.stderr)
 } finally {

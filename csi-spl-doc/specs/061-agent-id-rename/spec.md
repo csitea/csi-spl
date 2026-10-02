@@ -1,11 +1,12 @@
 # 061: agent id rename: `CLE-`/`AGY-`/`GRK-`/`QWN-` become `c-`/`a-`/`g-`/`q-` with 3-digit rolling numbers
 
 Plan: [plan.md](plan.md). Tasks: [tasks.md](tasks.md).
-Status: plan only (CLE-77952, 2026-10-02). No code has changed yet.
+Status: wave A in progress (L1 `internal/agentid` landed). Q3 answered and
+the cutoff moved by the owner, 2026-10-02 ~06:50Z (section 7, lane L1b).
 
-## 0. The marker: the old form ends today
+## 0. The marker: the old form ends 2026-10-03
 
-> **LEGACY AGENT IDS END AT `2026-10-02T20:59:59Z`** (23:59:59 box local
+> **LEGACY AGENT IDS END AT `2026-10-03T20:59:59Z`** (23:59:59 box local
 > time, EEST). After that instant, nothing accepts `CLE-`/`AGY-`/`GRK-`/`QWN-`
 > as an agent id on a write path. One dated constant holds this instant, and
 > the alias path reads it:
@@ -21,7 +22,10 @@ Status: plan only (CLE-77952, 2026-10-02). No code has changed yet.
 > has passed.
 
 Owner, 2026-10-02 ~05:58Z: "and leave a mark the old naming convention to be
-disgarded at the end of today".
+disgarded at the end of today". Moved back one day by the owner, 2026-10-02
+~06:52Z (option "1": "Do it properly."): the hub first keys agents on
+`c-NNN@<box>` (section 3.3.1, lane L1b), and only then does per-box numbering
+start. The satellite keeps its current ids until the hub keys on `@box`.
 
 ## 1. Owner decisions (binding, 2026-10-02 ~05:55Z)
 
@@ -30,7 +34,7 @@ disgarded at the end of today".
 | D1 | "the CLE-<<n>> should become c-<<n>> with small leter and AGY-<<n>> should become a-<<n>> also with small letter and GRK-<<n>> should become g-<<n>> also with small leter". `QWN-<n>` becomes `q-<n>`, same rule |
 | D2 | Rename ALL existing agents: live agents, the registry, the hub roster and the WUI. Old ids keep resolving as aliases, so history and in-flight messages do not break |
 | D3 | "lets start all over with no more than 3 digits - aka start from 001 with 0 padding, but 001, 002 and 003 are special so start from 004 etc. when it reaches 999 than roll-over 004" |
-| D4 | The aliases are TEMPORARY. They stop being accepted at the end of 2026-10-02 (section 0) |
+| D4 | The aliases are TEMPORARY. They stop being accepted at the end of 2026-10-03 (section 0; moved from 2026-10-02 by the owner at ~06:52Z) |
 
 ## 2. The new grammar
 
@@ -76,40 +80,53 @@ kinds. The number alone names one agent on a machine (`c-004` and `a-004`
 never coexist), so "004" in a sentence is unambiguous. A per-kind counter
 gives each kind its own 996 numbers, but then "004" names up to four agents.
 
-### 3.3 Machines (spec 058)
+### 3.3 Machines (spec 058): per-box numbering, unique as `c-NNN@<box>`
 
-Today every machine allocates inside its own band (`SPOOL_AGENT_ID_RANGE`,
-058 section 3.3: home `1-99999`, satellite `100000-199999`). 3 digits leave
-996 numbers for the whole fleet.
+Owner, 2026-10-02 ~06:50Z (Q3): "the first real work started with the wrong
+id the ids should be 00n till 999 with c aka his first number should have
+been c-004". There are NO per-machine bands. EVERY machine numbers
+`004-999` on its own, starting at `004`, and holds the role ids `001`-`003`
+itself. The unique name of an agent is `c-NNN@<box>` (box = the machine's
+desk box id, `SPOOL_DESK_BOX`). `c-004@box-desk` and `c-004@<sat box>` are two
+different agents. The `SPOOL_AGENT_ID_RANGE` bands of 058 section 3.3
+(`1-99999`, `100000-199999`) end with the legacy ids.
 
-**Proposed, needs the owner (Q3):** keep bands, inside `004-999`:
+Rollover is per machine: `999 -> 004`.
 
-| machine | band | ids |
-|---|---|---|
-| home box | `004-699` | 696 |
-| satellite | `700-899` | 200 |
-| next machine | `900-999` | 100 |
+### 3.3.1 The hub keys agents on (id, box), before per-box numbering starts
 
-Rollover is per band: home goes `699 -> 004`, the satellite goes `899 -> 700`.
-The alternative, one full `004-999` line on every machine with `<ID>@<box>` as
-the only unique name, matches D3's wording more literally. But the hub
-roster, the lanes, the asks and the leases all key on the bare id today
-(`agent_id` columns in rdb 0001, 0005, 0047, 0096, 0097). That rework does
-not fit inside today's deadline.
+Owner, 2026-10-02 ~06:52Z: "Do it properly." Lane L1b lands this first.
+Until then two machines must not hand out the same number, so per-box
+numbering (L4) waits for L1b, and the satellite keeps its current ids.
+
+**Choice: the box is a COLUMN in the key, not a stored `id@box` string.**
+The roster (`box_id`), the messages (`to_box`, `from_box`) and the lanes
+(`agent_box`) already carry the box as a column, so only the lanes' primary
+key widens, and every lookup stays an index equality on two plain columns.
+The single-text actor fields that already accept `<ID>@<box>` (the lease
+`holder`, 0095; the ask `from_agent`/`acked_by`/`closed_by`, 0097) keep that
+form and are written with the box filled in.
+
+Resolve rule for a bare id (no `@box`): the ONE box that holds it in the
+roster (or, for lanes, the one lane row). Zero boxes: unknown, as today. Two
+or more: refused as ambiguous, naming the candidates
+(`c-004 is ambiguous: c-004@box-desk, c-004@<sat box>; add @<box>`).
+The migration back-fills every existing row's box from what the hub already
+knows (the roster row, the lane's `agent_box`, the writer's hello box).
 
 ### 3.4 Rollover is routine, not an edge case
 
 Spawns per day, from the registry
 (`cut -f5 /var/spool-hub/registry.tsv | cut -c1-8 | sort | uniq -c`):
-48 on 2026-09-30, 142 on 2026-10-01. At 142 a day the home band of 696
-wraps about every 5 days. So the retire path below is load-bearing from
+48 on 2026-09-30, 142 on 2026-10-01. At 142 a day a machine's line of 996
+wraps about every 7 days. So the retire path below is load-bearing from
 week one.
 
 ### 3.5 Allocation (replaces the max-floor rule of `next-agent-id.sh`)
 
 - A cursor file `$SPOOL_ROOT/agent-id.cursor` (flock) holds the last number
-  handed out. The next candidate is `cursor+1`, wrapping from the band's top to
-  its bottom (`004` on the home box).
+  handed out on THIS machine. The next candidate is `cursor+1`, wrapping from
+  `999` to `004`.
 - A candidate is skipped while ANY of these hold. This keeps the rule of
   memory note `spawn-id-reuse-trap`: never trust live windows alone, take every
   persisted record.
@@ -119,7 +136,7 @@ week one.
   4. a tmux window carries it;
   5. its retirement is younger than the **quarantine** of 24 h (`SPOOL_ID_QUARANTINE_H`, default 24).
 - The claim is still `mkdir` without `-p` (atomic, races lose).
-- A full band (every number skipped) is exit 1, as today.
+- A full line (every number `004-999` skipped) is exit 1, as today.
 
 ### 3.6 Retire: what happens to the previous holder
 
@@ -175,7 +192,8 @@ global `~/.claude/CLAUDE.md`, and the seed prompts of live agents.
   the orc scripts, and the WUI through the hub's `GET /api/v1/agent-aliases`.
 - Rows: `CLE-001 -> c-001`, `CLE-002 -> c-002`, `CLE-003 -> c-003`. Then
   every LIVE agent on the machine, in `spawned-utc` order, gets the next number
-  of its band (`CLE-77922 -> c-004`, ...). Live means a live tmux window AND a
+  of its machine's line (`CLE-77922 -> c-004`, ...); the `box` column of the
+  row names the machine, so `c-004` on two machines is two rows. Live means a live tmux window AND a
   live identity record. Dead ids get no row. Their history keeps the old id as
   stored text.
 - The table is written once and never edited. A second run is a no-op that
@@ -192,13 +210,14 @@ global `~/.claude/CLAUDE.md`, and the seed prompts of live agents.
 | FR-005 | Gate test: the bash `SPOOL_LEGACY_ID_UNTIL` and the WUI `LEGACY_ID_UNTIL` equal the Go `agentid.LegacyUntil` (the same pinning pattern as the emoji list, SPL-1002). |
 | FR-006 | Stored rows stay valid. The rdb CHECKs are widened to accept both grammars permanently, because history keeps legacy ids. Only the hub's write path refuses legacy ids after the deadline. |
 | FR-007 | Nothing EMITS the new form (allocator, mapping, rename) until FR-001..FR-006 are deployed on dev AND prd and on every machine of the fleet, with the `spool` binary rebuilt. |
-| FR-008 | Allocation follows section 3.5 and retirement section 3.6, with tests for rollover (`699 -> 004`), the quarantine skip, every one of the 5 skip rules, and a full band. |
+| FR-008 | Allocation follows section 3.5 and retirement section 3.6, with tests for rollover (`999 -> 004`), the quarantine skip, every one of the 5 skip rules, and a full band. |
 | FR-009 | `<ID>@<box>` keeps working: `c-004@box-desk` in the WUI, the lanes, the asks, the leases, and `inbox-send` / `spool-send`. |
 | FR-010 | tmux window names become `c-004 <title>`, with the box tag kept: `<tag>: c-004 <title>`. Until L9 the 40-window count regex is `^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}\|(CLE\|GRK\|AGY\|QWN)-[0-9]+)`, then the new form only. Auto-sort orders by spawned-utc, not by number, because numbers wrap. |
 | FR-011 | Renaming a live agent moves its spool dir to the new name and leaves `old -> new` as a symlink until L9. It renames the tmux window, rewrites the registry row and the identity record, re-seats its desk on the hub, and sends the agent ONE spool note: "your id is now c-0NN; use --from c-0NN". |
 | FR-012 | Role ids move last. `c-001` is taken at the next orchestrator rotation (spec 060: rotation claims `c-001` instead of `CLE-001`). `c-002`/`c-003` are taken at the next dispatch rotation, on the satellite. |
 | FR-013 | `do_spl_agent_id_legacy_report` counts legacy ids: hub sends in the last 24 h, live spool dirs, windows, registry rows, lane rows. Lane L8 runs it at the deadline and expects 0. |
 | FR-014 | No literal host or domain anywhere, per the distribution-hygiene gate. |
+| FR-015 | The hub keys agents on (id, box) (section 3.3.1): roster, lanes, asks and leases hold `c-004@box-desk` and `c-004@<sat box>` side by side, and each one's mail reaches only that agent. A bare id resolves to its single box and is refused when ambiguous. `spool` and the HTTP API accept `<ID>@<box>`. Lands (L1b) before any machine emits per-box numbers (L4). |
 
 ## 7. Open owner questions
 
@@ -206,8 +225,8 @@ global `~/.claude/CLAUDE.md`, and the seed prompts of live agents.
 |---|---|---|
 | Q1 | Are `001`-`003` reserved for every kind, or only for `c-`? | every kind |
 | Q2 | One counter shared by all kinds, or one per kind? | one shared counter per machine |
-| Q3 | Bands inside `004-999` (home `004-699`, satellite `700-899`, next `900-999`), or the full range on every machine with `<ID>@<box>` as the unique name? | bands today; `@box` identity can follow later |
+| Q3 | ANSWERED 2026-10-02 ~06:50Z: "the first real work started with the wrong id the ids should be 00n till 999 with c aka his first number should have been c-004". Full `004-999` on every machine, unique as `c-NNN@<box>` (section 3.3). ~06:52Z, option "1": "Do it properly." The hub keys on `@box` first (L1b, section 3.3.1); cutoff moved to `2026-10-03T20:59:59Z` | (decided) |
 | Q4 | Agent ids are also the ticket key in commit subjects and branch names (104 distinct since yesterday). With rollover, `c-004` names a different lane every few days. What is the commit key now? | branch `c-004-<topic>`; commit scope `(<module>, <topic>)`, for example `(api, agent-id-rename)` |
 | Q5 | `@CLE-001` mentions inside OLD message bodies: render them as plain text after the deadline, or rewrite them through the alias table at render time, forever? | plain text; the stored body is history |
-| Q6 | Is a 24 h quarantine before an id is reused (section 3.5 rule 5) acceptable? | yes; at 142 spawns a day it holds about 142 of 696 ids |
-| Q7 | The alias CUTOFF is automatic at `20:59:59Z` (the constant). Deleting the alias code and converting about 500 test files (L9) lands on 2026-10-03, with the clock pinned so CI stays green meanwhile. Accept? | yes |
+| Q6 | Is a 24 h quarantine before an id is reused (section 3.5 rule 5) acceptable? | yes; at 142 spawns a day it holds about 142 of each machine's 996 ids |
+| Q7 | The alias CUTOFF is automatic at `2026-10-03T20:59:59Z` (the constant). Deleting the alias code and converting about 500 test files (L9) lands on 2026-10-04, with the clock pinned so CI stays green meanwhile. Accept? | yes |

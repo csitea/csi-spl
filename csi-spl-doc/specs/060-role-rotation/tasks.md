@@ -26,8 +26,8 @@ lanes ask nothing more unless they are blocked.
 - [x] T022 `do_spl_rotate_status` (FR-063, FR-071)
 - [x] T023 `do_spl_orch_rotate_install_cron` at `5 * * * *` (FR-050) + T-CRON
 - [x] T024 `ROTATE_CMD=abort` (FR-091)
-- [ ] T025 Live L1 (DRY_RUN) and L2 (one real rotation of `CLE-001`), then install the cron
-- [ ] T026 Send `CLE-001` the FR-061 one-line flag diff (FR-062)
+- [x] T025 Live L1 (DRY_RUN) and L2 (one real rotation of `CLE-001`), then install the cron - L2 rid 20261002T0454Z-orch: CLE-001 pid 1416686 -> 3183298, DONE 05:03:08Z; probe ask f50df8a3 handled by the new pid; cron installed 05:03Z, first tick 05:05Z = SKIP young
+- [x] T026 Send `CLE-001` the FR-061 one-line flag diff (FR-062) - sent to CLE-001 2026-10-02 (ask a249213d): spawn-claude.sh line 18
 
 ## 4. Dispatchers (CLE-77940)
 

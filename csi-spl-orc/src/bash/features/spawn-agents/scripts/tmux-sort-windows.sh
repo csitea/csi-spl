@@ -14,7 +14,7 @@
 #   * by the owner, exactly once, after flipping @window-sort-enabled back on
 #
 # ORDER (option @window-sort-order, or $WINDOW_SORT_ORDER):
-#   agents-first (default)  AGY-01, CLE-00, CLE-05, CLE-10, CLE-422, GRK-01, bash, sudo
+#   agents-first (default)  AGY-01, CLE-00, c-004, CLE-10, CLE-422, GRK-01, q-007, bash, sudo
 #   agents-last             bash, sudo, AGY-01, CLE-00, …
 #   plain                   pure natural sort, agent and plain windows intermixed
 #
@@ -135,20 +135,37 @@ case "$ORDER" in
 esac
 
 # --- the rows and their sort key -------------------------------------------
-# "id<TAB>index<TAB>name" per window of SESSION, the name with the box tag
-# removed. an_strip forks, so it only runs on a name that could carry a tag or
-# a misplaced badge; every other name is used as it is.
+# "id<TAB>index<TAB>name<TAB>key" per window of SESSION, the name with the box
+# tag removed. an_strip forks, so it only runs on a name that could carry a tag
+# or a misplaced badge; every other name is used as it is.
+#
+# KEY is the name with a leading spec 061 agent id spelled in its kind's legacy
+# prefix: "c-004 x" keys as "CLE-004 x", so c-NNN and CLE-NNNN sort as ONE kind,
+# numerically (CLE-001, CLE-003, c-004, CLE-222), and q-007 sorts with QWN, not
+# after GRK. Compared raw, "c-" sorts below "cl" and every new window jumped
+# ahead of CLE-001..003. The grammar and the kind map are spool-env.inc.sh's
+# (the reader grammar: readers take both forms whatever the clock).
+_sort_key() {  # NAME -> KEY
+  local n="$1" id kind pfx
+  if [[ "$n" =~ ^${SPOOL_AGENT_ID_NEW_RX}($|[^0-9]) ]]; then
+    id="${n:0:5}"
+    kind="$(spl_kind_of_agent_id "$id")" && pfx="$(spool_prefix_of_kind "$kind")" \
+      && n="${pfx}-${n#?-}"
+  fi
+  printf '%s' "$n"
+}
+
 _rows() {  # SESSION
   local id idx name
   "${TM[@]}" list-windows -t "$1" -F '#{window_id}	#{window_index}	#{window_name}' 2>/dev/null \
   | while IFS='	' read -r id idx name; do
       [ -n "$id" ] || continue
       case "$name" in *": "*|*@*|'> '*|'? '*|'! '*) name="$(an_strip "$name")" ;; esac
-      printf '%s\t%s\t%s\n' "$id" "$idx" "$name"
+      printf '%s\t%s\t%s\t%s\n' "$id" "$idx" "$name" "$(_sort_key "$name")"
     done
 }
 
-# Emits "<rank>|<natural-key>\t<window_id>" for each "id<TAB>index<TAB>name" row.
+# Emits "<rank>|<natural-key>\t<window_id>" for each "id<TAB>index<TAB>name<TAB>key" row.
 sort_keys() {
   awk -F'\t' -v order="$ORDER" '
     function natkey(s,   out, i, c, run, isdig) {
@@ -168,7 +185,7 @@ sort_keys() {
       return out
     }
     {
-      name = $3
+      name = $4
       is_agent = (name ~ /^[A-Za-z]+-[0-9]+/) ? 1 : 0
       if (order == "plain")            rank = 0
       else if (order == "agents-last") rank = is_agent ? 1 : 0

@@ -9,6 +9,8 @@
 #   5. sparse indices: occupants move, the index set is never renumbered
 #   6. @window-sort-enabled 0 pauses it; agents-last honoured
 #   7. the rendered tmux snippet's hook sorts a renamed window by itself
+#   8. spec 061 ids: c-NNN and legacy CLE-NNNN are ONE kind, numerically;
+#      a-/q- sort with AGY/QWN; <ID>@<box> and "<tag>: " prefixes are display only
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -52,6 +54,18 @@ tm set -g @window-sort-order agents-last
 sortit
 eq "6. agents-last puts plain windows first" "home" "$(tm list-windows -t t -F '#{window_name}' | head -1)"
 tm set -g @window-sort-order agents-first
+
+tm new-session -d -s m -n bash
+for n in 'sudo' 'CLE-77973@bx1' 'c-005@bx1 wip' 'bx1: c-004 dbcut1' 'CLE-100006@sat x' \
+         'q-007' 'GRK-02' 'QWN-05' 'CLE-003@bx1' 'a-010' 'AGY-4444@bx1'; do
+  tm new-window -d -t m -n "$n"
+done
+sortit --session m
+eq "8. c-NNN and CLE-NNNN sort as one kind, numerically, tags and @box ignored" \
+  "a-010|AGY-4444@bx1|CLE-003@bx1|bx1: c-004 dbcut1|c-005@bx1 wip|CLE-77973@bx1|CLE-100006@sat x|GRK-02|QWN-05|q-007|bash|sudo|" \
+  "$(tm list-windows -t m -F '#{window_name}' | tr '\n' '|')"
+eq "8. ... and a second pass has nothing to swap" "" "$(sortit --session m --dry-run)"
+tm kill-session -t m
 
 sed "s#{{HARNESS_DIR}}#$T_FEAT#g" "$T_FEAT/assets/tmux-agent-status.conf" >"$T_TMP/snippet.conf"
 AGENT_TOP_PIDFILE="$T_TMP/p.pid" tm source-file "$T_TMP/snippet.conf"

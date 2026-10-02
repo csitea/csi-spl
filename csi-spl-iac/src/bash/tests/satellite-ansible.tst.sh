@@ -6,7 +6,7 @@
 #      (never a sensitive file), the inventory reaches the VM through the IAP
 #      proxy (no public IP), and the script name is the one do_tf_apply runs.
 #   2. both generated files are git-ignored (they carry run-time paths).
-#   3. box-playbook.yaml parses, names roles 01..09 in order, and every role
+#   3. box-playbook.yaml parses, names roles 01..10 in order, and every role
 #      it names has tasks/main.yml (and no role dir is orphaned).
 #   4. secrets: every task that reads a key or the token is no_log, the token
 #      reaches git through a helper (never a URL), no .credentials.json is
@@ -27,6 +27,9 @@
 #  14. the toolchain gaps 10/12/13/14: terraform system-wide, the api gates'
 #      images pre-pulled (tags read from the tests, = the manifest rows),
 #      pnpm + a warm store for both users, Google Chrome; verify checks them.
+#  15. role 10 installs both hourly rotation crons (orch :05, dispatch :15)
+#      for the box user through the named install actions, then checks them;
+#      run against a stub ./run + crontab: one line each, idempotent.
 #   9. /var/csi lives on the data disk, /var/csi/csi-spl is the owner's and
 #      group-writable, and verify checks both users can write it.
 #------------------------------------------------------------------------------
@@ -89,8 +92,8 @@ for f in files:
 print("unbalanced " + ", ".join(bad))
 PY
 )
-grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools' <<<"$out" \
-  && pass "the playbook runs roles 01..09" || fail "the playbook roles are not 01..09 ($(grep '^roles' <<<"$out"))"
+grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools 10_rotation_cron' <<<"$out" \
+  && pass "the playbook runs roles 01..10" || fail "the playbook roles are not 01..10 ($(grep '^roles' <<<"$out"))"
 grep -qx 'sorted True' <<<"$out" && pass "the roles run in their numbered order" || fail "the roles are out of order"
 grep -qx 'missing ' <<<"$out" && pass "every role has tasks/main.yml" || fail "a role has no tasks/main.yml ($(grep '^missing' <<<"$out"))"
 grep -qx 'orphan ' <<<"$out" && pass "no orphaned role dir" || fail "a role dir is not in the playbook ($(grep '^orphan' <<<"$out"))"
@@ -297,6 +300,43 @@ for b in terraform pnpm google-chrome; do
   grep -qE "owner_tools=\"[^\"]* $b( |\")" "$v" || { fail "14. verify does not check $b on the box user's PATH"; continue; }
   pass "14. verify checks $b on the box user's login PATH"
 done
+
+# 15. the hourly role rotation on the satellite too (owner t1 6a02db62)
+r10="$R/10_rotation_cron/tasks/main.yml"
+rt=$(python3 -c "
+import yaml
+for t in yaml.safe_load(open('$r10')):
+    if t.get('name','').startswith('Rotation cron'):
+        print(t.get('loop'), t.get('become_user')); print(t['ansible.builtin.shell'])")
+grep -qx "\['orch', 'dispatch'\] {{ owner_user }}" <<<"$(head -n1 <<<"$rt")" \
+  && pass "15. role 10 installs the orch AND dispatch rotation crons as the box user" || fail "15. role 10 loop/user: $(head -n1 <<<"$rt")"
+grep -q 'DRY_RUN=0 ./run -a do_spl_{{ item }}_rotate_install_cron' <<<"$rt" && grep -q 'ROTATE_CRON_ACTION=check ./run -a do_spl_{{ item }}_rotate_install_cron' <<<"$rt" \
+  && pass "15. role 10 goes through the named install actions and their check" || fail "15. role 10 does not use the install actions"
+O="$PROJ_PATH/../csi-spl-orc/src/bash/run"
+[[ -f "$O/spl-orch-rotate-install-cron.func.sh" && -f "$O/spl-dispatch-rotate-install-cron.func.sh" ]] \
+  && grep -q 'tag="$SPL_ORG_APP:orch-rotate"' "$O/spl-orch-rotate-install-cron.func.sh" && grep -q 'tag="$SPL_ORG_APP:dispatch-rotate"' "$O/spl-dispatch-rotate-install-cron.func.sh" \
+  && pass "15. the actions role 10 calls exist and tag their lines <org>-<app>:{orch,dispatch}-rotate" || fail "15. the install actions or their tags moved"
+RB="$T/rot"; mkdir -p "$RB/repo/csi-spl-orc" "$RB/bin" "$RB/spool/dispatch"; : >"$RB/spool/dispatch/lease.conf"
+cat >"$RB/bin/crontab" <<'CR'
+#!/usr/bin/env bash
+[ "$1" = -l ] && { cat "$FAKE_CRON" 2>/dev/null; exit 0; }
+cat >"$FAKE_CRON"
+CR
+cat >"$RB/repo/csi-spl-orc/run" <<'RUN'
+#!/usr/bin/env bash
+w=${2#do_spl_}; w=${w%_rotate_install_cron}; m=5; [ "$w" = dispatch ] && m=15
+if [ "${ROTATE_CRON_ACTION:-}" = check ]; then grep -q " # csi-spl:$w-rotate$" "$FAKE_CRON"; exit; fi
+[ "${DRY_RUN:-1}" = 0 ] || exit 0
+{ grep -v " # csi-spl:$w-rotate$" "$FAKE_CRON" 2>/dev/null; echo "$m * * * * x/$w-rotate-cron.sh # csi-spl:$w-rotate"; } >"$FAKE_CRON.n"; mv "$FAKE_CRON.n" "$FAKE_CRON"
+RUN
+chmod +x "$RB/bin/crontab" "$RB/repo/csi-spl-orc/run"
+echo '*/5 * * * * desk # csi-spl:desk-reconcile-prd' >"$RB/cron"
+run_rot() { local it="$1" body; body=$(tail -n +2 <<<"$rt" | sed "s#{{ spool_root }}#$RB/spool#g; s#{{ repo_dir }}#$RB/repo#g; s#{{ item }}#$it#g")
+  env FAKE_CRON="$RB/cron" PATH="$RB/bin:$PATH" bash -c "$body" 2>&1; }
+o1=$(run_rot orch); o2=$(run_rot dispatch); o3=$(run_rot orch)
+[[ "$o1" == *"CHANGED 5 * * * *"*"csi-spl:orch-rotate" && "$o2" == *"CHANGED 15 * * * *"*"csi-spl:dispatch-rotate" && "$o3" == *"OK 5 * * * *"* ]] \
+  && [[ "$(grep -c 'csi-spl:orch-rotate$' "$RB/cron")" == 1 && "$(grep -c 'csi-spl:dispatch-rotate$' "$RB/cron")" == 1 && "$(grep -c 'desk-reconcile-prd$' "$RB/cron")" == 1 ]] \
+  && pass "15. role 10 against a stub: :05 orch + :15 dispatch, one line each, the desk line kept, a re-run is OK (no change)" || fail "15. role 10 run: o1=$o1 o2=$o2 o3=$o3 cron=$(cat "$RB/cron")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

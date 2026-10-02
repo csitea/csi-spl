@@ -1,0 +1,32 @@
+---
+# 10 the hourly role rotation (spec 060; owner t1 6a02db62: "it MUST run on
+# both of the boxes"): the box user's two crontab lines, the orchestrator at
+# :05 (do_spl_orch_rotate_install_cron) and the dispatchers at :15
+# (do_spl_dispatch_rotate_install_cron), installed through those named actions,
+# never a hand-written cron line, so a recreate gets them back. Both point at
+# the self-updating <repo_dir>-desk-cron checkout, as on the box PC.
+# The rotation is this box's own: it reads this box's
+# <spool_root>/dispatch/lease.conf (LEASE_ORCH/MASTER/FAILOVER), finds the ids
+# in this box's /proc and tmux, and names the box from <spool_root>/box.env
+# (SPOOL_DESK_BOX = box_tag, role 08). A box without lease.conf rotates nothing.
+# Idempotent: each action replaces its tagged line in place.
+- name: "Rotation cron {{ item }} (the box user's crontab, DRY_RUN=0, then check)"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export SPOOL_ROOT="{{ spool_root }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$PATH"
+    [ -r "{{ spool_root }}/dispatch/lease.conf" ] || echo "WARN no {{ spool_root }}/dispatch/lease.conf: the cron runs, the rotation skips"
+    cd "{{ repo_dir }}/csi-spl-orc" || exit 1
+    before=$(crontab -l 2>/dev/null | grep -c " # csi-spl:{{ item }}-rotate$")
+    setsid -w env DRY_RUN=0 ./run -a do_spl_{{ item }}_rotate_install_cron </dev/null 2>&1 || { echo "FAIL do_spl_{{ item }}_rotate_install_cron"; exit 1; }
+    setsid -w env ROTATE_CRON_ACTION=check ./run -a do_spl_{{ item }}_rotate_install_cron </dev/null 2>&1 || { echo "FAIL the {{ item }} rotation check"; exit 1; }
+    line=$(crontab -l 2>/dev/null | grep " # csi-spl:{{ item }}-rotate$")
+    [ "$(printf '%s\n' "$line" | grep -c .)" = 1 ] || { echo "FAIL want ONE csi-spl:{{ item }}-rotate line"; exit 1; }
+    [ "$before" = 1 ] && echo "OK $line" || echo "CHANGED $line"
+  args:
+    executable: /bin/bash
+    chdir: "{{ repo_dir }}"
+  become: true
+  become_user: "{{ owner_user }}"
+  loop: [orch, dispatch]
+  register: rotation_cron
+  changed_when: rotation_cron.stdout is search('CHANGED ')

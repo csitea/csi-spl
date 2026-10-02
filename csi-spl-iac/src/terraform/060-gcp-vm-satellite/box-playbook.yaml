@@ -72,6 +72,7 @@
     - { role: 07_ysg_box, tags: [07_ysg_box] }
     - { role: 08_spool_harness, tags: [08_spool_harness] }
     - { role: 09_agent_tools, tags: [09_agent_tools] }
+    - { role: 10_rotation_cron, tags: [10_rotation_cron] }
 
   handlers:
     - name: Restart docker

@@ -65,6 +65,7 @@ Each role is idempotent; a recreate plus one playbook run rebuilds the box.
 | 07_ysg_box | the ysg-box engine + overlay, its `/var` dat dirs, and box `sat`'s claude-config rendered on the VM and applied per role (`.bashrc` & co, `~/.claude` CLAUDE.md settings commands skills, dotfiles); never a `.credentials.json` | `do_satellite_claude_config` |
 | 08_spool_harness | `/opt/csi/csi-spl`, git + gh for both users, the spool env (`/etc/profile.d/csi-spl-satellite.sh`: `SPOOL_ROOT`, `SPOOL_BOX_TAG=sat`), `spool-install/install.sh --cli claude --no-seat` as `<agent>` (claude, spool, spool-agent, yq, Go, hooks, skills) | `do_satellite_bootstrap` 05 |
 | 09_agent_tools | cloud-sql-proxy (Google's release, sha256-pinned to the box PC's), pnpm (corepack, the WUI's pin), the CI-pinned scanners + terraform (`do_install_lint_tools`, system-wide), tpl-gen | `do_satellite_install_tools` |
+| 10_rotation_cron | the box user's hourly role rotation crons: orchestrator at :05, dispatchers at :15 (spec 060), through `do_spl_orch_rotate_install_cron` / `do_spl_dispatch_rotate_install_cron`, then checked; the rotation acts on this box's own lease.conf ids | the owner's one-off install |
 
 `csi-spl-iac/cnf/satellite-replica.tsv` names every tool and the role that
 installs it; `do_satellite_verify` compares each with the box PC.

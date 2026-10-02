@@ -87,42 +87,9 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		publicURL = hubURL
 	}
 	publicURL = strings.TrimRight(publicURL, "/")
-	g := fakeidp.Client{ID: "demo-google-client", Secret: "demo-google-secret", RedirectURI: publicURL + "/api/v1/auth/google/callback"}
-	f := fakeidp.Client{ID: "demo-facebook-app", Secret: "demo-facebook-secret", RedirectURI: publicURL + "/api/v1/auth/facebook/callback"}
-	fake := fakeidp.New(g, f, fakeidp.Person{Subject: "demo-sub-1", Email: "demo@example.com", EmailVerified: true, Name: "FirstName LastName"})
-	oidcVars := map[string]string{}
-	for _, p := range []string{auth.ProviderMicrosoft, auth.ProviderLinkedIn, auth.ProviderXAI} {
-		c := fakeidp.Client{ID: "demo-" + p + "-client", Secret: "demo-" + p + "-secret",
-			RedirectURI: publicURL + "/api/v1/auth/" + p + "/callback", NoEmailVerifiedClaim: p == auth.ProviderMicrosoft}
-		fake.AddOIDC(p, c)
-		pre := "SPOOL_HUB_AUTH_" + strings.ToUpper(p) + "_"
-		oidcVars[pre+"CLIENT_ID"], oidcVars[pre+"CLIENT_SECRET"], oidcVars[pre+"REDIRECT_URI"] = c.ID, c.Secret, c.RedirectURI
-	}
-	// xAI's real endpoints are cnf-only; the fake IdP override replaces them
-	for k, v := range map[string]string{"AUTH_URL": "/oauth2/authorize", "TOKEN_URL": "/oauth2/token", "USERINFO_URL": "/oauth2/userinfo"} {
-		oidcVars["SPOOL_HUB_AUTH_XAI_"+k] = "https://idp.example.com" + v
-	}
-
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
+	fake, vars, err := demoIdP(publicURL, appURL, idpURL)
+	if err != nil {
 		return err
-	}
-	// The same variables a deployed hub reads (cnf env.auth.social); lde values.
-	vars := map[string]string{
-		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook,microsoft,linkedin,xai",
-		"SPOOL_HUB_AUTH_SESSION_KEY":            hex.EncodeToString(key),
-		"SPOOL_HUB_AUTH_APP_URL":                appURL,
-		"SPOOL_HUB_AUTH_COOKIE_SECURE":          "false",
-		"SPOOL_HUB_AUTH_IDP_BASE_URL":           idpURL,
-		"SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID":       g.ID,
-		"SPOOL_HUB_AUTH_GOOGLE_CLIENT_SECRET":   g.Secret,
-		"SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI":    g.RedirectURI,
-		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID":     f.ID,
-		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET": f.Secret,
-		"SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI":  f.RedirectURI,
-	}
-	for k, v := range oidcVars {
-		vars[k] = v
 	}
 	cfg, err := auth.LoadFrom("lde", vars)
 	if err != nil {
@@ -148,51 +115,10 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		fmt.Printf("serving for the WUI at %s (set NUXT_DEV_AUTH_PROXY=%s); Ctrl-C to stop\n", appURL, hubURL)
 		return wait()
 	}
-
 	for _, p := range cfg.Enabled() {
-		jar, _ := cookiejar.New(nil)
-		browser := &http.Client{Jar: jar, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			fmt.Printf("  302 -> %s\n", req.URL)
-			return nil
-		}}
-		start := hubURL + "/api/v1/auth/" + p + "/start?redirect=/c/general&tenant=t1"
-		fmt.Printf("[%s] GET %s\n", p, start)
-		resp, err := browser.Get(start)
-		if err != nil {
+		if err := walkProvider(p, hubURL, st, blobDir); err != nil {
 			return err
 		}
-		resp.Body.Close()
-		if resp.Request.URL.Path != "/c/general" {
-			return fmt.Errorf("%s: landed on %s", p, resp.Request.URL)
-		}
-		resp, err = browser.Get(hubURL + "/api/v1/auth/session")
-		if err != nil {
-			return err
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		fmt.Printf("  GET /api/v1/auth/session -> %d %s\n", resp.StatusCode, body)
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("%s: no session", p)
-		}
-		var sess struct {
-			HumanID string `json:"hum"`
-		}
-		json.Unmarshal(body, &sess)      //nolint:errcheck
-		if p == auth.ProviderMicrosoft { // spec 018 FR-006: no picture from Microsoft
-			fmt.Printf("  avatar: none from %s (spec 018 FR-006)\n", p)
-			continue
-		}
-		fid, err := st.Avatar(context.Background(), sess.HumanID)
-		if err != nil || fid == "" {
-			return fmt.Errorf("%s: no avatar stored for %q: %w", p, sess.HumanID, err)
-		}
-		key, _ := blob.Key("t1", fid)
-		fi, err := os.Stat(blobDir + "/" + key)
-		if err != nil {
-			return fmt.Errorf("%s: avatar blob missing: %w", p, err)
-		}
-		fmt.Printf("  avatar: %s avatar_file_id=%s (%d bytes at %s)\n", sess.HumanID, fid, fi.Size(), key)
 	}
 	fmt.Printf("OK - all %d providers signed in against the fake IdP\n", len(cfg.Enabled()))
 	if !serve {
@@ -200,6 +126,92 @@ func run(serve bool, addr, appURL, publicURL string) error {
 	}
 	fmt.Printf("\nserving; try: curl -si '%s/api/v1/auth/google/start'   (Ctrl-C to stop)\n", hubURL)
 	return wait()
+}
+
+// demoIdP builds the fake IdP with a client per provider, and the variables a
+// deployed hub reads (cnf env.auth.social) pointed at it; lde values.
+func demoIdP(publicURL, appURL, idpURL string) (*fakeidp.IdP, map[string]string, error) {
+	g := fakeidp.Client{ID: "demo-google-client", Secret: "demo-google-secret", RedirectURI: publicURL + "/api/v1/auth/google/callback"}
+	f := fakeidp.Client{ID: "demo-facebook-app", Secret: "demo-facebook-secret", RedirectURI: publicURL + "/api/v1/auth/facebook/callback"}
+	fake := fakeidp.New(g, f, fakeidp.Person{Subject: "demo-sub-1", Email: "demo@example.com", EmailVerified: true, Name: "FirstName LastName"})
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, nil, err
+	}
+	vars := map[string]string{
+		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook,microsoft,linkedin,xai",
+		"SPOOL_HUB_AUTH_SESSION_KEY":            hex.EncodeToString(key),
+		"SPOOL_HUB_AUTH_APP_URL":                appURL,
+		"SPOOL_HUB_AUTH_COOKIE_SECURE":          "false",
+		"SPOOL_HUB_AUTH_IDP_BASE_URL":           idpURL,
+		"SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID":       g.ID,
+		"SPOOL_HUB_AUTH_GOOGLE_CLIENT_SECRET":   g.Secret,
+		"SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI":    g.RedirectURI,
+		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID":     f.ID,
+		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET": f.Secret,
+		"SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI":  f.RedirectURI,
+	}
+	for _, p := range []string{auth.ProviderMicrosoft, auth.ProviderLinkedIn, auth.ProviderXAI} {
+		c := fakeidp.Client{ID: "demo-" + p + "-client", Secret: "demo-" + p + "-secret",
+			RedirectURI: publicURL + "/api/v1/auth/" + p + "/callback", NoEmailVerifiedClaim: p == auth.ProviderMicrosoft}
+		fake.AddOIDC(p, c)
+		pre := "SPOOL_HUB_AUTH_" + strings.ToUpper(p) + "_"
+		vars[pre+"CLIENT_ID"], vars[pre+"CLIENT_SECRET"], vars[pre+"REDIRECT_URI"] = c.ID, c.Secret, c.RedirectURI
+	}
+	// xAI's real endpoints are cnf-only; the fake IdP override replaces them
+	for k, v := range map[string]string{"AUTH_URL": "/oauth2/authorize", "TOKEN_URL": "/oauth2/token", "USERINFO_URL": "/oauth2/userinfo"} {
+		vars["SPOOL_HUB_AUTH_XAI_"+k] = "https://idp.example.com" + v
+	}
+	return fake, vars, nil
+}
+
+// walkProvider signs in with provider p as a browser would (start, IdP,
+// callback, session) and checks the avatar the store hooks kept.
+func walkProvider(p, hubURL string, st *store.Memory, blobDir string) error {
+	jar, _ := cookiejar.New(nil)
+	browser := &http.Client{Jar: jar, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		fmt.Printf("  302 -> %s\n", req.URL)
+		return nil
+	}}
+	start := hubURL + "/api/v1/auth/" + p + "/start?redirect=/c/general&tenant=t1"
+	fmt.Printf("[%s] GET %s\n", p, start)
+	resp, err := browser.Get(start)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.Request.URL.Path != "/c/general" {
+		return fmt.Errorf("%s: landed on %s", p, resp.Request.URL)
+	}
+	resp, err = browser.Get(hubURL + "/api/v1/auth/session")
+	if err != nil {
+		return err
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	fmt.Printf("  GET /api/v1/auth/session -> %d %s\n", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: no session", p)
+	}
+	var sess struct {
+		HumanID string `json:"hum"`
+	}
+	json.Unmarshal(body, &sess)      //nolint:errcheck
+	if p == auth.ProviderMicrosoft { // spec 018 FR-006: no picture from Microsoft
+		fmt.Printf("  avatar: none from %s (spec 018 FR-006)\n", p)
+		return nil
+	}
+	fid, err := st.Avatar(context.Background(), sess.HumanID)
+	if err != nil || fid == "" {
+		return fmt.Errorf("%s: no avatar stored for %q: %w", p, sess.HumanID, err)
+	}
+	key, _ := blob.Key("t1", fid)
+	fi, err := os.Stat(blobDir + "/" + key)
+	if err != nil {
+		return fmt.Errorf("%s: avatar blob missing: %w", p, err)
+	}
+	fmt.Printf("  avatar: %s avatar_file_id=%s (%d bytes at %s)\n", sess.HumanID, fid, fi.Size(), key)
+	return nil
 }
 
 // openDoor is the demo's admission: it creates any tenant it is asked for

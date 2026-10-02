@@ -89,6 +89,7 @@ watch([peer, () => session.state], async ([p, st]) => {
   topicFeedReady.value = false
   if (!p) return
   if (!api.mock && String(st) !== 'in') return
+  void import('~/utils/read-sync-boot').then((m) => m.startReadSync(api)) /* CLE-77930: reads follow the member across devices */
   notes.enterFeed('dm:' + p) /* freeze the divider boundary before the read */
   await channel.selectDm(p)
   if (peer.value !== p) return

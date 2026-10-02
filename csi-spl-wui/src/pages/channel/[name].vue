@@ -73,6 +73,7 @@ const { releaseStaleTopic } = useTopicFeedClose({
 watch([name, () => session.state], async ([n, st]) => {
   topicFeedReady.value = false
   if (!api.mock && String(st) !== 'in') return
+  void import('~/utils/read-sync-boot').then((m) => m.startReadSync(api)) /* CLE-77930: reads follow the member across devices */
   notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)
   /* CLE-77930: threads with replies past the boundary keep them as "<new>/<total>" */

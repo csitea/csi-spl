@@ -141,6 +141,7 @@ useOmniboxTarget({
 })
 
 onMounted(() => {
+  void import('~/utils/read-sync-boot').then((m) => m.startReadSync(api)) /* CLE-77930: reads follow the member across devices */
   notes.enterFeed('ch:lobby') /* freeze the divider boundary before markRead */
   notes.markRead('ch:lobby')
 })

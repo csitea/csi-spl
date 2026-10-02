@@ -17,13 +17,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -49,13 +53,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $7 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $8 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -81,13 +89,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -113,13 +125,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -145,13 +161,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -177,13 +197,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -209,13 +233,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -241,13 +269,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -273,13 +305,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -305,13 +341,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -337,13 +377,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -369,13 +413,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
@@ -401,13 +449,17 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $21 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)))
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $22 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($13::text[]) OR m.channel = ANY($14::text[]) OR (m.channel IS NULL AND (m.from_id = $12 OR m.to_id = $12)))
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1

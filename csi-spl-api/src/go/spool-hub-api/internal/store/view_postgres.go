@@ -280,6 +280,11 @@ func (b *topicsSQL) walkTree() string {
 // parent) is ONE ordered row, f, not (array_agg(m.msg ...))[1] in a: that
 // read and copied every body of the topic to keep one (prd t1 2026-09-27,
 // custom plan, n=15: 27 -> 13 ms a page).
+//
+// And only what the summary prints (CLE-77960, payload audit 2026-10-02 cut
+// 2): parties come back DISTINCT (the hub dedups and sorts them anyway), and
+// first_msg is {"body": <the subject's source>} instead of the whole inner
+// message - see subjectSQL. The hub's JSON is byte-identical.
 func (b *topicsSQL) statement(walk, aggDoor, lim string) string {
 	order := " ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1"
 	return `WITH RECURSIVE w (task_id, received_at, n) AS (
@@ -296,19 +301,37 @@ func (b *topicsSQL) statement(walk, aggDoor, lim string) string {
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
-				array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text)
-					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
 			FROM messages m
 			WHERE ` + b.msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
 		) a LEFT JOIN LATERAL (
 			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
-				m.received_at AS first_at, m.msg AS first_msg
+				m.received_at AS first_at, ` + subjectSQL + ` AS first_msg
 			FROM messages m
 			WHERE ` + b.msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
 }
+
+// goSpaceSQL is Go's unicode.IsSpace set, which strings.TrimSpace trims, as
+// a Postgres escape-string literal (ltrim takes a set of characters).
+const goSpaceSQL = `E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000'`
+
+// subjectSQL is the first message m cut to what the hub's subject() (hub
+// view.go: first line, TrimSpace, at most subjectMax = 140 runes) reads, as
+// {"body": s} with subject(s) == subject(m.msg body). s is the first line
+// without its leading space, cut after 140 runes - plus, when more text
+// follows, the space run up to the next non-space rune, so that subject()'s
+// TrimSpace trims s exactly as it trims the whole line (a cut inside a space
+// run would otherwise lose spaces the subject keeps). A body that is not a
+// string reads as no subject, as the hub's json.Unmarshal then fails: {}.
+const subjectSQL = `(SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), ` + goSpaceSQL + `) = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), ` + goSpaceSQL + `)) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), ` + goSpaceSQL + `) AS a) s)`
 
 // ViewTopic reads one topic by task_id = $2::uuid (027 T030: the pre-027
 // task_id::text = $2 could not use an index and scanned every message of the

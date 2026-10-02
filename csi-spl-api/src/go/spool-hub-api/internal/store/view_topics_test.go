@@ -1,7 +1,6 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -130,6 +129,8 @@ func pgOnly(t *testing.T) *Postgres {
 	return pg
 }
 
+// sameRows: equal rows, where parties and the first message are compared as
+// the hub reads them (CLE-77960: the walk returns them pre-cut).
 func sameRows(a, b []TopicRow) string {
 	if len(a) != len(b) {
 		return fmt.Sprintf("len %d != %d", len(a), len(b))
@@ -138,7 +139,8 @@ func sameRows(a, b []TopicRow) string {
 		x, y := a[i], b[i]
 		if x.TaskID != y.TaskID || x.Channel != y.Channel || x.Parent != y.Parent || !x.FirstAt.Equal(y.FirstAt) ||
 			!x.LastAt.Equal(y.LastAt) || x.Count != y.Count || fmt.Sprint(x.Kinds) != fmt.Sprint(y.Kinds) ||
-			fmt.Sprint(x.Parties) != fmt.Sprint(y.Parties) || !bytes.Equal(x.FirstMsg, y.FirstMsg) {
+			fmt.Sprint(topicParties(x.Parties)) != fmt.Sprint(topicParties(y.Parties)) ||
+			topicSubject(x.FirstMsg) != topicSubject(y.FirstMsg) {
 			return fmt.Sprintf("row %d:\n new %+v\n old %+v", i, x, y)
 		}
 	}

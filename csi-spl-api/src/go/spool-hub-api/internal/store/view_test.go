@@ -65,8 +65,8 @@ func TestViewReads(t *testing.T) {
 			}
 			r := all[0]
 			if r.Count != 2 || len(r.Kinds) != 2 || r.Kinds[0] != "task" || r.Kinds[1] != "result" ||
-				!r.FirstAt.Equal(m1.ReceivedAt) || !r.LastAt.Equal(m2.ReceivedAt) || len(r.Parties) != 4 ||
-				string(r.FirstMsg) == "" {
+				!r.FirstAt.Equal(m1.ReceivedAt) || !r.LastAt.Equal(m2.ReceivedAt) || len(topicParties(r.Parties)) != 2 ||
+				topicSubject(r.FirstMsg) != "first line" {
 				t.Fatalf("t1 row: %+v", r)
 			}
 			page, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Limit: 1})

@@ -61,8 +61,8 @@ type TopicRow struct {
 	LastAt   time.Time
 	Count    int
 	Kinds    []string // one per message, oldest first
-	Parties  []string // "<agent>@<box>" for every from and to, unsorted, may repeat
-	FirstMsg []byte   // inner v:1 JSON of the first message
+	Parties  []string // "<agent>@<box>" for every from and to, unsorted, may repeat (Postgres: distinct)
+	FirstMsg []byte   // inner v:1 JSON of the first message (Postgres: only its subject's source as {"body"})
 }
 
 // TopicMsgQuery pages GET /v1/view/topics/{task_id}: oldest first, strictly

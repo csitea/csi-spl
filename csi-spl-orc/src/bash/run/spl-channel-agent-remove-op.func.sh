@@ -60,8 +60,42 @@ do_spl_channel_agent_remove_op() {
 _spl_channel_agent_remove_op_run() {
   local out rc=0 n_removed n_absent n_want=0 a ids
   for a in $4; do n_want=$((n_want + 1)); done
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" <<'SQL'
+  out="$(_spl_channel_agent_remove_op_sql |
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4")" || rc=$?
+  # psql 18 treats "\quit 1" as \quit and exits 0, so a refusal is recognised
+  # from the line the script printed, not from rc (as in the add op).
+  if grep -q '^refuse-reserved | ' <<<"$out"; then
+    do_log "FATAL #$2 is reserved / retired: no agent sits in it"
+    return 1
+  elif grep -q '^refuse-count$' <<<"$out"; then
+    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 changed an unexpected number of rows; rolled back"
+    return 1
+  elif (( rc != 0 )); then
+    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 failed: $out"
+    return 1
+  fi
+  n_removed="$(grep -c '^removed | ' <<<"$out" || true)"
+  n_absent="$(grep -c '^absent | ' <<<"$out" || true)"
+  if (( n_removed + n_absent != n_want )); then
+    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 returned $n_removed removed and $n_absent absent, want $n_want: $out"
+    return 1
+  fi
+  if (( n_removed > 0 )); then
+    ids="$(grep '^removed | ' <<<"$out" | sed 's/^removed | //' | paste -sd ' ' -)"
+    do_log "OK removed $ids on $3 from #$2 in $1 ($GCP_ACCOUNT)"
+  fi
+  if (( n_absent > 0 )); then
+    ids="$(grep '^absent | ' <<<"$out" | sed 's/^absent | //' | paste -sd ' ' -)"
+    do_log "OK $ids had no seat in #$2 on $3 in $1 - nothing to remove ($GCP_ACCOUNT)"
+  fi
+}
+
+# _spl_channel_agent_remove_op_sql: the one-transaction remove script - refuse a
+# reserved / retired channel; else mark the seats removed, print "removed | ..."
+# / "absent | ...", and COMMIT only when it marked exactly the seats it found.
+_spl_channel_agent_remove_op_sql() {
+  cat <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT (:'channel' IN ('issues', 'tasks'))::int AS isres \gset
@@ -116,31 +150,4 @@ SELECT 'refuse-count';
 \quit 1
 \endif
 SQL
-)" || rc=$?
-  # psql 18 treats "\quit 1" as \quit and exits 0, so a refusal is recognised
-  # from the line the script printed, not from rc (as in the add op).
-  if grep -q '^refuse-reserved | ' <<<"$out"; then
-    do_log "FATAL #$2 is reserved / retired: no agent sits in it"
-    return 1
-  elif grep -q '^refuse-count$' <<<"$out"; then
-    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 changed an unexpected number of rows; rolled back"
-    return 1
-  elif (( rc != 0 )); then
-    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 failed: $out"
-    return 1
-  fi
-  n_removed="$(grep -c '^removed | ' <<<"$out" || true)"
-  n_absent="$(grep -c '^absent | ' <<<"$out" || true)"
-  if (( n_removed + n_absent != n_want )); then
-    do_log "FATAL agent remove of $4 from #$2 on $3 in $1 returned $n_removed removed and $n_absent absent, want $n_want: $out"
-    return 1
-  fi
-  if (( n_removed > 0 )); then
-    ids="$(grep '^removed | ' <<<"$out" | sed 's/^removed | //' | paste -sd ' ' -)"
-    do_log "OK removed $ids on $3 from #$2 in $1 ($GCP_ACCOUNT)"
-  fi
-  if (( n_absent > 0 )); then
-    ids="$(grep '^absent | ' <<<"$out" | sed 's/^absent | //' | paste -sd ' ' -)"
-    do_log "OK $ids had no seat in #$2 on $3 in $1 - nothing to remove ($GCP_ACCOUNT)"
-  fi
 }

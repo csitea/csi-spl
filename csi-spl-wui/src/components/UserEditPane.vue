@@ -224,7 +224,8 @@ import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAccessStore } from '~/stores/access'
-import { roleLabelKey, MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
+import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
+import { useRoleName } from '~/composables/useRoleName'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { inviteLink, memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
@@ -241,7 +242,8 @@ const emit = defineEmits<{
   changed: [key: string]
 }>()
 
-const { t, te, locale } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+const roleName = useRoleName()
 const api = useSpoolApi()
 const auth = useAuthClient()
 const access = useAccessStore()
@@ -309,10 +311,6 @@ async function copyLink(i: UserInvite | null) {
   copied.value = await writeClipboard(link)
 }
 
-function roleName(id: string) {
-  const key = roleLabelKey(id)
-  return key && te(key) ? t(key) : id
-}
 function roleKnown(id: string) {
   return props.roles.some((r) => r.id === id)
 }

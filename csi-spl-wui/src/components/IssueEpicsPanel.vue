@@ -29,7 +29,7 @@
     >
       <span class="epic-row__title"><i class="epic-row__kind" :data-kind="e.kind || 'epic'" :title="t('issues.kind_' + (e.kind || 'epic'))" />{{ e.title }}</span>
       <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
-      <span class="epic-row__bar" aria-hidden="true"><span :style="{ width: epicPct(e) + '%' }" /></span>
+      <span class="epic-row__bar" aria-hidden="true"><span :style="{ width: epicProgress(e) + '%' }" /></span>
     </NuxtLink>
     </div>
   </div>
@@ -37,6 +37,7 @@
 
 <script setup lang="ts">
 import { createLongPress } from '~/utils/touch-ui.mjs'
+import { epicProgress } from '~/utils/issues-view.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
 
 type EpicRow = { key: string, kind?: string, title: string, status: string, total: number, done: number, canceled: number }
@@ -76,10 +77,6 @@ const epicQuery = computed(() => {
   const raw = Array.isArray(q) ? q[0] : q
   return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
 })
-function epicPct(e: EpicRow) {
-  const open = e.total - e.canceled
-  return open > 0 ? Math.round((e.done * 100) / open) : 0
-}
 </script>
 
 <style scoped>

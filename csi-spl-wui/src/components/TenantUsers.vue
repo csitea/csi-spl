@@ -107,7 +107,7 @@ import UserEditPane from '~/components/UserEditPane.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { roleLabelKey } from '~/utils/access.mjs'
+import { useRoleName } from '~/composables/useRoleName'
 import { isoDate } from '~/utils/date-iso.mjs'
 import { USER_PANE_SIDE, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
 import type { UserRow } from '~/utils/tenant-users.mjs'
@@ -117,7 +117,8 @@ const props = withDefaults(defineProps<{
   embedded?: boolean
 }>(), { embedded: false })
 
-const { t, te } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' })
+const roleName = useRoleName()
 const api = useSpoolApi()
 const session = useSessionStore()
 
@@ -131,11 +132,6 @@ const creating = ref(false)
 const rows = computed<UserRow[]>(() => (dir.value ? [...dir.value.members, ...dir.value.invites] : []))
 const selected = computed(() => rows.value.find((r) => r.key === selectedKey.value) || null)
 const paneOpen = computed(() => creating.value || Boolean(selected.value))
-
-function roleName(id: string) {
-  const key = roleLabelKey(id)
-  return key && te(key) ? t(key) : id
-}
 
 async function load() {
   loading.value = true

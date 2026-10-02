@@ -175,6 +175,19 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.SaveReadMarks(ctx, s.tenant, hum, map[string]ReadMark{"ch:lobby": {At: now, MsgID: "m"}}, now); err != nil {
 		t.Fatal(err)
 	}
+	// flow_watches + flow_events (rdb 0104, spec 062): the seeded member
+	// watches the seeded thread and has one event on the seeded message.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO flow_watches (tenant_id, task_id, member_id, since) VALUES ($1, $2, $3, $4)`,
+			s.tenant, s.taskID, hum, now); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO flow_events (tenant_id, member_id, msg_id, task_id, kind, at, expires_at)
+			VALUES ($1, $2, $3, $4, 'reply', $5, $6) ON CONFLICT DO NOTHING`, s.tenant, hum, s.msgID, s.taskID, now, now.Add(time.Hour))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

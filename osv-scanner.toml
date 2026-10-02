@@ -8,6 +8,11 @@
 #    requires go 1.26; this module is pinned to go 1.25 (+ golang:1.25-alpine),
 #    so 0.55 / 1.84 are the highest compatible. Not reachable (govulncheck green).
 #    Revisit when the toolchain moves to go 1.26.
+#  - node-forge 1.4.0 (npm, GHSA-86w9-cpqp-85rv): no fixed release exists; it is
+#    pulled only by listhen 1.10.1 (latest, still node-forge ^1.4.0) under
+#    @nuxt/cli + nitropack, for the dev server's self-signed HTTPS cert. It is
+#    not in the generated static bundle. devalue 5.9.2 -> 5.9.4 (7 GHSAs) was
+#    fixed by the lockfile instead (CLE-77971).
 #  - otel/sdk, serialize-javascript (npm): low, below the govulncheck/pnpm-audit
 #    gates; Dependabot-tracked.
 # Review / re-check by 2026-11-01.
@@ -41,3 +46,8 @@ reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); 
 id = "GO-2026-6443"
 ignoreUntil = 2026-11-01
 reason = "google.golang.org/grpc: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
+
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2026-11-01
+reason = "node-forge 1.4.0: no fixed version upstream; only listhen (nuxt dev server self-signed HTTPS, via @nuxt/cli + nitropack) pulls it and its latest 1.10.1 still needs ^1.4.0; not shipped in the generated WUI bundle. Re-check for a node-forge or listhen release by the expiry."

@@ -63,7 +63,7 @@ const PROFILE = {
   d1440: { vp: { width: 1440, height: 900 }, cpu: 1 },
   m390: { vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }, cpu: 4 },
 }
-const STEPS = ['flow-cold', 'flow-open-shown', 'flow-open', 'flow-warm', 'events-tab', 'events-paint', 'events-full', 'events-warm']
+const STEPS = ['first-screen', 'flow-cold', 'flow-open-shown', 'flow-open', 'flow-warm', 'events-tab', 'events-paint', 'events-full', 'events-warm']
 
 /** a step's ms; flow-open-shown is the flow-open sample's first-on-screen time */
 const msOf = (s, k) => (k === 'flow-open-shown' ? s['flow-open']?.shownMs : s[k]?.ms)
@@ -142,8 +142,14 @@ async function step(p, rec, s, name, clickSel, doneSel, midSel = '') {
 async function round(p, cdp, rec, i, tag) {
   const s = { tag }
   if (COLD_CACHE) await cdp.send('Network.clearBrowserCache')
+  rec.take()
   await p.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 })
-  if ((await whenSel(p, FLOW_TAB, 45000)) < 0) throw new Error('no Flow rail tab at ' + p.url())
+  /* CLE-77925 first-screen: navigation start (performance.now() 0) -> the
+     rail's Flow tab visible, with the JS it fetched (jsKB: transfer, so a
+     warm cache reads ~0; COLD_CACHE=1 for the bundle's own cost) */
+  const firstScreen = await whenSel(p, FLOW_TAB, 45000)
+  if (firstScreen < 0) throw new Error('no Flow rail tab at ' + p.url())
+  s['first-screen'] = { ms: Math.round(firstScreen), ...net(rec.take()) }
   await sleep(2500)
   // Flow, first open in this page
   await step(p, rec, s, 'flow-cold', FLOW_TAB, FLOW_ENTRY)

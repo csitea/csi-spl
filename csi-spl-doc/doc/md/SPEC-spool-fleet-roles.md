@@ -298,6 +298,81 @@ the sender's machine.
   `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
   script against a fake `/proc`).
 
+### 4.3 Asks to the orchestrator: fire and forget, tracked until closed (CLE-77929)
+
+Owner bug t1 #spool-hub-bugs 2f7996aa (2026-10-02 01:58Z): "there needs to be
+some kind a state mechanism both in the db and on the file system, that you
+must fire and forget and then the orchestrator (or the next orchestrator if
+the previous one just died) would know to check and get and continue".
+
+**Why the 692aefe8 escalations were lost** (measured 2026-10-02 on the box PC):
+
+| when | what | why nothing happened |
+|---|---|---|
+| 20:06Z | CLE-002 -> CLE-001, kind `task`, msg 7b7f6e64: "new topic 692aefe8, your call" | landed in the inbox and rang the pane once (`.pokes/notices.log` line 1). A decision request, no deadline, no state: 52 more messages followed it before the next reminder (29 notes, 17 results, 5 tasks, 1 blocker) |
+| 01:51Z | the "reminder": a `note` on ANOTHER topic (396fe7e5, msg 4aeb5002) | an FYI note about a report; nothing in it reads as an open ask |
+| 01:55Z | CLE-002 -> CLE-001, kind `blocker`, msg 39451306 | acted on at ~02:10Z, after the owner wrote "but nothing done" |
+| all night | CLE-001's inbox: 954 messages, 0 archived, `.agent-inbox-seen` empty | nothing ever marked a message handled; the orchestrator read by poke lines, and a poke that lands mid-turn is easy to miss |
+| for hours | pokes to CLE-002 REFUSED ("pane holds unsent text", spool-send exit 6) | answers back to the sender were not rung either |
+
+The common cause: an ask was a file plus a doorbell, with no state of its own,
+no re-raise, and on the old holder's disk only.
+
+**The ask log.** The shape is Kafka's on what the estate already has (owner,
+t1 12d34d3a: "resembles the main principle of how Kafka works ... use
+whatever we have: a database, a file system, distributed nodes, the agents"):
+
+| Kafka | here |
+|---|---|
+| topic / partition | the recipient `role` (`orch` today; `dispatch` next) within the fleet |
+| record, idempotent producer | one row per ask keyed by the spool `msg_id` that carried it: a replay (journal sync, a retried send) changes nothing |
+| durable log, replicated | the hub table `fleet_asks` (rdb 0097, every machine reads it) + each machine's journal `<spool root>/asks/<msg id>.json` and the append-only `asks/journal.log` |
+| consumer commit after handling | per record, not an offset: `ack` = taken (in progress, by `<ID>@<box>`), `done` / `declined` (with a reason) = handled. An offset would let one stuck ask block every later one; a per-record commit does not |
+| at-least-once redelivery | the lease tick re-raises an uncommitted ask (unacked `ASKS_RERAISE_MIN`, or acked and past its deadline); handling is idempotent: closing a closed ask is refused naming who closed it and why |
+| consumer-group rebalance, replay | a new orch holder (the fleet lease, 4.1) gets ONE handover blocker listing every open ask of its role, from the hub - also when the dead holder had read them |
+| retention | a closed ask stays a week, then a write prunes it |
+
+**The flow.**
+
+1. **Sender, fire and forget.** `spool-send.sh` with kind `blocker` or `task`
+   to the orchestrator (`--to orchestrator`, or its id) journals the ask
+   BEFORE it returns, then pushes it to the hub in the background (`asks.sh
+   sync`); a hub outage never delays or fails the send. `--ask
+   <blocker|task|escalation>` makes any send an ask, `--no-ask` (or
+   `SPOOL_ASKS=0`) none, `--ask-deadline <RFC 3339 UTC>` sets when it is due.
+   Raised some other way: `do_spl_ask_put`.
+2. **Every machine's lease tick** (`do_spl_asks_tick`, its own process each
+   tick) pushes the journal asks the hub has not got yet.
+3. **The orch holder's machine** also: hands every open ask to a new holder
+   (or on its first tick), re-raises the unacked ones after
+   `ASKS_RERAISE_MIN` (15) minutes in one blocker on task `asks-open`, and
+   after `ASKS_OWNER_MIN` (60) tells the owner ONCE: `ASKS_OWNER_CMD`, else a
+   DM to `ASKS_OWNER` (a `HUM-` id) from the holder's desk. Neither set: one
+   WARN per ask, nothing sent. All three knobs may sit in `lease.conf`.
+4. **The orchestrator, on start and when raised:** `./run -a
+   do_spl_orch_inbox` (open asks first, untracked blocker/task, FYI collapsed
+   one row per sender), then per ask `ASK_ID=<8 hex> ./run -a do_spl_ask_ack`
+   and, when decided, `ASK_ID=<8 hex> ASK_REASON='...' ./run -a
+   do_spl_ask_close` (`ASK_STATE=declined` needs the reason), and the answer
+   to the sender in the ask's topic. Closing archives the ask's message;
+   `ORCH_INBOX_ARCHIVE=1 ./run -a do_spl_orch_inbox` moves the FYI older than
+   `ORCH_INBOX_KEEP_MIN` (60) and the closed asks' messages to `archive/`.
+   From any pane: `asks.sh [open|ack|done|decline|inbox|sync|tick]`.
+
+The mechanical parts are code (owner, 02:19Z: "whenever something can be
+pre-coded with pre-existing logic, there should be code for it"); taking,
+deciding and answering an ask stay the agent's.
+
+- Without a fleet (no `LEASE_FLEET`) the journal is the whole book: the
+  one-machine behaviour.
+- Tests: `TestFleetAskLifecycle` / `TestCheckFleetAsk` (memory + Postgres),
+  `TestBoxFleetAskSurvivesTheOrchestrator` (two boxes: the home holder lists
+  the ask and dies before acking, the other machine's successor gets it,
+  re-raises, acks and closes it, the late close is refused), and
+  `csi-spl-orc/src/bash/tests/asks.tst.sh` (two simulated machines, 31
+  checks: fire and forget, hub down, kill-mid-ask handover, re-raise, owner
+  leg, close, the inbox view).
+
 ## 5. What this replaced
 
 Before 2026-10-01 the orchestrator read every message itself, a standing first
@@ -328,6 +403,7 @@ end to end in every seated workspace.
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | one lease across the box PC and the satellite (4.1) | live on the box PC since 2026-10-01 23:24Z (rdb 0094 + 0095 on dev + prd, hub `lease` frame, `LEASE_CMD=fleet`; prd rows `CLE-001@box-desk` / `CLE-002@box-desk`; the interim lease.sh retired). The satellite trio `CLE-001/002/003@sat` and the live drill follow the satellite rebuild (CLE-77912) and the owner's go for its prd pins |
 | messages and reports across machines (4.2) | code on trunk 2026-10-02 (CLE-77919); live once the satellite's desk is pinned and both sidecars run the new binary |
+| asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (CLE-77929: rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.5.0 · updated: 2026-10-02 · last-edit: 2026-10-02T00:00:00Z -->
+<!-- version: 0.6.0 · updated: 2026-10-02 · last-edit: 2026-10-02T03:10:00Z -->

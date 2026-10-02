@@ -203,6 +203,11 @@ grep -q 'send CLE-900 -> CLE-900 note dispatch-rotate .*ROTATION SKIP stalled' "
 world; "$T/bin/proc" 112 CLE-902 7200; gate "duplicate: CLE-902 pids 102 112" "two processes on one id: SKIP duplicate"
 world; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5; gate "locked" "the lock held: SKIP locked"; wait
 world; echo "20261002T0505Z-orch ACK $(date +%s)" >"$D/rotate.orch.state"; gate "orch-busy (orch rotation at ACK)" "an orch rotation in flight: wait, then SKIP orch-busy (FR-051)"
+# a FAILED orch rotation ends at ALERT (the ask + the owner DM): over, not in flight
+world; echo "20261002T1505Z-orch ALERT $(date +%s)" >"$D/rotate.orch.state"
+act >"$T/o" 2>&1
+! grep -q 'orch-busy' "$T/o" && grep -q ' GATE PLAN pass' "$T/o" &&
+  pass "2. an orch rotation that ended at ALERT does not hold the dispatchers off" || fail "2. ALERT: $(cat "$T/o")"
 
 # --- 3. T-DISP-HAPPY ------------------------------------------------------------------------
 world; cp "$D/lease.conf" "$T/conf.before"

@@ -134,7 +134,10 @@ spl_disp_rotate_auto() {
   spl_disp_run_all
 }
 
-spl_disp_in_flight() { [[ -n "$1" && "$1" != DONE && "$1" != FAIL && "$1" != ABORT ]]; }
+# ALERT ends a failed rotation (it follows FAIL) and is the last phase the
+# orch .state shows: read as in flight, it held every dispatcher rotation off
+# until the next orch rotation (20261002T1515Z GATE SKIP orch-busy)
+spl_disp_in_flight() { [[ -n "$1" && "$1" != DONE && "$1" != FAIL && "$1" != ABORT && "$1" != ALERT ]]; }
 
 # FR-051: an orch rotation of this machine in flight goes first.
 spl_disp_wait_orch() {

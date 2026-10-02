@@ -21,6 +21,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -41,6 +42,27 @@ func (e *env) machine2(b *box, agents ...string) *box {
 	c.HTTP = e.client
 	c.ReadyTimeout = 5 * time.Second
 	return &box{id: b.id, cfg: cfg, c: c, pub: b.pub}
+}
+
+// committed waits until the hub holds every delivery to box b as committed.
+// The box writes the inbox copy, THEN sends the commit frame (spec 059 S2),
+// and a socket that ends between the two is sent that row again at the next
+// hello - by design, "a lost commit costs one duplicate frame later". On one
+// spool root the file name absorbs it; on a second machine it is a second
+// copy. So a takeover test hands the box id over only once the commit has
+// landed, or it measures that window (CLE-77972: 1 in 200 under -race, 20 in
+// 20 with the commit frame delayed 20 ms) instead of the hub.
+func (e *env) committed(tid string, b *box) {
+	e.t.Helper()
+	a, ok := e.st.(store.Acks)
+	if !ok {
+		return
+	}
+	eventually(e.t, b.id+"'s commits on the hub", func() bool {
+		now := time.Now()
+		q, err := a.UnackedFor(context.Background(), tid, b.id, now, now.Add(time.Hour))
+		return err == nil && len(q) == 0
+	})
 }
 
 func bodies(t *testing.T, b *box, as string) []string {
@@ -135,6 +157,7 @@ func TestBoxTakeoverMidMessageLosesNothing(t *testing.T) {
 		t.Fatalf("msg 1: %q", out.Delivery)
 	}
 	eventually(t, "msg 1 on machine 1", func() bool { return len(inbox(t, m1, "CLE-07")) == 1 })
+	e.committed(tid, m1)
 
 	// Machine 2 says hello as the same box: the last hello wins, machine 1
 	// is told it was superseded (4409) and stops.
@@ -154,6 +177,7 @@ func TestBoxTakeoverMidMessageLosesNothing(t *testing.T) {
 		t.Fatalf("msg 2: %q", out.Delivery)
 	}
 	eventually(t, "msg 2 on machine 2", func() bool { return len(inbox(t, m2, "CLE-07")) == 1 })
+	e.committed(tid, m2)
 
 	// Machine 2 goes down: the next message queues for the box, not for a
 	// machine, and drains to whichever machine says hello next.

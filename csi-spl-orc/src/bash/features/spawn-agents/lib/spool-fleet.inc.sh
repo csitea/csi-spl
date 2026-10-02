@@ -99,6 +99,9 @@ spool_fleet_relay() {  # spool send args...
     # shellcheck disable=SC2086 # a command line, split on purpose
     $SPOOL_FLEET_RELAY_CMD "$@"; return
   fi
+  if [ "${SPOOL_TEST:-}" = 1 ]; then
+    echo "spool-fleet: relay REFUSED under SPOOL_TEST=1 (set SPOOL_FLEET_RELAY_CMD to a stub)" >&2; return 3
+  fi
   local relay="$SPOOL_FEATURE_DIR/scripts/spool-fleet-relay.sh"
   if [ "$(id -un)" = "$SPOOL_BOX_USER" ]; then
     SPOOL_ROOT="$SPOOL_ROOT" bash "$relay" "$@"

@@ -46,6 +46,8 @@ t_sandbox() {
   export SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)"
   export SPOOL_BOX_TAG=""
   export SPAWN_TEST_SANDBOX=1
+  # CLE-77923: the send/notify path refuses the live spool root under this.
+  export SPOOL_TEST=1
   mkdir -p "$SPOOL_ROOT"
   trap 't_cleanup' EXIT
 }

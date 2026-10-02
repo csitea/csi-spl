@@ -93,7 +93,36 @@ _spool_feature_dir() {
   cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd
 }
 
+# The test guard (CLE-77923). A test harness sets SPOOL_TEST=1; under it the
+# LIVE spool root is refused outright and every leg that leaves the sandbox is
+# off by default: no tmux poke unless the test names its own socket, no hub
+# relay unless it names SPOOL_FLEET_RELAY_CMD. responder-run.tst.sh isolated
+# SPL_STATE_DIR but not the spool root, and every pre-push run filed its
+# fixtures (t-aaa, t-bbb, t-ddd) into the orchestrator's real inbox and rang
+# its real pane. SPOOL_LIVE_ROOT exists for the guard's own test, which cannot
+# aim at the real root to prove the refusal. A refusal is also appended to
+# SPOOL_TEST_GUARD_LOG: callers often send 2>/dev/null, and a refusal nobody
+# sees cannot fail a sweep.
+spool_test_guard() {
+  [ "${SPOOL_TEST:-}" = 1 ] || return 0
+  local live="${SPOOL_LIVE_ROOT:-/var/spool-hub}" rr lr
+  rr="$(readlink -m -- "${SPOOL_ROOT:-$live}")"; lr="$(readlink -m -- "$live")"
+  if [ "$rr" = "$lr" ]; then
+    local msg="spool-env: REFUSED: SPOOL_TEST=1 and SPOOL_ROOT is the live root (${lr}); a test must give its own SPOOL_ROOT"
+    echo "$msg" >&2
+    [ -n "${SPOOL_TEST_GUARD_LOG:-}" ] && printf '%s (%s)\n' "$msg" "${0##*/}" >>"$SPOOL_TEST_GUARD_LOG"
+    return 96
+  fi
+  SPOOL_TMUX_SOCKET="${SPOOL_TMUX_SOCKET:-$rr/.spool-test-no-tmux.sock}"
+  [ -n "${SPOOL_FLEET_RELAY_CMD:-}" ] || SPOOL_FLEET_RELAY=0
+  export SPOOL_TMUX_SOCKET SPOOL_FLEET_RELAY
+  return 0
+}
+
 spool_env_resolve() {
+  # exit, not return: callers source this and run unchecked, so a refusal that
+  # returned would fall through to the send it exists to stop.
+  spool_test_guard || exit 96
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   _spool_box_env_load
   # Not $SUDO_USER: under `sudo -u <box user>` that names the CALLER, and an

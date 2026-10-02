@@ -1,0 +1,17 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "userDataDir": "__MCP_BOT_HOME__/cr-profile",
+    "launchOptions": {
+      "channel": "chrome",
+      "headless": true,
+      "args": [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-background-networking"
+      ]
+    }
+  }
+}

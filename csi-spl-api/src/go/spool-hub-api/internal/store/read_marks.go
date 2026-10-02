@@ -30,10 +30,16 @@ var (
 // MaxReadMarks bounds one write: a sync sends the keys that moved.
 const MaxReadMarks = 200
 
-var readMarkKeyRe = regexp.MustCompile(`^(ch|t|dm):[^\s]{1,200}$`)
+var (
+	readMarkKeyRe = regexp.MustCompile(`^(ch|t|dm):[^\s]{1,200}$`)
+	flowMarkKeyRe = regexp.MustCompile(`^f:(seen|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`)
+)
 
-// ValidReadMarkKey: ch:/t:/dm: and 1..200 non-space characters (rdb 0098 CHECK).
-func ValidReadMarkKey(k string) bool { return readMarkKeyRe.MatchString(k) }
+// ValidReadMarkKey: ch:/t:/dm: and 1..200 non-space characters (rdb 0098
+// CHECK), or a Flow mark, f:seen or f:<msg_id> (rdb 0104, spec 062).
+func ValidReadMarkKey(k string) bool {
+	return readMarkKeyRe.MatchString(k) || flowMarkKeyRe.MatchString(k)
+}
 
 // ThreadMarkKey is the read_marks key of a thread.
 func ThreadMarkKey(taskID string) string { return "t:" + taskID }
@@ -73,6 +79,7 @@ func (s *Memory) SaveReadMarks(_ context.Context, tenant, humanID string, marks 
 		}
 		s.readMarks[k] = m
 	}
+	s.wake.notifyWUI(tenant, "f:"+humanID) // spec 062: as the Postgres statement announces it
 	return nil
 }
 
@@ -149,13 +156,18 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 		keys, ats, ids, seen = append(keys, k), append(ats, m.At), append(ids, strings.TrimSpace(m.MsgID)), append(seen, max(0, m.Seen))
 	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)
+		// spec 062 FR-007: the write announces "<tenant>|f:<member>" on the
+		// browser wake channel (sent on commit), so every hub process pushes
+		// that member's sockets their new flow counts.
+		_, err := tx.Exec(ctx, `WITH up AS (INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)
 			SELECT $1, $2, k, a, i, n, $7 FROM unnest($3::text[], $4::timestamptz[], $5::text[], $6::int[]) AS u(k, a, i, n)
 			ON CONFLICT (tenant_id, member_id, mark_key) DO UPDATE SET
 				at = CASE WHEN (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) THEN EXCLUDED.at ELSE read_marks.at END,
 				msg_id = CASE WHEN (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) THEN EXCLUDED.msg_id ELSE read_marks.msg_id END,
 				seen = GREATEST(read_marks.seen, EXCLUDED.seen),
-				updated_at = EXCLUDED.updated_at`,
+				updated_at = EXCLUDED.updated_at
+			RETURNING 1)
+			SELECT pg_notify('`+WUIWakeChannel+`', $1 || '|f:' || $2), (SELECT count(*) FROM up)`,
 			tenant, humanID, keys, ats, ids, seen, now)
 		return err
 	})

@@ -121,6 +121,11 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// from a thin read; per_topic=50 inlined the envelopes and read their
 		// deliveries and reactions too (measured 5/9 -> 4/5 here, n=3).
 		{"GET topics?dm&dm_counts", 3, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
+		// spec 062 FR-010: the per-member Flow - counts and one page in one
+		// batch behind the cached door (spec target <= 2; measured 1/2 and 1/1,
+		// n=5, on c-037's tree); counts_only is the same batch's first read.
+		{"GET /v1/view/flow", 1, get("/v1/view/flow?limit=30")},
+		{"GET /v1/view/flow?counts_only", 1, get("/v1/view/flow?counts_only=true")},
 		// DB payload cut 7: the message and its box-wui delivery (sent) in one
 		// statement; insert + enqueue + claim took three (it was 5).
 		{"WS wui send (lobby) -> ack", 2, func() error { send("probe"); return nil }},

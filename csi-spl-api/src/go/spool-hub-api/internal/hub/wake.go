@@ -37,6 +37,7 @@ func (s *Server) RunWake(ctx context.Context) {
 	if s.o.WakeWUI && canWUI {
 		kick := make(chan [2]string, wuiWakeQueue)
 		go s.wuiWakeWorker(ctx, ww, kick)
+		s.wuiWaking.Store(true)
 		onWUI = kicker(kick)
 	}
 	listen := func() error { return w.ListenWake(ctx, onBox) }

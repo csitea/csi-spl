@@ -57,6 +57,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/me/reads", s.handleReadMarks)                   // CLE-77930, rdb 0098
 	mux.HandleFunc("PUT /v1/me/reads", s.handleReadMarks)
 	mux.HandleFunc("OPTIONS /v1/me/reads", s.readMarksPreflight)
+	mux.HandleFunc("GET /v1/view/flow", s.handleViewFlow) // spec 062, contracts/flow-v1.md
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)

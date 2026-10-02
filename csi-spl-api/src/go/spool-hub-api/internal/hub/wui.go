@@ -827,6 +827,7 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	// socket would keep delivering to someone removed from the channel
 	// seconds ago.
 	members := s.channelMemberSet(ctx, tenant, channel)
+	s.fanoutFlow(ctx, row) // spec 062: the line's flow events, to their members' sockets
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {

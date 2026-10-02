@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -177,6 +178,7 @@ type Server struct {
 	tokenSweptAt time.Time
 	wui          map[*wuiConn]struct{} // browser live sockets (wui.go)
 	fanned       fannedSet             // wui_wake.go (spec 059 S3), its own lock
+	wuiWaking    atomic.Bool           // the WUI wake worker runs: it pushes the flow mark frames (flow.go)
 	humans       humanIDs
 	online       map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
 	closing      bool

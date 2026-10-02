@@ -463,7 +463,9 @@ func quiet(t *testing.T, c *websocket.Conn, why string) {
 		if err := wsjson.Read(ctx, c, &f); err != nil {
 			return
 		}
-		if f["type"] != "presence" {
+		// spec 062: a `flow` frame is the member's own badge, pushed after
+		// the message fan-out (an earlier line's may land here); not a follow.
+		if f["type"] != "presence" && f["type"] != "flow" {
 			t.Fatalf("%s: unexpected frame %v", why, f)
 		}
 	}

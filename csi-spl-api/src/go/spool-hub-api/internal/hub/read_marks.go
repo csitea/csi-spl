@@ -49,7 +49,7 @@ func wireReadMarks(marks map[string]store.ReadMark) map[string]wireReadMark {
 }
 
 // parseReadMarkBody validates PUT /v1/me/reads: at most store.MaxReadMarks
-// keys, each ch:/t:/dm:, each with a cursor or an RFC 3339 ts; a mark ahead of
+// keys, each ch:/t:/dm: or f:seen / f:<msg_id> (spec 062), each with a cursor or an RFC 3339 ts; a mark ahead of
 // now is clamped to now.
 func parseReadMarkBody(in map[string]wireReadMark, now time.Time) (map[string]store.ReadMark, bool) {
 	if len(in) > store.MaxReadMarks {
@@ -108,18 +108,24 @@ func (s *Server) handleReadMarks(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&body); err != nil || body.Marks == nil {
-			writeErr(w, http.StatusBadRequest, "bad_json", "body must be {marks: {<ch:|t:|dm:key>: {ts|cursor, id, count}}}")
+			writeErr(w, http.StatusBadRequest, "bad_json", "body must be {marks: {<ch:|t:|dm:|f:key>: {ts|cursor, id, count}}}")
 			return
 		}
 		marks, valid := parseReadMarkBody(body.Marks, s.o.Now())
 		if !valid {
-			writeErr(w, http.StatusBadRequest, "bad_json", "at most 200 marks; keys ch:/t:/dm:<id>; each a cursor or an RFC 3339 ts")
+			writeErr(w, http.StatusBadRequest, "bad_json", "at most 200 marks; keys ch:/t:/dm:<id>, f:seen or f:<msg_id>; each a cursor or an RFC 3339 ts")
 			return
 		}
 		if err := rm.SaveReadMarks(r.Context(), t.ID, hum, marks, s.o.Now()); err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("read marks write")
 			writeErr(w, http.StatusInternalServerError, "internal", "read marks not stored")
 			return
+		}
+		// spec 062 FR-007: the member's flow counts move on every socket at
+		// once. The store announced the write (spool_wui "f:<member>"), and
+		// each process's wake worker pushes the frame; without one, push here.
+		if !s.wuiWaking.Load() {
+			s.pushFlowCounts(r.Context(), t.ID, hum)
 		}
 	}
 	marks, err := rm.ReadMarksOf(r.Context(), t.ID, hum)

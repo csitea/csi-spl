@@ -57,6 +57,10 @@ func (s *Server) wuiWakeWorker(ctx context.Context, ww store.WUIWaker, kick <-ch
 			return
 		case k = <-kick:
 		}
+		if member, ok := flowMarkWake(k[1]); ok { // spec 062: a member's marks moved
+			s.pushFlowCounts(ctx, k[0], member)
+			continue
+		}
 		if !s.holdsWUI(k[0]) || !s.fanned.add(k) {
 			continue
 		}

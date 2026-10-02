@@ -25,7 +25,7 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [x] T030 L3a `spool-env.inc.sh`: `spl_is_agent_id`, `spl_is_participant_id`, `SPOOL_LEGACY_ID_UNTIL`, `SPOOL_NOW` + FR-005 pin test
 - [x] T031 L3a spawn-agents scripts, libs and python parsers use the helpers; window parsing accepts `c-NNN`
 - [x] T032 L3b the about 40 `run/spl-*.func.sh` validators use the helpers (not the rotation files)
-- [ ] T040 Deploy gate (FR-007): wave A and L1b dev+prd live, satellite pulled and `spool` rebuilt
+- [x] T040 Deploy gate (FR-007): wave A and L1b dev+prd live, satellite pulled and `spool` rebuilt (checked by L4, 2026-10-02 ~10:05Z: hub `/version` dev+prd = `f1b1a3cc` 6.4.9, contains L1 `0d4a4cb9` + L1b `3bffda3a`; WUI `build.json` dev+prd = `a5648c64` 6.4.8, contains L2 `e2789e31`, L3a `3dbb82d8`, L3b `4ddd5801`; satellite checkout fast-forwarded to `8a720ccb`, its `spool` 1.1.3 accepts `c-004` / `a-123` / `CLE-77974` on `recv`, but was built 10:36 EEST, after L1 and BEFORE L1b: rebuild it there for the `@box` CLI forms)
 
 ## 2. Wave B: emit the new form
 

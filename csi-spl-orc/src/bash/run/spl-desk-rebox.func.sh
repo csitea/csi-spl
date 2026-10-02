@@ -6,10 +6,13 @@
 # @description M5 and section 6.5. One REBOX_STEP per call, in this order:
 # @description   pin    - mint TO_BOX's key and pin it with the tenant root key
 # @description            (do_spl_desk_pin self mode). Nothing goes offline
-# @description   copy   - copy FROM_BOX's box_operators and channel_subscriptions
-# @description            rows to TO_BOX, backfilled_at set, so no channel
-# @description            back-fill burst fires and every channel seat, removal
-# @description            and operator binding carries over. Idempotent
+# @description   copy   - copy FROM_BOX's box_operators, channel_subscriptions
+# @description            and agent_id_aliases rows to TO_BOX (backfilled_at
+# @description            set, so no channel back-fill burst fires and every
+# @description            channel seat, removal, operator binding and legacy-id
+# @description            alias carries over), and move its LIVE fleet_lanes
+# @description            rows to TO_BOX (an agent's exit-clean then closes
+# @description            the row it reads in the lane map). Idempotent
 # @description   drain  - pause the desk cron for ENV (it would re-seat the old
 # @description            box), stop FROM_BOX's sidecar, record the seated agents
 # @description            in <desk>/rebox-seated.txt, move their dirs out of the
@@ -24,6 +27,9 @@
 # @description            kept) with do_spl_desk_up_all DESK_SEATED_ONLY=1
 # @description   resume - remove the cron pause (the cron now reconciles the
 # @description            box box.env names)
+# @description   verify - READ-ONLY: per box, the pin, roster, channel seats and
+# @description            deliveries not yet acked; FAILS while a delivery
+# @description            for FROM_BOX is still unacked after its drain
 # @description   retire - drain again (a WUI DM to an old <ID>@<from> page queues
 # @description            for FROM_BOX), delete FROM_BOX's channel_subscriptions
 # @description            and box_operators rows, revoke its pin
@@ -32,10 +38,13 @@
 # @description fleet lease holds the roles on the other machine meanwhile.
 # @description SQL values travel as psql variables, never spliced; the
 # @description statement sets app.tenant_id (rdb 0014).
-# @description Dry run unless DRY_RUN=0: prints the step, calls no cloud.
+# @description Dry run unless DRY_RUN=0: prints the step, calls no cloud
+# @description (verify is read-only and always runs).
 # @param ENV - required: dev or prd
-# @param TENANT_ID - required: the tenant slug
-# @param REBOX_STEP - required: pin | copy | drain | seat | resume | retire
+# @param TENANT_ID - required: the tenant slug, or `all`: every tenant whose
+# @param   FROM_BOX desk is pinned here (<state>/desk/*/FROM_BOX/pinned), one
+# @param   after the other, stopping at the first failure
+# @param REBOX_STEP - required: pin | copy | drain | seat | resume | verify | retire
 # @param FROM_BOX - required: the old box id (e.g. box-desk). No default: no desk
 # @param   action keeps a literal box-desk default (specs/058, test-desk-box-default case 8)
 # @param TO_BOX (optional) - default spl_desk_box_default; never box-desk, never FROM_BOX
@@ -47,6 +56,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 FROM_BOX=box-desk TO_BOX=<box> REBOX_STEP=pin ./run -a do_spl_desk_rebox
 # @example ENV=prd TENANT_ID=t1 FROM_BOX=box-desk TO_BOX=<box> REBOX_STEP=drain DRY_RUN=0 ./run -a do_spl_desk_rebox
+# @example ENV=prd TENANT_ID=all FROM_BOX=box-desk TO_BOX=<box> REBOX_STEP=verify DRY_RUN=0 ./run -a do_spl_desk_rebox
 #------------------------------------------------------------------------------
 do_spl_desk_rebox() {
   do_require_bin python3 yq || return 1
@@ -55,22 +65,41 @@ do_spl_desk_rebox() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" step="${REBOX_STEP:-}" from="${FROM_BOX:-}" to="${TO_BOX:-$(spl_desk_box_default)}"
   [[ -n "$from" ]] || { do_log "FATAL FROM_BOX is required: the old box id this desk moves from (e.g. box-desk)"; return 1; }
+  if [[ "$tenant" == all ]]; then
+    _spl_rebox_all "$from" || return 1
+    return 0
+  fi
   spl_desk_validate "$tenant" "$from" none || return 1
   spl_desk_validate "$tenant" "$to" none || return 1
   [[ "$to" != box-desk && "$to" != "$from" ]] ||
     { do_log "FATAL TO_BOX '$to' must be this machine's own box (box.env SPOOL_DESK_BOX), not box-desk and not FROM_BOX"; return 1; }
   case "$step" in
-    pin | copy | drain | seat | resume | retire) ;;
-    *) do_log "FATAL REBOX_STEP must be pin | copy | drain | seat | resume | retire, got: '$step'"; return 1 ;;
+    pin | copy | drain | seat | resume | verify | retire) ;;
+    *) do_log "FATAL REBOX_STEP must be pin | copy | drain | seat | resume | verify | retire, got: '$step'"; return 1 ;;
   esac
   SPL_REBOX_FROM="$SPL_STATE_DIR/desk/$tenant/$from" SPL_REBOX_TO="$SPL_STATE_DIR/desk/$tenant/$to"
   SPL_REBOX_PAUSE="${SPOOL_ROOT:-/var/spool-hub}/.desk-reconcile.$ENV.pause"
-  if (( dry )); then
+  if (( dry )) && [[ "$step" != verify ]]; then
     do_log "INFO DRY_RUN would run step $step for $tenant on $ENV: $from -> $to (desk state $SPL_REBOX_FROM -> $SPL_REBOX_TO)"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
   "_spl_rebox_$step" "$tenant" "$from" "$to"
+}
+
+# _spl_rebox_all <from>: TENANT_ID=all - the step for every tenant whose FROM_BOX
+# desk is pinned on this machine, in name order, stopping at the first failure.
+_spl_rebox_all() {
+  local p t n=0
+  for p in "$SPL_STATE_DIR"/desk/*/"$1"/pinned; do
+    [[ -s "$p" ]] || continue
+    t="${p%/"$1"/pinned}"; t="${t##*/}"
+    do_log "INFO TENANT_ID=all: $t"
+    ( TENANT_ID="$t" do_spl_desk_rebox ) || { do_log "FATAL TENANT_ID=all stopped at $t (the tenants before it are done)"; return 1; }
+    n=$((n + 1))
+  done
+  (( n > 0 )) || { do_log "FATAL TENANT_ID=all: no $1 desk is pinned under $SPL_STATE_DIR/desk"; return 1; }
+  do_log "OK TENANT_ID=all: $n tenant(s)"
 }
 
 # _spl_rebox_root_key <tenant> -> ROOT_KEY_JSON, or the newest saved create JSON.
@@ -114,6 +143,19 @@ WITH c AS (
     FROM channel_subscriptions WHERE tenant_id = :'tenant' AND box_id = :'from'
   ON CONFLICT (tenant_id, channel_id, agent_id, box_id) DO NOTHING RETURNING 1)
 SELECT 'channel_seats ' || count(*) FROM c;
+WITH a AS (
+  INSERT INTO agent_id_aliases (tenant_id, old_id, new_id, kind, box_id, mapped_at)
+  SELECT tenant_id, old_id, new_id, kind, :'to', mapped_at FROM agent_id_aliases
+   WHERE tenant_id = :'tenant' AND box_id = :'from'
+  ON CONFLICT (tenant_id, old_id, box_id) DO NOTHING RETURNING 1)
+SELECT 'aliases ' || count(*) FROM a;
+WITH l AS (
+  UPDATE fleet_lanes f SET agent_box = :'to'
+   WHERE f.tenant_id = :'tenant' AND f.agent_box = :'from' AND f.state = 'live'
+     AND NOT EXISTS (SELECT 1 FROM fleet_lanes g WHERE g.tenant_id = f.tenant_id
+                       AND g.fleet = f.fleet AND g.agent_id = f.agent_id AND g.agent_box = :'to')
+  RETURNING 1)
+SELECT 'live_lanes ' || count(*) FROM l;
 COMMIT;
 SQL
 )" || { do_log "FATAL copy $2 -> $3 in $1 failed (rolled back): $out"; return 1; }
@@ -180,6 +222,40 @@ _spl_rebox_seat() {
 
 _spl_rebox_resume() {
   rm -f "$SPL_REBOX_PAUSE" && do_log "OK the desk cron of $ENV reconciles again ($SPL_REBOX_PAUSE removed)"
+}
+
+_spl_rebox_verify() {
+  do_gcp_pin_account "$SPL_CNF" || return 1
+  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  spl_via_proxy _spl_rebox_verify_run "$1" "$2" "$3"
+}
+
+# One read-only transaction: per box, pinned / roster / channel seats /
+# deliveries not acked. A drained FROM_BOX must have no unacked delivery left.
+_spl_rebox_verify_run() {
+  local out left line
+  out="$(PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 \
+    -v tenant="$1" -v from="$2" -v to="$3" <<'SQL'
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL app.tenant_id = :'tenant';
+SELECT b.box,
+       (SELECT count(*) FROM pins p WHERE p.tenant_id = :'tenant' AND p.box_id = b.box AND p.revoked_at IS NULL),
+       (SELECT count(*) FROM roster r WHERE r.tenant_id = :'tenant' AND r.box_id = b.box),
+       (SELECT count(*) FROM channel_subscriptions c WHERE c.tenant_id = :'tenant' AND c.box_id = b.box),
+       (SELECT count(*) FROM deliveries d WHERE d.tenant_id = :'tenant' AND d.to_box = b.box
+                                       AND d.state <> 'expired' AND d.acked_at IS NULL)
+  FROM (VALUES (:'from'), (:'to')) AS b(box);
+ROLLBACK;
+SQL
+)" || { do_log "FATAL verify of $2 / $3 in $1 failed: $out"; return 1; }
+  do_log "INFO $1 ($ENV): box pinned roster channel_seats unacked"
+  while read -r line; do [[ -n "$line" ]] && do_log "INFO $1   $line"; done <<<"$out"
+  left="$(awk -v b="$2" '$1 == b { print $5 }' <<<"$out")"
+  [[ "$left" =~ ^[0-9]+$ ]] || { do_log "FATAL verify read no row for $2 in $1: $out"; return 1; }
+  if (( left > 0 )) && [[ -s "$SPL_REBOX_FROM/rebox-seated.txt" ]]; then
+    do_log "FAIL $1: $left delivery(ies) for $2 are not acked after its drain: re-run REBOX_STEP=drain"; return 1
+  fi
+  do_log "OK $1: $2 has $left unacked delivery(ies)"
 }
 
 _spl_rebox_retire() {

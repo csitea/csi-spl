@@ -251,5 +251,24 @@ o=$(env HOME="$CB/home" PATH="$CB:$PATH" bash -c '
   _satellite_verify_claude_start' 2>&1)
 [[ "$(grep -c '^PASS' <<<"$o")" == 2 ]] && pass "12. claude --print + the no-menu smoke both run, with a claude that reads stdin" || fail "12. claude-start rows: $o"
 
+# 13. the tmux-main task: an active unit with main visible -> OK; a has-session
+#     miss with the unit active and the socket present -> WARN with tmux's
+#     error, exit 0 (playbook 916d1d4f failed the run here); no socket -> FAIL
+tm=$(python3 -c "
+import yaml
+for t in yaml.safe_load(open('$h8')):
+    if t.get('name','').startswith('Enable + start tmux-main'): print(t['ansible.builtin.shell'])")
+TB="$T/tmuxbin"; mkdir -p "$TB"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$TB/systemctl"; chmod +x "$TB/systemctl"
+printf '#!/usr/bin/env bash\n[ "$TMUX_FAKE" = up ] && exit 0; echo "no server running on $2" >&2; exit 1\n' >"$TB/tmux"; chmod +x "$TB/tmux"
+run_tm() { local sock="$1"; shift; env PATH="$TB:$PATH" "$@" bash -c "$(sed "s#/usr/bin/tmux#$TB/tmux#g; s#/tmp/tmux-\$(id -u)/default#$sock#g" <<<"$tm")" 2>&1; }
+SK="$T/sock"; python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" "$SK"
+o=$(run_tm "$SK" TMUX_FAKE=up); r=$?
+[[ $r -eq 0 && "$o" == OK* ]] && pass "13. tmux task: unit active, main visible -> OK" || fail "13. visible: rc=$r $o"
+o=$(run_tm "$SK" TMUX_FAKE=down); r=$?
+[[ $r -eq 0 && "$o" == *"WARN unit active, socket"*"no server running"* ]] && pass "13. tmux task: a has-session miss with the unit active is a WARN carrying tmux's error, not a failed run" || fail "13. miss: rc=$r $o"
+o=$(run_tm "$T/no-such-sock" TMUX_FAKE=down); r=$?
+[[ $r -ne 0 && "$o" == *"FAIL no tmux server socket"* ]] && pass "13. tmux task: no server socket at all is a FAIL" || fail "13. no socket: rc=$r $o"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

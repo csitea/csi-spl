@@ -241,10 +241,17 @@
     c=0
     systemctl --user is-enabled -q tmux-main.service || { systemctl --user enable -q tmux-main.service && c=1; }
     S="/tmp/tmux-$(id -u)/default"
-    if tmux -S "$S" has-session -t main 2>/dev/null; then :; else systemctl --user start tmux-main.service && c=1; fi
     # the unit adopts a running main, so this start never fails on one
     systemctl --user is-active -q tmux-main.service || { systemctl --user start tmux-main.service && c=1; }
-    tmux -S "$S" has-session -t main 2>/dev/null || { echo "FAIL no tmux session main on $S"; exit 1; }
+    systemctl --user is-active -q tmux-main.service || { echo "FAIL tmux-main.service is not active: $(systemctl --user status tmux-main.service --no-pager 2>&1 | tail -n 3 | tr '\n' ' ')"; exit 1; }
+    # the tmux error is kept: playbook 916d1d4f printed a bare "no session"
+    # here while the unit had adopted main and the verify row (sudo -u owner) saw
+    # it. The unit being active is the proof here; the session itself is
+    # the do_satellite_verify row. A miss with the unit active is a WARN with the
+    # error, never a silent pass and never a failed run.
+    if err=$(/usr/bin/tmux -S "$S" has-session -t main 2>&1); then :
+    elif [ -S "$S" ]; then echo "WARN unit active, socket $S present, but has-session in this task said: ${err:-nothing} (uid=$(id -u), TMUX=${TMUX:-}, LC_ALL=${LC_ALL:-})"
+    else echo "FAIL no tmux server socket at $S ($err)"; exit 1; fi
     [ "$c" = 1 ] && echo CHANGED || echo OK
   args:
     executable: /bin/bash

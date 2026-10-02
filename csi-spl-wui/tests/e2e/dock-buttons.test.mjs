@@ -37,6 +37,10 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/* Let the page finish what a tap started (a lazy page chunk) before the next
+   goto tears the document down: an import cut off mid-flight surfaced once in
+   CI as a page error (run 37020039069, n=1; 0 of 7 local generated-bundle runs) */
+const settle = (p) => p.waitForNetworkIdle({ idleTime: 400, timeout: 15000 }).catch(() => {})
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -89,6 +93,7 @@ const openTopic = (p) => p.evaluate((id) => {
 }, TASK)
 
 async function toChannel(p) {
+  await settle(p)
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await sleep(800)
@@ -107,13 +112,14 @@ async function toTopic(p) {
 const tapBack = async (p, sel) => {
   await p.tap(sel)
   await sleep(1000)
+  await settle(p)
   return where(p)
 }
 
 async function phone(browser) {
   const p = await browser.newPage()
   const errors = []
-  p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  p.on('pageerror', (e) => errors.push({ at: p.url(), err: String(e.stack || e).slice(0, 600) }))
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
 
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

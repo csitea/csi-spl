@@ -64,16 +64,9 @@ do_spl_desk_reply() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
-  [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
-  [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
-  [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
-  local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' pfx_re='^[0-9a-f]{8}$'
-  [[ -z "$task" || "$task" =~ $uuid_re || "$task" =~ $pfx_re ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID or an 8-hex topic prefix, got: '$task'"; return 1; }
-  local f files=()
+  local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' f files=()
   read -r -a files <<<"${DESK_FILES:-}"
-  for f in "${files[@]}"; do
-    [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
-  done
+  _spl_desk_reply_check_args "$body" "$kind" "$to" "$task" "${files[@]}" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"
@@ -120,31 +113,14 @@ do_spl_desk_reply() {
     [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
   fi
 
-  local ids=() put id
-  for f in "${files[@]}"; do
-    put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
-      { do_log "FATAL put-file $f: $put"; return 1; }
-    id="$(printf '%s' "$put" | python3 -c 'import json,sys; print(json.load(sys.stdin)["file_id"])' 2>/dev/null)" ||
-      { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
-    ids+=(--file-id "$id")
-  done
+  local ids=()
+  _spl_desk_reply_put_files "$d" "$box" "$tenant" "$hub" "${files[@]}" || return 1
 
   local sent rc=0
   sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
     --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}")" || rc=$?
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
-  SPL_SENT="$sent" python3 - "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head" <<'EOF_PY'
-import json, os, sys
-env, tenant, box, agent, kind, to, task, in_msg, head = sys.argv[1:]
-sent = os.environ.get("SPL_SENT", "")
-try:
-    sent = json.loads(sent)
-except ValueError:
-    pass
-print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "kind": kind,
-                  "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
-                  "send": sent}, sort_keys=True))
-EOF_PY
+  SPL_SENT="$sent" _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head"
   # The watermark of this desk's conversation: what "newer than the last
   # answer" means next time. It is a hint, not a record - losing it only makes
   # the next run ask instead of choosing.
@@ -156,6 +132,52 @@ EOF_PY
       do_log "WARN could not archive $agent's inbox after the answer"
   fi
   do_log "OK $agent answered $ans_to in topic $ans_task ($kind); the sidecar flushes it to $hub"
+}
+
+# _spl_desk_reply_summary <env> <tenant> <box> <agent> <kind> <to> <task>
+# <answered msg> <answered head>: the JSON line of an answer, with the send
+# result from SPL_SENT.
+_spl_desk_reply_summary() {
+  python3 - "$@" <<'EOF_PY'
+import json, os, sys
+env, tenant, box, agent, kind, to, task, in_msg, head = sys.argv[1:]
+sent = os.environ.get("SPL_SENT", "")
+try:
+    sent = json.loads(sent)
+except ValueError:
+    pass
+print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "kind": kind,
+                  "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
+                  "send": sent}, sort_keys=True))
+EOF_PY
+}
+
+# _spl_desk_reply_check_args <body> <kind> <to> <task> <file>...: 0 when the
+# answer's inputs are sane, else the FATAL that names the bad one.
+_spl_desk_reply_check_args() {
+  local body="$1" kind="$2" to="$3" task="$4" f; shift 4
+  local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' pfx_re='^[0-9a-f]{8}$'
+  [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
+  [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
+  [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
+  [[ -z "$task" || "$task" =~ $uuid_re || "$task" =~ $pfx_re ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID or an 8-hex topic prefix, got: '$task'"; return 1; }
+  for f in "$@"; do
+    [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
+  done
+}
+
+# _spl_desk_reply_put_files <state dir> <box> <tenant> <hub> <file>...: upload
+# each file through the desk's spool and append "--file-id <id>" to the
+# caller's ids[] (do_spl_desk_reply's local); 1 with the FATAL on a failure.
+_spl_desk_reply_put_files() {
+  local d="$1" box="$2" tenant="$3" hub="$4" f put id; shift 4
+  for f in "$@"; do
+    put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
+      { do_log "FATAL put-file $f: $put"; return 1; }
+    id="$(printf '%s' "$put" | python3 -c 'import json,sys; print(json.load(sys.stdin)["file_id"])' 2>/dev/null)" ||
+      { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
+    ids+=(--file-id "$id")
+  done
 }
 
 # spl_desk_pick <recv file> <to override> <task override> <answered file> <any>:

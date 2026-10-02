@@ -279,11 +279,31 @@ spl_lease_agent_able() {
   local id="$1" pid why
   pid="$(spl_lease_agent_pid "$id")"
   if [[ -z "$pid" ]]; then why="no live process"
+  elif why="$(spl_lease_held "$id")" && [[ -n "$why" ]]; then :
   else why="$(spl_lease_stall "$pid")"; [[ -n "$why" ]] && why="stalled pid=$pid: $why"
   fi
   printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
   [[ -z "$why" ]] && echo "$pid"
   return 0
+}
+
+# "held: rotation ..." while <dir>/rotate.hold names <id> and is younger than
+# ROTATE_HOLD_MAX s (default 1800): do_spl_dispatch_rotate is replacing that
+# session by a fresh one, so every process of the id is off the lease and the
+# failover acts (SPEC-spool-fleet-roles.md 4.4). An older hold is ignored,
+# logged once: a crashed rotation never keeps a master off for good.
+spl_lease_held() {
+  local f="$LEASE_DIR/rotate.hold" hid ht age
+  [[ -s "$f" ]] || return 0
+  read -r hid ht < "$f" 2>/dev/null
+  [[ "$hid" == "$1" && "$ht" =~ ^[0-9]+$ ]] || return 0
+  age=$(( $(spl_lease_now) - ht ))
+  if (( age > ${ROTATE_HOLD_MAX:-1800} )); then
+    [[ -f "$f.stale" ]] || { touch "$f.stale"; spl_lease_log "WARN rotate.hold on $1 is ${age}s old - ignored"; }
+    return 0
+  fi
+  rm -f "$f.stale"
+  echo "held: rotation since ${age}s"
 }
 
 # One renew tick. The bound pid lives in renew.<id>.pid so a rebind, a loss or
@@ -297,7 +317,7 @@ spl_lease_renew_tick() {
     [[ "$pid" != "$last" ]] && { echo "$pid" > "$state"; spl_lease_log "renew bind $id pid=$pid"; }
   else
     why="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
-    st=gone; [[ "$why" == stalled* ]] && st=stalled
+    st=gone; [[ "$why" == stalled* ]] && st=stalled; [[ "$why" == held* ]] && st=held
     if [[ "$st" != "$last" ]]; then
       echo "$st" > "$state"; spl_lease_log "renew stop $id (${why:-no live process})"
     fi

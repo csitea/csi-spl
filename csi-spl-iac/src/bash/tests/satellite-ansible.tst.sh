@@ -231,5 +231,25 @@ grep -q 'ExecStart=/usr/bin/tmux new-session -d -s main' "$h8" && grep -q 'KillM
 grep -q '^_satellite_verify_claude_start()' "$v" && grep -q 'claude -p "Reply with exactly the word ok"' "$v" && grep -q 'select login method' "$v" && grep -q 'trust-workdir.sh "$d"' "$v" && grep -q 'owner tmux-unit' "$v" \
   && pass "10. verify: claude --print, the interactive no-menu smoke (pre-trusted dir), tmux main + its unit" || fail "10. verify lacks the claude-start or tmux rows"
 
+# 11. the order bug of 203b20f2: the unit's dir is made BEFORE the unit is copied
+python3 -c "
+import yaml,sys
+names=[t.get('name','') for t in yaml.safe_load(open('$h8'))]
+d=next(i for i,n in enumerate(names) if n.startswith(\"The owner's systemd user dir\"))
+c=next(i for i,n in enumerate(names) if n.startswith(\"The owner's tmux session\"))
+sys.exit(0 if d < c else 1)" && pass "11. role 08 makes ~/.config/systemd/user before it copies tmux-main.service" || fail "11. the unit is copied before its dir exists"
+# 12. the claude-start rows run the whole remote script although claude reads
+#     stdin (the script itself arrives on stdin): a fake claude that drains
+#     stdin is the control - without </dev/null both rows read empty
+CB="$T/cbin"; mkdir -p "$CB/home/.local/bin"
+printf '#!/usr/bin/env bash\ncat >/dev/null\necho ok\n' >"$CB/home/.local/bin/claude"; chmod +x "$CB/home/.local/bin/claude"
+printf '#!/usr/bin/env bash\ncase " $* " in *" capture-pane "*) echo "> try a prompt" ;; esac\nexit 0\n' >"$CB/tmux"; chmod +x "$CB/tmux"
+o=$(env HOME="$CB/home" PATH="$CB:$PATH" bash -c '
+  fails=0; ok() { echo "PASS $1"; }; ko() { echo "FAIL $1"; }
+  sleep() { :; }; export -f sleep
+  source "'"$v"'"; SATELLITE_AGENT=agentx; SATELLITE_AS_AGENT=(bash -s)
+  _satellite_verify_claude_start' 2>&1)
+[[ "$(grep -c '^PASS' <<<"$o")" == 2 ]] && pass "12. claude --print + the no-menu smoke both run, with a claude that reads stdin" || fail "12. claude-start rows: $o"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

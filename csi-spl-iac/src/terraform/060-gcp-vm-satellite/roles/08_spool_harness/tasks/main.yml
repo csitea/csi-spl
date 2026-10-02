@@ -193,6 +193,18 @@
 # The owner's tmux session `main` (the agents' windows live in it; SYS.md
 # 1.5.10): a systemd USER unit, enabled, so it comes back after a reboot or a
 # recreate without anyone typing `tmux new -s main` (linger is on, role 05).
+- name: The owner's systemd user dir is the owner's
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "0755"
+  loop:
+    - "{{ owner_home }}/.config"
+    - "{{ owner_home }}/.config/systemd"
+    - "{{ owner_home }}/.config/systemd/user"
+
 - name: The owner's tmux session `main` as a systemd user unit
   ansible.builtin.copy:
     dest: "{{ owner_home }}/.config/systemd/user/tmux-main.service"
@@ -214,18 +226,6 @@
 
       [Install]
       WantedBy=default.target
-
-- name: The owner's systemd user dir is the owner's
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ owner_user }}"
-    group: "{{ owner_user }}"
-    mode: "0755"
-  loop:
-    - "{{ owner_home }}/.config"
-    - "{{ owner_home }}/.config/systemd"
-    - "{{ owner_home }}/.config/systemd/user"
 
 - name: Enable + start tmux-main (an already running `main` is left alone)
   ansible.builtin.shell: |

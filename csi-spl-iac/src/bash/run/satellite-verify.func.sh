@@ -287,15 +287,18 @@ _satellite_verify_claude_start() {
   # shellcheck disable=SC2016
   out=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
-p=$(timeout 120 claude -p "Reply with exactly the word ok" 2>&1 | tr -d '\r' | tr '[:upper:]' '[:lower:]' | head -c 300)
+# </dev/null on every command: this script itself arrives on stdin (bash -s),
+# and claude reads stdin - it swallowed the rest of the script (2026-10-02,
+# both rows FAILed with an empty reason)
+p=$(timeout 120 claude -p "Reply with exactly the word ok" </dev/null 2>&1 | tr -d '\r' | tr '[:upper:]' '[:lower:]' | head -c 300)
 grep -qw ok <<<"$p" && echo "print ok" || echo "print fail $(tr '\n' ' ' <<<"$p" | cut -c1-120)"
 d=$(mktemp -d)
-bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh "$d" "$(id -un)" claude >/dev/null 2>&1
+bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh "$d" "$(id -un)" claude </dev/null >/dev/null 2>&1
 s="verify-smoke-$$"
-tmux -L "$s" new-session -d -s smoke -x 200 -y 50 -c "$d" "$HOME/.local/bin/claude" 2>/dev/null
+tmux -L "$s" new-session -d -s smoke -x 200 -y 50 -c "$d" "$HOME/.local/bin/claude" </dev/null 2>/dev/null
 sleep 20
-screen=$(tmux -L "$s" capture-pane -p -t smoke 2>/dev/null)
-tmux -L "$s" kill-server 2>/dev/null
+screen=$(tmux -L "$s" capture-pane -p -t smoke </dev/null 2>/dev/null)
+tmux -L "$s" kill-server </dev/null 2>/dev/null
 rm -rf "$d"
 hit=$(grep -m1 -iE "select login method|choose the text style|let.s get started|trust this folder|do you trust|dark mode|light mode" <<<"$screen")
 if [ -z "$screen" ]; then echo "smoke none"

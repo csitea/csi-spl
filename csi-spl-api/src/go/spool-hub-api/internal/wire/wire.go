@@ -12,6 +12,10 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -265,12 +269,25 @@ type Envelope struct {
 }
 
 // Canonical re-encodes any JSON value with sorted keys, compact, exact numbers
-// and no HTML escaping (== jq -cS).
+// and no HTML escaping (== jq -cS). It marshals v once and rewrites those bytes
+// in one pass (perf round 4, G9): no decode into any and no second encode. The
+// output is byte-identical to canonicalDecode, which stays as the fallback for
+// anything the one pass does not recognise.
 func Canonical(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
+	c := canonBuf{src: raw, out: make([]byte, 0, len(raw))}
+	if n, ok := c.value(0); ok && skipWS(raw, n) == len(raw) {
+		return c.out, nil
+	}
+	return canonicalDecode(raw)
+}
+
+// canonicalDecode is the reference re-encode: decode into any (exact numbers),
+// encode with sorted map keys and without HTML escaping.
+func canonicalDecode(raw []byte) ([]byte, error) {
 	var any interface{}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
@@ -284,6 +301,374 @@ func Canonical(v any) ([]byte, error) {
 		return nil, err
 	}
 	return bytes.TrimRight(b.Bytes(), "\n"), nil
+}
+
+// canonBuf rewrites marshalled JSON (src) into its canonical form (out). mem
+// is one stack of object members shared by every nesting level, tmp the
+// scratch an escaped string is unescaped into.
+type canonBuf struct {
+	src, out, tmp []byte
+	mem           []canonMember
+}
+
+// canonMember is one object member: its decoded key and where its value starts.
+type canonMember struct {
+	key []byte
+	at  int
+}
+
+// value appends the canonical form of the value at src[i:] and returns the
+// index just past it; false means src is not JSON this pass understands.
+func (c *canonBuf) value(i int) (int, bool) {
+	i = skipWS(c.src, i)
+	if i >= len(c.src) {
+		return i, false
+	}
+	switch c.src[i] {
+	case '{':
+		return c.object(i)
+	case '[':
+		c.out = append(c.out, '[')
+		i = skipWS(c.src, i+1)
+		if i < len(c.src) && c.src[i] == ']' {
+			c.out = append(c.out, ']')
+			return i + 1, true
+		}
+		for {
+			var ok bool
+			if i, ok = c.value(i); !ok {
+				return i, false
+			}
+			i = skipWS(c.src, i)
+			if i >= len(c.src) {
+				return i, false
+			}
+			switch c.src[i] {
+			case ',':
+				c.out = append(c.out, ',')
+				i++
+			case ']':
+				c.out = append(c.out, ']')
+				return i + 1, true
+			default:
+				return i, false
+			}
+		}
+	case '"':
+		end, ok := scanString(c.src, i)
+		if !ok {
+			return end, false
+		}
+		if plainString(c.src[i+1 : end-1]) {
+			c.out = append(c.out, c.src[i:end]...) // already canonical
+			return end, true
+		}
+		s, ok := c.unquote(c.src[i:end])
+		if !ok {
+			return end, false
+		}
+		c.out = appendStringNoHTML(c.out, s)
+		return end, true
+	default:
+		// numbers stay exactly as written (UseNumber), true/false/null as is
+		end := i
+		for end < len(c.src) && !isDelim(c.src[end]) {
+			end++
+		}
+		if end == i {
+			return i, false
+		}
+		c.out = append(c.out, c.src[i:end]...)
+		return end, true
+	}
+}
+
+// object collects the members of the object at src[i], sorts them by key
+// (stable, so of two equal keys the later one wins, as in a decoded map) and
+// appends them canonically.
+func (c *canonBuf) object(i int) (int, bool) {
+	base := len(c.mem)
+	defer func() { c.mem = c.mem[:base] }()
+	i = skipWS(c.src, i+1)
+	if i < len(c.src) && c.src[i] == '}' {
+		c.out = append(c.out, '{', '}')
+		return i + 1, true
+	}
+	for {
+		i = skipWS(c.src, i)
+		if i >= len(c.src) || c.src[i] != '"' {
+			return i, false
+		}
+		end, ok := scanString(c.src, i)
+		if !ok {
+			return end, false
+		}
+		key := c.src[i+1 : end-1]
+		if !plainString(key) {
+			s, ok := c.unquote(c.src[i:end])
+			if !ok {
+				return end, false
+			}
+			key = bytes.Clone(s)
+		}
+		i = skipWS(c.src, end)
+		if i >= len(c.src) || c.src[i] != ':' {
+			return i, false
+		}
+		at := skipWS(c.src, i+1)
+		if i = skipValue(c.src, at); i < 0 {
+			return at, false
+		}
+		c.mem = append(c.mem, canonMember{key: key, at: at})
+		i = skipWS(c.src, i)
+		if i >= len(c.src) {
+			return i, false
+		}
+		if c.src[i] == '}' {
+			i++
+			break
+		}
+		if c.src[i] != ',' {
+			return i, false
+		}
+		i++
+	}
+	top := len(c.mem)
+	slices.SortStableFunc(c.mem[base:top], func(a, b canonMember) int { return bytes.Compare(a.key, b.key) })
+	c.out = append(c.out, '{')
+	first := true
+	for k := base; k < top; k++ {
+		if k+1 < top && bytes.Equal(c.mem[k].key, c.mem[k+1].key) {
+			continue
+		}
+		if !first {
+			c.out = append(c.out, ',')
+		}
+		first = false
+		c.out = appendStringNoHTML(c.out, c.mem[k].key)
+		c.out = append(c.out, ':')
+		if _, ok := c.value(c.mem[k].at); !ok {
+			return i, false
+		}
+	}
+	c.out = append(c.out, '}')
+	return i, true
+}
+
+// unquote returns the decoded bytes of the string literal lit (quotes
+// included) as encoding/json decodes it: escapes resolved, invalid UTF-8 and
+// lone surrogates turned into U+FFFD. A plain literal is returned in place.
+func (c *canonBuf) unquote(lit []byte) ([]byte, bool) {
+	s := lit[1 : len(lit)-1]
+	if plainString(s) {
+		return s, true
+	}
+	c.tmp = c.tmp[:0]
+	for r := 0; r < len(s); {
+		switch b := s[r]; {
+		case b == '\\':
+			var ok bool
+			if r, ok = c.unescape(s, r); !ok {
+				return nil, false
+			}
+		case b < utf8.RuneSelf:
+			c.tmp = append(c.tmp, b)
+			r++
+		default:
+			rr, size := utf8.DecodeRune(s[r:])
+			c.tmp = utf8.AppendRune(c.tmp, rr)
+			r += size
+		}
+	}
+	return c.tmp, true
+}
+
+// unescape appends the character the escape at s[r] ('\\') stands for and
+// returns the index past it; a \u surrogate pair is one character, and a
+// lone surrogate is U+FFFD (as encoding/json decodes it).
+func (c *canonBuf) unescape(s []byte, r int) (int, bool) {
+	if r+1 >= len(s) {
+		return r, false
+	}
+	switch e := s[r+1]; e {
+	case '"', '\\', '/':
+		c.tmp = append(c.tmp, e)
+	case 'b':
+		c.tmp = append(c.tmp, '\b')
+	case 'f':
+		c.tmp = append(c.tmp, '\f')
+	case 'n':
+		c.tmp = append(c.tmp, '\n')
+	case 'r':
+		c.tmp = append(c.tmp, '\r')
+	case 't':
+		c.tmp = append(c.tmp, '\t')
+	case 'u':
+		rr := getU4(s[r:])
+		if rr < 0 {
+			return r, false
+		}
+		r += 6
+		if utf16.IsSurrogate(rr) {
+			if dec := utf16.DecodeRune(rr, getU4(s[r:])); dec != unicode.ReplacementChar {
+				c.tmp = utf8.AppendRune(c.tmp, dec)
+				return r + 6, true
+			}
+			rr = unicode.ReplacementChar
+		}
+		c.tmp = utf8.AppendRune(c.tmp, rr)
+		return r, true
+	default:
+		return r, false
+	}
+	return r + 2, true
+}
+
+// plainString: s holds no escape and only printable ASCII, so it decodes to
+// itself and re-encodes (without HTML escaping) to itself.
+func plainString(s []byte) bool {
+	for _, b := range s {
+		if b == '\\' || b >= utf8.RuneSelf || b < 0x20 || b == '"' {
+			return false
+		}
+	}
+	return true
+}
+
+// appendStringNoHTML is encoding/json's string encoding with SetEscapeHTML
+// (false), for s that is valid UTF-8 (unquote guarantees it).
+func appendStringNoHTML(dst, s []byte) []byte {
+	const hex = "0123456789abcdef"
+	dst = append(dst, '"')
+	start := 0
+	for i := 0; i < len(s); {
+		b := s[i]
+		if b >= utf8.RuneSelf {
+			if b == 0xE2 && i+2 < len(s) && s[i+1] == 0x80 && s[i+2]&^1 == 0xA8 {
+				dst = append(dst, s[start:i]...)
+				dst = append(dst, '\\', 'u', '2', '0', '2', hex[s[i+2]&0xF])
+				i += 3
+				start = i
+				continue
+			}
+			i++
+			continue
+		}
+		if b >= 0x20 && b != '"' && b != '\\' {
+			i++
+			continue
+		}
+		dst = append(dst, s[start:i]...)
+		switch b {
+		case '\\', '"':
+			dst = append(dst, '\\', b)
+		case '\b':
+			dst = append(dst, '\\', 'b')
+		case '\f':
+			dst = append(dst, '\\', 'f')
+		case '\n':
+			dst = append(dst, '\\', 'n')
+		case '\r':
+			dst = append(dst, '\\', 'r')
+		case '\t':
+			dst = append(dst, '\\', 't')
+		default:
+			dst = append(dst, '\\', 'u', '0', '0', hex[b>>4], hex[b&0xF])
+		}
+		i++
+		start = i
+	}
+	dst = append(dst, s[start:]...)
+	return append(dst, '"')
+}
+
+// getU4 decodes the \uXXXX at the start of s, or returns -1.
+func getU4(s []byte) rune {
+	if len(s) < 6 || s[0] != '\\' || s[1] != 'u' {
+		return -1
+	}
+	var r rune
+	for _, c := range s[2:6] {
+		switch {
+		case '0' <= c && c <= '9':
+			c -= '0'
+		case 'a' <= c && c <= 'f':
+			c = c - 'a' + 10
+		case 'A' <= c && c <= 'F':
+			c = c - 'A' + 10
+		default:
+			return -1
+		}
+		r = r*16 + rune(c)
+	}
+	return r
+}
+
+// scanString returns the index just past the string literal at s[i] ('"').
+func scanString(s []byte, i int) (int, bool) {
+	for j := i + 1; j < len(s); j++ {
+		switch s[j] {
+		case '\\':
+			j++
+		case '"':
+			return j + 1, true
+		}
+	}
+	return len(s), false
+}
+
+// skipValue returns the index just past the JSON value at s[i], or -1.
+func skipValue(s []byte, i int) int {
+	if i >= len(s) {
+		return -1
+	}
+	switch s[i] {
+	case '"':
+		end, ok := scanString(s, i)
+		if !ok {
+			return -1
+		}
+		return end
+	case '{', '[':
+		depth := 0
+		for j := i; j < len(s); j++ {
+			switch s[j] {
+			case '"':
+				end, ok := scanString(s, j)
+				if !ok {
+					return -1
+				}
+				j = end - 1
+			case '{', '[':
+				depth++
+			case '}', ']':
+				if depth--; depth == 0 {
+					return j + 1
+				}
+			}
+		}
+		return -1
+	default:
+		j := i
+		for j < len(s) && !isDelim(s[j]) {
+			j++
+		}
+		if j == i {
+			return -1
+		}
+		return j
+	}
+}
+
+func skipWS(s []byte, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+func isDelim(b byte) bool {
+	return b == ',' || b == '}' || b == ']' || b == ':' || b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
 // HelloPayload is the byte string a hello sig covers: jq -cS '{box_id,nonce,ts}'.

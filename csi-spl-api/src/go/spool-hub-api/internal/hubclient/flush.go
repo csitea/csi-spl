@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"sort"
@@ -334,35 +333,41 @@ func (c *Client) Sync(ctx context.Context) (SyncReport, error) {
 }
 
 // Run is the box daemon (`spool hub-run`): it holds the role=box session,
-// reconnecting with exponential backoff (1 s doubling to a 30 s cap, jitter)
-// on any close, re-helloing, flushing, refreshing pins on an interval and
-// re-announcing the roster when the $SPOOL_ROOT/*/ scan changes (OQ-05). It
+// reconnecting with capped exponential backoff and full jitter (1 s ceiling
+// doubling to a 30 s cap; a Retry-After on the refused upgrade is honoured,
+// see backoff.go) on any close, re-helloing, flushing, refreshing pins on an
+// interval and re-announcing the roster when the $SPOOL_ROOT/*/ scan changes
+// (OQ-05). The backoff resets only after a session stayed up for stableAfter,
+// so a hub that accepts and drops at once is not hammered every second. It
 // returns when ctx ends, or ErrSuperseded when a newer hello took the box.
 func (c *Client) Run(ctx context.Context) error {
-	const base, maxBackoff = time.Second, 30 * time.Second
-	backoff := base
+	b := newBackoff(runBackoffBase, runBackoffMax, runBackoffMax)
 	for {
+		var retryAfter time.Duration
 		sess, err := c.Dial(ctx, wire.RoleBox)
 		if err == nil {
-			backoff = base
 			c.Log.Info().Str("box", c.Cfg.BoxID).Msg("hub session up")
+			up := time.Now()
 			if err := c.hold(ctx, sess); err != nil {
 				return err
 			}
+			if time.Since(up) >= stableAfter {
+				b.reset()
+			}
 		} else {
-			c.Log.Warn().Err(err).Dur("retry_in", backoff).Msg("hub session down")
+			retryAfter = retryAfterOf(err)
 		}
 		if ctx.Err() != nil {
 			return nil
 		}
-		sleep := backoff/2 + time.Duration(rand.Int64N(int64(backoff/2)+1))
+		sleep := b.next(retryAfter)
+		if err != nil {
+			c.Log.Warn().Err(err).Dur("retry_in", sleep).Msg("hub session down")
+		}
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(sleep):
-		}
-		if backoff *= 2; backoff > maxBackoff {
-			backoff = maxBackoff
 		}
 	}
 }

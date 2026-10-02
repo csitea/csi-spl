@@ -285,9 +285,9 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	wsURL = "ws" + strings.TrimPrefix(wsURL, "http")
 	dctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
-	conn, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPClient: c.http(), HTTPHeader: c.TenantHeader()})
+	conn, err := c.dialWS(dctx, wsURL)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
+		return nil, err
 	}
 	conn.SetReadLimit(maxFrameBytes)
 	wel, err := c.handshake(dctx, conn, role, box, priv)

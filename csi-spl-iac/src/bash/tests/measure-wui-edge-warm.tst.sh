@@ -48,7 +48,8 @@ class H(http.server.BaseHTTPRequestHandler):
         b = body.encode()
         self.send_response(200)
         self.send_header("content-type", ctype)
-        self.send_header("x-cache", "HIT" if hit else "MISS")
+        # shield first, edge last, as Fastly lists them
+        self.send_header("x-cache", "MISS, HIT" if hit else "MISS, MISS")
         self.send_header("content-length", str(len(b)))
         self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
@@ -72,9 +73,9 @@ row() { awk -F'\t' -v a="$1" -v c="$2" -v s="$3" '$2 == a && $4 == c && $3 == s'
 [[ $(row cold nuxt reader | wc -l) -eq 3 && $(row warm nuxt reader | wc -l) -eq 3 ]] \
   && pass "n: 3 /_nuxt samples per arm" || fail "nuxt samples: $(cat "$T/both.tsv")"
 [[ $(row cold document reader | wc -l) -eq 2 ]] && pass "n: 2 document samples per arm" || fail "document samples"
-[[ $(row cold nuxt reader | awk -F'\t' '$9 == "MISS"' | wc -l) -eq 3 ]] \
+[[ $(row cold nuxt reader | awk -F'\t' '$9 == "MISS, MISS"' | wc -l) -eq 3 ]] \
   && pass "cold arm: the first reader MISSes (a fresh key per sample)" || fail "cold arm x-cache: $(row cold nuxt reader)"
-[[ $(row warm nuxt reader | awk -F'\t' '$9 == "HIT"' | wc -l) -eq 3 ]] \
+[[ $(row warm nuxt reader | awk -F'\t' '$9 == "MISS, HIT"' | wc -l) -eq 3 ]] \
   && pass "warm arm: the reader HITs what the warmer fetched" || fail "warm arm x-cache: $(row warm nuxt reader)"
 grep -qE '^\| cold \| nuxt \| 3 \| (1[5-9][0-9]|[2-9][0-9][0-9]) \|' <<<"$out" \
   && grep -qE '^\| warm \| nuxt \| 3 \| [0-9]{1,2} \|' <<<"$out" \

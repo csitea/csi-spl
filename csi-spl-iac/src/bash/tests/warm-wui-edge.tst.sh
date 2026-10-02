@@ -55,7 +55,8 @@ class H(http.server.BaseHTTPRequestHandler):
         b = body.encode()
         self.send_response(200)
         self.send_header("content-type", ctype + "; charset=utf-8")
-        self.send_header("x-cache", "HIT" if hit else "MISS")
+        # shield first, edge last, as Fastly lists them
+        self.send_header("x-cache", "MISS, HIT" if hit else "MISS, MISS")
         self.send_header("content-length", str(len(b)))
         self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
@@ -101,8 +102,8 @@ done
 awk -F'\t' '$1 ~ /stale/ && ($2 == "gzip, deflate, br, zstd" || $2 == "gzip, deflate, br")' "$T/port.log" | grep -q . \
   && fail "the stale ref was warmed" || pass "the stale ref is never fetched with a browser key"
 out=$(WARM_WUI_URLS="$BASE" do_warm_wui_edge 2>&1)
-grep -q '20 fetches; 0 were cold' <<<"$out" \
-  && pass "second warm finds nothing cold (every key is a HIT)" || fail "second warm: $out"
+grep -q '20 fetches; 0 were cold' <<<"$out" && grep -q 'x-cache seen: MISS, HIT=20' <<<"$out" \
+  && pass "second warm finds nothing cold: the edge (last) x-cache entry is HIT on all 20" || fail "second warm: $out"
 
 # --- failure modes -----------------------------------------------------------
 WARM_WUI_URLS="http://127.0.0.1:9" do_warm_wui_edge >/dev/null 2>&1 \

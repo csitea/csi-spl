@@ -56,7 +56,8 @@ for arm in ("cold", "warm"):
             continue
         t = statistics.median(float(r["ttfb_s"]) for r in rs) * 1000
         s = statistics.median(float(r["server_ttfb_s"]) for r in rs) * 1000
-        hit = sum(r["x_cache"].startswith("HIT") for r in rs)
+        # the EDGE (last) entry: a shield lists itself first ("MISS, HIT")
+        hit = sum(r["x_cache"].split(",")[-1].strip() == "HIT" for r in rs)
         print(f"| {arm} | {cls} | {len(rs)} | {t:.0f} | {s:.0f} | {hit}/{len(rs)} |")
 PY
 }

@@ -151,8 +151,9 @@ _warm_wui_edge_crawl() {
 
 # _warm_wui_edge_fetch_cfg <base> <paths-file> <cfg-prefix> [<query>] - curl
 # configs that GET every path once per WARM_WUI_ENCODINGS header, round-robin
-# over WARM_WUI_PARALLEL workers. Write-out per transfer:
-# "<http_code> <ttfb_s> <x-cache> <url> [<accept-encoding>]".
+# over WARM_WUI_PARALLEL workers. Write-out per transfer, tab-separated
+# (x-cache can hold spaces: "MISS, HIT" through a shield):
+# "<http_code>\t<ttfb_s>\t<x-cache>\t<url> [<accept-encoding>]".
 _warm_wui_edge_fetch_cfg() {
   local base="$1" paths="$2" pre="$3" q="${4:-}" par="${WARM_WUI_PARALLEL:-2}" i=0 p e
   local -a el
@@ -164,7 +165,7 @@ _warm_wui_edge_fetch_cfg() {
         echo "url = $(_warm_wui_edge_cfg_quote "$base$p$q")"
         echo "header = $(_warm_wui_edge_cfg_quote "accept-encoding: $e")"
         echo "output = \"/dev/null\""
-        echo "write-out = \"%{http_code} %{time_starttransfer} %header{x-cache} %{url} [$e]\\n\""
+        echo "write-out = \"%{http_code}\\t%{time_starttransfer}\\t%header{x-cache}\\t%{url} [$e]\\n\""
       } >>"$pre.$((i % par))"
       i=$((i + 1))
     done
@@ -189,10 +190,12 @@ do_warm_wui_edge() {
     : >"$w/out"
     _warm_wui_edge_curl "$w/warm" "$w/out"
     n=$(wc -l <"$w/out")
-    bad=$(awk '$1 !~ /^[23]/' "$w/out" | wc -l)
-    miss=$(awk '$3 == "MISS"' "$w/out" | wc -l)
+    bad=$(awk -F'\t' '$1 !~ /^[23]/' "$w/out" | wc -l)
+    # cold = the EDGE (last) x-cache entry was a MISS; a shield lists itself first
+    miss=$(awk -F'\t' '{ n = split($3, c, /, */) } n && c[n] == "MISS"' "$w/out" | wc -l)
     do_log "INFO $base: $(wc -l <"$w/paths") paths x $keys encodings = $n fetches; $miss were cold (MISS) and are now warm, $bad failed"
-    awk '$1 !~ /^[23]/ {print "  failed: " $0}' "$w/out" | head -20
+    do_log "INFO $base: x-cache seen: $(awk -F'\t' '{ print ($3 == "" ? "-" : $3) }' "$w/out" | sort | uniq -c | sort -rn | awk '{ c = $1; $1 = ""; printf "%s%s=%s", (NR > 1 ? "; " : ""), substr($0, 2), c }')"
+    awk -F'\t' '$1 !~ /^[23]/ {print "  failed: " $0}' "$w/out" | head -20
     # A broken host is a red warm; a few stray refs are logged, not fatal.
     if (( n == 0 || bad * 10 > n )); then do_log "ERROR $base: $bad of $n fetches failed"; rc=1; fi
     rm -rf "${w:?}"

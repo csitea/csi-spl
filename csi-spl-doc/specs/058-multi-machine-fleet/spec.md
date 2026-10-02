@@ -213,3 +213,85 @@ fail. Bands keep spawning offline and need no new table.
 - Changing the hub's one-socket-per-box rule (H1). It is the right rule. The
   fix is to never share a box id, not to fan out to two sockets.
 - Any GCP or prd mutation (pins, operator grants, lease handover): owner go per call.
+
+## 6. `<ID>@<box>` through the local stack (CLE-77924)
+
+Owner, t1 `2efb3e78` (01:25Z): "we must rewrite also he local code to avoid
+collisions , the whole stack". This section is the plan. No live path changes
+until CLE-001 schedules the cut-over (6.4).
+
+### 6.1 Inventory: every local place keyed by the bare id
+
+Measured on the home box, 2026-10-02: `/var/spool-hub` has 198 entries and 134
+identity-map files, and `dispatch/lease` already reads `CLE-002@box-desk`.
+The **shared?** column says whether two machines can ever write the same
+name. That is the only way a bare id can collide, because F1 bands keep lane
+ids unique per machine and the role trio 001-003 is unique per machine too.
+
+| # | place | today | shared? | new shape | migration | rollback | live agents hit |
+|---|---|---|---|---|---|---|---|
+| L1 | agent mailbox `$SPOOL_ROOT/<ID>/{inbox,outbox,archive,.pokes,.mirror}` | dir `<ID>` | no, but the N1 fleet bridge and an agent moving machines (3.5) both write here by id | real dir `<ID>@<box>`, compat symlink `<ID>` -> `<ID>@<box>` | `do_spl_naming_migrate`: one `renameat2(RENAME_EXCHANGE)` per agent (6.2) | the same exchange back, then remove the qualified self-loop | every agent; none has to stop (6.2) |
+| L2 | the `$SPOOL_ROOT/*/` scans: the hub-run roster (`hubclient.scanAgents`: hello, re-announce, fallback, back-fill), `spool tail`, `next-agent-id.sh` floor 3 | count a DIR named exactly `<ID>` | — | count `<ID>` and `<ID>@<box>` dirs, each id once; a symlink is never counted | code (6.3 C2/C3), lands BEFORE any dir moves | — | the sidecar: with an old binary a migrated root reads as an EMPTY roster, so every agent goes offline. Hence the binary gate in 6.4 step 1 |
+| L3 | creating a mailbox: `next-agent-id.sh` claim (`mkdir`), `spool` `ensureAgent` | `mkdir <ID>` | — | with `SPOOL_DIR_LAYOUT=qualified` (box.env): `mkdir <ID>@<box>` (the atomic claim) + symlink `<ID>`; a claim refuses when either name exists | code (C2/C3); the satellite sets it in box.env from day one | drop the box.env line: new agents get `<ID>` again, and existing ones stay readable by both names | none |
+| L4 | every reader/writer by path: `spool send/recv`, `spool-send.sh`, `agent-send.sh`, `spool-notify*.sh`, `agent-watch.sh`, `kill-your-self-report.sh`, mirror hooks, poke retry, the fleet bridge | `$SPOOL_ROOT/<ID>/...` | — | unchanged: the bare symlink resolves | none | — | none |
+| L5 | identity map `$SPOOL_ROOT/agents/<ID>.json` | one file per id, written tmp + rename | no (per machine) | **unchanged**. A symlinked file would be replaced by the writer's rename and go stale | none | — | — |
+| L6 | `registry.tsv` column 1 | bare id | no | unchanged; its readers already strip `<tag>: ` and `@<box>` (`KnownLocal`, F5) | none | — | — |
+| L7 | dispatch `lease` / `lease.orch` | `<ID>@<box>` | hub (0095) | done (CLE-77911) | — | — | — |
+| L8 | dispatch `posts/`, `unanswered.*`, `gaps.<env>.state`, `renew.<ID>.pid`, welcome ledger | per machine, bare id inside | no; the side-effect steps are gated on the lease holder (O6-O10) | unchanged | — | — | CLE-77911's lane |
+| L9 | worktrees `/opt/csi/<repo>-wt/<ID>` | per clone | no | unchanged: the lane map (N2) already shows them as `<ID>@<box>` | none | — | — |
+| L10 | branches `<ID>-<scope>` | local to each clone | **yes, once pushed**: trunk-only pushes never push them, but a throwaway gate branch (`gh workflow run --ref`) does, and `CLE-002-*` exists on every box | a branch pushed to the shared remote carries the box: `<ID>-<box>-<scope>` | rule only; local branches unchanged | — | — |
+| L11 | tmux windows, claude `--name` | `<ID>@<box>` | — | done (F5) | — | — | — |
+| L12 | crons (desk reconcile, lease renew, unanswered, weekly scan) | no agent id in the cron line; the id comes from lease.conf | no | unchanged | — | — | — |
+| L13 | desk state `~/.local/share/<org>-<app>/cloud/<env>/desk/<tenant>/<box>` | already box-keyed | — | unchanged | — | — | — |
+| L14 | hub addresses (`to`, `from`) | bare id + `to_box` | hub | done (F3, N1) | — | — | — |
+
+So the one local namespace that changes is L1, plus the code that reads it
+(L2, L3). Everything else is already `<ID>@<box>`, private to one machine,
+or a file whose writer would break a symlink (L5).
+
+### 6.2 Why no message can be lost
+
+- After the move both names reach the SAME directory. A writer that still
+  uses `<ID>` (an old binary, a script, a running agent's `spool recv`) writes
+  where the new reader reads. There is no second tree to reconcile, so the
+  symlink IS the dual read.
+- The move is one syscall per agent. The action first creates the symlink
+  `<ID>@<box>` -> `<ID>@<box>` (a self-loop that nothing resolves), then
+  `renameat2(RENAME_EXCHANGE)` swaps it with the dir `<ID>`. Before the call
+  `<ID>` is the dir; after it, `<ID>` is the symlink that resolves to the dir
+  now at `<ID>@<box>`. There is no instant where `<ID>` is missing, so no
+  writer can `mkdir` an orphan `<ID>` in a gap. A plain `mv` + `ln -s` has
+  that gap, and the test control shows it.
+- Rollback is the same exchange back, then the self-loop at `<ID>@<box>` is
+  removed. It is gap-free too.
+- Idempotent: an agent that is already `<ID>@<box>` (dir) + `<ID>` (symlink to
+  it) is skipped; a self-loop left by a killed run is finished or removed.
+
+### 6.3 The code (lands first; changes nothing live)
+
+| commit | what | test |
+|---|---|---|
+| C1 | this plan | — |
+| C2 | Go: `scanAgents` and `Tail` count `<ID>@<box>` dirs and never a symlink; `ensureAgent` honours `SPOOL_DIR_LAYOUT=qualified` + `SPOOL_DESK_BOX`; `spool layout` prints the scanned ids (the before/after check) | `internal/spool`, `internal/hubclient` unit tests |
+| C3 | orc: `next-agent-id.sh` floor and claim read/write both shapes; `do_spl_naming_migrate` (`DRY_RUN=1` default, `ROLLBACK=1`, `ONLY=<ids>`, `SKIP=<ids>`; refuses unless the running `hub-run` binary answers `spool layout`; rolls itself back when the id set before and after differs) | `naming-migrate.tst.sh`: a running-agent simulation (writers on the bare path and readers on both paths during the move: zero lost, no orphan dir), rollback, re-run = no-op; control: `mv` + `ln -s` leaves an orphan dir |
+
+### 6.4 Cut-over (CLE-001 schedules it; the home box's live paths do not move before)
+
+The satellite starts on the new layout: its box.env gets
+`SPOOL_DIR_LAYOUT=qualified` before its first spawn (the CLE-77911 /
+CLE-77912 seating), so it never needs this cut-over.
+
+| step | what | duration | who must be idle |
+|---|---|---|---|
+| 0 | C2 + C3 on trunk; `./run -a do_spl_naming_migrate` (DRY_RUN=1) prints the per-agent plan | — | nobody |
+| 1 | rebuild the host `bin/spool` and restart this box's `hub-run` sidecar(s), so the roster scan reads both shapes. The action refuses until the running binary answers `spool layout` | ~1 min while the desk reconnects | nobody; a send in that minute queues on the hub (H5) |
+| 2 | tell CLE-002/003 (they asked to hear before their paths move) | — | — |
+| 3 | `DRY_RUN=0 ./run -a do_spl_naming_migrate`: dead and idle agents first, then the lanes, then CLE-003, CLE-002, CLE-001 last; the id set before == after, or it rolls back | seconds (~200 renames) | nobody (6.2); no `next-agent-id.sh` spawn in the same seconds |
+| 4 | append `SPOOL_DIR_LAYOUT=qualified` to `/var/spool-hub/box.env` | — | — |
+| 5 | check: `spool layout` lists the same ids; one probe each to CLE-002 and CLE-001 through `spool-send.sh` arrives | ~2 min | — |
+| R | rollback at any point: `ROLLBACK=1 DRY_RUN=0 ./run -a do_spl_naming_migrate`, then remove the box.env line | seconds | — |
+
+Open for CLE-001: the box suffix. The action uses `spl_desk_box_default`,
+which is `box-desk` on the home box today, the same suffix the windows and the lane
+map show. If the home box takes its 3-letter name at M5, run rollback and then migrate
+again with the new `SPOOL_DESK_BOX`. Each step is gap-free.

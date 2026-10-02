@@ -1,0 +1,205 @@
+package store
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// flowInsertCTE is the flow write of insertMessageSQL (spec 062 4.2): CTEs
+// of the statement that stores the message, so a send pays no extra round
+// trip. They write only when `ins` stored the row (never on a resend), and
+// read flow_watches as of the statement's snapshot, so the watches this line
+// adds take effect from the next line. Parameters: the insert's ($1 tenant,
+// $2 msg_id, $3 task_id, $4 channel, $9 to_id, $16 received_at, $17
+// expires_at) and four of its own from $n: the author seat ("" = an agent),
+// the human seats mentioned, the task a poke DM links to (NULL = not a
+// poke) and whether the channel is public.
+//
+// Ranks are flowKinds: 1 mention, 2 poke, 3 dm, 4 reply. A channel line
+// goes to the mentioned seats and its `to` (1) and the thread's watchers
+// (4), behind the channel's read door; a DM goes to its `to` only (1 when
+// it mentions them, 2 when it is a poke, else 3). A poke whose `to` has a
+// mention in the linked task folds into it: no row.
+func flowInsertCTE(n int) string {
+	a, ms, pk, pub := fmt.Sprintf("$%d::text", n), fmt.Sprintf("$%d::text[]", n+1), fmt.Sprintf("$%d::uuid", n+2), fmt.Sprintf("$%d::bool", n+3)
+	return `,
+	flow_cand AS (
+		SELECT c.member_id, min(c.rnk) AS rnk FROM (
+			SELECT unnest(` + ms + `) AS member_id, 1 AS rnk WHERE $4::text IS NOT NULL
+			UNION ALL SELECT $9::text, 1 WHERE $4::text IS NOT NULL
+			UNION ALL SELECT $9::text, CASE WHEN $9::text = ANY(` + ms + `) THEN 1 WHEN ` + pk + ` IS NOT NULL THEN 2 ELSE 3 END WHERE $4::text IS NULL
+			UNION ALL SELECT w.member_id, 4 FROM flow_watches w WHERE w.tenant_id = $1 AND w.task_id = $3 AND $4::text IS NOT NULL
+		) c
+		WHERE c.member_id ~ '^(HUM|GST)-[0-9]+$' AND c.member_id <> ` + a + `
+		  AND ($4::text IS NULL OR ` + pub + ` OR (
+			EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = $1 AND h.channel_id = $4 AND h.human_id = c.member_id)
+			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = $4 AND dc.archived_at IS NOT NULL)))
+		GROUP BY c.member_id),
+	flow_w AS (INSERT INTO flow_watches (tenant_id, task_id, member_id, since)
+		SELECT $1, $3, x.member_id, $16 FROM (SELECT ` + a + ` AS member_id WHERE ` + a + ` <> '' UNION SELECT member_id FROM flow_cand WHERE rnk < 4) x
+		WHERE EXISTS (SELECT 1 FROM ins)
+		ON CONFLICT DO NOTHING),
+	flow_e AS (INSERT INTO flow_events (tenant_id, member_id, msg_id, task_id, kind, at, expires_at)
+		SELECT $1, f.member_id, $2, $3, (ARRAY['mention', 'poke', 'dm', 'reply'])[f.rnk], $16, $17 FROM flow_cand f
+		WHERE EXISTS (SELECT 1 FROM ins) AND NOT (f.rnk = 2 AND EXISTS (SELECT 1 FROM flow_events x
+			WHERE x.tenant_id = $1 AND x.member_id = f.member_id AND x.task_id = ` + pk + ` AND x.kind = 'mention'))
+		ON CONFLICT DO NOTHING)`
+}
+
+// flowInsertArgs are flowInsertCTE's four parameters for m.
+func flowInsertArgs(m Message) []any {
+	t := flowTargetsOf(m)
+	var poke any
+	if t.poke != "" {
+		poke = t.poke
+	}
+	return []any{t.author, t.mentions, poke, t.public}
+}
+
+// flowDoorSQL is the read door on event e of message m for e's member:
+// a DM by its two ends, a created channel by its (unarchived) member list,
+// a public channel ($pub text[]) for every member.
+func flowDoorSQL(e, m, pub string) string {
+	return ` AND CASE WHEN ` + m + `.channel IS NULL THEN ` + e + `.member_id IN (` + m + `.to_id, ` + m + `.from_id)
+		WHEN ` + m + `.channel = ANY(` + pub + `) THEN true
+		ELSE EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = ` + e + `.tenant_id AND h.channel_id = ` + m + `.channel AND h.human_id = ` + e + `.member_id)
+			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = ` + e + `.tenant_id AND dc.channel_id = ` + m + `.channel AND dc.archived_at IS NOT NULL) END`
+}
+
+// flowCoveredSQL: a mark covers event e of message m (contract section 3):
+// f:<msg_id>, or the thread / channel / DM-peer mark at or past the line.
+// Each is a read_marks primary-key probe.
+func flowCoveredSQL(e, m string) string {
+	return `(EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = 'f:' || ` + e + `.msg_id::text)
+		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id
+			AND r.mark_key IN ('t:' || ` + m + `.task_id::text,
+				CASE WHEN ` + m + `.channel IS NULL THEN 'dm:' || ` + m + `.from_id ELSE 'ch:' || ` + m + `.channel END,
+				CASE WHEN ` + m + `.channel IS NULL THEN 'dm:' || ` + m + `.from_id || '@' || ` + m + `.from_box END)
+			AND (` + m + `.received_at, ` + m + `.msg_id::text) <= (r.at, r.msg_id)))`
+}
+
+// flowCountsSQL selects the six counts (badge mention/reply/dm, then the
+// same unread) of member in tenant at now: one scan of the member's
+// flow_events_member_at range.
+func flowCountsSQL(tenant, member, now, pub string) string {
+	return `SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
+			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
+			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
+			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke')),
+			count(*) FILTER (WHERE fc.kind = 'reply'),
+			count(*) FILTER (WHERE fc.kind = 'dm')
+		FROM (SELECT fe.kind, fe.at > coalesce((SELECT s.at FROM read_marks s
+				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
+			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
+			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
+		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm") + `) fc`
+}
+
+// flowEventCols are the FlowEvent columns of event e / message m, scanned
+// by scanFlowEvent.
+func flowEventCols(e, m string) string {
+	return e + `.msg_id::text, ` + m + `.task_id::text, coalesce(` + m + `.parent_task_id::text, ''), coalesce(` + m + `.channel, ''),
+		` + m + `.from_id, ` + m + `.from_box, coalesce(` + m + `.to_id, ''), coalesce(` + m + `.to_box, ''), coalesce(` + m + `.typed_by, ''),
+		` + e + `.kind, left(` + m + `.body, 400), CASE WHEN jsonb_typeof(` + m + `.files) = 'array' THEN jsonb_array_length(` + m + `.files) ELSE 0 END,
+		` + m + `.received_at, NOT ` + flowCoveredSQL(e, m)
+}
+
+func scanFlowEvent(r pgx.Rows, extra ...any) (FlowEvent, error) {
+	var ev FlowEvent
+	dest := append([]any{&ev.MsgID, &ev.TaskID, &ev.ParentTaskID, &ev.Channel, &ev.FromID, &ev.FromBox, &ev.ToID, &ev.ToBox,
+		&ev.TypedBy, &ev.Kind, &ev.Body, &ev.Files, &ev.At, &ev.Unread}, extra...)
+	return ev, r.Scan(dest...)
+}
+
+func scanFlowCounts(r pgx.Rows, extra ...any) (c, u FlowCounts, err error) {
+	dest := append(append([]any{}, extra...), &c.Mention, &c.Reply, &c.DM, &u.Mention, &u.Reply, &u.DM)
+	err = r.Scan(dest...)
+	c.Total, u.Total = c.Mention+c.Reply+c.DM, u.Mention+u.Reply+u.DM
+	return c, u, err
+}
+
+// flowKindsFilter is the kind= filter as kind values (nil = all).
+func flowKindsFilter(kind string) []string {
+	switch kind {
+	case "":
+		return nil
+	case FlowMention:
+		return []string{FlowMention, FlowPoke}
+	}
+	return []string{kind}
+}
+
+func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) {
+	var p FlowPage
+	reads := []tenantRead{{
+		sql:  flowCountsSQL("$1", "$2", "$3", "$4::text[]"),
+		args: []any{q.Tenant, q.Member, q.Now, PublicChannels},
+		each: func(r pgx.Rows) (err error) { p.Counts, p.Unread, err = scanFlowCounts(r); return err },
+	}}
+	if q.Limit > 0 {
+		var before, beforeID any
+		if q.BeforeID != "" {
+			before, beforeID = q.BeforeAt, q.BeforeID
+		}
+		limit := min(q.Limit, FlowMaxPage)
+		reads = append(reads, tenantRead{
+			sql: `SELECT ` + flowEventCols("e", "m") + `
+				FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
+				WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
+				  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
+				  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))
+				ORDER BY e.at DESC, e.msg_id DESC LIMIT $5`,
+			args: []any{q.Tenant, q.Member, q.Now, PublicChannels, limit + 1, before, beforeID, flowKindsFilter(q.Kind)},
+			each: func(r pgx.Rows) error {
+				ev, err := scanFlowEvent(r)
+				if err != nil {
+					return err
+				}
+				if len(p.Events) == limit {
+					p.More = true
+					return nil
+				}
+				p.Events = append(p.Events, ev)
+				return nil
+			},
+		})
+	}
+	return p, s.queryTenantBatch(ctx, q.Tenant, reads...)
+}
+
+func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members []string, now time.Time) (map[string]FlowPush, error) {
+	out := map[string]FlowPush{}
+	if len(members) == 0 {
+		return out, nil
+	}
+	err := s.queryTenant(ctx, tenant, `SELECT `+flowEventCols("e", "m")+`, e.member_id, c.*
+		FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
+		CROSS JOIN LATERAL (`+flowCountsSQL("e.tenant_id", "e.member_id", "$4", "$5::text[]")+`) c
+		WHERE e.tenant_id = $1 AND e.msg_id = $2 AND e.member_id = ANY($3) AND e.expires_at > $4`+flowDoorSQL("e", "m", "$5::text[]"),
+		[]any{tenant, msgID, members, now, PublicChannels}, func(r pgx.Rows) error {
+			var member string
+			var c, u FlowCounts
+			ev, err := scanFlowEvent(r, &member, &c.Mention, &c.Reply, &c.DM, &u.Mention, &u.Reply, &u.DM)
+			if err != nil {
+				return err
+			}
+			c.Total, u.Total = c.Mention+c.Reply+c.DM, u.Mention+u.Reply+u.DM
+			out[member] = FlowPush{Event: ev, Counts: c, Unread: u}
+			return nil
+		})
+	return out, err
+}
+
+// flowMarkSweepSQL deletes the f:<msg_id> marks whose message is gone
+// ($1 now, $2 the chunk): the Flow's per-entry read state goes with its
+// line, as flow_events do by FK.
+const flowMarkSweepSQL = `DELETE FROM read_marks WHERE (tenant_id, member_id, mark_key) IN (
+		SELECT r.tenant_id, r.member_id, r.mark_key FROM read_marks r
+		WHERE r.mark_key LIKE 'f:%' AND r.mark_key <> 'f:seen' AND r.updated_at <= $1
+		  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = r.tenant_id
+			AND m.msg_id = CASE WHEN substr(r.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+				THEN substr(r.mark_key, 3)::uuid END)
+		LIMIT $2)`

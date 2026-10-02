@@ -352,14 +352,16 @@ const sentDeliveryClaim = `
 		WHERE deliveries.state = 'queued' AND deliveries.expires_at > EXCLUDED.sent_at`
 
 var (
-	insertMessageOnly = fmt.Sprintf(insertMessageSQL, "")
+	// Both forms carry the flow write (spec 062, flowInsertCTE): its four
+	// parameters follow the insert's.
+	insertMessageOnly = fmt.Sprintf(insertMessageSQL, flowInsertCTE(21))
 	// insertMessageSent adds the (msg_id, to_box) delivery row, sent and
 	// acked at received_at, $21 its expiry, for a new message or a resend of
 	// the identical envelope ($15) - never for a conflicting one.
 	insertMessageSent = fmt.Sprintf(insertMessageSQL, `,
 	del AS (INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at, sent_at, acked_at)
 		SELECT $1, $2, $8, 'sent', $16, $21::timestamptz, $16, $16
-		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15`+sentDeliveryClaim+`)`)
+		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15`+sentDeliveryClaim+`)`+flowInsertCTE(22))
 )
 
 // insertSentDelivery is that delivery leg alone, for the resend that raced
@@ -395,6 +397,7 @@ func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires tim
 	if sent {
 		sql, args = insertMessageSent, append(args, sentExpires)
 	}
+	args = append(args, flowInsertArgs(m)...)
 	var inserted bool
 	var old []byte
 	var notified int64
@@ -566,6 +569,9 @@ func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error
 	}
 	if r.Purged, err = chunks(`DELETE FROM messages WHERE expires_at <= $1 AND (tenant_id, msg_id) IN (
 			SELECT tenant_id, msg_id FROM messages WHERE expires_at <= $1 LIMIT $2)`); err != nil {
+		return SweepResult{}, err
+	}
+	if _, err := chunks(flowMarkSweepSQL); err != nil { // spec 062: f:<msg_id> marks go with their line
 		return SweepResult{}, err
 	}
 	return s.pruneCommitted(ctx, now, r)

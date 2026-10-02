@@ -27,24 +27,28 @@ type Memory struct {
 	// SPL-952: every kind change of a message, oldest first, per (tenant, msg).
 	kindChanges map[[2]string][]KindChange
 	// rdb 0037: emoji rows per (tenant, msg), in the order they were added.
-	reactions  map[[2]string][]memReaction
-	leases     map[[3]string]memLease   // rdb 0094 fleet_leases
-	lanes      map[[3]string]FleetLane  // rdb 0096 fleet_lanes
-	aliases    map[[3]string]AgentAlias // rdb 0101 agent_id_aliases
-	asks       map[[3]string]FleetAsk   // rdb 0097 fleet_asks
-	readMarks  map[[3]string]ReadMark   // rdb 0098 read_marks (tenant, member, key)
-	deliveries map[[3]string]*memDelivery
-	seq        int
-	hum        memHumans               // humans_memory.go, guarded by mu
-	ch         memChannels             // channels_memory.go, guarded by mu
-	pay        memPayments             // payments_memory.go, guarded by mu
-	hosts      map[string]TenantHost   // tenant_hosts.go, guarded by mu
-	keys       memKeys                 // human_keys_memory.go, guarded by mu
-	events     memEvents               // human_events_memory.go, guarded by mu
-	operators  map[[3]string]time.Time // box_operators.go (rdb 0040), guarded by mu
-	iss        memIssues               // issues.go (rdb 0047), guarded by mu
-	fb         memFallbacks            // fallback_memory.go (rdb 0067), guarded by mu
-	anyMoved   bool                    // message_move.go (rdb 0069): a row was ever moved
+	reactions map[[2]string][]memReaction
+	leases    map[[3]string]memLease   // rdb 0094 fleet_leases
+	lanes     map[[3]string]FleetLane  // rdb 0096 fleet_lanes
+	aliases   map[[3]string]AgentAlias // rdb 0101 agent_id_aliases
+	asks      map[[3]string]FleetAsk   // rdb 0097 fleet_asks
+	readMarks map[[3]string]ReadMark   // rdb 0098 read_marks (tenant, member, key)
+	// rdb 0104 (spec 062): flow_watches (tenant, task, member) -> since and
+	// flow_events (tenant, member, msg_id); written by InsertMessage.
+	flowWatches map[[3]string]time.Time
+	flowEvents  map[[3]string]memFlowEvent
+	deliveries  map[[3]string]*memDelivery
+	seq         int
+	hum         memHumans               // humans_memory.go, guarded by mu
+	ch          memChannels             // channels_memory.go, guarded by mu
+	pay         memPayments             // payments_memory.go, guarded by mu
+	hosts       map[string]TenantHost   // tenant_hosts.go, guarded by mu
+	keys        memKeys                 // human_keys_memory.go, guarded by mu
+	events      memEvents               // human_events_memory.go, guarded by mu
+	operators   map[[3]string]time.Time // box_operators.go (rdb 0040), guarded by mu
+	iss         memIssues               // issues.go (rdb 0047), guarded by mu
+	fb          memFallbacks            // fallback_memory.go (rdb 0067), guarded by mu
+	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string
 	wake         memWake // wake.go (spec 059 S1), its own lock
@@ -244,6 +248,7 @@ func (s *Memory) InsertMessage(_ context.Context, m Message) (bool, error) {
 	}
 	c := m
 	s.messages[k] = &c
+	s.flowWriteLocked(m)
 	s.wake.notifyWUI(m.TenantID, m.MsgID) // spec 059 S3; listeners run on their own goroutines
 	return true, nil
 }
@@ -412,6 +417,7 @@ func (s *Memory) Sweep(_ context.Context, now time.Time) (SweepResult, error) {
 			r.Purged++
 		}
 	}
+	s.flowSweepMarksLocked()
 	return s.pruneCommittedLocked(now, r), nil
 }
 

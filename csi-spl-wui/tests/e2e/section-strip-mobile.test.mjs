@@ -66,6 +66,10 @@ const topBar = (p) => p.evaluate(() => {
     const q = e.getBoundingClientRect()
     return q.width > 0 && q.height > 0 && getComputedStyle(e).visibility !== 'hidden'
   }).map((e) => e.getAttribute('data-test') || e.getAttribute('data-testid'))
+    /* the glyph in the box says where THIS page's post goes (owner, t1
+       3d6d945d "A"): "#" on a channel, none where there is no send target -
+       it follows the page like the placeholder does, it is not bar layout */
+    .filter((id) => id !== 'composer-mode-glyph')
   return JSON.stringify({ y: Math.round(r.y), h: Math.round(r.height), w: Math.round(r.width), shown })
 })
 

@@ -12,6 +12,8 @@ go	go version	box-playbook 08_spool_harness (spool-install/install.sh)
 git	git --version	box-playbook 02_os_binaries
 tmux	tmux -V	box-playbook 02_os_binaries
 jq	jq --version	box-playbook 02_os_binaries
+psql	psql --version	box-playbook 02_os_binaries (postgresql-client)
+pandoc	pandoc --version	box-playbook 02_os_binaries
 make	make --version	box-playbook 02_os_binaries
 python3	python3 --version	box-playbook 02_os_binaries
 node	node --version	box-playbook 02_os_binaries

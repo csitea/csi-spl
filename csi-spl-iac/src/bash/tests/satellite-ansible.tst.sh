@@ -18,6 +18,9 @@
 #   7. the repo is fast-forwarded to origin/master on every run (a non-ff is a
 #      FAIL, never left as is), the box user gets spool + spool-agent, and
 #      verify has rows for both; the repo row is run against a real git repo.
+#   8. yq (pinned), psql and pandoc are system-wide (the box user runs the
+#      actions), and verify checks every tool the orc actions require on the
+#      box user's login PATH.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -141,7 +144,7 @@ v="$PROJ_PATH/src/bash/run/satellite-verify.func.sh"
 grep -q '^_satellite_verify_users()' "$v" && grep -q '/etc/csi-spl-satellite.env' "$v" && grep -q '/etc/csi-spl-satellite.env' "$R/05_users/tasks/main.yml" \
   && pass "verify reads the users the playbook recorded" || fail "verify has no users block"
 grep -qF "sudo -n -u \${agent} -H bash -c 'cd \\\"\\\$HOME\\\" && exec bash -s'" "$v" && pass "verify runs the replica checks as the agent, from its home (run 4)" || fail "verify does not check as the agent from its home"
-grep -qF "sudo -n env O='\${owner}' A='\${agent}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
+grep -qF "sudo -n env O='\${owner}' A='\${agent}' OWNER_TOOLS='\${owner_tools}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
 
 # 7. the repo at trunk, and the box user's harness (CLE-77911)
 gs="$STEP/tasks/git-sync.yml"; h8="$R/08_spool_harness/tasks/main.yml"
@@ -171,6 +174,24 @@ o=$(repo_rows "$(printf 'repo branch master\nrepo head %s\nrepo dirty 0\n' "$c1"
 grep -q '^PASS .* is at trunk (4 behind, <= 10)' <<<"$o" && pass "7. repo row: within the default lag is a PASS" || fail "7. within lag: $o"
 o=$(repo_rows "$(printf 'repo branch feature\nrepo head %s\nrepo dirty 2\n' "$(printf '%040d' 7)")")
 [[ "$(grep -c '^FAIL' <<<"$o")" == 3 ]] && pass "7. repo row: another branch, local changes and a HEAD off trunk are 3 FAILs" || fail "7. bad clone: $o"
+
+# 8. the box user's required tools (2026-10-02: do_spl_desk_pin as the box
+#    user -> "Missing required tool(s): yq")
+r2="$R/02_os_binaries"
+grep -q 'yq_sha256: [0-9a-f]\{64\}$' "$r2/defaults/main.yml" && grep -q 'sha256sum "$t/yq"' "$r2/tasks/main.yml" && grep -q 'install -m 0755 "$t/yq" /usr/local/bin/yq' "$r2/tasks/main.yml" \
+  && pass "role 02 installs yq system-wide, sha256-pinned" || fail "role 02 has no pinned system-wide yq"
+grep -q '^      - postgresql-client$' "$r2/tasks/main.yml" && grep -q '^      - pandoc$' "$r2/tasks/main.yml" \
+  && pass "role 02 installs psql (postgresql-client) and pandoc" || fail "role 02 lacks postgresql-client or pandoc"
+miss=""
+for b in $(grep -rhoE 'do_require_bin [a-z0-9 _.-]+' "$PROJ_PATH/../csi-spl-orc/src/bash/run" | sed 's/do_require_bin //' | tr ' ' '\n' | grep -E '^[a-z0-9_-]+$' | sort -u); do
+  case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux) ;;
+    # coreutils / base system, or not a box-user tool: pnpm + node (WUI lanes, the agent), sudo, systemctl, install, getent, tee ...
+    sudo|pnpm|node|install|getent|tee|sed|mkdir|hostname|find|date|awk|tar|systemctl) ;;
+    *) miss="$miss $b" ;; esac
+done
+[[ -z "$miss" ]] && pass "every do_require_bin tool of the orc actions is in verify's owner list or the base system" || fail "orc requires tools verify does not check for the box user:$miss"
+grep -q 'owner_tools="yq jq python3 psql pandoc' "$v" && grep -q "required tools on its login PATH" "$v" \
+  && pass "verify checks the actions' tools on the box user's login PATH" || fail "verify has no owner-tools row"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

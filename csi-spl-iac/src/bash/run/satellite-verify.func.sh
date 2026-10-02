@@ -178,7 +178,8 @@ _satellite_verify_users() {
   SATELLITE_AS_AGENT=(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n -u ${agent} -H bash -c 'cd \"\$HOME\" && exec bash -s'")
   # shellcheck disable=SC2029
   # the names go AFTER sudo: sudo drops env set before it (run 4: 13 false FAILs)
-  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' bash -s" 2>/dev/null <<'REMOTE'
+  local owner_tools="yq jq python3 psql pandoc curl git gh docker setsid flock sha256sum setfacl getfacl crontab openssl perl tmux gcloud"
+  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' OWNER_TOOLS='${owner_tools}' bash -s" 2>/dev/null <<'REMOTE'
 for u in "$O" "$A"; do
   id "$u" >/dev/null 2>&1 || { echo "user $u missing"; continue; }
   echo "user $u uid $(id -u "$u")"
@@ -195,6 +196,11 @@ grep -h '^SPOOL_DESK_BOX=' /var/spool-hub/box.env 2>/dev/null | sed 's/^/boxenv 
 # the owner runs the desks: its harness (role 08), as the agent has its own
 oh=$(getent passwd "$O" | cut -d: -f6)
 for b in spool spool-agent; do [ -x "$oh/.local/bin/$b" ] && echo "owner bin $b"; done
+# the tools the csi-spl actions require (do_require_bin), on the owner's LOGIN
+# PATH: the box user runs the desk / lease / pin actions, and install.sh's
+# per-user tools dir is not on that PATH (2026-10-02: yq missing)
+for b in $OWNER_TOOLS; do sudo -n -u "$O" -i bash -lc "command -v $b" >/dev/null 2>&1 || echo "owner tool-missing $b"; done
+echo "owner tools-checked"
 # the clone: on master, clean, and its HEAD (compared with trunk on this box)
 r=/opt/csi/csi-spl
 g() { git -c safe.directory="$r" -C "$r" "$@"; }
@@ -221,6 +227,10 @@ REMOTE
   for b in spool spool-agent; do
     grep -qx "owner bin $b" <<<"$out" && ok "$b installed for $owner (the box user runs the desks)" || ko "$b installed for $owner (the box user runs the desks)"
   done
+  local missing
+  missing=$(sed -n 's/^owner tool-missing //p' <<<"$out" | tr '\n' ' ')
+  if grep -qx "owner tools-checked" <<<"$out" && [[ -z "$missing" ]]; then ok "$owner has the actions' required tools on its login PATH ($owner_tools)"
+  else ko "$owner has the actions' required tools on its login PATH (missing: ${missing:-unreadable})"; fi
   _satellite_verify_repo "$out"
 }
 

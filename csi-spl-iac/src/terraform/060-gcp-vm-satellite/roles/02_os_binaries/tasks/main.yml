@@ -30,6 +30,10 @@
       - npm
       - gh
       - htop
+      # do_require_bin psql (43 csi-spl actions) and pandoc (2), for the box
+      # user that runs them (CLE-77911)
+      - postgresql-client
+      - pandoc
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -68,6 +72,22 @@
     SUM: "{{ go_sha256 }}"
   register: go_out
   changed_when: "'CHANGED' in go_out.stdout"
+
+- name: "yq {{ yq_version }} in /usr/local/bin (GitHub release, sha256-pinned; as on the box PC)"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    [ "$(/usr/local/bin/yq --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" = "$VER" ] && { echo "OK yq $VER"; exit 0; }
+    t=$(mktemp -d) && trap 'rm -rf "$t"' EXIT
+    curl -fsSL --retry 3 -o "$t/yq" "https://github.com/mikefarah/yq/releases/download/v$VER/yq_linux_amd64" || { echo "FAIL download yq $VER"; exit 1; }
+    [ "$(sha256sum "$t/yq" | cut -d' ' -f1)" = "$SUM" ] || { echo "FAIL yq $VER sha256 mismatch"; exit 1; }
+    install -m 0755 "$t/yq" /usr/local/bin/yq && echo "CHANGED yq $VER"
+  args:
+    executable: /bin/bash
+  environment:
+    VER: "{{ yq_version }}"
+    SUM: "{{ yq_sha256 }}"
+  register: yq_out
+  changed_when: "'CHANGED' in yq_out.stdout"
 
 - name: Go on every login PATH (/usr/local/go/bin, ~/go/bin)
   ansible.builtin.copy:

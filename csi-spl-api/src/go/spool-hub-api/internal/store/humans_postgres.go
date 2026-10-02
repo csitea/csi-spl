@@ -387,14 +387,7 @@ func (s *Postgres) SetAvatar(ctx context.Context, humanID, fileID string) error 
 	if err := checkFileID(fileID); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET avatar_file_id = $2 WHERE human_id = $1`, humanID, fileID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET avatar_file_id = $2 WHERE human_id = $1`, humanID, fileID)
 }
 
 func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {
@@ -414,83 +407,40 @@ func (s *Postgres) SetPreferredLocale(ctx context.Context, humanID, locale strin
 	if err := checkLocale(locale); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET preferred_locale = NULLIF($2, '') WHERE human_id = $1`, humanID, locale)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET preferred_locale = NULLIF($2, '') WHERE human_id = $1`, humanID, locale)
 }
 
 func (s *Postgres) PreferredLocale(ctx context.Context, humanID string) (string, error) {
-	var loc string
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(preferred_locale, '') FROM humans WHERE human_id = $1`, humanID).Scan(&loc)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return loc, err
+	return s.humanText(ctx, `SELECT COALESCE(preferred_locale, '') FROM humans WHERE human_id = $1`, humanID)
 }
 
 func (s *Postgres) SetPreferredTheme(ctx context.Context, humanID, theme string) error {
 	if err := checkTheme(theme); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET preferred_theme = NULLIF($2, '') WHERE human_id = $1`, humanID, theme)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET preferred_theme = NULLIF($2, '') WHERE human_id = $1`, humanID, theme)
 }
 
 func (s *Postgres) PreferredTheme(ctx context.Context, humanID string) (string, error) {
-	var theme string
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(preferred_theme, '') FROM humans WHERE human_id = $1`, humanID).Scan(&theme)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return theme, err
+	return s.humanText(ctx, `SELECT COALESCE(preferred_theme, '') FROM humans WHERE human_id = $1`, humanID)
 }
 
 func (s *Postgres) SetSubmitKey(ctx context.Context, humanID, key string) error {
 	if err := checkSubmitKey(key); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET submit_key = NULLIF($2, '') WHERE human_id = $1`, humanID, key)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET submit_key = NULLIF($2, '') WHERE human_id = $1`, humanID, key)
 }
 
 func (s *Postgres) SubmitKey(ctx context.Context, humanID string) (string, error) {
-	var key string
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(submit_key, '') FROM humans WHERE human_id = $1`, humanID).Scan(&key)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return key, err
+	return s.humanText(ctx, `SELECT COALESCE(submit_key, '') FROM humans WHERE human_id = $1`, humanID)
 }
 
 func (s *Postgres) SetRailOrder(ctx context.Context, humanID string, order []string) error {
 	if err := checkRailOrder(order); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET rail_order = $2 WHERE human_id = $1`, humanID, order)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET rail_order = $2 WHERE human_id = $1`, humanID, order)
 }
 
 func (s *Postgres) RailOrder(ctx context.Context, humanID string) ([]string, error) {
@@ -540,14 +490,7 @@ func (s *Postgres) SetIssueColumns(ctx context.Context, humanID string, cols map
 	if len(cols) > 0 {
 		arg = cols
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET issues_columns = $2::jsonb WHERE human_id = $1`, humanID, arg)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET issues_columns = $2::jsonb WHERE human_id = $1`, humanID, arg)
 }
 
 func (s *Postgres) IssueColumns(ctx context.Context, humanID string) (map[string]int, error) {
@@ -561,23 +504,11 @@ func (s *Postgres) IssueColumns(ctx context.Context, humanID string) (map[string
 
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)
 }
 
 func (s *Postgres) DisplayName(ctx context.Context, humanID string) (string, error) {
-	var name string
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(display_name, '') FROM humans WHERE human_id = $1`, humanID).Scan(&name)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return name, err
+	return s.humanText(ctx, `SELECT COALESCE(display_name, '') FROM humans WHERE human_id = $1`, humanID)
 }
 
 // SetInterests stores the human's free-text interests (rdb 0086). "" stores
@@ -587,35 +518,16 @@ func (s *Postgres) SetInterests(ctx context.Context, humanID, interests string) 
 	if interests != "" {
 		v = interests
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET interests = $2 WHERE human_id = $1`, humanID, v)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET interests = $2 WHERE human_id = $1`, humanID, v)
 }
 
 func (s *Postgres) Interests(ctx context.Context, humanID string) (string, error) {
-	var v string
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(interests, '') FROM humans WHERE human_id = $1`, humanID).Scan(&v)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return v, err
+	return s.humanText(ctx, `SELECT COALESCE(interests, '') FROM humans WHERE human_id = $1`, humanID)
 }
 
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE humans SET diagnostics_enabled = $2 WHERE human_id = $1`, humanID, on)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.execHuman(ctx, `UPDATE humans SET diagnostics_enabled = $2 WHERE human_id = $1`, humanID, on)
 }
 
 func (s *Postgres) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {
@@ -690,4 +602,28 @@ func (s *Postgres) FederatedAccount(ctx context.Context, email string) ([]string
 		}
 	}
 	return provs, locale, rows.Err()
+}
+
+// execHuman runs a one-row UPDATE of humans keyed by human_id ($1); a missing
+// human is ErrNotFound. humans is hub-wide (outside rdb 0014's RLS).
+func (s *Postgres) execHuman(ctx context.Context, sql string, args ...any) error {
+	tag, err := s.pool.Exec(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// humanText reads one COALESCEd text column of the human keyed by $1; a
+// missing human is ErrNotFound.
+func (s *Postgres) humanText(ctx context.Context, sql, humanID string) (string, error) {
+	var v string
+	err := s.pool.QueryRow(ctx, sql, humanID).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return v, err
 }

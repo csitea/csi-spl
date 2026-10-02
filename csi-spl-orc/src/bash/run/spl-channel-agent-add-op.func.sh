@@ -81,10 +81,43 @@ do_spl_channel_agent_add_op() {
 }
 
 _spl_channel_agent_add_op_run() {
-  local out rc=0 n_added n_already n_want=0 a mark added_ids already_ids
+  local out rc=0 n_added n_already n_want=0 a mark
   for a in $4; do n_want=$((n_want + 1)); done
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" -v allowdef="${5:-0}" <<'SQL'
+  out="$({ _spl_channel_agent_add_op_sql_guards; _spl_channel_agent_add_op_sql_apply; } |
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+      -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4" -v allowdef="${5:-0}")" || rc=$?
+  # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
+  # refusal is recognised from the line the script printed, not from rc.
+  if mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
+    do_log "FATAL not_a_member: $mark is not announced on $3 in $1"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
+    do_log "FATAL no channel $mark in $1"
+    return 1
+  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
+    do_log "FATAL #$mark is a default channel: an agent seat is not stored"
+    return 1
+  elif grep -q '^refuse-count$' <<<"$out"; then
+    do_log "FATAL agent add of $4 to #$2 on $3 in $1 changed an unexpected number of rows; rolled back"
+    return 1
+  elif (( rc != 0 )); then
+    do_log "FATAL agent add of $4 to #$2 on $3 in $1 failed: $out"
+    return 1
+  fi
+  n_added="$(grep -c '^added | ' <<<"$out" || true)"
+  n_already="$(grep -c '^already | ' <<<"$out" || true)"
+  if (( n_added + n_already != n_want )); then
+    do_log "FATAL agent add of $4 to #$2 on $3 in $1 returned $n_added added and $n_already already, want $n_want: $out"
+    return 1
+  fi
+  _spl_channel_agent_add_op_report "$out" "$1" "$2" "$3" "$n_added" "$n_already"
+}
+
+# _spl_channel_agent_add_op_sql_guards: the first half of the add script -
+# BEGIN, then refuse a public / missing channel and any agent not announced on
+# the box (each refusal prints its "refuse-<why> | <what>" line and quits).
+_spl_channel_agent_add_op_sql_guards() {
+  cat <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT (:'channel' IN ('tasks', 'issues', 'general')
@@ -126,6 +159,14 @@ ROLLBACK;
 SELECT format('refuse-not-a-member | %s', :'missing');
 \quit 1
 \endif
+SQL
+}
+
+# _spl_channel_agent_add_op_sql_apply: the second half - revive removed seats,
+# insert the new ones, and COMMIT only when every wanted agent is accounted for
+# (prints "added | <id>" / "already | <id>"), else roll back (refuse-count).
+_spl_channel_agent_add_op_sql_apply() {
+  cat <<'SQL'
 SELECT count(*)::int AS nwant FROM (
          SELECT DISTINCT btrim(x) AS a
            FROM unnest(string_to_array(:'agents', ' ')) AS t(x)
@@ -186,40 +227,21 @@ SELECT 'refuse-count';
 \quit 1
 \endif
 SQL
-)" || rc=$?
-  # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
-  # refusal is recognised from the line the script printed, not from rc.
-  if mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
-    do_log "FATAL not_a_member: $mark is not announced on $3 in $1"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
-    do_log "FATAL no channel $mark in $1"
-    return 1
-  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
-    do_log "FATAL #$mark is a default channel: an agent seat is not stored"
-    return 1
-  elif grep -q '^refuse-count$' <<<"$out"; then
-    do_log "FATAL agent add of $4 to #$2 on $3 in $1 changed an unexpected number of rows; rolled back"
-    return 1
-  elif (( rc != 0 )); then
-    do_log "FATAL agent add of $4 to #$2 on $3 in $1 failed: $out"
-    return 1
-  fi
-  n_added="$(grep -c '^added | ' <<<"$out" || true)"
-  n_already="$(grep -c '^already | ' <<<"$out" || true)"
-  if (( n_added + n_already != n_want )); then
-    do_log "FATAL agent add of $4 to #$2 on $3 in $1 returned $n_added added and $n_already already, want $n_want: $out"
-    return 1
-  fi
+}
+
+# _spl_channel_agent_add_op_report <psql output> <tenant> <channel> <box>
+# <n added> <n already>: the OK lines of a committed add.
+_spl_channel_agent_add_op_report() {
+  local out="$1" n_added="$5" n_already="$6" added_ids already_ids
+  local t="$2" channel="$3" box="$4"
   if (( n_added > 0 )); then
     added_ids="$(grep '^added | ' <<<"$out" | sed 's/^added | //' | paste -sd ' ' -)"
-    do_log "OK added $added_ids on $3 to #$2 in $1 ($GCP_ACCOUNT)"
+    do_log "OK added $added_ids on $box to #$channel in $t ($GCP_ACCOUNT)"
   fi
+  already_ids="$(grep '^already | ' <<<"$out" | sed 's/^already | //' | paste -sd ' ' -)"
   if (( n_already == 1 )); then
-    already_ids="$(grep '^already | ' <<<"$out" | sed 's/^already | //' | paste -sd ' ' -)"
-    do_log "OK $already_ids is already a member of #$2 on $3 in $1 ($GCP_ACCOUNT)"
+    do_log "OK $already_ids is already a member of #$channel on $box in $t ($GCP_ACCOUNT)"
   elif (( n_already > 1 )); then
-    already_ids="$(grep '^already | ' <<<"$out" | sed 's/^already | //' | paste -sd ' ' -)"
-    do_log "OK $already_ids are already members of #$2 on $3 in $1 ($GCP_ACCOUNT)"
+    do_log "OK $already_ids are already members of #$channel on $box in $t ($GCP_ACCOUNT)"
   fi
 }

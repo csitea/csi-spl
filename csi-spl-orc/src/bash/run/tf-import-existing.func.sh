@@ -51,8 +51,8 @@ do_tf_import_existing() {
 
   # ORG / APP / container exactly as the tf-tasks make targets derive them.
   local org app
-  org="$(APP_PATH="$root" ORG= APP= bash -c 'source "$0"; do_resolve_oap ORG; echo "$ORG"' "${orc_dir}/lib/bash/funcs/resolve-oap.func.sh")"
-  app="$(APP_PATH="$root" ORG= APP= bash -c 'source "$0"; do_resolve_oap APP; echo "$APP"' "${orc_dir}/lib/bash/funcs/resolve-oap.func.sh")"
+  org="$(_tf_import_oap ORG "$root" "$orc_dir")"
+  app="$(_tf_import_oap APP "$root" "$orc_dir")"
   local con="${CON_TF_RUNNER:-con-${org}-${app}-tf-runner}"
 
   command -v docker >/dev/null 2>&1 || { do_log "FATAL docker is required"; return 1; }
@@ -100,4 +100,12 @@ do_tf_import_existing() {
   echo "${step} ${env_name}: imported=$imported skipped=$skipped failed=$failed planned=$planned"
   echo "Next: ENV=${env_name} STEP=${step} make do-tf-plan. This action never applies."
   return 0
+}
+
+# _tf_import_oap <ORG|APP> <app path> <orc dir>: that half of the naming pair,
+# resolved in a clean shell (ORG and APP unset) exactly as the tf-tasks make
+# targets derive it.
+_tf_import_oap() {
+  APP_PATH="$2" ORG='' APP='' bash -c 'source "$0"; do_resolve_oap "$1"; echo "${!1}"' \
+    "$3/lib/bash/funcs/resolve-oap.func.sh" "$1"
 }

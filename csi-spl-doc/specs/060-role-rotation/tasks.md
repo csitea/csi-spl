@@ -31,17 +31,17 @@ lanes ask nothing more unless they are blocked.
 
 ## 4. Dispatchers (CLE-77940)
 
-- [ ] T030 The hold in `spl_lease_agent_able` (renew, watch, fleet candidate) and its ageing out (FR-023, FR-024) + T-DISP-HOLD-STALE
-- [ ] T031 `do_spl_dispatch_rotate`: PRECHECK, HEAL, HOLD, QUIESCE, HANDOFF, SPAWN-M, ACK-M, RETIRE, RELEASE, REFRESH-F, DONE (FR-020..FR-031) + T-DISP-HAPPY, T-DISP-HEAL, T-DISP-ACK-FAIL, T-DISP-ACK-SOURCE, T-DISP-ONE-HOLDER
-- [ ] T032 Sequencing behind an orch rotation (FR-020, FR-051) + T-SEQ
-- [ ] T033 The `rotation` row in `do_spl_dispatch_check` (FR-072)
-- [ ] T034 `do_spl_dispatch_rotate_install_cron` at `15 * * * *` (FR-050) + T-CRON
+- [x] T030 The hold in `spl_lease_agent_able` (renew, watch, fleet candidate) and its ageing out (FR-023, FR-024) + T-DISP-HOLD-STALE
+- [x] T031 `do_spl_dispatch_rotate`: PRECHECK, HEAL, HOLD, QUIESCE, HANDOFF, SPAWN-M, ACK-M, RETIRE, RELEASE, REFRESH-F, DONE (FR-020..FR-031) + T-DISP-HAPPY, T-DISP-HEAL, T-DISP-ACK-FAIL, T-DISP-ACK-SOURCE, T-DISP-ONE-HOLDER
+- [x] T032 Sequencing behind an orch rotation (FR-020, FR-051) + T-SEQ
+- [x] T033 The `rotation` row in `do_spl_dispatch_check` (FR-072)
+- [x] T034 `do_spl_dispatch_rotate_install_cron` at `15 * * * *` (FR-050) + T-CRON
 - [ ] T035 Live L1 and L3 (one real rotation of `CLE-002`, then refresh `CLE-003`), then install the cron
 
 ## 5. Both lanes
 
 - [ ] T040 T-MSG-IN-FLIGHT, T-TWO-MACHINES, T-NO-MODEL
-- [ ] T041 SPEC-spool-fleet-roles.md: a short section pointing to this spec (no restatement)
+- [x] T041 SPEC-spool-fleet-roles.md: a short section pointing to this spec (no restatement)
 - [ ] T042 L4 (three cron hours) and L5 (`ROTATE=0`), reported to `CLE-001`
 - [ ] T043 Owner: apply the FR-061 flag line, or allow it for one lane (FR-062)
 

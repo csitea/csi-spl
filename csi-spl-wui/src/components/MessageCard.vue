@@ -416,7 +416,7 @@ import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
-import { createHandleDrag } from '~/utils/move-drag.mjs'
+import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
@@ -434,7 +434,7 @@ import { reactionChips, emojiName } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
-import { COMPOSER_FOCUS_EVENT, createLongPress } from '~/utils/touch-ui.mjs'
+import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe } from '~/utils/swipe-archive.mjs'
 import { isTouchUi } from '~/utils/undo-timer.mjs'
 import { useLiveFeed } from '~/stores/live'
@@ -581,6 +581,12 @@ function onClick(ev: MouseEvent) {
 const MENU_PASS = 'a, button, input, textarea, select'
 
 function onContextMenu(ev: MouseEvent) {
+  /* HUM-10: Android's long press fires contextmenu while the finger is still
+     on a card it may lift; the hold (or its release in place) decides */
+  if (rowDrag.state !== 'idle') {
+    ev.preventDefault()
+    return
+  }
   const el = ev.target as HTMLElement | null
   if (el && el.closest && el.closest(MENU_PASS) && !el.closest('[data-testid="msg-menu-btn"]')) return
   ev.preventDefault()
@@ -807,6 +813,7 @@ const swipe = createSwipe({
   rtl: () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl',
   onLock: () => {
     longPress.cancel()
+    rowDrag.cancel()
     stack.swipe.claim()
   },
   onMove: (dx, armed) => {
@@ -839,18 +846,25 @@ async function swipeCommit() {
   }
 }
 function onRowDown(ev: PointerEvent) {
-  longPress.down(ev)
+  /* HUM-10: a finger on a topic card it may move lifts it on the hold (the
+     long-press menu then opens on a release in place, see rowDrag) */
+  if (touchLift.value && ev.pointerType === 'touch') rowDrag.down(ev)
+  else longPress.down(ev)
   if (swipeArchive.value && !removing.value) swipe.down(ev)
 }
 function onRowMove(ev: PointerEvent) {
+  rowDrag.move(ev)
+  if (rowDrag.state === 'lifted') return
   longPress.move(ev)
   swipe.move(ev)
 }
-function onRowUp() {
+function onRowUp(ev: PointerEvent) {
+  rowDrag.up(ev)
   longPress.up()
   swipe.up()
 }
 function onRowCancel() {
+  rowDrag.cancel()
   longPress.cancel()
   swipe.cancel()
 }
@@ -1029,6 +1043,7 @@ function onMoveKey(ev: KeyboardEvent) {
   if (ev.key !== 'Escape') return
   ev.preventDefault()
   handle.cancel()
+  rowDrag.cancel()
 }
 function endDrag() {
   dragging.value = false
@@ -1078,6 +1093,123 @@ function onHandleUp(ev: PointerEvent) {
   handle.takeClick()
 }
 onBeforeUnmount(() => handle.cancel())
+
+/*
+ * HUM-10 (owner, t1 5a410ad5): "One should be able to drag and drop topics
+ * into other topics on mobile as well." On a phone a long press on a topic
+ * card the viewer may move LIFTS it (a buzz, the ghost): the finger drags it
+ * over another topic card, which lights, and the list scrolls while the finger
+ * is near its top or bottom edge. The release is the desktop drop (move.land):
+ * the same Merge confirm, the same merge call, the same Undo. A finger that
+ * moves before the hold is a scroll (move-drag.mjs slop) and lifts nothing; a
+ * hold released where it was opens the card menu, as the long press always
+ * did (Merge into topic… there is the way that needs no drag). The 12 px
+ * handle keeps opening Move to channel… (the rail is not beside the list).
+ */
+const touchLift = computed(() => mobile.value && canMoveTopic.value && !editing.value)
+let liftAt = { x: 0, y: 0 }
+let liftTravel = false
+function scrollBox(): HTMLElement | null {
+  for (let e = rowEl.value?.parentElement; e; e = e.parentElement) {
+    const oy = getComputedStyle(e).overflowY
+    if ((oy === 'auto' || oy === 'scroll') && e.scrollHeight > e.clientHeight) return e
+  }
+  return (document.scrollingElement as HTMLElement | null) || null
+}
+let edgeBox: HTMLElement | null = null
+const edgeScroll = createEdgeScroll({
+  box: () => {
+    const b = edgeBox
+    if (!b) return null
+    const whole = b === document.scrollingElement
+    const r = whole ? { top: 0, bottom: window.innerHeight } : b.getBoundingClientRect()
+    return {
+      top: r.top,
+      bottom: r.bottom,
+      scrollBy: (dy: number) => {
+        const before = b.scrollTop
+        b.scrollTop = before + dy
+        return b.scrollTop !== before
+      },
+    }
+  },
+  onScroll: (x, y) => move.track(x, y),
+})
+function endTouchDrag() {
+  edgeScroll.stop()
+  edgeBox = null
+  endDrag()
+}
+const rowDrag = createHandleDrag({
+  holdMs: LONG_PRESS_MS,
+  slopPx: LONG_PRESS_SLOP_PX,
+  onStart: (x, y) => {
+    longPress.cancel()
+    swipe.cancel()
+    stack.swipe.claim()
+    closeMenu()
+    pickerOpen.value = false
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    liftAt = { x, y }
+    liftTravel = false
+    edgeBox = scrollBox()
+    dragging.value = true
+    window.addEventListener('keydown', onMoveKey, true)
+    move.lift(moveDrag(), title.value || String(props.msg.body || '').slice(0, 60))
+    move.track(x, y)
+  },
+  onMove: (x, y) => {
+    if (!liftTravel && Math.hypot(x - liftAt.x, y - liftAt.y) > LONG_PRESS_SLOP_PX) liftTravel = true
+    if (liftTravel) edgeScroll.at(x, y)
+    move.track(x, y)
+  },
+  onDrop: (x, y) => {
+    endTouchDrag()
+    if (!liftTravel) {
+      move.land(false)
+      rowEl.value?.focus({ preventScroll: true })
+      openMenuAt(liftAt.x, liftAt.y)
+      return
+    }
+    move.track(x, y)
+    move.land(true)
+  },
+  onCancel: () => {
+    endTouchDrag()
+    move.land(false)
+  },
+})
+/* the page must not scroll under a lifted card: a touchmove the browser may
+   still cancel is cancelled (not passive, so only on the rows that lift) */
+function onLiftTouchMove(ev: TouchEvent) {
+  if (rowDrag.state === 'lifted' && ev.cancelable) ev.preventDefault()
+}
+/* the click the release sends opens nothing: not the topic, and not a button
+   the finger happened to hold (the menu button would close the menu again) */
+function onLiftClick(ev: MouseEvent) {
+  if (!rowDrag.takeClick()) return
+  ev.preventDefault()
+  ev.stopPropagation()
+}
+let liftListenerOn: HTMLElement | null = null
+watch([touchLift, rowEl], ([on, el]) => {
+  if (liftListenerOn && (!on || liftListenerOn !== el)) {
+    liftListenerOn.removeEventListener('touchmove', onLiftTouchMove)
+    liftListenerOn.removeEventListener('click', onLiftClick, true)
+    liftListenerOn = null
+  }
+  if (on && el && !liftListenerOn) {
+    el.addEventListener('touchmove', onLiftTouchMove, { passive: false })
+    el.addEventListener('click', onLiftClick, true)
+    liftListenerOn = el
+  }
+}, { immediate: true, flush: 'post' })
+onBeforeUnmount(() => {
+  rowDrag.cancel()
+  liftListenerOn?.removeEventListener('touchmove', onLiftTouchMove)
+  liftListenerOn?.removeEventListener('click', onLiftClick, true)
+  liftListenerOn = null
+})
 
 function openMovePicker(mode: 'channel' | 'topic' | 'merge') {
   closeMenu()

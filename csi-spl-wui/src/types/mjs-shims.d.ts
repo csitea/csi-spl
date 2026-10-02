@@ -668,6 +668,15 @@ declare module '~/utils/move-drag.mjs' {
     startPx?: number, holdMs?: number, slopPx?: number,
     setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void,
   }): HandleDrag
+  export const MOVE_EDGE_PX: number
+  export const MOVE_EDGE_MAX_STEP: number
+  export function edgeScrollStep(y: number, top: number, bottom: number, edge?: number, max?: number): number
+  export type EdgeScroll = { readonly running: boolean, at(x: number, y: number): void, stop(): void }
+  export function createEdgeScroll(opts: {
+    box: () => { top: number, bottom: number, scrollBy: (dy: number) => boolean } | null,
+    onScroll: (x: number, y: number) => void,
+    frame?: (fn: () => void) => unknown, cancelFrame?: (id: unknown) => void,
+  }): EdgeScroll
 }
 
 declare module '~/utils/move-apply.mjs' {

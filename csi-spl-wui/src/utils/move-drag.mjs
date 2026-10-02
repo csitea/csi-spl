@@ -165,3 +165,76 @@ export function createHandleDrag(opts) {
     },
   }
 }
+
+// HUM-10 (owner, t1 5a410ad5): "One should be able to drag and drop topics
+// into other topics on mobile as well." A phone lifts a topic card with a
+// long press on the card itself and drags it with the finger; the list it sits
+// in scrolls while the finger is near the list's top or bottom edge.
+
+/** The band at a list edge that scrolls it, px (capped at a third of the list). */
+export const MOVE_EDGE_PX = 56
+/** The fastest auto-scroll, px per frame (the finger at the very edge). */
+export const MOVE_EDGE_MAX_STEP = 16
+
+/**
+ * How far the list scrolls this frame for a finger at `y` in a list spanning
+ * `top..bottom` (viewport px): negative up, positive down, 0 in the middle.
+ * The speed grows the deeper the finger is in the edge band.
+ *
+ * @param {number} y
+ * @param {number} top
+ * @param {number} bottom
+ * @param {number} [edge]
+ * @param {number} [max]
+ */
+export function edgeScrollStep(y, top, bottom, edge = MOVE_EDGE_PX, max = MOVE_EDGE_MAX_STEP) {
+  if (!(bottom > top) || !Number.isFinite(y)) return 0
+  const band = Math.min(edge, (bottom - top) / 3)
+  if (y < top + band) return -Math.ceil(max * Math.min(1, (top + band - y) / band))
+  if (y > bottom - band) return Math.ceil(max * Math.min(1, (y - (bottom - band)) / band))
+  return 0
+}
+
+/**
+ * The auto-scroll loop of one drag. `at(x, y)` feeds the finger and starts
+ * the loop; each frame the box from `box()` scrolls by edgeScrollStep and,
+ * when it did, `onScroll(x, y)` runs (the rows moved under a finger that did
+ * not, so the host re-reads the row under it). `stop()` ends the loop.
+ *
+ * @param {{ box: () => { top: number, bottom: number, scrollBy: (dy: number) => boolean } | null,
+ *   onScroll: (x: number, y: number) => void,
+ *   frame?: (fn: () => void) => unknown, cancelFrame?: (id: unknown) => void }} opts
+ */
+export function createEdgeScroll(opts) {
+  const frame = opts.frame ?? ((fn) => requestAnimationFrame(fn))
+  const cancelFrame = opts.cancelFrame ?? ((id) => cancelAnimationFrame(/** @type {number} */ (id)))
+  /** @type {unknown} */
+  let id = null
+  let x = 0
+  let y = 0
+  let on = false
+  function tick() {
+    id = null
+    if (!on) return
+    const b = opts.box()
+    const dy = b ? edgeScrollStep(y, b.top, b.bottom) : 0
+    if (dy && b && b.scrollBy(dy)) opts.onScroll(x, y)
+    id = frame(tick)
+  }
+  return {
+    get running() { return on },
+    /** @param {number} nx @param {number} ny */
+    at(nx, ny) {
+      x = nx
+      y = ny
+      if (on) return
+      on = true
+      id = frame(tick)
+    },
+    stop() {
+      on = false
+      if (id !== null) cancelFrame(id)
+      id = null
+    },
+  }
+}

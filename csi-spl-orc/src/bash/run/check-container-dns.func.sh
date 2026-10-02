@@ -70,27 +70,7 @@ _dns_wait_tf_runner() {
 do_check_container_dns() {
   _dns_ensure_helpers
 
-  if [[ "${SKIP_CONTAINER_DNS_CHECK:-}" == "1" ]]; then
-    do_log "INFO skipping container DNS check (SKIP_CONTAINER_DNS_CHECK=1)"
-    return 0
-  fi
-
-  # The iac provision action typically runs *inside* tf-runner via docker exec. Restarting
-  # ourselves from in here would kill the apply. make do-provision runs this
-  # action on the host first.
-  if [[ -f /.dockerenv && "${DNS_CHECK_FORCE_HOST:-}" != "1" ]]; then
-    do_log "INFO skipping container DNS check (already inside a container)"
-    return 0
-  fi
-
-  if ! command -v docker >/dev/null 2>&1; then
-    do_log "WARN docker CLI not on PATH — skipping container DNS check"
-    return 0
-  fi
-  if ! docker info >/dev/null 2>&1; then
-    do_log "WARN Docker daemon not reachable — skipping container DNS check"
-    return 0
-  fi
+  _dns_check_skipped && return 0
 
   if [[ -z "${ORG:-}" || -z "${APP:-}" ]]; then
     if type do_resolve_oap >/dev/null 2>&1; then
@@ -133,17 +113,8 @@ do_check_container_dns() {
     return 0
   fi
 
-  local prefix="${CON_INF_PREFIX:-${tf_con%-tf-runner}}"
-  local to_restart=() svc n
-  for svc in tf-runner tpl-gen conf-validator; do
-    n="${prefix}-${svc}"
-    if docker inspect "$n" >/dev/null 2>&1; then
-      to_restart+=("$n")
-    fi
-  done
-  if ((${#to_restart[@]} == 0)); then
-    to_restart=("$tf_con")
-  fi
+  local to_restart=()
+  mapfile -t to_restart < <(_dns_infra_containers "$tf_con")
 
   if [[ "${DRY_RUN:-}" == "1" ]]; then
     do_log "WARN resolver changed (host ${host_ns}, container ${con_ns}) — restarted"
@@ -161,4 +132,44 @@ do_check_container_dns() {
   _dns_wait_tf_runner "$tf_con" || return $?
   do_log "OK infra containers ready after DNS restart"
   return 0
+}
+
+# _dns_check_skipped -> 0 (with the reason logged) when this host cannot or
+# must not run the check: SKIP_CONTAINER_DNS_CHECK=1, inside a container, or
+# no docker CLI / daemon.
+_dns_check_skipped() {
+  if [[ "${SKIP_CONTAINER_DNS_CHECK:-}" == "1" ]]; then
+    do_log "INFO skipping container DNS check (SKIP_CONTAINER_DNS_CHECK=1)"
+    return 0
+  fi
+  # The iac provision action typically runs *inside* tf-runner via docker exec. Restarting
+  # ourselves from in here would kill the apply. make do-provision runs this
+  # action on the host first.
+  if [[ -f /.dockerenv && "${DNS_CHECK_FORCE_HOST:-}" != "1" ]]; then
+    do_log "INFO skipping container DNS check (already inside a container)"
+    return 0
+  fi
+  if ! command -v docker >/dev/null 2>&1; then
+    do_log "WARN docker CLI not on PATH — skipping container DNS check"
+    return 0
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    do_log "WARN Docker daemon not reachable — skipping container DNS check"
+    return 0
+  fi
+  return 1
+}
+
+# _dns_infra_containers <tf-runner container>: the infra stack's containers
+# that exist (tf-runner, tpl-gen, conf-validator under CON_INF_PREFIX), one per
+# line; the tf-runner alone when none is found.
+_dns_infra_containers() {
+  local tf_con="$1" prefix="${CON_INF_PREFIX:-${1%-tf-runner}}" svc n found=0
+  for svc in tf-runner tpl-gen conf-validator; do
+    n="${prefix}-${svc}"
+    if docker inspect "$n" >/dev/null 2>&1; then
+      printf '%s\n' "$n"; found=1
+    fi
+  done
+  (( found )) || printf '%s\n' "$tf_con"
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -241,43 +243,61 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	where := fallbackWhere(channel, m.To)
 	now := s.o.Now()
 	rec := store.FallbackDelivery{TenantID: tenant, MsgID: m.MsgID, Channel: channel, Box: b.box, Agent: agent, DeliveredAt: now}
-	fb, hasFB := s.o.Store.(store.Fallbacks)
-	claim := esc.swept || esc.escalate
-	switch {
-	case esc.reescalate && hasFB:
-		switch won, err := fb.BumpFallback(ctx, rec, s.o.ReescalateMax); {
-		case err != nil:
-			log.Error().Err(err).Msg("fallback re-escalate")
-			return
-		case !won: // capped, or another hub process bumped it
-			return
-		}
-	case claim && hasFB:
-		switch won, err := fb.ClaimFallback(ctx, rec); {
-		case err != nil:
-			log.Error().Err(err).Msg("fallback claim")
-			return
-		case !won: // another hub process took it
-			return
-		}
+	if !s.fallbackTake(ctx, rec, esc, log) {
+		return
 	}
 	f := wire.Frame{Type: wire.TRecv, Env: canon, Agents: []string{agent}, Fallback: where}
 	if err := b.x.write(ctx, f); err != nil {
 		log.Warn().Err(err).Str("box", b.box).Str("agent", agent).Msg("fallback write failed")
 		return
 	}
-	if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, b.box, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err == nil {
-		s.o.Store.ClaimSent(ctx, tenant, m.MsgID, b.box, now) //nolint:errcheck
-	} else {
-		log.Error().Err(err).Str("box", b.box).Msg("fallback delivery row")
+	s.fallbackRecord(ctx, rec, esc, log)
+	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
+		Bool("swept", esc.swept).Bool("escalate", esc.escalate).Bool("reescalate", esc.reescalate).Msg("fallback delivered")
+}
+
+// fallbackTake makes this process the one that delivers a swept, escalated or
+// re-escalated post: a re-escalation bumps the row (attempts+1, capped at
+// ReescalateMax), a sweep or an escalation claims it. false = another hub
+// process holds it, the cap is reached, or the store failed (logged). The
+// immediate fallback takes nothing up front: it records after delivery.
+func (s *Server) fallbackTake(ctx context.Context, rec store.FallbackDelivery, esc escalation, log zerolog.Logger) bool {
+	fb, ok := s.o.Store.(store.Fallbacks)
+	if !ok {
+		return true
 	}
-	if hasFB && !claim && !esc.reescalate {
+	switch {
+	case esc.reescalate:
+		won, err := fb.BumpFallback(ctx, rec, s.o.ReescalateMax)
+		if err != nil {
+			log.Error().Err(err).Msg("fallback re-escalate")
+		}
+		return err == nil && won
+	case esc.swept || esc.escalate:
+		won, err := fb.ClaimFallback(ctx, rec)
+		if err != nil {
+			log.Error().Err(err).Msg("fallback claim")
+		}
+		return err == nil && won
+	}
+	return true
+}
+
+// fallbackRecord writes what a delivered fallback leaves behind: the box's
+// delivery row (queued, then sent) and, for the immediate fallback only, the
+// fallback record (a taken post already has its row).
+func (s *Server) fallbackRecord(ctx context.Context, rec store.FallbackDelivery, esc escalation, log zerolog.Logger) {
+	now := rec.DeliveredAt
+	if err := s.o.Store.Enqueue(ctx, rec.TenantID, rec.MsgID, rec.Box, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err == nil {
+		s.o.Store.ClaimSent(ctx, rec.TenantID, rec.MsgID, rec.Box, now) //nolint:errcheck
+	} else {
+		log.Error().Err(err).Str("box", rec.Box).Msg("fallback delivery row")
+	}
+	if fb, ok := s.o.Store.(store.Fallbacks); ok && !esc.swept && !esc.escalate && !esc.reescalate {
 		if err := fb.RecordFallback(ctx, rec); err != nil {
 			log.Error().Err(err).Msg("fallback record")
 		}
 	}
-	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
-		Bool("swept", esc.swept).Bool("escalate", esc.escalate).Bool("reescalate", esc.reescalate).Msg("fallback delivered")
 }
 
 // channelFallback is the members answer's `fallback` (FR-035): who a post

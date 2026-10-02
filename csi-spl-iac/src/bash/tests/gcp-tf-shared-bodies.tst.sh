@@ -104,10 +104,13 @@ for a in "${APIS[@]}"; do
   run_fn "$fn" "$log"; rc=$?
   line=$(grep "^gcloud services ${verb} " "$log")
   n=$(grep -o '[a-z0-9]*\.googleapis\.com' <<<"$line" | wc -l)
-  [[ $rc -eq 0 && $n -eq ${NSVC[$a]} && "$line" == *"--project csi-spl-dev --account=sa-of-active@example.com"* ]] \
+  [[ $rc -eq 0 && $n -eq ${NSVC[$a]} && "$line" == *"--project csi-spl-dev --account=stub-sa@example.com"* ]] \
     && pass "$fn: services $verb with its ${NSVC[$a]} APIs, pinned to csi-spl-dev" || fail "$fn: rc=$rc n=$n line='$line'"
   grep -q "account=stub-sa@example.com — pinned per invocation.*($fn)" "$log.out" \
     && pass "$fn: logs the identity under its own name" || fail "$fn identity log: $(cat "$log.out")"
+  grep -qE '^gcloud (auth (login|application-default)|config set)' "$log" \
+    && fail "$fn: logs in / writes ADC or config (CLE-77937: the per-env SA only): $(cat "$log")" \
+    || pass "$fn: no owner login, no ADC, no config write"
 done
 run_fn do_gcp_project_apis_enable "$log"
 grep -q 'cloudrun.googleapis.com' "$log" && ! grep -q 'compute.googleapis.com' "$log" \

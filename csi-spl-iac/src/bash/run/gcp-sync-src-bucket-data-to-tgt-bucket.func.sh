@@ -33,15 +33,9 @@ do_gcp_sync_src_bucket_data_to_tgt_bucket() {
   # do_log: Logs messages with appropriate formatting
   # quit_on: Logs an error message and exits the script
 
-  # Reset Existing gcloud Authentication
-  do_log "INFO Resetting existing gcloud authentication..."
-  gcloud auth revoke --all --quiet || do_log "WARN Unable to revoke existing gcloud authentication. Continuing..."
-
-  gcloud auth login
-  if [ $? -ne 0 ]; then
-    quit_on "User authentication failed"
-  fi
-  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
+  # Owner order 2026-10-02 (CLE-77937): runs as the SA resolved above, never
+  # an interactive owner login; the SA needs read on SRC_BUCKET and write on
+  # TGT_BUCKET, granted SA-to-SA, never by the owner account.
 
   # Verify access to Source Bucket
   do_log "INFO Verifying access to source bucket (gs://$SRC_BUCKET)..."
@@ -58,7 +52,7 @@ do_gcp_sync_src_bucket_data_to_tgt_bucket() {
   fi
 
   # Debugging: Confirm active credentials
-  do_log "INFO Active user account: $(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+  do_log "INFO Active account: ${account}"
 
   # Perform the sync operation
   do_log "INFO Starting sync from gs://$SRC_BUCKET to gs://$TGT_BUCKET"

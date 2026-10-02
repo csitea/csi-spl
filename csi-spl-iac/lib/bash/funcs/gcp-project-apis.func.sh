@@ -25,7 +25,7 @@ do_gcp_project_apis() {
   # Pin the gcloud identity for this run (spec 012 C-2): resolved ONCE, passed
   # to each call, logged before the first one.
   local account
-  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
+  account=$(do_gcp_account) || quit_on "resolve the per-env SA from its key (\$HOME/.gcp/.<org>/key-<org>-<app>-<env>.json) or set ACCOUNT / GCP_ACCOUNT"
   do_gcp_log_identity "${PROJ_ID:-<unset>}" "${account}" "${caller}"
 
   command -v gcloud &>/dev/null || { echo "gcloud is not installed"; exit 1; }
@@ -42,15 +42,11 @@ do_gcp_project_apis() {
   PROJ_NAME=${PROJ_NAME:-$PROJ_ID}
   do_require_var GCP_BILLING_ACCOUNT_ID ${GCP_BILLING_ACCOUNT_ID:-}
 
-  do_log "INFO Login and set project"
-  gcloud auth login --update-adc || quit_on "Login failed"
-  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
-
-  gcloud auth application-default set-quota-project "${PROJ_ID:-}" || quit_on "Setting quota project failed"
-
-  gcloud config set project "${PROJ_ID:-}" || quit_on "Setting project failed"
-
+  # Owner order 2026-10-02 (CLE-77937): the per-env SA from its key, never an
+  # interactive owner login. A permission the SA lacks is granted to it by the
+  # named action do_gcp_003_configure_proj_sa_permissions, never worked around.
   do_log "INFO ${verb} APIs: $*"
   gcloud services "${verb}" "$@" --project "${PROJ_ID:-}" \
-    --account="${account}" || quit_on "API ${verb} failed"
+    --account="${account}" \
+    || quit_on "API ${verb} as ${account} (a missing permission: ENV=${ENV} DRY_RUN=0 ./run -a do_gcp_003_configure_proj_sa_permissions)"
 }

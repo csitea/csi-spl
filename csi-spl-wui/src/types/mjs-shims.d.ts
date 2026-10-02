@@ -196,6 +196,7 @@ declare module '~/utils/live-ws.mjs' {
   export function reconnectDelayMs(attempt: number, random?: () => number): number
   export const REFUSED_PROBE_AFTER: number
   export function messageFromFrame(f: unknown): Record<string, unknown>
+  export function frameCursor(receivedAt: unknown, msgId: unknown): string | undefined
   export const AGENT_ID_RE: RegExp
   export function cleanAs(s: string): string
   export function tokenStale(expiresAt: string, now?: number, skewMs?: number): boolean

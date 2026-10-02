@@ -116,11 +116,29 @@ function hubField(v) {
   return typeof v === 'string' && v ? v : null
 }
 
+/** The hub's view cursor for a row: base64url of `<received_at>|<msg_id>` (hub encCursor). */
+export function frameCursor(receivedAt, msgId) {
+  if (typeof receivedAt !== 'string' || !receivedAt || typeof msgId !== 'string' || !msgId) return undefined
+  let bin = ''
+  for (const b of new TextEncoder().encode(`${receivedAt}|${msgId}`)) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** The box a trimmed `message` frame (R2-3) leaves out: the browser's own. */
+const WUI_BOX = 'box-wui'
+
 /**
  * Normalise an incoming message frame to a flat v:1-ish object the cards render.
  * Accepts { env: { from_box, to_box, channel?, parent_task_id?, msg } } (view-v1
  * §4.4 shape) or { msg } or a flat message. The hub-envelope `channel` /
  * `parent_task_id` land on the flat object (null when absent).
+ *
+ * db-payload audit round 2, R2-3: the hub's `message` frame leaves out what it
+ * already says once or what is a default - `cursor`, env.channel (= the
+ * frame's channel), env.msg.task_id (= the frame's task_id), env.msg.files
+ * `[]`, env.sig "" and box-wui ends. Each is put back here, so the object is
+ * the one the full frame gave; a full frame (older hub, edits, merges) reads
+ * as before.
  */
 export function messageFromFrame(f) {
   const x = f || {}
@@ -130,12 +148,18 @@ export function messageFromFrame(f) {
   delete out.type
   delete out.sig
   if (env) {
-    out.from_box = env.from_box
-    out.to_box = env.to_box
+    out.from_box = 'from_box' in env ? env.from_box : WUI_BOX
+    out.to_box = 'to_box' in env ? env.to_box : WUI_BOX
     out.channel = hubField(x.channel) || hubField(env.channel)
     out.parent_task_id = hubField(env.parent_task_id)
+    /* env.msg.task_id: the frame's task_id lands on out in copyMoveFields */
+    if (x.type === FRAMES.message && inner && typeof inner === 'object' && !('files' in inner)) out.files = []
   }
   if (x.cursor !== undefined) out.cursor = x.cursor
+  else if (env && x.type === FRAMES.message) {
+    const c = frameCursor(x.received_at, out.msg_id)
+    if (c) out.cursor = c
+  }
   if (x.received_at !== undefined) out.received_at = x.received_at
   if (x.is_parent === 0 || x.is_parent === 1) out.is_parent = x.is_parent
   /* message-edit-v1 §6: edited_at / edited_by / revision sit on the FRAME,

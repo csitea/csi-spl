@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { REFUSED_PROBE_AFTER, backoffMs, cleanAs, createLiveClient, messageFromFrame, reconnectDelayMs, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
+import { REFUSED_PROBE_AFTER, backoffMs, cleanAs, createLiveClient, frameCursor, messageFromFrame, reconnectDelayMs, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
 
 function fakeWs() {
   const sockets = []
@@ -43,7 +43,7 @@ describe('live-ws helpers', () => {
 
   it('normalises envelope, msg and flat message frames', () => {
     const a = messageFromFrame({ type: 'message', cursor: 'c', env: { from_box: 'box-a', to_box: 'box-b', msg: { v: 1, msg_id: 'm', body: 'hi', sig: 's' } } })
-    assert.deepEqual(a, { v: 1, msg_id: 'm', body: 'hi', from_box: 'box-a', to_box: 'box-b', channel: null, parent_task_id: null, cursor: 'c' })
+    assert.deepEqual(a, { v: 1, msg_id: 'm', body: 'hi', from_box: 'box-a', to_box: 'box-b', channel: null, parent_task_id: null, cursor: 'c', files: [] })
     assert.equal(messageFromFrame({ type: 'message', msg: { msg_id: 'x' } }).msg_id, 'x')
     assert.equal(messageFromFrame({ type: 'message', msg_id: 'y', body: 'b' }).msg_id, 'y')
   })
@@ -382,5 +382,51 @@ describe('live-ws reconnect cost (CLE-35076, perf lane P3)', () => {
     release(false); await tick()
     assert.equal(c.state, 'closed')
     assert.equal(t.timers.length, 1)
+  })
+})
+
+/* db-payload audit round 2, R2-3: the hub's trimmed `message` frame must give
+   the stores the same message object as the full frame it replaced. */
+describe('R2-3 trimmed message frame', () => {
+  const T = '5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a'
+  const ID = '457221b3-c833-4912-9527-03e6f874c40a'
+  const AT = '2026-10-02T19:18:07.165146Z'
+  /* pinned from the hub's encCursor (wui_test.go TestWUIChannelSubscribeNewRoot ack) */
+  const CURSOR = 'MjAyNi0xMC0wMlQxOToxODowNy4xNjUxNDZafDQ1NzIyMWIzLWM4MzMtNDkxMi05NTI3LTAzZTZmODc0YzQwYQ'
+  const msg = { v: 1, msg_id: ID, from: 'HUM-1', to: 'ALL-0', kind: 'note', body: 'hi', ts: '2026-10-02T19:18:07Z' }
+
+  it('rebuilds the cursor exactly as the hub encodes it', () => {
+    assert.equal(frameCursor(AT, ID), CURSOR)
+    assert.equal(frameCursor('', ID), undefined)
+    assert.equal(frameCursor(AT, undefined), undefined)
+  })
+
+  it('a browser post: trimmed and full frames give the same object', () => {
+    const full = { type: 'message', task_id: T, channel: 'general', cursor: CURSOR, received_at: AT, is_parent: 1,
+      env: { from_box: 'box-wui', to_box: 'box-wui', channel: 'general', msg: { ...msg, task_id: T, files: [] }, sig: '' } }
+    const trimmed = { type: 'message', task_id: T, channel: 'general', received_at: AT, is_parent: 1,
+      env: { msg: { ...msg } } }
+    assert.deepEqual(messageFromFrame(trimmed), messageFromFrame(full))
+    assert.equal(messageFromFrame(trimmed).task_id, T)
+    assert.equal(messageFromFrame(trimmed).cursor, CURSOR)
+  })
+
+  it('kept fields win: signed agent post, files, other boxes', () => {
+    const files = [{ file_id: 'f', name: 'a' }]
+    const f = { type: 'message', task_id: T, received_at: AT,
+      env: { from_box: 'box-desk', channel: 'other', msg: { ...msg, task_id: 'old', files }, sig: 'c2ln' } }
+    const m = messageFromFrame(f)
+    assert.equal(m.from_box, 'box-desk')
+    assert.equal(m.to_box, 'box-wui')
+    assert.equal(m.channel, 'other')
+    assert.equal(m.task_id, T) /* the frame's task_id wins (copyMoveFields), as with a full frame */
+    assert.deepEqual(m.files, files)
+    assert.equal('sig' in m, false)
+  })
+
+  it('only `message` frames are rebuilt; an edit keeps its own cursor', () => {
+    const e = messageFromFrame({ type: 'message_edited', task_id: T, received_at: AT, env: { msg: { ...msg } } })
+    assert.equal('cursor' in e, false)
+    assert.equal('files' in e, false)
   })
 })

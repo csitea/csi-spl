@@ -133,49 +133,8 @@ jobs:
           CI: "1"
         run: |
           set -euo pipefail
-          read -r web_port api_port < <(python3 -c 'import socket
-          s=[socket.socket() for _ in range(2)]
-          [x.bind(("127.0.0.1",0)) for x in s]
-          print(*[x.getsockname()[1] for x in s])')
-          python3 - "$api_port" <<'PY' >"$RUNNER_TEMP/wui-e2e-api.log" 2>&1 &
-          from http.server import BaseHTTPRequestHandler, HTTPServer
-          class H(BaseHTTPRequestHandler):
-              def _send(self, code, body):
-                  self.send_response(code)
-                  self.send_header("Content-Type", "application/json")
-                  self.send_header("Access-Control-Allow-Origin", "*")
-                  self.end_headers()
-                  self.wfile.write(body)
-              def do_GET(self):
-                  p = self.path.split("?")[0]
-                  if p == "/api/v1/auth/session":
-                      return self._send(401, b'{"error":"unauthenticated"}')
-                  if p == "/api/v1/auth/providers":
-                      return self._send(200, b'{"native":false,"providers":[]}')
-                  self._send(404, b'{"error":"not_found"}')
-              def do_OPTIONS(self):
-                  self.send_response(204)
-                  self.send_header("Access-Control-Allow-Origin", "*")
-                  self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-                  self.send_header("Access-Control-Allow-Headers", "*")
-                  self.end_headers()
-              def log_message(self, *a):
-                  pass
-          import sys
-          HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
-          PY
-          api_pid=$!
-          node src/node/test/serve-generated.mjs --port "$web_port" --api "http://127.0.0.1:$api_port" \
-            >"$RUNNER_TEMP/wui-e2e-serve.log" 2>&1 &
-          serve_pid=$!
-          trap 'kill "$api_pid" "$serve_pid" 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" && break
-            sleep 0.25
-          done
-          curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" \
-            || { echo "::error::generated bundle not serving"; cat "$RUNNER_TEMP/wui-e2e-serve.log"; exit 1; }
-          export BASE_URL="http://127.0.0.1:$web_port"
+          # Free ports, a signed-out API stub, the generated bundle served, then
+          # the command with BASE_URL set: one script shared with workflow 10.
           # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
           # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
           # whatever the one before it did, and the step fails at the end naming
@@ -184,4 +143,4 @@ jobs:
           # with the hosted runner's fonts it wraps to two (run 36942045783),
           # on the self-hosted box (workflow 10) it is one. Its other 60+
           # checks are font-independent and run in 10. (CLE-77915)
-          E2E_SKIP="card-edge-inset.test.mjs" pnpm run test:e2e
+          E2E_SKIP="card-edge-inset.test.mjs" bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e

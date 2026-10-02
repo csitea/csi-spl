@@ -241,68 +241,13 @@ jobs:
           CI: "1"
         run: |
           set -euo pipefail
-          : "${CHROME_PATH:?CHROME_PATH unset}"
-          # Free ports, never fixed ones: four runners share this box, and a
-          # stale server left on :4173 (a prd bundle, 2026-09-22) answered the
-          # probe while this job's own server died on EADDRINUSE, so every
-          # route "failed" against the prd api host.
-          read -r web_port api_port < <(python3 -c 'import socket
-          s=[socket.socket() for _ in range(2)]
-          [x.bind(("127.0.0.1",0)) for x in s]
-          print(*[x.getsockname()[1] for x in s])')
-          # Signed-out 401 on GET /api/v1/auth/session (auth-v1 §4). Without
-          # this, serve-generated.mjs would SPA-fallback those URLs to HTML
-          # and the console-errors gate would see a JSON parse error.
-          python3 - "$api_port" <<'PY' >"$RUNNER_TEMP/wui-e2e-api.log" 2>&1 &
-          from http.server import BaseHTTPRequestHandler, HTTPServer
-          class H(BaseHTTPRequestHandler):
-              def _send(self, code, body):
-                  self.send_response(code)
-                  self.send_header("Content-Type", "application/json")
-                  self.send_header("Access-Control-Allow-Origin", "*")
-                  self.end_headers()
-                  self.wfile.write(body)
-              def do_GET(self):
-                  p = self.path.split("?")[0]
-                  if p == "/api/v1/auth/session":
-                      return self._send(401, b'{"error":"unauthenticated"}')
-                  if p == "/api/v1/auth/providers":
-                      return self._send(200, b'{"native":false,"providers":[]}')
-                  self._send(404, b'{"error":"not_found"}')
-              def do_OPTIONS(self):
-                  self.send_response(204)
-                  self.send_header("Access-Control-Allow-Origin", "*")
-                  self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-                  self.send_header("Access-Control-Allow-Headers", "*")
-                  self.end_headers()
-              def log_message(self, *a):
-                  pass
-          import sys
-          HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
-          PY
-          api_pid=$!
-          node src/node/test/serve-generated.mjs --port "$web_port" --api "http://127.0.0.1:$api_port" \
-            >"$RUNNER_TEMP/wui-e2e-serve.log" 2>&1 &
-          serve_pid=$!
-          cleanup() { kill "$api_pid" "$serve_pid" 2>/dev/null || true; }
-          trap cleanup EXIT
-          for i in $(seq 1 40); do
-            if curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login"; then
-              break
-            fi
-            sleep 0.25
-          done
-          curl -fsS -o /dev/null "http://127.0.0.1:$web_port/login" \
-            || { echo "::error::generated bundle not serving on :$web_port"; cat "$RUNNER_TEMP/wui-e2e-serve.log"; exit 1; }
-          # The answer must come from THIS job's servers, not a squatter.
-          kill -0 "$serve_pid" && kill -0 "$api_pid" \
-            || { echo "::error::a server of this job died; the port answered from elsewhere"; cat "$RUNNER_TEMP/wui-e2e-serve.log" "$RUNNER_TEMP/wui-e2e-api.log"; exit 1; }
-          export BASE_URL="http://127.0.0.1:$web_port"
+          # Free ports, a signed-out API stub, the generated bundle served, then
+          # the command with BASE_URL set: one script shared with workflow 11.
           # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
           # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
           # whatever the one before it did, and the step fails at the end naming
           # each red one (CLE-77827).
-          pnpm run test:e2e
+          bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e
       # After the e2e, not before: a budget miss used to stop the job before a
       # single browser test ran, so e2e regressions hid behind it (CLE-35000,
       # 2026-09-26). It still fails the job; it just no longer blinds it.

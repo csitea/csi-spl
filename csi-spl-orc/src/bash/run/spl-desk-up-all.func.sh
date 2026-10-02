@@ -71,11 +71,8 @@ do_spl_desk_up_all() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}"
   local retire="${DESK_RETIRE:-1}" poke="${DESK_POKE:-1}"
-  spl_require_tenant_slug "$tenant" || return 1
-  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ "$retire" == 0 || "$retire" == 1 ]] || { do_log "FATAL DESK_RETIRE must be 0 or 1, got: '$retire'"; return 1; }
   local hubcheck="${DESK_HUB_CHECK:-1}"
-  [[ "$hubcheck" == 0 || "$hubcheck" == 1 ]] || { do_log "FATAL DESK_HUB_CHECK must be 0 or 1, got: '$hubcheck'"; return 1; }
+  _spl_desk_up_all_check_args "$tenant" "$box" "$retire" "$hubcheck" || return 1
 
   local d="$SPL_STATE_DIR/desk/$tenant/$box"
   local -a live=() seat=() seated=() failed=() retired=()
@@ -102,15 +99,7 @@ do_spl_desk_up_all() {
   mapfile -t dead < <(spl_desk_dead_agents "$d" "${live[@]}")
 
   if (( dry )); then
-    do_log "INFO DRY_RUN would: seat ${#seat[@]} agent(s) on $box in $tenant: ${seat[*]:-none}"
-    [[ -n "${DESK_MUTE:-}" ]] && do_log "INFO DRY_RUN would: seat these with the prompt left alone (DESK_MUTE): ${DESK_MUTE}"
-    if [[ "$retire" == 1 ]]; then
-      do_log "INFO DRY_RUN would: retire ${#dead[@]} agent(s) whose window is gone: ${dead[*]:-none}"
-    else
-      do_log "INFO DRY_RUN would NOT retire (DESK_RETIRE=0); ${#dead[@]} agent(s) have no window: ${dead[*]:-none}"
-    fi
-    [[ "$hubcheck" == 1 ]] && do_log "INFO DRY_RUN would: ask the hub whether $box has a session, and restart its sidecar if it is stranded"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
+    _spl_desk_up_all_dry_plan "$tenant" "$box" "$retire" "$hubcheck" "${#seat[@]}" "${seat[*]:-none}" "${#dead[@]}" "${dead[*]:-none}"
     return 0
   fi
 
@@ -138,6 +127,69 @@ do_spl_desk_up_all() {
     fi
   done
 
+  # SECOND PASS over the ones that failed (_spl_desk_up_all_recheck).
+  _spl_desk_up_all_recheck "$d" "$box"
+
+  if [[ "$retire" == 1 ]]; then
+    for a in "${dead[@]}"; do
+      spl_desk_retire "$d" "$a" && retired+=("$a")
+    done
+  fi
+
+  local hub="skipped" hrc=0
+  if [[ "$hubcheck" == 1 ]]; then _spl_desk_up_all_hub "$d" "$tenant" "$box" "$poke" "$mute"; fi
+
+  flock -u 8; exec 8>&-
+  _spl_desk_up_all_report "$tenant" "$box" "$d" "${#live[@]}" "${#seat[@]}" "$hub" "$hrc"
+}
+
+# _spl_desk_up_all_check_args <tenant> <box> <retire> <hubcheck>: 0 when the
+# reconcile's inputs are sane, else the FATAL that names the bad one.
+_spl_desk_up_all_check_args() {
+  local tenant="$1" box="$2" retire="$3" hubcheck="$4"
+  spl_require_tenant_slug "$tenant" || return 1
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
+  [[ "$retire" == 0 || "$retire" == 1 ]] || { do_log "FATAL DESK_RETIRE must be 0 or 1, got: '$retire'"; return 1; }
+  [[ "$hubcheck" == 0 || "$hubcheck" == 1 ]] || { do_log "FATAL DESK_HUB_CHECK must be 0 or 1, got: '$hubcheck'"; return 1; }
+}
+# _spl_desk_up_all_hub <state dir> <tenant> <box> <poke> <mute list>: the HUB's
+# side of the seat. Everything before it is local: a live pid and the roster
+# cache the sidecar wrote at its last welcome. A sidecar whose socket sits on a
+# hub process that no longer serves (a redeploy) passes all of it. Sets the
+# caller's hub (SPL_DESK_HUB) and hrc; reads its seated[]. No seat, no check.
+_spl_desk_up_all_hub() {
+  local d="$1" tenant="$2" box="$3" poke="$4" mute="$5" ha="" a2
+  [[ ${#seated[@]} -gt 0 ]] || return 0
+  # Measure with a seat that takes the poke, so the restart below does not
+  # re-seat a DESK_MUTE agent with its prompt switched back on.
+  for a2 in "${seated[@]}"; do [[ "$mute" == *" $a2 "* ]] || { ha="$a2"; break; }; done
+  local hpoke="$poke"
+  [[ -z "$ha" ]] && { ha="${seated[0]}"; hpoke=0; }
+  SPL_DESK_HUB="skipped"
+  spl_desk_heal_stranded "$d" "$tenant" "$box" "$ha" "$hpoke" || hrc=$?
+  hub="$SPL_DESK_HUB"
+}
+
+# _spl_desk_up_all_dry_plan <tenant> <box> <retire> <hubcheck> <n seat>
+# <seat list> <n dead> <dead list>: what a DRY_RUN=1 reconcile would do.
+_spl_desk_up_all_dry_plan() {
+  local tenant="$1" box="$2" retire="$3" hubcheck="$4" nseat="$5" seat_list="$6" ndead="$7" dead_list="$8"
+  do_log "INFO DRY_RUN would: seat $nseat agent(s) on $box in $tenant: $seat_list"
+  [[ -n "${DESK_MUTE:-}" ]] && do_log "INFO DRY_RUN would: seat these with the prompt left alone (DESK_MUTE): ${DESK_MUTE}"
+  if [[ "$retire" == 1 ]]; then
+    do_log "INFO DRY_RUN would: retire $ndead agent(s) whose window is gone: $dead_list"
+  else
+    do_log "INFO DRY_RUN would NOT retire (DESK_RETIRE=0); $ndead agent(s) have no window: $dead_list"
+  fi
+  [[ "$hubcheck" == 1 ]] && do_log "INFO DRY_RUN would: ask the hub whether $box has a session, and restart its sidecar if it is stranded"
+  do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
+}
+
+# _spl_desk_up_all_recheck <state dir> <box>: the second roster read for the
+# caller's failed[] agents; moves the ones now announced into its seated[]
+# (both arrays are do_spl_desk_up_all's locals, read and written in place).
+_spl_desk_up_all_recheck() {
+  local d="$1" box="$2" a
   # SECOND PASS over the ones that failed. The only failure this reconcile sees
   # in practice is the roster-announce wait timing out: the sidecar rescans its
   # dir list every ~10s, and a tick that creates two new agent dirs makes the
@@ -162,30 +214,14 @@ do_spl_desk_up_all() {
     done
     failed=("${still[@]}")
   fi
+}
 
-  if [[ "$retire" == 1 ]]; then
-    for a in "${dead[@]}"; do
-      spl_desk_retire "$d" "$a" && retired+=("$a")
-    done
-  fi
-
-  # The HUB's side of the seat. Everything above is local: a live pid and the
-  # roster cache the sidecar wrote at its last welcome. A sidecar whose socket
-  # sits on a hub process that no longer serves (a redeploy) passes all of it.
-  local hub="skipped" hrc=0 ha="" a2
-  if [[ "$hubcheck" == 1 && ${#seated[@]} -gt 0 ]]; then
-    # Measure with a seat that takes the poke, so the restart below does not
-    # re-seat a DESK_MUTE agent with its prompt switched back on.
-    for a2 in "${seated[@]}"; do [[ "$mute" == *" $a2 "* ]] || { ha="$a2"; break; }; done
-    local hpoke="$poke"
-    [[ -z "$ha" ]] && { ha="${seated[0]}"; hpoke=0; }
-    SPL_DESK_HUB="skipped"
-    spl_desk_heal_stranded "$d" "$tenant" "$box" "$ha" "$hpoke" || hrc=$?
-    hub="$SPL_DESK_HUB"
-  fi
-
-  flock -u 8; exec 8>&-
-  python3 - "$ENV" "$tenant" "$box" "$d" "${#live[@]}" "${seated[*]:-}" "${retired[*]:-}" "${failed[*]:-}" "$hub" <<'EOF_PY'
+# _spl_desk_up_all_report <tenant> <box> <state dir> <n live> <n seat> <hub>
+# <hub rc>: the JSON summary line and the verdict over the caller's seated[],
+# retired[] and failed[] (do_spl_desk_up_all's locals); 1 on any failure.
+_spl_desk_up_all_report() {
+  local tenant="$1" box="$2" d="$3" nlive="$4" nseat="$5" hub="$6" hrc="$7"
+  python3 - "$ENV" "$tenant" "$box" "$d" "$nlive" "${seated[*]:-}" "${retired[*]:-}" "${failed[*]:-}" "$hub" <<'EOF_PY'
 import json, sys
 env, tenant, box, state, nlive, seated, retired, failed, hub = sys.argv[1:]
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "state_dir": state,
@@ -194,7 +230,7 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "state_dir": state,
                   "hub_session": hub}, sort_keys=True))
 EOF_PY
   if [[ ${#failed[@]} -gt 0 ]]; then
-    do_log "FAIL ${#failed[@]} of ${#seat[@]} agent(s) were not seated on $box: ${failed[*]}"
+    do_log "FAIL ${#failed[@]} of $nseat agent(s) were not seated on $box: ${failed[*]}"
     return 1
   fi
   if (( hrc )); then

@@ -6,7 +6,8 @@
 #   Against a SYNTHETIC repo (CI checks this one out shallow):
 #     1. `paths` matches 20's push allow-list (image inputs; the cnf files and
 #        the workflow files are the only extra triggers)
-#     2. `changed`: iac / orc scripts / a non-hub cnf key are NOT hub inputs;
+#     2. `changed`: iac / orc scripts / a non-hub cnf key / Go tests
+#        (*_test.go, testdata/) are NOT hub inputs;
 #        the Go module, the DDL, the Dockerfile, .version and the hub.image cnf
 #        key ARE
 #     3. `decide` against the served commit: already served / env ahead /
@@ -58,7 +59,7 @@ C0=$(c csi-spl-api/src/go/main.go)
 
 # --- 1. paths == 20's push allow-list ----------------------------------------
 want="$(g paths | sort)"
-got="$(yq -r '.on.push.paths[]' "$WF" | sed 's|/\*\*$||' |
+got="$(yq -r '.on.push.paths[]' "$WF" | sed -E '/^!/{s|^!|:(exclude,glob)|;b};s|/\*\*$||' |
   grep -vE '^(csi-spl-cnf/csi-spl/(all|dev|prd)\.env\.yaml|\.github/workflows/2[02]_[a-z-]+\.yml)$' | sort)"
 [[ -n "$want" && "$want" == "$got" ]] && pass "1. paths == 20's push allow-list ($(wc -l <<<"$want") image inputs)" ||
   fail "1. paths and 20's allow-list differ: guard=[$want] wf=[$got]"
@@ -75,6 +76,8 @@ a=$b; b=$(c csi-spl-orc/src/bash/run/y.func.sh);                                
 a=$b; b=$(c csi-spl-api/src/bash/tests/z.tst.sh);                                        chk "an api test script is not a hub input" 1 "$a" "$b"
 a=$b; b=$(y dev.env.yaml '.env.dns.note = "b"');                                         chk "a non-hub cnf key is not a hub input" 1 "$a" "$b"
 a=$b; b=$(c csi-spl-rdb/src/sql/postgres/spool-hub-roles/r.sql);                         chk "spool-hub-roles is not in the image" 1 "$a" "$b"
+a=$b; b=$(c csi-spl-api/src/go/hub/h_test.go);                                           chk "a Go test file only is not a hub input" 1 "$a" "$b"
+a=$b; b=$(c csi-spl-api/src/go/hub/testdata/golden.json);                                chk "Go testdata only is not a hub input" 1 "$a" "$b"
 a=$b; b=$(c csi-spl-api/src/go/hub/h.go);                                                chk "the Go module is" 0 "$a" "$b"
 a=$b; b=$(c csi-spl-rdb/src/sql/postgres/spool-hub/0099_x.sql);                          chk "the bundled DDL is" 0 "$a" "$b"
 a=$b; b=$(c csi-spl-orc/src/docker/spool-hub-api/Dockerfile);                            chk "the hub Dockerfile is" 0 "$a" "$b"
@@ -97,6 +100,8 @@ dc "env ahead (served descends from sha)"            10 "$H1" "$I2" "$H2"
 dc "nothing the image reads changed since served"    10 "$I1" "$I2" "$H1"
 dc "unserved hub input, trunk head has MORE hub input" 0 "$H1" "$I2" "$C0"
 dc "unserved hub input, trunk head == sha"            0 "$H2" "$H2" "$H1"
+T1=$(c csi-spl-api/src/go/b_test.go)
+dc "a push touching only *_test.go deploys nothing"  10 "$T1" "$T1" "$H2"
 
 # --- 4. served unknown: the trunk-head rule -----------------------------------
 dc "unknown served, newer hub input on trunk"        10 "$H1" "$H2" ""

@@ -56,10 +56,17 @@ sql_src() {
 # What the hub IMAGE is built from (do_build_push_hub_image): the static binary
 # (build.sh over the Go module, .version baked in), the DDL dir it bundles and
 # the Dockerfile. NOT the api test scripts, NOT spool-hub-roles/, NOT the
-# iac/orc/cnf trees as a whole: none of those is in the image.
+# iac/orc/cnf trees as a whole: none of those is in the image. NOT the Go
+# tests either (*_test.go, testdata/): go build never compiles them, and a
+# test-only push rolled the one-instance prd hub 3 of 9 times in 40 min on
+# 2026-10-02, each roll a window of Cloud Run 429 "no available instance"
+# (CLE-77944). The two excludes are git pathspec magic, mirrored in 20 as
+# '!' patterns after the Go module line.
 hub_paths() {
   printf '%s\n' \
     csi-spl-api/src/go \
+    ':(exclude,glob)csi-spl-api/src/go/**/*_test.go' \
+    ':(exclude,glob)csi-spl-api/src/go/**/testdata/**' \
     csi-spl-api/src/bash/build.sh \
     "$(sql_src)" \
     csi-spl-orc/src/docker/spool-hub-api/Dockerfile \

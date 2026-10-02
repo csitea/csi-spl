@@ -45,6 +45,11 @@ on:
     # guard stands it down. NEVER add `paths-ignore` beside `paths`.
     paths:
       - 'csi-spl-api/src/go/**'                          # the Go module
+      # ...minus its tests: go build never compiles them, and a test-only push
+      # rolled the one-instance prd hub into 429s (CLE-77944, 2026-10-02). A
+      # '!' pattern only excludes what a line ABOVE it included: keep it here.
+      - '!csi-spl-api/src/go/**/*_test.go'
+      - '!csi-spl-api/src/go/**/testdata/**'
       - 'csi-spl-api/src/bash/build.sh'                  # builds the static binary
       - 'csi-spl-rdb/src/sql/postgres/spool-hub/**'      # hub DDL bundled in the image
       - 'csi-spl-orc/src/docker/spool-hub-api/Dockerfile'

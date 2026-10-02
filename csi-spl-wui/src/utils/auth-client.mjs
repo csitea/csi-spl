@@ -165,6 +165,16 @@ export function authOrigin(base) {
 }
 
 /**
+ * The §4 session probe's address. One source for the client below and the
+ * document-head script that starts the same probe at parse time (P3-03,
+ * utils/early-session-script.mjs): the app adopts the parked answer only when
+ * the two addresses agree.
+ */
+export function sessionProbeUrl(base) {
+  return `${authOrigin(base)}${AUTH_PREFIX}/session`
+}
+
+/**
  * §4: a plain link, no SDK. tenant only when it is a DNS label. The redirect
  * stays a WUI path: the hub lands on <APP_URL><redirect>, APP_URL = the WUI.
  */
@@ -306,8 +316,10 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     /**
      * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,
      * bad JSON) → 'unknown' — keep state, never treat as signed out.
+     * `pending` is the same GET already in flight (the head script's, P3-03):
+     * its answer is read instead; if it failed, the probe is sent again here.
      */
-    async session() {
+    async session(pending) {
       if (mock) {
         // specs/054 e2e: signed-out by default; signed-in only when the act-as
         // spec opts in (so the login specs are untouched). Live never takes this.
@@ -319,7 +331,8 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       }
       let res
       try {
-        res = await call('/session', { cache: 'no-store' })
+        const ask = () => call('/session', { cache: 'no-store' })
+        res = await (pending ? Promise.resolve(pending).catch(ask) : ask())
       } catch {
         return { state: 'unknown', claims: null }
       }

@@ -468,6 +468,7 @@ declare module '~/utils/auth-client.mjs' {
   export function providerLabel(p: string): string
   export function safeRedirect(path: string): string
   export function authOrigin(base: string): string
+  export function sessionProbeUrl(base: string): string
   export function startHref(provider: string, redirect: string, tenant?: string, base?: string, hint?: string): string
   export function loginHintOf(v: unknown): string
   export function hintedProvider(email: unknown): string
@@ -504,7 +505,7 @@ declare module '~/utils/auth-client.mjs' {
     saveIssueColumns(cols: Record<string, number> | null): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
-    session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
+    session(pending?: Promise<Response> | null): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>
   }
 }

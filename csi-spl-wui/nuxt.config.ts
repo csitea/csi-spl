@@ -11,6 +11,7 @@ import type { Rollup } from "vite"
 import type { NuxtPage } from "@nuxt/schema"
 import { addTemplate, addTypeTemplate } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
+import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
@@ -35,6 +36,11 @@ function wuiAppVersion(): string {
     /* missing marker */
   }
   return "v0.1.0-dev"
+}
+
+// "1" = the in-browser mock tenant (lde default), "0" = a real hub.
+function wuiUseMock(): string {
+  return process.env.NUXT_PUBLIC_USE_MOCK === undefined ? (isDev ? "1" : "0") : process.env.NUXT_PUBLIC_USE_MOCK
 }
 
 // dev / prd: the api host (https://api.<fqdn>); the hub resolves the tenant
@@ -373,9 +379,7 @@ export default defineNuxtConfig({
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
       lobbyTaskId: cnfLobbyTaskId(),
-      useMock: process.env.NUXT_PUBLIC_USE_MOCK === undefined
-        ? (isDev ? "1" : "0")
-        : process.env.NUXT_PUBLIC_USE_MOCK,
+      useMock: wuiUseMock(),
       appVersion: wuiAppVersion(),
       // SPL-1006: the commit this bundle was built from, so an open tab can
       // tell that /build.json names a newer deploy (plugins/build-watch).
@@ -408,6 +412,11 @@ export default defineNuxtConfig({
           tagPosition: "head",
           tagPriority: "critical",
         },
+        // P3-03: the session probe leaves at parse time; the app adopts it
+        // (src/utils/early-session-script.mjs). A mock build never probes.
+        ...(wuiUseMock() === "0"
+          ? [{ innerHTML: buildEarlySessionScript({ authBase }), tagPosition: "head" as const, tagPriority: "critical" as const }]
+          : []),
       ],
       meta: [
         { charset: "utf-8" },

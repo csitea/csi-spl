@@ -1,6 +1,6 @@
 # Feature Specification: the messaging backbone — keep the Postgres log, or move the spool onto Kafka?
 
-**Feature ID**: `059-messaging-backbone` · **Status**: Proposed (assessment; nothing is built until the owner picks a-e)
+**Feature ID**: `059-messaging-backbone` · **Status**: Decided 2026-10-02: no broker; replicate Kafka's mechanisms on Postgres + files (§9). Spike measured (§10); plan in §11
 **Created**: 2026-10-02 · **Lane**: CLE-77931 · **Owner topic**: t1 `302961a0`
 **Builds on**: CLE-77929's asks-only comparison (t1 `12d34d3a`, msg `ded808c0`; `fleet_asks` rdb 0097, `csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md` §4.3). That answer covered the asks to the orchestrator. This one covers the whole stack, and it agrees with it.
 **Related**: `030-spool-wire-fastpath` (latency), `053-spool-live-delivery` (per-delivery ack, planned), `058-multi-machine-fleet` (many machines).
@@ -144,7 +144,7 @@ Carry the WUI fan-out events (`task`, `channel`, `peer`) on the same channel. A 
 
 If the owner later picks (b) or (c)/(d), only the `Wake` implementation changes. Boxes, browsers, signing and the store stay as they are, and the same strangler order applies: hub-internal first, boxes last and only if a box ever needs to consume directly.
 
-## 7. Open question for the owner
+## 7. Open question for the owner (answered 2026-10-02, §9)
 
 Pick a-e. If you pick a broker, also say whether boxes should consume from it directly, which means a new credential on every box and a fleet-wide sidecar cut-over, or whether the hub stays the gateway (recommended).
 
@@ -156,4 +156,126 @@ Pick a-e. If you pick a broker, also say whether boxes should consume from it di
 - Code map: tree `b7270cb8` (branch base) / `9cdb038e` (origin/master at writing).
 - Sources (checked 2026-10-02): GCP Managed Kafka pricing <https://cloud.google.com/managed-kafka/pricing> and sizing <https://docs.cloud.google.com/managed-service-for-apache-kafka/docs/plan-cluster-size> (min 3 vCPU, 1-8 GiB per vCPU, 1 vCPU = 0.6 DCU, 1 GiB = 0.1 DCU, $0.09/DCU-h in us-central1; europe-north1 not checked); Confluent Cloud <https://confluent.io/confluent-cloud/pricing> (Basic: first eCKU free, then $0.14/eCKU-h); Pub/Sub free tier 10 GiB a month (I believe, not re-checked today; it is CLE-77929's figure).
 
-<!-- version: 0.1.0 · updated: 2026-10-02 -->
+## 9. The owner's decision, verbatim
+
+t1 `302961a0`, 03:47Z: "Okay so I guess then we just replicate what Kafka does as closely as possible because it has already figured out the wheel." 03:48Z: "But in any case it will be nice to find out what the results are that were established from the tests."
+
+t1 `12d34d3a`, 03:50Z: "Yeah we will not use Kafka. We will just replicate Kafka's working mechanisms."
+
+t1 `2f7996aa` (relayed by CLE-003): "Keep the Kafka style." and "The longer strategy/plan is to have a Kafka-like implementation up until, for example, it's proven that it will not work."
+
+So there is no broker, and §10 is the "prove it will not work" check.
+
+## 10. The spike: NATS JetStream vs single-node Kafka vs today's path vs the Kafka-like design on Postgres
+
+### 10.1 What ran
+
+- **Where:** dev only, on the box machine. Throwaway containers on 127.0.0.1: `nats:2.11-alpine -js`, `apache/kafka:4.1.0` (KRaft, one node) and `postgres:16-alpine`. prd and the live spool root were not touched.
+- **Brokers:** one Go harness, `spike/` (`spike run -backend nats|kafka|pgq -test 1..4`). A consumer is a separate process that the test can SIGKILL. It receives, "pokes" (appends a line to a file), then acks.
+  - **pgq** is the Kafka-like design on Postgres: one queue row per consumer group, claimed with `FOR UPDATE SKIP LOCKED` under a 5 s lease (Kafka's acquisition lock, NATS's AckWait), acked by marking the row done, and woken by `LISTEN/NOTIFY`.
+  - **kafka** commits after each record (`CommitRecords`), which matches our per-message ack.
+  - **kafka-batch** is Kafka's usual mode: mark the processed records and auto-commit them every 200 ms.
+- **Today's path (the control):** `internal/hub/spike059_test.go` (build tag `spike`, CI never compiles it). It runs the real hub, Postgres store, box websocket, `hubclient` and inbox files in one process.
+- **The four tests:**
+
+  | # | test | pass |
+  |---|---|---|
+  | T1 | 1,000 posts, each to 2 consumer groups, 200 a second (about 270x prd's peak minute of 44) | 0 lost, 0 duplicated, p95 < 3 s |
+  | T2 | 2 dispatchers in one group; the first is killed when 500 of the 1,000 are out | 0 lost, 0 duplicated |
+  | T3 | a consumer is killed on the 5th of 10 posts, after receiving it and before the poke and the ack; then a fresh consumer starts | the 5th is redelivered, 0 lost, 0 duplicated |
+  | T4 | 1,000 posts at 100 a second; the broker (or hub) is restarted at 40 % | 0 lost, 0 acked post replayed |
+
+  Losses and duplicates are counted by msg id. n = 1 run of each test per backend, except pgq T2-T4 (n = 3), today's path T3 (n = 4) and kafka T1/T4 (n = 2). The table shows the first complete run. Tree `bf67561c` + this lane's files.
+
+### 10.2 Results
+
+| | T1 lost / dup, p50 / p95 | T2 lost / dup (failover gap) | T3 redelivered? lost / dup | T4 lost / dup (max gap) | RAM idle after load | image |
+|---|---|---|---|---|---|---|
+| **today's path** (hub + box socket + inbox file) | 0 / 0, 10 / 24 ms | 0 / 0 (takeover of the box id) | **no: 6 of 10 lost**, 0 dup | 0 / 0 (2.0 s hub restart, p99 0.68 s) | n/a | n/a |
+| **pgq: the Kafka-like design on Postgres** | 0 / 0, 4 / 6 ms | 0 / 0; p95 1.3-1.7 s while the dead claim's 5 s lease runs out | **yes**, 0 / 0 (5.2 s = the lease) | 0 / 0 (restart 1.4 s, gap 1.9 s) | 22 MiB | 420 MB |
+| **NATS JetStream** | 0 / 0, 0.9 / 1.3 ms | 0 / 0 (13 ms gap) | **yes**, 0 / 0 (5.0 s = AckWait) | 0 / 0 (restart 0.8 s, gap 2.1 s) | **13 MiB** | 40 MB |
+| **Kafka, commit per record** | 0 / 0, **4.0 / 8.4 s** (run 1: 1.9 / 3.6 s) | 0 / 0, p95 9.5 s | **yes**, 0 / 0 (6.0 s = session timeout) | 0 / **2** (gap 12 s) | **440 MiB** | 678 MB |
+| **Kafka, batched commit (its normal mode)** | 0 / 0, 12 / 32 ms | 0 / **3** (4.5 s gap) | **yes**, 0 / **4** | 0 / **5** (gap 27 s) | 440 MiB | 678 MB |
+
+### 10.3 What the numbers say
+
+1. **Nothing measured shows that the Kafka-like design on Postgres will not hold.**
+   - pgq passed all four tests: 0 lost and 0 duplicated in every run, n = 3 for T2-T4.
+   - It did 4 / 6 ms (p50 / p95) at 200 posts a second into 2 groups. That is about 270x prd's peak minute, on the same `postgres:16` we run.
+   - Its one slow number is by design. The posts a killed consumer had claimed wait out the 5 s lease (T2 p95 1.3-1.7 s, T3 5.2 s), the same as NATS's AckWait and Kafka's 6 s session timeout.
+2. **Today's path has one real hole: there is no consumer ack (T3).**
+   - The hub marks a delivery `sent` when it writes the frame to the socket.
+   - A box that dies before its inbox write loses that message and every frame already in flight: 6 of 10, n = 4 runs.
+   - The hub then holds **0 queued rows** for the box, so a reconnect cannot bring them back (control: `QueuedFor` after the crash = 0).
+   - In production the same window opens whenever a socket dies with frames still in its buffers: a laptop sleeping, NAT, a revision retired.
+   - This is the gap that consumer commits (§11, S2) close, and it is spec 053's `TAck`.
+3. **Kafka is the worst fit for our shape.**
+   - It acks one message at a time per agent, and a sync commit per record capped it at about 115 records a second here, so T1's p95 reached 3.6-8.4 s.
+   - Its normal batched commit is fast but replays up to 200 ms of work after a failover, crash or restart (3, 4 and 5 duplicates).
+   - It uses 440 MiB of RAM idle, against 13-22 MiB for the others.
+4. **NATS JetStream is the best broker here:** fastest, smallest, and it passed every test. It is still a broker to run, secure and reach from boxes without a public IP (§4.1, §5). It stays the reference point, not the plan.
+5. **Duplicates are survivable on every path,** because the box already dedups by file name (`<ts>--<from>--<slug>-<id>.json`). Caveat: that same dedup hides duplicate frames from today's-path T2/T4, so those zeros count inbox files, not frames. T1 counts frames (`Session.Delivered`).
+
+### 10.4 Decision inputs
+
+- **Code the broker would replace, against what it adds** (non-blank, non-comment lines):
+  - Hub delivery code a broker could take over: relay 145, fallback 237 + 171, leases 78 + 60, asks 162 + 110 (**963 Go**).
+  - The bash sweeps and leases: dispatch lease 416, unanswered sweep 278, asks tick 136, unheard report 43, responder sweep 25 (**898**).
+  - The broker bridge and consumer in the spike: **413 Go** for three backends, about 100-150 each, plus 94 for the consumer loop. A real bridge would also need auth, per-box credentials, a WUI path and ops scripts (§4.1).
+  - Most of the 963 + 898 is product logic: who responds, when to escalate, the lease. A broker would still need it, as consumer code.
+- **Failure classes:**
+  - unheard posts: a broker shows them as consumer lag and so does §11 S4; a responder rule is still ours.
+  - double dispatch: a consumer group fixes it, and so does §11 S5 on Postgres.
+  - poking dead panes: no broker knows a pane. That is 053's ack outcome, on any path.
+- **Ops on the box machine:**
+  - NATS: one 40 MB container with a file store.
+  - Kafka: a JVM, 440 MiB idle; its CLI tools need the advertised listener to be reachable from inside the container.
+  - pgq: nothing new, because it is the Postgres we already run.
+
+## 11. The plan: each Kafka concept and our implementation
+
+The plan is one design for the whole stack. CLE-77931 builds the whole-stack rows. CLE-77929 builds the asks rows in §11.2, as agreed on 302961a0. Every step goes hub first and is negotiated by a hello feature, so running boxes and old sidecars behave as today (the 053 §5 rules).
+
+### 11.1 Messages and deliveries (CLE-77931)
+
+| Kafka | ours | today | step |
+|---|---|---|---|
+| broker + commit log | the hub (Cloud Run) + Cloud SQL Postgres; `messages` is the record, `deliveries` the per-consumer log | yes | — |
+| topic | a delivery target: a box `(tenant, to_box)`; a channel is a topic fanned out to member boxes; a browser subscribes per task / channel / peer | yes | — |
+| **partition + offset** | **one partition per `(tenant, to_box)`; `deliveries.seq` is assigned from `box_offsets.next_seq` under the per-box advisory lock `Enqueue` already takes, so seq order = commit order** (a plain identity column could commit out of order and let a reader skip a row) | no offset; `received_at` only | **S1** (rdb next free number) |
+| producer `acks=all` | the hub answers `sent` only after the Postgres commit | yes | — |
+| idempotent producer | `messages` PK `(tenant, msg_id)` `ON CONFLICT DO NOTHING`; the box re-sends a pending file with the same id | yes (T4: 21 re-sends, 0 dup) | — |
+| fetch long-poll / leader notify | `pg_notify('spool_wake', tenant|box)` in the commit transaction; every hub process `LISTEN`s and pushes to the sockets it holds; the 5 s relay poll stays as the backstop | 5 s poll | **S1** |
+| **consumer commit after processing** | **the box sends `commit {seq, outcome}` after the inbox write + poke (outcome = 053's TAck); the hub stores `box_offsets.committed_seq`. A hello replays `seq > committed_seq`, not "rows still queued"** | none: "sent" = written to the socket (T3: 6 / 10 lost) | **S2** (FeatureCommit). Acceptance: spike T3 on today's path reads 0 lost |
+| idempotent consumer | the inbox file name dedups a replayed seq | yes | — |
+| consumer seek / replay | hello `from_seq`; browsers reconnect with a `since` cursor (`received_at, msg_id`) and get the gap from the DB, on any process | revision poll + catch-up read | **S3** |
+| cross-instance fan-out | browser events on the same wake channel, so `max_instances > 1` becomes possible | one instance only | **S3** |
+| consumer lag | per box `next_seq - 1 - committed_seq` and the age of the oldest uncommitted row: `do_spl_consumer_lag` + an alert; feeds 053's escalation | the unheard sweep (heuristic) | **S4** |
+| retention | queue rows expire after `QueueTTL` (7 days); committed rows are pruned; tiered message retention unchanged. An uncommitted row for a dead box (the 70 test-box rows on prd) is reported as lag, not kept silently | expiry only | **S4** |
+| consumer group (one member active) | a box id = a group with one live member (the last hello wins, 4409); a takeover = a rebalance (058) | yes | — |
+| consumer group for a role | a channel post routed to the **role holder's** box (`fleet_leases`) instead of every member box, so a dispatcher seated on two machines handles each post once | per member box (058 H7) | **S5**, with CLE-77911 |
+| exactly-once (transactions) | not copied: at-least-once + the idempotent consumer, as the spike shows that is enough | — | — |
+
+### 11.2 Asks to the orchestrator (CLE-77929): a work queue = Kafka's share group (KIP-932)
+
+CLE-77929's table, as sent on 302961a0 (msg 468ccbbd):
+
+| Kafka (share group) | asks today (rdb 0097, on trunk) | delta |
+|---|---|---|
+| topic | `role` (orch; dispatch next) within a fleet | none |
+| record key + idempotent producer | `ask_id` = the spool msg_id; put ON CONFLICT DO NOTHING | none |
+| acquire (acquisition lock) | `ack` = acked_by `<ID>@<box>` | **an acquisition lock timeout:** an acked ask not closed within `ASKS_LOCK_MIN` goes back to available and is re-delivered |
+| accept / reject | `done` / `declined` (reason required) | none |
+| release / redelivery | re-raise of an unacked ask after `ASKS_RERAISE_MIN` | none |
+| delivery count | `raised_n` | **a max delivery count:** at N, the ask goes to the owner instead of being re-raised forever |
+| membership / rebalance | the fleet lease's orch holder; a handover message to a new holder | none |
+| retention / replay | closed asks pruned after 7 days; `do_spl_asks_open ASKS_ALL=1` + the journal | none |
+| log on disk per broker | `<spool root>/asks/<id>.json` + `journal.log` | none |
+
+The pgq prototype in §10 is this same share-group shape (row claim + lease + per-record ack), and it passed T2-T4 n = 3.
+
+### 11.3 Order
+
+S1 (offset + wake), then S2 (commit; closes the T3 loss), then S3 (browsers), then S4 (lag + retention), then S5 (role group). The asks deltas go in parallel. Each step lands on dev and prd before the next one starts.
+
+<!-- version: 0.2.0 · updated: 2026-10-02 -->

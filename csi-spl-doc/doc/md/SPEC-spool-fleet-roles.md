@@ -179,14 +179,20 @@ sequenceDiagram
   2026-10-02 the master sat on `Usage limit reached · Continuing
   automatically at 7:20am` with an owner post in its prompt while the lease
   stayed fresh. Each tick also reads the footer of the agent's own tmux pane
-  (the last 8 non-blank lines of the visible screen, found by walking the
-  pid's parents to a `pane_pid`); a usage-limit, `/login`, invalid-key,
-  onboarding or trust screen there means stalled: no renewal, logged once as
-  `renew stop <id> (stalled pid=<n>: <text>)`, and the 180 s failover fires.
+  (the last 12 non-blank lines of the visible screen, found by walking the
+  pid's parents to a `pane_pid`). A modal trust, onboarding or login-picker
+  screen is a stall on sight. A usage-limit, `/login` or invalid-key banner
+  is only a hint, because claude leaves it under the prompt after it resumes
+  (a false positive at 04:09Z, the master working under it). It counts only
+  while a turn is in progress whose spinner (`… (12s · ↓ 214 tokens)`) has
+  not changed for 45 s; a working turn's timer moves every second. A stall
+  means no renewal, logged once as `renew stop <id> (stalled pid=<n>: <why>)`,
+  and the 180 s failover fires.
   The same rule picks the fleet lease's local candidates (section 4.1), so a
   machine whose whole trio is stalled lets the fleet lease go stale and the
   other machine takes over. No pane found fails open (process-only rule).
-  Patterns: `LEASE_STALL_RE`; footer depth: `LEASE_PANE_TAIL`.
+  Knobs: `LEASE_BLOCK_RE`, `LEASE_STALL_RE`, `LEASE_STALL_FROZEN`,
+  `LEASE_PANE_TAIL`.
 - The **watch loop** promotes the failover after 180 s without renewal (never
   a failover with no live process: that is logged once as `NO-FAILOVER`) and
   keeps the lease fresh in its name, under a lock so it cannot overwrite a

@@ -28,9 +28,10 @@
 #  this machine's own.
 #  12. a remote holder silences this machine's unanswered sweep and sends its
 #      gap notes to its own orchestrator
-#  14. a STALLED agent (CLE-77935: alive, pane on "Usage limit reached") is
-#      no candidate: pc's stalled master hands to pc's failover; pc's whole
-#      trio stalled lets the lease go stale and the satellite takes over
+#  14. a STALLED agent (CLE-77935: alive, "Usage limit reached" under a turn
+#      frozen >= 45 s) is no candidate: pc's stalled master hands to pc's
+#      failover; pc's whole trio stalled lets the lease go stale and the
+#      satellite takes over; the banner under an idle line is able
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -254,23 +255,24 @@ echo "CLE-002@pc 4990" >"$R/spool/dispatch/lease"
 rm -rf "$T/pc" "$T/sat" "$T/hub"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc"
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
-stall() { printf '❯ a\n────\n  ⚠ Usage limit reached · limit resets 7:20am\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
+stall() { printf '%s\n❯ a\n────\n  ⚠ Usage limit reached · limit resets 7:20am\n  ⏵⏵ auto mode on\n' "${2:-✢ Cogitating… (12s · ↓ 214 tokens)}" >"$T/pane/$1"; }
 tick pc 20000; tick sat 20000
-stall 101
+stall 101; tick pc 20010
+[[ "$(hubh dispatch)" == CLE-002@pc ]] && pass "14. a first sighting of the banner keeps the master" || fail "14. first: hub $(hubh dispatch)"
 tick pc 20060
 [[ "$(hubh dispatch)" == CLE-003@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
   pass "14. pc's master stalled: pc's failover holds at once" || fail "14. hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
 stall 100; stall 102
-tick pc 20120; tick pc 20180
+tick pc 20070; tick pc 20120; tick pc 20180
 [[ "$(logc pc 'NO-LOCAL-AGENT dispatch')" == 1 && "$(logc pc 'CLE-002: stalled pid=101: Usage limit reached')" -ge 1 ]] &&
   pass "14. pc's trio stalled: no local candidate, logged once with why" || fail "14. log: $(cat "$T/pc/spool/dispatch/lease.log")"
-tick sat 20241
+tick sat 20251
 [[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh orch)" == CLE-001@sat ]] &&
-  pass "14. 181 s later the satellite takes both roles" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
-rm -f "$T/pane/100" "$T/pane/101" "$T/pane/102"
+  pass "14. 181 s after the last renewal the satellite takes both roles" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
+stall 100 '✻ Brewed for 16s · done'; stall 101 '✻ Brewed for 16s · done'; rm -f "$T/pane/102"
 tick pc 20300
 [[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc ]] &&
-  pass "14. the notices gone, pc takes both back on priority" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
+  pass "14. turns done (banner still shown), pc takes both back on priority" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

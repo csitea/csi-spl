@@ -26,11 +26,14 @@
 #      is found through its owner: renew binds it, live_ids lists it, and
 #      with the hop off it is not seen (the 2026-10-01 GAP)
 #  18. a STALLED master (CLE-77935, the 2026-10-02 usage-limit pane): its
-#      process lives but its pane footer says "Usage limit reached", so renew
-#      stops (logged once, with why), the failover is promoted after 180 s,
-#      and the master's own renewal is the handback once the notice is gone;
-#      controls: the same text scrolled up out of the footer, and no pane at
-#      all (fail open), both still renew; a stalled failover is not promoted
+#      process lives, its footer shows "Usage limit reached" under a turn
+#      whose spinner is frozen, so renew stops once the spinner has not moved
+#      for 45 s (logged once, with why), the failover is promoted after
+#      180 s, and the master's own renewal is the handback; controls (the
+#      04:09Z false positive): the banner under an idle "done" line, or under a
+#      turn whose timer moves, is able; no pane at all is able (fail open); a
+#      modal trust screen is a stall on sight, and a stalled failover is not
+#      promoted
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -270,10 +273,10 @@ fi
 
 # --- 18. a stalled master: alive, but not able to act ----------------------------------------
 rm -rf "$T/spool" "$T/sent"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*
-# the footer of CLE-002's pane at 2026-10-02 03:54Z, as tmux capture-pane printed it
+# the footer of CLE-002's pane at 2026-10-02 03:54Z, as tmux capture-pane printed
+# it; <line> replaces the spinner line (default: the frozen one it showed)
 stall() {
-  cat >"$T/pane/$1" <<'EOF2'
-✢ Cogitating… (12s · ↓ 214 tokens)
+  { echo "${2:-✢ Cogitating… (12s · ↓ 214 tokens)}"; cat <<'EOF2'
 
 ──────────────────────────────────────────────────────────── box: CLE-002 ─
 ❯ [channel post from HUM-10, topic 5fe56859] a
@@ -282,33 +285,39 @@ stall() {
     Continuing automatically at 7:20am · esc to cancel · /usage-credits to continue now
   ⏵⏵ auto mode on · gh auth login for PR status · 3 monitors
 EOF2
+  } >"$T/pane/$1"
 }
 idle() { printf '● done\n\n────\n❯ \n────\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
 agent 1000 M-1; agent 1100 F-1; idle 1000; idle 1100
 tick renew 30000
 [[ "$(cat "$D/lease")" == "M-1 30000" ]] && pass "18. an idle master renews" || fail "18. idle: $(cat "$D/lease.log")"
 stall 1000
-tick renew 30060; tick renew 30120
-[[ "$(cat "$D/lease")" == "M-1 30000" && "$(logc 'renew stop M-1 (stalled pid=1000: Usage limit reached)')" == 1 ]] &&
-  pass "18. a usage-limit pane stops the renewal, logged once with why" || fail "18. stall: lease '$(cat "$D/lease")' log: $(cat "$D/lease.log")"
-tick watch 30181
+tick renew 30060
+[[ "$(cat "$D/lease")" == "M-1 30060" ]] && pass "18. a first sighting of the banner is no proof: still renews" || fail "18. first sighting: $(cat "$D/lease.log")"
+tick renew 30120; tick renew 30180
+[[ "$(cat "$D/lease")" == "M-1 30060" && "$(logc 'renew stop M-1 (stalled pid=1000: Usage limit reached, turn frozen 60s at (12s · ↓ 214 tokens))')" == 1 ]] &&
+  pass "18. banner + a spinner frozen 60 s stops the renewal, logged once with why" || fail "18. stall: lease '$(cat "$D/lease")' log: $(cat "$D/lease.log")"
+tick watch 30241
 [[ "$(holder)" == F-1 && "$(logc 'FAILOVER: M-1 silent 181s -> F-1 active')" == 1 && "$(sentc '^F-1 :: DISPATCH LEASE: you are now ACTIVE')" == 1 ]] &&
-  pass "18. the failover is promoted 180 s after the stall" || fail "18. promote: $(cat "$D/lease.log")"
-idle 1000
-tick renew 30200; tick watch 30210
+  pass "18. the failover is promoted 180 s after the last renewal" || fail "18. promote: $(cat "$D/lease.log")"
+# the 04:09Z false positive: the turn ended, the banner stayed under the prompt
+stall 1000 '✻ Brewed for 16s · done 7.14 · 5 monitors still running'
+tick renew 30300; tick watch 30310
 [[ "$(holder)" == M-1 && "$(logc 'handback to M-1')" == 1 && "$(logc 'renew bind M-1 pid=1000')" == 2 ]] &&
-  pass "18. the notice gone, the master renews and takes it back" || fail "18. handback: $(cat "$D/lease.log")"
-# control: the same notice scrolled up out of the footer is history, not a stall
-{ cat "$T/pane/1000"; stall x; cat "$T/pane/x"; for i in 1 2 3 4 5 6 7 8 9; do echo "● line $i"; done; echo '❯ '; } >"$T/pane/1000.n"
-mv "$T/pane/1000.n" "$T/pane/1000"
-tick renew 30260
-[[ "$(cat "$D/lease")" == "M-1 30260" ]] && pass "18. control: a scrolled-up notice does not stop the renewal" || fail "18. scrolled: $(cat "$D/lease.log")"
+  pass "18. control: banner under an idle 'done' line is able; the renewal is the handback" || fail "18. handback: $(cat "$D/lease.log")"
+stall 1000 '✶ Cogitating… (12s · ↓ 214 tokens)'; tick renew 30360
+stall 1000 '✢ Musing… (1m 13s · ↓ 2.1k tokens)'; tick renew 30420
+[[ "$(cat "$D/lease")" == "M-1 30420" && "$(logc 'renew stop M-1')" == 1 ]] &&
+  pass "18. control: banner over a turn whose timer moves is able" || fail "18. working: $(cat "$D/lease.log")"
 rm -f "$T/pane/1000"
-tick renew 30320
-[[ "$(cat "$D/lease")" == "M-1 30320" ]] && pass "18. control: no pane found = able (fail open)" || fail "18. no pane: $(cat "$D/lease.log")"
-# a stalled failover is never promoted
-stall 1000; stall 1100
-tick renew 30380; tick watch 30501; tick watch 30561
+tick renew 30480
+[[ "$(cat "$D/lease")" == "M-1 30480" ]] && pass "18. control: no pane found = able (fail open)" || fail "18. no pane: $(cat "$D/lease.log")"
+trust() { printf ' Do you trust the files in this folder?\n ❯ 1. Yes, proceed\n   2. No, exit\n' >"$T/pane/$1"; }
+trust 1000; trust 1100
+tick renew 30540
+[[ "$(cat "$D/lease")" == "M-1 30480" && "$(logc 'renew stop M-1 (stalled pid=1000: Do you trust the files)')" == 1 ]] &&
+  pass "18. a modal trust screen is a stall on sight" || fail "18. trust: $(cat "$D/lease.log")"
+tick watch 30661; tick watch 30721
 [[ "$(holder)" == M-1 && "$(logc 'F-1 is not able to act (stalled pid=1100')" == 1 && "$(sentc 'nobody dispatches')" == 1 ]] &&
   pass "18. a stalled failover is not promoted; logged + told once" || fail "18. failover stall: $(cat "$D/lease.log")"
 

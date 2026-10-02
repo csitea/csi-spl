@@ -235,18 +235,40 @@ spl_lease_live_ids() {
 # A live process is not enough (CLE-77935): on 2026-10-02 the master sat on
 # "Usage limit reached ... Continuing automatically at 7:20am" with an owner
 # post in its prompt while the lease stayed fresh every minute, so the 180 s
-# failover never fired. The agent must also be ABLE to act: the footer of its
-# tmux pane (the last LEASE_PANE_TAIL non-blank lines of the visible screen,
-# where claude draws that notice under the prompt) shows no usage-limit,
-# login, onboarding or trust screen. Prints the matched text when stalled,
-# nothing otherwise. Fails OPEN: no pane found (no tmux, an agent outside
-# tmux) keeps the process-only rule, so a missing tmux never drops a master.
-LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired|select login method|do you trust the files|choose the text style'
+# failover never fired. The agent must also be ABLE to act, read from the
+# footer of its tmux pane (the last LEASE_PANE_TAIL non-blank lines of the
+# visible screen). Two tiers:
+# - a MODAL screen (LEASE_BLOCK_RE: trust, onboarding, login picker) blocks
+#   every key, so it is a stall on sight;
+# - a BANNER (LEASE_STALL_RE: usage limit, /login, invalid key) is only a
+#   hint: claude leaves it under the prompt after it resumes (a false positive
+#   at 04:09Z, the master working under it). It counts only while a turn is in
+#   progress (the spinner "<verb>… (12s · ↓ 214 tokens)") whose text has not
+#   changed for LEASE_STALL_FROZEN s: a working turn's timer moves every
+#   second; at 03:54Z it read "(12s" 26 min into the stall. Idle under the
+#   banner (a "<verb>ed for 16s" line, no spinner) is able.
+# Prints the matched text when stalled, nothing otherwise. Fails OPEN: no
+# pane found (no tmux, an agent outside tmux) keeps the process-only rule, so
+# a missing tmux never drops a master.
+LEASE_BLOCK_RE_DEFAULT='select login method|do you trust the files|choose the text style'
+LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired'
 spl_lease_stall() {
-  local text
-  text="$(spl_lease_pane_text "$1" 2>/dev/null)" || return 0
-  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-8}" |
-    grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" | head -1
+  local pid="$1" text foot hit spin f st="" sat=0 now
+  text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
+  foot="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
+  hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | head -1)"
+  [[ -n "$hit" ]] && { echo "$hit"; return 0; }
+  hit="$(grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" <<<"$foot" | head -1)"
+  f="$LEASE_DIR/spin.$pid"
+  # the spinner's "(...)" only: its glyph and verb cycle while frozen
+  spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$foot" | tail -1 | grep -oE '\(.*\)')"
+  [[ -n "$hit" && -n "$spin" ]] || { rm -f "$f"; return 0; }
+  now="$(spl_lease_now)"
+  [[ -f "$f" ]] && IFS=$'\t' read -r sat st < "$f"
+  # unchanged since <sat>: keep the first sighting's time (the able check
+  # runs several times per tick, so "same as last call" is no proof)
+  [[ "$st" == "$spin" && "$sat" =~ ^[0-9]+$ ]] || { printf '%s\t%s\n' "$now" "$spin" > "$f"; return 0; }
+  (( now - sat >= ${LEASE_STALL_FROZEN:-45} )) && echo "$hit, turn frozen $((now - sat))s at $spin"
   return 0
 }
 

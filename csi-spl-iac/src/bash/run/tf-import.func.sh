@@ -29,7 +29,7 @@ do_tf_import() {
   local _rc=${PIPESTATUS[0]}
   set +x
 
-  if [ $_rc -eq 0 ]; then
+  if [[ $_rc -eq 0 ]]; then
     do_log "OK Resource imported successfully: ${TARGET} -> ${ID}"
   else
     do_log "FATAL Failed to import resource: ${TARGET} -> ${ID}"

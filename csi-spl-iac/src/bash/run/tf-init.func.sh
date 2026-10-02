@@ -62,7 +62,7 @@ do_tf_init() {
   # env | sort
   # sleep 10
 
-  if [ ! -d "$TF_PLUGIN_CACHE_DIR" ]; then mkdir -p "$TF_PLUGIN_CACHE_DIR"; fi
+  if [[ ! -d "$TF_PLUGIN_CACHE_DIR" ]]; then mkdir -p "$TF_PLUGIN_CACHE_DIR"; fi
 
   flock /tmp/tfswitch.lock tfswitch ${TERRAFORM_VERSION}
   quit_on "switching  to terraform version ${TERRAFORM_VERSION}"
@@ -70,14 +70,14 @@ do_tf_init() {
   tf_src_path="$PROJ_PATH/src/terraform/$tf_proj"
   # Only remove the tf_run_path if the ACTION is destroy
   # if [[ "${ACTION}" == "destroy" ]]; then
-  if [ -d "${tf_run_path}" ]; then rm -r "${tf_run_path}"; fi
+  if [[ -d "${tf_run_path}" ]]; then rm -r "${tf_run_path}"; fi
   # fi
 
   mkdir -p ${PROJ_PATH}/bin/${ORG}/${APP}/${ENV}
   cp -r ${tf_src_path} ${tf_run_path}
 
   # First-run bootstrap: ensure ../modules is copied before md5-comparing it.
-  if [ ! -d "${tf_run_path}/../modules" ]; then
+  if [[ ! -d "${tf_run_path}/../modules" ]]; then
     do_log "INFO first-run: copying ${tf_src_path}/../modules -> ${tf_run_path}/../modules"
     cp -r "${tf_src_path}/../modules" "${tf_run_path}/../"
   fi

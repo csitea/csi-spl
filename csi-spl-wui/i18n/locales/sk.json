@@ -507,7 +507,6 @@
     "send_retry": "Skúsiť znova",
     "send_failed_empty": "Nie je čo odoslať — samotná zmienka nie je správa. Pridajte text alebo priložte súbor.",
     "send_failed_session_expired": "Neodoslané — vaša relácia vypršala. Prihláste sa znova; váš text je zachovaný.",
-    "camera": "Odfotiť",
     "target_thread": "Odpoveď v otvorenom vlákne",
     "target_new": "Nová téma v {target}",
     "target_dm": "Nová téma s {target}",

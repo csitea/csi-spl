@@ -507,7 +507,6 @@
     "send_retry": "Spróbuj ponownie",
     "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik.",
     "send_failed_session_expired": "Nie wysłano — Twoja sesja wygasła. Zaloguj się ponownie; Twój tekst jest zachowany.",
-    "camera": "Zrób zdjęcie",
     "target_thread": "Odpowiedź w otwartym wątku",
     "target_new": "Nowy temat w {target}",
     "target_dm": "Nowy temat z {target}",

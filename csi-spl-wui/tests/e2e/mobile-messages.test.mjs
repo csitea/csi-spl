@@ -4,7 +4,7 @@
 //
 //   phone (360x740, 820x1180, hasTouch):
 //     1 the composer is docked: full width, its bottom on the bottom status
-//       strip's top (CLE-77888), Send / Attach / Camera >= 44 px, 16 px text (no iOS zoom)
+//       strip's top (CLE-77888), Back / Attach / Send >= 44 px, 16 px text (no iOS zoom)
 //     2 the card header's controls are >= 44 px; the smile / open icons left
 //       the row; the page never scrolls sideways
 //     3 a LONG PRESS on a card opens the menu as a bottom sheet (its bottom on
@@ -84,7 +84,7 @@ function composerFacts(page) {
       vh: window.innerHeight,
       send: box('[data-testid=send]'),
       attach: box('[data-testid=attach]'),
-      camera: box('[data-testid=attach-camera]'),
+      back: box('[data-testid=dock-back]'),
       syntax: box('[data-test=search-syntax-help]'),
       field: box('textarea'),
       font: ta ? parseFloat(getComputedStyle(ta).fontSize) : 0,
@@ -214,7 +214,7 @@ async function phone(browser, width, height) {
   ok(`${tag} 1 composer docked at the bottom, full width, 44 px controls, 16 px text`,
     Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - (c.vh - c.strip)) <= 1
       && c.send && c.send.w >= TAP && c.send.h >= TAP && c.attach && c.attach.h >= TAP
-      && c.camera && c.camera.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
+      && c.back && c.back.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
       && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
 
   const card = await cardFacts(p)

@@ -163,8 +163,18 @@ describe('the phone composer dock (MessageComposer.vue)', () => {
   it('honours the submit-key setting on the on-screen keyboard too', () => {
     assert.match(vue, /:enterkeyhint="docked \? \(submitMode === 'enter' \? 'send' : 'enter'\) : undefined"/)
   })
-  it('offers the camera next to the native picker', () => {
-    assert.match(vue, /accept="image\/\*"\s*capture="environment"/)
+  it('has no camera button: a photo is taken through Attach (topic d4bc9db4)', () => {
+    assert.doesNotMatch(vue, /capture=|attach-camera|openCamera/)
+    /* no accept= on the one picker, so the OS sheet offers files, gallery and camera */
+    assert.match(vue, /type="file"\s*multiple\s*hidden/)
+  })
+  it('the dock row is Back | Attach | Send, Back the top bar\'s "<" (topic d4bc9db4)', () => {
+    const row = vue.slice(vue.indexOf('<div class="composer-row">'))
+    const at = (id) => row.indexOf(`data-testid="${id}"`)
+    assert.ok(at('dock-back') > 0 && at('dock-back') < at('attach') && at('attach') < at('send'))
+    const back = readFileSync(join(WUI, 'src/components/MobileBack.vue'), 'utf8')
+    assert.match(back, /@click\.stop="stack\.pop\(\)"/)
+    assert.match(row, /data-testid="dock-back"[^>]*@click\.stop="stack\.pop\(\)"[^>]*:aria-label="t\('mobile\.back'\)"/)
   })
   it('the sheet Reply focuses it', () => {
     assert.match(vue, /window\.addEventListener\(COMPOSER_FOCUS_EVENT, onFocusRequest\)/)

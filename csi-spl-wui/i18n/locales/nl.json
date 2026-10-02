@@ -507,7 +507,6 @@
     "send_retry": "Opnieuw proberen",
     "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij.",
     "send_failed_session_expired": "Niet verzonden — je sessie is verlopen. Meld je opnieuw aan; je tekst staat er nog.",
-    "camera": "Foto maken",
     "target_thread": "Antwoord in de open thread",
     "target_new": "Nieuw onderwerp in {target}",
     "target_dm": "Nieuw onderwerp met {target}",

@@ -4,7 +4,7 @@
 //
 // Per width (default 390x844 and 820x1180, touch emulation) on /lobby:
 //   1 the composer is docked: full width, bottom on the window's bottom edge,
-//     Send / Attach / Camera >= 44 px
+//     Back / Attach / Send >= 44 px
 //   2 a long press on a card opens the message menu as a bottom sheet with
 //     44 px items and Reply first; the topic did not open
 //   3 a tap on the dimmed page closes it
@@ -69,11 +69,11 @@ try {
       if (!f) return null
       const r = f.getBoundingClientRect()
       const box = (sel) => { const el = f.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)] }
-      return { docked: f.getAttribute('data-docked') === 'true', left: Math.round(r.left), width: Math.round(r.width), bottom: Math.round(r.bottom), vw: innerWidth, vh: innerHeight, send: box('[data-testid=send]'), attach: box('[data-testid=attach]'), camera: box('[data-testid=attach-camera]') }
+      return { docked: f.getAttribute('data-docked') === 'true', left: Math.round(r.left), width: Math.round(r.width), bottom: Math.round(r.bottom), vw: innerWidth, vh: innerHeight, send: box('[data-testid=send]'), attach: box('[data-testid=attach]'), back: box('[data-testid=dock-back]') }
     })
     ok(`${w}px 1 composer docked at the bottom, 44 px controls`,
       Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - c.vh) <= 1
-        && [c.send, c.attach, c.camera].every((b) => b && b[0] >= TAP && b[1] >= TAP)), c)
+        && [c.send, c.attach, c.back].every((b) => b && b[0] >= TAP && b[1] >= TAP)), c)
     await p.screenshot({ path: join(OUT, `mobile-messages-${w}.png`) })
     /* the kind badge draws 26x18; its 44 px hit area is a ::before - probe it */
     const kind = await p.evaluate(() => {

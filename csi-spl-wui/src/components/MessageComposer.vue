@@ -198,6 +198,22 @@
         <!-- Send stays in the tab order. Attach is a pointer target only
              (tabindex=-1), the same as the resize grip. The file input is
              not a tab stop, and a disabled Send would leave the tab order. -->
+        <!-- topic d4bc9db4 (owner): the phone dock is Back | Attach | Send,
+             Attach in the middle. Back is the top bar's "<" (MobileBack: the
+             same stack.pop()), in thumb reach while the keyboard is up; a
+             photo is taken through Attach (the OS picker offers the camera) -->
+        <button
+          v-if="docked"
+          type="button"
+          tabindex="-1"
+          class="dock-back"
+          data-testid="dock-back"
+          :disabled="stack.level.value <= 1"
+          @mousedown.prevent
+          @click.stop="stack.pop()"
+          :aria-label="t('mobile.back')"
+          :title="t('mobile.back')"
+        ><UiIcon name="chevron-left" :size="22" class="dock-back__glyph" /></button>
         <button
           v-if="!searchMode"
           type="button"
@@ -217,31 +233,6 @@
           hidden
           tabindex="-1"
           data-testid="attach-input"
-          @change="onFiles"
-          @cancel="onPickCancel"
-        >
-        <!-- SPL-991: a phone can attach a photo straight from the camera; the
-             paperclip's native picker still offers files, gallery and camera -->
-        <button
-          v-if="docked && !searchMode"
-          type="button"
-          tabindex="-1"
-          class="attach"
-          data-testid="attach-camera"
-          @mousedown.prevent
-          @click="openCamera"
-          :aria-label="t('composer.camera')"
-          :title="t('composer.camera')"
-        ><UiIcon name="camera" :size="20" /></button>
-        <input
-          v-if="docked && !searchMode"
-          ref="cameraEl"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          tabindex="-1"
-          data-testid="attach-camera-input"
           @change="onFiles"
           @cancel="onPickCancel"
         >
@@ -363,13 +354,12 @@ const inputEl = ref<HTMLTextAreaElement | null>(null)
  * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone
  * it leaves the bar and pins itself to the bottom edge, `--kb-inset` above it
  * (useKeyboardInset: the visualViewport keyboard height, iOS Safari and
- * Android Chrome), full width, 44 px Attach / Camera / Send. Its height goes
+ * Android Chrome), full width, 44 px Back / Attach / Send. Its height goes
  * to `--composer-dock-h` on <html> (0 when not docked), so the panes pad
  * their last card clear of it (M1) and TopBar lifts its send error over it
  * (M2). SPL-1005: every level, the section chooser included.
  */
 const formEl = ref<HTMLFormElement | null>(null)
-const cameraEl = ref<HTMLInputElement | null>(null)
 const phone = usePhone()
 const kbInset = useKeyboardInset()
 const stack = useMobileStack()
@@ -1000,14 +990,6 @@ function openFiles() {
   fileEl.value?.click()
 }
 
-function openCamera() {
-  pickLost.value = false
-  clearPickWait()
-  awaitingPick = true
-  window.addEventListener('focus', onWindowFocusAfterPick)
-  cameraEl.value?.click()
-}
-
 function onPickCancel() {
   clearPickWait()
   pickLost.value = true
@@ -1134,7 +1116,8 @@ textarea.in-code {
   overflow-wrap: anywhere;
   min-width: 0;
 }
-.attach {
+.attach,
+.dock-back {
   cursor: pointer;
   background: transparent;
   color: var(--color-muted);
@@ -1463,6 +1446,8 @@ textarea.in-code {
   }
   .composer--dock.composer--dock .composer-row .composer-go[aria-disabled=true],
   .composer--dock.composer--dock .composer-row .composer-go:disabled { opacity: .55; }
+  .composer--dock.composer--dock .dock-back:disabled { opacity: .35; cursor: default; }
+  :global([dir="rtl"]) .dock-back__glyph { transform: scaleX(-1); }
   .composer--dock.composer--dock .file-chips li { display: inline-flex; align-items: center; gap: 4px; }
   .composer--dock.composer--dock .file-chips .icon-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
   .composer--dock.composer--dock .mention-list {

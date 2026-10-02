@@ -507,7 +507,6 @@
     "send_retry": "Försök igen",
     "send_failed_empty": "Inget att skicka — enbart en omnämning är inget meddelande. Lägg till text eller bifoga en fil.",
     "send_failed_session_expired": "Inte skickat — din session har gått ut. Logga in igen; din text finns kvar.",
-    "camera": "Ta ett foto",
     "target_thread": "Svarar i den öppna tråden",
     "target_new": "Nytt ämne i {target}",
     "target_dm": "Nytt ämne med {target}",

@@ -507,7 +507,6 @@
     "send_retry": "Încearcă din nou",
     "send_failed_empty": "Nu este nimic de trimis — o mențiune singură nu este un mesaj. Adaugă text sau atașează un fișier.",
     "send_failed_session_expired": "Netrimis — sesiunea ta a expirat. Autentifică-te din nou; textul tău este păstrat.",
-    "camera": "Fă o fotografie",
     "target_thread": "Răspuns în firul deschis",
     "target_new": "Subiect nou în {target}",
     "target_dm": "Subiect nou cu {target}",

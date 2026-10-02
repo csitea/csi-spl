@@ -507,7 +507,6 @@
     "send_retry": "Proovi uuesti",
     "send_failed_empty": "Pole midagi saata — pelgalt mainimine ei ole sõnum. Lisa teksti või manusta fail.",
     "send_failed_session_expired": "Saatmata — sinu seanss aegus. Logi uuesti sisse; sinu tekst on alles.",
-    "camera": "Tee foto",
     "target_thread": "Vastus avatud lõimes",
     "target_new": "Uus teema: {target}",
     "target_dm": "Uus teema kasutajaga {target}",

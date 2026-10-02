@@ -507,7 +507,6 @@
     "send_retry": "Mēģināt vēlreiz",
     "send_failed_empty": "Nav ko sūtīt — tikai pieminējums nav ziņa. Pievienojiet tekstu vai pievienojiet failu.",
     "send_failed_session_expired": "Nav nosūtīts — jūsu sesija beidzās. Piesakieties vēlreiz; jūsu teksts ir saglabāts.",
-    "camera": "Uzņemt foto",
     "target_thread": "Atbilde atvērtajā pavedienā",
     "target_new": "Jauna tēma: {target}",
     "target_dm": "Jauna tēma ar {target}",

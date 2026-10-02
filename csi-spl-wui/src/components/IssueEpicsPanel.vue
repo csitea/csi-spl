@@ -90,8 +90,8 @@ function epicPct(e: EpicRow) {
 .epic-row__bar { grid-column: 1 / -1; height: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
 .epic-row__bar > span { display: block; height: 100%; background: var(--color-accent); }
 .epic-row--closed { opacity: 0.6; }
-.epic-row__kind { display: inline-block; width: 0.5rem; height: 0.5rem; margin-inline-end: 6px; border-radius: var(--radius-pill); background: #8b5cf6; vertical-align: middle; }
-.epic-row__kind[data-kind="feature"] { background: #14b8a6; }
+.epic-row__kind { display: inline-block; width: 0.5rem; height: 0.5rem; margin-inline-end: 6px; border-radius: var(--radius-pill); background: var(--color-kind-epic); vertical-align: middle; }
+.epic-row__kind[data-kind="feature"] { background: var(--color-kind-feature); }
 /* SPL-992 (epic SPL-988): on a phone this panel is level 1, full width - a
    row is a 44 px touch target, and a tap opens the epic's list (level 2) */
 @media (max-width: 820px) {

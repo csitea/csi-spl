@@ -221,15 +221,15 @@ function onSelect(loc: LocaleEntry | null) {
   align-items: stretch;
   min-width: 0;
   max-width: 100%;
-  border: 1px solid var(--color-border, #ccc);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
   overflow: hidden;
 }
 .locale-cbx__control:focus-within {
-  outline: 2px solid var(--color-accent, #3050ff);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-color: var(--color-accent, #3050ff);
+  border-color: var(--color-accent);
 }
 .locale-cbx__input {
   border-radius: var(--radius-sm);
@@ -256,9 +256,9 @@ function onSelect(loc: LocaleEntry | null) {
   padding: 0 8px;
   margin: 0;
   border: 0;
-  border-inline-start: 1px solid var(--color-border, #ccc);
+  border-inline-start: 1px solid var(--color-border);
   background: transparent;
-  color: var(--color-muted, #666);
+  color: var(--color-muted);
   cursor: pointer;
 }
 .locale-cbx__options {
@@ -274,8 +274,8 @@ function onSelect(loc: LocaleEntry | null) {
   list-style: none;
   overflow-x: hidden;
   overflow-y: auto;
-  background: var(--color-surface, #fff);
-  border: 1px solid var(--color-border, #ccc);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
@@ -292,7 +292,7 @@ function onSelect(loc: LocaleEntry | null) {
   box-sizing: border-box;
 }
 .locale-cbx__option--active {
-  background: var(--color-surface-hover, #f4f4f4);
+  background: var(--color-surface-hover);
 }
 .locale-cbx__option--selected {
   font-weight: 600;
@@ -308,13 +308,13 @@ function onSelect(loc: LocaleEntry | null) {
 .locale-cbx__code {
   flex: 0 0 auto;
   font-size: 0.75rem;
-  color: var(--color-muted, #666);
+  color: var(--color-muted);
   text-transform: uppercase;
 }
 .locale-cbx__empty {
   padding: 12px;
   font-size: 0.875rem;
-  color: var(--color-muted, #666);
+  color: var(--color-muted);
   text-align: center;
 }
 .visually-hidden {

@@ -14,6 +14,14 @@
   --spacing-md: 1rem;
   --spacing-lg: 2rem;
   --spacing-xl: 4rem;
+  /* identity colours that do not follow the theme (CLE-77915): what kind of
+     file a card holds, what kind of issue an epic row is */
+  --color-file-pdf: #d93025;
+  --color-file-doc: #2b6cd4;
+  --color-file-sheet: #1e8e3e;
+  --color-file-slides: #e8710a;
+  --color-kind-epic: #8b5cf6;
+  --color-kind-feature: #14b8a6;
 
   --color-bg: #060912;
   --color-bg-2: #0a1424;

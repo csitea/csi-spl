@@ -158,7 +158,7 @@ function preview(name: string) {
 .settings__row .btn { display: inline-flex; align-items: center; gap: 6px; }
 .settings__state { display: grid; gap: 6px; margin-bottom: 8px; min-width: 0; }
 .settings__state p { margin: 0; overflow-wrap: anywhere; }
-.settings__state-text--warn { color: var(--color-warn, var(--color-danger, #b45309)); font-weight: 600; }
+.settings__state-text--warn { color: var(--color-warn); font-weight: 600; }
 .settings__state-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .settings__state-actions .btn { min-height: var(--tap, 44px); }
 .settings__muted { display: grid; gap: 2px; margin-bottom: 8px; min-width: 0; }

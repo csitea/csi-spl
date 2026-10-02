@@ -174,10 +174,10 @@ async function onDownload() {
   flex: none;
   color: var(--color-muted);
 }
-.file-kind[data-kind="pdf"] { color: #d93025; }
-.file-kind[data-kind="doc"] { color: #2b6cd4; }
-.file-kind[data-kind="sheet"] { color: #1e8e3e; }
-.file-kind[data-kind="slides"] { color: #e8710a; }
+.file-kind[data-kind="pdf"] { color: var(--color-file-pdf); }
+.file-kind[data-kind="doc"] { color: var(--color-file-doc); }
+.file-kind[data-kind="sheet"] { color: var(--color-file-sheet); }
+.file-kind[data-kind="slides"] { color: var(--color-file-slides); }
 .file-kind__ext {
   font-family: var(--font-mono);
   font-size: 0.625rem;

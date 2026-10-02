@@ -14,7 +14,7 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [x] T011 L1 the 6 Go regex sites call `agentid` (FR-001)
 - [x] T012 L1 rdb migration: widen CHECKs in 0001/0005/0047/0096/0097 to both grammars; table `agent_id_aliases` (FR-006) + PG test
 - [x] T013 L1 alias resolve at the edge (send, recv, lease, lane, ask, `cmd/spool` flags); FR-003 refusal after the deadline; `GET /api/v1/agent-aliases`
-- [ ] T014 L1 deploy hub dev+prd; live check: `c-004` and a legacy id both accepted
+- [x] T014 L1 deploy hub dev+prd; live check: `c-004` and a legacy id both accepted
 - [ ] T015 L1b rdb migration: lanes keyed on (agent_id, agent_box); back-fill the box of every existing roster, lane, ask and lease row (spec 3.3.1, FR-015)
 - [ ] T016 L1b store look-ups by bare id take the box, resolve rule single box / refused when ambiguous; `spool` + HTTP API accept `c-004@<box>`; `agentid.LegacyUntil` (and its bash/WUI copies) = `2026-10-03T20:59:59Z`
 - [ ] T017 L1b PG collision test: `c-004@box-desk` and `c-004@<sat box>` coexist in roster, lanes, asks, leases; each one's mail reaches only that agent

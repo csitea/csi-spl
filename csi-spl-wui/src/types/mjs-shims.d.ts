@@ -370,9 +370,12 @@ declare module '~/utils/channel-feed.mjs' {
   export function applyChannelFrame<T>(rows: T[], frame: unknown): T[]
 }
 
+declare module '~/utils/mock-ids.mjs' {
+  export const MOCK_LOBBY_TASK_ID: string
+}
+
 declare module '~/utils/mock-data.mjs' {
   export const MOCK_MESSAGES: Record<string, unknown>[]
-  export const MOCK_LOBBY_TASK_ID: string
   export function cloneMock(): unknown
 }
 

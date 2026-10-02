@@ -2,8 +2,8 @@
 
 const T0 = '2026-09-18T10:00:00Z'
 
-/** lde mock #lobby: the welcome topic below. The real id comes from the hub / cnf. */
-export const MOCK_LOBBY_TASK_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+/* The lde mock #lobby id (the welcome topic below) is MOCK_LOBBY_TASK_ID in
+   mock-ids.mjs, apart so the live first screen does not load this file. */
 
 export const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
 

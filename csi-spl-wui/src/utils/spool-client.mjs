@@ -1,6 +1,5 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
-import { cloneMock } from './mock-data.mjs'
 import { belongsTo, channelSlug, parseMention } from './channel-feed.mjs'
 import {
   channelReadQuery,
@@ -185,12 +184,20 @@ export function createSpoolClient({
   door = '',
   sender = null,
 } = {}) {
-  const state = mock ? cloneMock() : null
-  if (state) {
-    state.memberships = Object.create(null)
-    state.openInvite = Object.create(null)
-    state.agentMembers = Object.create(null)
-  }
+  /* P3-15: the mock tenant's data loads with the first mock call, not in
+     every live first load; each async method waits for it (gateMock).
+     Member access only (data.<name>): a bare mock-data export name here
+     makes Nuxt's utils/ auto-import add a STATIC import of mock-data.mjs
+     (tests/unit/initial-js-trims.test.mjs). */
+  let state = null
+  const mockReady = mock
+    ? import('./mock-data.mjs').then((data) => {
+      state = data.cloneMock()
+      state.memberships = Object.create(null)
+      state.openInvite = Object.create(null)
+      state.agentMembers = Object.create(null)
+    })
+    : null
   const mockBlobs = new Map()
   let mockIssues = null
   let mockFactory = null
@@ -745,8 +752,8 @@ export function createSpoolClient({
      */
     async auditClones() {
       if (mock) {
-        const { MOCK_CLONES } = await import('./mock-data.mjs')
-        return MOCK_CLONES.map((c) => ({ ...c }))
+        const data = await import('./mock-data.mjs')
+        return data.MOCK_CLONES.map((c) => ({ ...c }))
       }
       return live('/v1/audit/clones')
     },
@@ -1608,5 +1615,18 @@ export function createSpoolClient({
       })
     },
   }
+  if (mockReady) gateMock(api, mockReady)
   return api
+}
+
+/** P3-15: every async method of a mock client first awaits the mock tenant's data. */
+function gateMock(api, ready) {
+  for (const [key, d] of Object.entries(Object.getOwnPropertyDescriptors(api))) {
+    const fn = d.value
+    if (typeof fn !== 'function' || fn[Symbol.toStringTag] !== 'AsyncFunction') continue
+    api[key] = async function (...args) {
+      await ready
+      return fn.apply(this, args)
+    }
+  }
 }

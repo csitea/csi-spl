@@ -1,7 +1,7 @@
 import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
-import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
+import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids.mjs'
 
 /**
  * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),

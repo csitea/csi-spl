@@ -33,7 +33,7 @@
 # @description               ROTATE_REFRESH_MIN minutes)
 # @description Never zero dispatchers (the old session lives until the new one
 # @description acks) and never two masters (the hold keeps every M process off
-# @description the lease while two run). One run at a time (flock rotate.lock).
+# @description the lease while two run). One run at a time (flock rotate.dispatch.lock).
 # @description Dry run unless DRY_RUN=0: PLAN lines, nothing touched, no wait.
 # @param DISPATCH_ROTATE_MIN (optional) - minutes between rotations, default 60
 # @param ROTATE_FORCE (optional) - 1 rotates even when the last rotation is recent
@@ -64,8 +64,9 @@ do_spl_dispatch_rotate() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   ROT_DRY=1; [[ "${DRY_RUN:-1}" == 0 ]] && ROT_DRY=0
   [[ -f "$LEASE_CONF" ]] || { spl_rot_say precheck "SKIP no $LEASE_CONF - this box runs no dispatchers"; return 0; }
+  spl_rot_switch_on || { spl_rot_say precheck "SKIP switched off ($LEASE_DIR/rotate.conf ROTATE / ROTATE_DISPATCH)"; return 0; }
   local rc
-  exec 7> "$LEASE_DIR/rotate.lock"
+  exec 7> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_rot_say precheck "SKIP another rotation runs"; return 0; }
   spl_rot_run; rc=$?
   exec 7>&-
@@ -80,7 +81,7 @@ spl_rot_run() {
   [[ "$m" != "$f" ]] || { spl_rot_say precheck "FATAL lease.conf names $m as master AND failover"; return 1; }
   [[ "$min" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL DISPATCH_ROTATE_MIN must be minutes, got '$min'"; return 1; }
   now="$(spl_lease_now)"
-  last="$(cat "$LEASE_DIR/rotate.last" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
   # 5 min of slack: an hourly cron must not skip a turn over a few seconds
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( now - last < min * 60 - 300 )); then
     spl_rot_say precheck "SKIP last rotation $(( (now - last) / 60 )) min ago (< $min)"; return 0
@@ -127,10 +128,22 @@ spl_rot_run() {
   if (( ROT_DRY )); then
     do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to rotate"
   else
-    spl_lease_now > "$LEASE_DIR/rotate.last"
+    spl_lease_now > "$LEASE_DIR/rotate.dispatch.last"
     spl_rot_say "done" "fresh master $m (handoff $handoff)"
     spl_rot_send "$LEASE_ORCH" note dispatch-rotate "dispatch rotation done on $(spl_rot_machine): a fresh $m holds the lease; handoff $handoff; log $LEASE_DIR/rotate.log" >/dev/null
   fi
+  return 0
+}
+
+# 0 unless ROTATE=0 or ROTATE_DISPATCH=0 (environment, else
+# <dir>/rotate.conf, read, never sourced): the rollback switch (spec 060 FR-090).
+spl_rot_switch_on() {
+  local k v
+  for k in ROTATE ROTATE_DISPATCH; do
+    v="${!k:-}"
+    [[ -z "$v" ]] && v="$(sed -n "s/^$k=\([01]\)\$/\1/p" "$LEASE_DIR/rotate.conf" 2>/dev/null | tail -1)"
+    [[ "$v" == 0 ]] && return 1
+  done
   return 0
 }
 

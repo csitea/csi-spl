@@ -144,7 +144,7 @@ else fail "2. rc=$rc M-1 x$(pids_of M-1) F-1 x$(pids_of F-1): $out"; fi
 [[ "$(grep -c "send-keys -t %10 -l /exit-clean no-close" "$T/tmux.log")" == 1 && "$(grep -c "send-keys -t %20 -l /exit-clean no-close" "$T/tmux.log")" == 1 &&
    "$(sort "$T/closed" | tr '\n' ' ')" == "%10 %20 " ]] &&
   pass "2. each old session got /exit-clean no-close in ITS pane; only the old windows were closed" || fail "2. tmux: $(cat "$T/tmux.log") closed: $(cat "$T/closed" 2>&1)"
-cmp -s "$D/lease.conf" "$T/conf.before" && [[ "$(holder)" == M-1 && ! -e "$D/rotate.hold" && -s "$D/rotate.last" ]] &&
+cmp -s "$D/lease.conf" "$T/conf.before" && [[ "$(holder)" == M-1 && ! -e "$D/rotate.hold" && -s "$D/rotate.dispatch.last" ]] &&
   pass "2. lease.conf unchanged (ids keep their roles), the lease back on M-1, no hold left" || fail "2. conf/lease: $(cat "$D/lease.conf") lease=$(cat "$D/lease")"
 grep -q '^F-1|note||lease=F-1|hold=M-1|DISPATCH LEASE: you are now ACTIVE' "$T/sent" &&
   grep -q '^M-1|note||lease=F-1|hold=M-1|DISPATCH LEASE: STANDBY' "$T/sent" &&
@@ -190,7 +190,7 @@ else fail "5. rc=$rc M-1 x$(pids_of M-1) lease=$(cat "$D/lease") killed=$(cat "$
 grep -q '^O-1|blocker|blocker|.*BLOCKER (dispatch rotation)' "$T/sent" && grep -q 'owner: .*FAILED' "$T/owner" &&
   grep -q '^M-1|note|.*you are ACTIVE again' "$T/sent" &&
   pass "5. an ask (blocker in the ask book) and an owner DM raise it; the old M-1 is told ACTIVE again" || fail "5. alert: $(cat "$T/sent") owner: $(cat "$T/owner" 2>&1)"
-[[ -f "$S/M-1/inbox/unread-1.json" && ! -e "$D/rotate.last" ]] && pass "5. no message lost and the next run retries (no rotate.last)" || fail "5. inbox/last"
+[[ -f "$S/M-1/inbox/unread-1.json" && ! -e "$D/rotate.dispatch.last" ]] && pass "5. no message lost and the next run retries (no rotate.dispatch.last)" || fail "5. inbox/last"
 
 # --- 6. no start -------------------------------------------------------------------
 reset; touch "$T/nostart"
@@ -211,12 +211,16 @@ out="$(rot 2>&1)"; rc=$?
   ! grep -q '/exit-clean' "$T/tmux.log" && pass "8. a dead failover is spawned fresh; M-1 is not touched" || fail "8. rc=$rc: $out"
 
 # --- 9. skips ------------------------------------------------------------------------
-reset; date +%s >"$D/rotate.last"
+reset; date +%s >"$D/rotate.dispatch.last"
 out="$(FORCE=0 rot 2>&1)"
 [[ "$out" == *"SKIP last rotation 0 min ago"* && ! -e "$T/spawned" ]] && pass "9. a rotation less than an hour old is skipped" || fail "9. recent: $out"
 reset
-out="$( (exec 7>"$D/rotate.lock"; flock 7; rot) 2>&1)"
+out="$( (exec 7>"$D/rotate.dispatch.lock"; flock 7; rot) 2>&1)"
 [[ "$out" == *"SKIP another rotation runs"* && ! -e "$T/spawned" ]] && pass "9. a second concurrent run is skipped" || fail "9. lock: $out"
+
+reset; echo ROTATE=0 >"$D/rotate.conf"
+out="$(rot 2>&1)"
+[[ "$out" == *"SKIP switched off"* && ! -e "$T/spawned" ]] && pass "9. ROTATE=0 in rotate.conf stops the rotation at its first gate (FR-090)" || fail "9. switch: $out"
 
 # --- 11. fleet ---------------------------------------------------------------------
 reset

@@ -141,6 +141,7 @@ echo "CLE-002 $(date +%s)" >"$S/dispatch/lease"
 ( exec 7>"$S/dispatch/watch.run"; flock 7; sleep 30 ) & H2=$!
 sleep 0.3
 printf 'ts=%s\nopen=2\nper=w1=2\nto=CLE-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
+date +%s >"$S/dispatch/rotate.dispatch.last"
 check >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'dispatch check: no gap' "$T/o" && grep -q '| CLE-003 desks | 2/2 workspaces | ok |' "$T/o" &&
   pass "6. a complete box: no gap, exit 0" || fail "6. rc=$rc $(cat "$T/o")"
@@ -211,6 +212,13 @@ grep -q 'deploy lag' "$T/o" && fail "7. DISPATCH_DEPLOY_LAG=0 still printed lag 
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
 mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never ran" 'unanswered sweep \| never ran \| GAP'
+# spec 060 FR-072: the dispatcher rotation row
+echo $(( $(date +%s) - 20000 )) >"$S/dispatch/rotate.dispatch.last"
+gap "the dispatcher rotation is 3 h late (FR-072)" 'dispatch rotation \| last done 200[0-9][0-9]s ago \| GAP over 10800s'
+echo ROTATE_DISPATCH=0 >"$S/dispatch/rotate.conf"; check >"$T/o" 2>&1
+grep -q '| dispatch rotation | switched off (rotate.conf) | ok |' "$T/o" && pass "7. rotation switched off: no rotation GAP" || fail "7. switch: $(grep 'dispatch rotation' "$T/o")"
+rm -f "$S/dispatch/rotate.conf" "$S/dispatch/rotate.dispatch.last"
+gap "the dispatcher rotation never ran (FR-072)" 'dispatch rotation \| never ran \| GAP'
 
 # --- 8. setup step 11: the sweep cron ----------------------------------------------------------
 rm -f "$T/crontab"

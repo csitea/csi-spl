@@ -29,6 +29,7 @@
 # @param DISPATCH_SWEEP_STALE (optional) - seconds, default 1800 (three missed 10-min ticks)
 # @param DISPATCH_DEPLOY_LAG (optional) - 0 skips the deploy-lag rows (CLE-77918:
 # @param   a hub / WUI input unserved on dev or prd after DISPATCH_LAG_GRACE min is a GAP)
+# @param DISPATCH_ROTATE_STALE (optional) - seconds since the last dispatcher rotation (spec 060 FR-072), default 10800
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_dispatch_check
 #------------------------------------------------------------------------------
@@ -97,6 +98,7 @@ do_spl_dispatch_check() {
       row "lease $v loop" "not running" "GAP LEASE_CMD=ensure do_spl_dispatch_lease"
   done
   [[ "${DISPATCH_SWEEP:-1}" != 0 ]] && spl_sweep_check_row
+  spl_rotate_check_row
   spl_dispatch_deploy_lag_rows
   echo
   if (( gaps )); then echo "dispatch check: $gaps gap(s)"; return 1; fi
@@ -174,4 +176,27 @@ spl_dispatch_worktree() {
   [[ -f "$m" ]] && w="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree") or "")' "$m" 2>/dev/null)"
   [[ -n "$w" && -d "$w" ]] && { echo "$w"; return 0; }
   echo "${DISPATCH_REPO}-wt/$1"
+}
+
+# The dispatcher rotation (spec 060 FR-072): a GAP when its last DONE is
+# older than DISPATCH_ROTATE_STALE s while the switch is on and this machine
+# holds the dispatch lease. Needs the lease read (LH) and row().
+spl_rotate_check_row() {
+  local last age stale="${DISPATCH_ROTATE_STALE:-10800}"
+  if declare -F spl_rot_switch_on >/dev/null && ! spl_rot_switch_on; then
+    row "dispatch rotation" "switched off (rotate.conf)" ok; return 0
+  fi
+  if spl_lease_remote; then
+    row "dispatch rotation" "the lease is held on another machine" "ok (not rotated here)"; return 0
+  fi
+  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null)"
+  if [[ ! "$last" =~ ^[0-9]+$ ]]; then
+    row "dispatch rotation" "never ran" "GAP DRY_RUN=0 do_spl_dispatch_rotate_install_cron, then read $LEASE_DIR/rotate.log"; return 0
+  fi
+  age=$(( $(spl_lease_now) - last ))
+  if (( age > stale )); then
+    row "dispatch rotation" "last done ${age}s ago" "GAP over ${stale}s - read $LEASE_DIR/rotate.log"
+  else
+    row "dispatch rotation" "last done ${age}s ago" ok
+  fi
 }

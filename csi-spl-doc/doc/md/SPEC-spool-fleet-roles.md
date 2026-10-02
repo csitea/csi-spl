@@ -392,6 +392,29 @@ deciding and answering an ask stay the agent's.
   checks: fire and forget, hub down, kill-mid-ask handover, re-raise, owner
   leg, close, the inbox view).
 
+### 4.4 Hourly rotation: a fresh session per role (spec 060)
+
+Every role gets a FRESH session under the SAME id once an hour, so no
+orchestrator or dispatcher carries an ever larger context: the orchestrator
+at `:05` (`do_spl_orch_rotate`), the dispatchers at `:15`
+(`do_spl_dispatch_rotate`: the master while the failover covers it under
+`<spool root>/dispatch/rotate.hold`, then the failover). The ids never swap
+roles, a new session that does not start or ack leaves the old one in the
+role with an alert, and no step calls a model. The whole contract - phases,
+handoff file, ack, failure paths, switches - is
+[specs/060-role-rotation/spec.md](../../specs/060-role-rotation/spec.md);
+it is not restated here.
+
+- the one change to this section's lease: `spl_lease_agent_able` reads a
+  fresh `rotate.hold` naming an id as "held: rotation", so renew, watch and
+  the fleet candidate skip that id; a hold older than `ROTATE_HOLD_MAX`
+  (1800 s) is ignored with one `WARN` in `lease.log` (060 FR-023, FR-024);
+- what ran: `<spool root>/dispatch/rotate.log`, one line per step;
+- stop it: `ROTATE=0` (or `ROTATE_DISPATCH=0`) in
+  `<spool root>/dispatch/rotate.conf` (060 FR-090);
+- `do_spl_dispatch_check` has a `dispatch rotation` row: a GAP when the last
+  rotation on the machine holding the lease is over 3 h old (060 FR-072).
+
 ## 5. What this replaced
 
 Before 2026-10-01 the orchestrator read every message itself, a standing first
@@ -421,6 +444,7 @@ end to end in every seated workspace.
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
 | one lease across the box PC and the satellite (4.1) | live on the box PC since 2026-10-01 23:24Z (rdb 0094 + 0095 on dev + prd, hub `lease` frame, `LEASE_CMD=fleet`; prd rows `CLE-001@box-desk` / `CLE-002@box-desk`; the interim lease.sh retired). The satellite trio `CLE-001/002/003@sat` and the live drill follow the satellite rebuild (CLE-77912) and the owner's go for its prd pins |
+| hourly dispatcher rotation (4.4) | `do_spl_dispatch_rotate` + the hold in `spl_lease_agent_able` + `do_spl_dispatch_rotate_install_cron` (`15 * * * *`, tag `# csi-spl:dispatch-rotate`) on trunk with sandbox tests (2026-10-02, CLE-77940); the cron is installed after the live proof (060 L3) |
 | messages and reports across machines (4.2) | code on trunk 2026-10-02 (CLE-77919); live once the satellite's desk is pinned and both sidecars run the new binary |
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (CLE-77929: rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |

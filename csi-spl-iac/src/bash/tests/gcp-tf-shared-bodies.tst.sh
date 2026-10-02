@@ -11,14 +11,12 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 RUN="$PROJ_ROOT/src/bash/run"
 LIB="$PROJ_ROOT/lib/bash/funcs"
 T=$(mktemp -d); trap '[[ -n "${KEEP:-}" ]] || rm -rf "$T"' EXIT
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 LISTS=(cloudsql buckets firewall-rules scheduler-jobs static-dns-addresses service-accounts vpcs)
 APIS=(project-apis-enable project-apis-disable modify-project-apis-enable modify-project-apis-disable)

@@ -7,14 +7,11 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 FUNC="$PROJ_ROOT/src/bash/run/sec-gosec.func.sh"
 WF="$APP_ROOT/.github/workflows/62_gosec.yml"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 [[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
   || { echo "FAIL: no $FUNC"; exit 1; }

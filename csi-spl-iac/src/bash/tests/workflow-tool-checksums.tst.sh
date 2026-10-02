@@ -8,13 +8,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 WF="$APP_ROOT/.github/workflows/15_sec-deps-secrets.yml"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 [[ -f "$WF" ]] || { fail "no workflow at $WF"; exit 1; }
 

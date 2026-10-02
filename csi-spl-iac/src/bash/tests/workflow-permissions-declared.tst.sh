@@ -8,13 +8,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 WF_DIR="$APP_ROOT/.github/workflows"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 has_top_permissions() { grep -qE '^permissions:' "$1"; }
 

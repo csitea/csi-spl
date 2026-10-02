@@ -16,13 +16,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 CNF_DIR="$APP_ROOT/csi-spl-cnf/csi-spl"
 MK="$APP_ROOT/csi-spl-orc/src/make/generate-config-for-step.func.mk"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # --- 0. the recipe hands the container what this test simulates --------------
 for want in '-e CNF_SRC=$(SPL_MERGED_CNF)' "-e DATA_KEY_PATH='.env.steps[\"\$(STEP)\"]'" \

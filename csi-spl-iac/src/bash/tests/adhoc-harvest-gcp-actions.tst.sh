@@ -21,13 +21,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 RUN="$PROJ_ROOT/src/bash/run"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
 
 DEV_SA=csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com

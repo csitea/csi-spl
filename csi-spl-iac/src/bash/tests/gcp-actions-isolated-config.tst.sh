@@ -20,15 +20,13 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 RUN="$PROJ_ROOT/src/bash/run"
 PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
 ACTION="$RUN/gcp-sync-s3-to-local.func.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # stub gcloud: logs "<CLOUDSDK_CONFIG>|<argv>"; activate-service-account records
 # the key's client_email as the active account OF THAT CONFIG; auth list prints it

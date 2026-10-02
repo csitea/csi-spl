@@ -15,13 +15,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 TF="$PROJ_ROOT/src/terraform/019-firebase-static-site"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # want_019 <env> -> the JSON list 019 must carry
 want_019() {

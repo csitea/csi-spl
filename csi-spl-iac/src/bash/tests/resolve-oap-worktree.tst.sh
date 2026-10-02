@@ -10,10 +10,8 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # resolve <proj_path> <app_path> [ORG] [APP] -> "ORG APP PROJ"
 resolve() {

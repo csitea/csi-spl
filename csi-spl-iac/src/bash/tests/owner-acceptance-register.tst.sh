@@ -26,14 +26,11 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 SPEC_DIR="$APP_ROOT/csi-spl-doc/specs/031-spool-owner-acceptance"
 TSV="$SPEC_DIR/cases.tsv"
 SPEC="$SPEC_DIR/spec.md"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 RUNNERS='go node-unit node-e2e orc-tst orc-e2e spawn-tst manual pending'
 STATUSES='PASS FAIL PENDING UNVERIFIED MANUAL'

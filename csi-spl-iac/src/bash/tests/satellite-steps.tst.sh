@@ -19,15 +19,12 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 TFD="$PROJ_ROOT/src/terraform"
 VM="$TFD/060-gcp-vm-satellite"
 BUD="$TFD/059-gcp-satellite-budget"
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 [[ -d "$VM" && -d "$BUD" ]] && pass "059 and 060 steps exist" || fail "059/060 step dir missing"
 

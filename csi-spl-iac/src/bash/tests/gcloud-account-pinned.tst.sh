@@ -31,16 +31,13 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
 ORG_APP=$(basename "$PROJ_ROOT"); ORG_APP="${ORG_APP%-iac}"
 CNF_DIR="$APP_ROOT/$ORG_APP-cnf/$ORG_APP"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 bash -n "$PIN" && pass "bash -n gcp-account-pin.func.sh" || fail "bash -n gcp-account-pin.func.sh"
 

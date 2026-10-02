@@ -15,8 +15,7 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 FUNC_FILE="$PROJ_ROOT/src/bash/run/gcp-001-create-project.func.sh"
 LIB_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-require-live-account.func.sh"
 PIN_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
@@ -96,8 +95,6 @@ run_action() {
 INNER
 }
 
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # --- 1. dead credential: nothing is read or created, token check first -------
 log=$(mktemp); run_action dead_cred "$log" DRY_RUN=0

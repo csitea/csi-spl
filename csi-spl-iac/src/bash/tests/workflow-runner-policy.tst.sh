@@ -10,13 +10,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 WF_DIR="$APP_ROOT/.github/workflows"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # Stateless scanners -> ubuntu-latest + cancel-in-progress: true.
 SCANNERS="15_sec-deps-secrets 60_codeql 61_semgrep 62_gosec 63_eslint-security 64_trufflehog 65_iac-checkov 66_hadolint 67_shellcheck 68_dast 70_supply-chain 85_actionlint"

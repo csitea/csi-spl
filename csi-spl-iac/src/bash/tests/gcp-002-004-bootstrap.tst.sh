@@ -11,16 +11,13 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 RUN="$PROJ_ROOT/src/bash/run"
 LIB="$PROJ_ROOT/lib/bash/funcs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/nocnf"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 for f in "$RUN"/gcp-00{0,2,3,4}-*.func.sh "$LIB/gcp-spl-proj-id.func.sh" "$LIB/gcp-account-pin.func.sh"; do
   bash -n "$f" && pass "bash -n $(basename "$f")" || fail "bash -n $(basename "$f")"

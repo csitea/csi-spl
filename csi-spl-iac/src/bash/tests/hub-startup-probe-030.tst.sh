@@ -13,10 +13,8 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 TF="$PROJ_ROOT/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf"
 
 # probe <tf text> -> "delay timeout period threshold" of the startup_probe block

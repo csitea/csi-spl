@@ -14,13 +14,11 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 ACTION="$PROJ_ROOT/src/bash/run/tf-state-remove.func.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 mkdir -p "$T/bin"
 cat >"$T/bin/terraform" <<'EOF'

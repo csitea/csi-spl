@@ -18,15 +18,12 @@
 set -uo pipefail
 
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 WF="$APP_ROOT/.github/workflows/10_ci-quality.yml"
 CNF="csi-spl-cnf/csi-spl/all.env.yaml"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 command -v yq >/dev/null || { echo "FAIL: yq is required"; exit 1; }
 git -C "$APP_ROOT" rev-parse --git-dir >/dev/null 2>&1 || { echo "FAIL: not a git checkout (the sweep runs over git ls-files)"; exit 1; }

@@ -12,13 +12,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 WF_DIR="$APP_ROOT/.github/workflows"
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # Files not yet enforced (owned by another lane / awaiting a go this round).
 # 20/30 are now pinned and enforced (CLE-77788 cleared them after its release-tag

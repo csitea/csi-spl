@@ -17,13 +17,10 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+source "$TEST_DIR/test-lib.inc.sh"
 TF_DIR="$PROJ_ROOT/src/terraform"
 CNF_DIR="$APP_ROOT/csi-spl-cnf/csi-spl"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 declared() { cat "$1"/*.tf | sed -nE 's/^[[:space:]]*variable[[:space:]]+"([^"]+)".*/\1/p' | sort -u; }
 set_keys() {

@@ -8,7 +8,8 @@
 #   3. a settings file newer than the session -> RELAUNCH, never a kill
 #   4. the rendered brief carries the ids and no unrendered {TOKEN}
 #   5. setup refuses a bad ENV, a bad id, master == failover
-#   6. check: a complete box reports no gap and exits 0
+#   6. check: a complete box reports no gap and exits 0; a rotation restarts
+#      the dispatcher in its setup worktree, so the check stays gap-free
 #   7. check: each gap fails it - no process, not auto, missing seat, unread
 #      over the max, stale lease, holder not a dispatcher, a loop down,
 #      settings not loaded, model mismatch, the unanswered sweep never ran,
@@ -160,6 +161,42 @@ check APP_PATH="$T/plain" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q '| CLE-003 desk-reply permission | loaded | ok |' "$T/o" &&
   pass "6. outside any checkout: the worktree from the identity map" || fail "6. identity map: rc=$rc $(cat "$T/o")"
 rm -rf "$S/agents"
+# a rotation (task 6a02db62): at 2026-10-02 11:00Z the rotation started the
+# fresh dispatchers in <setup worktree>-wt/<id>, a new worktree without the
+# settings - 2 GAP rows. The real path: spl_rotate_workdir (the id's newest
+# registry rundir) -> spawn-core's worktree choice (dry run) -> the check.
+G="$T/g"; mkdir -p "$G/spool"; echo brief >"$G/brief.md"
+git init -q --bare "$G/origin.git"
+git init -q "$G/repo" && git -C "$G/repo" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$G/repo" branch -M master && git -C "$G/repo" remote add origin "$G/origin.git" && git -C "$G/repo" push -q origin master 2>/dev/null
+git -C "$G/repo" fetch -q origin
+git -C "$G/repo" worktree add -q -b CLE-002-dispatcher-master "$G/repo-wt/CLE-002" origin/master
+mkdir -p "$G/repo-wt/CLE-002/.claude" && cp "$R-wt/CLE-002/.claude/settings.local.json" "$G/repo-wt/CLE-002/.claude/"
+touch -d '2025-12-31 00:00:00' "$G/repo-wt/CLE-002/.claude/settings.local.json"
+# the live shape the 11:00Z rotation left: a worktree nested in the setup one
+git -C "$G/repo-wt/CLE-002" worktree add -q -b CLE-002-rotate "$G/repo-wt/CLE-002-wt/CLE-002" origin/master
+rot_cwd() {  # <registry rundir> -> the dir the rotation's spawn runs the new session in
+  printf 'CLE-002\tclaude\t%%9\t%s\t20261002T110253Z\n' "$1" >"$G/spool/registry.tsv"
+  local wd
+  wd="$(env SPOOL_ROOT="$G/spool" bash -c 'do_log() { :; }; source "$1/src/bash/run/spl-rotate-lib.func.sh"; spl_rotate_workdir CLE-002' _ "$PROJ_ROOT")"
+  env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID SPAWN_DRY_RUN=1 SPAWN_TEST_SANDBOX=1 SPOOL_TEST=1 SPAWN_REUSE_ID=1 SPOOL_NOW=2026-10-02T12:00:00Z \
+    SPOOL_ROOT="$G/spool" SPOOL_TMUX_SOCKET="$G/tmux.sock" SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)" SPOOL_BOX_TAG= \
+    bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" CLE-002 "$wd" "$G/brief.md" rotate 2>&1 |
+    sed -nE 's/^PLAN worktree +(reuse|add) ([^ ]+).*/\2/p'
+}
+for from in "$G/repo-wt/CLE-002" "$G/repo-wt/CLE-002-wt/CLE-002"; do
+  cwd="$(rot_cwd "$from")"
+  [[ "$cwd" == "$G/repo-wt/CLE-002" && -f "$cwd/.claude/settings.local.json" ]] &&
+    pass "6. a rotation from ${from#"$G"/} restarts in the setup worktree, settings there" ||
+    fail "6. rotation from ${from#"$G"/}: the new session runs in '${cwd:-nothing}'"
+  # the new session as spawn records it: its cwd, and the identity map's worktree
+  rm -rf "$P/100"; agent 100 CLE-002; ln -sfn "$cwd" "$P/100/cwd"
+  mkdir -p "$S/agents"; printf '{"id": "CLE-002", "worktree": "%s"}\n' "$cwd" >"$S/agents/CLE-002.json"
+  check >"$T/o" 2>&1; rc=$?
+  [[ $rc -eq 0 ]] && grep -q '| CLE-002 desk-reply permission | loaded | ok |' "$T/o" && ! grep -q 'GAP' "$T/o" &&
+    pass "6. ... and do_spl_dispatch_check shows no GAP row" || fail "6. check after the rotation: rc=$rc $(grep GAP "$T/o")"
+done
+rm -rf "$S/agents" "$P/100"; agent 100 CLE-002
 # a test workspace's desk is no dispatcher gap (the sweep's shared list)
 mkdir -p "$ST/desk/w12live1/box-desk"; touch "$ST/desk/w12live1/box-desk/pinned"
 echo 'w12live1  # a dev proof' >"$S/dispatch/test-workspaces"

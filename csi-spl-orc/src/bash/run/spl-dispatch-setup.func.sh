@@ -112,8 +112,10 @@ spl_dispatch_setup_steps() {
     else
       spl_dispatch_do brief "render $brief" bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/brief" "$brief" || return 1
     fi
-    # 4. worktree, before the spawn so the session starts with its settings
-    wt="${DISPATCH_REPO}-wt/$id"
+    # 4. worktree, before the spawn so the session starts with its settings;
+    # the one do_spl_dispatch_check reads (the identity map's, else
+    # <main checkout>-wt/<id>), so setup and check never name two dirs
+    wt="$(spl_dispatch_worktree "$id")"
     if [[ -d "$wt" ]]; then
       spl_dispatch_ok worktree "$wt"
     else
@@ -190,6 +192,7 @@ spl_dispatch_cnf() {
   DISPATCH_ORCH="${DISPATCH_ORCH:-CLE-001}"
   local v
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  declare -F spl_dispatch_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-check.func.sh"
   for v in DISPATCH_MASTER DISPATCH_FAILOVER DISPATCH_ORCH; do
     spl_is_participant_id "${!v}" || { do_log "FATAL $v is not an agent id: '${!v}'"; return 1; }
   done

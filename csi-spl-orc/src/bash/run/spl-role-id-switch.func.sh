@@ -42,7 +42,8 @@ do_spl_role_id_switch() {
       { do_log "FATAL could not write $conf"; return 1; }
   fi
   echo "== 3. resume as $agent_user"
-  local -a resume=(env SPOOL_ROOT="$root" bash "$feat/scripts/agent-name-resume.sh" --only "$new,$old")
+  # a dry run has not renamed yet: tell the resume, so it plans the new id
+  local -a resume=(env SPOOL_ROOT="$root" RESUME_RENAMED="$( (( dry )) && echo "$old=$new")" bash "$feat/scripts/agent-name-resume.sh" --only "$new,$old")
   (( dry )) || resume+=(--apply)
   if [[ "$(id -un)" == "$agent_user" ]]; then "${resume[@]}"; else sudo -u "$agent_user" "${resume[@]}"; fi ||
     { do_log "FATAL the resume of $new failed; see above"; return 1; }

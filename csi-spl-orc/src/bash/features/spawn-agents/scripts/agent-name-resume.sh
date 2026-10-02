@@ -22,7 +22,8 @@
 #   PLAN <pid> <id> pane=<pane> sid=<session> name '<have>' -> '<want>' env <have> -> <id>
 # Env: SPOOL_ROOT, SPOOL_BOX_TAG (else box.env), SPOOL_TMUX_SOCKET, RESUME_PROC_ROOT
 # (/proc), RESUME_SESSIONS_DIR (<agent home>/.claude/sessions), RESUME_RESTORE
-# (restore-claude-plain.sh), RESUME_TERM_WAIT (20 s).
+# (restore-claude-plain.sh), RESUME_TERM_WAIT (20 s), RESUME_RENAMED ("OLD=NEW ...":
+# renames to assume although not applied yet - a dry run of do_spl_role_id_switch).
 # Exit 0 nothing failed, 1 one resume failed, 2 usage.
 set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -50,7 +51,7 @@ tagged="$(spool_decorate x)"
   ROOT="$SPOOL_ROOT" BOX="$(spl_desk_box_default)" ORCH0="$SPOOL_ORCHESTRATOR_ID" \
   PROC="${RESUME_PROC_ROOT:-/proc}" SESS="${RESUME_SESSIONS_DIR:-$home/.claude/sessions}" \
   RESTORE="${RESUME_RESTORE:-$_here/restore-claude-plain.sh}" WAIT="${RESUME_TERM_WAIT:-20}" \
-  SELF="$$" python3 -c "$(cat <<'EOF'
+  RENAMED="${RESUME_RENAMED:-}" SELF="$$" python3 -c "$(cat <<'EOF'
 import glob, json, os, re, shlex, signal, subprocess, sys, time
 E = os.environ
 apply, proc, root, tag = E["APPLY"] == "1", E["PROC"], E["ROOT"], E["TAG"]
@@ -87,6 +88,8 @@ for l in (read(os.path.join(root, "agent-id-aliases.tsv")) or "").splitlines():
     if len(f) >= 4 and f[3] == E["BOX"] and os.path.islink(os.path.join(root, f[0])) \
             and os.readlink(os.path.join(root, f[0])) == f[1]:
         alias[f[0]] = f[1]
+for x in E.get("RENAMED", "").split():
+    if "=" in x: alias[x.split("=", 1)[0]] = x.split("=", 1)[1]
 
 rc = 0
 for sf in sorted(glob.glob(os.path.join(E["SESS"], "*.json"))):

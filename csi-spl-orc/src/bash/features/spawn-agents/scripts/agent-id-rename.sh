@@ -94,17 +94,31 @@ if [ "${#IDS[@]}" -eq 0 ]; then
   mapfile -t IDS < <(printf '%s\n' "${IDS[@]}" | sort)
 fi
 
-# _skeleton DIR: 0 when DIR holds nothing but empty inbox/outbox/archive (the
-# map's claim), so it may be replaced.
+# _skeleton DIR: 0 when DIR holds no mail to read: inbox and archive empty,
+# and besides them only an outbox (the map's claim, or the sent copies a
+# machine wrote under the new id before its role moved - the satellite,
+# 2026-10-02: c-001/outbox held 8 lease and gap notes) or an empty .pokes.
+# Such a dir may be replaced; _rm_skeleton keeps its outbox copies.
 _skeleton() {
   local e
   for e in "$1"/* "$1"/.[!.]*; do
     [ -e "$e" ] || [ -L "$e" ] || continue
-    case "${e##*/}" in inbox|outbox|archive) [ -d "$e" ] && [ -z "$(ls -A "$e")" ] || return 1 ;; *) return 1 ;; esac
+    case "${e##*/}" in
+      inbox|archive|.pokes) [ -d "$e" ] && [ -z "$(ls -A "$e")" ] || return 1 ;;
+      outbox) [ -d "$e" ] || return 1 ;;
+      *) return 1 ;;
+    esac
   done
   return 0
 }
-_rm_skeleton() { rmdir "$1/inbox" "$1/outbox" "$1/archive" 2>/dev/null || true; rmdir "$1"; }
+# _rm_skeleton DIR [KEEP]: remove the claim; its outbox copies move to KEEP
+# (a dir, made if missing) first, so the sent history survives the swap.
+_rm_skeleton() {
+  if [ -n "${2:-}" ] && [ -n "$(ls -A "$1/outbox" 2>/dev/null)" ]; then
+    mkdir -p "$2" && find "$1/outbox" -maxdepth 1 -type f -exec mv -n -t "$2" {} +
+  fi
+  rmdir "$1/inbox" "$1/outbox" "$1/archive" "$1/.pokes" 2>/dev/null || true; rmdir "$1"
+}
 
 # _swap ROOT OLD NEW: ROOT/OLD -> ROOT/NEW, ROOT/OLD a link to NEW. Prints the
 # reason and returns 1 when NEW is held by something other than a skeleton.
@@ -117,10 +131,10 @@ _swap() {
     # follows SPOOL_DIR_LAYOUT, which need not match this agent's).
     if [ -L "$root/$new" ]; then
       [ "$(readlink "$root/$new")" = "$new@$qb" ] && _skeleton "$root/$new@$qb" || { echo "$root/$new is held"; return 1; }
-      [ "$APPLY" = 1 ] && { rm -f "$root/$new"; _rm_skeleton "$root/$new@$qb"; }
+      [ "$APPLY" = 1 ] && { rm -f "$root/$new"; _rm_skeleton "$root/$new@$qb" "$root/$tgt/outbox"; }
     elif [ -d "$root/$new" ]; then
       _skeleton "$root/$new" && [ ! -e "$root/$new@$qb" ] || { echo "$root/$new is held"; return 1; }
-      [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new"
+      [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new" "$root/$tgt/outbox"
     elif [ -e "$root/$new" ] || [ -e "$root/$new@$qb" ]; then
       echo "$root/$new is held"; return 1
     fi
@@ -132,7 +146,7 @@ _swap() {
     [ "$APPLY" = 1 ] && rm -f "$root/$new"
   elif [ -e "$root/$new" ] || [ -L "$root/$new" ]; then
     [ ! -L "$root/$new" ] && [ -d "$root/$new" ] && _skeleton "$root/$new" || { echo "$root/$new is held"; return 1; }
-    [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new"
+    [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new" "$root/$old/outbox"
   fi
   [ "$APPLY" = 1 ] && { mv "$root/$old" "$root/$new"; ln -s "$new" "$root/$old"; }
   return 0
@@ -147,9 +161,13 @@ for old in "${IDS[@]}"; do
   fi
   # a role row the map writes on every machine is no error where that role is not held
   [ -e "$R/$old" ] || { echo "SKIP     ${old}: no spool dir ${R}/${old} on this machine" >&2; [ "$NAMED$ROLES" = 01 ] || rc=1; continue; }
-  wins="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_id}	#{window_name}' 2>/dev/null \
-    | awk -F'\t' -v id="$old" '{ n = $2; if (match(n, "(^|[^A-Za-z0-9])" id "([^0-9]|$)")) print }' || true)"
-  [ -n "$wins" ] || { echo "SKIP     ${old}: no tmux window carries it (not live; L9 retires it)" >&2; continue; }
+  all="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_id}	#{window_name}' 2>/dev/null || true)"
+  wins="$(awk -F'\t' -v id="$old" '{ n = $2; if (match(n, "(^|[^A-Za-z0-9])" id "([^0-9]|$)")) print }' <<<"$all")"
+  # live = a window carries the old id, or already the new one (a reconcile
+  # renamed it from a record while the process still runs as <old>: the
+  # satellite's roles, 2026-10-02); only windows with the old id are renamed
+  [ -n "$wins" ] || awk -F'\t' -v id="$new" '{ if (match($2, "(^|[^A-Za-z0-9])" id "([^0-9]|$)")) f = 1 } END { exit !f }' <<<"$all" ||
+    { echo "SKIP     ${old}: no tmux window carries it (not live; L9 retires it)" >&2; continue; }
 
   # The reconcile cron would rename the window back from the env id while
   # this runs: hold its lock for the whole agent.
@@ -188,7 +206,7 @@ for old in "${IDS[@]}"; do
       "${SPOOL_TM[@]}" set-window-option -t "$wid" automatic-rename off >/dev/null 2>&1 || true
       "${SPOOL_TM[@]}" rename-window -t "$wid" "$wnew" || { echo "WARN     ${old}: rename-window ${wid} failed" >&2; rc=1; }
     fi
-  done <<<"$wins"
+  done < <(printf '%s' "$wins" | grep . || true)
   exec 7>&-
   # 5. the hub desks it is seated on
   for env in $DESK_ENVS; do

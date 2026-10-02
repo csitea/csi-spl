@@ -86,6 +86,25 @@ eq "CLE-002 is the link to c-002" c-002 "$(readlink "$R/CLE-002")"
 has "the role window carries c-002@tg" "c-002@tg dispatcher" "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}')"
 has "the registry row too" "c-002" "$(cut -f1 "$R/registry.tsv")"
 
+# --- the satellite's shape (2026-10-02): qualified dir, the window already
+# carries the NEW id (a reconcile renamed it), and a c-001 dir holding only
+# sent copies in its outbox ------------------------------------------------------
+mkdir -p "$R/CLE-001@box-t/inbox" "$R/c-001/outbox"; ln -s CLE-001@box-t "$R/CLE-001"
+: >"$R/CLE-001@box-t/inbox/keep.json"; : >"$R/c-001/outbox/sent-1.json"
+printf 'CLE-001\tc-001\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
+t_window 'c-001@tg orchestrator' 'sleep 600' >/dev/null
+out="$(bash "$REN" --roles CLE-001 2>&1)"; eq "sat shape: the dry run exits 0 ($out)" 0 "$?"
+hasnt "...it does not skip an agent whose window already carries the new id" "SKIP     CLE-001" "$out"
+out="$(bash "$REN" --roles --apply CLE-001 2>&1)"; eq "sat shape: --apply exits 0 ($out)" 0 "$?"
+check "...c-001@box-t is the mailbox, its unread mail kept" test -e "$R/c-001@box-t/inbox/keep.json"
+check "...the old claim's sent copies kept in its outbox" test -e "$R/c-001@box-t/outbox/sent-1.json"
+eq "...c-001 links to c-001@box-t" c-001@box-t "$(readlink "$R/c-001")"
+eq "...CLE-001 links to c-001" c-001 "$(readlink "$R/CLE-001")"
+mkdir -p "$R/CLE-009/inbox" "$R/c-009/inbox"; : >"$R/c-009/inbox/unread.json"
+printf 'CLE-009\tc-009\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
+t_window 'CLE-009 x' 'sleep 600' >/dev/null
+out="$(bash "$REN" --apply CLE-009 2>&1)"; eq "control: a new id with UNREAD mail is still refused (1)" 1 "$?"
+
 # --- the identity map reads the renamed process as its new id ----------------------
 P="$T_TMP/proc"; export AI_PROC_ROOT="$P" AI_PANES_FILE="$T_TMP/panes.tsv"
 mkdir -p "$P/100" "$P/102"

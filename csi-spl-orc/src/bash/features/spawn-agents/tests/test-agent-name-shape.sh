@@ -71,6 +71,12 @@ out="$(bash "$T_SCRIPTS/agent-name-resume.sh" 2>&1)"; eq "5. the dry run exits 0
 has "5. the '<tag>: <id>' agent with no env id is planned" "PLAN 900001 c-033 pane=$PANE sid=s-900001 name 'tg: c-033' -> 'c-033@tg' env - -> c-033" "$out"
 has "5. the right one is OK" "OK   900002 c-037 'c-037@tg'" "$out"
 has "5. a renamed role is planned under its new id" "PLAN 900003 c-002 pane=- sid=s-900003 name 'CLE-002@tg' -> 'c-002@tg' env CLE-002 -> c-002" "$out"
+out="$(RESUME_RENAMED="CLE-077=c-077" bash "$T_SCRIPTS/agent-name-resume.sh" 2>&1)"
+hasnt "5. RESUME_RENAMED only maps the ids it names" "c-077" "$out"
+mk 900004 1 'CLE-077@tg' CLE-077
+out="$(RESUME_RENAMED="CLE-077=c-077" bash "$T_SCRIPTS/agent-name-resume.sh" --only c-077 2>&1)"
+has "5. RESUME_RENAMED: a dry run plans the rename to come" "PLAN 900004 c-077 pane=- sid=s-900004 name 'CLE-077@tg' -> 'c-077@tg' env CLE-077 -> c-077" "$out"
+rm -rf "$P/900004" "$S/900004.json"
 out="$(bash "$T_SCRIPTS/agent-name-resume.sh" --only c-037 2>&1)"
 hasnt "5. --only limits it" "c-033" "$out"
 cat >"$T_TMP/fake-restore.sh" <<EOF

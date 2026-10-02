@@ -37,6 +37,7 @@
 # @param DESK_AGENT (optional) - the responder agent, default RSP-01
 # @param DESK_BOX (optional) - the responder box, default box-rsp
 # @param RESP_FORWARD_TO (optional) - who the escalation is filed to, default CLE-001
+# @param RESP_SEND (optional) - the send script, default spawn-agents spool-send.sh (tests stub it)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_responder_run
 #------------------------------------------------------------------------------
@@ -81,7 +82,7 @@ do_spl_responder_run() {
     return 0
   fi
 
-  local send="$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
+  local send="${RESP_SEND:-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
   local n=0 skipped=0 fails=0 task frm mids seen
   while IFS=$'\t' read -r task frm mids seen; do
     [[ -n "$task" ]] || continue

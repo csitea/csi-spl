@@ -24,10 +24,23 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/state/dev/desk/t1/box-rsp/spool"
 
+# The forward to the orchestrator (b) is a stub that logs its argv. Before
+# CLE-77923 it was the real spool-send.sh against the real spool root: every
+# run filed the t-aaa/t-bbb/t-ddd fixtures into CLE-001's live inbox and rang
+# its pane. SPOOL_TEST=1 + a sandbox SPOOL_ROOT are the second fence, so a
+# send that escapes the stub is refused rather than delivered.
+cat >"$T/send.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$SEND_LOG"
+SH
+mkdir -p "$T/spool"
+
 # in_resp sources the funcs with every cloud/spool leg stubbed. spl_desk_spool
 # emits a canned inbox on recv; do_spl_desk_reply logs a call instead of posting.
 in_resp() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" \
+    SPOOL_TEST=1 SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/spool/box.env" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" \
+    SPOOL_FLEET_RELAY=0 RESP_SEND="$T/send.sh" \
     REPLY_LOG="$T/reply.log" SEND_LOG="$T/send.log" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -42,6 +55,7 @@ in_resp() {
 }
 
 echo '{}' >"$T/env.yaml"
+: >"$T/send.log"
 
 # --- 1. id rules -------------------------------------------------------------------
 : >"$T/reply.log"
@@ -78,6 +92,11 @@ if [ "$(grep -c '^reply ' "$T/reply.log")" = "2" ] && grep -q "DESK_TO=HUM-10 DE
   pass "DRY_RUN=0 replies once per escalation, in the right topic"
 else
   fail "DRY_RUN=0 reply set wrong: $(cat "$T/reply.log")"
+fi
+if [ "$(grep -c -- '--to CLE-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ]; then
+  pass "DRY_RUN=0 files each escalation to the orchestrator through the stubbed send"
+else
+  fail "forward set wrong (want 2 stub sends): $(cat "$T/send.log" 2>/dev/null)"
 fi
 
 # --- 4. one "Seen" per topic, ever (CLE-77847) ---------------------------------------
@@ -117,6 +136,13 @@ if [ ! -s "$T/reply.log" ] && grep -q "another responder run holds" "$T/o"; then
   pass "a concurrent run (lock held) does not answer"
 else
   fail "answered under a held lock: $(cat "$T/reply.log") / $(cat "$T/o")"
+fi
+
+# Nothing reached a spool root: the sandbox one holds no inbox, no outbox.
+if [ -z "$(find "$T/spool" -mindepth 1 -not -name box.env 2>/dev/null)" ]; then
+  pass "no message was written to any spool root (the forward stayed in the stub)"
+else
+  fail "a send escaped into the sandbox spool root: $(find "$T/spool" -mindepth 1)"
 fi
 
 echo "----"

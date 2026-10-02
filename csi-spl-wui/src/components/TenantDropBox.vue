@@ -92,6 +92,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useTenantSwitch } from '~/composables/useTenantSwitch'
+import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
 import { measureControlText, TENANT_DESKTOP_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantMatches, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 
 const TENANT_LIST_ID = 'tenant-switcher-list'
@@ -139,7 +140,7 @@ onMounted(() => {
     tenantFontObs.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
   }
   if (!view) return
-  tenantWidthMq = view.matchMedia('(max-width: 820px)')
+  tenantWidthMq = view.matchMedia(MOBILE_STACK_QUERY)
   tenantWidthMq.addEventListener('change', onTenantWidthViewport)
 })
 onBeforeUnmount(() => {

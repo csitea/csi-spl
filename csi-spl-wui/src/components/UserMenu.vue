@@ -200,6 +200,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
+import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
@@ -262,7 +263,7 @@ function items(): HTMLElement[] {
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
    media query is read too, for a shell that has not installed the stack. */
 const narrow = useMobileStack().isMobile
-const phone = () => narrow.value || window.matchMedia('(max-width: 820px)').matches
+const phone = () => narrow.value || window.matchMedia(MOBILE_STACK_QUERY).matches
 
 function placePanel() {
   // the bottom sheet is placed by CSS, not next to the button

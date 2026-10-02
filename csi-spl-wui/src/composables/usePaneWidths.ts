@@ -14,10 +14,11 @@ import {
   sidebarShown,
   topicShown,
 } from '~/utils/pane-widths.mjs'
+import { MOBILE_STACK_MAX_PX } from '~/utils/mobile-stack.mjs'
 
 /* SPL-1182: below this width the layout is one pane (phone); pane sizes are
    neither saved to nor read from the account. */
-const PANE_ACCOUNT_MIN_W = 820
+const PANE_ACCOUNT_MIN_W = MOBILE_STACK_MAX_PX
 /* fractions are rounded here so "did it change?" is stable and the payload small. */
 const FRAC = (px: number, w: number) => (w > 0 ? Math.round((px / w) * 1e4) / 1e4 : 0)
 

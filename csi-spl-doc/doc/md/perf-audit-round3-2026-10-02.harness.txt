@@ -1,0 +1,233 @@
+# perf audit round 3 (2026-10-02) - the measurement harness, kept as text
+#
+# Six small scripts. puppeteer-core comes from csi-spl-wui/node_modules (run
+# `pnpm install --frozen-lockfile` there first), Chrome is /usr/bin/google-chrome.
+# Set WUI=<the csi-spl-wui dir>. None of them posts: they load pages and read.
+#
+#   fl.mjs        signed-out first load of a DEPLOYED WUI (no credential needed)
+#                 BASE=https://<dev WUI host>/ N=10 [NET=fast4g] [SETTLE=4000] OUT=fl.json node fl.mjs
+#   mk.mjs        mock-mode first load (no hub) of a LOCAL bundle: nav -> rail Flow tab -> first Flow entry
+#                 build: NUXT_PUBLIC_USE_MOCK=1 pnpm run generate
+#                 serve: node tests/e2e/lib/serve-hosting-h2.mjs --root <dist> --port 8443 --cert <pem> --key <pem>
+#                 BASE=https://127.0.0.1:8443/ N=10 CACHES=cold [NET=fast4g] OUT=mk.json node mk.mjs
+#                 (a self-signed origin is never HTTP-cached by Chrome: report cold only)
+#   prof.mjs      V8 CPU profile of the mock phone load (CPU 4x): self ms per script and top functions
+#   crit.mjs      every non-prefetch JS/CSS request started before the rail shows (> crit.txt)
+#   variant-c.py  the P3-01 A/B variant: a copy of the mock bundle whose index.html modulepreloads
+#                 crit.txt's scripts and preloads its stylesheets; serve it on :8444 and run mk.mjs
+#                 against :8443 and :8444 alternately (N=1 per run, 5 rounds)
+#   attr.cjs      initial-JS bytes per npm package / source file via the client sourcemaps
+#                 (build with NUXT_CLIENT_SOURCEMAP=true). The "next mapping" heuristic overcounts
+#                 sparse app files: trust package totals and whole-chunk gzip, not per-app-file bytes.
+
+# ===== fl.mjs =================================================================
+import { createRequire } from 'node:module'
+import fs from 'node:fs'
+const require = createRequire(process.env.WUI + '/package.json')
+const puppeteer = require('puppeteer-core')
+const BASE = process.env.BASE
+const N = +(process.env.N || 10)
+const OUT = process.env.OUT || 'fl.json'
+const PROFILES = { d1440: { w: 1440, h: 900, mobile: false, cpu: 1 }, m390: { w: 390, h: 844, mobile: true, cpu: 4 } }
+const NET = process.env.NET === 'fast4g' ? { latency: 150, downloadThroughput: 9e6 / 8, uploadThroughput: 1.5e6 / 8, offline: false } : null
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] })
+const rows = []
+for (const [pname, p] of Object.entries(PROFILES)) {
+  for (const cache of ['cold', 'warm']) {
+    const ctx = await browser.createBrowserContext()
+    for (let i = 0; i < N + (cache === 'warm' ? 1 : 0); i++) {
+      const page = await ctx.newPage()
+      const cdp = await page.createCDPSession()
+      await cdp.send('Network.enable')
+      await cdp.send('Performance.enable')
+      if (cache === 'cold') { await cdp.send('Network.clearBrowserCache'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: false }) }
+      if (NET) await cdp.send('Network.emulateNetworkConditions', NET)
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: p.cpu })
+      await page.setViewport({ width: p.w, height: p.h, isMobile: p.mobile, hasTouch: p.mobile, deviceScaleFactor: p.mobile ? 3 : 1 })
+      const reqs = new Map()
+      cdp.on('Network.requestWillBeSent', (e) => reqs.set(e.requestId, { url: e.request.url, type: e.type, t0: e.timestamp, prio: e.request.initialPriority }))
+      cdp.on('Network.responseReceived', (e) => { const r = reqs.get(e.requestId); if (r) { r.status = e.response.status; r.disk = e.response.fromDiskCache; r.sw = e.response.fromServiceWorker; r.proto = e.response.protocol } })
+      cdp.on('Network.loadingFinished', (e) => { const r = reqs.get(e.requestId); if (r) { r.wire = e.encodedDataLength; r.t1 = e.timestamp } })
+      cdp.on('Network.requestServedFromCache', (e) => { const r = reqs.get(e.requestId); if (r) r.mem = true })
+      await page.evaluateOnNewDocument(() => {
+        window.__lt = []; window.__lcp = 0
+        new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push([e.startTime, e.duration]) }).observe({ type: 'longtask', buffered: true })
+        new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lcp = e.startTime }).observe({ type: 'largest-contentful-paint', buffered: true })
+      })
+      try { await page.goto(BASE, { waitUntil: 'load', timeout: 30000 }) } catch (e) { console.log('TIMEOUT', pname, cache, i, [...reqs.values()].filter((r) => !r.t1).map((r) => r.url).slice(0, 5)); rows.push({ profile: pname, cache, i, timeout: true }); await page.close(); continue }
+      await new Promise((r) => setTimeout(r, +(process.env.SETTLE || 4000)))
+      const m = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((x) => [x.name, x.value]))
+      const w = await page.evaluate(() => {
+        const nav = performance.getEntriesByType('navigation')[0]
+        const fcp = performance.getEntriesByName('first-contentful-paint')[0]
+        const tbt = window.__lt.reduce((s, [, d]) => s + Math.max(0, d - 50), 0)
+        return { url: location.href, dcl: nav.domContentLoadedEventEnd, fcp: fcp && fcp.startTime, lcp: window.__lcp, tbt, longtasks: window.__lt.length, nodes: document.getElementsByTagName('*').length }
+      })
+      const rl = [...reqs.values()]
+      const row = { profile: pname, cache, i, ...w, heapMB: m.JSHeapUsedSize / 1e6, nreq: rl.length, wireKB: rl.reduce((s, r) => s + (r.wire || 0), 0) / 1024, net: rl.filter((r) => !r.mem && !r.disk && !r.sw).length, reqs: rl }
+      if (!(cache === 'warm' && i === 0)) rows.push(row)
+      console.log(pname, cache, i, `fcp=${w.fcp?.toFixed(0)} lcp=${w.lcp.toFixed(0)} tbt=${w.tbt.toFixed(0)} net=${row.net} wireKB=${row.wireKB.toFixed(1)} url=${w.url}`)
+      await page.close()
+    }
+    await ctx.close()
+  }
+}
+await browser.close()
+fs.writeFileSync(OUT, JSON.stringify(rows))
+// Derived per round (summary): hop = the 2nd Document's start - the 1st's (the signed-out
+// hard redirect / -> /login); visible = hop + LCP of /login; pf = requests of CDP type
+// "Other" (rel=prefetch) not served from cache; first session probe = the first
+// request to auth/session minus the first request.
+
+# ===== mk.mjs =================================================================
+import { createRequire } from 'node:module'
+import fs from 'node:fs'
+const require = createRequire(process.env.WUI + '/package.json')
+const puppeteer = require('puppeteer-core')
+const BASE = process.env.BASE || 'https://127.0.0.1:8443/'
+const N = +(process.env.N || 10)
+const OUT = process.env.OUT || 'mk.json'
+const PROFILES = { d1440: { w: 1440, h: 900, mobile: false, cpu: 1 }, m390: { w: 390, h: 844, mobile: true, cpu: 4 } }
+const NET = process.env.NET === 'fast4g' ? { latency: 150, downloadThroughput: 9e6 / 8, uploadThroughput: 1.5e6 / 8, offline: false } : null
+const FLOW_TAB = '[data-testid=sidebar-tab-flow]'
+const FLOW_ENTRY = '[data-testid=sidebar-panel-flow] [data-testid=left-entry]'
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--ignore-certificate-errors'] })
+const rows = []
+const vis = (s) => `(() => [...document.querySelectorAll('${s}')].some((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }))()`
+for (const [pname, p] of Object.entries(PROFILES)) {
+  for (const cache of (process.env.CACHES || 'cold').split(',')) {
+    const ctx = await browser.createBrowserContext()
+    for (let i = 0; i < N; i++) {
+      const page = await ctx.newPage()
+      const cdp = await page.createCDPSession()
+      await cdp.send('Network.enable'); await cdp.send('Performance.enable')
+      if (cache === 'cold') await cdp.send('Network.clearBrowserCache')
+      if (NET) await cdp.send('Network.emulateNetworkConditions', NET)
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: p.cpu })
+      await page.setViewport({ width: p.w, height: p.h, isMobile: p.mobile, hasTouch: p.mobile, deviceScaleFactor: p.mobile ? 3 : 1 })
+      let nreq = 0, wire = 0
+      cdp.on('Network.requestWillBeSent', () => nreq++)
+      cdp.on('Network.loadingFinished', (e) => { wire += e.encodedDataLength })
+      await page.evaluateOnNewDocument(() => {
+        window.__lt = []
+        new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push([e.startTime, e.duration]) }).observe({ type: 'longtask', buffered: true })
+      })
+      const nav = page.goto(BASE, { waitUntil: 'load', timeout: 60000 })
+      await page.waitForFunction(() => location.href.startsWith('https'), { timeout: 30000 }).catch(() => {})
+      const poll = async (sel) => { for (let k = 0; k < 2400; k++) { if (await page.evaluate(vis(sel)).catch(() => false)) return page.evaluate(() => performance.now()); await new Promise((r) => setTimeout(r, 10)) } return null }
+      const rail = await poll(FLOW_TAB)
+      await page.evaluate((s) => { const el = [...document.querySelectorAll(s)].find((e) => e.getBoundingClientRect().width > 0); el && el.click() }, FLOW_TAB).catch(() => {})
+      const flow = await poll(FLOW_ENTRY)
+      await nav.catch(() => {})
+      await new Promise((r) => setTimeout(r, 2500))
+      const m = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((x) => [x.name, x.value]))
+      const w = await page.evaluate(() => {
+        const fcp = performance.getEntriesByName('first-contentful-paint')[0]
+        const lt = window.__lt
+        return { fcp: fcp && fcp.startTime, tbt: lt.reduce((s, [, d]) => s + Math.max(0, d - 50), 0), longtasks: lt.length, nodes: document.getElementsByTagName('*').length }
+      })
+      const row = { profile: pname, cache, i, rail, flow, ...w, task: m.TaskDuration * 1000, heapMB: m.JSHeapUsedSize / 1e6, nreq, wireKB: wire / 1024 }
+      rows.push(row)
+      console.log(pname, cache, i, `rail=${rail?.toFixed(0)} flow=${flow?.toFixed(0)} fcp=${w.fcp?.toFixed(0)} tbt=${w.tbt.toFixed(0)} lt=${w.longtasks} nodes=${w.nodes} nreq=${nreq} wireKB=${(wire / 1024).toFixed(0)}`)
+      await page.close()
+    }
+    await ctx.close()
+  }
+}
+await browser.close()
+fs.writeFileSync(OUT, JSON.stringify(rows))
+
+# ===== prof.mjs ===============================================================
+import { createRequire } from 'node:module'
+const require = createRequire(process.env.WUI + '/package.json')
+const puppeteer = require('puppeteer-core')
+const BASE = process.env.BASE || 'https://127.0.0.1:8443/'
+const N = +(process.env.N || 3)
+const CPU = +(process.env.CPU || 4)
+const FLOW_TAB = '[data-testid=sidebar-tab-flow]'
+const FLOW_ENTRY = '[data-testid=sidebar-panel-flow] [data-testid=left-entry]'
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--ignore-certificate-errors'] })
+const byUrl = {}, byFn = {}
+for (let i = 0; i < N; i++) {
+  const ctx = await b.createBrowserContext()
+  const p = await ctx.newPage()
+  const s = await p.createCDPSession()
+  await s.send('Emulation.setCPUThrottlingRate', { rate: CPU })
+  await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 })
+  await s.send('Profiler.enable'); await s.send('Profiler.setSamplingInterval', { interval: 200 })
+  await s.send('Profiler.start')
+  const nav = p.goto(BASE, { waitUntil: 'load' })
+  const vis = (sel) => p.evaluate((q) => [...document.querySelectorAll(q)].some((e) => e.getBoundingClientRect().width > 0), sel).catch(() => false)
+  for (let k = 0; k < 3000 && !(await vis(FLOW_TAB)); k++) await new Promise((r) => setTimeout(r, 10))
+  await p.evaluate((q) => { const el = [...document.querySelectorAll(q)].find((e) => e.getBoundingClientRect().width > 0); el && el.click() }, FLOW_TAB)
+  for (let k = 0; k < 3000 && !(await vis(FLOW_ENTRY)); k++) await new Promise((r) => setTimeout(r, 10))
+  await nav.catch(() => {})
+  const { profile } = await s.send('Profiler.stop')
+  const dt = {}; for (let j = 0; j < profile.samples.length; j++) dt[profile.samples[j]] = (dt[profile.samples[j]] || 0) + (profile.timeDeltas[j] || 0)
+  for (const n of profile.nodes) {
+    const ms = (dt[n.id] || 0) / 1000 / N; if (!ms) continue
+    const u = (n.callFrame.url || '(' + n.callFrame.functionName + ')').replace(/.*\/_nuxt\//, '')
+    byUrl[u] = (byUrl[u] || 0) + ms
+    const f = (n.callFrame.functionName || '(anon)') + ' @' + u + ':' + n.callFrame.lineNumber + ':' + n.callFrame.columnNumber
+    byFn[f] = (byFn[f] || 0) + ms
+  }
+  await ctx.close()
+}
+await b.close()
+const top = (o, k) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, k).map(([n, v]) => v.toFixed(0).padStart(6) + ' ' + n).join('\n')
+console.log('self ms per script (mean of', N, ')\n' + top(byUrl, 18) + '\n\ntop functions\n' + top(byFn, 25))
+// A function position <chunk>.js:<line>:<col> maps to its source through the SAME chunk
+// of a NUXT_CLIENT_SOURCEMAP=true build (the vendor chunks hash identically in both).
+
+# ===== crit.mjs ===============================================================
+import { createRequire } from 'node:module'
+const require = createRequire(process.env.WUI + '/package.json')
+const puppeteer = require('puppeteer-core')
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--ignore-certificate-errors'] })
+const p = await b.newPage(); await p.setViewport({ width: 1440, height: 900 })
+const s = await p.createCDPSession(); await s.send('Network.enable')
+const L = []; s.on('Network.requestWillBeSent', (e) => L.push({ u: e.request.url, t: e.type, ts: e.timestamp, init: e.initiator.type, pr: e.request.initialPriority }))
+const nav = p.goto(process.env.BASE || 'https://127.0.0.1:8443/', { waitUntil: 'load' })
+const vis = (q) => p.evaluate((q) => [...document.querySelectorAll(q)].some((e) => e.getBoundingClientRect().width > 0), q).catch(() => false)
+for (let k = 0; k < 3000 && !(await vis('[data-testid=sidebar-tab-flow]')); k++) await new Promise((r) => setTimeout(r, 5))
+const tr = (await s.send('Runtime.evaluate', { expression: 'performance.now()' })).result.value
+await nav.catch(() => {})
+const t0 = L[0].ts
+const before = L.filter((x) => (x.ts - t0) * 1000 < tr && /\/_nuxt\/.*\.(js|css)$/.test(x.u) && x.t !== 'Other')
+console.log('rail at', tr.toFixed(0), 'ms; non-prefetch js/css requested before rail:', before.length)
+for (const x of before) console.log(((x.ts - t0) * 1000).toFixed(0), x.t, x.pr, x.init, x.u.split('/').pop())
+await b.close()
+
+# ===== variant-c.py (cp -r <mock dist> mock-c first) ===========================
+import re
+lines = open('crit.txt').read().splitlines()[1:]
+crit = [l.split()[-1] for l in lines if ' Script ' in l]
+css = [l.split()[-1] for l in lines if ' Stylesheet ' in l]
+h = open('mock-c/index.html').read()
+have = set(re.findall(r'rel="modulepreload"[^>]*href="/_nuxt/([^"]+)"', h))
+add = ''.join(f'<link rel="modulepreload" as="script" crossorigin href="/_nuxt/{f}">' for f in crit if f not in have)
+add += ''.join(f'<link rel="preload" as="style" crossorigin href="/_nuxt/{f}">' for f in css)
+for f in crit + css:
+    h = re.sub(r'<link rel="prefetch"[^>]*href="/_nuxt/' + re.escape(f) + r'"[^>]*>', '', h)
+i = h.index('<link rel="modulepreload"')
+open('mock-c/index.html', 'w').write(h[:i] + add + h[i:])
+
+# ===== attr.cjs ===============================================================
+const { SourceMapConsumer } = require(process.env.WUI + '/node_modules/.pnpm/source-map-js@1.2.1/node_modules/source-map-js')
+const fs = require('fs')
+const tot = {}
+for (const f of process.argv.slice(2)) {
+  const code = fs.readFileSync(f, 'utf8'); const map = JSON.parse(fs.readFileSync(f + '.map', 'utf8'))
+  const c = new SourceMapConsumer(map); const lines = code.split('\n'); const ms = []
+  c.eachMapping((m) => ms.push(m))
+  ms.sort((a, b) => a.generatedLine - b.generatedLine || a.generatedColumn - b.generatedColumn)
+  for (let i = 0; i < ms.length; i++) {
+    const m = ms[i], n = ms[i + 1]
+    const end = n && n.generatedLine === m.generatedLine ? n.generatedColumn : lines[m.generatedLine - 1].length
+    const k = (m.source || '?').replace(/.*node_modules\/(\.pnpm\/[^/]+\/node_modules\/)?((@[^/]+\/)?[^/]+).*/, 'npm:$2').replace(/.*\/csi-spl-wui\//, '')
+    tot[k] = (tot[k] || 0) + (end - m.generatedColumn)
+  }
+}
+const all = Object.values(tot).reduce((a, b) => a + b, 0)
+console.log('mapped bytes', all)
+for (const [k, v] of Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, +(process.env.TOP || 30))) console.log(String(v).padStart(8), k)

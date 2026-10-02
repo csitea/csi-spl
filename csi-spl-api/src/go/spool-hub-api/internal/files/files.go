@@ -391,10 +391,6 @@ func writeDeterministicTar(w io.Writer, root string) error {
 }
 
 func hasDotDot(p string) bool {
-	for _, seg := range filepath.SplitList(p) {
-		_ = seg
-	}
-	// SplitList is for PATH lists; do a simple check on path separators instead.
 	sep := string(os.PathSeparator)
 	for _, s := range splitPath(p, sep) {
 		if s == ".." {

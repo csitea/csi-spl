@@ -159,7 +159,9 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	msg, err := mail.TenantInvite(email, loc, mail.InviteData{TenantID: tenant, Role: mailRole(c.Invite.Role),
 		Email: email, SignInURL: signIn, ExpiresAt: c.Invite.ExpiresAt})
 	if err != nil {
-		_ = d.Store.ReleaseInviteMail(ctx, c)
+		if rerr := d.Store.ReleaseInviteMail(ctx, c); rerr != nil {
+			log.Warn().Err(rerr).Msg("invite.mail_release_failed")
+		}
 		return res, err
 	}
 	msg.MessageID = messageID(d.AppURL)

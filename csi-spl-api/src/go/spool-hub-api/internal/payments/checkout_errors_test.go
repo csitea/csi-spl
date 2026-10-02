@@ -40,8 +40,8 @@ func (s *flakyStore) HoldCheckout(ctx context.Context, c store.Checkout, now tim
 
 type recordingCard struct {
 	PaymentProvider
-	createErr error
-	cancelled []string
+	createErr, cancelErr error
+	cancelled            []string
 }
 
 func (c *recordingCard) CreateIntent(ctx context.Context, id string, total int, cur string) (string, string, error) {
@@ -53,7 +53,33 @@ func (c *recordingCard) CreateIntent(ctx context.Context, id string, total int, 
 
 func (c *recordingCard) CancelIntent(ctx context.Context, id string) error {
 	c.cancelled = append(c.cancelled, id)
-	return nil
+	return c.cancelErr
+}
+
+// A failed hold whose provider-side cancel ALSO fails is logged with the
+// payment ref (CLE-77915: the cancel's error used to be discarded).
+func TestCheckoutCancelFailureIsLogged(t *testing.T) {
+	cfg := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000"})
+	for _, cancelErr := range []error{errors.New("provider down"), nil} {
+		st := flakyStore{Memory: store.NewMemory(), holdErr: errors.New("db down")}
+		base, _, _ := Wire(cfg)
+		card := &recordingCard{PaymentProvider: base, cancelErr: cancelErr}
+		logs := &bytes.Buffer{}
+		h, err := New(cfg, Deps{Store: &st, Log: zerolog.New(logs), Mail: &mail.Recorder{}, MailDelivers: true,
+			TenantHostPattern: pattern, Card: card})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/api/v1/checkout", strings.NewReader(`{"tenant_id":"acme","email":"buyer@example.com"}`)))
+		logged := strings.Contains(logs.String(), "the payment could not be cancelled")
+		if w.Code != 500 || len(card.cancelled) != 1 || logged != (cancelErr != nil) {
+			t.Errorf("cancelErr=%v: code %d, cancels %d, logged %v", cancelErr, w.Code, len(card.cancelled), logged)
+		}
+		if cancelErr != nil && !strings.Contains(logs.String(), card.cancelled[0]) {
+			t.Errorf("the log does not name the payment ref %q: %s", card.cancelled[0], logs.String())
+		}
+	}
 }
 
 func TestCheckoutRefusals(t *testing.T) {

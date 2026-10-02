@@ -436,7 +436,11 @@ func (h *Handler) holdCheckout(ctx context.Context, c store.Checkout, pay paymen
 	if err == nil {
 		return nil
 	}
-	_ = pay.cancel(context.WithoutCancel(ctx), pay.ref)
+	// A payment the provider still holds open is money nobody will confirm or
+	// refund by hand unless it is seen: log a failed cancel, never drop it.
+	if cerr := pay.cancel(context.WithoutCancel(ctx), pay.ref); cerr != nil {
+		h.d.Log.Error().Err(cerr).Str("checkout_id", c.ID).Str("payment_ref", pay.ref).Msg("checkout: hold failed and the payment could not be cancelled")
+	}
 	if errors.Is(err, store.ErrConflict) {
 		return &refusal{http.StatusConflict, "tenant_taken", "that tenant exists or is being bought"}
 	}

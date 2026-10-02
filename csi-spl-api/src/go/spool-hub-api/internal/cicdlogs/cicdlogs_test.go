@@ -47,7 +47,7 @@ func TestParseRunURL(t *testing.T) {
 	if err != nil || o != "acme" || r != "app" || id != "12345" || job != "" {
 		t.Fatalf("got %s %s %s %s %v", o, r, id, job, err)
 	}
-	o, r, id, job, err = ParseRunURL("https://example.test/acme/app/actions/runs/9/job/7")
+	_, _, id, job, err = ParseRunURL("https://example.test/acme/app/actions/runs/9/job/7")
 	if err != nil || id != "9" || job != "7" {
 		t.Fatalf("job: %s %s %v", id, job, err)
 	}
@@ -243,7 +243,7 @@ func TestHTTPFetcherStripsAuthOnRedirect(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/acme/app/actions/runs/1/logs", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+tok {
-			http.Error(w, "no", 401)
+			http.Error(w, "no", http.StatusUnauthorized)
 			return
 		}
 		http.Redirect(w, r, "/blob", http.StatusFound)

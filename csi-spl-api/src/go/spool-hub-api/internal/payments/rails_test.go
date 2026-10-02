@@ -44,7 +44,7 @@ type stripeAPI struct {
 func (a *stripeAPI) server(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer sk_test_abc" || r.Header.Get("Stripe-Version") != DefaultStripeAPIVersion {
-			http.Error(w, `{"error":{"message":"bad auth"}}`, 401)
+			http.Error(w, `{"error":{"message":"bad auth"}}`, http.StatusUnauthorized)
 			return
 		}
 		_ = r.ParseForm()
@@ -216,7 +216,7 @@ func (a *paypalAPI) server(t *testing.T) *httptest.Server {
 		switch {
 		case r.URL.Path == "/v1/oauth2/token":
 			if u, p, ok := r.BasicAuth(); !ok || u != "cid-1" || p != "csec-1" {
-				http.Error(w, "{}", 401)
+				http.Error(w, "{}", http.StatusUnauthorized)
 				return
 			}
 			_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))

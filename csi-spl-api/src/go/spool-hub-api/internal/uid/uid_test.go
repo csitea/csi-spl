@@ -41,7 +41,7 @@ func TestHexLength(t *testing.T) {
 			t.Errorf("Hex(%d) = %q", n, got)
 		}
 	}
-	if Hex(16) == Hex(16) {
+	if a, b := Hex(16), Hex(16); a == b {
 		t.Error("Hex(16) repeated")
 	}
 }

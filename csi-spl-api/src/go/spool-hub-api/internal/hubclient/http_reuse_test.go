@@ -26,7 +26,7 @@ func TestDefaultHTTPReusesConnections(t *testing.T) {
 	defer srv.Close()
 
 	c := New(nil)
-	if c.http() != c.http() {
+	if first, second := c.http(), c.http(); first != second {
 		t.Fatal("http() built a new client on the second call")
 	}
 	const calls = 5

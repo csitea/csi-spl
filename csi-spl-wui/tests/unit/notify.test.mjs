@@ -172,24 +172,24 @@ describe('notify escalation', () => {
     assert.match(lib, /export async function showAlert\(title, opts, env = \{\}\)/)
   })
 
-  it('CLE-35075: playChime makes the same beep and closes its AudioContext when it ends', () => {
+  it('CLE-35075: playChime makes the plain 880 Hz sound and closes its AudioContext when it ends', () => {
     const made = []
+    const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
     class FakeCtx {
-      constructor() { this.closed = false; this.currentTime = 5; this.destination = {}; made.push(this) }
-      createOscillator() { const o = { frequency: {}, connect: () => {}, start: () => { o.started = true }, stop: (t) => { o.stopAt = t } }; this.osc = o; return o }
-      createGain() { const g = { gain: {}, connect: () => {} }; this.g = g; return g }
+      constructor() { this.closed = false; this.currentTime = 5; this.destination = {}; this.oscs = []; made.push(this) }
+      createOscillator() { const o = { frequency: param(), connect: () => {}, start: () => { o.started = true }, stop: (t) => { o.stopAt = t } }; this.oscs.push(o); return o }
+      createGain() { return { gain: param(), connect: () => {} } }
       close() { this.closed = true; return Promise.resolve() }
     }
     const timers = []
     assert.equal(playChime(FakeCtx, (fn) => timers.push(fn)), true)
     const c = made[0]
-    assert.equal(c.osc.frequency.value, 880)
-    assert.equal(c.g.gain.value, 0.04)
-    assert.equal(c.osc.started, true)
-    /* HUM-24: after the lead-in */
-    assert.ok(Math.abs(c.osc.stopAt - 5.52) < 1e-9, String(c.osc.stopAt))
+    assert.ok(c.oscs.length >= 2 && c.oscs.every((o) => o.frequency.value === 880 && o.started))
+    /* HUM-24: after the lead-in; round 2: three beeps ending 0.72 s in */
+    const last = c.oscs[c.oscs.length - 1]
+    assert.ok(Math.abs(last.stopAt - 6.12) < 1e-9, String(last.stopAt))
     assert.equal(c.closed, false, 'open while it sounds')
-    c.osc.onended()
+    last.onended()
     assert.equal(c.closed, false, 'HUM-24: still open while the speaker plays it')
     timers[0]()
     assert.equal(c.closed, true, 'closed after the grace')
@@ -703,5 +703,34 @@ describe('bug A: a new message signals', () => {
     }
     for (const name of SOUND_NAMES) playSound(name, Ctx, () => {})
     assert.ok(starts.length > 0 && starts.every((t) => t >= 3 + LEAD_S - 1e-9), 'no note starts at the context\'s first sample')
+  })
+
+  /* HUM-24 round 2 (311427c6, msg d4c4c791): plain / pop / chirp still silent
+     on her Linux + Chrome, and "the sounds are the wrong length". Chrome hands
+     them to PipeWire whole (c-028, n=5 per sound, cold and warm), so the cut
+     is the device waking: every sound is now long enough to survive it */
+  it('HUM-24: every sound lasts 0.4-1.0 s, repeats a note, uses a harmonic wave and is loud enough', () => {
+    for (const name of SOUND_NAMES) {
+      const segs = SOUND_LIBRARY[name].segs
+      const end = Math.max(...segs.map((x) => (x.at || 0) + x.dur))
+      assert.ok(end >= 0.4 && end <= 1.0, `${name}: ${end} s`)
+      assert.ok(segs.length >= 2, `${name}: a cut first note leaves the rest heard`)
+      for (const x of segs) assert.ok(x.type && x.type !== 'sine', `${name}: ${x.type || 'sine'} wave`)
+      assert.ok(Math.max(...segs.map((x) => x.gain)) >= 0.1, `${name}: peak gain`)
+    }
+  })
+
+  it('HUM-24: an enveloped note holds a third of its peak to its tail, not a straight fall', () => {
+    const ramps = []
+    const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime(v, t) { ramps.push([v, t]) } })
+    class Ctx {
+      constructor() { this.currentTime = 0; this.destination = {} }
+      close() { return Promise.resolve() }
+      createOscillator() { return { frequency: param(), connect() {}, start() {}, stop() {} } }
+      createGain() { return { gain: param(), connect() {} } }
+    }
+    playSound('plain', Ctx, () => {})
+    const peak = SOUND_LIBRARY.plain.segs[0].gain
+    assert.ok(ramps.some(([v]) => Math.abs(v - peak / 3) < 1e-9), JSON.stringify(ramps))
   })
 })

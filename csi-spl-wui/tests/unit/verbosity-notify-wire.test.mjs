@@ -76,4 +76,16 @@ describe('verbosity + notify wiring', () => {
       assert.equal(keys.has(k), true, `missing write of ${k}`)
     }
   })
+
+  /* HUM-24 round 2: what arrived while the socket was down pinged nothing */
+  it('the catch-up read after a reconnect pings what the socket missed, a first load never does', () => {
+    const plugin = readFileSync(join(WUI, 'src/plugins/notify.client.ts'), 'utf8')
+    assert.match(plugin, /live\.onReconnected\(/)
+    assert.match(plugin, /applyChannels\(rows, ctx\(\)\.activeKey, \{ catchUp: catchUp\.take\('channels'\) \}\)/)
+    assert.match(plugin, /applyDms\(topics, page\.selfId, page\.activeKey, \{ catchUp: catchUp\.take\('dms'\) \}\)/)
+    assert.match(plugin, /pending\.channels = true/)
+    const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(store, /if \(opts\.catchUp\) pingMissed\(hub, activeKey\)/)
+    assert.match(store, /if \(opts\.catchUp\) pingMissed\(dm, activeKey\)/)
+  })
 })

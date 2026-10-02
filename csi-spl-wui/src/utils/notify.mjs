@@ -367,19 +367,45 @@ export function dmTotalText(total) {
  * `gain` its peak; `at` a start offset from the motif's start; `env` a quick
  * attack/decay envelope (a bare gain clicks, an envelope pops or rings).
  * `plain` is the pre-051 880 Hz beep, kept as an explicit choice.
+ *
+ * HUM-24 (311427c6, msg d4c4c791, round 2): "the first three still do not
+ * work" and "the sounds are the wrong length". Every sound was 0.10-0.24 s
+ * long at -24..-28 dBFS peak. Measured on a PipeWire null sink (n=5 per
+ * sound, cold and warm, c-028 2026-10-02): Chrome hands every one of them to
+ * the sound server whole, so what is lost is lost after it - the device or its
+ * amplifier waking. Chrome also stops its output stream after ~30 s of silence,
+ * so no context kept open can keep a device awake between alerts. Each motif is
+ * therefore 0.6-0.8 s, repeats its notes so a cut start still leaves most of it
+ * heard, uses a harmonic wave (triangle / sawtooth, never a bare sine; small
+ * speakers barely reproduce a pure tone below ~300 Hz) and peaks near -14 dBFS.
  */
 export const SOUND_LIBRARY = {
-  plain: { segs: [{ f: 880, dur: 0.12, gain: 0.04 }] },
-  pop: { segs: [{ f: 520, to: 150, dur: 0.1, gain: 0.07, env: true }] },
+  plain: { segs: [
+    { type: 'triangle', f: 880, dur: 0.16, gain: 0.2, env: true },
+    { type: 'triangle', f: 880, dur: 0.16, gain: 0.2, env: true, at: 0.24 },
+    { type: 'triangle', f: 880, dur: 0.24, gain: 0.2, env: true, at: 0.48 },
+  ] },
+  pop: { segs: [
+    { type: 'triangle', f: 1100, to: 420, dur: 0.12, gain: 0.22, env: true },
+    { type: 'triangle', f: 1100, to: 420, dur: 0.12, gain: 0.22, env: true, at: 0.22 },
+    { type: 'triangle', f: 1300, to: 480, dur: 0.16, gain: 0.22, env: true, at: 0.44 },
+  ] },
   chirp: { segs: [
-    { f: 620, dur: 0.07, gain: 0.05, env: true },
-    { f: 990, dur: 0.09, gain: 0.05, env: true, at: 0.075 },
+    { type: 'triangle', f: 660, dur: 0.12, gain: 0.2, env: true },
+    { type: 'triangle', f: 990, dur: 0.14, gain: 0.2, env: true, at: 0.13 },
+    { type: 'triangle', f: 660, dur: 0.12, gain: 0.2, env: true, at: 0.36 },
+    { type: 'triangle', f: 990, dur: 0.24, gain: 0.2, env: true, at: 0.49 },
   ] },
   marimba: { segs: [
-    { type: 'triangle', f: 523, dur: 0.2, gain: 0.06, env: true },
-    { type: 'triangle', f: 1046, dur: 0.14, gain: 0.02, env: true },
+    { type: 'triangle', f: 523, dur: 0.3, gain: 0.16, env: true },
+    { type: 'triangle', f: 659, dur: 0.3, gain: 0.16, env: true, at: 0.15 },
+    { type: 'triangle', f: 784, dur: 0.45, gain: 0.16, env: true, at: 0.3 },
+    { type: 'triangle', f: 1568, dur: 0.3, gain: 0.05, env: true, at: 0.3 },
   ] },
-  boing: { segs: [{ type: 'sawtooth', f: 400, to: 130, dur: 0.24, gain: 0.05, env: true }] },
+  boing: { segs: [
+    { type: 'sawtooth', f: 420, to: 140, dur: 0.26, gain: 0.12, env: true },
+    { type: 'sawtooth', f: 520, to: 160, dur: 0.38, gain: 0.12, env: true, at: 0.3 },
+  ] },
 }
 
 /** The sound names, in the order Settings lists them. */
@@ -411,7 +437,7 @@ export function saveChimeSound(name, store) {
  * boing (0.23 s) only lost their tail - exactly the three silent options.
  * The close now waits for the output latency plus this margin.
  */
-export const CLOSE_GRACE_S = 1
+export const CLOSE_GRACE_S = 1.5
 
 /** How long after the last note ends (context time) the context may close, in ms. */
 export function closeDelayMs(ctx) {
@@ -470,8 +496,12 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
         osc.frequency.value = s.f
       }
       if (s.env) {
+        /* HUM-24 round 2: a fast attack, a gentle fall to a third, then the
+           release - a straight fall from the peak left each note audible for
+           only its first ~40 ms (measured -50 dBFS span 0.04-0.08 s) */
         gain.gain.setValueAtTime(0.0001, start)
         gain.gain.exponentialRampToValueAtTime(s.gain, start + 0.01)
+        gain.gain.exponentialRampToValueAtTime(s.gain / 3, Math.max(start + 0.02, stop - 0.03))
         gain.gain.exponentialRampToValueAtTime(0.0001, stop)
       } else {
         gain.gain.value = s.gain

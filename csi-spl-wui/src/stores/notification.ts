@@ -333,9 +333,34 @@ export const useNotificationStore = defineStore('notification', () => {
     mentions.value = { ...mentions.value, [key]: 0 }
   }
 
-  /** Hub unread (computed against our read= cursors) wins for channel keys, except the open one. */
-  function applyChannels(rows: unknown, activeKey = '') {
+  /**
+   * HUM-24 round 2 (311427c6, "notification for new messages does not work"):
+   * what arrived while the socket was down - a hub redeploy, a network blip, a
+   * hidden tab whose reconnect timer Chrome throttles to once a minute - came
+   * back only as rail badges from the catch-up read, never as a ping. After a
+   * reconnect, the keys whose hub count grew past ours ping once together.
+   * The open feed counts only while the reader is away from the tab.
+   */
+  function pingMissed(counts: Record<string, number>, activeKey = '') {
+    if (!import.meta.client) return
+    const muted = new Set(loadMutedChannels())
+    const grew = Object.entries(counts).filter(([k, n]) => n > (unread.value[k] || 0)
+      && (k !== activeKey || away())
+      && !(k.startsWith('ch:') && muted.has(k.slice(3))))
+    if (!grew.length) return
+    const added = grew.reduce((sum, [k, n]) => sum + n - (unread.value[k] || 0), 0)
+    const names = grew.map(([k]) => (k.startsWith('dm:') ? peopleLabels([k.slice(3)], humanNames.names.value) : `#${k.slice(3)}`))
+    const title = grew.length === 1 && grew[0][0].startsWith('dm:')
+      ? i18n.t('notify.title_dm', { from: names[0] })
+      : i18n.t('notify.title_other', { from: names.slice(0, 3).join(', ') + (names.length > 3 ? ' …' : '') })
+    ping(title, `+${added}`, 'spool-missed')
+  }
+
+  /** Hub unread (computed against our read= cursors) wins for channel keys, except the open one.
+   *  `catchUp`: the read after a reconnect, which pings what the socket missed (pingMissed). */
+  function applyChannels(rows: unknown, activeKey = '', opts: { catchUp?: boolean } = {}) {
     const hub = unreadFromChannels(rows) as Record<string, number>
+    if (opts.catchUp) pingMissed(hub, activeKey)
     if (activeKey) delete hub[activeKey]
     unread.value = { ...unread.value, ...hub }
   }
@@ -345,8 +370,9 @@ export const useNotificationStore = defineStore('notification', () => {
    *  load and every reconnect — the DM twin of applyChannels. Live bumps
    *  add between refetches; a refetch overwrites the peer with the fresh count,
    *  and the open DM is left alone (it is read as it is viewed). */
-  function applyDms(topics: unknown, self = '', activeKey = '') {
+  function applyDms(topics: unknown, self = '', activeKey = '', opts: { catchUp?: boolean } = {}) {
     const dm = unreadFromDms(topics, loadCursors(), self) as Record<string, number>
+    if (opts.catchUp) pingMissed(dm, activeKey)
     if (activeKey) delete dm[activeKey]
     unread.value = { ...unread.value, ...dm }
     /* CLE-77845: the hub's totals win on every (re)load; live frames add between */

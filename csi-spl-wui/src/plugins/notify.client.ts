@@ -14,6 +14,26 @@ function activeKey(path: string, peer: string | null, channel: string | null) {
   return ''
 }
 
+/**
+ * HUM-24 round 2: the catch-up read after a reconnect pings what the socket
+ * missed (spool-live reloads channels + DMs on the same signal); a first load
+ * never does. take() reads a kind's flag once and clears it.
+ */
+function catchUpAfterReconnect(live: ReturnType<typeof useLive>) {
+  const pending = { channels: false, dms: false }
+  live.onReconnected(() => {
+    pending.channels = true
+    pending.dms = true
+  })
+  return {
+    take(kind: keyof typeof pending) {
+      const v = pending[kind]
+      pending[kind] = false
+      return v
+    },
+  }
+}
+
 export default defineNuxtPlugin(() => {
   const notes = useNotificationStore()
   const channel = useChannelStore()
@@ -57,11 +77,13 @@ export default defineNuxtPlugin(() => {
 
   watch(() => [channel.active, channel.peer, route.path] as const, markActive, { immediate: true })
 
+  const catchUp = catchUpAfterReconnect(live)
+
   /* hub unread per channel (channels-v1 §5.2), counted against our read= cursors */
   watch(
     () => channel.channels,
     (rows) => {
-      notes.applyChannels(rows, ctx().activeKey)
+      notes.applyChannels(rows, ctx().activeKey, { catchUp: catchUp.take('channels') })
       markActive()
     },
   )
@@ -74,7 +96,7 @@ export default defineNuxtPlugin(() => {
     () => channel.dmSeed,
     (topics) => {
       const page = ctx()
-      notes.applyDms(topics, page.selfId, page.activeKey)
+      notes.applyDms(topics, page.selfId, page.activeKey, { catchUp: catchUp.take('dms') })
     },
     { immediate: true },
   )

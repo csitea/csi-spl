@@ -43,6 +43,14 @@ const (
 	minPasswordLen      = 8
 )
 
+// The range any env accepts: argon2's own memory floor (8 KiB) up to 1 GiB,
+// and a password minimum of at most 128 characters.
+const (
+	argon2MemoryFloorKiB = 8
+	argon2MemoryCeilKiB  = 1 << 20
+	maxPasswordMinLen    = 128
+)
+
 // LoadNative reads the process environment. hubEnv is SPOOL_HUB_ENV.
 func LoadNative(hubEnv string) (*NativeConfig, error) { return loadNative(hubEnv, env.Options{}) }
 
@@ -77,11 +85,11 @@ func (c *NativeConfig) validate() error {
 	if deployed && (c.Argon2MemoryKiB < minArgon2MemoryKiB || c.Argon2Iterations < minArgon2Iterations) {
 		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_ARGON2_* below m=%d,t=%d is refused in dev/prd", minArgon2MemoryKiB, minArgon2Iterations)
 	}
-	if c.Argon2MemoryKiB < 8 || c.Argon2Iterations < 1 || c.Argon2MemoryKiB > 1<<20 {
+	if c.Argon2MemoryKiB < argon2MemoryFloorKiB || c.Argon2Iterations < 1 || c.Argon2MemoryKiB > argon2MemoryCeilKiB {
 		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_ARGON2_* out of range")
 	}
-	if c.PasswordMinLen < minPasswordLen || c.PasswordMinLen > 128 {
-		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_PASSWORD_MIN_LEN must be %d..128", minPasswordLen)
+	if c.PasswordMinLen < minPasswordLen || c.PasswordMinLen > maxPasswordMinLen {
+		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_PASSWORD_MIN_LEN must be %d..%d", minPasswordLen, maxPasswordMinLen)
 	}
 	if c.VerifyTTL <= 0 || c.ResetTTL <= 0 || c.RateWindow <= 0 || c.MailMinInterval < 0 {
 		return fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_* durations must be positive")

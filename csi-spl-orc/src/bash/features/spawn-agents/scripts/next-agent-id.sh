@@ -21,7 +21,8 @@
 # The id is allocated from records that PERSIST, and the allocation is a claim
 # rather than a guess:
 #
-#   floor = max(id in registry.tsv, id on a live tmux window, id with a dir)
+#   floor = max(id in registry.tsv, id on a live tmux window, id with a dir
+#           <ID> or <ID>@<box>)
 #   claim = the first id above that floor whose dir can be CREATED
 #
 # With a band, only ids inside it count toward the floor, the floor is at least
@@ -98,6 +99,31 @@ in_band() { [ "$1" -ge "$LO" ] && { [ "$HI" -eq 0 ] || [ "$1" -le "$HI" ]; }; }
 # band_max: the largest number on stdin inside the band, else 0.
 band_max() { awk -v lo="$LO" -v hi="$HI" '{ n = $0 + 0; if (n >= lo && (hi == 0 || n <= hi) && n > m) m = n } END { print m + 0 }'; }
 
+# ---- the mailbox layout (specs/058 6) -------------------------------------
+# SPOOL_DIR_LAYOUT=qualified (box.env) + SPOOL_DESK_BOX: a claim creates the
+# dir <ID>@<box> (the atomic claim) and the compat link <ID> -> <ID>@<box>, so
+# every path built from the bare id resolves. Unset: the dir <ID>, as before.
+QBOX=""
+if [ "${SPOOL_DIR_LAYOUT:-}" = qualified ]; then
+  [[ "${SPOOL_DESK_BOX:-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] \
+    || { echo "ERROR: SPOOL_DIR_LAYOUT=qualified needs a box id in SPOOL_DESK_BOX, got: '${SPOOL_DESK_BOX:-}'" >&2; exit 2; }
+  QBOX="$SPOOL_DESK_BOX"
+fi
+# _taken ID: 0 when ID has a mailbox under SPOOL_ROOT in either layout (a
+# dangling or looping link counts: a half-finished migration owns the id).
+_taken() {
+  [ -e "${SPOOL_ROOT}/$1" ] || [ -L "${SPOOL_ROOT}/$1" ] && return 0
+  compgen -G "${SPOOL_ROOT}/$1@*" >/dev/null
+}
+# _claim ID: create ID's mailbox dir, or fail when it is taken.
+_claim() {
+  _taken "$1" && return 1
+  if [ -z "$QBOX" ]; then mkdir "${SPOOL_ROOT}/$1" 2>/dev/null; return; fi
+  mkdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null || return 1
+  ln -s "$1@${QBOX}" "${SPOOL_ROOT}/$1" 2>/dev/null && return 0
+  rmdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null; return 1
+}
+
 _mkdirs() {  # ID — the dir itself already exists
   mkdir -p "${SPOOL_ROOT}/$1/inbox" "${SPOOL_ROOT}/$1/outbox" "${SPOOL_ROOT}/$1/archive"
   # 0775 dirs (local-folder-layout.md); the group bit is how the box user and
@@ -111,11 +137,11 @@ if [ -n "$CLAIM" ]; then
   in_band "$((10#${CLAIM##*-}))" \
     || echo "WARN: ${CLAIM} is outside this machine's band SPOOL_AGENT_ID_RANGE=${RANGE} (an explicit claim: no other machine may run it)" >&2
   if [ "$RESERVE" -eq 0 ]; then
-    [ -e "${SPOOL_ROOT}/${CLAIM}" ] && { echo "ERROR: ${CLAIM} is taken (${SPOOL_ROOT}/${CLAIM} exists)" >&2; exit 3; }
+    _taken "$CLAIM" && { echo "ERROR: ${CLAIM} is taken (${SPOOL_ROOT}/${CLAIM} exists)" >&2; exit 3; }
     printf '%s\n' "$CLAIM"; exit 0
   fi
   mkdir -p "$SPOOL_ROOT" 2>/dev/null || true
-  if mkdir "${SPOOL_ROOT}/${CLAIM}" 2>/dev/null; then
+  if _claim "$CLAIM"; then
     _mkdirs "$CLAIM"
     say "claimed ${CLAIM} (${SPOOL_ROOT}/${CLAIM})"
     printf '%s\n' "$CLAIM"; exit 0
@@ -150,7 +176,7 @@ say "live windows on ${SPOOL_TMUX_SOCKET}: max ${WIN_MAX}"
 DIR_MAX=0
 if [ -d "$SPOOL_ROOT" ]; then
   DIR_MAX="$(find "$SPOOL_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null \
-    | grep -E "^${PREFIX}-[0-9]+$" | grep -oE '[0-9]+$' | band_max || true)"
+    | grep -E "^${PREFIX}-[0-9]+(@[a-z0-9][a-z0-9-]*)?$" | sed 's/@.*//' | grep -oE '[0-9]+$' | band_max || true)"
   [ -n "$DIR_MAX" ] || DIR_MAX=0
 fi
 say "agent dirs under ${SPOOL_ROOT}: max ${DIR_MAX}"
@@ -172,11 +198,11 @@ while [ "$tries" -lt 1000 ]; do
   fi
   ID="$(printf '%s-%02d' "$PREFIX" "$n")"
   if [ "$RESERVE" -eq 0 ]; then
-    if [ -e "${SPOOL_ROOT}/${ID}" ]; then say "skip ${ID}: exists"; continue; fi
+    if _taken "$ID"; then say "skip ${ID}: exists"; continue; fi
     say "chose ${ID} (not claimed: --no-reserve)"
     printf '%s\n' "$ID"; exit 0
   fi
-  if mkdir "${SPOOL_ROOT}/${ID}" 2>/dev/null; then
+  if _claim "$ID"; then
     _mkdirs "$ID"
     say "claimed ${ID} (${SPOOL_ROOT}/${ID})"
     printf '%s\n' "$ID"; exit 0

@@ -75,6 +75,32 @@ eq "the band is read from box.env" QWN-200000 "$(SPOOL_ROOT="$T_TMP/m4" SPOOL_BO
 eq "a reserved role id is claimable explicitly" QWN-002 "$(SPOOL_ROOT="$T_TMP/m5" bash "$NAI" --claim QWN-002)"
 eq "...and a fresh box still never hands out 1-3" QWN-04 "$(SPOOL_ROOT="$T_TMP/m5" bash "$NAI" --kind qwen)"
 
+# specs/058 6: the qualified mailbox layout. A claim is the dir <ID>@<box> plus
+# the compat link <ID>; a qualified dir raises the floor; an id held in either
+# shape (or by a half-migrated self-loop link) is taken.
+Q="$T_TMP/q"
+eq "qualified: claim -> AGY-04 (no live window in this prefix)" AGY-04 "$(SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=sat bash "$NAI" --kind agy)"
+check "...the dir is AGY-04@sat with inbox/outbox/archive" test -d "$Q/AGY-04@sat/inbox" -a -d "$Q/AGY-04@sat/outbox" -a -d "$Q/AGY-04@sat/archive" -a ! -L "$Q/AGY-04@sat"
+eq "...and AGY-04 is the compat link to it" "AGY-04@sat" "$(readlink "$Q/AGY-04")"
+mkdir -p "$Q/AGY-30@hom"
+eq "a qualified dir raises the floor (bare layout)" AGY-31 "$(SPOOL_ROOT="$Q" bash "$NAI" --kind agy)"
+SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=sat bash "$NAI" --claim AGY-30 >/dev/null 2>&1
+eq "a claim of an id held as <ID>@<other box> exits 3" 3 "$?"
+SPOOL_ROOT="$Q" bash "$NAI" --claim AGY-30 >/dev/null 2>&1
+eq "...in the bare layout too" 3 "$?"
+ln -s AGY-40@sat "$Q/AGY-40@sat"
+SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=sat bash "$NAI" --claim AGY-40 >/dev/null 2>&1
+eq "a half-migrated self-loop owns its id" 3 "$?"
+SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=Bad_Box bash "$NAI" --kind agy >/dev/null 2>&1
+eq "qualified with no valid box refused (exit 2)" 2 "$?"
+printf 'SPOOL_DIR_LAYOUT=qualified\nSPOOL_DESK_BOX=sat\n' >"$T_TMP/q.env"
+eq "the layout is read from box.env (a link never raises the floor)" AGY-32 "$(SPOOL_ROOT="$Q" SPOOL_BOX_ENV="$T_TMP/q.env" bash "$NAI" --kind agy)"
+check "...as <ID>@<box>" test -d "$Q/AGY-32@sat" -a -L "$Q/AGY-32"
+( SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=sat bash "$NAI" --claim GRK-600 >/dev/null 2>&1; echo $? > "$T_TMP/q1" ) &
+( SPOOL_ROOT="$Q" SPOOL_DIR_LAYOUT=qualified SPOOL_DESK_BOX=sat bash "$NAI" --claim GRK-600 >/dev/null 2>&1; echo $? > "$T_TMP/q2" ) &
+wait
+eq "qualified racing claims: one 0 and one 3" "0 3" "$(sort -n "$T_TMP/q1" "$T_TMP/q2" | tr '\n' ' ' | sed 's/ $//')"
+
 # The box user defaults to the owner of the spool root, not $SUDO_USER.
 got="$(env -u SPOOL_BOX_USER SUDO_USER=nobody bash -c '. "$1/lib/spool-env.inc.sh"; spool_env_resolve; printf %s "$SPOOL_BOX_USER"' _ "$T_FEAT")"
 eq "SPOOL_BOX_USER defaults to the spool root's owner" "$(stat -c %U "$SPOOL_ROOT")" "$got"

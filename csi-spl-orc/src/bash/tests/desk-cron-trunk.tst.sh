@@ -66,5 +66,19 @@ tick; rc=$?
 tick DESK_TRUNK_CHECK=0; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'NOT on trunk' "$T/o" && pass "4. DESK_TRUNK_CHECK=0 turns it off" || fail "4. rc=$rc $(cat "$T/o")"
 
+# --- 5. the rebox pause (specs/058 6.5) -----------------------------------------------------
+P="$T/spool/.desk-reconcile.dev.pause"
+echo "do_spl_desk_rebox drain" >"$P"; : >"$T/calls"
+tick DESK_TRUNK_CHECK=0 ENV=dev; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'desks PAUSED' "$T/o" && ! grep -q 'do_spl_desk_up_all\|do_spl_desk_up_tenants' "$T/calls" &&
+  grep -q 'do_spl_dispatch_lease' "$T/calls" &&
+  pass "5. a fresh pause skips the seat steps (the lease still runs)" || fail "5. rc=$rc calls: $(cat "$T/calls") $(cat "$T/o")"
+: >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=prd
+grep -q 'do_spl_desk_up_all' "$T/calls" && pass "5. the pause is per env: prd still reconciles" || fail "5. prd: $(cat "$T/calls")"
+touch -d '2 hours ago' "$P"; : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=dev
+grep -q 'do_spl_desk_up_all' "$T/calls" && grep -q "WARN .*ignored" "$T/o" &&
+  pass "5. a pause older than DESK_PAUSE_MAX_SECS is ignored with a WARN" || fail "5. stale pause: $(cat "$T/o")"
+rm -f "$P"
+
 echo "desk-cron-trunk: $fails failure(s)"
 [[ $fails -eq 0 ]]

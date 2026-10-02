@@ -198,6 +198,24 @@ if [ "${DESK_LEASE:-1}" != 0 ]; then
   say "INFO do_spl_dispatch_lease ensure exit $?"
 fi
 
+# THE REBOX PAUSE (specs/058 6.5): while do_spl_desk_rebox moves this machine's
+# desks to a new box id, a tick would re-seat the old box and undo the drain.
+# The action writes <spool root>/.desk-reconcile.<env>.pause; while it exists
+# the seat steps are skipped (the lease and dispatch steps still run). A pause
+# older than DESK_PAUSE_MAX_SECS (default 1800) is ignored with a WARN, so a
+# window left open by mistake cannot keep the desks down for good.
+pause="${SPOOL_ROOT:-/var/spool-hub}/.desk-reconcile.$ENV_NAME.pause"
+paused=0
+if [ -e "$pause" ]; then
+  age=$(( $(date +%s) - $(stat -c %Y "$pause" 2>/dev/null || date +%s) ))
+  if [ "$age" -le "${DESK_PAUSE_MAX_SECS:-1800}" ]; then
+    paused=1; say "INFO desks PAUSED by $pause (${age}s old: $(head -c 200 "$pause" 2>/dev/null)): no seat step this tick"
+  else
+    say "WARN $pause is ${age}s old (> ${DESK_PAUSE_MAX_SECS:-1800}s): ignored, the desks are reconciled"
+  fi
+fi
+
+if [ "$paused" = 1 ]; then rc=0; else
 say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
 # DESK_MUTE travels from the crontab line through to the action. Without it a
 # tick would UNDO a deliberate mute - DESK_POKE defaults to 1, so the reconcile
@@ -220,6 +238,7 @@ if [ "${DESK_ALL_TENANTS:-1}" != 0 ]; then
   trc=$?
   say "INFO do_spl_desk_up_tenants exit $trc"
   [ "$rc" = 0 ] && [ "$trc" != 0 ] && rc=1
+fi
 fi
 
 # The dispatchers on every channel of every workspace (2026-10-01: two channels

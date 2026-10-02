@@ -29,7 +29,7 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 
 ## 2. Wave B: emit the new form
 
-- [ ] T050 L4 `next-agent-id.sh`: per-machine cursor over `004-999` (no bands), rollover `999 -> 004`, the 5 skip rules, 24 h quarantine (FR-008) + tests
+- [x] T050 L4 `next-agent-id.sh`: per-machine cursor over `004-999` (no bands), rollover `999 -> 004`, the 5 skip rules, 24 h quarantine (FR-008) + tests (`SPOOL_ID_COUNTER` / `SPOOL_ID_ROLE_LETTERS` are the Q2 / Q1 switches; `spawn-window.sh` and `spool-agent.sh` take the new ids)
 - [ ] T051 L4 `do_spl_agent_id_retire` (spec 3.6) + the `/exit-clean` hook + test
 - [ ] T052 L4 skills: count regex and examples (FR-010)
 - [ ] T060 L5 `do_spl_agent_id_map` (DRY_RUN default; written once) + test

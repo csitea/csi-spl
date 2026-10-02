@@ -145,27 +145,15 @@ tm() { as_box tmux -S "$TMUX_SOCK" "$@"; }
 # and the live windows. A box spawner may keep a registry of its own: name its
 # dir in SPOOL_AGENT_REGISTRY_DIR (a registry.tsv and one dir per id; no
 # default) and an id it once gave out is never reissued - a reissued id would
-# read the old agent's mail. The floor is the higher of the two, and the id is
-# CLAIMED (mkdir), never guessed.
+# read the old agent's mail. An id either one holds is skipped (specs/061
+# §3.5), and the id is CLAIMED (mkdir), never guessed.
 REG_DIR="${SPOOL_AGENT_REGISTRY_DIR:-}"
-engine_max() {
-  [ -n "$REG_DIR" ] || return 0
-  { cut -f1 "$REG_DIR/registry.tsv" 2>/dev/null; ls -1 "$REG_DIR" 2>/dev/null; } |
-    sed -nE "s/^(.*: )?$PREFIX-([0-9]+)\b.*/\2/p" | sort -n | tail -1
-}
 pick_id() {
-  local a n e i try
-  a="$(as_box env SPOOL_ROOT="$SEAT_ROOT/spool" SPOOL_TMUX_SOCKET="$TMUX_SOCK" \
-        bash "$_here/next-agent-id.sh" --kind "$KIND" --no-reserve 2>/dev/null)" || return 1
-  n="${a#*-}"; e="$(engine_max)"; e="${e:-0}"
-  (( 10#$e >= 10#$n )) && n=$((10#$e + 1))
-  if [ "$DRY" = 1 ]; then printf '%s-%02d\n' "$PREFIX" "$((10#$n))"; return 0; fi
-  for ((i = 0; i < 20; i++)); do
-    try="$(printf '%s-%02d' "$PREFIX" "$((10#$n + i))")"
-    as_box env SPOOL_ROOT="$SEAT_ROOT/spool" SPOOL_TMUX_SOCKET="$TMUX_SOCK" \
-      bash "$_here/next-agent-id.sh" --claim "$try" >/dev/null 2>&1 && { echo "$try"; return 0; }
-  done
-  return 1
+  local also=()
+  [ -n "$REG_DIR" ] && also=(--also-registry "$REG_DIR")
+  [ "$DRY" = 1 ] && also+=(--no-reserve)
+  as_box env SPOOL_ROOT="$SEAT_ROOT/spool" SPOOL_TMUX_SOCKET="$TMUX_SOCK" \
+    bash "$_here/next-agent-id.sh" --kind "$KIND" "${also[@]}" 2>/dev/null
 }
 ID="${AS:-${MCP_BOT_AGENT_ID:-}}"
 if [ -n "$ID" ]; then

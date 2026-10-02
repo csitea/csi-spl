@@ -39,7 +39,6 @@ case "$KIND" in claude|grok|agy|qwen) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
-PREFIX="$(spool_prefix_of_kind "$KIND")"
 
 # The session first: an id is claimed only once there is a window to put it
 # in, so a spawn that cannot start leaves no orphan claim behind.
@@ -60,7 +59,7 @@ if [ "$TITLE" = auto ]; then
   fi
 else
   spool_valid_id "$TITLE" || exit 2
-  [ "${TITLE%%-*}" = "$PREFIX" ] || { echo "spawn-window: ${TITLE} is not a ${KIND} id (${PREFIX}-N)" >&2; exit 2; }
+  [ "$(spl_kind_of_agent_id "$TITLE")" = "$KIND" ] || { echo "spawn-window: ${TITLE} is not a ${KIND} id" >&2; exit 2; }
   if [ "${SPAWN_REUSE_ID:-0}" != 1 ]; then
     if [ "$DRY" = 1 ]; then
       [ ! -e "${SPOOL_ROOT}/${TITLE}" ] || { echo "spawn-window: ${TITLE} is taken (${SPOOL_ROOT}/${TITLE})" >&2; exit 3; }

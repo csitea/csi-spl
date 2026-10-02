@@ -31,7 +31,7 @@ git -C "$T_TMP/repo" -c user.name=t -c user.email=t@example.com commit -q --allo
 git -C "$T_TMP/repo" remote add origin "$T_TMP/origin.git"
 git -C "$T_TMP/repo" push -q origin master 2>/dev/null
 
-printf 'CLE-04\tclaude\t%%1\t/x\t20260101T000000Z\n' > "$SPOOL_ROOT/registry.tsv"
+printf 'c-004\tclaude\t%%1\t/x\t20260101T000000Z\n' > "$SPOOL_ROOT/registry.tsv"
 state() {
   echo "-- registry"; cat "$SPOOL_ROOT/registry.tsv" 2>/dev/null
   echo "-- spool";    (cd "$SPOOL_ROOT" && find . | sort)
@@ -52,7 +52,7 @@ for title in auto CLE-4441; do
   has "$title: prints the launcher's plan (registry)" "PLAN registry" "$out"
   check "$title: no worktree dir on disk" test ! -e "$T_TMP/repo-wt"
 done
-has "auto: names the id it would take, without claiming it" "PLAN claim      CLE-05" \
+has "auto: names the id it would take, without claiming it" "PLAN claim      c-005" \
   "$(SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude auto "$T_TMP/repo" "$T_TMP/brief.md" x 2>&1)"
 
 t_done

@@ -30,12 +30,12 @@ bash "$SW" grok CLE-4442 "$WD" >/dev/null 2>&1; eq "kind/prefix mismatch refused
 bash "$SW" agy BOX-1 "$WD" >/dev/null 2>&1;     eq "BOX id refused (exit 2)" 2 "$?"
 
 out="$(bash "$SW" agy auto "$WD")"; read -r ID PANE <<<"$out"
-eq "auto allocates the first AGY id (1-3 are reserved)" AGY-04 "$ID"
+eq "auto allocates the first agy id (001-003 are reserved)" a-004 "$ID"
 eq "focus still on the original window" home "$(active)"
 
 out="$(SPOOL_BOX_TAG=tg bash "$SW" grok auto "$WD")"; read -r ID PANE <<<"$out"
-eq "auto allocates GRK-04" GRK-04 "$ID"
-has "SPOOL_BOX_TAG decorates the window name <ID>@<box>" "GRK-04@tg" "$("${TM[@]}" list-windows -t t -F '#{window_name}')"
+eq "auto allocates g-005 (one counter per machine, specs/061 Q2)" g-005 "$ID"
+has "SPOOL_BOX_TAG decorates the window name <ID>@<box>" "g-005@tg" "$("${TM[@]}" list-windows -t t -F '#{window_name}')"
 
 SPOOL_TMUX_SOCKET="$T_TMP/none.sock" bash "$SW" claude CLE-4450 "$WD" >/dev/null 2>&1
 eq "no tmux session: exit 5" 5 "$?"

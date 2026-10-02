@@ -40,8 +40,8 @@ export SPOOL_BOX_USER="$(id -un)"
 export SPOOL_AGENT_DESK_ROOT="$T_TMP/desk"
 export SPOOL_AGENT_REGISTRY_DIR="$T_TMP/reg"
 export SPOOL_AGENT_HOOKS_DIR="$T_TMP/hooks"
-mkdir -p "$SPOOL_AGENT_DESK_ROOT/spool" "$SPOOL_AGENT_REGISTRY_DIR/GRK-900" "$T_TMP/bin"
-printf 'GRK-950\tgrok\t%%1\t/x\t20260101T000000Z\n' >"$SPOOL_AGENT_REGISTRY_DIR/registry.tsv"
+mkdir -p "$SPOOL_AGENT_DESK_ROOT/spool" "$SPOOL_AGENT_REGISTRY_DIR/g-004" "$T_TMP/bin"
+printf 'g-005\tgrok\t%%1\t/x\t20260101T000000Z\n' >"$SPOOL_AGENT_REGISTRY_DIR/registry.tsv"
 
 # the desk action stub: records its env, makes the seat dir like do_spl_desk_up
 cat >"$T_TMP/run" <<'EOF'
@@ -74,24 +74,24 @@ has "2. --as wins over MCP_BOT_AGENT_ID" "id: CLE-42" "$out"
 out="$(MCP_BOT_AGENT_ID=CLE-77 bash "$AGENT" --dry-run claude 2>&1)"
 has "2. MCP_BOT_AGENT_ID is used when there is no --as" "id: CLE-77" "$out"
 out="$(env -u MCP_BOT_AGENT_ID bash "$AGENT" --dry-run grok 2>&1)"
-has "2. a new id is above the spawner's registry (GRK-950)" "id: GRK-951" "$out"
+has "2. a new id skips the spawner's registry (g-004 dir, g-005 row)" "id: g-006" "$out"
 out="$(env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_REGISTRY_DIR bash "$AGENT" --dry-run grok 2>&1)"
-has "2. CONTROL: without SPOOL_AGENT_REGISTRY_DIR the desk alone decides" "id: GRK-04" "$out"
+has "2. CONTROL: without SPOOL_AGENT_REGISTRY_DIR the desk alone decides" "id: g-004" "$out"
 
 # --- a real (stubbed) run: grok, new id -----------------------------------------------------
 env -u MCP_BOT_AGENT_ID bash "$AGENT" grok --flag >/dev/null 2>&1; rc=$?
 eq "4. the grok run exits 0" 0 "$rc"
-check "2. the new id is claimed on the desk" test -d "$SPOOL_AGENT_DESK_ROOT/spool/GRK-951"
-has "4. the desk action seats that id" "RUN -a do_spl_desk_up ENV=dev TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=GRK-951" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
-has "4. the CLI runs as that id" "grok id=GRK-951 spool=GRK-951 args=--flag" "$(cat "$T_TMP/cli.log")"
-eq "4. the window carries the id, box tag kept" "tbox: GRK-951" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P1" '#{window_name}')"
+check "2. the new id is claimed on the desk" test -d "$SPOOL_AGENT_DESK_ROOT/spool/g-006"
+has "4. the desk action seats that id" "RUN -a do_spl_desk_up ENV=dev TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=g-006" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+has "4. the CLI runs as that id" "grok id=g-006 spool=g-006 args=--flag" "$(cat "$T_TMP/cli.log")"
+eq "4. the window carries the id, box tag kept" "tbox: g-006" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P1" '#{window_name}')"
 check "3. grok gets ~/.grok/hooks/spool-mirror.json" test -s "$HOME/.grok/hooks/spool-mirror.json"
 has "3. CONTROL: the grok hook calls this checkout's spool-mirror.py" "$T_SCRIPTS/spool-mirror.py" "$(cat "$HOME/.grok/hooks/spool-mirror.json" 2>/dev/null)"
 
 # --- claude, the id the window already carries ------------------------------------------------
 : >"$T_TMP/cli.log"
-MCP_BOT_AGENT_ID=GRK-951 bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
-eq "5. a window that carries the id is not renamed" "tbox: GRK-951" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P1" '#{window_name}')"
+MCP_BOT_AGENT_ID=g-006 bash "$AGENT" --as g-006 grok >/dev/null 2>&1
+eq "5. a window that carries the id is not renamed" "tbox: g-006" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P1" '#{window_name}')"
 P2="$(t_window 'tbox: CLE-60 work' 'sleep 600')"
 TMUX_PANE="$P2" bash "$AGENT" --as CLE-60 claude --model x >/dev/null 2>&1
 line="$(tail -1 "$T_TMP/cli.log")"
@@ -210,6 +210,6 @@ has "11. mcpServers is kept" '"spool-dev"' "$qs"
 env -u TMUX_PANE QWN_TMUX_PANE="$P4" bash "$AGENT" --as QWN-71 qwen >/dev/null 2>&1
 eq "11. a re-run keeps one mirror hook per event" 2 "$(grep -o 'spool-mirror.py hook' "$HOME/.qwen/settings.json" | wc -l)"
 next="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run qwen 2>&1)"
-has "11. a new qwen id is a QWN id" "id: QWN-" "$next"
+has "11. a new qwen id is a q- id" "id: q-" "$next"
 
 t_done

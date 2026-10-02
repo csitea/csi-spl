@@ -52,25 +52,28 @@ printf 'SPOOL_AGENT_ID=%s\0' "$2" >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $3) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
 EOF
-# tmux: panes in $T/tmux/panes as "<pane>\t<pid>\t<session>\t<name>"
+# tmux: panes in $T/tmux/panes as "<pane>\t<pid>\t<session>\t<name>". A
+# capture with -e also draws the CLI input box (typed.<pane>; C-c empties it),
+# which the RETIRE reads back before Enter (CLE-77951, orch-rotate case 11).
 cat >"$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 P="$T/tmux/panes"; L="$T/tmux/log"
 cmd="$1"; shift
-tgt="" lit=0 args=()
-while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -l) lit=1; shift ;; -a|-p|-J) shift ;; -F|-S) shift 2 ;; *) args+=("$1"); shift ;; esac; done
+tgt="" lit=0 esc=0 args=()
+while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -l) lit=1; shift ;; -a|-p|-J) shift ;; -e) esc=1; shift ;; -F|-S) shift 2 ;; *) args+=("$1"); shift ;; esac; done
 field() { awk -F'\t' -v p="$tgt" -v f="$1" '$1 == p {print $f}' "$P"; }
 case "$cmd" in
   list-panes) awk -F'\t' '{print $2" "$1}' "$P" ;;
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
-    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'routed the t1 post\n❯ \n'; fi ;;
+    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'routed the t1 post\n❯ \n'; fi
+    if [ "$esc" = 1 ]; then printf '────────\n❯ %s\n────────\n' "$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
     echo "rename $tgt ${args[0]}" >>"$L" ;;
   send-keys) k="${args[0]}"; echo "keys $tgt $k" >>"$L"
     if [ "$lit" = 1 ]; then printf '%s' "$k" >>"$T/tmux/typed.$tgt"
-    elif [ "$k" = C-u ]; then : >"$T/tmux/typed.$tgt"
+    elif [ "$k" = C-u ] || [ "$k" = C-c ]; then : >"$T/tmux/typed.$tgt"
     elif [ "$k" = Enter ]; then
       if grep -q '^/exit' "$T/tmux/typed.$tgt" 2>/dev/null && [ ! -f "$T/tmux/stubborn.$tgt" ]; then rm -rf "$T/proc/$(field 2)"; fi
       : >"$T/tmux/typed.$tgt"

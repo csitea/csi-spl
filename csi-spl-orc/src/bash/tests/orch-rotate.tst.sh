@@ -28,6 +28,9 @@
 #   9. T-ACK-FORGED: a wrong pid, an unknown rid -> exit 3
 #  10. T-CRON: dry run, exact line at :05, idempotent, check, CRON_REMOVE=1,
 #      a worktree source refused, a missing tool named
+#  11. T-ORCH-PENDING-INPUT: a multi-row input the Escape put back is emptied
+#      whole and exactly /exit-clean is submitted; control: an empty box gets
+#      no C-c; a box that never reads the command: no Enter, SIGTERM
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -59,29 +62,46 @@ printf 'SPOOL_AGENT_ID=CLE-900\0' >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $2) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
 EOF
-# tmux: panes in $T/tmux/panes as "<pane>\t<pid>\t<session>\t<name>"
+# tmux: panes in $T/tmux/panes as "<pane>\t<pid>\t<session>\t<name>". A
+# capture with -e also draws the CLI input box as measured on a real claude
+# (2026-10-02): rows between two ─ rules, "❯ " then "  " indents, an empty box
+# = ❯ NBSP + dim ghost text. typed.<pane> is the box: C-u empties its LAST row
+# only, C-c every row (on an empty box it only arms the exit hint), Enter
+# submits the WHOLE box ("submit" in the log). Escape moves a queued.<pane>
+# message back into the box, as a busy claude does with a queued poke.
 cat >"$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 P="$T/tmux/panes"; L="$T/tmux/log"
 cmd="$1"; shift
-tgt="" lit=0 args=()
-while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -l) lit=1; shift ;; -a|-p|-J) shift ;; -F|-S) shift 2 ;; *) args+=("$1"); shift ;; esac; done
+tgt="" lit=0 esc=0 args=()
+while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -l) lit=1; shift ;; -a|-p|-J) shift ;; -e) esc=1; shift ;; -F|-S) shift 2 ;; *) args+=("$1"); shift ;; esac; done
 field() { awk -F'\t' -v p="$tgt" -v f="$1" '$1 == p {print $f}' "$P"; }
 case "$cmd" in
   list-panes) awk -F'\t' '{print $2" "$1}' "$P" ;;
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
-    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'some output\n❯ \n'; fi ;;
+    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'some output\n❯ \n'; fi
+    if [ "$esc" = 1 ] && [ ! -f "$T/tmux/nobox.$tgt" ]; then
+      printf '────────\n'
+      if [ -s "$T/tmux/typed.$tgt" ]; then awk 'NR == 1 {print "❯ " $0; next} {print "  " $0}' "$T/tmux/typed.$tgt"
+      else printf '❯\302\240\033[2mTry "how does <filepath> work?"\033[0m\n'; fi
+      printf '────────\n  ⏵⏵ auto mode on\n'
+    fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
     echo "rename $tgt ${args[0]}" >>"$L" ;;
   send-keys) k="${args[0]}"; echo "keys $tgt $k" >>"$L"
     if [ "$lit" = 1 ]; then printf '%s' "$k" >>"$T/tmux/typed.$tgt"
-    elif [ "$k" = C-u ]; then : >"$T/tmux/typed.$tgt"
+    elif [ "$k" = C-u ]; then b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"
+      case "$b" in *$'\n'*) printf '%s\n' "${b%$'\n'*}" ;; esac >"$T/tmux/typed.$tgt"
+    elif [ "$k" = C-c ]; then
+      if [ -s "$T/tmux/typed.$tgt" ]; then : >"$T/tmux/typed.$tgt"; else echo "armed $tgt" >>"$L"; fi
     elif [ "$k" = Escape ]; then
+      [ -f "$T/tmux/queued.$tgt" ] && mv "$T/tmux/queued.$tgt" "$T/tmux/typed.$tgt"
       [ -f "$T/tmux/escape-stops.$tgt" ] && printf 'working on the satellite drill\n  ⎿  Interrupted · What should Claude do instead?\n❯ \n' >"$T/tmux/screen.$tgt"
     elif [ "$k" = Enter ]; then
-      if grep -q '^/exit' "$T/tmux/typed.$tgt" 2>/dev/null && [ ! -f "$T/tmux/stubborn.$tgt" ]; then rm -rf "$T/proc/$(field 2)"; fi
+      b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; echo "submit $tgt $(printf '%s' "$b" | tr '\n' '|')" >>"$L"
+      case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac
       : >"$T/tmux/typed.$tgt"
     fi ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; echo "kill $tgt" >>"$L" ;;
@@ -320,6 +340,32 @@ act ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=1001 >"$T/o" 2>&1; rc=$?
 act ROTATE_CMD=ack ROTATE_ID=20000101T0000Z-orch ROTATE_CALLER_PID=2001 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 3 ]] && grep -q 'refused: not the rotation in flight' "$T/o" && pass "9. an unknown rid: exit 3" || fail "9. rid rc=$rc $(cat "$T/o")"
 ! grep -q "orch-rotate-$rid" "$T/send.log" 2>/dev/null && pass "9. ... and nothing was sent" || fail "9. a forged ack was sent"
+
+# --- 11. T-ORCH-PENDING-INPUT (CLE-77951): RETIRE types into an emptied box ---------------------
+# CLE-77939 rotation 20261002T0454Z-orch: the QUIESCE Escape put a queued
+# multi-row poke back into the box, C-u emptied only its last row, and
+# /exit-clean went out appended to the poke; SIGTERM 300 s later.
+world; touch "$T/tmux/escape-stops.%2"
+printf 'SPOOL CLE-002: poke line one\npoke line two\npoke line three' >"$T/tmux/queued.%2"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -qx 'keys %2 C-c' "$T/tmux/log" &&
+  [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" && ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null &&
+  pass "11. a 3-row pending input: C-c empties it, Enter submits exactly /exit-clean, no SIGTERM" ||
+  fail "11. pending rc=$rc $(grep -E '^(submit|keys %2 C-)' "$T/tmux/log") $(grep RETIRE "$T/o")"
+world
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -d "$T/proc/1001" ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] &&
+  ! grep -qE '^(keys %2 C-c|armed %2)$' "$T/tmux/log" && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" &&
+  pass "11. control: an empty box (ghost text only) gets no C-c, submits exactly /exit-clean" ||
+  fail "11. control rc=$rc $(grep -E '^(submit|keys %2 C-|armed)' "$T/tmux/log") $(grep RETIRE "$T/o")"
+world; touch "$T/tmux/nobox.%2"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && ! grep -q '^submit %2' "$T/tmux/log" &&
+  grep -q "RETIRE WAIT try 1: input box of %2 reads '(no input box)', not '/exit-clean'" "$T/o" &&
+  grep -q "RETIRE WAIT try 2: input box of %2 reads" "$T/o" &&
+  grep -q "RETIRE WAIT pid 1001: '/exit-clean' never read back, no Enter: SIGTERM" "$T/o" && grep -q '^kill -TERM 1001$' "$T/kill.log" &&
+  pass "11. a box that never reads the command: one retry, no Enter, logged, SIGTERM" ||
+  fail "11. nobox rc=$rc $(grep RETIRE "$T/o") $(grep submit "$T/tmux/log")"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

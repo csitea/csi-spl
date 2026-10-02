@@ -518,18 +518,63 @@ spl_rotate_restore() {
 
 # ---- RETIRE (FR-015) -----------------------------------------------------------
 
-# spl_rotate_end PANE PID CMD WAIT TERM_WAIT: CMD typed into the pane (its
-# input line cleared first; a busy session queues it), then SIGTERM after
-# WAIT s, SIGKILL after TERM_WAIT s more; each signal logged. 0 once gone.
-spl_rotate_end() {
-  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" t0
-  spl_rotate_alive "$pid" || return 0
-  spl_rotate_tmux send-keys -t "$pane" C-u 2>/dev/null || true
+# spl_rotate_input PANE: the text in the CLI's input box, one line per row,
+# blank rows dropped: the rows between the last two ─ rules, with the ❯
+# marker, the indent and the DIM ghost suggestion cut away (the ghost cut is
+# spool_notify_strip_ghost's). Exit 1 when no box is on screen. Measured on a
+# throwaway claude 2026-10-02: an empty box is "❯<NBSP>ESC[2mTry ...", three
+# typed rows are "❯ a" / "  b" / "  c", and the slash menu draws ABOVE it.
+spl_rotate_input() {
+  local esc=$'\033' nbsp=$' '
+  spl_rotate_tmux capture-pane -p -e -t "$1" 2>/dev/null |
+    sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g; s/${nbsp}/ /g" |
+    awk '{ l[NR] = $0 } /^─/ { r[++n] = NR }
+      END { if (n < 2) exit 1
+        for (i = r[n - 1] + 1; i < r[n]; i++) {
+          s = l[i]; sub(/^ */, "", s); sub(/^❯/, "", s); sub(/^ +/, "", s); sub(/ +$/, "", s)
+          if (s != "") print s } }'
+}
+
+# spl_rotate_type PANE CMD: the WHOLE input box emptied, CMD typed, 0 only
+# when the box then reads exactly CMD; what it read is left in
+# ROTATE_INPUT_READ. C-u empties one row only: CLE-77939's QUIESCE Escape put
+# a multi-row poke back into the box and /exit-clean was sent appended to it.
+# C-c empties every row, and is sent only to a box that holds text: on an
+# empty box it arms "Press Ctrl-C again to exit" (both measured 2026-10-02).
+spl_rotate_type() {
+  local pane="$1" cmd="$2"
+  ROTATE_INPUT_READ="$(spl_rotate_input "$pane")" || { ROTATE_INPUT_READ="(no input box)"; return 1; }
+  if [[ -n "$ROTATE_INPUT_READ" ]]; then
+    spl_rotate_tmux send-keys -t "$pane" C-c 2>/dev/null || true
+    sleep 1
+    ROTATE_INPUT_READ="$(spl_rotate_input "$pane")" || { ROTATE_INPUT_READ="(no input box)"; return 1; }
+    [[ -z "$ROTATE_INPUT_READ" ]] || return 1
+  fi
   spl_rotate_tmux send-keys -t "$pane" -l "$cmd" 2>/dev/null || true
   sleep 1
-  spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
-  t0=$SECONDS; while (( SECONDS - t0 < wait )); do spl_rotate_alive "$pid" || return 0; sleep 1; done
-  spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${wait}s after '$cmd': SIGTERM"
+  ROTATE_INPUT_READ="$(spl_rotate_input "$pane")" || { ROTATE_INPUT_READ="(no input box)"; return 1; }
+  [[ "$ROTATE_INPUT_READ" == "$cmd" ]]
+}
+
+# spl_rotate_end PANE PID CMD WAIT TERM_WAIT: CMD typed into the emptied input
+# box and Enter only once the box reads exactly CMD (one retry; a busy session
+# queues it), then SIGTERM after WAIT s, SIGKILL after TERM_WAIT s more. A box
+# that never reads CMD gets no Enter and goes straight to SIGTERM. Each
+# fallback logged. 0 once gone.
+spl_rotate_end() {
+  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" t0 try typed=0
+  spl_rotate_alive "$pid" || return 0
+  for try in 1 2; do
+    spl_rotate_type "$pane" "$cmd" && { typed=1; break; }
+    spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "try $try: input box of $pane reads '$(printf '%s' "$ROTATE_INPUT_READ" | tr '\n' '|' | cut -c1-120)', not '$cmd'"
+  done
+  if (( typed )); then
+    spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
+    t0=$SECONDS; while (( SECONDS - t0 < wait )); do spl_rotate_alive "$pid" || return 0; sleep 1; done
+    spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${wait}s after '$cmd': SIGTERM"
+  else
+    spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid: '$cmd' never read back, no Enter: SIGTERM"
+  fi
   ${ROTATE_KILL:-sudo -n kill} -TERM "$pid" 2>/dev/null || true
   t0=$SECONDS; while (( SECONDS - t0 < twait )); do spl_rotate_alive "$pid" || return 0; sleep 1; done
   spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${twait}s after SIGTERM: SIGKILL"

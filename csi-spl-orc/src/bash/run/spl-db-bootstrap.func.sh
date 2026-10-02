@@ -56,7 +56,7 @@ do_spl_db_bootstrap() {
   rt_user=""; [[ -n "$rt_dsn" ]] && rt_user="$(spl_dsn_user "$rt_dsn")"
   case "$rt_user" in
     "") runtime=fresh ;;
-    "$SPL_DB_USER") runtime=split ;;
+    "$SPL_DB_USER") runtime='split' ;;
     "$SPL_DB_OWNER_USER") runtime=owner ;;
     *) do_log "FATAL $SPL_DSN_SECRET holds '$rt_user', neither $SPL_DB_USER nor $SPL_DB_OWNER_USER"; return 1 ;;
   esac

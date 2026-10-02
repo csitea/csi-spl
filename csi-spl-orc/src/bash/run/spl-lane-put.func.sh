@@ -26,7 +26,7 @@ do_spl_lane_put() {
     do_log "INFO no fleet (LANE_FLEET / LEASE_FLEET in lease.conf): the lane map is this machine's worktrees, nothing to write"
     return 0
   fi
-  if [[ "$state" == done ]]; then
+  if [[ "$state" == "done" ]]; then
     cur="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null | jq -c --arg a "$LANE_AGENT" '.lanes[]? | select(.agent_id == $a)' 2>/dev/null)"
   fi
   # lane_was <field>: that field of the hub row read above ("" without one);

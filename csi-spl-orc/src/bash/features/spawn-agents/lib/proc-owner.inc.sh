@@ -68,7 +68,7 @@ spool_proc_as_owner() {  # ROOT PID ARGV...
   local root="$1" pid="$2" mode user
   shift 2
   mode="$(_spool_hop_mode "$root")" || return 0
-  if [ "$mode" = force ]; then user=test
+  if [ "$mode" = force ]; then user='test'
   else
     user="$(stat -c %U "$root/$pid" 2>/dev/null)"
     [ -n "$user" ] && [ "$user" != "$(id -un)" ] || return 0

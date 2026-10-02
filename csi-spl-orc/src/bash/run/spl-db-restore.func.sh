@@ -52,7 +52,7 @@ do_spl_db_restore() {
   bucket="$(spl_db_backup_bucket)" || return 1
   spl_offsite_cnf || return 1
   local src="${BACKUP_SOURCE:-}"
-  [[ -n "$src" ]] || { src=env; [[ "$SPL_OFFSITE_ENABLED" == true ]] && src=bkp; }
+  [[ -n "$src" ]] || { src='env'; [[ "$SPL_OFFSITE_ENABLED" == true ]] && src=bkp; }
   # under <env>/ only: restore/ holds staged copies, never a source
   local base="gs://$bucket/$ENV"
   case "$src" in

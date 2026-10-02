@@ -62,7 +62,7 @@ do_spl_desk_pin() {
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local mode=check
   [[ -n "$rkj" ]] && mode=self
-  [[ -n "$other" ]] && mode=admin
+  [[ -n "$other" ]] && mode='admin'
   (( revoke )) && mode=revoke
   if (( dry )); then
     case "$mode" in

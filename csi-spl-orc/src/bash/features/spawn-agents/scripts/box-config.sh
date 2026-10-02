@@ -39,6 +39,9 @@ for kv in "$@"; do
   if [ "$k" = SPOOL_DESK_BOX ] && [ -n "$v" ] && { ! [[ "$v" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || [ "$v" = box-wui ]; }; then
     echo "box-config: SPOOL_DESK_BOX must be a box id (^[a-z0-9][a-z0-9-]{0,31}\$, not box-wui), got '$v'" >&2; exit 2
   fi
+  if [ "$k" = SPOOL_BOX_TAG ] && [ -n "$v" ] && ! [[ "$v" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; then
+    echo "box-config: SPOOL_BOX_TAG must be a box tag (^[a-z0-9][a-z0-9-]{0,31}\$), got '$v'" >&2; exit 2
+  fi
   if [ "$k" = SPOOL_FLEET_ENV ] && [ -n "$v" ] && ! [[ "$v" =~ ^(dev|prd|self)$ ]]; then
     echo "box-config: SPOOL_FLEET_ENV must be dev, prd or self, got '$v'" >&2; exit 2
   fi

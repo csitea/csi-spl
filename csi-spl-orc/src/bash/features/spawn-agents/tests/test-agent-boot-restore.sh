@@ -17,6 +17,10 @@
 #   4. the cron line: dry run writes nothing; DRY_RUN=0 writes ONE exact
 #      @reboot line, other lines kept, idempotent; check; remove
 #   5. the cron script names a missing tool (exit 3)
+#   6. the box tag (the satellite, 2026-10-02: every agent came back bare,
+#      "CLE-001" not "CLE-001@sat"): with no tag in the environment, as under
+#      cron, box.env's SPOOL_BOX_TAG names the window "<ID>@<tag>", reaches
+#      the adapter, and the real claude adapter passes --name '<ID>@<tag>'
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -35,6 +39,7 @@ tm() { tmux -S "$SPOOL_TMUX_SOCKET" "$@"; }
 cat > "$A/restore-claude.sh" <<EOF
 #!/usr/bin/env bash
 printf '%s|%s\n' "\$1" "\${SPOOL_AGENT_USER:-unset}" >> "$T_TMP/started"
+printf '%s|%s\n' "\$1" "\${SPOOL_BOX_TAG:-unset}" >> "$T_TMP/started-tag"
 cd "\$2" || exit 1
 export HOME="$HB" SPOOL_AGENT_ID="\$1"
 st=\$(sed 's/^.*) //' /proc/\$\$/stat | cut -d' ' -f20)
@@ -49,12 +54,15 @@ printf '#!/usr/bin/env bash\ncat "%s/ps.out" 2>/dev/null\n' "$T_TMP" > "$B/ps"; 
 slug="$(printf '%s' "$W/CLE-61" | sed 's/[^A-Za-z0-9]/-/g')"
 mkdir -p "$HB/.claude/projects/$slug"
 printf '{"type":"agent-name","agentName":"CLE-61"}\n' > "$HB/.claude/projects/$slug/s-61.jsonl"
+rec61() {
 python3 - "$SPOOL_ROOT/agents/CLE-61.json" "$W/CLE-61" "$BX" <<'PY'
 import json, sys
 json.dump({"v": 1, "id": "CLE-61", "kind": "claude", "session_id": "s-61", "worktree": sys.argv[2], "title": "lane 61",
            "user": sys.argv[3], "pid": 4000000, "proc_start": "1", "tmux_session": "main", "window_id": "@9", "pane_id": "%9",
            "alive": True, "updated_at": "2026-10-01T02:00:00Z"}, open(sys.argv[1], "w"), indent=1, sort_keys=True)
 PY
+}
+rec61
 act() {
   env PROJ_PATH="$T_REPO/csi-spl-orc" "$@" bash -c '
     set -uo pipefail; do_log() { echo "$*"; }
@@ -76,6 +84,7 @@ out="$(act DRY_RUN=0)"; rc=$?
 eq "2. DRY_RUN=0 exits 0" 0 "$rc"
 has "2. creates the session" "CREATED tmux session 'main'" "$out"
 eq "2. the adapter starts as the agent user" "CLE-61|$AG" "$(cat "$T_TMP/started" 2>/dev/null)"
+eq "2. no box tag anywhere: the adapter gets none" "CLE-61|unset" "$(cat "$T_TMP/started-tag" 2>/dev/null)"
 check "2. the transcript is in the agent user's home" test -s "$HA/.claude/projects/$slug/s-61.jsonl"
 check "2. no marker" test ! -e "$marker"
 has "2. OK" "boot-restore: OK" "$out"
@@ -125,5 +134,22 @@ check "4. remove takes only its line" bash -c "! grep -q agent-boot-restore '$T_
 out="$(BOOT_RESTORE_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/agent-boot-restore-cron.sh" --check-tools 2>&1)"; rc=$?
 eq "5. the cron script names a missing tool (exit 3)" 3 "$rc"
 has "5. ... by name" "no-such-tool-x" "$out"
+
+# --- 6 ----------------------------------------------------------------------------
+tm kill-server 2>/dev/null; sleep 0.3
+rec61; rm -f "$T_TMP/started" "$T_TMP/started-tag"
+printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_TAG=sat\n' "$AG" > "$SPOOL_ROOT/box.env"
+out="$(act)"; rc=$?
+eq "6. dry run exits 0" 0 "$rc"
+has "6. the plan names the window <ID>@<tag> from box.env" "new window 'CLE-61@sat lane 61' in 'main'" "$out"
+out="$(act DRY_RUN=0)"; rc=$?
+eq "6. DRY_RUN=0 exits 0" 0 "$rc"
+p61="$(printf '%s\n' "$out" | sed -n 's/^STARTED CLE-61: .*\[\(%[0-9]*\)\]$/\1/p')"
+has "6. the restored window keeps the @box suffix (after the reconcile too)" "CLE-61@sat " "$(tm display -p -t "$p61" '#{window_name}' 2>/dev/null) "
+eq "6. the adapter gets the box tag" "CLE-61|sat" "$(cat "$T_TMP/started-tag" 2>/dev/null)"
+hasnt "6. the reconcile strips nothing" "-> 'CLE-61" "$(printf '%s\n' "$out" | grep '^RENAMED' | grep -v "> 'CLE-61@sat")"
+out="$(env -u SPOOL_BOX_TAG -u BOX_TAG RESTORE_PRINT=1 CLAUDE_BIN=claude bash "$T_SCRIPTS/restore-claude.sh" CLE-61 "$W/CLE-61" s-61 2>&1)"
+has "6. the real claude adapter passes --name '<ID>@<tag>'" "--name 'CLE-61@sat' --resume s-61" "$out"
+tm kill-server 2>/dev/null
 
 t_done

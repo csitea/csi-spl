@@ -24,6 +24,10 @@
 #      adds one line ending in its tag, every other line byte-identical; again
 #      is a no-op; the uninstall restores the crontab byte for byte; a
 #      look-alike tag (ours as a prefix) and a foreign [1] hook are refused
+#   7. the box tag under cron (no SPOOL_BOX_TAG / BOX_TAG, no config file):
+#      windows already named "<ID>@<tag>" keep the suffix (the satellite,
+#      2026-10-02: the per-minute pass renamed every "<ID>@sat" to "<ID>");
+#      box.env's SPOOL_BOX_TAG names them "<ID>@<that tag>"
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -185,5 +189,21 @@ out="$(env PROJ_PATH="$wt/lane" IDENTITY_CRONTAB="$T_TMP/fake-crontab" DRY_RUN=0
   source "$PROJ_PATH/src/bash/run/spl-agent-identity-install.func.sh"; do_spl_agent_identity_install' 2>&1)"; rc=$?
 check "6. from a linked worktree DRY_RUN=0 is refused" test "$rc" -ne 0
 check "6. ... and the crontab is untouched" cmp -s "$CT" "$T_TMP/crontab.orig"
+
+# --- 7. the box tag under cron: kept from the names, or taken from box.env -------
+ats() { names | tr '|' '\n' | grep -cE "^(CLE|GRK|AGY|QWN)-[0-9]+@$1( |\$)"; }
+bare() { names | tr '|' '\n' | grep -cE '^(CLE|GRK|AGY|QWN)-[0-9]+( |$)'; }
+tm list-panes -a -F '#{pane_id}	#{window_name}' | while IFS=$'\t' read -r p n; do
+  [[ "$n" =~ ^((CLE|GRK|AGY|QWN)-[0-9]+)(( .*)?)$ ]] && tm rename-window -t "$p" "${BASH_REMATCH[1]}@zz${BASH_REMATCH[3]}"
+done
+n_at="$(ats zz)"
+check "7. the fixture: agent windows named <ID>@zz" test "$n_at" -ge 4
+out="$(reconcile --apply)"
+eq "7. no tag configured: every <ID>@zz window keeps its suffix" "$n_at 0" "$(ats zz) $(bare)"
+hasnt "7. ... no window renamed to a bare id" "BARE" "$(printf '%s\n' "$out" | grep -E "^RENAMED .* -> '(CLE|GRK|AGY|QWN)-[0-9]+( |')" | sed 's/^/BARE /')"
+printf 'SPOOL_BOX_TAG=yy\n' > "$SPOOL_ROOT/box.env"
+reconcile --apply >/dev/null
+eq "7. box.env SPOOL_BOX_TAG=yy: every agent window is <ID>@yy" "$n_at 0 0" "$(ats yy) $(ats zz) $(bare)"
+rm -f "$SPOOL_ROOT/box.env"
 
 t_done

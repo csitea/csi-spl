@@ -24,7 +24,8 @@
 # @description belongs to another agent. Each started agent gets a fresh row
 # @description in the spool registry (and IDENTITY_LEGACY_REGISTRY, if set);
 # @description then the windows are named from the map (reconcile) and the
-# @description map is checked.
+# @description map is checked. Each window and claude --name is "<ID>@<tag>"
+# @description (specs/058): the tag from SPOOL_BOX_TAG, BOX_TAG, else box.env.
 # @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied
@@ -62,9 +63,13 @@ do_spl_agent_identity_restore() {
   fi
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   local plan line kind id user sid wt sess title from adapter brief pane reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
-  local n=0 refused=0 failed=0 now started=()
+  local n=0 refused=0 failed=0 now started=() tag
+  # The box tag, resolved ONCE before any window exists: each agent comes back
+  # as "<ID>@<tag>" (specs/058), its window and its CLI --name alike. An
+  # @reboot job reads no profile, so ai_tag falls back to box.env.
+  tag="$(ai_tag)"
   plan="$(ai_panes | ai_py restore-plan --since "$since" --until "$until" --ids "${IDENTITY_RESTORE_IDS:-}" --agent-user "$agent_user")" || return 1
-  echo "restore: agents the restart at $since killed (dead by $until), from $(ai_dir), as $agent_user"
+  echo "restore: agents the restart at $since killed (dead by $until), from $(ai_dir), as $agent_user, box tag ${tag:-none}"
   while IFS= read -r line; do
     case "$line" in
       SKIP$'\t'*)   echo "SKIP    ${line#SKIP$'\t'}" | tr '\t' ' ' ;;
@@ -78,7 +83,7 @@ do_spl_agent_identity_restore() {
         brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""
         if [[ "$dry" == 1 ]]; then
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
-          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window in '$sess'"
+          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' in '$sess'"
           continue
         fi
         if [[ -n "$from" ]] && ! _ai_copy_transcript "$from" "$user" "$wt" "$sid"; then
@@ -86,8 +91,8 @@ do_spl_agent_identity_restore() {
         fi
         [[ -x "$adapter" || -r "$adapter" ]] || { echo "FAILED  $id: no adapter $adapter"; failed=$((failed + 1)); continue; }
         ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
-        pane="$(ai_tmux new-window -d -t "=$sess:" -n "$id${title:+ $title}" -P -F '#{pane_id}' \
-          "env ${user:+SPOOL_AGENT_USER=$user }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -m1 -xE '%[0-9]+')"
+        pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
+          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -m1 -xE '%[0-9]+')"
         if [[ -z "$pane" ]]; then echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); continue; fi
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null

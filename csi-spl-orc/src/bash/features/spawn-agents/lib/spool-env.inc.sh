@@ -204,7 +204,9 @@ spool_valid_id() {  # ID
 # SPOOL_FLEET_ENV / SPOOL_FLEET_TENANT (specs/058 N1): the hub env + tenant
 # whose desk relays a send to an agent on another machine of the fleet.
 # SPOOL_DIR_LAYOUT=qualified (specs/058 6): new mailboxes are <ID>@<box>.
-SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT"
+# SPOOL_BOX_TAG: the <ID>@<tag> display tag. A cron job and an @reboot restore
+# read no profile, so the tag lives here too, or they name windows bare.
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG"
 
 # Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
 _spool_box_env_load() {

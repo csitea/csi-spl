@@ -132,6 +132,8 @@ grep -q 'timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install
   && pass "08 runs install.sh with no controlling tty, bounded" || fail "08 runs install.sh on become's pty"
 grep -q '"SPOOL_DESK_BOX={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" && grep -q '^    box_tag: sat$' "$PB" \
   && pass "08 writes SPOOL_DESK_BOX=<box_tag> (sat) with box-config.sh" || fail "08 does not set SPOOL_DESK_BOX"
+grep -q '"SPOOL_BOX_TAG={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" \
+  && pass "08 writes SPOOL_BOX_TAG=<box_tag> into box.env (cron + @reboot name agents <ID>@<box>)" || fail "08 does not set SPOOL_BOX_TAG in box.env"
 grep -q '"SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }}"' "$R/08_spool_harness/tasks/main.yml" \
   && pass "08 names the fleet desk (SPOOL_FLEET_ENV/TENANT) for cross-machine sends" || fail "08 does not name the fleet desk"
 gv=$(sed -n 's/^go_version: //p' "$R/02_os_binaries/defaults/main.yml")
@@ -355,7 +357,9 @@ grep -q "SPOOL_AGENT_USER={{ agent_user }}" <<<"$bt" \
 [[ -f "$O/spl-agent-boot-restore-install-cron.func.sh" && -f "$O/spl-agent-boot-restore.func.sh" && -f "$O/spl-agent-identity-install.func.sh" ]] \
   && grep -q 'tag="$SPL_ORG_APP:agent-boot-restore"' "$O/spl-agent-boot-restore-install-cron.func.sh" \
   && pass "16. the actions role 11 calls exist and tag the line <org>-<app>:agent-boot-restore" || fail "16. the boot restore actions or their tag moved"
-BB="$T/boot"; mkdir -p "$BB/repo/csi-spl-orc" "$BB/bin" "$BB/spool"; printf 'SPOOL_AGENT_USER=agentu\n' >"$BB/spool/box.env"
+grep -q "SPOOL_BOX_TAG={{ box_tag }}" <<<"$bt" \
+  && pass "16. role 11 refuses a box.env that does not name the box tag" || fail "16. role 11 does not check SPOOL_BOX_TAG"
+BB="$T/boot"; mkdir -p "$BB/repo/csi-spl-orc" "$BB/bin" "$BB/spool"; printf 'SPOOL_AGENT_USER=agentu\nSPOOL_BOX_TAG=sat\n' >"$BB/spool/box.env"
 cp "$RB/bin/crontab" "$BB/bin/crontab"
 cat >"$BB/repo/csi-spl-orc/run" <<'RUN'
 #!/usr/bin/env bash
@@ -369,14 +373,16 @@ esac
 RUN
 chmod +x "$BB/bin/crontab" "$BB/repo/csi-spl-orc/run"
 echo '5 * * * * x # csi-spl:orch-rotate' >"$BB/cron"
-run_boot() { local body; body=$(sed -n '/^set -uo/,$p' <<<"$bt" | sed "s#{{ spool_root }}#$BB/spool#g; s#{{ repo_dir }}#$BB/repo#g; s#{{ agent_user }}#${1:-agentu}#g")
+run_boot() { local body; body=$(sed -n '/^set -uo/,$p' <<<"$bt" | sed "s#{{ spool_root }}#$BB/spool#g; s#{{ repo_dir }}#$BB/repo#g; s#{{ agent_user }}#${1:-agentu}#g; s#{{ box_tag }}#${2:-sat}#g")
   env FAKE_CRON="$BB/cron" PATH="$BB/bin:$PATH" bash -c "$body" 2>&1; }
-b1=$(run_boot); b2=$(run_boot); b3=$(run_boot other-user); b3rc=$?
+b1=$(run_boot); b2=$(run_boot); b3=$(run_boot other-user); b3rc=$?; b4=$(run_boot agentu other); b4rc=$?
 [[ "$b1" == *"CHANGED @reboot "*"csi-spl:agent-boot-restore" && "$b1" == *"as agentu,"* && "$b2" == *"OK @reboot "* ]] \
   && [[ "$(grep -c 'csi-spl:agent-boot-restore$' "$BB/cron")" == 1 && "$(grep -c 'orch-rotate$' "$BB/cron")" == 1 ]] \
   && pass "16. role 11 against a stub: one @reboot line, the rotation line kept, the plan shown, a re-run is OK" || fail "16. role 11 run: b1=$b1 b2=$b2 cron=$(cat "$BB/cron")"
 [[ $b3rc -ne 0 && "$b3" == *"does not name SPOOL_AGENT_USER=other-user"* ]] \
   && pass "16. role 11 fails when box.env names another agent user" || fail "16. role 11 box.env check: rc=$b3rc $b3"
+[[ $b4rc -ne 0 && "$b4" == *"does not name SPOOL_BOX_TAG=other"* ]] \
+  && pass "16. role 11 fails when box.env names another box tag" || fail "16. role 11 box tag check: rc=$b4rc $b4"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

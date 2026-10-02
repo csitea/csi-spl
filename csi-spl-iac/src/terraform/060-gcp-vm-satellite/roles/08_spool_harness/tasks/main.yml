@@ -75,6 +75,9 @@
 
 # SPOOL_DIR_LAYOUT=qualified (spec 058 section 6, CLE-001 decision 3): the
 # satellite starts with <ID>@sat mailboxes (plus the bare compat link)
+# SPOOL_BOX_TAG: the <ID>@<box> display tag for the jobs that read no profile
+# (the @reboot restore of role 11, the per-minute identity reconcile); without
+# it they named every agent bare (owner t1 6a02db62, 2026-10-02)
 - name: The box config every spawn reads ($SPOOL_ROOT/box.env, spawn-agents box-config.sh; spec 058)
   ansible.builtin.shell: |
     set -uo pipefail
@@ -82,7 +85,7 @@
     timeout 60 setsid -w bash "{{ repo_dir }}/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh" \
       "SPOOL_AGENT_USER={{ agent_user }}" "SPOOL_DESK_BOX={{ box_tag }}" "SPOOL_AGENT_ID_RANGE={{ agent_id_range }}" \
       "SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }}" \
-      "SPOOL_DIR_LAYOUT=qualified" </dev/null >/dev/null \
+      "SPOOL_DIR_LAYOUT=qualified" "SPOOL_BOX_TAG={{ box_tag }}" </dev/null >/dev/null \
       || { echo "FAIL box-config.sh"; exit 1; }
     [ "$(cat "$f")" = "$before" ] && echo OK || echo CHANGED
   args:

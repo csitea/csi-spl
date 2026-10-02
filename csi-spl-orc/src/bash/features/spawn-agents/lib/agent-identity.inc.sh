@@ -57,12 +57,21 @@ ai_record() { ai_panes | ai_py record "$@"; }
 # id (the hourly rotation's overlap, spec 060 FR-006).
 ai_adopt() { ai_panes | ai_py adopt "$1" "$2"; }
 
-# The box tag: configured (SPOOL_BOX_TAG, BOX_TAG), else the one most agent
+# The box tag: configured (SPOOL_BOX_TAG, BOX_TAG, then box.env), else the one most agent
 # windows already carry - so a box that always showed one never loses it.
 ai_tag() {
-  local t="${SPOOL_BOX_TAG:-${BOX_TAG:-}}"
-  [ -n "$t" ] || t="$(ai_panes | cut -f5 | sed -nE "s/^([A-Za-z0-9][A-Za-z0-9._-]*): ${SPOOL_AGENT_ID_RX}.*/\\1/p" \
-    | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+  local t="${SPOOL_BOX_TAG:-${BOX_TAG:-}}" names
+  # the box config: a cron job or an @reboot restore reads no profile, and an
+  # inference from window names that a bare pass already stripped finds
+  # nothing (the satellite, 2026-10-02: every "<ID>@sat" renamed to "<ID>")
+  [ -n "$t" ] || ! declare -F _spool_box_env_load >/dev/null ||
+    t="$(SPOOL_BOX_TAG=''; SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; _spool_box_env_load; printf '%s' "$SPOOL_BOX_TAG")"
+  if [ -z "$t" ]; then
+    names="$(ai_panes | cut -f5)"
+    t="$({ printf '%s\n' "$names" | sed -nE "s/^([A-Za-z0-9][A-Za-z0-9._-]*): ${SPOOL_AGENT_ID_RX}.*/\\1/p"
+           printf '%s\n' "$names" | grep -oE "^${SPOOL_AGENT_ID_RX}@[a-z0-9][a-z0-9-]{0,31}( |\$)" | sed -E 's/^[^@]*@//; s/ $//'
+         } | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+  fi
   printf '%s' "$t"
 }
 

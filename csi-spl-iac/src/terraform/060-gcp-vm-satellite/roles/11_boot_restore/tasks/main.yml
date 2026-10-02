@@ -12,6 +12,9 @@
 #      killed as SPOOL_AGENT_USER (box.env, role 08), copying a transcript
 #      only the box user has, and fails on any agent CLI running as the box
 #      user (marker <spool_root>/agents/boot-FAILED)
+#   both name each agent "<ID>@<box_tag>" from box.env's SPOOL_BOX_TAG (role
+#   08): an @reboot job reads no profile, and without it every agent came
+#   back bare (2026-10-02)
 # Idempotent: each action replaces its tagged line in place.
 - name: The identity map (per-minute record + tmux hooks), as the box user
   ansible.builtin.shell: |
@@ -34,6 +37,7 @@
     set -uo pipefail
     export SPOOL_ROOT="{{ spool_root }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$PATH"
     grep -q '^SPOOL_AGENT_USER={{ agent_user }}$' "{{ spool_root }}/box.env" || { echo "FAIL {{ spool_root }}/box.env does not name SPOOL_AGENT_USER={{ agent_user }} (role 08)"; exit 1; }
+    grep -q '^SPOOL_BOX_TAG={{ box_tag }}$' "{{ spool_root }}/box.env" || { echo "FAIL {{ spool_root }}/box.env does not name SPOOL_BOX_TAG={{ box_tag }} (role 08): the restore would name every agent bare, not <ID>@{{ box_tag }}"; exit 1; }
     cd "{{ repo_dir }}/csi-spl-orc" || exit 1
     before=$(crontab -l 2>/dev/null | grep -c " # csi-spl:agent-boot-restore$")
     setsid -w env DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron </dev/null 2>&1 || { echo "FAIL do_spl_agent_boot_restore_install_cron"; exit 1; }

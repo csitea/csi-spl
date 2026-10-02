@@ -347,16 +347,19 @@ do_set_vars() {
   set -u -o pipefail
   do_read_cmd_args "$@"
   unit_run_dir=$(perl -e 'use File::Basename; use Cwd "abs_path"; print dirname(abs_path(@ARGV[0]));' -- "$0")
-  declare -gx RUN_UNIT="$(cd "${unit_run_dir:-}" && basename "$(pwd)").sh" && export RUN_UNIT
+  # Parameter expansion, not basename/dirname: each $(basename ...) is a fork
+  # + exec, and every ./run pays them before it does anything (perf round 4 C1).
+  # unit_run_dir is already abs_path-resolved, so ${x##*/} is its basename.
+  declare -gx RUN_UNIT="${unit_run_dir##*/}.sh" && export RUN_UNIT
   declare -gx PROJ_PATH="$(cd "${unit_run_dir:-}/../../.." && pwd)" && export PROJ_PATH
   declare -gx APP_PATH="$(cd "${unit_run_dir:-}/../../../.." && pwd)" && export APP_PATH
   declare -gx ORG_APP_PATH="${APP_PATH}" && export ORG_APP_PATH
   declare -gx ORG_PATH="$(cd "${unit_run_dir:-}/../../../../.." && pwd)" && export ORG_PATH
   declare -gx BASE_PATH="$(cd "${unit_run_dir:-}/../../../../../.." && pwd)" && export BASE_PATH
-  _above_base=$(dirname "${BASE_PATH}") && declare -gx VAR_DIR="${VAR_DIR:-${_above_base%/}/var}" && export VAR_DIR
+  _above_base="${BASE_PATH%/*}" && declare -gx VAR_DIR="${VAR_DIR:-${_above_base%/}/var}" && export VAR_DIR
   # Detect framework layer: if parent of PROJ_PATH matches *-frw, expose it as FRW_PATH
-  _frw_candidate="$(dirname "${PROJ_PATH}")"
-  if [[ "$(basename "${_frw_candidate}")" == *-frw ]]; then
+  _frw_candidate="${PROJ_PATH%/*}"
+  if [[ "${_frw_candidate##*/}" == *-frw ]]; then
     declare -gx FRW_PATH="${_frw_candidate}" && export FRW_PATH
   else
     declare -gx FRW_PATH="" && export FRW_PATH
@@ -364,9 +367,9 @@ do_set_vars() {
   do_ensure_logical_link
   # Path-derived building blocks. Env override wins; otherwise derived from the
   # canonical layout: BASE_PATH/ORG/APP/APP-PROJ_KIND.
-  declare -gx ORG="${ORG:-$(basename "${ORG_PATH}")}" && export ORG
-  declare -gx APP="${APP:-$(basename "${APP_PATH}")}" && export APP
-  declare -gx PROJ="$(basename "${PROJ_PATH:-}")" && export PROJ
+  declare -gx ORG="${ORG:-${ORG_PATH##*/}}" && export ORG
+  declare -gx APP="${APP:-${APP_PATH##*/}}" && export APP
+  declare -gx PROJ="${PROJ_PATH##*/}" && export PROJ
   declare -gx PROJ_KIND="${PROJ_KIND:-${PROJ#${APP}-}}" && export PROJ_KIND
 
   declare -gx USER="${USER:-$(id -un)}" && export USER
@@ -408,8 +411,10 @@ do_load_functions() {
 
   while IFS= read -r -d "" f; do
     source "$f"
-    # Derive function name: kebab-case.func.sh → do_snake_case
-    fname="$(basename "$f" .func.sh)"
+    # Derive function name: kebab-case.func.sh → do_snake_case (parameter
+    # expansion: a $(basename) here forked once per file, ~0.4 s per orc ./run)
+    fname="${f##*/}"
+    fname="${fname%.func.sh}"
     # Skip pre/post hooks from primary action registration
     [[ "$fname" == *".pre" || "$fname" == *".post" ]] && continue
 

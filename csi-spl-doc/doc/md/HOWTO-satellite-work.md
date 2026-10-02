@@ -156,10 +156,31 @@ Every manual step taken in sections 1..2. Input for the next lanes.
 | 7 | `spawn-core.inc.sh` seed text has a backquoted `add` inside a double-quoted string: bash runs it (`line 165: add: command not found`) and every seed prompt reads "ON THE , THEN COMMIT" | none | quote it as `'git add'` | S |
 | 8 | the seed prompt on the satellite names the orchestrator "CLE-00" | none (brief named the reply target) | resolve `SPOOL_ORCHESTRATOR_ID` from the fleet lease, not a local default | S |
 | 9 | the seed prompt orders commit + push + CI watch for a measure-only lane | the brief overrode it | a measure-only seed variant (no INTEGRATION block) | S |
-| 10 | no terraform for the box user on the satellite (3 iac reds) | none | add the pinned terraform to the replica manifest (057) for the box user | S |
+| 10 | **fixed 4e456627**. No terraform for the box user on the satellite (3 iac reds) | none | add the pinned terraform to the replica manifest (057) for the box user | S |
 | 11 | no tpl-gen clone + venv in satellite worktrees (a control render skipped) | none | spawn links the main checkout's tpl-gen into the worktree | S |
-| 12 | `postgres:16-alpine` and `fake-gcs-server` not cached: hub-pg / hub-gcs skip | none | replica manifest pre-pulls the images the suites use | S |
-| 13 | pnpm not on the box user's PATH | agent ran it via corepack with a copied cache | replica manifest installs pnpm for the box user | S |
-| 14 | no browser on the satellite: WUI live proofs cannot move | none | install Chrome + the puppeteer cache on the satellite | M |
+| 12 | **fixed 4e456627**. `postgres:16-alpine` and `fake-gcs-server` not cached: hub-pg / hub-gcs skip | none | replica manifest pre-pulls the images the suites use | S |
+| 13 | **fixed 4e456627**. pnpm not on the box user's PATH | agent ran it via corepack with a copied cache | replica manifest installs pnpm for the box user | S |
+| 14 | **fixed 4e456627**. No browser on the satellite: WUI live proofs cannot move | none | install Chrome + the puppeteer cache on the satellite | M |
 | 15 | both machines share one GitHub login: the 5000/h API quota is shared, hit 403 at 06:21Z and 06:23Z | waited | a per-box token (GitHub App installation token per machine) | M |
 | 16 | 4 cores on the satellite: 2..3 heavy lanes at once | none | a larger machine type (terraform, 057) once the move is proven | M |
+
+### 4.1 Gaps 10, 12, 13, 14 closed (CLE-100003, 2026-10-02)
+
+Every one is box-playbook code now, so a recreate gets it back with the rest:
+
+| # | what is on the satellite | installed by | verify row |
+|---|---|---|---|
+| 10 | terraform (cnf `terraform_version`, 1.9.8) in `/usr/local/bin` | role 09: `LINT_TOOLS_SYSTEM=1 ./run -a do_install_lint_tools` copies terraform too | `terraform`, and terraform on the box user's login PATH |
+| 12 | `postgres:16-alpine`, `fsouza/fake-gcs-server:1.52.2` cached | role 09: `./run -a do_pull_test_images` (tags read from the hub-pg / hub-gcs tests) | `img-postgres`, `img-fake-gcs` |
+| 13 | pnpm (the WUI's `packageManager`, 9.15.4) for the box user and the agent, each with a warm pnpm store | role 09: corepack + a `pnpm install` of the WUI lockfile in a throwaway dir | `pnpm`, and pnpm on the box user's login PATH |
+| 14 | Google Chrome at `/usr/bin/google-chrome` | role 02: Google's `.deb` | `google-chrome`, and on the box user's login PATH |
+
+The WUI e2e files load `puppeteer-core` and launch `CHROME_PATH` or
+`/usr/bin/google-chrome`. `puppeteer-core` never downloads a browser, so there
+is no puppeteer cache to seed (`grep -rn "cache/puppeteer" csi-spl-wui/tests` -> 0).
+
+`./run -a do_satellite_verify` from the PC at `5c4d57dc` (contains
+`4e456627`), measured by CLE-001@box-desk at 08:4xZ: **`SATELLITE-VERIFY fails=0`**. The new rows:
+`pnpm box=9.15.4 satellite=9.15.4`, `terraform 1.9.8/1.9.8`,
+`google-chrome box=153.0.8010 satellite=154.0.8037`, `img-postgres` and
+`img-fake-gcs` present on both machines.

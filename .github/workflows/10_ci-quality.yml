@@ -179,6 +179,79 @@ jobs:
 
 
   # ===========================================================================
+  # The mock-tenant bundle the browser shards drive (perf round 4 C5): built
+  # ONCE per push and handed to the 3 wui-e2e shards as an artifact (~4 MB),
+  # instead of every shard running the same `nuxt generate` (~56 s each).
+  # The bundle budget runs here, once, AFTER the upload: a budget miss fails
+  # this job but no longer stops a single browser test (CLE-35000), because
+  # the shards wait on the `bundle` output, not on this job's success.
+  # ===========================================================================
+  wui-generate:
+    name: "wui: nuxt generate (mock tenant) once for the e2e shards"
+    runs-on: [self-hosted, spool-ci]
+    timeout-minutes: 15
+    outputs:
+      bundle: ${{ steps.upload.outcome }}
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # nuxt generate writes its build scratch to TMPDIR: on the job's disk,
+      # not the box's shared /tmp tmpfs (see hub-suite and wui-e2e).
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+          # per job, not the shared ~/setup-pnpm: 4 runners share one home and
+          # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      # pnpm's default store sat inside the per-job PNPM_HOME, so every job
+      # re-downloaded all ~720 packages over the box's slow link (ETIMEDOUT,
+      # job 108199695609). Keep it in the runner's tool cache, which persists.
+      - name: pnpm store in the runner tool cache (persists across jobs)
+        run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: pnpm install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: nuxt generate (mock tenant)
+        id: generate
+        env:
+          NUXT_PUBLIC_USE_MOCK: "1"
+          NUXT_PUBLIC_DEFAULT_LOCALE: "en"
+        run: pnpm run generate
+
+      - name: Upload the generated bundle for the e2e shards
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wui-mock-bundle
+          path: csi-spl-wui/.output/public
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
+
+      - name: Initial JS gzip stays within the performance budget
+        run: |
+          set -euo pipefail
+          command -v python3 >/dev/null
+          python3 ../csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
+            --pub .output/public \
+            --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
+
+
+  # ===========================================================================
   # The WUI browser suite (016 T021): no-x-scroll, console-errors, and the
   # 1..1 topic-pane gate, against a generated mock-tenant bundle served the
   # way Firebase Hosting does (serve-generated.mjs SPA fallback). Chrome is
@@ -193,6 +266,9 @@ jobs:
   wui-e2e:
     name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
     runs-on: [self-hosted, spool-ci]
+    # the bundle exists even when its budget step failed (see wui-generate)
+    needs: wui-generate
+    if: ${{ !cancelled() && needs.wui-generate.outputs.bundle == 'success' }}
     # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
     # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
     # 45 min timeout under load (run 36962189149), so this gate finished once
@@ -258,12 +334,12 @@ jobs:
           echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
           "$chrome" --version
 
-      - name: nuxt generate (mock tenant)
-        id: generate
-        env:
-          NUXT_PUBLIC_USE_MOCK: "1"
-          NUXT_PUBLIC_DEFAULT_LOCALE: "en"
-        run: pnpm run generate
+      # The bundle wui-generate built for this commit, not a generate per shard.
+      - name: The generated bundle (mock tenant) from wui-generate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: wui-mock-bundle
+          path: csi-spl-wui/.output/public
 
       - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
@@ -278,18 +354,6 @@ jobs:
           # whatever the one before it did, and the step fails at the end naming
           # each red one (CLE-77827).
           bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e
-      # After the e2e, not before: a budget miss used to stop the job before a
-      # single browser test ran, so e2e regressions hid behind it (CLE-35000,
-      # 2026-09-26). It still fails the job; it just no longer blinds it.
-      # Once, on shard 1: every shard generates the same bundle.
-      - name: Initial JS gzip stays within the performance budget
-        if: ${{ !cancelled() && steps.generate.outcome == 'success' && matrix.shard == 1 }}
-        run: |
-          set -euo pipefail
-          command -v python3 >/dev/null
-          python3 ../csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
-            --pub .output/public \
-            --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --
@@ -641,7 +705,7 @@ jobs:
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"
-    needs: [hub-suite, wui-suite, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
+    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
     if: failure()
     runs-on: [self-hosted, spool-ci]
     timeout-minutes: 5

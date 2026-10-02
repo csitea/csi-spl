@@ -99,7 +99,7 @@ grep -q '^RELAUNCH' "$T/o" && fail "2. RELAUNCH on older settings" || pass "2. s
 # fleet mode (CLE-77911): DISPATCH_FLEET writes the fleet lines; a re-run without it keeps them
 setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_FLEET=main DISPATCH_MACHINE=pc DISPATCH_PRIORITY=pc,sat DISPATCH_LEASE_TENANT=w1 >"$T/o" 2>&1
 grep -qx 'LEASE_PRIORITY=pc,sat' "$S/dispatch/lease.conf" && grep -qx 'LEASE_TENANT=w1' "$S/dispatch/lease.conf" &&
-  grep -qx 'LEASE_DESK_BOX=box-desk' "$S/dispatch/lease.conf" &&
+  grep -qx 'LEASE_MACHINE=pc' "$S/dispatch/lease.conf" && ! grep -q '^LEASE_DESK_BOX=' "$S/dispatch/lease.conf" &&
   pass "2. DISPATCH_FLEET writes the fleet lines into lease.conf" || fail "2. fleet conf: $(cat "$S/dispatch/lease.conf")"
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
 grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" && grep -qx 'LEASE_MASTER=CLE-002' "$S/dispatch/lease.conf" &&

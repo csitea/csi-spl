@@ -331,9 +331,15 @@ spl_lease_loop() {
   done
 }
 
-# This file, as the loops run it; its hash is the code version.
+# This file, as the loops run it; its hash is the code version. It also
+# hashes lease.conf and this machine's desk box id: a loop reads them once at
+# its start, so a changed priority, fleet or box name (the box-desk -> <box>
+# rename of spec 058) makes ensure replace it on the next tick, with no manual
+# restart and no loop left acting on the old settings.
 SPL_LEASE_SRC="${BASH_SOURCE[0]}"
-spl_lease_code_ver() { sha1sum < "$SPL_LEASE_SRC" | cut -c1-12; }
+spl_lease_code_ver() {
+  { cat "$SPL_LEASE_SRC"; cat "${LEASE_CONF:-/dev/null}" 2>/dev/null; spl_desk_box_default; } | sha1sum | cut -c1-12
+}
 
 # 0 when a <verb> loop holds its run lock.
 spl_lease_running() {

@@ -42,6 +42,8 @@
 # @param   LEASE_FLEET / LEASE_MACHINE (DISPATCH_MACHINE, default the desk box id: the <box> of <ID>@<box>) / LEASE_PRIORITY
 # @param   (DISPATCH_PRIORITY, e.g. pc,sat) / LEASE_ENV ($ENV) / LEASE_TENANT (DISPATCH_LEASE_TENANT) /
 # @param   LEASE_DESK_BOX (DESK_BOX: each machine needs its own desk box id in a workspace).
+# @param   LEASE_MACHINE / LEASE_DESK_BOX are written only when DISPATCH_MACHINE / DESK_BOX are
+# @param   set; otherwise both follow box.env SPOOL_DESK_BOX (a box rename needs no edit here).
 # @param   Unset, the fleet lines already in lease.conf are KEPT: a re-run never silently leaves fleet mode
 # @param DISPATCH_SWEEP (optional) - 0 skips step 11 (the sweep cron)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -79,8 +81,12 @@ spl_dispatch_setup_steps() {
   local conf
   conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
   if [[ -n "${DISPATCH_FLEET:-}" ]]; then
-    conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_MACHINE=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s\nLEASE_DESK_BOX=%s' \
-      "$DISPATCH_FLEET" "${DISPATCH_MACHINE:-$(spl_desk_box_default)}" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}" "${DESK_BOX:-$(spl_desk_box_default)}")"
+    conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s' \
+      "$DISPATCH_FLEET" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}")"
+    # the machine and its desk box are pinned only when given: unset, both
+    # follow box.env SPOOL_DESK_BOX, so a box rename needs no lease.conf edit
+    [[ -n "${DISPATCH_MACHINE:-}" ]] && conf+=$'\n'"LEASE_MACHINE=$DISPATCH_MACHINE"
+    [[ -n "${DESK_BOX:-}" ]] && conf+=$'\n'"LEASE_DESK_BOX=$DESK_BOX"
   elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
     # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
     # this machine act beside the fleet's holder

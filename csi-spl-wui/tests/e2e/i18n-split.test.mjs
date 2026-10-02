@@ -80,7 +80,11 @@ async function keysShown(p) {
       }
     }
     const found = new Set()
-    for (const t of texts) for (const m of t.matchAll(re)) found.add(m[1])
+    for (const t of texts) {
+      for (const m of t.matchAll(re)) found.add(m[1])
+      /* a message function that returned a vnode array where text was due (P3-20) */
+      if (t.includes('[object Object]')) found.add('[object Object]')
+    }
     return [...found].slice(0, 12)
   }, NAMESPACES)
 }
@@ -129,8 +133,11 @@ try {
         /* in-app, as a click would: the route guard awaits the (blocked) load */
         await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/issues'))
         await p.waitForFunction(() => location.pathname.endsWith('/issues'), { timeout: 10000 }).catch(() => {})
-        await sleep(1500)
-        const keys = await keysShown(p)
+        let keys = []
+        for (let i = 0; i < 40 && !keys.length; i++) {
+          await sleep(250)
+          keys = await keysShown(p)
+        }
         ok('control: /issues with the second catalogue blocked shows its keys', keys.length > 0, keys)
       }
       await ctx.close()

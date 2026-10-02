@@ -550,6 +550,10 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    // P3-21: no component in src/ or in a client dependency uses the Options
+    // API (only Vue core's own applyOptions matches data()/methods/mixins in
+    // the bundle), so Vue drops that code path from vendor-vue
+    vue: { features: { optionsAPI: false } },
     $client: {
       build: {
         rollupOptions: {

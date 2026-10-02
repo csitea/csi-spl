@@ -12,6 +12,12 @@
 #------------------------------------------------------------------------------
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
+# CLE-/PRB-/ORC- fixtures here do not turn the suite red at
+# SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in
+# features/spawn-agents/tests/test-agent-id.sh; L9c drops this pin when it
+# converts the fixtures to c-NNN.
+export SPOOL_NOW="${SPOOL_NOW:-2026-10-01T00:00:00Z}"
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

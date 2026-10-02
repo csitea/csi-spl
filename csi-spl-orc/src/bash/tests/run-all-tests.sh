@@ -8,6 +8,12 @@ dir=$(cd "$(dirname "$0")" && pwd)
 # SPOOL_TEST_GUARD_LOG and fails the suite: callers often send 2>/dev/null, so
 # a test can pass while a send of its own tried to reach the live root.
 export SPOOL_TEST=1
+# specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
+# CLE-/PRB-/ORC- fixtures here do not turn the suite red at
+# SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in
+# features/spawn-agents/tests/test-agent-id.sh; L9c drops this pin when it
+# converts the fixtures to c-NNN.
+export SPOOL_NOW="${SPOOL_NOW:-2026-10-01T00:00:00Z}"
 guard_own=0
 if [[ -z "${SPOOL_TEST_GUARD_LOG:-}" ]]; then
   SPOOL_TEST_GUARD_LOG=$(mktemp); guard_own=1

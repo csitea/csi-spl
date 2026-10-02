@@ -329,6 +329,10 @@ export const UI_ICON_PATHS = {
   go: [{ d: "M7 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4A1 1 0 0 0 7 4.6z", fill: true }],
   // Add a subtask (SPL-974): a tree (trunk + two children) with a plus.
   "subtask-add": ["M5 3v13a2 2 0 0 0 2 2h5", "M5 9h5", "M18 4v8", "M14 8h8", "M15 18h5"],
+  // A post goes INTO the open thread (owner, t1 3d6d945d: "something like the
+  // inverse F letter"): an F upside down = a trunk with a middle and a bottom
+  // branch, the tree-view connector (lucide list-tree family).
+  "thread-tree": ["M6 3v13a2 2 0 0 0 2 2h11", "M6 10h11"],
   // Left panel order (SPL-979): move one up / down, and the drag grip.
   "chevron-up": ["m18 15-6-6-6 6"],
   "chevron-down": ["m6 9 6 6 6-6"],

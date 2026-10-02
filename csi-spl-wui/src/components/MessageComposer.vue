@@ -26,9 +26,6 @@
       <span>{{ modeText }}</span>
     </p>
     <div class="composer-box">
-      <!-- owner, t1 3d6d945d (2026-10-01 19:42Z): the reply arrow left of the
-           box is gone ("remove this arrow"); the placeholder and GO still say
-           reply. A hierarchy glyph is being proposed in that topic. -->
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
@@ -81,7 +78,20 @@
       <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
         <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
       </span>
-      <div class="omnibox-field" ref="fieldEl">
+      <div class="omnibox-field" :class="{ 'has-mode-glyph': modeGlyph }" ref="fieldEl">
+        <!-- owner, t1 3d6d945d (2026-10-02, option "A"): one glyph inside the
+             box at its start says where the post goes - "#" a new topic, the
+             tree (an upside-down F) into the open thread or issue. Its name is
+             the mode's own words; the placeholder and GO say it too. -->
+        <span
+          v-if="modeGlyph"
+          class="composer-mode-glyph"
+          data-test="composer-mode-glyph"
+          :data-glyph="modeGlyph"
+          role="img"
+          :aria-label="modeText"
+          :title="modeText"
+        ><UiIcon :name="modeGlyph" :size="16" /></span>
         <button
           v-if="global"
           type="button"
@@ -657,7 +667,15 @@ const modeText = computed(() => {
   const label = composerModeLabel(dockHint.value)
   return label ? t(label.key, label.params) : ''
 })
-const modeIcon = computed(() => (dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment') ? 'reply' : 'plus'))
+const intoTree = computed(() => Boolean(dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment')))
+const modeIcon = computed(() => (intoTree.value ? 'thread-tree' : dockHint.value && dockHint.value.mode === 'new' ? 'hash' : 'plus'))
+/* owner, t1 3d6d945d "A": the glyph in the box - a new topic or into the tree;
+   a DM, /search and a page with no send target show none */
+const modeGlyph = computed<'thread-tree' | 'hash' | null>(() => {
+  if (!props.global || searchMode.value || !dockHint.value) return null
+  if (intoTree.value) return 'thread-tree'
+  return dockHint.value.mode === 'new' ? 'hash' : null
+})
 /* a phone page with no send target (/issues list, /events, /settings): GO
    there searches for the text, never nothing - data-mode="search", no accent */
 const modeAttr = computed(() => {
@@ -1334,6 +1352,21 @@ textarea.in-code {
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
 .composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
+/* owner, t1 3d6d945d "A": the glyph sits in the field's start corner, centred
+   on the first text line (as the "?" sits in the end corner); the text starts
+   after it. Muted for a new topic, the reply colour into the tree. */
+.composer-mode-glyph {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  inset-inline-start: 8px;
+  display: inline-flex;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+.composer-mode-glyph[data-glyph=thread-tree] { color: var(--color-mode-reply, var(--color-accent)); }
+.composer.omnibox--global .has-mode-glyph textarea { padding-inline-start: 24px; }
+.omnibox--bottom.omnibox--global .composer-mode-glyph { top: 20px; }
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.
@@ -1373,6 +1406,7 @@ textarea.in-code {
   .composer.composer--dock.composer--dock[data-yield=true] { visibility: hidden; }
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
+  .composer--dock.composer--dock .composer-mode-glyph { top: 14px; }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);
     min-height: var(--tap);

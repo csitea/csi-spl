@@ -145,6 +145,18 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.match(src('src/components/MessageCard.vue'), /data-test="msg-edit-mode"/)
   })
 
+  it('owner, t1 3d6d945d option "A": one glyph in the box - # a new topic, the tree (upside-down F) into a thread or issue, none for a DM; named by the mode words', () => {
+    const c = src('src/components/MessageComposer.vue')
+    assert.match(c, /class="composer-mode-glyph"\n\s+data-test="composer-mode-glyph"/)
+    assert.match(c, /role="img"\n\s+:aria-label="modeText"/)
+    assert.match(c, /if \(intoTree\.value\) return 'thread-tree'\n\s+return dockHint\.value\.mode === 'new' \? 'hash' : null/)
+    assert.match(c, /\.composer-mode-glyph\[data-glyph=thread-tree\] \{ color: var\(--color-mode-reply/)
+    /* the old reply arrow is not the hierarchy cue any more */
+    assert.doesNotMatch(c, /\? 'reply' : 'plus'/)
+    const icons = src('src/utils/uiIcons.ts')
+    assert.match(icons, /"thread-tree": \["M6 3v13a2 2 0 0 0 2 2h11", "M6 10h11"\]/)
+  })
+
   it('the reply arrow and edit accents are defined for the dark default and every light theme', () => {
     const v = src('src/assets/css/variables.css')
     for (const k of ['--color-mode-reply', '--color-mode-edit']) {

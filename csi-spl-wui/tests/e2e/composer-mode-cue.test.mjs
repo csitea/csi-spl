@@ -96,6 +96,30 @@ function cue(p) {
         const b = field.getBoundingClientRect()
         return { text: m.textContent.trim(), markGap: Math.round(b.left - a.right), w: Math.round(a.width) }
       })(),
+      /* owner, t1 3d6d945d "A": the glyph in the box. dy = glyph centre - the
+         first text line's centre; clear = text start - glyph end (>= 0) */
+      glyph: (() => {
+        const g = [...f.querySelectorAll('[data-test=composer-mode-glyph]')].find(vis)
+        const ta = f.querySelector('textarea')
+        if (!g || !ta || !field) return null
+        const a = g.getBoundingClientRect()
+        const t = ta.getBoundingClientRect()
+        const ts = getComputedStyle(ta)
+        const lh = parseFloat(ts.lineHeight) || parseFloat(ts.fontSize) * 1.5
+        const lineMid = t.top + parseFloat(ts.paddingTop) + lh / 2
+        const textStart = t.left + parseFloat(ts.paddingLeft)
+        const fb = field.getBoundingClientRect()
+        return {
+          kind: g.getAttribute('data-glyph'),
+          name: g.getAttribute('aria-label') || '',
+          role: g.getAttribute('role'),
+          color: getComputedStyle(g).color,
+          dy: Math.round(a.top + a.height / 2 - lineMid),
+          clear: Math.round(textStart - a.right),
+          inBox: a.left >= fb.left && a.right <= fb.right && a.top >= fb.top && a.bottom <= fb.bottom,
+          w: Math.round(a.width),
+        }
+      })(),
       /* the dock's own padding around the box (phone): form edge -> field border */
       gap: (() => {
         if (!field || f.getAttribute('data-docked') !== 'true') return null
@@ -154,6 +178,8 @@ async function desktopCase(browser, theme) {
   ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", ONE plain 1px border (no lilac edge)`,
     Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.single), c1)
   /* a long chip squeezed the placeholder in the first cut (4.8.7) */
+  ok(`${tag} 1 option A: "#" inside the box at its start, named "New topic in #alerts", centred on the text line, the text clear of it`,
+    Boolean(c1 && c1.glyph && c1.glyph.kind === 'hash' && c1.glyph.role === 'img' && c1.glyph.name === 'New topic in #alerts' && c1.glyph.inBox && Math.abs(c1.glyph.dy) <= 3 && c1.glyph.clear >= 2 && c1.glyph.w === 16), c1 && c1.glyph)
   ok(`${tag} 1 the field stays one line in the bar (<= 50 px)`,
     Boolean(c1 && c1.fieldH > 0 && c1.fieldH <= 50), { fieldH: c1 && c1.fieldH })
 
@@ -165,6 +191,8 @@ async function desktopCase(browser, theme) {
   await shot(p, `reply-1440-${theme}`)
   ok(`${tag} 2 a thread open: no chip, no text, no arrow (owner t1 3d6d945d: "remove this arrow")`,
     Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark === null), c2)
+  ok(`${tag} 2 option A: the tree (upside-down F) inside the box, named "Replying in the open thread", in the reply colour, not the "#" colour`,
+    Boolean(c2 && c2.glyph && c2.glyph.kind === 'thread-tree' && c2.glyph.name === 'Replying in the open thread' && c2.glyph.inBox && Math.abs(c2.glyph.dy) <= 3 && c2.glyph.clear >= 2 && c1.glyph && c2.glyph.color !== c1.glyph.color), { new: c1 && c1.glyph, reply: c2 && c2.glyph })
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply box has the very same single border as a new topic`, Boolean(c1 && c2 && c2.single && c1.edge === c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -174,7 +202,7 @@ async function desktopCase(browser, theme) {
   })
   await waitMode(p, 'new')
   const c3 = await cue(p)
-  ok(`${tag} 3 the thread closed: back to a new topic`, Boolean(c3 && c3.mode === 'new' && c3.chip === null), c3)
+  ok(`${tag} 3 the thread closed: back to a new topic, the "#" again`, Boolean(c3 && c3.mode === 'new' && c3.chip === null && c3.glyph && c3.glyph.kind === 'hash'), c3)
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }
@@ -186,6 +214,7 @@ async function dmCase(browser) {
   await shot(p, 'dm-1440-dark')
   ok('1440 4 a DM: no chip, mode dm, GO "Start topic"',
     Boolean(c && c.mode === 'dm' && c.chip === null && c.go === 'Start topic'), c)
+  ok('1440 4 a DM: no glyph in the box (not a channel topic, not a thread)', Boolean(c && c.glyph === null), c && c.glyph)
   ok('1440 4 no page error', errors.length === 0, errors)
   await p.close()
 }
@@ -224,6 +253,8 @@ async function phoneCase(browser) {
   ok('390 6 no text line above the dock, no chip, no arrow: mode new, ONE plain border, placeholder "Message #alerts"',
     Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.single && c1.placeholder.startsWith('Message #alerts')), c1)
   /* owner, t1 be8fed75: "no more than 2 mm after the omnibox border" (~8 px) */
+  ok('390 6 option A: "#" inside the dock box, centred on the text line, text clear of it',
+    Boolean(c1 && c1.glyph && c1.glyph.kind === 'hash' && c1.glyph.inBox && Math.abs(c1.glyph.dy) <= 3 && c1.glyph.clear >= 2), c1 && c1.glyph)
   ok('390 6 the dock leaves at most 8 px between its edge and the box border, above and at the side',
     Boolean(c1 && c1.gap && c1.gap.top <= 8 && c1.gap.left <= 8), c1 && c1.gap)
   await p.touchscreen.tap(card.x, card.y)
@@ -233,6 +264,8 @@ async function phoneCase(browser) {
   await shot(p, 'reply-390-dark')
   ok('390 6 a thread open: still no line, no arrow, the same single border, placeholder "Reply", GO "Send reply"',
     Boolean(c2 && c2.mode === 'thread' && c2.line === null && c2.mark === null && c2.placeholder.startsWith('Reply') && c2.single && c2.edge === c1.edge && c2.go === 'Send reply'), c2)
+  ok('390 6 option A: the tree inside the dock box in a thread, named "Replying in the open thread"',
+    Boolean(c2 && c2.glyph && c2.glyph.kind === 'thread-tree' && c2.glyph.name === 'Replying in the open thread' && c2.glyph.inBox && Math.abs(c2.glyph.dy) <= 3 && c2.glyph.clear >= 2), c2 && c2.glyph)
   ok('390 no page error', errors.length === 0, errors)
   await p.close()
 }

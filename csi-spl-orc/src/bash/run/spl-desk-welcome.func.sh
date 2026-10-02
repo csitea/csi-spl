@@ -52,18 +52,10 @@ do_spl_desk_welcome() {
   local withtest="${WELCOME_INCLUDE_TEST:-0}"
   [[ "$withtest" == 0 || "$withtest" == 1 ]] || { do_log "FATAL WELCOME_INCLUDE_TEST must be 0 or 1, got: '$withtest'"; return 1; }
 
-  local -a tenants=()
-  local t
-  if [[ -n "${TENANT_ID:-}" ]]; then
-    read -r -a tenants <<<"$TENANT_ID"
-  else
-    for t in "$SPL_STATE_DIR"/desk/*/"$box"/pinned; do
-      [[ -s "$t" ]] && tenants+=("$(basename "$(dirname "$(dirname "$t")")")")
-    done
-  fi
-  for t in "${tenants[@]}"; do
-    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID entry '$t' is not a tenant slug"; return 1; }
-  done
+  local -a tenants=() live=() plan=()
+  local tlist
+  tlist="$(_spl_desk_welcome_tenants "$box")" || return 1
+  mapfile -t tenants < <(grep . <<<"$tlist")
   if [[ ${#tenants[@]} -eq 0 ]]; then
     do_log "OK no tenant has a desk on $box in $ENV: nobody to welcome anyone"
     return 0
@@ -93,19 +85,9 @@ do_spl_desk_welcome() {
   exec 7>"$L/.lock" || { do_log "FATAL cannot open $L/.lock"; return 1; }
   flock -n 7 || { do_log "OK another welcome run holds $L/.lock; this tick leaves it to that one"; return 0; }
 
-  local now
-  now="$(date +%s)"
-  for t in "${tenants[@]}"; do
-    mkdir -p "$L/$t" || return 1
-    if [[ ! -s "$L/$t/baseline" ]]; then
-      printf '%s\n' "$now" >"$L/$t/baseline"
-      do_log "INFO $t: first welcome run, baseline $(date -u -d "@$now" +%FT%TZ) - the members it has now are never greeted"
-    fi
-  done
+  _spl_desk_welcome_baselines "$L" "${tenants[@]}" || return 1
 
-  local tenant human at name locale base D greeted=0 failed=0
-  local invon ordname ordvia prov greeter
-  local -a live=() plan=()
+  local tenant human at name locale istest invon ordname ordvia base D prov prc greeted=0 failed=0
   mapfile -t live < <(spl_desk_live_agents)
   # \x1f, not a tab: a tab is IFS whitespace, so an empty locale would
   # collapse and shift the fields after it.
@@ -122,75 +104,143 @@ do_spl_desk_welcome() {
       do_log "INFO $tenant: $human is a test/proof account; not greeted (WELCOME_INCLUDE_TEST=1 for a live proof)"
       continue
     fi
-    if [[ ! -s "$D/plan" ]]; then
-      greeter="$(spl_desk_greeter "$tenant" "$box")"
-      if [[ -z "$greeter" ]]; then
-        # Decided, not deferred: configuring a greeter later never greets
-        # the people admitted before it.
-        mkdir -p "$D" && printf '%s no-greeter\n' "$(date -u +%FT%TZ)" >"$D/done"
-        do_log "INFO $tenant: no greeter configured on $box (do_spl_desk_set_greeter); nobody greets $human"
-        continue
-      fi
-      mkdir -p "$D" || return 1
-      spl_desk_welcome_plan "$SPL_STATE_DIR/desk/$tenant/$box/spool" "$greeter" "${live[@]}" >"$D/plan.tmp" &&
-        mv -f "$D/plan.tmp" "$D/plan"
-      if [[ ! -s "$D/plan" ]]; then
-        rm -f "$D/plan" "$D/plan.tmp"
-        do_log "WARN $tenant: greeter $greeter is not seated and live on $box to welcome $human yet; the next tick tries again"
-        continue
-      fi
-    fi
+    prc=0; _spl_desk_welcome_ensure_plan "$D" "$tenant" "$box" "$human" "${live[@]}" || prc=$?
+    (( prc == 2 )) && return 1
+    (( prc == 0 )) || continue
     mapfile -t plan <"$D/plan"
     # CLE-77778: the provenance footer answers "who invited this person, and
     # when" right in #lobby. Only slot 0 carries it (a ledger from before
     # CLE-77896 may still plan three bots); it sits OUTSIDE the cheerful
     # 33-word body (a factual line, not counted against desk-welcome-text.py's
     # cap). Blank when the member did not come through an invite.
-    prov=""
-    if [[ -n "$invon" || -n "$ordname" ]]; then
-      prov="invited"
-      [[ -n "$invon" ]] && prov+=" $invon"
-      [[ -n "$ordname" ]] && prov+=" by $ordname"
-      [[ -n "$ordvia" ]] && prov+=" (via $ordvia)"
+    prov="$(spl_desk_welcome_provenance "$invon" "$ordname" "$ordvia")"
+    _spl_desk_welcome_greet "$D" "$tenant" "$box" "$human" "$name" "$locale" "$deflocale" "$prov" "$tries" &&
+      date -u +%FT%TZ >"$D/done"
+  done < <(printf '%s\n' "$admits" | _spl_desk_welcome_rows)
+  do_log "OK welcome run over ${tenants[*]} in $ENV: $greeted greeting(s) posted, $failed refused"
+  (( failed == 0 ))
+}
+
+# _spl_desk_welcome_greet <ledger dir> <tenant> <box> <human> <name> <locale>
+# <default locale> <provenance> <tries>: post the welcome of each bot in the
+# caller's plan[] that has not posted or given up, counting into the caller's
+# greeted and failed. 0 when every bot is settled (the person is done).
+_spl_desk_welcome_greet() {
+  local D="$1" tenant="$2" box="$3" human="$4" name="$5" locale="$6" deflocale="$7" prov="$8" tries="$9"
+  local i bot body out mid n all=1
+  for i in "${!plan[@]}"; do
+    bot="${plan[$i]}"
+    [[ -e "$D/$bot.posted" || -e "$D/$bot.gaveup" ]] && continue
+    if [[ -e "$D/$bot.claim" ]]; then
+      # A run died between the claim and the posted mark: the post may be
+      # on the hub already. Never risk a second copy.
+      do_log "WARN $tenant/$human: $bot holds a claim with no posted mark (a run died mid-post); not posting again"
+      mv -f "$D/$bot.claim" "$D/$bot.gaveup"
+      continue
     fi
-    local i bot body out mid n all=1
-    for i in "${!plan[@]}"; do
-      bot="${plan[$i]}"
-      [[ -e "$D/$bot.posted" || -e "$D/$bot.gaveup" ]] && continue
-      if [[ -e "$D/$bot.claim" ]]; then
-        # A run died between the claim and the posted mark: the post may be
-        # on the hub already. Never risk a second copy.
-        do_log "WARN $tenant/$human: $bot holds a claim with no posted mark (a run died mid-post); not posting again"
-        mv -f "$D/$bot.claim" "$D/$bot.gaveup"
-        continue
-      fi
-      body="$(python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/desk-welcome-text.py" \
-        --locale "$locale" --default-locale "$deflocale" --slot "$i" --seed "$tenant/$human" --name "$name")" ||
-        { do_log "FAIL $tenant/$human: no welcome text"; all=0; failed=$((failed + 1)); continue; }
-      [[ $i -eq 0 && -n "$prov" ]] && body+=$'\n\n'"$prov"
-      date -u +%FT%TZ >"$D/$bot.claim"
-      if out="$(spl_desk_welcome_post "$tenant" "$box" "$bot" "$body" 2>&1)"; then
-        mid="$(grep -o '"msg_id": *"[0-9a-f-]*"' <<<"$out" | head -n 1 | grep -o '[0-9a-f-]\{36\}')"
-        printf '%s\n' "${mid:-sent}" >"$D/$bot.posted"
-        rm -f "$D/$bot.claim"
-        greeted=$((greeted + 1))
-        do_log "OK $bot welcomed $human in #lobby of $tenant (${locale:-$deflocale}) msg_id=${mid:-?}"
+    body="$(python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/desk-welcome-text.py" \
+      --locale "$locale" --default-locale "$deflocale" --slot "$i" --seed "$tenant/$human" --name "$name")" ||
+      { do_log "FAIL $tenant/$human: no welcome text"; all=0; failed=$((failed + 1)); continue; }
+    [[ $i -eq 0 && -n "$prov" ]] && body+=$'\n\n'"$prov"
+    date -u +%FT%TZ >"$D/$bot.claim"
+    if out="$(spl_desk_welcome_post "$tenant" "$box" "$bot" "$body" 2>&1)"; then
+      mid="$(grep -o '"msg_id": *"[0-9a-f-]*"' <<<"$out" | head -n 1 | grep -o '[0-9a-f-]\{36\}')"
+      printf '%s\n' "${mid:-sent}" >"$D/$bot.posted"
+      rm -f "$D/$bot.claim"
+      greeted=$((greeted + 1))
+      do_log "OK $bot welcomed $human in #lobby of $tenant (${locale:-$deflocale}) msg_id=${mid:-?}"
+    else
+      rm -f "$D/$bot.claim"
+      n=$(( $(cat "$D/$bot.tries" 2>/dev/null || echo 0) + 1 ))
+      printf '%s\n' "$n" >"$D/$bot.tries"
+      if (( n >= tries )); then
+        : >"$D/$bot.gaveup"
+        do_log "FAIL $bot could not welcome $human in $tenant after $n tries; giving up on this bot: $(tail -n 3 <<<"$out")"
       else
-        rm -f "$D/$bot.claim"
-        n=$(( $(cat "$D/$bot.tries" 2>/dev/null || echo 0) + 1 ))
-        printf '%s\n' "$n" >"$D/$bot.tries"
-        if (( n >= tries )); then
-          : >"$D/$bot.gaveup"
-          do_log "FAIL $bot could not welcome $human in $tenant after $n tries; giving up on this bot: $(tail -n 3 <<<"$out")"
-        else
-          all=0
-          do_log "WARN $bot could not welcome $human in $tenant (try $n of $tries); the next tick retries: $(tail -n 3 <<<"$out")"
-        fi
-        failed=$((failed + 1))
+        all=0
+        do_log "WARN $bot could not welcome $human in $tenant (try $n of $tries); the next tick retries: $(tail -n 3 <<<"$out")"
       fi
+      failed=$((failed + 1))
+    fi
+  done
+  (( all ))
+}
+
+# _spl_desk_welcome_tenants <box>: the tenants to welcome in, one per line -
+# TENANT_ID's list, else every tenant with a pinned desk on <box>. 1 (with the
+# FATAL) when an entry is not a tenant slug.
+_spl_desk_welcome_tenants() {
+  local box="$1" t
+  local -a tenants=()
+  if [[ -n "${TENANT_ID:-}" ]]; then
+    read -r -a tenants <<<"$TENANT_ID"
+  else
+    for t in "$SPL_STATE_DIR"/desk/*/"$box"/pinned; do
+      [[ -s "$t" ]] && tenants+=("$(basename "$(dirname "$(dirname "$t")")")")
     done
-    (( all )) && date -u +%FT%TZ >"$D/done"
-  done < <(printf '%s\n' "$admits" | python3 -c '
+  fi
+  for t in "${tenants[@]}"; do
+    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID entry '$t' is not a tenant slug"; return 1; }
+  done
+  [[ ${#tenants[@]} -eq 0 ]] || printf '%s\n' "${tenants[@]}"
+}
+
+# _spl_desk_welcome_baselines <ledger dir> <tenant>...: a tenant's first run
+# writes its baseline (now): the members it has then are never greeted.
+_spl_desk_welcome_baselines() {
+  local L="$1" now t; shift
+  now="$(date +%s)"
+  for t in "$@"; do
+    mkdir -p "$L/$t" || return 1
+    if [[ ! -s "$L/$t/baseline" ]]; then
+      printf '%s\n' "$now" >"$L/$t/baseline"
+      do_log "INFO $t: first welcome run, baseline $(date -u -d "@$now" +%FT%TZ) - the members it has now are never greeted"
+    fi
+  done
+}
+
+# _spl_desk_welcome_ensure_plan <ledger dir of the person> <tenant> <box>
+# <human> <live...>: 0 when <dir>/plan names the bot that greets; 1 when this
+# person is skipped (no greeter: decided for good; greeter not live: the next
+# tick tries again); 2 when the ledger dir cannot be made.
+_spl_desk_welcome_ensure_plan() {
+  local D="$1" tenant="$2" box="$3" human="$4" greeter; shift 4
+  [[ -s "$D/plan" ]] && return 0
+  greeter="$(spl_desk_greeter "$tenant" "$box")"
+  if [[ -z "$greeter" ]]; then
+    # Decided, not deferred: configuring a greeter later never greets
+    # the people admitted before it.
+    mkdir -p "$D" && printf '%s no-greeter\n' "$(date -u +%FT%TZ)" >"$D/done"
+    do_log "INFO $tenant: no greeter configured on $box (do_spl_desk_set_greeter); nobody greets $human"
+    return 1
+  fi
+  mkdir -p "$D" || return 2
+  spl_desk_welcome_plan "$SPL_STATE_DIR/desk/$tenant/$box/spool" "$greeter" "$@" >"$D/plan.tmp" &&
+    mv -f "$D/plan.tmp" "$D/plan"
+  if [[ ! -s "$D/plan" ]]; then
+    rm -f "$D/plan" "$D/plan.tmp"
+    do_log "WARN $tenant: greeter $greeter is not seated and live on $box to welcome $human yet; the next tick tries again"
+    return 1
+  fi
+}
+
+# spl_desk_welcome_provenance <invited on> <ordered by> <via>: CLE-77778's
+# footer line ("invited <date> by <name> (via <channel>)"), or nothing when the
+# member did not come through an invite.
+spl_desk_welcome_provenance() {
+  local invon="$1" ordname="$2" ordvia="$3" prov
+  [[ -n "$invon" || -n "$ordname" ]] || return 0
+  prov="invited"
+  [[ -n "$invon" ]] && prov+=" $invon"
+  [[ -n "$ordname" ]] && prov+=" by $ordname"
+  [[ -n "$ordvia" ]] && prov+=" (via $ordvia)"
+  printf '%s\n' "$prov"
+}
+
+# _spl_desk_welcome_rows: the admit JSON lines on stdin as \x1f-separated rows
+# (tenant human at name locale test invited_on ordered_by ordered_via).
+_spl_desk_welcome_rows() {
+  python3 -c '
 import json, sys
 for l in sys.stdin:
     l = l.strip()
@@ -203,9 +253,7 @@ for l in sys.stdin:
     print("\x1f".join([r["tenant"], r["human"], str(r["at"]), name, r.get("locale") or "",
                      "1" if r.get("test") else "0",
                      str(r.get("invited_on") or ""), ordname, ordvia]))
-')
-  do_log "OK welcome run over ${tenants[*]} in $ENV: $greeted greeting(s) posted, $failed refused"
-  (( failed == 0 ))
+'
 }
 
 # spl_desk_greeter <tenant> <box>: the tenant's configured greeter (one agent

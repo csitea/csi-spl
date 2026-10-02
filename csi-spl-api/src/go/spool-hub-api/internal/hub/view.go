@@ -42,12 +42,14 @@ var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
 
 func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/roster", s.viewHandler(s.handleViewRoster))
-	mux.HandleFunc("GET /v1/view/channels", s.viewHandler(s.handleViewChannels))
-	mux.HandleFunc("GET /v1/view/topics", s.viewHandler(s.handleViewTopics))
-	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.viewHandler(s.handleViewTopic))
-	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.viewHandler(s.handleViewChildren))
+	// R2-5: the stamped views answer an unchanged repeat read from the
+	// tenant's change stamp (view_stamp.go, rdb 0103).
+	mux.HandleFunc("GET /v1/view/channels", s.stampedView(s.handleViewChannels))
+	mux.HandleFunc("GET /v1/view/topics", s.stampedView(s.handleViewTopics))
+	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.stampedView(s.handleViewTopic))
+	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.stampedView(s.handleViewChildren))
 	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate)               // SPL-959 old links
-	mux.HandleFunc("GET /v1/view/archived", s.viewHandler(s.handleViewArchived)) // specs/041
+	mux.HandleFunc("GET /v1/view/archived", s.stampedView(s.handleViewArchived)) // specs/041
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045
 	s.routeSearch(mux)                                                      // search-v1.md
@@ -107,6 +109,18 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 
 // viewHandler resolves the tenant, applies CORS and the view door.
 func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
+	return s.viewDoor(next, false)
+}
+
+// stampedView is viewHandler plus the change-stamp gate (view_stamp.go). Only
+// for a view whose every DB read is a table rdb 0103 triggers on, and whose
+// body depends on nothing else but stampKey and message expiry: the roster
+// is not one (its online flag is process memory).
+func (s *Server) stampedView(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
+	return s.viewDoor(next, true)
+}
+
+func (s *Server) viewDoor(next func(http.ResponseWriter, *http.Request, store.Tenant), stamped bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A view is a read: the door, the permit and the handler share one
 		// membership lookup (store.WithMemo).
@@ -115,9 +129,17 @@ func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store
 		// specs/026: the session's active tenant (the view token format is
 		// owner question OQ-16; until it is decided the token door admits
 		// nobody, fail closed).
-		if t, _, ok := s.humanTenant(w, r); ok {
-			next(w, r, t)
+		t, hum, ok := s.humanTenant(w, r)
+		if !ok {
+			return
 		}
+		if stamped {
+			var done bool
+			if w, done = s.stampGate(w, r, t.ID, hum); done {
+				return
+			}
+		}
+		next(w, r, t)
 	}
 }
 

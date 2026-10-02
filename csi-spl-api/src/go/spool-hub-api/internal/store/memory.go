@@ -46,6 +46,7 @@ type Memory struct {
 	anyMoved   bool                    // message_move.go (rdb 0069): a row was ever moved
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string
+	wake         memWake // wake.go (spec 059 S1), its own lock
 }
 
 type memPin struct {
@@ -250,6 +251,7 @@ func (s *Memory) Enqueue(_ context.Context, tenant, msgID, toBox string, now, ex
 	if _, ok := s.deliveries[k]; !ok {
 		s.seq++
 		s.deliveries[k] = &memDelivery{state: StateQueued, receivedAt: now, expiresAt: expires, seq: s.seq}
+		defer s.wake.notify(tenant, toBox) // listeners run on their own goroutines
 	}
 	s.capLocked(tenant, toBox, maxPerBox)
 	return nil

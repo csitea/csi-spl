@@ -62,18 +62,7 @@ func (s *Server) Relay(ctx context.Context) {
 	tenants := map[string]bool{}
 	for _, x := range boxes {
 		tenants[x.tenant] = true
-		q, err := s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now())
-		if err != nil {
-			s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("relay queue")
-			continue
-		}
-		n := 0
-		for _, d := range q {
-			if s.push(ctx, x, d.MsgID, d.Env) {
-				n++
-			}
-		}
-		if n > 0 {
+		if n := s.pushQueued(ctx, x); n > 0 {
 			s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Int("relayed", n).Msg("relay delivered queued rows")
 		}
 	}
@@ -177,6 +166,23 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 }
 
 // relayBoxes is every welcomed role=box session this process holds.
+// pushQueued pushes every queued row of a box socket this process holds and
+// returns how many it sent (the relay tick and the wake-up, wake.go).
+func (s *Server) pushQueued(ctx context.Context, x *session) int {
+	q, err := s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("relay queue")
+		return 0
+	}
+	n := 0
+	for _, d := range q {
+		if s.push(ctx, x, d.MsgID, d.Env) {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *Server) relayBoxes() []*session {
 	s.mu.Lock()
 	defer s.mu.Unlock()

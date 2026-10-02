@@ -53,6 +53,11 @@ type Options struct {
 	// ONE online fallback agent of the tenant (fallback.go). Zero = off, so a
 	// rig that does not ask for it sees no extra frame.
 	Fallback bool
+	// Wake (spec 059 S1): listen for the store's wake-up (store.Waker) and
+	// push a row another process queued for a box this process holds at
+	// once, instead of at the next relay tick. false = off, so a rig that
+	// asserts the relay tick sees no early delivery.
+	Wake bool
 	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
 	// in its topic within this grace is escalated to the tenant's responder by
 	// the relay sweep, whatever the (stale) roster says about who is online.

@@ -366,6 +366,9 @@ func (s *Postgres) Enqueue(ctx context.Context, tenant, msgID, toBox string, now
 	b.Queue(`INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at)
 		VALUES ($1, $2, $3, 'queued', $4, $5) ON CONFLICT DO NOTHING`,
 		tenant, msgID, toBox, now, expires)
+	// spec 059 S1: Postgres sends it only when this batch's transaction
+	// commits, so a listener never wakes for a row it cannot read yet.
+	b.Queue(`SELECT pg_notify('`+WakeChannel+`', $1 || '|' || $2)`, tenant, toBox)
 	if maxPerBox > 0 {
 		b.Queue(`WITH capper AS (SELECT pg_try_advisory_xact_lock(hashtextextended('deliveries-cap/' || $1 || '/' || $2, 0)) AS got)
 			UPDATE deliveries SET state = 'expired'

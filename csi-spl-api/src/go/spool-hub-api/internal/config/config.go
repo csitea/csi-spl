@@ -271,6 +271,10 @@ type Hub struct {
 	// (hub/relay.go): a post stored by another process or revision reaches
 	// its agents within a tick, not at the box's next hello. 0 = off.
 	QueueRelay time.Duration `env:"SPOOL_HUB_QUEUE_RELAY" envDefault:"5s"`
+	// spec 059 S1: a row another hub process queued for a box this process
+	// holds is pushed the moment it commits (Postgres LISTEN/NOTIFY,
+	// hub/wake.go), not at the next QueueRelay tick. false = the poll only.
+	Wake bool `env:"SPOOL_HUB_WAKE" envDefault:"true"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
 	// regardless of what the (stale, dir-derived) box-desk roster says about

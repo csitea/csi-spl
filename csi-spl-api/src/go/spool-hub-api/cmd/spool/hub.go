@@ -109,6 +109,7 @@ func cmdServe() int {
 	}
 	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
+	go srv.RunWake(ctx)                 // spec 059 S1
 	return serveUntilDone(ctx, hc, log, srv)
 }
 
@@ -203,6 +204,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,
 		Fallback:        hc.Fallback,
+		Wake:            hc.Wake,
 		UnansweredGrace: hc.UnansweredGrace,
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,

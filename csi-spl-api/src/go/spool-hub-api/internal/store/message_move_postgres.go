@@ -109,46 +109,9 @@ func (s *Postgres) MoveMessage(ctx context.Context, tenant, msgID, toTask, toCha
 				return ErrMoveCycle
 			}
 		}
-		var from string
-		if err = tx.QueryRow(ctx, `SELECT task_id::text FROM messages WHERE tenant_id = $1 AND msg_id = $2`,
-			tenant, msgID).Scan(&from); err != nil {
-			return err
-		}
-		// The row: record its home task on the first message move, re-home
-		// it, and restore the home parent when it lands back in its home task.
-		if _, err = tx.Exec(ctx, `UPDATE messages SET
-				moved_from_task   = CASE WHEN moved_at IS NULL OR moved_from_task IS NULL THEN task_id ELSE moved_from_task END,
-				moved_from_parent = CASE WHEN moved_at IS NULL OR moved_from_task IS NULL THEN parent_task_id ELSE moved_from_parent END
-			WHERE tenant_id = $1 AND msg_id = $2`, tenant, msgID); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET task_id = $3::uuid, parent_task_id = NULL, is_parent = 0,
-				received_at = GREATEST(received_at, $4)
-			WHERE tenant_id = $1 AND msg_id = $2`, tenant, msgID, toTask, notBefore); err != nil {
-			return err
-		}
-		if err = markTx(ctx, tx, tenant, set.MsgIDs, toChannel, by, at); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET parent_task_id = moved_from_parent,
-				moved_from_task = NULL, moved_from_parent = NULL
-			WHERE tenant_id = $1 AND msg_id = $2 AND task_id = moved_from_task`, tenant, msgID); err != nil {
-			return err
-		}
-		// Its thread: a parent that pointed at the old topic now points at
-		// the new one, so a delete of the old topic does not take it.
-		if len(set.MsgIDs) > 1 {
-			if _, err = tx.Exec(ctx, `UPDATE messages SET parent_task_id = $3::uuid
-				WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) AND parent_task_id = $4::uuid`,
-				tenant, set.MsgIDs[1:], toTask, from); err != nil {
-				return err
-			}
-		}
-		if _, err = tx.Exec(ctx, clearHome, tenant, set.MsgIDs); err != nil {
-			return err
-		}
 		res.MsgIDs, res.TaskIDs = set.MsgIDs, set.TaskIDs
-		res.Moved, res.ReceivedAt, err = movedTx(ctx, tx, tenant, msgID)
+		err = tx.QueryRow(ctx, moveMessageCTE, tenant, msgID, set.MsgIDs, toTask, toChannel, notBefore, at, by).
+			Scan(&res.Moved, &res.ReceivedAt)
 		return err
 	})
 	if err != nil {
@@ -156,6 +119,53 @@ func (s *Postgres) MoveMessage(ctx context.Context, tenant, msgID, toTask, toCha
 	}
 	return res, nil
 }
+
+// moveMessageCTE is MoveMessage's write in ONE statement (perf round 4 G5):
+// the old read -> 5 UPDATEs -> movedTx chain, each stage a column of b..d read
+// from the row as it was, so every row is written once. Stages, as before:
+//
+//	home      the moved row ($2) records its home task/parent on its first
+//	          message move, then is re-homed into $4 (not a parent, received_at
+//	          not before $6)
+//	mark      every row of the topic ($3) -> channel $5 (markTx)
+//	back      the moved row landed in its home task: home parent restored
+//	repoint   a thread row whose parent was the old task now points at $4
+//	clear     a row back home with no home task left drops its mark (clearHome)
+//
+// cur holds every row FOR UPDATE (the moved row is already held by topicTx),
+// so the stages read the rows the UPDATE writes.
+const moveMessageCTE = `WITH cur AS (
+		SELECT msg_id, msg_id = $2::uuid AS is_m, task_id, parent_task_id, moved_at, moved_from_task, moved_from_parent,
+			moved_from_channel, channel
+		FROM messages WHERE tenant_id = $1 AND msg_id = ANY($3::uuid[])
+		FOR UPDATE
+	), b AS (
+		SELECT cur.*, (SELECT task_id FROM cur WHERE is_m) AS from_task,
+			CASE WHEN is_m AND (moved_at IS NULL OR moved_from_task IS NULL) THEN task_id ELSE moved_from_task END AS mft,
+			CASE WHEN is_m AND (moved_at IS NULL OR moved_from_task IS NULL) THEN parent_task_id ELSE moved_from_parent END AS mfp,
+			CASE WHEN moved_at IS NULL THEN channel ELSE moved_from_channel END AS mfc
+		FROM cur
+	), c AS (
+		SELECT b.*, is_m AND mft = $4::uuid AS back FROM b
+	), d AS (
+		SELECT c.*, (CASE WHEN back THEN NULL ELSE mft END) IS NULL AND $5::text IS NOT DISTINCT FROM mfc AS clear FROM c
+	), upd AS (
+		UPDATE messages m SET
+			task_id           = CASE WHEN d.is_m THEN $4::uuid ELSE m.task_id END,
+			is_parent         = CASE WHEN d.is_m THEN 0 ELSE m.is_parent END,
+			received_at       = CASE WHEN d.is_m THEN GREATEST(m.received_at, $6::timestamptz) ELSE m.received_at END,
+			parent_task_id    = CASE WHEN d.back THEN d.mfp WHEN d.is_m THEN NULL
+				WHEN m.parent_task_id = d.from_task THEN $4::uuid ELSE m.parent_task_id END,
+			moved_from_task   = CASE WHEN d.back THEN NULL ELSE d.mft END,
+			moved_from_parent = CASE WHEN d.back THEN NULL ELSE d.mfp END,
+			channel = $5,
+			moved_from_channel = CASE WHEN d.clear THEN NULL ELSE d.mfc END,
+			moved_at           = CASE WHEN d.clear THEN NULL ELSE $7::timestamptz END,
+			moved_by           = CASE WHEN d.clear THEN NULL ELSE $8::text END
+		FROM d WHERE m.tenant_id = $1 AND m.msg_id = d.msg_id
+		RETURNING d.is_m, m.moved_at IS NOT NULL AS moved, m.received_at
+	)
+	SELECT moved, received_at FROM upd WHERE is_m`
 
 // MovedTaskChannel probes messages_moved (only moved rows): one index probe on
 // the send path, spec 045 §3.7.

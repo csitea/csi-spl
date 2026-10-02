@@ -37,35 +37,39 @@ func (s *Postgres) PromoteMessage(ctx context.Context, tenant, srcMsgID, srcTask
 				return ErrMoveCycle
 			}
 		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET
-				moved_from_parent = CASE WHEN moved_from_task IS NULL THEN parent_task_id ELSE moved_from_parent END,
-				moved_from_task   = COALESCE(moved_from_task, task_id)
-			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])
-			  AND (msg_id = $3::uuid OR parent_task_id = $4::uuid)`,
-			tenant, set.MsgIDs, srcMsgID, srcTask); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET task_id = $3::uuid, parent_task_id = NULL, is_parent = 1,
-				moved_from_channel = CASE WHEN moved_at IS NULL THEN channel ELSE moved_from_channel END,
-				moved_at = $4, moved_by = $5
-			WHERE tenant_id = $1 AND msg_id = $2::uuid`,
-			tenant, srcMsgID, newTask, at, by); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET parent_task_id = $3::uuid
-			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) AND msg_id <> $4::uuid AND parent_task_id = $5::uuid`,
-			tenant, set.MsgIDs, newTask, srcMsgID, srcTask); err != nil {
-			return err
-		}
 		res.MsgIDs, res.TaskIDs, res.Moved = set.MsgIDs, set.TaskIDs, true
-		_, res.ReceivedAt, err = movedTx(ctx, tx, tenant, srcMsgID)
-		return err
+		return tx.QueryRow(ctx, promoteCTE, tenant, srcMsgID, srcTask, newTask, set.MsgIDs, at, by).Scan(&res.ReceivedAt)
 	})
 	if err != nil {
 		return MoveResult{}, err
 	}
 	return res, nil
 }
+
+// promoteCTE is promote's three writes and the received_at read in ONE
+// statement (perf round 4 G5): the promoted row ($2) and every sub-thread row
+// of $5 hung off the source task ($3) are written once, each SET expression
+// reading the row as it was, as the three UPDATEs in a row did. Only those
+// rows are touched; cur holds them FOR UPDATE (the promoted row is already
+// held by topicTx).
+const promoteCTE = `WITH cur AS (
+		SELECT msg_id, msg_id = $2::uuid AS is_src FROM messages
+		WHERE tenant_id = $1 AND msg_id = ANY($5::uuid[]) AND (msg_id = $2::uuid OR parent_task_id = $3::uuid)
+		FOR UPDATE
+	), upd AS (
+		UPDATE messages m SET
+			moved_from_parent  = CASE WHEN m.moved_from_task IS NULL THEN m.parent_task_id ELSE m.moved_from_parent END,
+			moved_from_task    = COALESCE(m.moved_from_task, m.task_id),
+			task_id            = CASE WHEN c.is_src THEN $4::uuid ELSE m.task_id END,
+			parent_task_id     = CASE WHEN c.is_src THEN NULL ELSE $4::uuid END,
+			is_parent          = CASE WHEN c.is_src THEN 1 ELSE m.is_parent END,
+			moved_from_channel = CASE WHEN c.is_src AND m.moved_at IS NULL THEN m.channel ELSE m.moved_from_channel END,
+			moved_at           = CASE WHEN c.is_src THEN $6::timestamptz ELSE m.moved_at END,
+			moved_by           = CASE WHEN c.is_src THEN $7::text ELSE m.moved_by END
+		FROM cur c WHERE m.tenant_id = $1 AND m.msg_id = c.msg_id
+		RETURNING c.is_src, m.received_at
+	)
+	SELECT received_at FROM upd WHERE is_src`
 
 func (s *Postgres) DemoteTopic(ctx context.Context, tenant, srcMsgID string, msgIDs []string) error {
 	if !canonUUIDRe.MatchString(srcMsgID) {

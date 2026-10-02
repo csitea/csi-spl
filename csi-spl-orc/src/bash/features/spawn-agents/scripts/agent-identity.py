@@ -28,16 +28,22 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   the records a reboot restore starts again (RESTORE rows) and
                   the ones it refuses (REFUSE + reason); see the action
   hash            the hash of the records as they are on disk
+  rename OLD NEW  move OLD's record to NEW.json with id NEW and re-hash
+                  index.json (specs/061 FR-011); exit 1 no record, 3 NEW has one
   retire ID GEN   move ID's record to retired/<ID>.<GEN>.json and re-hash
                   index.json (specs/061 3.6); exit 1 when there is no record
   alive ID        print the pid and exit 0 when ID's record names a live process
                   that still IS that agent: the pid exists with the recorded start
                   time, is that agent's CLI (argv, else comm), and carries
-                  SPOOL_AGENT_ID=ID. A reader that cannot wait for the next record
+                  SPOOL_AGENT_ID=ID (or the legacy id renamed to ID). A reader that cannot wait for the next record
                   (the dispatch lease) falls back to its own /proc walk.
 
 stdin (facts, record, check): the tmux panes, one per line,
   session<TAB>window_id<TAB>pane_id<TAB>pane_pid<TAB>window_name
+
+A renamed agent (specs/061 FR-011: $SPOOL_ROOT/<old> is a link to <new> and
+agent-id-aliases.tsv maps old to new) is read as its NEW id although its
+environment still carries the old one.
 
 A record outlives its process: alive turns false and session_id / worktree
 stay, so a restore can start that session again under its own id.
@@ -64,6 +70,33 @@ BADGES = (">", "?", "!")
 VOLATILE = ("updated_at",)          # never part of the hash, never a reason to rewrite
 FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", "model", "permission_mode",
           "user", "pid", "proc_start", "tmux_session", "window_id", "pane_id", "alive", "updated_at")
+
+
+# specs/061 FR-011: a renamed agent keeps its legacy id in its process
+# environment (SPOOL_AGENT_ID=CLE-77975) until it restarts. Its record, window
+# name and liveness follow the NEW id once the rename has run, which leaves
+# $SPOOL_ROOT/<old> as a link to <new>: the alias table's row counts only
+# then, so a mapped but not yet renamed agent keeps its old id everywhere.
+RENAMED = {}
+
+
+def load_renamed(agents_dir):
+    root = os.path.dirname(os.path.abspath(agents_dir))
+    out = {}
+    try:
+        with open(os.path.join(root, "agent-id-aliases.tsv")) as fh:
+            for line in fh:
+                cols = line.rstrip("\n").split("\t")
+                if len(cols) >= 2 and ID_RE.match(cols[0]) and ID_RE.match(cols[1]) \
+                        and os.path.islink(os.path.join(root, cols[0])):
+                    out[cols[0]] = cols[1]
+    except OSError:
+        pass
+    return out
+
+
+def renamed(aid):
+    return RENAMED.get(aid, aid)
 
 
 class Proc:
@@ -275,7 +308,7 @@ def facts(proc, panes):
         if inner:
             continue
         argv, env = proc.argv(pid), proc.environ(pid)
-        aid = env.get("SPOOL_AGENT_ID", "") or env.get("MCP_BOT_AGENT_ID", "")
+        aid = renamed(env.get("SPOOL_AGENT_ID", "") or env.get("MCP_BOT_AGENT_ID", ""))
         if not ID_RE.match(aid):
             skipped.append((pid, kind, "its environment carries no agent id (unreadable, or not a fleet agent)"))
             continue
@@ -742,6 +775,29 @@ def cmd_retire(args, proc):
     return 0
 
 
+def cmd_rename(args, proc):
+    """agents/<old>.json -> agents/<new>.json with id = new (specs/061
+    FR-011); index.json re-hashed. 1 when there is no record of old, 3 when
+    new already has one."""
+    src = os.path.join(args.dir, args.old + ".json")
+    dst = os.path.join(args.dir, args.new + ".json")
+    if not os.path.exists(src):
+        return 1
+    if os.path.exists(dst):
+        print("rename: %s already has a record (%s)" % (args.new, dst), file=sys.stderr)
+        return 3
+    r = load(args.dir).get(args.old) or {}
+    r["id"] = args.new
+    r["updated_at"] = now_utc()
+    write_json(dst, {k: r.get(k) for k in FIELDS})
+    os.remove(src)
+    recs = load(args.dir)
+    write_json(os.path.join(args.dir, "index.json"),
+               {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    print("rename: %s -> %s" % (args.old, args.new))
+    return 0
+
+
 def cmd_alive(args, proc):
     r = load(args.dir).get(args.id)
     if not r or not r.get("alive") or not r.get("pid"):
@@ -757,7 +813,7 @@ def cmd_alive(args, proc):
     if kind_of(proc.argv(pid)) != kind and proc.read(pid, "comm").strip() != kind:
         return 1
     env = proc.environ(pid)
-    if (env.get("SPOOL_AGENT_ID") or env.get("MCP_BOT_AGENT_ID")) != args.id:
+    if renamed(env.get("SPOOL_AGENT_ID") or env.get("MCP_BOT_AGENT_ID") or "") != args.id:
         return 1
     print(pid)
     return 0
@@ -789,11 +845,15 @@ def main():
     ad = sub.add_parser("adopt")
     ad.add_argument("id")
     ad.add_argument("pid")
+    rn = sub.add_parser("rename")
+    rn.add_argument("old")
+    rn.add_argument("new")
     rt = sub.add_parser("retire")
     rt.add_argument("id")
     rt.add_argument("gen")
     args = ap.parse_args()
     proc = Proc(args.proc_root)
+    RENAMED.update(load_renamed(args.dir))
     if args.cmd == "facts":
         live, skipped = facts(proc, read_panes(sys.stdin))
         for f in live:
@@ -811,6 +871,8 @@ def main():
         return cmd_restore_plan(args, proc)
     if args.cmd == "adopt":
         return cmd_adopt(args, proc)
+    if args.cmd == "rename":
+        return cmd_rename(args, proc)
     if args.cmd == "retire":
         return cmd_retire(args, proc)
     if args.cmd == "hash":

@@ -26,9 +26,9 @@
 # @description Dry run unless DRY_RUN=0: prints one "PLAN <step> <what>" line
 # @description per action and touches nothing. Verify with do_spl_dispatch_check.
 # @param ENV - required: dev or prd, the hub the desks seat at
-# @param DISPATCH_MASTER (optional) - default CLE-002
-# @param DISPATCH_FAILOVER (optional) - default CLE-003
-# @param DISPATCH_ORCH (optional) - default CLE-001
+# @param DISPATCH_MASTER (optional) - default lease.conf LEASE_MASTER, else c-002
+# @param DISPATCH_FAILOVER (optional) - default lease.conf LEASE_FAILOVER, else c-003
+# @param DISPATCH_ORCH (optional) - default lease.conf LEASE_ORCH, else c-001
 # @param DISPATCH_TENANTS (optional) - space-separated workspaces; default every
 # @param   workspace with a pinned desk box under the state dir
 # @param DISPATCH_SKIP_TENANTS (optional) - also left out of that default, on top of the test workspaces (spl_test_workspaces: e2e, <spool root>/dispatch/test-workspaces, SWEEP_SKIP_RE)

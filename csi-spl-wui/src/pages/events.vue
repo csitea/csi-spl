@@ -68,17 +68,9 @@ import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { eventRowsOf } from '~/utils/event-rows.mjs'
 
-type EventRow = {
-  id: number
-  error_id: string
-  at: string | null
-  received_at: string
-  source: string
-  status: number
-  message: string
-  route: string
-}
+type EventRow = ReturnType<typeof eventRowsOf>[number]
 
 const EVENTS_PAGE = 30
 
@@ -106,29 +98,6 @@ function utcOf(r: EventRow) {
   return raw ? formatIsoTs(raw) : ''
 }
 
-function asRows(data: unknown): EventRow[] {
-  const list = data && typeof data === 'object' ? (data as { events?: unknown }).events : null
-  if (!Array.isArray(list)) return []
-  const out: EventRow[] = []
-  for (const x of list) {
-    if (!x || typeof x !== 'object') continue
-    const o = x as Record<string, unknown>
-    const id = Number(o.id)
-    if (!Number.isFinite(id) || id <= 0) continue
-    out.push({
-      id,
-      error_id: String(o.error_id || ''),
-      at: o.at == null ? null : String(o.at),
-      received_at: String(o.received_at || ''),
-      source: String(o.source || ''),
-      status: Number(o.status) || 0,
-      message: String(o.message || ''),
-      route: String(o.route || ''),
-    })
-  }
-  return out
-}
-
 async function load(before = 0, append = false) {
   if (!signedIn.value) {
     rows.value = []
@@ -146,7 +115,7 @@ async function load(before = 0, append = false) {
     loadError.value = eventsErrorKey(res.error)
     if (!append) rows.value = []
   } else {
-    const page = asRows(res.data)
+    const page = eventRowsOf(res.data)
     rows.value = append ? [...rows.value, ...page] : page
     const nb = res.data && typeof res.data === 'object' ? Number((res.data as { next_before?: unknown }).next_before) : 0
     nextBefore.value = Number.isFinite(nb) && nb > 0 ? nb : 0

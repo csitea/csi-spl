@@ -105,6 +105,7 @@
 
 <script setup lang="ts">
 import { isoDate } from '~/utils/date-iso.mjs'
+import { clampPopover } from '~/utils/popover-clamp.mjs'
 import {
   DEADLINE_DEFAULT_TIME, deadlineText, deadlineTimes, joinLocal, monthGrid, monthOf, parseDeadlineText, shiftMonth, splitLocal,
 } from '~/utils/issues-view.mjs'
@@ -197,24 +198,14 @@ function clear() {
   close(true)
 }
 
-/* SPL-1147: always fully inside the viewport. Under the field, left edges
-   aligned; near the right edge it opens to the left (right edges aligned),
-   near the bottom it opens upwards; then clamped 8 px inside. Measured from
+/* SPL-1147: always fully inside the viewport (clampPopover). Measured from
    the drawn pop-up, so the numbers follow the CSS. */
-const EDGE = 8
 function place() {
   const r = root.value?.getBoundingClientRect()
   if (!r) return
-  const vw = window.innerWidth
-  const vh = window.innerHeight
   const w = pop.value?.offsetWidth || 200
   const h = pop.value?.offsetHeight || 300
-  let left = r.left
-  if (left + w > vw - EDGE) left = r.right - w
-  left = Math.max(EDGE, Math.min(left, vw - w - EDGE))
-  let top = r.bottom + 4
-  if (top + h > vh - EDGE && r.top - 4 - h >= EDGE) top = r.top - 4 - h
-  top = Math.max(EDGE, Math.min(top, vh - h - EDGE))
+  const { left, top } = clampPopover({ anchor: r, w, h, vw: window.innerWidth, vh: window.innerHeight })
   popStyle.value = { left: `${Math.round(left)}px`, top: `${Math.round(top)}px` }
 }
 

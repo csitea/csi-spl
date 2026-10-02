@@ -28,6 +28,10 @@
 // warm: the bytes are CLE-77933's network lane, the CPU is this one's).
 // CPU_PROFILE=1 adds one extra, untimed round per profile under the V8
 // sampling profiler and prints self time per script and the top functions.
+// TRACE=1 adds one extra, untimed round per profile under a Chrome trace and
+// prints the renderer main thread's self ms per event type (EvaluateScript,
+// v8 compile, style recalc, Layout, Paint, GC, ...) before rail, rail -> Flow
+// and the 2.5 s after: what the long tasks are made of.
 //
 //   BASE=https://<tenant host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=e2e] [N=10] [PROFILES=d1440,m390] [COLD_CACHE=0] [CPU_PROFILE=0] \
@@ -68,6 +72,7 @@ const TENANT = process.env.TENANT || 'e2e'
 const N = Number(process.env.N || 10)
 const COLD_CACHE = process.env.COLD_CACHE === '1'
 const CPU_PROFILE = process.env.CPU_PROFILE === '1'
+const TRACE = process.env.TRACE === '1'
 const PROFILES = (process.env.PROFILES || 'd1440,m390').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
@@ -121,7 +126,7 @@ const clickAt = (p, sel) => p.evaluate((s) => {
   return performance.now()
 }, sel)
 
-async function round(ctx, prof, profile) {
+async function round(ctx, prof, profile, trace = false) {
   const p = await ctx.newPage()
   try {
     await p.setViewport(prof.vp)
@@ -131,6 +136,7 @@ async function round(ctx, prof, profile) {
     await cdp.send('Network.enable')
     if (COLD_CACHE) await cdp.send('Network.clearBrowserCache')
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: prof.cpu })
+    if (trace) await p.tracing.start({ categories: TRACE_CATEGORIES })
     if (profile) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start') }
     await p.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 })
     const rail = await whenSel(p, FLOW_TAB, 45000)
@@ -141,6 +147,7 @@ async function round(ctx, prof, profile) {
     const homeAt = await home
     await sleep(2500)
     const cpuProfile = profile ? (await cdp.send('Profiler.stop')).profile : null
+    const traceSummary = trace ? mainThreadSelf(JSON.parse(new TextDecoder().decode(await p.tracing.stop())), BASE, rail, flow) : null
     const end = (flow > 0 ? flow : rail) + 2500
     const page = await p.evaluate((rail, end) => {
       const lt = (window.__rtLong || []).filter((e) => e.start < end)
@@ -167,6 +174,7 @@ async function round(ctx, prof, profile) {
         heapMB: Math.round((m.JSHeapUsedSize || 0) / 104857.6) / 10,
       },
       cpuProfile,
+      traceSummary,
     }
   } finally {
     await p.close().catch(() => {})
@@ -193,6 +201,52 @@ function attribute(prof) {
   }
   const top = (o, n) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => [k, Math.round(v * 10) / 10])
   return { perScript: top(perScript, 25), perFn: top(perFn, 40) }
+}
+
+const TRACE_CATEGORIES = ['toplevel', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8', 'v8.execute', 'disabled-by-default-v8.compile', 'blink.user_timing', 'loading']
+/** Event names folded into one row of the trace table. */
+const TRACE_KIND = {
+  EvaluateScript: 'script: evaluate', FunctionCall: 'script: call', TimerFire: 'script: timer', FireAnimationFrame: 'script: rAF',
+  EventDispatch: 'script: event', RunMicrotasks: 'script: microtasks', 'v8.run': 'script: v8.run', V8Execute: 'script: v8.run',
+  'v8.compile': 'compile', 'v8.compileModule': 'compile', 'v8.parseOnBackground': 'compile', 'V8.CompileCode': 'compile', CompileScript: 'compile', CompileModule: 'compile',
+  'v8.evaluateModule': 'script: evaluate', 'v8.callFunction': 'script: call', 'v8.newInstance': 'script: call', 'v8.produceModuleCache': 'compile',
+  'V8.DeoptimizeCode': 'compile', ParseHTML: 'parse html', ParseAuthorStyleSheet: 'parse css',
+  UpdateLayoutTree: 'style', RecalculateStyles: 'style', Layout: 'layout', PrePaint: 'paint', Paint: 'paint', Layerize: 'paint',
+  UpdateLayerTree: 'paint', 'Document::updateStyleAndLayout': 'style+layout (forced)',
+  MinorGC: 'gc', MajorGC: 'gc', 'V8.GCScavenger': 'gc', 'V8.GCFinalizeMC': 'gc', 'V8.GC_MC_BACKGROUND_MARKING': 'gc', BlinkGC: 'gc',
+}
+/**
+ * The page renderer's main-thread self time per kind (ms, at the profile's
+ * CPU rate), split at rail and flow (performance.now() ms of the page).
+ */
+function mainThreadSelf(trace, base, rail, flow) {
+  const ev = trace.traceEvents || trace
+  const nav = ev.filter((e) => e.name === 'navigationStart' && String(e.args?.data?.documentLoaderURL || '').startsWith(base)).at(-1)
+  if (!nav) return { error: 'no navigationStart for ' + base }
+  const main = ev.find((e) => e.ph === 'M' && e.name === 'thread_name' && e.pid === nav.pid && e.args?.name === 'CrRendererMain')
+  const tid = main ? main.tid : nav.tid
+  const xs = ev.filter((e) => e.pid === nav.pid && e.tid === tid && e.ph === 'X' && e.dur > 0).sort((a, b) => a.ts - b.ts || b.dur - a.dur)
+  const cut = [rail, flow > 0 ? flow : rail, (flow > 0 ? flow : rail) + 2500]
+  const win = (t) => { const ms = (t - nav.ts) / 1000; return ms < cut[0] ? 'toRail' : ms < cut[1] ? 'toFlow' : ms < cut[2] ? 'after' : null }
+  const out = { toRail: {}, toFlow: {}, after: {} }
+  const stack = []
+  const add = (e, self) => {
+    const w = win(e.ts)
+    if (!w || self <= 0) return
+    const k = TRACE_KIND[e.name] || (/^V8\.GC/.test(e.name) ? 'gc' : /^(DocumentLoader|DecodedDataDocumentParser|HTMLDocumentParser)/.test(e.name) ? 'parse html' : e.name === 'RunTask' || e.name === 'ThreadControllerImpl::RunTask' ? 'other (task)' : 'other: ' + e.name)
+    out[w][k] = (out[w][k] || 0) + self / 1000
+  }
+  for (const e of xs) {
+    while (stack.length && stack.at(-1).end <= e.ts) { const d = stack.pop(); add(d.e, d.self) }
+    const end = e.ts + e.dur
+    if (stack.length && end <= stack.at(-1).end) stack.at(-1).self -= e.dur
+    stack.push({ e, end, self: e.dur })
+  }
+  while (stack.length) { const d = stack.pop(); add(d.e, d.self) }
+  for (const w of Object.keys(out)) {
+    out[w] = Object.fromEntries(Object.entries(out[w]).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 1).map(([k, v]) => [k, Math.round(v)]))
+  }
+  return out
 }
 
 const pct = (xs, q) => {
@@ -268,6 +322,13 @@ try {
       }
     }
     Object.assign(res.profiles, samples)
+    if (TRACE) {
+      res.trace ??= {}
+      for (const v of variants) {
+        const r = await round(v.ctx, prof, false, true).catch((e) => ({ traceSummary: { error: String(e?.message || e) } }))
+        res.trace[name + v.tag] = r.traceSummary
+      }
+    }
     if (CPU_PROFILE) {
       for (const v of variants) {
         const r = await round(v.ctx, prof, true).catch((e) => ({ error: String(e?.message || e) }))
@@ -302,6 +363,14 @@ const names = Object.keys(summary)
 console.log(`| metric | ${names.map((n) => `${n} median / p90 (n)`).join(' | ')} |`)
 console.log(`|---|${names.map(() => '---|').join('')}`)
 for (const k of KEYS) console.log(`| ${k} | ${names.map((n) => { const m = summary[n][k]; return m.median === null ? '-' : `${m.median} / ${m.p90} (${m.n})` }).join(' | ')} |`)
+for (const [n, t] of Object.entries(res.trace || {})) {
+  if (t.error) { console.log(`\n${n} trace: ERROR ${t.error}`); continue }
+  console.log(`\n${n} main-thread self ms by kind (one traced round)`)
+  const kinds = [...new Set(Object.values(t).flatMap((w) => Object.keys(w)))]
+  console.log('| kind | to rail | rail -> flow | 2.5 s after |')
+  console.log('|---|---|---|---|')
+  for (const k of kinds) console.log(`| ${k} | ${t.toRail[k] ?? 0} | ${t.toFlow[k] ?? 0} | ${t.after[k] ?? 0} |`)
+}
 for (const [n, c] of Object.entries(res.cpu)) {
   if (c.error) { console.log(`\n${n} cpu profile: ERROR ${c.error}`); continue }
   console.log(`\n${n} self ms per script (one profiled round)`)

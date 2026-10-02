@@ -94,7 +94,7 @@ _spl_channel_agent_remove_op_run() {
 
 # _spl_channel_agent_remove_op_sql: the one-transaction remove script - refuse a
 # reserved / retired channel; else mark the seats removed, print "removed | ..."
-# / "absent | ...", and COMMIT only when it marked exactly the seats it found.
+# / "absent | ..." from what the UPDATE itself returned (race-free), COMMIT.
 _spl_channel_agent_remove_op_sql() {
   cat <<'SQL'
 BEGIN;
@@ -105,34 +105,25 @@ ROLLBACK;
 SELECT format('refuse-reserved | %s', :'channel');
 \quit 1
 \endif
-SELECT coalesce(string_agg(s.a, ' ' ORDER BY s.a), '') AS had
-  FROM (
-         SELECT DISTINCT btrim(x) AS a
-           FROM unnest(string_to_array(:'agents', ' ')) AS t(x)
-          WHERE btrim(x) <> ''
-            AND EXISTS (
-              SELECT 1 FROM channel_subscriptions c
-               WHERE c.tenant_id = :'tenant' AND c.channel_id = :'channel'
-                 AND c.box_id = :'box' AND c.agent_id = btrim(x)
-                 AND c.origin <> 'removed'
-            )
-       ) s \gset
-SELECT count(*)::int AS nhad FROM (
-         SELECT btrim(x) AS a
-           FROM unnest(string_to_array(:'had', ' ')) AS t(x)
-          WHERE btrim(x) <> ''
-       ) h \gset
-UPDATE channel_subscriptions AS c
-   SET origin = 'removed'
- WHERE c.tenant_id = :'tenant' AND c.channel_id = :'channel' AND c.box_id = :'box'
-   AND c.origin <> 'removed'
-   AND c.agent_id IN (
-         SELECT DISTINCT btrim(x)
-           FROM unnest(string_to_array(:'agents', ' ')) AS t(x)
-          WHERE btrim(x) <> ''
-       );
-SELECT :ROW_COUNT AS nremoved \gset
-SELECT (:nremoved::int = :nhad::int)::int AS ok \gset
+-- had = exactly the seats THIS update marked (RETURNING). A pre-count raced:
+-- a concurrent writer that removed the same seat between the count and the
+-- update made it 1 found, 0 changed, and a false "rolled back" (prd,
+-- 2026-10-02 21:35Z: 36 of them while the desk tick removed the same rows).
+WITH u AS (
+  UPDATE channel_subscriptions AS c
+     SET origin = 'removed'
+   WHERE c.tenant_id = :'tenant' AND c.channel_id = :'channel' AND c.box_id = :'box'
+     AND c.origin <> 'removed'
+     AND c.agent_id IN (
+           SELECT DISTINCT btrim(x)
+             FROM unnest(string_to_array(:'agents', ' ')) AS t(x)
+            WHERE btrim(x) <> ''
+         )
+  RETURNING c.agent_id
+)
+SELECT coalesce(string_agg(u.agent_id, ' ' ORDER BY u.agent_id), '') AS had, count(*)::int AS nremoved FROM u \gset
+-- a seat is marked once at most (the primary key): more is a bug, refused
+SELECT (:nremoved::int <= (SELECT count(DISTINCT btrim(x)) FROM unnest(string_to_array(:'agents', ' ')) AS t(x) WHERE btrim(x) <> ''))::int AS ok \gset
 \if :ok
 SELECT format('removed | %s', btrim(x))
   FROM unnest(string_to_array(:'had', ' ')) AS t(x)

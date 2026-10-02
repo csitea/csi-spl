@@ -217,15 +217,8 @@ func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
 	if h.cfg.Dedicated {
 		out["dedicated"] = true
 	}
-	w.Header().Set("Cache-Control", planCacheControl)
-	wire.WriteJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, out)
 }
-
-// planCacheControl lets the hosting edge and the browser keep the plan for
-// up to 5 minutes (perf r4 G11): it names no buyer and no secret (the
-// publishable key and PayPal client id are public by design), so every
-// visitor gets the same bytes, and a price change shows within 5 minutes.
-const planCacheControl = "public, max-age=300"
 
 func newCheckoutID() string {
 	b := make([]byte, 16)

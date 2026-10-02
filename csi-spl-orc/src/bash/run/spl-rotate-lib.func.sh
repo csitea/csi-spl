@@ -446,12 +446,18 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # Non-zero = failed, the reason in ROTATE_ERR; the caller runs spl_rotate_restore.
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_spawn() {
-  local id="$1" seed="$2" sess out pid user t0 got
+  local id="$1" seed="$2" sess out pid user t0 got tag bin
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID=""
   spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
     { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
   sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
-  out="$(SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" \
+  # the box tag the old window showed (<ID>@<tag>), so the new one is named alike
+  tag="${SPOOL_BOX_TAG:-}"
+  [[ -z "$tag" && "${ROTATE_OLD_NAME:-}" =~ ^$id@([a-z0-9][a-z0-9-]*) ]] && tag="${BASH_REMATCH[1]}"
+  # the agent user's own claude, not whatever `claude` a login PATH finds
+  bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
+  [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
+  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
     SPAWN_LANE_SCOPE="role $id (rotation $ROTATE_RID)" \
     bash "$ROTATE_SPAWN" claude "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"

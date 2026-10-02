@@ -11,21 +11,21 @@ lanes ask nothing more unless they are blocked.
 
 ## 2. Shared library (CLE-77939)
 
-- [ ] T010 `spl-rotate-lib.func.sh`: `spl_rotate_log`, `spl_rotate_conf` (FR-002..FR-005, FR-074, FR-090) + test
-- [ ] T011 `spl_rotate_quiesce` (FR-011) + test with a busy stub pane (T-ORCH-BUSY)
-- [ ] T012 `spl_rotate_handoff`, all 9 sections, `UNAVAILABLE` per failing source (spec 6) + test
-- [ ] T013 `spl_rotate_spawn`, `spl_rotate_restore` (FR-006, FR-007, FR-013) + T-ORCH-POKE-ROUTE
-- [ ] T014 `spl_rotate_retire` (FR-015) + T-ORCH-EXIT-HANG
-- [ ] T015 `spl_rotate_ack_wait` + the `ROTATE_CMD=ack` sender (FR-041) + T-ACK-FORGED
-- [ ] T016 `spl_rotate_alert` (FR-075): an ask + an immediate owner DM
+- [x] T010 `spl-rotate-lib.func.sh`: `spl_rotate_log`, `spl_rotate_conf` (FR-002..FR-005, FR-074, FR-090) + test
+- [x] T011 `spl_rotate_quiesce` (FR-011) + test with a busy stub pane (T-ORCH-BUSY)
+- [x] T012 `spl_rotate_handoff`, all 9 sections, `UNAVAILABLE` per failing source (spec 6) + test
+- [x] T013 `spl_rotate_spawn`, `spl_rotate_restore` (FR-006, FR-007, FR-013) + T-ORCH-POKE-ROUTE
+- [x] T014 `spl_rotate_retire` (FR-015) + T-ORCH-EXIT-HANG
+- [x] T015 `spl_rotate_ack_wait` + the `ROTATE_CMD=ack` sender (FR-041) + T-ACK-FORGED
+- [x] T016 `spl_rotate_alert` (FR-075): an ask + an immediate owner DM
 
 ## 3. Orchestrator (CLE-77939)
 
-- [ ] T020 `do_spl_orch_rotate`: gates, QUIESCE, HANDOFF, SPAWN, ACK, RETIRE, CLOSE, DONE (FR-010..FR-019) + T-ORCH-HAPPY, T-ORCH-GATES, T-ORCH-ACK-TIMEOUT, T-ORCH-SPAWN-FAIL, T-ORCH-RESUME
-- [ ] T021 `tmux-close-window.sh`: a caller in a retiring window closes its own window (FR-016) + T-EXITCLEAN-RETIRING
-- [ ] T022 `do_spl_rotate_status` (FR-063, FR-071)
-- [ ] T023 `do_spl_orch_rotate_install_cron` at `5 * * * *` (FR-050) + T-CRON
-- [ ] T024 `ROTATE_CMD=abort` (FR-091)
+- [x] T020 `do_spl_orch_rotate`: gates, QUIESCE, HANDOFF, SPAWN, ACK, RETIRE, CLOSE, DONE (FR-010..FR-019) + T-ORCH-HAPPY, T-ORCH-GATES, T-ORCH-ACK-TIMEOUT, T-ORCH-SPAWN-FAIL, T-ORCH-RESUME
+- [x] T021 `tmux-close-window.sh`: a caller in a retiring window closes its own window (FR-016) + T-EXITCLEAN-RETIRING
+- [x] T022 `do_spl_rotate_status` (FR-063, FR-071)
+- [x] T023 `do_spl_orch_rotate_install_cron` at `5 * * * *` (FR-050) + T-CRON
+- [x] T024 `ROTATE_CMD=abort` (FR-091)
 - [ ] T025 Live L1 (DRY_RUN) and L2 (one real rotation of `CLE-001`), then install the cron
 - [ ] T026 Send `CLE-001` the FR-061 one-line flag diff (FR-062)
 

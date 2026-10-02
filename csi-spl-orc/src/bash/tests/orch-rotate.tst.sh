@@ -92,7 +92,7 @@ EOF
 # fake claude runs ONLY the seed's ACK-COMMAND line (no model: T-NO-MODEL)
 cat >"$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
-echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} SPOOL_SESSION=${SPOOL_SESSION:-}" >>"$T/spawn.log"
+echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} SPOOL_SESSION=${SPOOL_SESSION:-} SPOOL_BOX_TAG=${SPOOL_BOX_TAG:-}" >>"$T/spawn.log"
 mode="$(cat "$T/spawn.mode" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
@@ -228,9 +228,9 @@ grep -qx "rename %2 CLE-900-${rid:9:4}Z-retiring" "$T/tmux/log" && pass "3. old 
   pass "3. T-ORCH-POKE-ROUTE: the retiring name parses as no id" || fail "3. the retiring name parses as an id"
 grep -qx 'adopt CLE-900 2001' "$T/ai.log" && grep -q " SPAWN OK new pid 2001 pane %20" "$T/o" &&
   pass "3. T-ORCH-POKE-ROUTE: the map adopts the new pid before ACK" || fail "3. adopt: $(cat "$T/ai.log" 2>/dev/null)"
-grep -q "^spawn claude CLE-900 .* $D/handoff/$rid-CLE-900.seed.md rotate SPAWN_REUSE_ID=1 SPOOL_SESSION=\$0" "$T/spawn.log" &&
+grep -q "^spawn claude CLE-900 .* $D/handoff/$rid-CLE-900.seed.md rotate SPAWN_REUSE_ID=1 SPOOL_SESSION=\$0 SPOOL_BOX_TAG=box\$" "$T/spawn.log" &&
   grep -q "^You are the new CLE-900@box-desk, rotated at $rid. Read $D/handoff/$rid-CLE-900.md, then run" "$D/handoff/$rid-CLE-900.seed.md" &&
-  pass "3. same id (SPAWN_REUSE_ID=1), same tmux session, the FR-040 rotation line" || fail "3. spawn: $(cat "$T/spawn.log")"
+  pass "3. same id (SPAWN_REUSE_ID=1), same tmux session and box tag, the FR-040 rotation line" || fail "3. spawn: $(cat "$T/spawn.log")"
 grep -q "send CLE-900 -> CLE-900 result orch-rotate-$rid: ACK" "$T/send.log" && grep -q " ACK OK acked by pid 2001" "$T/o" &&
   pass "3. ack = a result in CLE-900/outbox on orch-rotate-<rid>" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
 grep -q '^keys %2 /exit-clean$' "$T/tmux/log" && [[ ! -d "$T/proc/1001" ]] && grep -qx 'kill %2' "$T/tmux/log" &&

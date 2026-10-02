@@ -14,6 +14,10 @@
 #        d. the owner's address as the key's line in a NON-cnf yaml
 #   The owner's address is read from the yaml at run time and the planted
 #   address is assembled at run time, so this file carries neither literal.
+#   A setup that did not happen (an export or copy cut short, a plant that
+#   changed nothing) FAILS as a setup failure, never as a sweep verdict: on
+#   2026-10-02 a full /tmp truncated the control copies, the plants landed
+#   nowhere and CONTROL c/d read "sweep did NOT fail" (run 37031322430).
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -32,12 +36,17 @@ yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "
 [[ -s "$T/sweep.sh" ]] && grep -q 'allow_line=' "$T/sweep.sh" \
   && pass "extracted the workflow's Sweep step, with its allow-list" || fail "no Sweep step / allow-list in $WF"
 
-# export <dir> -> the tracked tree, as actions/checkout would see it
+# export <dir> -> the tracked tree, as actions/checkout would see it; rc 0 only
+# when every tracked file (or symlink) present in the checkout arrived
 export_tree() {
-  mkdir -p "$1"
-  git -C "$APP_ROOT" ls-files -z | (cd "$APP_ROOT" && tar --null -T - -cf - 2>/dev/null) | tar -xf - -C "$1"
+  mkdir -p "$1" || return 1
+  git -C "$APP_ROOT" ls-files -z | (cd "$APP_ROOT" && tar --null -T - -cf - 2>/dev/null) | tar -xf - -C "$1" || return 1
   # the working copy of the cnf, so an uncommitted change is what gets tested
-  cp "$APP_ROOT/$CNF" "$1/$CNF"
+  cp "$APP_ROOT/$CNF" "$1/$CNF" || return 1
+  local want got
+  want=$(git -C "$APP_ROOT" ls-files -z | (cd "$APP_ROOT" && xargs -0 -r sh -c 'for f; do { [ -L "$f" ] || [ -f "$f" ]; } && echo; done' _) | wc -l)
+  got=$(find "$1" \( -type f -o -type l \) | wc -l)
+  [[ "$got" -eq "$want" ]] || { echo "    | the export holds $got of $want files"; return 1; }
 }
 # sweep <dir> -> output on stdout, rc as the step's exit code
 sweep() { (cd "$1" && bash "$T/sweep.sh" 2>&1); }
@@ -46,7 +55,8 @@ owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT/$CNF")
 [[ -n "$owner" ]] && pass "$CNF sets env.gcp.gcp_account_owner_email" || fail "$CNF has no gcp_account_owner_email value"
 
 # --- 1. the real tree ---------------------------------------------------------
-export_tree "$T/real"
+export_tree "$T/real" && pass "exported the whole tracked tree" \
+  || { fail "SETUP: the tree export is incomplete (disk full? TMPDIR=${TMPDIR:-/tmp}), so no verdict below would mean anything"; exit 1; }
 out=$(sweep "$T/real"); rc=$?
 echo "$out" | sed 's/^/    | /'
 [[ $rc -eq 0 ]] && pass "the real tree passes the sweep (rc 0)" || fail "the real tree fails the sweep (rc=$rc)"
@@ -57,10 +67,16 @@ grep -q '^allowed - owner mail address or domain' <<<"$out" \
 at="@"; dom="gm""ail.com"
 other="someone.else${at}${dom}"
 ctl() { # <label> <setup command run inside the copy>
-  local label="$1" dir="$T/ctl-$2"; shift 2
-  cp -a "$T/real" "$dir"
-  (cd "$dir" && eval "$*")
+  local label="$1" dir="$T/ctl-$2" err; shift 2
+  # the plant must have landed, or a passing sweep below proves nothing
+  # (err is kept in memory: a file for it would sit on the same full disk)
+  if ! err=$(cp -a "$T/real" "$dir" 2>&1 && cd "$dir" && eval "$*" 2>&1) \
+     || diff -rq "$T/real" "$dir" >/dev/null 2>&1; then
+    fail "CONTROL $label -> SETUP failed, the plant did not land (disk full? TMPDIR=${TMPDIR:-/tmp}): ${err%%$'\n'*}"
+    rm -rf "$dir"; return
+  fi
   out=$(sweep "$dir"); rc=$?
+  rm -rf "$dir"
   if [[ $rc -ne 0 ]] && grep -q '::error::hygiene: owner mail address or domain' <<<"$out"; then
     pass "CONTROL $label -> sweep fails (rc=$rc): $(grep '::error::hygiene: owner mail' <<<"$out" | head -1)"
   else

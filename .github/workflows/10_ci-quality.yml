@@ -359,10 +359,14 @@ jobs:
           echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud-empty" >>"$GITHUB_ENV"
           [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
 
+      # The tests' mktemp scratch goes to the job's own disk-backed temp dir,
+      # not the box's shared /tmp tmpfs: other work filled that one and cut
+      # the hygiene controls' tree copies short (run 37031322430).
       - name: run-all-tests.sh
         run: |
           set -euo pipefail
           unset SPL_TF_ALLOW_SKIP
+          mkdir -p "$RUNNER_TEMP/tmp"; export TMPDIR="$RUNNER_TEMP/tmp"
           bash csi-spl-iac/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/iac-suite.log"
 
       - name: No test reached GCP (the trap log is empty)

@@ -1,0 +1,100 @@
+# ci-cd: spool WUI edge warm (perf round 4, C7; round 3 P3-08)
+#
+# A Hosting deploy empties the CDN edge, so the first reader of every document
+# and /_nuxt file after a deploy pays the origin fetch (round 3: document
+# 222 ms MISS vs 21 ms HIT; /_nuxt files 90..222 ms on the first fetch per
+# POP, n=99). When 30 completes, this fetches each of them once per browser
+# Accept-Encoding key through csi-spl-iac's do_warm_wui_edge (its header says
+# how: crawl from the deployed "/", <= 2 paced kept-alive curls).
+#
+# PER ENV: it warms exactly the envs whose 30 leg ran "firebase deploy --only
+# hosting" to success (read from that run's jobs), so a stood-down or failed
+# leg warms nothing and dev still warms when prd failed. Hosts come from cnf
+# (env.dns.fqdn) inside the action; this file carries none.
+#
+# WHAT IT REACHES: only the POPs this runner reaches (GitHub-hosted, so never
+# a box's IP). A warm is a convenience, never a gate: it cannot undo a deploy,
+# so a failed warm is a red run of 31 and nothing else waits on it.
+#
+# workflow_run only fires from the copy of this file on master, and 22's header
+# records it once not firing for 20; workflow_dispatch is the manual way in.
+# 30 itself is not edited (C6 owns it).
+
+name: "31 ci-cd: spool WUI edge warm"
+
+on:
+  workflow_run:
+    workflows: ["30 ci-cd: spool WUI build + deploy"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to warm ("all" = dev + prd)'
+        type: choice
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - prd
+          - all
+
+permissions:
+  contents: read
+  actions: read   # read the triggering 30 run's jobs
+
+concurrency:
+  group: wui-edge-warm-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Envs 30 deployed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      envs: ${{ steps.envs.outputs.envs }}
+    steps:
+      - id: envs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            if [[ "$INPUT_ENV" == all ]]; then envs='["dev","prd"]'; else envs="[\"$INPUT_ENV\"]"; fi
+          else
+            # a leg named "Deploy WUI to <env>" whose hosting deploy step succeeded
+            envs=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+              --jq '.jobs[] | select(.name | startswith("Deploy WUI to "))
+                    | select(any(.steps[]?; .name == "firebase deploy --only hosting" and .conclusion == "success"))
+                    | .name | ltrimstr("Deploy WUI to ")' \
+              | python3 -c 'import json,sys; print(json.dumps(sorted({l.strip() for l in sys.stdin if l.strip()})))')
+          fi
+          echo "warm targets: $envs"
+          echo "envs=$envs" >> "$GITHUB_OUTPUT"
+
+  warm:
+    name: Warm the WUI edge for ${{ matrix.environment }}
+    needs: plan
+    if: needs.plan.outputs.envs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      # one env at a time: two warms side by side would be 4 workers from one IP
+      max-parallel: 1
+      matrix:
+        environment: ${{ fromJson(needs.plan.outputs.envs) }}
+    steps:
+      # master, not 30's head_sha: the action exists on master even when 30
+      # ran an older commit (a stand-down redeploy).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: do_warm_wui_edge
+        working-directory: csi-spl-iac
+        env:
+          ENV: ${{ matrix.environment }}
+        run: ./run -a do_warm_wui_edge

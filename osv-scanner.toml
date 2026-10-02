@@ -12,7 +12,11 @@
 #    pulled only by listhen 1.10.1 (latest, still node-forge ^1.4.0) under
 #    @nuxt/cli + nitropack, for the dev server's self-signed HTTPS cert. It is
 #    not in the generated static bundle. devalue 5.9.2 -> 5.9.4 (7 GHSAs) was
-#    fixed by the lockfile instead (CLE-77971).
+#    fixed by the lockfile instead (CLE-77971). The pnpm audit leg (workflow 15)
+#    carries the SAME single exception, csi-spl-wui/package.json
+#    pnpm.auditConfig.ignoreGhsas (JSON has no comments, so its reason and its
+#    2026-11-01 expiry live here): remove both together once a fixed
+#    node-forge or a listhen without it ships.
 #  - otel/sdk, serialize-javascript (npm): low, below the govulncheck/pnpm-audit
 #    gates; Dependabot-tracked.
 # Review / re-check by 2026-11-01.

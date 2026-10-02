@@ -49,6 +49,9 @@
 # @param DISPATCH_ASKS_OWNER / DISPATCH_ASKS_RERAISE_MIN / DISPATCH_ASKS_OWNER_MIN (optional) - the asks
 # @param   timer's knobs (CLE-77929, do_spl_asks_tick): written to lease.conf as ASKS_OWNER (the owner's
 # @param   HUM-<n>: the DM leg for an ask unacked ASKS_OWNER_MIN), ASKS_RERAISE_MIN, ASKS_OWNER_MIN.
+# @param DISPATCH_ASKS_LOCK_MIN / DISPATCH_ASKS_MAX_RAISES (optional) - the share-group deltas (CLE-77942):
+# @param   ASKS_LOCK_MIN (an acked ask's holder quiet that long is released, default 60) and
+# @param   ASKS_MAX_RAISES (the delivery limit before the dead-letter to the owner, default 4).
 # @param   Unset, the ASKS_ lines already in lease.conf are KEPT
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -99,7 +102,7 @@ spl_dispatch_setup_steps() {
   # the asks timer's knobs (CLE-77929): given ones are written, the others
   # carried over from the current file, so a re-run never drops them
   local k v
-  for k in OWNER RERAISE_MIN OWNER_MIN; do
+  for k in OWNER RERAISE_MIN OWNER_MIN LOCK_MIN MAX_RAISES; do
     v="DISPATCH_ASKS_$k"; v="${!v:-}"
     if [[ -z "$v" ]]; then
       v="$(sed -n "s/^ASKS_$k=//p" "$LEASE_CONF" 2>/dev/null | tail -1)"

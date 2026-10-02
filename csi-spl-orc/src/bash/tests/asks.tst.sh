@@ -27,6 +27,13 @@
 #   8. the orchestrator's view: open asks first, untracked blocker/task, FYI
 #      collapsed per sender; ORCH_INBOX_ARCHIVE=1 moves the handled messages
 #      and never an open ask's
+#  10. the share-group deltas (CLE-77942, rdb 0099): KILL-MID-ASK across the
+#      two machines - pc's holder acks and dies, sat's tick releases the
+#      expired lock and re-raises it "lock expired" (CONTROL: lock off = the
+#      old filter leaves it acked forever); a re-ack renews the lock; at the
+#      delivery limit an ask is no longer raised, goes to the owner once and
+#      is dead-lettered with the reason (CONTROL: no limit = raised again);
+#      without an owner leg it is dead-lettered saying nobody was told
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -82,7 +89,7 @@ if op == "put":
     print(json.dumps({"fleet": kv["fleet"], "created": True, "asks": [out(r)]})); sys.exit(0)
 for r in rows:
     if r["ask_id"] == kv["id"]:
-        if r["state"] in ("done", "declined"):
+        if r["state"] in ("done", "declined", "dead"):
             print("hub refused: ask_closed (409): already %s by %s: %s" % (r["state"], r["closed_by"], r["reason"]), file=sys.stderr); sys.exit(1)
         if op == "ack": r["state"], r["acked_by"], r["u"] = "acked", kv["by"], now
         elif op in ("done", "decline"):
@@ -91,6 +98,12 @@ for r in rows:
             r["state"], r["closed_by"], r["reason"], r["u"] = ("done" if op == "done" else "declined"), kv["by"], kv.get("reason", ""), now
         elif op == "raise": r["raised_n"] += 1; r["r"] = now
         elif op == "escalate": r["e"] = now
+        elif op == "release":
+            if r["state"] == "acked": r["state"] = "open"
+        elif op == "dead":
+            if not kv.get("reason"):
+                print("hub refused: bad_frame (400): a dead-letter needs a reason", file=sys.stderr); sys.exit(1)
+            r["state"], r["closed_by"], r["reason"], r["u"] = "dead", kv["by"], kv["reason"], now
         r["writer_box"] = box; save()
         print(json.dumps({"fleet": kv["fleet"], "created": False, "asks": [out(r)]})); sys.exit(0)
 print("hub refused: unknown_ask (404): no such ask in this fleet", file=sys.stderr); sys.exit(1)
@@ -130,12 +143,15 @@ for m in pc sat; do
   printf 'LEASE_ORCH=CLE-001\nLEASE_FLEET=main\n' >"$T/$m/spool/dispatch/lease.conf"
 done
 
-# env for a machine: its root, its box, the hub stub
+# env for a machine: its root, its box, the hub stub; no delivery limit
+# (section 10 sets it), since sections 4-6 count every hand-over as a raise;
+# an agent's own SPOOL_AGENT_ID would otherwise become the default acker
 menv() {
   local m="$1" box=box-desk; [[ "$m" == sat ]] && box=sat
   printf '%s\n' "SPOOL_ROOT=$T/$m/spool" "SPOOL_BOX_ENV=$T/$m/spool/box.env" "SPOOL_DESK_BOX=$box" \
     "ASKS_HUB_CMD=$T/bin/hub" "HUB_DIR=$T/hub" "SPOOL_BIN=$T/bin/spool" "SPOOL_ORCHESTRATOR_ID=CLE-001" \
-    "SPOOL_TMUX_SOCKET=$T/tmux.sock" "SPOOL_FLEET_RELAY=0" "ASKS_SEND=$T/bin/send" "SEND_LOG=$T/$m/send.log"
+    "SPOOL_TMUX_SOCKET=$T/tmux.sock" "SPOOL_FLEET_RELAY=0" "ASKS_SEND=$T/bin/send" "SEND_LOG=$T/$m/send.log" \
+    "ASKS_MAX_RAISES=0" "SPOOL_AGENT_ID="
 }
 # on <machine> <action> [env...]: run one action as that machine
 on() {
@@ -297,6 +313,56 @@ left="$(cat "$T/pc/spool/CLE-001/inbox/"*.json | jq -r .kind | sort | tr '\n' ' 
 if grep -q "$A3" "$T/pc/spool/CLE-001/inbox/"*.json && [[ "$left" != *note* && "$(ls "$T/pc/spool/CLE-001/inbox" | wc -l)" -lt "$before" ]]; then
   pass "ORCH_INBOX_ARCHIVE=1 moves the FYI and the closed asks' messages; the open ask's message stays (left: $left)"
 else fail "archive: $left / $out"; fi
+
+# 10. share-group deltas: lock timeout + delivery limit (fleet kq, holder CLE-001@sat)
+hub() { env HUB_DIR="$T/hub" SPOOL_DESK_BOX="${HBOX:-sat}" HUB_SKEW="${HUB_SKEW:-0}" "$T/bin/hub" ask "$@" >/dev/null; }
+kqrow() { jq -c --arg i "$1" '.[] | select(.ask_id == $i)' "$T/hub/kq.json" 2>/dev/null; }
+B1=aaaaaaaa-1111-4111-8111-111111111111 B2=bbbbbbbb-2222-4222-8222-222222222222 B3=cccccccc-3333-4333-8333-333333333333
+for b in "$B1" "$B2"; do hub put --fleet kq --id "$b" --kind blocker --from CLE-002@sat --summary "share-group ${b:0:4}"; done
+HBOX=box-desk hub ack --fleet kq --id "$B1" --by CLE-001@box-desk
+tick() { on sat do_spl_asks_tick ASKS_FLEET=kq ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=999 "$@"; }
+: >"$T/sat/send.log"
+out="$(tick HUB_SKEW=3700 ASKS_LOCK_MIN=0)"
+[[ "$(kqrow "$B1" | jq -r .state)" == acked && ! -s "$T/sat/send.log" ]] &&
+  pass "CONTROL: with the lock off (the old filter) the dead holder's acked ask stays acked and is never re-raised" || fail "lock-off control: $(kqrow "$B1") / $(cat "$T/sat/send.log")"
+out="$(tick HUB_SKEW=1800 ASKS_LOCK_MIN=60)"
+[[ "$(kqrow "$B1" | jq -r .state)" == acked && ! -s "$T/sat/send.log" && "$out" == *"lock expired 0 (acked quiet >= 60 min)"* ]] &&
+  pass "inside ASKS_LOCK_MIN the holder keeps its lock" || fail "inside the lock: $out"
+out="$(tick HUB_SKEW=3700 ASKS_LOCK_MIN=60)"
+if [[ "$(kqrow "$B1" | jq -r '.state + " " + .acked_by + " " + (.raised_n | tostring)')" == "open CLE-001@box-desk 1" && "$out" == *"lock expired 1 (acked quiet >= 60 min)"* ]] &&
+   grep -q "${B1:0:8}.*LOCK EXPIRED, acked by CLE-001@box-desk" "$T/sat/send.log" && ! grep -q "${B2:0:8}" "$T/sat/send.log"; then
+  pass "KILL-MID-ASK: pc's holder acked and died; sat's tick releases the expired lock (open, last holder kept), re-raises it labelled LOCK EXPIRED and counts it"
+else fail "lock expiry: $(kqrow "$B1") / $(cat "$T/sat/send.log") / $out"; fi
+[[ "$(jq -r .state <<<"$(jrn sat "$B1")")" == open ]] && pass "sat's journal records the release" || fail "journal release: $(jrn sat "$B1")"
+HBOX=sat HUB_SKEW=3700 hub ack --fleet kq --id "$B1" --by CLE-001@sat
+: >"$T/sat/send.log"
+out="$(tick HUB_SKEW=3800 ASKS_LOCK_MIN=60)"
+[[ "$(kqrow "$B1" | jq -r .state)" == acked && ! -s "$T/sat/send.log" ]] && pass "the successor's ack takes the lock again (a re-ack renews it)" || fail "renew: $(kqrow "$B1") / $out"
+
+for i in 1 2 3; do hub raise --fleet kq --id "$B2" --by CLE-001@sat; done
+out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4)"
+[[ "$(kqrow "$B2" | jq -r '.state + " " + (.raised_n | tostring)')" == "open 4" ]] && pass "below the delivery limit the ask is re-raised (3 -> 4)" || fail "below the limit: $(kqrow "$B2") / $out"
+: >"$T/sat/send.log"
+out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=0)"
+[[ "$(kqrow "$B2" | jq -r '.state + " " + (.raised_n | tostring)')" == "open 5" ]] && grep -q "${B2:0:8}" "$T/sat/send.log" &&
+  pass "CONTROL: with no delivery limit (the old filter) it is raised again, forever" || fail "no-limit control: $(kqrow "$B2") / $out"
+: >"$T/sat/send.log"
+out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
+out2="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
+if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|CLE-001@sat|max delivery count 4 reached (raised 5x); the owner was told" ]] &&
+   [[ "$(wc -l <"$T/dlq.log")" -eq 1 && "$(jq -r .ask_id "$T/dlq.log")" == "$B2" ]] && ! grep -q "${B2:0:8}" "$T/sat/send.log" && [[ "$out" == *"dead-letter due 1 (raised >= 4)"* ]]; then
+  pass "at the delivery limit: not re-raised, told to the owner ONCE, dead-lettered with the reason"
+else fail "dead-letter: $(kqrow "$B2") / $(cat "$T/dlq.log" 2>/dev/null) / $(cat "$T/sat/send.log") / $out"; fi
+[[ "$(jq -r '.state + " " + .reason' <<<"$(jrn sat "$B2")")" == "dead max delivery count 4 reached (raised 5x); the owner was told" ]] && pass "the journal holds the dead-letter and its reason" || fail "journal dead: $(jrn sat "$B2")"
+out="$(on sat 'ASK_ID='"${B2:0:8}"' do_spl_ask_ack' ASKS_FLEET=kq)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"already dead by CLE-001@sat"* ]] && pass "a late ack of a dead-lettered ask: exit 3, names who and why" || fail "late ack dead (rc=$rc): $out"
+hub put --fleet kq --id "$B3" --kind task --from CLE-002@sat --summary "share-group ${B3:0:4}"
+for i in 1 2 3 4; do hub raise --fleet kq --id "$B3" --by CLE-001@sat; done
+out="$(tick HUB_SKEW=3800 ASKS_MAX_RAISES=4)"
+[[ "$(kqrow "$B3" | jq -r '.state + "|" + .reason')" == "dead|max delivery count 4 reached (raised 4x); no owner leg configured, nobody was told" && "$out" == *"no owner leg is configured"* ]] &&
+  pass "no owner leg: at the limit it is still dead-lettered, the reason says nobody was told" || fail "dead no owner: $(kqrow "$B3") / $out"
+out="$(on sat do_spl_asks_open ASKS_FLEET=kq)"
+[[ "$out" == *"${B1:0:8}"* && "$out" != *"${B2:0:8}"* ]] && pass "the open book drops the dead-lettered asks" || fail "open book: $out"
 
 # 9. no fleet: the journal is the whole book ---------------------------------
 printf 'LEASE_ORCH=CLE-001\n' >"$T/pc/spool/dispatch/lease.conf"

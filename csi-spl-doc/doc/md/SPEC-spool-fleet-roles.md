@@ -352,8 +352,10 @@ whatever we have: a database, a file system, distributed nodes, the agents"):
 | topic / partition | the recipient `role` (`orch` today; `dispatch` next) within the fleet |
 | record, idempotent producer | one row per ask keyed by the spool `msg_id` that carried it: a replay (journal sync, a retried send) changes nothing |
 | durable log, replicated | the hub table `fleet_asks` (rdb 0097, every machine reads it) + each machine's journal `<spool root>/asks/<msg id>.json` and the append-only `asks/journal.log` |
-| consumer commit after handling | per record, not an offset: `ack` = taken (in progress, by `<ID>@<box>`), `done` / `declined` (with a reason) = handled. An offset would let one stuck ask block every later one; a per-record commit does not |
-| at-least-once redelivery | the lease tick re-raises an uncommitted ask (unacked `ASKS_RERAISE_MIN`, or acked and past its deadline); handling is idempotent: closing a closed ask is refused naming who closed it and why |
+| consumer commit after handling (share group, KIP-932) | per record, not an offset: `ack` = acquired (in progress, by `<ID>@<box>`), `done` = accepted, `declined` (with a reason) = rejected. An offset would let one stuck ask block every later one; a per-record commit does not |
+| acquisition lock + timeout | an `ack` is a lock: a holder quiet `ASKS_LOCK_MIN` (60) minutes after acking (no re-ack, no close) loses it - the tick releases the ask (op `release`: acked -> open, `acked_by` kept as the last holder) and re-raises it the same tick, labelled "LOCK EXPIRED, acked by X". Acking again renews the lock (CLE-77942) |
+| at-least-once redelivery | the lease tick re-raises an uncommitted ask (unacked `ASKS_RERAISE_MIN`, acked and past its deadline, or its lock just expired); handling is idempotent: closing a closed ask is refused naming who closed it and why |
+| delivery count + limit, archived | `raised_n` counts every delivery (a hand-over and a re-raise alike). At `ASKS_MAX_RAISES` (4) an open ask is not raised again: it goes to the owner once (unless the age leg already told them) and is closed as `dead` with the reason (op `dead`, rdb 0099), e.g. "max delivery count 4 reached (raised 4x); the owner was told". No owner leg configured: dead-lettered anyway, the reason says nobody was told (CLE-77942) |
 | consumer-group rebalance, replay | a new orch holder (the fleet lease, 4.1) gets ONE handover blocker listing every open ask of its role, from the hub - also when the dead holder had read them |
 | retention | a closed ask stays a week, then a write prunes it |
 
@@ -373,7 +375,12 @@ whatever we have: a database, a file system, distributed nodes, the agents"):
    `ASKS_RERAISE_MIN` (15) minutes in one blocker on task `asks-open`, and
    after `ASKS_OWNER_MIN` (60) tells the owner ONCE: `ASKS_OWNER_CMD`, else a
    DM to `ASKS_OWNER` (a `HUM-` id) from the holder's desk. Neither set: one
-   WARN per ask, nothing sent. All three knobs may sit in `lease.conf`.
+   WARN per ask, nothing sent. Before the re-raise it releases every acked
+   ask whose lock expired (`ASKS_LOCK_MIN`, 60; 0 = off), and after the owner
+   leg it dead-letters every open ask raised `ASKS_MAX_RAISES` times (4; 0 =
+   no limit), whichever of the age and the count comes first. Every knob may
+   sit in `lease.conf` (`do_spl_dispatch_setup DISPATCH_ASKS_<KNOB>=...`); the
+   tick's summary line counts "lock expired N" and "dead-letter due N".
 4. **The orchestrator, on start and when raised:** `./run -a
    do_spl_orch_inbox` (open asks first, untracked blocker/task, FYI collapsed
    one row per sender), then per ask `ASK_ID=<8 hex> ./run -a do_spl_ask_ack`
@@ -393,10 +400,16 @@ deciding and answering an ask stay the agent's.
 - Tests: `TestFleetAskLifecycle` / `TestCheckFleetAsk` (memory + Postgres),
   `TestBoxFleetAskSurvivesTheOrchestrator` (two boxes: the home holder lists
   the ask and dies before acking, the other machine's successor gets it,
-  re-raises, acks and closes it, the late close is refused), and
-  `csi-spl-orc/src/bash/tests/asks.tst.sh` (two simulated machines, 31
+  re-raises, acks and closes it, the late close is refused),
+  `TestFleetAskLockTimeoutAndDeadLetter` (memory + Postgres: the holder on
+  one box acks and dies, the successor on another releases, re-raises and
+  acks; dead after the limit, 409 after, pruned in a week),
+  `TestBoxFleetAskLockReleaseAndDeadLetter` (the same through `spool ask`),
+  and `csi-spl-orc/src/bash/tests/asks.tst.sh` (two simulated machines, 47
   checks: fire and forget, hub down, kill-mid-ask handover, re-raise, owner
-  leg, close, the inbox view).
+  leg, close, the inbox view, and section 10: lock expiry across the
+  machines, renewal, the delivery limit and the dead-letter, each with a
+  control running the old filter).
 
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 

@@ -25,7 +25,7 @@ spl_ask_update() {
   rows="$ASKS_ROWS"
   id="$(spl_asks_resolve "${ASK_ID:-}" "$rows")" || return 1
   cur="$(jq -c --arg id "$id" '.[] | select(.ask_id == $id)' <<<"$rows")"
-  if [[ "$(jq -r '.state' <<<"$cur")" =~ ^(done|declined)$ ]]; then
+  if [[ "$(jq -r '.state' <<<"$cur")" =~ ^(done|declined|dead)$ ]]; then
     do_log "WARN ask ${id:0:8} is already $(jq -r '.state + " by " + .closed_by + ": " + .reason' <<<"$cur")"
     return 3
   fi

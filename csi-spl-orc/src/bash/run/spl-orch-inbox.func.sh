@@ -79,7 +79,7 @@ spl_orch_inbox_archive() {
     ($asks | map({key: .ask_id, value: .state}) | from_entries) as $st
     | .[] | select(
         (.kind != "blocker" and .kind != "task" and ($now - ((.ts | sub("\\.[0-9]+"; "") | fromdateiso8601? ) // $now)) >= $keep)
-        or (($st[.msg_id] // "") == "done" or ($st[.msg_id] // "") == "declined"))
+        or (($st[.msg_id] // "") | IN("done", "declined", "dead")))
     | .file' <<<"$2")"
   n="$(grep -c . <<<"$files")"
   if [[ "${ORCH_INBOX_ARCHIVE:-0}" != 1 ]]; then

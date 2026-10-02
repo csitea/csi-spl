@@ -9,19 +9,34 @@
 # @description         tick): ONE blocker to the holder listing every open
 # @description         ask, so a successor gets what the dead holder had
 # @description         received and never acked
+# @description      a0. LOCK TIMEOUT (CLE-77942, Kafka share-group acquisition
+# @description         lock) - an acked ask whose holder has been quiet
+# @description         ASKS_LOCK_MIN minutes (no re-ack, no close) is released:
+# @description         acked -> open on the hub (op release, acked_by kept as
+# @description         the last holder) and re-raised this tick, labelled
+# @description         "lock expired, acked by X". Re-acking renews the lock
 # @description      b. RE-RAISE - an ask still open (nobody acked it) and quiet
 # @description         ASKS_RERAISE_MIN minutes, or acked and past its deadline,
-# @description         goes to the holder again, all in ONE blocker; raised_n
-# @description         counts it on the hub
+# @description         or whose lock just expired, goes to the holder again,
+# @description         all in ONE blocker; raised_n counts it on the hub (the
+# @description         delivery count). One raised ASKS_MAX_RAISES times is not
+# @description         raised again
 # @description      c. OWNER - an ask still unacked ASKS_OWNER_MIN minutes after
 # @description         it was raised goes to the owner ONCE (escalated_at), via
 # @description         ASKS_OWNER_CMD, else a DM to ASKS_OWNER (a HUM id) from
 # @description         the holder's desk (do_spl_desk_reply). Neither set: logged
 # @description         once per ask, nothing sent
+# @description      d. DEAD-LETTER (CLE-77942, Kafka's archived after the
+# @description         delivery limit) - an open ask raised ASKS_MAX_RAISES
+# @description         times goes to the owner (as c, unless already told) and
+# @description         is closed as dead with the reason (op dead), whichever
+# @description         of c's age and d's count comes first
 # @description The messages carry kind blocker on task asks-open and are never
 # @description recorded as asks themselves. One tick at a time (flock).
 # @param ASKS_RERAISE_MIN (optional) - minutes an open ask may sit unacked before the re-raise, default 15 (also lease.conf)
 # @param ASKS_OWNER_MIN (optional) - minutes after which an unacked ask goes to the owner, default 60 (also lease.conf)
+# @param ASKS_LOCK_MIN (optional) - minutes an acked ask's holder may stay quiet before the lock expires, default 60, 0 = never (also lease.conf)
+# @param ASKS_MAX_RAISES (optional) - the delivery limit: raises after which an open ask is dead-lettered to the owner, default 4, 0 = never (also lease.conf)
 # @param ASKS_OWNER (optional) - the owner's human id (HUM-<n>) for the DM leg (also lease.conf)
 # @param ASKS_OWNER_CMD (optional) - replaces the DM leg: run with the text on stdin and ASK_JSON in the environment
 # @param ASKS_SEND (optional, tests) - replaces spool-send.sh
@@ -53,8 +68,10 @@ do_spl_asks_tick() {
   fi
   local rows
   spl_asks_load || return 1
-  rows="$(jq -c '[.[] | select(.state == "open" or .state == "acked")]' <<<"$ASKS_ROWS")"
+  rows="$(jq -c --argjson l "$(( ${ASKS_LOCK_MIN:-60} * 60 ))" '[.[] | select(.state == "open" or .state == "acked")
+    | . + {lock_expired: ($l > 0 and .state == "acked" and .quiet_s >= $l)}]' <<<"$ASKS_ROWS")"
   spl_asks_summary "$holder" "$rows"
+  rows="$(spl_asks_release "$holder" "$rows")"
   spl_asks_handover "$holder" "$rows" || spl_asks_reraise "$holder" "$rows"
   spl_asks_owner "$holder" "$rows"
   return 0
@@ -63,10 +80,13 @@ do_spl_asks_tick() {
 # One line: what this tick sees and what is due, before it acts.
 spl_asks_summary() {
   jq -r --arg h "$1" --argjson r "$(( ${ASKS_RERAISE_MIN:-15} * 60 ))" --argjson o "$(( ${ASKS_OWNER_MIN:-60} * 60 ))" \
-    --arg rm "${ASKS_RERAISE_MIN:-15}" --arg om "${ASKS_OWNER_MIN:-60}" --arg hub "$ASKS_HUB_STATE" '
+    --arg rm "${ASKS_RERAISE_MIN:-15}" --arg om "${ASKS_OWNER_MIN:-60}" --arg hub "$ASKS_HUB_STATE" \
+    --arg lm "${ASKS_LOCK_MIN:-60}" --argjson x "${ASKS_MAX_RAISES:-4}" '
     "asks tick: holder \($h), hub \($hub): \(length) open (\([.[] | select(.state == "open")] | length) unacked, \([.[] | select(.state == "acked")] | length) acked); "
     + "re-raise due \([.[] | select(.quiet_s >= $r and (.state == "open" or .overdue))] | length) (quiet >= \($rm) min); "
-    + "owner due \([.[] | select(.state == "open" and .age_s >= $o and ((.escalated_at // "") == ""))] | length) (open >= \($om) min)"' <<<"$2" |
+    + "owner due \([.[] | select(.state == "open" and .age_s >= $o and ((.escalated_at // "") == ""))] | length) (open >= \($om) min); "
+    + "lock expired \([.[] | select(.lock_expired)] | length) (acked quiet >= \($lm) min); "
+    + "dead-letter due \([.[] | select((.state == "open" or .lock_expired) and $x > 0 and (.raised_n // 0) >= $x)] | length) (raised >= \($x))"' <<<"$2" |
     while IFS= read -r line; do do_log "INFO $line"; done
 }
 
@@ -90,7 +110,7 @@ spl_asks_holder() {
 
 # One line per ask for a message body.
 spl_asks_lines() {
-  jq -r '.[] | "- **\(.ask_id[0:8])** \(.kind) from \(.from), open \(.age_s / 60 | floor) min\(if .raised_n > 0 then ", raised \(.raised_n)x" else "" end)\(if .state == "acked" then ", acked by \(.acked_by)" else "" end)\(if .overdue then ", PAST DEADLINE \(.deadline_at)" else "" end), topic \(.topic): \(.summary)"' <<<"$1"
+  jq -r '.[] | "- **\(.ask_id[0:8])** \(.kind) from \(.from), open \(.age_s / 60 | floor) min\(if .raised_n > 0 then ", raised \(.raised_n)x" else "" end)\(if .lock_expired then ", LOCK EXPIRED, acked by \(.acked_by)" elif .state == "acked" then ", acked by \(.acked_by)" elif (.acked_by // "") != "" then ", last acked by \(.acked_by)" else "" end)\(if .overdue then ", PAST DEADLINE \(.deadline_at)" else "" end), topic \(.topic): \(.summary)"' <<<"$1"
 }
 
 spl_asks_footer() {
@@ -118,20 +138,38 @@ spl_asks_send() {
   return 0
 }
 
-# Record a re-raise on the hub (best effort) and in the journal.
-spl_asks_mark() {  # OP ID HOLDER
-  local op="$1" id="$2" by="$3" cur n
+# Record a tick op (raise | escalate | release | dead) on the hub (best
+# effort) and in the journal. 1 = the hub refused it (logged).
+spl_asks_mark() {  # OP ID HOLDER [REASON]
+  local op="$1" id="$2" by="$3" reason="${4:-}" cur n rc=0
   if [[ "$LANE_MODE" == hub ]]; then
-    spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "$by" >/dev/null 2>&1 ||
-      do_log "WARN the hub did not record the $op of ${id:0:8}"
+    spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "$by" --reason "$reason" >/dev/null 2>&1 ||
+      { do_log "WARN the hub did not record the $op of ${id:0:8}" >&2; rc=1; }
   fi
-  cur="$(spool_ask_journal_get "$id" 2>/dev/null)" || return 0
-  if [[ "$op" == raise ]]; then
-    n="$(jq -r '.raised_n // 0' <<<"$cur")"
-    spool_ask_journal_set "$id" "$(jq -n -c --argjson n "$((n + 1))" --arg t "$(spool_asks_now)" '{raised_n: $n, raised_at: $t}')" raise "$by"
-  else
-    spool_ask_journal_set "$id" "$(jq -n -c --arg t "$(spool_asks_now)" '{escalated_at: $t}')" escalate "$by"
-  fi
+  cur="$(spool_ask_journal_get "$id" 2>/dev/null)" || return "$rc"
+  case "$op" in
+    raise)
+      n="$(jq -r '.raised_n // 0' <<<"$cur")"
+      spool_ask_journal_set "$id" "$(jq -n -c --argjson n "$((n + 1))" --arg t "$(spool_asks_now)" '{raised_n: $n, raised_at: $t}')" raise "$by" ;;
+    escalate) spool_ask_journal_set "$id" "$(jq -n -c --arg t "$(spool_asks_now)" '{escalated_at: $t}')" escalate "$by" ;;
+    release) spool_ask_journal_set "$id" '{"state":"open"}' release "$by" ;;
+    dead) spool_ask_journal_set "$id" "$(jq -n -c --arg b "$by" --arg r "$reason" '{state: "dead", closed_by: $b, reason: $r}')" dead "$by" ;;
+  esac
+  return "$rc"
+}
+
+# a0. The acquisition lock: an acked ask whose holder went quiet
+# ASKS_LOCK_MIN is released (acked -> open). Prints the rows with those
+# asks open again (lock_expired stays set, for the re-raise's label).
+spl_asks_release() {
+  local holder="$1" rows="$2" id by n=0
+  while IFS=' ' read -r id by; do
+    [[ -n "$id" ]] || continue
+    spl_asks_mark release "$id" "$holder" >&2 || true
+    do_log "INFO ask ${id:0:8}: the lock of $by expired (quiet >= ${ASKS_LOCK_MIN:-60} min): released to open" >&2
+    n=$((n + 1))
+  done < <(jq -r '.[] | select(.lock_expired) | "\(.ask_id) \(.acked_by)"' <<<"$rows")
+  jq -c 'map(if .lock_expired then .state = "open" else . end)' <<<"$rows"
 }
 
 # a. A new holder (or this machine's first tick as holder) gets every open
@@ -151,40 +189,66 @@ spl_asks_handover() {
   return 0
 }
 
-# b. Unacked and quiet past ASKS_RERAISE_MIN, or acked and past the deadline.
+# b. Unacked and quiet past ASKS_RERAISE_MIN, or acked and past the deadline,
+# or its lock just expired - and below the delivery limit (d takes the rest).
 spl_asks_reraise() {
   local holder="$1" rows="$2" due n id
-  due="$(jq -c --argjson m "$(( ${ASKS_RERAISE_MIN:-15} * 60 ))" \
-    '[.[] | select(.quiet_s >= $m and (.state == "open" or .overdue))]' <<<"$rows")"
+  due="$(jq -c --argjson m "$(( ${ASKS_RERAISE_MIN:-15} * 60 ))" --argjson x "${ASKS_MAX_RAISES:-4}" \
+    '[.[] | select(($x == 0 or (.raised_n // 0) < $x) and (.lock_expired or (.quiet_s >= $m and (.state == "open" or .overdue))))]' <<<"$rows")"
   n="$(jq length <<<"$due")"
   (( n > 0 )) || return 0
-  spl_asks_send "$holder" "$(printf '**ASKS STILL OPEN: %s ask(s) nobody has acked for %s+ min** - re-raised to %s.\n\n%s\n%s' \
-    "$n" "${ASKS_RERAISE_MIN:-15}" "$holder" "$(spl_asks_lines "$due")" "$(spl_asks_footer)")" || return 0
+  spl_asks_send "$holder" "$(printf '**ASKS STILL OPEN: %s ask(s) nobody has acked for %s+ min, or whose holder went quiet %s+ min after acking** - re-raised to %s (delivery limit %s).\n\n%s\n%s' \
+    "$n" "${ASKS_RERAISE_MIN:-15}" "${ASKS_LOCK_MIN:-60}" "$holder" "${ASKS_MAX_RAISES:-4}" "$(spl_asks_lines "$due")" "$(spl_asks_footer)")" || return 0
   while IFS= read -r id; do spl_asks_mark raise "$id" "$holder"; done < <(jq -r '.[].ask_id' <<<"$due")
   do_log "OK re-raised $n ask(s) to $holder"
 }
 
-# c. Unacked ASKS_OWNER_MIN after it was raised, owner not told yet.
+# c. Unacked ASKS_OWNER_MIN after it was raised, owner not told yet; and
+# d. open and raised ASKS_MAX_RAISES times: told (unless c already did) and
+# dead-lettered with the reason.
 spl_asks_owner() {
-  local holder="$1" rows="$2" row id text
+  local holder="$1" rows="$2" row id text maxed told why max="${ASKS_MAX_RAISES:-4}"
   while IFS= read -r row; do
     [[ -n "$row" ]] || continue
     id="$(jq -r '.ask_id' <<<"$row")"
+    maxed="$(jq -r --argjson x "$max" '$x > 0 and (.raised_n // 0) >= $x' <<<"$row")"
+    told="$(jq -r '.escalated_at // ""' <<<"$row")"
+    why="max delivery count $max reached (raised $(jq -r '.raised_n // 0' <<<"$row")x)"
+    if [[ -n "$told" ]]; then
+      [[ "$maxed" == true ]] && spl_asks_dead "$id" "$holder" "$why; the owner was told at $told"
+      continue
+    fi
     if [[ -z "${ASKS_OWNER_CMD:-}" && ! "${ASKS_OWNER:-}" =~ ^HUM-[0-9]+$ ]]; then
+      if [[ "$maxed" == true ]]; then
+        do_log "WARN ask ${id:0:8} reached the delivery limit and no owner leg is configured (ASKS_OWNER / ASKS_OWNER_CMD in lease.conf)"
+        spl_asks_dead "$id" "$holder" "$why; no owner leg configured, nobody was told"
+        continue
+      fi
       [[ -e "$(spool_asks_dir)/.owner-off.$id" ]] && continue
       touch "$(spool_asks_dir)/.owner-off.$id"
       do_log "WARN ask ${id:0:8} is unacked past ${ASKS_OWNER_MIN:-60} min and no owner leg is configured (ASKS_OWNER / ASKS_OWNER_CMD in lease.conf)"
       continue
     fi
-    text="$(jq -r --arg h "$holder" '"**Unanswered ask to the orchestrator (\(.age_s / 60 | floor) min, re-raised \(.raised_n)x):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) has not acked it. Ask id \(.ask_id)."' <<<"$row")"
+    if [[ "$maxed" == true ]]; then
+      text="$(jq -r --arg h "$holder" --arg x "$max" '"**Dead-lettered ask to the orchestrator (raised \(.raised_n)x, the limit is \($x); \(.age_s / 60 | floor) min old):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) never closed it; it is no longer re-raised. Ask id \(.ask_id)."' <<<"$row")"
+    else
+      text="$(jq -r --arg h "$holder" '"**Unanswered ask to the orchestrator (\(.age_s / 60 | floor) min, re-raised \(.raised_n)x):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) has not acked it. Ask id \(.ask_id)."' <<<"$row")"
+    fi
     if spl_asks_owner_send "$holder" "$row" "$text"; then
       spl_asks_mark escalate "$id" "$holder"
       do_log "OK ask ${id:0:8} told to the owner"
+      [[ "$maxed" == true ]] && spl_asks_dead "$id" "$holder" "$why; the owner was told"
     else
       do_log "WARN the owner leg failed for ask ${id:0:8}; retried next tick"
     fi
-  done < <(jq -c --argjson m "$(( ${ASKS_OWNER_MIN:-60} * 60 ))" \
-    '.[] | select(.state == "open" and .age_s >= $m and ((.escalated_at // "") == ""))' <<<"$rows")
+  done < <(jq -c --argjson m "$(( ${ASKS_OWNER_MIN:-60} * 60 ))" --argjson x "$max" \
+    '.[] | select(.state == "open" and ((.age_s >= $m and ((.escalated_at // "") == "")) or ($x > 0 and (.raised_n // 0) >= $x)))' <<<"$rows")
+}
+
+# d. Close an ask as dead with the reason (Kafka: archived).
+spl_asks_dead() {  # ID HOLDER REASON
+  spl_asks_mark dead "$1" "$2" "$3" &&
+    do_log "OK ask ${1:0:8} dead-lettered: $3"
 }
 
 spl_asks_owner_send() {  # HOLDER ROW TEXT

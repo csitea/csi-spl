@@ -108,9 +108,19 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent,
 EOF_PY
   (( stale )) && do_log "INFO the sidecar of $box is NOT running the spool binary now on disk: restart it (do_spl_desk_up rebuilds) before measuring anything that depends on a recent fix"
   local v="${verdict%%$'\t'*}"
+  _spl_desk_check_explain "$v" "$tenant" "$box" "$agent" "$d" "$pid"
+  [[ "$v" == ok ]] && return 0
+  spl_desk_repair "$v" "$repair" "$tenant" "$box" "$agent"
+}
+
+# _spl_desk_check_explain <verdict> <tenant> <box> <agent> <state dir> <pid>:
+# the OK / FAIL lines that name what a desk-check verdict means and how to
+# recover from it.
+_spl_desk_check_explain() {
+  local v="$1" tenant="$2" box="$3" agent="$4" d="$5" pid="$6"
   case "$v" in
     ok) do_log "OK $agent on $box is reachable in $tenant ($ENV): the sidecar is up AND the hub has a session for it"
-        do_log "OK its inbox is $d/spool/$agent/inbox (the DESK root, not /var/spool-hub)"; return 0 ;;
+        do_log "OK its inbox is $d/spool/$agent/inbox (the DESK root, not /var/spool-hub)" ;;
     muted)
       do_log "FAIL $agent on $box is MUTED in $tenant ($ENV): every leg is green and the sidecar runs SPOOL_POKE=0."
       do_log "FAIL A DM lands in $d/spool/$agent/inbox and is shown in the notice strip, and the agent is never TOLD - an agent reads its prompt, not its pane."
@@ -126,7 +136,6 @@ EOF_PY
     unpinned)    do_log "FAIL the hub does not know box $box in $tenant ($ENV): it was never pinned, or the pin was revoked" ;;
     agent-missing) do_log "FAIL box $box is online in $tenant ($ENV) but the hub does not list $agent on it" ;;
   esac
-  spl_desk_repair "$v" "$repair" "$tenant" "$box" "$agent"
 }
 
 # spl_desk_same_file <a> <b>: 0 when both exist and hold identical bytes.

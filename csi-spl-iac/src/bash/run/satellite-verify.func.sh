@@ -6,7 +6,7 @@
 # @description `PASS|FAIL <check>` line each; returns non-zero on any FAIL:
 # @description   VM RUNNING, no public IP, the ONE ingress rule = tcp/22 from
 # @description   the IAP range, ssh over IAP, the data disk on /mnt/data + /opt +
-# @description   /var/spool-hub, claude / spool / spool-agent present,
+# @description   /var/spool-hub + /var/csi, claude / spool / spool-agent present,
 # @description   SPOOL_BOX_TAG=sat, the pushed keys 0600, the budget exists;
 # @description   then the replica of the box PC (owner topic 5fe56859): every
 # @description   tool of cnf/satellite-replica.tsv, its version on THIS box and
@@ -60,7 +60,7 @@ do_satellite_verify() {
   _satellite_verify_users
   # shellcheck disable=SC2016
   remote=$("${SATELLITE_AS_AGENT[@]}" 2>/dev/null <<'REMOTE'
-for m in /mnt/data /opt /var/spool-hub; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
+for m in /mnt/data /opt /var/spool-hub /var/csi; do mountpoint -q "$m" && echo "mnt $m ok" || echo "mnt $m no"; done
 for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] && echo "bin $b ok" || echo "bin $b no"; done
 grep -h "^export SPOOL_BOX_TAG=" /etc/profile.d/csi-spl-satellite.sh "$HOME/.bashrc" 2>/dev/null | head -n 1 | sed "s/^export /tag /"
 for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do echo "key $f $(stat -c %a "$HOME/$f" 2>/dev/null || echo missing)"; done
@@ -68,7 +68,7 @@ REMOTE
 )
   if [[ -n "$remote" ]]; then ok "ssh over IAP as the ${proj} SA"; else ko "ssh over IAP as the ${proj} SA"; fi
   local m b f
-  for m in /mnt/data /opt /var/spool-hub; do grep -qx "mnt $m ok" <<<"$remote" && ok "data disk mounted on $m" || ko "data disk mounted on $m"; done
+  for m in /mnt/data /opt /var/spool-hub /var/csi; do grep -qx "mnt $m ok" <<<"$remote" && ok "data disk mounted on $m" || ko "data disk mounted on $m"; done
   for b in claude spool spool-agent; do grep -qx "bin $b ok" <<<"$remote" && ok "$b installed for ${SATELLITE_AGENT}" || ko "$b installed for ${SATELLITE_AGENT}"; done
   grep -qx "tag SPOOL_BOX_TAG=${tag}" <<<"$remote" && ok "SPOOL_BOX_TAG=${tag}" || ko "SPOOL_BOX_TAG=${tag}"
   for f in .gcp/.csi/key-csi-spl-dev.json .gcp/.csi/key-csi-spl-prd.json .github/token; do
@@ -201,6 +201,9 @@ for b in spool spool-agent; do [ -x "$oh/.local/bin/$b" ] && echo "owner bin $b"
 # per-user tools dir is not on that PATH (2026-10-02: yq missing)
 for b in $OWNER_TOOLS; do sudo -n -u "$O" -i bash -lc "command -v $b" >/dev/null 2>&1 || echo "owner tool-missing $b"; done
 echo "owner tools-checked"
+# the run actions' state + log dir: writable by the owner, and by the agent
+# through the owner's group (2026-10-02: desk-reconcile could not be created)
+for u in "$O" "$A"; do sudo -n -u "$u" test -w /var/csi/csi-spl && echo "varcsi writable $u"; done
 # the clone: on master, clean, and its HEAD (compared with trunk on this box)
 r=/opt/csi/csi-spl
 g() { git -c safe.directory="$r" -C "$r" "$@"; }
@@ -231,6 +234,9 @@ REMOTE
   missing=$(sed -n 's/^owner tool-missing //p' <<<"$out" | tr '\n' ' ')
   if grep -qx "owner tools-checked" <<<"$out" && [[ -z "$missing" ]]; then ok "$owner has the actions' required tools on its login PATH ($owner_tools)"
   else ko "$owner has the actions' required tools on its login PATH (missing: ${missing:-unreadable})"; fi
+  for u in "$owner" "$agent"; do
+    grep -qx "varcsi writable $u" <<<"$out" && ok "/var/csi/csi-spl is writable by $u (the run actions' state + logs)" || ko "/var/csi/csi-spl is writable by $u (the run actions' state + logs)"
+  done
   _satellite_verify_repo "$out"
 }
 

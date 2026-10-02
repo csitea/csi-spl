@@ -1,7 +1,8 @@
 ---
 # 01 the data disk (060's attached disk, device_name satellite-data): ext4,
-# formatted ONLY when blank, mounted on data_mnt; /opt, /var/spool-hub and
-# docker's data-root live on it, so a VM rebuild that keeps the disk keeps
+# formatted ONLY when blank, mounted on data_mnt; /opt, /var/spool-hub, /var/csi
+# (the run actions' state, logs and locks: desk-reconcile, unanswered-sweep,
+# weekly-scan, backups, tenants, <proj>/dat/log) and docker's data-root live on it, so a VM rebuild that keeps the disk keeps
 # them. Port of satellite-box-setup.sh role_01_data_disk.
 - name: The data disk is attached
   ansible.builtin.stat:
@@ -34,9 +35,9 @@
     path: "{{ data_mnt }}/{{ item }}"
     state: directory
     mode: "0755"
-  loop: [opt, spool-hub, docker, home]
+  loop: [opt, spool-hub, var-csi, docker, home]
 
-- name: Bind /opt and /var/spool-hub onto the data disk
+- name: Bind /opt, /var/spool-hub and /var/csi onto the data disk
   ansible.posix.mount:
     src: "{{ data_mnt }}/{{ item.src }}"
     path: "{{ item.dst }}"
@@ -46,6 +47,7 @@
   loop:
     - { src: opt, dst: /opt }
     - { src: spool-hub, dst: "{{ spool_root }}" }
+    - { src: var-csi, dst: /var/csi }
 
 - name: The docker dir
   ansible.builtin.file:

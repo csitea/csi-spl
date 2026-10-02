@@ -132,6 +132,37 @@
   register: opt_owner
   changed_when: "'CHANGED' in opt_owner.stdout"
 
+# The run actions write under /var/<org>/<org>-<app> (desk-reconcile,
+# unanswered-sweep, weekly-scan, backups, tenants, <proj>/dat/log/bash) as the
+# box user, and the agent's ./run logs there too through the owner's group.
+# 2026-10-02: do_spl_desk_install_service as the box user -> "cannot create
+# /var/csi/csi-spl/desk-reconcile". As on the box PC: the owner's, group rwx.
+- name: /var/csi, the owner's (as on the box PC)
+  ansible.builtin.file:
+    path: /var/csi
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "0755"
+
+- name: /var/csi/csi-spl, the owner's, group-writable (setgid + default ACL)
+  ansible.builtin.file:
+    path: /var/csi/csi-spl
+    state: directory
+    owner: "{{ owner_user }}"
+    group: "{{ owner_user }}"
+    mode: "2775"
+
+- name: Default ACL, group rwx, on /var/csi/csi-spl
+  ansible.posix.acl:
+    path: /var/csi/csi-spl
+    etype: group
+    entity: "{{ owner_user }}"
+    permissions: rwx
+    default: "{{ item }}"
+    state: present
+  loop: [false, true]
+
 - name: The spool root, the owner's, group spool-agents (as on the box PC)
   ansible.builtin.file:
     path: "{{ spool_root }}"

@@ -21,6 +21,8 @@
 #   8. yq (pinned), psql and pandoc are system-wide (the box user runs the
 #      actions), and verify checks every tool the orc actions require on the
 #      box user's login PATH.
+#   9. /var/csi lives on the data disk, /var/csi/csi-spl is the owner's and
+#      group-writable, and verify checks both users can write it.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -192,6 +194,18 @@ done
 [[ -z "$miss" ]] && pass "every do_require_bin tool of the orc actions is in verify's owner list or the base system" || fail "orc requires tools verify does not check for the box user:$miss"
 grep -q 'owner_tools="yq jq python3 psql pandoc' "$v" && grep -q "required tools on its login PATH" "$v" \
   && pass "verify checks the actions' tools on the box user's login PATH" || fail "verify has no owner-tools row"
+
+# 9. /var/csi: on the data disk, the owner's, group-writable; verify rows
+grep -q '{ src: var-csi, dst: /var/csi }' "$R/01_data_disk/tasks/main.yml" && grep -q 'loop: \[opt, spool-hub, var-csi, docker, home\]' "$R/01_data_disk/tasks/main.yml" \
+  && pass "role 01 binds /var/csi onto the data disk" || fail "role 01 does not put /var/csi on the data disk"
+grep -q 'path: /var/csi/csi-spl' "$R/05_users/tasks/main.yml" && grep -A5 'path: /var/csi/csi-spl$' "$R/05_users/tasks/main.yml" | grep -q 'mode: "2775"' \
+  && pass "role 05 gives /var/csi/csi-spl to the owner, 2775" || fail "role 05 has no owner-writable /var/csi/csi-spl"
+grep -q 'test -w /var/csi/csi-spl && echo "varcsi writable $u"' "$v" && grep -q 'for m in /mnt/data /opt /var/spool-hub /var/csi; do grep' "$v" \
+  && pass "verify checks /var/csi is mounted and writable by both users" || fail "verify lacks the /var/csi rows"
+# every /var/<org>/<org>-<app> path the orc actions write sits under the dir role 05 makes
+bad=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | grep -vE '^/var/(csi/csi-spl|\$\{?(org|ORG|SPL_ORG_APP%%-\*|ORG_APP%%-\*)\}?/)' || true)
+n_sd=$(grep -rhoE '/var/(\$\{?[A-Za-z_%*-]+\}?|csi)/[^ "]*(desk-reconcile|unanswered-sweep|weekly-scan|backup|tenants)' "$PROJ_PATH/../csi-spl-orc/src/bash" "$PROJ_PATH/src/bash" | sort -u | wc -l)
+[[ -z "$bad" && "$n_sd" -ge 5 ]] && pass "every state dir the actions write ($n_sd paths, desk-reconcile included) is under /var/<org>/<org>-<app>" || fail "state dirs outside /var/<org>/<org>-<app>: $bad"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

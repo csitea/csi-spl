@@ -66,6 +66,7 @@ Each role is idempotent; a recreate plus one playbook run rebuilds the box.
 | 08_spool_harness | `/opt/csi/csi-spl`, git + gh for both users, the spool env (`/etc/profile.d/csi-spl-satellite.sh`: `SPOOL_ROOT`, `SPOOL_BOX_TAG=sat`), `spool-install/install.sh --cli claude --no-seat` as `<agent>` (claude, spool, spool-agent, yq, Go, hooks, skills) | `do_satellite_bootstrap` 05 |
 | 09_agent_tools | cloud-sql-proxy (Google's release, sha256-pinned to the box PC's), pnpm (corepack, the WUI's pin), the CI-pinned scanners + terraform (`do_install_lint_tools`, system-wide), tpl-gen | `do_satellite_install_tools` |
 | 10_rotation_cron | the box user's hourly role rotation crons: orchestrator at :05, dispatchers at :15 (spec 060), through `do_spl_orch_rotate_install_cron` / `do_spl_dispatch_rotate_install_cron`, then checked; the rotation acts on this box's own lease.conf ids | the owner's one-off install |
+| 11_boot_restore | the @reboot agent restore (no other boot job runs on this box): the identity map (`do_spl_agent_identity_install`: per-minute record + tmux hooks) and one `@reboot` line (`do_spl_agent_boot_restore_install_cron`, then checked); after a reboot `do_spl_agent_boot_restore` starts each agent the reboot killed as `<agent>`, never `<owner>`, and leaves `/var/spool-hub/agents/boot-FAILED` on a failure | nothing (there was no restore) |
 
 `csi-spl-iac/cnf/satellite-replica.tsv` names every tool and the role that
 installs it; `do_satellite_verify` compares each with the box PC.

@@ -92,8 +92,8 @@ for f in files:
 print("unbalanced " + ", ".join(bad))
 PY
 )
-grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools 10_rotation_cron' <<<"$out" \
-  && pass "the playbook runs roles 01..10" || fail "the playbook roles are not 01..10 ($(grep '^roles' <<<"$out"))"
+grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools 10_rotation_cron 11_boot_restore' <<<"$out" \
+  && pass "the playbook runs roles 01..11" || fail "the playbook roles are not 01..11 ($(grep '^roles' <<<"$out"))"
 grep -qx 'sorted True' <<<"$out" && pass "the roles run in their numbered order" || fail "the roles are out of order"
 grep -qx 'missing ' <<<"$out" && pass "every role has tasks/main.yml" || fail "a role has no tasks/main.yml ($(grep '^missing' <<<"$out"))"
 grep -qx 'orphan ' <<<"$out" && pass "no orphaned role dir" || fail "a role dir is not in the playbook ($(grep '^orphan' <<<"$out"))"
@@ -337,6 +337,46 @@ o1=$(run_rot orch); o2=$(run_rot dispatch); o3=$(run_rot orch)
 [[ "$o1" == *"CHANGED 5 * * * *"*"csi-spl:orch-rotate" && "$o2" == *"CHANGED 15 * * * *"*"csi-spl:dispatch-rotate" && "$o3" == *"OK 5 * * * *"* ]] \
   && [[ "$(grep -c 'csi-spl:orch-rotate$' "$RB/cron")" == 1 && "$(grep -c 'csi-spl:dispatch-rotate$' "$RB/cron")" == 1 && "$(grep -c 'desk-reconcile-prd$' "$RB/cron")" == 1 ]] \
   && pass "15. role 10 against a stub: :05 orch + :15 dispatch, one line each, the desk line kept, a re-run is OK (no change)" || fail "15. role 10 run: o1=$o1 o2=$o2 o3=$o3 cron=$(cat "$RB/cron")"
+
+# 16. the @reboot agent restore, as the agent user (owner t1 6a02db62)
+r11="$R/11_boot_restore/tasks/main.yml"
+bt=$(python3 -c "
+import yaml
+for t in yaml.safe_load(open('$r11')):
+    print('TASK', t.get('name'), t.get('become_user'))
+    if t.get('name','').startswith('The @reboot'): print(t['ansible.builtin.shell'])")
+[[ "$(grep -c '^TASK .* {{ owner_user }}$' <<<"$bt")" == 2 ]] \
+  && pass "16. role 11 runs both its tasks as the box user (the tmux owner)" || fail "16. role 11 tasks/users: $(grep '^TASK' <<<"$bt")"
+grep -q 'DRY_RUN=0 ./run -a do_spl_agent_identity_install' "$r11" && grep -q 'DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron' <<<"$bt" \
+  && grep -q 'BOOT_CRON_ACTION=check ./run -a do_spl_agent_boot_restore_install_cron' <<<"$bt" \
+  && pass "16. role 11 goes through the named actions (identity map, @reboot line + its check)" || fail "16. role 11 does not use the named actions"
+grep -q "SPOOL_AGENT_USER={{ agent_user }}" <<<"$bt" \
+  && pass "16. role 11 refuses a box.env that does not name the agent user" || fail "16. role 11 does not check SPOOL_AGENT_USER"
+[[ -f "$O/spl-agent-boot-restore-install-cron.func.sh" && -f "$O/spl-agent-boot-restore.func.sh" && -f "$O/spl-agent-identity-install.func.sh" ]] \
+  && grep -q 'tag="$SPL_ORG_APP:agent-boot-restore"' "$O/spl-agent-boot-restore-install-cron.func.sh" \
+  && pass "16. the actions role 11 calls exist and tag the line <org>-<app>:agent-boot-restore" || fail "16. the boot restore actions or their tag moved"
+BB="$T/boot"; mkdir -p "$BB/repo/csi-spl-orc" "$BB/bin" "$BB/spool"; printf 'SPOOL_AGENT_USER=agentu\n' >"$BB/spool/box.env"
+cp "$RB/bin/crontab" "$BB/bin/crontab"
+cat >"$BB/repo/csi-spl-orc/run" <<'RUN'
+#!/usr/bin/env bash
+case "$2" in
+  do_spl_agent_boot_restore_install_cron)
+    if [ "${BOOT_CRON_ACTION:-}" = check ]; then grep -q " # csi-spl:agent-boot-restore$" "$FAKE_CRON"; exit; fi
+    [ "${DRY_RUN:-1}" = 0 ] || exit 0
+    { grep -v " # csi-spl:agent-boot-restore$" "$FAKE_CRON" 2>/dev/null; echo "@reboot x/agent-boot-restore-cron.sh # csi-spl:agent-boot-restore"; } >"$FAKE_CRON.n"; mv "$FAKE_CRON.n" "$FAKE_CRON" ;;
+  do_spl_agent_boot_restore) echo "RESTORE CLE-1: claude session s in /w, as agentu, new window in 'main'" ;;
+esac
+RUN
+chmod +x "$BB/bin/crontab" "$BB/repo/csi-spl-orc/run"
+echo '5 * * * * x # csi-spl:orch-rotate' >"$BB/cron"
+run_boot() { local body; body=$(sed -n '/^set -uo/,$p' <<<"$bt" | sed "s#{{ spool_root }}#$BB/spool#g; s#{{ repo_dir }}#$BB/repo#g; s#{{ agent_user }}#${1:-agentu}#g")
+  env FAKE_CRON="$BB/cron" PATH="$BB/bin:$PATH" bash -c "$body" 2>&1; }
+b1=$(run_boot); b2=$(run_boot); b3=$(run_boot other-user); b3rc=$?
+[[ "$b1" == *"CHANGED @reboot "*"csi-spl:agent-boot-restore" && "$b1" == *"as agentu,"* && "$b2" == *"OK @reboot "* ]] \
+  && [[ "$(grep -c 'csi-spl:agent-boot-restore$' "$BB/cron")" == 1 && "$(grep -c 'orch-rotate$' "$BB/cron")" == 1 ]] \
+  && pass "16. role 11 against a stub: one @reboot line, the rotation line kept, the plan shown, a re-run is OK" || fail "16. role 11 run: b1=$b1 b2=$b2 cron=$(cat "$BB/cron")"
+[[ $b3rc -ne 0 && "$b3" == *"does not name SPOOL_AGENT_USER=other-user"* ]] \
+  && pass "16. role 11 fails when box.env names another agent user" || fail "16. role 11 box.env check: rc=$b3rc $b3"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

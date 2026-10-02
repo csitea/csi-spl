@@ -73,6 +73,7 @@
     - { role: 08_spool_harness, tags: [08_spool_harness] }
     - { role: 09_agent_tools, tags: [09_agent_tools] }
     - { role: 10_rotation_cron, tags: [10_rotation_cron] }
+    - { role: 11_boot_restore, tags: [11_boot_restore] }
 
   handlers:
     - name: Restart docker

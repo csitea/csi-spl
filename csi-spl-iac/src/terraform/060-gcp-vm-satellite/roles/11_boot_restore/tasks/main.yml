@@ -1,0 +1,52 @@
+---
+# 11 the @reboot agent restore (owner t1 6a02db62; standing order 2026-10-01:
+# every programmatic Claude start runs as the AGENT user). The satellite had
+# no restore at all: after a reboot its agents stayed dead. Two parts, each a
+# named action of the repo, never a hand-written cron line:
+#   1. the identity map (do_spl_agent_identity_install): a per-minute record
+#      of every agent's id, session, worktree and user, plus the tmux hooks;
+#      the restore starts only what the map can prove
+#   2. the @reboot line (do_spl_agent_boot_restore_install_cron, tag
+#      csi-spl:agent-boot-restore): do_spl_agent_boot_restore waits for the
+#      tmux server (tmux-main.service, role 08), starts each agent the reboot
+#      killed as SPOOL_AGENT_USER (box.env, role 08), copying a transcript
+#      only the box user has, and fails on any agent CLI running as the box
+#      user (marker <spool_root>/agents/boot-FAILED)
+# Idempotent: each action replaces its tagged line in place.
+- name: The identity map (per-minute record + tmux hooks), as the box user
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export SPOOL_ROOT="{{ spool_root }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$PATH"
+    cd "{{ repo_dir }}/csi-spl-orc" || exit 1
+    out=$(setsid -w env DRY_RUN=0 ./run -a do_spl_agent_identity_install </dev/null 2>&1) || { printf '%s\n' "$out"; echo "FAIL do_spl_agent_identity_install"; exit 1; }
+    printf '%s\n' "$out" | grep -E '^(OK|DONE|REFUSED|WARN)'
+    printf '%s\n' "$out" | grep -qE '^DONE' && echo CHANGED || echo OK
+  args:
+    executable: /bin/bash
+    chdir: "{{ repo_dir }}"
+  become: true
+  become_user: "{{ owner_user }}"
+  register: identity_install
+  changed_when: "'CHANGED' in identity_install.stdout"
+
+- name: The @reboot agent restore (the box user's crontab, DRY_RUN=0, then check)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export SPOOL_ROOT="{{ spool_root }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$PATH"
+    grep -q '^SPOOL_AGENT_USER={{ agent_user }}$' "{{ spool_root }}/box.env" || { echo "FAIL {{ spool_root }}/box.env does not name SPOOL_AGENT_USER={{ agent_user }} (role 08)"; exit 1; }
+    cd "{{ repo_dir }}/csi-spl-orc" || exit 1
+    before=$(crontab -l 2>/dev/null | grep -c " # csi-spl:agent-boot-restore$")
+    setsid -w env DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron </dev/null 2>&1 || { echo "FAIL do_spl_agent_boot_restore_install_cron"; exit 1; }
+    setsid -w env BOOT_CRON_ACTION=check ./run -a do_spl_agent_boot_restore_install_cron </dev/null 2>&1 || { echo "FAIL the boot restore check"; exit 1; }
+    line=$(crontab -l 2>/dev/null | grep " # csi-spl:agent-boot-restore$")
+    [ "$(printf '%s\n' "$line" | grep -c .)" = 1 ] || { echo "FAIL want ONE csi-spl:agent-boot-restore line"; exit 1; }
+    # the plan it would run now, as proof of the launch user (DRY_RUN=1 starts nothing)
+    setsid -w env DRY_RUN=1 BOOT_RESTORE_WAIT_SEC=0 ./run -a do_spl_agent_boot_restore </dev/null 2>&1 | grep -E '^(boot-restore:|restore:|RESTORE|COPY|REFUSE)' | head -n 20
+    [ "$before" = 1 ] && echo "OK $line" || echo "CHANGED $line"
+  args:
+    executable: /bin/bash
+    chdir: "{{ repo_dir }}"
+  become: true
+  become_user: "{{ owner_user }}"
+  register: boot_restore_cron
+  changed_when: boot_restore_cron.stdout is search('CHANGED ')

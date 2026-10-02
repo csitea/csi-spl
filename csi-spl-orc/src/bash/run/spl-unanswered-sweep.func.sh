@@ -66,7 +66,7 @@ do_spl_unanswered_sweep() {
   done
   spl_lease_init ro || return 1
   spl_lease_conf
-  SWEEP_ORCH="${SWEEP_ORCH:-${LEASE_ORCH:-CLE-001}}"
+  SWEEP_ORCH="${SWEEP_ORCH:-${LEASE_ORCH:-c-001}}"
   SWEEP_FROM="${SWEEP_FROM:-$SWEEP_ORCH}"
   # fleet mode (CLE-77911): another machine holds the dispatch lease, so its
   # own sweep sends; sending from here too would deliver every item twice

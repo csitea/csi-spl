@@ -27,10 +27,10 @@ trap 'rm -rf "$T"' EXIT
 
 P="$T/proc" S="$T/spool" ST="$T/state" R="$T/repo"
 mkdir -p "$P" "$S" "$ST" "$T/home"
-# the hub DB as fixture files: both dispatchers in every channel, CLE-001 in none
+# the hub DB as fixture files: both dispatchers in every channel, c-001 in none
 SUBS="$T/subs"; mkdir -p "$SUBS"
 for w in w1 w2; do
-  printf 'chan|lobby\nchan|team\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\nsub|team|box-desk|CLE-002|invite\nsub|team|box-desk|CLE-003|invite\n' >"$SUBS/$w.txt"
+  printf 'chan|lobby\nchan|team\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|team|box-desk|c-002|invite\nsub|team|box-desk|c-003|invite\n' >"$SUBS/$w.txt"
 done
 # a fake crontab (-l prints the file, <file> replaces it) and the checkout the
 # sweep cron line points at, so step 11 never touches the real crontab
@@ -77,22 +77,22 @@ for step in posts-dir lease-conf brief worktree settings exclude spawn desk leas
 done
 [[ $rc -eq 0 && "$before" == "$after" ]] && grep -q 'DRY_RUN nothing was touched' "$T/o" &&
   pass "1. a fresh box: every step planned, nothing written" || fail "1. rc=$rc changed=$([[ "$before" != "$after" ]] && echo yes) $(cat "$T/o")"
-[[ "$(grep -c '^PLAN desk ' "$T/o")" == 4 ]] && grep -q 'TENANT_ID=w2 DESK_AGENT=CLE-003' "$T/o" &&
+[[ "$(grep -c '^PLAN desk ' "$T/o")" == 4 ]] && grep -q 'TENANT_ID=w2 DESK_AGENT=c-003' "$T/o" &&
   pass "1. a desk per dispatcher per workspace" || fail "1. desks: $(grep desk "$T/o")"
-grep -q 'spawn-window.sh claude CLE-002 .* dispatcher-master' "$T/o" &&
+grep -q 'spawn-window.sh claude c-002 .* dispatcher-master' "$T/o" &&
   pass "1. the master is spawned with its fixed id" || fail "1. spawn line: $(grep spawn "$T/o")"
 
 # --- 2. complete box ---------------------------------------------------------------------
-for id in CLE-002 CLE-003; do seat $id w1; seat $id w2; done
-agent 100 CLE-002; agent 200 CLE-003
+for id in c-002 c-003; do seat $id w1; seat $id w2; done
+agent 100 c-002; agent 200 c-003
 # DRY_RUN=0 writes the file steps; the ensure runs a stub instead of real loops
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && -f "$S/dispatch/lease.conf" && "$(stat -c %a "$S/dispatch/posts")" == 2777 && -f "$R-wt/CLE-003/.claude/settings.local.json" ]] &&
+[[ $rc -eq 0 && -f "$S/dispatch/lease.conf" && "$(stat -c %a "$S/dispatch/posts")" == 2777 && -f "$R-wt/c-003/.claude/settings.local.json" ]] &&
   grep -qx '.claude/settings.local.json' "$R/.git/info/exclude" &&
   pass "2. DRY_RUN=0 writes posts dir, lease.conf, briefs, settings, exclude" || fail "2. live: rc=$rc $(cat "$T/o")"
-grep -q 'sudo -u boxuser env ENV=prd \* ./run -a do_spl_desk_reply' "$R-wt/CLE-002/.claude/settings.local.json" &&
-  pass "2. the settings allow desk replies only" || fail "2. settings: $(cat "$R-wt/CLE-002/.claude/settings.local.json")"
-for id in CLE-002 CLE-003; do touch -d '2025-12-31 00:00:00' "$R-wt/$id/.claude/settings.local.json"; done
+grep -q 'sudo -u boxuser env ENV=prd \* ./run -a do_spl_desk_reply' "$R-wt/c-002/.claude/settings.local.json" &&
+  pass "2. the settings allow desk replies only" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
+for id in c-002 c-003; do touch -d '2025-12-31 00:00:00' "$R-wt/$id/.claude/settings.local.json"; done
 setup >"$T/o" 2>&1
 grep -v '^PLAN lease-loops' "$T/o" | grep -q '^PLAN' &&
   fail "2. a complete box still plans: $(grep '^PLAN' "$T/o")" || pass "2. a re-run on a complete box plans nothing but the ensure"
@@ -103,7 +103,7 @@ grep -qx 'LEASE_PRIORITY=pc,sat' "$S/dispatch/lease.conf" && grep -qx 'LEASE_TEN
   grep -qx 'LEASE_MACHINE=pc' "$S/dispatch/lease.conf" && ! grep -q '^LEASE_DESK_BOX=' "$S/dispatch/lease.conf" &&
   pass "2. DISPATCH_FLEET writes the fleet lines into lease.conf" || fail "2. fleet conf: $(cat "$S/dispatch/lease.conf")"
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
-grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" && grep -qx 'LEASE_MASTER=CLE-002' "$S/dispatch/lease.conf" &&
+grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" && grep -qx 'LEASE_MASTER=c-002' "$S/dispatch/lease.conf" &&
   pass "2. a re-run without DISPATCH_FLEET keeps fleet mode (never leaves it silently)" || fail "2. fleet dropped: $(cat "$S/dispatch/lease.conf")"
 # the asks timer's knobs (CLE-77929): written when given, kept on a re-run, a bad owner id refused
 setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_ASKS_OWNER=HUM-10 DISPATCH_ASKS_RERAISE_MIN=20 >"$T/o" 2>&1
@@ -115,50 +115,50 @@ setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_ASKS_OWNER=owner >"$T/o" 2>&1 && fa
 grep -vE '^(LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)|ASKS_[A-Z_]+)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
 
 # --- 3. settings newer than the session ----------------------------------------------
-touch "$R-wt/CLE-003/.claude/settings.local.json"
+touch "$R-wt/c-003/.claude/settings.local.json"
 setup >"$T/o" 2>&1
-grep -q '^RELAUNCH CLE-003 pid=200' "$T/o" && [[ -d "$P/200" ]] &&
+grep -q '^RELAUNCH c-003 pid=200' "$T/o" && [[ -d "$P/200" ]] &&
   pass "3. settings written after the start -> RELAUNCH reported, nothing killed" || fail "3. $(cat "$T/o")"
-touch -d '2025-12-31 00:00:00' "$R-wt/CLE-003/.claude/settings.local.json"
+touch -d '2025-12-31 00:00:00' "$R-wt/c-003/.claude/settings.local.json"
 
 # --- 4. rendered brief -----------------------------------------------------------------
-b="$S/dispatch/briefs/brief-dispatcher-CLE-002.md"
-grep -q 'You are \*\*CLE-002\*\*, the \*\*master dispatcher' "$b" && grep -q 'w1, w2' "$b" && grep -q 'sudo -u boxuser env ENV=prd' "$b" &&
+b="$S/dispatch/briefs/brief-dispatcher-c-002.md"
+grep -q 'You are \*\*c-002\*\*, the \*\*master dispatcher' "$b" && grep -q 'w1, w2' "$b" && grep -q 'sudo -u boxuser env ENV=prd' "$b" &&
   ! grep -qE '\{(ID|ROLE|PEER|ORCH|MASTER|FAILOVER|SPOOL_ROOT|POSTS_DIR|ENV|TENANTS|ORC|BOX_USER|LEASE_RULE|FIRST_STEP)\}' "$b" &&
   pass "4. the brief is rendered with ids, workspaces and the box user" || fail "4. brief: $(head -5 "$b")"
 # CLE-77938 (owner 2026-10-02): a new ask never goes to a running lane; the orchestrator spawns a new one.
-grep -q 'You never forward a new ask to a running lane' "$b" && grep -q '^| a \*\*new ask\*\* .*| escalate to \*\*CLE-001\*\*' "$b" &&
+grep -q 'You never forward a new ask to a running lane' "$b" && grep -q '^| a \*\*new ask\*\* .*| escalate to \*\*c-001\*\*' "$b" &&
   ! grep -q 'about an area a \*\*live lane owns\*\*' "$b" &&
   pass "4. the brief escalates every new ask for a new lane" || fail "4. new-ask rule: $(grep -n 'new ask\|lane owns' "$b")"
 
 # --- 5. refusals ---------------------------------------------------------------------------
 setup ENV=stg >/dev/null 2>&1 && fail "5. ENV=stg accepted" || pass "5. ENV=stg refused"
 setup DISPATCH_MASTER='x;y' >/dev/null 2>&1 && fail "5. bad id accepted" || pass "5. a bad id is refused"
-setup DISPATCH_FAILOVER=CLE-002 >/dev/null 2>&1 && fail "5. master == failover accepted" || pass "5. master == failover refused"
+setup DISPATCH_FAILOVER=c-002 >/dev/null 2>&1 && fail "5. master == failover accepted" || pass "5. master == failover refused"
 
 # --- 6. check: complete box ---------------------------------------------------------------
-echo "CLE-002 $(date +%s)" >"$S/dispatch/lease"
+echo "c-002 $(date +%s)" >"$S/dispatch/lease"
 ( exec 7>"$S/dispatch/renew.run"; flock 7; sleep 30 ) & H1=$!
 ( exec 7>"$S/dispatch/watch.run"; flock 7; sleep 30 ) & H2=$!
 sleep 0.3
-printf 'ts=%s\nopen=2\nper=w1=2\nto=CLE-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
+printf 'ts=%s\nopen=2\nper=w1=2\nto=c-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
 date +%s >"$S/dispatch/rotate.dispatch.last"
 check >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'dispatch check: no gap' "$T/o" && grep -q '| CLE-003 desks | 2/2 workspaces | ok |' "$T/o" &&
+[[ $rc -eq 0 ]] && grep -q 'dispatch check: no gap' "$T/o" && grep -q '| c-003 desks | 2/2 workspaces | ok |' "$T/o" &&
   pass "6. a complete box: no gap, exit 0" || fail "6. rc=$rc $(cat "$T/o")"
-grep -qE '\| unanswered sweep \| last [0-9]+s ago to CLE-002, 2 open \(w1=2\) \| ok \|' "$T/o" &&
+grep -qE '\| unanswered sweep \| last [0-9]+s ago to c-002, 2 open \(w1=2\) \| ok \|' "$T/o" &&
   pass "6. the sweep row shows its age and open count" || fail "6. sweep row: $(grep -i sweep "$T/o")"
 # 2026-10-01: from the desk cron's checkout (a second worktree of the same
-# repo) the check looked for <that checkout>-wt/CLE-002 and saw GAPs
+# repo) the check looked for <that checkout>-wt/c-002 and saw GAPs
 git -C "$R" worktree add -q --detach "$T/cron-co"
 check APP_PATH="$T/cron-co" >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -q '| CLE-002 desk-reply permission | loaded | ok |' "$T/o" &&
+[[ $rc -eq 0 ]] && grep -q '| c-002 desk-reply permission | loaded | ok |' "$T/o" &&
   pass "6. run from a second worktree: the dispatcher worktrees of the main checkout" || fail "6. second worktree: rc=$rc $(cat "$T/o")"
 mkdir -p "$T/plain" "$S/agents"
-printf '{"id": "CLE-002", "worktree": "%s"}\n' "$R-wt/CLE-002" >"$S/agents/CLE-002.json"
-printf '{"id": "CLE-003", "worktree": "%s"}\n' "$R-wt/CLE-003" >"$S/agents/CLE-003.json"
+printf '{"id": "c-002", "worktree": "%s"}\n' "$R-wt/c-002" >"$S/agents/c-002.json"
+printf '{"id": "c-003", "worktree": "%s"}\n' "$R-wt/c-003" >"$S/agents/c-003.json"
 check APP_PATH="$T/plain" >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -q '| CLE-003 desk-reply permission | loaded | ok |' "$T/o" &&
+[[ $rc -eq 0 ]] && grep -q '| c-003 desk-reply permission | loaded | ok |' "$T/o" &&
   pass "6. outside any checkout: the worktree from the identity map" || fail "6. identity map: rc=$rc $(cat "$T/o")"
 rm -rf "$S/agents"
 # a rotation (task 6a02db62): at 2026-10-02 11:00Z the rotation started the
@@ -170,42 +170,42 @@ git init -q --bare "$G/origin.git"
 git init -q "$G/repo" && git -C "$G/repo" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 git -C "$G/repo" branch -M master && git -C "$G/repo" remote add origin "$G/origin.git" && git -C "$G/repo" push -q origin master 2>/dev/null
 git -C "$G/repo" fetch -q origin
-git -C "$G/repo" worktree add -q -b CLE-002-dispatcher-master "$G/repo-wt/CLE-002" origin/master
-mkdir -p "$G/repo-wt/CLE-002/.claude" && cp "$R-wt/CLE-002/.claude/settings.local.json" "$G/repo-wt/CLE-002/.claude/"
-touch -d '2025-12-31 00:00:00' "$G/repo-wt/CLE-002/.claude/settings.local.json"
+git -C "$G/repo" worktree add -q -b c-002-dispatcher-master "$G/repo-wt/c-002" origin/master
+mkdir -p "$G/repo-wt/c-002/.claude" && cp "$R-wt/c-002/.claude/settings.local.json" "$G/repo-wt/c-002/.claude/"
+touch -d '2025-12-31 00:00:00' "$G/repo-wt/c-002/.claude/settings.local.json"
 # the live shape the 11:00Z rotation left: a worktree nested in the setup one
-git -C "$G/repo-wt/CLE-002" worktree add -q -b CLE-002-rotate "$G/repo-wt/CLE-002-wt/CLE-002" origin/master
+git -C "$G/repo-wt/c-002" worktree add -q -b c-002-rotate "$G/repo-wt/c-002-wt/c-002" origin/master
 rot_cwd() {  # <registry rundir> -> the dir the rotation's spawn runs the new session in
-  printf 'CLE-002\tclaude\t%%9\t%s\t20261002T110253Z\n' "$1" >"$G/spool/registry.tsv"
+  printf 'c-002\tclaude\t%%9\t%s\t20261002T110253Z\n' "$1" >"$G/spool/registry.tsv"
   local wd
-  wd="$(env SPOOL_ROOT="$G/spool" bash -c 'do_log() { :; }; source "$1/src/bash/run/spl-rotate-lib.func.sh"; spl_rotate_workdir CLE-002' _ "$PROJ_ROOT")"
+  wd="$(env SPOOL_ROOT="$G/spool" bash -c 'do_log() { :; }; source "$1/src/bash/run/spl-rotate-lib.func.sh"; spl_rotate_workdir c-002' _ "$PROJ_ROOT")"
   env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID SPAWN_DRY_RUN=1 SPAWN_TEST_SANDBOX=1 SPOOL_TEST=1 SPAWN_REUSE_ID=1 SPOOL_NOW=2026-10-02T12:00:00Z \
     SPOOL_ROOT="$G/spool" SPOOL_TMUX_SOCKET="$G/tmux.sock" SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)" SPOOL_BOX_TAG= \
-    bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" CLE-002 "$wd" "$G/brief.md" rotate 2>&1 |
+    bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" c-002 "$wd" "$G/brief.md" rotate 2>&1 |
     sed -nE 's/^PLAN worktree +(reuse|add) ([^ ]+).*/\2/p'
 }
-for from in "$G/repo-wt/CLE-002" "$G/repo-wt/CLE-002-wt/CLE-002"; do
+for from in "$G/repo-wt/c-002" "$G/repo-wt/c-002-wt/c-002"; do
   cwd="$(rot_cwd "$from")"
-  [[ "$cwd" == "$G/repo-wt/CLE-002" && -f "$cwd/.claude/settings.local.json" ]] &&
+  [[ "$cwd" == "$G/repo-wt/c-002" && -f "$cwd/.claude/settings.local.json" ]] &&
     pass "6. a rotation from ${from#"$G"/} restarts in the setup worktree, settings there" ||
     fail "6. rotation from ${from#"$G"/}: the new session runs in '${cwd:-nothing}'"
   # the new session as spawn records it: its cwd, and the identity map's worktree
-  rm -rf "$P/100"; agent 100 CLE-002; ln -sfn "$cwd" "$P/100/cwd"
-  mkdir -p "$S/agents"; printf '{"id": "CLE-002", "worktree": "%s"}\n' "$cwd" >"$S/agents/CLE-002.json"
+  rm -rf "$P/100"; agent 100 c-002; ln -sfn "$cwd" "$P/100/cwd"
+  mkdir -p "$S/agents"; printf '{"id": "c-002", "worktree": "%s"}\n' "$cwd" >"$S/agents/c-002.json"
   check >"$T/o" 2>&1; rc=$?
-  [[ $rc -eq 0 ]] && grep -q '| CLE-002 desk-reply permission | loaded | ok |' "$T/o" && ! grep -q 'GAP' "$T/o" &&
+  [[ $rc -eq 0 ]] && grep -q '| c-002 desk-reply permission | loaded | ok |' "$T/o" && ! grep -q 'GAP' "$T/o" &&
     pass "6. ... and do_spl_dispatch_check shows no GAP row" || fail "6. check after the rotation: rc=$rc $(grep GAP "$T/o")"
 done
-rm -rf "$S/agents" "$P/100"; agent 100 CLE-002
+rm -rf "$S/agents" "$P/100"; agent 100 c-002
 # a test workspace's desk is no dispatcher gap (the sweep's shared list)
 mkdir -p "$ST/desk/w12live1/box-desk"; touch "$ST/desk/w12live1/box-desk/pinned"
 echo 'w12live1  # a dev proof' >"$S/dispatch/test-workspaces"
 check >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -q '| CLE-002 desks | 2/2 workspaces | ok |' "$T/o" &&
+[[ $rc -eq 0 ]] && grep -q '| c-002 desks | 2/2 workspaces | ok |' "$T/o" &&
   pass "6. a workspace on the test-workspaces list is left out" || fail "6. test list: rc=$rc $(cat "$T/o")"
 rm -f "$S/dispatch/test-workspaces"
 check >"$T/o" 2>&1
-grep -q 'CLE-002 desks | 2/3, missing: w12live1' "$T/o" &&
+grep -q 'c-002 desks | 2/3, missing: w12live1' "$T/o" &&
   pass "6. off the list it is a seat gap (the control)" || fail "6. control: $(grep desks "$T/o")"
 rm -rf "$ST/desk/w12live1"
 
@@ -215,21 +215,21 @@ gap() { # <label> <expected verdict regex> -- env...
   check "$@" >"$T/o" 2>&1; local rc=$?
   [[ $rc -ne 0 ]] && grep -qE "$re" "$T/o" && pass "7. $label" || fail "7. $label: rc=$rc $(cat "$T/o")"
 }
-mv "$P/200" "$T/p200"; gap "no failover process" 'CLE-003 process .*GAP not running'; mv "$T/p200" "$P/200"
-agent 100 CLE-002 default; gap "permission mode not auto" 'CLE-002 permission mode \| default \| GAP'; agent 100 CLE-002
-agent 100 CLE-002 auto claude-other-1; gap "model mismatch" 'CLE-002 model \| claude-other-1 \| GAP' DISPATCH_MODEL=claude-opus; agent 100 CLE-002
-rm -rf "$ST/desk/w2/box-desk/spool/CLE-002"; gap "missing seat" 'CLE-002 desks \| 1/2, missing: w2'; seat CLE-002 w2
-mkdir -p "$S/CLE-003/inbox"; for i in 1 2 3; do touch "$S/CLE-003/inbox/m$i.json"; done
-gap "unread over the max" 'CLE-003 unread \| 3 \| GAP' DISPATCH_UNREAD_MAX=2; rm -rf "$S/CLE-003/inbox"
-echo "CLE-002 $(( $(date +%s) - 500 ))" >"$S/dispatch/lease"; gap "stale lease" 'lease \| CLE-002, 50[0-9]s old \| GAP stale'
+mv "$P/200" "$T/p200"; gap "no failover process" 'c-003 process .*GAP not running'; mv "$T/p200" "$P/200"
+agent 100 c-002 default; gap "permission mode not auto" 'c-002 permission mode \| default \| GAP'; agent 100 c-002
+agent 100 c-002 auto claude-other-1; gap "model mismatch" 'c-002 model \| claude-other-1 \| GAP' DISPATCH_MODEL=claude-opus; agent 100 c-002
+rm -rf "$ST/desk/w2/box-desk/spool/c-002"; gap "missing seat" 'c-002 desks \| 1/2, missing: w2'; seat c-002 w2
+mkdir -p "$S/c-003/inbox"; for i in 1 2 3; do touch "$S/c-003/inbox/m$i.json"; done
+gap "unread over the max" 'c-003 unread \| 3 \| GAP' DISPATCH_UNREAD_MAX=2; rm -rf "$S/c-003/inbox"
+echo "c-002 $(( $(date +%s) - 500 ))" >"$S/dispatch/lease"; gap "stale lease" 'lease \| c-002, 50[0-9]s old \| GAP stale'
 echo "CLE-77 $(date +%s)" >"$S/dispatch/lease"; gap "holder not a dispatcher" 'GAP holder is not a dispatcher'
-echo "CLE-002 $(date +%s)" >"$S/dispatch/lease"
-touch "$R-wt/CLE-002/.claude/settings.local.json"; gap "settings not loaded" 'CLE-002 desk-reply permission .*GAP relaunch'
-touch -d '2025-12-31 00:00:00' "$R-wt/CLE-002/.claude/settings.local.json"
-cp "$SUBS/w2.txt" "$T/w2.keep"; echo 'sub|team|box-desk|CLE-001|invite' >>"$SUBS/w2.txt"
-gap "orchestrator subscribed to a channel" '\| w2 #team \| dispatchers y, CLE-001 y \| GAP'
-grep -v 'CLE-003' "$T/w2.keep" >"$SUBS/w2.txt"
-gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, CLE-001 n \| GAP'
+echo "c-002 $(date +%s)" >"$S/dispatch/lease"
+touch "$R-wt/c-002/.claude/settings.local.json"; gap "settings not loaded" 'c-002 desk-reply permission .*GAP relaunch'
+touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
+cp "$SUBS/w2.txt" "$T/w2.keep"; echo 'sub|team|box-desk|c-001|invite' >>"$SUBS/w2.txt"
+gap "orchestrator subscribed to a channel" '\| w2 #team \| dispatchers y, c-001 y \| GAP'
+grep -v 'c-003' "$T/w2.keep" >"$SUBS/w2.txt"
+gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, c-001 n \| GAP'
 cp "$T/w2.keep" "$SUBS/w2.txt"
 echo 'hum|6|2' >>"$SUBS/w2.txt"
 gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'

@@ -187,9 +187,12 @@ spl_dispatch_lease_conf_text() {
 spl_dispatch_cnf() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   spl_lease_init ro || return 1
-  DISPATCH_MASTER="${DISPATCH_MASTER:-CLE-002}"
-  DISPATCH_FAILOVER="${DISPATCH_FAILOVER:-CLE-003}"
-  DISPATCH_ORCH="${DISPATCH_ORCH:-CLE-001}"
+  # the role ids lease.conf names (spec 061 L6: c-001..003 after the switch);
+  # a hard-coded CLE-00N here read both live dispatchers as "not running"
+  spl_lease_conf
+  DISPATCH_MASTER="${DISPATCH_MASTER:-${LEASE_MASTER:-c-002}}"
+  DISPATCH_FAILOVER="${DISPATCH_FAILOVER:-${LEASE_FAILOVER:-c-003}}"
+  DISPATCH_ORCH="${DISPATCH_ORCH:-${LEASE_ORCH:-c-001}}"
   local v
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   declare -F spl_dispatch_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-check.func.sh"

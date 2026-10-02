@@ -87,7 +87,7 @@ do_spl_dispatch_tick() {
       grep '^GAP ' "$tmp/added" >"$tmp/new.gap"
       [[ -s "$tmp/new.gap" ]] && { _spl_dispatch_tick_note "$(_spl_dispatch_tick_holder)" "new since the last desk tick" "$tmp/new.gap" "$tmp" ||
         echo "DISPATCH WARN could not send the gap note"; }
-      [[ -s "$tmp/escalate" ]] && { _spl_dispatch_tick_note "${LEASE_ORCH:-CLE-001}" "open for over ${DISPATCH_GAP_ESCALATE:-3600}s" "$tmp/escalate" "$tmp" ||
+      [[ -s "$tmp/escalate" ]] && { _spl_dispatch_tick_note "${LEASE_ORCH:-c-001}" "open for over ${DISPATCH_GAP_ESCALATE:-3600}s" "$tmp/escalate" "$tmp" ||
         echo "DISPATCH WARN could not send the escalation"; }
     fi
     cp "$tmp/state" "$f.tmp" && mv -f "$f.tmp" "$f" || echo "DISPATCH WARN cannot write $f"
@@ -101,10 +101,10 @@ do_spl_dispatch_tick() {
 # THIS machine go to its own orchestrator.
 _spl_dispatch_tick_holder() {
   spl_lease_read
-  if spl_lease_remote; then echo "${LEASE_ORCH:-CLE-001}"
+  if spl_lease_remote; then echo "${LEASE_ORCH:-c-001}"
   elif [[ "$LH" != none ]]; then spl_lease_holder_id
   elif [[ -n "${LEASE_MASTER:-}" ]]; then echo "$LEASE_MASTER"
-  else echo "${LEASE_ORCH:-CLE-001}"; fi
+  else echo "${LEASE_ORCH:-c-001}"; fi
 }
 
 # _spl_dispatch_tick_note <to> <why> <items file> <tmp>: ONE spool note.
@@ -121,7 +121,7 @@ _spl_dispatch_tick_note() {
     echo
     echo "Open GAP rows: $(grep -c '^GAP ' "$tmp/gaps"). \`ENV=$ENV ./run -a do_spl_dispatch_check\` shows them."
   } >"$tmp/note"
-  SPOOL_BIN="$bin" SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${LEASE_ORCH:-CLE-001}" \
+  SPOOL_BIN="$bin" SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${LEASE_ORCH:-c-001}" \
     --to "$to" --kind note --task dispatch-gaps --body-file "$tmp/note" >/dev/null 2>&1 8>&- 9>&- || return 1
   echo "DISPATCH told $to"
 }

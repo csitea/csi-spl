@@ -60,7 +60,7 @@ tick; rc=$?
   pass "1. without lease.conf the tick does nothing and prints nothing" || fail "1. rc=$rc $(cat "$T/calls" "$T/o")"
 
 # --- 2. a new channel ------------------------------------------------------------------------
-printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=O-1\n' >"$S/dispatch/lease.conf"
+printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
 tick; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w1 newc box-desk CLE-002 CLE-003 1' ]] &&
   grep -qx 'DISPATCH subscribe add w1 #newc CLE-002 CLE-003' "$T/o" &&
@@ -88,7 +88,7 @@ tick; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'DISPATCH gap GAP CLE-003 process: GAP not running (none with SPOOL_AGENT_ID=CLE-003)' "$T/o" &&
   grep -qx 'DISPATCH gap GAP CLE-002 unread: GAP over 20 (25)' "$T/o" && grep -qx 'DISPATCH told CLE-002' "$T/o" &&
   pass "5. a new check GAP is logged and the lease holder told" || fail "5. rc=$rc $(cat "$T/o")"
-[[ "$(grep -c '^send ' "$T/sent")" == 1 ]] && grep -q -- '--from O-1 --to CLE-002 --kind note --task dispatch-gaps' "$T/sent" &&
+[[ "$(grep -c '^send ' "$T/sent")" == 1 ]] && grep -q -- '--from c-001 --to CLE-002 --kind note --task dispatch-gaps' "$T/sent" &&
   grep -qx -- '- CLE-003 process: GAP not running (none with SPOOL_AGENT_ID=CLE-003)' "$T/sent" && ! grep -q 'DEAD' "$T/sent" &&
   pass "5. ONE note, the new GAP rows only" || fail "5. sent: $(cat "$T/sent")"
 sed -i 's/| 25 |/| 31 |/' "$T/check"
@@ -96,8 +96,8 @@ tick
 [[ ! -s "$T/o" && "$(grep -c '^send ' "$T/sent")" == 1 ]] && pass "5. the same gap with another value is not new" || fail "5. value: $(cat "$T/o")"
 echo "CLE-003 $(date +%s)" >"$S/dispatch/lease"
 tick DISPATCH_NOW=$(( $(date +%s) + 3700 ))
-grep -q '^DISPATCH still open after 3600s: GAP CLE-003 process' "$T/o" && grep -qx 'DISPATCH told O-1' "$T/o" &&
-  [[ "$(grep -c -- '--to O-1 ' "$T/sent")" == 1 ]] && pass "5. still open after an hour: the orchestrator told" || fail "5. escalate: $(cat "$T/o")"
+grep -q '^DISPATCH still open after 3600s: GAP CLE-003 process' "$T/o" && grep -qx 'DISPATCH told c-001' "$T/o" &&
+  [[ "$(grep -c -- '--to c-001 ' "$T/sent")" == 1 ]] && pass "5. still open after an hour: the orchestrator told" || fail "5. escalate: $(cat "$T/o")"
 tick DISPATCH_NOW=$(( $(date +%s) + 7400 ))
 [[ ! -s "$T/o" && "$(grep -c '^send ' "$T/sent")" == 2 ]] && pass "5. escalated once only" || fail "5. escalate twice: $(cat "$T/o")"
 echo '| lease watch loop | not running | GAP LEASE_CMD=ensure do_spl_dispatch_lease |' >>"$T/check"

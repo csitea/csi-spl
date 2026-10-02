@@ -61,3 +61,73 @@ export function isLocaleRouteCopy(route, codes, defaultLocale) {
   const code = route.name.slice(i + SEP.length)
   return code !== defaultLocale && codes.includes(code)
 }
+
+// ── Active locale first (perf round 3, P3-14) ─────────────────────────────
+// Building the vue-router matcher for all 494 top-level records costs about
+// 4x what the ~69 records of two locales cost (node, warm, n=3: 3.5..4.6 vs
+// 0.8..1.3 ms per createRouter; the audit saw 32 ms CPU 4x in the browser).
+// So the browser router starts with the default locale, the locale in the
+// URL and every record that belongs to no locale; the other locales' records
+// are added with router.addRoute later (registerLocaleRoutes): at idle after
+// mount, before a locale switch, and from a guard when a navigation matches
+// nothing. The server (prerender) keeps building all of them at once.
+
+/** The locale a record belongs to: its name's suffix, else that of its first
+ *  named child (i18n's per-locale parents of a nested page have no name). */
+function recordLocale(route, codes) {
+  if (typeof route.name === "string") {
+    const i = route.name.lastIndexOf(SEP)
+    const code = i < 0 ? "" : route.name.slice(i + SEP.length)
+    return codes.includes(code) ? code : ""
+  }
+  for (const c of route.children || []) {
+    const code = recordLocale(c, codes)
+    if (code) return code
+  }
+  return ""
+}
+
+/**
+ * expandLocaleRoutes, split in two: `now` holds the records of the default
+ * locale, of `active` and of no locale, in i18n's order; `later()` builds the
+ * rest (made only when called). now + later() is expandLocaleRoutes' set.
+ * @param {Array<Record<string, any>>} routes default-locale records (as kept by the build)
+ * @param {string[]} codes
+ * @param {string} defaultLocale
+ * @param {string} active the locale the first route is in ('' = default)
+ */
+export function splitLocaleRoutes(routes, codes, defaultLocale, active) {
+  const keep = (code) => !code || code === defaultLocale || code === active
+  const now = []
+  for (const r of routes) {
+    if (!isDefaultRecord(r, defaultLocale)) {
+      if (keep(recordLocale(r, codes))) now.push(r)
+      continue
+    }
+    for (const code of codes) {
+      if (keep(code)) now.push(code === defaultLocale ? r : localeCopy(r, code, defaultLocale, true))
+    }
+  }
+  const later = () => expandLocaleRoutes(routes, codes, defaultLocale).filter((r) => !keep(recordLocale(r, codes)))
+  return { now, later }
+}
+
+let pendingLocaleRoutes = null
+
+/** Remember the records the router was made without (router.options.ts). */
+export function deferLocaleRoutes(later) {
+  pendingLocaleRoutes = later
+}
+
+/**
+ * Add the deferred locale records to `router`, once. True when it added
+ * any (the caller then re-resolves what it was looking for).
+ * @param {{ addRoute: (r: any) => unknown }} router
+ */
+export function registerLocaleRoutes(router) {
+  const later = pendingLocaleRoutes
+  if (!later) return false
+  pendingLocaleRoutes = null
+  for (const r of later()) router.addRoute(r)
+  return true
+}

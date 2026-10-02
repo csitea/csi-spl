@@ -12,6 +12,7 @@
 // (`i18n_redirected`) is written by plugins/locale-cookie.client.ts, which
 // watches the locale and therefore also covers a switch made from Settings.
 import { localeTargetPath, isPathInLocale } from '@/utils/localeTargetPath.mjs'
+import { registerLocaleRoutes } from '@/utils/locale-routes.mjs'
 
 /** localStorage mirror of the visitor's choice (see LanguageSwitcher.vue). */
 export const LOCALE_LS_KEY = 'csi-spl-lang'
@@ -44,6 +45,8 @@ export function useLocaleSwitch() {
     if (!code || !codes.includes(code) || code === String(unref(locale) || '')) return ''
     persist(code)
 
+    // P3-14: the target locale's routes may not be in the router yet.
+    registerLocaleRoutes(router)
     const route = router.currentRoute.value
     // Prefer the module's answer — it carries route params a path rewrite
     // cannot know — but only when it actually lands in the target locale.

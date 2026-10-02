@@ -9,6 +9,7 @@
 // (sessionStorage marker): after that the header switcher is free to change
 // the language, as in the donor, and a reload does not undo that choice.
 import { useSessionStore } from '~/stores/session'
+import { registerLocaleRoutes } from '~/utils/locale-routes.mjs'
 
 export default defineNuxtPlugin((nuxtApp) => {
   if (!import.meta.client) return
@@ -31,6 +32,7 @@ export default defineNuxtPlugin((nuxtApp) => {
         const want = String(pref || '')
         const codes = (unref(i18n?.localeCodes) as string[] | undefined) || []
         if (!want || !codes.includes(want) || want === String(unref(i18n?.locale) || '')) return
+        registerLocaleRoutes(useRouter()) // P3-14: before switchLocalePath
         const route = useRoute()
         const switched = useSwitchLocalePath()(want as never)
         const path = (switched || route.path).split(/[?#]/)[0] || '/'

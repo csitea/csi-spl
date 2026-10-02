@@ -113,8 +113,46 @@ do_spl_tenant_member_add() {
 _spl_tenant_member_add_run() {
   local out rc=0 n_added n_already n_invite line who="$2" mark
   [[ -n "$who" ]] || who="$3"
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-      -v tenant="$1" -v human="$2" -v email="$3" -v role="$4" -v ordby="$5" -v ordvia="$6" <<'SQL'
+  out="$(_spl_tenant_member_add_sql |
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+      -v tenant="$1" -v human="$2" -v email="$3" -v role="$4" -v ordby="$5" -v ordvia="$6")" || rc=$?
+  if (( rc != 0 )); then
+    if mark="$(spl_psql_mark "$out" refuse-human)"; then
+      do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
+    elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
+      do_log "FATAL human $mark is not in humans"
+    else
+      do_log "FATAL member add of $who in $1 failed: $out"
+    fi
+    return 1
+  fi
+  n_added="$(grep -c '^added | ' <<<"$out" || true)"
+  n_already="$(grep -c '^already | ' <<<"$out" || true)"
+  n_invite="$(grep -c '^invite | ' <<<"$out" || true)"
+  if (( n_added + n_already != 1 )); then
+    do_log "FATAL member add of $who in $1 returned no single membership result: $out"
+    return 1
+  fi
+  if (( n_added == 1 )); then
+    line="$(grep '^added | ' <<<"$out" | head -n 1)"
+    do_log "OK added $who to $1 (ordered_by=$5${6:+ via $6}) ($GCP_ACCOUNT): $line"
+  else
+    line="$(grep '^already | ' <<<"$out" | head -n 1)"
+    do_log "OK ${line#already | } is already a member of $1 ($GCP_ACCOUNT)"
+  fi
+  if (( n_invite > 0 )); then
+    do_log "OK marked pending invite accepted ($GCP_ACCOUNT): $(grep '^invite | ' <<<"$out" | paste -sd ';' -)"
+  else
+    do_log "OK no pending invite to accept for $who on $1"
+  fi
+}
+
+# _spl_tenant_member_add_sql: the one-transaction admit script - resolve the
+# human (by id, or by an email that must match exactly one), refuse a missing
+# one, insert the membership ("added | ..." / "already | ..."), and mark a
+# pending invite for that email accepted ("invite | ...").
+_spl_tenant_member_add_sql() {
+  cat <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT CASE
@@ -163,36 +201,6 @@ UPDATE tenant_invites AS ti
 RETURNING format('invite | %s | %s | %s', ti.tenant_id, ti.email, ti.accepted_by);
 COMMIT;
 SQL
-)" || rc=$?
-  if (( rc != 0 )); then
-    if mark="$(spl_psql_mark "$out" refuse-human)"; then
-      do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
-    elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
-      do_log "FATAL human $mark is not in humans"
-    else
-      do_log "FATAL member add of $who in $1 failed: $out"
-    fi
-    return 1
-  fi
-  n_added="$(grep -c '^added | ' <<<"$out" || true)"
-  n_already="$(grep -c '^already | ' <<<"$out" || true)"
-  n_invite="$(grep -c '^invite | ' <<<"$out" || true)"
-  if (( n_added + n_already != 1 )); then
-    do_log "FATAL member add of $who in $1 returned no single membership result: $out"
-    return 1
-  fi
-  if (( n_added == 1 )); then
-    line="$(grep '^added | ' <<<"$out" | head -n 1)"
-    do_log "OK added $who to $1 (ordered_by=$5${6:+ via $6}) ($GCP_ACCOUNT): $line"
-  else
-    line="$(grep '^already | ' <<<"$out" | head -n 1)"
-    do_log "OK ${line#already | } is already a member of $1 ($GCP_ACCOUNT)"
-  fi
-  if (( n_invite > 0 )); then
-    do_log "OK marked pending invite accepted ($GCP_ACCOUNT): $(grep '^invite | ' <<<"$out" | paste -sd ';' -)"
-  else
-    do_log "OK no pending invite to accept for $who on $1"
-  fi
 }
 
 # _spl_tenant_member_provision_run <tenant> <email> <name> <role> <ordby> <ordvia> <pwfile>

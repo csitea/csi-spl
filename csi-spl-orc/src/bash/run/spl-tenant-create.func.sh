@@ -50,37 +50,7 @@ do_spl_tenant_create() {
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
 
   local pattern url host dsn=""
-  case "$env" in
-    lde)
-      do_lde_cnf || return 1
-      pattern="$(yq -r '.env.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ""' "$LDE_CNF")"
-      host="${pattern/"{tenant}"/$tenant}"
-      url="http://${host}:${LDE_HUB_PORT}"
-      dsn="postgres://${LDE_PG_USER}:${LDE_PG_PASSWORD}@127.0.0.1:${LDE_PG_PORT}/${LDE_PG_DB}?sslmode=disable"
-      ;;
-    dev|prd)
-      ENV="$env" do_spl_cloud_cnf || return 1
-      pattern="$(yq -r '.env.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ""' "$SPL_CNF")"
-      host="${pattern/"{tenant}"/$tenant}"
-      url="https://${host}"
-      dsn="${SPOOL_HUB_DB_DSN:-}"
-      ;;
-    *)
-      do_log "FATAL ENV must be lde, dev or prd, got: '$env'"
-      return 1
-      ;;
-  esac
-  case "$pattern" in
-    "{tenant}."*) ;;
-    *)
-      do_log "FATAL SPOOL_HUB_TENANT_HOST_PATTERN must look like {tenant}.<fqdn>, got: '$pattern'"
-      return 1
-      ;;
-  esac
-  [[ ${#pattern} -gt 10 ]] || {
-    do_log "FATAL SPOOL_HUB_TENANT_HOST_PATTERN must look like {tenant}.<fqdn>, got: '$pattern'"
-    return 1
-  }
+  _spl_tenant_create_target "$tenant" "$env" || return 1
 
   [[ "$env" == lde ]] || do_log "INFO specs/026: $tenant needs no host or DNS - members sign in with ?tenant=$tenant, boxes use the API host with SPOOL_TENANT=$tenant"
 
@@ -93,32 +63,13 @@ do_spl_tenant_create() {
   fi
 
   local cli="${SPOOL_BIN:-}"
-  if [[ -z "$cli" || ! -x "$cli" ]]; then
-    local out="${LDE_STATE_DIR:-${SPL_STATE_DIR:-/tmp}}/bin/spool"
-    mkdir -p "$(dirname "$out")" || return 1
-    bash "$APP_PATH/csi-spl-api/src/bash/build.sh" "$out" >/dev/null || {
-      do_log "FATAL spool build failed"
-      return 1
-    }
-    cli="$out"
-  fi
+  _spl_tenant_create_cli || return 1
 
   # dev/prd with no DSN given: read the DSN secret and reach Cloud SQL through
   # the local proxy. Every failure here happens before a key is generated.
   local proxied=0
   if [[ -z "$dsn" && "$env" != lde ]]; then
-    do_gcp_pin_account "${SPL_CNF:-}" || return 1
-    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-    local cloud_dsn
-    cloud_dsn="$(spl_read_dsn)"
-    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
-    spl_sql_proxy_start || return 1
-    proxied=1
-    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
-      spl_sql_proxy_stop
-      do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"
-      return 1
-    }
+    _spl_tenant_create_cloud_dsn || return 1
   fi
 
   [[ -n "$dsn" ]] || {
@@ -161,6 +112,76 @@ do_spl_tenant_create() {
   ENV="$env" spl_tenant_create_host "$tenant" >&2 || {
     do_log "WARN tenant $tenant exists, but its host $url is not ready: re-run ENV=$env TENANT_ID=$tenant DRY_RUN=0 ./run -a do_spl_tenant_host_provision" >&2
     return 3
+  }
+}
+
+# _spl_tenant_create_target <tenant> <env>: the hub a tenant is created on -
+# sets the caller's pattern, host, url and (lde) dsn from the env's cnf, and
+# refuses an env other than lde/dev/prd or a host pattern that is not
+# {tenant}.<fqdn>.
+_spl_tenant_create_target() {
+  local tenant="$1" env="$2"
+  case "$env" in
+    lde)
+      do_lde_cnf || return 1
+      pattern="$(yq -r '.env.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ""' "$LDE_CNF")"
+      host="${pattern/"{tenant}"/$tenant}"
+      url="http://${host}:${LDE_HUB_PORT}"
+      dsn="postgres://${LDE_PG_USER}:${LDE_PG_PASSWORD}@127.0.0.1:${LDE_PG_PORT}/${LDE_PG_DB}?sslmode=disable"
+      ;;
+    dev|prd)
+      ENV="$env" do_spl_cloud_cnf || return 1
+      pattern="$(yq -r '.env.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ""' "$SPL_CNF")"
+      host="${pattern/"{tenant}"/$tenant}"
+      url="https://${host}"
+      dsn="${SPOOL_HUB_DB_DSN:-}"
+      ;;
+    *)
+      do_log "FATAL ENV must be lde, dev or prd, got: '$env'"
+      return 1
+      ;;
+  esac
+  case "$pattern" in
+    "{tenant}."*) ;;
+    *)
+      do_log "FATAL SPOOL_HUB_TENANT_HOST_PATTERN must look like {tenant}.<fqdn>, got: '$pattern'"
+      return 1
+      ;;
+  esac
+  [[ ${#pattern} -gt 10 ]] || {
+    do_log "FATAL SPOOL_HUB_TENANT_HOST_PATTERN must look like {tenant}.<fqdn>, got: '$pattern'"
+    return 1
+  }
+}
+
+# _spl_tenant_create_cli: sets the caller's cli to SPOOL_BIN when it is an
+# executable, else to a spool CLI built from this tree into the state dir.
+_spl_tenant_create_cli() {
+  [[ -n "$cli" && -x "$cli" ]] && return 0
+  local out="${LDE_STATE_DIR:-${SPL_STATE_DIR:-/tmp}}/bin/spool"
+  mkdir -p "$(dirname "$out")" || return 1
+  bash "$APP_PATH/csi-spl-api/src/bash/build.sh" "$out" >/dev/null || {
+    do_log "FATAL spool build failed"
+    return 1
+  }
+  cli="$out"
+}
+
+# _spl_tenant_create_cloud_dsn: pins the env's service account, reads the DSN
+# secret and starts the Cloud SQL proxy; sets the caller's dsn and proxied=1
+# (the proxy is stopped again when the DSN cannot be rewritten).
+_spl_tenant_create_cloud_dsn() {
+  do_gcp_pin_account "${SPL_CNF:-}" || return 1
+  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  local cloud_dsn
+  cloud_dsn="$(spl_read_dsn)"
+  [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
+  spl_sql_proxy_start || return 1
+  proxied=1
+  dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
+    spl_sql_proxy_stop
+    do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"
+    return 1
   }
 }
 

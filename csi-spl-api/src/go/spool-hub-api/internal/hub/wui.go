@@ -195,9 +195,13 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	// ~130..310 B but pins a 1.2 MB flate.Writer per open socket (measured
 	// +258 MB heap at 200 sockets) against the hub's 512Mi single instance.
 	// Browsers negotiate it themselves; Safari and old clients get plain frames.
+	// The library compresses no-takeover messages only from 512 B; the R2-3
+	// trimmed message frame is ~480 B, so below that it would go out plain and
+	// LARGER than the old frame compressed. From 128 B, as with takeover.
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns:  s.wuiOrigins(r),
-		CompressionMode: websocket.CompressionNoContextTakeover,
+		OriginPatterns:       s.wuiOrigins(r),
+		CompressionMode:      websocket.CompressionNoContextTakeover,
+		CompressionThreshold: wuiFlateThreshold,
 	})
 	if err != nil {
 		return
@@ -819,7 +823,7 @@ func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Messag
 // fanoutWUI pushes one stored message row to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
 func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
-	tenant, taskID, channel, msgID := row.TenantID, row.TaskID, row.Channel, row.MsgID
+	tenant, taskID, channel := row.TenantID, row.TaskID, row.Channel
 	p := parties{row.FromID, row.FromBox, row.ToID, row.ToBox}
 	receivedAt, env, isParent, typedBy := row.ReceivedAt, row.Env, row.IsParent, row.TypedBy
 	// One membership lookup per stored message, outside the lock: wants()
@@ -845,8 +849,9 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	}
 	// No `envelope` copy of env.msg (db-payload-audit-2026-10-02 cut 3): the
 	// WUI reads only `env`, and the copy was 36 % of every frame per tab.
-	frame := map[string]any{"type": "message", "task_id": taskID, "cursor": encCursor(receivedAt, msgID),
-		"received_at": rfc(receivedAt), "env": json.RawMessage(env),
+	// No `cursor` either (round 2, R2-3): the WUI rebuilds it, see trimWUIEnv.
+	frame := map[string]any{"type": "message", "task_id": taskID,
+		"received_at": rfc(receivedAt), "env": trimWUIEnv(env, taskID, channel),
 		"is_parent": isParent}
 	if channel != "" {
 		frame["channel"] = channel
@@ -860,6 +865,54 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck
 	}
+}
+
+// wuiFlateThreshold is the smallest browser frame the hub deflates (R2-3).
+const wuiFlateThreshold = 128
+
+// trimWUIEnv is env as the `message` frame carries it (db-payload audit
+// round 2, R2-3): without what the frame or a default already says. Each is
+// dropped only when redundant: env.channel equal to the frame's channel,
+// msg.task_id equal to the frame's task_id, files `[]`, sig "", from_box /
+// to_box "box-wui". The WUI's messageFromFrame (utils/live-ws.mjs) puts each
+// back and rebuilds the frame's `cursor` from received_at + msg_id
+// (encCursor), so its stores hold the same message as before. A shape it
+// cannot parse is sent unchanged.
+func trimWUIEnv(env []byte, taskID, channel string) json.RawMessage {
+	var e map[string]json.RawMessage
+	if json.Unmarshal(env, &e) != nil {
+		return env
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal(e["msg"], &m) != nil || m == nil {
+		return env
+	}
+	dropIf := func(o map[string]json.RawMessage, k, v string) {
+		var got string
+		if raw, ok := o[k]; ok && json.Unmarshal(raw, &got) == nil && got == v {
+			delete(o, k)
+		}
+	}
+	dropIf(e, "sig", "")
+	dropIf(e, "from_box", WUIBox)
+	dropIf(e, "to_box", WUIBox)
+	if channel != "" {
+		dropIf(e, "channel", channel)
+	}
+	dropIf(m, "task_id", taskID)
+	if f, ok := m["files"]; ok && strings.TrimSpace(string(f)) == "[]" {
+		delete(m, "files")
+	}
+	mb, err := json.Marshal(m)
+	if err != nil {
+		return env
+	}
+	e["msg"] = mb
+	out, err := json.Marshal(e)
+	if err != nil {
+		return env
+	}
+	return out
 }
 
 // fanoutChannel pushes one `channel` frame to every browser socket of the

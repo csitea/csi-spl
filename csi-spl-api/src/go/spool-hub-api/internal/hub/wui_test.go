@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -45,6 +46,7 @@ type wuiFrame struct {
 	TaskID      string          `json:"task_id"`
 	MsgID       string          `json:"msg_id"`
 	Cursor      string          `json:"cursor"`
+	ReceivedAt  string          `json:"received_at"` // R2-3: the `message` frame's cursor is rebuilt from it
 	Channel     string          `json:"channel"`
 	CreatedAt   string          `json:"created_at"`  // CLE-3425 `channel` frames
 	Description string          `json:"description"` // rdb 0027 `channel` frames
@@ -153,7 +155,9 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 	}
 	var env wire.Envelope
 	json.Unmarshal(got.Env, &env) //nolint:errcheck
-	if env.FromBox != hub.WUIBox || env.ToBox != hub.WUIBox || env.Sig != "" {
+	// R2-3: box-wui ends and an empty sig ride as ABSENT (the WUI's
+	// messageFromFrame puts box-wui back).
+	if env.FromBox != "" || env.ToBox != "" || env.Sig != "" {
 		t.Fatalf("env %+v", env)
 	}
 
@@ -373,8 +377,10 @@ func TestWUIChannelSubscribeNewRoot(t *testing.T) {
 	if m := innerOf(t, got); got.TaskID != root || got.Channel != store.ChannelLobby || m["body"] != "a new root" {
 		t.Fatalf("channel fan-out %+v %v", got, m)
 	}
-	if got.Cursor == "" || got.Cursor != ack.Cursor {
-		t.Fatalf("frame cursor %q, ack cursor %q", got.Cursor, ack.Cursor)
+	// R2-3: the frame carries no cursor; the WUI rebuilds it from
+	// received_at + msg_id, and that must be the ack's.
+	if c := frameCursor(got, innerOf(t, got)); got.Cursor != "" || c != ack.Cursor {
+		t.Fatalf("frame cursor %q, rebuilt %q, ack cursor %q", got.Cursor, c, ack.Cursor)
 	}
 
 	// Subscribed to the channel AND the topic: a reply arrives once.
@@ -492,8 +498,21 @@ func bodyOf(t *testing.T, f map[string]any) string {
 func fromBoxOf(t *testing.T, f map[string]any) string {
 	t.Helper()
 	env, _ := f["env"].(map[string]any)
-	s, _ := env["from_box"].(string)
+	s, ok := env["from_box"].(string)
+	if !ok { // R2-3: absent = box-wui, as the WUI's messageFromFrame reads it
+		return hub.WUIBox
+	}
 	return s
+}
+
+// frameCursor is the cursor the WUI rebuilds for a `message` frame (R2-3):
+// base64url(received_at + "|" + msg_id), the hub's encCursor.
+func frameCursor(f wuiFrame, inner map[string]any) string {
+	id, _ := inner["msg_id"].(string)
+	if f.ReceivedAt == "" || id == "" {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(f.ReceivedAt + "|" + id))
 }
 
 // 013 US7 (wui-live-ws v0.5): subscribe {peer} follows a DM, new roots

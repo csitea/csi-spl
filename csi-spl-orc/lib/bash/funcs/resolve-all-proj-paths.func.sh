@@ -10,7 +10,6 @@ do_resolve_all_proj_paths() {
   source "$(dirname "${BASH_SOURCE[0]}")/resolve-oap.func.sh"
   local canonical_path
   canonical_path="$(_do_oap_canonical_app_path)"
-  local org="${ORG:-$(basename "$(dirname "$canonical_path")")}"
   local app="${APP:-$(basename "$canonical_path")}"
   local docker_home="${DOCKER_HOME:-/home/appusr}"
 

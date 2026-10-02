@@ -76,7 +76,7 @@ do_spl_box_purge() {
 # The plan (always) and, unless SPL_PURGE_DRY, the delete. Both run under
 # SET LOCAL app.tenant_id, so rdb 0014 RLS scopes them to that tenant.
 _spl_box_purge_run() {
-  local plan want n
+  local plan want
   want="$(wc -w <<<"$SPL_PURGE_BOXES")"
   plan="$(PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
     psql -X -q -v ON_ERROR_STOP=1 -P pager=off -v tenant="$SPL_PURGE_TENANT" -v boxes="$SPL_PURGE_BOXES" <<'SQL'

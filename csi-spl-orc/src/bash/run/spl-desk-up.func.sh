@@ -136,7 +136,7 @@ spl_desk_show_pane() {
     # shellcheck disable=SC1091
     . "$feat/lib/spool-env.inc.sh" && . "$feat/lib/spool-notify.inc.sh" && . "$feat/lib/spool-poke-queue.inc.sh" || exit 0
     spool_env_resolve
-    local pane alt
+    local pane
     pane="$(spool_pane_of "$agent")"
     [ -n "$pane" ] || exit 0
     spool_tmux_argv

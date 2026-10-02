@@ -106,7 +106,7 @@ spl_reply_count_probe_post() {
 # <human> <newer> <pw file>: steps 2..5 against a live probe sidecar.
 spl_reply_count_probe_run() {
   local d="$1" box="$2" tenant="$3" api="$4" ch="$5" member="$6" human="$7" newer="$8" pw="$9"
-  local seat="$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/channel-agent-add.py" out i j
+  local seat="$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/channel-agent-add.py" out
   spl_desk_wait_roster "$d" "$box" "$member" 30 || { do_log "FATAL the hub never announced $member on $box"; return 1; }
   out="$(SEAT_API="https://$api" SEAT_TENANT="$tenant" SEAT_EMAIL="${MEMBER_EMAIL:-m3-e2e-human@example.com}" \
     SEAT_PW_FILE="$pw" SEAT_CHANNEL="$ch" SEAT_AGENTS="$member" SEAT_BOX="$box" SEAT_CREATE=1 python3 "$seat")" ||

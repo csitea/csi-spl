@@ -58,7 +58,7 @@ do_spl_responder_reboot_test() {
   fi
 
   # 3. every seated desk has a live sidecar; the responder box gets its own say.
-  local alive=0 dead=0 rsp_seated=0 pidf tdir bdir tenant bname
+  local alive=0 dead=0 rsp_seated=0 pidf bdir tenant bname
   if [[ -d "$deskroot" ]]; then
     for pidf in "$deskroot"/*/*/spool/.hub/hub-run.pid; do
       [[ -e "$pidf" ]] || continue

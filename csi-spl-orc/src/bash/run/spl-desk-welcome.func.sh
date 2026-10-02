@@ -103,7 +103,7 @@ do_spl_desk_welcome() {
     fi
   done
 
-  local line tenant human at name locale base D greeted=0 failed=0
+  local tenant human at name locale base D greeted=0 failed=0
   local invon ordname ordvia prov greeter
   local -a live=() plan=()
   mapfile -t live < <(spl_desk_live_agents)

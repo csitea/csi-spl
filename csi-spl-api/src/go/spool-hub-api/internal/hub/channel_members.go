@@ -482,37 +482,7 @@ func (s *Server) handlePatchChannelInvite(w http.ResponseWriter, r *http.Request
 // read BEFORE the delete - afterwards the channel has none - and each of their
 // sockets gets a channel_deleted frame, so every open sidebar drops it at once.
 func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
-	t, ch, hum, ok := s.channelDoor(w, r)
-	if !ok {
-		return
-	}
-	if store.ChannelPublic(ch) {
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: it cannot be deleted")
-		return
-	}
-	row, ok := s.channelRecord(w, r, t.ID, ch)
-	if !ok {
-		return
-	}
-	if !channelOwner(row.CreatedBy, hum) {
-		writeErr(w, http.StatusForbidden, "forbidden", "only the member who created #"+ch+" may delete it")
-		return
-	}
-	members := s.channelMemberSet(r.Context(), t.ID, ch)
-	switch err := s.o.Store.DeleteChannel(r.Context(), t.ID, ch, hum, s.o.Now().UTC()); {
-	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
-		return
-	case errors.Is(err, store.ErrConflict):
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" cannot be deleted")
-		return
-	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "channel not deleted")
-		return
-	}
-	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
-	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel deleted")
-	w.WriteHeader(http.StatusNoContent)
+	s.retireChannel(w, r, "delete", "deleted", s.o.Store.DeleteChannel)
 }
 
 // PUT /v1/channels/{channel}/archive — the creator archives the channel
@@ -522,37 +492,7 @@ func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 // create it is refused. The members are read before the archive; each open
 // sidebar gets a channel_deleted frame and drops the row.
 func (s *Server) handleArchiveChannel(w http.ResponseWriter, r *http.Request) {
-	t, ch, hum, ok := s.channelDoor(w, r)
-	if !ok {
-		return
-	}
-	if store.ChannelPublic(ch) {
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: it cannot be archived")
-		return
-	}
-	row, ok := s.channelRecord(w, r, t.ID, ch)
-	if !ok {
-		return
-	}
-	if !channelOwner(row.CreatedBy, hum) {
-		writeErr(w, http.StatusForbidden, "forbidden", "only the member who created #"+ch+" may archive it")
-		return
-	}
-	members := s.channelMemberSet(r.Context(), t.ID, ch)
-	switch err := s.o.Store.ArchiveChannel(r.Context(), t.ID, ch, hum, s.o.Now().UTC()); {
-	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
-		return
-	case errors.Is(err, store.ErrConflict):
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" cannot be archived")
-		return
-	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "channel not archived")
-		return
-	}
-	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
-	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel archived")
-	w.WriteHeader(http.StatusNoContent)
+	s.retireChannel(w, r, "archive", "archived", s.o.Store.ArchiveChannel)
 }
 
 // PUT /v1/channels/{channel}/unarchive — bring an archived channel back
@@ -623,4 +563,44 @@ func (s *Server) handleRemoveChannelMember(w http.ResponseWriter, r *http.Reques
 			Str("by", hum).Msg("channel member removed")
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// retireChannel is what delete and archive share: the creator-only door
+// (channelOwner; a default channel is refused first), the members read
+// BEFORE the change, the store call, then a channel_deleted frame to every
+// member's socket so each open sidebar drops the row. verb / past name the
+// operation in the refusals and the log.
+func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, past string,
+	retire func(ctx context.Context, tenant, channel, by string, at time.Time) error) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	if store.ChannelPublic(ch) {
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: it cannot be "+past)
+		return
+	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !channelOwner(row.CreatedBy, hum) {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the member who created #"+ch+" may "+verb+" it")
+		return
+	}
+	members := s.channelMemberSet(r.Context(), t.ID, ch)
+	switch err := retire(r.Context(), t.ID, ch, hum, s.o.Now().UTC()); {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
+		return
+	case errors.Is(err, store.ErrConflict):
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" cannot be "+past)
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "channel not "+past)
+		return
+	}
+	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel " + past)
+	w.WriteHeader(http.StatusNoContent)
 }

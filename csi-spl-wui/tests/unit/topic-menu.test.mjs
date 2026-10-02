@@ -105,7 +105,8 @@ describe('topic card menu: one shape for every viewer (HUM-24)', () => {
   })
 
   it('the menu draws a locked entry disabled, with its reason, and a click on it does nothing', () => {
-    const vue = readFileSync(join(root, 'src/components/MessageMenu.vue'), 'utf8')
+    const vue = readFileSync(join(root, 'src/components/UiPointMenu.vue'), 'utf8')
+    assert.match(readFileSync(join(root, 'src/components/MessageMenu.vue'), 'utf8'), /<UiPointMenu\b/)
     assert.match(vue, /:aria-disabled="item\.disabled \? 'true' : undefined"/)
     assert.match(vue, /:title="item\.disabled && item\.hintKey \? t\(item\.hintKey\) : undefined"/)
     assert.match(vue, /if \(disabled\) return/)

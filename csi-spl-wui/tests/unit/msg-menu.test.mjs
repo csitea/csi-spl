@@ -146,14 +146,15 @@ describe('merging two messages in one thread', () => {
 describe('the card opens the menu on a right-click', () => {
   it('wires contextmenu to the same panel as a channel row', () => {
     const card = src('src/components/MessageCard.vue')
-    const menu = src('src/components/MessageMenu.vue')
+    const menu = src('src/components/UiPointMenu.vue')
+    assert.match(src('src/components/MessageMenu.vue'), /<UiPointMenu[\s\S]*testid="msg-menu"/)
     assert.match(card, /@contextmenu="onContextMenu"/)
     assert.match(card, /data-testid="msg-menu-btn"/)
     assert.match(card, /<LazyMessageMenu\s+v-if="menuOpen"/)
     assert.match(menu, /role="menu"/)
     assert.match(menu, /<UiIcon :name="item\.icon"/)
     assert.match(menu, /\{\{ t\(item\.labelKey\) \}\}/)
-    assert.match(menu, /data-testid="msg-menu"/)
+    assert.match(menu, /:data-testid="testid"/)
     assert.match(card, /@open="onMenuOpen"/)
     assert.match(card, /topicPaneLink\(/)
     assert.match(card, /threadLineLink\(/)

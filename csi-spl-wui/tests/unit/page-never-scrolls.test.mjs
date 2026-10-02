@@ -89,7 +89,7 @@ describe('the document never scrolls', () => {
 
 describe('menus are placed before they take focus', () => {
   // MessageMenu / SearchRowMenu / IssueRowMenu place and focus through
-  // usePointMenu (CLE-77915): the composable carries the placer for all three.
+  // usePointMenu (CLE-77915), and draw the one panel UiPointMenu (CLE-77936).
   const pointMenus = ['src/components/MessageMenu.vue', 'src/components/SearchRowMenu.vue', 'src/components/IssueRowMenu.vue']
   const menus = [
     'src/composables/usePointMenu.ts',
@@ -112,11 +112,13 @@ describe('menus are placed before they take focus', () => {
     const src = read('src/composables/usePointMenu.ts')
     const open = src.slice(src.indexOf('async function onOpen'), src.indexOf('watch(opts.open'))
     assert.match(open, /await place\(\)[\s\S]*focusItem\(0\)/)
-    for (const rel of pointMenus) {
+    const panel = read('src/components/UiPointMenu.vue')
+    assert.match(panel, /usePointMenu\(/)
+    assert.match(panel, /position:\s*fixed/)
+    assert.match(panel, /visibility:\s*hidden/)
+    for (const rel of [...pointMenus, 'src/components/UiPointMenu.vue']) {
       const vue = read(rel)
-      assert.match(vue, /usePointMenu\(/, rel)
-      assert.match(vue, /position:\s*fixed/, rel)
-      assert.match(vue, /visibility:\s*hidden/, rel)
+      if (rel !== 'src/components/UiPointMenu.vue') assert.match(vue, /<UiPointMenu\b/, rel)
       assert.doesNotMatch(vue, /left\.value = props/, rel)
       assert.doesNotMatch(vue, /\.focus\(/, rel)
     }

@@ -3,56 +3,24 @@
      SPL-991: at <= 820 px it is a bottom sheet (long-press or the ⋯ button),
      over a dimmed page a tap on which closes it. -->
 <template>
-  <Teleport to="body">
-    <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
-    <div
-      v-if="open"
-      ref="root"
-      class="msg-menu"
-      :class="{ 'touch-sheet': sheet }"
-      data-testid="msg-menu"
-      @keydown="onMenuKey"
-      @contextmenu.prevent
-    >
-      <ul role="menu" class="msg-menu__items" :aria-label="t('feed.msg_menu.label')">
-        <li v-for="item in items" :key="item.id" role="none">
-          <button
-            type="button"
-            role="menuitem"
-            tabindex="-1"
-            class="msg-menu__item"
-            :class="{ 'msg-menu__item--off': item.disabled }"
-            :data-testid="'msg-menu-' + item.id"
-            :data-disabled="item.disabled ? 'true' : undefined"
-            :aria-disabled="item.disabled ? 'true' : undefined"
-            :aria-describedby="item.disabled ? hintId + item.id : undefined"
-            :title="item.disabled && item.hintKey ? t(item.hintKey) : undefined"
-            @click.stop="choose(item.id, item.disabled)"
-          >
-            <UiIcon :name="item.icon" :size="16" />
-            <span class="msg-menu__text">
-              <span>{{ t(item.labelKey) }}</span>
-              <!-- CLE-77891: a locked entry says why (the tooltip on a desktop;
-                   a finger has no hover, so the sheet shows it under the name) -->
-              <small
-                v-if="item.disabled && item.hintKey"
-                :id="hintId + item.id"
-                class="msg-menu__why"
-                :class="{ 'sr-only': !sheet }"
-                data-testid="msg-menu-why"
-              >{{ t(item.hintKey) }}</small>
-            </span>
-          </button>
-        </li>
-      </ul>
-    </div>
-  </Teleport>
+  <UiPointMenu
+    :open="open"
+    :x="x"
+    :y="y"
+    :items="items"
+    :label="t('feed.msg_menu.label')"
+    block="msg-menu"
+    testid="msg-menu"
+    @choose="choose"
+    @close="emit('close')"
+    @escape="emit('escape')"
+  />
 </template>
 
 <script setup lang="ts">
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
-import { usePointMenu } from '~/composables/usePointMenu'
+import { usePhone } from '~/composables/useTouchUi'
 
 const props = defineProps<{
   open: boolean
@@ -106,10 +74,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const { root, sheet, onMenuKey } = usePointMenu({
-  open: () => props.open, x: () => props.x, y: () => props.y,
-  close: () => emit('close'), escape: () => emit('escape'),
-})
+/* the item list differs on a phone (msgMenuItems `touch`) */
+const sheet = usePhone()
 const items = computed(() => msgMenuItems({
   touch: sheet.value,
   kind: props.kind,
@@ -126,11 +92,8 @@ const items = computed(() => msgMenuItems({
   promoteTopic: props.promoteTopic,
   locks: props.locks,
 }))
-const hintId = useId() + '-why-'
-
-function choose(id: string, disabled?: boolean) {
-  /* a disabled entry does nothing and keeps the menu open: its reason stays readable */
-  if (disabled) return
+/* UiPointMenu skips a disabled entry and emits close after this */
+function choose(id: string) {
   if (id === 'open') emit('open')
   else if (id === 'parent') emit('parent')
   else if (id === 'edit') emit('edit')
@@ -148,53 +111,5 @@ function choose(id: string, disabled?: boolean) {
   else if (id === 'move-topic') emit('move-topic')
   else if (id === 'merge-topic') emit('merge-topic')
   else if (id === 'promote-topic') emit('promote-topic')
-  emit('close')
 }
 </script>
-
-<style scoped>
-.msg-menu {
-  position: fixed;
-  top: 0;
-  left: 0;
-  visibility: hidden;
-  max-height: calc(100dvh - 16px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  z-index: var(--z-overlay);
-  min-width: 10rem;
-  max-width: min(16rem, 70vw);
-  background: var(--color-bg-2, var(--color-surface));
-  border: 1px solid var(--color-border-strong, var(--color-border));
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgb(0 0 0 / .35);
-  padding: 4px 0;
-}
-.msg-menu__items { list-style: none; margin: 0; padding: 0; }
-.msg-menu__item {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  text-align: start;
-  background: transparent;
-  border: 0;
-  color: var(--color-fg);
-  font: inherit;
-  font-size: 0.875rem;
-  padding: 8px 12px;
-  cursor: pointer;
-  min-height: 36px;
-}
-.msg-menu__item .ui-icon { flex: 0 0 auto; }
-.msg-menu__text { display: flex; flex-direction: column; min-width: 0; }
-.msg-menu__item--off { color: var(--color-muted); opacity: .7; cursor: not-allowed; }
-.msg-menu__why { font-size: 0.75rem; line-height: 1.3; white-space: normal; }
-.msg-menu__item:hover,
-.msg-menu__item:focus-visible {
-  background: var(--color-surface-hover);
-  outline: none;
-}
-</style>

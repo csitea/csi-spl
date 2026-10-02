@@ -9,6 +9,13 @@
 #   stdout: "<ID> <PANE>" — the agent id and its pane id (%NN). Capture the pane
 #   id, never a window index: indices move when the window bar is re-sorted.
 #
+# DRY RUN: SPAWN_DRY_RUN=1 claims no id, makes no window and pokes nothing: it
+# prints `PLAN claim` / `PLAN window`, then runs the launcher in THIS process,
+# where spawn-core's own dry run prints the rest of the plan (worktree, lane,
+# spool dir, registry, launch) and changes nothing. The last stdout line is
+# "<ID> -" (no pane). Before CLE-77968 the flag reached only the pane, after
+# the claim and the window: a "dry run" spawned a real agent.
+#
 # VISIBILITY (hard requirement, unchanged from the box engine): the window goes
 # into SPOOL_SESSION when set, else the session a client is ATTACHED to on the
 # box user's socket ($SPOOL_TMUX_SOCKET), else that server's first session. It
@@ -44,16 +51,33 @@ if [ -z "$sess" ]; then
 fi
 [ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
 
+DRY=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && DRY=1
 if [ "$TITLE" = auto ]; then
-  TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND")" || exit $?
+  if [ "$DRY" = 1 ]; then
+    TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND" --no-reserve)" || exit $?
+  else
+    TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND")" || exit $?
+  fi
 else
   spool_valid_id "$TITLE" || exit 2
   [ "${TITLE%%-*}" = "$PREFIX" ] || { echo "spawn-window: ${TITLE} is not a ${KIND} id (${PREFIX}-N)" >&2; exit 2; }
   if [ "${SPAWN_REUSE_ID:-0}" != 1 ]; then
-    bash "$HERE/next-agent-id.sh" --claim "$TITLE" >/dev/null || exit $?
+    if [ "$DRY" = 1 ]; then
+      [ ! -e "${SPOOL_ROOT}/${TITLE}" ] || { echo "spawn-window: ${TITLE} is taken (${SPOOL_ROOT}/${TITLE})" >&2; exit 3; }
+    else
+      bash "$HERE/next-agent-id.sh" --claim "$TITLE" >/dev/null || exit $?
+    fi
   fi
 fi
 shift 2
+
+if [ "$DRY" = 1 ]; then
+  printf 'PLAN %-10s %s\n' claim "${TITLE} -> ${SPOOL_ROOT}/${TITLE}" \
+    window "new-window -d -t ${sess}: -n $(spool_decorate "$TITLE") (socket ${SPOOL_TMUX_SOCKET})"
+  bash "$LAUNCHER" "$TITLE" "$@" || exit $?
+  printf '%s -\n' "$TITLE"
+  exit 0
+fi
 
 # Size the session first: a detached window otherwise gets 80x24 for good.
 "${SPOOL_TM[@]}" set-option -t "$sess" default-size "$(spool_tmux_default_size)" 2>/dev/null || true

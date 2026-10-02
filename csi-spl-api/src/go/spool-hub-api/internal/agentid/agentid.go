@@ -18,13 +18,14 @@ import (
 	"time"
 )
 
-// LegacyUntilText is the deadline (spec 061 section 0): after it a legacy
+// LegacyUntilText is the deadline (spec 061 section 0; the owner moved it a
+// day, to 2026-10-03, on 2026-10-02 ~06:50Z): after it a legacy
 // agent id is refused on every write path (FR-003). The bash
 // SPOOL_LEGACY_ID_UNTIL and the WUI LEGACY_ID_UNTIL copy this value (FR-005).
-const LegacyUntilText = "2026-10-02T20:59:59Z"
+const LegacyUntilText = "2026-10-03T20:59:59Z"
 
 // LegacyUntil is LegacyUntilText as an instant.
-var LegacyUntil = time.Date(2026, 10, 2, 20, 59, 59, 0, time.UTC)
+var LegacyUntil = time.Date(2026, 10, 3, 20, 59, 59, 0, time.UTC)
 
 // Now is the clock the deadline reads (FR-004). Under `go test` it stands one
 // hour before LegacyUntil, so a fixture that still carries a legacy literal
@@ -142,24 +143,52 @@ func Letter(legacy string) byte {
 	return 'c'
 }
 
-// Lookup reads one alias: the new id of a legacy id, ok false when the table
-// has no row. A nil Lookup is an empty table.
-type Lookup func(legacy string) (newID string, ok bool)
+// Lookup reads one alias, keyed (legacy id, box) -> new id on that same box
+// (owner 2026-10-02: no bands, c-NNN@<box> is the unique name). box "" means
+// the caller does not know it: the table answers only when the legacy id has
+// one row. ok false when it has none. A nil Lookup is an empty table.
+type Lookup func(legacy, box string) (newID string, ok bool)
+
+// Table is an alias table in memory, keyed (legacy id, box).
+type Table map[[2]string]string
+
+// Lookup answers for (old, box); with box "" only a legacy id that has one
+// row answers.
+func (t Table) Lookup(old, box string) (string, bool) {
+	if box != "" {
+		n, ok := t[[2]string{old, box}]
+		return n, ok
+	}
+	found, n := "", 0
+	for k, v := range t {
+		if k[0] == old {
+			found, n = v, n+1
+		}
+	}
+	return found, n == 1
+}
 
 // Resolve is the edge rule (FR-002 / FR-003) for one id or "<id>@<box>":
 // normalised; a legacy agent id becomes its alias, or stays itself when the
 // table has none, until LegacyUntil; after it a legacy agent id is a
 // *RetiredError naming the alias. Anything that is not a legacy agent id
 // passes through normalised.
-func Resolve(s string, lookup Lookup) (string, error) {
+func Resolve(s string, lookup Lookup) (string, error) { return ResolveOn(s, "", lookup) }
+
+// ResolveOn is Resolve for a bare id whose box the caller knows from
+// elsewhere (a lane row's agent_box): the alias is looked up on onBox.
+func ResolveOn(s, onBox string, lookup Lookup) (string, error) {
 	s = Normalize(s)
 	id, box := SplitAtBox(s)
 	if !IsLegacy(id) {
 		return s, nil
 	}
+	if box == "" {
+		box = onBox
+	}
 	newID, ok := "", false
 	if lookup != nil {
-		newID, ok = lookup(id)
+		newID, ok = lookup(id, box)
 	}
 	if Expired() {
 		return "", &RetiredError{ID: id, New: newID}
@@ -170,13 +199,16 @@ func Resolve(s string, lookup Lookup) (string, error) {
 	if strings.Contains(s, "@") {
 		return newID + "@" + box, nil
 	}
-	return newID, nil
+	return newID, nil // the box stays the caller's
 }
 
 // Check is Resolve's refusal alone, for an id the caller may not rewrite (a
 // signed envelope's from / to): nil before the deadline, or when s is not a
 // legacy agent id.
 func Check(s string, lookup Lookup) error {
+	if !Expired() || !IsLegacy(Normalize(strings.SplitN(s, "@", 2)[0])) {
+		return nil // no table read on the hot path before the deadline
+	}
 	_, err := Resolve(s, lookup)
 	return err
 }

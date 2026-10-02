@@ -501,7 +501,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	id := m.MsgID
-	rf := s.sendSenderRefusal(ctx, x, env, m)
+	rf := s.sendIDRefusal(ctx, x, m.From, m.To, env.ToBox)
+	if rf == nil {
+		rf = s.sendSenderRefusal(ctx, x, env, m)
+	}
 	if rf == nil {
 		rf = s.sendRouteRefusal(ctx, x, env, m)
 	}

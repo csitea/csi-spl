@@ -83,7 +83,11 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		if err := json.Unmarshal(f.Lane, &in); err != nil {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane must be a lane row object"}
 		}
-		l := store.FleetLane{Fleet: f.Fleet, AgentID: in.AgentID, AgentBox: in.AgentBox, Repo: in.Repo, Branch: in.Branch,
+		agent, ae := s.resolveAgent(ctx, x.tenant, in.AgentID, in.AgentBox)
+		if ae != nil {
+			return laneAnswer{}, ae
+		}
+		l := store.FleetLane{Fleet: f.Fleet, AgentID: agent, AgentBox: in.AgentBox, Repo: in.Repo, Branch: in.Branch,
 			Scope: in.Scope, Files: in.Files, Topic: in.Topic, State: in.State}
 		if why := store.CheckFleetLane(l); why != "" {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}

@@ -26,6 +26,9 @@ func cmdLane(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	if err := edgeIDs(cfg, map[string]*string{"agent": agent}); err != nil {
+		return fail(err)
+	}
 	var fl []string
 	for _, p := range strings.Split(*files, ",") {
 		if p = strings.TrimSpace(p); p != "" {

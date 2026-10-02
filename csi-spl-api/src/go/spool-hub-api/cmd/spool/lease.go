@@ -22,6 +22,9 @@ func cmdLease(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	if err := edgeIDs(cfg, map[string]*string{"holder": holder}); err != nil {
+		return fail(err)
+	}
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Lease(ctx, cfg, action.LeaseArgs{Fleet: *fleet, Role: *role, Holder: *holder, IfGen: *ifGen})

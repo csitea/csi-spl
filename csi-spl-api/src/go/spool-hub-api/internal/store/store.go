@@ -265,6 +265,9 @@ type Store interface {
 	// Asks to the orchestrator, tracked until closed (rdb 0097, CLE-77929).
 	FleetAsks
 
+	// Legacy agent id -> new id, written once (rdb 0101, spec 061).
+	AgentAliases
+
 	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
 	Moves
 

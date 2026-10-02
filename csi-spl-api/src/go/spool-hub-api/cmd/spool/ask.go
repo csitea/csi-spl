@@ -36,6 +36,9 @@ func cmdAsk(cfg *config.Config, args []string) int {
 		fmt.Fprintf(os.Stderr, "ask: unexpected argument %q (ops: list put ack done decline raise escalate release dead)\n", fs.Arg(0))
 		return 1
 	}
+	if err := edgeIDs(cfg, map[string]*string{"from": from, "by": by}); err != nil {
+		return fail(err)
+	}
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Ask(ctx, cfg, action.AskArgs{Fleet: *fleet, Op: op, AskID: *id, Role: *role, Kind: *kind, From: *from,

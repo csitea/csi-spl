@@ -87,12 +87,37 @@ func TestNormalize(t *testing.T) {
 }
 
 func table(m map[string]string) Lookup {
-	return func(old string) (string, bool) { n, ok := m[old]; return n, ok }
+	t := Table{}
+	for k, v := range m {
+		id, box := SplitAtBox(k)
+		t[[2]string{id, box}] = v
+	}
+	return t.Lookup
+}
+
+func TestTableKeyedOnBox(t *testing.T) {
+	tb := Table{{"CLE-7", "box-a"}: "c-004", {"CLE-7", "box-b"}: "c-009", {"CLE-8", "box-a"}: "c-005"}
+	if n, ok := tb.Lookup("CLE-7", "box-b"); !ok || n != "c-009" {
+		t.Errorf("exact box: %q %v", n, ok)
+	}
+	if _, ok := tb.Lookup("CLE-7", ""); ok {
+		t.Error("a bare id with two rows must not pick one")
+	}
+	if n, ok := tb.Lookup("CLE-8", ""); !ok || n != "c-005" {
+		t.Errorf("a bare id with one row: %q %v", n, ok)
+	}
+	if _, ok := tb.Lookup("CLE-8", "box-b"); ok {
+		t.Error("another box's row answered")
+	}
+	got, err := ResolveOn("CLE-7", "box-b", tb.Lookup)
+	if err != nil || got != "c-009" {
+		t.Errorf("ResolveOn: %q %v", got, err)
+	}
 }
 
 func TestResolveBeforeDeadline(t *testing.T) {
 	pin(t, LegacyUntil)
-	lk := table(map[string]string{"CLE-77952": "c-004"})
+	lk := table(map[string]string{"CLE-77952@box-sat": "c-004"})
 	for in, want := range map[string]string{
 		"CLE-77952":         "c-004",
 		"CLE-77952@box-sat": "c-004@box-sat",
@@ -112,7 +137,7 @@ func TestResolveBeforeDeadline(t *testing.T) {
 
 func TestResolveAfterDeadlineRefuses(t *testing.T) {
 	pin(t, LegacyUntil.Add(time.Second))
-	lk := table(map[string]string{"CLE-77952": "c-004"})
+	lk := table(map[string]string{"CLE-77952@box-sat": "c-004"})
 	_, err := Resolve("CLE-77952", lk)
 	var re *RetiredError
 	if !errors.As(err, &re) || err.Error() != "CLE-77952 is retired as an id; use c-004" {

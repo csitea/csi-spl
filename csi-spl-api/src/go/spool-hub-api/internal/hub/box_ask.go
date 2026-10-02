@@ -133,6 +133,10 @@ func (s *Server) askPut(ctx context.Context, x *session, f wire.Frame) (askAnswe
 	if in.Role == "" {
 		in.Role = "orch"
 	}
+	var ae *issueErr
+	if in.From, ae = s.resolveAgent(ctx, x.tenant, in.From, ""); ae != nil {
+		return askAnswer{}, ae
+	}
 	a := store.FleetAsk{Fleet: f.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary}
 	if in.DeadlineAt != "" {
 		t, err := time.Parse(time.RFC3339, in.DeadlineAt)
@@ -180,6 +184,10 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 	var in askUpdate
 	if err := json.Unmarshal(f.Ask, &in); err != nil {
 		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "ask must be {ask_id, by, reason}"}
+	}
+	var ae *issueErr
+	if in.By, ae = s.resolveAgent(ctx, x.tenant, in.By, ""); ae != nil {
+		return askAnswer{}, ae
 	}
 	if why := store.CheckFleetAskOp(f.AskOp, in.By, in.Reason); why != "" {
 		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}

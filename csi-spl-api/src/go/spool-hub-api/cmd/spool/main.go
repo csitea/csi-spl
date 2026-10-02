@@ -300,6 +300,9 @@ func cmdSend(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	if err := edgeIDs(cfg, map[string]*string{"from": from, "to": to}); err != nil {
+		return fail(err)
+	}
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
@@ -320,6 +323,9 @@ func cmdRecv(cfg *config.Config, args []string) int {
 	ack := fs.Bool("ack", false, "move returned messages to archive/")
 	if err := fs.Parse(args); err != nil {
 		return 1
+	}
+	if err := edgeIDs(cfg, map[string]*string{"as": as}); err != nil {
+		return fail(err)
 	}
 	msgs, err := action.Recv(cfg, *as, *ack)
 	// Print the valid messages regardless (they were verified); [] when empty.

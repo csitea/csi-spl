@@ -345,7 +345,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	var rows []store.ChannelStat
 	err := errChannelsDoor
 	if member {
-		rows, err = s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads, hum)
+		rows, err = s.o.Store.ViewChannelStats(r.Context(), t.ID, s.o.Now(), reads, hum, s.o.LobbyTaskID)
 	}
 	if err == nil {
 		rows, err = s.visibleChannels(r.Context(), t.ID, hum, rows)

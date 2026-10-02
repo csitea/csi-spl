@@ -40,7 +40,7 @@ func TestChannelUnreadSkipsReadersOwnLines(t *testing.T) {
 			}
 			reads := map[string]ReadMark{"feedback": {At: mark.ReceivedAt, MsgID: mark.MsgID}}
 			unread := func(reader string) map[string]int {
-				stats, err := s.ViewChannelStats(ctx, tid, now, reads, reader)
+				stats, err := s.ViewChannelStats(ctx, tid, now, reads, reader, "")
 				if err != nil {
 					t.Fatal(err)
 				}

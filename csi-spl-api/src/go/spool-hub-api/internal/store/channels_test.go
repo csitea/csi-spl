@@ -97,7 +97,7 @@ func TestDefaultChannelAgentsArePicked(t *testing.T) {
 			if got := members("lobby"); len(got) != 0 {
 				t.Fatalf("removed lobby agent came back on announce: %v", got)
 			}
-			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "")
+			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -206,7 +206,7 @@ func TestStoreChannels(t *testing.T) {
 				}
 			}
 
-			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"feedback": {At: a1.ReceivedAt, MsgID: a1.MsgID}}, "")
+			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"feedback": {At: a1.ReceivedAt, MsgID: a1.MsgID}}, "", "")
 			if err != nil || len(stats) != 4 { // 3 defaults (no #tasks since rdb 0050) + releases
 				t.Fatalf("stats: %v %+v", err, stats)
 			}

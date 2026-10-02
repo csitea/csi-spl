@@ -51,7 +51,7 @@ func TestIssueChannelReplacesTasks(t *testing.T) {
 				}
 			}
 
-			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "")
+			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}

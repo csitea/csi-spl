@@ -476,7 +476,7 @@ func (s *Server) userEntities(ctx context.Context, tenant string, add entityAdd)
 
 // channelEntities offers the channels the reader may see.
 func (s *Server) channelEntities(ctx context.Context, tenant string, sq store.SearchQuery, add entityAdd) error {
-	chs, err := s.o.Store.ViewChannelStats(ctx, tenant, sq.Now, nil, "")
+	chs, err := s.o.Store.ViewChannelStats(ctx, tenant, sq.Now, nil, "", s.o.LobbyTaskID)
 	if err != nil {
 		return err
 	}

@@ -291,13 +291,14 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 	return out, nil
 }
 
-func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark, reader string) ([]ChannelStat, error) {
+func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark, reader, lobby string) ([]ChannelStat, error) {
 	cs := newChannelStats(tenant)
 	// One batch, one round trip (it was a BEGIN .. COMMIT
 	// transaction of 5 + len(reads) round trips). Results come back in queue
-	// order, so the unread counts see the counts the stats read stored.
+	// order, so the unread counts see the counts the stats read stored, and
+	// the archived-hidden read subtracts from what the unread reads set.
 	reqs := append([]tenantRead{cs.channelsRead(), cs.countsRead(now, reader)}, cs.unreadReads(reads, now, reader)...)
-	reqs = append(reqs, cs.membersRead())
+	reqs = append(reqs, cs.hiddenUnreadRead(reads, now, reader, lobby), cs.membersRead())
 	if err := s.queryTenantBatch(ctx, tenant, reqs...); err != nil {
 		return nil, err
 	}
@@ -418,6 +419,48 @@ func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time, re
 			}})
 	}
 	return out
+}
+
+// hiddenUnreadRead takes out of each channel's unread the lines its feed
+// hides as archived (specs/041: archivedHideSQL - the line's own card, its
+// task's card, its parent task's card, the lobby's excepted). CLE-77930
+// (owner, t1 bf737f3f): "2 new messages, then I go there and there is
+// nothing new for me" - on prd t1, 20 of 305 others' channel lines in 24 h
+// landed in a topic already archived, and every line of a topic archived
+// before it was read stayed counted. Driven from the archived cards (222 in
+// t1), so the counts read keeps its index-only scan. Same unread test as
+// countsRead / unreadReads: after the channel's mark when it has one, and
+// not the reader's own line (OwnLine).
+func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
+	ids := make([]string, 0, len(reads))
+	ats := make([]time.Time, 0, len(reads))
+	msgs := make([]string, 0, len(reads))
+	for id, m := range reads {
+		ids, ats, msgs = append(ids, id), append(ats, m.At), append(msgs, m.MsgID)
+	}
+	return tenantRead{`WITH z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL),
+		h AS (
+			SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id
+			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id
+			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $4
+			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $4)
+		SELECT m.channel, count(*)::int FROM h JOIN messages m ON m.tenant_id = $1 AND m.msg_id = h.msg_id
+		LEFT JOIN unnest($5::text[], $6::timestamptz[], $7::text[]) AS mk(ch, at, id) ON mk.ch = m.channel
+		WHERE m.channel IS NOT NULL AND m.expires_at > $2
+			AND (mk.ch IS NULL OR (m.received_at, m.msg_id::text) > (mk.at, mk.id))
+			AND ($3::text IS NULL OR (m.from_id IS DISTINCT FROM $3 AND (mk.ch IS NULL OR m.typed_by IS DISTINCT FROM $3)))
+		GROUP BY m.channel`,
+		[]any{cs.tenant, now, nullIfEmpty(reader), lobby, ids, ats, msgs}, func(r pgx.Rows) error {
+			var id string
+			var hidden int
+			if err := r.Scan(&id, &hidden); err != nil {
+				return err
+			}
+			if st, ok := cs.by[id]; ok {
+				st.Unread = max(0, st.Unread-hidden)
+			}
+			return nil
+		}}
 }
 
 // membersRead is each channel's agent and box members (announced default

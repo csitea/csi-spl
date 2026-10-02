@@ -224,8 +224,10 @@ type Channels interface {
 	// ViewChannelStats lists defaults, created and seen channels with counts,
 	// unread (per reads) and member stats. Read-only (FR-019). reader is the
 	// reading member (HUM-*, "" = none): their own lines are never unread
-	// (CLE-77889, see OwnLine).
-	ViewChannelStats(ctx context.Context, tenantID string, now time.Time, reads map[string]ReadMark, reader string) ([]ChannelStat, error)
+	// (CLE-77889, see OwnLine). lobby is the lobby task id ("" = none): a
+	// line the channel feed hides as archived (specs/041, archivedHideSQL) is
+	// never unread either (CLE-77930).
+	ViewChannelStats(ctx context.Context, tenantID string, now time.Time, reads map[string]ReadMark, reader, lobby string) ([]ChannelStat, error)
 }
 
 var (

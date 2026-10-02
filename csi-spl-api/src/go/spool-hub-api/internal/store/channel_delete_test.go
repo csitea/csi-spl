@@ -83,7 +83,7 @@ func TestDeleteChannelHardFreesTheName(t *testing.T) {
 			if ms, err := s.ChannelMembers(ctx, tid, "doomed"); err != nil || len(ms) != 0 {
 				t.Fatalf("re-created channel inherited agents: %v %v", ms, err)
 			}
-			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "")
+			stats, err := s.ViewChannelStats(ctx, tid, now, nil, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,7 +161,7 @@ func TestArchiveChannelReservesNameAndCards(t *testing.T) {
 			if _, err := s.Channel(ctx, tid, "arch"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("archived channel still Channel: %v", err)
 			}
-			stats, _ := s.ViewChannelStats(ctx, tid, now, nil, "")
+			stats, _ := s.ViewChannelStats(ctx, tid, now, nil, "", "")
 			for _, st := range stats {
 				if st.ChannelID == "arch" {
 					t.Fatalf("archived channel listed: %+v", st)

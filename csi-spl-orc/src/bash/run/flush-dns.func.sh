@@ -49,63 +49,73 @@ do_flush_dns() {
 
   do_log "INFO flushing DNS cache on this host (DRY_RUN=$dry nameserver=$nameserver test_domain=$test_domain)"
 
-  _spl_flush_run() {
-    local msg="$1"; shift
-    if (( dry )); then
-      do_log "INFO DRY_RUN would: $*"
-      return 0
-    fi
-    do_log "INFO $msg"
-    "$@" && do_log "OK $msg" || true
-  }
-
   if command -v resolvectl >/dev/null 2>&1; then
-    _spl_flush_run "resolvectl flush-caches" sudo resolvectl flush-caches
+    _spl_flush_run "$dry" "resolvectl flush-caches" sudo resolvectl flush-caches
   elif command -v systemd-resolve >/dev/null 2>&1; then
-    _spl_flush_run "systemd-resolve --flush-caches" sudo systemd-resolve --flush-caches
+    _spl_flush_run "$dry" "systemd-resolve --flush-caches" sudo systemd-resolve --flush-caches
   else
     do_log "INFO no resolvectl / systemd-resolve on PATH"
   fi
 
   if command -v systemctl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
-    _spl_flush_run "systemctl restart systemd-resolved" sudo systemctl restart systemd-resolved
+    _spl_flush_run "$dry" "systemctl restart systemd-resolved" sudo systemctl restart systemd-resolved
   fi
 
   if command -v nscd >/dev/null 2>&1; then
-    _spl_flush_run "nscd -i hosts" sudo nscd -i hosts
+    _spl_flush_run "$dry" "nscd -i hosts" sudo nscd -i hosts
   fi
 
   if command -v systemctl >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
-    _spl_flush_run "systemctl restart NetworkManager" sudo systemctl restart NetworkManager
+    _spl_flush_run "$dry" "systemctl restart NetworkManager" sudo systemctl restart NetworkManager
   fi
 
-  if grep -q "^nameserver ${nameserver}" /etc/resolv.conf 2>/dev/null; then
-    do_log "INFO fallback nameserver ${nameserver} already in /etc/resolv.conf"
-  else
-    if (( dry )); then
-      do_log "INFO DRY_RUN would append 'nameserver ${nameserver}' to /etc/resolv.conf"
-    else
-      do_log "INFO adding fallback nameserver ${nameserver} to /etc/resolv.conf"
-      sudo bash -c "echo 'nameserver ${nameserver}' >> /etc/resolv.conf" && do_log "OK added nameserver ${nameserver}" || true
-    fi
-  fi
-
-  if command -v dig >/dev/null 2>&1; then
-    local result
-    result=$(dig A "$test_domain" +short @"$nameserver" 2>/dev/null || true)
-    if [[ -n "$result" ]]; then
-      do_log "OK DNS resolves: ${test_domain} -> ${result}"
-    else
-      do_log "WARN DNS resolution failed for ${test_domain} via ${nameserver}"
-    fi
-  else
-    do_log "WARN dig is not installed; skipped the resolution check"
-  fi
-
-  unset -f _spl_flush_run
+  _spl_flush_fallback_ns "$dry" "$nameserver"
+  _spl_flush_check "$test_domain" "$nameserver"
   if (( dry )); then
     do_log "OK DRY_RUN DNS flush complete: nothing was mutated. Re-run with DRY_RUN=0 to flush."
   else
     do_log "OK DNS flush completed"
+  fi
+}
+
+# _spl_flush_run <dry> <msg> <cmd...>: run one flush command (logged, its
+# failure tolerated), or only say what it would run when <dry> is 1.
+_spl_flush_run() {
+  local dry="$1" msg="$2"; shift 2
+  if (( dry )); then
+    do_log "INFO DRY_RUN would: $*"
+    return 0
+  fi
+  do_log "INFO $msg"
+  "$@" && do_log "OK $msg" || true
+}
+
+# _spl_flush_fallback_ns <dry> <nameserver>: append the fallback nameserver to
+# /etc/resolv.conf unless it is there already.
+_spl_flush_fallback_ns() {
+  local dry="$1" nameserver="$2"
+  if grep -q "^nameserver ${nameserver}" /etc/resolv.conf 2>/dev/null; then
+    do_log "INFO fallback nameserver ${nameserver} already in /etc/resolv.conf"
+  elif (( dry )); then
+    do_log "INFO DRY_RUN would append 'nameserver ${nameserver}' to /etc/resolv.conf"
+  else
+    do_log "INFO adding fallback nameserver ${nameserver} to /etc/resolv.conf"
+    sudo bash -c "echo 'nameserver ${nameserver}' >> /etc/resolv.conf" && do_log "OK added nameserver ${nameserver}" || true
+  fi
+}
+
+# _spl_flush_check <domain> <nameserver>: does <domain> resolve via
+# <nameserver> now (a WARN, never a failure).
+_spl_flush_check() {
+  local test_domain="$1" nameserver="$2" result
+  if ! command -v dig >/dev/null 2>&1; then
+    do_log "WARN dig is not installed; skipped the resolution check"
+    return 0
+  fi
+  result=$(dig A "$test_domain" +short @"$nameserver" 2>/dev/null || true)
+  if [[ -n "$result" ]]; then
+    do_log "OK DNS resolves: ${test_domain} -> ${result}"
+  else
+    do_log "WARN DNS resolution failed for ${test_domain} via ${nameserver}"
   fi
 }

@@ -12,8 +12,7 @@ WF="$APP_ROOT/.github/workflows/61_semgrep.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 command -v python3 >/dev/null 2>&1 || { echo "FAIL: python3 required"; exit 1; }
 
 do_log() { printf '%s\n' "$*"; }
@@ -25,7 +24,6 @@ trap 'rm -rf "$T"' EXIT
 ROOT="$T/root"; mkdir -p "$ROOT"
 printf '# h\nrule.a|csi-spl-api/x.go|1\n' >"$ROOT/.semgrep-baseline.txt"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

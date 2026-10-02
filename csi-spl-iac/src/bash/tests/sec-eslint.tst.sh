@@ -12,8 +12,7 @@ WF="$APP_ROOT/.github/workflows/63_eslint-security.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 command -v python3 >/dev/null 2>&1 || { echo "FAIL: python3 required"; exit 1; }
 
 do_log() { printf '%s\n' "$*"; }
@@ -26,7 +25,6 @@ printf 'export const x=1;\n' >"$ROOT/csi-spl-wui/src/utils/a.mjs"
 printf '// cfg\n' >"$ROOT/.eslint-security.config.mjs"
 printf '# h\nsecurity/detect-bidi-characters|csi-spl-wui/src/utils/a.mjs|1\n' >"$ROOT/.eslint-security-baseline.txt"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
 
 # --- missing tool fails closed (no bin, no dir) -----------------------------
 set +e

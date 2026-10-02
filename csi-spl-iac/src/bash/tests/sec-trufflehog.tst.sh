@@ -12,8 +12,7 @@ WF="$APP_ROOT/.github/workflows/64_trufflehog.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 command -v python3 >/dev/null 2>&1 || { echo "FAIL: python3 required"; exit 1; }
 
 do_log() { printf '%s\n' "$*"; }
@@ -24,7 +23,6 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 ROOT="$T/root"; mkdir -p "$ROOT"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

@@ -16,8 +16,7 @@ fails=0
 # CI tidies the control module. The stub must not download one.
 export SEC_SCAN_GO_TIDY=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 
 do_log() { printf '%s\n' "$*"; }
 # shellcheck source=../run/sec-scan.func.sh
@@ -36,16 +35,6 @@ mk_root() {
   git -C "$d" -c user.email=sec-scan@example.com -c user.name="Sec Scan" add .
   git -C "$d" -c user.email=sec-scan@example.com -c user.name="Sec Scan" commit -qm init
 }
-
-# stub <name> <body>
-stub() {
-  local name="$1" body="$2"
-  mkdir -p "$T/bin"
-  printf '#!/bin/bash\n%s\n' "$body" >"$T/bin/$name"
-  chmod +x "$T/bin/$name"
-}
-
-reset_bin() { rm -rf "$T/bin"; mkdir -p "$T/bin"; }
 
 run_scan() {
   local which="$1"

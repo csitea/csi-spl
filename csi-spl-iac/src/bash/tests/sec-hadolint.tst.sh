@@ -13,8 +13,7 @@ WF="$APP_ROOT/.github/workflows/66_hadolint.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 
 do_log() { printf '%s\n' "$*"; }
 # shellcheck source=../run/sec-hadolint.func.sh
@@ -29,9 +28,6 @@ mkdir -p "$ROOT/csi-spl-api/src/docker"
 printf 'failure-threshold: error\nignored:\n  - DL3004\n' >"$ROOT/.hadolint.yaml"
 printf 'FROM alpine:3.20\nCMD ["true"]\n' >"$ROOT/csi-spl-api/src/docker/hub.Dockerfile"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
-reset_bin() { rm -rf "$T/bin"; mkdir -p "$T/bin"; }
-run() { reset_bin; "$@"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

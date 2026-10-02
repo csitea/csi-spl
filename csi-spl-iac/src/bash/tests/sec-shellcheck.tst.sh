@@ -13,8 +13,7 @@ WF="$APP_ROOT/.github/workflows/67_shellcheck.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 
 do_log() { printf '%s\n' "$*"; }
 # shellcheck source=../run/sec-shellcheck.func.sh
@@ -29,8 +28,6 @@ mkdir -p "$ROOT/csi-spl-iac/src/bash/run"
 printf '#!/usr/bin/env bash\ntrue\n' >"$ROOT/csi-spl-iac/src/bash/run/ok.func.sh"
 printf '# empty\n' >"$ROOT/.shellcheck-warning-baseline.txt"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
-reset_bin() { rm -rf "$T/bin"; mkdir -p "$T/bin"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

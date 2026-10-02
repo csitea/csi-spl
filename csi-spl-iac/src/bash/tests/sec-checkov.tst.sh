@@ -12,8 +12,7 @@ WF="$APP_ROOT/.github/workflows/65_iac-checkov.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 
 do_log() { printf '%s\n' "$*"; }
 # shellcheck source=../run/sec-checkov.func.sh
@@ -23,7 +22,6 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 TFDIR="$T/tf"; mkdir -p "$TFDIR"; printf 'x\n' >"$TFDIR/.checkov.baseline"
 
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

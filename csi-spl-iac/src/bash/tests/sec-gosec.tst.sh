@@ -13,8 +13,7 @@ WF="$APP_ROOT/.github/workflows/62_gosec.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 command -v python3 >/dev/null 2>&1 || { echo "FAIL: python3 required"; exit 1; }
 
 do_log() { printf '%s\n' "$*"; }
@@ -30,8 +29,6 @@ printf 'module example.com/hub\n\ngo 1.25.0\n' >"$ROOT/csi-spl-api/src/go/spool-
 printf '# header\nG101|internal/auth/idp.go|1\n' >"$ROOT/.gosec-baseline.txt"
 
 F="$ROOT/csi-spl-api/src/go/spool-hub-api"   # path fragment for "spool-hub-api/"
-stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
-reset_bin() { rm -rf "$T/bin"; mkdir -p "$T/bin"; }
 
 # --- missing binary fails closed --------------------------------------------
 set +e

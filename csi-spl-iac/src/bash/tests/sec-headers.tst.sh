@@ -12,8 +12,7 @@ WF="$APP_ROOT/.github/workflows/68_dast.yml"
 
 fails=0
 
-[[ -f "$FUNC" ]] && pass "the action lives where the run framework discovers it" \
-  || { echo "FAIL: no $FUNC"; exit 1; }
+require_action "$FUNC"
 command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 || { echo "FAIL: curl+python3 required"; exit 1; }
 
 do_log() { printf '%s\n' "$*"; }

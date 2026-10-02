@@ -17,3 +17,16 @@ PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
+
+# require_action <file> - the action under test exists, or the test stops here
+# (nothing below it could prove anything). Was a copied 2-line guard in 10 tests.
+require_action() {
+  [[ -f "$1" ]] && pass "the action lives where the run framework discovers it" \
+    || { echo "FAIL: no $1"; exit 1; }
+}
+
+# stub <name> <body> - an executable $T/bin/<name> running <body>; the test
+# puts $T/bin first on PATH. reset_bin empties it between cases. The caller
+# owns T (mktemp -d + its EXIT trap). Was copied into 8 + 4 sec-* tests.
+stub() { mkdir -p "$T/bin"; printf '#!/bin/bash\n%s\n' "$2" >"$T/bin/$1"; chmod +x "$T/bin/$1"; }
+reset_bin() { rm -rf "${T:?}/bin"; mkdir -p "$T/bin"; }

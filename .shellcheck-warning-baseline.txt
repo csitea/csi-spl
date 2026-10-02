@@ -76,12 +76,8 @@ SC2088|csi-spl-iac/src/bash/tests/readme-bootstrap.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/resolve-oap-worktree.tst.sh|2
 SC2034|csi-spl-iac/src/bash/tests/satellite-actions.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/sec-gosec.tst.sh|1
-SC2115|csi-spl-iac/src/bash/tests/sec-gosec.tst.sh|1
-SC2115|csi-spl-iac/src/bash/tests/sec-hadolint.tst.sh|1
 SC2154|csi-spl-iac/src/bash/tests/sec-headers.tst.sh|2
 SC1007|csi-spl-iac/src/bash/tests/sec-scan.tst.sh|2
-SC2115|csi-spl-iac/src/bash/tests/sec-scan.tst.sh|1
-SC2115|csi-spl-iac/src/bash/tests/sec-shellcheck.tst.sh|1
 SC2034|csi-spl-iac/src/bash/tests/workflow-tool-checksums.tst.sh|1
 SC2120|csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh|1
 SC2034|csi-spl-orc/lib/bash/funcs/resolve-all-proj-paths.func.sh|1

@@ -93,7 +93,7 @@ import { createLongPress } from '~/utils/touch-ui.mjs'
 import { useCopyText } from '~/composables/useCopyText'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
-import { useOpenMessage } from '~/composables/useOpenMessage'
+import { useOpenMessage, type MessageRef } from '~/composables/useOpenMessage'
 
 defineProps<{ inPage?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -145,7 +145,7 @@ function place(channel: unknown): string {
   if (!c) return t('search.in_dm')
   return c === ISSUE_CHANNEL ? t('search.group.issues') : '#' + c
 }
-function badgeOf(r: Record<string, any>): string {
+function badgeOf(r: Record<string, unknown>): string {
   if (!isPlacedRow(r)) return ''
   if (r.type === 'messages' && r.parent_task_id && r.parent_task_id !== r.task_id) return '↳'
   return r.channel ? '#' : '@'
@@ -311,7 +311,7 @@ async function openRow(row: SearchRow) {
      forbidden one raises the shell notice. Only a failure to resolve at all
      falls back to the old original (its topic page). */
   if ((row.type === 'messages' || row.type === 'files') && row.msg_id) {
-    const out = await openMessage(row as Record<string, any>)
+    const out = await openMessage(row as MessageRef)
     if (out.ok || out.reason !== 'error') return
   }
   if (isPlacedRow(row)) {

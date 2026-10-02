@@ -14,6 +14,9 @@ import type { OpenMessageReason, OpenMessageResult } from '~/utils/open-message.
 /** How long a failure notice stays up. */
 export const OPEN_NOTICE_MS = 6000
 
+/** What openMessage takes: a msg_id, or a row carrying the ids it resolves by. */
+export type MessageRef = string | { msg_id?: string | null, task_id?: string | null, parent_task_id?: string | null }
+
 type OpenNotice = { id: number, reason: OpenMessageReason, msgId: string }
 
 /* one notice per tab, shown by the shell's OpenMessageToast */
@@ -41,7 +44,7 @@ export function useOpenMessage() {
    * route change does not switch the sidebar tab. notify (default true): a
    * failure raises the shell notice.
    */
-  async function openMessage(ref: string | Record<string, any>, opts: { keepList?: boolean, notify?: boolean, replace?: boolean } = {}): Promise<OpenMessageResult> {
+  async function openMessage(ref: MessageRef, opts: { keepList?: boolean, notify?: boolean, replace?: boolean } = {}): Promise<OpenMessageResult> {
     const m = await import('~/utils/open-message.mjs')
     const self = String(access.me?.humanId || live.identity.value || roster.me?.id || '')
     const release = opts.keepList === false ? () => {} : sidePane.holdList()

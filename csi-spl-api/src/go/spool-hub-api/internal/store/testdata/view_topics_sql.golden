@@ -430,6 +430,36 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
 -- args "t12026-09-28 12:00:00 +0000 UTC22222222-2222-4333-8444-55555555555530"
+## taskids
+WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.received_at FROM unnest($6::uuid[]) AS t (id) CROSS JOIN LATERAL (
+				SELECT l.task_id, l.received_at FROM messages l
+				WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel = $3 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel = $4 AND x.task_id = l.task_id
+			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $5))) AND l.task_id = t.id ORDER BY l.received_at DESC LIMIT 1
+			) l
+		)
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		FROM w CROSS JOIN LATERAL (
+			SELECT count(*)::int AS n,
+				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $7 AND m.task_id = w.task_id
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel = $8 AND m.task_id = w.task_id
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
+		ORDER BY w.received_at DESC, w.task_id::text DESC
+-- args "t12026-09-28 12:00:00 +0000 UTCopsops[11111111-2222-4333-8444-555555555555 33333333-2222-4333-8444-555555555555]opsops"
 ## everything
 WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel = $3 AND l.channel IS NULL AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel = $4 AND x.channel IS NULL AND x.task_id = l.task_id

@@ -165,6 +165,9 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	walk := b.walkLatest() + b.walkParties()
 	door, aggDoor := b.readerDoor()
 	walk += door + b.walkTree() + archivedTopicHideSQL("l", b.tn, b.c.arg(q.Lobby)) // specs/041
+	if len(q.TaskIDs) > 0 {
+		return b.listed(walk) + b.summary(aggDoor), b.c.args
+	}
 	return b.statement(walk, aggDoor, b.c.arg(pgLimit(q.Limit))), b.c.args
 }
 
@@ -296,7 +299,26 @@ func (b *topicsSQL) statement(walk, aggDoor, lim string) string {
 					AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text)` + order + `
 			) s
 			WHERE w.n < ` + lim + `
-		)
+		)` + b.summary(aggDoor)
+}
+
+// listed is w for q.TaskIDs (the since= delta): each listed topic's latest
+// message passing walk, read on that topic's own messages_task_received
+// range, so a listed topic that fails a filter costs one short probe instead
+// of a walk to the end of the tenant.
+func (b *topicsSQL) listed(walk string) string {
+	return `WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.received_at FROM unnest(` + b.c.arg(b.q.TaskIDs) + `::uuid[]) AS t (id) CROSS JOIN LATERAL (
+				SELECT l.task_id, l.received_at FROM messages l
+				WHERE ` + walk + ` AND l.task_id = t.id ORDER BY l.received_at DESC LIMIT 1
+			) l
+		)`
+}
+
+// summary is each walked topic's row: count, kinds, parties and its first
+// message, newest topic first.
+func (b *topicsSQL) summary(aggDoor string) string {
+	return `
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,

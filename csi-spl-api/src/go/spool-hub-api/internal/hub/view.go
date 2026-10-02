@@ -477,6 +477,11 @@ type channelsBody struct {
 type topicsBody struct {
 	Topics []viewTopic `json:"topics"`
 	Next   *string     `json:"next"`
+	// since= only (view_delta.go): true = only the changed topics, false =
+	// the full page.
+	Delta     *bool    `json:"delta,omitempty"`
+	GoneTasks []string `json:"gone_tasks,omitempty"`
+	GoneMsgs  []string `json:"gone_msgs,omitempty"`
 }
 
 type topicBody struct {
@@ -598,7 +603,15 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		sq.BeforeAt, sq.BeforeTask = at, id
 	}
 	sq.Lobby = s.o.LobbyTaskID // specs/041: archived topics leave every list
-	rows, err := s.o.Store.ViewTopics(r.Context(), t.ID, sq)
+	body, ok := s.deltaScope(w, r, t, &sq)
+	if !ok {
+		return
+	}
+	var rows []store.TopicRow
+	var err error
+	if body.Delta == nil || !*body.Delta || len(sq.TaskIDs) > 0 { // a delta with no change reads nothing
+		rows, err = s.o.Store.ViewTopics(r.Context(), t.ID, sq)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
@@ -619,7 +632,32 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
 		return
 	}
-	writeJSON(w, http.StatusOK, topicsBody{Topics: out, Next: next})
+	body.Topics, body.Next = out, next
+	writeJSON(w, http.StatusOK, body)
+}
+
+// deltaScope applies since= (view_delta.go) to sq: a delta lists only the
+// changed topics, with no page cursor. The body carries the delta flag and
+// the gone lists; ok false = it answered.
+func (s *Server) deltaScope(w http.ResponseWriter, r *http.Request, t store.Tenant, sq *store.TopicQuery) (topicsBody, bool) {
+	var body topicsBody
+	d, ok := parseTopicsDelta(w, r)
+	if !ok || d == nil {
+		return body, ok
+	}
+	a, err := s.readDelta(r.Context(), t.ID, *sq, d)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("topics since")
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return body, false
+	}
+	delta := a != nil
+	body.Delta = &delta
+	if a != nil {
+		sq.TaskIDs, sq.Limit = a.tasks, len(a.tasks)+1 // never a next page
+		body.GoneTasks, body.GoneMsgs = a.goneTasks, a.goneMsgs
+	}
+	return body, true
 }
 
 // inlineMessages fills each topic's newest per messages (per_topic=,

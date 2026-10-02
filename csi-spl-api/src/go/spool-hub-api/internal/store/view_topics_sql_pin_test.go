@@ -39,6 +39,9 @@ func TestViewTopicsSQLGolden(t *testing.T) {
 		{"noissues", with(func(q *TopicQuery) { q.NoIssues = true })},
 		{"parent", with(func(q *TopicQuery) { q.Parent = "11111111-2222-4333-8444-555555555555" })},
 		{"lobby", with(func(q *TopicQuery) { q.Lobby = "22222222-2222-4333-8444-555555555555" })},
+		{"taskids", with(func(q *TopicQuery) {
+			q.Channel, q.TaskIDs = "ops", []string{"11111111-2222-4333-8444-555555555555", "33333333-2222-4333-8444-555555555555"}
+		})},
 		{"everything", with(func(q *TopicQuery) {
 			q.Channel, q.DM, q.BeforeAt, q.BeforeTask = "ops", true, now.Add(-time.Hour), "11111111-2222-4333-8444-555555555555"
 			q.Agent, q.AgentBox, q.Viewer, q.Reader, q.ReaderChannels = "CLE-07", "box-a", "HUM-2", "HUM-1", []string{"ops", "dev"}

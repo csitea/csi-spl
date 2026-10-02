@@ -48,8 +48,13 @@ type TopicQuery struct {
 	ReaderChannels []string
 	BeforeAt       time.Time
 	BeforeTask     string
-	Limit          int
-	Now            time.Time
+	// TaskIDs, when set, lists only these topics (the since= delta, R2-2):
+	// each passes every other filter or is left out, and no page cursor
+	// applies. Postgres reads each one by its own index range instead of
+	// walking the tenant newest first.
+	TaskIDs []string
+	Limit   int
+	Now     time.Time
 }
 
 // TopicRow is one task_id's aggregate. Times are hub receive times.
@@ -204,9 +209,16 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 		r.Kinds = append(r.Kinds, m.Kind)
 		r.Parties = append(r.Parties, m.FromID+"@"+m.FromBox, m.ToID+"@"+m.ToBox)
 	}
+	var only map[string]bool
+	if len(q.TaskIDs) > 0 {
+		only = map[string]bool{}
+		for _, id := range q.TaskIDs {
+			only[id] = true
+		}
+	}
 	var out []TopicRow
 	for id, r := range byTask {
-		if !match[id] || !seen[id] {
+		if !match[id] || !seen[id] || (only != nil && !only[id]) {
 			continue
 		}
 		if (q.Roots && r.Parent != "") || (q.Parent != "" && r.Parent != q.Parent) {

@@ -671,7 +671,7 @@ func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.
 			c := encCursor(rows[per-1].ReceivedAt, rows[per-1].MsgID)
 			out[i].MessagesNext = &c
 		}
-		vs := viewMsgs(rows, react)
+		vs := viewMsgsIn(rows, react, out[i].TaskID)
 		out[i].Messages = &vs
 	}
 	return true
@@ -733,10 +733,14 @@ type viewDelivery struct {
 }
 
 type viewMsg struct {
-	Cursor     string          `json:"cursor"`
-	ReceivedAt string          `json:"received_at"`
-	Env        json.RawMessage `json:"env"`
-	Deliveries []viewDelivery  `json:"deliveries"`
+	Cursor     string `json:"cursor"`
+	ReceivedAt string `json:"received_at"`
+	// DB payload cut 4: env leaves out sig, an empty msg.files and a
+	// msg.task_id equal to the topic's (trimEnv). The WUI defaults each one.
+	Env json.RawMessage `json:"env"`
+	// Omitted when it is exactly the default [box-wui sent] (viewDeliveries);
+	// [] stays [] - a message with no delivery at all is not the default.
+	Deliveries *[]viewDelivery `json:"deliveries,omitempty"`
 	// specs/032 §2.1: omitted entirely while the message has never been
 	// edited, so a reload renders the marker exactly as the live frame does.
 	EditedAt string `json:"edited_at,omitempty"`
@@ -744,9 +748,10 @@ type viewMsg struct {
 	Revision int    `json:"revision,omitempty"`
 	// rdb 0034. Always present: 0 and 1 are both real values.
 	IsParent int `json:"is_parent"`
-	// rdb 0037. Always present, [] when nobody has added an emoji. The same
-	// field is on an is_parent 0 reply and an is_parent 1 opening message.
-	Reactions []viewReaction `json:"reactions"`
+	// rdb 0037. Omitted while nobody has added an emoji (DB payload cut 4:
+	// the WUI reads it as []). The same field is on an is_parent 0 reply and
+	// an is_parent 1 opening message.
+	Reactions []viewReaction `json:"reactions,omitempty"`
 	// rdb 0040 / specs/036 FR-011: the HUM-* the hub verified typed this
 	// line at the agent's terminal. Omitted when the agent wrote it.
 	TypedBy string `json:"typed_by,omitempty"`
@@ -811,7 +816,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, topicBody{TaskID: task, Messages: viewMsgs(rows, react), Next: next})
+	writeJSON(w, http.StatusOK, topicBody{TaskID: task, Messages: viewMsgsIn(rows, react, task), Next: next})
 }
 
 // topicReader is the read door of one topic (rdb 0028, privacy.go): it
@@ -906,13 +911,27 @@ func envNames(env []byte, ch string) bool {
 	return bytes.Contains(env, []byte(`"channel":"`+ch+`"`))
 }
 
-// viewMsgs is the §4.4 message list of rows, with their reactions.
+// viewMsgs is the §4.4 message list of rows, with their reactions, read
+// outside one topic (every env keeps its msg.task_id).
 func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []viewMsg {
+	return viewMsgsIn(rows, react, "")
+}
+
+// viewMsgsIn is viewMsgs for the rows of topic: an at-home row whose
+// msg.task_id is topic leaves it out (the WUI defaults it to the topic's).
+func viewMsgsIn(rows []store.ViewMsg, react map[string][]store.StoredReaction, topic string) []viewMsg {
 	out := make([]viewMsg, 0, len(rows))
 	for _, m := range rows {
+		home := topic
+		if m.Move.Moved() {
+			home = ""
+		}
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
-			Env: json.RawMessage(m.Env), Deliveries: make([]viewDelivery, 0, len(m.Deliveries)), IsParent: m.IsParent,
-			Reactions: groupReactions(react[m.MsgID]), TypedBy: m.TypedBy}
+			Env: trimEnv(m.Env, home), Deliveries: viewDeliveries(m.Deliveries), IsParent: m.IsParent,
+			TypedBy: m.TypedBy}
+		if rs := groupReactions(react[m.MsgID]); len(rs) > 0 {
+			v.Reactions = rs
+		}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
 		}
@@ -926,10 +945,52 @@ func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []v
 		} else if ch := m.RowChannel; ch != "" && !envNames(m.Env, ch) {
 			v.Channel = &ch
 		}
-		for _, d := range m.Deliveries {
-			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})
-		}
 		out = append(out, v)
 	}
 	return out
+}
+
+// viewDeliveries is ds for the view; nil (omitted) when ds is exactly the
+// default of a WUI post nobody else receives, [box-wui sent], which the WUI
+// puts back (utils/view-api.mjs DEFAULT_DELIVERY).
+func viewDeliveries(ds []store.ViewDelivery) *[]viewDelivery {
+	if len(ds) == 1 && ds[0].ToBox == WUIBox && ds[0].State == store.StateSent {
+		return nil
+	}
+	out := make([]viewDelivery, 0, len(ds))
+	for _, d := range ds {
+		out = append(out, viewDelivery{ToBox: d.ToBox, State: d.State})
+	}
+	return &out
+}
+
+// trimEnv is the view's copy of a stored envelope (DB payload cut 4): no
+// sig (the WUI never verifies it and deleted it on arrival), no empty
+// msg.files, and no msg.task_id when it is topic ("" keeps it). Only the
+// view JSON is trimmed: the stored row, the WS frame and the spool keep the
+// signed envelope whole. An envelope it cannot read passes through as is.
+func trimEnv(env []byte, topic string) json.RawMessage {
+	var e map[string]json.RawMessage
+	if json.Unmarshal(env, &e) != nil {
+		return env
+	}
+	delete(e, "sig")
+	var m map[string]json.RawMessage
+	if raw, ok := e["msg"]; ok && json.Unmarshal(raw, &m) == nil {
+		if f, ok := m["files"]; ok && string(bytes.TrimSpace(f)) == "[]" {
+			delete(m, "files")
+		}
+		var id string
+		if t, ok := m["task_id"]; ok && topic != "" && json.Unmarshal(t, &id) == nil && id == topic {
+			delete(m, "task_id")
+		}
+		if b, err := json.Marshal(m); err == nil {
+			e["msg"] = b
+		}
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return env
+	}
+	return b
 }

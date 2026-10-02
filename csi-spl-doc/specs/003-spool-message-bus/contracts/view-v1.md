@@ -140,8 +140,9 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 
 `online` = a live `role=box` socket for that box on this instance (valid under
 `max-instances=1`, FR-017). Revoked pins are listed with `revoked: true` and
-`online: false`. `pubkey` lets the viewer re-verify envelope `sig`s
-client-side (optional; the hub already verified them at ingest).
+`online: false`. `pubkey` lets a client re-verify envelope `sig`s it
+received whole (a `tail_msg` frame; the hub already verified them at ingest).
+The §4.4 view `env` carries no `sig` since DB payload cut 4.
 
 `humans` (010 T044, gap A5) lists the member `HUM-*` of **this tenant only**
 (disabled humans excluded), sorted by `human_id`; `[]` when the hub has no
@@ -222,14 +223,23 @@ Ordered by `last_ts` descending; `before` pages to older threads.
 { "task_id": "…",
   "messages": [
     { "cursor": "…", "received_at": "…",
-      "env": { "from_box": "box-a", "to_box": "box-b", "msg": { "v": 1, "…": "…" }, "sig": "…" },
+      "env": { "from_box": "box-a", "to_box": "box-b", "msg": { "v": 1, "…": "…" } },
       "deliveries": [ { "to_box": "box-b", "state": "sent" } ] } ],
   "next": "<cursor or null>" }
 ```
 
-- Oldest first. `env` is the stored envelope **byte-for-byte** as verified at
-  ingest (the same bytes a `tail_msg` frame carries). File refs only; bytes
-  come from `GET /v1/files/{file_id}`.
+- Oldest first. `env` is the stored envelope as verified at ingest, less
+  what **DB payload cut 4** (owner t1 66233cdc, 2026-10-02, hub `view.go`
+  `trimEnv` / `viewMsgsIn`) leaves out of the view: `sig`, an empty
+  `msg.files`, and `msg.task_id` when it equals this topic's `task_id`
+  (kept on a moved row and on the archive cards, which span topics). The
+  stored row, the WS frame and the spool keep the signed envelope whole.
+  File refs only; bytes come from `GET /v1/files/{file_id}`.
+- Also omitted while they hold their default (cut 4): `reactions` when
+  nobody reacted (read `[]`), and `deliveries` when it is exactly
+  `[{"to_box":"box-wui","state":"sent"}]`. A message with no delivery at all
+  still sends `deliveries: []`. The WUI puts every default back in
+  `utils/view-api.mjs` `normalizeViewMessage(el, topic)`.
 - `deliveries[].state` ∈ `queued | sent | expired` (the hub-side row,
   `../data-model.md` §2a) — shown, never changed.
 - Unknown or purged `task_id` → `404 not_found`.

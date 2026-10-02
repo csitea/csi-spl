@@ -15,11 +15,13 @@ func viewMsgsOldDeliveries(rows []store.ViewMsg, react map[string][]store.Stored
 	out := make([]viewMsg, 0, len(rows))
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
-			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent,
+			Env: json.RawMessage(m.Env), IsParent: m.IsParent,
 			Reactions: groupReactions(react[m.MsgID]), TypedBy: m.TypedBy}
+		ds := []viewDelivery{}
 		for _, d := range m.Deliveries {
-			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})
+			ds = append(ds, viewDelivery{ToBox: d.ToBox, State: d.State})
 		}
+		v.Deliveries = &ds
 		out = append(out, v)
 	}
 	return out

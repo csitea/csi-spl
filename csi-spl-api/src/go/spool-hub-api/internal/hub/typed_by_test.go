@@ -135,9 +135,15 @@ func TestTypedByVerifiedStoredAndShownToBrowsersOnly(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, m := range v.Messages {
-		var env wire.Envelope
+		// DB payload cut 4: the view's env.msg leaves out a task_id equal to
+		// the topic's, so it is not a whole v:1 message; read the msg_id only.
+		var env struct {
+			Msg struct {
+				MsgID string `json:"msg_id"`
+			} `json:"msg"`
+		}
 		json.Unmarshal(m.Env, &env) //nolint:errcheck
-		inner, _ := env.Inner()
+		inner := env.Msg
 		tb := "<absent>"
 		if m.TypedBy != nil {
 			tb = *m.TypedBy

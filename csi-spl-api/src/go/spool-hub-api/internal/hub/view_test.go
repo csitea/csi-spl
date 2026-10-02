@@ -134,12 +134,12 @@ func TestViewAPI(t *testing.T) {
 		t.Fatalf("topics %d %s", code, body)
 	}
 
-	// One topic: the stored envelope byte-for-byte, delivery queued.
+	// One topic: the stored envelope less what cut 4 trims, delivery queued.
 	code, _, body = viewGet(t, e, tid, "/v1/view/topics/"+out.TaskID)
 	var one topicResp
 	json.Unmarshal(body, &one) //nolint:errcheck
 	stored, _ := e.st.TaskEnvelopes(ctx, tid, out.TaskID)
-	if code != 200 || len(one.Messages) != 1 || string(one.Messages[0].Env) != string(stored[0]) ||
+	if code != 200 || len(one.Messages) != 1 || jsonCanon(t, one.Messages[0].Env) != viewEnvWant(t, stored[0], out.TaskID) ||
 		len(one.Messages[0].Deliveries) != 1 || one.Messages[0].Deliveries[0].State != store.StateQueued {
 		t.Fatalf("topic %d %s", code, body)
 	}
@@ -589,4 +589,41 @@ func TestViewRosterHumanOwnerFlag(t *testing.T) {
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// viewEnvWant is the §4.4 env the view sends for a stored envelope of topic
+// (DB payload cut 4): no sig, no empty msg.files, no msg.task_id equal to
+// topic. Canonical, so it compares with jsonCanon of what the view sent.
+func viewEnvWant(t *testing.T, stored []byte, topic string) string {
+	t.Helper()
+	var env map[string]any
+	dec := json.NewDecoder(strings.NewReader(string(stored)))
+	dec.UseNumber()
+	if err := dec.Decode(&env); err != nil {
+		t.Fatalf("stored env: %v", err)
+	}
+	delete(env, "sig")
+	if inner, ok := env["msg"].(map[string]any); ok {
+		if f, ok := inner["files"].([]any); ok && len(f) == 0 {
+			delete(inner, "files")
+		}
+		if inner["task_id"] == topic {
+			delete(inner, "task_id")
+		}
+	}
+	b, _ := json.Marshal(env)
+	return string(b)
+}
+
+// jsonCanon re-encodes raw with sorted keys and exact numbers.
+func jsonCanon(t *testing.T, raw []byte) string {
+	t.Helper()
+	var v any
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
+		t.Fatalf("env: %v", err)
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }

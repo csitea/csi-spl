@@ -373,10 +373,28 @@ spl_disp_fail() {
 # The seed (FR-040): the role's brief (do_spl_dispatch_setup renders it), the
 # rotation line with the ack command, the standing rules.
 spl_disp_seed() {
-  local id="$1" brief="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}/brief-dispatcher-$1.md" as="${SPOOL_BOX_USER:-$USER}" ack
-  [[ -f "$brief" ]] || return 1
+  local id="$1" dir="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}" brief as="${SPOOL_BOX_USER:-$USER}" ack old
+  brief="$dir/brief-dispatcher-$id.md"
   ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
-  cat "$brief"
+  if [[ -f "$brief" ]]; then cat "$brief"
+  else
+    # spec 061 L6: a role switched to c-00N still has the brief do_spl_dispatch_setup
+    # rendered for its legacy id (brief-dispatcher-CLE-002.md, naming CLE-00N
+    # inside): use it, every aliased id in it read as its new id
+    old="$(awk -F'\t' -v id="$id" '$2 == id {print $1; exit}' "$SPOOL_ROOT/agent-id-aliases.tsv" 2>/dev/null)"
+    [[ -n "$old" && -f "$dir/brief-dispatcher-$old.md" ]] || return 1
+    python3 - "$SPOOL_ROOT/agent-id-aliases.tsv" "$dir/brief-dispatcher-$old.md" <<'PY'
+import re, sys
+m = {}
+for l in open(sys.argv[1]):
+    f = l.rstrip("\n").split("\t")
+    if len(f) >= 2 and re.fullmatch(r"(CLE|GRK|AGY|QWN)-[0-9]+", f[0]) and re.fullmatch(r"[acgq]-[0-9]{3}", f[1]):
+        m[f[0]] = f[1]
+rx = re.compile(r"(?<![A-Za-z0-9-])(" + "|".join(map(re.escape, m)) + r")(?![0-9])") if m else None
+s = open(sys.argv[2]).read()
+sys.stdout.write(rx.sub(lambda x: m[x.group(1)], s) if rx else s)
+PY
+  fi
   cat <<EOF
 
 ## Hourly rotation $ROTATE_RID (spec 060)

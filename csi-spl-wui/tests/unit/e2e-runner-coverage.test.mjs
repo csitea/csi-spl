@@ -83,6 +83,12 @@ try {
   r = run(tmp)
   check('skipping everything refuses to pass', r.status === 1 && /refusing to pass/.test(r.stderr), r.stderr)
 
+  writeFileSync(join(tmp, 'tests/e2e/ci-skip.txt'), '')
+  r = spawnSync(process.execPath, [join(tmp, RUNNER_REL)], { cwd: tmp, encoding: 'utf8', env: { ...process.env, E2E_SKIP: 'b.test.mjs' } })
+  check('E2E_SKIP leaves a file out of this run', r.status === 0 && /all 2 file\(s\) passed/.test(r.stdout), r.stdout + r.stderr)
+  r = spawnSync(process.execPath, [join(tmp, RUNNER_REL)], { cwd: tmp, encoding: 'utf8', env: { ...process.env, E2E_SKIP: 'gone.test.mjs' } })
+  check('a stale E2E_SKIP name fails', r.status === 1 && /E2E_SKIP: "gone\.test\.mjs" is not a file/.test(r.stderr), r.stderr)
+
   r = run(tmp, 'nomatch')
   check('a filter that matches nothing fails', r.status === 1 && /matched none/.test(r.stderr), r.stderr)
 } finally {

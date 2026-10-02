@@ -72,6 +72,15 @@ if (existsSync(join(WUI, SKIP_REL))) {
   }
 }
 
+// E2E_SKIP: more names to leave out of THIS run only, space-separated, same
+// rule as a ci-skip.txt line (must exist). Workflow 11 sets it for a check
+// whose verdict depends on the hosted runner's fonts; the workflow carries
+// the reason next to it.
+for (const name of (process.env.E2E_SKIP || '').split(/\s+/).filter(Boolean)) {
+  if (!discovered.includes(`${E2E_REL}/${name}`)) die(`E2E_SKIP: "${name}" is not a file in ${E2E_REL}`)
+  skipped.add(`${E2E_REL}/${name}`)
+}
+
 let files
 if (paths.length) {
   const missing = paths.filter((f) => !existsSync(join(WUI, f)))
@@ -90,7 +99,7 @@ if (listOnly) {
   process.exit(0)
 }
 
-const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL})`
+const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`
 console.log(`e2e runner: ${files.length} file(s)${scope}\n`)
 
 const failures = []

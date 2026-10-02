@@ -33,7 +33,8 @@ _ch_keep_pane() { [ "${CHAIN_PRINT:-0}" = 1 ] && return 0; echo "$1"; exec bash;
 # claude carries its --name in argv; grok cannot, so its wait reads the tmux
 # window that carries the id: busy while the pane's command is not a shell.
 _ch_busy() {  # WAIT_NAME
-  if [ "$CHAIN_KIND" = claude ]; then pgrep -f "claude --name $1 " >/dev/null 2>&1; return; fi
+  # --name is the display name: "<ID>@<box>" (specs/058), the older "<tag>: <ID>", or the bare id.
+  if [ "$CHAIN_KIND" = claude ]; then pgrep -f "claude --name ([^ ]+: )?$1(@[a-z0-9-]+)? " >/dev/null 2>&1; return; fi
   local cmd
   spool_tmux_argv
   cmd="$("${SPOOL_TM[@]}" list-panes -a -F '#{window_name}	#{pane_current_command}' 2>/dev/null \

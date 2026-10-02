@@ -57,6 +57,26 @@
     name: google-cloud-cli
     state: present
 
+# The WUI e2e files drive CHROME_PATH or /usr/bin/google-chrome through
+# puppeteer-core (it never downloads a browser, so there is no puppeteer cache
+# to seed), as CI's runner does: satellite gap 14. Google's .deb, not an
+# apt_repository line: the package writes its own google-chrome.list, and a
+# second line with another signed-by makes every apt update fail.
+- name: Google Chrome stable (the WUI e2e browser)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    [ -x /usr/bin/google-chrome ] && { echo "OK $(/usr/bin/google-chrome --version)"; exit 0; }
+    t=$(mktemp -d) && trap 'rm -rf "$t"' EXIT
+    curl -fsSL --retry 3 -o "$t/chrome.deb" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+      || { echo "FAIL download google-chrome-stable"; exit 1; }
+    chmod 644 "$t/chrome.deb" && chmod 755 "$t"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$t/chrome.deb" >/dev/null || { echo "FAIL apt-get install chrome.deb"; exit 1; }
+    [ -x /usr/bin/google-chrome ] && echo "CHANGED $(/usr/bin/google-chrome --version)"
+  args:
+    executable: /bin/bash
+  register: chrome_out
+  changed_when: "'CHANGED' in chrome_out.stdout"
+
 - name: "Go {{ go_version }} in /usr/local/go (go.dev tarball, sha256-pinned; as on the box PC)"
   ansible.builtin.shell: |
     set -uo pipefail

@@ -24,6 +24,9 @@
 #  10. the agent's claude first-run state is seeded (only those keys), the
 #      owner's tmux main is a systemd user unit, and verify starts claude
 #      (--print + an interactive no-menu smoke).
+#  14. the toolchain gaps 10/12/13/14: terraform system-wide, the api gates'
+#      images pre-pulled (tags read from the tests, = the manifest rows),
+#      pnpm + a warm store for both users, Google Chrome; verify checks them.
 #   9. /var/csi lives on the data disk, /var/csi/csi-spl is the owner's and
 #      group-writable, and verify checks both users can write it.
 #------------------------------------------------------------------------------
@@ -269,6 +272,31 @@ o=$(run_tm "$SK" TMUX_FAKE=down); r=$?
 [[ $r -eq 0 && "$o" == *"WARN unit active, socket"*"no server running"* ]] && pass "13. tmux task: a has-session miss with the unit active is a WARN carrying tmux's error, not a failed run" || fail "13. miss: rc=$r $o"
 o=$(run_tm "$T/no-such-sock" TMUX_FAKE=down); r=$?
 [[ $r -ne 0 && "$o" == *"FAIL no tmux server socket"* ]] && pass "13. tmux task: no server socket at all is a FAIL" || fail "13. no socket: rc=$r $o"
+
+# 14. the toolchain gaps that kept lane classes off the satellite (HOWTO-satellite-work.md 4: 10, 12, 13, 14)
+tsv="$PROJ_PATH/cnf/satellite-replica.tsv"
+grep -q 'for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks ruff terraform; do' "$PROJ_PATH/src/bash/run/install-lint-tools.func.sh" \
+  && pass "14. LINT_TOOLS_SYSTEM=1 copies terraform to /usr/local/bin too (the box user runs the iac suite, gap 10)" || fail "14. terraform stays per-user (gap 10)"
+grep -q 'google-chrome-stable_current_amd64.deb' "$R/02_os_binaries/tasks/main.yml" && grep -q '\[ -x /usr/bin/google-chrome \]' "$R/02_os_binaries/tasks/main.yml" \
+  && grep -q '^google-chrome	google-chrome --version	box-playbook 02_os_binaries' "$tsv" \
+  && pass "14. role 02 installs Google Chrome at /usr/bin/google-chrome, and the manifest checks it (gap 14)" || fail "14. no Chrome install + manifest row (gap 14)"
+p9=$(python3 -c "
+import yaml
+for t in yaml.safe_load(open('$R/09_agent_tools/tasks/main.yml')):
+    if t.get('name','').startswith('pnpm,'): print(t.get('loop'), t.get('become_user')); print(t['ansible.builtin.shell'])")
+grep -qF '{{ [owner_user, agent_user] }} {{ item }}' <<<"$p9" && grep -q 'pnpm install --frozen-lockfile --ignore-scripts' <<<"$p9" \
+  && pass "14. role 09 puts pnpm on the box user's AND the agent's PATH and warms each pnpm store (gap 13)" || fail "14. pnpm is not set up for both users with a warm store (gap 13)"
+grep -q 'setsid -w ./run -a do_pull_test_images' "$R/09_agent_tools/tasks/main.yml" \
+  && pass "14. role 09 pre-pulls the api gates' images through do_pull_test_images (gap 12)" || fail "14. role 09 does not pull the test images (gap 12)"
+imgs=$(cd "$PROJ_PATH" && bash -c 'do_log() { echo "$*" >&2; }; PROJ_PATH="'"$PROJ_PATH"'"; source src/bash/run/pull-test-images.func.sh; DRY_RUN=1 do_pull_test_images' 2>/dev/null | sed -n 's/^PLAN pull //p')
+grep -qx 'postgres:16-alpine' <<<"$imgs" && grep -qx 'fsouza/fake-gcs-server:[0-9.]*' <<<"$imgs" \
+  && pass "14. do_pull_test_images reads hub-pg's and hub-gcs's image defaults from the tests ($(tr '\n' ' ' <<<"$imgs"))" || fail "14. do_pull_test_images lists: ${imgs:-nothing}"
+rows=$(sed -nE "s/^img-[a-z-]+	docker image inspect -f '\{\{\.Id\}\}' ([^	]+)	.*/\1/p" "$tsv" | sort)
+[[ -n "$rows" && "$rows" == "$imgs" ]] && pass "14. the manifest's img-* rows are exactly the images the tests use" || fail "14. manifest img rows ($(tr '\n' ' ' <<<"$rows")) != test images ($(tr '\n' ' ' <<<"$imgs"))"
+for b in terraform pnpm google-chrome; do
+  grep -qE "owner_tools=\"[^\"]* $b( |\")" "$v" || { fail "14. verify does not check $b on the box user's PATH"; continue; }
+  pass "14. verify checks $b on the box user's login PATH"
+done
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

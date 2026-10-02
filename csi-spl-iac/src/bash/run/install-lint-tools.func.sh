@@ -270,7 +270,8 @@ do_install_lint_tools() {
     esac
   done
   if [[ "${LINT_TOOLS_SYSTEM:-0}" == 1 ]]; then
-    for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks ruff; do
+    # terraform too: the box user runs the iac suite (satellite gap 10)
+    for t in shellcheck actionlint hadolint trufflehog gosec typos gitleaks ruff terraform; do
       [[ " $only " == *" $t "* && -x "$_ILT_BIN/$t" ]] || continue
       if sudo install -m 0755 -o root -g root "$_ILT_BIN/$t" "/usr/local/bin/$t"; then
         do_log "INFO $t copied to /usr/local/bin (root-owned, every user)"

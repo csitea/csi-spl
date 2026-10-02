@@ -3,8 +3,10 @@
 # do_satellite_install_tools; cnf/satellite-replica.tsv lists each and how
 # do_satellite_verify compares it with the box PC):
 #   cloud-sql-proxy  Google's release binary, sha256-pinned (= the box PC's)
-#   pnpm             corepack, the version csi-spl-wui pins (packageManager)
+#   pnpm             corepack, the version csi-spl-wui pins (packageManager),
+#                    for the box user and the agent, + a warm pnpm store
 #   lint+terraform   the repo's do_install_lint_tools, CI-pinned, system-wide
+#   test images      the repo's do_pull_test_images (hub-pg / hub-gcs run)
 #   tpl-gen          the repo's do_setup_tpl_gen (the owner's clone)
 # curl, not get_url: ansible-core 2.14 (the tf-runner) passes cert_file to
 # http.client, which Python 3.12+ (Debian 13) removed (loop run 2, 2026-10-01)
@@ -25,23 +27,35 @@
   register: csp_out
   changed_when: "'CHANGED' in csp_out.stdout"
 
-- name: pnpm, the version csi-spl-wui pins, through corepack, for the agent
+# Both users: the agent runs the WUI lanes, the box user runs the suites by
+# hand (satellite gap 13); the pnpm store is then warmed from the WUI lockfile
+# in a throwaway dir, so a worktree's first pnpm install is a store link.
+- name: pnpm, the version csi-spl-wui pins, through corepack, + a warm store
+  loop: "{{ [owner_user, agent_user] }}"
   ansible.builtin.shell: |
     set -uo pipefail
     export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     pm=$(jq -r '.packageManager // ""' "{{ repo_dir }}/csi-spl-wui/package.json"); pm=${pm%%+*}
     [[ "$pm" == pnpm@* ]] || { echo "FAIL no packageManager pnpm@ in csi-spl-wui/package.json"; exit 1; }
-    [[ "$(pnpm --version 2>/dev/null)" == "${pm#pnpm@}" ]] && { echo "OK ${pm#pnpm@}"; exit 0; }
-    # corepack links RELATIVE paths and never replaces a link: the real dir,
-    # and a dangling pnpm/pnpx link removed first
-    bindir=$(readlink -f "$HOME/.local/bin"); mkdir -p "$bindir"
-    for l in pnpm pnpx; do [[ -L "$bindir/$l" && ! -e "$bindir/$l" ]] && rm -f "$bindir/$l"; done
-    corepack enable --install-directory "$bindir" pnpm && corepack prepare "$pm" --activate >/dev/null \
-      && [[ "$(pnpm --version)" == "${pm#pnpm@}" ]] && echo "CHANGED ${pm#pnpm@}"
+    st=OK
+    if [[ "$(pnpm --version 2>/dev/null)" != "${pm#pnpm@}" ]]; then
+      # corepack links RELATIVE paths and never replaces a link: the real dir,
+      # and a dangling pnpm/pnpx link removed first
+      bindir=$(readlink -f "$HOME/.local/bin"); mkdir -p "$bindir"
+      for l in pnpm pnpx; do [[ -L "$bindir/$l" && ! -e "$bindir/$l" ]] && rm -f "$bindir/$l"; done
+      corepack enable --install-directory "$bindir" pnpm && corepack prepare "$pm" --activate >/dev/null \
+        && [[ "$(pnpm --version)" == "${pm#pnpm@}" ]] || { echo "FAIL pnpm ${pm#pnpm@} not on the PATH"; exit 1; }
+      st=CHANGED
+    fi
+    t=$(mktemp -d) && trap 'rm -rf "$t"' EXIT
+    cp "{{ repo_dir }}/csi-spl-wui/package.json" "{{ repo_dir }}/csi-spl-wui/pnpm-lock.yaml" "{{ repo_dir }}/csi-spl-wui/.npmrc" "$t/"
+    (cd "$t" && timeout 900 pnpm install --frozen-lockfile --ignore-scripts --reporter=silent </dev/null) \
+      || { echo "FAIL pnpm store warm-up from the WUI lockfile"; exit 1; }
+    echo "$st ${pm#pnpm@} store $(pnpm store path)"
   args:
     executable: /bin/bash
   become: true
-  become_user: "{{ agent_user }}"
+  become_user: "{{ item }}"
   register: pnpm_out
   changed_when: "'CHANGED' in pnpm_out.stdout"
 
@@ -58,6 +72,20 @@
   become_user: "{{ agent_user }}"
   register: lint_out
   changed_when: "'CHANGED' in lint_out.stdout"
+
+- name: The images the api gates run (do_pull_test_images), so hub-pg / hub-gcs never skip
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
+    cd "{{ repo_dir }}/csi-spl-iac" && timeout 1200 setsid -w ./run -a do_pull_test_images </dev/null >/tmp/satellite-test-images.log 2>&1 \
+      || { echo "FAIL do_pull_test_images: $(tail -n 3 /tmp/satellite-test-images.log | tr '\n' ' ')"; exit 1; }
+    grep -q ' pulled' /tmp/satellite-test-images.log && echo CHANGED || echo OK
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ owner_user }}"
+  register: images_out
+  changed_when: "'CHANGED' in images_out.stdout"
 
 - name: tpl-gen, the repo's do_setup_tpl_gen (https, with the token through a helper)
   ansible.builtin.shell: |

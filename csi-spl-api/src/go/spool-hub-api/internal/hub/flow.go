@@ -143,7 +143,8 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		}
 		body["events"], body["next"] = events, next
 	}
-	w.Header().Set("Cache-Control", "no-store")
+	// No Cache-Control of its own: etagViews tags it `private, no-cache`, so
+	// a repeat read of an unchanged flow is a 304 with no body (perf r4 G11).
 	writeJSON(w, http.StatusOK, body)
 }
 

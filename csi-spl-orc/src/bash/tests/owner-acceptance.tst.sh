@@ -89,12 +89,15 @@ fi
 # --- 6. pane-seen.sh ----------------------------------------------------------
 PS="$PROJ_ROOT/src/bash/scripts/pane-seen.sh"
 [[ -x "$PS" ]] && pass "pane-seen.sh is executable" || fail "pane-seen.sh is not executable"
+# SPOOL_TMUX_SOCK: a usage check that slips past arg parsing (the whitespace
+# needle is judged after the pane lookup) would otherwise list the BOX's live
+# tmux panes (CLE-77923, seen under strace).
 for bad in "--agent CLE-00" "--needle x" "--agent CLE-00 --needle x --timeout soon" "--agent CLE-00 --needle x --what"; do
-  out=$(bash "$PS" $bad 2>&1); rc=$?
+  out=$(SPOOL_TMUX_SOCK="$T/no-such.sock" bash "$PS" $bad 2>&1); rc=$?
   [[ $rc -eq 2 ]] && pass "pane-seen.sh refuses '$bad' with a usage error" ||
     fail "pane-seen.sh took '$bad' (rc=$rc): $out"
 done
-out=$(bash "$PS" --agent CLE-00 --needle '   ' --timeout 1 2>&1); rc=$?
+out=$(SPOOL_TMUX_SOCK="$T/no-such.sock" bash "$PS" --agent CLE-00 --needle '   ' --timeout 1 2>&1); rc=$?
 [[ $rc -eq 2 ]] && pass "pane-seen.sh refuses a needle that is only whitespace" ||
   fail "pane-seen.sh took an all-whitespace needle (rc=$rc)"
 

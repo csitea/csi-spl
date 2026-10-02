@@ -2,6 +2,17 @@
 # Run every *.tst.sh next to this file; exit non-zero if any fails.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
+# CLE-77923: no test may write the live spool root or ring a live pane. Under
+# SPOOL_TEST=1 spool-send.sh / agent-send.sh / spool-notify.sh refuse the live
+# root, poke no box tmux and relay nothing to the hub. A refusal is logged to
+# SPOOL_TEST_GUARD_LOG and fails the suite: callers often send 2>/dev/null, so
+# a test can pass while a send of its own tried to reach the live root.
+export SPOOL_TEST=1
+guard_own=0
+if [[ -z "${SPOOL_TEST_GUARD_LOG:-}" ]]; then
+  SPOOL_TEST_GUARD_LOG=$(mktemp); guard_own=1
+fi
+export SPOOL_TEST_GUARD_LOG
 fails=0 n=0
 for t in "$dir"/*.tst.sh; do
   [[ -f "$t" ]] || continue
@@ -10,4 +21,10 @@ for t in "$dir"/*.tst.sh; do
   bash "$t" || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
 done
 echo "=== $((n - fails))/$n test files passed"
+if [[ -s "$SPOOL_TEST_GUARD_LOG" ]]; then
+  echo "FAILED: a test reached for the live spool root (refused by the SPOOL_TEST guard):"
+  sed 's/^/  /' "$SPOOL_TEST_GUARD_LOG"
+  fails=$((fails + 1))
+fi
+(( guard_own )) && rm -f "$SPOOL_TEST_GUARD_LOG"
 [[ "$fails" -eq 0 ]]

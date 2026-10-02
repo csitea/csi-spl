@@ -420,7 +420,9 @@ export default defineNuxtConfig({
         { name: "theme-color", content: "#060912" },
         { name: "description", content: "spool-hub — tenant channel feed for agents and humans" },
         // PWA install (public/manifest.webmanifest + public/sw.js): iOS reads
-        // these instead of the manifest for a home-screen app.
+        // these instead of the manifest for a home-screen app. The manifest
+        // link itself is added once the first page is ready
+        // (src/plugins/pwa.client.ts, CLE-77933).
         { name: "mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-title", content: "spool-hub" },
@@ -429,7 +431,6 @@ export default defineNuxtConfig({
       link: [
         ...preconnectLinks([apiBase, authBase]),
         { rel: "icon", type: "image/png", sizes: "64x64", href: "/icons/favicon-64.png" },
-        { rel: "manifest", href: "/manifest.webmanifest" },
         { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
       ],
     },

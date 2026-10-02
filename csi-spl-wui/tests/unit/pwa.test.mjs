@@ -44,10 +44,15 @@ describe('pwa', () => {
     assert.doesNotMatch(cfg, /user-scalable=no|maximum-scale/, 'pinch zoom stays on')
   })
 
-  it('the head links the manifest and the apple touch icon', () => {
+  it('the head links the apple touch icon; the manifest is linked once the first page is ready', () => {
     const cfg = src('nuxt.config.ts')
-    assert.match(cfg, /rel: "manifest", href: "\/manifest\.webmanifest"/)
     assert.match(cfg, /rel: "apple-touch-icon", href: "\/icons\/apple-touch-icon\.png"/)
+    /* CLE-77933: in the document head Chrome fetched manifest + icon-192 before the rail */
+    assert.doesNotMatch(cfg, /rel: "manifest"/)
+    const p = src('src/plugins/pwa.client.ts')
+    assert.match(p, /const MANIFEST_HREF = '\/manifest\.webmanifest'/)
+    assert.match(p, /onNuxtReady\(\(\) => \{\s*if \(!document\.querySelector\('link\[rel="manifest"\]'\)\)/)
+    assert.match(p, /link\.rel = 'manifest'/)
   })
 
   it('the worker is registered only in a built bundle', () => {

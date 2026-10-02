@@ -660,17 +660,6 @@ func tenantAvatarsRead(tenant string, out map[string]string) tenantRead {
 		}}
 }
 
-// unverifyIdentity is a test hook: see Memory.unverifyIdentity.
-func (s *Postgres) unverifyIdentity(provider, subject string) {
-	s.pool.Exec(context.Background(), //nolint:errcheck
-		`UPDATE human_identities SET email_verified = false WHERE provider = $1 AND subject = $2`, provider, subject)
-}
-
-// disableHuman is a test hook (humans.disabled_at); no production caller yet.
-func (s *Postgres) disableHuman(humanID string) {
-	s.pool.Exec(context.Background(), `UPDATE humans SET disabled_at = now() WHERE human_id = $1`, humanID) //nolint:errcheck
-}
-
 // FederatedAccount is CLE-3451 defect 1's lookup: which IdPs already carry
 // this address, verified, on a human that is not disabled. The forgot-password
 // route uses it to mail "you sign in with Google" instead of falling silent;

@@ -634,25 +634,3 @@ func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]str
 	}
 	return out, nil
 }
-
-// unverifyIdentity is a test hook: it leaves the address on the identity but
-// clears human_identities.email_verified, the one shape no production path
-// writes today and the one CLE-3451's linking must refuse to merge on.
-func (s *Memory) unverifyIdentity(provider, subject string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	if row, ok := s.hum.identities[[2]string{provider, subject}]; ok {
-		row.verified = false
-	}
-}
-
-// disableHuman is a test hook (humans.disabled_at); no production caller yet.
-func (s *Memory) disableHuman(humanID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	if hm, ok := s.hum.humans[humanID]; ok {
-		hm.disabled = true
-	}
-}

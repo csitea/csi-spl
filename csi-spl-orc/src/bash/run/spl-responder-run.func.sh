@@ -96,22 +96,9 @@ do_spl_responder_run() {
     if [[ "$seen" == 1 ]]; then
       skipped=$((skipped + 1))
     else
-      # (a) the visible "Seen" reply into the topic, once per topic ever. The
-      # ledger line is written BEFORE the send: a crash between the two loses
-      # one "Seen" (the file to the orchestrator still goes), never doubles it.
-      printf '%s\n' "$task" >>"$d/seen-topics" ||
-        { do_log "FAIL $agent cannot record topic $task in $d/seen-topics; not replying"; fails=$((fails + 1)); continue; }
-      if ! ENV="$ENV" TENANT_ID="$tenant" DESK_AGENT="$agent" DESK_BOX="$box" \
-           DESK_TO="$frm" DESK_TASK="$task" DESK_ACK=1 \
-           DESK_BODY="Seen: routed to the team." DRY_RUN=0 do_spl_desk_reply >/dev/null 2>&1; then
-        do_log "FAIL $agent could not reply to $frm in $task (msg $mids)"; fails=$((fails + 1)); continue
-      fi
+      _spl_responder_seen_reply "$d" "$tenant" "$box" "$agent" "$frm" "$task" "$mids" || { fails=$((fails + 1)); continue; }
     fi
-    # (b) forward the escalation as a FILE to the orchestrator (never refused)
-    local body; body="$(printf 'Unheard human post escalated by the responder (%s, tenant %s).\nFrom %s, topic %s, msg %s.\nReply in the topic; the responder already posted "Seen".' "$agent" "$tenant" "$frm" "$task" "$mids")"
-    if ! bash "$send" --from "$agent" --to "$fwd" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
-      do_log "WARN $agent could not file msg $mids to $fwd (it is answered in-topic)"
-    fi
+    _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
     n=$((n + 1))
   done <<<"$rows"
   # A seen-only pass sent no reply, so nothing acked its inbox: ack it here.
@@ -123,6 +110,33 @@ do_spl_responder_run() {
 
   do_log "OK $agent ($tenant): handled $n topic(s), $skipped already seen (no second reply), $fails failed"
   (( fails == 0 ))
+}
+
+# _spl_responder_seen_reply <desk dir> <tenant> <box> <agent> <from> <task>
+# <msg ids>: (a) the visible "Seen" reply into the topic, once per topic ever.
+# The ledger line is written BEFORE the send: a crash between the two loses one
+# "Seen" (the file to the orchestrator still goes), never doubles it. 1 (with
+# the FAIL) when the ledger or the reply fails.
+_spl_responder_seen_reply() {
+  local d="$1" tenant="$2" box="$3" agent="$4" frm="$5" task="$6" mids="$7"
+  printf '%s\n' "$task" >>"$d/seen-topics" ||
+    { do_log "FAIL $agent cannot record topic $task in $d/seen-topics; not replying"; return 1; }
+  if ! ENV="$ENV" TENANT_ID="$tenant" DESK_AGENT="$agent" DESK_BOX="$box" \
+       DESK_TO="$frm" DESK_TASK="$task" DESK_ACK=1 \
+       DESK_BODY="Seen: routed to the team." DRY_RUN=0 do_spl_desk_reply >/dev/null 2>&1; then
+    do_log "FAIL $agent could not reply to $frm in $task (msg $mids)"; return 1
+  fi
+}
+
+# _spl_responder_forward <send script> <agent> <to> <tenant> <from> <task>
+# <msg ids>: (b) forward the escalation as a FILE to the orchestrator (never
+# refused); a failed send only warns - the topic already has its "Seen".
+_spl_responder_forward() {
+  local send="$1" agent="$2" fwd="$3" tenant="$4" frm="$5" task="$6" mids="$7" body
+  body="$(printf 'Unheard human post escalated by the responder (%s, tenant %s).\nFrom %s, topic %s, msg %s.\nReply in the topic; the responder already posted "Seen".' "$agent" "$tenant" "$frm" "$task" "$mids")"
+  if ! bash "$send" --from "$agent" --to "$fwd" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
+    do_log "WARN $agent could not file msg $mids to $fwd (it is answered in-topic)"
+  fi
 }
 
 # spl_responder_topics <recv file> <ledger> <outbox dir> <agent>: the inbox's

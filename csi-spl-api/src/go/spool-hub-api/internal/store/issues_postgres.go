@@ -39,36 +39,56 @@ func txPrefix(ctx context.Context, tx pgx.Tx, tenant string) (string, error) {
 	return p, err
 }
 
-// txIssueRefs checks labels and, with rule, the tree rule inside tx, and
-// derives i.Level (want: the caller's level, 0 none).
+// The reads txIssueRefs makes. The parent row is locked FOR SHARE, so it
+// cannot change kind (UpdateIssue locks FOR UPDATE) while an issue is being
+// put under it.
+const (
+	issueLabelCount = `SELECT count(*) FROM issue_labels WHERE tenant_id = $1 AND label_id = ANY($2)`
+	issueParentRef  = `SELECT p.kind, COALESCE(p.parent_number, 0), COALESCE(g.kind, '')
+		FROM issues p LEFT JOIN issues g ON g.tenant_id = p.tenant_id AND g.number = p.parent_number
+		WHERE p.tenant_id = $1 AND p.number = $2 AND p.deleted_at IS NULL AND p.archived_at IS NULL FOR SHARE OF p`
+)
+
+// labelCount reads issueLabelCount's row: ErrUnknownLabel when a label of i
+// does not exist.
+func labelCount(row pgx.Row, i *Issue) error {
+	var n int
+	if err := row.Scan(&n); err != nil {
+		return err
+	}
+	if n != len(i.Labels) {
+		return ErrUnknownLabel
+	}
+	return nil
+}
+
+// parentRef reads issueParentRef's row into r; no row leaves parentOK false.
+func parentRef(row pgx.Row, r *treeRefs) error {
+	var grand string
+	err := row.Scan(&r.parent.Kind, &r.parent.Parent, &grand)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return err
+	default:
+		r.parentOK = true
+		r.parentLevel2 = !r.parent.IsEpic() && (r.parent.Parent == 0 || (Issue{Kind: grand}).IsEpic())
+	}
+	return nil
+}
+
+// txIssueRefs checks labels and, with rule, the tree rule (SPL-18) inside tx,
+// and derives i.Level (want: the caller's level, 0 none).
 func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, want int) error {
 	if len(i.Labels) > 0 {
-		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM issue_labels WHERE tenant_id = $1 AND label_id = ANY($2)`,
-			i.TenantID, i.Labels).Scan(&n); err != nil {
+		if err := labelCount(tx.QueryRow(ctx, issueLabelCount, i.TenantID, i.Labels), i); err != nil {
 			return err
-		}
-		if n != len(i.Labels) {
-			return ErrUnknownLabel
 		}
 	}
-	// The tree rule (SPL-18). The parent row is locked FOR SHARE, so it
-	// cannot change kind (UpdateIssue locks FOR UPDATE) while an issue is
-	// being put under it.
 	r := treeRefs{wasEpic: wasEpic}
 	if i.Parent != 0 {
-		var grand string
-		err := tx.QueryRow(ctx, `SELECT p.kind, COALESCE(p.parent_number, 0), COALESCE(g.kind, '')
-			FROM issues p LEFT JOIN issues g ON g.tenant_id = p.tenant_id AND g.number = p.parent_number
-			WHERE p.tenant_id = $1 AND p.number = $2 AND p.deleted_at IS NULL AND p.archived_at IS NULL FOR SHARE OF p`,
-			i.TenantID, i.Parent).Scan(&r.parent.Kind, &r.parent.Parent, &grand)
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-		case err != nil:
+		if err := parentRef(tx.QueryRow(ctx, issueParentRef, i.TenantID, i.Parent), &r); err != nil {
 			return err
-		default:
-			r.parentOK = true
-			r.parentLevel2 = !r.parent.IsEpic() && (r.parent.Parent == 0 || (Issue{Kind: grand}).IsEpic())
 		}
 	}
 	if !rule {
@@ -103,38 +123,106 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 	}
 	now = now.UTC().Truncate(time.Microsecond)
 	stampStatus(&in, now)
-	var out Issue
-	err := s.inTenant(ctx, in.TenantID, func(tx pgx.Tx) error {
+	if err := checkTenant(in.TenantID); err != nil {
+		return Issue{}, err
+	}
+	c, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return Issue{}, err
+	}
+	defer c.Release() // a conn still inside a transaction is destroyed, never reused
+	out, err := createIssueOn(ctx, c.Conn(), in, now)
+	if err != nil && c.Conn().PgConn().TxStatus() != 'I' {
+		c.Exec(ctx, `ROLLBACK`) //nolint:errcheck
+	}
+	return out, pgIssueErr(err)
+}
+
+// createIssueOn is CreateIssue's transaction in TWO round trips (it took six
+// to eight under inTenant): one batch opens it, sets the tenant scope (local
+// to it, as inTenant's) and makes every read the checks need; the second
+// takes the number, inserts the row and commits. Each batch runs in queue
+// order and is read in that order, so the error returned is the one the
+// statement-at-a-time form returned: unknown tenant, then label, then the
+// tree rule. A failure leaves the transaction open for the caller's ROLLBACK.
+func createIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time) (Issue, error) {
+	b := &pgx.Batch{}
+	b.Queue(`BEGIN`)
+	b.Queue(pgScopeTenant, in.TenantID)
+	b.Queue(`SELECT EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)`, in.TenantID)
+	if len(in.Labels) > 0 {
+		b.Queue(issueLabelCount, in.TenantID, in.Labels)
+	}
+	if in.Parent != 0 {
+		b.Queue(issueParentRef, in.TenantID, in.Parent)
+	}
+	r := treeRefs{}
+	err := func() error {
+		br := conn.SendBatch(ctx, b)
+		defer br.Close()
+		for range 2 { // BEGIN, scope
+			if _, err := br.Exec(); err != nil {
+				return err
+			}
+		}
 		var ok bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)`, in.TenantID).Scan(&ok); err != nil {
+		if err := br.QueryRow().Scan(&ok); err != nil {
 			return err
 		}
 		if !ok {
 			return ErrNotFound
 		}
-		if err := txIssueRefs(ctx, tx, &in, true, false, in.Level); err != nil {
-			return err
+		if len(in.Labels) > 0 {
+			if err := labelCount(br.QueryRow(), &in); err != nil {
+				return err
+			}
 		}
-		// The counter row is the lock: two creates in one tenant serialize
-		// on it and never share a number.
-		var prefix string
-		if err := tx.QueryRow(ctx, `INSERT INTO issue_counters (tenant_id, last_number) VALUES ($1, 1)
-			ON CONFLICT (tenant_id) DO UPDATE SET last_number = issue_counters.last_number + 1
-			RETURNING last_number, prefix`, in.TenantID).Scan(&in.Number, &prefix); err != nil {
-			return err
+		if in.Parent != 0 {
+			if err := parentRef(br.QueryRow(), &r); err != nil {
+				return err
+			}
 		}
-		row := tx.QueryRow(ctx, `INSERT INTO issues (tenant_id, number, title, description, status, priority, level,
-				assignee, labels, deadline, parent_number, task_id, created_by, created_at, updated_by, updated_at,
-				completed_at, canceled_at, kind)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $14, $15, $16, $17)
-			RETURNING `+issueCols,
-			in.TenantID, in.Number, in.Title, in.Description, in.Status, in.Priority, in.Level, in.Assignee, in.Labels,
-			in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt, in.Kind)
-		var err error
-		out, err = scanIssue(row, in.TenantID, prefix)
-		return err
-	})
-	return out, pgIssueErr(err)
+		return br.Close()
+	}()
+	if err != nil {
+		return Issue{}, err
+	}
+	if err := treeRule(in, r); err != nil {
+		return Issue{}, err
+	}
+	if err := setLevel(&in, r, in.Level); err != nil {
+		return Issue{}, err
+	}
+	// The counter row is the lock: two creates in one tenant serialize on it
+	// and never share a number. The INSERT reads the number the upsert just
+	// wrote, in the same transaction.
+	b = &pgx.Batch{}
+	b.Queue(`INSERT INTO issue_counters (tenant_id, last_number) VALUES ($1, 1)
+		ON CONFLICT (tenant_id) DO UPDATE SET last_number = issue_counters.last_number + 1
+		RETURNING prefix`, in.TenantID)
+	b.Queue(`INSERT INTO issues (tenant_id, number, title, description, status, priority, level,
+			assignee, labels, deadline, parent_number, task_id, created_by, created_at, updated_by, updated_at,
+			completed_at, canceled_at, kind)
+		VALUES ($1, (SELECT last_number FROM issue_counters WHERE tenant_id = $1), $2, $3, $4, $5, $6, $7, $8, $9, $10,
+			$11, $12, $13, $12, $13, $14, $15, $16)
+		RETURNING `+issueCols,
+		in.TenantID, in.Title, in.Description, in.Status, in.Priority, in.Level, in.Assignee, in.Labels,
+		in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt, in.Kind)
+	b.Queue(`COMMIT`)
+	br := conn.SendBatch(ctx, b)
+	defer br.Close()
+	var prefix string
+	if err := br.QueryRow().Scan(&prefix); err != nil {
+		return Issue{}, err
+	}
+	out, err := scanIssue(br.QueryRow(), in.TenantID, prefix)
+	if err != nil {
+		return Issue{}, err
+	}
+	if _, err := br.Exec(); err != nil {
+		return Issue{}, err
+	}
+	return out, br.Close()
 }
 
 func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p IssuePatch, by string, now time.Time) (Issue, error) {

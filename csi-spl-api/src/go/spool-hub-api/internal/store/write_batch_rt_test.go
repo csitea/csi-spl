@@ -10,6 +10,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/url"
@@ -117,7 +118,8 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 
 	// Each probe's setup runs outside the count; only the call it returns is
 	// counted. budget bounds the median of n. Measured n=5 on ead5b2e3, one
-	// statement at a time: merge 12, create 6 plain / 8 with label + parent.
+	// statement at a time: merge 12, create 6 plain / 8 with label + parent;
+	// batched: merge 7, create 2 / 2.
 	probes := []struct {
 		name   string
 		budget int64
@@ -134,13 +136,13 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 				return err
 			}
 		}},
-		{"CreateIssue (plain)", 6, func() func() error {
+		{"CreateIssue (plain)", 2, func() func() error {
 			return func() error {
 				_, err := pg.CreateIssue(ctx, Issue{TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 				return err
 			}
 		}},
-		{"CreateIssue (label + parent)", 8, func() func() error {
+		{"CreateIssue (label + parent)", 2, func() func() error {
 			return func() error {
 				_, err := pg.CreateIssue(ctx, Issue{TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1",
 					Labels: []string{bug.LabelID}, Parent: epic.Number}, now)
@@ -167,5 +169,69 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 		if got[n/2] > p.budget {
 			t.Errorf("%s: median %d round trips, budget %d", p.name, got[n/2], p.budget)
 		}
+	}
+}
+
+// A create that fails between its two batches leaves no open transaction,
+// no tenant scope and no burned number on the connection: with a one-conn
+// pool every call below reuses the same connection.
+func TestCreateIssueBatchRollsBack(t *testing.T) {
+	dsn := os.Getenv("SPOOL_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("SPOOL_TEST_PG_DSN unset")
+	}
+	ctx := context.Background()
+	pg, err := OpenPostgres(ctx, dsn, PoolLimits{MaxConns: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pg.Close)
+	if _, err := Migrate(ctx, pg.Pool(), sqlDir(t)); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	a, b := newTenant(t, pg), newTenant(t, pg)
+	create := func(i Issue) (Issue, error) {
+		i.Title, i.TaskID, i.CreatedBy = "x", uuid4(), "HUM-1"
+		return pg.CreateIssue(ctx, i, now)
+	}
+	idle := func(after string) {
+		t.Helper()
+		var scope string
+		if err := pg.Pool().QueryRow(ctx, `SELECT COALESCE(current_setting('app.tenant_id', true), '')`).Scan(&scope); err != nil {
+			t.Fatalf("after %s: %v", after, err)
+		}
+		if scope != "" {
+			t.Fatalf("after %s: the connection still carries tenant scope %q", after, scope)
+		}
+	}
+	one, err := create(Issue{TenantID: a})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idle("a create")
+	for _, c := range []struct {
+		name string
+		in   Issue
+		want error
+	}{
+		{"unknown tenant", Issue{TenantID: uid("nope-")}, ErrNotFound},
+		{"unknown label", Issue{TenantID: a, Labels: []string{"nope"}}, ErrUnknownLabel},
+		{"unknown parent", Issue{TenantID: a, Parent: one.Number + 99}, ErrUnknownParent},
+	} {
+		if _, err := create(c.in); !errors.Is(err, c.want) {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.want)
+		}
+		idle(c.name)
+	}
+	two, err := create(Issue{TenantID: a})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if two.Number != one.Number+1 {
+		t.Fatalf("number after three failed creates = %d, want %d", two.Number, one.Number+1)
+	}
+	if first, err := create(Issue{TenantID: b}); err != nil || first.Number != 1 {
+		t.Fatalf("tenant b's first create = %d, %v; want 1", first.Number, err)
 	}
 }

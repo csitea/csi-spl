@@ -17,11 +17,11 @@ both machines.
 | leg | path | works | measured |
 |---|---|---|---|
 | PC -> sat | `ssh satellite` + `spool-send.sh` ON the satellite | yes | task to ack in 10 s (n=1) |
-| PC -> sat | hub relay (`spool-send.sh --to <ID>@sat` on the PC) | only when the SENDER is seated on the PC's desk | refused exit 13 for an unseated lane agent (n=1) |
-| sat -> PC | hub relay (`spool-send.sh --to <ID>@box-desk` on the satellite) | yes, sender seated | file in the PC inbox 6 s after the send (n=1) |
+| PC -> sat | hub relay (`spool-send.sh --to <ID>@sat` on the PC) | yes, for any agent in the PC's `registry.tsv` (since 90a78b17) | before: refused exit 13 for an unseated lane agent (n=1); after: see 1.4 |
+| sat -> PC | hub relay (`spool-send.sh --to <ID>@box-desk` on the satellite) | yes, for any agent in the satellite's `registry.tsv` (since 90a78b17) | file in the PC inbox 6 s after the send (n=1); after: see 1.4 |
 | sat -> PC | `ssh` back to the PC | no: the satellite has no route to the PC | - |
 
-### 1.1 PC -> satellite, from an agent that is NOT seated on the hub
+### 1.1 PC -> satellite by hand (superseded by 1.4, kept for a box whose sidecar is down)
 
 Give yourself a mailbox on the satellite once (a lane agent of the PC has none
 there):
@@ -51,9 +51,39 @@ On the satellite, from a seated agent (the trio):
 
     SPOOL_ROOT=/var/spool-hub bash $S/spool-send.sh --from CLE-001 --to CLE-001@box-desk --kind note --no-ask --body "<text>"
 
-Trap: the file that lands on the PC reads `"from":"CLE-001"` with no box, so
-CLE-001@box-desk sees a message from itself. Name the sending box in the body
-until the envelope carries it.
+Since 90a78b17 the file that lands on the PC reads `"from":"CLE-001@sat"`
+(before, it read `"from":"CLE-001"` and CLE-001@box-desk saw a message from
+itself).
+
+### 1.4 Any lane agent, either way (since 90a78b17)
+
+The box is the trust unit, not the seat. `spool-send.sh --to <ID>@<box>`
+from any agent with a row in its machine's `registry.tsv` crosses the hub:
+
+- `scripts/spool-fleet-relay.sh` sends a lane that is not seated on the desk
+  under a seated id of that desk (`SPOOL_FLEET_PROXY` in `box.env`, else the
+  lease's `LEASE_ORCH`, else the first seated id). An id that is neither
+  seated nor in `registry.tsv` is still refused, exit 13.
+- Every relayed body opens with `from_agent: <ID>@<box>`. The receiving
+  sidecar (`internal/spool` `WithFromAgent`) accepts the claim only for the
+  box whose pin signed the envelope, writes it as `from` and drops the line.
+  A sidecar older than 90a78b17 shows the line in the body instead.
+- The reply goes back with `--to <ID>@<box>` and lands in that machine's
+  `/var/spool-hub/<ID>/inbox` and rings the pane.
+- Trap: the reader must be 90a78b17 or newer too. An older `spool recv` counts
+  an `<ID>@<box>` from as "malformed message file(s) left" and shows nothing.
+  Rebuild with `bash csi-spl-api/src/bash/build.sh <the spool on PATH>` (done
+  2026-10-02 on both machines, for the box user and the agent user).
+- Trap: `--task` must be a UUID across machines. The prd hub stores `task_id`
+  as `uuid`, so `--task sat-relay-gaps` is refused `internal (message not
+  stored)`; a same-machine send accepts any string.
+
+Measured 2026-10-02, n=1 each way:
+
+| leg | msg_id | from in the receiver's inbox file |
+|---|---|---|
+| PC lane CLE-77963 -> CLE-100000@sat | `87020a44` | `CLE-77963@box-desk` |
+| sat lane CLE-100000 (registry row, not seated on the sat desk, sent under the proxy CLE-001) -> CLE-77963@box-desk | `8b3eaa99`, rang the PC pane | `CLE-100000@sat` |
 
 ## 2. Starting an execution agent on the satellite
 
@@ -117,9 +147,9 @@ Every manual step taken in sections 1..2. Input for the next lanes.
 
 | # | gap | done by hand | harness piece that removes it | size |
 |---|---|---|---|---|
-| 1 | PC -> sat hub relay refuses a sender not seated on the PC's desk (exit 13); lane agents are never seated | ssh + `spool-send.sh` on the satellite | the PC's sidecar relays for any agent in the local `registry.tsv` (the box is the trust unit), or seat lane agents at spawn | M |
-| 2 | a satellite agent cannot reply to a PC lane agent (same seat rule, other way) | gave the PC agent a mailbox on the satellite, read it over ssh | same as 1; until then `spool-send.sh --to <ID>@box-desk` falls back to a satellite-local mailbox | M |
-| 3 | relayed envelope drops the box: lands as `"from":"CLE-001"`, so CLE-001@box-desk reads a message from itself | named the box in the body | the relay writes `from` as `<ID>@<box>` (or a `from_box` field) | S |
+| 1 | **fixed 90a78b17** (1.4). PC -> sat hub relay refuses a sender not seated on the PC's desk (exit 13); lane agents are never seated | ssh + `spool-send.sh` on the satellite | the PC's sidecar relays for any agent in the local `registry.tsv` (the box is the trust unit), or seat lane agents at spawn | M |
+| 2 | **fixed 90a78b17** (1.4). A satellite agent cannot reply to a PC lane agent (same seat rule, other way) | gave the PC agent a mailbox on the satellite, read it over ssh | same as 1; until then `spool-send.sh --to <ID>@box-desk` falls back to a satellite-local mailbox | M |
+| 3 | **fixed 90a78b17** (1.3, 1.4). Relayed envelope drops the box: lands as `"from":"CLE-001"`, so CLE-001@box-desk reads a message from itself | named the box in the body | the relay writes `from` as `<ID>@<box>` (or a `from_box` field) | S |
 | 4 | every satellite command is `ssh satellite 'sudo -iu <BOX_USER> bash -lc "..."'`, three quoting levels, IAP NumPy warning on stderr | typed it per call | one named action `do_satellite_run CMD=...` (stdin passed through, IAP noise filtered) | S |
 | 5 | files to the satellite: `scp` cannot read a lane agent's private temp dir | piped over ssh into `install` | `do_satellite_run` takes stdin, or `do_satellite_put SRC= DST=` | S |
 | 6 | spawning on the satellite from the PC: copy brief + `spawn-window.sh` over ssh | 2 ssh calls | `spawn-window.sh --box sat` (or a `task` to the satellite's orchestrator that spawns) | M |

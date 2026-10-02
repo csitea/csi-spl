@@ -131,7 +131,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (e: "update:modelValue", v: string): void
+  "update:modelValue": [v: string]
 }>()
 
 const { locales, t } = useI18n({ useScope: "global" })

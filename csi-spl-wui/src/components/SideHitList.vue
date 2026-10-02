@@ -73,11 +73,11 @@ const props = defineProps<{
   rowTest?: string
 }>()
 const emit = defineEmits<{
-  (e: 'active', key: string): void
-  (e: 'open', key: string): void
-  (e: 'menu', key: string, ev: MouseEvent): void
-  (e: 'press', key: string, ev: PointerEvent): void
-  (e: 'keydown', ev: KeyboardEvent, key: string): void
+  active: [key: string]
+  open: [key: string]
+  menu: [key: string, ev: MouseEvent]
+  press: [key: string, ev: PointerEvent]
+  keydown: [ev: KeyboardEvent, key: string]
 }>()
 
 const listEl = ref<HTMLElement | null>(null)

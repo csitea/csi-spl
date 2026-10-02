@@ -429,75 +429,100 @@ func LoadHub() (*Hub, error) {
 	if h.Port != "" {
 		h.ListenAddr = ":" + h.Port
 	}
+	for _, check := range []func() error{h.checkStorage, h.checkLimits, h.checkViews, h.checkWUIKey} {
+		if err := check(); err != nil {
+			return nil, err
+		}
+	}
+	return &h, nil
+}
+
+// checkStorage validates the database, the file store and the tenant host pattern.
+func (h *Hub) checkStorage() error {
 	if h.DBDSN == "" {
-		return nil, fmt.Errorf("SPOOL_HUB_DB_DSN must be set (no default)")
+		return fmt.Errorf("SPOOL_HUB_DB_DSN must be set (no default)")
 	}
 	if h.DBMaxConns < 1 || h.DBMinConns < 0 || h.DBMinConns > h.DBMaxConns || h.DBMaxConnIdleTime <= 0 {
-		return nil, fmt.Errorf("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
+		return fmt.Errorf("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
 	}
 	if (h.FilesBucket == "") == (h.FilesDir == "") {
-		return nil, fmt.Errorf("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")
+		return fmt.Errorf("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")
 	}
 	if !strings.HasPrefix(h.TenantHostPattern, "{tenant}.") || len(h.TenantHostPattern) <= len("{tenant}.") {
-		return nil, fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)
+		return fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)
 	}
+	return nil
+}
+
+// checkLimits validates durations, edge limits, quotas, the message version, the locale and the CI/CD logs settings.
+func (h *Hub) checkLimits() error {
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
 		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.BillingGrace <= 0 {
-		return nil, fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
+		return fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
 	}
 	if h.TrustedProxyHops < 0 || h.EdgeWSConnsPerIP < 0 || h.EdgeWSConnsTotal < 0 ||
 		h.EdgeWSHandshakesPerIP < 0 || h.EdgeAuthPerIP < 0 || h.WSPingInterval < 0 {
-		return nil, fmt.Errorf("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
+		return fmt.Errorf("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
-		return nil, fmt.Errorf("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+		return fmt.Errorf("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
 	}
 	if !msg.IsSupported(h.MsgVersion) {
-		return nil, fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)
+		return fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)
 	}
 	if err := i18n.Validate("SPOOL_HUB_DEFAULT_LOCALE", h.DefaultLocale); err != nil {
-		return nil, err
+		return err
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
-		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")
+		return fmt.Errorf("hub quotas must be zero (unlimited) or positive")
 	}
 	if err := cicdlogs.ValidateHubEnv(h.CICDLogsEnabled, h.Env, h.CICDGitHubToken, h.CICDTenantTokens, h.CICDRepoAllowlist, h.CICDGitHubAPI, h.CICDFromBox, h.CICDFromID); err != nil {
-		return nil, err
+		return err
 	}
+	return nil
+}
+
+// checkViews validates the view door, the lobby task, the apex tenant and the CORS origins.
+func (h *Hub) checkViews() error {
 	switch h.ViewDoor {
 	case "token", "session":
 	case "off":
 		// Open reads in lde and dev (ORC decision 2026-09-18); prd, and any
 		// unnamed env, stay fail-closed.
 		if h.Env != "lde" && h.Env != "dev" {
-			return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
+			return fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
 		}
 	default:
-		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token, session or off", h.ViewDoor)
+		return fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token, session or off", h.ViewDoor)
 	}
 	if h.LobbyTaskID != "" && !uuidRe.MatchString(h.LobbyTaskID) {
-		return nil, fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)
+		return fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)
 	}
 	if h.WUIApexTenant != "" && (!h.WUITenantHosts || !tenantIDRe.MatchString(h.WUIApexTenant)) {
-		return nil, fmt.Errorf("SPOOL_HUB_WUI_APEX_TENANT %q needs SPOOL_HUB_WUI_TENANT_HOSTS=true and a tenant id", h.WUIApexTenant)
+		return fmt.Errorf("SPOOL_HUB_WUI_APEX_TENANT %q needs SPOOL_HUB_WUI_TENANT_HOSTS=true and a tenant id", h.WUIApexTenant)
 	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return nil
+}
+
+// checkWUIKey validates the WUI signing key against the env and the dispatch switch.
+func (h *Hub) checkWUIKey() error {
 	if h.WUIKeyEphemeral && h.Env != "lde" && h.Env != "dev" {
-		return nil, fmt.Errorf("SPOOL_HUB_WUI_KEY_EPHEMERAL=true is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
+		return fmt.Errorf("SPOOL_HUB_WUI_KEY_EPHEMERAL=true is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
 	}
 	if strings.TrimSpace(h.WUIKey) != "" {
 		if _, err := h.WUIPrivateKey(); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if h.WUIDispatch && strings.TrimSpace(h.WUIKey) == "" && !h.WUIKeyEphemeral {
-		return nil, fmt.Errorf("SPOOL_HUB_WUI_DISPATCH=true needs SPOOL_HUB_WUI_KEY (or SPOOL_HUB_WUI_KEY_EPHEMERAL=true in lde/dev)")
+		return fmt.Errorf("SPOOL_HUB_WUI_DISPATCH=true needs SPOOL_HUB_WUI_KEY (or SPOOL_HUB_WUI_KEY_EPHEMERAL=true in lde/dev)")
 	}
-	return &h, nil
+	return nil
 }
 
 // CheckKeysDir refuses a KeysDir that is SpoolRoot or lies inside it (FR-009,

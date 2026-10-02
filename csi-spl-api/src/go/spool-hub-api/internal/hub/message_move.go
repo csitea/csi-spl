@@ -313,7 +313,12 @@ func (s *Server) handleViewMove(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fanoutMove(ctx context.Context, tenant string, from, to store.EditableMessage, frame map[string]any) {
 	pf := parties{from.FromID, from.FromBox, from.ToID, from.ToBox}
 	oldMembers := s.channelMemberSet(ctx, tenant, from.Channel)
-	newMembers := s.channelMemberSet(ctx, tenant, to.Channel)
+	// A reply moved within its channel, or a promote, keeps the channel: one
+	// members read serves both ends (perf round 4 G1; wants only reads it).
+	newMembers := oldMembers
+	if to.Channel != from.Channel {
+		newMembers = s.channelMemberSet(ctx, tenant, to.Channel)
+	}
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {

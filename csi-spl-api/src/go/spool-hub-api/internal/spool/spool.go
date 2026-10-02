@@ -28,8 +28,23 @@ type Store struct{ cfg *config.Config }
 // New returns a Store over cfg.
 func New(cfg *config.Config) *Store { return &Store{cfg: cfg} }
 
-// ensureAgent creates <id>/{inbox,outbox,archive}.
+// ensureAgent creates <id>/{inbox,outbox,archive}. Under the qualified layout
+// (specs/058 6, SPOOL_DIR_LAYOUT=qualified + SPOOL_DESK_BOX) a NEW mailbox is
+// the dir <id>@<box> plus the compat symlink <id> -> <id>@<box>, so every
+// path built from the bare id keeps resolving; an existing <id> (dir or link)
+// is used as it is.
 func (s *Store) ensureAgent(id string) error {
+	if q := s.qualifiedDir(id); q != "" {
+		base := filepath.Join(s.cfg.SpoolRoot, id)
+		if _, err := os.Lstat(base); errors.Is(err, fs.ErrNotExist) {
+			if err := os.MkdirAll(filepath.Join(s.cfg.SpoolRoot, q), 0o775); err != nil {
+				return err
+			}
+			if err := os.Symlink(q, base); err != nil && !errors.Is(err, fs.ErrExist) {
+				return err
+			}
+		}
+	}
 	for _, d := range []string{"inbox", "outbox", "archive"} {
 		if err := os.MkdirAll(filepath.Join(s.cfg.SpoolRoot, id, d), 0o775); err != nil {
 			return err
@@ -39,6 +54,48 @@ func (s *Store) ensureAgent(id string) error {
 }
 
 func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoot, id, box) }
+
+// qualifiedDir is "<id>@<box>" when this root uses the qualified layout, else "".
+func (s *Store) qualifiedDir(id string) string {
+	if s.cfg.DirLayout != "qualified" || !msg.ValidBoxID(s.cfg.DeskBox) {
+		return ""
+	}
+	return id + "@" + s.cfg.DeskBox
+}
+
+// AgentDirID maps a $SPOOL_ROOT entry name to the agent id it holds: "<ID>"
+// (the bare layout) or "<ID>@<box>" (the qualified layout, specs/058 6).
+func AgentDirID(name string) (string, bool) {
+	id, box, qualified := strings.Cut(name, "@")
+	if !msg.ValidID(id) || (qualified && !msg.ValidBoxID(box)) {
+		return "", false
+	}
+	return id, true
+}
+
+// ScanAgents lists, sorted and each once, the agent ids that have a mailbox
+// DIR under root: "<ID>" or "<ID>@<box>". A symlink is never counted, so the
+// compat link <ID> -> <ID>@<box> does not list an agent twice. A missing root
+// is an empty list. This is the $SPOOL_ROOT/*/ scan of the hub-run roster.
+func ScanAgents(root string) ([]string, error) {
+	ents, err := os.ReadDir(root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, e := range ents {
+		if id, ok := AgentDirID(e.Name()); ok && e.IsDir() && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
 
 // ErrUnknownRecipient: a local-mode send to an id this root does not know
 // (specs/058 N1, O3). Before it, the send minted an orphan inbox for an agent
@@ -338,11 +395,12 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 	}
 	seen := map[string]*msg.Message{} // dedupe: same msg exists in inbox+outbox
 	for _, a := range agents {
-		if !a.IsDir() || !msg.ValidID(a.Name()) {
+		id, ok := AgentDirID(a.Name())
+		if !ok || !a.IsDir() {
 			continue
 		}
 		for _, box := range []string{"inbox", "outbox", "archive"} {
-			s.tailBox(s.dir(a.Name(), box), a.Name(), taskID, seen)
+			s.tailBox(filepath.Join(s.cfg.SpoolRoot, a.Name(), box), id, taskID, seen)
 		}
 	}
 	out := make([]*msg.Message, 0, len(seen))

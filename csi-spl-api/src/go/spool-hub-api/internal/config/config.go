@@ -57,6 +57,13 @@ type Config struct {
 	// exists, so a peer or a report from another machine reaches the inbox
 	// the agent reads with `spool recv`. Unset = no copy (hub, CI, tests).
 	FleetRoot string `env:"SPOOL_FLEET_ROOT"`
+	// DirLayout is the mailbox layout of SpoolRoot (specs/058 6): unset = bare
+	// "<ID>" dirs; "qualified" = a new mailbox is "<ID>@<DeskBox>" plus the
+	// compat symlink "<ID>". Both layouts are always READ.
+	DirLayout string `env:"SPOOL_DIR_LAYOUT"`
+	// DeskBox is this machine's desk box id (box.env SPOOL_DESK_BOX), the
+	// "<box>" of a qualified mailbox.
+	DeskBox string `env:"SPOOL_DESK_BOX"`
 	// MirrorLocal also hub-sends same-box mail: unset/0/false (default) or 1/true.
 	MirrorLocal string `env:"SPOOL_MIRROR_LOCAL"`
 	// Channels is the box's channel subscriptions (comma list of slugs) sent in

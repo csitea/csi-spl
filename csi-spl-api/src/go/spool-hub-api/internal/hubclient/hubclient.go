@@ -925,24 +925,9 @@ func (s *Session) FetchFile(ctx context.Context, fileID string) error {
 
 // ---- roster ------------------------------------------------------------------
 
-// scanAgents is the $SPOOL_ROOT/*/ dir scan (trust-modes §4.2).
-func (c *Client) scanAgents() ([]string, error) {
-	ents, err := os.ReadDir(c.Cfg.SpoolRoot)
-	if os.IsNotExist(err) {
-		return []string{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	out := []string{}
-	for _, e := range ents {
-		if e.IsDir() && msg.ValidID(e.Name()) {
-			out = append(out, e.Name())
-		}
-	}
-	sort.Strings(out)
-	return out, nil
-}
+// scanAgents is the $SPOOL_ROOT/*/ dir scan (trust-modes §4.2): "<ID>" and
+// "<ID>@<box>" dirs, each id once (specs/058 6).
+func (c *Client) scanAgents() ([]string, error) { return spool.ScanAgents(c.Cfg.SpoolRoot) }
 
 func (c *Client) rosterPath() string { return filepath.Join(c.Cfg.HubDir(), "roster.json") }
 

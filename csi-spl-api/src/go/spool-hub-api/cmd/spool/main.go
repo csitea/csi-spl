@@ -71,6 +71,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mcp"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -102,6 +103,7 @@ on a box (an agent's machine):
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
+  layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
 a box and its hub ($SPOOL_HUB_URL):
   hub-pin             pin (or --revoke) a box key at the hub, signed by the
@@ -221,6 +223,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
+	case "layout": // specs/058 6
+		return cmdLayout(cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
@@ -344,6 +348,19 @@ func cmdGet(cfg *config.Config, args []string, dir bool) int {
 		return fail(err)
 	}
 	fmt.Println(action.JSON(out))
+	return 0
+}
+
+// cmdLayout prints the ids the hub-run roster scan sees, one per line
+// (specs/058 6): the naming migration compares it before and after.
+func cmdLayout(cfg *config.Config) int {
+	ids, err := spool.ScanAgents(cfg.SpoolRoot)
+	if err != nil {
+		return fail(err)
+	}
+	for _, id := range ids {
+		fmt.Println(id)
+	}
 	return 0
 }
 

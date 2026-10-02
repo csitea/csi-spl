@@ -408,7 +408,7 @@ spool_dq_escape() {  # VAR STRING
 # tests/test-agent-name-shape.sh fails when a launcher writes another shape.
 spool_decorate() {  # ID
   local t="${SPOOL_BOX_TAG:-}"
-  [ -n "$t" ] || t="$(SPOOL_BOX_TAG=''; SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; _spool_box_env_load; printf '%s' "$SPOOL_BOX_TAG")"
+  [ -n "$t" ] || t="$(SPOOL_BOX_TAG=''; _spool_box_env_load; printf '%s' "$SPOOL_BOX_TAG")"
   if [ -z "$t" ]; then printf '%s' "$1"; else printf '%s@%s' "$1" "$t"; fi
 }
 

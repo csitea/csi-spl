@@ -5,7 +5,7 @@
 # SPOOL_AGENT_ID=<id>. An agent that does not is resumed in its own pane, same
 # session (--resume), through restore-claude-plain.sh, so the spool harness
 # exports SPOOL_AGENT_ID again and the CLI runs as the agent user. This is the
-# in-repo replacement of the one-off /var/tmp/claude/agent-id-restart.sh step 3,
+# in-repo replacement of the one-off agent-id-restart.sh (spec 061 L5) step 3,
 # which resumed with a bare `sudo su - <agent user> -c claude ...`: that dropped
 # SPOOL_AGENT_ID (the identity record then SKIPs the agent and the lease reads
 # it as dead) and kept the "<tag>: <id>" name.

@@ -38,7 +38,8 @@ do_spl_file_door_probe() {
     [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$b" != box-wui ]] || { do_log "FATAL '$b' is not a box id (box-wui is reserved)"; return 1; }
   done
   [[ "$box" != "$other" ]] || { do_log "FATAL PROBE_BOX and STRANGER_BOX must differ, both are '$box'"; return 1; }
-  [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
 
   local hub
   hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"

@@ -50,7 +50,8 @@ do_spl_box_msg_probe() {
   local label="${PROBE_LABEL:-message-to-db}" rkj="${ROOT_KEY_JSON:-}" ptask="${PROBE_TASK:-}"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL PROBE_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
   [[ "$label" =~ ^[A-Za-z0-9._\ -]{1,64}$ ]] || { do_log "FATAL PROBE_LABEL must be 1..64 of [A-Za-z0-9._ -]"; return 1; }
   [[ -z "$ptask" || "$ptask" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL PROBE_TASK must be a lowercase task UUID, got: '$ptask'"; return 1; }
   [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON must name the tenant's saved create JSON (got '$rkj')"; return 1; }

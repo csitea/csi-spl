@@ -30,9 +30,10 @@
 # sidecar announces.
 spl_desk_seated() {
   local a
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in "$1"/spool/*/; do
     a="${a%/}"; a="${a##*/}"
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ ]] && echo "$a"
+    [[ "$a" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] && echo "$a"
   done
   return 0
 }
@@ -45,7 +46,8 @@ do_spl_desk_down() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ -z "$agent" || "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ -z "$agent" ]] || spl_is_participant_id "$agent" || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 
   local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0
   pidf="$d/spool/.hub/hub-run.pid"

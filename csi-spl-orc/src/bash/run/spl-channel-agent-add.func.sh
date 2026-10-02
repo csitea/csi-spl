@@ -31,8 +31,9 @@ do_spl_channel_agent_add() {
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ -n "$agents" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in $agents; do
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ && "${a%%-*}" != BOX && "${a%%-*}" != HUM ]] || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
+    spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
   done
   [[ "${CHANNEL_CREATE:-0}" =~ ^[01]$ ]] || { do_log "FATAL CHANNEL_CREATE must be 0 or 1"; return 1; }
   local api

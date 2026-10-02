@@ -84,7 +84,7 @@ spl_asks_conf() {
   [[ -f "$f" ]] || return 0
   while IFS='=' read -r k v; do
     [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
-  done < <(grep -E '^(ASKS_(RERAISE_MIN|OWNER_MIN|OWNER|LOCK_MIN|MAX_RAISES)=[A-Za-z0-9-]+|LEASE_ORCH=[A-Z]{2,4}-[0-9]+)$' "$f")
+  done < <(grep -E "^(ASKS_(RERAISE_MIN|OWNER_MIN|OWNER|LOCK_MIN|MAX_RAISES)=[A-Za-z0-9-]+|LEASE_ORCH=${SPOOL_PARTICIPANT_RX})\$" "$f")
   return 0
 }
 
@@ -207,7 +207,7 @@ spl_asks_resolve() {
 spl_asks_by() {
   local by="${ASK_BY:-${SPOOL_AGENT_ID:-${LEASE_ORCH:-${SPOOL_ORCHESTRATOR_ID:-}}}}"
   [[ "$by" == *@* ]] || by="$by@$ASKS_BOX"
-  [[ "$by" =~ ^[A-Z]{2,4}-[0-9]{1,9}@[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL ASK_BY must be <ID>@<box>, got '$by'" >&2; return 1; }
+  { spl_is_participant_id "${by%@*}" && [[ "${by##*@}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; } || { do_log "FATAL ASK_BY must be <ID>@<box>, got '$by'" >&2; return 1; }
   printf '%s' "$by"
 }
 

@@ -26,11 +26,11 @@ do_spl_desk_mirror_check() {
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local auser="${SESSION_AGENT_USER:-${SPOOL_AGENT_USER:-$(id -un)}}"
-  spl_desk_validate "$tenant" "$box" "${agent:-CLE-0}" || return 1
+  spl_desk_validate "$tenant" "$box" "${agent:-none}" || return 1
   local d="$SPL_STATE_DIR/desk/$tenant/$box" ahome
   [[ -d "$d/spool" ]] || { do_log "FATAL no desk $box in $tenant ($d)"; return 1; }
   ahome="$(getent passwd "$auser" | cut -d: -f6)"
-  python3 - "$d" "$agent" "${ahome:-/nonexistent}/.claude/settings.json" <<'EOF_PY'
+  SPL_ID_RX="$SPOOL_PARTICIPANT_RX" python3 - "$d" "$agent" "${ahome:-/nonexistent}/.claude/settings.json" <<'EOF_PY'
 import glob, json, os, re, sys, time
 d, only, settings = sys.argv[1:]
 spool = os.path.join(d, "spool")
@@ -50,7 +50,7 @@ try:
 except OSError:
     hooked = None
 ids = [only] if only else sorted(os.path.basename(p) for p in glob.glob(os.path.join(spool, "*"))
-                               if re.match(r"^[A-Z]{2,4}-[0-9]+$", os.path.basename(p)) and os.path.isdir(p))
+                               if re.fullmatch(os.environ["SPL_ID_RX"], os.path.basename(p)) and os.path.isdir(p))
 def rd(p):
     try:
         return json.load(open(p))

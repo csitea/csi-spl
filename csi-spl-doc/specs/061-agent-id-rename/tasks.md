@@ -24,7 +24,7 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [ ] T022 L2 deploy WUI dev+prd; e2e on the generated bundle
 - [x] T030 L3a `spool-env.inc.sh`: `spl_is_agent_id`, `spl_is_participant_id`, `SPOOL_LEGACY_ID_UNTIL`, `SPOOL_NOW` + FR-005 pin test
 - [x] T031 L3a spawn-agents scripts, libs and python parsers use the helpers; window parsing accepts `c-NNN`
-- [ ] T032 L3b the about 40 `run/spl-*.func.sh` validators use the helpers (not the rotation files)
+- [x] T032 L3b the about 40 `run/spl-*.func.sh` validators use the helpers (not the rotation files)
 - [ ] T040 Deploy gate (FR-007): wave A and L1b dev+prd live, satellite pulled and `spool` rebuilt
 
 ## 2. Wave B: emit the new form

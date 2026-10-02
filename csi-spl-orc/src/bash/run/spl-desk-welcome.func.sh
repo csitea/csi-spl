@@ -263,7 +263,8 @@ for l in sys.stdin:
 spl_desk_greeter() {
   local g
   g="$(head -n 1 "$SPL_STATE_DIR/desk/$1/$2/greeter" 2>/dev/null | tr -d '[:space:]')"
-  [[ "$g" =~ ^[A-Z]{2,4}-[0-9]+$ && "${g%%-*}" != HUM && "${g%%-*}" != BOX ]] && printf '%s\n' "$g"
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ "$g" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${g%%-*}" != HUM && "${g%%-*}" != BOX ]] && printf '%s\n' "$g"
   return 0
 }
 

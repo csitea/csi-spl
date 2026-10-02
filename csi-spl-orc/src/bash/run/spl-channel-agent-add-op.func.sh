@@ -63,8 +63,9 @@ do_spl_channel_agent_add_op() {
   esac
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ -n "$agents" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in $agents; do
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ && "$a" != HUM-* && "${a%%-*}" != BOX ]] || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
+    spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
     [[ -n "${seen[$a]:-}" ]] && continue
     seen[$a]=1
     ids+=("$a")

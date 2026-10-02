@@ -55,8 +55,8 @@ do_spl_desk_rebox() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" step="${REBOX_STEP:-}" from="${FROM_BOX:-}" to="${TO_BOX:-$(spl_desk_box_default)}"
   [[ -n "$from" ]] || { do_log "FATAL FROM_BOX is required: the old box id this desk moves from (e.g. box-desk)"; return 1; }
-  spl_desk_validate "$tenant" "$from" CLE-0 || return 1
-  spl_desk_validate "$tenant" "$to" CLE-0 || return 1
+  spl_desk_validate "$tenant" "$from" none || return 1
+  spl_desk_validate "$tenant" "$to" none || return 1
   [[ "$to" != box-desk && "$to" != "$from" ]] ||
     { do_log "FATAL TO_BOX '$to' must be this machine's own box (box.env SPOOL_DESK_BOX), not box-desk and not FROM_BOX"; return 1; }
   case "$step" in
@@ -146,9 +146,10 @@ _spl_rebox_drain() {
 # files the hub-sync wrote.
 _spl_rebox_park() {
   local d="$1" dst="$1/rebox-retired/$2" e id n=0
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for e in "$d/spool"/*/; do
     id="$(basename "$e")"
-    [[ "$id" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || continue
+    [[ "$id" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] || continue
     if [[ "$3" == seated ]]; then
       grep -qx "$id" "$d/rebox-seated.txt" 2>/dev/null || echo "$id" >>"$d/rebox-seated.txt"
     else
@@ -162,10 +163,11 @@ _spl_rebox_park() {
 
 _spl_rebox_seat() {
   local tenant="$1" d="$SPL_REBOX_FROM" t="$SPL_REBOX_TO" id muted
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ -s "$d/rebox-seated.txt" ]] || { do_log "FATAL no $d/rebox-seated.txt: run REBOX_STEP=drain first"; return 1; }
   [[ -s "$t/pinned" ]] || { do_log "FATAL $3 is not pinned in $tenant: run REBOX_STEP=pin first"; return 1; }
   while IFS= read -r id; do
-    [[ "$id" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || continue
+    [[ "$id" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] || continue
     mkdir -p "$t/spool/$id/inbox" "$t/spool/$id/outbox" "$t/spool/$id/archive" || return 1
     muted="$(find "$d/rebox-retired" -path "*/$id/.no-poke" -print -quit 2>/dev/null)"
     [[ -n "$muted" ]] && : >"$t/spool/$id/.no-poke"

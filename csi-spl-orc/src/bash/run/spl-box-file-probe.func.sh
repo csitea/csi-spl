@@ -36,7 +36,8 @@ do_spl_box_file_probe() {
   local mib="${PROBE_FILE_MIB:-8}"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL PROBE_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
   [[ "$mib" =~ ^[0-9]+$ ]] && (( mib >= 1 && mib <= 32 )) || { do_log "FATAL PROBE_FILE_MIB must be 1..32 (the hub's per-file limit), got: '$mib'"; return 1; }
 
   local hub d="$SPL_STATE_DIR/probe/$tenant/$box"

@@ -20,7 +20,7 @@
 #------------------------------------------------------------------------------
 do_spl_desk_greeter() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" dry="${DRY_RUN:-1}" g="${DESK_GREETER:-}"
-  spl_desk_validate "$tenant" "$box" CLE-0 || return 1
+  spl_desk_validate "$tenant" "$box" none || return 1
   do_spl_cloud_cnf || return 1
   local d="$SPL_STATE_DIR/desk/$tenant/$box"
   [[ -d "$d" ]] || { do_log "FATAL no desk $box in $tenant on ${ENV:-?} ($d): run do_spl_desk_up first"; return 1; }
@@ -29,7 +29,8 @@ do_spl_desk_greeter() {
   cur="$(spl_desk_greeter "$tenant" "$box")"
   do_log "INFO greeter: ${cur:-(none - nobody greets)}"
   [[ -n "$g" ]] || { do_log "OK set DESK_GREETER to an agent id, or none to clear it"; return 0; }
-  [[ "$g" == none || ( "$g" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ && "${g%%-*}" != HUM && "${g%%-*}" != BOX ) ]] ||
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ "$g" == none ]] || spl_is_agent_id "$g" ||
     { do_log "FATAL DESK_GREETER '$g' is not an agent id (CLE-n, GRK-n, ...) or none"; return 1; }
   [[ "$g" == none || -d "$d/spool/$g" ]] ||
     do_log "WARN $g is not seated on $box in $tenant yet; it greets once it is seated and live"

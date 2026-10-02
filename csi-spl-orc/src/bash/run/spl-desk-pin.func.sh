@@ -45,7 +45,7 @@ do_spl_desk_pin() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" rkj="${ROOT_KEY_JSON:-}" other="${BOX_PUBKEY:-}"
   local revoke="${PIN_REVOKE:-0}"
   [[ "$revoke" == 0 || "$revoke" == 1 ]] || { do_log "FATAL PIN_REVOKE must be 0 or 1, got: '$revoke'"; return 1; }
-  spl_desk_validate "$tenant" "$box" CLE-0 || return 1
+  spl_desk_validate "$tenant" "$box" none || return 1
   local hub="$SPL_HUB_URL" d
   if [[ "$ENV" != self && -n "${SPOOL_HUB_URL:-}" && "${SPOOL_HUB_URL%/}" != "$hub" ]]; then
     do_log "FATAL SPOOL_HUB_URL=$SPOOL_HUB_URL but the $ENV cnf hub is $hub: pick the ENV whose hub that is, or ENV=self for a self-hosted hub"; return 1

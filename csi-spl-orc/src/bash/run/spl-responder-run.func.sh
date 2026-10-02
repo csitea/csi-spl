@@ -47,7 +47,8 @@ do_spl_responder_run() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-RSP-01}"
   local fwd="${RESP_FORWARD_TO:-CLE-001}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
-  [[ "$fwd" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL RESP_FORWARD_TO must be an agent id, got: '$fwd'"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "$fwd" || { do_log "FATAL RESP_FORWARD_TO must be an agent id, got: '$fwd'"; return 1; }
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local d="$SPL_STATE_DIR/desk/$tenant/$box" api_fqdn hub

@@ -89,6 +89,7 @@ do_spl_naming_migrate() {
 # ids 001-003 come last, 003 first and 001 at the very end.
 _spl_naming_ids() {
   local root="$1" box="$2" back="$3" e name
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for e in "$root"/*; do
     name="${e##*/}"
     if (( back )); then
@@ -97,7 +98,7 @@ _spl_naming_ids() {
     else
       [[ -d "$e" && ! -L "$e" ]] || continue
     fi
-    [[ "$name" =~ ^[A-Z]{2,4}-[0-9]+$ && "${name%%-*}" != BOX ]] && printf '%s\n' "$name"
+    [[ "$name" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${name%%-*}" != BOX ]] && printf '%s\n' "$name"
   done | awk '{ r = ($0 ~ /^[A-Z]+-00[1-3]$/) ? 4 - substr($0, length($0)) : 0; print r "\t" $0 }' |
     sort -t$'\t' -k1,1n -k2,2 | cut -f2
 }
@@ -106,10 +107,11 @@ _spl_naming_ids() {
 # a link (spool.ScanAgents' rule).
 _spl_naming_scan() {
   local e name
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for e in "$1"/*; do
     [[ -d "$e" && ! -L "$e" ]] || continue
     name="${e##*/}"; name="${name%%@*}"
-    [[ "$name" =~ ^[A-Z]{2,4}-[0-9]+$ ]] && printf '%s\n' "$name"
+    [[ "$name" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] && printf '%s\n' "$name"
   done | sort -u
 }
 

@@ -189,8 +189,9 @@ spl_dispatch_cnf() {
   DISPATCH_FAILOVER="${DISPATCH_FAILOVER:-CLE-003}"
   DISPATCH_ORCH="${DISPATCH_ORCH:-CLE-001}"
   local v
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for v in DISPATCH_MASTER DISPATCH_FAILOVER DISPATCH_ORCH; do
-    [[ "${!v}" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL $v is not an agent id: '${!v}'"; return 1; }
+    spl_is_participant_id "${!v}" || { do_log "FATAL $v is not an agent id: '${!v}'"; return 1; }
   done
   [[ "$DISPATCH_MASTER" != "$DISPATCH_FAILOVER" ]] || { do_log "FATAL master and failover are the same id"; return 1; }
   # the MAIN checkout, also when this runs from another worktree of it (the

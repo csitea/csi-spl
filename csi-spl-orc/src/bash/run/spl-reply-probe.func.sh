@@ -47,7 +47,8 @@ do_spl_reply_probe() {
   [[ "$wait" =~ ^[0-9]+$ ]] && (( wait >= 1 && wait <= 600 )) || { do_log "FATAL PROBE_WAIT_SECS must be 1..600, got: '$wait'"; return 1; }
   [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||
     { do_log "FATAL PROBE_BOX must be a throwaway box-* id (not box-wui / box-desk), got: '$box'"; return 1; }
-  [[ "$member" =~ ^[A-Z]{2,4}-[0-9]+$ && "${member%%-*}" != HUM ]] || { do_log "FATAL PROBE_MEMBER '$member' is not an agent id"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_agent_id "$member" || { do_log "FATAL PROBE_MEMBER '$member' is not an agent id"; return 1; }
   [[ "$to" =~ ^HUM-[0-9A-Za-z._@-]+$ ]] || { do_log "FATAL PROBE_OPEN_TO must be a person id (HUM-*), got: '$to'"; return 1; }
   local api
   spl_cnf_api_fqdn api || return 1

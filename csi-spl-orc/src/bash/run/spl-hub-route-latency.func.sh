@@ -66,8 +66,9 @@ spl_hub_route_latency_check_args() {
 # --format=json` array on stdin, printed as one row per (method, folded
 # route), or per (method, folded route + query shape) when query is 1.
 spl_hub_route_latency_table() {
-  python3 -c '
-import json, re, sys
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  SPL_ID_RX="$SPOOL_PARTICIPANT_RX" python3 -c '
+import json, os, re, sys
 from urllib.parse import urlparse, parse_qsl
 top = int(sys.argv[1])
 by_query = len(sys.argv) > 2 and sys.argv[2] == "1"
@@ -81,7 +82,7 @@ if not isinstance(entries, list) or not entries:
 FOLD = [
     (re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"), "{id}"),
     (re.compile(r"/[0-9a-f]{32,}(?=/|$)"), "/{hash}"),
-    (re.compile(r"/[A-Z]{2,4}-[0-9]+(?=/|$)"), "/{key}"),
+    (re.compile(r"/" + os.environ["SPL_ID_RX"] + r"(?=/|$)"), "/{key}"),
     (re.compile(r"/[0-9]+(?=/|$)"), "/{n}"),
 ]
 rows, revs, t0, t1 = {}, set(), None, None

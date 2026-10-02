@@ -24,8 +24,8 @@ do_spl_ask_put() {
   [[ -z "${ASK_DEADLINE:-}" || "$ASK_DEADLINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { do_log "FATAL ASK_DEADLINE must be RFC 3339 UTC, e.g. 2026-10-02T06:00:00Z"; return 1; }
   spl_asks_init || return 1
   local from="${ASK_FROM:-}"
-  [[ "$from" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ ]] && from="$from@$ASKS_BOX"
-  [[ "$from" =~ ^[A-Z]{2,4}-[0-9]{1,9}@[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL ASK_FROM must be <ID> or <ID>@<box>, got '${ASK_FROM:-}'"; return 1; }
+  [[ "$from" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] && from="$from@$ASKS_BOX"
+  { spl_is_participant_id "${from%@*}" && [[ "$from" =~ @[a-z0-9][a-z0-9-]{0,31}$ ]]; } || { do_log "FATAL ASK_FROM must be <ID> or <ID>@<box>, got '${ASK_FROM:-}'"; return 1; }
   spool_ask_journal_open "$ASK_ID" "$ASK_KIND" "$from" "${ASK_TO:-}" "${ASK_TOPIC:-}" \
     "$(spool_ask_summary "${ASK_SUMMARY:-}")" "${ASK_DEADLINE:-}" || { do_log "FATAL the journal did not take ask $ASK_ID"; return 1; }
   do_log "OK ask ${ASK_ID:0:8} journaled ($ASK_KIND from $from)"

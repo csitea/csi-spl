@@ -27,8 +27,9 @@ do_spl_tenant_responders() {
   [[ -n "${AGENTS:-}" ]] || { do_log "FATAL AGENTS must name agent ids (e.g. \"CLE-001 GRK-3\") or be none"; return 1; }
   if [[ "$AGENTS" != none ]]; then
     read -r -a list <<<"$AGENTS"
+    declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
     for a in "${list[@]}"; do
-      [[ "$a" =~ ^[A-Z]{2,4}-[0-9]{1,12}$ && "$a" != HUM-* ]] || { do_log "FATAL AGENTS entry is not an agent id: '$a'"; return 1; }
+      spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry is not an agent id: '$a'"; return 1; }
       [[ "$seen" != *" $a "* ]] || { do_log "FATAL AGENTS names $a twice"; return 1; }
       seen+="$a "
     done

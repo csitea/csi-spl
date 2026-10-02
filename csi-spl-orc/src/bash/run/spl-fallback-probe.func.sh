@@ -53,8 +53,9 @@ do_spl_fallback_probe() {
   [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||
     { do_log "FATAL PROBE_BOX must be a throwaway box-* id (not box-wui / box-desk), got: '$box'"; return 1; }
   local a
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in "$resp" "$member"; do
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ && "${a%%-*}" != HUM ]] || { do_log "FATAL '$a' is not an agent id"; return 1; }
+    spl_is_agent_id "$a" || { do_log "FATAL '$a' is not an agent id"; return 1; }
   done
   [[ "$resp" != "$member" ]] || { do_log "FATAL PROBE_RESPONDER and PROBE_MEMBER must differ"; return 1; }
   local api

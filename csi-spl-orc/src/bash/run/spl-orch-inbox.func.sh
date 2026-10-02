@@ -27,7 +27,8 @@
 do_spl_orch_inbox() {
   spl_asks_init || return 1
   local id="${ORCH_ID:-${LEASE_ORCH:-${SPOOL_ORCHESTRATOR_ID:-}}}" dir msgs rows
-  [[ "$id" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ ]] || { do_log "FATAL ORCH_ID must be an agent id, got '$id'"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "$id" || { do_log "FATAL ORCH_ID must be an agent id, got '$id'"; return 1; }
   dir="$(spl_orch_inbox_dir "$id")" || { do_log "FATAL no inbox for $id under $SPOOL_ROOT"; return 1; }
   spl_asks_sync_pending
   spl_asks_load || return 1

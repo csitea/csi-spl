@@ -89,8 +89,9 @@ do_spl_desk_install_service() {
   logdir="${DESK_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/desk-reconcile}"
 
   local mute="${DESK_MUTE:-}" line
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in $mute; do
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL DESK_MUTE holds '$a', which is not an agent id"; return 1; }
+    spl_is_participant_id "$a" || { do_log "FATAL DESK_MUTE holds '$a', which is not an agent id"; return 1; }
   done
   line="$(spl_desk_cron_build_line "$every" "$env_name" "$tenant" "$mute" "$src" "$script" "$logdir" "$tag")" || return 1
 

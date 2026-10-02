@@ -104,7 +104,7 @@ spl_asks_holder() {
     '') h="${LEASE_ORCH:-${SPOOL_ORCHESTRATOR_ID:-}}"; [[ -n "$h" ]] && h="$h@$ASKS_BOX" ;;
     *) h="$h@$ASKS_BOX" ;;
   esac
-  [[ "$h" =~ ^[A-Z]{2,4}-[0-9]{1,9}@[a-z0-9][a-z0-9-]{0,31}$ ]] && printf '%s' "$h"
+  [[ "$h" =~ ^${SPOOL_PARTICIPANT_RX}@[a-z0-9][a-z0-9-]{0,31}$ ]] && printf '%s' "$h"
   return 0
 }
 

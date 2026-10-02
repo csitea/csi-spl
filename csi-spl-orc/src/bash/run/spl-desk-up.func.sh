@@ -27,7 +27,7 @@
 # @param ENV - required: dev or prd, or self for a self-hosted hub (SPOOL_HUB_URL,
 # @param   no cnf: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant slug the agent is seated in
-# @param DESK_AGENT - required: the agent id of the pane, ^[A-Z]{2,4}-[0-9]+$
+# @param DESK_AGENT - required: the agent id of the pane (spl_is_agent_id)
 # @param ROOT_KEY_JSON - required on the FIRST run of a desk (the 0600 JSON
 # @param   do_spl_tenant_create wrote, field root_private_key); later runs reuse
 # @param   the pin and need no key
@@ -147,11 +147,13 @@ spl_desk_show_pane() {
 
 # spl_desk_validate <tenant> <box> <agent>: the shared id rules of the desk
 # actions. box-wui is the hub's own signing box and is never a desk.
+# An action that names no agent passes the agent as none.
 spl_desk_validate() {
   local tenant="$1" box="$2" agent="$3"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ && "${agent%%-*}" != BOX ]] || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ "$agent" == none ]] || spl_is_agent_id "$agent" || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 }
 
 # spl_desk_spool <state dir> <box> <tenant> <hub> -- <spool args>: the desk

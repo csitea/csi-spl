@@ -324,10 +324,11 @@ spl_desk_dead_agents() {
   local -a live=("$@")
   local root="$d/spool" e a l hit
   [[ -d "$root" ]] || return 0
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for e in "$root"/*; do
     [[ -d "$e" ]] || continue
     a="$(basename "$e")"
-    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ && "${a%%-*}" != BOX ]] || continue
+    [[ "$a" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${a%%-*}" != BOX ]] || continue
     hit=0
     for l in "${live[@]}"; do [[ "$l" == "$a" ]] && { hit=1; break; }; done
     (( hit )) || printf '%s\n' "$a"

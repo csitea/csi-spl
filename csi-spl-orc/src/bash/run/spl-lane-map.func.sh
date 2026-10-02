@@ -125,7 +125,8 @@ spl_lane_local_row() {
   local top="$1" wt="$2" br="$3" id
   [[ -n "$wt" && "$(dirname "$wt")" == "${top}-wt" ]] || return 0
   id="$(basename "$wt")"
-  [[ "$id" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ ]] || return 0
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ "$id" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] || return 0
   jq -n -c --arg a "$id" --arg b "$LANE_BOX" --arg r "$(basename "$top")" --arg br "$br" \
     '{agent_id: $a, agent_box: $b, repo: $r, branch: $br, scope: "", files: [], topic: "", state: "live", age_s: -1, src: "local"}'
 }

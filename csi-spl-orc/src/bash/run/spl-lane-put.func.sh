@@ -19,7 +19,8 @@ declare -F spl_lane_init >/dev/null ||
 
 do_spl_lane_put() {
   local state="${LANE_STATE:-live}" cur="" scope files
-  [[ "${LANE_AGENT:-}" =~ ^[A-Z]{2,4}-[0-9]{1,9}$ ]] || { do_log "FATAL LANE_AGENT must be an agent id like CLE-07, got '${LANE_AGENT:-}'"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_participant_id "${LANE_AGENT:-}" || { do_log "FATAL LANE_AGENT must be an agent id like CLE-07, got '${LANE_AGENT:-}'"; return 1; }
   [[ "$state" =~ ^(live|done)$ ]] || { do_log "FATAL LANE_STATE must be live or done"; return 1; }
   spl_lane_init || return 1
   if [[ "$LANE_MODE" != hub ]]; then

@@ -166,6 +166,7 @@ type Queued struct {
 type SweepResult struct {
 	Expired int // queued deliveries marked expired (TTL or per-box cap)
 	Purged  int // messages deleted past retention
+	Pruned  int // committed deliveries deleted past CommittedRetention (spec 059 S4)
 }
 
 // Store is the hub's persistence contract.

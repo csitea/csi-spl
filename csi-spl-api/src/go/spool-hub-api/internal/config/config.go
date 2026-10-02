@@ -258,6 +258,8 @@ type Hub struct {
 	QueueMaxPerBox    int           `env:"SPOOL_HUB_QUEUE_MAX_PER_BOX" envDefault:"1000"`
 	RetentionAlerts   time.Duration `env:"SPOOL_HUB_RETENTION_ALERTS" envDefault:"168h"`
 	RetentionChannels time.Duration `env:"SPOOL_HUB_RETENTION_CHANNELS" envDefault:"720h"`
+	// Spec 059 S4: a committed delivery row is pruned this long after its commit.
+	CommittedRetention time.Duration `env:"SPOOL_HUB_COMMITTED_RETENTION" envDefault:"720h"`
 	// SPL-987: an agent newly added to a channel is back-filled with the
 	// channel's topics active in the last BackfillWindow, newest BackfillMax
 	// messages at most. 0 max = no back-fill.
@@ -461,7 +463,7 @@ func (h *Hub) checkStorage() error {
 // checkLimits validates durations, edge limits, quotas, the message version, the locale and the CI/CD logs settings.
 func (h *Hub) checkLimits() error {
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
-		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.BillingGrace <= 0 {
+		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.CommittedRetention <= 0 || h.BillingGrace <= 0 {
 		return fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
 	}
 	if h.TrustedProxyHops < 0 || h.EdgeWSConnsPerIP < 0 || h.EdgeWSConnsTotal < 0 ||

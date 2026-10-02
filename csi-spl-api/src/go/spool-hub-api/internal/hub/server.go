@@ -413,8 +413,8 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 				s.o.Log.Error().Err(err).Msg("retention sweep")
 				continue
 			}
-			if r.Expired+r.Purged > 0 {
-				s.o.Log.Info().Int("expired", r.Expired).Int("purged", r.Purged).Msg("retention sweep")
+			if r.Expired+r.Purged+r.Pruned > 0 {
+				s.o.Log.Info().Int("expired", r.Expired).Int("purged", r.Purged).Int("pruned", r.Pruned).Msg("retention sweep")
 			}
 			s.sweepClones(ctx)
 			s.sweepMemberActivity(ctx) // CLE-77799: Activity-log auth-row retention

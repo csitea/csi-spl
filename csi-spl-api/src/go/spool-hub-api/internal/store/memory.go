@@ -411,7 +411,7 @@ func (s *Memory) Sweep(_ context.Context, now time.Time) (SweepResult, error) {
 			r.Purged++
 		}
 	}
-	return r, nil
+	return s.pruneCommittedLocked(now, r), nil
 }
 
 func (s *Memory) CountMessagesSince(_ context.Context, tenant string, since time.Time) (int, error) {

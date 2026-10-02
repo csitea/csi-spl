@@ -552,7 +552,7 @@ func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error
 			SELECT tenant_id, msg_id FROM messages WHERE expires_at <= $1 LIMIT $2)`); err != nil {
 		return SweepResult{}, err
 	}
-	return r, nil
+	return s.pruneCommitted(ctx, now, r)
 }
 
 // CountMessagesSince reads the trigger-kept counters (rdb 0023) when since is a

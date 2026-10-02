@@ -18,6 +18,8 @@ import (
 // it is added here with its reason, i.e. until someone has reviewed it.
 var operatorCallers = map[string]string{
 	"Sweep":               "retention sweeper (hub goroutine), global by design; no route",
+	"pruneCommitted":      "Sweep's committed-delivery prune (spec 059 S4), global by design; no route",
+	"ConsumerLag":         "consumer lag report (spec 059 S4), fleet-wide by design; no route",
 	"SweepClones":         "act-as clone expiry (hub sweeper goroutine), global by design; no route",
 	"SweepMemberActivity": "Activity-log auth-row retention sweep (hub sweeper goroutine), global by design; no route",
 	"SetTenantHost":       "tenant host reconciler (operator action / hub-tenant); no route",

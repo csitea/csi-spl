@@ -107,6 +107,7 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1

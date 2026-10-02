@@ -98,9 +98,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # plan: which envs, and which of them can authenticate yet
   # ---------------------------------------------------------------------------
+  # Not behind test: it mutates nothing. The deploy job waits for the suite
+  # itself, right before its first irreversible step (see "Wait for the suite").
   plan:
     name: Determine deploy targets
-    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -155,6 +156,15 @@ jobs:
   # ---------------------------------------------------------------------------
   # deploy: generate, render, deploy, probe -- per env
   # ---------------------------------------------------------------------------
+  # Overlaps the build with the suite, gates only the irreversible steps (perf
+  # round 4, C6). Measured 2026-10-02 (n=12): test 79 s (median), and only
+  # then did each leg start, install and run nuxt generate (37/38 s). Now the
+  # leg starts beside the suite and generates with the version
+  # do_release_version PREDICTS (a dry run, claims nothing); then "Wait for the
+  # suite" polls this run's test job and fails the leg unless it is green, so
+  # a red suite still blocks the mint, the hub wait and the firebase deploy.
+  # When the mint differs from the prediction (another commit took that
+  # version first), the bundle is generated again with the minted one.
   deploy:
     name: Deploy WUI to ${{ matrix.environment }}
     needs: plan
@@ -248,6 +258,56 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: csi-spl-wui
 
+      - name: Predict the release version (do_release_version dry run, claims nothing)
+        id: pre
+        run: |
+          set -euo pipefail
+          v="$(RELEASE_SHA="$GITHUB_SHA" DRY_RUN=1 ./csi-spl-orc/run -a do_release_version | grep -xE '[0-9]\.[0-9]\.[0-9]' | tail -1)" || v=""
+          # no prediction is not fatal: the generate after the mint then runs
+          [[ -n "$v" ]] || { echo "::warning::no release version predicted: generating again after the mint"; exit 0; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "predicted release version $v"
+
+      # Reads go to the API host (specs/026: tenant from the session, no
+      # per-tenant host); NUXT_PUBLIC_TENANT is only what sign-in binds.
+      - name: nuxt generate (beside the suite, predicted version)
+        working-directory: csi-spl-wui
+        env:
+          NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
+          NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
+          NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
+          NUXT_PUBLIC_USE_MOCK: "0"
+          NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
+          NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
+          # absolute base for the hreflang alternates (spec 021)
+          NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
+          # signed-out bar title: spool-dev / spool-hub
+          NUXT_PUBLIC_ENV_NAME: ${{ matrix.environment }}
+          # the footer version: the predicted one; regenerated below if the
+          # mint differs
+          NUXT_PUBLIC_APP_VERSION: ${{ steps.pre.outputs.version }}
+        run: pnpm run generate
+
+      # THE gate: everything above is a local build, everything below claims
+      # a tag or touches the site. Polls this run's test job (the latest
+      # attempt of it); anything but a green finish fails the leg here.
+      - name: Wait for the suite (test job green, else no mint and no deploy)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_JOB: WUI unit tests + typecheck
+        run: |
+          set -uo pipefail
+          for _ in $(seq 1 180); do
+            st="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+              --jq ".jobs[] | select(.name == \"$TEST_JOB\") | \"\(.status) \(.conclusion)\"" 2>/dev/null)" || st=""
+            case "$st" in
+              "completed success") echo "test job green"; exit 0 ;;
+              completed\ *) echo "::error::test job finished '${st#completed }': no mint, no deploy"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo "::error::test job not finished after 15 min: no mint, no deploy"; exit 1
+
       # The version this deploy shows in the footer, minted by CI for this
       # commit (a v<X.Y.Z> tag; the hub deploy of the same commit reuses it).
       # Nobody rolls a version by hand any more.
@@ -290,10 +350,9 @@ jobs:
           ((rc == 0)) || exit "$rc"
           grep -q '^version=[0-9]\.[0-9]\.[0-9]$' "$GITHUB_OUTPUT" || { echo "::error::no release version minted"; exit 1; }
 
-      # Reads go to the API host (specs/026: tenant from the session, no
-      # per-tenant host); NUXT_PUBLIC_TENANT is only what sign-in binds.
-      - name: nuxt generate
-        if: steps.ver.outputs.stale != 'true'
+      # Only when another commit took the predicted version first.
+      - name: nuxt generate again (the mint differs from the prediction)
+        if: steps.ver.outputs.stale != 'true' && steps.ver.outputs.version != steps.pre.outputs.version
         working-directory: csi-spl-wui
         env:
           NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}

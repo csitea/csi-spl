@@ -123,9 +123,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # prepare-deploy: which envs, and which of them can authenticate yet
   # ---------------------------------------------------------------------------
+  # Not behind test: it mutates nothing, and prebuild needs its targets while
+  # the suite still runs. The deploy job itself still needs test.
   prepare-deploy:
     name: Determine deploy targets
-    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -176,12 +177,165 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # deploy: push the cnf-named image if absent, roll 030 to it, verify
+  # prebuild: build the image ONCE, while the suite runs (perf round 4, C6)
   # ---------------------------------------------------------------------------
-  deploy:
-    name: Deploy hub to ${{ matrix.environment }}
+  # Measured 2026-10-02 (n=12): the suite takes 304 s (median), and only then
+  # did each deploy leg build + push its own copy of the same image (dev 52 s,
+  # prd 50 s). The image is env-independent (one Dockerfile, one DDL dir, one
+  # migrations path; the build step below checks that per env), so this job
+  # builds it once, beside the suite, and pushes it to every target env's
+  # registry under a tag nothing ever rolls:   ci-<sha>-v<predicted version>
+  # The prediction is do_release_version's dry run, which claims nothing. The
+  # real mint stays in the deploy job, behind the green suite; when it equals
+  # the prediction the deploy adds the <version> tag to that digest (a tag add,
+  # no rebuild), and when another commit took that version first it falls back
+  # to its own build + push. So a red suite still blocks the mint and the roll;
+  # all it leaves is a ci-* image that nothing runs. Best effort: a failure
+  # here costs the overlap, never the deploy (continue-on-error).
+  prebuild:
+    name: Prebuild hub image (beside the suite)
     needs: prepare-deploy
     if: needs.prepare-deploy.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    env:
+      ENVS: ${{ needs.prepare-deploy.outputs.envs }}
+      HAS_KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+      HAS_KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0  # the prediction reads the v-tags and this commit's
+
+      - name: Predict the release version (do_release_version dry run, claims nothing)
+        id: pre
+        run: |
+          set -euo pipefail
+          v="$(RELEASE_SHA="$GITHUB_SHA" DRY_RUN=1 ./csi-spl-orc/run -a do_release_version | grep -xE '[0-9]\.[0-9]\.[0-9]' | tail -1)" || v=""
+          [[ -n "$v" ]] || { echo "::error::no release version predicted"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "predicted release version $v"
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      # Builds as the first target env (DRY_RUN=1: build only, no cloud) with
+      # the predicted version baked in, and writes the helper the per-env
+      # push steps below call.
+      - name: Build the image once (do_build_push_hub_image, DRY_RUN=1)
+        env:
+          SPL_HUB_IMAGE_TAG: ${{ steps.pre.outputs.version }}
+        run: |
+          set -euo pipefail
+          cnf() {  # <env> -> "<cnf image ref> <project> <sql src>|<migrations dir>"
+            ENV="$1" APP_PATH="$GITHUB_WORKSPACE" PROJ_PATH="$GITHUB_WORKSPACE/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+              set -euo pipefail
+              do_log() { echo "$*" >&2; }
+              source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+              do_spl_cloud_cnf
+              echo "$SPL_IMAGE_CNF_REF $SPL_PROJECT $SPL_IMAGE_SQL_SRC|$SPL_MIGRATIONS_DIR"'
+          }
+          first="" inputs=""
+          for e in $(jq -r '.[]' <<<"$ENVS"); do
+            row="$(cnf "$e")"
+            read -r ref project inp <<<"$row"
+            [[ -n "$inp" ]] || { echo "::error::cannot read the $e image inputs from cnf"; exit 1; }
+            [[ -z "$inputs" || "$inp" == "$inputs" ]] \
+              || { echo "::error::the $e image inputs ($inp) differ from $first's ($inputs): no shared build"; exit 1; }
+            [[ -n "$first" ]] || first="$e"
+            inputs="$inp"
+            echo "$e $ref $project" >> "$RUNNER_TEMP/targets"
+          done
+          ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
+          ENV="$first" DRY_RUN=1 ./csi-spl-orc/run -a do_build_push_hub_image
+          read -r _ ref _ < "$RUNNER_TEMP/targets"
+          echo "LOCAL_IMAGE=${ref%:*}:$SPL_HUB_IMAGE_TAG" >> "$GITHUB_ENV"
+          # push-prebuilt <env> <identity>: tag the local image
+          # ci-<sha>-v<version> in that env's registry and push it with a
+          # throwaway DOCKER_CONFIG (as do_build_push_hub_image does); a
+          # re-run finds it there and pushes nothing
+          cat > "$RUNNER_TEMP/push-prebuilt.sh" <<'SH'
+          set -euo pipefail
+          e="$1" sa="$2"
+          read -r _ ref project < <(grep "^$e " "$RUNNER_TEMP/targets")
+          pre="${ref%:*}:ci-${GITHUB_SHA}-v${LOCAL_IMAGE##*:}"
+          if gcloud artifacts docker images describe "$pre" --project "$project" --account="$sa" >/dev/null 2>&1; then
+            echo "::notice::$pre is already in the $e registry"; exit 0
+          fi
+          docker tag "$LOCAL_IMAGE" "$pre"
+          dcfg="$(mktemp -d)"; trap 'rm -rf "$dcfg"' EXIT
+          gcloud auth print-access-token --account="$sa" |
+            DOCKER_CONFIG="$dcfg" docker login -u oauth2accesstoken --password-stdin "https://${pre%%/*}" >/dev/null
+          DOCKER_CONFIG="$dcfg" docker push -q "$pre"
+          echo "pushed $pre"
+          SH
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      # dev, then prd: each env pushes as its OWN identity (key, else WIF),
+      # the one its deploy leg uses; the prd auth replaces the dev one.
+      - name: Authenticate to Google Cloud (dev, project key)
+        if: contains(env.ENVS, '"dev"') && env.HAS_KEY_DEV == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+
+      - name: Authenticate to Google Cloud (dev, WIF alternative)
+        if: contains(env.ENVS, '"dev"') && env.HAS_KEY_DEV != 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+
+      - name: Push the prebuilt image to dev (ci-<sha>-v<version>)
+        if: contains(env.ENVS, '"dev"')
+        env:
+          WIF_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+        run: |
+          set -euo pipefail
+          read -r _ _ p < <(grep '^dev ' "$RUNNER_TEMP/targets")
+          if [[ "$HAS_KEY_DEV" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
+          bash "$RUNNER_TEMP/push-prebuilt.sh" dev "$sa"
+
+      - name: Authenticate to Google Cloud (prd, project key)
+        if: contains(env.ENVS, '"prd"') && env.HAS_KEY_PRD == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+
+      - name: Authenticate to Google Cloud (prd, WIF alternative)
+        if: contains(env.ENVS, '"prd"') && env.HAS_KEY_PRD != 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_PRD }}
+          service_account: ${{ vars.GCP_DEPLOY_SA_EMAIL_PRD }}
+
+      - name: Push the prebuilt image to prd (ci-<sha>-v<version>)
+        if: contains(env.ENVS, '"prd"')
+        env:
+          WIF_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL_PRD }}
+        run: |
+          set -euo pipefail
+          read -r _ _ p < <(grep '^prd ' "$RUNNER_TEMP/targets")
+          if [[ "$HAS_KEY_PRD" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
+          bash "$RUNNER_TEMP/push-prebuilt.sh" prd "$sa"
+
+  # ---------------------------------------------------------------------------
+  # deploy: push the cnf-named image if absent, roll 030 to it, verify
+  # ---------------------------------------------------------------------------
+  # Gated on the suite (needs test); prebuild only shortens it. !cancelled()
+  # rather than the default success(): a failed or skipped prebuild must not
+  # skip the deploy, which then builds the image itself.
+  deploy:
+    name: Deploy hub to ${{ matrix.environment }}
+    needs: [test, prepare-deploy, prebuild]
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.prepare-deploy.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # THE serialisation point: one mutation per env's service at a time; an
@@ -365,11 +519,24 @@ jobs:
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
           set -uo pipefail
+          # prebuild's copy of this commit, built with the version it predicted
+          pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${IMAGE_REF##*:}"
           if out="$(gcloud artifacts docker images describe "$IMAGE_REF" --project "$GCP_PROJECT" --format='value(image_summary.digest)' 2>&1)"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "::notice::$IMAGE_REF is already in the registry ($out): this commit's version was built before (a re-run, the other env, or a rollback), so nothing is rebuilt."
           elif grep -qiE 'not.?found|NOT_FOUND' <<<"$out"; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            # The prediction came true: give prebuild's digest the minted tag
+            # (no rebuild). Otherwise (no prebuild, or another commit took the
+            # predicted version) build + push below, as before.
+            if gcloud artifacts docker images describe "$pre" --project "$GCP_PROJECT" --format='value(image_summary.digest)' >/dev/null 2>&1 \
+              && gcloud artifacts docker tags add "$pre" "$IMAGE_REF" --quiet; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "promoted=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::$IMAGE_REF = prebuilt $pre (built beside the suite): nothing is rebuilt."
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "no prebuilt $pre: building here"
+            fi
           else
             echo "::error::cannot read $IMAGE_REF from the registry (is 028 applied, does $DEPLOY_SA hold artifactregistry.reader?):"
             echo "$out" | tail -5
@@ -478,6 +645,7 @@ jobs:
         env:
           OK: ${{ steps.guard.outputs.ok }}
           EXISTS: ${{ steps.img.outputs.exists }}
+          PROMOTED: ${{ steps.img.outputs.promoted }}
           ROLLED: ${{ steps.deploy.outputs.rolled }}
           IMAGE_REF: ${{ steps.ver.outputs.image_ref || steps.cfg.outputs.image_ref }}
           VERSION: ${{ steps.ver.outputs.version }}
@@ -497,6 +665,7 @@ jobs:
             echo "| **Forward guard** | ${OK:-n/a} |"
             echo "| **Stood down (stale target, trunk head dispatched)** | ${STALE:-false} |"
             echo "| **Image already existed** | ${EXISTS:-n/a} |"
+            echo "| **Prebuilt image promoted** | ${PROMOTED:-false} |"
             echo "| **Service rolled** | ${ROLLED:-n/a} |"
             echo "| **Git SHA** | \`$GITHUB_SHA\` |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -509,8 +678,8 @@ jobs:
   # warning inside 22, a wrong answer is red. Not run when the tests failed.
   verify:
     name: Post-deploy smoke
-    needs: [prepare-deploy, deploy]
-    if: always() && needs.prepare-deploy.result == 'success'
+    needs: [test, prepare-deploy, deploy]
+    if: always() && needs.test.result == 'success' && needs.prepare-deploy.result == 'success'
     permissions:
       contents: read
     uses: ./.github/workflows/22_deploy-verify.yml

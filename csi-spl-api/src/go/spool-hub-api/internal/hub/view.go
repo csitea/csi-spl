@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1033,7 +1034,187 @@ func viewDeliveries(ds []store.ViewDelivery) *[]viewDelivery {
 // msg.files, and no msg.task_id when it is topic ("" keeps it). Only the
 // view JSON is trimmed: the stored row, the WS frame and the spool keep the
 // signed envelope whole. An envelope it cannot read passes through as is.
+//
+// It rewrites env in one pass (perf round 4, G9) instead of decoding it into
+// maps and encoding them back; trimEnvMap is that reference, byte for byte,
+// and still handles what the one pass declines.
 func trimEnv(env []byte, topic string) json.RawMessage {
+	if b, ok := trimEnvFast(env, topic); ok {
+		return b
+	}
+	return trimEnvMap(env, topic)
+}
+
+// envMember is one member of a JSON object: its raw key (quotes stripped)
+// and its raw value.
+type envMember struct{ key, val []byte }
+
+// trimEnvFast is trimEnv without maps. It returns what json.Marshal of the
+// trimmed maps returns - keys sorted, values compacted with HTML escaping -
+// and declines (false) a document that is not valid JSON, not an object, or
+// has an object (top or msg) with a repeated key or a key that is not plain
+// printable ASCII free of <, > and &.
+func trimEnvFast(env []byte, topic string) (json.RawMessage, bool) {
+	if !json.Valid(env) {
+		return nil, false
+	}
+	var topBuf, msgBuf [16]envMember
+	top, ok := envMembers(topBuf[:0], env)
+	if !ok {
+		return nil, false
+	}
+	out := make([]byte, 0, len(env))
+	out = append(out, '{')
+	for _, m := range top {
+		if string(m.key) == "sig" {
+			continue
+		}
+		if len(out) > 1 {
+			out = append(out, ',')
+		}
+		out = append(append(append(out, '"'), m.key...), '"', ':')
+		if string(m.key) != "msg" || m.val[0] != '{' {
+			out = appendCompactHTML(out, m.val)
+			continue
+		}
+		inner, ok := envMembers(msgBuf[:0], m.val)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, '{')
+		first := true
+		for _, f := range inner {
+			if string(f.key) == "files" && string(f.val) == "[]" ||
+				string(f.key) == "task_id" && topic != "" && envStringIs(f.val, topic) {
+				continue
+			}
+			if !first {
+				out = append(out, ',')
+			}
+			first = false
+			out = append(append(append(out, '"'), f.key...), '"', ':')
+			out = appendCompactHTML(out, f.val)
+		}
+		out = append(out, '}')
+	}
+	return append(out, '}'), true
+}
+
+// envMembers appends the members of the object obj (valid JSON) to ms,
+// sorted by key; false when obj is not an object or a key is repeated or
+// not plain (see trimEnvFast).
+func envMembers(ms []envMember, obj []byte) ([]envMember, bool) {
+	i := envSkipWS(obj, 0)
+	if i >= len(obj) || obj[i] != '{' {
+		return nil, false
+	}
+	for i = envSkipWS(obj, i+1); i < len(obj) && obj[i] == '"'; {
+		end := envSkipValue(obj, i)
+		key := obj[i+1 : end-1]
+		for _, b := range key {
+			if b < 0x20 || b > 0x7e || b == '"' || b == '\\' || b == '<' || b == '>' || b == '&' {
+				return nil, false
+			}
+		}
+		at := envSkipWS(obj, envSkipWS(obj, end)+1) // past the ':'
+		end = envSkipValue(obj, at)
+		ms = append(ms, envMember{key: key, val: obj[at:end]})
+		if i = envSkipWS(obj, end); i < len(obj) && obj[i] == ',' {
+			i = envSkipWS(obj, i+1)
+		}
+	}
+	slices.SortFunc(ms, func(a, b envMember) int { return bytes.Compare(a.key, b.key) })
+	for k := 1; k < len(ms); k++ {
+		if bytes.Equal(ms[k-1].key, ms[k].key) {
+			return nil, false
+		}
+	}
+	return ms, true
+}
+
+// envStringIs: the JSON value v is a string that decodes to s.
+func envStringIs(v []byte, s string) bool {
+	if len(v) < 2 || v[0] != '"' {
+		return false
+	}
+	if bytes.IndexByte(v, '\\') < 0 && utf8.Valid(v) {
+		return string(v[1:len(v)-1]) == s
+	}
+	var id string
+	return json.Unmarshal(v, &id) == nil && id == s
+}
+
+// appendCompactHTML appends the valid JSON value v as json.Marshal writes a
+// json.RawMessage: whitespace outside strings dropped, <, >, &, U+2028 and
+// U+2029 escaped.
+func appendCompactHTML(dst, v []byte) []byte {
+	const hex = "0123456789abcdef"
+	inStr := false
+	for i := 0; i < len(v); i++ {
+		switch c := v[i]; {
+		case c == '<' || c == '>' || c == '&':
+			dst = append(dst, '\\', 'u', '0', '0', hex[c>>4], hex[c&0xF])
+		case c == 0xE2 && i+2 < len(v) && v[i+1] == 0x80 && v[i+2]&^1 == 0xA8:
+			dst = append(dst, '\\', 'u', '2', '0', '2', hex[v[i+2]&0xF])
+			i += 2
+		case inStr:
+			dst = append(dst, c)
+			if c == '\\' && i+1 < len(v) {
+				i++
+				dst = append(dst, v[i])
+			} else if c == '"' {
+				inStr = false
+			}
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
+		default:
+			inStr = c == '"'
+			dst = append(dst, c)
+		}
+	}
+	return dst
+}
+
+// envSkipValue returns the index just past the JSON value at s[i]; s is valid.
+func envSkipValue(s []byte, i int) int {
+	depth := 0
+	for j := i; j < len(s); j++ {
+		switch s[j] {
+		case '"':
+			for j++; j < len(s) && s[j] != '"'; j++ {
+				if s[j] == '\\' {
+					j++
+				}
+			}
+			if depth == 0 {
+				return j + 1
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			if depth == 0 {
+				return j // a scalar ends at its object's or array's close
+			}
+			if depth--; depth == 0 {
+				return j + 1
+			}
+		case ',', ':', ' ', '\t', '\n', '\r':
+			if depth == 0 {
+				return j
+			}
+		}
+	}
+	return len(s)
+}
+
+func envSkipWS(s []byte, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// trimEnvMap is trimEnv by decoding env into maps and encoding them back.
+func trimEnvMap(env []byte, topic string) json.RawMessage {
 	var e map[string]json.RawMessage
 	if json.Unmarshal(env, &e) != nil {
 		return env

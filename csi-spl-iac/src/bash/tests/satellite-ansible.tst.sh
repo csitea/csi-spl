@@ -15,6 +15,9 @@
 #      sudoers is visudo-validated, homes are on the data disk.
 #   6. do_satellite_playbook refuses with no running tf-runner (stub docker),
 #      and do_satellite_verify carries the users block.
+#   7. the repo is fast-forwarded to origin/master on every run (a non-ff is a
+#      FAIL, never left as is), the box user gets spool + spool-agent, and
+#      verify has rows for both; the repo row is run against a real git repo.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -139,6 +142,35 @@ grep -q '^_satellite_verify_users()' "$v" && grep -q '/etc/csi-spl-satellite.env
   && pass "verify reads the users the playbook recorded" || fail "verify has no users block"
 grep -qF "sudo -n -u \${agent} -H bash -c 'cd \\\"\\\$HOME\\\" && exec bash -s'" "$v" && pass "verify runs the replica checks as the agent, from its home (run 4)" || fail "verify does not check as the agent from its home"
 grep -qF "sudo -n env O='\${owner}' A='\${agent}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
+
+# 7. the repo at trunk, and the box user's harness (CLE-77911)
+gs="$STEP/tasks/git-sync.yml"; h8="$R/08_spool_harness/tasks/main.yml"
+grep -q 'merge -q --ff-only "origin/$BRANCH"' "$gs" && grep -q 'FAIL $DIR did not fast-forward' "$gs" && grep -q "BRANCH: \"{{ git_branch | default('') }}\"" "$gs" \
+  && pass "git-sync: with git_branch, fetch + merge --ff-only, a non-ff FAILS" || fail "git-sync does not fast-forward to origin/<branch> strictly"
+grep -q 'git_branch: master' "$h8" && pass "role 08 syncs the repo on master" || fail "role 08 does not pin the repo to master"
+grep -q 'install.sh --cli none --no-seat --no-hooks --no-skills' "$h8" && grep -q 'become_user: "{{ owner_user }}"' "$h8" \
+  && pass "role 08 installs spool + spool-agent for the owner (box user), no AI CLI, no hooks/skills" || fail "role 08 does not install the owner's harness"
+grep -q 'installed for $owner (the box user runs the desks)' "$v" && grep -q '^_satellite_verify_repo()' "$v" \
+  && pass "verify has the owner-harness and repo rows" || fail "verify lacks the owner-harness or repo rows"
+G="$T/git"; mkdir -p "$G"
+( set -e; cd "$G"; git init -q -b master up; cd up; git -c user.email=a@b -c user.name=n commit -q --allow-empty -m c1
+  for i in 2 3 4 5; do git -c user.email=a@b -c user.name=n commit -q --allow-empty -m "c$i"; done
+  cd "$G"; git clone -q up here ) || fail "7. git fixture"
+repo_rows() {
+  env -u GIT_DIR bash -c '
+    fails=0; ok() { echo "PASS $1"; }; ko() { echo "FAIL $1"; fails=$((fails + 1)); }
+    source "'"$v"'"; PROJ_PATH="$1"; shift
+    _satellite_verify_repo "$1"' _ "$G/here" "$@"
+}
+c1=$(git -C "$G/up" rev-list --max-parents=0 HEAD); tip=$(git -C "$G/up" rev-parse HEAD)
+o=$(repo_rows "$(printf 'repo branch master\nrepo head %s\nrepo dirty 0\n' "$tip")")
+[[ "$(grep -c '^PASS' <<<"$o")" == 3 ]] && pass "7. repo row: master, clean, at the tip -> 3 PASS" || fail "7. at tip: $o"
+o=$(SATELLITE_REPO_LAG=2 repo_rows "$(printf 'repo branch master\nrepo head %s\nrepo dirty 0\n' "$c1")")
+grep -q '^FAIL .* is at trunk (4 behind' <<<"$o" && pass "7. repo row: 4 behind with a lag of 2 is a FAIL" || fail "7. lagging: $o"
+o=$(repo_rows "$(printf 'repo branch master\nrepo head %s\nrepo dirty 0\n' "$c1")")
+grep -q '^PASS .* is at trunk (4 behind, <= 10)' <<<"$o" && pass "7. repo row: within the default lag is a PASS" || fail "7. within lag: $o"
+o=$(repo_rows "$(printf 'repo branch feature\nrepo head %s\nrepo dirty 2\n' "$(printf '%040d' 7)")")
+[[ "$(grep -c '^FAIL' <<<"$o")" == 3 ]] && pass "7. repo row: another branch, local changes and a HEAD off trunk are 3 FAILs" || fail "7. bad clone: $o"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

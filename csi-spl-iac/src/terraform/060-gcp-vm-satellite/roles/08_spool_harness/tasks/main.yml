@@ -6,12 +6,13 @@
 # Go, the spool binary, hooks, skills; --no-seat: seating a desk is its own
 # step with the tenant admin). The AI CLI login stays the owner's: one
 # interactive command as the agent (doc SYS.md 1.3).
-- name: The repo
+- name: The repo, fast-forwarded to origin/master on every run
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/git-sync.yml"
   vars:
     git_url: "{{ repo_url }}"
     git_dir: "{{ repo_dir }}"
     git_user: "{{ owner_user }}"
+    git_branch: master
 
 - name: The git identity of trunk's tip, read on the controller (no name in this repo)
   ansible.builtin.set_fact:
@@ -110,3 +111,30 @@
 - name: install.sh verdict
   ansible.builtin.debug:
     msg: "{{ spool_install.stdout_lines[-5:] }}"
+
+# The BOX user runs the desks (do_spl_desk_up, the desk sidecar, the desk
+# cron and the fleet lease loop), as on the box PC: it needs spool and
+# spool-agent too, not only the agent. --cli none: no AI CLI for it (the agent
+# user runs every AI CLI). --no-hooks --no-skills: role 07 owns its
+# ~/.claude. --no-seat: seating is its own step with the tenant admin. The
+# desk sidecar's own spool binary is built on demand from this repo with the
+# Go of role 02 (/usr/local/go).
+- name: spool-install/install.sh as the owner (the box user that runs the desks)
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
+    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --no-hooks --no-skills </dev/null 2>&1
+    rc=$?
+    for b in spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] || { echo "FAIL no ~/.local/bin/$b for the owner after install.sh (rc=$rc)"; exit 1; }; done
+    exit "$rc"
+  args:
+    executable: /bin/bash
+    chdir: "{{ repo_dir }}"
+  become: true
+  become_user: "{{ owner_user }}"
+  register: spool_install_owner
+  changed_when: spool_install_owner.stdout is search('(?i)install(ed|ing)|built|linked|wrote')
+
+- name: install.sh verdict (owner)
+  ansible.builtin.debug:
+    msg: "{{ spool_install_owner.stdout_lines[-5:] }}"

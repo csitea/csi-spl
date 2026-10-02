@@ -13,13 +13,16 @@
 # @description   on the satellite (missing there = FAIL); the users of the
 # @description   playbook (box-playbook.yaml 05, owner topic 6f10f92b): owner +
 # @description   agent from /etc/csi-spl-satellite.env, uid, home on the data
-# @description   disk, NOPASSWD sudo, docker, linger; and, AS THE AGENT, the AI-user setup
+# @description   disk, NOPASSWD sudo, docker, linger, spool + spool-agent for the
+# @description   owner (the box user runs the desks), /opt/csi/csi-spl on a clean
+# @description   master at trunk; and, AS THE AGENT, the AI-user setup
 # @description   (home dirs on the data disk, ~/.claude config + skills +
 # @description   memory, tmux, git identity, gh auth, docker, tpl-gen, and
 # @description   whether claude is logged in there: the loggedIn flag only).
 # @param GCP_BILLING_ACCOUNT_ID (optional) - lists the budget on the billing
 # @param        account; without it (or without that right) the budget check
 # @param        reads step 059's terraform state instead, and says so
+# @param SATELLITE_REPO_LAG (optional) - commits the clone may trail trunk (default 10)
 # @example ./run -a do_satellite_verify
 #------------------------------------------------------------------------------
 do_satellite_verify() {
@@ -189,6 +192,15 @@ id -nG "$A" 2>/dev/null | tr ' ' '\n' | grep -qx "$O" && echo "agent in-owner-gr
 [ "$(stat -c %U:%G /var/spool-hub 2>/dev/null)" = "$O:spool-agents" ] && echo "owner owns /var/spool-hub"
 echo "hostname $(hostname -s)"
 grep -h '^SPOOL_DESK_BOX=' /var/spool-hub/box.env 2>/dev/null | sed 's/^/boxenv /'
+# the owner runs the desks: its harness (role 08), as the agent has its own
+oh=$(getent passwd "$O" | cut -d: -f6)
+for b in spool spool-agent; do [ -x "$oh/.local/bin/$b" ] && echo "owner bin $b"; done
+# the clone: on master, clean, and its HEAD (compared with trunk on this box)
+r=/opt/csi/csi-spl
+g() { git -c safe.directory="$r" -C "$r" "$@"; }
+echo "repo branch $(g rev-parse --abbrev-ref HEAD 2>/dev/null)"
+echo "repo head $(g rev-parse HEAD 2>/dev/null)"
+echo "repo dirty $(g status --porcelain 2>/dev/null | wc -l)"
 REMOTE
 )
   local u r uid
@@ -206,4 +218,29 @@ REMOTE
   box=$(sed -n 's/^BOX_TAG=\([a-z0-9-]*\)$/\1/p' <<<"$envf")
   grep -qx "hostname ${box}" <<<"$out" && ok "hostname -s = ${box}" || ko "hostname -s = ${box} (is $(sed -n 's/^hostname //p' <<<"$out"))"
   grep -qx "boxenv SPOOL_DESK_BOX=${box}" <<<"$out" && ok "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}" || ko "/var/spool-hub/box.env SPOOL_DESK_BOX=${box}"
+  for b in spool spool-agent; do
+    grep -qx "owner bin $b" <<<"$out" && ok "$b installed for $owner (the box user runs the desks)" || ko "$b installed for $owner (the box user runs the desks)"
+  done
+  _satellite_verify_repo "$out"
+}
+
+# The clone at /opt/csi/csi-spl: on master, clean, and at trunk. Trunk is
+# read on THIS box (git fetch origin master here), so the satellite needs no
+# extra credential for the check. "At trunk" allows SATELLITE_REPO_LAG
+# commits (default 10): trunk moves every few minutes, and the commits pushed
+# between the playbook's fast-forward and this check are not a defect.
+_satellite_verify_repo() {
+  local out="$1" br head dirty behind lag="${SATELLITE_REPO_LAG:-10}" top
+  br=$(sed -n 's/^repo branch //p' <<<"$out"); head=$(sed -n 's/^repo head //p' <<<"$out"); dirty=$(sed -n 's/^repo dirty //p' <<<"$out")
+  [[ "$br" == master ]] && ok "/opt/csi/csi-spl is on master" || ko "/opt/csi/csi-spl is on master (is ${br:-unreadable})"
+  [[ "$dirty" == 0 ]] && ok "/opt/csi/csi-spl has no local changes" || ko "/opt/csi/csi-spl has no local changes (${dirty:-?} paths)"
+  top=$(cd "$PROJ_PATH" && git rev-parse --show-toplevel 2>/dev/null)
+  git -C "$top" fetch -q origin master 2>/dev/null
+  if [[ "$head" =~ ^[0-9a-f]{40}$ ]] && git -C "$top" merge-base --is-ancestor "$head" origin/master 2>/dev/null; then
+    behind=$(git -C "$top" rev-list --count "$head..origin/master")
+    (( behind <= lag )) && ok "/opt/csi/csi-spl is at trunk (${behind} behind, <= ${lag})" \
+      || ko "/opt/csi/csi-spl is at trunk (${behind} behind: re-run ./run -a do_satellite_playbook)"
+  else
+    ko "/opt/csi/csi-spl is at trunk (HEAD ${head:-unreadable} is not on origin/master)"
+  fi
 }

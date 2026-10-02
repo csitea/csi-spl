@@ -834,8 +834,10 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	if err := json.Unmarshal(env, &e); err != nil {
 		return
 	}
+	// No `envelope` copy of env.msg (db-payload-audit-2026-10-02 cut 3): the
+	// WUI reads only `env`, and the copy was 36 % of every frame per tab.
 	frame := map[string]any{"type": "message", "task_id": taskID, "cursor": encCursor(receivedAt, msgID),
-		"received_at": rfc(receivedAt), "envelope": e.Msg, "env": json.RawMessage(env),
+		"received_at": rfc(receivedAt), "env": json.RawMessage(env),
 		"is_parent": isParent}
 	if channel != "" {
 		frame["channel"] = channel

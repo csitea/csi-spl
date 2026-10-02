@@ -97,13 +97,20 @@ func (w *wuiClient) send(v any) {
 	wsjson.Write(context.Background(), w.c, v) //nolint:errcheck
 }
 
+// innerOf is the v:1 object of a message frame: env.msg. The frame carries no
+// `envelope` copy of it (db-payload-audit-2026-10-02 cut 3).
 func innerOf(t *testing.T, f wuiFrame) map[string]any {
 	t.Helper()
-	var m map[string]any
-	if err := json.Unmarshal(f.Envelope, &m); err != nil {
-		t.Fatalf("envelope: %v %s", err, f.Envelope)
+	if len(f.Envelope) != 0 {
+		t.Fatalf("message frame carries an envelope copy again: %s", f.Envelope)
 	}
-	return m
+	var e struct {
+		Msg map[string]any `json:"msg"`
+	}
+	if err := json.Unmarshal(f.Env, &e); err != nil || e.Msg == nil {
+		t.Fatalf("env.msg: %v %s", err, f.Env)
+	}
+	return e.Msg
 }
 
 // Owner goal acceptance 1: two browser sessions exchange live in the lobby,
@@ -471,7 +478,8 @@ func bodyOf(t *testing.T, f map[string]any) string {
 	if f["type"] != "message" {
 		t.Fatalf("want a message frame, got %v", f)
 	}
-	m, _ := f["envelope"].(map[string]any)
+	env, _ := f["env"].(map[string]any)
+	m, _ := env["msg"].(map[string]any)
 	s, _ := m["body"].(string)
 	return s
 }

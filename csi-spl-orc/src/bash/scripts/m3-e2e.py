@@ -803,10 +803,10 @@ def run():
                           "--to-box", WUI, "--body", "m3-e2e result: I am %s on %s" % (AGENT_B, BOX_B))
         res = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
         frame = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == t_task
-                        and (f.get("envelope") or {}).get("kind") == "result", 20)
+                        and ((f.get("env") or {}).get("msg") or {}).get("kind") == "result", 20)
         kinds = [m["env"]["msg"]["kind"] for m in topic(t_task)]
         record("c-result-in-wui-topic", rc == 0 and frame is not None and kinds == ["task", "result"],
-               {"send": res, "wui_frame_msg_id": (frame or {}).get("envelope", {}).get("msg_id"), "topic_kinds": kinds})
+               {"send": res, "wui_frame_msg_id": (((frame or {}).get("env") or {}).get("msg") or {}).get("msg_id"), "topic_kinds": kinds})
 
         # -- d. DM (no channel) human <-> agent -------------------------------------------------------------------
         t_dm = str(uuid.uuid4())
@@ -817,7 +817,7 @@ def run():
         rc, out, err = on(BOX_B, "send", "--from", AGENT_B, "--to", hum, "--task", t_dm, "--kind", "note",
                           "--to-box", WUI, "--body", "m3-e2e dm reply " + stamp)
         dm_back = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == t_dm
-                          and (f.get("envelope") or {}).get("from") == AGENT_B, 20)
+                          and ((f.get("env") or {}).get("msg") or {}).get("from") == AGENT_B, 20)
         dm_list = view("/v1/view/topics?dm=true&peer=" + AGENT_B)["topics"]
         dm_row = next((t for t in dm_list if t["task_id"] == t_dm), None)
         # 028 SC-002: a human's DM (no channel), kind=note.

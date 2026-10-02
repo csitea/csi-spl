@@ -279,11 +279,11 @@ def main():
                           {"cmd": REPLY_CMD, "exit": r.returncode, "tail": (r.stdout or r.stderr)[-400:]}):
                 return finish(1)
             back = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == task
-                           and (f.get("envelope") or {}).get("from") == AGENT, 30)
+                           and ((f.get("env") or {}).get("msg") or {}).get("from") == AGENT, 30)
             kinds = [m["env"]["msg"]["kind"] for m in m3.topic(task)]
             bodies = [m["env"]["msg"]["body"] for m in m3.topic(task)]
             record("p-reply-in-wui-topic", back is not None and answer in bodies,
-                   {"wui_frame_msg_id": (back or {}).get("envelope", {}).get("msg_id"),
+                   {"wui_frame_msg_id": (((back or {}).get("env") or {}).get("msg") or {}).get("msg_id"),
                     "topic_kinds": kinds, "topic_bodies": bodies})
         rc = 0 if all(r["result"] != "FAIL" for r in RESULTS) else 1
     finally:

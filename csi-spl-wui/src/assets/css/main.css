@@ -1033,11 +1033,20 @@ html.pane-dragging * {
    the field (offset 0, from the global 2px gap) and drop the var(--focus-3d)
    raise halo the global rule adds, so the active edge reads as one clean
    hairline. A visible 1px solid var(--focus-ring) ring remains, so focus is
-   still indicated (focus-tokens.test.mjs: an outline that stays put). */
+   still indicated (focus-tokens.test.mjs: an outline that stays put).
+   Owner, t1 ae24a0ef: "The border goes inside the white area of the text box
+   and it should be just outside the white area" (phone AND desktop). The
+   white is .omnibox-field and the textarea sits 8px inside its padding, so
+   its outline ringed only part of the white. The ring is now the FIELD's own
+   1px border in var(--focus-ring) while its textarea holds the focus: one
+   ring, hugging the white's outer edge, and the textarea draws none
+   (tests/e2e/omnibox-focus-ring.test.mjs). */
 .composer.omnibox--global textarea:focus-visible {
-  outline-width: 1px !important;
-  outline-offset: 0 !important;
+  outline: none !important;
   box-shadow: none;
+}
+.composer.omnibox--global .omnibox-field:has(textarea:focus-visible) {
+  border-color: var(--focus-ring);
 }
 .composer.omnibox--global .composer-row {
   flex: 0 0 auto;

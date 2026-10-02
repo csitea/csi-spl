@@ -43,26 +43,16 @@ LONG="
   csi-spl-orc/src/bash/run/flush-dns.func.sh do_flush_dns  # 85
   csi-spl-orc/src/bash/run/run.sh do_log  # 90
   csi-spl-orc/src/bash/run/run.sh execute_step  # 98
-  csi-spl-orc/src/bash/run/spl-box-purge.func.sh _spl_box_purge_run  # 83
-  csi-spl-orc/src/bash/run/spl-channel-agent-add-op.func.sh _spl_channel_agent_add_op_run  # 146
-  csi-spl-orc/src/bash/run/spl-channel-agent-remove-op.func.sh _spl_channel_agent_remove_op_run  # 87
-  csi-spl-orc/src/bash/run/spl-channel-member-add.func.sh _spl_channel_member_add_run  # 121
   csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh do_spl_checkout_fake_buy  # 123
   csi-spl-orc/src/bash/run/spl-checkout-stripe-test-buy.func.sh do_spl_checkout_stripe_test_buy  # 117
   csi-spl-orc/src/bash/run/spl-db-health.func.sh _spl_db_health_sql_load  # 122
   csi-spl-orc/src/bash/run/spl-db-health.func.sh _spl_db_health_sql_structure  # 107
-  csi-spl-orc/src/bash/run/spl-desk-check.func.sh do_spl_desk_check  # 82
   csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh do_spl_desk_install_service  # 109
-  csi-spl-orc/src/bash/run/spl-desk-reply.func.sh do_spl_desk_reply  # 101
-  csi-spl-orc/src/bash/run/spl-desk-up-all.func.sh do_spl_desk_up_all  # 143
-  csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh do_spl_desk_welcome  # 167
   csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh spl_dispatch_setup_steps  # 85
   csi-spl-orc/src/bash/run/spl-provision-stripe-endpoints.func.sh _spl_stripe_json_get  # 130
-  csi-spl-orc/src/bash/run/spl-react.func.sh do_spl_react  # 92
   csi-spl-orc/src/bash/run/spl-responder-run.func.sh do_spl_responder_run  # 84
   csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh do_spl_spec_import_issues  # 242
   csi-spl-orc/src/bash/run/spl-tenant-create.func.sh do_spl_tenant_create  # 125
-  csi-spl-orc/src/bash/run/spl-tenant-member-add.func.sh _spl_tenant_member_add_run  # 86
   csi-spl-orc/src/bash/run/spl-unanswered-sweep.func.sh spl_sweep_classify  # 174
   csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh do_tf_030_import_existing_cloud_run  # 104
 "

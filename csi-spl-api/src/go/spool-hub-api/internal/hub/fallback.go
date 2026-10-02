@@ -98,10 +98,16 @@ func (s *Server) fallbackPick(ctx context.Context, tenant string, roster map[str
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fallback responders")
 		}
-		for _, id := range list {
+		for _, ref := range list {
+			// spec 061 3.3.1: c-004@<box> is that box's agent only; a bare
+			// id that two boxes announce is ambiguous and skipped.
+			got, re := resolveAgent(roster, ref)
+			if re != nil || got.ID == avoid {
+				continue
+			}
 			for _, b := range usable {
-				if id != avoid && isAgent(id) && contains(roster[b.box], id) {
-					return b, id, true
+				if b.box == got.Box {
+					return b, got.ID, true
 				}
 			}
 		}

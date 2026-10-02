@@ -126,6 +126,9 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 // post or typed_by claim. A channel post is normalized in place: the channel
 // id, to ALL-0, kind note by default.
 func checkSend(cfg *config.Config, in *SendArgs) error {
+	if err := splitToBox(cfg, in); err != nil {
+		return err
+	}
 	if in.ToBox != "" && cfg.HubURL == "" {
 		return fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
 	}
@@ -153,6 +156,30 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 		if !typedByRe.MatchString(in.TypedBy) {
 			return fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
 		}
+	}
+	return nil
+}
+
+// splitToBox takes the box out of a qualified recipient (spec 061 3.3.1:
+// agents are unique as <ID>@<box>, so --to c-004@box-desk names one agent).
+// Hub mode: the box becomes to_box, and a different --to-box is refused. Local
+// mode reaches only this machine, so the box must be its own.
+func splitToBox(cfg *config.Config, in *SendArgs) error {
+	id, box, qualified := strings.Cut(in.To, "@")
+	if !qualified {
+		return nil
+	}
+	switch {
+	case !msg.ValidID(id) || !msg.ValidBoxID(box):
+		return fmt.Errorf("--to %q is not <agent id>@<box id>", in.To)
+	case cfg.HubURL == "" && box != cfg.DeskBox && box != cfg.BoxID:
+		return fmt.Errorf("--to %q names box %s; local mode reaches only this machine (no $SPOOL_HUB_URL)", in.To, box)
+	case cfg.HubURL != "" && in.ToBox != "" && in.ToBox != box:
+		return fmt.Errorf("--to %q and --to-box %q name different boxes", in.To, in.ToBox)
+	}
+	in.To = id
+	if cfg.HubURL != "" {
+		in.ToBox = box
 	}
 	return nil
 }

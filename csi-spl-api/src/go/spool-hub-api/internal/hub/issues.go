@@ -272,17 +272,21 @@ func (s *Server) checkAssignee(ctx context.Context, tenant, a string) *issueErr 
 		}
 		return &issueErr{http.StatusBadRequest, "bad_assignee", "assignee is not a member of this tenant"}
 	}
-	if !msg.ValidID(a) {
+	id, _, _ := strings.Cut(a, "@")
+	if !msg.ValidID(id) {
 		return &issueErr{http.StatusBadRequest, "bad_assignee", "assignee must be a member or an agent id"}
 	}
 	roster, err := s.o.Store.Roster(ctx, tenant)
 	if err != nil {
 		return &issueErr{http.StatusInternalServerError, "internal", "roster unavailable"}
 	}
-	for _, agents := range roster {
-		if contains(agents, a) {
-			return nil
-		}
+	// spec 061 3.3.1: <ID>@<box> names one agent; a bare id must be announced
+	// by exactly one box.
+	switch _, re := resolveAgent(roster, a); {
+	case re == nil:
+		return nil
+	case re.token == "ambiguous_agent":
+		return &issueErr{http.StatusBadRequest, "bad_assignee", re.detail}
 	}
 	return &issueErr{http.StatusBadRequest, "bad_assignee", "assignee is not an agent of this tenant"}
 }

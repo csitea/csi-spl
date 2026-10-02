@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -156,8 +157,10 @@ func responderList(w http.ResponseWriter, ids []string) ([]string, bool) {
 	seen := map[string]bool{}
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
-		if !isAgentID(id) {
-			writeErr(w, http.StatusBadRequest, "bad_responder", "responders must be agent ids (CLE-01, GRK-03)")
+		// spec 061 3.3.1: a responder may name its box (c-004@box-desk).
+		bare, box, at := strings.Cut(id, "@")
+		if !isAgentID(bare) || (at && !msg.ValidBoxID(box)) {
+			writeErr(w, http.StatusBadRequest, "bad_responder", "responders must be agent ids (c-004, c-004@<box>, CLE-01)")
 			return nil, false
 		}
 		if !seen[id] {

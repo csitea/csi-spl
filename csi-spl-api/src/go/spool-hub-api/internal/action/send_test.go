@@ -27,6 +27,10 @@ func TestSendArgRefusals(t *testing.T) {
 		{"", SendArgs{From: "CLE-1", To: "CLE-2", TypedBy: "HUM-1"}, "--typed-by needs hub mode ($SPOOL_HUB_URL)"},
 		{hub, SendArgs{From: "CLE-1", To: "CLE-2", TypedBy: "CLE-9"}, `--typed-by must be a HUM-<n> id, got "CLE-9"`},
 		{"", SendArgs{From: "CLE-1", To: "CLE-2", PutFile: "/nonexistent/x"}, "stat /nonexistent/x: no such file or directory"},
+		// spec 061 3.3.1: --to <ID>@<box>
+		{"", SendArgs{From: "CLE-1", To: "c-004@sat"}, `--to "c-004@sat" names box sat; local mode reaches only this machine (no $SPOOL_HUB_URL)`},
+		{hub, SendArgs{From: "CLE-1", To: "c-004@Sat"}, `--to "c-004@Sat" is not <agent id>@<box id>`},
+		{hub, SendArgs{From: "CLE-1", To: "c-004@sat", ToBox: "box-desk"}, `--to "c-004@sat" and --to-box "box-desk" name different boxes`},
 	}
 	for _, c := range cases {
 		cfg := testkit.NewConfig(t)
@@ -83,5 +87,29 @@ func TestSendLocalAttachmentOrder(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("attachments %v, want %v", got, want)
 		}
+	}
+}
+
+// spec 061 3.3.1: --to c-004@<box> is the agent c-004 on that box. Hub mode
+// signs the box as to_box; local mode accepts only its own box.
+func TestSplitToBox(t *testing.T) {
+	cfg := testkit.NewConfig(t)
+	cfg.HubURL = "http://127.0.0.1:1"
+	in := SendArgs{To: "c-004@box-desk"}
+	if err := splitToBox(cfg, &in); err != nil || in.To != "c-004" || in.ToBox != "box-desk" {
+		t.Fatalf("hub: %+v %v", in, err)
+	}
+	in = SendArgs{To: "c-004@sat", ToBox: "sat"}
+	if err := splitToBox(cfg, &in); err != nil || in.To != "c-004" || in.ToBox != "sat" {
+		t.Fatalf("hub, same --to-box: %+v %v", in, err)
+	}
+	in = SendArgs{To: "CLE-2"}
+	if err := splitToBox(cfg, &in); err != nil || in.To != "CLE-2" || in.ToBox != "" {
+		t.Fatalf("bare id untouched: %+v %v", in, err)
+	}
+	cfg.HubURL, cfg.DeskBox = "", "box-desk"
+	in = SendArgs{To: "c-004@box-desk"}
+	if err := splitToBox(cfg, &in); err != nil || in.To != "c-004" || in.ToBox != "" {
+		t.Fatalf("local, own box: %+v %v", in, err)
 	}
 }

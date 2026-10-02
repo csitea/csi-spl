@@ -231,7 +231,7 @@ ids unique per machine and the role trio 001-003 is unique per machine too.
 | # | place | today | shared? | new shape | migration | rollback | live agents hit |
 |---|---|---|---|---|---|---|---|
 | L1 | agent mailbox `$SPOOL_ROOT/<ID>/{inbox,outbox,archive,.pokes,.mirror}` | dir `<ID>` | no, but the N1 fleet bridge and an agent moving machines (3.5) both write here by id | real dir `<ID>@<box>`, compat symlink `<ID>` -> `<ID>@<box>` | `do_spl_naming_migrate`: one `renameat2(RENAME_EXCHANGE)` per agent (6.2) | the same exchange back, then remove the qualified self-loop | every agent; none has to stop (6.2) |
-| L2 | the `$SPOOL_ROOT/*/` scans: the hub-run roster (`hubclient.scanAgents`: hello, re-announce, fallback, back-fill), `spool tail`, `next-agent-id.sh` floor 3 | count a DIR named exactly `<ID>` | — | count `<ID>` and `<ID>@<box>` dirs, each id once; a symlink is never counted | code (6.3 C2/C3), lands BEFORE any dir moves | — | the sidecar: with an old binary a migrated root reads as an EMPTY roster, so every agent goes offline. Hence the binary gate in 6.4 step 1 |
+| L2 | the `$SPOOL_ROOT/*/` scans: `spool tail`, `next-agent-id.sh` floor 3; and the same rule in each desk root (`hubclient.scanAgents`: hello, re-announce, fallback, back-fill) | count a DIR named exactly `<ID>` | — | count `<ID>` and `<ID>@<box>` dirs, each id once; a symlink is never counted | code (6.3 C2/C3), lands BEFORE any dir moves | — | the hub-run sidecars scan their own desk roots (`<state>/desk/<tenant>/<box>/spool`), NOT `/var/spool-hub`, so the roster does not depend on this move (measured: every sidecar's `SPOOL_ROOT`). An older `spool` reads a migrated `/var/spool-hub` as empty in `spool tail` only. Hence the binary gate in 6.4 |
 | L3 | creating a mailbox: `next-agent-id.sh` claim (`mkdir`), `spool` `ensureAgent` | `mkdir <ID>` | — | with `SPOOL_DIR_LAYOUT=qualified` (box.env): `mkdir <ID>@<box>` (the atomic claim) + symlink `<ID>`; a claim refuses when either name exists | code (C2/C3); the satellite sets it in box.env from day one | drop the box.env line: new agents get `<ID>` again, and existing ones stay readable by both names | none |
 | L4 | every reader/writer by path: `spool send/recv`, `spool-send.sh`, `agent-send.sh`, `spool-notify*.sh`, `agent-watch.sh`, `kill-your-self-report.sh`, mirror hooks, poke retry, the fleet bridge | `$SPOOL_ROOT/<ID>/...` | — | unchanged: the bare symlink resolves | none | — | none |
 | L5 | identity map `$SPOOL_ROOT/agents/<ID>.json` | one file per id, written tmp + rename | no (per machine) | **unchanged**. A symlinked file would be replaced by the writer's rename and go stale | none | — | — |
@@ -271,27 +271,52 @@ or a file whose writer would break a symlink (L5).
 
 | commit | what | test |
 |---|---|---|
-| C1 | this plan | — |
-| C2 | Go: `scanAgents` and `Tail` count `<ID>@<box>` dirs and never a symlink; `ensureAgent` honours `SPOOL_DIR_LAYOUT=qualified` + `SPOOL_DESK_BOX`; `spool layout` prints the scanned ids (the before/after check) | `internal/spool`, `internal/hubclient` unit tests |
-| C3 | orc: `next-agent-id.sh` floor and claim read/write both shapes; `do_spl_naming_migrate` (`DRY_RUN=1` default, `ROLLBACK=1`, `ONLY=<ids>`, `SKIP=<ids>`; refuses unless the running `hub-run` binary answers `spool layout`; rolls itself back when the id set before and after differs) | `naming-migrate.tst.sh`: a running-agent simulation (writers on the bare path and readers on both paths during the move: zero lost, no orphan dir), rollback, re-run = no-op; control: `mv` + `ln -s` leaves an orphan dir |
+| C1 `9ee2efc8` | this plan | — |
+| C2 `cd969882` | Go: `ScanAgents` (the roster scan) and `Tail` count `<ID>@<box>` dirs and never a symlink; `ensureAgent` honours `SPOOL_DIR_LAYOUT=qualified` + `SPOOL_DESK_BOX`; `spool layout` prints the scanned ids | `internal/spool/layout_test.go` (control: the old scan reads a migrated root as an EMPTY roster) |
+| C3 `c936bda9` | orc: `next-agent-id.sh` reads and claims both shapes (`SPOOL_DIR_LAYOUT` from box.env); `do_spl_naming_migrate` (`DRY_RUN=1` default, `ROLLBACK=1`, `ONLY`/`SKIP`, idempotent, role ids 003/002/001 last, refuses `box-desk` and a `spool` without `layout`, rolls itself back when the id set changes) | `naming-migrate.tst.sh`: 5 writers x 600 deliveries by the bare path DURING the move, zero lost, no orphan dir; rollback; re-run = no-op; control: `mv` + `ln -s` leaves an orphan dir. `test-next-agent-id.sh` (qualified claims, races) |
+| C4 `b7bc281b` | the desk cron honours `<spool root>/.desk-reconcile.<env>.pause` (fresh: seat steps skipped, lease + dispatch still run; older than 30 min: ignored with a WARN) | `desk-cron-trunk.tst.sh` section 5 |
+| C5 `8d742c0a` | `do_spl_desk_rebox` (6.5) | `desk-rebox.tst.sh` |
 
-### 6.4 Cut-over (CLE-001 schedules it; the home box's live paths do not move before)
+Live dry run, 2026-10-02: `NAMING_BOX=<box> ./run -a do_spl_naming_migrate` plans 192 mailboxes and touches nothing.
 
-The satellite starts on the new layout: its box.env gets
-`SPOOL_DIR_LAYOUT=qualified` before its first spawn (the CLE-77911 /
-CLE-77912 seating), so it never needs this cut-over.
+### 6.4 Decisions (CLE-001, topic `2efb3e78`, 2026-10-02)
 
-| step | what | duration | who must be idle |
-|---|---|---|---|
-| 0 | C2 + C3 on trunk; `./run -a do_spl_naming_migrate` (DRY_RUN=1) prints the per-agent plan | — | nobody |
-| 1 | rebuild the host `bin/spool` and restart this box's `hub-run` sidecar(s), so the roster scan reads both shapes. The action refuses until the running binary answers `spool layout` | ~1 min while the desk reconnects | nobody; a send in that minute queues on the hub (H5) |
-| 2 | tell CLE-002/003 (they asked to hear before their paths move) | — | — |
-| 3 | `DRY_RUN=0 ./run -a do_spl_naming_migrate`: dead and idle agents first, then the lanes, then CLE-003, CLE-002, CLE-001 last; the id set before == after, or it rolls back | seconds (~200 renames) | nobody (6.2); no `next-agent-id.sh` spawn in the same seconds |
-| 4 | append `SPOOL_DIR_LAYOUT=qualified` to `/var/spool-hub/box.env` | — | — |
-| 5 | check: `spool layout` lists the same ids; one probe each to CLE-002 and CLE-001 through `spool-send.sh` arrives | ~2 min | — |
-| R | rollback at any point: `ROLLBACK=1 DRY_RUN=0 ./run -a do_spl_naming_migrate`, then remove the box.env line | seconds | — |
+1. The mailboxes are renamed ONCE, straight to the machine's own 3-letter box. There is no interim `<ID>@box-desk`, and `do_spl_naming_migrate` refuses `box-desk`. So the home box first gets its own box id (M5, 6.5), and only then do its folders move.
+2. One cut-over window, after the satellite trio is seated and CLE-77911's takeover drill passes. The satellite holds the lease during the home box's switch, so dispatch has no routing gap. Order in the window: the satellite takes the lease, the home box re-seats on its own box (6.5), the mailboxes move (6.2), and then the home box takes the lease back.
+3. The satellite starts on the new layout (`<ID>@sat` folders: `SPOOL_DIR_LAYOUT=qualified` in its box.env before its first spawn).
 
-Open for CLE-001: the box suffix. The action uses `spl_desk_box_default`,
-which is `box-desk` on the home box today, the same suffix the windows and the lane
-map show. If the home box takes its 3-letter name at M5, run rollback and then migrate
-again with the new `SPOOL_DESK_BOX`. Each step is gap-free.
+### 6.5 The home box's desks: `box-desk` -> its own box (M5)
+
+The hub keys four things on the box id: pins, the roster, `channel_subscriptions` and `box_operators` (rdb 0001/0002/0040). A queued delivery is keyed on the box too, and it **cannot be re-pointed**: the envelope is signed with its `to_box`, and a box refuses a frame for another box (`hubclient.receive`). So the old box drains its own queue. `do_spl_desk_rebox` does one step per call, per env and tenant:
+
+| step | what | goes offline? |
+|---|---|---|
+| `pin` | mint the new box's key, pin it with the tenant root key (`do_spl_desk_pin` self mode) | no |
+| `copy` | copy `box_operators` + `channel_subscriptions` rows to the new box, `backfilled_at` set (no back-fill burst; removals carry over too) | no |
+| `drain` | cron pause; old sidecar down; the seated agents recorded in `<desk>/rebox-seated.txt` and their dirs parked; ONE `spool hub-sync` as the old box: its hello announces an EMPTY roster, and it pulls every delivery still queued for it into the inboxes (fleet copy + pane notice) | yes, until `seat` |
+| `seat` | the recorded agents seated on the new box, seated-only, mutes kept | back online |
+| `resume` | remove the cron pause | — |
+| `retire` | drain again (a WUI DM from an old `<ID>@box-desk` page queues for the old box), delete its subscription/operator rows, revoke its pin | — |
+
+Between `drain` and `seat` an agent is on no roster for seconds. A box send to it is refused loudly, not queued and lost. After `retire`, a DM from an old `<ID>@box-desk` page is refused (`unpinned_box`); the DM list shows the `<ID>@<new box>` peers.
+
+Desks on the home box today (2026-10-02, `<state>/desk/<tenant>/box-desk`): dev `t1`, `w12live1`; prd `t1`, `csi-rel`, `csitea`, `e2e`, `leiden`, `niba-consult`, `pas-psf`. The other boxes there (`box-rsp`, `box-ci`, `box-lat`, `box-mirror`) are not `box-desk` and are not touched.
+
+Outside this lane, for the window: `dispatch/lease.conf` names `LEASE_MACHINE` / `LEASE_DESK_BOX` / `LEASE_PRIORITY` with `box-desk` (CLE-77911's file), and the dispatcher seats come over through `copy`.
+
+### 6.6 The window runbook
+
+Owner go needed: prd `pin`, `copy`, `drain`, `seat` and `retire` (pins and DB rows), as for every prd mutation.
+
+| # | what | duration |
+|---|---|---|
+| 0 | pre-checks: the satellite trio seated, the takeover drill green (CLE-77911); trunk carries C2-C5; each step's DRY_RUN read | — |
+| 1 | the satellite takes the fleet lease (CLE-77911's handover) | ~1 min |
+| 2 | per env and tenant: `pin`, then `copy` (no one offline yet) | ~10 s each |
+| 3 | append `SPOOL_DESK_BOX=<box>` to `/var/spool-hub/box.env` | — |
+| 4 | per env and tenant: `drain`, then at once `seat` | ~30 s each; that tenant's agents are offline in between |
+| 5 | rebuild the host `spool` and each agent user's tool `spool` (`spool layout` must answer), then `DRY_RUN=0 NAMING_BOX=<box> ./run -a do_spl_naming_migrate`, then append `SPOOL_DIR_LAYOUT=qualified` to box.env | seconds |
+| 6 | per env: `resume`; check `spool layout`, the WUI roster shows `<ID>@<box>` online, one probe each to CLE-002 and CLE-001 | ~5 min |
+| 7 | the lease goes back to the home box | ~1 min |
+| 8 | later, after a quiet day: per env and tenant `retire` | ~10 s each |
+| R | rollback: `ROLLBACK=1` naming migrate + drop the box.env lines; move `<desk>/rebox-retired/<ts>/<ID>` back into the `box-desk` desk root and re-seat with `do_spl_desk_up_all DESK_BOX=box-desk DESK_SEATED_ONLY=1` (its pin stays until `retire`) | minutes |

@@ -529,7 +529,7 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 
 func (f issueFilter) match(i store.Issue, get issueGetter) bool {
 	kind, epic := treeKind(i, get)
-	if len(f.kind) > 0 && !f.kind[kind] {
+	if !allows(f.kind, kind) {
 		return false
 	}
 	if len(f.epic) > 0 {
@@ -538,29 +538,9 @@ func (f issueFilter) match(i store.Issue, get issueGetter) bool {
 			return false
 		}
 	}
-	if len(f.parent) > 0 && !f.parent[i.Parent] {
+	if !allows(f.parent, i.Parent) || !allows(f.status, i.Status) || !allows(f.priority, i.Priority) ||
+		!allows(f.level, i.Level) || !allows(f.assignee, i.Assignee) || !allowsAny(f.label, i.Labels) {
 		return false
-	}
-	if len(f.status) > 0 && !f.status[i.Status] {
-		return false
-	}
-	if len(f.priority) > 0 && !f.priority[i.Priority] {
-		return false
-	}
-	if len(f.level) > 0 && !f.level[i.Level] {
-		return false
-	}
-	if len(f.assignee) > 0 && !f.assignee[i.Assignee] {
-		return false
-	}
-	if len(f.label) > 0 {
-		hit := false
-		for _, l := range i.Labels {
-			hit = hit || f.label[l]
-		}
-		if !hit {
-			return false
-		}
 	}
 	if f.before != nil && (i.Deadline == nil || !i.Deadline.Before(*f.before)) {
 		return false
@@ -569,6 +549,22 @@ func (f issueFilter) match(i store.Issue, get issueGetter) bool {
 		return false
 	}
 	return true
+}
+
+// allows: an empty filter set allows every value, a non-empty one only its own.
+func allows[K comparable](set map[K]bool, v K) bool { return len(set) == 0 || set[v] }
+
+// allowsAny: an empty set allows everything, a non-empty one needs one of vs in it.
+func allowsAny[K comparable](set map[K]bool, vs []K) bool {
+	if len(set) == 0 {
+		return true
+	}
+	for _, v := range vs {
+		if set[v] {
+			return true
+		}
+	}
+	return false
 }
 
 // SortIssues orders like Linear: priority urgent first and "no priority"

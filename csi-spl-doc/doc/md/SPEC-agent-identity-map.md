@@ -90,12 +90,26 @@ agent the restart killed:
   `IDENTITY_RESTORE_WINDOW` minutes later);
 - each resumes its own session in its own worktree, in a NEW window (tmux
   re-issues pane ids after a restart), through `restore-<kind>.sh`, as the
-  user it ran as;
+  box's AGENT user (`SPOOL_AGENT_USER`), never the user the record says it
+  ran as (owner rule 2026-10-01: every programmatic start runs as the agent
+  user); a claude transcript only in that recorded user's home is copied into
+  the agent user's `~/.claude/projects` first (the jsonl and its `<sid>/`,
+  never overwriting), and a started agent that still runs as the box user is
+  an ALERT with a non-zero exit;
 - each gets a fresh spool-registry row (`IDENTITY_LEGACY_REGISTRY` also takes
   one), then reconcile names the windows and check runs.
 
 A record is REFUSED, named and skipped, when its session is unknown, is on two
 records, or is already running; when its worktree is gone; or when its
 transcript is not under that worktree's project dir or belongs to another
-agent. Test: `tests/test-agent-identity-restore.sh`. The box engine's boot job
+agent. Tests: `tests/test-agent-identity-restore.sh`,
+`tests/test-agent-identity-restore-user.sh`. The box engine's boot job
 calls this action instead of inferring agent sessions from window names.
+
+4.5 A box with no such boot job (the satellite) runs
+`do_spl_agent_boot_restore` at `@reboot`, installed by
+`do_spl_agent_boot_restore_install_cron` (one line tagged
+`csi-spl:agent-boot-restore`): it waits for the tmux server (creates the
+session when none came), runs (d), then applies the owner's check (no agent
+CLI runs as the box user). A failure leaves `<SPOOL_ROOT>/agents/boot-FAILED`.
+Test: `tests/test-agent-boot-restore.sh`.

@@ -351,7 +351,9 @@ DRY_RUN=0 IDENTITY_UNINSTALL=1 ./run -a do_spl_agent_identity_install
 #### 3.10.10 After a reboot: see which agents the map would start again (dry run)
 
 Each agent the restart killed resumes its own session in its own worktree, in a
-new window. A record that cannot be proven is refused and named.
+new window, as the box's agent user (`SPOOL_AGENT_USER`), whatever user it ran
+as before; a transcript only that earlier user has is copied across first
+(COPY in the plan). A record that cannot be proven is refused and named.
 
 ```bash
 ./run -a do_spl_agent_identity_restore
@@ -361,6 +363,21 @@ new window. A record that cannot be proven is refused and named.
 
 ```bash
 DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+```
+
+#### 3.10.12 A box with no boot job of its own: restore at @reboot (dry run)
+
+The line runs `do_spl_agent_boot_restore` (tmux server, then 3.10.11, then
+the check that no agent CLI runs as the box user) after every reboot.
+
+```bash
+./run -a do_spl_agent_boot_restore_install_cron
+```
+
+#### 3.10.13 Install it
+
+```bash
+DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron
 ```
 
 ### 3.11 The fleet-wide lane map: who owns what on every machine

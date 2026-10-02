@@ -35,18 +35,9 @@ do_spl_checkout_stripe_test_buy() {
   do_require_bin curl jq yq || return 1
   local tenant="${TENANT_ID:-}" email="${BUYER_EMAIL:-}" dry="${DRY_RUN:-1}"
   local locale="${LOCALE:-}"
-  # The 19 locales of internal/i18n Supported / rdb 0017+0025, listed here so a
-  # typo fails before it holds a slug (the hub would silently drop it).
-  if [[ -n "$locale" ]]; then
-    case " bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl " in
-      *" $locale "*) : ;;
-      *) do_log "FATAL LOCALE '$locale' is not one of the 19 supported locales (bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl)"; return 1 ;;
-    esac
-  fi
+  spl_checkout_require_locale "$locale" || return 1
   [[ "${ENV:=dev}" == dev ]] || { do_log "FATAL ENV=$ENV: the test-card buy runs on dev only (prd takes real money)"; return 1; }
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must match ^[a-z0-9][a-z0-9-]{0,31}$, got: '$tenant'"; return 1; }
-  [[ "$email" == *@*.* ]] || { do_log "FATAL BUYER_EMAIL must be an address (no default)"; return 1; }
-  [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
+  spl_checkout_require_buyer "$tenant" "$email" "$dry" || return $?
   : "${STRIPE_API_BASE:?STRIPE_API_BASE must be set (no default) - the Stripe REST base URL}"
   do_spl_cloud_cnf || return 1
   local base="https://${SPL_FQDN}" sbase="${STRIPE_API_BASE%/}" state="${SPL_STATE_DIR}"

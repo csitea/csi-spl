@@ -16,22 +16,9 @@
 //
 // A measurement, not a gate: exit 0 unless sign-in or a page load fails.
 // The password is read from PW_FILE and never printed.
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const N = Number(process.env.N || 5)
@@ -39,7 +26,6 @@ const TENANT = process.env.TENANT || 't1'
 const email = process.env.EMAIL || ''
 const pw = email ? readFileSync(need('PW_FILE'), 'utf8').trim() : ''
 mkdirSync(OUT, { recursive: true })
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /** Every request of the page by CDP id: status, cache source, bytes; preflights and socket frames apart. */
 function recorder(cdp) {

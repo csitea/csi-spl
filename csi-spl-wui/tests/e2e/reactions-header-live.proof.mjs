@@ -16,22 +16,9 @@
 // Writes only when the session's tenant AND the page host's tenant are
 // TENANT. Passwords are read from files and never printed.
 // Exit 0 = every step PASS.
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const TENANT = need('TENANT')
 const ISSUE = need('ISSUE')
@@ -40,7 +27,6 @@ const CHANNEL = process.env.CHANNEL || 'lobby'
 mkdirSync(OUT, { recursive: true })
 const res = { base: BASE, tenant: TENANT, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function until(fn, ms) {
   const end = Date.now() + ms
   for (;;) {

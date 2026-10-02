@@ -12,22 +12,9 @@
 //   BASE=https://dev.<domain> OUT=/var/tmp/CLE-3433-proof \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/send-failure.proof.mjs
-import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const TEXT = 'CLE-3433 proof: this text must survive a failed send'

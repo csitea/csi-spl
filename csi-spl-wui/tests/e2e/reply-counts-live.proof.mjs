@@ -23,25 +23,12 @@
 //     node tests/e2e/reply-counts-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
-import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -63,7 +50,6 @@ const step = (name, ok, ev = {}) => {
   if (!ok) failed++
   console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev))
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const shot = async (p, name) => { await p.screenshot({ path: `${OUT}/${name}.png` }).catch(() => {}) }
 async function until(fn, ms = 20000) {
   const t0 = Date.now()

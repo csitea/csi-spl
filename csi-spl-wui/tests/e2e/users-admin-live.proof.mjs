@@ -20,22 +20,9 @@
 // tenant's non-admin; ADMIN_* and THROW_EMAIL are then not needed).
 //
 // Passwords are read from the files and never printed. Exit 0 = every step PASS.
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -49,7 +36,6 @@ mkdirSync(OUT, { recursive: true })
 
 const res = { base: BASE, api: API, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const rowSel = (key) => `[data-test=users-row][data-key="${key}"]`
 const rowKeys = (p) => p.$$eval('[data-test=users-row]', (els) => els.map((e) => e.getAttribute('data-key')))
 const rowRole = (p, key) => p.$eval(`${rowSel(key)} [data-test=users-row-role]`, (e) => e.textContent.trim()).catch(() => '')

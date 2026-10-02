@@ -18,12 +18,10 @@
 // tenant's host, never the apex (t1's host, SPL-959). The password is read
 // from PW_FILE and never printed. Without EXPECT it measures (exit 0); with
 // EXPECT=after every phone width must pass the SPL-1007 checks.
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = need('EMAIL')
@@ -35,23 +33,10 @@ const TAP = 44
 if (new URL(BASE).hostname.split('.').length === 2 && TENANT !== 't1') { console.error('FATAL the apex is the t1 host: use https://<tenant>.<domain>'); process.exit(2) }
 mkdirSync(OUT, { recursive: true })
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, expect: EXPECT, checks: [], widths: {} }
 const ok = (name, pass, ev) => {
   res.checks.push({ name, ok: pass, ev })
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
-}
-
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
 /* the first in-view card with a reaction chip: its header geometry */

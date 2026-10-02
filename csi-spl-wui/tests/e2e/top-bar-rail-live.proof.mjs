@@ -19,22 +19,9 @@
 //     [PATHS=/,/lobby,/search] [WIDTHS=390,640,768,800,900,1280,1440] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/top-bar-rail-live.proof.mjs
-import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const PATHS = (process.env.PATHS || '/,/lobby,/search').split(',').filter(Boolean)

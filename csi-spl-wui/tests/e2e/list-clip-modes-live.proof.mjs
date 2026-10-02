@@ -12,23 +12,9 @@
 // instead of spending one of the 10 sign-ins per 15 minutes.
 // Exit 0 = every list that has rows switched on all three buttons. A list
 // with no rows on that tenant is reported as `n/a`, never as a pass.
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = process.env.EMAIL || readFileSync(need('EMAIL_FILE'), 'utf8').trim()
@@ -39,7 +25,6 @@ const TQ = TENANT ? 'tenant=' + encodeURIComponent(TENANT) : ''
 const SEARCH = process.env.SEARCH || 'the'
 mkdirSync(OUT, { recursive: true })
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, lists: [], console: [] }
 
 async function goto(p, url) {

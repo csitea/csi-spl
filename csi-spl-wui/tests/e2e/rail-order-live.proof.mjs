@@ -11,22 +11,9 @@
 //
 // It changes only the signed-in test member's own rail_order and puts it back
 // as it found it. Run it as the dev test member (t1) or in prd tenant e2e.
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const EMAIL = need('EMAIL')
@@ -45,7 +32,6 @@ const step = (name, ok, ev = {}) => {
   if (!ok) failed++
   console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev))
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
 const browser = await puppeteer.launch({

@@ -18,12 +18,10 @@
 //
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=e2e] [CHANNEL=lobby] node tests/e2e/omnibox-bottom-live.proof.mjs
-import { createRequire } from 'node:module'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const EMAIL = need('EMAIL')
@@ -33,25 +31,12 @@ const CHANNEL = process.env.CHANNEL || 'lobby'
 mkdirSync(OUT, { recursive: true })
 
 const TA = 'form.composer.omnibox--global textarea'
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, channel: CHANNEL, checks: [] }
 let failed = 0
 const ok = (name, pass, ev) => {
   res.checks.push({ name, ok: pass, ev })
   if (!pass) failed++
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
-}
-
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
 /* docker veth churn kills Chrome navigations now and then (ERR_NETWORK_CHANGED) */

@@ -20,22 +20,9 @@
 // The password is read from PW_FILE and never printed. Numbers go to stdout
 // and OUT/perf.json; the exit code is 0 unless sign-in or a page load fails
 // (a measurement, not a gate).
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = need('EMAIL')
@@ -48,7 +35,6 @@ const puppeteer = await loadPuppeteer()
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
 const res = { base: BASE, at: new Date().toISOString(), phases: {} }
 let failed = false
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /** Every request of the page, by CDP id, with its final size and cache source. */
 function recorder(cdp) {

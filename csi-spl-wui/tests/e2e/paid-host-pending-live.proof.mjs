@@ -14,23 +14,10 @@
 // REGISTER=1 (dev only: the hub answers a debug verify token there) first makes
 // the native account for EMAIL with a random password written to PW_FILE (0600).
 // The password is never printed. Exit 0 = every step PASS.
-import { createRequire } from 'node:module'
 import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const SITE = need('SITE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -42,7 +29,6 @@ const want = `${TENANT}.${siteHost}`
 mkdirSync(OUT, { recursive: true })
 const res = { site: SITE, tenant: TENANT, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function post(path, body) {
   const r = await fetch(API + path, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) })

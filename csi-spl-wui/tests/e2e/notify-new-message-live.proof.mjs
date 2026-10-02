@@ -18,24 +18,11 @@
 //     node tests/e2e/notify-new-message-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join } from 'node:path'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const EMAIL = need('EMAIL')
@@ -56,7 +43,6 @@ const step = (name, ok, ev = {}) => {
   if (!ok) failed++
   console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev))
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /* record every sound and alert, then hand the call to the real API */
 function recorders() {

@@ -30,22 +30,9 @@
 // host's tenant, not the claim's). The password is read from PW_FILE and never
 // printed. Output: OUT/baseline.json (every sample) and a p50/p95 table on
 // stdout. Exit 0 unless sign-in fails (a measurement, not a gate).
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = need('EMAIL')
@@ -65,7 +52,6 @@ const PROFILE = {
   'm390-4g': { vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }, net: SLOW_4G, cpu: 4 },
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const run = Date.now().toString(36)
 const res = { base: BASE, tenant: TENANT, n: N, at: new Date().toISOString(), profiles: {} }
 

@@ -33,22 +33,9 @@
 // password is read from PW_FILE and never printed. Output: OUT/timing.json
 // (every sample), a median / p90 markdown table on stdout. Exit 0 unless the
 // sign-in fails (a measurement, not a gate).
-import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = need('EMAIL')
@@ -67,7 +54,6 @@ const STEPS = ['first-screen', 'flow-cold', 'flow-open-shown', 'flow-open', 'flo
 
 /** a step's ms; flow-open-shown is the flow-open sample's first-on-screen time */
 const msOf = (s, k) => (k === 'flow-open-shown' ? s['flow-open']?.shownMs : s[k]?.ms)
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const res = { base: BASE, tenant: TENANT, n: N, coldCache: COLD_CACHE, at: new Date().toISOString(), profiles: {} }
 
 /** API reads by CDP id: route, client-observed ms, encoded KB. */

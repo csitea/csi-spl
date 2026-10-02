@@ -29,25 +29,12 @@
 // Prints one JSON line per step and a verdict; exit 0 only when every step
 // held. No password, key or cookie is printed. The fresh HOME keeps a
 // running `spool hub-run`: stop it and revoke the pin after the proof.
-import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
-async function loadPuppeteer() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      return mod.default ?? mod
-    } catch { /* try next */ }
-  }
-  throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
-}
-const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
 const TENANT = need('TENANT')
@@ -56,7 +43,6 @@ const WORK = need('WORK')
 const AGENT = process.env.AGENT || 'CLE-01'
 const BOX = process.env.BOX || 'box-w12-live'
 const CLAUDE = process.env.CLAUDE || 'claude'
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 mkdirSync(OUT, { recursive: true })
 
 const steps = []

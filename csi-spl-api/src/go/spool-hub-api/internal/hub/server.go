@@ -188,7 +188,7 @@ func New(o Options) (*Server, error) {
 		return nil, errors.New("hub: store and blob are required")
 	}
 	if !strings.HasPrefix(o.TenantHostPattern, "{tenant}.") {
-		return nil, fmt.Errorf("hub: tenant host pattern %q must start with {tenant}.", o.TenantHostPattern)
+		return nil, fmt.Errorf("hub: tenant host pattern %q must start with %q", o.TenantHostPattern, "{tenant}.")
 	}
 	if o.Now == nil {
 		o.Now = time.Now

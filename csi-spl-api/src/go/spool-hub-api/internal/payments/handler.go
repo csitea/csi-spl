@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -110,7 +111,7 @@ func New(cfg *Config, d Deps) (*Handler, error) {
 		return nil, errors.New("payments: PayPal enabled without its driver and verifier")
 	}
 	if !strings.HasPrefix(d.TenantHostPattern, "{tenant}.") {
-		return nil, errors.New("payments: tenant host pattern must start with {tenant}.")
+		return nil, fmt.Errorf("payments: tenant host pattern must start with %q", "{tenant}.")
 	}
 	if d.Mail == nil {
 		d.Mail = mail.None{}

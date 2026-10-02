@@ -260,9 +260,5 @@ func (p *parser) date(t *Term, op, v string) string {
 }
 
 func enumList(o *Operator) string {
-	var vs []string
-	for _, k := range sortedKeys(o.Enum) {
-		vs = append(vs, k)
-	}
-	return strings.Join(vs, ", ")
+	return strings.Join(sortedKeys(o.Enum), ", ")
 }

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"sort"
 	"strings"
 )
 
@@ -59,16 +58,6 @@ func parsePaneSizes(raw json.RawMessage) (v map[string]float64, has bool, code, 
 		v = nil
 	}
 	return v, true, "", ""
-}
-
-// sortedFloatKeys is v's keys sorted, for a stable log / echo.
-func sortedFloatKeys(v map[string]float64) []string {
-	ks := make([]string, 0, len(v))
-	for k := range v {
-		ks = append(ks, k)
-	}
-	sort.Strings(ks)
-	return ks
 }
 
 // paneSizes is the session human's stored divider widths for the active

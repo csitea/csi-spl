@@ -54,10 +54,7 @@ do_spl_spec_import_issues() {
   [[ -n "${SPEC_IMPORT_REDACT:-}" ]] && docarg+=(--redact "$SPEC_IMPORT_REDACT")
   onlyarg+=("${docarg[@]}")
   parsearg+=("${docarg[@]}")
-  [[ -f "$py" ]] || { do_log "FATAL spec-import parser is missing: $py"; return 1; }
-  [[ -d "$specs" ]] || { do_log "FATAL SPEC_DIR is not a directory: $specs"; return 1; }
-  [[ "$interval" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$interval'"; return 1; }
-  [[ "$limit" =~ ^[0-9]+$ ]] || { do_log "FATAL SPEC_IMPORT_LIMIT must be a number, got: '$limit'"; return 1; }
+  _spl_spec_check_args "$py" "$specs" "$interval" "$limit" || return 1
 
   if [[ "${SPEC_IMPORT_OFFLINE:-0}" == 1 ]]; then
     python3 "$py" report --specs "$specs" "${onlyarg[@]}"
@@ -83,45 +80,140 @@ do_spl_spec_import_issues() {
   # response is bounded by a single spec, so it never breaks the socket, and an
   # existing [NNN id] is still found so it is updated, never duplicated.
   local all_status=eval,todo,wip,diss,blocked,onhold,qas,done
-  _spl_spec_list_epics() {
-    (
-      DRY_RUN=0
-      ISSUE_ASSIGNEE=
-      ISSUE_KIND=epic
-      ISSUE_STATUS="$all_status"
-      ISSUE_SORT=number
-      unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
-      do_spl_issue_list
-    ) >"$work/epics.out"
-  }
   do_log "INFO listing epics (read-only) to scope the child list to this plan's specs"
-  _spl_spec_list_epics || { do_log "FATAL the epic list failed"; return 1; }
+  _spl_spec_list_epics "$work" "$all_status" || { do_log "FATAL the epic list failed"; return 1; }
 
   # SPEC_IMPORT_CREATE_EPIC=1: create the 'Spec NNN - <heading>' epic for any of
   # this plan's specs that has none, then re-list. The importer never invents an
   # epic on its own (a dry run and the default leave it MISSING and print the
   # exact do_spl_issue_create command in the report instead).
   if [[ "${SPEC_IMPORT_CREATE_EPIC:-0}" == 1 ]] && (( dry == 0 )); then
-    local mspec mhead ecreated=0
-    while IFS=$'\t' read -r mspec mhead; do
-      [[ -n "$mspec" ]] || continue
-      (
-        DRY_RUN=0
-        unset ISSUE_LABELS ISSUE_PARENT ISSUE_STATUS ISSUE_DESCRIPTION_FILE ISSUE_REF ISSUE_EPIC
-        ISSUE_KIND=epic
-        ISSUE_TITLE="Spec $mspec - $mhead"
-        export ISSUE_KIND ISSUE_TITLE
-        do_spl_issue_create
-      ) >/dev/null || { do_log "FATAL could not create epic 'Spec $mspec'"; return 1; }
-      do_log "INFO created epic: Spec $mspec - $mhead"
-      ecreated=$((ecreated + 1))
-    done < <(python3 "$py" missingepics --plan "$work/plan.json" --list "$work/epics.out")
-    if (( ecreated > 0 )); then
-      do_log "INFO created $ecreated epic(s); re-listing"
-      _spl_spec_list_epics || { do_log "FATAL the epic re-list failed"; return 1; }
-    fi
+    _spl_spec_create_missing_epics "$py" "$work" "$all_status" || return 1
   fi
 
+  _spl_spec_list_children "$py" "$work" "$all_status" || return 1
+
+  python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
+  mkdir -p "$(dirname "$report")"
+  python3 "$py" report --ops "$work/ops.json" --out "$report" || return 1
+  cat "$report"
+
+  if (( dry )); then
+    do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0. Report: $report"
+    return 0
+  fi
+
+  _spl_spec_ensure_labels "$work/ops.json" || return 1
+
+  _spl_spec_ops_tsv "$work/ops.json" "$work/ops.tsv" "$work/keys.tsv" || return 1
+
+  local n=0 fails=0
+  _spl_spec_apply_rows "$work" "$interval" "$limit"
+
+  do_log "INFO spec import wrote $n issue(s), $fails failed. Report: $report"
+  (( fails == 0 ))
+}
+
+# _spl_spec_check_args <parser> <spec dir> <pause secs> <limit>: 0 when the
+# importer's inputs are sane, else the FATAL that names the bad one.
+_spl_spec_check_args() {
+  [[ -f "$1" ]] || { do_log "FATAL spec-import parser is missing: $1"; return 1; }
+  [[ -d "$2" ]] || { do_log "FATAL SPEC_DIR is not a directory: $2"; return 1; }
+  [[ "$3" =~ ^[0-9]+([.][0-9]+)?$ ]] || { do_log "FATAL SPEC_IMPORT_INTERVAL must be seconds, got: '$3'"; return 1; }
+  [[ "$4" =~ ^[0-9]+$ ]] || { do_log "FATAL SPEC_IMPORT_LIMIT must be a number, got: '$4'"; return 1; }
+}
+
+# _spl_spec_apply_rows <work dir> <pause secs> <limit>: every row of
+# <work>/ops.tsv through _spl_spec_apply_row, at most <limit> (0 = all);
+# counts into the caller's n (rows tried) and fails.
+_spl_spec_apply_rows() {
+  local work="$1" interval="$2" limit="$3" row
+  while IFS= read -r row; do
+    if (( limit > 0 && n >= limit )); then
+      do_log "INFO SPEC_IMPORT_LIMIT=$limit reached; the rest waits for the next run"
+      break
+    fi
+    n=$((n + 1))
+    _spl_spec_apply_row "$work" "$interval" "$row" || fails=$((fails + 1))
+  done <"$work/ops.tsv"
+}
+
+# _spl_spec_apply_row <work dir> <pause secs> <ops.tsv row>: one planned write
+# - resolve the parent key (an item filed earlier in this run), set the
+# ISSUE_* env, write with retries, record the new key; 1 (with the FATAL) when
+# the row has no parent, the write fails or a create returns no key.
+_spl_spec_apply_row() {
+  local work="$1" interval="$2" action item ref pkey pitem status labels desc kind title_b64 title key out rc
+  IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64 <<<"$3"
+  title="$(printf '%s\n' "$title_b64" | base64 -d)"
+  if [[ -z "$pkey" && -n "$pitem" ]]; then
+    pkey="$(awk -F '\t' -v k="$pitem" '$1==k {print $2; exit}' "$work/keys.tsv")"
+  fi
+  if [[ -z "$pkey" && "$kind" != epic ]]; then
+    do_log "FATAL $item has no parent to file under"
+    return 1
+  fi
+  _spl_spec_issue_env "$kind" "$desc" "$title" "$status" "$labels" "$pkey"
+  _spl_spec_write_op "$action" "$ref"
+  if (( rc != 0 )); then
+    do_log "FATAL $action $item failed: $(printf '%s\n' "$out" | tail -n 1)"
+    return 1
+  fi
+  key="$(printf '%s\n' "$out" | _spl_spec_reply_key)"
+  if [[ "$action" == create && -z "$key" ]]; then
+    do_log "FATAL $item was created but the reply had no key"
+    return 1
+  fi
+  [[ -n "$key" ]] && printf '%s\t%s\n' "$item" "$key" >>"$work/keys.tsv"
+  do_log "INFO $action $item -> ${key:-$ref}"
+  sleep "$interval"
+}
+
+# _spl_spec_list_epics <work dir> <statuses>: the tenant's epics (every status),
+# read-only, into <work>/epics.out.
+_spl_spec_list_epics() {
+  local work="$1" all_status="$2"
+  (
+    DRY_RUN=0
+    ISSUE_ASSIGNEE=
+    ISSUE_KIND=epic
+    ISSUE_STATUS="$all_status"
+    ISSUE_SORT=number
+    unset ISSUE_LABEL ISSUE_EPIC ISSUE_PRIORITY ISSUE_LEVEL ISSUE_REF ISSUE_TITLE
+    do_spl_issue_list
+  ) >"$work/epics.out"
+}
+
+# _spl_spec_create_missing_epics <parser> <work dir> <statuses>
+# (SPEC_IMPORT_CREATE_EPIC=1): create the 'Spec NNN - <heading>' epic of each
+# plan spec that has none, then re-list the epics.
+_spl_spec_create_missing_epics() {
+  local py="$1" work="$2" all_status="$3"
+  local mspec mhead ecreated=0
+  while IFS=$'\t' read -r mspec mhead; do
+    [[ -n "$mspec" ]] || continue
+    (
+      DRY_RUN=0
+      unset ISSUE_LABELS ISSUE_PARENT ISSUE_STATUS ISSUE_DESCRIPTION_FILE ISSUE_REF ISSUE_EPIC
+      ISSUE_KIND=epic
+      ISSUE_TITLE="Spec $mspec - $mhead"
+      export ISSUE_KIND ISSUE_TITLE
+      do_spl_issue_create
+    ) >/dev/null || { do_log "FATAL could not create epic 'Spec $mspec'"; return 1; }
+    do_log "INFO created epic: Spec $mspec - $mhead"
+    ecreated=$((ecreated + 1))
+  done < <(python3 "$py" missingepics --plan "$work/plan.json" --list "$work/epics.out")
+  if (( ecreated > 0 )); then
+    do_log "INFO created $ecreated epic(s); re-listing"
+    _spl_spec_list_epics "$work" "$all_status" || { do_log "FATAL the epic re-list failed"; return 1; }
+  fi
+}
+
+# _spl_spec_list_children <parser> <work dir> <statuses>: the children of each
+# of this plan's epics, one read-only list per epic, merged with the epic list
+# into <work>/list.out.
+_spl_spec_list_children() {
+  local py="$1" work="$2" all_status="$3"
   local -a lists=("$work/epics.out") epicrefs=()
   mapfile -t epicrefs < <(python3 "$py" epics --plan "$work/plan.json" --list "$work/epics.out")
   local ref idx=0
@@ -141,17 +233,11 @@ do_spl_spec_import_issues() {
   done
   do_log "INFO read $idx epic-scoped list(s); merging"
   python3 "$py" mergelists --out "$work/list.out" "${lists[@]}" || return 1
+}
 
-  python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
-  mkdir -p "$(dirname "$report")"
-  python3 "$py" report --ops "$work/ops.json" --out "$report" || return 1
-  cat "$report"
-
-  if (( dry )); then
-    do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0. Report: $report"
-    return 0
-  fi
-
+# _spl_spec_ensure_labels <ops.json>: every label the plan needs is in the
+# tenant's catalogue (an existing one is fine); 1 on any other refusal.
+_spl_spec_ensure_labels() {
   local name color rc=0
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
@@ -175,76 +261,47 @@ do_spl_spec_import_issues() {
       do_log "INFO label $name is in the catalogue"
     fi
     rc=0
-  done < <(_spl_spec_needed_labels "$work/ops.json")
+  done < <(_spl_spec_needed_labels "$1")
+}
 
-  _spl_spec_ops_tsv "$work/ops.json" "$work/ops.tsv" "$work/keys.tsv" || return 1
+# _spl_spec_issue_env <kind> <description file> <title> <status> <labels>
+# <parent>: the ISSUE_* environment of one write. An epic op (SPEC_IMPORT_DOCS)
+# writes the description only: the epic's title, status, labels and place stay
+# the owner's.
+_spl_spec_issue_env() {
+  local kind="$1" desc="$2" title="$3" status="$4" labels="$5" pkey="$6"
+  unset ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_LABELS \
+    ISSUE_PARENT ISSUE_EPIC ISSUE_KIND ISSUE_REF ISSUE_ASSIGNEE ISSUE_PRIORITY \
+    ISSUE_LEVEL ISSUE_DEADLINE ISSUE_BODY ISSUE_BODY_FILE
+  ISSUE_DESCRIPTION_FILE="$desc"
+  export ISSUE_DESCRIPTION_FILE
+  if [[ "$kind" != epic ]]; then
+    ISSUE_TITLE="$title"
+    ISSUE_STATUS="$status"
+    ISSUE_LABELS="$labels"
+    ISSUE_PARENT="$pkey"
+    export ISSUE_TITLE ISSUE_STATUS ISSUE_LABELS ISSUE_PARENT
+  fi
+}
 
-  local n=0 fails=0 action item ref pkey pitem status labels desc kind title_b64 title key out try
-  while IFS=$'\x1f' read -r action item ref pkey pitem status labels desc kind title_b64; do
-    if (( limit > 0 && n >= limit )); then
-      do_log "INFO SPEC_IMPORT_LIMIT=$limit reached; the rest waits for the next run"
-      break
+# _spl_spec_write_op <create|update> <ref>: the write, up to 3 tries with a
+# growing pause; sets the caller's out (the last reply) and rc.
+_spl_spec_write_op() {
+  local action="$1" ref="$2" try=0
+  rc=0
+  out=""
+  while (( try < 3 )); do
+    try=$((try + 1))
+    if [[ "$action" == create ]]; then
+      out="$(do_spl_issue_create 2>&1)" && rc=0 || rc=$?
+    else
+      ISSUE_REF="$ref"
+      export ISSUE_REF
+      out="$(do_spl_issue_update 2>&1)" && rc=0 || rc=$?
     fi
-    title="$(printf '%s\n' "$title_b64" | base64 -d)"
-    if [[ -z "$pkey" && -n "$pitem" ]]; then
-      pkey="$(awk -F '\t' -v k="$pitem" '$1==k {print $2; exit}' "$work/keys.tsv")"
-    fi
-    if [[ -z "$pkey" && "$kind" != epic ]]; then
-      do_log "FATAL $item has no parent to file under"
-      fails=$((fails + 1))
-      n=$((n + 1))
-      continue
-    fi
-    unset ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_LABELS \
-      ISSUE_PARENT ISSUE_EPIC ISSUE_KIND ISSUE_REF ISSUE_ASSIGNEE ISSUE_PRIORITY \
-      ISSUE_LEVEL ISSUE_DEADLINE ISSUE_BODY ISSUE_BODY_FILE
-    ISSUE_DESCRIPTION_FILE="$desc"
-    export ISSUE_DESCRIPTION_FILE
-    # An epic op (SPEC_IMPORT_DOCS) writes the description only: the epic's
-    # title, status, labels and place stay the owner's.
-    if [[ "$kind" != epic ]]; then
-      ISSUE_TITLE="$title"
-      ISSUE_STATUS="$status"
-      ISSUE_LABELS="$labels"
-      ISSUE_PARENT="$pkey"
-      export ISSUE_TITLE ISSUE_STATUS ISSUE_LABELS ISSUE_PARENT
-    fi
-    try=0
-    rc=0
-    out=""
-    while (( try < 3 )); do
-      try=$((try + 1))
-      if [[ "$action" == create ]]; then
-        out="$(do_spl_issue_create 2>&1)" && rc=0 || rc=$?
-      else
-        ISSUE_REF="$ref"
-        export ISSUE_REF
-        out="$(do_spl_issue_update 2>&1)" && rc=0 || rc=$?
-      fi
-      (( rc == 0 )) && break
-      sleep "$try"
-    done
-    if (( rc != 0 )); then
-      do_log "FATAL $action $item failed: $(printf '%s\n' "$out" | tail -n 1)"
-      fails=$((fails + 1))
-      n=$((n + 1))
-      continue
-    fi
-    key="$(printf '%s\n' "$out" | _spl_spec_reply_key)"
-    if [[ "$action" == create && -z "$key" ]]; then
-      do_log "FATAL $item was created but the reply had no key"
-      fails=$((fails + 1))
-      n=$((n + 1))
-      continue
-    fi
-    [[ -n "$key" ]] && printf '%s\t%s\n' "$item" "$key" >>"$work/keys.tsv"
-    n=$((n + 1))
-    do_log "INFO $action $item -> ${key:-$ref}"
-    sleep "$interval"
-  done <"$work/ops.tsv"
-
-  do_log "INFO spec import wrote $n issue(s), $fails failed. Report: $report"
-  (( fails == 0 ))
+    (( rc == 0 )) && break
+    sleep "$try"
+  done
 }
 
 # _spl_spec_needed_labels <ops.json>: the label names the plan needs in the

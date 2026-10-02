@@ -170,6 +170,7 @@ jobs:
     permissions:
       contents: write   # push the v<X.Y.Z> release tag (do_release_version)
       id-token: write   # google-github-actions/auth via WIF
+      actions: write    # a stale-target mint re-dispatches this workflow at trunk head
     strategy:
       fail-fast: false
       matrix:
@@ -256,15 +257,43 @@ jobs:
           # The tag is claimed through the GitHub REST API (POST /git/refs),
           # not `git push`: the default GitHub App token is refused a ref whose
           # target commit touches .github/workflows/*. (CLE-77788 / CLE-001 P0.)
+          #
+          # EXCEPT at a commit whose .github/workflows differs from trunk
+          # head's (a workflow commit landed after this push): GitHub refuses
+          # the token that ref through the API too, and the mint writes
+          # stale=true (rc 3). This deploy then stands down and ONE job (the
+          # first env) dispatches 30 at trunk head with environment all, which
+          # carries this commit -- the same stand-down as workflow 20
+          # (CLE-77950, 5d6efd00). An operator dispatch is not re-routed: it
+          # fails, naming the cause, so a dispatch never re-dispatches.
           GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          ENV: ${{ matrix.environment }}
+          FIRST_ENV: ${{ fromJson(needs.plan.outputs.envs)[0] }}
         run: |
           set -euo pipefail
-          DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version
+          rc=0
+          DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version || rc=$?
+          if grep -qx 'stale=true' "$GITHUB_OUTPUT"; then
+            if [[ "$EVENT" != push ]]; then
+              echo "::error::$ENV: ${GITHUB_SHA:0:8} cannot be tagged (its .github/workflows differs from trunk head's); dispatch trunk head instead"
+              exit 1
+            fi
+            echo "::warning::$ENV: ${GITHUB_SHA:0:8} cannot be tagged (its .github/workflows differs from trunk head's) -- standing down for a trunk-head run"
+            if [[ "$ENV" == "$FIRST_ENV" ]]; then
+              gh workflow run 30_wui-build-deploy.yml --repo "$GITHUB_REPOSITORY" --ref master -f environment=all
+              echo "dispatched 30 at master (environment=all)"
+            fi
+            exit 0
+          fi
+          ((rc == 0)) || exit "$rc"
           grep -q '^version=[0-9]\.[0-9]\.[0-9]$' "$GITHUB_OUTPUT" || { echo "::error::no release version minted"; exit 1; }
 
       # Reads go to the API host (specs/026: tenant from the session, no
       # per-tenant host); NUXT_PUBLIC_TENANT is only what sign-in binds.
       - name: nuxt generate
+        if: steps.ver.outputs.stale != 'true'
         working-directory: csi-spl-wui
         env:
           NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
@@ -282,6 +311,7 @@ jobs:
         run: pnpm run generate
 
       - name: Stamp build.json (the deployed-commit probe)
+        if: steps.ver.outputs.stale != 'true'
         working-directory: csi-spl-wui
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -292,19 +322,20 @@ jobs:
           cat .output/public/build.json
 
       - name: Render firebase.json from cnf
+        if: steps.ver.outputs.stale != 'true'
         env:
           ENV: ${{ matrix.environment }}
         run: bash csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh
 
       - name: Authenticate to Google Cloud (project key)
         id: auth_key
-        if: env.HAS_KEY == 'true'
+        if: steps.ver.outputs.stale != 'true' && env.HAS_KEY == 'true'
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
 
       - name: Authenticate to Google Cloud (WIF alternative)
-        if: steps.auth_key.outcome != 'success'
+        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome != 'success'
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
@@ -315,6 +346,7 @@ jobs:
       # on an image-tag bump), and for good when the hub job failed. Wait for
       # THIS env's hub to report >= the repo .version; refuse after 30 min.
       - name: Wait for the hub this WUI needs (hub /version >= .version)
+        if: steps.ver.outputs.stale != 'true'
         env:
           HUB_URL: https://${{ steps.cfg.outputs.api_fqdn }}
           WANT_VERSION: ${{ steps.cfg.outputs.want_version }}
@@ -322,6 +354,7 @@ jobs:
         run: bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh
 
       - name: firebase deploy --only hosting
+        if: steps.ver.outputs.stale != 'true'
         working-directory: csi-spl-wui
         run: |
           set -euo pipefail
@@ -330,6 +363,7 @@ jobs:
             --project "${{ steps.cfg.outputs.project }}" --non-interactive
 
       - name: Probe the deployed commit
+        if: steps.ver.outputs.stale != 'true'
         env:
           SITE: ${{ steps.cfg.outputs.site }}
           FQDN: ${{ steps.cfg.outputs.fqdn }}

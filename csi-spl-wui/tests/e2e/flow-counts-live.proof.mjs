@@ -92,11 +92,16 @@ try {
   await a.p.waitForSelector('form.composer textarea', { timeout: 30000 })
   const text = `spec 062 flow proof ${RUN} @${B.id} please look`
   await a.p.click('form.composer textarea')
+  /* the @ word is not last, so the mention picker has closed when Enter sends */
   await a.p.keyboard.type(text)
-  /* a picker the @ opened would eat the Enter: Escape closes it first */
-  await a.p.keyboard.press('Escape')
   const t0 = Date.now()
   await a.p.keyboard.press('Enter')
+  const sent = await a.p.waitForFunction((needle) => {
+    const box = document.querySelector('form.composer textarea')
+    return (!box || !box.value.includes(needle)) && [...document.querySelectorAll('main, [role=main], .feed, body')].some((e) => (e.textContent || '').includes(needle))
+  }, { timeout: 15000 }, `flow proof ${RUN}`).then(() => true, () => false)
+  step('A\'s line is sent and shows in A\'s feed', sent)
+  if (!sent) await a.p.screenshot({ path: join(OUT, 'flow-counts-a.png') })
 
   /* rise: 0 -> 1 on B's desktop */
   const rose = await desk.p.waitForFunction((sel) => (document.querySelector(sel)?.textContent || '').trim() !== '', { timeout: 20000 }, COUNT).then(() => true, () => false)

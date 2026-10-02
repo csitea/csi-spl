@@ -30,9 +30,14 @@ var operatorCallers = map[string]string{
 	"ClaimCheckout":       "POST /v1/checkout/claim: checkout id + the claim secret's hash",
 }
 
+// operatorEntries are the only functions that set the operator scope:
+// asOperator (a transaction) and asOperatorQuery (one read as one batch).
+// A caller of either is an operator caller.
+var operatorEntries = map[string]bool{"asOperator": true, "asOperatorQuery": true}
+
 // TestOperatorScopeCallers: the set of functions in this package that call
-// asOperator equals operatorCallers. CONTROL: the parse finds asOperator's
-// own definition, so an empty result cannot pass for "no callers".
+// an operatorEntries function equals operatorCallers. CONTROL: the parse finds
+// every entry's own definition, so an empty result cannot pass for "no callers".
 func TestOperatorScopeCallers(t *testing.T) {
 	fset := token.NewFileSet()
 	files, err := os.ReadDir(".")
@@ -40,7 +45,7 @@ func TestOperatorScopeCallers(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := map[string]bool{}
-	defined := false
+	defined := map[string]bool{}
 	for _, f := range files {
 		name := f.Name()
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -55,12 +60,12 @@ func TestOperatorScopeCallers(t *testing.T) {
 			if !ok || fd.Body == nil {
 				continue
 			}
-			if fd.Name.Name == "asOperator" {
-				defined = true
+			if operatorEntries[fd.Name.Name] {
+				defined[fd.Name.Name] = true
 				continue
 			}
 			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == "asOperator" {
+				if sel, ok := n.(*ast.SelectorExpr); ok && operatorEntries[sel.Sel.Name] {
 					found[fd.Name.Name] = true
 				}
 				// The raw operator setting belongs to asOperator and Migrate only.
@@ -71,8 +76,10 @@ func TestOperatorScopeCallers(t *testing.T) {
 			})
 		}
 	}
-	if !defined {
-		t.Fatal("control: asOperator's definition was not found - the scan reads the wrong files")
+	for entry := range operatorEntries {
+		if !defined[entry] {
+			t.Fatalf("control: %s's definition was not found - the scan reads the wrong files", entry)
+		}
 	}
 	var extra, gone []string
 	for fn := range found {

@@ -89,7 +89,9 @@ func TestRoundTripsPerRequest(t *testing.T) {
 	}{
 		{"GET /v1/view/me", 1, get("/v1/view/me")},
 		// SPL-1100: one humans read for every setting (it read the row 9 times: 14).
-		{"GET /api/v1/auth/session", 6, get("/api/v1/auth/session")},
+		// db-payload audit cut 6: the tenant list is one batch, not
+		// BEGIN..COMMIT (it was 6, measured 6/8 -> 3/5, n=3).
+		{"GET /api/v1/auth/session", 3, get("/api/v1/auth/session")},
 		{"GET /v1/view/channels", 2, get("/v1/view/channels")},
 		// SPL-1111: boxes, avatars and members in one batch (it was 3: 4).
 		{"GET /v1/view/roster", 2, get("/v1/view/roster")},

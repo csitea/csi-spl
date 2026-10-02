@@ -111,23 +111,17 @@ func membershipLess(a, b Membership) bool {
 // the switcher showed only the active tenant). The override then falls back to
 // the humans-row global, as it does whenever a tenant has none.
 func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membership, error) {
-	// asOperator is called HERE (via the closure): the tenant list is the one
-	// operator-scoped read of this route (TestOperatorScopeCallers keys the
-	// allow-list on the enclosing method). withSettings folds in the rdb 0078
-	// override; on undefined_column (0078 not applied) it retries without it so
-	// the list survives (SPL-1179).
-	withSettings := true
+	// The list is ONE batch (asOperatorQuery: scope + read, one round trip;
+	// asOperator's BEGIN..COMMIT cost three more, db-payload audit cut 6). It
+	// is the one operator-scoped read of this route (TestOperatorScopeCallers
+	// keys the allow-list on the enclosing method). withSettings folds in the
+	// rdb 0078 override; on undefined_column (0078 not applied) it retries
+	// without it so the list survives (SPL-1179).
 	var out []Membership
-	run := func() error {
-		out = out[:0]
-		return s.asOperator(ctx, func(tx pgx.Tx) error {
-			return scanMemberships(ctx, tx, humanID, withSettings, &out)
-		})
-	}
-	err := run()
+	err := s.asOperatorQuery(ctx, membershipsSQL(true), []any{humanID}, membershipRow(true, &out))
 	if err != nil && isUndefinedColumn(err) {
-		withSettings = false
-		err = run()
+		out = out[:0]
+		err = s.asOperatorQuery(ctx, membershipsSQL(false), []any{humanID}, membershipRow(false, &out))
 	}
 	return out, err
 }
@@ -139,25 +133,26 @@ func isUndefinedColumn(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "42703"
 }
 
-// scanMemberships runs the membership list into out; withSettings folds in the
-// rdb 0078 override column (nil Settings otherwise).
-func scanMemberships(ctx context.Context, tx pgx.Tx, humanID string, withSettings bool, out *[]Membership) error {
+// membershipsSQL is the membership list of the human in $1; withSettings
+// folds in the rdb 0078 override column (NULL otherwise).
+func membershipsSQL(withSettings bool) string {
 	settingsCol := "NULL::jsonb"
 	if withSettings {
 		settingsCol = "m.settings"
 	}
-	rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
-		COALESCE(tn.sort_order, 0), `+settingsCol+`
+	return `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, ''), m.last_active_at,
+		COALESCE(tn.sort_order, 0), ` + settingsCol + `
 		FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
 		JOIN tenants tn ON tn.tenant_id = m.tenant_id
 		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
-		ORDER BY tn.sort_order NULLS LAST, m.tenant_id`, humanID)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
+		ORDER BY tn.sort_order NULLS LAST, m.tenant_id`
+}
+
+// membershipRow scans one membershipsSQL row into out (nil Settings unless
+// withSettings).
+func membershipRow(withSettings bool, out *[]Membership) func(pgx.Rows) error {
+	return func(rows pgx.Rows) error {
 		var m Membership
 		var settings []byte
 		if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName, &m.LastActiveAt, &m.SortOrder, &settings); err != nil {
@@ -167,8 +162,8 @@ func scanMemberships(ctx context.Context, tx pgx.Tx, humanID string, withSetting
 			m.Settings = settings
 		}
 		*out = append(*out, m)
+		return nil
 	}
-	return rows.Err()
 }
 
 func (s *Memory) TouchMembership(_ context.Context, humanID, tenant string, at time.Time) error {

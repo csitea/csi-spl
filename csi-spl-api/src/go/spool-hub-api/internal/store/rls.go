@@ -165,6 +165,29 @@ func (s *Postgres) asOperator(ctx context.Context, fn func(pgx.Tx) error) error 
 	})
 }
 
+// asOperatorQuery is asOperator for ONE read: the operator scope and the read
+// go as a single batch, one round trip, where asOperator paid BEGIN + scope +
+// the read + COMMIT. The batch is one implicit transaction, so the scope ends
+// with it, as tenantBatch's does. It sees every tenant like asOperator, so
+// TestOperatorScopeCallers lists its callers too. each is called once per row.
+func (s *Postgres) asOperatorQuery(ctx context.Context, sql string, args []any, each func(pgx.Rows) error) error {
+	b := &pgx.Batch{}
+	b.Queue(pgScopeOperator)
+	b.Queue(sql, args...)
+	br := s.pool.SendBatch(ctx, b)
+	_, err := br.Exec()
+	if err == nil {
+		var rows pgx.Rows
+		if rows, err = br.Query(); err == nil {
+			err = scanRows(rows, each)
+		}
+	}
+	if cerr := br.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
 // RLSBypassed reports whether the connected role skips every policy
 // (superuser or BYPASSRLS). The hub logs it at startup: 0014 protects nothing
 // for such a role.

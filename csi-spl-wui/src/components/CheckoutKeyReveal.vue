@@ -27,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import { ref } from 'vue'
 import { keyFileName } from '~/utils/checkout-client.mjs'
 import { saveBlob } from '~/utils/save-blob.mjs'
@@ -36,12 +37,7 @@ const { t } = useI18n({ useScope: 'global' })
 const copied = ref(false)
 
 async function copyKey() {
-  try {
-    await navigator.clipboard.writeText(props.keyText)
-    copied.value = true
-  } catch {
-    copied.value = false
-  }
+  copied.value = await writeClipboard(props.keyText)
 }
 
 function downloadKey() {

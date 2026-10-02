@@ -126,6 +126,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import UiIcon from '@/components/UiIcon.vue'
 import { useErrorJournal } from '@/composables/useErrorJournal'
 import { isoDateTimeSec } from '~/utils/date-iso.mjs'
@@ -265,8 +266,7 @@ async function copy(): Promise<void> {
       env: envName,
       page: route.path,
     })
-    await navigator.clipboard.writeText(text)
-    copyState.value = 'ok'
+    copyState.value = (await writeClipboard(text)) ? 'ok' : 'fail'
   } catch {
     copyState.value = 'fail'
   }

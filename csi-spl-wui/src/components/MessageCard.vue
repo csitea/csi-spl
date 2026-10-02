@@ -393,6 +393,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -742,23 +743,7 @@ async function copyBody() {
 }
 
 async function copyString(value: string) {
-  try {
-    await navigator.clipboard.writeText(value)
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = value
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.left = '0'
-    ta.style.top = '0'
-    ta.style.width = '1px'
-    ta.style.height = '1px'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    ta.remove()
-  }
+  await writeClipboard(value)
 }
 
 /*

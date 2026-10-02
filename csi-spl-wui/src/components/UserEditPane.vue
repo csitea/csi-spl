@@ -218,6 +218,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import UiDialog from '~/components/UiDialog.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -305,12 +306,7 @@ function linkOf(i: UserInvite | null) {
 async function copyLink(i: UserInvite | null) {
   const link = linkOf(i)
   if (!link) return
-  try {
-    await navigator.clipboard.writeText(link)
-    copied.value = true
-  } catch {
-    copied.value = false
-  }
+  copied.value = await writeClipboard(link)
 }
 
 function roleName(id: string) {

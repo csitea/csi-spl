@@ -66,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
@@ -230,23 +231,7 @@ function onMenuKey(e: KeyboardEvent) {
 }
 
 async function copyLink() {
-  const url = new URL(props.href, window.location.origin).href
-  try {
-    await navigator.clipboard.writeText(url)
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = url
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.inset = '0'
-    ta.style.width = '1px'
-    ta.style.height = '1px'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    ta.remove()
-  }
+  await writeClipboard(new URL(props.href, window.location.origin).href)
 }
 
 function choose(id: string) {

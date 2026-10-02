@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import { saveBlob } from '~/utils/save-blob.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSessionStore } from '~/stores/session'
@@ -217,11 +218,10 @@ const downloadPrivate = () => fresh.value && save(names.value.private, fresh.val
 
 async function copyPublic() {
   if (!active.value) return
-  try {
-    await navigator.clipboard.writeText(active.value.public_key)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 1500)
-  } catch { /* clipboard refused: the key is on screen */ }
+  /* refused: the key is on screen to select by hand */
+  if (!(await writeClipboard(active.value.public_key))) return
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 1500)
 }
 
 onMounted(async () => {

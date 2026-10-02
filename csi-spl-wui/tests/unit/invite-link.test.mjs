@@ -42,7 +42,7 @@ describe('the pending-invite pane', () => {
   it('offers Copy invite link for a live invite, of the tenant the list came from', () => {
     assert.match(pane, /v-if="linkOf\(invite\)"[\s\S]*?data-test="users-pane-copy-link"/)
     assert.match(pane, /i && !i\.expired && import\.meta\.client \? inviteLink\(window\.location\.origin, i\.tenant, i\.email\)/)
-    assert.match(pane, /navigator\.clipboard\.writeText\(link\)/)
+    assert.match(pane, /writeClipboard\(link\)/)
   })
   it('only the hub answer "sent" reads as mailed ("logged" does not)', () => {
     // CLE-77780: the create no longer mails (no mail without a click), so only

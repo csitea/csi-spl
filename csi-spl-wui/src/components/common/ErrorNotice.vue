@@ -57,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import { computed, onMounted, ref, watch } from 'vue'
 
 import {
@@ -155,12 +156,7 @@ async function copy(): Promise<void> {
   // Clipboard access is refused outright in some contexts (insecure origin, a
   // permissions policy). That is a state to SHOW, never an exception to throw —
   // this control renders when the page is already unwell.
-  try {
-    await navigator.clipboard.writeText(errorId.value)
-    copyState.value = 'ok'
-  } catch {
-    copyState.value = 'fail'
-  }
+  copyState.value = (await writeClipboard(errorId.value)) ? 'ok' : 'fail'
   if (clearTimer) clearTimeout(clearTimer)
   clearTimer = setTimeout(() => { copyState.value = '' }, 2500)
 }

@@ -29,7 +29,7 @@ BX="boxu-$$"; AG="agentu-$$"; ME="$(id -un)"
 export SPOOL_BOX_USER="$BX"
 HB="$T_TMP/home-box"; HA="$T_TMP/home-agent"; W="$T_TMP/wt"; A="$T_TMP/adapters"; B="$T_TMP/bin"
 mkdir -p "$HB/.claude/sessions" "$HA/.claude" "$W/CLE-61" "$A" "$B" "$SPOOL_ROOT/agents"
-printf 'SPOOL_AGENT_USER=%s\n' "$AG" > "$SPOOL_ROOT/box.env"
+t_box_env "SPOOL_AGENT_USER=$AG" || exit 1
 export AI_TRANSCRIPT_HOME_MAP="$BX:$HB $AG:$HA" AI_OWNER_HOP=0 IDENTITY_RESTORE_ADAPTER_DIR="$A" IDENTITY_RESTORE_PAUSE=0 IDENTITY_RESTORE_SETTLE=1
 export IDENTITY_RESTORE_SINCE=2026-10-01T03:00:00Z IDENTITY_RESTORE_WINDOW=15
 export IDENTITY_COPY_SUDO="" IDENTITY_COPY_OWNER="$ME" BOOT_RESTORE_WAIT_SEC=0 BOOT_RESTORE_SESSION=main
@@ -138,7 +138,7 @@ has "5. ... by name" "no-such-tool-x" "$out"
 # --- 6 ----------------------------------------------------------------------------
 tm kill-server 2>/dev/null; sleep 0.3
 rec61; rm -f "$T_TMP/started" "$T_TMP/started-tag"
-printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_TAG=sat\n' "$AG" > "$SPOOL_ROOT/box.env"
+t_box_env "SPOOL_AGENT_USER=$AG" SPOOL_BOX_TAG=sat || exit 1
 out="$(act)"; rc=$?
 eq "6. dry run exits 0" 0 "$rc"
 has "6. the plan names the window <ID>@<tag> from box.env" "new window 'CLE-61@sat lane 61' in 'main'" "$out"

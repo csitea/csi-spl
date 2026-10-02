@@ -201,9 +201,9 @@ check "7. the fixture: agent windows named <ID>@zz" test "$n_at" -ge 4
 out="$(reconcile --apply)"
 eq "7. no tag configured: every <ID>@zz window keeps its suffix" "$n_at 0" "$(ats zz) $(bare)"
 hasnt "7. ... no window renamed to a bare id" "BARE" "$(printf '%s\n' "$out" | grep -E "^RENAMED .* -> '(CLE|GRK|AGY|QWN)-[0-9]+( |')" | sed 's/^/BARE /')"
-printf 'SPOOL_BOX_TAG=yy\n' > "$SPOOL_ROOT/box.env"
+t_box_env SPOOL_BOX_TAG=yy || exit 1
 reconcile --apply >/dev/null
 eq "7. box.env SPOOL_BOX_TAG=yy: every agent window is <ID>@yy" "$n_at 0 0" "$(ats yy) $(ats zz) $(bare)"
-rm -f "$SPOOL_ROOT/box.env"
+t_box_env
 
 t_done

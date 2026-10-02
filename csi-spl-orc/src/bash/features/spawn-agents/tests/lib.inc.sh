@@ -55,6 +55,17 @@ t_sandbox() {
   mkdir -p "$SPOOL_ROOT"
   trap 't_cleanup' EXIT
 }
+# Write (or, with no lines, remove) the sandbox's box.env. Refuses unless
+# SPOOL_ROOT is inside this run's mktemp dir: a test line pasted or mis-parsed
+# into a live shell (SPOOL_ROOT=/var/spool-hub) then fails with "command not
+# found" instead of overwriting the box's real config (c-023, 2026-10-02).
+t_box_env() {  # [LINE ...]
+  local tmp="${TMPDIR:-/tmp}"
+  case "${T_TMP:-}" in "$tmp"/tmp.*) ;; *) echo "t_box_env: REFUSED: T_TMP '${T_TMP:-}' is not a mktemp dir under $tmp" >&2; return 96 ;; esac
+  case "${SPOOL_ROOT:-}" in "$T_TMP"/*) ;; *) echo "t_box_env: REFUSED: SPOOL_ROOT '${SPOOL_ROOT:-}' is not inside $T_TMP" >&2; return 96 ;; esac
+  [ -d "$T_TMP" ] || { echo "t_box_env: REFUSED: $T_TMP does not exist" >&2; return 96; }
+  if [ "$#" -eq 0 ]; then rm -f "$SPOOL_ROOT/box.env"; else printf '%s\n' "$@" > "$SPOOL_ROOT/box.env"; fi
+}
 t_cleanup() {
   tmux -S "$SPOOL_TMUX_SOCKET" kill-server 2>/dev/null || true
   rm -rf "$T_TMP"

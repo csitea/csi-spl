@@ -91,6 +91,7 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 // HUM-*) is deletable, matching the Memory store. An archived channel is
 // deletable too (the create-conflict dialog offers "delete to free the name").
 func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+	defer s.hot.forget() // DB payload cut 5: its channel_humans rows cascade out of the door cache
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
 		return ErrConflict
@@ -123,6 +124,7 @@ func (s *Postgres) DeleteChannel(ctx context.Context, tenant, id, by string, now
 // again in the database. The card stamp carries the channel's archived_at so
 // UnarchiveChannel can tell it from a card archived on its own earlier.
 func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, now time.Time) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache's channel list skips archived channels
 	id = NormalizeChannel(id)
 	if IsDefaultChannel(id) {
 		return ErrConflict
@@ -154,6 +156,7 @@ func (s *Postgres) ArchiveChannel(ctx context.Context, tenant, id, by string, no
 // stamped (archived_at equal to the channel's), so a card archived on its own
 // before the channel archive keeps its stamp. ErrNotFound when not archived.
 func (s *Postgres) UnarchiveChannel(ctx context.Context, tenant, id string) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache's channel list skips archived channels
 	id = NormalizeChannel(id)
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var at time.Time
@@ -544,6 +547,7 @@ func humanChannelsRead(tenant, human string, out *[]string) tenantRead {
 }
 
 func (s *Postgres) AddChannelHumans(ctx context.Context, tenant, channel string, humans []string, by string, now time.Time) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache holds channel_humans
 	channel = NormalizeChannel(channel)
 	if len(humans) == 0 {
 		return nil
@@ -565,6 +569,7 @@ func (s *Postgres) AddChannelHumans(ctx context.Context, tenant, channel string,
 }
 
 func (s *Postgres) RemoveChannelHuman(ctx context.Context, tenant, channel, human string) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache holds channel_humans
 	tag, err := s.execTenant(ctx, tenant, `DELETE FROM channel_humans
 		WHERE tenant_id = $1 AND channel_id = $2 AND human_id = $3`, tenant, NormalizeChannel(channel), human)
 	if err != nil {

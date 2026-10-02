@@ -103,6 +103,7 @@ func lastAdminTx(ctx context.Context, tx pgx.Tx, tenant, humanID, cur, next stri
 }
 
 func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, from string) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache holds the role
 	role, err := normalizeRole(role, "")
 	if err != nil {
 		return err
@@ -141,6 +142,7 @@ func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, fro
 }
 
 func (s *Postgres) RemoveMember(ctx context.Context, tenant, humanID string) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache holds the membership
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
 		if err != nil {

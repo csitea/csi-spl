@@ -88,37 +88,42 @@ func TestRoundTripsPerRequest(t *testing.T) {
 	// raising a budget needs a reason in the commit.
 	// SPL-1115: the read door's channel list rides the membership batch, one
 	// round trip off channels, topics, topics/{id}, search and a channel page.
+	// DB payload cut 5: the door's membership read (role, channel_order,
+	// channels) is served from the 5 s door cache (store/hotcache.go), so the
+	// door costs 0 round trips on every view request and WUI frame after the
+	// first: every view budget fell by 1 (budgets were 1 3 2 2 2 4 7 1 2 4 3,
+	// measured on cd55792f+cut 5 as 0 3 1 1 1 3 6 0 1 3 2, n=3x5).
 	probes := []struct {
 		name   string
 		budget int64
 		run    func() error
 	}{
-		{"GET /v1/view/me", 1, get("/v1/view/me")},
+		{"GET /v1/view/me", 0, get("/v1/view/me")},
 		// SPL-1100: one humans read for every setting (it read the row 9 times: 14).
 		// db-payload audit cut 6: the tenant list is one batch, not
 		// BEGIN..COMMIT (it was 6, measured 6/8 -> 3/5, n=3).
 		{"GET /api/v1/auth/session", 3, get("/api/v1/auth/session")},
-		{"GET /v1/view/channels", 2, get("/v1/view/channels")},
+		{"GET /v1/view/channels", 1, get("/v1/view/channels")},
 		// SPL-1111: boxes, avatars and members in one batch (it was 3: 4).
-		{"GET /v1/view/roster", 2, get("/v1/view/roster")},
-		{"GET /v1/view/topics", 2, get("/v1/view/topics")},
-		{"GET /v1/view/topics/{lobby}", 4, // SPL-1121: reactions ride the deliveries batch
+		{"GET /v1/view/roster", 1, get("/v1/view/roster")},
+		{"GET /v1/view/topics", 1, get("/v1/view/topics")},
+		{"GET /v1/view/topics/{lobby}", 3, // SPL-1121: reactions ride the deliveries batch
 			get("/v1/view/topics/" + lobby)},
-		{"GET /v1/view/search?q=seed", 7, get("/v1/view/search?q=seed")},
+		{"GET /v1/view/search?q=seed", 6, get("/v1/view/search?q=seed")},
 		// SPL-1206: the grammar is built once (sync.Once), so operators is only
 		// the view door's one membership read — it must never grow a read of its
 		// own (measured 1/1 against Postgres).
-		{"GET /v1/view/search/operators", 1, get("/v1/view/search/operators")},
+		{"GET /v1/view/search/operators", 0, get("/v1/view/search/operators")},
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
-		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
+		{"GET topics?channel&per_topic=30", 1, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
 		// DB payload cut 1: the DM seed counts per-peer unread/total in the hub
 		// from a thin read; per_topic=50 inlined the envelopes and read their
 		// deliveries and reactions too (measured 5/9 -> 4/5 here, n=3).
-		{"GET topics?dm&dm_counts", 4, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
+		{"GET topics?dm&dm_counts", 3, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
 		// DB payload cut 7: the message and its box-wui delivery (sent) in one
 		// statement; insert + enqueue + claim took three (it was 5).
-		{"WS wui send (lobby) -> ack", 3, func() error { send("probe"); return nil }},
+		{"WS wui send (lobby) -> ack", 2, func() error { send("probe"); return nil }},
 	}
 	const n = 5
 	t.Logf("%-30s DB round trips (n=%d, min/max, budget)", "request", n)

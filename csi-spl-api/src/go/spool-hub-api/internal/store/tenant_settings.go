@@ -253,6 +253,7 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 }
 
 func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string, off bool, now time.Time) error {
+	defer s.hot.forget() // DB payload cut 5: a suspended member leaves the door cache
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
 		if err != nil {

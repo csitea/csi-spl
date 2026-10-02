@@ -329,7 +329,15 @@ func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (stri
 	// SPL-1034: the same row's channel_order rides along into the request
 	// memo, so ChannelOrder in the same request costs no round trip; so do
 	// the human's channels (SPL-1115, HumanChannels), in the same batch.
+	// DB payload cut 5: with a memo, the whole read is served from the
+	// instance's door cache (hotcache.go, 5 s, cleared by every writer).
 	return memberRoleOrder(ctx, humanID, tenant, func(memo bool) (memberRead, error) {
+		if memo {
+			if v, ok := s.hot.door(tenant, humanID); ok {
+				return v, nil
+			}
+		}
+		gen := s.hot.generation()
 		var v memberRead
 		found := false
 		reads := []tenantRead{{sql: `SELECT m.role, m.channel_order FROM tenant_memberships m
@@ -348,6 +356,9 @@ func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (stri
 		v.chansRead = memo
 		if !found {
 			return v, ErrNotFound
+		}
+		if memo {
+			s.hot.putDoor(gen, tenant, humanID, v)
 		}
 		return v, nil
 	})

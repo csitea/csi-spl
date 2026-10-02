@@ -48,6 +48,13 @@ type memberRead struct {
 	chansRead bool
 }
 
+// clone copies the slices, so a cached read is never shared with a caller.
+func (v memberRead) clone() memberRead {
+	v.order = append([]string(nil), v.order...)
+	v.chans = append([]string(nil), v.chans...)
+	return v
+}
+
 // WithMemo returns ctx carrying a fresh request memo (ctx itself when it
 // already carries one).
 func WithMemo(ctx context.Context) context.Context {

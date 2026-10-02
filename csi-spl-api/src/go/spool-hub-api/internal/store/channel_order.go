@@ -74,6 +74,7 @@ func (s *Postgres) ChannelOrder(ctx context.Context, tenant, humanID string) ([]
 }
 
 func (s *Postgres) SetChannelOrder(ctx context.Context, tenant, humanID string, order []string) error {
+	defer s.hot.forget() // DB payload cut 5: the door cache holds channel_order
 	var v any
 	if len(order) > 0 {
 		v = order

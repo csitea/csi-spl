@@ -18,11 +18,21 @@ import (
 // hub instance, e.g. the old revision during a roll, or SQL run by hand) is
 // seen within hotCacheTTL. gen makes a fill that raced a write unable to store
 // the row it read before that write.
+//
+// DB payload cut 5: it also holds the view door's membership read (role,
+// channel_order and the human's channel_humans list, memberRead) per
+// (tenant, human), which every view request and browser frame read again.
+// Only a request carrying a memo reads or fills it (memo.go), so a path
+// without one still reads the membership live. Every writer of a membership's
+// role, suspension or channel_order, of channel_humans, or of a channel's
+// archive state clears it the same way, so a revocation is seen at once on
+// this instance and within hotCacheTTL on any other.
 type hotCache struct {
 	mu      sync.Mutex
 	gen     uint64
 	tenants map[string]hotEntry[Tenant]
 	pins    map[[2]string]hotEntry[ed25519.PublicKey]
+	doors   map[[2]string]hotEntry[memberRead]
 }
 
 type hotEntry[V any] struct {
@@ -43,12 +53,12 @@ func (c *hotCache) generation() uint64 {
 	return c.gen
 }
 
-// forget drops every cached row; every tenants / pins writer defers it.
+// forget drops every cached row; every tenants / pins / door writer defers it.
 func (c *hotCache) forget() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.gen++
-	c.tenants, c.pins = nil, nil
+	c.tenants, c.pins, c.doors = nil, nil, nil
 }
 
 func (c *hotCache) tenant(id string) (Tenant, bool) {
@@ -96,4 +106,27 @@ func (c *hotCache) putPin(gen uint64, tenant, box string, pub ed25519.PublicKey)
 		c.pins = map[[2]string]hotEntry[ed25519.PublicKey]{}
 	}
 	c.pins[[2]string{tenant, box}] = hotEntry[ed25519.PublicKey]{v: append(ed25519.PublicKey(nil), pub...), exp: hotNow().Add(hotCacheTTL)}
+}
+
+// door is the cached membership read of human in tenant (a found row only).
+func (c *hotCache) door(tenant, human string) (memberRead, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.doors[[2]string{tenant, human}]
+	if !ok || !hotNow().Before(e.exp) {
+		return memberRead{}, false
+	}
+	return e.v.clone(), true
+}
+
+func (c *hotCache) putDoor(gen uint64, tenant, human string, v memberRead) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if gen != c.gen {
+		return
+	}
+	if c.doors == nil {
+		c.doors = map[[2]string]hotEntry[memberRead]{}
+	}
+	c.doors[[2]string{tenant, human}] = hotEntry[memberRead]{v: v.clone(), exp: hotNow().Add(hotCacheTTL)}
 }

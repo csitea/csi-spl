@@ -137,6 +137,7 @@ func stopCloneTx(ctx context.Context, tx pgx.Tx, tenant, clone, reason string, n
 // StopClone ends the clone in its tenant scope (the act-as sign-out). Returns
 // ErrNotFound when clone is not a live clone of tenant.
 func (s *Postgres) StopClone(ctx context.Context, tenant, clone, reason string, now time.Time) error {
+	defer s.hot.forget() // DB payload cut 5: the clone's membership leaves the door cache
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		ok, err := stopCloneTx(ctx, tx, tenant, clone, reason, now)
 		if err != nil {
@@ -194,6 +195,11 @@ func (s *Postgres) ListClones(ctx context.Context, tenant string) ([]Clone, erro
 // no host cron is needed. Returns the number expired.
 func (s *Postgres) SweepClones(ctx context.Context, now time.Time) (int, error) {
 	n := 0
+	defer func() { // DB payload cut 5: swept clones leave the door cache
+		if n > 0 {
+			s.hot.forget()
+		}
+	}()
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		type ref struct{ tenant, clone string }
 		var due []ref

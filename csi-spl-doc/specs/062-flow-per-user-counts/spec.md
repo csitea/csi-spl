@@ -1,7 +1,7 @@
 # 062: Flow per user: only what concerns me, with a count on top
 
-Status: **draft, waiting on the owner** (section 8). No code lane starts
-before the owner answers Q1..Q5.
+Status: **decided** (section 8, owner 2026-10-02 ~17:05Z). The API and WS
+contract is frozen in `contracts/flow-v1.md`.
 
 ## 0. The owner's ask
 
@@ -359,12 +359,17 @@ section 3.2 / 4.2 contract is frozen in L3's first commit. L5 goes last.
 | **L4 WUI** | `stores/flow.ts` reads `/v1/view/flow`; the Mine/All switch; the chips; the number on the Flow tab; the `flow` frame in `live-ws.mjs`; `setAppBadge` + title; i18n all locales; stay within the 160 KB initial budget (all of it lazy) | `stores/flow.ts`, `components/FlowList.vue`, `utils/flow-entries.mjs`, `utils/flow-badge.mjs` (new), `components/ChannelSidebar.vue` (Flow tab only), `utils/live-ws.mjs`, `i18n/locales/*.json` | `utils/view-api.mjs` (c-010), `stores/notification.ts` channel/DM counts |
 | **L5 tests + proof** | mock e2e (`tests/e2e/flow-mine.test.mjs`); live proof with two members on dev t1 and prd e2e (`tests/e2e/flow-counts-live.proof.mjs`): A mentions B, B's desktop badge goes 0 → 1, B opens the Flow on the phone, the desktop badge goes back to 0 within 1 s; payload harness numbers for 4.3; the read-only prd watcher-count query as a named action `do_spl_flow_watch_stats` | listed | everything else |
 
-## 8. Open owner questions
+## 8. Owner decisions
 
-| Q | question | recommended default |
+The owner accepted all five recommended answers, prd t1 #spool-hub-devel,
+topic `25826b7b-c1d2-486b-a12e-04c1b32f52dd`, 2026-10-02 ~17:05Z: "Okay let's
+accept your suggestions for all of those five decisions." / "And start the
+implementation."
+
+| Q | question | decided |
 |---|---|---|
-| **Q1** | Should the old all-events Flow stay? | **Yes, as a Mine / All switch. Mine is the default.** It costs one switch, and operators keep their overview |
-| **Q2** | Do plain lines in my channels count, or list in Mine? | **No.** Mentions, pokes, DMs and replies in threads I am part of only. Channel lines keep their `#chan N` badge on the Channels tab. Including them would rebuild today's noise |
-| **Q3** | One number, or one per kind on the icon? | **One total on the icon** (Facebook). The per-kind split shows as chips inside the pane |
-| **Q4** | Should opening the pane clear the number? | **Yes, Facebook style**: opening clears the number (`f:seen`). The entries stay highlighted until each one is opened or read in place. Web Push to a closed app is a separate later spec |
-| **Q5** | Should a poke and its mention count once, and are agents outside the Flow? | **Yes to both.** The poke folds into its mention (one entry, one count). Agents keep their inbox as their flow, and get no Flow events in 062 |
+| **Q1** | Should the old all-events Flow stay? | **Yes, as a Mine / All switch. Mine is the default.** |
+| **Q2** | Do plain lines in my channels count, or list in Mine? | **No.** Only mentions, pokes, DMs and replies in threads I am part of. Channel lines keep their `#chan N` badge |
+| **Q3** | One number, or one per kind on the icon? | **One total on the icon**, `99+` above 99. The per-kind split shows as `@` / reply / DM chips inside the pane |
+| **Q4** | Should opening the pane clear the number? | **Yes, Facebook style** (`f:seen`). Entries stay highlighted until opened or read in place. Web Push to a closed app is a later spec |
+| **Q5** | Should a poke and its mention count once, and are agents outside the Flow? | **Yes to both.** The poke folds into its mention; agents get no Flow events |

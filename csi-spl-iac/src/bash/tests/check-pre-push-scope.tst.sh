@@ -14,6 +14,11 @@
 #     7. a part that exits 127 (command not found) on
 #        HEAD and trunk alike                            -> FAIL, never a pre-existing WARN
 #     8. every part writes exactly one verdict line with a duration
+#     9. a push that only EDITS e2e/bench files      -> the wui part never runs
+#        (a new/deleted e2e file or a ci-skip.txt edit still runs it)
+#    10. wui cache HIT over non-wui and e2e/bench-edit commits
+#    11. wui cache MISS over wui src, e2e names, ci-skip.txt and a hub file a
+#        unit test reads; that hub file also SELECTS the part (CLE-77946)
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -42,7 +47,7 @@ COUNT="$ROOT/count"
 _stub() { echo "$1" >>"$COUNT"; grep -q good "$2/$1/flag" 2>/dev/null; }
 _pp_part_api() { _stub csi-spl-api "$1"; }
 _pp_part_iac() { _stub csi-spl-iac "$1"; }
-_pp_part_wui() { _stub csi-spl-wui "$1"; }
+_pp_part_wui() { echo csi-spl-wui-unit >>"$COUNT"; grep -q good "$1/csi-spl-wui/flag" 2>/dev/null; }
 _pp_part_wui_vendor() { _stub csi-spl-wui "$1"; }
 runs() { grep -cx "$1" "$COUNT" 2>/dev/null || true; }
 
@@ -157,6 +162,81 @@ for p in hygiene iac wui-vendor wui api; do
 done
 awk '$3=="PART" && $6 !~ /^[0-9]+s$/ {bad=1} END{exit bad}' "$R.log" \
   && pass "8. every verdict line carries a duration" || fail "8. every verdict line carries a duration" "$(cat "$R.log")"
+
+# 9..11 (CLE-77946): the wui part is keyed on what unit + typecheck READ.
+# A wui repo: a src file, an e2e test, ci-skip.txt, a bench file, and a unit
+# test that reads one hub Go file (an external input).
+mkwui() {  # <dir>
+  local R="$1"; mkrepo "$R"
+  mkdir -p "$R/csi-spl-wui/src" "$R/csi-spl-wui/tests/e2e" "$R/csi-spl-wui/tests/bench" "$R/csi-spl-wui/tests/unit" "$R/csi-spl-api/internal/msg"
+  echo a >"$R/csi-spl-wui/src/a.ts"; echo e >"$R/csi-spl-wui/tests/e2e/x.test.mjs"
+  : >"$R/csi-spl-wui/tests/e2e/ci-skip.txt"; echo b >"$R/csi-spl-wui/tests/bench/b.bench.mjs"
+  echo m >"$R/csi-spl-api/internal/msg/msg.go"
+  printf "// a comment naming csi-spl-orc/never-read.sh\nconst src = readFileSync(join(REPO, 'csi-spl-api/internal/msg/msg.go'), 'utf8')\n" >"$R/csi-spl-wui/tests/unit/u.test.mjs"
+  git -C "$R" add -A; git -C "$R" commit -qm wui-seed
+  git -C "$R" branch -f trunk HEAD
+}
+trunk_commit() {  # <repo> <path> <content> -- someone else's commit on trunk, then rebase the lane
+  git -C "$1" checkout -q trunk; mkdir -p "$(dirname "$1/$2")"; echo "$3" >>"$1/$2"
+  git -C "$1" add -A; git -C "$1" commit -qm "trunk: $2"; git -C "$1" checkout -q lane; git -C "$1" rebase -q trunk
+}
+
+# 9. a push that only EDITS an e2e / bench file -> the wui part never runs
+R="$ROOT/r9"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo edit >>"$R/csi-spl-wui/tests/e2e/x.test.mjs"; echo edit >>"$R/csi-spl-wui/tests/bench/b.bench.mjs"
+git -C "$R" commit -qam "e2e + bench edit only"
+gate "$R"; eq "9. e2e/bench-edit-only push -> passes" 0 "$?"
+eq "9. ... the wui part never ran" 0 "$(runs csi-spl-wui-unit)"
+eq "9. ... wui logged SKIP-untouched" SKIP-untouched "$(verdict "$R" wui)"
+trunk_commit "$R" csi-spl-wui/src/b.ts "someone else's wui src"
+gate "$R"; eq "9. ... and after a rebase over another lane's wui src change it still never runs" 0 "$(runs csi-spl-wui-unit)"
+echo dirty >>"$R/csi-spl-wui/tests/e2e/x.test.mjs"
+gate "$R"; eq "9. ... nor with an uncommitted e2e edit on top" 0 "$(runs csi-spl-wui-unit)"
+git -C "$R" checkout -q -- csi-spl-wui/tests/e2e/x.test.mjs
+# ... but a NEW e2e file (unit reads the e2e file names) or a ci-skip.txt edit does select it
+echo n >"$R/csi-spl-wui/tests/e2e/new.test.mjs"; git -C "$R" add -A; git -C "$R" commit -qm "new e2e test"
+gate "$R"; eq "9. a push ADDING an e2e test runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+R="$ROOT/r9b"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo "x.test.mjs  flaky" >>"$R/csi-spl-wui/tests/e2e/ci-skip.txt"; git -C "$R" commit -qam "skip x"
+gate "$R"; eq "9. a push editing ci-skip.txt runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+R="$ROOT/r9c"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+git -C "$R" rm -q csi-spl-wui/tests/e2e/x.test.mjs; git -C "$R" commit -qm "drop e2e test"
+gate "$R"; eq "9. a push DELETING an e2e test runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+
+# 10. cache HIT: a green wui verdict survives a rebase over commits that change
+#     nothing the part reads (non-wui files, e2e/bench edits)
+R="$ROOT/r10"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo mine >>"$R/csi-spl-wui/src/a.ts"; git -C "$R" commit -qam "my wui change"
+gate "$R"; eq "10. first wui push -> green" 0 "$?"
+eq "10. ... the wui part ran once" 1 "$(runs csi-spl-wui-unit)"
+trunk_commit "$R" csi-spl-orc/o.sh "someone else's orc"
+trunk_commit "$R" csi-spl-api/a.go "someone else's api (not read by a unit test)"
+gate "$R"; eq "10. rebase over non-wui commits -> green" 0 "$?"
+eq "10. ... the wui part did NOT re-run" 1 "$(runs csi-spl-wui-unit)"
+eq "10. ... logged PASS-cached" PASS-cached "$(verdict "$R" wui)"
+trunk_commit "$R" csi-spl-wui/tests/e2e/x.test.mjs "someone else's e2e edit"
+trunk_commit "$R" csi-spl-wui/tests/bench/b.bench.mjs "someone else's bench edit"
+gate "$R"; eq "10. rebase over e2e/bench edits -> still a cache hit" 1 "$(runs csi-spl-wui-unit)"
+eq "10. ... logged PASS-cached" PASS-cached "$(verdict "$R" wui)"
+
+# 11. cache MISS: anything the part reads re-runs it
+trunk_commit "$R" csi-spl-wui/src/b.ts "someone else's wui src"
+gate "$R"; eq "11. rebase over a wui src change -> re-runs" 2 "$(runs csi-spl-wui-unit)"
+trunk_commit "$R" csi-spl-wui/tests/e2e/y.test.mjs "someone else's NEW e2e test"
+gate "$R"; eq "11. rebase over a new e2e file (its name is read) -> re-runs" 3 "$(runs csi-spl-wui-unit)"
+trunk_commit "$R" csi-spl-wui/tests/e2e/ci-skip.txt "y.test.mjs reason"
+gate "$R"; eq "11. rebase over a ci-skip.txt edit -> re-runs" 4 "$(runs csi-spl-wui-unit)"
+trunk_commit "$R" csi-spl-api/internal/msg/msg.go "a field a unit test reads"
+gate "$R"; eq "11. rebase over a hub file a unit test reads -> re-runs" 5 "$(runs csi-spl-wui-unit)"
+echo dirty >>"$R/csi-spl-wui/src/a.ts"
+gate "$R"; eq "11. a dirty wui src file -> re-runs (uncacheable)" 6 "$(runs csi-spl-wui-unit)"
+# ... and that external read SELECTS the part on a push of its own
+R="$ROOT/r11b"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo x >>"$R/csi-spl-api/internal/msg/msg.go"; git -C "$R" commit -qam "api msg.go"
+gate "$R"; eq "11. an api push changing a file a wui unit test reads runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+R="$ROOT/r11c"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo x >"$R/csi-spl-orc/never-read.sh"; git -C "$R" add -A; git -C "$R" commit -qm "orc file only named in a comment"
+gate "$R"; eq "11. a path only named in a unit-test COMMENT does not select it" 0 "$(runs csi-spl-wui-unit)"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

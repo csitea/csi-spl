@@ -8,7 +8,8 @@
 # @description   hygiene     always (~1 s)
 # @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/ .zap/ root scanner configs
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
-# @description   wui         csi-spl-wui/ (unit tests + typecheck)
+# @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
+# @description               repo files the unit tests read (unit tests + typecheck)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
 # @description   lint-*      the scanner workflows (61..67, 85) + syntax, on the
 # @description               TOUCHED files only -- check-pre-push-lint.func.sh
@@ -55,7 +56,59 @@ declare -F _ppl_plan >/dev/null 2>&1 \
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
-_PP_CACHE_V=4
+_PP_CACHE_V=5
+
+# The repo files OUTSIDE csi-spl-wui that the wui unit tests read (hub Go
+# sources, migrations, the firebase render script, cnf env JSON, workflows,
+# help docs), taken from the tests themselves so the list cannot go stale: every
+# non-comment '<dir>/...' literal in tests/unit/*.mjs, cut at a template '${'
+# (so `csi-spl-cnf/csi-spl/${env}.env.json` covers its whole directory). A line
+# that builds a scratch repo (mkdirSync / writeFileSync) names paths it WRITES,
+# not reads, so it is left out.
+# Before CLE-77946 none of them selected the wui part or keyed its cache, so a
+# msg.go change re-used a green verdict the unit suite no longer gave.
+_pp_wui_external() {  # <tree>
+  local unit="$1/csi-spl-wui/tests/unit"
+  [[ -d "$unit" ]] || return 0
+  grep -hvE '^[[:space:]]*(//|\*)|mkdirSync|writeFileSync' "$unit"/*.mjs 2>/dev/null \
+    | grep -oE '(csi-spl-(api|cnf|dat|doc|iac|orc|rdb|utl)|\.github)/[A-Za-z0-9_./-]*' \
+    | sed -E 's#/+$##' | grep -vF '...' | sort -u | paste -sd' ' -
+}
+
+# Within csi-spl-wui, the e2e and bench files are never RUN by the wui part:
+# unit reads only the e2e file NAMES and ci-skip.txt (e2e-runner-coverage), and
+# typecheck only parses them as JS (allowJs, no checkJs), which lint-wui-syntax
+# already does for every touched one. So their CONTENT neither selects the part
+# nor keys its cache; a name (an added, deleted or renamed file) still does.
+_pp_wui_content_free() {  # <repo-relative path>
+  [[ "$1" == csi-spl-wui/tests/e2e/ci-skip.txt ]] && return 1
+  [[ "$1" == csi-spl-wui/tests/e2e/* || "$1" == csi-spl-wui/tests/bench/* ]]
+}
+
+# The changed files that count for the wui part: all of them, minus an edit to
+# an e2e/bench file that exists on both sides (its name is unchanged).
+_pp_wui_select() {  # <changed-list> <tree> <base>
+  local changed="$1" tree="$2" base="$3" f mb
+  mb="$(git -C "$tree" merge-base "$base" HEAD 2>/dev/null)" || mb="$base"
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if _pp_wui_content_free "$f" && [[ -e "$tree/$f" ]] \
+       && git -C "$tree" cat-file -e "$mb:$f" 2>/dev/null; then
+      continue
+    fi
+    printf '%s\n' "$f"
+  done <<< "$changed"
+}
+
+# The cache id of csi-spl-wui at HEAD: its file list with blob ids, where an
+# e2e/bench file contributes its name only.
+_pp_wui_tree_id() {  # <tree>
+  git -C "$1" ls-tree -r HEAD -- csi-spl-wui 2>/dev/null \
+    | awk -F'\t' '{ p=$2; split($1, m, " ")
+        if (p != "csi-spl-wui/tests/e2e/ci-skip.txt" && (p ~ /^csi-spl-wui\/tests\/e2e\// || p ~ /^csi-spl-wui\/tests\/bench\//)) print "name " p
+        else print m[3] " " p }' \
+    | sha1sum | cut -c1-40
+}
 
 # The paths each part reads: they select it AND key its green cache.
 _pp_paths() {  # <part>
@@ -64,7 +117,7 @@ _pp_paths() {  # <part>
     # the root scanner configs are read by iac tests: a .zap-only push once
     # selected NO part and reddened trunk 13 times (domain-single-source).
     iac)        echo "csi-spl-iac csi-spl-cnf .github .zap .hadolint.yaml .gitleaks.toml .trivyignore.yaml osv-scanner.toml docker-compose.yml" ;;
-    wui)        echo "csi-spl-wui" ;;
+    wui)        echo "csi-spl-wui${_PP_TOP:+ $(_pp_wui_external "$_PP_TOP")}" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
     lint-*)     _ppl_paths "$1" ;;
@@ -115,12 +168,19 @@ _pp_key() {  # <tree> <part> <tier>
   local tree="$1" part="$2" tier="$3" p ids=""
   local -a paths; read -r -a paths <<< "$(_pp_paths "$part")"
   [[ "${#paths[@]}" -gt 0 ]] || return 0
-  [[ -z "$(git -C "$tree" status --porcelain -- "${paths[@]}" 2>/dev/null)" ]] || return 0
+  local dirty; dirty="$(git -C "$tree" status --porcelain -- "${paths[@]}" 2>/dev/null)"
+  # wui: an edited (M) e2e/bench file is not an input -- see _pp_wui_content_free
+  [[ "$part" == wui && -n "$dirty" ]] && dirty="$(while IFS= read -r l; do
+      [[ "${l:0:2}" =~ ^(M.|.M)$ ]] && _pp_wui_content_free "${l:3}" || printf '%s\n' "$l"
+    done <<< "$dirty")"
+  [[ -z "$dirty" ]] || return 0
   for p in "${paths[@]}"; do
     # '.' (a whole-scope lint part) is the root tree: 'HEAD:.' does not
     # resolve, and its '-' made one constant key re-use a green verdict
     # across every tree.
-    if [[ "$p" == . ]]; then
+    if [[ "$part" == wui && "$p" == csi-spl-wui ]]; then
+      ids+="$p=$(_pp_wui_tree_id "$tree") "
+    elif [[ "$p" == . ]]; then
       ids+=".=$(git -C "$tree" rev-parse -q --verify "HEAD^{tree}" 2>/dev/null || echo -) "
     else
       ids+="$p=$(git -C "$tree" rev-parse -q --verify "HEAD:$p" 2>/dev/null || echo -) "
@@ -384,8 +444,13 @@ do_check_pre_push() {
     mode=full; parts="$all"
   else
     for p in iac wui-vendor wui api; do
+      local sel="$changed"
+      # wui: an edit to an existing e2e/bench file is not a wui input (CLE-77946:
+      # an e2e-only lane re-ran the 150..260 s part after every rebase and lost
+      # the trunk race 12 times in a row)
+      [[ "$p" == wui ]] && sel="$(_pp_wui_select "$changed" "$tree" "$base")"
       # shellcheck disable=SC2046
-      _pp_touches "$changed" $(_pp_paths "$p") && parts+=" $p"
+      _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
   fi
   # The lint parts run right after hygiene: seconds, and the likeliest red.

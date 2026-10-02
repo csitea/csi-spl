@@ -54,7 +54,7 @@ describe('locale route copies', () => {
     const opts = readFileSync(join(WUI, 'src/app/router.options.ts'), 'utf8')
     assert.match(opts, /expandLocaleRoutes\(/)
     const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
-    assert.match(cfg, /modules: \["@nuxtjs\/i18n", "@pinia\/nuxt", localeRouteCopiesModule\]/)
+    assert.match(cfg, /modules: \["@nuxtjs\/i18n", "@pinia\/nuxt", localeRouteCopiesModule[,\]]/)
     assert.match(cfg, /expandLocaleRoutes does not rebuild i18n's routes/)
   })
 })

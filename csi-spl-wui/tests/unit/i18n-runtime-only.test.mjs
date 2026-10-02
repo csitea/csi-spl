@@ -15,6 +15,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const MERGES_COMPILED = 'src/plugins/i18n-more.client.ts'
 
 function files(dir, out = []) {
   for (const n of readdirSync(dir)) {
@@ -37,9 +38,22 @@ describe('vue-i18n runtime-only', () => {
   it('no source adds a message at runtime (it would need the compiler)', () => {
     const bad = []
     for (const f of files(join(WUI, 'src'))) {
+      const rel = f.slice(WUI.length + 1)
+      if (rel === MERGES_COMPILED) continue
       const src = readFileSync(f, 'utf8')
-      if (/\b(setLocaleMessage|mergeLocaleMessage)\s*\(/.test(src)) bad.push(f.slice(WUI.length + 1))
+      if (/\b(setLocaleMessage|mergeLocaleMessage)\s*\(/.test(src)) bad.push(rel)
     }
     assert.deepEqual(bad, [])
+  })
+
+  // Perf round 3, P3-06: the one merge, of the second catalogue, which the
+  // build writes already compiled (src/node/i18n/split-catalogue.mjs).
+  it('the catalogue-split loader merges only the build-compiled second catalogues', () => {
+    const src = readFileSync(join(WUI, MERGES_COMPILED), 'utf8')
+    assert.match(src, /import\.meta\.glob<[^>]*>\('\.\.\/\.\.\/i18n\/\.split\/more\/\*\.mjs'\)/)
+    assert.equal([...src.matchAll(/\bmergeLocaleMessage\s*\(/g)].length, 1)
+    assert.match(src, /mergeLocaleMessage\(code, m\.default\)/)
+    const split = readFileSync(join(WUI, 'src/node/i18n/split-catalogue.mjs'), 'utf8')
+    assert.match(split, /generateJSON\(/)
   })
 })

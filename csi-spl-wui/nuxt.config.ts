@@ -13,6 +13,7 @@ import { addTemplate, addTypeTemplate } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
+import { writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
 // nuxt.config.ts is loaded by jiti BEFORE Nuxt injects `import.meta.dev`, so
@@ -252,6 +253,32 @@ if (!I18N_LOCALES.some((l) => l.code === _envDefaultLocale)) {
   throw new Error(`NUXT_PUBLIC_DEFAULT_LOCALE=${_envDefaultLocale} is not one of the shipped locales`)
 }
 const DEFAULT_LOCALE = _envDefaultLocale as SpoolLocaleCode
+
+// ── Catalogue split (perf round 3, P3-06) ─────────────────────────────────
+// A build ships each locale as two catalogues: the messages the first screen
+// can show (core: the i18n module's locale file, loaded with the entry) and
+// the rest (src/plugins/i18n-more.client.ts loads it before any other page or
+// ?settings=, and when the browser is idle). i18n/locales/<code>.json stays
+// the one source: src/node/i18n/split-catalogue.mjs writes the split copies
+// to i18n/.split/ (git-ignored). lde (`nuxt dev`) loads whole catalogues,
+// and so does a build with NUXT_I18N_SPLIT=0 (the A/B and rollback switch).
+const I18N_SPLIT = !isDev && process.env.NUXT_I18N_SPLIT !== "0"
+if (I18N_SPLIT) writeSplitCatalogues(I18N_LOCALES.map((l) => l.file))
+const I18N_MODULE_LOCALES = I18N_SPLIT
+  ? I18N_LOCALES.map((l) => ({ ...l, file: `../.split/${l.file}` }))
+  : I18N_LOCALES
+/**
+ * Never hint the second catalogues as prefetch: a page needs one of the 19,
+ * which the plugin fetches itself when the browser is idle.
+ */
+function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest", fn: (m: Record<string, { prefetch?: boolean }>) => void) => void }) {
+  if (!I18N_SPLIT) return
+  nuxt.hook("build:manifest", (manifest) => {
+    for (const [src, chunk] of Object.entries(manifest)) {
+      if (src.includes("i18n/.split/more/")) chunk.prefetch = false
+    }
+  })
+}
 // Locale preference cookie (strictly necessary). Written by
 // src/plugins/locale-cookie.client.ts, read by the root redirect script.
 const LOCALE_COOKIE = "i18n_redirected"
@@ -327,7 +354,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
@@ -354,7 +381,7 @@ export default defineNuxtConfig({
     baseUrl: process.env.NUXT_PUBLIC_SITE_URL || "",
     strategy: "prefix_except_default",
     defaultLocale: DEFAULT_LOCALE,
-    locales: I18N_LOCALES,
+    locales: I18N_MODULE_LOCALES,
     lazy: true,
     detectBrowserLanguage: false,
     // Runtime-only vue-i18n, no message compiler (CLE-35075): the catalogues

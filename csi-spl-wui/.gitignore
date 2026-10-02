@@ -6,3 +6,5 @@ node_modules
 dist
 *.log
 .pnpm-store
+# perf round 3, P3-06: build-time split catalogues (src/node/i18n/split-catalogue.mjs)
+i18n/.split/

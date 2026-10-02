@@ -2,14 +2,14 @@
 # test-agent-id.sh — the agent id grammar (specs/061 wave A, accept only):
 # c-004 and the legacy CLE-07 both parse, the legacy form is refused on a
 # write path after SPOOL_LEGACY_ID_UNTIL (read through SPOOL_NOW, FR-004), and
-# that constant equals the Go agentid.LegacyUntil and spec 061 section 0 (FR-005).
+# that constant equals spec 061 section 0 and the Go agentid.LegacyUntil (FR-005).
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
 . "$T_FEAT/lib/spool-env.inc.sh"
 . "$T_FEAT/lib/agent-state.inc.sh"
 
-before=2026-10-02T12:00:00Z after=2026-10-02T21:00:00Z
+before=2026-10-02T12:00:00Z after=2026-10-03T21:00:00Z
 nope() { ! "$@" 2>/dev/null; }
 
 # 1. the grammar
@@ -105,7 +105,7 @@ PY
 )"
   eq "4. bash SPOOL_LEGACY_ID_UNTIL == Go agentid.LegacyUntil" "$gv" "$SPOOL_LEGACY_ID_UNTIL"
 else
-  echo "skip - 4. Go agentid.LegacyUntil not on this tree yet (lane L1); pinned to spec 061 section 0 only"
+  nok "4. Go agentid.LegacyUntil not found at $go"
 fi
 
 # 5. a c-004 window is counted, listed and closable (private tmux server)

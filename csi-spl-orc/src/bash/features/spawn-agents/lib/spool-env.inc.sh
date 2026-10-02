@@ -74,9 +74,10 @@ _spool_bin_fallback() {  # BUILT
 _SPOOL_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # specs/061 §0: the instant the legacy agent ids (CLE-/AGY-/GRK-/QWN-) stop
-# being accepted on a write path. A copy of the Go agentid.LegacyUntil, the
-# source; tests/test-agent-id.sh fails when the two differ (FR-005).
-SPOOL_LEGACY_ID_UNTIL='2026-10-02T20:59:59Z'
+# being accepted on a write path (owner, 2026-10-02 ~06:52Z: moved one day, to
+# 2026-10-03). A copy of the Go agentid.LegacyUntil, the source;
+# tests/test-agent-id.sh fails when the two differ (FR-005).
+SPOOL_LEGACY_ID_UNTIL='2026-10-03T20:59:59Z'
 # Unanchored ERE fragments, for parsing window names and pane text. Readers
 # take both forms whatever the clock: history keeps legacy ids for good
 # (FR-006). SPOOL_AGENT_ID_RX and SPOOL_PARTICIPANT_RX each open exactly ONE

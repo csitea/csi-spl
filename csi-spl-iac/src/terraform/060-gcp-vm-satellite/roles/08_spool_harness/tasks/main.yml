@@ -217,11 +217,17 @@
       Description=tmux session main (the agents' windows)
 
       [Service]
-      Type=forking
-      ExecStart=/usr/bin/tmux new-session -d -s main
-      ExecStop=/usr/bin/tmux kill-session -t main
-      # the agents run inside this tmux server: never kill them on a unit stop/restart
-      KillMode=none
+      # idempotent: an existing main (started by hand, or by an earlier run) is
+      # adopted, never a "duplicate session" failure (playbook 8a4b3c89).
+      # The socket is pinned to the default path box.env / the spawner use;
+      # %U is systemd's uid specifier (a $ here would be systemd's to expand).
+      Type=oneshot
+      ExecStart=/bin/sh -c '/usr/bin/tmux -S /tmp/tmux-%U/default has-session -t main 2>/dev/null || /usr/bin/tmux -S /tmp/tmux-%U/default new-session -d -s main'
+      # no ExecStop, and KillMode=process: the agents run inside this tmux
+      # server, so a unit stop or restart must never end the session. process
+      # kills only the unit's main process, which a oneshot has already ended
+      # (KillMode=none would do the same but is deprecated in systemd)
+      KillMode=process
       RemainAfterExit=yes
 
       [Install]
@@ -234,8 +240,11 @@
     systemctl --user daemon-reload
     c=0
     systemctl --user is-enabled -q tmux-main.service || { systemctl --user enable -q tmux-main.service && c=1; }
-    if tmux has-session -t main 2>/dev/null; then :; else systemctl --user start tmux-main.service && c=1; fi
-    tmux has-session -t main 2>/dev/null || { echo "FAIL no tmux session main"; exit 1; }
+    S="/tmp/tmux-$(id -u)/default"
+    if tmux -S "$S" has-session -t main 2>/dev/null; then :; else systemctl --user start tmux-main.service && c=1; fi
+    # the unit adopts a running main, so this start never fails on one
+    systemctl --user is-active -q tmux-main.service || { systemctl --user start tmux-main.service && c=1; }
+    tmux -S "$S" has-session -t main 2>/dev/null || { echo "FAIL no tmux session main on $S"; exit 1; }
     [ "$c" = 1 ] && echo CHANGED || echo OK
   args:
     executable: /bin/bash

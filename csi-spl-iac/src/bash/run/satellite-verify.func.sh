@@ -206,7 +206,7 @@ echo "owner tools-checked"
 # through the owner's group (2026-10-02: desk-reconcile could not be created)
 for u in "$O" "$A"; do sudo -n -u "$u" test -w /var/csi/csi-spl && echo "varcsi writable $u"; done
 # the owner's tmux session main, kept by the systemd user unit tmux-main (role 08)
-sudo -n -u "$O" tmux has-session -t main 2>/dev/null && echo "owner tmux-main"
+sudo -n -u "$O" tmux -S "/tmp/tmux-$(id -u "$O")/default" has-session -t main 2>/dev/null && echo "owner tmux-main"
 sudo -n -u "$O" env XDG_RUNTIME_DIR="/run/user/$(id -u "$O")" systemctl --user is-enabled -q tmux-main.service 2>/dev/null && echo "owner tmux-unit"
 # the clone: on master, clean, and its HEAD (compared with trunk on this box)
 r=/opt/csi/csi-spl

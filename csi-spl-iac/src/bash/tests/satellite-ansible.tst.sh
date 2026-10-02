@@ -226,8 +226,8 @@ d=json.load(open('$H/.claude.json'))
 ok = d['hasCompletedOnboarding'] is True and d['lastOnboardingVersion']=='2.1.160' and d['oauthAccount']=={'emailAddress':'x@example.com'} and d['numStartups']==3 and d['hasSeenAutoModeEntryWarning'] is True
 sys.exit(0 if ok else 1)" && [[ "$o1" == CHANGED* && "$o2" == OK && "$(stat -c %a "$H/.claude.json")" == 600 ]] \
   && pass "10. the first-run seed sets onboarding + version, keeps every other key (the login too), 0600, idempotent" || fail "10. first-run seed: o1=$o1 o2=$o2 $(cat "$H/.claude.json")"
-grep -q 'ExecStart=/usr/bin/tmux new-session -d -s main' "$h8" && grep -q 'KillMode=none' "$h8" && grep -q 'systemctl --user enable -q tmux-main.service' "$h8" \
-  && pass "10. role 08 keeps the owner's tmux main as an enabled systemd user unit (agents survive a unit restart)" || fail "10. no tmux-main user unit"
+grep -qF 'has-session -t main 2>/dev/null || /usr/bin/tmux -S /tmp/tmux-%U/default new-session -d -s main' "$h8" && grep -q 'Type=oneshot' "$h8" && grep -q 'KillMode=process' "$h8" && ! grep -q '^      ExecStop=' "$h8" && ! grep -q '^      ExecStart=.*\$' "$h8" && grep -q 'systemctl --user enable -q tmux-main.service' "$h8" \
+  && pass "10. role 08 keeps the owner's tmux main as an enabled systemd user unit: adopts an existing main, agents survive a unit restart" || fail "10. no tmux-main user unit"
 grep -q '^_satellite_verify_claude_start()' "$v" && grep -q 'claude -p "Reply with exactly the word ok"' "$v" && grep -q 'select login method' "$v" && grep -q 'trust-workdir.sh "$d"' "$v" && grep -q 'owner tmux-unit' "$v" \
   && pass "10. verify: claude --print, the interactive no-menu smoke (pre-trusted dir), tmux main + its unit" || fail "10. verify lacks the claude-start or tmux rows"
 

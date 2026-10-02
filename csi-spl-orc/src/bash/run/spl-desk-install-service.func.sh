@@ -99,57 +99,14 @@ do_spl_desk_install_service() {
   [[ -n "$current" ]] && installed=1
 
   if [[ "$act" == check ]]; then
-    python3 - "$installed" "$current" "$line" "$logdir" <<'EOF_PY'
-import json, sys
-installed, current, want, logdir = sys.argv[1:]
-print(json.dumps({"installed": installed == "1", "current": current or None,
-                  "expected": want, "matches": current == want,
-                  "log_dir": logdir}, sort_keys=True))
-EOF_PY
-    # The verdict is "can this line still run", not "does it match the flags I
-    # happen to have set". An operator who installed it with a different
-    # interval, env or tenant has a WORKING reconcile, and failing that check
-    # would train people to ignore it. What is NOT working is a line whose
-    # script is gone - the measured way this rots, because a crontab pointing
-    # into a removed worktree keeps looking installed forever.
-    if (( installed )); then
-      local ran; ran="$(spl_desk_cron_script "$current")"
-      if [[ -n "$ran" && ! -x "$ran" ]]; then
-        spl_desk_cron_say "$current"
-        do_log "FAIL the desk reconcile is installed but the script it names is gone or not executable: $ran"
-        do_log "FAIL That line runs NOTHING while still looking installed. Re-install: DRY_RUN=0 ./run -a do_spl_desk_install_service"
-        return 1
-      fi
-      [[ "$current" == "$line" ]] ||
-        do_log "INFO it was installed with different settings than this call would write - working, but not what these flags say. Installed: $current"
-      do_log "OK the desk reconcile is installed in the box user's crontab and the script it names is executable"
-      return 0
-    fi
-    do_log "FAIL the desk reconcile is NOT installed: every agent on this box stays offline after the next tmux or box restart until someone notices"
-    return 1
+    _spl_desk_service_check "$installed" "$current" "$line" "$logdir"
+    return
   fi
-
 
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    if [[ "$act" == install ]]; then
-      [[ "$SPL_DESK_CRON_CREATE" == 1 ]] &&
-        do_log "INFO DRY_RUN would: git worktree add --detach $src origin/${DESK_CRON_TRUNK:-master} (the self-updating checkout)"
-      do_log "INFO DRY_RUN would: mkdir -p $logdir"
-      do_log "INFO DRY_RUN would: put ONE tagged line in the box user's crontab:"
-      spl_desk_cron_say "$line"
-      (( installed )) && spl_desk_cron_say "replacing the line already there: $current"
-    else
-      if (( installed )); then
-        do_log "INFO DRY_RUN would: remove the tagged crontab line:"
-        spl_desk_cron_say "$current"
-      else
-        do_log "INFO DRY_RUN nothing to remove: no line tagged $tag"
-      fi
-    fi
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
+    _spl_desk_service_dry_plan "$act" "$installed" "$current" "$line" "$tag" "$src" "$logdir"
     return 0
   fi
 
@@ -172,6 +129,64 @@ EOF_PY
   do_log "OK the desk reconcile runs every ${every}m as the box user:"
   spl_desk_cron_say "$line"
   do_log "OK verify it later with DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service"
+}
+
+# _spl_desk_service_check <installed 0|1> <current line> <wanted line> <log dir>:
+# the JSON state of the reconcile's crontab line, then the verdict; 0 when the
+# installed line can still run.
+_spl_desk_service_check() {
+  local installed="$1" current="$2" line="$3" logdir="$4"
+  python3 - "$installed" "$current" "$line" "$logdir" <<'EOF_PY'
+import json, sys
+installed, current, want, logdir = sys.argv[1:]
+print(json.dumps({"installed": installed == "1", "current": current or None,
+                "expected": want, "matches": current == want,
+                "log_dir": logdir}, sort_keys=True))
+EOF_PY
+  # The verdict is "can this line still run", not "does it match the flags I
+  # happen to have set". An operator who installed it with a different
+  # interval, env or tenant has a WORKING reconcile, and failing that check
+  # would train people to ignore it. What is NOT working is a line whose
+  # script is gone - the measured way this rots, because a crontab pointing
+  # into a removed worktree keeps looking installed forever.
+  if (( installed )); then
+    local ran; ran="$(spl_desk_cron_script "$current")"
+    if [[ -n "$ran" && ! -x "$ran" ]]; then
+      spl_desk_cron_say "$current"
+      do_log "FAIL the desk reconcile is installed but the script it names is gone or not executable: $ran"
+      do_log "FAIL That line runs NOTHING while still looking installed. Re-install: DRY_RUN=0 ./run -a do_spl_desk_install_service"
+      return 1
+    fi
+    [[ "$current" == "$line" ]] ||
+      do_log "INFO it was installed with different settings than this call would write - working, but not what these flags say. Installed: $current"
+    do_log "OK the desk reconcile is installed in the box user's crontab and the script it names is executable"
+    return 0
+  fi
+  do_log "FAIL the desk reconcile is NOT installed: every agent on this box stays offline after the next tmux or box restart until someone notices"
+  return 1
+}
+
+# _spl_desk_service_dry_plan <act> <installed 0|1> <current line> <wanted line>
+# <tag> <checkout> <log dir>: what install / remove would do (DRY_RUN=1).
+_spl_desk_service_dry_plan() {
+  local act="$1" installed="$2" current="$3" line="$4" tag="$5" src="$6" logdir="$7"
+  spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
+  if [[ "$act" == install ]]; then
+    [[ "$SPL_DESK_CRON_CREATE" == 1 ]] &&
+      do_log "INFO DRY_RUN would: git worktree add --detach $src origin/${DESK_CRON_TRUNK:-master} (the self-updating checkout)"
+    do_log "INFO DRY_RUN would: mkdir -p $logdir"
+    do_log "INFO DRY_RUN would: put ONE tagged line in the box user's crontab:"
+    spl_desk_cron_say "$line"
+    (( installed )) && spl_desk_cron_say "replacing the line already there: $current"
+  else
+    if (( installed )); then
+      do_log "INFO DRY_RUN would: remove the tagged crontab line:"
+      spl_desk_cron_say "$current"
+    else
+      do_log "INFO DRY_RUN nothing to remove: no line tagged $tag"
+    fi
+  fi
+  do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
 }
 
 # The marker that makes this line OURS. Every read and every write matches on

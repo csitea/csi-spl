@@ -293,4 +293,23 @@ S1 (offset + wake), then S2 (commit; closes the T3 loss), then S3 (browsers), th
 
 Tests: `TestChannelPostRoleGroup` (memory and Postgres).
 
-<!-- version: 0.2.1 · updated: 2026-10-02 -->
+### 11.5 S5 in every tenant: the lease is fleet-wide, its rows are per tenant
+
+Measured on prd, 2026-10-02 18:48Z (S5 SQL, msg 09dc3ca4): t1 human channel posts went to the dispatch holder's box only (70/72), but csitea human posts went to BOTH dispatcher boxes (4/4). `fleet_leases` had rows for t1 only. The hub reads the route from the post's OWN tenant (`roleSeats` -> `FleetLeases(tenant)`, RLS-scoped), so every tenant without a row fell back to fan-out.
+
+Decision: the lease stays **fleet-wide**, one decision made in the lease tenant (`LEASE_TENANT`, t1). The **holder machine** copies the holder into the same `(fleet, role)` row of every other tenant it serves, right after each won write (`do_spl_dispatch_lease`, fleet mode, `spl_fleet_mirror_out`):
+
+| question | answer |
+|---|---|
+| which tenants | every tenant where this machine's desk box is pinned (`<state>/desk/<tenant>/<box>/pinned`), minus the lease tenant and the test workspaces; `LEASE_MIRROR_TENANTS` overrides |
+| who writes a copy | only the machine that just won the lease write, with its own desk key pinned in that tenant (read gen, then CAS) |
+| a dead holder | its copies stop being renewed and go stale with it (180 s): fan-out as before S5, as for the lease tenant |
+| a take-over | the new holder overwrites every copy on its first won write |
+| a failing tenant | logged once (`COPY-FAILED`) until it clears; it ends that tick's copies, so a hung hub costs one 10 s timeout per tick, and the lease tenant's row has already been renewed |
+| hub change | none: no cross-tenant read; each tenant's route is still read from its own rows |
+
+The other option, one row applied to every tenant by the hub, would need an operator-scope read across tenants on every channel post, and any tenant could then write a dispatch row that narrows another tenant's routing. Per-tenant copies keep the 0021 isolation.
+
+Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` section 16. Red on the code before the copies, 7 assertions.
+
+<!-- version: 0.2.2 · updated: 2026-10-02 -->

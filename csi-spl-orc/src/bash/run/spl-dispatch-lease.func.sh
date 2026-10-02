@@ -31,7 +31,10 @@
 # @description            exist on every box, so the box is always there); every holder
 # @description            change is logged once and told to the agents it moves.
 # @description            ensure runs fleet INSTEAD of renew + watch when lease.conf
-# @description            sets LEASE_FLEET.
+# @description            sets LEASE_FLEET. The holder machine also copies each
+# @description            won write into every other tenant its desk box is
+# @description            pinned in (spec 059 S5: the hub routes a role's post
+# @description            from the post's own tenant's row).
 # @description Every transition is written ONCE to <dir>/lease.log and sent
 # @description as a spool note to the failover and the orchestrator.
 # @description The ids come from LEASE_MASTER / LEASE_FAILOVER / LEASE_ORCH,
@@ -50,6 +53,7 @@
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
 # @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
 # @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
+# @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -574,16 +578,68 @@ spl_fleet_hub_init() {
   LEASE_DESK_BOX="${LEASE_DESK_BOX:-$(spl_desk_box_default)}"
   ENV="$LEASE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
-  LEASE_DESK_DIR="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"
-  [[ -s "$LEASE_DESK_DIR/pinned" ]] ||
-    { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($LEASE_DESK_DIR): seat a desk there first (do_spl_desk_up)"; return 1; }
+  local d="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"
+  [[ -s "$d/pinned" ]] ||
+    { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($d): seat a desk there first (do_spl_desk_up)"; return 1; }
 }
 
+# The call goes to LEASE_TENANT, or to LEASE_AT_TENANT (the copies below)
+# through this machine's desk pinned THERE; the stub gets it as LEASE_HUB_TENANT.
 spl_fleet_hub() {
-  if [[ -n "${LEASE_HUB_CMD:-}" ]]; then "$LEASE_HUB_CMD" lease "$@"; return; fi
+  local t="${LEASE_AT_TENANT:-${LEASE_TENANT:-}}"
+  if [[ -n "${LEASE_HUB_CMD:-}" ]]; then LEASE_HUB_TENANT="${LEASE_AT_TENANT:-}" "$LEASE_HUB_CMD" lease "$@"; return; fi
+  local d="$SPL_STATE_DIR/desk/$t/$LEASE_DESK_BOX"
   # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
-  SPOOL_ROOT="$LEASE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LEASE_DESK_DIR/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
-    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LEASE_TENANT" timeout 30 "$SPL_SPOOL" lease "$@"
+  SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" timeout "${LEASE_HUB_TIMEOUT:-30}" "$SPL_SPOOL" lease "$@"
+}
+
+# ---- the lease in every served tenant (spec 059 S5 gap, c-043) ----------------
+# The hub routes a role's channel post (S5) from the lease rows of the post's
+# OWN tenant, and the lease lived in LEASE_TENANT only, so every other tenant
+# fanned a post out to every dispatcher box (prd 2026-10-02: csitea 4/4 posts
+# to both boxes). The lease stays fleet-wide - ONE decision, made in
+# LEASE_TENANT - and the machine that holds it copies the holder into the same
+# (fleet, role) row of every other tenant it serves, right after each won
+# write. Only the holder copies, so a dead holder's copies go stale with it
+# (180 s) and the hub fans out as before; the next holder overwrites them. The
+# hub needs no cross-tenant read: each copy is written by this machine's own
+# desk key pinned in that tenant.
+
+# The tenants copied to: LEASE_MIRROR_TENANTS (space-separated; set = exact
+# list), else every tenant where this machine's desk box is pinned, minus
+# LEASE_TENANT and the test workspaces.
+spl_fleet_mirror_tenants() {
+  if [[ -n "${LEASE_MIRROR_TENANTS+x}" ]]; then echo "$LEASE_MIRROR_TENANTS"; return 0; fi
+  [[ -n "${SPL_STATE_DIR:-}" && -n "${LEASE_DESK_BOX:-}" ]] || return 0
+  local p t
+  for p in "$SPL_STATE_DIR"/desk/*/"$LEASE_DESK_BOX"/pinned; do
+    [[ -s "$p" ]] || continue
+    t="${p%/"$LEASE_DESK_BOX"/pinned}"; t="${t##*/}"
+    [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$t" != "${LEASE_TENANT:-}" ]] || continue
+    spl_test_workspace "$t" && continue
+    printf '%s ' "$t"
+  done
+}
+
+# spl_fleet_mirror_out <role> <holder>: write <holder> into every copy (read
+# its gen, then compare-and-set). A failure is logged once per tenant until it
+# clears and ends this tick's copies, so a hung hub stalls the tick by ONE
+# timeout (LEASE_MIRROR_TIMEOUT, 10 s), never once per tenant.
+spl_fleet_mirror_out() {
+  local role="$1" holder="$2" t out FH FG FA FW
+  for t in $(spl_fleet_mirror_tenants); do
+    if out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" &&
+       spl_fleet_read "$out" &&
+       out="$(LEASE_AT_TENANT="$t" LEASE_HUB_TIMEOUT="${LEASE_MIRROR_TIMEOUT:-10}" spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$holder" --if-gen "$FG" 2>&1)" &&
+       spl_fleet_read "$out" && [[ "$FW" == true ]]; then
+      [[ -f "$LEASE_DIR/fleet.$role.copy.$t" ]] && { rm -f "$LEASE_DIR/fleet.$role.copy.$t"; spl_lease_log "COPY $role in $t: written again ($holder)"; }
+      continue
+    fi
+    spl_fleet_once "$role.copy.$t" "COPY-FAILED $role in $t: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"
+    return 0
+  done
+  return 0
 }
 
 # spl_fleet_read <json>: sets FH (holder), FG (gen), FA (age_s), FW (won).
@@ -723,10 +779,11 @@ spl_fleet_role_tick() {
     want="$cand@$me"
   fi
   [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
+  local won=false
   if [[ -n "$want" ]]; then
     local before="$FH" age="$FA"
     if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" 2>&1)" && spl_fleet_read "$out"; then
-      [[ "$FW" == true ]] && echo "$now" > "$ok"
+      [[ "$FW" == true ]] && { echo "$now" > "$ok"; won=true; }
       [[ "$FW" == true && -n "$before" && "${before##*@}" != "$me" ]] &&
         spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}") -> $(spl_fleet_rank "$me"))"
       # a failover (not a priority handback) of the orchestrator: tell the owner once
@@ -738,6 +795,9 @@ spl_fleet_role_tick() {
   fi
   rm -f "$LEASE_DIR/fleet.$role.unreachable"
   spl_fleet_apply "$role" "$FH" "$now"
+  # the holder (this machine, just written) copies it into every served tenant
+  [[ "$won" == true ]] && spl_fleet_mirror_out "$role" "$FH"
+  return 0
 }
 
 # A hub call failed. Holding on past LEASE_STALE without a renewal means the

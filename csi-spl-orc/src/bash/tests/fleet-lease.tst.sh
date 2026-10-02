@@ -38,6 +38,13 @@
 #      owner gets ONE DM; a busy holder (fresh unread, or a turn in progress)
 #      keeps it; LEASE_UNREAD_MAX=0 (the old rule) is the control; a dead
 #      holder still fails over at 181 s (and DMs once); a handback DMs nobody
+#  16. the lease in every served tenant (spec 059 S5 gap, c-043): the holder
+#      copies each won write into every other tenant it serves (the hub
+#      routes a post from its OWN tenant's row: csitea had none and fanned
+#      out to both dispatcher boxes); the standby machine copies nothing; a
+#      take-over moves the copies; a failing tenant is logged once and ends
+#      that tick's copies; the tenant list is the desk pins minus the lease
+#      tenant and the test workspaces
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -61,14 +68,19 @@ echo "$to :: $body" >>"$SENT"
 STUB
 # The hub stub: one file per fleet+role, "holder gen at"; HUB_NOW is its clock.
 # HUB_DOWN=1 fails every call; HUB_RACE=<holder> writes that holder first on a
-# cas, as another machine winning the race would.
+# cas, as another machine winning the race would. A call to another tenant
+# (LEASE_HUB_TENANT, the copies of section 16) has its own file
+# <tenant>.<fleet>.<role>, is logged to calls, and HUB_DOWN_TENANT=<tenant>
+# fails it.
 cat >"$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
+[ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_DOWN_TENANT:-}" ] && { echo "dial: i/o timeout" >&2; exit 1; }
+[ -n "${LEASE_HUB_TENANT:-}" ] && echo "$LEASE_HUB_TENANT" >>"$HUB_DIR/calls"
 shift
 fleet="" role="" holder="" ifgen=""
 while [ $# -gt 0 ]; do case "$1" in --fleet) fleet="$2";; --role) role="$2";; --holder) holder="$2";; --if-gen) ifgen="$2";; esac; shift 2; done
-f="$HUB_DIR/$fleet.$role"; h="" g=0 at=0
+f="$HUB_DIR/${LEASE_HUB_TENANT:+$LEASE_HUB_TENANT.}$fleet.$role"; h="" g=0 at=0
 [ -s "$f" ] && read -r h g at <"$f"
 if [ -n "$holder" ] && [ -n "${HUB_RACE:-}" ]; then g=$((g + 1)); h="$HUB_RACE"; at="$HUB_NOW"; echo "$h $g $at" >"$f"; fi
 won=false
@@ -347,6 +359,42 @@ tick pc 31700 LEASE_ACTIVITY_CMD="$T/bin/act"; kill_agent pc 100
 tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER= ASKS_OWNER=
 [[ "$(hubh orch)" == CLE-001@sat && "$(logc sat 'WARN orch take-over by CLE-001@sat: no owner to tell')" == 1 && "$(dms)" == 2 ]] &&
   pass "15. no owner configured: one WARN, nothing sent" || fail "15. no owner: $(tail -3 "$T/sat/spool/dispatch/lease.log")"
+
+# --- 16. the lease in every served tenant ------------------------------------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+T16=(LEASE_MIRROR_TENANTS="csitea leiden")
+copy() { cut -d' ' -f"${3:-1}" "$T/hub/$1.main.$2" 2>/dev/null; }
+tick pc 40000 "${T16[@]}"; tick sat 40000 "${T16[@]}"
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(copy csitea dispatch)" == CLE-002@pc && "$(copy leiden dispatch)" == CLE-002@pc &&
+   "$(copy csitea orch)" == CLE-001@pc && "$(copy leiden orch)" == CLE-001@pc ]] &&
+  pass "16. the holder copies both roles into every served tenant (csitea, leiden)" ||
+  fail "16. copies csitea $(copy csitea dispatch)/$(copy csitea orch) leiden $(copy leiden dispatch)/$(copy leiden orch): $(tail -5 "$T/out")"
+[[ "$(copy csitea dispatch 2)" == 1 ]] && pass "16. the standby machine copies nothing (gen 1 after both ticks)" || fail "16. standby wrote: gen $(copy csitea dispatch 2)"
+tick pc 40060 "${T16[@]}"
+[[ "$(copy csitea dispatch 2)" == 2 && "$(copy csitea dispatch 3)" == 40060 && "$(copy leiden orch 3)" == 40060 ]] &&
+  pass "16. every renewal renews the copies (they go stale only with the holder)" || fail "16. renewal: $(cat "$T/hub/csitea.main.dispatch")"
+tick sat 40241 "${T16[@]}"
+[[ "$(hubh dispatch)" == CLE-002@sat && "$(copy csitea dispatch)" == CLE-002@sat && "$(copy leiden dispatch)" == CLE-002@sat &&
+   "$(copy csitea orch)" == CLE-001@sat ]] &&
+  pass "16. a take-over moves the copies to the new holder" || fail "16. take-over: csitea $(copy csitea dispatch) leiden $(copy leiden dispatch)"
+: >"$T/hub/calls"
+tick sat 40300 "${T16[@]}" HUB_DOWN_TENANT=csitea; tick sat 40360 "${T16[@]}" HUB_DOWN_TENANT=csitea
+[[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh dispatch | wc -l)" == 1 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40360 &&
+   "$(logc sat 'COPY-FAILED dispatch in csitea: dial: i/o timeout')" == 1 && "$(grep -c leiden "$T/hub/calls")" == 0 ]] &&
+  pass "16. a failing tenant: logged once, ends the tick's copies, the lease itself still renews" ||
+  fail "16. down: calls $(tr '\n' ' ' <"$T/hub/calls") log: $(grep COPY "$T/sat/spool/dispatch/lease.log")"
+tick sat 40420 "${T16[@]}"
+[[ "$(copy csitea dispatch 3)" == 40420 && "$(copy leiden dispatch 3)" == 40420 && "$(logc sat 'COPY dispatch in csitea: written again')" == 1 ]] &&
+  pass "16. the tenant back: the copies are written again, logged once" || fail "16. back: $(grep COPY "$T/sat/spool/dispatch/lease.log")"
+S="$T/state"
+for p in t1/box-desk csitea/box-desk e2e/box-desk leiden/box-desk niba-consult/box-rsp acme-proof/box-desk; do mkdir -p "$S/desk/$p"; echo pinned >"$S/desk/$p/pinned"; done
+: >"$S/desk/leiden/box-desk/pinned"
+got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" SPL_STATE_DIR="$S" LEASE_DESK_BOX=box-desk LEASE_TENANT=t1 bash -c '
+  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_fleet_mirror_tenants')
+[[ "$got" == "csitea " ]] &&
+  pass "16. served tenants = this box's desk pins, minus the lease tenant, test workspaces and empty pins" || fail "16. tenants: '$got'"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

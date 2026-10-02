@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -28,20 +29,11 @@ const (
 // a width inside [IssueColumnMin, IssueColumnMax]. An empty map is valid.
 func IsIssueColumns(cols map[string]int) bool {
 	for k, w := range cols {
-		if !isIssueColumn(k) || w < IssueColumnMin || w > IssueColumnMax {
+		if !slices.Contains(IssueColumns, k) || w < IssueColumnMin || w > IssueColumnMax {
 			return false
 		}
 	}
 	return true
-}
-
-func isIssueColumn(k string) bool {
-	for _, c := range IssueColumns {
-		if k == c {
-			return true
-		}
-	}
-	return false
 }
 
 // parseIssueColumns reads PUT preferences' issues_columns: present = has, a

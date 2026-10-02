@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -174,7 +175,7 @@ func (s *Memory) flowWriteLocked(m Message) {
 		}
 	} else {
 		r := 3
-		if containsStr(t.mentions, m.ToID) {
+		if slices.Contains(t.mentions, m.ToID) {
 			r = 1
 		} else if t.poke != "" {
 			r = 2
@@ -207,15 +208,6 @@ func (s *Memory) flowWriteLocked(m Message) {
 func (s *Memory) flowMentionedInLocked(tenant, member, task string) bool {
 	for k, e := range s.flowEvents {
 		if k[0] == tenant && k[1] == member && e.taskID == task && e.kind == FlowMention {
-			return true
-		}
-	}
-	return false
-}
-
-func containsStr(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
 			return true
 		}
 	}

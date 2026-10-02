@@ -1019,16 +1019,9 @@ type prefsIn struct {
 // refusal is (code, detail) for a 400; the checks run in the order the
 // answers were always given (layout keys, empty body, then key by key).
 func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
-	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
-	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
-	rawName := strings.TrimSpace(string(req.DisplayName))
-	rawInterests := strings.TrimSpace(string(req.Interests))
-	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
-	rawKey := strings.TrimSpace(string(req.SubmitKey))
-	rawRail := strings.TrimSpace(string(req.RailOrder))
-	p.hasLoc, p.hasDiag, p.hasName = rawLoc != "", rawDiag != "", rawName != ""
-	p.hasInterests = rawInterests != ""
-	p.hasTheme, p.hasKey, p.hasRail = rawTheme != "", rawKey != "", rawRail != ""
+	p.hasLoc, p.hasDiag, p.hasName = present(req.PreferredLocale) != "", present(req.DiagnosticsEnabled) != "", present(req.DisplayName) != ""
+	p.hasInterests = present(req.Interests) != ""
+	p.hasTheme, p.hasKey, p.hasRail = present(req.PreferredTheme) != "", present(req.SubmitKey) != "", present(req.RailOrder) != ""
 	if p.view, code, detail = parseViewPrefs(req); code != "" {
 		return p, code, detail
 	}
@@ -1047,56 +1040,90 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ {
 		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null) or time_zone (an IANA zone or null) is required"
 	}
-	if rawLoc != "" && rawLoc != "null" {
-		if json.Unmarshal(req.PreferredLocale, &p.loc) != nil || !i18n.IsSupported(p.loc) {
-			return p, "unsupported_locale", "preferred_locale must be one of " + strings.Join(i18n.Supported, ",")
-		}
+	code, detail = p.parseScalars(req)
+	return p, code, detail
+}
+
+// present is a body key's trimmed JSON: "" when the key is absent.
+func present(b json.RawMessage) string { return strings.TrimSpace(string(b)) }
+
+// setChoice decodes a present, non-null JSON string into dst and checks it;
+// an absent key or a null passes and leaves dst "".
+func setChoice(b json.RawMessage, dst *string, valid func(string) bool) bool {
+	if raw := present(b); raw == "" || raw == "null" {
+		return true
+	}
+	return json.Unmarshal(b, dst) == nil && valid(*dst)
+}
+
+// parseScalars checks the one-value keys in the order the answers were
+// always given: locale, diagnostics, display name, interests, theme, submit
+// key, rail order. A refusal is (code, detail).
+func (p *prefsIn) parseScalars(req preferencesReq) (code, detail string) {
+	if !setChoice(req.PreferredLocale, &p.loc, i18n.IsSupported) {
+		return "unsupported_locale", "preferred_locale must be one of " + strings.Join(i18n.Supported, ",")
 	}
 	// Only the literal true/false: "true", 1 and null are refused rather than
 	// coerced, the same strictness the WUI's gate applies to the claim.
+	rawDiag := present(req.DiagnosticsEnabled)
 	p.diag = rawDiag == "true"
 	if rawDiag != "" && rawDiag != "true" && rawDiag != "false" {
-		return p, "bad_request", "diagnostics_enabled must be true or false"
+		return "bad_request", "diagnostics_enabled must be true or false"
 	}
-	if rawName != "" {
-		var raw string
-		ok := rawName != "null" && json.Unmarshal(req.DisplayName, &raw) == nil
-		if ok {
-			p.name, ok = ValidDisplayName(raw)
-		}
-		if !ok {
-			return p, ErrCodeInvalidDisplayName, "display_name must be 1 to 200 characters on one line, without control characters"
-		}
+	if code, detail = p.parseDisplayName(req.DisplayName); code != "" {
+		return code, detail
 	}
-	// interests: a present null clears it (p.interests stays ""); any other
-	// value must be ValidInterests. Unlike display_name, "" is a valid clear.
-	if rawInterests != "" && rawInterests != "null" {
-		var raw string
-		if json.Unmarshal(req.Interests, &raw) != nil {
-			return p, "invalid_interests", "interests must be text or null"
-		}
-		s, ok := ValidInterests(raw)
-		if !ok {
-			return p, "invalid_interests", "interests must be at most 1000 characters, without control characters"
-		}
-		p.interests = s
+	if code, detail = p.parseInterests(req.Interests); code != "" {
+		return code, detail
 	}
-	if rawTheme != "" && rawTheme != "null" {
-		if json.Unmarshal(req.PreferredTheme, &p.theme) != nil || !IsTheme(p.theme) {
-			return p, "unsupported_theme", "preferred_theme must be one of " + strings.Join(ThemeIDs, ",")
-		}
+	if !setChoice(req.PreferredTheme, &p.theme, IsTheme) {
+		return "unsupported_theme", "preferred_theme must be one of " + strings.Join(ThemeIDs, ",")
 	}
-	if rawKey != "" && rawKey != "null" {
-		if json.Unmarshal(req.SubmitKey, &p.key) != nil || !IsSubmitKey(p.key) {
-			return p, "unsupported_submit_key", "submit_key must be one of " + strings.Join(SubmitKeys, ",")
-		}
+	if !setChoice(req.SubmitKey, &p.key, IsSubmitKey) {
+		return "unsupported_submit_key", "submit_key must be one of " + strings.Join(SubmitKeys, ",")
 	}
-	if rawRail != "" && rawRail != "null" {
+	if rawRail := present(req.RailOrder); rawRail != "" && rawRail != "null" {
 		if json.Unmarshal(req.RailOrder, &p.rail) != nil || !IsRailOrder(p.rail) {
-			return p, "unsupported_rail_order", "rail_order must hold each of " + strings.Join(RailTabs, ",") + " exactly once"
+			return "unsupported_rail_order", "rail_order must hold each of " + strings.Join(RailTabs, ",") + " exactly once"
 		}
 	}
-	return p, "", ""
+	return "", ""
+}
+
+// parseDisplayName: a present display_name must be ValidDisplayName; null is
+// refused (a name cannot be cleared).
+func (p *prefsIn) parseDisplayName(b json.RawMessage) (code, detail string) {
+	rawName := present(b)
+	if rawName == "" {
+		return "", ""
+	}
+	var raw string
+	ok := rawName != "null" && json.Unmarshal(b, &raw) == nil
+	if ok {
+		p.name, ok = ValidDisplayName(raw)
+	}
+	if !ok {
+		return ErrCodeInvalidDisplayName, "display_name must be 1 to 200 characters on one line, without control characters"
+	}
+	return "", ""
+}
+
+// parseInterests: a present null clears it (p.interests stays ""); any other
+// value must be ValidInterests. Unlike display_name, "" is a valid clear.
+func (p *prefsIn) parseInterests(b json.RawMessage) (code, detail string) {
+	if rawInterests := present(b); rawInterests == "" || rawInterests == "null" {
+		return "", ""
+	}
+	var raw string
+	if json.Unmarshal(b, &raw) != nil {
+		return "invalid_interests", "interests must be text or null"
+	}
+	s, ok := ValidInterests(raw)
+	if !ok {
+		return "invalid_interests", "interests must be at most 1000 characters, without control characters"
+	}
+	p.interests = s
+	return "", ""
 }
 
 // parseViewPrefs holds each present layout key's value ("" = null, clear it).

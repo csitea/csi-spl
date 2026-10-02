@@ -8,7 +8,10 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
+import type { NuxtPage } from "@nuxt/schema"
+import { addTemplate, addTypeTemplate } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
+import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
 // nuxt.config.ts is loaded by jiti BEFORE Nuxt injects `import.meta.dev`, so
@@ -244,6 +247,45 @@ const LOCALE_COOKIE = "i18n_redirected"
 // Pages prerendered per locale (the rest is the 200.html SPA fallback).
 const PRERENDER_PAGES = ["/", "/login"]
 
+// ── Locale route copies at runtime (CLE-77925) ───────────────────────────
+// i18n writes every page once per locale into the generated routes module
+// (589 records: 78 KB raw / 2.5 KB gzip of initial JS, all parsed on every
+// first load). This module is listed after @nuxtjs/i18n, so its pages:resolved
+// hook runs after i18n localized the pages; it keeps the default-locale
+// records only, and
+// src/app/router.options.ts rebuilds the rest when the router is made. The
+// build FAILS unless expandLocaleRoutes(kept) is exactly what i18n made, so
+// an i18n upgrade or a custom localized path cannot silently drop a route.
+const LOCALE_CODES = I18N_LOCALES.map((l) => l.code)
+function routeShape(p: NuxtPage): unknown {
+  return {
+    name: p.name, path: p.path, file: p.file, alias: p.alias, redirect: p.redirect, mode: p.mode,
+    meta: p.meta ? JSON.stringify(p.meta) : undefined,
+    children: (p.children || []).map(routeShape),
+  }
+}
+function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  const body = `export const localeCodes = ${JSON.stringify(LOCALE_CODES)}\nexport const defaultLocale = ${JSON.stringify(DEFAULT_LOCALE)}\n`
+  addTemplate({ filename: "locale-route-codes.mjs", getContents: () => body })
+  addTypeTemplate({
+    filename: "types/locale-route-codes.d.ts",
+    getContents: () => `declare module "#build/locale-route-codes.mjs" {\n  export const localeCodes: string[]\n  export const defaultLocale: string\n}\n`,
+  })
+  nuxt.hook("pages:resolved", (pages) => {
+    const kept = pages.filter((p) => !isLocaleRouteCopy(p, LOCALE_CODES, DEFAULT_LOCALE))
+    if (kept.length === pages.length) {
+      throw new Error("locale route copies (CLE-77925): i18n made no locale copies; is the module order still i18n first?")
+    }
+    const want = JSON.stringify(pages.map(routeShape))
+    const got = JSON.stringify(expandLocaleRoutes(kept, LOCALE_CODES, DEFAULT_LOCALE).map(routeShape))
+    if (want !== got) {
+      throw new Error("locale route copies (CLE-77925): expandLocaleRoutes does not rebuild i18n's routes; fix src/utils/locale-routes.mjs")
+    }
+    pages.length = 0
+    pages.push(...kept)
+  })
+}
+
 export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2026-09-18",
@@ -274,7 +316,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt"],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule],
 
   // Donor i18n, copied (spec 021): 19 locales, prefix_except_default, lazy
   // catalogues, browser detection done by the blocking root redirect script

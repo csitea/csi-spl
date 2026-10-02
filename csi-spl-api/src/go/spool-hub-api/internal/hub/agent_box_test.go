@@ -4,7 +4,7 @@ import "testing"
 
 // spec 061 3.3.1: c-004 on two machines is two agents. <ID>@<box> picks one;
 // a bare id resolves while one box announces it and is refused once two do.
-func TestResolveAgent(t *testing.T) {
+func TestLocateAgent(t *testing.T) {
 	roster := map[string][]string{
 		"box-desk": {"CLE-77952", "c-004"},
 		"sat":      {"c-004", "c-005"},
@@ -24,7 +24,7 @@ func TestResolveAgent(t *testing.T) {
 		{"c-004@Sat", "", "", "bad_agent"},
 		{"HUM-1", "", "", "bad_agent"},
 	} {
-		got, re := resolveAgent(roster, c.ref)
+		got, re := locateAgent(roster, c.ref)
 		tok := ""
 		if re != nil {
 			tok = re.token
@@ -33,7 +33,7 @@ func TestResolveAgent(t *testing.T) {
 			t.Errorf("%s: got %+v %q, want %s@%s %q", c.ref, got, tok, c.id, c.box, c.tok)
 		}
 	}
-	if _, re := resolveAgent(roster, "c-004"); re == nil || re.detail != "c-004 is ambiguous: c-004@box-desk, c-004@sat; add @<box>" {
+	if _, re := locateAgent(roster, "c-004"); re == nil || re.detail != "c-004 is ambiguous: c-004@box-desk, c-004@sat; add @<box>" {
 		t.Fatalf("ambiguous detail names both boxes: %+v", re)
 	}
 }

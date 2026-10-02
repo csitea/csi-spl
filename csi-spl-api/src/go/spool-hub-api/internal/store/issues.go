@@ -373,7 +373,7 @@ func checkIssue(i *Issue) error {
 		return invalidIssue("prio must be %d..%d", IssuePriorityMin, IssuePriorityMax)
 	case i.Level != 0 && (i.Level < IssueLevelMin || i.Level > IssueLevelMax):
 		return invalidIssue("level must be %d..%d", IssueLevelMin, IssueLevelMax)
-	case i.Assignee != "" && !agentid.IsParticipant(i.Assignee):
+	case i.Assignee != "" && !agentid.IsParticipant(i.Assignee) && !agentid.IsAtBox(i.Assignee): // spec 061 3.3.1: c-004@<box>
 		return invalidIssue("assignee must be a member or agent id")
 	case i.Parent < 0 || (i.Parent != 0 && i.Parent == i.Number):
 		return invalidIssue("parent must be another issue")

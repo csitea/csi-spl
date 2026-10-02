@@ -38,10 +38,10 @@ func agentBoxes(roster map[string][]string, id string) []string {
 	return boxes
 }
 
-// resolveAgent resolves "<id>@<box>" or a bare "<id>" to the one agent it
+// locateAgent resolves "<id>@<box>" or a bare "<id>" to the one agent it
 // names: the box must announce the id; a bare id must be announced by exactly
 // one box.
-func resolveAgent(roster map[string][]string, ref string) (agentRef, *refErr) {
+func locateAgent(roster map[string][]string, ref string) (agentRef, *refErr) {
 	id, box, qualified := strings.Cut(ref, "@")
 	if !isAgent(id) || (qualified && !msg.ValidBoxID(box)) {
 		return agentRef{}, &refErr{http.StatusBadRequest, "bad_agent", ref + " is not <agent id> or <agent id>@<box>"}

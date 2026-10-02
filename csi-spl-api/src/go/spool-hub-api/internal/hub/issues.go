@@ -282,7 +282,7 @@ func (s *Server) checkAssignee(ctx context.Context, tenant, a string) *issueErr 
 	}
 	// spec 061 3.3.1: <ID>@<box> names one agent; a bare id must be announced
 	// by exactly one box.
-	switch _, re := resolveAgent(roster, a); {
+	switch _, re := locateAgent(roster, a); {
 	case re == nil:
 		return nil
 	case re.token == "ambiguous_agent":

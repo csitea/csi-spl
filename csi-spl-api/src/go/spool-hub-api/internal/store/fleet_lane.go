@@ -54,7 +54,9 @@ const (
 
 // FleetLanes is the lane-map half of the store contract.
 type FleetLanes interface {
-	// PutFleetLane upserts the row of (fleet, l.AgentID), stamps
+	// PutFleetLane upserts the row of (fleet, l.AgentID, l.AgentBox) - one
+	// row per agent AT ITS BOX (spec 061 3.3.1: c-004 on two machines is two
+	// lanes, rdb 0102) - stamps
 	// updated_at = now and box, and prunes the fleet's done rows older than
 	// LaneDoneTTL. It returns the row as stored.
 	PutFleetLane(ctx context.Context, tenantID string, l FleetLane, box string, now time.Time) (FleetLane, error)
@@ -72,7 +74,10 @@ func sortLanes(ls []FleetLane) {
 		if !ls[i].UpdatedAt.Equal(ls[j].UpdatedAt) {
 			return ls[i].UpdatedAt.After(ls[j].UpdatedAt)
 		}
-		return ls[i].AgentID < ls[j].AgentID
+		if ls[i].AgentID != ls[j].AgentID {
+			return ls[i].AgentID < ls[j].AgentID
+		}
+		return ls[i].AgentBox < ls[j].AgentBox
 	})
 }
 
@@ -89,7 +94,7 @@ func (s *Memory) PutFleetLane(_ context.Context, tenant string, l FleetLane, box
 	}
 	l.Files = append([]string{}, l.Files...)
 	l.WriterBox, l.UpdatedAt, l.Age = box, now, 0
-	s.lanes[[3]string{tenant, l.Fleet, l.AgentID}] = l
+	s.lanes[[3]string{tenant, l.Fleet, l.AgentID + "@" + l.AgentBox}] = l
 	return l, nil
 }
 

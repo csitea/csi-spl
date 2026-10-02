@@ -86,6 +86,17 @@ func ValidAskAgent(s string) bool {
 	return ValidFleetAgent(id) && (!strings.Contains(s, "@") || agentid.IsAtBox(s))
 }
 
+// AskAtBox is an ask's actor keyed on its box (spec 061 3.3.1, rdb 0102):
+// a bare <ID> gets "@" + box, the box that wrote it (from the authenticated
+// hello), so c-004 on two machines is never one name. "" and an <ID>@<box>
+// come back unchanged.
+func AskAtBox(ref, box string) string {
+	if ref == "" || strings.Contains(ref, "@") || !FleetNameRe.MatchString(box) {
+		return ref
+	}
+	return ref + "@" + box
+}
+
 // Ask field limits (0097).
 const AskTextMax = 500
 
@@ -202,6 +213,7 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 }
 
 func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box string, now time.Time) (FleetAsk, bool, error) {
+	a.From = AskAtBox(a.From, box)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.asks == nil {
@@ -226,6 +238,7 @@ func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box s
 }
 
 func (s *Memory) UpdateFleetAsk(_ context.Context, tenant string, u AskUpdate, box string, now time.Time) (FleetAsk, error) {
+	u.By = AskAtBox(u.By, box)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := [3]string{tenant, u.Fleet, u.AskID}

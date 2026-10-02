@@ -40,8 +40,8 @@ func (s *Postgres) PutFleetLane(ctx context.Context, tenant string, l FleetLane,
 		out, err = scanLane(tx.QueryRow(ctx, `INSERT INTO fleet_lanes
 			(tenant_id, fleet, agent_id, agent_box, repo, branch, scope, files, topic, state, writer_box, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-			ON CONFLICT (tenant_id, fleet, agent_id) DO UPDATE SET
-				agent_box = EXCLUDED.agent_box, repo = EXCLUDED.repo, branch = EXCLUDED.branch,
+			ON CONFLICT (tenant_id, fleet, agent_id, agent_box) DO UPDATE SET
+				repo = EXCLUDED.repo, branch = EXCLUDED.branch,
 				scope = EXCLUDED.scope, files = EXCLUDED.files, topic = EXCLUDED.topic,
 				state = EXCLUDED.state, writer_box = EXCLUDED.writer_box, updated_at = EXCLUDED.updated_at
 			RETURNING `+laneCols,

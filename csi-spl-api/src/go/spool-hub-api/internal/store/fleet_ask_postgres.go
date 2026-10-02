@@ -37,6 +37,7 @@ func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 }
 
 func (s *Postgres) PutFleetAsk(ctx context.Context, tenant string, a FleetAsk, box string, now time.Time) (FleetAsk, bool, error) {
+	a.From = AskAtBox(a.From, box)
 	var out FleetAsk
 	created := false
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -61,6 +62,7 @@ func (s *Postgres) PutFleetAsk(ctx context.Context, tenant string, a FleetAsk, b
 }
 
 func (s *Postgres) UpdateFleetAsk(ctx context.Context, tenant string, u AskUpdate, box string, now time.Time) (FleetAsk, error) {
+	u.By = AskAtBox(u.By, box)
 	fleet, askID := u.Fleet, u.AskID
 	var out FleetAsk
 	closed := false

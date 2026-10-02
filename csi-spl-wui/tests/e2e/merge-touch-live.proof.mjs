@@ -12,8 +12,12 @@
 //   3 390 touch: long press P1, drag onto P2 (P2 lit), release -> confirm,
 //     Confirm -> the merge request; same path template and body keys as 1
 //   4 390: open P2: P1's opening line AND its reply now show in P2's thread
+//   5 clean: archive the two topics left (D2, P2; D1 and P1 are inside them)
 //
-//   BASE=https://<test tenant host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> CHANNEL=<id>
+// CHANNEL unset: the first channel of the signed-in session that is not the
+// lobby (a read-only pick; only topics this run creates are dragged).
+//
+//   BASE=https://<test tenant host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> [CHANNEL=<name>]
 //     [TENANT=e2e] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
 //     node tests/e2e/merge-touch-live.proof.mjs
 //
@@ -25,7 +29,7 @@ import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = need('EMAIL')
-const CHANNEL = need('CHANNEL')
+let CHANNEL = process.env.CHANNEL || ''
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 'e2e'
 mkdirSync(OUT, { recursive: true })
@@ -91,7 +95,8 @@ const drag = (p) => p.evaluate(() => ({
 function watchMerge(p, ids) {
   let got = null
   const on = (r) => {
-    if (!/\/merge-topic$/.test(new URL(r.url()).pathname) || got) return
+    /* the CORS preflight (OPTIONS) is not the call */
+    if (got || r.method() === 'OPTIONS' || !/\/merge-topic$/.test(new URL(r.url()).pathname)) return
     let body = null
     try { body = JSON.parse(r.postData() || 'null') } catch { body = r.postData() }
     const path = new URL(r.url()).pathname
@@ -133,6 +138,16 @@ try {
   if (!inTenant) throw new Error(`not in ${TENANT}: refusing to write`)
   res.build = await p.evaluate(() => fetch('/build.json').then((r) => r.json()).catch(() => null))
   console.log('build', JSON.stringify(res.build), 'tag', tag)
+  if (!CHANNEL) {
+    CHANNEL = await p.evaluate(() => {
+      const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+      const c = (ch.channels || []).find((x) => x && x.name && x.name !== 'lobby' && !x.archived && !x.archived_at)
+      return c ? String(c.name) : ''
+    })
+    res.channel = CHANNEL
+  }
+  ok('0 a test channel of the session to write into', Boolean(CHANNEL), { channel: CHANNEL })
+  if (!CHANNEL) throw new Error('no channel to write into')
   const chan = BASE + '/channel/' + encodeURIComponent(CHANNEL)
 
   /* ---- 1. desktop: the handle drag's merge request ----------------------- */
@@ -149,17 +164,26 @@ try {
   const d2 = await cardOf(p, D2)
   const dWait = watchMerge(p, { src: res.lines.D1.msg_id, dst: res.lines.D2.task_id })
   if (d1 && d2) {
-    const h = await cardOf(p, D1)
-    await p.mouse.move(h.left + 5, h.top + h.h / 2)
+    /* both read BEFORE the press: cardOf scrolls, and nothing may scroll mid-drag */
+    const box = (id) => p.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { left: r.left, top: r.top, h: r.height, x: r.left + r.width / 2, y: r.top + r.height / 2 } }, `.spool-main article.msg[data-msg-id="${id}"]`)
+    const h = await box(res.lines.D1.msg_id)
+    const t = await box(res.lines.D2.msg_id)
+    await p.mouse.move(h.left + 5, h.y)
     await p.mouse.down()
-    const t = await cardOf(p, D2)
+    await p.mouse.move(h.left + 15, h.y, { steps: 4 })
     await p.mouse.move(t.x, t.y, { steps: 12 })
     await sleep(150)
+    res.desktopDrag = { from: h, to: t, at: await drag(p) }
+    await p.screenshot({ path: join(OUT, 'hum10-1440-over-target.png') })
     await p.mouse.up()
+    await sleep(600)
+    res.desktopDrag.after = { ...(await drag(p)), d2: res.lines.D2.msg_id, toast: await p.evaluate(() => document.querySelector('[data-testid=move-toast-text]')?.textContent || '') }
     await confirmMerge(p)
+    await sleep(1500)
+    res.desktopDrag.confirmed = { ...(await drag(p)), toast: await p.evaluate(() => document.querySelector('[data-testid=move-toast-text]')?.textContent || ''), err: await p.evaluate(() => [...document.querySelectorAll('[role=alert]')].map((e) => e.textContent.trim()).join(' | ')) }
   }
   res.requests.desktop = await dWait()
-  ok('1 1440: the handle drag of D1 onto D2 asks, Confirm sends POST .../merge-topic', res.requests.desktop?.method === 'POST' && res.requests.desktop.toIsTarget, res.requests.desktop)
+  ok('1 1440: the handle drag of D1 onto D2 asks, Confirm sends POST .../merge-topic', res.requests.desktop?.method === 'POST' && res.requests.desktop.toIsTarget, res.requests.desktop || res.desktopDrag)
 
   /* ---- 2..4. phone 390, touch ------------------------------------------- */
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
@@ -223,6 +247,25 @@ try {
   }, { P1, R1 })
   await p.screenshot({ path: join(OUT, 'hum10-390-B-thread.png') })
   ok('4 390: topic B\'s thread shows A\'s opening line and A\'s reply', inB.opener && inB.reply, inB)
+
+  /* ---- 5. clean: archive what this run left (the card menu's Archive) ---- */
+  await p.setViewport({ width: 1440, height: 900 })
+  await nav(p, chan)
+  await p.waitForSelector('.spool-main article.msg[data-msg-id]', { timeout: 60000 })
+  await sleep(2000)
+  const archived = {}
+  for (const k of ['D2', 'P2', 'D1', 'P1']) {
+    const id = res.lines[k]?.msg_id
+    const sel = `.spool-main article.msg[data-msg-id="${id}"]`
+    if (!id || !(await p.$(sel))) { archived[k] = 'not a card'; continue }
+    await p.evaluate((sel) => document.querySelector(`${sel} [data-testid=msg-menu-btn]`)?.click(), sel)
+    await p.waitForSelector('[data-testid=msg-menu-archive]', { timeout: 6000 }).catch(() => {})
+    await p.evaluate(() => document.querySelector('[data-testid=msg-menu-archive]')?.click())
+    let gone = false
+    for (let i = 0; i < 20 && !gone; i++) { await sleep(300); gone = !(await p.$(sel)) }
+    archived[k] = gone ? 'archived' : 'still listed'
+  }
+  ok('5 clean: D2 and P2 archived (D1 and P1 live inside them)', archived.D2 === 'archived' && archived.P2 === 'archived', archived)
 } catch (e) {
   const pages = await browser.pages().catch(() => [])
   const last = pages[pages.length - 1]

@@ -11,12 +11,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -86,7 +84,7 @@ func cmdServe() int {
 	}
 	log := logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).
 		With().Str("component", "hub").Str("env", hc.Env).Str("version", version).Logger()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 
 	st, err := openStore(ctx, hc.DBDSN, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
@@ -802,7 +800,7 @@ func cmdHubSync(cfg *config.Config) int {
 	if err != nil {
 		return fail(err)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	r, err := c.Sync(ctx)
 	fmt.Println(action.JSON(r))
@@ -828,7 +826,7 @@ func cmdHubRun(cfg *config.Config) int {
 		q = notify.Start(cfg)
 	}
 	defer q.Stop()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	if err := c.Run(ctx); err != nil {
 		return fail(err)
@@ -854,7 +852,7 @@ func cmdHubGetFile(cfg *config.Config, args []string) int {
 		return fail(err)
 	}
 	c.Log = zerolog.Nop()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	sess, err := c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
@@ -886,7 +884,7 @@ func cmdHubTail(cfg *config.Config, args []string) int {
 		return fail(err)
 	}
 	c.Log = zerolog.Nop()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	sess, err := c.Dial(ctx, wire.RoleCLI)
 	if err != nil {

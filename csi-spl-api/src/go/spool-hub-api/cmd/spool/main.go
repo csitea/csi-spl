@@ -300,7 +300,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
@@ -396,7 +396,7 @@ func cmdMCP(cfg *config.Config, args []string) int {
 		fmt.Fprintf(os.Stderr, "spool: mcp --as %q is not an agent id\n", *as)
 		return 1
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	if err := mcp.Run(ctx, cfg, version, mcp.Options{Seat: *as}); err != nil && ctx.Err() == nil {
 		return fail(err)
@@ -429,7 +429,7 @@ func cmdMigrate(args []string) int {
 	if *dsn == "" || *dir == "" {
 		return fail(fmt.Errorf("--db / $SPOOL_HUB_DB_DSN and --sql-dir / $SPOOL_HUB_MIGRATIONS_DIR are required"))
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	pg, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
@@ -448,4 +448,9 @@ func cmdMigrate(args []string) int {
 		return fail(err)
 	}
 	return 0
+}
+
+// interruptible is a subcommand's root context: cancelled on Ctrl-C or SIGTERM.
+func interruptible() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }

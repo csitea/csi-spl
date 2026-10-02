@@ -1,12 +1,8 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -27,7 +23,7 @@ func cmdReact(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.React(ctx, cfg, action.ReactArgs{TaskID: *task, MsgID: *m, Emoji: *emoji, As: *as, Remove: *rm, List: *list})
 	if err != nil {

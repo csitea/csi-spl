@@ -1,13 +1,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -36,7 +32,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 			fl = append(fl, p)
 		}
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Lane(ctx, cfg, action.LaneArgs{Fleet: *fleet, Agent: *agent, Box: *agentBox, Repo: *repo,
 		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, State: *state})

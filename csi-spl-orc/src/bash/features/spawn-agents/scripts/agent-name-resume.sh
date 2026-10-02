@@ -114,6 +114,14 @@ for sf in sorted(glob.glob(os.path.join(E["SESS"], "*.json"))):
     if not apply: continue
     if not pw or not sid or not cwd:
         print("FAIL %s %s: no pane, session or cwd" % (pid, aid)); rc = 1; continue
+    # The pane must exist NOW, and outlive the process: a pane whose command
+    # was the claude itself closes when it exits, and a respawn into it then
+    # finds nothing (c-001, 2026-10-02: three agents left down). Checked and
+    # pinned BEFORE the process is stopped.
+    chk = subprocess.run(tm + ["display-message", "-p", "-t", pw[0], "#{pane_id}"], capture_output=True, text=True)
+    if chk.returncode or chk.stdout.strip() != pw[0]:
+        print("FAIL %s %s: pane %s is gone; nothing stopped" % (pid, aid, pw[0])); rc = 1; continue
+    subprocess.run(tm + ["set-option", "-p", "-t", pw[0], "remain-on-exit", "on"], capture_output=True)
     try: os.kill(pid, signal.SIGTERM)
     except OSError: pass
     for _ in range(int(E["WAIT"])):
@@ -125,6 +133,7 @@ for sf in sorted(glob.glob(os.path.join(E["SESS"], "*.json"))):
     cmd = " ".join(shlex.quote(x) for x in ["env", "SPOOL_ROOT=" + root] + (["SPOOL_BOX_TAG=" + tag] if tag else []) +
                    ["bash", E["RESTORE"], aid, cwd, sid, kick])
     r = subprocess.run(tm + ["respawn-pane", "-k", "-t", pw[0], cmd], capture_output=True, text=True)
+    subprocess.run(tm + ["set-option", "-p", "-u", "-t", pw[0], "remain-on-exit"], capture_output=True)
     if r.returncode: print("FAIL %s %s: respawn-pane %s: %s" % (pid, aid, pw[0], r.stderr.strip())); rc = 1
 sys.exit(rc)
 EOF

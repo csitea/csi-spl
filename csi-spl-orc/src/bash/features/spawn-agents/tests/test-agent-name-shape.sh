@@ -81,4 +81,28 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$T_TMP/restore.args" ] && break; sleep 0
 eq "5. --apply resumes c-033 through the restore path (id, cwd, session)" "c-033 $WD s-900001" "$(head -3 "$T_TMP/restore.args" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 has "5. ... and tells it the one name" "c-033@tg" "$(sed -n 4p "$T_TMP/restore.args" 2>/dev/null)"
 
+# c-001, 2026-10-02: a pane whose command IS the claude closes when it is
+# stopped, and the respawn then found no pane: three agents were left down.
+# A real process here, remain-on-exit off for its pane, as on the box.
+PANE2="$(t_window 'tg: c-034 x' 'exec sleep 600')"
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$PANE2" remain-on-exit off
+REAL="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$PANE2" '#{pane_pid}')"
+mk "$REAL" "$REAL" 'tg: c-034' ''
+rm -f "$T_TMP/restore.args"
+out="$(RESUME_RESTORE="$T_TMP/fake-restore.sh" RESUME_TERM_WAIT=3 bash "$T_SCRIPTS/agent-name-resume.sh" --apply --only c-034 2>&1)"
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$T_TMP/restore.args" ] && break; sleep 0.3; done
+hasnt "6. a pane that would close with its process is kept for the respawn" "FAIL" "$out"
+eq "6. ... and c-034 is resumed in it" "c-034" "$(head -1 "$T_TMP/restore.args" 2>/dev/null)"
+check "6. ... the pane is still there" tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$PANE2" '#{pane_id}'
+# a pane id that no longer exists: refused BEFORE the process is stopped
+GONE="$(t_window 'tg: c-035 x' 'sleep 600')"; GP="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$GONE" '#{pane_pid}')"
+sleep 600 & VICTIM=$!
+mk "$VICTIM" "$GP" 'tg: c-035' ''
+cp "$S/$VICTIM.json" "$T_TMP/v.json"
+tmux -S "$SPOOL_TMUX_SOCKET" kill-pane -t "$GONE"
+mkdir -p "$P/$GP"; printf '%s (bash) S 1 0 0\n' "$GP" >"$P/$GP/stat"
+out="$(bash "$T_SCRIPTS/agent-name-resume.sh" --apply --only c-035 2>&1)"
+check "6. a gone pane: the process is NOT stopped" kill -0 "$VICTIM"
+kill "$VICTIM" 2>/dev/null
+
 t_done

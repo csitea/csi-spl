@@ -3,7 +3,10 @@
 // nuxt.config.ts). It is merged into vue-i18n
 //   - before any route that is not a first-screen page, and before the
 //     ?settings= modal (src/utils/i18n-first-screen.mjs names both), so such
-//     a view never renders a key instead of its text;
+//     a view never renders a key instead of its text - on a cold boot onto
+//     such a route already during this plugin, so the boot's own navigations
+//     (Nuxt's initial replace, a replayed notification tap's push) find it
+//     loaded instead of racing each other while it downloads;
 //   - when the browser is idle after the first screen, so a later click
 //     finds it in place;
 //   - for the new locale on a switch, once it was wanted for the old one.
@@ -31,7 +34,7 @@ function needsMore(to: { name?: unknown, query?: Record<string, unknown> }): boo
 export default defineNuxtPlugin({
   name: 'spool:i18n-more',
   dependsOn: ['i18n:plugin'],
-  setup(nuxtApp) {
+  async setup(nuxtApp) {
     if (import.meta.dev) return
     const i18n = nuxtApp.$i18n as {
       locale: { value: string }
@@ -68,9 +71,12 @@ export default defineNuxtPlugin({
       return suffix || i18n.locale.value
     }
 
-    useRouter().beforeResolve(async (to) => {
+    const router = useRouter()
+    router.beforeResolve(async (to) => {
       if (needsMore(to)) await load(routeLocale(to))
     })
+    const boot = router.currentRoute.value
+    if (needsMore(boot)) await load(routeLocale(boot))
 
     nuxtApp.hook('i18n:localeSwitched', ({ newLocale }: { newLocale: string }) => {
       if (wanted) void load(newLocale)

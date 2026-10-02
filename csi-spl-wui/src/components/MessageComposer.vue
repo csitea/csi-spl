@@ -9,6 +9,8 @@
     :data-mode="modeAttr"
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
     :data-phone-pos="docked ? phonePos : undefined"
+    :data-phone-size="docked && phoneShare != null ? 'set' : undefined"
+    :style="docked && phoneShare != null ? { [phonePos === 'right' ? '--dock-width-share' : '--dock-field-share']: String(phoneShare) } : undefined"
     @submit.prevent="onSend"
   >
     <!-- owner, t1 2026-10-02: the grip that drags the phone dock to the
@@ -390,7 +392,9 @@ const stack = useMobileStack()
    plain text says it cannot be sent) */
 const docked = computed(() => Boolean(props.global) && props.dock && phone.value)
 /* owner, t1 2026-10-02: the dock's place on the phone (its grip moves it) */
-const { pos: phonePos } = useOmniboxPhonePos()
+const { pos: phonePos, size: phoneSize } = useOmniboxPhonePos()
+/* owner, t1 21:53Z: its size there (the grip's size handle or the menu) */
+const phoneShare = computed(() => phoneSize.value[phonePos.value] ?? null)
 /* phones only: a desktop never loads the grip */
 const OmniboxGrip = defineAsyncComponent(() => import('~/components/OmniboxGrip.vue'))
 /* SPL-1003: where the next post goes, shown above the docked box */
@@ -551,6 +555,17 @@ watch(text, () => {
   })
 })
 onMounted(() => { fitGlobalBox() })
+/* owner, t1 21:53Z: a new phone size (or a place with another size). The
+   field's own height was measured under the old floor; measure it again
+   under the new one, so a smaller size really shrinks it */
+watch(phoneShare, () => {
+  void nextTick(() => {
+    const el = inputEl.value
+    if (!el || !docked.value) return
+    if (parked.value) el.style.height = '36px'
+    else fitGlobalBox()
+  })
+})
 const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */
@@ -1550,6 +1565,18 @@ textarea.in-code {
     padding-right: calc(8px + env(safe-area-inset-right, 0px));
     border-left: 1px solid var(--color-border);
     border-top-left-radius: var(--radius-lg);
+  }
+  /* owner, t1 21:53Z: "it should be possible to resize it" - the size the
+     grip's size handle or its menu chose (utils/omnibox-dock.mjs). The same
+     bounds as there, again here, so a size kept on a bigger screen still
+     fits: the field at most half the room under the top bar above the
+     keyboard (it stays that size when the focus leaves); in the corner at
+     least 280 px and at most the width less 48 px of the feed */
+  .composer--dock.composer--dock[data-phone-size=set] textarea {
+    min-height: max(var(--tap), calc((100dvh - var(--kb-inset, 0px) - var(--top-bar-h)) * min(var(--dock-field-share, 0), 0.5)));
+  }
+  .composer.composer--dock.composer--dock[data-phone-pos=right][data-phone-size=set] {
+    width: clamp(min(280px, 100vw - 48px), calc(100vw * var(--dock-width-share, 0.84)), calc(100vw - 48px));
   }
 }
 </style>

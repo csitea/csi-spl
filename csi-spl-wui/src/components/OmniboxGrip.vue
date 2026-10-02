@@ -4,7 +4,12 @@
      none here, nowhere else), so a swipe on the page still scrolls it. The
      box follows the finger and snaps on release (utils/omnibox-dock.mjs
      snapPhonePosition). A tap, Enter or Space opens the menu instead: Move to
-     top / right / bottom, for anyone who cannot drag. -->
+     top / right / bottom, for anyone who cannot drag.
+     Owner, t1 21:53Z: "it should be possible to resize it". A second handle
+     on the free edge's END (the left edge in the corner) drags the size:
+     the field's height at the bottom and the top, the box's width in the
+     corner (utils/omnibox-dock.mjs resizePhoneSize); a tap on it opens the
+     same menu, which also carries Small / Medium / Large. -->
 <template>
   <div class="omni-grip" :data-pos="pos">
     <button
@@ -40,23 +45,53 @@
         @mousedown.prevent
         @click="pick(p)"
       >{{ t(`composer.move_${p}`) }}</button>
+      <div role="separator" class="omni-grip__sep" />
+      <button
+        v-for="z in SIZE_PRESETS"
+        :key="z"
+        type="button"
+        role="menuitemradio"
+        class="omni-grip__item"
+        :data-size="z"
+        :aria-checked="currentPreset === z ? 'true' : 'false'"
+        @mousedown.prevent
+        @click="pickSize(z)"
+      >{{ t(`composer.size_${z}`) }}</button>
     </div>
   </div>
+  <button
+    ref="sizeEl"
+    type="button"
+    class="omni-size"
+    :data-pos="pos"
+    data-testid="omnibox-size"
+    tabindex="-1"
+    :aria-label="t('composer.size_handle')"
+    :title="t('composer.size_handle')"
+    @mousedown.prevent
+    @pointerdown="onSizeDown"
+    @click="onSizeClick"
+  >
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5 4.5 5h7L8 1.5Zm0 13L4.5 11h7L8 14.5Z" fill="currentColor" /></svg>
+  </button>
 </template>
 
 <script setup lang="ts">
-import { PHONE_POSITIONS, isPhoneDrag, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
+import { PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 
 type PhonePosition = 'bottom' | 'top' | 'right'
+type SizePreset = 'small' | 'medium' | 'large'
 
 /** The docked form that moves with the finger. */
 const props = defineProps<{ box: HTMLElement | null }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const { pos, set } = useOmniboxPhonePos()
+const { pos, size, set, setSize } = useOmniboxPhonePos()
 const btnEl = ref<HTMLButtonElement | null>(null)
+const sizeEl = ref<HTMLButtonElement | null>(null)
+const currentPreset = computed(() => sizePreset(pos.value, size.value[pos.value]))
 const menuEl = ref<HTMLElement | null>(null)
 const menuOpen = ref(false)
 
@@ -165,14 +200,82 @@ function pick(p: PhonePosition) {
   menuOpen.value = false
 }
 
+function pickSize(z: SizePreset) {
+  setSize(presetSize(pos.value, z))
+  menuOpen.value = false
+}
+
+/* the size handle: the field's height (bottom, top) or the box's width (right) */
+let sizing: { x: number, y: number, id: number, start: number, room: number, moved: boolean } | null = null
+let swallowSizeClick = false
+
+/** What a share is of: the px under the top bar above the keyboard, or the screen width. */
+function sizeRoom(): number {
+  if (pos.value === 'right') return window.innerWidth
+  const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-inset')) || 0
+  const bar = document.querySelector('[data-test=top-bar]')?.getBoundingClientRect().bottom ?? 0
+  return window.innerHeight - kb - bar
+}
+
+function onSizeMove(e: PointerEvent) {
+  if (!sizing || e.pointerId !== sizing.id) return
+  const dx = e.clientX - sizing.x
+  const dy = e.clientY - sizing.y
+  if (!sizing.moved && !isPhoneDrag({ dx, dy })) return
+  sizing.moved = true
+  menuOpen.value = false
+  setSize(resizePhoneSize({ pos: pos.value, start: sizing.start, dx, dy, room: sizing.room }), false)
+}
+
+function onSizeUp(e: PointerEvent) {
+  if (!sizing || e.pointerId !== sizing.id) return
+  const moved = sizing.moved
+  detachSize()
+  if (!moved) return
+  swallowSizeClick = true
+  /* the last live value, now kept */
+  setSize(size.value[pos.value] ?? null)
+}
+
+function detachSize() {
+  sizing = null
+  const b = sizeEl.value
+  if (!b) return
+  b.removeEventListener('pointermove', onSizeMove)
+  b.removeEventListener('pointerup', onSizeUp)
+  b.removeEventListener('pointercancel', detachSize)
+}
+
+function onSizeDown(e: PointerEvent) {
+  const box = props.box
+  if (e.button !== 0 || !sizeEl.value || !box) return
+  const field = box.querySelector('textarea')
+  const start = pos.value === 'right' ? box.getBoundingClientRect().width : (field?.getBoundingClientRect().height ?? 44)
+  sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room: sizeRoom(), moved: false }
+  swallowSizeClick = false
+  try { sizeEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
+  sizeEl.value.addEventListener('pointermove', onSizeMove)
+  sizeEl.value.addEventListener('pointerup', onSizeUp)
+  sizeEl.value.addEventListener('pointercancel', detachSize)
+}
+
+function onSizeClick() {
+  if (swallowSizeClick) {
+    swallowSizeClick = false
+    return
+  }
+  menuOpen.value = !menuOpen.value
+}
+
 let offOutside: (() => void) | null = null
 watch(menuOpen, (open) => {
   offOutside?.()
-  offOutside = open ? onOutsideTap(document, () => [menuEl.value, btnEl.value], () => { menuOpen.value = false }) : null
+  offOutside = open ? onOutsideTap(document, () => [menuEl.value, btnEl.value, sizeEl.value], () => { menuOpen.value = false }) : null
 })
 onBeforeUnmount(() => {
   offOutside?.()
   detach()
+  detachSize()
   clearDrag()
 })
 </script>
@@ -243,4 +346,37 @@ onBeforeUnmount(() => {
 }
 .omni-grip__item[aria-checked=true] { font-weight: 600; color: var(--color-accent); }
 .omni-grip__item:hover { background: color-mix(in srgb, var(--color-fg) 8%, transparent); }
+.omni-grip__sep { height: 1px; margin: 4px 0; background: var(--color-border); }
+/* The size handle: a 44 x 24 target at the free edge's physical right end
+   (the thumb's side; the grip keeps the middle), on the LEFT edge in the
+   corner where the width is what changes - there it turns sideways */
+.omni-size {
+  position: absolute;
+  z-index: 2;
+  top: -16px;
+  right: 8px;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: ns-resize;
+  /* like the grip: this handle, and only it, takes the finger */
+  touch-action: none;
+}
+.omni-size svg { filter: drop-shadow(0 0 1px var(--color-sidebar)); }
+.omni-size[data-pos=top] { top: auto; bottom: -16px; }
+.omni-size[data-pos=right] {
+  top: 50%;
+  right: auto;
+  left: -16px;
+  width: 24px;
+  height: 44px;
+  margin-top: -22px;
+  cursor: ew-resize;
+}
+.omni-size[data-pos=right] svg { transform: rotate(90deg); }
 </style>

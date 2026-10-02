@@ -185,7 +185,7 @@ try {
 
   await p.tap('[data-testid=omnibox-grip]')
   await sleep(400)
-  const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [role=menuitemradio]')].map((b) => b.getAttribute('data-pos')))
+  const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [role=menuitemradio][data-pos]')].map((b) => b.getAttribute('data-pos')))
   await p.screenshot({ path: join(OUT, 'grip-390-menu.png') })
   await p.tap('[data-testid=omnibox-grip-menu] [data-pos=top]')
   await sleep(500)

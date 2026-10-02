@@ -136,12 +136,56 @@ describe('the phone dock grip', async () => {
   it('only the grip takes the finger from the page; a menu for those who cannot drag', () => {
     const grip = read('components/OmniboxGrip.vue')
     assert.match(grip, /\.omni-grip__btn \{[^}]*touch-action: none/)
-    assert.equal((grip.match(/touch-action:/g) || []).length, 1)
+    /* the grip and the size handle, nothing else */
+    assert.match(grip, /\.omni-size \{[^}]*touch-action: none/)
+    assert.equal((grip.match(/touch-action:/g) || []).length, 2)
     assert.match(grip, /:aria-label="t\('composer\.move_handle'\)"/)
     assert.match(grip, /role="menuitemradio"/)
     const composer = read('components/MessageComposer.vue')
     assert.match(composer, /<OmniboxGrip v-if="docked"/)
     assert.match(composer, /data-phone-pos=top\][^{]*\{[^}]*top: var\(--top-bar-h\)/)
     assert.match(read('assets/css/main.css'), /\.spool-shell \{ padding-top: var\(--composer-dock-top-h, 0px\); \}/)
+  })
+})
+
+// Owner, t1 2026-10-02 21:53Z: "it should be possible to resize it". The
+// size per place, kept next to the place; the drag and the limits on a real
+// phone are tests/e2e/omnibox-grip.test.mjs.
+describe('the phone dock size', async () => {
+  const m = await import('../../src/utils/omnibox-dock.mjs')
+  it('stored per place; junk is the default, bounds hold', () => {
+    assert.equal(m.PHONE_SIZE_KEY, 'spool.omnibox-phone-size')
+    for (const v of [undefined, null, '', '{', '[]', '"x"', '{"bottom":"big"}']) assert.deepEqual(m.parsePhoneSize(v), {})
+    assert.deepEqual(m.parsePhoneSize('{"bottom":0.3,"top":2,"right":0.7,"left":1}'), { bottom: 0.3, top: 0.5, right: 0.7 })
+    assert.deepEqual(m.parsePhoneSize('{"bottom":-1,"right":0}'), { bottom: 0 })
+  })
+  it('presets: one line / a quarter / half for a height, 72% / 84% / all-but-48px for the corner width', () => {
+    assert.deepEqual(['small', 'medium', 'large'].map((z) => m.presetSize('bottom', z)), [0, 0.25, 0.5])
+    assert.deepEqual(['small', 'medium', 'large'].map((z) => m.presetSize('right', z)), [0.72, 0.84, 1])
+    assert.equal(m.sizePreset('bottom', undefined), 'small')
+    assert.equal(m.sizePreset('right', undefined), 'medium')
+    assert.equal(m.sizePreset('top', 0.5), 'large')
+    assert.equal(m.sizePreset('top', 0.37), null)
+  })
+  it('a drag away from the edge grows it, within the limits', () => {
+    const room = 786
+    /* bottom: up is taller; top: down is taller */
+    assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 44, dx: 0, dy: -200, room }), Math.round((244 / room) * 1000) / 1000)
+    assert.equal(m.resizePhoneSize({ pos: 'top', start: 44, dx: 0, dy: 200, room }), Math.round((244 / room) * 1000) / 1000)
+    assert.equal(m.resizePhoneSize({ pos: 'top', start: 44, dx: 0, dy: -200, room }), 0)
+    /* never past half; back near one line is one line */
+    assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 44, dx: 0, dy: -900, room }), 0.5)
+    assert.equal(m.resizePhoneSize({ pos: 'bottom', start: 200, dx: 0, dy: 150, room }), 0)
+    /* the corner: left is wider, 280 px at least, 48 px of the feed kept */
+    assert.equal(m.resizePhoneSize({ pos: 'right', start: 327, dx: -500, dy: 0, room: 390 }), Math.round((342 / 390) * 1000) / 1000)
+    assert.equal(m.resizePhoneSize({ pos: 'right', start: 327, dx: 500, dy: 0, room: 390 }), Math.round((280 / 390) * 1000) / 1000)
+  })
+  it('the composer repeats the bounds in CSS and a tap on the size handle opens the menu', () => {
+    const composer = read('components/MessageComposer.vue')
+    assert.match(composer, /min\(var\(--dock-field-share, 0\), 0\.5\)/)
+    assert.match(composer, /clamp\(min\(280px, 100vw - 48px\), calc\(100vw \* var\(--dock-width-share, 0\.84\)\), calc\(100vw - 48px\)\)/)
+    const grip = read('components/OmniboxGrip.vue')
+    assert.match(grip, /data-testid="omnibox-size"[^>]*tabindex="-1"/s)
+    assert.match(grip, /:aria-label="t\('composer\.size_handle'\)"/)
   })
 })

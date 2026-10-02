@@ -199,6 +199,16 @@ spl_cnf_api_fqdn() {
   printf -v "$1" '%s' "$_fqdn"
 }
 
+# spl_psql_mark <psql output> <tag> -> the value of the first "<tag> | <value>"
+# line a guarded psql script printed (the text after its last "| "); 1 when no
+# such line. The channel/member ops print their refusals this way because psql
+# 18 ignores the code of "\quit 1".
+spl_psql_mark() {
+  local line
+  line="$(grep -m 1 "^$2 | " <<<"$1")" || return 1
+  printf '%s\n' "${line##*| }"
+}
+
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise
 spl_dry_run() {
   local d="${DRY_RUN:-1}"

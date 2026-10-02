@@ -189,17 +189,14 @@ SQL
 )" || rc=$?
   # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
   # refusal is recognised from the line the script printed, not from rc.
-  if grep -q '^refuse-not-a-member | ' <<<"$out"; then
-    mark="$(grep '^refuse-not-a-member | ' <<<"$out" | head -n 1)"
-    do_log "FATAL not_a_member: ${mark##*| } is not announced on $3 in $1"
+  if mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
+    do_log "FATAL not_a_member: $mark is not announced on $3 in $1"
     return 1
-  elif grep -q '^refuse-channel | ' <<<"$out"; then
-    mark="$(grep '^refuse-channel | ' <<<"$out" | head -n 1)"
-    do_log "FATAL no channel ${mark##*| } in $1"
+  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
+    do_log "FATAL no channel $mark in $1"
     return 1
-  elif grep -q '^refuse-public | ' <<<"$out"; then
-    mark="$(grep '^refuse-public | ' <<<"$out" | head -n 1)"
-    do_log "FATAL #${mark##*| } is a default channel: an agent seat is not stored"
+  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
+    do_log "FATAL #$mark is a default channel: an agent seat is not stored"
     return 1
   elif grep -q '^refuse-count$' <<<"$out"; then
     do_log "FATAL agent add of $4 to #$2 on $3 in $1 changed an unexpected number of rows; rolled back"

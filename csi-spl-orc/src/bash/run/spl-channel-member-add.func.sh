@@ -150,25 +150,20 @@ SQL
 )" || rc=$?
   # psql 18 treats "\quit 1" as \quit and exits 0 (the code is ignored), so a
   # refusal is recognised from the line the script printed, not from rc.
-  if grep -q '^refuse-human | ' <<<"$out"; then
-    mark="$(grep '^refuse-human | ' <<<"$out" | head -n 1)"
-    do_log "FATAL email $3 matches ${mark##*| } human(s) in human_identities; want exactly one"
+  if mark="$(spl_psql_mark "$out" refuse-human)"; then
+    do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
     return 1
-  elif grep -q '^refuse-missing-human | ' <<<"$out"; then
-    mark="$(grep '^refuse-missing-human | ' <<<"$out" | head -n 1)"
-    do_log "FATAL human ${mark##*| } is not in humans"
+  elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
+    do_log "FATAL human $mark is not in humans"
     return 1
-  elif grep -q '^refuse-not-a-member | ' <<<"$out"; then
-    mark="$(grep '^refuse-not-a-member | ' <<<"$out" | head -n 1)"
-    do_log "FATAL not_a_member: ${mark##*| } is not a member of $1"
+  elif mark="$(spl_psql_mark "$out" refuse-not-a-member)"; then
+    do_log "FATAL not_a_member: $mark is not a member of $1"
     return 1
-  elif grep -q '^refuse-channel | ' <<<"$out"; then
-    mark="$(grep '^refuse-channel | ' <<<"$out" | head -n 1)"
-    do_log "FATAL no channel ${mark##*| } in $1"
+  elif mark="$(spl_psql_mark "$out" refuse-channel)"; then
+    do_log "FATAL no channel $mark in $1"
     return 1
-  elif grep -q '^refuse-public | ' <<<"$out"; then
-    mark="$(grep '^refuse-public | ' <<<"$out" | head -n 1)"
-    do_log "FATAL #${mark##*| } is a default channel: a membership row is not stored"
+  elif mark="$(spl_psql_mark "$out" refuse-public)"; then
+    do_log "FATAL #$mark is a default channel: a membership row is not stored"
     return 1
   elif grep -q '^refuse-count$' <<<"$out"; then
     do_log "FATAL member add of $who to #$4 in $1 changed an unexpected number of rows; rolled back"

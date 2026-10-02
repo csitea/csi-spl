@@ -165,12 +165,10 @@ COMMIT;
 SQL
 )" || rc=$?
   if (( rc != 0 )); then
-    if grep -q '^refuse-human | ' <<<"$out"; then
-      mark="$(grep '^refuse-human | ' <<<"$out" | head -n 1)"
-      do_log "FATAL email $3 matches ${mark##*| } human(s) in human_identities; want exactly one"
-    elif grep -q '^refuse-missing-human | ' <<<"$out"; then
-      mark="$(grep '^refuse-missing-human | ' <<<"$out" | head -n 1)"
-      do_log "FATAL human ${mark##*| } is not in humans"
+    if mark="$(spl_psql_mark "$out" refuse-human)"; then
+      do_log "FATAL email $3 matches $mark human(s) in human_identities; want exactly one"
+    elif mark="$(spl_psql_mark "$out" refuse-missing-human)"; then
+      do_log "FATAL human $mark is not in humans"
     else
       do_log "FATAL member add of $who in $1 failed: $out"
     fi

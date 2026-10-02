@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -41,6 +42,12 @@ func (f *stampFake) ChangeStamp(_ context.Context, _ string, since, now time.Tim
 	f.lastSince, f.lastAt = since, now
 	return store.ChangeStamp{Stamp: f.stamp, Settled: f.settled, Expired: f.expired}, f.err
 }
+
+// stampTagRE is the stamp validator's whole shape, W/"s<mint ms>.<hash>".
+// A prefix test alone is not enough: a body-hash tag is W/"<base64url>" and
+// starts with "s" one time in 64 (run 37060818120 read W/"s5JxcjP9tmB7wEEwI6ZWRw"
+// as a stamp tag), but it never carries the "." a stamp tag does.
+var stampTagRE = regexp.MustCompile(`^W/"s[0-9]+\.[A-Za-z0-9_-]+"$`)
 
 func (f *stampFake) set(fn func(f *stampFake)) {
 	f.mu.Lock()
@@ -101,7 +108,7 @@ func TestViewStampRepeatRead(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, resp.Header.Get("ETag"), string(b)
 	}
-	isStamp := func(tag string) bool { return strings.HasPrefix(tag, `W/"s`) }
+	isStamp := stampTagRE.MatchString
 
 	// A first read: the body hash, and the stamp is never read.
 	code, bodyTag, first := get(r.browser, path, "")
@@ -116,6 +123,11 @@ func TestViewStampRepeatRead(t *testing.T) {
 	// Unchanged: 304, no body, the same tag.
 	if code, got, body := get(r.browser, path, tag); code != http.StatusNotModified || got != tag || body != "" {
 		t.Fatalf("unchanged: %d tag %q body %q", code, got, body)
+	}
+	// A body-hash tag that happens to start with "s" (the one CI met) is
+	// never read as a stamp tag: the full answer, never a 304.
+	if code, got, _ := get(r.browser, path, `W/"s5JxcjP9tmB7wEEwI6ZWRw"`); code != http.StatusOK || !isStamp(got) {
+		t.Fatalf("an s-leading body tag: %d tag %q, want 200 and a stamp tag", code, got)
 	}
 	// The 304 ran none of the view's reads: a row written WITHOUT a stamp
 	// bump (what a missing trigger would be) is not seen. This is why every
@@ -272,7 +284,7 @@ func TestViewStampRoundTrips(t *testing.T) {
 		"/v1/view/channels", "/v1/view/topics/" + lobby} {
 		_, bodyTag, _, _ := get(p, "")
 		code, tag, _, _ := get(p, bodyTag)
-		if code != http.StatusOK || !strings.HasPrefix(tag, `W/"s`) {
+		if code != http.StatusOK || !stampTagRE.MatchString(tag) {
 			t.Fatalf("%s: no stamp tag minted (%d %q)", p, code, tag)
 		}
 		measure := func(inm string, want int) (int64, time.Duration) {

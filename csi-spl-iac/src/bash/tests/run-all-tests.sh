@@ -12,32 +12,68 @@
 # names each one. CI (workflow 10) never sets it and runs them all. In the fast
 # tier a test that prints 'SKIP:' FAILS: a check the hook keeps must really run,
 # so a missing tool is a loud failure, never a green that tested nothing.
+#
+# Perf round 4, C2: the files run IAC_TEST_JOBS at a time (default 6 on CI,
+# 4 elsewhere, so the pre-push hook gains too; 1 = one at a time). Each file's
+# output is buffered to its own file and printed in suite order with its own
+# verdict, exactly as a serial run prints it. A test whose first 40 lines carry
+# the line '# serial' (it shares a fixed /tmp path, $HOME or tmux state with
+# another test) runs alone, after the pool.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 to="${IAC_TEST_TIMEOUT:-120}"
 tier="${IAC_TEST_TIER:-full}"
 case "$tier" in full|fast) ;; *) echo "IAC_TEST_TIER must be full or fast (got '$tier')" >&2; exit 2 ;; esac
+njobs="${IAC_TEST_JOBS:-}"
+if [[ -z "$njobs" ]]; then
+  if [[ "${GITHUB_ACTIONS:-}" == true ]]; then njobs=6; else njobs=4; fi
+fi
+[[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "IAC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
 fails=0 n=0 slow=0
-out="$(mktemp)"; trap 'rm -f "$out"' EXIT
+work="$(mktemp -d)"
+trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$work"' EXIT
+trap 'exit 130' INT TERM
+pool=() serial=()
 for t in "$dir"/*.tst.sh; do
   [[ -f "$t" ]] || continue
   if [[ "$tier" == fast ]] && head -40 "$t" | grep -qE '^# pre-push-tier: slow( |$)'; then
     echo "SKIP-TIER (fast tier; CI workflow 10 runs it): $(basename "$t")"; slow=$((slow + 1))
     continue
   fi
-  n=$((n + 1))
-  echo "=== $(basename "$t")"
-  rc=0
-  timeout -k 5 "$to" bash "$t" >"$out" 2>&1 || rc=$?
-  cat "$out"
-  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
-    echo "TIMED OUT (>${to}s), killed: $(basename "$t")"; fails=$((fails + 1))
-  elif [[ "$rc" -ne 0 ]]; then
-    echo "FAILED: $(basename "$t")"; fails=$((fails + 1))
-  elif [[ "$tier" == fast ]] && grep -q '^SKIP:' "$out"; then
-    echo "FAILED: $(basename "$t") SKIPPED a check in the fast tier ($(grep -m1 '^SKIP:' "$out")) -- install what it names, or mark the test '# pre-push-tier: slow' so CI owns it"
-    fails=$((fails + 1))
-  fi
+  if head -40 "$t" | grep -qE '^# serial( |$)'; then serial+=("$t"); else pool+=("$t"); fi
 done
+files=("${pool[@]}" "${serial[@]}")
+n=${#files[@]}
+# start <i>: run file i in the background under the timeout; <i>.rc appears
+# only once the file is done, so an existing <i>.rc means <i>.out is complete.
+start() {
+  ( rc=0; timeout -k 5 "$to" bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1 || rc=$?
+    echo "$rc" >"$work/$1.rc.tmp"; mv "$work/$1.rc.tmp" "$work/$1.rc" ) &
+}
+next=0
+flush() {
+  local name rc out
+  while (( next < n )) && [[ -f "$work/$next.rc" ]]; do
+    name=$(basename "${files[$next]}") rc=$(cat "$work/$next.rc") out="$work/$next.out"
+    echo "=== $name"
+    cat "$out"
+    if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+      echo "TIMED OUT (>${to}s), killed: $name"; fails=$((fails + 1))
+    elif [[ "$rc" -ne 0 ]]; then
+      echo "FAILED: $name"; fails=$((fails + 1))
+    elif [[ "$tier" == fast ]] && grep -q '^SKIP:' "$out"; then
+      echo "FAILED: $name SKIPPED a check in the fast tier ($(grep -m1 '^SKIP:' "$out")) -- install what it names, or mark the test '# pre-push-tier: slow' so CI owns it"
+      fails=$((fails + 1))
+    fi
+    next=$((next + 1))
+  done
+}
+running=0
+for ((i = 0; i < ${#pool[@]}; i++)); do
+  if (( running >= njobs )); then wait -n; running=$((running - 1)); flush; fi
+  start "$i"; running=$((running + 1))
+done
+wait; flush
+for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; wait; flush; done
 echo "=== $((n - fails))/$n test files passed (tier=$tier, $slow left to CI)"
 [[ "$fails" -eq 0 ]]

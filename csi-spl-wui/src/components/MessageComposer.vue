@@ -8,8 +8,12 @@
     :data-docked="docked ? 'true' : undefined"
     :data-mode="modeAttr"
     :data-yield="docked && stack.sheetOpen.value ? 'true' : undefined"
+    :data-phone-pos="docked ? phonePos : undefined"
     @submit.prevent="onSend"
   >
+    <!-- owner, t1 2026-10-02: the grip that drags the phone dock to the
+         top, the right corner or back to the bottom (OmniboxGrip) -->
+    <OmniboxGrip v-if="docked" :box="formEl" />
     <!-- Topic c6994436: over the bottom dock on a desktop the box says where
          the post goes before it is sent. On a phone NO text line above the
          box (owner, t1 dd98f8d7, 2026-10-01: "remove also all of the texts on
@@ -297,6 +301,7 @@ import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
+import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
@@ -384,6 +389,10 @@ const stack = useMobileStack()
    and pages with no send target included (there `/search` still works and
    plain text says it cannot be sent) */
 const docked = computed(() => Boolean(props.global) && props.dock && phone.value)
+/* owner, t1 2026-10-02: the dock's place on the phone (its grip moves it) */
+const { pos: phonePos } = useOmniboxPhonePos()
+/* phones only: a desktop never loads the grip */
+const OmniboxGrip = defineAsyncComponent(() => import('~/components/OmniboxGrip.vue'))
 /* SPL-1003: where the next post goes, shown above the docked box */
 const dockHint = computed(() => dockTargetHint(props.dockTarget, text.value))
 let dockObserver: ResizeObserver | null = null
@@ -394,10 +403,16 @@ let dockPx = 0
 function setDockHeight(px: number) {
   dockPx = px
   if (typeof document === 'undefined') return
+  /* at the top the box no longer covers the bottom: the panes pad only the
+     strip there, and start under the box (--composer-dock-top-h, main.css) */
+  const top = px > 0 && phonePos.value === 'top'
   const total = px > 0 ? px + stripH.value : 0
-  document.documentElement.style.setProperty('--composer-dock-h', `${Math.max(0, Math.round(total))}px`)
+  const root = document.documentElement.style
+  root.setProperty('--composer-dock-h', `${Math.max(0, Math.round(top ? stripH.value : total))}px`)
+  root.setProperty('--composer-dock-top-h', `${top ? Math.round(px) : 0}px`)
 }
 watch(stripH, () => setDockHeight(dockPx))
+watch(phonePos, () => setDockHeight(dockPx))
 function watchDock(on: boolean) {
   dockObserver?.disconnect()
   dockObserver = null
@@ -1496,6 +1511,48 @@ textarea.in-code {
   .composer--dock.composer--dock .search-syntax {
     top: auto;
     bottom: calc(100% + 4px);
+  }
+  /* owner, t1 2026-10-02 - the grip (OmniboxGrip) straddles the free edge:
+     4 px more room on that side so its target stays off the field */
+  .composer.composer--dock.composer--dock { padding-top: 10px; }
+  .composer.composer--dock.composer--dock[data-dragging=true] {
+    opacity: .9;
+    transition: none;
+  }
+  /* TOP: full width right under the top bar (its height carries the notch
+     inset). The panes start under it (main.css --composer-dock-top-h). The
+     error snackbars (z 60) still slide in over it, above the top bar's
+     stacking context (z 40) that this box lives in. */
+  .composer.composer--dock.composer--dock[data-phone-pos=top] {
+    top: var(--top-bar-h);
+    bottom: auto;
+    padding: 6px calc(8px + env(safe-area-inset-right, 0px)) 10px calc(8px + env(safe-area-inset-left, 0px));
+    border-top: 0;
+    border-bottom: 1px solid var(--color-border);
+    background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32), inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+  }
+  /* there the pickers open DOWNWARD over the page */
+  .composer--dock.composer--dock[data-phone-pos=top] .mention-list {
+    top: 100%;
+    bottom: auto;
+    margin: 6px 0 0;
+    border-radius: var(--radius-lg);
+  }
+  .composer--dock.composer--dock[data-phone-pos=top] .search-syntax {
+    top: calc(100% + 4px);
+    bottom: auto;
+  }
+  /* RIGHT: the bottom-right corner, 84% of the width (360 px at most), so the
+     holding hand's thumb reaches field, Attach and Send and the feed's left
+     edge stays readable; physical right in every direction (the thumb) */
+  .composer.composer--dock.composer--dock[data-phone-pos=right] {
+    left: auto;
+    right: 0;
+    width: min(84vw, 360px);
+    padding-right: calc(8px + env(safe-area-inset-right, 0px));
+    border-left: 1px solid var(--color-border);
+    border-top-left-radius: var(--radius-lg);
   }
 }
 </style>

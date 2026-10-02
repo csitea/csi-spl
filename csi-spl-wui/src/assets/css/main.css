@@ -835,6 +835,9 @@ html.pane-dragging * {
      dot / bell / note / version in the bottom status strip) is not drawn on
      a phone */
   .sidebar-foot { display: none; }
+  /* owner, t1 2026-10-02: the dock dragged to the TOP (OmniboxGrip) - every
+     panel starts under it (0 at the bottom and in the right corner) */
+  .spool-shell { padding-top: var(--composer-dock-top-h, 0px); }
   /* SPL-1005: the dock is on level 1 too - the whole sidebar ends above it */
   .spool-shell > .sidebar {
     box-sizing: border-box;

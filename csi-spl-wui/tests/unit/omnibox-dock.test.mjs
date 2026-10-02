@@ -108,3 +108,40 @@ describe('wiring', () => {
     assert.match(topBar, /setText\('\/search '\)/)
   })
 })
+
+// Owner, t1 2026-10-02: the phone dock's grip - drag to the top, the right
+// corner, or back to the bottom; kept per browser. The geometry and the touch
+// drag are tests/e2e/omnibox-grip.test.mjs.
+describe('the phone dock grip', async () => {
+  const m = await import('../../src/utils/omnibox-dock.mjs')
+  it('three places, bottom the default for anything unknown', () => {
+    assert.deepEqual([...m.PHONE_POSITIONS], ['bottom', 'top', 'right'])
+    for (const v of [undefined, null, '', 'TOP', 'left', 1, 'bottom']) assert.equal(m.parsePhonePosition(v), 'bottom')
+    assert.equal(m.parsePhonePosition('top'), 'top')
+    assert.equal(m.parsePhonePosition('right'), 'right')
+    assert.equal(m.PHONE_POSITION_KEY, 'spool.omnibox-phone-pos')
+  })
+  it('the finger decides: upper 40% top, right 40% of the rest the corner, else bottom', () => {
+    const vp = { width: 390, height: 844 }
+    assert.equal(m.snapPhonePosition({ ...vp, x: 195, y: 100 }), 'top')
+    assert.equal(m.snapPhonePosition({ ...vp, x: 380, y: 100 }), 'top')
+    assert.equal(m.snapPhonePosition({ ...vp, x: 370, y: 600 }), 'right')
+    assert.equal(m.snapPhonePosition({ ...vp, x: 195, y: 800 }), 'bottom')
+    assert.equal(m.snapPhonePosition({ ...vp, x: 100, y: 500 }), 'bottom')
+  })
+  it('a short travel is a tap (the menu), not a drag', () => {
+    assert.equal(m.isPhoneDrag({ dx: 3, dy: 4 }), false)
+    assert.equal(m.isPhoneDrag({ dx: 0, dy: -20 }), true)
+  })
+  it('only the grip takes the finger from the page; a menu for those who cannot drag', () => {
+    const grip = read('components/OmniboxGrip.vue')
+    assert.match(grip, /\.omni-grip__btn \{[^}]*touch-action: none/)
+    assert.equal((grip.match(/touch-action:/g) || []).length, 1)
+    assert.match(grip, /:aria-label="t\('composer\.move_handle'\)"/)
+    assert.match(grip, /role="menuitemradio"/)
+    const composer = read('components/MessageComposer.vue')
+    assert.match(composer, /<OmniboxGrip v-if="docked"/)
+    assert.match(composer, /data-phone-pos=top\][^{]*\{[^}]*top: var\(--top-bar-h\)/)
+    assert.match(read('assets/css/main.css'), /\.spool-shell \{ padding-top: var\(--composer-dock-top-h, 0px\); \}/)
+  })
+})

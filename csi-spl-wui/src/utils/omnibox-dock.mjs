@@ -54,3 +54,52 @@ export function omniboxMaxHeight({ innerHeight, topBarH = 58, bottom = false }) 
   if (bottom) return Math.max(36, Math.floor((innerHeight - topBarH) * 0.6))
   return Math.max(36, Math.floor(innerHeight - topBarH - 8))
 }
+
+/*
+ * Owner, t1 (2026-10-02 21:28Z): "Add handle to the omnibox on mobile to be
+ * able to drag to the top of the screen and to the right". On a phone the
+ * docked box carries a grip; a drag snaps it to one of three places, kept per
+ * browser (like the Flow's Mine / All):
+ *   bottom - full width on the bottom edge (the default, SPL-991)
+ *   top    - full width right under the top bar; the panes start under it
+ *   right  - the bottom-RIGHT corner, about 4/5 of the width: the thumb of
+ *            the holding hand reaches the field, Attach and Send, and a strip
+ *            of the feed stays readable on the left
+ */
+export const PHONE_POSITIONS = Object.freeze(['bottom', 'top', 'right'])
+export const DEFAULT_PHONE_POSITION = 'bottom'
+/** localStorage key: the place is this browser's, not the account's. */
+export const PHONE_POSITION_KEY = 'spool.omnibox-phone-pos'
+
+/**
+ * @param {unknown} v
+ * @returns {'bottom' | 'top' | 'right'}
+ */
+export function parsePhonePosition(v) {
+  return PHONE_POSITIONS.includes(/** @type {string} */ (v)) ? /** @type {'bottom' | 'top' | 'right'} */ (v) : DEFAULT_PHONE_POSITION
+}
+
+/** Below this many px of travel the grip was tapped, not dragged (a tap opens the menu). */
+export const DRAG_SLOP = 8
+
+/**
+ * Where a released drag lands: the upper 40% of the screen is the top, the
+ * right 40% of the rest is the right corner, anything else the bottom. Read
+ * from the finger, not from the box, so the same gesture lands the same way
+ * from every starting place.
+ * @param {{ x: number, y: number, width: number, height: number }} o
+ * @returns {'bottom' | 'top' | 'right'}
+ */
+export function snapPhonePosition({ x, y, width, height }) {
+  if (y < height * 0.4) return 'top'
+  if (x > width * 0.6) return 'right'
+  return 'bottom'
+}
+
+/**
+ * Was it a drag at all?
+ * @param {{ dx: number, dy: number, slop?: number }} o
+ */
+export function isPhoneDrag({ dx, dy, slop = DRAG_SLOP }) {
+  return Math.hypot(dx, dy) >= slop
+}

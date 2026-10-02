@@ -122,6 +122,16 @@ func fakeEnv(e string) bool { return e == "lde" || e == "dev" }
 // NOT stop the hub (it also carries every box): Guard() fail-closes checkout
 // with 503, as csi-rel's F-17 guard does.
 func (c *Config) validate() error {
+	for _, check := range []func() error{c.checkRails, c.checkPayPal, c.checkPrices, c.checkClaim} {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkRails refuses fake-pay outside lde/dev, an unknown rail and a malformed API base.
+func (c *Config) checkRails() error {
 	if c.EnableFakePay && !fakeEnv(c.Env) {
 		return fmt.Errorf("SPOOL_HUB_ENABLE_FAKE_PAY=true is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", c.Env)
 	}
@@ -139,20 +149,31 @@ func (c *Config) validate() error {
 			return err
 		}
 	}
-	if c.EnablePayPal {
-		// csi-rel PayPalFirstPartyForbidden: never prd, never live mode.
-		if c.Env == "prd" || strings.EqualFold(strings.TrimSpace(c.PayPalMode), ModeLive) {
-			return fmt.Errorf("SPOOL_HUB_ENABLE_PAYPAL=true is refused in prd and with SPOOL_HUB_PAYPAL_MODE=live (not live-tested)")
-		}
-		for name, v := range map[string]string{
-			"SPOOL_HUB_PAYPAL_CLIENT_ID": c.PayPalClientID, "SPOOL_HUB_PAYPAL_CLIENT_SECRET": c.PayPalClientSecret,
-			"SPOOL_HUB_PAYPAL_WEBHOOK_ID": c.PayPalWebhookID,
-		} {
-			if strings.TrimSpace(v) == "" || LooksLikePlaceholderSecret(v) {
-				return fmt.Errorf("%s must be set (not a placeholder) while SPOOL_HUB_ENABLE_PAYPAL=true", name)
-			}
+	return nil
+}
+
+// checkPayPal keeps PayPal out of prd and live mode, and needs its credentials.
+func (c *Config) checkPayPal() error {
+	if !c.EnablePayPal {
+		return nil
+	}
+	// csi-rel PayPalFirstPartyForbidden: never prd, never live mode.
+	if c.Env == "prd" || strings.EqualFold(strings.TrimSpace(c.PayPalMode), ModeLive) {
+		return fmt.Errorf("SPOOL_HUB_ENABLE_PAYPAL=true is refused in prd and with SPOOL_HUB_PAYPAL_MODE=live (not live-tested)")
+	}
+	for name, v := range map[string]string{
+		"SPOOL_HUB_PAYPAL_CLIENT_ID": c.PayPalClientID, "SPOOL_HUB_PAYPAL_CLIENT_SECRET": c.PayPalClientSecret,
+		"SPOOL_HUB_PAYPAL_WEBHOOK_ID": c.PayPalWebhookID,
+	} {
+		if strings.TrimSpace(v) == "" || LooksLikePlaceholderSecret(v) {
+			return fmt.Errorf("%s must be set (not a placeholder) while SPOOL_HUB_ENABLE_PAYPAL=true", name)
 		}
 	}
+	return nil
+}
+
+// checkPrices checks the plan and seat prices, the dedicated-project env and the plan identity.
+func (c *Config) checkPrices() error {
 	if c.PlanCents < 0 {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must not be negative")
 	}
@@ -173,6 +194,11 @@ func (c *Config) validate() error {
 	if strings.TrimSpace(c.PlanID) == "" {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_ID must not be empty")
 	}
+	return nil
+}
+
+// checkClaim checks the public scheme, the hold and claim lifetimes and the claim page.
+func (c *Config) checkClaim() error {
 	if c.PublicScheme != "https" && c.PublicScheme != "http" {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PUBLIC_SCHEME %q must be http or https", c.PublicScheme)
 	}

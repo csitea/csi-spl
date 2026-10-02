@@ -95,7 +95,14 @@ do_spl_react() {
     echo "RESULT failed mode=$mode emoji=$emoji target=${msg:-${topic}} agent=$agent"
     return 1
   fi
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$mode" "$emoji" "$before" "$out" <<'EOF_PY'
+  _spl_react_verdict "$ENV" "$tenant" "$box" "$agent" "$mode" "$emoji" "$before" "$out"
+}
+
+# _spl_react_verdict <env> <tenant> <box> <agent> <mode> <emoji> <before> <after>:
+# the JSON line and the RESULT line of a react call, read from the reaction
+# state before and after it; exit 1 when the add/remove did not take.
+_spl_react_verdict() {
+  python3 - "$@" <<'EOF_PY'
 import json, sys
 env, tenant, box, agent, mode, emoji, before, out = sys.argv[1:]
 bare = lambda e: e.replace("️", "")

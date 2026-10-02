@@ -100,6 +100,15 @@ check "...c-001@box-t is the mailbox, its unread mail kept" test -e "$R/c-001@bo
 check "...the old claim's sent copies kept in its outbox" test -e "$R/c-001@box-t/outbox/sent-1.json"
 eq "...c-001 links to c-001@box-t" c-001@box-t "$(readlink "$R/c-001")"
 eq "...CLE-001 links to c-001" c-001 "$(readlink "$R/CLE-001")"
+# the satellite, 22:05Z: the role's new-id dir holds UNREAD mail sent to it
+# through the alias; a role switch merges it, it does not refuse
+mkdir -p "$R/CLE-003@box-t/inbox" "$R/c-003/inbox" "$R/c-003/outbox"; ln -s CLE-003@box-t "$R/CLE-003"
+: >"$R/c-003/inbox/note-to-orch.json"; : >"$R/c-003/outbox/sent.json"
+printf 'CLE-003\tc-003\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
+t_window 'c-003@tg x' 'sleep 600' >/dev/null
+out="$(bash "$REN" --roles --apply CLE-003 2>&1)"; eq "role with unread mail under its new id: --apply exits 0 ($out)" 0 "$?"
+check "...the unread mail is in the role's mailbox now" test -e "$R/c-003@box-t/inbox/note-to-orch.json" -a -e "$R/c-003@box-t/outbox/sent.json"
+eq "...c-003 links to c-003@box-t" c-003@box-t "$(readlink "$R/c-003")"
 mkdir -p "$R/CLE-009/inbox" "$R/c-009/inbox"; : >"$R/c-009/inbox/unread.json"
 printf 'CLE-009\tc-009\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >>"$R/agent-id-aliases.tsv"
 t_window 'CLE-009 x' 'sleep 600' >/dev/null

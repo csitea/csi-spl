@@ -111,13 +111,35 @@ _skeleton() {
   done
   return 0
 }
-# _rm_skeleton DIR [KEEP]: remove the claim; its outbox copies move to KEEP
-# (a dir, made if missing) first, so the sent history survives the swap.
+# _rm_skeleton DIR [KEEP]: remove the claim; every file of its inbox, outbox,
+# archive and .pokes moves into the same sub-dir of the mailbox KEEP (made if
+# missing) first, so nothing is lost; a name already there stays and fails it.
 _rm_skeleton() {
-  if [ -n "${2:-}" ] && [ -n "$(ls -A "$1/outbox" 2>/dev/null)" ]; then
-    mkdir -p "$2" && find "$1/outbox" -maxdepth 1 -type f -exec mv -n -t "$2" {} +
+  local sub
+  if [ -n "${2:-}" ]; then
+    for sub in inbox outbox archive .pokes; do
+      [ -n "$(ls -A "$1/$sub" 2>/dev/null)" ] || continue
+      mkdir -p "$2/$sub" && find "$1/$sub" -maxdepth 1 -type f -exec mv -n -t "$2/$sub" {} +
+    done
   fi
   rmdir "$1/inbox" "$1/outbox" "$1/archive" "$1/.pokes" 2>/dev/null || true; rmdir "$1"
+}
+
+# _held_ok DIR: 0 when DIR may be replaced: a skeleton, or - for a ROLE
+# (--roles) - any mailbox. A role's new id is resolved through the alias
+# before its session moves, so mail addressed to it lands in <root>/<new>
+# (the satellite, 2026-10-02 22:05Z: 9 orchestrator notes in c-001/inbox the
+# running CLE-001 never read); _rm_skeleton merges every file into the role's
+# mailbox, unread mail included.
+_held_ok() {
+  _skeleton "$1" && return 0
+  [ "$ROLES" = 1 ] || return 1
+  local e
+  for e in "$1"/* "$1"/.[!.]*; do
+    [ -e "$e" ] || [ -L "$e" ] || continue
+    case "${e##*/}" in inbox|outbox|archive|.pokes) [ -d "$e" ] && [ ! -L "$e" ] || return 1 ;; *) return 1 ;; esac
+  done
+  return 0
 }
 
 # _swap ROOT OLD NEW: ROOT/OLD -> ROOT/NEW, ROOT/OLD a link to NEW. Prints the
@@ -130,11 +152,11 @@ _swap() {
     # The map's claim of NEW is a skeleton in either layout (the allocator
     # follows SPOOL_DIR_LAYOUT, which need not match this agent's).
     if [ -L "$root/$new" ]; then
-      [ "$(readlink "$root/$new")" = "$new@$qb" ] && _skeleton "$root/$new@$qb" || { echo "$root/$new is held"; return 1; }
-      [ "$APPLY" = 1 ] && { rm -f "$root/$new"; _rm_skeleton "$root/$new@$qb" "$root/$tgt/outbox"; }
+      [ "$(readlink "$root/$new")" = "$new@$qb" ] && _held_ok "$root/$new@$qb" || { echo "$root/$new is held"; return 1; }
+      [ "$APPLY" = 1 ] && { rm -f "$root/$new"; { _rm_skeleton "$root/$new@$qb" "$root/$tgt" || { echo "$root/$new@$qb: a file name is in both mailboxes; the switch stopped before moving the mailbox"; return 1; }; }; }
     elif [ -d "$root/$new" ]; then
-      _skeleton "$root/$new" && [ ! -e "$root/$new@$qb" ] || { echo "$root/$new is held"; return 1; }
-      [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new" "$root/$tgt/outbox"
+      _held_ok "$root/$new" && [ ! -e "$root/$new@$qb" ] || { echo "$root/$new is held"; return 1; }
+      [ "$APPLY" = 1 ] && { _rm_skeleton "$root/$new" "$root/$tgt" || { echo "$root/$new: a file name is in both mailboxes; the switch stopped before moving the mailbox"; return 1; }; }
     elif [ -e "$root/$new" ] || [ -e "$root/$new@$qb" ]; then
       echo "$root/$new is held"; return 1
     fi
@@ -145,8 +167,8 @@ _swap() {
   if [ -L "$root/$new" ] && [ "$(readlink "$root/$new")" = "$old" ]; then
     [ "$APPLY" = 1 ] && rm -f "$root/$new"
   elif [ -e "$root/$new" ] || [ -L "$root/$new" ]; then
-    [ ! -L "$root/$new" ] && [ -d "$root/$new" ] && _skeleton "$root/$new" || { echo "$root/$new is held"; return 1; }
-    [ "$APPLY" = 1 ] && _rm_skeleton "$root/$new" "$root/$old/outbox"
+    [ ! -L "$root/$new" ] && [ -d "$root/$new" ] && _held_ok "$root/$new" || { echo "$root/$new is held"; return 1; }
+    [ "$APPLY" = 1 ] && { _rm_skeleton "$root/$new" "$root/$old" || { echo "$root/$new: a file name is in both mailboxes; the switch stopped before moving the mailbox"; return 1; }; }
   fi
   [ "$APPLY" = 1 ] && { mv "$root/$old" "$root/$new"; ln -s "$new" "$root/$old"; }
   return 0

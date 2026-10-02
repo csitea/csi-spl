@@ -30,6 +30,7 @@ type Memory struct {
 	reactions  map[[2]string][]memReaction
 	leases     map[[3]string]memLease  // rdb 0094 fleet_leases
 	lanes      map[[3]string]FleetLane // rdb 0096 fleet_lanes
+	asks       map[[3]string]FleetAsk  // rdb 0097 fleet_asks
 	deliveries map[[3]string]*memDelivery
 	seq        int
 	hum        memHumans               // humans_memory.go, guarded by mu

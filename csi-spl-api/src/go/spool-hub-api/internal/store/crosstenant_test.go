@@ -97,6 +97,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.PutFleetLane(ctx, s.tenant, FleetLane{Fleet: "main", AgentID: "CLE-02", AgentBox: "box-a", State: "live"}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
+	// fleet_asks (rdb 0097, CLE-77929): one open ask per tenant.
+	if _, _, err := pg.PutFleetAsk(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: uuid4(), Role: "orch", Kind: "blocker", From: "CLE-02"}, "box-a", now); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.channelID, Name: "c" + s.marker[:12], CreatedBy: "CLE-01", CreatedAt: now}); err != nil { // channels
 		t.Fatal(err)
 	}

@@ -262,6 +262,9 @@ type Store interface {
 	// The fleet-wide lane map: who owns what, across machines (rdb 0096, CLE-77920).
 	FleetLanes
 
+	// Asks to the orchestrator, tracked until closed (rdb 0097, CLE-77929).
+	FleetAsks
+
 	// Move a topic to a channel, a message to a topic (specs/045, rdb 0069).
 	Moves
 

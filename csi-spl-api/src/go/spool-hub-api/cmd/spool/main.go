@@ -26,6 +26,8 @@
 //	          compare-and-set, one role's fleet-wide lease (CLE-77911)
 //	lane    --fleet <f> [--agent <id> --box <b> [--repo --branch --scope --files --topic --state]]
 //	          hub mode: list, or write one row of, the fleet-wide lane map (CLE-77920)
+//	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
+//	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -103,6 +105,7 @@ on a box (an agent's machine):
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
+  ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
 a box and its hub ($SPOOL_HUB_URL):
@@ -223,6 +226,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
+	case "ask": // CLE-77929
+		return cmdAsk(cfg, rest)
 	case "layout": // specs/058 6
 		return cmdLayout(cfg)
 	default:

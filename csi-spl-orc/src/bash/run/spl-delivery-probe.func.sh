@@ -34,8 +34,7 @@ do_spl_delivery_probe() {
   spl_delivery_probe_tenant_ok "$tenant" || return 1
 
   local api_fqdn hub st email
-  api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
   st="$SPL_STATE_DIR/m3-e2e/$tenant"
   if (( dry )); then

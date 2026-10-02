@@ -36,8 +36,7 @@ do_spl_channel_agent_add() {
   done
   [[ "${CHANNEL_CREATE:-0}" =~ ^[01]$ ]] || { do_log "FATAL CHANNEL_CREATE must be 0 or 1"; return 1; }
   local api
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: sign in on $api$([[ ${CHANNEL_CREATE:-0} == 1 ]] && echo ", create #$ch,") and add $agents on $box to #$ch in $tenant"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0."

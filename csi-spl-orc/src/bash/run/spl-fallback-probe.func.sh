@@ -58,8 +58,7 @@ do_spl_fallback_probe() {
   done
   [[ "$resp" != "$member" ]] || { do_log "FATAL PROBE_RESPONDER and PROBE_MEMBER must differ"; return 1; }
   local api
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api announcing $resp and $member, with a logger notifier"
     do_log "INFO DRY_RUN would: set $tenant's responders to $resp, post into #fb-probe-$stamp (no agent), then #fb-ctrl-$stamp ($member seated)"

@@ -120,8 +120,7 @@ do_spl_m3_e2e() {
   # box pin (SPOOL_TENANT). M3_HUB_URL=https://<tenant>.<fqdn> still runs the
   # legacy tenant-host path while that mapping exists.
   local api_fqdn
-  api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api_fqdn || return 1
   export M3_HUB_URL="${M3_HUB_URL:-https://$api_fqdn}" M3_TENANT="$tenant" M3_AUTH_URL="https://$api_fqdn" M3_STATE="$st" \
     M3_SPOOL="$SPL_SPOOL" M3_ROOT_KEY="$key" \
     M3_HUMAN_EMAIL="${M3_HUMAN_EMAIL:-m3-e2e-human@example.com}" \

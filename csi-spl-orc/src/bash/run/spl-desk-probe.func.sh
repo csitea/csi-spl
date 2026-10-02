@@ -48,8 +48,7 @@ do_spl_desk_probe() {
   [[ -z "$ch" || "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id, got: '$ch'"; return 1; }
 
   local api_fqdn hub d
-  api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then

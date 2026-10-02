@@ -190,6 +190,15 @@ spl_require_tenant_slug() {
   [[ "${1-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '${1-}'"; return 1; }
 }
 
+# spl_cnf_api_fqdn <var> -> sets <var> to env.dns.api_fqdn of $SPL_CNF; when
+# the cnf has none, logs the FATAL the actions printed inline and returns 1.
+spl_cnf_api_fqdn() {
+  local _fqdn
+  _fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  [[ -n "$_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  printf -v "$1" '%s' "$_fqdn"
+}
+
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise
 spl_dry_run() {
   local d="${DRY_RUN:-1}"

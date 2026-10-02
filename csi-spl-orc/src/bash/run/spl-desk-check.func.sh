@@ -164,8 +164,7 @@ spl_desk_roster() {
     [[ -r "$DESK_ROSTER_JSON" ]] || { do_log "FATAL cannot read DESK_ROSTER_JSON $DESK_ROSTER_JSON"; return 1; }
     cat "$DESK_ROSTER_JSON"; return 0
   fi
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   pw="${PROBE_PW_FILE:-}"
   if [[ -z "$pw" ]]; then
     if [[ -r "$SPL_STATE_DIR/m3-e2e/$tenant/pw-human" ]]; then

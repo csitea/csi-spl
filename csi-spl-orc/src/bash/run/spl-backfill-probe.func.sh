@@ -51,8 +51,7 @@ do_spl_backfill_probe() {
   done
   [[ "$poster" != "$target" ]] || { do_log "FATAL PROBE_POSTER and PROBE_AGENT must differ"; return 1; }
   local api ch
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   ch="bf-probe-$(date -u +%Y%m%d%H%M%S)"
   if (( dry )); then
     do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api with a logger notifier, create #$ch,"

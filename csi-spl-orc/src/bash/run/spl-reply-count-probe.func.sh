@@ -50,8 +50,7 @@ do_spl_reply_count_probe() {
   [[ "$member" =~ ^[A-Z]{2,4}-[0-9]+$ && "${member%%-*}" != HUM ]] || { do_log "FATAL PROBE_MEMBER '$member' is not an agent id"; return 1; }
   [[ "$human" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL PROBE_HUMAN must be a person id (HUM-<n>), got: '$human'"; return 1; }
   local api
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   local ch="rc-probe-$stamp"
   if (( dry )); then
     do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api announcing $member, create #$ch with $member seated"

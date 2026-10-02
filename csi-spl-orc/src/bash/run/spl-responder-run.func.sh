@@ -51,8 +51,7 @@ do_spl_responder_run() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local d="$SPL_STATE_DIR/desk/$tenant/$box" api_fqdn hub
-  api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
   [[ -d "$d/spool" ]] || { do_log "FATAL responder $agent on $box in $tenant is not seated ($d); seat it with do_spl_desk_up"; return 1; }
   spl_host_spool || return 1

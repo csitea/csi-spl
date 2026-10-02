@@ -25,8 +25,7 @@ do_spl_paid_owner_probe() {
   [[ "$other" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || { do_log "FATAL OTHER_EMAIL must be an address"; return 1; }
   [[ "${buyer,,}" != "${other,,}" ]] || { do_log "FATAL BUYER_EMAIL and OTHER_EMAIL must differ"; return 1; }
   do_spl_cloud_cnf || return 1
-  api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  spl_cnf_api_fqdn api || return 1
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
     do_log "INFO DRY_RUN would register, verify and sign in the buyer and one other address on https://$api for tenant $tenant (DRY_RUN=0 to run)"
     return 0

@@ -140,6 +140,26 @@ func load(hubEnv string, o env.Options) (*Config, error) {
 func (c *Config) Enabled() []string { return append([]string(nil), c.enabled...) }
 
 func (c *Config) validate() error {
+	if err := c.parseProviders(); err != nil {
+		return err
+	}
+	if len(c.enabled) == 0 {
+		return nil // auth off: nothing else is required
+	}
+	if err := c.checkSession(); err != nil {
+		return err
+	}
+	for _, p := range c.enabled {
+		if err := c.checkClient(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// parseProviders fills c.enabled from SPOOL_HUB_AUTH_PROVIDERS (trimmed,
+// lower-cased, de-duplicated), refusing a planned or unknown provider.
+func (c *Config) parseProviders() error {
 	seen := map[string]bool{}
 	for _, p := range strings.Split(c.Providers, ",") {
 		p = strings.ToLower(strings.TrimSpace(p))
@@ -154,9 +174,12 @@ func (c *Config) validate() error {
 		seen[p] = true
 		c.enabled = append(c.enabled, p)
 	}
-	if len(c.enabled) == 0 {
-		return nil // auth off: nothing else is required
-	}
+	return nil
+}
+
+// checkSession checks what every enabled provider shares: the session key,
+// the app URL, the session/state lifetimes and cookies, the IdP override.
+func (c *Config) checkSession() error {
 	if len(c.SessionKey) < minSessionKeyLen || isPlaceholder(c.SessionKey) {
 		return fmt.Errorf("SPOOL_HUB_AUTH_SESSION_KEY must be set to at least %d bytes (no default)", minSessionKeyLen)
 	}
@@ -180,27 +203,28 @@ func (c *Config) validate() error {
 			return err
 		}
 	}
-	for _, p := range c.enabled {
-		id, secret, redirect := c.creds(p)
-		pre := "SPOOL_HUB_AUTH_" + strings.ToUpper(p) + "_"
-		if id == "" || isPlaceholder(id) {
-			return fmt.Errorf("%sCLIENT_ID must be set to a real value while %s is enabled (no default)", pre, p)
-		}
-		if secret == "" || isPlaceholder(secret) {
-			return fmt.Errorf("%sCLIENT_SECRET must be set to a real value while %s is enabled (no default)", pre, p)
-		}
-		if err := checkURL(pre+"REDIRECT_URI", redirect, c.requireHTTPS()); err != nil {
-			return err
-		}
-		u, _ := url.Parse(redirect)
-		if want := RoutePrefix + p + "/callback"; u.Path != want {
-			return fmt.Errorf("%sREDIRECT_URI %q must have the path %s", pre, redirect, want)
-		}
-		if err := c.validateProvider(p); err != nil {
-			return err
-		}
-	}
 	return nil
+}
+
+// checkClient checks provider p's client id, secret and redirect URI, then
+// its provider-specific settings.
+func (c *Config) checkClient(p string) error {
+	id, secret, redirect := c.creds(p)
+	pre := "SPOOL_HUB_AUTH_" + strings.ToUpper(p) + "_"
+	if id == "" || isPlaceholder(id) {
+		return fmt.Errorf("%sCLIENT_ID must be set to a real value while %s is enabled (no default)", pre, p)
+	}
+	if secret == "" || isPlaceholder(secret) {
+		return fmt.Errorf("%sCLIENT_SECRET must be set to a real value while %s is enabled (no default)", pre, p)
+	}
+	if err := checkURL(pre+"REDIRECT_URI", redirect, c.requireHTTPS()); err != nil {
+		return err
+	}
+	u, _ := url.Parse(redirect)
+	if want := RoutePrefix + p + "/callback"; u.Path != want {
+		return fmt.Errorf("%sREDIRECT_URI %q must have the path %s", pre, redirect, want)
+	}
+	return c.validateProvider(p)
 }
 
 // validateProvider holds the per-provider rules beyond id/secret/redirect.

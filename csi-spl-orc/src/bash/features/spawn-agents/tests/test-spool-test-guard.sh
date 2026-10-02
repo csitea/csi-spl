@@ -4,7 +4,7 @@
 # the test names its own. responder-run.tst.sh once reached the real root on
 # every run and flooded the orchestrator's inbox and pane.
 #
-# The real root is never touched here: SPOOL_LIVE_ROOT points the guard at a
+# The real root is never touched here (nor the real box.env): SPOOL_LIVE_ROOT points the guard at a
 # throwaway "live" root, so the CONTROL (no SPOOL_TEST) can show a send landing
 # there, which is exactly what the guard then refuses.
 set -uo pipefail
@@ -71,5 +71,14 @@ SPOOL_TEST=1 SPOOL_LIVE_ROOT="$LIVE" SPOOL_FLEET_RELAY_CMD="bash $T_TMP/relay.sh
   bash "$SS" --from CLE-90 --to CLE-77 --kind note --body away >/dev/null 2>&1; rc=$?
 eq "SPOOL_TEST=1 + a stub SPOOL_FLEET_RELAY_CMD: the stub relays" 0 "$rc"
 has "the stub saw the send" "--to CLE-77" "$(cat "$RELAYLOG")"
+
+# ---- the box config: a test never reads the live box.env --------------------
+DB="$T_REPO/csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+echo 'SPOOL_DESK_BOX=box-live' >"$LIVE/box.env"
+dbox() { env -u SPOOL_DESK_BOX -u SPOOL_BOX_ENV SPOOL_LIVE_ROOT="$LIVE" "$@" bash -c '. "$1"; spl_desk_box_default' _ "$DB"; }
+eq "CONTROL: without SPOOL_TEST the desk box comes from the live box.env" box-live "$(dbox env -u SPOOL_TEST)"
+eq "SPOOL_TEST=1: the live box.env is not read (one-machine default)" box-desk "$(dbox SPOOL_TEST=1)"
+echo 'SPOOL_DESK_BOX=box-own' >"$T_TMP/own.env"
+eq "SPOOL_TEST=1: a box.env the test names is still read" box-own "$(dbox SPOOL_TEST=1 SPOOL_BOX_ENV="$T_TMP/own.env")"
 
 t_done

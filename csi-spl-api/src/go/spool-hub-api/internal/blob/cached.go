@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -72,7 +73,7 @@ func (c *Cached) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 	// a big one streams on from where the read stopped.
 	var buf bytes.Buffer
 	n, err := io.CopyN(&buf, rc, c.maxObj+1)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		rc.Close()
 		return nil, err
 	}

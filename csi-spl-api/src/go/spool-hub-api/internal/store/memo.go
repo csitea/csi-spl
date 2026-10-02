@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -87,7 +88,7 @@ func memberRoleOrder(ctx context.Context, humanID, tenant string, load func(memo
 		return r.role, r.err
 	}
 	v, err := load(true)
-	if err == nil || err == ErrNotFound {
+	if err == nil || errors.Is(err, ErrNotFound) {
 		m.mu.Lock()
 		m.roles[k] = memoRole{role: v.role, err: err, order: v.order, ordered: true, chans: v.chans, chansRead: v.chansRead}
 		m.mu.Unlock()
@@ -142,7 +143,7 @@ func memberRole(ctx context.Context, humanID, tenant string, load func() (string
 		return r.role, r.err
 	}
 	role, err := load()
-	if err == nil || err == ErrNotFound {
+	if err == nil || errors.Is(err, ErrNotFound) {
 		m.mu.Lock()
 		m.roles[k] = memoRole{role: role, err: err}
 		m.mu.Unlock()

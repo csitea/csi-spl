@@ -112,4 +112,13 @@ describe('specs/058: the same id on two boxes is two agents (CLE-77932)', () => 
     assert.match(poke, /await sendDm\(id, body, boxes\[id\]\)/)
     assert.match(src('src/components/ChannelSidebar.vue'), /orderPeers\(withDmPeers\(roster\.peers, channel\.dmAt/)
   })
+
+  it('a narrow rail row clips neither the id nor the box: the box is its own line', () => {
+    const side = src('src/components/ChannelSidebar.vue')
+    assert.match(side, /<HumanName class="label" :id="p\.id" :box="p\.box" stacked \/>/, 'DM rows')
+    assert.match(side, /<HumanName class="label" :id="a\.id" :box="a\.box" stacked \/>/, 'Agents rows (were the bare id)')
+    assert.doesNotMatch(side, /<span class="label">\{\{ a\.id \}\}<\/span>/, 'CONTROL: no bare agent id in the Agents list')
+    const name = src('src/components/HumanName.vue')
+    assert.match(name, /props\.stacked && props\.id && props\.box && !\/\^\(HUM\|GST\)-\/\.test\(props\.id\)/, 'agents only')
+  })
 })

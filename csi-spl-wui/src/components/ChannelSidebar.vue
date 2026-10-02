@@ -160,7 +160,7 @@
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
-      <HumanName class="label" :id="p.id" :box="p.box" />
+      <HumanName class="label" :id="p.id" :box="p.box" stacked />
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + p.label) }}</span>
       <span v-else-if="notes.dmTotalBadge('dm:' + p.label)" class="badge-total" data-test="dm-total">{{ notes.dmTotalBadge('dm:' + p.label) }}</span>
     </NuxtLink>
@@ -552,7 +552,7 @@
             >
               <UiIcon name="bot" :size="20" />
               <span class="dot" :class="{ on: a.online }" />
-              <span class="label">{{ a.id }}</span>
+              <HumanName class="label" :id="a.id" :box="a.box" stacked />
               <span class="muted agent-row__kind" data-testid="agent-kind">{{ t(a.kindKey) }}</span>
             </NuxtLink>
           </div>

@@ -1,9 +1,13 @@
 <!-- One human (or agent) as the feed already names them.
      The HUM id stays in the title. A row too narrow to show the whole name
-     opens that title on tap as well as on hover. -->
+     opens that title on tap as well as on hover.
+     `stacked` (specs/058, CLE-77932): an agent's box goes on its own small
+     line under the id, so a narrow row clips neither - CLE-001@box-desk and
+     CLE-001@sat both read "CLE-001@…" on one clipped line. -->
 <template>
-  <span class="human-name" :title="tip" @click="onTap">
-    <span ref="textEl" class="human-name__text">{{ text }}</span>
+  <span class="human-name" :class="{ 'human-name--stacked': split }" :title="tip" @click="onTap">
+    <span ref="textEl" class="human-name__text">{{ split ? split.id : text }}</span>
+    <span v-if="split" class="human-name__box" data-test="human-name-box">{{ split.box }}</span>
     <span v-if="open" class="human-name__pop" role="tooltip">{{ tip }}</span>
   </span>
 </template>
@@ -12,12 +16,14 @@
 import { personTitle, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
-const props = defineProps<{ id: string, box?: string }>()
+const props = defineProps<{ id: string, box?: string, stacked?: boolean }>()
 const people = useHumanNames()
 const textEl = ref<HTMLElement | null>(null)
 const open = ref(false)
 const text = computed(() => (props.id ? shownPerson(props.id, props.box, people.names.value) : ''))
 const tip = computed(() => (props.id ? personTitle(props.id, props.box, people.names.value) : ''))
+/* an agent only: a human on box-wui is named, never id@box */
+const split = computed(() => (props.stacked && props.id && props.box && !/^(HUM|GST)-/.test(props.id) ? { id: props.id, box: '@' + props.box } : null))
 
 function clipped() {
   const node = textEl.value
@@ -60,6 +66,20 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDoc, true))
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.human-name--stacked {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.human-name__box {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75em;
+  opacity: 0.75;
 }
 .human-name__pop {
   position: absolute;

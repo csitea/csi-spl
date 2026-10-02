@@ -66,7 +66,8 @@ do_spl_consumer_lag() {
 # spl_consumer_lag_sql <alert minutes> <dead hours> -> one json object per box
 # with an uncommitted (sent, acked_at NULL) or an unexpired queued row. Both
 # arguments were checked as integers by the caller, so the literals carry no
-# SQL. The uncommitted half reads the deliveries_unacked partial index.
+# SQL. The uncommitted half reads the deliveries_unacked partial index. alert is
+# COALESCEd: a box that never said hello (hello NULL) reads false, not null.
 spl_consumer_lag_sql() {
   cat <<EOF_SQL
 SELECT json_build_object(
@@ -74,7 +75,7 @@ SELECT json_build_object(
   'oldest_sent_at', l.oldest, 'oldest_age_s', COALESCE(floor(extract(epoch FROM now() - l.oldest))::bigint, 0),
   'last_hello_at', l.hello,
   'dead', l.hello IS NULL OR l.hello < now() - interval '$2 hours',
-  'alert', l.uncommitted > 0 AND l.hello >= now() - interval '$2 hours' AND l.oldest < now() - interval '$1 minutes')
+  'alert', COALESCE(l.uncommitted > 0 AND l.hello >= now() - interval '$2 hours' AND l.oldest < now() - interval '$1 minutes', false))
 FROM (SELECT d.tenant_id, d.to_box,
              count(*) FILTER (WHERE d.state = 'sent' AND d.acked_at IS NULL) AS uncommitted,
              count(*) FILTER (WHERE d.state = 'queued') AS queued,

@@ -5,7 +5,8 @@
 #   1. LAG_ALERT_MIN / LAG_DEAD_HOURS must be bounded integers; anything else
 #      is refused before any SQL is built or any gcloud call is made
 #   2. the SQL counts sent-but-uncommitted (acked_at NULL) and queued rows per
-#      box, joins the last hello, carries both thresholds, and writes nothing
+#      box, joins the last hello, carries both thresholds, and writes nothing;
+#      alert is COALESCEd to false (dev 2026-10-02: a never-hello box read null)
 #   3. spl_consumer_lag_summary: an alerting live box prints an ALERT line; a
 #      dead box's rows are counted as lag (uncommitted_dead), never an alert;
 #      CONTROL: no rows -> boxes=0, no ALERT; garbage -> non-zero
@@ -38,6 +39,8 @@ grep -q "state = 'sent' AND d.acked_at IS NULL" <<<"$sql" && grep -q "d.state = 
   && pass "SQL: uncommitted = sent with acked_at NULL, plus unexpired queued" || fail "SQL shape: $sql"
 grep -q "LEFT JOIN boxes b" <<<"$sql" && grep -q "interval '96 hours'" <<<"$sql" && grep -q "interval '45 minutes'" <<<"$sql" \
   && pass "SQL: last hello joined, both thresholds carried" || fail "SQL thresholds: $sql"
+grep -q "'alert', COALESCE(.*, false))" <<<"$sql" \
+  && pass "SQL: alert is false, never null, for a box with no hello" || fail "SQL alert null-safety: $sql"
 grep -qE "m\.body|m\.env|INSERT|UPDATE|DELETE" <<<"$sql" && fail "SQL reads a body or writes" || pass "SQL reads no body and writes nothing"
 
 # --- 3. summary ----------------------------------------------------------------------

@@ -89,6 +89,7 @@
   /* Named z-index scale — single source of truth for cross-component
      layering; new overlays reference these instead of inventing a number. */
   --z-sticky:   40;
+  --z-popover:  40;   /* a dropdown / picker / name card over its own page (CLE-77915) */
   --z-banner:   50;
   --z-snackbar: 60;
   --z-overlay: 1000;

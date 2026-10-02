@@ -376,7 +376,7 @@ async function onSelect(loc: LocaleEntry | null) {
 }
 .lang-switcher__options {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-popover);
   inset-inline-end: 0;
   top: calc(100% + 4px);
   /* Fit the widest row (flag + name + code) and no wider. NO min-width:100%

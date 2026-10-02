@@ -2545,7 +2545,7 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
   left: calc(100% + 6px);
   top: 50%;
   transform: translateY(-50%);
-  z-index: 40;
+  z-index: var(--z-popover);
   white-space: nowrap;
   pointer-events: none;
   padding: 2px 6px;

@@ -23,7 +23,7 @@ const { t } = useI18n({ useScope: 'global' })
 .tenant-not-member {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   padding: 1rem;

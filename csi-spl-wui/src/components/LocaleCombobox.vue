@@ -263,7 +263,7 @@ function onSelect(loc: LocaleEntry | null) {
 }
 .locale-cbx__options {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-popover);
   inset-inline-start: 0;
   top: calc(100% + 4px);
   width: 100%;

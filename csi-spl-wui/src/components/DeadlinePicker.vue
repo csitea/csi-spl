@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
    compact button row */
 .dlp__pop {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-popover);
   width: 196px;
   max-width: calc(100vw - 16px);
   box-sizing: border-box;

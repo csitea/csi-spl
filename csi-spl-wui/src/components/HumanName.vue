@@ -63,7 +63,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDoc, true))
 }
 .human-name__pop {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-popover);
   inset-inline-start: 0;
   top: calc(100% + 4px);
   max-width: 240px;

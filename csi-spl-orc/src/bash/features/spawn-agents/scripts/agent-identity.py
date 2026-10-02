@@ -24,7 +24,7 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   process carries the same id (the hourly rotation's overlap,
                   spec 060 FR-006): pokes then reach the new session at once;
                   `record` keeps a conflicting id's record, so this one holds
-  restore-plan [--since UTC] [--until UTC] [--ids "ID ..."]
+  restore-plan [--since UTC] [--until UTC] [--ids "ID ..."] [--agent-user U]
                   the records a reboot restore starts again (RESTORE rows) and
                   the ones it refuses (REFUSE + reason); see the action
   hash            the hash of the records as they are on disk
@@ -557,6 +557,10 @@ def transcript_owner(path, read):
 
 
 def user_home(user):
+    for kv in os.environ.get("AI_TRANSCRIPT_HOME_MAP", "").split():   # test seam: "user:dir ..."
+        u, _, d = kv.partition(":")
+        if u == user:
+            return d
     if os.environ.get("AI_TRANSCRIPT_HOME"):          # test seam
         return os.environ["AI_TRANSCRIPT_HOME"]
     try:
@@ -599,8 +603,14 @@ def exists_as(user, path):
 
 def cmd_restore_plan(args, proc):
     """Which records a reboot restore starts again, and which it refuses.
-    RESTORE<TAB>id<TAB>kind<TAB>user<TAB>session_id<TAB>worktree<TAB>tmux_session<TAB>title
-    REFUSE<TAB>id<TAB>reason        SKIP<TAB>id<TAB>reason (not a candidate)"""
+    RESTORE<TAB>id<TAB>kind<TAB>user<TAB>session_id<TAB>worktree<TAB>tmux_session<TAB>title<TAB>copy_from
+    REFUSE<TAB>id<TAB>reason        SKIP<TAB>id<TAB>reason (not a candidate)
+
+    user is the user the restore starts the agent as: --agent-user (the box's
+    agent user) when given, never the user the record says the agent ran as -
+    every programmatic start runs as the agent user. A claude transcript that
+    is only in the recorded user's home is resumable all the same: copy_from
+    names that user and the caller copies it across first; '-' = no copy."""
     live, _ = facts(proc, read_panes(sys.stdin))
     live_ids = {f["id"] for f in live}
     running = set()                       # every session id a live CLI holds
@@ -638,8 +648,9 @@ def cmd_restore_plan(args, proc):
         if r.get("session_id"):
             sid_n[r["session_id"]] = sid_n.get(r["session_id"], 0) + 1
     for r in cands:
-        i, sid, wt, kind, user = r["id"], r.get("session_id"), r.get("worktree"), r.get("kind") or "claude", r.get("user") or ""
-        why = ""
+        i, sid, wt, kind, ran = r["id"], r.get("session_id"), r.get("worktree"), r.get("kind") or "claude", r.get("user") or ""
+        user = args.agent_user or ran
+        why, copy_from = "", ""
         if not sid:
             why = "its session is unknown; not guessing one"
         elif sid_n.get(sid, 0) > 1:
@@ -649,19 +660,26 @@ def cmd_restore_plan(args, proc):
         elif not wt or not os.path.isdir(wt):
             why = "its worktree %s is gone (a resume elsewhere would start a fresh conversation)" % wt
         elif kind == "claude":
-            home = user_home(user)
-            t = os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", wt), sid + ".jsonl")
-            if not home or not exists_as(user, t):
+            rel = os.path.join(".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", wt), sid + ".jsonl")
+            at = ""                       # the user whose home holds the transcript
+            for u in [user] + ([ran] if ran and ran != user else []):
+                home = user_home(u)
+                if home and exists_as(u, os.path.join(home, rel)):
+                    at = u
+                    break
+            if not at:
                 why = "the transcript of %s is not under the project dir of %s" % (sid, wt)
             else:
-                own = transcript_owner(t, read_as(user))
+                copy_from = at if at != user else ""
+                own = transcript_owner(os.path.join(user_home(at), rel), read_as(at))
                 if own and own != i:
                     why = "session %s belongs to %s, not to %s" % (sid, own, i)
         if why:
             print("REFUSE\t%s\t%s" % (i, why))
         else:
-            print("RESTORE\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (i, kind, user or "-", sid, wt,
-                                                       r.get("tmux_session") or "-", r.get("title") or "-"))
+            print("RESTORE\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (i, kind, user or "-", sid, wt,
+                                                           r.get("tmux_session") or "-", r.get("title") or "-",
+                                                           copy_from or "-"))
     return 0
 
 
@@ -762,6 +780,7 @@ def main():
     rp.add_argument("--since", default="")
     rp.add_argument("--until", default="")
     rp.add_argument("--ids", default="")
+    rp.add_argument("--agent-user", default="")
     st = sub.add_parser("set-title")
     st.add_argument("id")
     st.add_argument("title")

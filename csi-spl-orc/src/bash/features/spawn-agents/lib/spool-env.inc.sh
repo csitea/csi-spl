@@ -39,6 +39,36 @@
 # Agent ids follow SPEC-spool-identity-routing.md §2: ^[A-Z]{2,4}-[0-9]+$,
 # unique per box, and BOX is never an agent prefix.
 
+# 0 when the tree's build output is OLDER than the last commit to the sources
+# it is built from: it may not speak today's protocol. Measured 2026-10-02:
+# the box user's checkout held a 2026-09-18 bin/spool (0.1.0-dev) that refused
+# kind blocker, and every spool-send.sh run from that tree failed with it.
+# Not a git checkout = not judged.
+_spool_bin_stale() {  # REPO BUILT
+  local api=csi-spl-api/src/go/spool-hub-api src built
+  src="$(git -C "$1" log -1 --format=%ct -- "$api/cmd" "$api/internal" "$api/go.mod" 2>/dev/null)"
+  [ -n "$src" ] || return 1
+  built="$(stat -c %Y "$2" 2>/dev/null)" || return 1
+  if [ "$built" -lt "$src" ]; then
+    echo "spool-env: WARN $2 is older than its sources (built $(date -u -d "@$built" +%FT%TZ), last source commit $(date -u -d "@$src" +%FT%TZ)); not using it. Rebuild: bash $1/csi-spl-api/src/bash/build.sh $2" >&2
+    return 0
+  fi
+  return 1
+}
+
+# The spool on PATH, else the box user's ~/.local/bin/spool (not on a
+# non-login PATH), else the stale build with a loud warning, else bare spool.
+_spool_bin_fallback() {  # BUILT
+  local b
+  b="$(command -v spool 2>/dev/null)"
+  [ -z "$b" ] && [ -x "$HOME/.local/bin/spool" ] && b="$HOME/.local/bin/spool"
+  if [ -z "$b" ] && [ -x "$1" ]; then
+    echo "spool-env: WARN no other spool found; using the stale $1 anyway" >&2
+    b="$1"
+  fi
+  printf '%s' "${b:-spool}"
+}
+
 # This file's own directory: its sibling libs (agent-identity.inc.sh) load from it.
 _SPOOL_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPOOL_ID_RE='^[A-Z]{2,4}-[0-9]+$'
@@ -146,8 +176,8 @@ spool_env_resolve() {
     local repo built
     repo="$(cd "$SPOOL_FEATURE_DIR/../../../../.." && pwd)"
     built="$repo/csi-spl-api/src/go/spool-hub-api/bin/spool"
-    if [ -x "$built" ]; then SPOOL_BIN="$built"
-    else SPOOL_BIN="$(command -v spool 2>/dev/null || printf 'spool')"
+    if [ -x "$built" ] && ! _spool_bin_stale "$repo" "$built"; then SPOOL_BIN="$built"
+    else SPOOL_BIN="$(_spool_bin_fallback "$built")"
     fi
   fi
 

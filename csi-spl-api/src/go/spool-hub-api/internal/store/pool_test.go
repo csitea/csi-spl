@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestDSNSets(t *testing.T) {
@@ -23,6 +25,26 @@ func TestDSNSets(t *testing.T) {
 	} {
 		if got := dsnSets(c.dsn, c.key); got != c.want {
 			t.Errorf("dsnSets(%q, %q) = %v, want %v", c.dsn, c.key, got, c.want)
+		}
+	}
+}
+
+// TestShouldPing (db-payload audit cut 8): a connection idle up to 30 s is
+// handed out without a ping round trip; past that it is pinged.
+func TestShouldPing(t *testing.T) {
+	for _, c := range []struct {
+		idle time.Duration
+		want bool
+	}{
+		{0, false},
+		{2 * time.Second, false}, // pgx's default would ping here
+		{29 * time.Second, false},
+		{30 * time.Second, false},
+		{31 * time.Second, true},
+		{5 * time.Minute, true},
+	} {
+		if got := shouldPing(context.Background(), pgxpool.ShouldPingParams{IdleDuration: c.idle}); got != c.want {
+			t.Errorf("shouldPing(idle %s) = %v, want %v", c.idle, got, c.want)
 		}
 	}
 }

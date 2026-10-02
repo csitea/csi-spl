@@ -55,6 +55,7 @@ func OpenPostgres(ctx context.Context, dsn string, limits ...PoolLimits) (*Postg
 	if cfg.MinConns > cfg.MaxConns {
 		cfg.MinConns = cfg.MaxConns
 	}
+	cfg.ShouldPing = shouldPing
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
@@ -64,6 +65,16 @@ func OpenPostgres(ctx context.Context, dsn string, limits ...PoolLimits) (*Postg
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return &Postgres{pool: pool}, nil
+}
+
+// pingIdle is how long a connection may sit idle before Acquire pings it
+// (db-payload audit cut 8). pgx's default pings after 1 s, so the first
+// request of nearly every burst paid one extra round trip; the background
+// HealthCheckPeriod (pgx default 1 min) still checks idle connections.
+const pingIdle = 30 * time.Second
+
+func shouldPing(_ context.Context, p pgxpool.ShouldPingParams) bool {
+	return p.IdleDuration > pingIdle
 }
 
 // dsnSets reports whether dsn (URL or keyword/value form) names key.

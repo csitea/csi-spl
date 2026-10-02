@@ -21,9 +21,13 @@
 # The desk is <state>/<env>/desk/<tenant>/<box>.
 #
 # stdout: the `spool send` JSON ({delivery: sent|queued|pending, ...}).
+# A sender not seated on the desk but listed in this machine's registry.tsv
+# (a lane agent) is sent under a seated id of the desk; every relayed body
+# opens with "from_agent: <ID>@<box>", which the receiving box writes as from.
+#
 # Exit codes: 0 handed to the hub; 2 usage; 3 refused, nothing sent (no fleet
-# desk configured, no live sidecar, the sender is not seated on the desk, or
-# the hub knows no box for --to); 1 the send itself failed.
+# desk configured, no live sidecar, the sender is neither seated on the desk
+# nor in registry.tsv, or the hub knows no box for --to); 1 the send failed.
 set -uo pipefail
 
 say() { echo "spool-fleet-relay: $*" >&2; }
@@ -68,22 +72,43 @@ pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
 [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep -q ' hub-run' || {
   say "no live hub-run sidecar for $BOX in $TENANT ($ENVN, $d): the message to $TO cannot leave this machine. Run do_spl_desk_up. Nothing was sent."
   exit 3; }
-[ -d "$d/spool/$FROM" ] || {
-  say "$FROM is not seated on $BOX in $TENANT ($ENVN): the hub refuses a sender its box does not announce. Seat it with do_spl_desk_up DESK_AGENT=$FROM. Nothing was sent."
-  exit 3; }
+# The box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3):
+# a lane agent is never seated on the desk, and the hub refuses a sender the
+# box does not announce. A sender in THIS machine's registry.tsv is relayed
+# under a seated id of the box (the proxy) instead; an id the registry does
+# not list either is refused.
+SENDER="$FROM"
+if [ ! -d "$d/spool/$FROM" ]; then
+  awk -F'\t' -v id="$FROM" '$1 == id || index($1, id "@") == 1 { f = 1 } END { exit !f }' "$ROOT/registry.tsv" 2>/dev/null || {
+    say "$FROM is neither seated on $BOX in $TENANT ($ENVN) nor in this machine's $ROOT/registry.tsv: the hub refuses a sender its box does not vouch for. Nothing was sent."
+    exit 3; }
+  SENDER=""
+  for p in "${SPOOL_FLEET_PROXY:-$(kv "$BOXENV" SPOOL_FLEET_PROXY)}" "$(kv "$LCONF" LEASE_ORCH)" \
+           "$d"/spool/*; do
+    p="${p##*/}"
+    spl_is_participant_id "$p" && [ -d "$d/spool/$p" ] && { SENDER="$p"; break; }
+  done
+  [ -n "$SENDER" ] || { say "no agent is seated on $BOX in $TENANT ($ENVN) to relay for $FROM. Nothing was sent."; exit 3; }
+fi
 declare -a envv=()
+SIDEBOX=""
 while IFS= read -r -d '' e; do
   case "${e%%=*}" in
     SPOOL_ROOT|SPOOL_KEYS_DIR|SPOOL_PINS_DIR|SPOOL_BOX_ID|SPOOL_HUB_URL|SPOOL_TENANT|SPOOL_MSG_VERSION|SPOOL_SUBMIT_SOCKET) envv+=("$e") ;;
   esac
+  [ "${e%%=*}" = SPOOL_BOX_ID ] && SIDEBOX="${e#*=}"
 done <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/environ"
 [ "${#envv[@]}" -ge 5 ] || { say "cannot read the sidecar's settings (pid $pid)"; exit 3; }
+# The real sender and its box ride as the first body line; the receiving box
+# writes them as `from` (internal/spool WithFromAgent), bound to the box whose
+# pin signs this envelope - the sidecar's SPOOL_BOX_ID.
+BODY="from_agent: $FROM@${SIDEBOX:-$BOX}"$'\n'"$BODY"
 
 # The desk actions build <state>/<env>/bin/spool for these sidecars; else the
 # harness binary.
 BIN="${SPOOL_FLEET_BIN:-$STATE/$ENVN/bin/spool}"
 [ -x "$BIN" ] || BIN="${SPOOL_BIN:-spool}"
-args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
+args=(send --from "$SENDER" --to "$TO" --kind "$KIND" --body "$BODY")
 [ -n "$TASK" ] && args+=(--task "$TASK")
 [ -n "$TOBOX" ] && args+=(--to-box "$TOBOX")
 out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_LOG_LEVEL=error \

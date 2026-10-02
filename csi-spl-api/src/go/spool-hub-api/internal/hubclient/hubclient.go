@@ -731,6 +731,9 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	if err := checkWUIKind(e, m); err != nil {
 		return err
 	}
+	// The relayed sender's own <ID>@<box> (gaps 1-3 of HOWTO-satellite-work
+	// §4), bound to the box whose pin signed the envelope.
+	m = spool.WithFromAgent(m, e.FromBox)
 	s.fetchBlobs(ctx, m)
 	if own && !slices.Contains(targets, m.To) {
 		targets = append(targets, m.To)

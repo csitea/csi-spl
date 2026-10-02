@@ -148,4 +148,37 @@ printf 'LEASE_ENV=dev\nLEASE_TENANT=t1\nLEASE_DESK_BOX=box-desk-sat\n' >>"$B/dis
 printf '/x/spool\0hub-run\0' >"$T_TMP/proc/4242/cmdline"
 rl --from CLE-100004 --to CLE-001 --kind note --body x >/dev/null 2>&1; eq "5. lease.conf names the desk too: exit 0" 0 "$?"
 
+# ---- 6. lane agents: the box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3)
+# CLE-100005 is a lane of machine B: a registry.tsv row, no seat on B's desk.
+printf 'CLE-100005\tclaude\t%%9\t/w\t20261002T000000Z\n' >"$B/registry.tsv"
+mkdir -p "$B/CLE-100005/inbox"
+out="$(rl --from CLE-100005 --to CLE-77913 --kind note --body 'lane -> home' --to-box box-desk 2>&1)"; rc=$?
+eq "6. an unseated registered lane relays: exit 0" 0 "$rc"
+has "6. ... under a seated id of the desk" "send --from CLE-100004 --to CLE-77913" "$(cat "$T_TMP/stub.args")"
+has "6. ... naming the real sender and the signing box" "from_agent: CLE-100005@box-desk-sat lane -> home" "$(tr '\n' ' ' <"$T_TMP/stub.args")"
+rl --from CLE-100004 --to CLE-001 --kind note --body 'seated' >/dev/null 2>&1
+has "6. a seated sender keeps its own id" "send --from CLE-100004 --to CLE-001" "$(cat "$T_TMP/stub.args")"
+has "6. ... and names its box too" "from_agent: CLE-100004@box-desk-sat" "$(cat "$T_TMP/stub.args")"
+printf 'SPOOL_FLEET_PROXY=CLE-100006\n' >>"$B/box.env"; mkdir -p "$D/spool/CLE-100006"
+rl --from CLE-100005 --to CLE-001 --kind note --body x >/dev/null 2>&1
+has "6. box.env SPOOL_FLEET_PROXY picks the proxy" "send --from CLE-100006 " "$(cat "$T_TMP/stub.args")"
+rm -f "$T_TMP/stub.args"
+rl --from CLE-100099 --to CLE-77913 --kind note --body x >/dev/null 2>&1; eq "6. an id not in the registry: still exit 3" 3 "$?"
+check "6. ... and nothing was sent" test ! -e "$T_TMP/stub.args"
+SPOOL_ROOT="$B" SPOOL_FLEET_STATE_ROOT="$ST" SPOOL_FLEET_PROC_ROOT="$T_TMP/proc" SPOOL_FLEET_BIN="$T_TMP/bin/spool" \
+  SPOOL_FLEET_RELAY_CMD="bash $R" bash "$SS" --from CLE-100099 --to CLE-77913@box-desk --kind note --body x >/dev/null 2>&1
+eq "6. ... through spool-send: exit 13" 13 "$?"
+SPOOL_ROOT="$B" SPOOL_FLEET_STATE_ROOT="$ST" SPOOL_FLEET_PROC_ROOT="$T_TMP/proc" SPOOL_FLEET_BIN="$T_TMP/bin/spool" \
+  SPOOL_FLEET_RELAY_CMD="bash $R" bash "$SS" --from CLE-100005 --to CLE-77913@box-desk --kind note --body x >/dev/null 2>&1
+eq "6. a registered lane through spool-send: exit 0" 0 "$?"
+# the reply: the receiving box writes from as <ID>@<box> (internal/spool
+# WithFromAgent, Go tests); the harness `spool recv` must read that file back.
+r="$(SPOOL_ROOT="$B" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" send --from CLE-100004 --to CLE-100005 --kind result --body 'the reply' 2>/dev/null)"
+f="$(ls "$B/CLE-100005/inbox/"*.json | head -1)"
+python3 -c 'import json,sys; p=sys.argv[1]; m=json.load(open(p)); m["from"]="CLE-77913@box-desk"; json.dump(m,open(p,"w"),sort_keys=True,separators=(",",":"))' "$f"
+got="$(SPOOL_ROOT="$B" "$SPOOL_BIN" recv --as CLE-100005 --ack 2>&1)"
+has "6. the reply comes back to the lane's own inbox" '"the reply"' "$got"
+has "6. ... its from carries @box" '"from":"CLE-77913@box-desk"' "$(printf '%s' "$got" | tr -d ' \n')"
+[ -n "$r" ] || nok "6. the local reply send printed nothing"
+
 t_done

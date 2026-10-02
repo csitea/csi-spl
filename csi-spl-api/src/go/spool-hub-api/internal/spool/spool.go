@@ -258,8 +258,12 @@ func (s *Store) bridgeFleet(m *msg.Message, id string) error {
 	return nil
 }
 
-// agentSender: an agent id, not a human (HUM-) or the broadcast (ALL-).
+// agentSender: an agent id, not a human (HUM-) or the broadcast (ALL-); a
+// relayed "<ID>@<box>" (WithFromAgent) is its ID's.
 func agentSender(id string) bool {
+	if i := strings.IndexByte(id, '@'); i >= 0 && msg.ValidBoxID(id[i+1:]) {
+		id = id[:i]
+	}
 	return msg.ValidID(id) && !strings.HasPrefix(id, "HUM-") && !strings.HasPrefix(id, "ALL-")
 }
 
@@ -381,7 +385,7 @@ func readMessage(path string) (*msg.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.Validate(); err != nil {
+	if err := validStored(m); err != nil {
 		return nil, err
 	}
 	return m, nil

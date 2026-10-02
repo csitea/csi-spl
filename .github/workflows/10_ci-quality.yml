@@ -344,6 +344,19 @@ jobs:
           terraform_version: 1.9.8
           terraform_wrapper: false
 
+      # A runner without /opt/tf builds the same layout once in its own tool
+      # cache, kept between jobs: otherwise every run downloads the google
+      # providers again and tf-steps-render-and-validate outgrows its 120 s
+      # (run 37020039069; 52 s on a runner with the mirror, run 37031322430).
+      - name: No /opt/tf - provider mirror in the runner's tool cache (do_setup_tf_mirror)
+        if: steps.localtf.outputs.found != 'true'
+        working-directory: csi-spl-iac
+        run: |
+          set -euo pipefail
+          export TF_MIRROR_ROOT="$RUNNER_TOOL_CACHE/csi-spl-tf"
+          ./run -a do_setup_tf_mirror
+          echo "TF_CLI_CONFIG_FILE=$TF_MIRROR_ROOT/terraformrc" >>"$GITHUB_ENV"
+
       - name: tpl-gen at the pin (do_setup_tpl_gen)
         working-directory: csi-spl-iac
         env:

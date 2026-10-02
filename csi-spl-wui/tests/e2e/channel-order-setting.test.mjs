@@ -152,6 +152,10 @@ async function run(browser, base, width, height, touch) {
   if (width >= 1024) {
     await p.keyboard.press('Escape')
     await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: NAV }, LIST)
+    /* the close drops ?settings= from the route, and the route sets the rail
+       tab: a click before that lands is undone by it */
+    await p.waitForFunction(() => !new URLSearchParams(location.search).has('settings'), { timeout: NAV })
+    await sleep(300)
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
     const follows = await until(p, ({ sel, want }) => JSON.stringify([...document.querySelectorAll(sel)].map((e) => e.getAttribute('data-order'))) === JSON.stringify(want), { sel: PANEL, want: want3 })
     ok(`${tag} 4 the left panel draws the new order without a reload`, follows, await p.$$eval(PANEL, (els) => els.map((e) => e.getAttribute('data-order'))))

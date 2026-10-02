@@ -88,12 +88,20 @@ try {
   await p.waitForFunction(() => /\/search$/.test(location.pathname), { timeout: NAV_TIMEOUT })
   const onSearch = await p.evaluate(attachState, ATTACH)
   ok('2 /search: the omnibox is in search mode (no Attach)', !onSearch.attach && onSearch.text === '/search hello', onSearch)
-  // an in-app link, not a reload: a reload would reset the omnibox anyway
+  // an in-app link, not a reload: a reload would reset the omnibox anyway.
+  // CLE-77934: a rail section is built when first opened, so on /search the
+  // Channels list (and its lobby link) may not exist yet: then the app's own
+  // router makes the same in-app move.
   const left = await p.evaluate(() => {
     const a = document.querySelector('.sidebar a[href$="/channel/lobby"], a[href$="/channel/lobby"]')
-    if (!a) return false
-    a.click()
-    return true
+    if (a) {
+      a.click()
+      return 'link'
+    }
+    const router = document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$router
+    if (!router) return false
+    void router.push('/channel/lobby')
+    return 'router'
   })
   await p.waitForFunction(() => /\/channel\/lobby$/.test(location.pathname), { timeout: NAV_TIMEOUT }).catch(() => null)
   await p.waitForSelector(ATTACH, { visible: true, timeout: 5000 }).catch(() => null)

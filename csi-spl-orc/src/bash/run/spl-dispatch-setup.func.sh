@@ -86,32 +86,7 @@ spl_dispatch_setup_steps() {
 
   # 2. lease.conf
   local conf
-  conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
-  if [[ -n "${DISPATCH_FLEET:-}" ]]; then
-    conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s' \
-      "$DISPATCH_FLEET" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}")"
-    # the machine and its desk box are pinned only when given: unset, both
-    # follow box.env SPOOL_DESK_BOX, so a box rename needs no lease.conf edit
-    [[ -n "${DISPATCH_MACHINE:-}" ]] && conf+=$'\n'"LEASE_MACHINE=$DISPATCH_MACHINE"
-    [[ -n "${DESK_BOX:-}" ]] && conf+=$'\n'"LEASE_DESK_BOX=$DESK_BOX"
-  elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
-    # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
-    # this machine act beside the fleet's holder
-    conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
-  fi
-  # the asks timer's knobs (CLE-77929): given ones are written, the others
-  # carried over from the current file, so a re-run never drops them
-  local k v
-  for k in OWNER RERAISE_MIN OWNER_MIN LOCK_MIN MAX_RAISES; do
-    v="DISPATCH_ASKS_$k"; v="${!v:-}"
-    if [[ -z "$v" ]]; then
-      v="$(sed -n "s/^ASKS_$k=//p" "$LEASE_CONF" 2>/dev/null | tail -1)"
-    fi
-    [[ -z "$v" ]] && continue
-    [[ "$k" == OWNER && ! "$v" =~ ^HUM-[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_OWNER must be a human id (HUM-<n>), got '$v'"; return 1; }
-    [[ "$k" != OWNER && ! "$v" =~ ^[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_$k must be minutes, got '$v'"; return 1; }
-    conf+=$'\n'"ASKS_$k=$v"
-  done
+  spl_dispatch_lease_conf_text || return 1
   if [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
     spl_dispatch_ok lease-conf "$LEASE_CONF"
   else
@@ -171,6 +146,39 @@ spl_dispatch_setup_steps() {
   fi
   ((dry)) && do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to apply"
   return 0
+}
+
+# spl_dispatch_lease_conf_text: sets the caller's conf to the lease.conf this
+# setup wants - the three roles, the fleet keys (given, or carried over from
+# the current file so a re-run keeps fleet mode) and the asks timer's knobs
+# (given, or carried over). 1 with the FATAL on a malformed knob.
+spl_dispatch_lease_conf_text() {
+  local k v
+  conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
+  if [[ -n "${DISPATCH_FLEET:-}" ]]; then
+    conf+=$'\n'"$(printf 'LEASE_FLEET=%s\nLEASE_PRIORITY=%s\nLEASE_ENV=%s\nLEASE_TENANT=%s' \
+      "$DISPATCH_FLEET" "${DISPATCH_PRIORITY:-}" "$ENV" "${DISPATCH_LEASE_TENANT:-}")"
+    # the machine and its desk box are pinned only when given: unset, both
+    # follow box.env SPOOL_DESK_BOX, so a box rename needs no lease.conf edit
+    [[ -n "${DISPATCH_MACHINE:-}" ]] && conf+=$'\n'"LEASE_MACHINE=$DISPATCH_MACHINE"
+    [[ -n "${DESK_BOX:-}" ]] && conf+=$'\n'"LEASE_DESK_BOX=$DESK_BOX"
+  elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
+    # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
+    # this machine act beside the fleet's holder
+    conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
+  fi
+  # the asks timer's knobs (CLE-77929): given ones are written, the others
+  # carried over from the current file, so a re-run never drops them
+  for k in OWNER RERAISE_MIN OWNER_MIN LOCK_MIN MAX_RAISES; do
+    v="DISPATCH_ASKS_$k"; v="${!v:-}"
+    if [[ -z "$v" ]]; then
+      v="$(sed -n "s/^ASKS_$k=//p" "$LEASE_CONF" 2>/dev/null | tail -1)"
+    fi
+    [[ -z "$v" ]] && continue
+    [[ "$k" == OWNER && ! "$v" =~ ^HUM-[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_OWNER must be a human id (HUM-<n>), got '$v'"; return 1; }
+    [[ "$k" != OWNER && ! "$v" =~ ^[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_$k must be minutes, got '$v'"; return 1; }
+    conf+=$'\n'"ASKS_$k=$v"
+  done
 }
 
 # Ids, dirs and the workspace list, shared with do_spl_dispatch_check.

@@ -144,6 +144,8 @@ export interface SendFrame {
   body?: string
   files?: unknown[]
   to?: string
+  /** specs/058: the box of `to` (an <ID>@<box> address) */
+  to_box?: string
   channel?: string
   parent_task_id?: string
   is_parent?: 0 | 1

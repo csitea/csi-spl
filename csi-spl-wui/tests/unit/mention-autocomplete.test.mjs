@@ -148,7 +148,7 @@ describe('H5: a door-off guest GST-<n> is mentionable', () => {
     const typed = '@3994'
     const done = insertMention(typed, typed.length, filterRosterMentions(peers, '3994')[0].label)
     assert.equal(done.text, '@CLE-3994@box-desk ')
-    assert.deepEqual(parseMention(done.text + 'please'), { to: 'CLE-3994', kind: 'task', body: 'please' })
+    assert.deepEqual(parseMention(done.text + 'please'), { to: 'CLE-3994', toBox: 'box-desk', kind: 'task', body: 'please' })
   })
 })
 

@@ -26,6 +26,23 @@ export function pokeTargets({ text, before = '', selfId = '', addressee = '' }) 
   return out
 }
 
+/**
+ * specs/058 (CLE-77932): the box each mentioned id was written with, from the
+ * `@<ID>@<box>` tags of the text (the @ picker always writes one). The poke
+ * DM carries it as to_box, so `@CLE-001@sat` tells the satellite's CLE-001
+ * and not the home box's. The first tag of an id wins; a bare id has none.
+ *
+ * @param {string} text
+ * @returns {Record<string, string>} id -> box
+ */
+export function mentionBoxes(text) {
+  const out = {}
+  for (const m of String(text || '').matchAll(/(?<![\w@])@([A-Z]{2,4}-\d+)@([a-z0-9][a-z0-9-]{0,31})\b/g)) {
+    if (!(m[1] in out)) out[m[1]] = m[2]
+  }
+  return out
+}
+
 /** One line, at most EXCERPT_MAX characters; a cut ends in an ellipsis. */
 export function pokeExcerpt(text) {
   const line = String(text || '').replace(/\s+/g, ' ').trim()

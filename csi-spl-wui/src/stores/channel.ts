@@ -392,7 +392,7 @@ export const useChannelStore = defineStore('channel', () => {
     const live = useLive()
     const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
-    const [peerId] = String(peer.value || '').split('@')
+    const [peerId, peerBox] = String(peer.value || '').split('@')
     const parsed = parseMention(text)
     const asDm = !channelId && Boolean(peer.value)
     const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
@@ -404,6 +404,11 @@ export const useChannelStore = defineStore('channel', () => {
       to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
       is_parent: parentBit,
     }
+    /* specs/058 (CLE-77932): the DM peer's box, or the box a leading
+       `@CLE-001@sat` named - without it the hub refuses an id that two boxes
+       announce (ambiguous_to_box) */
+    const toBox = asDm ? peerBox : parsed.toBox
+    if (frame.to && toBox) frame.to_box = toBox
     const channelNow = channelId || active.value
     if (channelNow) frame.channel = channelNow
     /* The last point that knows the real payload: an empty box with no files

@@ -597,12 +597,15 @@ export function createLiveClient({
      * Resolves with the ack frame; rejects on error frame, timeout or close. kind is
      * a v:1 kind (default note); to defaults to ALL-0 hub-side. `channel` /
      * `parent_task_id` are hub-envelope fields (wui-live-ws §4), sent only when set;
-     * a caller `msg_id` makes a resend idempotent.
+     * a caller `msg_id` makes a resend idempotent. `to_box` (specs/058) pins
+     * the box of `to`: CLE-001..003 run on every box, and a bare id announced
+     * on two boxes is refused as ambiguous_to_box.
      */
-    send({ task_id, kind = 'note', body = '', files = [], to, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
+    send({ task_id, kind = 'note', body = '', files = [], to, to_box, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
       const msg_id = givenId ? String(givenId) : newId()
       const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
       if (to) frame.to = to
+      if (to && to_box) frame.to_box = String(to_box)
       if (channel) frame.channel = String(channel)
       if (parent_task_id) frame.parent_task_id = String(parent_task_id)
       if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent

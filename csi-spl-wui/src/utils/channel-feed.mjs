@@ -27,7 +27,7 @@ export function replyCount(messages, taskId) {
 
 export function parseMention(text) {
   const raw = String(text || '')
-  const m = raw.match(/^@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b\s*([\s\S]*)$/)
+  const m = raw.match(/^@([A-Z]{2,4}-\d+)(?:@([a-z0-9][a-z0-9-]{0,31}))?\b\s*([\s\S]*)$/)
   /* A leading `@ID` FOLLOWED BY TEXT dispatches a task to that id; the text is
      the body. A BARE mention (nothing after it) is not a task - it is a message
      that mentions someone - so it stays a channel note with the mention itself
@@ -36,8 +36,11 @@ export function parseMention(text) {
      empty-send guard then refused the very row the person meant to post. The
      mention is still resolved either way - mentionPoke scans the raw text and
      DMs the addressee - so only the body changes, never the poke. */
-  if (!m || !m[2].trim()) return { to: '@channel', kind: 'note', body: raw }
-  return { to: m[1], kind: 'task', body: m[2] }
+  if (!m || !m[3].trim()) return { to: '@channel', kind: 'note', body: raw }
+  /* specs/058 (CLE-77932): `@CLE-001@sat` keeps its box. CLE-001..003 run on
+     every box, so the frame must carry to_box or the hub refuses the bare id
+     as ambiguous_to_box. A bare `@CLE-07` has no toBox key at all. */
+  return m[2] ? { to: m[1], toBox: m[2], kind: 'task', body: m[3] } : { to: m[1], kind: 'task', body: m[3] }
 }
 
 export function displayName(id, box) {

@@ -290,7 +290,7 @@ declare module '~/utils/channel-feed.mjs' {
     parentTaskId: string | null,
   ): T[]
   export function replyCount(messages: { parent_task_id?: string | null }[], taskId: string): number
-  export function parseMention(text: string): { to: string, kind: string, body: string }
+  export function parseMention(text: string): { to: string, toBox?: string, kind: string, body: string }
   export function displayName(id: string, box?: string): string
   export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function mentionDisplay(text: string, names: Record<string, string> | null | undefined): { text: string, title: string }
@@ -400,6 +400,7 @@ declare module '~/utils/mention-poke.mjs' {
     | null
   export function pokeTargets(a: { text: string, before?: string, selfId?: string, addressee?: string }): string[]
   export function pokeExcerpt(text: string): string
+  export function mentionBoxes(text: string): Record<string, string>
   export function pokeBody(a: { author: string, link: string, text: string }): string
   export function cardLink(origin: string, taskId: string): string
   export function issueLink(origin: string, key: string): string

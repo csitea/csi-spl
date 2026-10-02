@@ -712,6 +712,7 @@ const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSi
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
+import { withDmPeers } from '~/utils/live-follow.mjs'
 import HumanName from '~/components/HumanName.vue'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
@@ -1043,7 +1044,7 @@ const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
 const peers = computed(() => (acting.value ? [] : pinRows(
-  orderPeers(roster.peers, channel.dmAt)
+  orderPeers(withDmPeers(roster.peers, channel.dmAt, roster.self ? roster.self.id : live.identity.value), channel.dmAt)
     .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
   pinnedPeers.value,
 )))

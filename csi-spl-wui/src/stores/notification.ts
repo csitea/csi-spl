@@ -89,7 +89,9 @@ export const useNotificationStore = defineStore('notification', () => {
   /** Browser-notification title + body for one escalated message, in the active UI locale. */
   function copyFor(m: Msg, reason: string) {
     // a human sender by their chosen name (owner, 2026-09-26)
-    const who = m.from ? peopleLabels([String(m.from)], humanNames.names.value) : m.from
+    /* specs/058 (CLE-77932): an agent is <ID>@<box> - CLE-001 runs on every box */
+    const agentBox = m.from_box && !/^(HUM|GST)-/.test(String(m.from || '')) ? `@${m.from_box}` : ''
+    const who = m.from ? peopleLabels([String(m.from) + agentBox], humanNames.names.value) : m.from
     /* HUM-24 (csitea ba4696c1): an AI agent's alert carries the robot mark, as its card carries the AI badge */
     const c = notifyCopyKey({ ...m, from: who && isAiMessage(m) ? `\u{1F916} ${who}` : who }, reason)
     /* SPL-1009: a member in the body reads their name, as in the feed */

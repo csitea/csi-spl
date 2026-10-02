@@ -386,7 +386,8 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
     assert.match(s, /v-for="\(c, channelIndex\) in channelRows"/)
     assert.match(s, /:data-ts="channelActivity\(c, channel\.liveAt\) \|\| undefined"/)
     assert.match(s, /v-for="\(p, peerIndex\) in peers"/)
-    assert.match(s, /orderPeers\(roster\.peers, channel\.dmAt\)/)
+    /* specs/058 (CLE-77932): the roster peers plus every <ID>@<box> with a DM, still ordered */
+    assert.match(s, /orderPeers\(withDmPeers\(roster\.peers, channel\.dmAt, [^)]*\), channel\.dmAt\)/)
     assert.doesNotMatch(s, /v-for="c in channel\.channels"/, 'CONTROL: the unordered hub list is not rendered')
   })
 })

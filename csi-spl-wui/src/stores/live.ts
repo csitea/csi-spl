@@ -259,7 +259,8 @@ function setup(key: 'main' | 'pane') {
       const parentBit: 0 | 1 = opts.isParent === 0 ? 0 : 1
       merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null, is_parent: parentBit }) as SpoolMessage])
       if (client) {
-        const frame = { task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
+        /* specs/058: `@CLE-001@sat …` keeps its box (ambiguous_to_box otherwise) */
+        const frame = { task_id: task, kind, body: text, files: refs, to, to_box: to ? parsed.toBox : undefined, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
         const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
         /* SPL-985 (spec 042 §3): the mention poke. This send names only a
            task, so where it lives (K4) is read from the topic's other rows. */

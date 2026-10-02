@@ -16,6 +16,7 @@ import {
   cardLink,
   channelAccess,
   issueLink,
+  mentionBoxes,
   pokeBody,
   pokeTargets,
   splitPokes,
@@ -74,10 +75,10 @@ export function useMentionPoke() {
     }
   }
 
-  async function sendDm(id: string, body: string) {
+  async function sendDm(id: string, body: string, toBox?: string) {
     const client = live.ensure()
     if (!client) throw new Error('live socket unavailable')
-    const frame = { task_id: newId(), msg_id: newId() || undefined, kind: 'note', body, files: [], to: id, is_parent: 1 as const }
+    const frame = { task_id: newId(), msg_id: newId() || undefined, kind: 'note', body, files: [], to: id, to_box: toBox || undefined, is_parent: 1 as const }
     await sendWithResend(() => client.send(frame))
   }
 
@@ -116,9 +117,10 @@ export function useMentionPoke() {
     const body = pokeBody({ author: self, link, text: opts.text })
     const told: string[] = []
     const failed: string[] = []
+    const boxes = mentionBoxes(opts.text)
     for (const id of [...ok, ...direct]) {
       try {
-        await sendDm(id, body)
+        await sendDm(id, body, boxes[id])
         told.push(id)
       } catch {
         failed.push(id)

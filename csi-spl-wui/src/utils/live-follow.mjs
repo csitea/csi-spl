@@ -273,6 +273,32 @@ export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
 }
 
 /**
+ * specs/058 (CLE-77932): the DM list is every roster peer PLUS every
+ * `<id>@<box>` the reader has a DM with (`dmAt`, keyed by label), so a DM
+ * never vanishes from the list because its box stopped announcing that id -
+ * the owner could not find his DM with the home CLE-001 once a second
+ * CLE-001 was seated on another box. Each address is its own row with its
+ * own history. A label without a box, a broadcast and the reader are skipped.
+ *
+ * @param {Array<{ id: string, box: string, label: string, online: boolean }>} rows roster peers
+ * @param {Record<string, string>} dmAt last DM moment per peer label
+ * @param {string} selfId the reader's id (bare, or id@box)
+ */
+export function withDmPeers(rows, dmAt, selfId = '') {
+  const list = Array.isArray(rows) ? rows : []
+  const have = new Set(list.map((p) => p && p.label))
+  const me = splitPeer(selfId).id
+  const extra = []
+  for (const label of Object.keys(dmAt && typeof dmAt === 'object' ? dmAt : {})) {
+    const { id, box } = splitPeer(label)
+    if (!id || !box || have.has(label) || id === me || /^ALL-0$/.test(id)) continue
+    have.add(label)
+    extra.push({ id, box, label, online: false })
+  }
+  return extra.length ? [...list, ...extra] : list
+}
+
+/**
  * Fold a fresh `/v1/view/roster` presence snapshot onto what the socket has
  * already said, and answer the new `online` list.
  *

@@ -54,7 +54,7 @@ pattern (owner, topic 6f10f92b: "use the established ansible approach ... not
 anything ad-hoc"): `csi-spl-iac/src/terraform/060-gcp-vm-satellite/box-playbook.yaml`.
 Each role is idempotent; a recreate plus one playbook run rebuilds the box.
 
-| role | what | replaces |
+| role | what | replaced (bash, retired 2026-10-02) |
 |---|---|---|
 | 01_data_disk | ext4 on the data disk (formatted only when blank), `/mnt/data`; `/opt` and `/var/spool-hub` bind-mounted from it; docker's data-root on it | `satellite-box-setup.sh` 01 |
 | 02_os_binaries | tmux git curl jq python3 perl make rsync acl sudo build-essential htop, docker + docker-compose, node + npm, gh, the Google Cloud CLI (Google's apt repo) | `satellite-box-setup.sh` 03 |
@@ -90,8 +90,9 @@ Not on the satellite: the AI CLI logins (each user's own interactive step,
 The bash setup (`satellite-box-setup.sh`, `do_satellite_bootstrap`,
 `do_satellite_install_tools`, `do_satellite_home_persist`,
 `do_satellite_replicate_ai_user`, `do_satellite_creds_push`,
-`do_satellite_claude_config`) stays until the playbook passes verify on a
-recreated VM, then it is retired.
+`do_satellite_claude_config`) was retired on 2026-10-02, once the playbook
+passed verify on a recreated VM (1.5.6). `satellite-actions.tst.sh` fails if
+one of them comes back.
 
 Both steps take their cnf from **prd** (`ENV=prd`), but they run as the
 **csi-spl-all** service account (`tf_key_project: csi-spl-all`, key
@@ -244,6 +245,17 @@ Results of the 2026-10-01 drill:
 | verify | 15/15 PASS |
 | lost | `/home` (claude login, pushed keys, `~/.local/bin`) and the data disk (repo clone, spool root); all restored by the four steps above except the owner's claude login |
 
+Results of the 2026-10-02 rebuild loop (owner: "destroy and re-create as
+many times as needed until you get one full time from the step beginning till
+the end WITHOUT errors"):
+
+| run | destroy / recreate | playbook | cause, fix |
+|---|---|---|---|
+| 1 | 10 / 12 | hung in 07 | claude-apply's `bash -ic` smoke start fought over become's pty; long tasks now run under `timeout N setsid -w` |
+| 2 | 12 / 12 | 1 failed (09) | ansible-core 2.14's `get_url` vs Python 3.13 on Debian 13; curl + sha256, and no `get_url`/`uri` anywhere |
+| 3 | 12 / 12 | 1 failed (09) | no Go for `govulncheck`; role 02 installs the go.mod Go into `/usr/local/go` |
+| 4 | 12 / 12 | **73 ok, 0 failed** | verify then read 19 FAIL, 18 of them its own bugs (sudo dropped the user names, the agent started in an unreadable cwd); fixed: **71 PASS / 1 FAIL**, the one being the agent's claude login (1.5.9) |
+
 #### 1.5.7 Raise the pinned image
 
 ```bash
@@ -351,9 +363,8 @@ and the steps are [HOWTO-setup-dispatchers.md section 6](HOWTO-setup-dispatchers
 
 ### 1.8 Known gaps and next steps
 
-- The playbook's first run on a recreated VM (owner go for the destroy), then
-  the agent's claude login (1.5.9); after a green verify the bash setup
-  actions are retired.
+- The agent's claude login (1.5.9), the owner's one interactive step; verify
+  is all PASS after it.
 - T024: agents spawned there; a desk seated in a test workspace that answers
   a post. The satellite trio (1.7) waits for the agent user on the satellite
   (lane CLE-77894), then its desks and the live lease drill. This needs `install.sh` without `--no-seat`, `SPOOL_HUB_URL` and the

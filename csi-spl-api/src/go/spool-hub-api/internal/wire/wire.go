@@ -61,7 +61,7 @@ const (
 	// Request and reply pair on MsgID, a request id the box picks.
 	TLane = "lane"
 	// TAsk is a box recording (ask_op put), working (ack | done | decline |
-	// raise | escalate) or reading (ask_op list) an ask to the orchestrator,
+	// raise | escalate | release | dead) or reading (ask_op list) an ask to the orchestrator,
 	// and the hub's answer (CLE-77929, rdb 0097). Request and reply pair on
 	// MsgID, a request id the box picks.
 	TAsk = "ask"
@@ -225,7 +225,7 @@ type Frame struct {
 	Lane   json.RawMessage `json:"lane,omitempty"`
 
 	// ask (CLE-77929): AskOp put | list | ack | done | decline | raise |
-	// escalate, Fleet names the ask book. The request's Ask is the new ask
+	// escalate | release | dead (CLE-77942), Fleet names the ask book. The request's Ask is the new ask
 	// (put), {ask_id, by, reason} (an update) or {all} (list); the reply's Ask
 	// is {fleet, created, asks: [row + writer_box, times, age_s, quiet_s]}.
 	AskOp string          `json:"ask_op,omitempty"`

@@ -24,7 +24,13 @@ import (
 //	ask_op decline  - closed, reason required
 //	ask_op raise    - the lease tick re-raised it (raised_n + 1)
 //	ask_op escalate - the lease tick told the owner (once)
+//	ask_op release  - the lease tick: the holder's acquisition lock expired,
+//	                  acked -> open (acked_by stays: the last holder)
+//	ask_op dead     - the lease tick: the delivery limit was reached, closed
+//	                  as dead (Kafka's archived), reason required
 //
+// The record states follow Kafka's share groups (KIP-932, CLE-77942); the
+// lock timeout and the delivery limit are the tick's knobs, not the hub's.
 // Closing a closed ask is 409 with the current row, so the second closer
 // learns who closed it. The hub stamps every time with its own clock and
 // answers age_s / quiet_s from it. Who may: any box pinned in the tenant (the

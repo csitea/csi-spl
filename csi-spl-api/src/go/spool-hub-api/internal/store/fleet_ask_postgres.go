@@ -41,7 +41,7 @@ func (s *Postgres) PutFleetAsk(ctx context.Context, tenant string, a FleetAsk, b
 	created := false
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM fleet_asks WHERE tenant_id = $1 AND fleet = $2
-			AND state IN ('done', 'declined') AND updated_at < $3`, tenant, a.Fleet, now.Add(-AskClosedTTL)); err != nil {
+			AND state IN ('done', 'declined', 'dead') AND updated_at < $3`, tenant, a.Fleet, now.Add(-AskClosedTTL)); err != nil {
 			return err
 		}
 		tag, err := tx.Exec(ctx, `INSERT INTO fleet_asks

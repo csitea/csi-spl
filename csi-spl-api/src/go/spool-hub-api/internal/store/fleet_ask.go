@@ -15,6 +15,13 @@ import (
 // reason). A successor reads the same rows, so a holder that dies after
 // receiving an ask and before acking it leaves the ask open for the next one.
 //
+// The record states are Kafka's share-group states (KIP-932; CLE-77942,
+// rdb 0099): open = available, acked = acquired (the holder's lock, renewed
+// by acking again), done = acknowledged, declined = rejected, dead =
+// archived after the delivery limit. The lock's timeout and the limit are
+// the lease tick's (ASKS_LOCK_MIN -> AskRelease, ASKS_MAX_RAISES -> AskDead):
+// the hub stores the record, the tick is the share coordinator.
+//
 // Age is now - CreatedAt and Quiet is now - the newest of UpdatedAt and
 // RaisedAt, both on the hub's clock, so the machines' clocks never have to
 // agree on when an ask is overdue for a re-raise.
@@ -26,7 +33,7 @@ type FleetAsk struct {
 	From        string // <ID> or <ID>@<box>
 	Topic       string
 	Summary     string
-	State       string // open | acked | done | declined
+	State       string // open | acked | done | declined | dead
 	DeadlineAt  time.Time
 	AckedBy     string
 	ClosedBy    string
@@ -54,6 +61,8 @@ const (
 	AskDecline  = "decline"  // open|acked -> declined, Reason required
 	AskRaise    = "raise"    // open|acked: raised_n + 1, raised_at = now
 	AskEscalate = "escalate" // open|acked: escalated_at = now (the owner was told)
+	AskRelease  = "release"  // acked -> open: the acquisition lock expired; acked_by stays as the last holder
+	AskDead     = "dead"     // open|acked -> dead: the delivery limit was reached, Reason required
 )
 
 // AskUpdate is one op on an open ask: Op (AskAck .. AskEscalate) by the
@@ -137,9 +146,9 @@ func CheckFleetAsk(a FleetAsk) string {
 // CheckFleetAskOp names the first thing wrong with an update ("" = fine).
 func CheckFleetAskOp(op, by, reason string) string {
 	switch op {
-	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate:
+	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate, AskRelease, AskDead:
 	default:
-		return "ask_op must be put, list, ack, done, decline, raise or escalate"
+		return "ask_op must be put, list, ack, done, decline, raise, escalate, release or dead"
 	}
 	switch {
 	case !AskAgentRe.MatchString(by):
@@ -148,6 +157,8 @@ func CheckFleetAskOp(op, by, reason string) string {
 		return "reason must be one line of up to 500 bytes"
 	case op == AskDecline && reason == "":
 		return "a decline needs a reason"
+	case op == AskDead && reason == "":
+		return "a dead-letter needs a reason"
 	}
 	return ""
 }
@@ -157,19 +168,26 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 	switch u.Op {
 	case AskAck:
 		a.State, a.AckedBy = "acked", u.By
-	case AskDone, AskDecline:
+	case AskDone, AskDecline, AskDead:
 		a.State, a.ClosedBy, a.Reason = "done", u.By, u.Reason
 		if u.Op == AskDecline {
 			a.State = "declined"
+		} else if u.Op == AskDead {
+			a.State = "dead"
 		}
 	case AskRaise:
 		a.RaisedN++
 		a.RaisedAt = now
 	case AskEscalate:
 		a.EscalatedAt = now
+	case AskRelease:
+		if a.State == "acked" {
+			a.State = "open"
+		}
 	}
 	a.WriterBox = box
-	if u.Op != AskRaise && u.Op != AskEscalate {
+	// the tick's own ops are not the holder's activity: quiet keeps counting
+	if u.Op != AskRaise && u.Op != AskEscalate && u.Op != AskRelease {
 		a.UpdatedAt = now
 	}
 }

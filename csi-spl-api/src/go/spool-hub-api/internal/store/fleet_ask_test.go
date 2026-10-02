@@ -119,6 +119,104 @@ func TestFleetAskLifecycle(t *testing.T) {
 	}
 }
 
+// CLE-77942 (rdb 0099): the share-group deltas. KILL-MID-ASK on two
+// machines: the holder on box-desk acks (acquires the lock) and dies; its
+// ack stays the last write, so quiet grows past the tick's lock timeout and
+// the successor on sat releases it (acked -> open, acked_by kept as the last
+// holder, quiet NOT reset by the tick's op), re-raises and acks it itself.
+// DEAD-LETTER: an ask raised to the delivery limit closes as dead with the
+// reason, leaves the open list, refuses a later ack with who and why, and is
+// pruned a week later like done. Run on Memory and Postgres.
+func TestFleetAskLockTimeoutAndDeadLetter(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Date(2026, 10, 2, 4, 10, 0, 0, time.UTC)
+	const (
+		a1 = "5f0c6a2e-1d7b-4c8e-9a3f-2b6d8e1f4a70"
+		a2 = "6a1d7b3f-2e8c-4d9f-8b4a-3c7e9f2a5b81"
+	)
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			tid := newTenant(t, st)
+			for _, id := range []string{a1, a2} {
+				if _, _, err := st.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: id, Role: "orch", Kind: "blocker", From: "CLE-002@box-desk"}, "box-desk", t0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			upd := func(id, op, by, reason, box string, at time.Time) (FleetAsk, error) {
+				return st.UpdateFleetAsk(ctx, tid, AskUpdate{Fleet: "main", AskID: id, Op: op, By: by, Reason: reason}, box, at)
+			}
+
+			// the holder on box-desk acquires a1, then dies: nothing more from it
+			if got, err := upd(a1, AskAck, "CLE-001@box-desk", "", "box-desk", t0.Add(time.Minute)); err != nil || got.State != "acked" {
+				t.Fatalf("ack: %+v %v", got, err)
+			}
+			as, _ := st.ListFleetAsks(ctx, tid, "main", "orch", false, t0.Add(61*time.Minute))
+			var held FleetAsk
+			for _, a := range as {
+				if a.AskID == a1 {
+					held = a
+				}
+			}
+			if held.State != "acked" || held.Quiet != 60*time.Minute {
+				t.Fatalf("a dead holder's lock reads quiet 60 min: %+v", held)
+			}
+			// the successor's tick on sat: the lock expired -> released
+			got, err := upd(a1, AskRelease, "CLE-001@sat", "", "sat", t0.Add(61*time.Minute))
+			if err != nil || got.State != "open" || got.AckedBy != "CLE-001@box-desk" || got.WriterBox != "sat" || got.Quiet != 60*time.Minute {
+				t.Fatalf("release: %+v %v", got, err)
+			}
+			// a release of an open ask changes nothing (idempotent tick)
+			if got, err = upd(a1, AskRelease, "CLE-001@sat", "", "sat", t0.Add(61*time.Minute)); err != nil || got.State != "open" {
+				t.Fatalf("second release: %+v %v", got, err)
+			}
+			if got, err = upd(a1, AskRaise, "CLE-001@sat", "", "sat", t0.Add(61*time.Minute)); err != nil || got.RaisedN != 1 || got.Quiet != 0 {
+				t.Fatalf("re-raise after release: %+v %v", got, err)
+			}
+			if got, err = upd(a1, AskAck, "CLE-001@sat", "", "sat", t0.Add(62*time.Minute)); err != nil || got.State != "acked" || got.AckedBy != "CLE-001@sat" {
+				t.Fatalf("the successor acquires it: %+v %v", got, err)
+			}
+			// re-acking renews the lock (quiet restarts)
+			if got, err = upd(a1, AskAck, "CLE-001@sat", "", "sat", t0.Add(90*time.Minute)); err != nil || got.Quiet != 0 {
+				t.Fatalf("renew: %+v %v", got, err)
+			}
+
+			// a2 is raised to the limit, then dead-lettered with the reason
+			for i := 1; i <= 4; i++ {
+				if got, err = upd(a2, AskRaise, "CLE-001@sat", "", "sat", t0.Add(time.Duration(i)*15*time.Minute)); err != nil || got.RaisedN != i {
+					t.Fatalf("raise %d: %+v %v", i, got, err)
+				}
+			}
+			const why = "max delivery count 4 reached; the owner was told"
+			if got, err = upd(a2, AskDead, "CLE-001@sat", why, "sat", t0.Add(80*time.Minute)); err != nil || got.State != "dead" || got.Reason != why || got.ClosedBy != "CLE-001@sat" || got.Open() {
+				t.Fatalf("dead: %+v %v", got, err)
+			}
+			got, err = upd(a2, AskAck, "CLE-001@box-desk", "", "box-desk", t0.Add(81*time.Minute))
+			if !errors.Is(err, ErrConflict) || got.State != "dead" || got.Reason != why {
+				t.Fatalf("an op on a dead ask: %+v %v", got, err)
+			}
+			if as, _ = st.ListFleetAsks(ctx, tid, "main", "orch", false, t0.Add(81*time.Minute)); len(as) != 1 || as[0].AskID != a1 {
+				t.Fatalf("the open list drops the dead ask: %+v", as)
+			}
+			if as, _ = st.ListFleetAsks(ctx, tid, "main", "orch", true, t0.Add(81*time.Minute)); len(as) != 2 || as[1].State != "dead" {
+				t.Fatalf("all lists the dead ask after the open one: %+v", as)
+			}
+			// a week after its last write a put prunes the dead ask, never the open one
+			later := t0.Add(80*time.Minute + AskClosedTTL + time.Minute)
+			if _, _, err = st.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: "33333333-3333-4333-8333-333333333333", Role: "orch", Kind: "task", From: "CLE-3"}, "sat", later); err != nil {
+				t.Fatal(err)
+			}
+			as, _ = st.ListFleetAsks(ctx, tid, "main", "orch", true, later)
+			ids := map[string]bool{}
+			for _, a := range as {
+				ids[a.AskID] = true
+			}
+			if len(as) != 2 || ids[a2] || !ids[a1] {
+				t.Fatalf("prune dead: %+v", as)
+			}
+		})
+	}
+}
+
 // The client and the hub refuse what 0097's CHECKs would.
 func TestCheckFleetAsk(t *testing.T) {
 	ok := FleetAsk{Fleet: "main", AskID: "39451306-8830-4e8e-878c-eb29f2803839", Role: "orch", Kind: "blocker", From: "CLE-002@box-desk", Topic: "692aefe8"}
@@ -146,7 +244,10 @@ func TestCheckFleetAsk(t *testing.T) {
 	if why := CheckFleetAskOp(AskDone, "CLE-001@box-desk", ""); why != "" {
 		t.Fatalf("done without a reason refused: %s", why)
 	}
-	for _, c := range [][3]string{{AskDecline, "CLE-001", ""}, {"drop", "CLE-001", ""}, {AskAck, "", ""}, {AskAck, "cle-1", ""}, {AskDone, "CLE-001", "a\nb"}} {
+	if why := CheckFleetAskOp(AskRelease, "CLE-001@sat", ""); why != "" {
+		t.Fatalf("release refused: %s", why)
+	}
+	for _, c := range [][3]string{{AskDecline, "CLE-001", ""}, {AskDead, "CLE-001", ""}, {"drop", "CLE-001", ""}, {AskAck, "", ""}, {AskAck, "cle-1", ""}, {AskDone, "CLE-001", "a\nb"}} {
 		if CheckFleetAskOp(c[0], c[1], c[2]) == "" {
 			t.Fatalf("accepted op %v", c)
 		}

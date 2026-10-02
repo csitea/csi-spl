@@ -18,6 +18,7 @@ import (
 //	put                           record AskID (the msg_id that raised it) as open
 //	ack | done | decline          work it, By = the acting <ID>@<box>
 //	raise | escalate              the lease tick's re-raise / owner leg
+//	release | dead                the lease tick's lock timeout / dead-letter (CLE-77942)
 type AskArgs struct {
 	Fleet    string
 	Op       string

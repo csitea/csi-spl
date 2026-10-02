@@ -131,3 +131,41 @@ func TestBoxFleetAskSurvivesTheOrchestrator(t *testing.T) {
 		t.Fatalf("a refusal wrote: %+v", as)
 	}
 }
+
+// CLE-77942: the share-group deltas through the real front end. The home
+// holder acquires an ask and dies; the successor's tick on the other machine
+// releases the expired lock (acked -> open, the last holder kept) and later
+// dead-letters another ask with its reason; a dead-letter without a reason is
+// refused by the client and by the hub; a late op on a dead ask names it.
+func TestBoxFleetAskLockReleaseAndDeadLetter(t *testing.T) {
+	_, _, _, _, home, sat := boxArchiveRig(t)
+	const (
+		id   = "5f0c6a2e-1d7b-4c8e-9a3f-2b6d8e1f4a70"
+		dead = "6a1d7b3f-2e8c-4d9f-8b4a-3c7e9f2a5b81"
+	)
+	for _, a := range []string{id, dead} {
+		askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: a, Kind: "blocker", From: "CLE-002@box-b"})
+	}
+	askCall(t, home, action.AskArgs{Fleet: "main", Op: "ack", AskID: id, By: "CLE-001@box-b"})
+	got := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "release", AskID: id, By: "CLE-001@box-c"})
+	if got.Asks[0].State != "open" || got.Asks[0].AckedBy != "CLE-001@box-b" || got.Asks[0].WriterBox != "box-c" {
+		t.Fatalf("release: %+v", got)
+	}
+	if _, err := action.Ask(context.Background(), sat.cfg, action.AskArgs{Fleet: "main", Op: "dead", AskID: dead, By: "CLE-001@box-c", Hub: sat.c}); err == nil {
+		t.Fatal("the client took a dead-letter without a reason")
+	}
+	if _, err := sat.c.Ask(context.Background(), "dead", "main", json.RawMessage(`{"ask_id":"`+dead+`","by":"CLE-001@box-c"}`)); err == nil {
+		t.Fatal("the hub took a dead-letter without a reason")
+	}
+	const why = "max delivery count 4 reached; the owner was told"
+	if got = askCall(t, sat, action.AskArgs{Fleet: "main", Op: "dead", AskID: dead, By: "CLE-001@box-c", Reason: why}); got.Asks[0].State != "dead" || got.Asks[0].Reason != why {
+		t.Fatalf("dead: %+v", got)
+	}
+	_, err := action.Ask(context.Background(), home.cfg, action.AskArgs{Fleet: "main", Op: "ack", AskID: dead, By: "CLE-001@box-b", Hub: home.c})
+	if err == nil || !strings.Contains(err.Error(), "already dead by CLE-001@box-c") {
+		t.Fatalf("ack on a dead ask: %v", err)
+	}
+	if got = askCall(t, home, action.AskArgs{Fleet: "main", Role: "orch"}); len(got.Asks) != 1 || got.Asks[0].AskID != id {
+		t.Fatalf("the open list: %+v", got)
+	}
+}

@@ -26,14 +26,14 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	topic := fs.String("topic", "", "put: the topic (task id)")
 	summary := fs.String("summary", "", "put: one line, up to 500 bytes")
 	deadline := fs.String("deadline", "", "put: when it is due, RFC 3339 (optional)")
-	by := fs.String("by", "", "ack|done|decline|raise|escalate: the acting agent, <ID>@<box>")
-	reason := fs.String("reason", "", "done|decline: why (a decline needs one)")
+	by := fs.String("by", "", "ack|done|decline|raise|escalate|release|dead: the acting agent, <ID>@<box>")
+	reason := fs.String("reason", "", "done|decline|dead: why (a decline and a dead-letter need one)")
 	all := fs.Bool("all", false, "list: also the closed asks of the last week")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "ask: unexpected argument %q (ops: list put ack done decline raise escalate)\n", fs.Arg(0))
+		fmt.Fprintf(os.Stderr, "ask: unexpected argument %q (ops: list put ack done decline raise escalate release dead)\n", fs.Arg(0))
 		return 1
 	}
 	ctx, stop := interruptible()

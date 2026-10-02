@@ -184,8 +184,12 @@ jobs:
   # prd 50 s). The image is env-independent (one Dockerfile, one DDL dir, one
   # migrations path; the build step below checks that per env), so this job
   # builds it once, beside the suite, and pushes it to every target env's
-  # registry under a tag nothing ever rolls:   ci-<sha>-v<predicted version>
-  # The prediction is do_release_version's dry run, which claims nothing. The
+  # registry under a tag nothing ever rolls:   ci-<sha>-v<candidate version>
+  # The prediction is do_release_version's dry run, which claims nothing; the
+  # other lanes mint 1-2 versions while the suite runs (measured on the first
+  # runs: predicted 7.1.0 -> minted 7.1.2, 7.1.4 -> 7.1.5), so it builds
+  # PREBUILD_CANDIDATES versions from the prediction on (a relink + one layer
+  # each, the Go compile is shared). The
   # real mint stays in the deploy job, behind the green suite; when it equals
   # the prediction the deploy adds the <version> tag to that digest (a tag add,
   # no rebuild), and when another commit took that version first it falls back
@@ -201,6 +205,7 @@ jobs:
     continue-on-error: true
     env:
       ENVS: ${{ needs.prepare-deploy.outputs.envs }}
+      PREBUILD_CANDIDATES: 4
       HAS_KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
       HAS_KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
     steps:
@@ -214,8 +219,11 @@ jobs:
           set -euo pipefail
           v="$(RELEASE_SHA="$GITHUB_SHA" DRY_RUN=1 ./csi-spl-orc/run -a do_release_version | grep -xE '[0-9]\.[0-9]\.[0-9]' | tail -1)" || v=""
           [[ -n "$v" ]] || { echo "::error::no release version predicted"; exit 1; }
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "predicted release version $v"
+          source csi-spl-orc/lib/bash/funcs/spl-release-version.func.sh
+          vs="$v"
+          for _ in $(seq 2 "$PREBUILD_CANDIDATES"); do v="$(spl_version_step "$v")" || break; vs="$vs $v"; done
+          echo "versions=$vs" >> "$GITHUB_OUTPUT"
+          echo "predicted release version ${vs%% *}; candidates: $vs"
 
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
@@ -224,12 +232,12 @@ jobs:
           cache: true
           cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
 
-      # Builds as the first target env (DRY_RUN=1: build only, no cloud) with
-      # the predicted version baked in, and writes the helper the per-env
-      # push steps below call.
+      # Builds as the first target env (DRY_RUN=1: build only, no cloud), once
+      # per candidate version (baked into the binary), and writes the helper
+      # the per-env push steps below call.
       - name: Build the image once (do_build_push_hub_image, DRY_RUN=1)
         env:
-          SPL_HUB_IMAGE_TAG: ${{ steps.pre.outputs.version }}
+          VERSIONS: ${{ steps.pre.outputs.versions }}
         run: |
           set -euo pipefail
           cnf() {  # <env> -> "<cnf image ref> <project> <sql src>|<migrations dir>"
@@ -252,27 +260,33 @@ jobs:
             echo "$e $ref $project" >> "$RUNNER_TEMP/targets"
           done
           ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
-          ENV="$first" DRY_RUN=1 ./csi-spl-orc/run -a do_build_push_hub_image
           read -r _ ref _ < "$RUNNER_TEMP/targets"
-          echo "LOCAL_IMAGE=${ref%:*}:$SPL_HUB_IMAGE_TAG" >> "$GITHUB_ENV"
-          # push-prebuilt <env> <identity>: tag the local image
+          images=""
+          for c in $VERSIONS; do
+            ENV="$first" DRY_RUN=1 SPL_HUB_IMAGE_TAG="$c" ./csi-spl-orc/run -a do_build_push_hub_image
+            images="$images ${ref%:*}:$c"
+          done
+          echo "LOCAL_IMAGES=${images# }" >> "$GITHUB_ENV"
+          # push-prebuilt <env> <identity>: tag each local candidate
           # ci-<sha>-v<version> in that env's registry and push it with a
           # throwaway DOCKER_CONFIG (as do_build_push_hub_image does); a
-          # re-run finds it there and pushes nothing
+          # re-run finds them there and pushes nothing
           cat > "$RUNNER_TEMP/push-prebuilt.sh" <<'SH'
           set -euo pipefail
           e="$1" sa="$2"
           read -r _ ref project < <(grep "^$e " "$RUNNER_TEMP/targets")
-          pre="${ref%:*}:ci-${GITHUB_SHA}-v${LOCAL_IMAGE##*:}"
-          if gcloud artifacts docker images describe "$pre" --project "$project" --account="$sa" >/dev/null 2>&1; then
-            echo "::notice::$pre is already in the $e registry"; exit 0
-          fi
-          docker tag "$LOCAL_IMAGE" "$pre"
           dcfg="$(mktemp -d)"; trap 'rm -rf "$dcfg"' EXIT
           gcloud auth print-access-token --account="$sa" |
-            DOCKER_CONFIG="$dcfg" docker login -u oauth2accesstoken --password-stdin "https://${pre%%/*}" >/dev/null
-          DOCKER_CONFIG="$dcfg" docker push -q "$pre"
-          echo "pushed $pre"
+            DOCKER_CONFIG="$dcfg" docker login -u oauth2accesstoken --password-stdin "https://${ref%%/*}" >/dev/null
+          for img in $LOCAL_IMAGES; do
+            pre="${ref%:*}:ci-${GITHUB_SHA}-v${img##*:}"
+            if gcloud artifacts docker images describe "$pre" --project "$project" --account="$sa" >/dev/null 2>&1; then
+              echo "::notice::$pre is already in the $e registry"; continue
+            fi
+            docker tag "$img" "$pre"
+            DOCKER_CONFIG="$dcfg" docker push -q "$pre"
+            echo "pushed $pre"
+          done
           SH
 
       - name: Set up Cloud SDK

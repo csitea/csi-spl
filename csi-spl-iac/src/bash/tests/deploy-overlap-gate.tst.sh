@@ -47,7 +47,7 @@ else:
     if "test" in str(p.get("needs", "")): bad.append("prebuild waits for test (no overlap)")
     body = "\n".join(str(s.get("run", "")) for s in p["steps"])
     if "DRY_RUN=0" in body: bad.append("prebuild runs something with DRY_RUN=0 (a mint or a release-tag push)")
-    if 'pre="${ref%:*}:ci-${GITHUB_SHA}-v${LOCAL_IMAGE##*:}"' not in body: bad.append("prebuild does not push ci-<sha>-v<version>")
+    if 'pre="${ref%:*}:ci-${GITHUB_SHA}-v${img##*:}"' not in body: bad.append("prebuild does not push ci-<sha>-v<version>")
     if body.count("docker push") != 1 or 'docker push -q "$pre"' not in body: bad.append("prebuild pushes something other than the ci- tag")
 steps = d["steps"]; ids = [s.get("id") for s in steps]
 img = steps[ids.index("img")]["run"]
@@ -110,7 +110,7 @@ PY
 python3 - "$W/20_hub-build-deploy.yml" "$T/h2.yml" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-open(sys.argv[2], "w").write(s.replace(':ci-${GITHUB_SHA}-v${LOCAL_IMAGE##*:}"', ':${LOCAL_IMAGE##*:}"', 1))
+open(sys.argv[2], "w").write(s.replace(':ci-${GITHUB_SHA}-v${img##*:}"', ':${img##*:}"', 1))
 PY
 [[ -n "$(hub_problems "$T/h2.yml")" ]] && pass "CONTROL: a prebuild that pushes the release tag is reported" \
   || fail "CONTROL: a prebuild pushing the release tag passed"

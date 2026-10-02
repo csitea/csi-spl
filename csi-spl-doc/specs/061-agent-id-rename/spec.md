@@ -155,6 +155,39 @@ the reaper for an agent dead for more than `SPOOL_ID_REAP_H` (default 6):
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.
 
+### 3.7 One name everywhere (L6, owner 2026-10-02, topic 07af027a)
+
+> "I want to have exactly the same names in the web interface and in the
+> terminal." ... "Okay then just do it and if needed restart all of the tmux
+> sessions and all of the agents on both of the boxes."
+
+An agent has ONE name, `<id>@<tag>`, e.g. `c-036@abc`: the id, then the
+machine's 3-letter box tag (`SPOOL_BOX_TAG` in `<spool root>/box.env`).
+
+| where | what it shows | made by |
+|---|---|---|
+| `claude --name` | `c-036@abc` | `spool_decorate` (spawn core, restore core, rotation spawn, `@reboot` identity restore, `agent-name-resume.sh`) |
+| tmux window | `c-036@abc` first, then an optional badge and title | the same helper (`an_decorate` for renames) |
+| the process env | `SPOOL_AGENT_ID=c-036` | the spool harness; a resume goes through `restore-*.sh`, never a bare `claude --resume` |
+| `lease.conf`, rotations | `c-001` / `c-002` / `c-003` | `do_spl_role_id_switch` (one role at a time) |
+| the web app | `c-036@<hub box id>` | the hub roster |
+
+The old `<tag>: <id>` window shape is no longer written (parsers still read
+it). `tests/test-agent-name-shape.sh` fails when a launcher writes another
+shape or drops `SPOOL_AGENT_ID`. `do_spl_agent_name_resume` (dry run by
+default) lists every live claude whose name or env id differs and resumes it
+in its pane, same session.
+
+**The web app gap.** The hub keys a machine on its desk box id
+(`SPOOL_DESK_BOX`, section 3.3.1). On the satellite the box id and the tag
+are the same (`sat`); on the first machine the box id is `box-desk` and the
+tag is another 3-letter word, so the web app reads `c-036@box-desk` there. Closing that
+needs one of two changes, and both are the owner's call (spec 058 box ids
+are keys in the roster, lanes, asks and leases):
+(a) rename that machine's hub box id to its tag, as a migration plus a
+desk re-seat, or (b) have the box hello carry the tag and the WUI show it.
+Recommended: (a), so one string is both the key and the name.
+
 ## 4. Inventory
 
 Every count names the command that produced it, run on origin/master

@@ -38,6 +38,7 @@ the reference does it:
 | `lib/spool-notify.inc.sh` | the one renderer and doorbell (`specs/028-spool-terminal-delivery`): a message is made VISIBLE in the recipient's pane, under the safe-poke rules |
 | `scripts/next-agent-id.sh` | allocates the next free id (`c-004`..`c-999`, a per-machine cursor that rolls `999 -> 004`, specs/061 §3.5) and claims it by `mkdir $SPOOL_ROOT/<id>`. `--claim <ID>` claims one exact id |
 | `scripts/agent-id-retire.sh` | retires an id once its window is gone (specs/061 §3.6): spool dir to `.retired/`, registry row to `registry.retired.tsv` (the 24 h quarantine), identity record to `agents/retired/`. `/exit-clean` runs it via `tmux-close-window.sh --retire`; `./run -a do_spl_agent_id_retire` by hand |
+| `scripts/agent-id-reap.sh` | the dead-agent reaper (specs/061 §3.6): an id with no window and no live process for `SPOOL_ID_REAP_H` (6) h is retired by `agent-id-retire.sh`; dry run unless `--apply`/`DRY_RUN=0`. Cron: `./run -a do_spl_agent_id_reap_install_cron` (the line reports only, `DRY_RUN=1`); by hand `./run -a do_spl_agent_id_reap` |
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
 | `scripts/spawn-{claude,grok,agy,qwen}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |

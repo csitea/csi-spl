@@ -1524,6 +1524,16 @@
     "loading": "Se încarcă mesajele…",
     "unread": "Necitit",
     "you": "Tu",
-    "reply_in": "Răspuns într-un fir în {place}"
+    "reply_in": "Răspuns într-un fir în {place}",
+    "scope_label": "Arată",
+    "scope_mine": "Ale mele",
+    "scope_all": "Toate",
+    "chips_label": "Filtrează după tip",
+    "chip_mention": "Mențiuni: {n}",
+    "chip_reply": "Răspunsuri în firele tale: {n}",
+    "chip_dm": "Mesaje directe: {n}",
+    "empty_mine": "Încă nimic pentru tine. Aici apar mențiunile, răspunsurile în firele tale și mesajele directe.",
+    "mention_in": "Te-a menționat în {place}",
+    "badge": "Flux: {n} noi pentru tine"
   }
 }

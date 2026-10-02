@@ -1524,6 +1524,16 @@
     "loading": "Läser in meddelanden…",
     "unread": "Oläst",
     "you": "Du",
-    "reply_in": "Svar i en tråd i {place}"
+    "reply_in": "Svar i en tråd i {place}",
+    "scope_label": "Visa",
+    "scope_mine": "Mina",
+    "scope_all": "Alla",
+    "chips_label": "Filtrera efter typ",
+    "chip_mention": "Omnämnanden: {n}",
+    "chip_reply": "Svar i dina trådar: {n}",
+    "chip_dm": "Direktmeddelanden: {n}",
+    "empty_mine": "Inget för dig än. Omnämnanden, svar i dina trådar och direktmeddelanden visas här.",
+    "mention_in": "Nämnde dig i {place}",
+    "badge": "Flöde: {n} nya för dig"
   }
 }

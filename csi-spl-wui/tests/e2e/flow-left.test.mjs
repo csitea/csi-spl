@@ -87,7 +87,7 @@ try {
     const p = await browser.newPage()
     const errors = []
     p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
-    await p.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* about:blank */ } })
+    await p.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.flow-scope', 'all'); localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* about:blank */ } })
     await setPageViewport(p, size)
     /* warm the dev server's dynamic imports (a cold nuxi dev drops the first one) */
     /* `/` opens at level 1 on a phone: the section chooser + its list */

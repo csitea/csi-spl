@@ -1524,6 +1524,16 @@
     "loading": "Berichten laden…",
     "unread": "Ongelezen",
     "you": "Jij",
-    "reply_in": "Antwoord in een draad in {place}"
+    "reply_in": "Antwoord in een draad in {place}",
+    "scope_label": "Toon",
+    "scope_mine": "Mijn",
+    "scope_all": "Alles",
+    "chips_label": "Filter op soort",
+    "chip_mention": "Vermeldingen: {n}",
+    "chip_reply": "Antwoorden in jouw threads: {n}",
+    "chip_dm": "Directe berichten: {n}",
+    "empty_mine": "Nog niets voor jou. Vermeldingen, antwoorden in jouw threads en directe berichten verschijnen hier.",
+    "mention_in": "Noemde je in {place}",
+    "badge": "Flow: {n} nieuw voor jou"
   }
 }

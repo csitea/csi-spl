@@ -1524,6 +1524,16 @@
     "loading": "Mesajlar yükleniyor…",
     "unread": "Okunmadı",
     "you": "Siz",
-    "reply_in": "{place} içinde bir yanıt dizisinde yanıt"
+    "reply_in": "{place} içinde bir yanıt dizisinde yanıt",
+    "scope_label": "Göster",
+    "scope_mine": "Benim",
+    "scope_all": "Tümü",
+    "chips_label": "Türe göre filtrele",
+    "chip_mention": "Bahsetmeler: {n}",
+    "chip_reply": "Konularındaki yanıtlar: {n}",
+    "chip_dm": "Doğrudan mesajlar: {n}",
+    "empty_mine": "Henüz senin için bir şey yok. Bahsetmeler, konularındaki yanıtlar ve doğrudan mesajlar burada görünür.",
+    "mention_in": "{place} içinde senden bahsetti",
+    "badge": "Akış: senin için {n} yeni"
   }
 }

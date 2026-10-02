@@ -4,8 +4,12 @@ import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow } from '~/utils/flow-entries.mjs'
+import { useFlowBadge } from '~/composables/useFlowBadge'
+import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
+import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowScope, syncAppBadge } from '~/utils/flow-badge.mjs'
+import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
+import { storageGet, storageSet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /**
@@ -17,6 +21,8 @@ const FLOW_TOPICS = 12
 const FLOW_PER_TOPIC = 3
 /** Topic pages one fill may read before it shows what it has. */
 const FLOW_FILL_PAGES = 4
+/** While the pane is open, a new event re-marks it seen after this pause (one write per burst). */
+const SEEN_DEBOUNCE_MS = 400
 
 /**
  * Flow (topic 635f8072): the stream of short message entries in the left
@@ -43,9 +49,31 @@ export const useFlowStore = defineStore('flow', () => {
   const boundary = ref('')
   const loadingMore = ref(false)
   const view = computed(() => flowWindow(entries.value, shown.value, next.value ? boundary.value : ''))
-  /** What the panel lists: the newest `shown` entries the read pages vouch for. */
-  const visible = computed(() => view.value.entries as FlowEntry[])
-  const hasMore = computed(() => view.value.more)
+
+  /* spec 062: Mine - only the viewer's flow events, read from the hub
+     (GET /v1/view/flow, contract flow-v1), and the Facebook-like number */
+  /** Mine (default, Q1) or All (today's stream); kept per browser. */
+  const scope = ref<FlowScope>(parseFlowScope(import.meta.client ? storageGet(FLOW_SCOPE_KEY) : ''))
+  /** null = not asked yet; false = this hub has no Flow route (Mine hidden, the pip stays). */
+  const available = ref<boolean | null>(null)
+  const mine = shallowRef<FlowEntry[]>([])
+  const mineNext = ref('')
+  const mineLoaded = ref(false)
+  const mineLoading = ref(false)
+  /** The chip filter: one kind, '' = all. */
+  const kind = ref<FlowKind | ''>('')
+  /** The badge: unseen + unread, by kind (hub counts, FR-008). */
+  const counts = shallowRef<FlowCounts | null>(null)
+  /** The chips: unread regardless of f:seen. */
+  const unread = shallowRef<FlowCounts | null>(null)
+  /** The pane is on screen: a new event is seen at once. */
+  const paneOpen = ref(false)
+  const badge = useFlowBadge()
+  const mineOn = computed(() => scope.value === 'mine' && available.value !== false)
+
+  /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
+  const visible = computed(() => (mineOn.value ? mine.value : view.value.entries as FlowEntry[]))
+  const hasMore = computed(() => (mineOn.value ? Boolean(mineNext.value) : view.value.more))
 
   function self() {
     const session = useSessionStore()
@@ -108,6 +136,15 @@ export const useFlowStore = defineStore('flow', () => {
   /** Load more: a page more of entries, reading older topics when the held ones run out. */
   async function loadMore() {
     if (loadingMore.value || !hasMore.value) return
+    if (mineOn.value) {
+      loadingMore.value = true
+      try {
+        await readMine(mineNext.value)
+      } finally {
+        loadingMore.value = false
+      }
+      return
+    }
     loadingMore.value = true
     shown.value += FLOW_PAGE
     try {
@@ -119,6 +156,131 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
+  /** The hub's counts land: the badge, the app icon (FR-013) and, while the pane is open, seen again. */
+  function setCounts(c: unknown, u: unknown) {
+    const next = parseFlowCounts(c)
+    if (next) counts.value = next
+    const chips = parseFlowCounts(u)
+    if (chips) unread.value = chips
+    if (!counts.value) return
+    available.value = true
+    badge.value = counts.value.total
+    if (import.meta.client) syncAppBadge(navigator, badge.value)
+    if (paneOpen.value && counts.value.total > 0) seenSoon()
+  }
+
+  /** A failed Flow read: a hub without the route (404) or no member session (403) turns Mine off. */
+  function flowRefused(e: unknown) {
+    const status = Number((e as { status?: number })?.status || 0)
+    if (status === 404 || status === 403 || status === 405) {
+      available.value = false
+      badge.value = -1
+      return true
+    }
+    return false
+  }
+
+  /** One Mine page (before = the last event's cursor; '' = the newest page, which replaces the held ones). */
+  async function readMine(before: string) {
+    mineLoading.value = true
+    error.value = ''
+    try {
+      const r = await withSessionRetry(api, () => api.listFlow({ limit: FLOW_PAGE, before, kind: kind.value, self: self() }))
+      const held = before ? mine.value : []
+      mine.value = mergeMine(held, r.events, self()) as FlowEntry[]
+      const last = r.events[r.events.length - 1] as { cursor?: unknown } | undefined
+      mineNext.value = r.next ? String((last && last.cursor) || r.next) : ''
+      mineLoaded.value = true
+      setCounts(r.counts, r.unread)
+    } catch (e) {
+      if (!flowRefused(e)) error.value = String((e as Error)?.message || e)
+    } finally {
+      mineLoading.value = false
+    }
+  }
+
+  /** The badge alone (startup, reconnect): one statement on the hub. */
+  async function readCounts() {
+    try {
+      const r = await withSessionRetry(api, () => api.listFlow({ countsOnly: true, self: self() }))
+      setCounts(r.counts, r.unread)
+    } catch (e) {
+      flowRefused(e)
+    }
+  }
+
+  /** A `flow` frame: the hub's counts, and the new event when there is one. */
+  function onFlowFrame(f: Record<string, unknown>) {
+    setCounts(f.counts, f.unread)
+    const ev = f.event as { kind?: string } | null | undefined
+    if (!ev || !mineLoaded.value) return
+    const k = ev.kind === 'poke' ? 'mention' : ev.kind
+    if (kind.value && k !== kind.value) return
+    mine.value = mergeMine(mine.value, [ev], self()) as FlowEntry[]
+  }
+
+  let badgeOn = false
+  /** Start the number (the sidebar calls this once, lazily): counts now, then the hub's frames. */
+  function startBadge() {
+    if (badgeOn || !import.meta.client) return
+    badgeOn = true
+    const live = useLive()
+    live.onFlow(onFlowFrame)
+    live.onReconnected(() => {
+      void readCounts()
+      if (mineLoaded.value) void readMine('')
+    })
+    void readCounts()
+  }
+
+  let seenTimer: ReturnType<typeof setTimeout> | null = null
+  function seenSoon() {
+    if (seenTimer) return
+    seenTimer = setTimeout(() => {
+      seenTimer = null
+      void seen()
+    }, SEEN_DEBOUNCE_MS)
+  }
+
+  /**
+   * The pane opened (Q4): the number goes to 0 here at once and the f:seen
+   * mark tells the hub, which pushes a counts frame to the member's other
+   * tabs and devices (FR-007). The entries stay unread until opened.
+   */
+  async function seen() {
+    if (!counts.value || counts.value.total === 0) return
+    counts.value = { mention: 0, reply: 0, dm: 0, total: 0 }
+    badge.value = 0
+    syncAppBadge(navigator, 0)
+    try {
+      await api.markFlow({ [FLOW_SEEN_KEY]: { ts: new Date().toISOString() } })
+      if (api.mock) await readCounts()
+    } catch {
+      /* the next open marks it again; the hub's next frame corrects the number */
+    }
+  }
+
+  /** The pane shows (true) or hides (false). */
+  function setPaneOpen(on: boolean) {
+    paneOpen.value = on
+    if (on) void seen()
+  }
+
+  /** Mine / All (FR-012): the choice is kept in this browser. */
+  function setScope(next: FlowScope) {
+    scope.value = parseFlowScope(next)
+    storageSet(FLOW_SCOPE_KEY, scope.value)
+    ensure()
+  }
+
+  /** A chip: that kind only; the same chip again shows every kind. */
+  function setKind(next: FlowKind | '') {
+    kind.value = kind.value === next ? '' : next
+    mine.value = []
+    mineNext.value = ''
+    void readMine('')
+  }
+
   let following = false
   /** Live frames: the tab-wide `all` follow (plugins/spool-live.client.ts) feeds them. */
   function follow() {
@@ -126,14 +288,32 @@ export const useFlowStore = defineStore('flow', () => {
     following = true
     const live = useLive()
     live.onMessage((m) => add([m]))
-    live.onEdited((m) => add([m]))
-    live.onDeleted((m) => { entries.value = dropFlow(entries.value, String(m.msg_id || '')) as FlowEntry[] })
+    live.onEdited((m) => {
+      add([m])
+      if (mine.value.some((e) => e.key === String(m.msg_id || ''))) refreshMine(m)
+    })
+    live.onDeleted((m) => {
+      entries.value = dropFlow(entries.value, String(m.msg_id || '')) as FlowEntry[]
+      mine.value = dropFlow(mine.value, String(m.msg_id || '')) as FlowEntry[]
+    })
     live.onReconnected(() => { void load() })
+  }
+
+  /** An edit of a Mine entry: its text changes, its kind and unread verdict stay. */
+  function refreshMine(m: Record<string, unknown>) {
+    const held = mine.value.find((e) => e.key === String(m.msg_id || ''))
+    if (!held) return
+    mine.value = mergeMine(mine.value, [{ ...m, kind: held.event, unread: held.fresh ?? undefined }], self()) as FlowEntry[]
   }
 
   /** Open the Flow: the first time reads it, later only the mock re-reads (it has no socket). */
   function ensure() {
     follow()
+    startBadge()
+    if (mineOn.value) {
+      if (!mineLoaded.value || api.mock) void readMine('')
+      return
+    }
     if (!loaded.value || api.mock) void load()
   }
 
@@ -144,12 +324,22 @@ export const useFlowStore = defineStore('flow', () => {
   function markOpened(key: string) {
     if (!key || opened.value.has(key)) return
     opened.value = new Set([...opened.value, key])
+    /* FR-006: a Mine entry opened from the Flow is read on every device (f:<msg_id>) */
+    const e = mine.value.find((r) => r.key === key)
+    if (e && e.fresh !== false) {
+      void api.markFlow({ ['f:' + e.msg_id]: { ts: new Date().toISOString(), id: e.msg_id } })
+        .then(() => (api.mock ? readCounts() : undefined))
+        .catch(() => { /* the place's own read mark still covers it later */ })
+    }
   }
 
   /** A message deleted here (not a live frame) leaves the stream too. */
   function drop(msgId: string) {
     entries.value = dropFlow(entries.value, msgId) as FlowEntry[]
+    mine.value = dropFlow(mine.value, msgId) as FlowEntry[]
   }
 
-  return { entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
+  return {
+    scope, available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
+    startBadge, readCounts, seen, setPaneOpen, setScope, setKind, entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
 })

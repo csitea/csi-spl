@@ -1524,6 +1524,16 @@
     "loading": "Ielādē ziņas…",
     "unread": "Nelasīts",
     "you": "Jūs",
-    "reply_in": "Atbilde pavedienā: {place}"
+    "reply_in": "Atbilde pavedienā: {place}",
+    "scope_label": "Rādīt",
+    "scope_mine": "Mani",
+    "scope_all": "Visi",
+    "chips_label": "Filtrēt pēc veida",
+    "chip_mention": "Pieminējumi: {n}",
+    "chip_reply": "Atbildes jūsu pavedienos: {n}",
+    "chip_dm": "Tiešās ziņas: {n}",
+    "empty_mine": "Jums vēl nekā nav. Šeit redzami pieminējumi, atbildes jūsu pavedienos un tiešās ziņas.",
+    "mention_in": "Pieminēja jūs {place}",
+    "badge": "Plūsma: {n} jaunas jums"
   }
 }

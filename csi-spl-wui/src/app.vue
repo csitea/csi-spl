@@ -16,6 +16,7 @@ import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
 import { tabTitle, tenantTabName, unreadTotal, withUnread } from '~/utils/tab-title.mjs'
 import { useNotificationStore } from '~/stores/notification'
+import { useFlowBadge } from '~/composables/useFlowBadge'
 import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { setTimeZoneSource } from '~/utils/date-iso.mjs'
@@ -65,7 +66,13 @@ const apexTenant = String(useRuntimeConfig().public.tenant || '')
 const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 
 const notes = useNotificationStore()
-const unreadCount = computed(() => (import.meta.client ? unreadTotal(notes.unread, loadMutedChannels()) : 0))
+/* spec 062 FR-013: once the hub counts the Flow, its number leads the title
+   ("(8) Spool"); before that (or on a hub without it) the channel/DM total */
+const flowBadge = useFlowBadge()
+const unreadCount = computed(() => {
+  if (!import.meta.client) return 0
+  return flowBadge.value >= 0 ? flowBadge.value : unreadTotal(notes.unread, loadMutedChannels())
+})
 
 useHead(() => {
   /* read here, not inside titleTemplate, so a new unread re-runs the head */

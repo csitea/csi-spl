@@ -42,7 +42,9 @@
         <UiIcon :name="item.icon" :size="20" />
         <!-- SPL-989: the phone's level-1 strip names each section; hidden above 820 px -->
         <span class="sidebar-tab__label" aria-hidden="true">{{ t(item.labelKey) }}</span>
-        <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
+        <!-- spec 062: the Flow tab carries the hub's number (unseen + unread), 99+ above 99 -->
+        <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count" data-testid="sidebar-tab-flow-count" :aria-label="t('flow.badge', { n: flowLabel })">{{ flowLabel }}</span>
+        <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
       </div>
       <!-- W14 (spec 047): Help, one click for everyone; the gear below it -->
@@ -85,7 +87,8 @@
           >
             <UiIcon :name="item.icon" :size="20" />
             <span class="sidebar-tab__label">{{ t(item.labelKey) }}</span>
-            <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" />
+            <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count">{{ flowLabel }}</span>
+            <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
           <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
             <UiIcon name="help" :size="20" />
@@ -742,6 +745,7 @@ import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
+import { useFlowBadge } from '~/composables/useFlowBadge'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
@@ -914,10 +918,25 @@ function sectionUnread(prefix: string) {
 const dmUnread = computed(() => sectionUnread('dm:'))
 const channelUnread = computed(() => sectionUnread('ch:'))
 const flowUnread = computed(() => dmUnread.value || channelUnread.value)
+/* spec 062: once the hub has counted (flowBadge >= 0) the number replaces the
+   pip; a hub without the Flow route leaves -1 and the pip as it was */
+const flowBadge = useFlowBadge()
+/* the number starts once signed in (or in the mock); the Flow store is its own
+   lazy chunk, so it is loaded here and never rides the initial JS */
+const nuxtApp = useNuxtApp()
+let flowStarted = false
+watch(() => api.mock || session.state === 'in', (on) => {
+  if (!on || flowStarted || !import.meta.client) return
+  flowStarted = true
+  void import('~/stores/flow')
+    .then((m) => nuxtApp.runWithContext(() => m.useFlowStore().startBadge()))
+    .catch(() => { flowStarted = false })
+}, { immediate: true })
+const flowLabel = computed(() => (flowBadge.value > 0 ? (flowBadge.value > 99 ? '99+' : String(flowBadge.value)) : ''))
 function tabUnread(id: SideTab) {
   if (id === 'dm') return dmUnread.value
   if (id === 'channels') return channelUnread.value
-  if (id === 'flow') return flowUnread.value
+  if (id === 'flow') return flowBadge.value < 0 && flowUnread.value
   return false
 }
 const topicOpen = computed(() => {
@@ -1533,6 +1552,23 @@ async function onCreate() {
 .sidebar-tab :deep(svg) {
   width: min(22px, 70cqi);
   height: min(22px, 70cqi);
+}
+.sidebar-tab__count {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: var(--color-danger-fg);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
 }
 .sidebar-tab__pip {
   position: absolute;

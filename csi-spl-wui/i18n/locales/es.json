@@ -1524,6 +1524,16 @@
     "loading": "Cargando mensajes…",
     "unread": "No leído",
     "you": "Tú",
-    "reply_in": "Respuesta en un hilo en {place}"
+    "reply_in": "Respuesta en un hilo en {place}",
+    "scope_label": "Mostrar",
+    "scope_mine": "Míos",
+    "scope_all": "Todos",
+    "chips_label": "Filtrar por tipo",
+    "chip_mention": "Menciones: {n}",
+    "chip_reply": "Respuestas en tus hilos: {n}",
+    "chip_dm": "Mensajes directos: {n}",
+    "empty_mine": "Aún no hay nada para ti. Aquí aparecen menciones, respuestas en tus hilos y mensajes directos.",
+    "mention_in": "Te mencionó en {place}",
+    "badge": "Flujo: {n} nuevos para ti"
   }
 }

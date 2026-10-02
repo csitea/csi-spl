@@ -176,6 +176,15 @@ declare module '~/utils/spool-client.mjs' {
     deleteIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     archiveIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
+    /** spec 062 §4.2: the viewer's flow events (a page, or the counts alone). */
+    listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string }): Promise<{
+      events: Array<Record<string, unknown>>
+      next: string
+      counts: import('~/utils/flow-badge.mjs').FlowCounts | null
+      unread: import('~/utils/flow-badge.mjs').FlowCounts | null
+    }>
+    /** spec 062 §2.4: write f:seen / f:<msg_id> read marks. */
+    markFlow(marks: Record<string, { ts: string, id?: string }>): Promise<unknown>
   }
 }
 
@@ -214,6 +223,8 @@ declare module '~/utils/live-ws.mjs' {
     onReaction?: (m: Record<string, unknown>, raw: unknown) => void
     onIssue?: (f: Record<string, unknown>) => void
     onIssueLabel?: (f: Record<string, unknown>) => void
+    /** spec 062 `flow`: the viewer's Flow counts and the new event (or null). */
+    onFlow?: (f: Record<string, unknown>) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     /** bug B: the hub revision serving new requests (GET /v1/wui/revision), '' when unknown */
     fetchRevision?: () => Promise<string>
@@ -283,6 +294,10 @@ declare module '~/utils/flow-entries.mjs' {
     files: number
     at: string
     mine: boolean
+    /** spec 062 Mine: why it concerns the viewer */
+    event?: 'mention' | 'reply' | 'dm'
+    /** spec 062 Mine: the hub's unread verdict, null when it sent none */
+    fresh?: boolean | null
   }
   export const FLOW_CAP: number
   export const FLOW_PAGE: number
@@ -292,9 +307,29 @@ declare module '~/utils/flow-entries.mjs' {
   export function isThreadReply(m: unknown): boolean
   export function flowKeyOf(m: unknown, self?: string): string
   export function flowEntry(m: unknown, self?: string): FlowEntry | null
-  export function mergeFlow(held: FlowEntry[], messages: unknown[], self?: string, cap?: number): FlowEntry[]
+  export function mergeFlow(held: FlowEntry[], messages: unknown[], self?: string, cap?: number, build?: (m: unknown, self?: string) => FlowEntry | null): FlowEntry[]
+  export function flowEventEntry(ev: unknown, self?: string): FlowEntry | null
+  export function mergeMine(held: FlowEntry[], events: unknown[], self?: string): FlowEntry[]
   export function dropFlow(held: FlowEntry[], msgId: string): FlowEntry[]
   export function flowUnread(entry: FlowEntry, cursors?: Record<string, { ts?: string, id?: string } | undefined>, opened?: Set<string> | null): boolean
+}
+
+declare module '~/utils/flow-badge.mjs' {
+  export interface FlowCounts { mention: number, reply: number, dm: number, total: number }
+  export type FlowKind = 'mention' | 'reply' | 'dm'
+  export type FlowScope = 'mine' | 'all'
+  export const FLOW_KINDS: readonly FlowKind[]
+  export const FLOW_SCOPES: readonly FlowScope[]
+  export const FLOW_SCOPE_KEY: string
+  export const FLOW_SEEN_KEY: string
+  export function parseFlowScope(raw: unknown): FlowScope
+  export function flowEventKind(kind: unknown): FlowKind | ''
+  export function parseFlowCounts(raw: unknown): FlowCounts | null
+  export function badgeLabel(n: unknown): string
+  export function syncAppBadge(nav: unknown, n: unknown): boolean
+  export function eventAsMessage(ev: unknown): Record<string, unknown> | null
+  export function mockFlowEvents(messages: unknown[], self: string): Array<Record<string, unknown>>
+  export function mockFlowCounts(events: unknown[], seen?: string, opened?: Set<string>): FlowCounts | null
 }
 
 declare module '~/utils/channel-feed.mjs' {

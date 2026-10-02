@@ -8,6 +8,7 @@
 import { dmPeerOf } from './channel-feed.mjs'
 import { isUnread, when } from './read-cursor.mjs'
 import { isViewersOwn } from './typed-by.mjs'
+import { eventAsMessage, flowEventKind } from './flow-badge.mjs'
 
 /** How many entries the panel holds. Older ones fall off the end. */
 export const FLOW_CAP = 200
@@ -85,19 +86,34 @@ export function flowEntry(m, self = '') {
 }
 
 /**
+ * Spec 062 Mine: one entry from the hub's thin flow event (spec 4.2), with
+ * `event` (why it concerns the viewer; a poke reads as its mention) and
+ * `fresh` (the hub's unread verdict, null when it sent none).
+ */
+export function flowEventEntry(ev, self = '') {
+  const e = flowEntry(eventAsMessage(ev), self)
+  if (!e) return null
+  const kind = flowEventKind(ev.kind)
+  if (kind) e.event = kind
+  e.fresh = typeof ev.unread === 'boolean' ? ev.unread : null
+  return e
+}
+
+/**
  * Fold messages into the held entries: deduped by msg_id (a later copy - an
  * edit - replaces the held one), newest first, at most `cap`. Ties break on
  * msg_id so the order does not flicker. Returns `held` itself when nothing
- * changed, so a store can skip the write.
+ * changed, so a store can skip the write. `build` makes one entry (Mine
+ * passes flowEventEntry).
  */
-export function mergeFlow(held, messages, self = '', cap = FLOW_CAP) {
+export function mergeFlow(held, messages, self = '', cap = FLOW_CAP, build = flowEntry) {
   const by = new Map((held || []).map((e) => [e.key, e]))
   let changed = false
   for (const m of messages || []) {
-    const e = flowEntry(m, self)
+    const e = build(m, self)
     if (!e) continue
     const was = by.get(e.key)
-    if (was && was.text === e.text && was.at === e.at && was.files === e.files) continue
+    if (was && was.text === e.text && was.at === e.at && was.files === e.files && was.fresh === e.fresh && was.event === e.event) continue
     by.set(e.key, e)
     changed = true
   }
@@ -108,6 +124,11 @@ export function mergeFlow(held, messages, self = '', cap = FLOW_CAP) {
       return c !== 0 ? c : a.key.localeCompare(b.key)
     })
     .slice(0, cap)
+}
+
+/** Spec 062 Mine: the hub's flow events folded into the held Mine entries. */
+export function mergeMine(held, events, self = '') {
+  return mergeFlow(held, events, self, FLOW_CAP, flowEventEntry)
 }
 
 /** An entry leaves the stream (the message was deleted). */
@@ -124,6 +145,8 @@ export function dropFlow(held, msgId) {
 export function flowUnread(entry, cursors = {}, opened = null) {
   if (!entry || entry.mine) return false
   if (opened && opened.has(entry.key)) return false
+  /* spec 062 FR-006: a Mine entry carries the hub's verdict (f:<msg_id> or its place's mark) */
+  if (typeof entry.fresh === 'boolean') return entry.fresh
   const key = entry.kind === 'channel' ? 'ch:' + entry.channel : 'dm:' + entry.where
   return isUnread({ msg_id: entry.msg_id, ts: entry.at }, cursors[key])
 }

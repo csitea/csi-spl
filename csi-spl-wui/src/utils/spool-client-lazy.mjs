@@ -14,6 +14,7 @@ import { channelsFromView, normalizeViewMessage } from './view-api.mjs'
 import { storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
+import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, parseFlowCounts } from './flow-badge.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1061,7 +1062,74 @@ async function createIssueLabel(ctx, { name = '', color = '' } = {}) {
 }
 
 /** The client's lazy half by method name (spool-client.mjs LAZY_METHODS names the same set). */
+/* spec 062 (Flow per user): the mock's marks - f:seen and the entries opened */
+function mockFlowMarks(state) {
+  if (!state.flowMarks) state.flowMarks = { seen: '', opened: new Set() }
+  return state.flowMarks
+}
+
+/**
+ * Spec 062 §4.2: the viewer's flow events, a page (`before` = the hub's
+ * cursor), optionally one kind; `countsOnly` reads the counts alone. The hub
+ * filters and counts (FR-008); the mock derives both from its feed for `self`.
+ * Returns { events, next, counts, unread } (counts = the badge, unread = the
+ * chips; either null when the hub sends none).
+ */
+async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '' } = {}) {
+  const { live, mock, state } = ctx
+  if (mock) {
+    const marks = mockFlowMarks(state)
+    const all = mockFlowEvents(state.messages, self)
+    const counts = mockFlowCounts(all, marks.seen, marks.opened)
+    const unread = mockFlowCounts(all, '', marks.opened)
+    if (countsOnly) return { events: [], next: '', counts, unread }
+    const pick = kind ? all.filter((e) => flowEventKind(e.kind) === kind) : all
+    const from = Number(before) || 0
+    const page = pick.slice(from, from + limit).map((e, i) => ({ ...e, cursor: String(from + i + 1), unread: !marks.opened.has(String(e.msg_id)) }))
+    return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread }
+  }
+  const q = new URLSearchParams()
+  if (countsOnly) q.set('counts_only', 'true')
+  else {
+    q.set('limit', String(limit))
+    if (before) q.set('before', String(before))
+    if (kind) q.set('kind', String(kind))
+  }
+  const data = (await live(`/v1/view/flow?${q}`)) || {}
+  return {
+    events: Array.isArray(data.events) ? data.events : [],
+    next: String(data.next || ''),
+    counts: parseFlowCounts(data.counts),
+    unread: parseFlowCounts(data.unread),
+  }
+}
+
+/**
+ * Spec 062 §2.4: write the Flow's read marks - f:seen (the pane opened) and
+ * f:<msg_id> (an entry opened) - through the read-marks route. The hub then
+ * pushes a `flow` frame to every socket of the member (FR-007).
+ */
+async function markFlow(ctx, marks) {
+  const { live, mock, state } = ctx
+  if (mock) {
+    const m = mockFlowMarks(state)
+    for (const [k, v] of Object.entries(marks || {})) {
+      if (k === FLOW_SEEN_KEY) m.seen = String((v && v.ts) || '')
+      else if (k.startsWith('f:')) m.opened.add(k.slice(2))
+    }
+    return null
+  }
+  return live('/v1/me/reads', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ marks }),
+    keepalive: true,
+  })
+}
+
 export const lazySpoolMethods = {
+  listFlow,
+  markFlow,
   setChannelOrder,
   removeMember,
   listTenantUsers,

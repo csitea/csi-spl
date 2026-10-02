@@ -1524,6 +1524,16 @@
     "loading": "Loading messages…",
     "unread": "Unread",
     "you": "You",
-    "reply_in": "Reply in a thread in {place}"
+    "reply_in": "Reply in a thread in {place}",
+    "scope_label": "Show",
+    "scope_mine": "Mine",
+    "scope_all": "All",
+    "chips_label": "Filter by kind",
+    "chip_mention": "Mentions: {n}",
+    "chip_reply": "Replies in your threads: {n}",
+    "chip_dm": "Direct messages: {n}",
+    "empty_mine": "Nothing for you yet. Mentions, replies in your threads and direct messages show here.",
+    "mention_in": "Mentioned you in {place}",
+    "badge": "Flow: {n} new for you"
   }
 }

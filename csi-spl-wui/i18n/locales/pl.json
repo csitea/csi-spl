@@ -1524,6 +1524,16 @@
     "loading": "Wczytywanie wiadomości…",
     "unread": "Nieprzeczytane",
     "you": "Ty",
-    "reply_in": "Odpowiedź w wątku w {place}"
+    "reply_in": "Odpowiedź w wątku w {place}",
+    "scope_label": "Pokaż",
+    "scope_mine": "Moje",
+    "scope_all": "Wszystko",
+    "chips_label": "Filtruj według rodzaju",
+    "chip_mention": "Wzmianki: {n}",
+    "chip_reply": "Odpowiedzi w Twoich wątkach: {n}",
+    "chip_dm": "Wiadomości prywatne: {n}",
+    "empty_mine": "Na razie nic dla Ciebie. Tu pojawiają się wzmianki, odpowiedzi w Twoich wątkach i wiadomości prywatne.",
+    "mention_in": "Wspomniał(a) o Tobie w {place}",
+    "badge": "Strumień: {n} nowych dla Ciebie"
   }
 }

@@ -78,7 +78,7 @@ try {
     await p.setViewport(vp)
     p.on('pageerror', (e) => errors.push(String(e && e.message)))
     await p.evaluateOnNewDocument(() => {
-      try { localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'dev@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
+      try { localStorage.setItem('spool.flow-scope', 'all'); localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'dev@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* private mode */ }
     })
     const open = async (id) => {
       await p.goto(server.base + '/m/' + id, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })

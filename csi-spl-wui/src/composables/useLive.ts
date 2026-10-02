@@ -50,6 +50,8 @@ const reactionListeners = new Set<Listener>()
 const issueListeners = new Set<Listener>()
 /** issues-v1 §5: a label was added to the tenant catalogue. */
 const issueLabelListeners = new Set<Listener>()
+/** spec 062 `flow` frames: the viewer's Flow counts (+ the new event), this member's sockets only. */
+const flowListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -147,6 +149,9 @@ export function useLive() {
       onIssueLabel: (f: Record<string, unknown>) => {
         for (const fn of issueLabelListeners) fn(f)
       },
+      onFlow: (f: Record<string, unknown>) => {
+        for (const fn of flowListeners) fn(f)
+      },
     })
     live.connect()
     // bug B: off a retired hub revision, and awake after the tab sleeps
@@ -229,5 +234,10 @@ export function useLive() {
     return () => issueLabelListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId, welcomed }
+  function onFlow(fn: Listener) {
+    flowListeners.add(fn)
+    return () => flowListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onFlow, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId, welcomed }
 }

@@ -1524,6 +1524,16 @@
     "loading": "Sõnumite laadimine…",
     "unread": "Lugemata",
     "you": "Sina",
-    "reply_in": "Vastus lõimes kohas {place}"
+    "reply_in": "Vastus lõimes kohas {place}",
+    "scope_label": "Näita",
+    "scope_mine": "Minu",
+    "scope_all": "Kõik",
+    "chips_label": "Filtreeri liigi järgi",
+    "chip_mention": "Mainimised: {n}",
+    "chip_reply": "Vastused sinu lõimedes: {n}",
+    "chip_dm": "Otsesõnumid: {n}",
+    "empty_mine": "Sinule pole veel midagi. Siin näed mainimisi, vastuseid oma lõimedes ja otsesõnumeid.",
+    "mention_in": "Mainis sind kohas {place}",
+    "badge": "Voog: {n} uut sinule"
   }
 }

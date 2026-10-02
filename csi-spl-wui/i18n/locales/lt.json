@@ -1524,6 +1524,16 @@
     "loading": "Įkeliamos žinutės…",
     "unread": "Neperskaityta",
     "you": "Jūs",
-    "reply_in": "Atsakymas gijoje: {place}"
+    "reply_in": "Atsakymas gijoje: {place}",
+    "scope_label": "Rodyti",
+    "scope_mine": "Mano",
+    "scope_all": "Visi",
+    "chips_label": "Filtruoti pagal rūšį",
+    "chip_mention": "Paminėjimai: {n}",
+    "chip_reply": "Atsakymai jūsų gijose: {n}",
+    "chip_dm": "Asmeninės žinutės: {n}",
+    "empty_mine": "Jums kol kas nieko nėra. Čia rodomi paminėjimai, atsakymai jūsų gijose ir asmeninės žinutės.",
+    "mention_in": "Paminėjo jus {place}",
+    "badge": "Srautas: {n} naujų jums"
   }
 }

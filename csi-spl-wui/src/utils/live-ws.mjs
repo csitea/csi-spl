@@ -62,6 +62,8 @@ export const FRAMES = {
   /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
   issue: 'issue',
   issue_label: 'issue_label',
+  /* spec 062 §3.2: the viewer's Flow counts (+ the new event), to that member's sockets only */
+  flow: 'flow',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2, c-004); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -168,6 +170,7 @@ export function createLiveClient({
   onIssue = () => {},
   /** issues-v1 §5 `{type:"issue_label", label}`. */
   onIssueLabel = () => {},
+  onFlow = () => {},
   onReconnected = () => {},
   /**
    * Resolves true only when the human is signed OUT (auth-v1 §4 session 401).
@@ -441,6 +444,9 @@ export function createLiveClient({
         return
       case FRAMES.issue_label:
         onIssueLabel(f)
+        return
+      case FRAMES.flow:
+        onFlow(f)
         return
       case FRAMES.ack: {
         const p = pending.get(f.msg_id)

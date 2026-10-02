@@ -67,6 +67,8 @@ const LAZY_METHODS = [
   'deleteIssue',
   'archiveIssue',
   'createIssueLabel',
+  'listFlow',
+  'markFlow',
 ]
 
 function uuid() {

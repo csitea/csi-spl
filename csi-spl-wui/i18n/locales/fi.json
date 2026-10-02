@@ -1524,6 +1524,16 @@
     "loading": "Ladataan viestejä…",
     "unread": "Lukematon",
     "you": "Sinä",
-    "reply_in": "Vastaus ketjussa kohteessa {place}"
+    "reply_in": "Vastaus ketjussa kohteessa {place}",
+    "scope_label": "Näytä",
+    "scope_mine": "Omat",
+    "scope_all": "Kaikki",
+    "chips_label": "Suodata lajin mukaan",
+    "chip_mention": "Maininnat: {n}",
+    "chip_reply": "Vastaukset ketjuissasi: {n}",
+    "chip_dm": "Yksityisviestit: {n}",
+    "empty_mine": "Sinulle ei ole vielä mitään. Täällä näkyvät maininnat, vastaukset ketjuissasi ja yksityisviestit.",
+    "mention_in": "Mainitsi sinut kohteessa {place}",
+    "badge": "Virta: {n} uutta sinulle"
   }
 }

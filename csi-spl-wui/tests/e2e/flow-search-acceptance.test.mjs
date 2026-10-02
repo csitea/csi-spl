@@ -84,7 +84,7 @@ async function page(browser, vp, errors) {
   /* on every document, before the app boots: this suite never signs out */
   await p.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
+      localStorage.setItem('spool.flow-scope', 'all'); localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
     } catch { /* a data: frame has no storage */ }
   })
   return p

@@ -4,7 +4,7 @@
 #          moves from the old hub box (box-desk) to its own box id, step by
 #          step, with every cloud call stubbed (pin, sidecar, hub-sync, SQL).
 #   1. DRY_RUN (the default) touches nothing; TO_BOX = box-desk / = FROM_BOX /
-#      an unknown step are refused
+#      an unknown step / no FROM_BOX are refused
 #   2. pin: do_spl_desk_pin self mode for TO_BOX with the newest saved root key
 #   3. copy: one transaction copies box_operators + channel_subscriptions to
 #      TO_BOX with backfilled_at set (no back-fill burst); values are psql
@@ -46,7 +46,7 @@ spl_pg_env() { shift; { echo "PSQL $*"; cat; } >>"$SQL_LOG"; echo "rows 1"; }'
 rb() { # STEP [VAR=value]...
   local step="$1"; shift
   SNIPPET="$STUBS; do_spl_desk_rebox" in_orc SPL_STATE_DIR="$ST" SPOOL_ROOT="$S" SPOOL_FLEET_ROOT="$S" FAKESPOOL="$T/bin/fakespool" \
-    SQL_LOG="$T/sql.log" SPL_TENANTS_DIR="$T/keys" DESK_NOTIFY_CMD=off TENANT_ID=t1 TO_BOX=hom REBOX_STEP="$step" "$@"
+    SQL_LOG="$T/sql.log" SPL_TENANTS_DIR="$T/keys" DESK_NOTIFY_CMD=off TENANT_ID=t1 FROM_BOX=box-desk TO_BOX=hom REBOX_STEP="$step" "$@"
 }
 snap() { (cd "$T" && find state spool -printf '%p %y\n' | sort); }
 
@@ -58,6 +58,7 @@ out="$(rb drain 2>&1)"
 rb pin TO_BOX=box-desk DRY_RUN=0 >/dev/null 2>&1 && fail "1 TO_BOX=box-desk accepted" || pass "1 TO_BOX=box-desk refused"
 rb pin TO_BOX=hom FROM_BOX=hom DRY_RUN=0 >/dev/null 2>&1 && fail "1 TO=FROM accepted" || pass "1 TO_BOX = FROM_BOX refused"
 rb nonsense DRY_RUN=0 >/dev/null 2>&1 && fail "1 unknown step accepted" || pass "1 an unknown step refused"
+rb pin FROM_BOX= DRY_RUN=0 >/dev/null 2>&1 && fail "1 empty FROM_BOX accepted" || pass "1 FROM_BOX is required (no box-desk default)"
 
 # 2 --------------------------------------------------------------------------
 : >"$T/calls.log"

@@ -30,7 +30,9 @@ eq "5. box-config refuses box-wui (the hub's own box)" 2 "$rc"
 rc=0; bash "$BC" SPOOL_AGENT_ID_RANGE=lots >/dev/null 2>&1 || rc=$?
 eq "6. box-config refuses a malformed id band" 2 "$rc"
 
-out="$(env -u SPOOL_DESK_BOX bash "$T_SCRIPTS/spool-agent.sh" --dry-run --as CLE-58 --env dev claude 2>&1)"
+# A seat needs a window: t_sandbox unsets the pane vars (CLE-77907), so name a
+# pane. The dry run only reads its name from the sandbox socket.
+out="$(TMUX_PANE=%0 env -u SPOOL_DESK_BOX bash "$T_SCRIPTS/spool-agent.sh" --dry-run --as CLE-58 --env dev claude 2>&1)"
 has "7. spool-agent seats on the configured desk box" "DESK_BOX=box-desk-sat " "$out"
 
 left="$(grep -rnE --include='*.sh' -e '[A-Z_]BOX:-box-desk\}|\{3:-box-desk\}|BOX="box-desk"' "$ORC/src/bash/run" "$ORC/src/bash/scripts" "$ORC/lib/bash/funcs" "$T_SCRIPTS" || true)"

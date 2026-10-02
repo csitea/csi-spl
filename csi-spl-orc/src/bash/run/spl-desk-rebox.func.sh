@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Move this machine's desk in ONE tenant from its old hub box id
-# @description (FROM_BOX, default box-desk) to its own box id (TO_BOX, the
+# @description (FROM_BOX, required: e.g. box-desk) to its own box id (TO_BOX, the
 # @description machine's 3-letter name from box.env SPOOL_DESK_BOX): specs/058
 # @description M5 and section 6.5. One REBOX_STEP per call, in this order:
 # @description   pin    - mint TO_BOX's key and pin it with the tenant root key
@@ -36,7 +36,8 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param REBOX_STEP - required: pin | copy | drain | seat | resume | retire
-# @param FROM_BOX (optional) - default box-desk
+# @param FROM_BOX - required: the old box id (e.g. box-desk). No default: no desk
+# @param   action keeps a literal box-desk default (specs/058, test-desk-box-default case 8)
 # @param TO_BOX (optional) - default spl_desk_box_default; never box-desk, never FROM_BOX
 # @param ROOT_KEY_JSON (optional) - pin / retire: the tenant's 0600 create JSON;
 # @param   default the newest $SPL_TENANTS_DIR/<tenant>.*.json
@@ -44,15 +45,16 @@
 # @param DESK_NOTIFY_CMD (optional) - drain: the terminal leg, as do_spl_desk_up
 # @param DESK_MUTE (optional) - seat: as do_spl_desk_up_all
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=prd TENANT_ID=t1 TO_BOX=<box> REBOX_STEP=pin ./run -a do_spl_desk_rebox
-# @example ENV=prd TENANT_ID=t1 TO_BOX=<box> REBOX_STEP=drain DRY_RUN=0 ./run -a do_spl_desk_rebox
+# @example ENV=prd TENANT_ID=t1 FROM_BOX=box-desk TO_BOX=<box> REBOX_STEP=pin ./run -a do_spl_desk_rebox
+# @example ENV=prd TENANT_ID=t1 FROM_BOX=box-desk TO_BOX=<box> REBOX_STEP=drain DRY_RUN=0 ./run -a do_spl_desk_rebox
 #------------------------------------------------------------------------------
 do_spl_desk_rebox() {
   do_require_bin python3 yq || return 1
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" step="${REBOX_STEP:-}" from="${FROM_BOX:-box-desk}" to="${TO_BOX:-$(spl_desk_box_default)}"
+  local tenant="${TENANT_ID:-}" step="${REBOX_STEP:-}" from="${FROM_BOX:-}" to="${TO_BOX:-$(spl_desk_box_default)}"
+  [[ -n "$from" ]] || { do_log "FATAL FROM_BOX is required: the old box id this desk moves from (e.g. box-desk)"; return 1; }
   spl_desk_validate "$tenant" "$from" CLE-0 || return 1
   spl_desk_validate "$tenant" "$to" CLE-0 || return 1
   [[ "$to" != box-desk && "$to" != "$from" ]] ||

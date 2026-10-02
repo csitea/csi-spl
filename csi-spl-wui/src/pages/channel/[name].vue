@@ -10,6 +10,7 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useSessionStore } from '~/stores/session'
+import { useLive } from '~/composables/useLive'
 import { useTopicStore } from '~/stores/topic'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -74,6 +75,8 @@ watch([name, () => session.state], async ([n, st]) => {
   if (!api.mock && String(st) !== 'in') return
   notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)
+  /* CLE-77930: threads with replies past the boundary keep them as "<new>/<total>" */
+  if (name.value === n) notes.seedTopics('ch:' + normalizeChannel(n), channel.messages, channel.repliesFor, String((session.claims && session.claims.hum) || useLive().identity.value || ''))
   markRead(n)
   if (name.value !== n) return
   if (await redirectMoved(n)) return

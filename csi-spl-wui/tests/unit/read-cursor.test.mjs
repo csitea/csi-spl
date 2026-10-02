@@ -17,6 +17,9 @@ import {
   markTopicReadAt,
   topicUnread,
   topicKey,
+  seedTopicCursors,
+  unseenRepliesSince,
+  ownReplyReadAt,
 } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -157,5 +160,53 @@ describe('read cursor from a live frame (H4)', () => {
     const cursors = markReadAt({ 'ch:lobby': { ts: '2026-09-19T08:00:00Z', id: 'old', hub: 'cur-old' } }, 'ch:lobby', frame)
     assert.deepEqual(cursors['ch:lobby'], { ts: frame.received_at, id: 'm1', hub: 'cur-R' })
     assert.deepEqual(readParams(cursors), ['lobby~cur-R'])
+  })
+})
+
+describe('CLE-77930: thread replies counted by the channel badge stay visible as new', () => {
+  const B = { ts: '2026-10-02T02:00:00Z', id: 'b' }
+  const rows = [
+    { msg_id: 'r1', task_id: 'T1', from: 'CLE-1', received_at: '2026-10-01T10:00:00Z' },
+    { msg_id: 'r2', task_id: 'T1', from: 'CLE-1', received_at: '2026-10-01T11:00:00Z' },
+    { msg_id: 'r3', task_id: 'T1', from: 'CLE-1', received_at: '2026-10-02T02:05:00Z' },
+    { msg_id: 'r4', task_id: 'T1', from: 'CLE-2', received_at: '2026-10-02T02:06:00Z' },
+    { msg_id: 'r5', task_id: 'T1', from: 'HUM-10', received_at: '2026-10-02T02:07:00Z' },
+    { msg_id: 'o2', task_id: 'T2', from: 'CLE-1', received_at: '2026-10-02T02:10:00Z' },
+    { msg_id: 'c1', task_id: 'T3', parent_task_id: 'T2', from: 'CLE-3', received_at: '2026-10-02T02:11:00Z' },
+  ]
+  const totals = { T1: 4, T2: 1, T3: 0 }
+  const totalOf = (id) => totals[id] || 0
+
+  it('counts replies after the boundary per thread; an opener is not its own reply; own lines are listed apart', () => {
+    const m = unseenRepliesSince(rows, B, 'HUM-10')
+    assert.deepEqual(m.get('T1'), { unseen: 2, own: ['r5'] })
+    assert.deepEqual(m.get('T2'), { unseen: 1, own: [] })
+    assert.equal(m.has('T3'), false)
+  })
+
+  it('seeds a cursor at the boundary for an unopened thread, so its card reads <new>/<total>', () => {
+    const next = seedTopicCursors({}, B, rows, totalOf, 'HUM-10')
+    assert.deepEqual(next['t:T1'], { ts: B.ts, id: 'b', count: 2, own: ['r5'] })
+    assert.equal(topicUnread(totalOf('T1'), next['t:T1']), 2)
+    assert.equal(topicUnread(totalOf('T2'), next['t:T2']), 1)
+  })
+
+  it('never overwrites a thread the reader already opened, and seeds nothing with no boundary', () => {
+    const had = { 't:T1': { ts: '2026-10-02T02:06:30Z', id: '', count: 3 } }
+    const next = seedTopicCursors(had, B, rows, totalOf, 'HUM-10')
+    assert.equal(next['t:T1'], had['t:T1'])
+    const none = {}
+    assert.equal(seedTopicCursors(none, null, rows, totalOf, 'HUM-10'), none)
+    assert.equal(seedTopicCursors(none, { ts: '' }, rows, totalOf, 'HUM-10'), none)
+  })
+
+  it('an own reply already counted as seen is not counted again when its echo lands', () => {
+    const next = seedTopicCursors({}, B, rows, totalOf, 'HUM-10')
+    assert.equal(ownReplyReadAt(next, 'T1', rows[4]), next)
+  })
+
+  it('returns the same object when nothing is new', () => {
+    const c = {}
+    assert.equal(seedTopicCursors(c, { ts: '2026-10-03T00:00:00Z', id: '' }, rows, totalOf, 'HUM-10'), c)
   })
 })

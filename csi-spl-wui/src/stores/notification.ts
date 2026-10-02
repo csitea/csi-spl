@@ -34,6 +34,7 @@ import {
   ownReplyReadAt,
   replyTopicsOf,
   saveCursors,
+  seedTopicCursors,
   topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
@@ -288,6 +289,25 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     topicRead.value = read
   }
+  /**
+   * CLE-77930 (owner, t1 bf737f3f): as a channel opens, a thread with replies
+   * after the frozen boundary and no cursor of its own is marked AT that
+   * boundary, so its card shows them as "<new>/<total>" instead of the badge's
+   * new lines vanishing when markRead clears it (seedTopicCursors).
+   */
+  function seedTopics(key: string, messages: unknown[], totalOf: (taskId: string) => number, selfId = '') {
+    if (!import.meta.client || !key) return
+    const before = loadCursors()
+    const next = seedTopicCursors(before, boundary.value[key], messages, totalOf, selfId)
+    if (next === before) return
+    saveCursors(next)
+    const read = { ...topicRead.value }
+    for (const [k, c] of Object.entries(next)) {
+      if (k.startsWith('t:') && !before[k] && Number.isFinite((c as { count?: number }).count)) read[k.slice(2)] = Number((c as { count?: number }).count)
+    }
+    topicRead.value = read
+  }
+
   function enterFeed(key: string) {
     if (!key || key === enteredKey) return
     enteredKey = key
@@ -408,6 +428,7 @@ export const useNotificationStore = defineStore('notification', () => {
     mentions,
     boundary,
     enterFeed,
+    seedTopics,
     topicRead,
     markTopicRead,
     requestPush,

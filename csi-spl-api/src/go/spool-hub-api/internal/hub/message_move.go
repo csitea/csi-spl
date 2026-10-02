@@ -231,35 +231,8 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 		return
 	}
 	now := s.o.Now()
-	switch ok, found, err := s.canReadTopic(r.Context(), c.t.ID, task, mr.hum); {
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("task_id", task).Msg("move target topic")
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-		return
-	case !found || !ok:
-		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return
-	}
-	card, err := s.o.Store.TaskCard(r.Context(), c.t.ID, task, now)
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		writeRefusal(w, "not_a_card")
-		return
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("task_id", task).Msg("move target card")
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-		return
-	case card.Channel == "":
-		writeRefusal(w, "not_in_channel")
-		return
-	case card.IssueTopic:
-		writeRefusal(w, "issue_topic")
-		return
-	case card.Channel == store.ChannelLobby:
-		writeRefusal(w, "lobby")
-		return
-	}
-	if !s.postableChannel(w, r.Context(), c.t.ID, card.Channel, mr.hum) {
+	card, ok := s.moveTarget(w, r, mr, task, now, "move")
+	if !ok {
 		return
 	}
 	at := now.UTC().Truncate(time.Second)
@@ -368,4 +341,44 @@ func (s *Server) movePreflight(w http.ResponseWriter, r *http.Request) {
 		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// moveTarget runs the target-topic checks a message move and a topic merge
+// share: the human may read the topic, it opens with a card in a channel, it
+// is not an issue topic nor the lobby, and the human may post in its channel.
+// what names the operation in the error log. ok=false means it answered.
+func (s *Server) moveTarget(w http.ResponseWriter, r *http.Request, mr moveRow, task string, now time.Time, what string) (store.TaskCard, bool) {
+	c := mr.card
+	switch ok, found, err := s.canReadTopic(r.Context(), c.t.ID, task, mr.hum); {
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("task_id", task).Msg(what + " target topic")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return store.TaskCard{}, false
+	case !found || !ok:
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return store.TaskCard{}, false
+	}
+	card, err := s.o.Store.TaskCard(r.Context(), c.t.ID, task, now)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeRefusal(w, "not_a_card")
+		return store.TaskCard{}, false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("task_id", task).Msg(what + " target card")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return store.TaskCard{}, false
+	case card.Channel == "":
+		writeRefusal(w, "not_in_channel")
+		return store.TaskCard{}, false
+	case card.IssueTopic:
+		writeRefusal(w, "issue_topic")
+		return store.TaskCard{}, false
+	case card.Channel == store.ChannelLobby:
+		writeRefusal(w, "lobby")
+		return store.TaskCard{}, false
+	}
+	if !s.postableChannel(w, r.Context(), c.t.ID, card.Channel, mr.hum) {
+		return store.TaskCard{}, false
+	}
+	return card, true
 }

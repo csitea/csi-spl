@@ -32,6 +32,7 @@ func TestMergeTopic(t *testing.T) {
 		{"into the same topic", g.card, "HUM-1", map[string]any{"to_task": g.T}, http.StatusConflict, "same_place"},
 		{"into a topic that is not there", g.card, "HUM-1", map[string]any{"to_task": uuidV4()}, http.StatusNotFound, "not_found"},
 		{"into a topic the mover cannot read", g.card, "HUM-1", map[string]any{"to_task": g.W}, http.StatusNotFound, "not_found"},
+		{"into a thread that has no card", g.card, "HUM-1", map[string]any{"to_task": g.r3}, http.StatusConflict, "not_a_card"},
 		{"no target", g.card, "HUM-1", map[string]any{}, http.StatusBadRequest, "bad_json"},
 		{"both a target and an undo", g.card, "HUM-1", map[string]any{"to_task": g.U, "undo": map[string]any{"from_task": g.T}}, http.StatusBadRequest, "bad_json"},
 	}

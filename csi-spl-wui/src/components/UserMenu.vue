@@ -266,9 +266,10 @@ const narrow = useMobileStack().isMobile
 const phone = () => narrow.value || window.matchMedia(MOBILE_STACK_QUERY).matches
 
 function placePanel() {
-  // the bottom sheet is placed by CSS, not next to the button
-  if (phone()) return
   const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
+  /* the bottom sheet is placed by CSS, not next to the button: a popover
+     style left from a desktop open (the panel is v-show) must not override it */
+  if (phone()) { panel?.removeAttribute('style'); return }
   const btn = trigger.value
   if (!panel || !btn) return
   const r = btn.getBoundingClientRect()
@@ -534,8 +535,8 @@ watch(signedIn, (v) => { if (!v) close(false) })
   .user-menu__signin-label { display: none; }
 }
 .user-menu__grip, .user-menu__prefs { display: none; }
-/* SPL-990: the bottom sheet. !important beats a leftover inline popover
-   style from a desktop open before a rotation (the watch clears it too). */
+/* SPL-990: the bottom sheet. A popover style left from a desktop open is
+   removed by placePanel() and by the rotation watch, so plain rules win. */
 @media (max-width: 820px) {
   .user-menu__scrim {
     position: fixed;
@@ -544,12 +545,12 @@ watch(signedIn, (v) => { if (!v) close(false) })
     background: rgb(0 0 0 / .45);
   }
   .user-menu__panel {
-    position: fixed !important;
-    inset-inline: 0 !important;
-    top: auto !important;
-    bottom: 0 !important;
-    width: auto !important;
-    max-width: none !important;
+    position: fixed;
+    inset-inline: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-width: none;
     max-height: 85dvh;
     overflow-y: auto;
     overscroll-behavior: contain;

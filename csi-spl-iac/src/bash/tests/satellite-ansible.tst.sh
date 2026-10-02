@@ -137,7 +137,8 @@ grep -q 'docker exec -i "$con" bash "$script"' "$PROJ_PATH/src/bash/run/satellit
 v="$PROJ_PATH/src/bash/run/satellite-verify.func.sh"
 grep -q '^_satellite_verify_users()' "$v" && grep -q '/etc/csi-spl-satellite.env' "$v" && grep -q '/etc/csi-spl-satellite.env' "$R/05_users/tasks/main.yml" \
   && pass "verify reads the users the playbook recorded" || fail "verify has no users block"
-grep -q 'sudo -n -u ${agent} -H bash -s' "$v" && pass "verify runs the replica checks as the agent user" || fail "verify does not check as the agent"
+grep -qF "sudo -n -u \${agent} -H bash -c 'cd \\\"\\\$HOME\\\" && exec bash -s'" "$v" && pass "verify runs the replica checks as the agent, from its home (run 4)" || fail "verify does not check as the agent from its home"
+grep -qF "sudo -n env O='\${owner}' A='\${agent}' bash -s" "$v" && pass "verify passes the user names through sudo (env, run 4)" || fail "verify sets the user names before sudo (sudo drops them)"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

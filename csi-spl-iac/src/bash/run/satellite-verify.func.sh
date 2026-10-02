@@ -110,9 +110,16 @@ _satellite_verify_replica() {
   script=$(_satellite_versions_script)
   here=$(bash -c "$script" 2>/dev/null)
   there=$("${SATELLITE_AS_AGENT[@]}" <<<"$script" 2>/dev/null)
+  # present = PASS, the box PC's version is shown for reference; go is held to
+  # CI's pin (go.mod), which the playbook installs, not to the box PC's drift
+  local gopin
+  # the sibling *-api dir: ./run sets APP to the checkout's dir name, so no ${APP} here
+  gopin=$(sed -n 's/^go \([0-9.]*\)$/\1/p' "${PROJ_PATH}"/../*-api/src/go/spool-hub-api/go.mod 2>/dev/null | head -n 1)
   while read -r _ name hv; do
     sv=$(awk -v n="$name" '$1 == "ver" && $2 == n { print $3 }' <<<"$there")
-    if [[ -n "$sv" && "$sv" != MISSING ]]; then ok "tool $name box=$hv satellite=$sv"; else ko "tool $name box=$hv satellite=${sv:-MISSING}"; fi
+    if [[ "$name" == go && -n "$gopin" ]]; then
+      [[ "$sv" == "$gopin" ]] && ok "tool go satellite=$sv = go.mod pin (box=$hv)" || ko "tool go satellite=${sv:-MISSING}, want the go.mod pin $gopin (box=$hv)"
+    elif [[ -n "$sv" && "$sv" != MISSING ]]; then ok "tool $name box=$hv satellite=$sv"; else ko "tool $name box=$hv satellite=${sv:-MISSING}"; fi
   done <<<"$here"
 
   local remote repo
@@ -121,7 +128,7 @@ _satellite_verify_replica() {
   remote=$({ printf "DIR='%s'\n" "/opt/csi/${repo##*/}"; cat <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
 [ -s "$HOME/.claude/CLAUDE.md" ] && echo "cfg claude-md ok"
-jq -e '.statusLine and .permissions' "$HOME/.claude/settings.json" >/dev/null 2>&1 && echo "cfg settings ok"
+jq -e . "$HOME/.claude/settings.json" >/dev/null 2>&1 && grep -q '^\.claude/settings\.json	' "$HOME/.claude/.claude-config.tsv" 2>/dev/null && echo "cfg settings ok"
 echo "cfg skills $(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
 echo "cfg memory $(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -type d -name memory 2>/dev/null | wc -l)"
 [ -s "$HOME/.tmux.conf" ] && echo "cfg tmux ok"
@@ -134,7 +141,7 @@ echo "cfg tz $(timedatectl show -p Timezone --value 2>/dev/null)"
 REMOTE
 } | "${SATELLITE_AS_AGENT[@]}" 2>/dev/null)
   local c
-  for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (statusLine, permissions)" tmux:"~/.tmux.conf" \
+  for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (valid, managed by claude-config)" tmux:"~/.tmux.conf" \
     git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" claude-login:"claude is logged in (claude auth status)" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
     grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${SATELLITE_AGENT}: ${c#*:}" || ko "${SATELLITE_AGENT}: ${c#*:}"
   done
@@ -163,9 +170,12 @@ _satellite_verify_users() {
     return 0
   fi
   SATELLITE_AGENT="$agent"
-  SATELLITE_AS_AGENT=(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n -u ${agent} -H bash -s")
+  # cd "$HOME": the ssh login's cwd (its home, 0750) is unreadable to the agent,
+  # and go / terraform / trivy / pnpm then fail to start (run 4: four false FAILs)
+  SATELLITE_AS_AGENT=(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n -u ${agent} -H bash -c 'cd \"\$HOME\" && exec bash -s'")
   # shellcheck disable=SC2029
-  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "O='${owner}' A='${agent}' sudo -n bash -s" 2>/dev/null <<'REMOTE'
+  # the names go AFTER sudo: sudo drops env set before it (run 4: 13 false FAILs)
+  out=$(ssh -o BatchMode=yes "${SATELLITE_SSH[@]}" "sudo -n env O='${owner}' A='${agent}' bash -s" 2>/dev/null <<'REMOTE'
 for u in "$O" "$A"; do
   id "$u" >/dev/null 2>&1 || { echo "user $u missing"; continue; }
   echo "user $u uid $(id -u "$u")"

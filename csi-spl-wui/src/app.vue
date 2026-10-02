@@ -3,8 +3,10 @@
     <NuxtPage />
   </NuxtLayout>
   <LazyTenantNotMember v-if="tenantNotMember.tenant" />
-  <!-- CLE-77853: Settings is a modal over whatever view is open (?settings=) -->
-  <ClientOnly><SettingsDialog /></ClientOnly>
+  <!-- CLE-77853: Settings is a modal over whatever view is open (?settings=).
+       CLE-77925: its own chunk, mounted the first time ?settings= appears and
+       kept mounted after (close, focus return), not in the initial JS. -->
+  <ClientOnly><LazySettingsDialog v-if="settingsMounted" /></ClientOnly>
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
 </template>
@@ -17,6 +19,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { setTimeZoneSource } from '~/utils/date-iso.mjs'
+import { settingsQuerySection } from '~/utils/settings-nav.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
@@ -28,6 +31,12 @@ const appVersion = String(useRuntimeConfig().public.appVersion || '')
 const tenantNotMember = useState<{ tenant: string, home: string, pending?: string }>('tenant-host-not-member', () => ({ tenant: '', home: '', pending: '' }))
 
 const { locale } = useI18n({ useScope: 'global' })
+
+const route = useRoute()
+const settingsMounted = ref(false)
+watch(() => settingsQuerySection(route.query as Record<string, unknown>) !== null, (open) => {
+  if (open) settingsMounted.value = true
+}, { immediate: true })
 
 const rtlLocales: Record<string, true> = { he: true }
 

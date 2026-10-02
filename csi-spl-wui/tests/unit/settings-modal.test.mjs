@@ -74,7 +74,12 @@ ok('the dialog is the shared UiDialog, routed', /<UiDialog[^>]*\brouted\b/.test(
 ok('the dialog is large, like the Edit epic dialog', /<UiDialog[^>]*size="lg"/.test(dialog))
 ok('section links replace (Back closes, not walks sections)', (dialog.match(/\breplace\b/g) || []).length >= 2)
 for (const s of SETTINGS_SECTIONS) ok(`the dialog mounts components/settings/${s.id}.vue`, dialog.includes(`~/components/settings/${s.id}.vue`) && existsSync(join(WUI, `src/components/settings/${s.id}.vue`)))
-ok('app.vue mounts the dialog once', (read('src/app.vue').match(/<SettingsDialog\b/g) || []).length === 1)
+const app = read('src/app.vue')
+ok('app.vue mounts the dialog once', (app.match(/<(?:Lazy)?SettingsDialog\b/g) || []).length === 1)
+/* CLE-77925: the dialog is its own chunk, not initial JS - mounted the first
+   time ?settings= appears and kept mounted after */
+ok('app.vue mounts the dialog lazily, on the first ?settings=',
+  /<LazySettingsDialog v-if="settingsMounted"/.test(app) && /settingsQuerySection\(route\.query[^)]*\) !== null/.test(app))
 const mw = read('src/middleware/settings-modal.global.ts')
 ok('the middleware redirects the old addresses', /isSettingsPath/.test(mw) && /settingsModalTarget/.test(mw) && /navigateTo/.test(mw))
 ok('no settings page replaces the view', !existsSync(join(WUI, 'src/pages/settings.vue')) && !existsSync(join(WUI, 'src/pages/settings/index.vue')))

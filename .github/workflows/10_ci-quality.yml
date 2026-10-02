@@ -211,6 +211,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # Each Chrome launch writes a ~80 MB profile and nuxt generate its build
+      # scratch to TMPDIR: on the job's disk, not the box's shared /tmp tmpfs
+      # (see hub-suite; bf696733: a browser launch hit /tmp full).
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
       - name: Set up pnpm (version from package.json packageManager)
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
@@ -443,6 +449,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: csi/csi-spl
+
+      # The tests' go builds (100-380 MB go-build work dirs each) and mktemp
+      # fixtures go to the job's disk, not the box's shared /tmp tmpfs (see
+      # hub-suite).
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
 
       - name: Set up Go (version from go.mod)
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5

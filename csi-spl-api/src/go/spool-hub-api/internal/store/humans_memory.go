@@ -309,104 +309,44 @@ func (s *Memory) SetAvatar(_ context.Context, humanID, fileID string) error {
 	if err := checkFileID(fileID); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.avatar = fileID
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.avatar = fileID })
 }
 
 func (s *Memory) Avatar(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.avatar, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.avatar })
 }
 
 func (s *Memory) SetPreferredLocale(_ context.Context, humanID, locale string) error {
 	if err := checkLocale(locale); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.locale = locale
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.locale = locale })
 }
 
 func (s *Memory) PreferredLocale(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.locale, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.locale })
 }
 
 func (s *Memory) SetPreferredTheme(_ context.Context, humanID, theme string) error {
 	if err := checkTheme(theme); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.theme = theme
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.theme = theme })
 }
 
 func (s *Memory) PreferredTheme(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.theme, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.theme })
 }
 
 func (s *Memory) SetSubmitKey(_ context.Context, humanID, key string) error {
 	if err := checkSubmitKey(key); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.submitKey = key
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.submitKey = key })
 }
 
 func (s *Memory) SubmitKey(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.submitKey, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.submitKey })
 }
 
 func (s *Memory) SetRailOrder(_ context.Context, humanID string, order []string) error {
@@ -477,15 +417,7 @@ func (s *Memory) SetIssueColumns(_ context.Context, humanID string, cols map[str
 	if err := checkIssueColumns(cols); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.issueCols = copyCols(cols)
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.issueCols = copyCols(cols) })
 }
 
 func (s *Memory) IssueColumns(_ context.Context, humanID string) (map[string]int, error) {
@@ -512,61 +444,23 @@ func copyCols(cols map[string]int) map[string]int {
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.name = name
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.name = name })
 }
 
 func (s *Memory) DisplayName(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.name, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.name })
 }
 
 func (s *Memory) SetInterests(_ context.Context, humanID, interests string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.interests = interests
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.interests = interests })
 }
 
 func (s *Memory) Interests(_ context.Context, humanID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return "", ErrNotFound
-	}
-	return hm.interests, nil
+	return s.humanText(humanID, func(hm *memHuman) string { return hm.interests })
 }
 
 func (s *Memory) SetDiagnosticsEnabled(_ context.Context, humanID string, on bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hum.init()
-	hm, ok := s.hum.humans[humanID]
-	if !ok {
-		return ErrNotFound
-	}
-	hm.diagnostics = on
-	return nil
+	return s.withHuman(humanID, func(hm *memHuman) { hm.diagnostics = on })
 }
 
 func (s *Memory) DiagnosticsEnabled(_ context.Context, humanID string) (bool, error) {
@@ -633,4 +527,25 @@ func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]str
 		}
 	}
 	return out, nil
+}
+
+// withHuman runs fn on the human under the store lock; a missing human is
+// ErrNotFound and fn does not run.
+func (s *Memory) withHuman(humanID string, fn func(*memHuman)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	fn(hm)
+	return nil
+}
+
+// humanText reads one text field of the human; a missing human is ErrNotFound.
+func (s *Memory) humanText(humanID string, get func(*memHuman) string) (string, error) {
+	var v string
+	err := s.withHuman(humanID, func(hm *memHuman) { v = get(hm) })
+	return v, err
 }

@@ -92,17 +92,13 @@ func (s *Memory) UnheardPosts(_ context.Context, tenant string, since, until tim
 	s.fb.init()
 	var ms []*Message
 	for k, m := range s.messages {
-		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
-			m.ReceivedAt.Before(since) || !m.ReceivedAt.Before(until) {
+		if k[0] != tenant || !humanPostIn(m, since, until) {
 			continue
 		}
 		if _, ok := s.fb.delivered[k]; ok {
 			continue
 		}
-		if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
-			continue // a DM to a person
-		}
-		if m.Channel != "" && s.fb.off[[2]string{tenant, m.Channel}] {
+		if !s.wantsFallback(tenant, m) {
 			continue
 		}
 		heard := false
@@ -116,20 +112,7 @@ func (s *Memory) UnheardPosts(_ context.Context, tenant string, since, until tim
 			ms = append(ms, m)
 		}
 	}
-	sort.Slice(ms, func(i, j int) bool {
-		if !ms[i].ReceivedAt.Equal(ms[j].ReceivedAt) {
-			return ms[i].ReceivedAt.Before(ms[j].ReceivedAt)
-		}
-		return ms[i].MsgID < ms[j].MsgID
-	})
-	if len(ms) > limit {
-		ms = ms[:limit]
-	}
-	out := make([]Queued, len(ms))
-	for i, m := range ms {
-		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
-	}
-	return out, nil
+	return oldestFirst(ms, limit), nil
 }
 
 func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
@@ -138,45 +121,20 @@ func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until 
 	s.fb.init()
 	var ms []*Message
 	for k, m := range s.messages {
-		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
-			m.ReceivedAt.Before(since) || !m.ReceivedAt.Before(until) {
+		if k[0] != tenant || !humanPostIn(m, since, until) {
 			continue
 		}
 		if _, ok := s.fb.delivered[k]; ok {
 			continue
 		}
-		if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
-			continue // a DM to a person
-		}
-		if m.Channel != "" && s.fb.off[[2]string{tenant, m.Channel}] {
+		if !s.wantsFallback(tenant, m) {
 			continue
 		}
-		answered := false
-		for _, r := range s.messages {
-			if r.TenantID == tenant && r.TaskID == m.TaskID && r.ReceivedAt.After(m.ReceivedAt) &&
-				r.FromBox != "box-wui" && !strings.HasPrefix(r.FromID, "HUM-") && !strings.HasPrefix(r.FromID, "GST-") {
-				answered = true
-				break
-			}
-		}
-		if !answered {
+		if !s.answered(tenant, m) {
 			ms = append(ms, m)
 		}
 	}
-	sort.Slice(ms, func(i, j int) bool {
-		if !ms[i].ReceivedAt.Equal(ms[j].ReceivedAt) {
-			return ms[i].ReceivedAt.Before(ms[j].ReceivedAt)
-		}
-		return ms[i].MsgID < ms[j].MsgID
-	})
-	if len(ms) > limit {
-		ms = ms[:limit]
-	}
-	out := make([]Queued, len(ms))
-	for i, m := range ms {
-		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
-	}
-	return out, nil
+	return oldestFirst(ms, limit), nil
 }
 
 func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
@@ -185,29 +143,17 @@ func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, esc
 	s.fb.init()
 	var ms []*Message
 	for k, m := range s.messages {
-		if k[0] != tenant || m.FromBox != "box-wui" || !strings.HasPrefix(m.FromID, "HUM-") || m.EnvSig == "" ||
-			m.ReceivedAt.Before(since) || !m.ReceivedAt.Before(until) {
+		if k[0] != tenant || !humanPostIn(m, since, until) {
 			continue
 		}
 		d, ok := s.fb.delivered[k]
 		if !ok || !d.DeliveredAt.Before(escalatedBefore) || d.Attempts >= maxAttempts {
 			continue
 		}
-		if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
+		if !s.wantsFallback(tenant, m) {
 			continue
 		}
-		if m.Channel != "" && s.fb.off[[2]string{tenant, m.Channel}] {
-			continue
-		}
-		answered := false
-		for _, r := range s.messages {
-			if r.TenantID == tenant && r.TaskID == m.TaskID && r.ReceivedAt.After(m.ReceivedAt) &&
-				r.FromBox != "box-wui" && !strings.HasPrefix(r.FromID, "HUM-") && !strings.HasPrefix(r.FromID, "GST-") {
-				answered = true
-				break
-			}
-		}
-		if !answered {
+		if !s.answered(tenant, m) {
 			ms = append(ms, m)
 		}
 	}
@@ -226,6 +172,52 @@ func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, esc
 		out[i] = Queued{MsgID: m.MsgID, Env: m.Env, LastAgent: s.fb.delivered[[2]string{tenant, m.MsgID}].Agent}
 	}
 	return out, nil
+}
+
+// humanPostIn: m is a signed post a human typed in the WUI, received in
+// [since, until) - the only lines the fallback ever answers for.
+func humanPostIn(m *Message, since, until time.Time) bool {
+	return m.FromBox == "box-wui" && strings.HasPrefix(m.FromID, "HUM-") && m.EnvSig != "" &&
+		!m.ReceivedAt.Before(since) && m.ReceivedAt.Before(until)
+}
+
+// wantsFallback: m is not a DM to a person and its channel has not opted out.
+// The caller holds s.mu.
+func (s *Memory) wantsFallback(tenant string, m *Message) bool {
+	if m.Channel == "" && (strings.HasPrefix(m.ToID, "HUM-") || strings.HasPrefix(m.ToID, "GST-") || m.ToID == "ALL-0") {
+		return false // a DM to a person
+	}
+	return m.Channel == "" || !s.fb.off[[2]string{tenant, m.Channel}]
+}
+
+// answered: an agent (not the WUI, not a human or guest) wrote in m's topic
+// after it. The caller holds s.mu.
+func (s *Memory) answered(tenant string, m *Message) bool {
+	for _, r := range s.messages {
+		if r.TenantID == tenant && r.TaskID == m.TaskID && r.ReceivedAt.After(m.ReceivedAt) &&
+			r.FromBox != "box-wui" && !strings.HasPrefix(r.FromID, "HUM-") && !strings.HasPrefix(r.FromID, "GST-") {
+			return true
+		}
+	}
+	return false
+}
+
+// oldestFirst orders posts by received_at, then msg_id, and keeps limit.
+func oldestFirst(ms []*Message, limit int) []Queued {
+	sort.Slice(ms, func(i, j int) bool {
+		if !ms[i].ReceivedAt.Equal(ms[j].ReceivedAt) {
+			return ms[i].ReceivedAt.Before(ms[j].ReceivedAt)
+		}
+		return ms[i].MsgID < ms[j].MsgID
+	})
+	if len(ms) > limit {
+		ms = ms[:limit]
+	}
+	out := make([]Queued, len(ms))
+	for i, m := range ms {
+		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
+	}
+	return out
 }
 
 func (s *Memory) ChannelFallbacks(_ context.Context, tenant, channel string, since time.Time) (FallbackSummary, error) {

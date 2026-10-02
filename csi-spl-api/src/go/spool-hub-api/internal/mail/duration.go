@@ -54,73 +54,112 @@ func fSlavic(one, few, many string) forms {
 	return x
 }
 
-// pluralCategory is the CLDR cardinal rule of locale for a non-negative integer.
+// pluralCategory is the CLDR cardinal rule of locale for a non-negative
+// integer; a locale without its own rule counts one / other, as English does.
 func pluralCategory(locale string, n int) int {
-	m10, m100 := n%10, n%100
-	switch locale {
-	case "ru", "uk", "sr":
-		switch {
-		case m10 == 1 && m100 != 11:
-			return catOne
-		case m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14):
-			return catFew
-		}
-		return catMany
-	case "pl":
-		switch {
-		case n == 1:
-			return catOne
-		case m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14):
-			return catFew
-		}
-		return catMany
-	case "sk":
-		switch {
-		case n == 1:
-			return catOne
-		case n >= 2 && n <= 4:
-			return catFew
-		}
-		return catMany
-	case "lt":
-		switch {
-		case m10 == 1 && (m100 < 11 || m100 > 19):
-			return catOne
-		case m10 >= 2 && (m100 < 11 || m100 > 19):
-			return catFew
-		}
-		return catMany
-	case "lv":
-		switch {
-		case m10 == 0 || (m100 >= 11 && m100 <= 19):
-			return catZero
-		case m10 == 1 && m100 != 11:
-			return catOne
-		}
-		return catOther
-	case "ro":
-		switch {
-		case n == 1:
-			return catOne
-		case n == 0 || (m100 >= 2 && m100 <= 19):
-			return catFew
-		}
-		return catOther
-	case "he":
-		switch n {
-		case 1:
-			return catOne
-		case 2:
-			return catTwo
-		}
-		return catOther
-	case "mk":
-		if m10 == 1 && m100 != 11 {
-			return catOne
-		}
-		return catOther
+	if rule, ok := pluralRules[locale]; ok {
+		return rule(n, n%10, n%100)
 	}
+	return oneOther(n, n%10, n%100)
+}
+
+// pluralRule maps n (with n%10 and n%100) to its plural category.
+type pluralRule func(n, m10, m100 int) int
+
+var pluralRules = map[string]pluralRule{
+	"ru": eastSlavic, "uk": eastSlavic, "sr": eastSlavic,
+	"pl": polish,
+	"sk": slovak,
+	"lt": lithuanian,
+	"lv": latvian,
+	"ro": romanian,
+	"he": hebrew,
+	"mk": macedonian,
+}
+
+func oneOther(n, _, _ int) int {
 	if n == 1 {
+		return catOne
+	}
+	return catOther
+}
+
+// fewTeen: ends in 2..4 but not in 12..14 (the Slavic "few").
+func fewTeen(m10, m100 int) bool { return m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) }
+
+func eastSlavic(_, m10, m100 int) int {
+	switch {
+	case m10 == 1 && m100 != 11:
+		return catOne
+	case fewTeen(m10, m100):
+		return catFew
+	}
+	return catMany
+}
+
+func polish(n, m10, m100 int) int {
+	switch {
+	case n == 1:
+		return catOne
+	case fewTeen(m10, m100):
+		return catFew
+	}
+	return catMany
+}
+
+func slovak(n, _, _ int) int {
+	switch {
+	case n == 1:
+		return catOne
+	case n >= 2 && n <= 4:
+		return catFew
+	}
+	return catMany
+}
+
+func lithuanian(_, m10, m100 int) int {
+	teen := m100 >= 11 && m100 <= 19
+	switch {
+	case m10 == 1 && !teen:
+		return catOne
+	case m10 >= 2 && !teen:
+		return catFew
+	}
+	return catMany
+}
+
+func latvian(_, m10, m100 int) int {
+	switch {
+	case m10 == 0 || (m100 >= 11 && m100 <= 19):
+		return catZero
+	case m10 == 1 && m100 != 11:
+		return catOne
+	}
+	return catOther
+}
+
+func romanian(n, _, m100 int) int {
+	switch {
+	case n == 1:
+		return catOne
+	case n == 0 || (m100 >= 2 && m100 <= 19):
+		return catFew
+	}
+	return catOther
+}
+
+func hebrew(n, _, _ int) int {
+	switch n {
+	case 1:
+		return catOne
+	case 2:
+		return catTwo
+	}
+	return catOther
+}
+
+func macedonian(_, m10, m100 int) int {
+	if m10 == 1 && m100 != 11 {
 		return catOne
 	}
 	return catOther

@@ -4,6 +4,8 @@ import (
 	"context"
 	"regexp"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // FleetLease is one role's fleet-wide lease (rdb 0094, CLE-77911): exactly
@@ -22,9 +24,12 @@ type FleetLease struct {
 
 // The shapes 0094/0095's CHECKs accept, so a refusal is a 400, not a 500.
 var (
-	FleetNameRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
-	FleetHolderRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+@[a-z0-9][a-z0-9-]{0,31}$`)
+	FleetNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 )
+
+// ValidFleetHolder is a lease holder, <agent id>@<box>, the id in either
+// grammar (spec 061, agentid).
+func ValidFleetHolder(s string) bool { return agentid.IsAtBox(s) }
 
 // FleetLeases is the lease half of the store contract.
 type FleetLeases interface {

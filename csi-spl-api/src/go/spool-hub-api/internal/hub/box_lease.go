@@ -73,7 +73,7 @@ func (s *Server) boxLease(ctx context.Context, x *session, f wire.Frame) (leaseA
 	case "get":
 		l, err = s.o.Store.GetFleetLease(ctx, x.tenant, f.Fleet, f.LeaseRole, now)
 	case "cas":
-		if !store.FleetHolderRe.MatchString(f.Holder) {
+		if !store.ValidFleetHolder(f.Holder) {
 			return leaseAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "holder must be <agent id>@<box>"}
 		}
 		if f.IfGen < 0 {

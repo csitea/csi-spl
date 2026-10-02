@@ -32,7 +32,7 @@ func Lease(ctx context.Context, cfg *config.Config, in LeaseArgs) (json.RawMessa
 	}
 	op := "get"
 	if in.Holder != "" {
-		if !store.FleetHolderRe.MatchString(in.Holder) {
+		if !store.ValidFleetHolder(in.Holder) {
 			return nil, fmt.Errorf("--holder must be <agent id>@<box>")
 		}
 		if in.IfGen < 0 {

@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -50,9 +50,9 @@ func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}", s.channelInvitePreflight)
 }
 
-// agentIDRe is an agent id (CLE-07, GRK-03, AGY-02). A human is HUM-* and
-// is not invited on the agent door.
-var agentIDRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
+// isAgentID is an agent id in either grammar (spec 061, agentid: c-004,
+// CLE-07). A human is HUM-* and is not invited on the agent door.
+func isAgentID(id string) bool { return agentid.IsParticipant(id) && !strings.HasPrefix(id, "HUM-") }
 
 // mayInviteChannel is who may add a person or an agent. The owner may.
 // Any current member may when members_open_invite is on. A channel whose
@@ -358,7 +358,7 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {id, box}")
 		return
 	}
-	if !agentIDRe.MatchString(body.ID) || strings.HasPrefix(body.ID, "HUM-") || body.Box == "box-wui" || strings.ContainsAny(body.Box, " \t") {
+	if !isAgentID(body.ID) || body.Box == "box-wui" || strings.ContainsAny(body.Box, " \t") {
 		writeErr(w, http.StatusBadRequest, "bad_json", "id must be an agent and box must not be box-wui")
 		return
 	}
@@ -414,7 +414,7 @@ func (s *Server) handleRemoveChannelAgent(w http.ResponseWriter, r *http.Request
 	}
 	box := r.PathValue("box")
 	id := r.PathValue("id")
-	if !agentIDRe.MatchString(id) || strings.HasPrefix(id, "HUM-") || box == "" || box == "box-wui" {
+	if !isAgentID(id) || box == "" || box == "box-wui" {
 		writeErr(w, http.StatusBadRequest, "bad_json", "id must be an agent and box must not be box-wui")
 		return
 	}

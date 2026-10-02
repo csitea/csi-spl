@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // A tenant's issues, the way Linear keeps them (rdb 0047, specs/039,
@@ -113,11 +115,10 @@ var ErrEpicHasIssues = errors.New("epic still has issues")
 var ErrIssueHasChildren = errors.New("issue still has children")
 
 var (
-	issueAssigneeRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
-	issueLabelIDRe  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
-	issueColorRe    = regexp.MustCompile(`^#[0-9a-f]{6}$`)
-	issuePrefixRe   = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,9}$`)
-	labelSlugRe     = regexp.MustCompile(`[^a-z0-9]+`)
+	issueLabelIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
+	issueColorRe   = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+	issuePrefixRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,9}$`)
+	labelSlugRe    = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 // Issue is one row of issues. Parent 0 = none. Deadline, CompletedAt and
@@ -372,7 +373,7 @@ func checkIssue(i *Issue) error {
 		return invalidIssue("prio must be %d..%d", IssuePriorityMin, IssuePriorityMax)
 	case i.Level != 0 && (i.Level < IssueLevelMin || i.Level > IssueLevelMax):
 		return invalidIssue("level must be %d..%d", IssueLevelMin, IssueLevelMax)
-	case i.Assignee != "" && !issueAssigneeRe.MatchString(i.Assignee):
+	case i.Assignee != "" && !agentid.IsParticipant(i.Assignee):
 		return invalidIssue("assignee must be a member or agent id")
 	case i.Parent < 0 || (i.Parent != 0 && i.Parent == i.Number):
 		return invalidIssue("parent must be another issue")

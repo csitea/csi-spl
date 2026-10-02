@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sort"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // FleetLane is one agent's row in the fleet-wide lane map (rdb 0096,
@@ -32,11 +34,16 @@ const LaneDoneTTL = 7 * 24 * time.Hour
 
 // The shapes 0096's CHECKs enforce, so a refusal is a 400, not a 500.
 var (
-	LaneAgentRe  = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]{1,9}$`)
 	LaneRepoRe   = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9_.-]{0,63})?$`)
 	LaneBranchRe = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9._/-]{0,199})?$`)
 	LaneTopicRe  = regexp.MustCompile(`^([A-Za-z0-9_-]{1,64})?$`)
 )
+
+// ValidFleetAgent is a fleet row's agent id as 0096/0097 accept it: either
+// grammar (spec 061, agentid), a legacy number of at most 9 digits.
+func ValidFleetAgent(id string) bool {
+	return agentid.IsParticipant(id) && len(agentid.Number(id)) <= 9
+}
 
 // Lane field limits (0096).
 const (
@@ -107,7 +114,7 @@ func CheckFleetLane(l FleetLane) string {
 	switch {
 	case !FleetNameRe.MatchString(l.Fleet):
 		return "fleet must be a lowercase slug ([a-z0-9-], up to 32)"
-	case !LaneAgentRe.MatchString(l.AgentID):
+	case !ValidFleetAgent(l.AgentID):
 		return "agent must be an agent id like CLE-07"
 	case !FleetNameRe.MatchString(l.AgentBox):
 		return "box must be the agent's desk box id ([a-z0-9-], up to 32)"

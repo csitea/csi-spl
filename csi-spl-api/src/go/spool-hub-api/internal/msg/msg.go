@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // Schema versions. v:2 is v:1 as shipped (files[] mode/kind/path written
@@ -55,9 +57,6 @@ const KindList = "task|result|note|reject|blocker|msg"
 
 // ValidKind reports whether k is a kind the hub accepts.
 func ValidKind(k string) bool { return validKinds[k] }
-
-// idRe matches an agent id: a 2-4 letter kind prefix and a number, e.g. CLE-07.
-var idRe = regexp.MustCompile(`^[A-Z]{2,4}-\d+$`)
 
 // LegacySender is the `from` of a legacy .md message whose sender is not an
 // agent id (e.g. the orchestrator's `--ORC--` files): a valid id, so the
@@ -218,10 +217,11 @@ func (a Attachment) validate() error {
 	return nil
 }
 
-// ValidID reports whether s is a well-formed agent id.
+// ValidID reports whether s is a well-formed participant id, an agent id in
+// either grammar (spec 061, agentid) or HUM-/GST-/... .
 // BOX is forbidden as a prefix: the box id lives in env, not in from/to.
 func ValidID(s string) bool {
-	return idRe.MatchString(s) && !strings.HasPrefix(s, "BOX-")
+	return agentid.IsParticipant(s) && !strings.HasPrefix(s, "BOX-")
 }
 
 // ValidBoxID reports whether s is a well-formed box id.

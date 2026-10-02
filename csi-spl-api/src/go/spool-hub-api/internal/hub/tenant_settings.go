@@ -156,7 +156,7 @@ func responderList(w http.ResponseWriter, ids []string) ([]string, bool) {
 	seen := map[string]bool{}
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
-		if !agentIDRe.MatchString(id) || strings.HasPrefix(id, "HUM-") {
+		if !isAgentID(id) {
 			writeErr(w, http.StatusBadRequest, "bad_responder", "responders must be agent ids (CLE-01, GRK-03)")
 			return nil, false
 		}

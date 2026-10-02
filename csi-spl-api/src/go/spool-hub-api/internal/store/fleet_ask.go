@@ -4,7 +4,10 @@ import (
 	"context"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // FleetAsk is one ask to the orchestrator (rdb 0097, CLE-77929, owner bug t1
@@ -73,9 +76,15 @@ type AskUpdate struct {
 
 // The shapes 0097's CHECKs enforce, so a refusal is a 400, not a 500.
 var (
-	AskIDRe    = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	AskAgentRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]{1,9}(@[a-z0-9][a-z0-9-]{0,31})?$`)
+	AskIDRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
+
+// ValidAskAgent is an ask's from / acked_by / closed_by as 0097 accepts it:
+// <ID> or <ID>@<box>, the id in either grammar (spec 061, agentid).
+func ValidAskAgent(s string) bool {
+	id, _ := agentid.SplitAtBox(s)
+	return ValidFleetAgent(id) && (!strings.Contains(s, "@") || agentid.IsAtBox(s))
+}
 
 // Ask field limits (0097).
 const AskTextMax = 500
@@ -133,7 +142,7 @@ func CheckFleetAsk(a FleetAsk) string {
 		return "ask_id must be the msg_id (a lowercase UUID) of the message that raised it"
 	case a.Kind != "blocker" && a.Kind != "task" && a.Kind != "escalation":
 		return "kind must be blocker, task or escalation"
-	case !AskAgentRe.MatchString(a.From):
+	case !ValidAskAgent(a.From):
 		return "from must be the sender, <ID> or <ID>@<box>"
 	case !LaneTopicRe.MatchString(a.Topic):
 		return "topic must be a task id ([A-Za-z0-9_-], up to 64)"
@@ -151,7 +160,7 @@ func CheckFleetAskOp(op, by, reason string) string {
 		return "ask_op must be put, list, ack, done, decline, raise, escalate, release or dead"
 	}
 	switch {
-	case !AskAgentRe.MatchString(by):
+	case !ValidAskAgent(by):
 		return "by must be the acting agent, <ID> or <ID>@<box>"
 	case len(reason) > AskTextMax || hasControl(reason):
 		return "reason must be one line of up to 500 bytes"

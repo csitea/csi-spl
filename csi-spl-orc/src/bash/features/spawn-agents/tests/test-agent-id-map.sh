@@ -65,4 +65,10 @@ has "alive records only" "LEGACY records    4 roles 1 AGY-12 CLE-001 CLE-77 GRK-
 rm -rf "$R/CLE-77"; ln -s c-007 "$R/CLE-77"
 has "a rename's old -> new link is not a legacy dir" "LEGACY spool_dirs 5 roles 1 AGY-12 CLE-001 CLE-31 CLE-50 GRK-9" "$(bash "$REP" 2>&1)"
 
+# --- a box with no identity map at all: the window alone decides -----------------
+R2="$T_TMP/spool2"; mkdir -p "$R2/CLE-100004@sat"
+out="$(SPOOL_ROOT="$R2" bash "$MAP" 2>&1)"; eq "with no agents/ dir the dry run exits 0" 0 "$?"
+has "...warns that windows decide" "no identity map" "$out"
+has "...and maps a live window's agent" "CLE-77	c-" "$out"
+
 t_done

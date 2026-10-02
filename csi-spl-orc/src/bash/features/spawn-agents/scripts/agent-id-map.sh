@@ -63,6 +63,10 @@ NOW=""; spl_now_var NOW
 
 # ---- the live legacy agents, oldest spawn first -----------------------------
 spool_tmux_argv
+# A box whose identity map was never installed (no $R/agents at all) has no
+# record to ask: there a window alone marks an agent live.
+RECORDS=1
+[ -d "$R/agents" ] || { RECORDS=""; echo "WARN     no identity map ${R}/agents on this box: a window alone marks an agent live" >&2; }
 declare -A SEEN=()
 live=()
 while IFS= read -r wname; do
@@ -74,13 +78,16 @@ while IFS= read -r wname; do
   [ -z "${SEEN[$id]:-}" ] || continue; SEEN[$id]=1
   case "$SKIP" in *" $id "*) echo "SKIP     ${id}: --skip" >&2; continue ;; esac
   rec="$R/agents/${id}.json"
-  if ! [ -r "$rec" ] || ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("alive") else 1)' "$rec" 2>/dev/null; then
+  if [ -z "$RECORDS" ]; then
+    :                                            # no identity map on this box: the window decides
+  elif ! [ -r "$rec" ] || ! python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("alive") else 1)' "$rec" 2>/dev/null; then
     echo "SKIP     ${id}: a window carries it but its identity record is not alive (${rec})" >&2
     continue
   fi
   spawned="$(awk -F'\t' -v id="$id" '{ k = $1; sub(/@.*/, "", k) } k == id && $5 ~ /^[0-9]{8}T[0-9]{6}Z$/ { s = $5 } END { print s }' "$R/registry.tsv" 2>/dev/null || true)"
   [ -n "$spawned" ] || { [ -e "$R/$id" ] && spawned="$(date -u -r "$R/$id" +%Y%m%dT%H%M%SZ)"; }
-  [ -n "$spawned" ] || spawned="$(date -u -r "$rec" +%Y%m%dT%H%M%SZ)"
+  [ -n "$spawned" ] || { [ -e "$rec" ] && spawned="$(date -u -r "$rec" +%Y%m%dT%H%M%SZ)"; }
+  [ -n "$spawned" ] || spawned="$(date -u +%Y%m%dT%H%M%SZ)"
   live+=("${spawned} ${id}")
 done < <("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null || true)
 

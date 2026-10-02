@@ -37,33 +37,24 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { useAuthCopy } from '~/composables/useAuthCopy'
+import { useSettingSave } from '~/composables/useSettingSave'
 import { diagnosticsGranted } from '@/composables/debugAudience.mjs'
 import { applyDebugPaneSetting } from '~/utils/debug-pane.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
 const auth = useAuthClient()
-const copy = useAuthCopy()
 
 const signedIn = computed(() => session.state === 'in')
 const on = computed(() => diagnosticsGranted(session.claims))
-const saving = ref(false)
-const status = ref('')
+const { saving, status, run } = useSettingSave()
 
-async function toggle(want: boolean) {
-  if (!signedIn.value || saving.value) return
-  saving.value = true
-  status.value = ''
-  const res = await applyDebugPaneSetting(want, {
+function toggle(want: boolean) {
+  return run(() => applyDebugPaneSetting(want, {
     current: on.value,
     apply: (v: boolean) => session.setDiagnosticsEnabled(v),
     save: (v: boolean) => auth.saveDiagnostics(v),
-  })
-  saving.value = false
-  if (!res.ok) {
-    status.value = copy.nativeError((res.out ?? null) as Parameters<typeof copy.nativeError>[0]) || t('settings.language.failed')
-  }
+  }))
 }
 
 onMounted(() => { if (session.state === 'loading') void session.probe() })

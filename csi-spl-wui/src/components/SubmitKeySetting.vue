@@ -29,35 +29,26 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { useAuthCopy } from '~/composables/useAuthCopy'
+import { useSettingSave } from '~/composables/useSettingSave'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { SUBMIT_KEYS, applySubmitKeySetting, type SubmitKey } from '~/utils/submit-key.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
 const auth = useAuthClient()
-const copy = useAuthCopy()
 const { mode } = useSubmitKey()
 
 const labelId = useId()
 const hintId = useId()
 const signedIn = computed(() => session.state === 'in')
-const saving = ref(false)
-const status = ref('')
+const { saving, status, run } = useSettingSave()
 
-async function pick(want: SubmitKey) {
-  if (!signedIn.value || saving.value) return
-  saving.value = true
-  status.value = ''
-  const res = await applySubmitKeySetting(want, {
+function pick(want: SubmitKey) {
+  return run(() => applySubmitKeySetting(want, {
     current: session.claims?.submit_key,
     apply: (k: string) => session.setSubmitKey(k),
     save: (k: string) => auth.saveSubmitKey(k),
-  })
-  saving.value = false
-  if (!res.ok) {
-    status.value = copy.nativeError((res.out ?? null) as Parameters<typeof copy.nativeError>[0]) || t('settings.language.failed')
-  }
+  }))
 }
 
 onMounted(() => { if (session.state === 'loading') void session.probe() })

@@ -44,6 +44,7 @@
 import { EMOJI_CHOICES, emojiName } from '~/utils/emoji.mjs'
 import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 import { usePhone } from '~/composables/useTouchUi'
+import { useLongPressName } from '~/composables/useLongPressName'
 
 const props = defineProps<{ open: boolean, x: number, y: number }>()
 const emit = defineEmits<{ close: [], choose: [emoji: string] }>()
@@ -61,24 +62,7 @@ function nameOf(emoji: string): string {
 /* Long-press to read a glyph's name on touch (no hover there). The press
    names it; the ensuing click still adds the reaction, so reading a name and
    picking it are the same gesture held a little longer. */
-const held = ref('')
-let holdTimer: ReturnType<typeof setTimeout> | null = null
-function clearHold() {
-  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null }
-}
-function onHoldStart(emoji: string) {
-  clearHold()
-  holdTimer = setTimeout(() => { held.value = nameOf(emoji) }, 350)
-}
-function onHoldEnd() {
-  clearHold()
-  /* keep the name up a breath after the finger lifts, then clear it */
-  if (held.value) setTimeout(() => { held.value = '' }, 900)
-}
-function onHoldCancel() {
-  clearHold()
-  held.value = ''
-}
+const { held, onHoldStart, onHoldEnd, onHoldCancel } = useLongPressName(nameOf)
 /* SPL-994: on a phone the sheet is the top level while open - Back closes it first */
 useMobileStack().overlay(() => props.open, () => emit('close'))
 
@@ -114,7 +98,7 @@ async function onOpenChange(v: boolean) {
    opening is usually the mount itself, not a change of `open` */
 watch(() => props.open, onOpenChange)
 onMounted(() => { if (props.open) void onOpenChange(true) })
-onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDocPointer, true); clearHold() })
+onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDocPointer, true) })
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {

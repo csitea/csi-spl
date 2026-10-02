@@ -396,6 +396,21 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   })
 }
 
+// ── Entities in the browser (perf round 3 P3-19) ─────────────────────────
+// markdown-it decodes named entities through the browser's own parser, not
+// the 21 KB `entities` table (utils/entities-browser.mjs). Client build only:
+// node (unit tests, prerender) keeps the real package.
+const ENTITIES_BROWSER = fileURLToPath(new URL("./src/utils/entities-browser.mjs", import.meta.url))
+function entitiesBrowserModule() {
+  addVitePlugin({
+    name: "spool:entities-browser",
+    enforce: "pre",
+    resolveId(id) {
+      return id === "entities" ? ENTITIES_BROWSER : null
+    },
+  }, { server: false })
+}
+
 export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2026-09-18",
@@ -426,7 +441,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches

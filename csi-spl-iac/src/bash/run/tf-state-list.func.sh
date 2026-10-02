@@ -11,8 +11,7 @@ do_tf_state_list() {
 
   # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
 
-  vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
-  backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
+  local backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
 
   set -e
   echo "running: "

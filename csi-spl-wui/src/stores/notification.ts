@@ -34,7 +34,6 @@ import {
   ownReplyReadAt,
   replyTopicsOf,
   saveCursors,
-  seedTopicCursors,
   topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
@@ -295,8 +294,9 @@ export const useNotificationStore = defineStore('notification', () => {
    * boundary, so its card shows them as "<new>/<total>" instead of the badge's
    * new lines vanishing when markRead clears it (seedTopicCursors).
    */
-  function seedTopics(key: string, messages: unknown[], totalOf: (taskId: string) => number, selfId = '') {
+  async function seedTopics(key: string, messages: unknown[], totalOf: (taskId: string) => number, selfId = '') {
     if (!import.meta.client || !key) return
+    const { seedTopicCursors } = await import('~/utils/topic-seed.mjs')
     const before = loadCursors()
     const next = seedTopicCursors(before, boundary.value[key], messages, totalOf, selfId)
     if (next === before) return

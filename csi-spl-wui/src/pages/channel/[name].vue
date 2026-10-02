@@ -76,7 +76,7 @@ watch([name, () => session.state], async ([n, st]) => {
   notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)
   /* CLE-77930: threads with replies past the boundary keep them as "<new>/<total>" */
-  if (name.value === n) notes.seedTopics('ch:' + normalizeChannel(n), channel.messages, channel.repliesFor, String((session.claims && session.claims.hum) || useLive().identity.value || ''))
+  if (name.value === n) await notes.seedTopics('ch:' + normalizeChannel(n), channel.messages, channel.repliesFor, String((session.claims && session.claims.hum) || useLive().identity.value || ''))
   markRead(n)
   if (name.value !== n) return
   if (await redirectMoved(n)) return

@@ -17,10 +17,9 @@ import {
   markTopicReadAt,
   topicUnread,
   topicKey,
-  seedTopicCursors,
-  unseenRepliesSince,
   ownReplyReadAt,
 } from '../../src/utils/read-cursor.mjs'
+import { seedTopicCursors, unseenRepliesSince } from '../../src/utils/topic-seed.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
 describe('local read cursors', () => {

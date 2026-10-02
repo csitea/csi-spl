@@ -10,15 +10,21 @@
 // nuxt.config.ts CSP_PROD is what `nuxt preview` (lde) serves. It keeps
 // 'unsafe-inline' — there is no render step to hash there — and otherwise
 // matches the Hosting policy directive for directive.
-import { describe, it, before } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+
+// Every scratch dir this file makes is removed when it ends: run on every
+// pre-push and CI job, the leaked dirs filled the box's shared /tmp inodes.
+const scratchDirs = []
+const scratch = (prefix) => { const d = mkdtempSync(join(tmpdir(), prefix)); scratchDirs.push(d); return d }
+after(() => { for (const d of scratchDirs) rmSync(d, { recursive: true, force: true }) })
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const REPO = join(WUI, '..')
 const RENDER = join(REPO, 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh')
@@ -39,7 +45,7 @@ function parse(policy) {
 
 /** A generated-bundle look-alike: .output/public with 200.html (+ extra files). */
 function bundle(page200, extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'csp-bundle-'))
+  const dir = scratch('csp-bundle-')
   writeFileSync(join(dir, '200.html'), page200)
   for (const [rel, body] of Object.entries(extra)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
@@ -49,7 +55,7 @@ function bundle(page200, extra = {}) {
 }
 
 function render(env, publicDir) {
-  const out = join(mkdtempSync(join(tmpdir(), 'csp-out-')), 'firebase.json')
+  const out = join(scratch('csp-out-'), 'firebase.json')
   const r = spawnSync('bash', [RENDER], { env: { ...process.env, ENV: env, OUT: out, PUBLIC_DIR: publicDir }, encoding: 'utf8' })
   return { status: r.status, stderr: r.stderr, out }
 }
@@ -162,7 +168,7 @@ for (const env of ['dev', 'prd']) {
 
 describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
   it('no generated bundle -> refuses, never falls back to unsafe-inline', () => {
-    const r = render('dev', mkdtempSync(join(tmpdir(), 'csp-empty-')))
+    const r = render('dev', scratch('csp-empty-'))
     assert.notEqual(r.status, 0)
     assert.match(r.stderr, /nuxt generate/)
   })
@@ -181,7 +187,7 @@ describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
 
   it('a card origin that is not an absolute https origin -> refuses (no bare scheme, wildcard or path)', () => {
     for (const bad of ['https:', '*', 'http://cards.example.com', 'https://*', 'https://cards.example.com/v3', "'unsafe-inline'"]) {
-      const dir = mkdtempSync(join(tmpdir(), 'csp-cnf-'))
+      const dir = scratch('csp-cnf-')
       const e = JSON.parse(readFileSync(join(REPO, 'csi-spl-cnf/csi-spl/dev.env.json'), 'utf8'))
       e.env.payment = { ...(e.env.payment || {}), wui_csp: { script: [bad], frame: [], connect: [] } }
       const repo = join(dir, 'r')
@@ -197,7 +203,7 @@ describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
   })
 
   it('CONTROL: without card origins in cnf, script/frame/connect carry no vendor origin', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'csp-nocard-'))
+    const dir = scratch('csp-nocard-')
     const e = JSON.parse(readFileSync(join(REPO, 'csi-spl-cnf/csi-spl/prd.env.json'), 'utf8'))
     e.env.payment = { ...(e.env.payment || {}), wui_csp: { script: [], frame: [], connect: [] } }
     const repo = join(dir, 'r')

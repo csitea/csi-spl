@@ -5,14 +5,20 @@
 //
 // Hosting applies every matching `headers` rule in order, so for one key the
 // LAST matching rule wins; `effective()` below resolves it the same way.
-import { describe, it, before } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+
+// Every scratch dir this file makes is removed when it ends: run on every
+// pre-push and CI job, the leaked dirs filled the box's shared /tmp inodes.
+const scratchDirs = []
+const scratch = (prefix) => { const d = mkdtempSync(join(tmpdir(), prefix)); scratchDirs.push(d); return d }
+after(() => { for (const d of scratchDirs) rmSync(d, { recursive: true, force: true }) })
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const REPO = join(WUI, '..')
 const RENDER = join(REPO, 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh')
@@ -41,9 +47,9 @@ function effective(doc, path) {
 }
 
 function rendered() {
-  const pub = mkdtempSync(join(tmpdir(), 'cache-bundle-'))
+  const pub = scratch('cache-bundle-')
   writeFileSync(join(pub, '200.html'), '<!doctype html><html><head></head><body><div id="__nuxt"></div></body></html>')
-  const out = join(mkdtempSync(join(tmpdir(), 'cache-out-')), 'firebase.json')
+  const out = join(scratch('cache-out-'), 'firebase.json')
   const r = spawnSync('bash', [RENDER], { env: { ...process.env, ENV: 'dev', OUT: out, PUBLIC_DIR: pub }, encoding: 'utf8' })
   assert.equal(r.status, 0, r.stderr)
   return JSON.parse(readFileSync(out, 'utf8'))

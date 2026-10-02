@@ -179,6 +179,15 @@ func eventually(t *testing.T, what string, ok func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
+// watch waits d for something that must NOT happen and returns as soon as
+// happened() reports it, so the assertion after it fails at once instead of
+// after a blind sleep - and passes only once the whole window is over.
+func watch(d time.Duration, happened func() bool) {
+	for deadline := time.Now().Add(d); time.Now().Before(deadline) && !happened(); {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func send(t *testing.T, b *box, from, to, kind, body, toBox string, fileIDs ...string) action.SendResult {
 	t.Helper()
 	out, err := action.SendCtx(context.Background(), b.cfg, action.SendArgs{

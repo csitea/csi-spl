@@ -158,7 +158,7 @@ func TestFallbackChannelWithNoAgentReachesResponder(t *testing.T) {
 	}
 	// A resend of the same msg_id is not a new post: nothing more.
 	threadFrame(t, r.ws, m1, task, "mobile", 1, "why are no agents\nconnected to this one")
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { return len(r.pokes()) > 1 })
 	if n := len(r.pokes()); n != 1 {
 		t.Fatalf("resend poked again: %v", r.pokes())
 	}
@@ -189,7 +189,7 @@ func TestFallbackNotSentWhenAMemberIsOnline(t *testing.T) {
 	m1 := "4c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
 	threadFrame(t, r.ws, m1, "2a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d", "staffed", 1, "someone is here")
 	eventually(t, "GRK-36 got it", func() bool { return strings.Join(inboxIDs(t, b, "GRK-36"), ",") == m1 })
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { return len(inbox(t, r.desk, "CLE-001")) != 0 || len(r.pokes()) != 0 })
 	if n := len(inbox(t, r.desk, "CLE-001")); n != 0 || len(r.pokes()) != 0 {
 		t.Fatalf("fallback sent although GRK-36 is online: inbox %d pokes %v", n, r.pokes())
 	}
@@ -381,7 +381,9 @@ func TestReescalateRotatesToTheWholeResponderList(t *testing.T) {
 func TestFallbackOffReachesNobody(t *testing.T) {
 	r := newFallbackRig(t, false, "mobile")
 	threadFrame(t, r.ws, "3b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e", "1a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d", "mobile", 1, "hello?")
-	time.Sleep(300 * time.Millisecond)
+	watch(300*time.Millisecond, func() bool {
+		return len(inbox(t, r.desk, "CLE-001"))+len(inbox(t, r.desk, "CLE-35")) != 0 || len(r.pokes()) != 0
+	})
 	if n := len(inbox(t, r.desk, "CLE-001")) + len(inbox(t, r.desk, "CLE-35")); n != 0 || len(r.pokes()) != 0 {
 		t.Fatalf("fallback off, yet inbox %d pokes %v", n, r.pokes())
 	}
@@ -474,7 +476,7 @@ func TestFallbackDMToOfflineAgent(t *testing.T) {
 	// A DM to a person is between people.
 	dmFrame(t, r.ws, "8e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b", "9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b",
 		"HUM-2", "just us")
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { return len(r.pokes()) > 1 })
 	if n := len(r.pokes()); n != 1 {
 		t.Fatalf("a DM to a human fell back: %v", r.pokes())
 	}
@@ -509,7 +511,7 @@ func TestFallbackChannelOptOut(t *testing.T) {
 		t.Fatalf("unknown channel: %v, want ErrNotFound", err)
 	}
 	threadFrame(t, r.ws, "3b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e", "1a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d", "live-proof", 1, "proof run")
-	time.Sleep(300 * time.Millisecond)
+	watch(300*time.Millisecond, func() bool { return len(inbox(t, r.desk, "CLE-001")) != 0 || len(r.pokes()) != 0 })
 	if n := len(inbox(t, r.desk, "CLE-001")); n != 0 || len(r.pokes()) != 0 {
 		t.Fatalf("opted-out channel fell back: inbox %d pokes %v", n, r.pokes())
 	}

@@ -47,8 +47,11 @@ render() {
 }
 # scratch TGT exactly as deep as $APP_ROOT/csi-spl-cnf: tpl-gen maps a
 # template to its output by stripping as many leading components as TGT has
+# (it can pad, never shorten: a scratch deeper than that is refused, by name)
 mk_tgt() {
   local t="$1"
+  (( $(tr -cd / <<<"$t" | wc -c) <= $(tr -cd / <<<"$APP_ROOT/csi-spl-cnf" | wc -c) )) || {
+    echo "scratch $t is deeper than $APP_ROOT/csi-spl-cnf: use a shallower TMPDIR" >&2; return 1; }
   while (( $(tr -cd / <<<"$t" | wc -c) < $(tr -cd / <<<"$APP_ROOT/csi-spl-cnf" | wc -c) )); do t="$t/d"; done
   echo "$t"
 }
@@ -59,7 +62,7 @@ for env in dev prd; do
   cnf="$tmp/$env.cnf/$env.env.yaml"
   mkdir -p "$(dirname "$cnf")"
   do_spl_merged_cnf "$CNF_DIR" "$env" "$cnf" || { fail "$env: no effective config"; continue; }
-  tgt=$(mk_tgt "$tmp/$env")
+  tgt=$(mk_tgt "$tmp/$env") || { fail "$env: SETUP: scratch too deep for a step-by-step render (TMPDIR=${TMPDIR:-/tmp})"; continue; }
   n=0 bad=""
   for d in "$PROJ_ROOT"/src/terraform/[0-9]*/; do
     step=$(basename "$d")
@@ -78,7 +81,7 @@ cnf="$tmp/ctl/dev.env.yaml"
 mkdir -p "$tmp/ctl"
 do_spl_merged_cnf "$CNF_DIR" dev "$cnf"
 yq -i '.env.steps."020-gcp-relay-bucket".object_max_age_days = 2' "$cnf"
-tgt=$(mk_tgt "$tmp/ctlout")
+tgt=$(mk_tgt "$tmp/ctlout") || tgt="$tmp/ctlout"
 render dev 020-gcp-relay-bucket "$cnf" "$tgt"
 if ! cmp -s "$CNF_DIR/dev/tf/020-gcp-relay-bucket.vars.tfvars" "$tgt/csi-spl/dev/tf/020-gcp-relay-bucket.vars.tfvars" &&
   grep -qx 'object_max_age_days = 2' "$tgt/csi-spl/dev/tf/020-gcp-relay-bucket.vars.tfvars"; then

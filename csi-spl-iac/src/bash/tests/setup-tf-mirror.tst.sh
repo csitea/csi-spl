@@ -30,7 +30,7 @@ printf 'terraform {\n  required_providers {\n    google-beta = {\n      source  
 mkdir -p "$T/stub"
 cat >"$T/stub/terraform" <<'STUB'
 #!/usr/bin/env bash
-echo "terraform $*" >>"$TF_LOG"
+echo "terraform $*" >>"$STUB_TF_LOG"
 [[ "$1" == version ]] && { printf 'Terraform v1.9.8\non linux_amd64\n'; exit 0; }
 dir=${1#-chdir=}; shift
 names=$(sed -n 's/^ *source *= *"hashicorp\/\([^"]*\)".*/\1/p' "$dir/main.tf")
@@ -48,7 +48,9 @@ chmod +x "$T/stub/terraform"
 
 # run_setup [VAR=value ...] -> rc; output in $T/out
 run_setup() {
-  env PATH="$T/stub:$PATH" TF_LOG="$T/tf.log" PROBE_COPY="$T/probe.tf" PROJ_PATH="$T/proj" "$@" bash -c '
+  # TF_BIN / TF_CLI_CONFIG_FILE from the CI job would bypass the stub, and
+  # TF_LOG is terraform's own log level
+  env -u TF_BIN -u TF_CLI_CONFIG_FILE -u TF_LOG PATH="$T/stub:$PATH" STUB_TF_LOG="$T/tf.log" PROBE_COPY="$T/probe.tf" PROJ_PATH="$T/proj" "$@" bash -c '
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/setup-tf-mirror.func.sh"
     do_setup_tf_mirror' >"$T/out" 2>&1

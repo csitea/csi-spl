@@ -309,7 +309,11 @@ jobs:
         run: |
           set -euo pipefail
           tf=/opt/tf/bin/terraform-1.9.8
-          if [[ -x "$tf" && -r /opt/tf/terraformrc ]] && "$tf" version | head -1 | grep -qx 'Terraform v1.9.8'; then
+          # no `| head -1` on terraform: under pipefail its SIGPIPE read as "no
+          # /opt/tf" on a runner that has it (run 37036818354), and no
+          # checkpoint call, whose out-of-date notice made the output longer
+          ver=""; [[ -x "$tf" ]] && ver=$(CHECKPOINT_DISABLE=1 "$tf" version 2>/dev/null) || true
+          if [[ -r /opt/tf/terraformrc && "${ver%%$'\n'*}" == 'Terraform v1.9.8' ]]; then
             mkdir -p "$RUNNER_TEMP/tf-bin" && ln -sf "$tf" "$RUNNER_TEMP/tf-bin/terraform"
             echo "$RUNNER_TEMP/tf-bin" >>"$GITHUB_PATH"
             { echo "TF_BIN=$tf"; echo "TF_CLI_CONFIG_FILE=/opt/tf/terraformrc"; } >>"$GITHUB_ENV"
@@ -383,12 +387,14 @@ jobs:
 
       # The tests' mktemp scratch goes to the job's own disk-backed temp dir,
       # not the box's shared /tmp tmpfs: other work filled that one and cut
-      # the hygiene controls' tree copies short (run 37031322430).
+      # the hygiene controls' tree copies short (run 37031322430). Not a
+      # subdir of it: tpl-gen-step-render-parity needs its scratch no deeper
+      # than the checkout's csi-spl-cnf (run 37037762945).
       - name: run-all-tests.sh
         run: |
           set -euo pipefail
           unset SPL_TF_ALLOW_SKIP
-          mkdir -p "$RUNNER_TEMP/tmp"; export TMPDIR="$RUNNER_TEMP/tmp"
+          export TMPDIR="$RUNNER_TEMP"
           bash csi-spl-iac/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/iac-suite.log"
 
       - name: No test reached GCP (the trap log is empty)

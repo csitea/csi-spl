@@ -22,6 +22,7 @@ do_setup_tf_mirror() {
   local tree="$PROJ_PATH/src/terraform" probe platform p c names=() rc=0
   [[ -n "$tf" && -x "$tf" ]] || { do_log "FATAL no terraform (TF_BIN or PATH)"; return 1; }
   [[ -d "$tree" ]] || { do_log "FATAL no terraform tree at $tree"; return 1; }
+  export CHECKPOINT_DISABLE=1
   platform=$("$tf" version | sed -n 's/^on //p' | head -1)
   [[ "$platform" =~ ^[a-z0-9]+_[a-z0-9]+$ ]] || { do_log "FATAL cannot read the platform from '$tf version'"; return 1; }
   mkdir -p "$root/mirror" || return 1

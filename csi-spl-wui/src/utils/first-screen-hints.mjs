@@ -137,3 +137,28 @@ export function addFirstScreenHints(html, files, base = '/') {
   return { html: out.slice(0, i) + tags.join('') + out.slice(i), added: tags.length }
 }
 
+/** The id of the inert <template> that holds a signed-out document's prefetch links. */
+export const DEFERRED_PREFETCH_ID = 'spl-prefetch'
+
+/**
+ * perf round 3 P3-04: a signed-out document (the /login screens) must not
+ * spend the visitor's first seconds on ~83 app chunks it cannot use yet. Move
+ * every <link rel="prefetch"> into an inert <template> (neither the parser
+ * nor the preload scanner fetches inside one); plugins/prefetch-on-ready
+ * puts them back once the page is ready, so a sign-in still finds them cached.
+ * @param {string} html
+ */
+export function deferDocumentPrefetch(html) {
+  const links = []
+  const out = html.replace(/<link rel="prefetch"[^>]*>/g, (tag) => {
+    links.push(tag)
+    return ''
+  })
+  if (!links.length) return { html, moved: 0 }
+  const i = out.indexOf('</head>')
+  if (i < 0) return { html, moved: 0 }
+  return {
+    html: out.slice(0, i) + `<template id="${DEFERRED_PREFETCH_ID}">${links.join('')}</template>` + out.slice(i),
+    moved: links.length,
+  }
+}

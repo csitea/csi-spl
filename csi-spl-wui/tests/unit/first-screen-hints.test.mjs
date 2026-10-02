@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  addFirstScreenHints, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout, firstScreenRoutePage,
+  DEFERRED_PREFETCH_ID, addFirstScreenHints, deferDocumentPrefetch, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout, firstScreenRoutePage,
 } from '../../src/utils/first-screen-hints.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -113,5 +113,30 @@ describe('first-screen hints: nuxt.config wiring', () => {
   it('200.html and 404.html are never rewritten, and a miss fails the generate', () => {
     assert.match(cfg, /\/\^\\\/\(200\|404\)\\\.html\$\/\.test\(name\)/)
     assert.match(cfg, /"prerender:done", \(\) => \{\s*if \(failed\.length\) throw/)
+  })
+})
+
+describe('P3-04: a signed-out document holds its prefetch until ready', () => {
+  const doc = '<head><link rel="modulepreload" as="script" crossorigin href="/_nuxt/e.js">'
+    + '<link rel="prefetch" as="script" crossorigin href="/_nuxt/a.js">'
+    + '<link rel="prefetch" as="style" crossorigin href="/_nuxt/b.css"></head><body></body>'
+
+  it('moves every prefetch link into one inert template, nothing else', () => {
+    const { html, moved } = deferDocumentPrefetch(doc)
+    assert.equal(moved, 2)
+    assert.equal(html, '<head><link rel="modulepreload" as="script" crossorigin href="/_nuxt/e.js">'
+      + `<template id="${DEFERRED_PREFETCH_ID}"><link rel="prefetch" as="script" crossorigin href="/_nuxt/a.js">`
+      + '<link rel="prefetch" as="style" crossorigin href="/_nuxt/b.css"></template></head><body></body>')
+  })
+
+  it('a document without prefetch is returned as is', () => {
+    assert.deepEqual(deferDocumentPrefetch('<head></head>'), { html: '<head></head>', moved: 0 })
+  })
+
+  it('only login-layout documents defer, and the plugin puts the links back on ready', () => {
+    const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+    assert.match(cfg, /if \(layout === "login"\) route\.contents = deferDocumentPrefetch\(route\.contents\)\.html/)
+    const plugin = readFileSync(join(WUI, 'src/plugins/prefetch-on-ready.client.ts'), 'utf8')
+    assert.match(plugin, /onNuxtReady\(\(\) => \{[\s\S]*getElementById\(DEFERRED_PREFETCH_ID\)[\s\S]*document\.head\.appendChild\(held\.content\)/)
   })
 })

@@ -16,7 +16,8 @@ import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-sc
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 import {
-  addFirstScreenHints, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout, firstScreenRoutePage,
+  addFirstScreenHints, deferDocumentPrefetch, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout,
+  firstScreenRoutePage,
 } from "./src/utils/first-screen-hints.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
@@ -387,6 +388,9 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
         return
       }
       route.contents = addFirstScreenHints(route.contents, files, base).html
+      // P3-04: a signed-out screen holds its app prefetch until it is ready
+      // (plugins/prefetch-on-ready.client.ts puts the links back)
+      if (layout === "login") route.contents = deferDocumentPrefetch(route.contents).html
     })
     // A throw inside prerender:generate only drops that document (and nitro
     // still exits 0), so collect and fail the whole generate here instead.

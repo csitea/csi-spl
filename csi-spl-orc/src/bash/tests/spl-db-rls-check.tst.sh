@@ -15,26 +15,13 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 mkdir -p "$T/stub"
 printf '#!/bin/sh\necho "gcloud $*" >>"$STUB_LOG"\nexit 1\n' >"$T/stub/gcloud"
 chmod +x "$T/stub/gcloud"
-
-in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
-    PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
-    set -uo pipefail
-    do_log() { echo "$*"; }
-    do_require_bin() { return 0; }
-    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
-    eval "$SNIPPET"'
-}
 
 verdict() { # <json> <expect> [<expect_not_liftable>] -> prints "rc=<n> <log>"
   local out rc

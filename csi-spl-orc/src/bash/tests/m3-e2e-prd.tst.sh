@@ -13,12 +13,9 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/stub" "$T/tenants"
 for b in curl docker spool; do
   printf '#!/bin/sh\necho "%s $*" >>"$STUB_LOG"\nexit 1\n' "$b" >"$T/stub/$b"

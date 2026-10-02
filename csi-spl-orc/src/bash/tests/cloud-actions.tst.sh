@@ -14,12 +14,9 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # nosa_home: a HOME with no ~/.gcp: no per-env SA key, while the REAL cnf
 # still carries env.gcp.gcp_account_owner_email -- the CONTROL that a missing

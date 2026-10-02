@@ -13,12 +13,9 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
-APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 SD="$T/home/.stripe/.csi/.spl"
 mkdir -p "$SD" "$T/bin" "$T/api"
 rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | head -c 24; }

@@ -16,6 +16,9 @@
 # @param RELEASE_SHA (optional) - the commit to version, default HEAD
 # @param RELEASE_REMOTE (optional) - the remote holding the tags, default origin
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @param RELEASE_TRUNK (optional) - the trunk branch, default master
+# @description rc 3 (and `stale=true` in $GITHUB_OUTPUT): the tag was refused
+# @description because the commit's .github/workflows differs from trunk head's.
 # @example ./run -a do_release_version
 # @example RELEASE_SHA=9dff8571 DRY_RUN=0 ./run -a do_release_version
 #------------------------------------------------------------------------------
@@ -41,7 +44,8 @@ do_release_version() {
     echo "$v"; return 0
   fi
 
-  v="$(spl_release_mint "$APP_PATH" "$sha" "$floor" "$remote")" || return 1
+  # rc 3 = the target is stale against trunk head's workflows (see the lib)
+  v="$(spl_release_mint "$APP_PATH" "$sha" "$floor" "$remote")" || return $?
   spl_version_valid "$v" || { do_log "FATAL the minted version is not one d.d.d value: '$v'" >&2; return 1; }
   [[ -n "${GITHUB_OUTPUT:-}" ]] && echo "version=$v" >>"$GITHUB_OUTPUT"
   do_log "OK release version of $(git -C "$APP_PATH" rev-parse --short "$sha") is $v (tag v$v on $remote)" >&2

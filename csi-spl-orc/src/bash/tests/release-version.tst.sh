@@ -15,6 +15,10 @@
 #  10. a LOST race with do_log on stdout (./run's): GITHUB_OUTPUT is still
 #      exactly one version=d.d.d line, the same commit's tag is reused;
 #      CONTROL: the pre-fix library writes a line GitHub refuses
+#  13. a refusal at a commit whose .github/workflows differs from trunk head's
+#      (a workflow commit landed after it) is rc 3 + stale=true in
+#      GITHUB_OUTPUT, so the deploy stands down; CONTROL: the same refusal at
+#      trunk head stays rc 1, a real error (CLE-77950)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -282,6 +286,29 @@ PATH="$T/curlshim:$PATH" GITHUB_TOKEN=tok CURL_CODE=201 CURL_BODY='{}' bash -c '
   spl_claim_tag "'"$T/w"'" "'"$c17"'" v9.9.0 gh' >/dev/null 2>&1 || rc=$?
 [[ $rc -eq 0 ]] && pass "NEW path: a github remote + a token claims the SAME commit via the REST API (rc 0)" \
   || fail "NEW path: API claim rc=$rc"
+
+# --- 13. stale target: refused because trunk head's workflows moved on -------
+# CLE-77950: GitHub refuses an Actions token any ref (push OR REST API,
+# lightweight or annotated) at a commit whose .github/workflows differs from
+# trunk head's -- probe run 36970563047: that commit 403, trunk head 201. The
+# rejection shim from section 11 stands in for that refusal.
+mkdir -p "$T/w/.github/workflows"
+echo a >"$T/w/.github/workflows/x.yml"; git -C "$T/w" add .github && git -C "$T/w" commit -qm wf-a
+c18=$(git -C "$T/w" rev-parse HEAD); git -C "$T/w" push -q origin HEAD:refs/heads/master
+echo b >"$T/w/.github/workflows/x.yml"; git -C "$T/w" add .github && git -C "$T/w" commit -qm wf-b
+c19=$(git -C "$T/w" rev-parse HEAD); git -C "$T/w" push -q origin HEAD:refs/heads/master
+: >"$T/stale.out"; rc=0
+GITHUB_OUTPUT="$T/stale.out" PATH="$T/rej:$PATH" lib spl_release_mint "$T/w" "$c18" 1.1.0 origin >/dev/null 2>"$T/stale.err" || rc=$?
+if [[ $rc -eq 3 ]] && grep -qx 'stale=true' "$T/stale.out" && grep -q 'differs from origin/master' "$T/stale.err" \
+   && ! grep -q '^version=' "$T/stale.out"; then
+  pass "a refusal at a commit behind trunk head's workflows -> rc 3 + stale=true, no version"
+else fail "stale target: rc=$rc out=$(tr '\n' '|' <"$T/stale.out") err=$(tr '\n' '|' <"$T/stale.err" | cut -c1-160)"; fi
+# CONTROL: the same refusal at trunk head (workflows equal) is a real error
+: >"$T/stale.out"; rc=0
+GITHUB_OUTPUT="$T/stale.out" PATH="$T/rej:$PATH" lib spl_release_mint "$T/w" "$c19" 1.1.0 origin >/dev/null 2>"$T/stale.err" || rc=$?
+if [[ $rc -eq 1 ]] && ! grep -q 'stale=' "$T/stale.out" && grep -q 'was REJECTED' "$T/stale.err"; then
+  pass "CONTROL: the same refusal at trunk head stays rc 1 (a real error, no stand-down)"
+else fail "CONTROL stale: rc=$rc out=$(tr '\n' '|' <"$T/stale.out")"; fi
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -192,6 +192,7 @@ jobs:
     permissions:
       contents: write   # push the v<X.Y.Z> release tag (do_release_version)
       id-token: write   # google-github-actions/auth via WIF
+      actions: write    # a stale-target mint re-dispatches this workflow at trunk head
     strategy:
       fail-fast: false
       matrix:
@@ -285,10 +286,37 @@ jobs:
           # check is on the ref's target diff, not on object transfer). Creating
           # the tag against a commit already on the remote writes no workflow
           # content, so it needs only contents:write. (CLE-77788 / CLE-001 P0.)
+          #
+          # EXCEPT at a commit whose .github/workflows differs from trunk
+          # head's (a workflow commit landed after this push): GitHub refuses
+          # the token that ref through the API too (403, probe run 36970563047).
+          # The mint then writes stale=true; this deploy stands down and ONE
+          # job (the first env) dispatches 20 at trunk head with environment
+          # all, which carries this commit -- 21's catch-up skips a FAILED last
+          # run, so failing here stranded the hub until the next hub commit
+          # (CLE-77950, 2026-10-02: 3 runs in a row). An operator dispatch of
+          # one env is not re-routed: it fails, naming the cause.
           GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          GUARD_EVENT: ${{ needs.prepare-deploy.outputs.guard_event }}
+          FIRST_ENV: ${{ fromJson(needs.prepare-deploy.outputs.envs)[0] }}
         run: |
           set -euo pipefail
-          DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version
+          rc=0
+          DRY_RUN=0 RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_version || rc=$?
+          if grep -qx 'stale=true' "$GITHUB_OUTPUT"; then
+            if [[ "$GUARD_EVENT" != push ]]; then
+              echo "::error::$ENV: ${GITHUB_SHA:0:8} cannot be tagged (its .github/workflows differs from trunk head's); dispatch trunk head instead"
+              exit 1
+            fi
+            echo "::warning::$ENV: ${GITHUB_SHA:0:8} cannot be tagged (its .github/workflows differs from trunk head's) -- standing down for a trunk-head run"
+            if [[ "$ENV" == "$FIRST_ENV" ]]; then
+              gh workflow run 20_hub-build-deploy.yml --repo "$GITHUB_REPOSITORY" --ref master -f environment=all
+              echo "dispatched 20 at master (environment=all)"
+            fi
+            exit 0
+          fi
+          ((rc == 0)) || exit "$rc"
           v="$(sed -n 's/^version=//p' "$GITHUB_OUTPUT" | tail -1)"
           [[ "$v" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] || { echo "::error::no release version minted"; exit 1; }
           echo "image_ref=${CNF_REF%:*}:$v" >> "$GITHUB_OUTPUT"
@@ -301,7 +329,7 @@ jobs:
       # the key path runs as the project SA gcp-002 created, the WIF path as
       # the impersonated deploy SA.
       - name: Resolve the deploy identity
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         env:
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
@@ -313,25 +341,25 @@ jobs:
           echo "$ENV deploys as $sa (auth = $how)"
 
       - name: Authenticate to Google Cloud (project key)
-        if: steps.guard.outputs.ok == 'true' && env.HAS_KEY == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && env.HAS_KEY == 'true'
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
 
       - name: Authenticate to Google Cloud (WIF alternative)
-        if: steps.guard.outputs.ok == 'true' && env.HAS_KEY != 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && env.HAS_KEY != 'true'
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ env.DEPLOY_SA }}
 
       - name: Set up Cloud SDK
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Is the image already in the registry?
         id: img
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         env:
           IMAGE_REF: ${{ steps.ver.outputs.image_ref }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
@@ -352,7 +380,7 @@ jobs:
       # ~1.5 s on a hit (measured 2026-09-29) -- this hosted runner is cold each
       # run, unlike the persistent-HOME self-hosted 10_ci-quality box.
       - name: Set up Go (only to build a new image)
-        if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && steps.img.outputs.exists == 'false'
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
@@ -360,7 +388,7 @@ jobs:
           cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
 
       - name: Build + push the hub image (do_build_push_hub_image)
-        if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && steps.img.outputs.exists == 'false'
         run: |
           set -euo pipefail
           ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
@@ -376,7 +404,7 @@ jobs:
       # serving rather than a new one against a stale schema. The matrix runs
       # dev and prd as separate jobs; each migrates its own env before its roll.
       - name: Apply DB migrations before rolling (do_spl_db_bootstrap)
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         run: |
           set -euo pipefail
           # Tools do_spl_db_bootstrap requires that the runner may lack (gcloud,
@@ -395,7 +423,7 @@ jobs:
 
       - name: Roll the 030 service to the minted image
         id: deploy
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         env:
           IMAGE_REF: ${{ steps.ver.outputs.image_ref }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
@@ -424,7 +452,7 @@ jobs:
       # Verify through the control plane instead: the template runs the cnf
       # image and the latest revision is the ready one serving traffic.
       - name: Verify the service runs the minted image and is Ready (do_check_hub_deploy)
-        if: steps.guard.outputs.ok == 'true'
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         # The same read-only action an operator and 00_deploy-lag-watch run:
         # template image == cnf hub.image.ref, the Ready condition (by type)
         # True, latest created revision == latest ready. Exit 0 current,
@@ -453,6 +481,7 @@ jobs:
           ROLLED: ${{ steps.deploy.outputs.rolled }}
           IMAGE_REF: ${{ steps.ver.outputs.image_ref || steps.cfg.outputs.image_ref }}
           VERSION: ${{ steps.ver.outputs.version }}
+          STALE: ${{ steps.ver.outputs.stale }}
           SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
@@ -466,6 +495,7 @@ jobs:
             echo "| **Release version** | \`${VERSION:-n/a}\` |"
             echo "| **Image** | \`$IMAGE_REF\` |"
             echo "| **Forward guard** | ${OK:-n/a} |"
+            echo "| **Stood down (stale target, trunk head dispatched)** | ${STALE:-false} |"
             echo "| **Image already existed** | ${EXISTS:-n/a} |"
             echo "| **Service rolled** | ${ROLLED:-n/a} |"
             echo "| **Git SHA** | \`$GITHUB_SHA\` |"

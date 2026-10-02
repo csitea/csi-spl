@@ -87,6 +87,15 @@ spl_github_owner_repo() {
 # the remote writes no workflow-file content, so it needs only `contents: write`
 # and is allowed. (CLE-77788 / CLE-001 P0; earlier SPL-1194 tried fetch-depth 0.)
 #
+# ...EXCEPT when the target's .github/workflows differs from trunk head's: the
+# API is refused too (403 "Resource not accessible by integration"), lightweight
+# AND annotated (probe run 36970563047, 2026-10-02, contents:write token: the
+# same commit 403, trunk head 201). That happens whenever a workflow-touching
+# commit lands between a push and its deploy's mint -- 3 hub deploys in a row
+# on 2026-10-02 05:24..05:41Z (CLE-77950). Only a token with the `workflows`
+# permission could tag such a commit; without one, spl_release_mint reports it
+# as rc 3 (stale target) so the deploy stands down for a trunk-head run.
+#
 # spl_claim_tag_api <owner/repo> <sha> <tag> <token> -> claim the lightweight
 # tag on GitHub. rc 0 = created, 2 = it already exists (a lost race), 1 = a real
 # refusal. The server's response body is left in SPL_CLAIM_ERR either way.
@@ -129,6 +138,18 @@ spl_claim_tag_push() {
   return 1
 }
 
+# spl_workflows_stale <dir> <sha> <remote> -> 0 when <sha>'s .github/workflows
+# tree differs from the remote trunk head's (RELEASE_TRUNK, default master): the
+# one case GitHub refuses an Actions token any ref at <sha>. Fetches trunk head
+# into refs/remotes/<remote>/<trunk>; rc 1 (not stale, or cannot tell) otherwise.
+spl_workflows_stale() {
+  local dir="$1" sha="$2" remote="$3" trunk="${RELEASE_TRUNK:-master}" mine head
+  git -C "$dir" fetch -q "$remote" "+refs/heads/$trunk:refs/remotes/$remote/$trunk" 2>/dev/null || return 1
+  mine="$(git -C "$dir" rev-parse -q --verify "$sha:.github/workflows" 2>/dev/null)"
+  head="$(git -C "$dir" rev-parse -q --verify "refs/remotes/$remote/$trunk:.github/workflows" 2>/dev/null)"
+  [[ -n "$head" && "$mine" != "$head" ]]
+}
+
 # spl_claim_tag <dir> <sha> <tag> <remote> -> claim the tag by the API when the
 # remote is github.com AND a token is in the environment (CI), else by git push.
 # rc 0 created / 2 lost race / 1 refused; SPL_CLAIM_ERR carries the detail.
@@ -150,7 +171,10 @@ spl_claim_tag() {
 # the captured value and GITHUB_OUTPUT refused it).
 # spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the version for
 # <sha>, claiming a new tag on <remote> (default origin) when it has none.
-# rc 1 on a bad argument, or when no tag could be claimed after 10 attempts.
+# rc 1 on a bad argument, or when no tag could be claimed after 10 attempts;
+# rc 3 when the claim was refused because <sha>'s .github/workflows differs from
+# trunk head's (see spl_workflows_stale) -- `stale=true` then goes to
+# $GITHUB_OUTPUT too, so a deploy can stand down for a trunk-head run.
 spl_release_mint() {
   local dir="$1" sha="$2" floor="$3" remote="${4:-origin}"
   local i mine latest next rc
@@ -187,6 +211,12 @@ spl_release_mint() {
     # stop pretending it was "taken" -- e.g. a GitHub App token refused the ref
     # because the commit's diff touches .github/workflows/* (the bug this fix
     # cures by routing CI through the REST API). (CLE-77788 / CLE-001 P0.)
+    if spl_workflows_stale "$dir" "$sha" "$remote"; then
+      do_log "WARN claim of tag v$next for ${sha:0:8} was REFUSED: its .github/workflows differs from $remote/${RELEASE_TRUNK:-master} (a workflow commit landed after it), and GitHub refuses an Actions token any ref there. Deploy trunk head instead: it carries this commit. remote said:" >&2
+      do_log "$(sed 's/^/    /' <<<"$SPL_CLAIM_ERR")" >&2
+      [[ -n "${GITHUB_OUTPUT:-}" ]] && echo "stale=true" >>"$GITHUB_OUTPUT"
+      return 3
+    fi
     do_log "FATAL claim of tag v$next on $remote was REJECTED and v$next does not exist there -- this is not a lost race. remote said:" >&2
     do_log "$(sed 's/^/    /' <<<"$SPL_CLAIM_ERR")" >&2
     return 1

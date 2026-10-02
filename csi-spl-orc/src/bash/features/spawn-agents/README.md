@@ -36,7 +36,8 @@ the reference does it:
 |---|---|
 | `lib/spool-env.inc.sh` | the one resolver: env vars, users, tmux socket, binaries, the id rules, pane lookup |
 | `lib/spool-notify.inc.sh` | the one renderer and doorbell (`specs/028-spool-terminal-delivery`): a message is made VISIBLE in the recipient's pane, under the safe-poke rules |
-| `scripts/next-agent-id.sh` | allocates the next free id and claims it by `mkdir $SPOOL_ROOT/<id>`. `--claim <ID>` claims one exact id |
+| `scripts/next-agent-id.sh` | allocates the next free id (`c-004`..`c-999`, a per-machine cursor that rolls `999 -> 004`, specs/061 §3.5) and claims it by `mkdir $SPOOL_ROOT/<id>`. `--claim <ID>` claims one exact id |
+| `scripts/agent-id-retire.sh` | retires an id once its window is gone (specs/061 §3.6): spool dir to `.retired/`, registry row to `registry.retired.tsv` (the 24 h quarantine), identity record to `agents/retired/`. `/exit-clean` runs it via `tmux-close-window.sh --retire`; `./run -a do_spl_agent_id_retire` by hand |
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
 | `scripts/spawn-{claude,grok,agy,qwen}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |

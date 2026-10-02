@@ -28,6 +28,8 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   the records a reboot restore starts again (RESTORE rows) and
                   the ones it refuses (REFUSE + reason); see the action
   hash            the hash of the records as they are on disk
+  retire ID GEN   move ID's record to retired/<ID>.<GEN>.json and re-hash
+                  index.json (specs/061 3.6); exit 1 when there is no record
   alive ID        print the pid and exit 0 when ID's record names a live process
                   that still IS that agent: the pid exists with the recorded start
                   time, is that agent's CLI (argv, else comm), and carries
@@ -703,6 +705,25 @@ def cmd_adopt(args, proc):
     return 0
 
 
+def cmd_retire(args, proc):
+    src = os.path.join(args.dir, args.id + ".json")
+    if not os.path.exists(src):
+        return 1
+    rdir = os.path.join(args.dir, "retired")
+    os.makedirs(rdir, exist_ok=True)
+    dst = os.path.join(rdir, "%s.%s.json" % (args.id, args.gen))
+    n = 1
+    while os.path.exists(dst):
+        n += 1
+        dst = os.path.join(rdir, "%s.%s.%d.json" % (args.id, args.gen, n))
+    os.replace(src, dst)
+    recs = load(args.dir)
+    write_json(os.path.join(args.dir, "index.json"),
+               {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    print("retire: %s -> %s" % (args.id, dst))
+    return 0
+
+
 def cmd_alive(args, proc):
     r = load(args.dir).get(args.id)
     if not r or not r.get("alive") or not r.get("pid"):
@@ -749,6 +770,9 @@ def main():
     ad = sub.add_parser("adopt")
     ad.add_argument("id")
     ad.add_argument("pid")
+    rt = sub.add_parser("retire")
+    rt.add_argument("id")
+    rt.add_argument("gen")
     args = ap.parse_args()
     proc = Proc(args.proc_root)
     if args.cmd == "facts":
@@ -768,6 +792,8 @@ def main():
         return cmd_restore_plan(args, proc)
     if args.cmd == "adopt":
         return cmd_adopt(args, proc)
+    if args.cmd == "retire":
+        return cmd_retire(args, proc)
     if args.cmd == "hash":
         print(map_hash(load(args.dir)))
         return 0

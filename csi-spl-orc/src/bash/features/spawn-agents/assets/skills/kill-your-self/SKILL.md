@@ -48,9 +48,12 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOU
 ## 3. Schedule the window close, then exit
 
 Pass YOUR OWN id; the helper refuses any window that does not carry it.
+`--retire` then retires the id once the window is gone (specs/061 3.6): your
+spool dir, registry row and identity record move aside, so the number can be
+handed out again after a 24 h quarantine. A role id (001-003) is never retired.
 
 ```bash
-bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer
+bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer --retire
 ```
 
 Then end your turn: your last message is the one-line report, nothing after it.

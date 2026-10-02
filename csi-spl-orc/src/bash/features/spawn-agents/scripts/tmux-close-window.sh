@@ -48,6 +48,7 @@
 #
 # Usage:
 #   tmux-close-window.sh --agent CLE-07 --defer     # the teardown path
+#   tmux-close-window.sh --agent c-007 --defer --retire  # /exit-clean: then retire the id
 #   tmux-close-window.sh --agent CLE-07             # close it now
 #   tmux-close-window.sh --pane %123 --defer
 #   tmux-close-window.sh main:5                     # explicit target, now
@@ -70,6 +71,7 @@ _sp_lib="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib" && pwd)/s
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 BOX_USER="$SPOOL_BOX_USER" BOX_TMUX_SOCKET="$SPOOL_TMUX_SOCKET" BOX_TAG="${SPOOL_BOX_TAG:-}"
 DEFER=0
+RETIRE=0
 DRY_RUN=0
 TIMEOUT=180
 TARGET_ARG=""
@@ -96,6 +98,10 @@ Options:
   --defer            Fork a background closer that waits for claude|grok|agy|qwen in
                      the resolved pane to exit (or --timeout), then kill-window.
                      Parent exits 0 immediately so the agent can /exit.
+  --retire           After the window is closed, retire the --agent id
+                     (scripts/agent-id-retire.sh, specs/061 3.6): its spool dir,
+                     registry rows and identity record move aside, so the
+                     allocator may reuse the number after the quarantine.
   --timeout SECONDS  Max wait in --defer mode (default: 180)
   --dry-run          Print the resolution and exit; never kills anything.
   --help             Show this help
@@ -116,6 +122,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --defer) DEFER=1; shift ;;
+    --retire) RETIRE=1; shift ;;
     --dry-run|--dry) DRY_RUN=1; shift ;;
     --agent)
       AGENT_ARG="${2:?tmux-close-window: --agent requires an agent id}"
@@ -506,10 +513,22 @@ do_kill_window() {
   return 1
 }
 
+# --retire: the id goes aside only once its window is gone (specs/061 3.6).
+retire_agent() {
+  [[ "$RETIRE" -eq 1 ]] || return 0
+  if [[ -z "${AGENT_ID:-}" ]]; then
+    echo "tmux-close-window: --retire needs --agent; nothing retired" >&2
+    return 0
+  fi
+  bash "$(dirname "$_sp_lib")/../scripts/agent-id-retire.sh" --apply "$AGENT_ID" \
+    || echo "tmux-close-window: retire of ${AGENT_ID} failed (rc $?); its number stays held" >&2
+}
+
 # --- immediate mode --------------------------------------------------------
 if [[ "$DEFER" -eq 0 ]]; then
-  do_kill_window "$WINDOW_TARGET"
-  exit $?
+  do_kill_window "$WINDOW_TARGET" || exit $?
+  retire_agent
+  exit 0
 fi
 
 # --- --defer mode: schedule closer, parent returns immediately -------------
@@ -575,6 +594,7 @@ GUARD_PANE="$PANE"
   if [[ -n "$GUARD_PANE" ]]; then
     if ! pane_exists "$GUARD_PANE"; then
       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) pane $GUARD_PANE already gone; nothing to close"
+      retire_agent
       exit 0
     fi
     now_target="$(pane_window_target "$GUARD_PANE" 2>/dev/null || true)"
@@ -585,7 +605,7 @@ GUARD_PANE="$PANE"
   fi
 
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) closing window $WINDOW_TARGET"
-  do_kill_window "$WINDOW_TARGET"
+  do_kill_window "$WINDOW_TARGET" && retire_agent
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) done"
 ) &
 disown 2>/dev/null || true

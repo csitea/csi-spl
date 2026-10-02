@@ -48,11 +48,6 @@ func (s *StripePayments) apiVersion() string {
 	return DefaultStripeAPIVersion
 }
 
-// NewStripePayments returns a Stripe-backed PaymentProvider.
-func NewStripePayments(secretKey string) *StripePayments {
-	return &StripePayments{SecretKey: secretKey}
-}
-
 func (s *StripePayments) client() *http.Client {
 	if s.HTTPClient != nil {
 		return s.HTTPClient

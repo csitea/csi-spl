@@ -64,9 +64,6 @@ type EditableMessage struct {
 	Move MoveMark
 }
 
-// Edited reports whether the message carries an edit marker.
-func (m EditableMessage) Edited() bool { return !m.EditedAt.IsZero() }
-
 // Edit is one edit ready to apply: the new body and the bytes the hub derived
 // from it. The store writes them; it never re-encodes a message itself.
 type Edit struct {

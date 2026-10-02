@@ -106,6 +106,11 @@ tick pc 1000; tick sat 1000
 [[ "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && "$(sentc pc 'CLE-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 &&
    "$(sentc sat ACTIVE)" == 0 ]] &&
   pass "1. pc's agents told ACTIVE once; nobody on the satellite is" || fail "1. sent pc: $(cat "$T/pc/sent" 2>&1) sat: $(cat "$T/sat/sent" 2>&1)"
+# CLE-001 50434b38: the asks to the orchestrator are the orchestrator's; the
+# dispatcher's ACTIVE notice must not tell it to ack/close them
+[[ "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE.*do_spl_orch_inbox')" == 0 &&
+   "$(sentc pc 'CLE-001 :: FLEET LEASE orch: you are now ACTIVE.*do_spl_orch_inbox: ack, then close each')" == 1 ]] &&
+  pass "1. only the orchestrator's ACTIVE notice names the orchestrator's asks" || fail "1. asks line: $(cat "$T/pc/sent" 2>&1)"
 
 # --- 2. renewals ----------------------------------------------------------------
 n_pc=$(wc -l <"$T/pc/spool/dispatch/lease.log"); n_sat=$(wc -l <"$T/sat/spool/dispatch/lease.log")

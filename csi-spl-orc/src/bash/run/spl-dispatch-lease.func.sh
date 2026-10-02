@@ -666,7 +666,11 @@ spl_fleet_apply() {
   spl_lease_log "FLEET $role: ${prev:-none} -> $holder"
   for id in $(spl_fleet_role_agents "$role"); do
     if [[ "$holder" == "$id@$LEASE_MACHINE" ]]; then
-      spl_lease_tell "$id" "FLEET LEASE $role: you are now ACTIVE (fleet $LEASE_FLEET, was ${prev:-none}). Act for the whole fleet until told STANDBY; pick up what the previous holder left unanswered (do_spl_unanswered_sweep) and every open ask to the orchestrator (do_spl_orch_inbox: ack, then close each)."
+      # the asks to the orchestrator are the orchestrator's alone: a
+      # dispatcher must never ack or close them (CLE-002 refused, msg ee1b0942)
+      local asks=""
+      [[ "$role" == orch ]] && asks=" and every open ask to the orchestrator (do_spl_orch_inbox: ack, then close each)"
+      spl_lease_tell "$id" "FLEET LEASE $role: you are now ACTIVE (fleet $LEASE_FLEET, was ${prev:-none}). Act for the whole fleet until told STANDBY; pick up what the previous holder left unanswered (do_spl_unanswered_sweep)$asks."
     elif [[ "$prev" == "$id@$LEASE_MACHINE" ]]; then
       spl_lease_tell "$id" "FLEET LEASE $role: STANDBY - $holder holds it now. Finish the message in hand, then do not route, spawn or post; read and stay ready."
     fi

@@ -19,49 +19,54 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 	if !canonUUIDRe.MatchString(msgID) {
 		return m, ErrNotFound
 	}
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		var channel, parent, editedBy, kindSetBy, mvBy, mvCh, mvTask, mCh, mTask, mParent *string
-		var editedAt, kindSetAt, mvAt *time.Time
-		err := tx.QueryRow(ctx, `SELECT msg_id::text, task_id::text, channel, parent_task_id::text,
+	// One batch, not BEGIN / scope / row / deliveries / COMMIT: both reads
+	// run in the tenant scope, and the deliveries read of a missing row
+	// simply finds none.
+	var channel, parent, editedBy, kindSetBy, mvBy, mvCh, mvTask, mCh, mTask, mParent *string
+	var editedAt, kindSetAt, mvAt *time.Time
+	found := false
+	m.Deliveries = []ViewDelivery{}
+	err := s.queryTenantBatch(ctx, tenant,
+		tenantRead{sql: `SELECT msg_id::text, task_id::text, channel, parent_task_id::text,
 				from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, ts, received_at,
 				edited_at, edited_by, kind_set_at, kind_set_by,
 				COALESCE((SELECT MAX(revision) FROM message_revisions r
-					WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0), `+moveCols("m")+`
+					WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0), ` + moveCols("m") + `
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.msg_id = $2 AND m.expires_at > $3`,
-			tenant, msgID, now).Scan(&m.MsgID, &m.TaskID, &channel, &parent,
-			&m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.Kind, &m.Body, &m.Msg, &m.EnvSig, &m.Env,
-			&m.TS, &m.ReceivedAt, &editedAt, &editedBy, &kindSetAt, &kindSetBy, &m.Revision,
-			&mvAt, &mvBy, &mvCh, &mvTask, &mCh, &mTask, &mParent)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-		m.Channel, m.ParentTaskID = deref(channel), deref(parent)
-		scanMove(&m.Move, mvAt, mvBy, mvCh, mvTask, mCh, mTask, mParent)
-		m.EditedBy, m.KindSetBy = deref(editedBy), deref(kindSetBy)
-		if kindSetAt != nil {
-			m.KindSetAt = *kindSetAt
-		}
-		if editedAt != nil {
-			m.EditedAt = *editedAt
-		}
-		m.Deliveries = []ViewDelivery{}
-		return eachRow(ctx, tx, `SELECT to_box, state FROM deliveries
-			WHERE tenant_id = $1 AND msg_id = $2 ORDER BY to_box`, []any{tenant, msgID},
-			func(rows pgx.Rows) error {
+			args: []any{tenant, msgID, now},
+			each: func(rows pgx.Rows) error {
+				found = true
+				return rows.Scan(&m.MsgID, &m.TaskID, &channel, &parent,
+					&m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.Kind, &m.Body, &m.Msg, &m.EnvSig, &m.Env,
+					&m.TS, &m.ReceivedAt, &editedAt, &editedBy, &kindSetAt, &kindSetBy, &m.Revision,
+					&mvAt, &mvBy, &mvCh, &mvTask, &mCh, &mTask, &mParent)
+			}},
+		tenantRead{sql: `SELECT to_box, state FROM deliveries
+			WHERE tenant_id = $1 AND msg_id = $2 ORDER BY to_box`,
+			args: []any{tenant, msgID},
+			each: func(rows pgx.Rows) error {
 				var d ViewDelivery
 				if err := rows.Scan(&d.ToBox, &d.State); err != nil {
 					return err
 				}
 				m.Deliveries = append(m.Deliveries, d)
 				return nil
-			})
-	})
+			}})
+	if err == nil && !found {
+		err = ErrNotFound
+	}
 	if err != nil {
 		return EditableMessage{}, err
+	}
+	m.Channel, m.ParentTaskID = deref(channel), deref(parent)
+	scanMove(&m.Move, mvAt, mvBy, mvCh, mvTask, mCh, mTask, mParent)
+	m.EditedBy, m.KindSetBy = deref(editedBy), deref(kindSetBy)
+	if kindSetAt != nil {
+		m.KindSetAt = *kindSetAt
+	}
+	if editedAt != nil {
+		m.EditedAt = *editedAt
 	}
 	return m, nil
 }

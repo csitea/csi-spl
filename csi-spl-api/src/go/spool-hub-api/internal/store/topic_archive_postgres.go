@@ -15,25 +15,40 @@ func (s *Postgres) CardState(ctx context.Context, tenant, msgID string, now time
 	if !canonUUIDRe.MatchString(msgID) {
 		return CardState{}, ErrNotFound
 	}
+	// One batch (scope + select), not BEGIN / scope / select / COMMIT.
 	var c CardState
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		return scanCard(ctx, tx, tenant, msgID, now, &c)
-	})
-	return c, err
+	var at *time.Time
+	var by *string
+	err := s.queryRowTenant(ctx, tenant, cardStateSQL, []any{tenant, msgID, optTime(now)},
+		&c.MsgID, &c.TaskID, &c.IsParent, &at, &by, &c.FirstOfTask, &c.IssueTopic)
+	if err = cardStateDone(err, at, by, &c); err != nil {
+		return CardState{}, err
+	}
+	return c, nil
 }
+
+// cardStateSQL reads one CardState ($1 tenant, $2 msg id, $3 now or NULL,
+// which skips the retention check: a state read right after a write).
+const cardStateSQL = `SELECT m.msg_id::text, m.task_id::text, m.is_parent, m.archived_at, m.archived_by,
+			NOT EXISTS (SELECT 1 FROM messages e WHERE e.tenant_id = m.tenant_id AND e.task_id = m.task_id
+				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id)),
+			EXISTS (SELECT 1 FROM issues i WHERE i.tenant_id = m.tenant_id AND i.task_id = m.task_id)
+		FROM messages m
+		WHERE m.tenant_id = $1 AND m.msg_id = $2 AND ($3::timestamptz IS NULL OR m.expires_at > $3)`
 
 // scanCard reads msgID's CardState inside tx. A zero now skips the
 // retention check (a state read right after a write).
 func scanCard(ctx context.Context, tx pgx.Tx, tenant, msgID string, now time.Time, c *CardState) error {
 	var at *time.Time
 	var by *string
-	err := tx.QueryRow(ctx, `SELECT m.msg_id::text, m.task_id::text, m.is_parent, m.archived_at, m.archived_by,
-			NOT EXISTS (SELECT 1 FROM messages e WHERE e.tenant_id = m.tenant_id AND e.task_id = m.task_id
-				AND e.is_parent = 1 AND (e.received_at, e.msg_id) < (m.received_at, m.msg_id)),
-			EXISTS (SELECT 1 FROM issues i WHERE i.tenant_id = m.tenant_id AND i.task_id = m.task_id)
-		FROM messages m
-		WHERE m.tenant_id = $1 AND m.msg_id = $2 AND ($3::timestamptz IS NULL OR m.expires_at > $3)`,
-		tenant, msgID, optTime(now)).Scan(&c.MsgID, &c.TaskID, &c.IsParent, &at, &by, &c.FirstOfTask, &c.IssueTopic)
+	err := tx.QueryRow(ctx, cardStateSQL, tenant, msgID, optTime(now)).
+		Scan(&c.MsgID, &c.TaskID, &c.IsParent, &at, &by, &c.FirstOfTask, &c.IssueTopic)
+	return cardStateDone(err, at, by, c)
+}
+
+// cardStateDone maps a CardState read's error (no row is ErrNotFound) and
+// fills the nullable archive stamp.
+func cardStateDone(err error, at *time.Time, by *string, c *CardState) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}

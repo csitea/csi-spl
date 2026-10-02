@@ -318,18 +318,6 @@ export default defineNuxtConfig({
 
   modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule],
 
-  hooks: {
-    // No <link rel="prefetch"> in the generated documents (CLE-77933). Nuxt
-    // hints EVERY lazy chunk of the build: 101 links (84 js + 17 css, 345 KB of
-    // a 610 KB cold first load on prd, measured with do_spl_wui_perf_first_load
-    // n=2 at 9ce33809), and Chrome fetched all of them before the left rail
-    // showed. A lazy chunk now loads when it is first used, or when a
-    // NuxtLink to its page comes into view (Nuxt's own idle link prefetch).
-    "build:manifest"(manifest) {
-      for (const chunk of Object.values(manifest)) chunk.prefetch = false
-    },
-  },
-
   // Donor i18n, copied (spec 021): 19 locales, prefix_except_default, lazy
   // catalogues, browser detection done by the blocking root redirect script
   // (cookie -> Accept-Language -> default) instead of the module, so the

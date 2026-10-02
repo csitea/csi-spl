@@ -66,6 +66,15 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # The box's /tmp is a 32 GB tmpfs shared with every agent on it, and
+      # when they fill it every t.TempDir/mktemp here fails with "no space
+      # left on device" (run 37031322430, bf701c2b: 8 fallback tests and the
+      # file tests red, no code at fault). RUNNER_TEMP is on the runner's disk
+      # and wiped per job; its longest path (40 chars) keeps the Postgres and
+      # submit unix sockets well under the ~107-byte limit.
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
       - name: Set up Go (version from go.mod)
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:

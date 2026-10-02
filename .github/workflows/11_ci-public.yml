@@ -89,9 +89,17 @@ jobs:
         run: pnpm run typecheck
 
   wui-e2e:
-    name: "wui: browser e2e (mock, generated)"
+    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
+    # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), as workflow 10
+    # (perf round 4, C4): the one serial job was this run's wall clock,
+    # median 1652 s (n=8 green runs, 2026-10-02) while every other job here
+    # took <= 360 s. The union of the 3 shards is the unsharded selection.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     timeout-minutes: 45
     defaults:
       run:
@@ -131,6 +139,7 @@ jobs:
       - name: Browser e2e (mock bundle, signed-out API stub)
         env:
           CI: "1"
+          E2E_SHARD: "${{ matrix.shard }}/3"
         run: |
           set -euo pipefail
           # Free ports, a signed-out API stub, the generated bundle served, then

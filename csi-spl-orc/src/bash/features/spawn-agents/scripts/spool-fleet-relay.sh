@@ -109,6 +109,14 @@ BODY="from_agent: $FROM@${SIDEBOX:-$BOX}"$'\n'"$BODY"
 BIN="${SPOOL_FLEET_BIN:-$STATE/$ENVN/bin/spool}"
 [ -x "$BIN" ] || BIN="${SPOOL_BIN:-spool}"
 args=(send --from "$SENDER" --to "$TO" --kind "$KIND" --body "$BODY")
+# The hub keys a topic on a uuid; a local task name ("dispatch-lease",
+# "dispatch-gaps") made Postgres refuse the insert, the hub answered
+# "internal (message not stored)", and the sidecar retried it for ever
+# (2026-10-02, prd hub log). A name maps to ONE uuid (v5), so a topic stays one.
+if [ -n "$TASK" ] && ! [[ "$TASK" =~ ^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$ ]]; then
+  TASK="$(python3 -c 'import sys, uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spool-task:" + sys.argv[1]))' "$TASK")" ||
+    { say "cannot map task '$TASK' to a uuid"; exit 2; }
+fi
 [ -n "$TASK" ] && args+=(--task "$TASK")
 [ -n "$TOBOX" ] && args+=(--to-box "$TOBOX")
 out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_LOG_LEVEL=error \

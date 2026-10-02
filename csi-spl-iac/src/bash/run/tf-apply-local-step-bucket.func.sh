@@ -41,7 +41,7 @@ do_tf_apply_local_step_bucket() {
   # load the RIGHT previous local state
   test -f "$state_path" && rm -v "$state_path"
   test -d "cnf/terraform/$tf_proj" || mkdir -p "cnf/terraform/$tf_proj"
-  test -f "$state_path_to_load" && yes | cp "$state_path_to_load" "$state_path"
+  test -f "$state_path_to_load" && cp "$state_path_to_load" "$state_path"
 
   do_log "INFO running:
   terraform -chdir=${tf_run_path} apply -var-file=$tf_vars_file -auto-approve"

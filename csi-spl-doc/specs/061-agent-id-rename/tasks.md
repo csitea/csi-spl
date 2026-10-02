@@ -9,7 +9,7 @@ Deadline marker: legacy ids end `2026-10-02T20:59:59Z` (spec section 0).
 
 ## 1. Wave A: accept both forms (parallel, file-disjoint)
 
-- [ ] T010 L1 `internal/agentid`: grammar, letter map, legacy grammar, `LegacyUntil = 2026-10-02T20:59:59Z`, injectable `Now` (FR-001, FR-004) + tests
+- [x] T010 L1 `internal/agentid`: grammar, letter map, legacy grammar, `LegacyUntil = 2026-10-02T20:59:59Z`, injectable `Now` (FR-001, FR-004) + tests
 - [ ] T011 L1 the 6 Go regex sites call `agentid` (FR-001)
 - [ ] T012 L1 rdb migration: widen CHECKs in 0001/0005/0047/0096/0097 to both grammars; table `agent_id_aliases` (FR-006) + PG test
 - [ ] T013 L1 alias resolve at the edge (send, recv, lease, lane, ask, `cmd/spool` flags); FR-003 refusal after the deadline; `GET /api/v1/agent-aliases`

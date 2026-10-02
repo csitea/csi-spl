@@ -195,6 +195,11 @@ const onwarnFailAppCycles: Rollup.WarningHandlerWithDefault = (warning, warn) =>
   warn(warning)
 }
 
+/** A module only mock mode loads (src/utils/<name>-mock.mjs or mock-<name>.mjs). */
+function isMockOnlyModule(src: string): boolean {
+  return /(?:^|\/)utils\/(?:[^/]+-mock|mock-[^/]+)\.mjs$/.test(src)
+}
+
 /** Map a module id to its long-lived vendor chunk, or undefined to let Rollup decide. */
 function vendorChunk(id: string): string | undefined {
   if (!id.includes("node_modules")) return undefined
@@ -317,6 +322,21 @@ export default defineNuxtConfig({
   css: ["@/assets/css/main.css"],
 
   modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule],
+
+  hooks: {
+    // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
+    // them all before the left rail shows. Keep that (CLE-77933, 94f46ac6): 89
+    // of the 101 are chunks the first screen's import waterfall needs anyway,
+    // and without the hints the rail came later. But never hint a mock-only
+    // module (utils/*-mock.mjs, mock-*.mjs): a live build never loads one, so
+    // its prefetch is pure waste (5 requests, 12.5 KB of prd's cold first
+    // load, do_spl_wui_perf_first_load_net). Mock mode loads it on first use.
+    "build:manifest"(manifest) {
+      for (const [src, chunk] of Object.entries(manifest)) {
+        if (isMockOnlyModule(src)) chunk.prefetch = false
+      }
+    },
+  },
 
   // Donor i18n, copied (spec 021): 19 locales, prefix_except_default, lazy
   // catalogues, browser detection done by the blocking root redirect script

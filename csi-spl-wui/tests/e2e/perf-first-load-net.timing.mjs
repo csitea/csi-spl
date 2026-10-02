@@ -131,7 +131,9 @@ async function round(p, cdp, rec, cache) {
   await sleep(SETTLE)
   const all = rec.take().map((r) => {
     const u = new URL(r.url)
-    return { ...r, kind: kindOf(r), path: u.host === host ? u.pathname : `${u.protocol}//${u.host}${u.pathname}` }
+    const kind = kindOf(r)
+    // a hub read keeps its query (which topic list, which cursor): ids are not secrets, values are not logged elsewhere
+    return { ...r, kind, path: (u.host === host ? u.pathname : `${u.protocol}//${u.host}${u.pathname}`) + (kind === 'api' ? u.search : '') }
   })
   // a request whose start was seen before the rail is "before"; a WebSocket has no wallTime: before
   const isBefore = (r) => !r.t0 || r.t0 <= railWall

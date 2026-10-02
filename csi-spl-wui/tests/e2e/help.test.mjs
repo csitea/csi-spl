@@ -1,7 +1,8 @@
 // W14 (spec 047, SPL-1169): help reachable in 1 click. The ? at the foot of
 // the left rail opens /help (the index of csi-spl-doc/doc/help, rendered);
 // a sibling link opens the page in the app; an unknown page says so; the
-// sign-in page links the help too; on a phone the ? ends the section strip.
+// sign-in page links the help too; on a phone the ? ends the section strip,
+// which rolls endlessly, so the phone test swipes to it and taps it by touch.
 //
 // Control: before W14 there is no [data-testid=help-open] (0 clicks reach help).
 //
@@ -94,7 +95,31 @@ try {
   const box = mo ? await mo.boundingBox() : null
   ok('the phone strip carries Help, a 44 px target', Boolean(box && box.width >= 44 && box.height >= 44), box)
   if (mo) {
-    await mo.tap()
+    /* CLE-77922: the phone strip rolls endlessly (CLE-77886, [copy][real][copy],
+       its scroll held in the middle half), so Help may sit off-screen at load
+       and centring the real one makes the strip wrap a copy width - which is
+       why ElementHandle.tap() on it found nothing clickable. A phone user
+       swipes until a Help (real or copy, both link /help) is in view and taps
+       that: do the same, a swipe step at a time, then a touch at its centre. */
+    const spot = async () => m.evaluate(() => {
+      const rail = document.querySelector('[data-testid=sidebar-rail]')
+      const rb = rail.getBoundingClientRect()
+      for (const h of document.querySelectorAll('.sidebar-rail__help')) {
+        const r = h.getBoundingClientRect()
+        if (r.width && r.left >= Math.max(rb.left, 0) && r.right <= Math.min(rb.right, window.innerWidth)) {
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, real: h.getAttribute('data-testid') === 'help-open' }
+        }
+      }
+      return null
+    })
+    let at = await spot()
+    for (let i = 0; !at && i < 60; i++) {
+      await m.evaluate(() => { document.querySelector('[data-testid=sidebar-rail]').scrollLeft += 40 })
+      await new Promise((r) => setTimeout(r, 50))
+      at = await spot()
+    }
+    ok('a swipe along the strip brings Help into view', Boolean(at), at)
+    if (at) await m.touchscreen.tap(at.x, at.y)
     await m.waitForFunction(() => location.pathname === '/help', { timeout: 10000 }).catch(() => {})
     ok('one tap lands on /help', new URL(m.url()).pathname === '/help', m.url())
     ok('the index renders on a phone', await rendered(m))

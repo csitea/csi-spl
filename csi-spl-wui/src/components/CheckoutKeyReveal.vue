@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { keyFileName } from '~/utils/checkout-client.mjs'
+import { saveBlob } from '~/utils/save-blob.mjs'
 
 const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string, email?: string }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -44,15 +45,7 @@ async function copyKey() {
 }
 
 function downloadKey() {
-  const url = URL.createObjectURL(new Blob([props.keyText + '\n'], { type: 'application/octet-stream' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = keyFileName(props.tenantId)
-  a.rel = 'noopener'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  saveBlob(new Blob([props.keyText + '\n'], { type: 'application/octet-stream' }), keyFileName(props.tenantId))
 }
 </script>
 

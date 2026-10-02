@@ -45,6 +45,7 @@ import { sha256Hex } from '~/utils/spool-client.mjs'
 import { fileKind, isPreviewableImage, previewImageMime, sharedPreview } from '~/utils/file-preview.mjs'
 import { bytesToDataUri } from '~/utils/avatar.mjs'
 import type { FileRef } from '~/types/spool'
+import { saveBlob } from '~/utils/save-blob.mjs'
 
 const props = withDefaults(defineProps<{ file: FileRef, iconOnly?: boolean }>(), { iconOnly: false })
 
@@ -135,14 +136,7 @@ async function onDownload() {
       status.value = 'mismatch'
       return
     }
-    const url = URL.createObjectURL(new Blob([buf]))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = props.file.name || want
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 10000)
+    saveBlob(new Blob([buf]), props.file.name || want)
     status.value = 'done'
   } catch {
     status.value = 'failed'

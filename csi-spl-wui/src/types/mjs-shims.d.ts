@@ -1942,3 +1942,8 @@ declare module '~/utils/section-strip.mjs' {
   export function chatKind(path: string): '' | 'channel' | 'dm'
   export function sectionExitPath(last: { channel?: string, dm?: string, chat?: string }, tab?: string): string
 }
+
+declare module '~/utils/save-blob.mjs' {
+  export const OBJECT_URL_REVOKE_MS: number
+  export function saveBlob(blob: Blob, name: string, env?: { doc?: Document, url?: typeof URL, later?: (fn: () => void, ms: number) => unknown }): void
+}

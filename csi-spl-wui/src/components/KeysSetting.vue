@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { saveBlob } from '~/utils/save-blob.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSessionStore } from '~/stores/session'
 import { userIdentity } from '~/utils/user-menu.mjs'
@@ -205,14 +206,7 @@ async function readFile(e: Event) {
 }
 
 function save(name: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  saveBlob(new Blob([text], { type: 'application/octet-stream' }), name)
 }
 
 const names = computed(() => humanKeyFileNames(hum.value))

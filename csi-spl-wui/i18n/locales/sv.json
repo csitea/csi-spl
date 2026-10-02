@@ -493,6 +493,7 @@
     "remove_file": "Ta bort {name}",
     "attach": "bifoga",
     "attach_nothing": "Ingen fil bifogades: fildialogen stängdes utan fil. Markera filen och tryck Öppna (ett dubbelklick kan tappa den), eller dra filen till sidan.",
+    "attach_nothing_touch": "Ingen fil bifogad: väljaren stängdes utan fil. Tryck på gemet igen och välj en fil.",
     "resize": "Ändra storlek på rutan",
     "send": "Skicka",
     "go": "Kör / Skicka",

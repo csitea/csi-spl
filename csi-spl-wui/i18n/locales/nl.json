@@ -493,6 +493,7 @@
     "remove_file": "{name} verwijderen",
     "attach": "bijvoegen",
     "attach_nothing": "Geen bestand bijgevoegd: het bestandsvenster sloot zonder bestand. Selecteer het bestand en klik op Openen (een dubbelklik kan het kwijtraken), of sleep het bestand naar de pagina.",
+    "attach_nothing_touch": "Geen bestand bijgevoegd: de kiezer sloot zonder bestand. Tik opnieuw op de paperclip en kies een bestand.",
     "resize": "Grootte wijzigen",
     "send": "Versturen",
     "go": "Ga / Verzenden",

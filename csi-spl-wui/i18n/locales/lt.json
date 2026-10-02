@@ -493,6 +493,7 @@
     "remove_file": "Pašalinti {name}",
     "attach": "pridėti",
     "attach_nothing": "Failas nepridėtas: failų langas užsidarė be failo. Pažymėkite failą ir spauskite „Atidaryti“ (dvigubas spustelėjimas gali jį prarasti) arba nutempkite failą į puslapį.",
+    "attach_nothing_touch": "Failas nepridėtas: parinkiklis užsidarė be failo. Dar kartą bakstelėkite sąvaržėlę ir pasirinkite failą.",
     "resize": "Keisti dydį",
     "send": "Siųsti",
     "go": "Pirmyn / Siųsti",

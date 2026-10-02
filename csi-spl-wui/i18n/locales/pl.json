@@ -493,6 +493,7 @@
     "remove_file": "Usuń {name}",
     "attach": "załącz",
     "attach_nothing": "Nie dołączono pliku: okno wyboru pliku zamknęło się bez pliku. Zaznacz plik i kliknij Otwórz (dwukrotne kliknięcie może go zgubić) albo przeciągnij plik na stronę.",
+    "attach_nothing_touch": "Nie dołączono pliku: okno wyboru zamknęło się bez pliku. Stuknij ponownie spinacz i wybierz plik.",
     "resize": "Zmień rozmiar",
     "send": "Wyślij",
     "go": "Idź / Wyślij",

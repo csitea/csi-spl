@@ -1899,6 +1899,17 @@ declare module '~/utils/dm-presence.mjs' {
   }
 }
 
+declare module '~/utils/outside-tap.mjs' {
+  export const PHONE_OR_TOUCH_QUERY: string
+  export function isOutsideTap(target: unknown, roots: Array<{ contains(n: unknown): boolean } | null | undefined>): boolean
+  export function onOutsideTap(
+    doc: Pick<Document, 'addEventListener' | 'removeEventListener'>,
+    getRoots: () => Array<{ contains(n: unknown): boolean } | null | undefined>,
+    onOutside: (ev: PointerEvent) => void,
+  ): () => void
+  export function isPhoneOrTouch(win?: Window): boolean
+}
+
 declare module '~/utils/undo-timer.mjs' {
   export const UNDO_TOUCH_MIN_MS: number
   export const UNDO_NOTE_MS: number

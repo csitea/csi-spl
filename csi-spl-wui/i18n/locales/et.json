@@ -493,6 +493,7 @@
     "remove_file": "Eemalda {name}",
     "attach": "manusta",
     "attach_nothing": "Faili ei lisatud: failiaken sulgus ilma failita. Vali fail ja vajuta Ava (topeltklõps võib selle kaotada) või lohista fail lehele.",
+    "attach_nothing_touch": "Faili ei lisatud: valija suleti ilma failita. Puuduta uuesti kirjaklambrit ja vali fail.",
     "resize": "Muuda suurust",
     "send": "Saada",
     "go": "Mine / Saada",

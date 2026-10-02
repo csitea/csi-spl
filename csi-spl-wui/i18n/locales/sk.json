@@ -493,6 +493,7 @@
     "remove_file": "Odstrániť {name}",
     "attach": "priložiť",
     "attach_nothing": "Nepripojil sa žiadny súbor: okno so súbormi sa zavrelo bez súboru. Označte súbor a stlačte Otvoriť (dvojklik ho môže stratiť) alebo súbor presuňte na stránku.",
+    "attach_nothing_touch": "Nepripojil sa žiadny súbor: výber sa zavrel bez súboru. Ťuknite znova na sponku a vyberte súbor.",
     "resize": "Zmeniť veľkosť",
     "send": "Odoslať",
     "go": "Choď / Odoslať",

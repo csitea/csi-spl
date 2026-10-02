@@ -15,9 +15,17 @@
      while a finger is on it (utils/undo-timer.mjs); hover is a MOUSE pointer
      only (a tap's emulated mouseenter would hold it forever). On a phone it
      sits above the composer dock, the keyboard and the safe-area inset, and
-     Undo / close are 44 px targets. Move now passes its 8 s here too. -->
+     Undo / close are 44 px targets. Move now passes its 8 s here too.
+
+     Owner, t1 topic e3e9ca61 (on a phone): "the position of the snack bar on
+     mobile should not be at the bottom but it should be on the top", and
+     "whenever I click somewhere else, the snack bar ... should disappear".
+     On a phone or touch UI it sits at the TOP, under the safe-area inset
+     (never over the composer dock), and a tap anywhere outside it dismisses
+     it (utils/outside-tap.mjs). The desktop keeps the bottom centre. -->
 <template>
   <div
+    ref="rootEl"
     class="undo-snackbar"
     role="status"
     aria-live="polite"
@@ -59,6 +67,7 @@
 <script setup lang="ts">
 import type { UiIconName } from '~/utils/uiIcons'
 import { createUndoTimer, isTouchUi } from '~/utils/undo-timer.mjs'
+import { isPhoneOrTouch, onOutsideTap } from '~/utils/outside-tap.mjs'
 
 const props = withDefaults(defineProps<{
   text: string
@@ -93,8 +102,18 @@ function onPointerDown(ev: PointerEvent) {
 }
 function onPointerUp(ev: PointerEvent) { if (!isMouse(ev)) clock.release('touch') }
 
-onMounted(() => clock.arm())
-onBeforeUnmount(() => clock.stop())
+/* e3e9ca61: on a phone a tap outside closes it; never a trap */
+const rootEl = ref<HTMLElement | null>(null)
+let offOutside: (() => void) | null = null
+
+onMounted(() => {
+  clock.arm()
+  if (isPhoneOrTouch()) offOutside = onOutsideTap(document, () => [rootEl.value], () => emit('dismiss'))
+})
+onBeforeUnmount(() => {
+  clock.stop()
+  offOutside?.()
+})
 </script>
 
 <style scoped>
@@ -129,7 +148,13 @@ onBeforeUnmount(() => clock.stop())
 .undo-snackbar__close { flex: none; }
 /* CLE-77871: a thumb, not a cursor - 44 px targets (--tap) */
 @media (max-width: 820px), (pointer: coarse) {
-  .undo-snackbar { gap: 0.25rem; padding-block: 0.25rem; }
+  /* e3e9ca61: at the TOP on a phone, under the notch / status bar */
+  .undo-snackbar {
+    top: calc(0.5rem + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    gap: 0.25rem;
+    padding-block: 0.25rem;
+  }
   .undo-snackbar__undo,
   .undo-snackbar__close { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
 }

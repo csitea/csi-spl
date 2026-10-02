@@ -10,7 +10,9 @@
 // and on each snackbar:
 //   - it shows, and is still up 2.5 s later (the desktop window is 0.7 s; a
 //     thumb needs more) - control: no pointer ever rested on it
-//   - it sits ABOVE the docked composer (old: y 761..826 over "Message…")
+//   - it sits at the TOP of the screen, clear of the docked composer (old:
+//     y 761..826 over "Message…"; owner e3e9ca61: "on the top" on mobile)
+//   - a tap outside it dismisses it (owner e3e9ca61)
 //   - Undo is a >= 44 px target and is what a tap at its centre hits
 //   - aria-live="polite"
 //   - a tap on Undo brings the card / reply back and closes it, and the card
@@ -155,7 +157,7 @@ async function checkSnack(p, tid, label) {
   const t0 = Date.now()
   const m = await measure(p, tid)
   await shot(p, `${tid}-${label.split(' ')[0]}`)
-  ok(`${label}: above the composer dock, inside the screen`, m && m.top >= 0 && m.bottom <= m.vh && (m.dockTop === null || m.bottom <= m.dockTop), m)
+  ok(`${label}: at the TOP (top <= 80 px), clear of the composer dock`, m && m.top >= 0 && m.top <= 80 && m.bottom <= m.vh && (m.dockTop === null || m.bottom <= m.dockTop), m)
   ok(`${label}: Undo is a >= 44 px target and a tap at its centre hits it`, m && m.undoW >= 44 && m.undoH >= 44 && m.hitsUndo, m)
   ok(`${label}: aria-live="polite"`, m && m.live === 'polite', m && m.live)
   await sleep(Math.max(0, 2500 - (Date.now() - t0)))
@@ -198,6 +200,17 @@ try {
     ok('A ... lifting the finger lets it close on its own', await until(p, () => !document.querySelector('[data-testid=archive-toast]'), null, TOUCH_MS + 3000))
     ok('A ... and the card stays archived', !(await has(p, card(a.top))))
   }
+
+  /* ---- A1. a tap outside dismisses it (owner e3e9ca61) ------------------- */
+  const a1 = await seed(p, 'A1')
+  await p.waitForSelector(card(a1.top), { visible: true, timeout: 10000 })
+  await sleep(300)
+  await menuPick(p, card(a1.top), 'archive')
+  if (await until(p, () => Boolean(document.querySelector('[data-testid=archive-toast]')), null, 5000)) {
+    const pt = await p.evaluate(() => ({ x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight * 0.45) }))
+    await p.touchscreen.tap(pt.x, pt.y)
+    ok('A1 a tap outside the snackbar dismisses it', await until(p, () => !document.querySelector('[data-testid=archive-toast]'), null, 2000))
+  } else ok('A1 the snackbar shows', false)
 
   /* ---- A2. tap Undo ------------------------------------------------------ */
   const a2 = await seed(p, 'A2')

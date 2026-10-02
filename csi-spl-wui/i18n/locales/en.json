@@ -493,6 +493,7 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "attach_nothing": "No file attached: the file dialog closed without one. Select the file and press Open (a double-click can lose it), or drag the file onto the page.",
+    "attach_nothing_touch": "No file attached: the picker closed without one. Tap the paperclip again and pick a file.",
     "resize": "Resize the omnibox",
     "send": "Send",
     "go": "Go / Send",

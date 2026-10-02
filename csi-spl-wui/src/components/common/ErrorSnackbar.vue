@@ -3,10 +3,17 @@
      Renders the queue in utils/error-snackbar.mjs — one source, the journal
      (subscribe via bindSnackbarToJournal). Newest on top, at most 3, count
      badge for coalesced repeats. About the top-bar height; slides in from
-     the top; prefers-reduced-motion drops the slide. -->
+     the top; prefers-reduced-motion drops the slide.
+
+     Owner, t1 topic e3e9ca61 (on a phone): the snackbar "froze so I couldn't
+     do anything". It must never trap a phone: only a MOUSE hover holds a row
+     (a finger's pointerenter has no reliable pointerleave), a tap anywhere
+     outside it dismisses every row (utils/outside-tap.mjs), and it sits
+     under the safe-area inset (the notch / status bar). -->
 <template>
   <div
     v-if="items.length"
+    ref="rootEl"
     class="error-snackbar"
     role="region"
     :aria-label="t('snackbar.region')"
@@ -19,8 +26,8 @@
       role="alert"
       data-test="error-snackbar-item"
       :data-id="item.id"
-      @pointerenter="hold(item.id, true)"
-      @pointerleave="hold(item.id, false)"
+      @pointerenter="onPointer(item.id, $event, true)"
+      @pointerleave="onPointer(item.id, $event, false)"
       @focusin="hold(item.id, true)"
       @focusout="hold(item.id, false)"
     >
@@ -56,6 +63,7 @@ import {
   createSnackbarQueue,
   tickWhileShown,
 } from '~/utils/error-snackbar.mjs'
+import { isPhoneOrTouch, onOutsideTap } from '~/utils/outside-tap.mjs'
 
 type SnackItem = {
   id: string
@@ -76,6 +84,11 @@ const items = shallowRef<SnackItem[]>([])
 function hold(id: string, on: boolean) {
   queue.hold(id, on)
 }
+/* hover is a mouse thing: a tap's pointerenter would hold the row forever */
+function onPointer(id: string, ev: PointerEvent, on: boolean) {
+  if (ev.pointerType === 'mouse') hold(id, on)
+}
+const rootEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   const unsub = queue.subscribe((next) => {
@@ -85,10 +98,15 @@ onMounted(() => {
   const unbind = bindSnackbarToJournal(queue, { getErrors, subscribeErrors })
   /* the SNACKBAR_TICK_MS clock runs only while a row shows (CLE-35075) */
   const stopTick = tickWhileShown(queue)
+  /* e3e9ca61: on a phone a tap anywhere else clears it */
+  const offOutside = isPhoneOrTouch()
+    ? onOutsideTap(document, () => [rootEl.value], () => { if (items.value.length) queue.clear() })
+    : () => {}
   onBeforeUnmount(() => {
     unsub()
     unbind()
     stopTick()
+    offOutside()
   })
 })
 </script>
@@ -105,6 +123,7 @@ onMounted(() => {
   gap: 0.5rem;
   width: min(36rem, calc(100vw - 2rem));
   padding: 0.5rem;
+  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
   pointer-events: none;
 }
 .error-snackbar__item {

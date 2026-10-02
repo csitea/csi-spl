@@ -493,6 +493,7 @@
     "remove_file": "Elimină {name}",
     "attach": "atașează",
     "attach_nothing": "Niciun fișier atașat: fereastra de fișiere s-a închis fără fișier. Selectați fișierul și apăsați Deschide (dublu clic îl poate pierde) sau trageți fișierul pe pagină.",
+    "attach_nothing_touch": "Niciun fișier atașat: selectorul s-a închis fără fișier. Atingeți din nou agrafa și alegeți un fișier.",
     "resize": "Redimensionează",
     "send": "Trimite",
     "go": "Start / Trimite",

@@ -493,6 +493,7 @@
     "remove_file": "Poista {name}",
     "attach": "liitä",
     "attach_nothing": "Tiedostoa ei liitetty: tiedostoikkuna sulkeutui ilman tiedostoa. Valitse tiedosto ja paina Avaa (kaksoisnapsautus voi hukata sen) tai vedä tiedosto sivulle.",
+    "attach_nothing_touch": "Tiedostoa ei liitetty: valitsin sulkeutui ilman tiedostoa. Napauta paperiliitintä uudelleen ja valitse tiedosto.",
     "resize": "Muuta kirjoituskentän kokoa",
     "send": "Lähetä",
     "go": "Mene / Lähetä",

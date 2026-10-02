@@ -176,10 +176,24 @@
              reference to quote, so it is NOT an ErrorNotice: minting an
              ERR-CLIENT-… into the diagnostics journal for "this snippet is
              long" would bury the failures that journal exists for -->
-        <p v-if="pickLost" class="composer-too-big" role="status" data-testid="attach-nothing">
+        <p v-if="pickLost && !docked" class="composer-too-big" role="status" data-testid="attach-nothing">
           <UiIcon name="alert-triangle" :size="16" />
           <span>{{ t('composer.attach_nothing') }}</span>
         </p>
+        <!-- e3e9ca61: on a phone the same notice is a TOP snackbar with a
+             close, a timeout and tap-outside-to-dismiss - inside the dock it
+             had none of them, stayed up and read as a frozen app -->
+        <Teleport v-if="pickLost && docked" to="body">
+          <UndoSnackbar
+            :text="t('composer.attach_nothing_touch')"
+            :close-label="t('snackbar.dismiss')"
+            :show-undo="false"
+            :duration="ATTACH_NOTICE_MS"
+            icon="alert-triangle"
+            testid="attach-nothing"
+            @dismiss="pickLost = false"
+          />
+        </Teleport>
         <p v-if="sizeError" class="composer-too-big" role="alert" data-testid="composer-too-big">
           <UiIcon name="alert-triangle" :size="16" />
           <span>{{ t(sizeError.key, sizeError.params) }}</span>
@@ -262,6 +276,7 @@
 </template>
 
 <script setup lang="ts">
+import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
@@ -278,6 +293,7 @@ import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
 import { useStatusStripHeight } from '~/composables/useStatusStrip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
+import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
@@ -963,6 +979,8 @@ function onSend() {
    `cancel` on the input for an empty close; a close that fires neither
    `change` nor `cancel` is caught when the window gets the focus back. */
 const pickLost = ref(false)
+/* e3e9ca61: the phone's top notice closes itself after this long */
+const ATTACH_NOTICE_MS = 8000
 let awaitingPick = false
 let pickTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -1008,6 +1026,22 @@ function onFiles(ev: Event) {
   input.value = ''
 }
 onBeforeUnmount(clearPickWait)
+
+/* e3e9ca61 (owner, on a phone): "whenever I click somewhere else, the snack
+   bar and the omnibar should disappear". Attach keeps the focus in the box
+   (@mousedown.prevent), so after the picker the box is still open at 40% of
+   the screen with the keyboard up. A tap outside the dock now blurs it, which
+   collapses it (onOmniboxBlur) and drops the keyboard. Desktop: unchanged. */
+let offDockOutside: (() => void) | null = null
+function onDockOutside() {
+  const el = inputEl.value
+  if (el && document.activeElement === el) el.blur()
+}
+watch(docked, (on) => {
+  offDockOutside?.()
+  offDockOutside = on && typeof document !== 'undefined' ? onOutsideTap(document, () => [formEl.value], onDockOutside) : null
+}, { immediate: true, flush: 'post' })
+onBeforeUnmount(() => { offDockOutside?.() })
 
 /* A pasted screenshot or copied file is attached, as if picked with Attach.
    A paste with no files, or rich text from a document, stays a text paste. */

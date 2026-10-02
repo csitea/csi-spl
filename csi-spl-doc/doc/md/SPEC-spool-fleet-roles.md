@@ -258,6 +258,35 @@ resource, and its age would have come from each machine's own clock.
 | ranks before the holder's machine in `LEASE_PRIORITY` | takes it back (the handback) |
 | otherwise | stands by |
 
+- **The standby takes over on two conditions** (owner, t1 27f01e16,
+  2026-10-02: "The failover should just stand by and in certain conditions he
+  should take over"). Measured 16:37Z-18:27Z that day: the orchestrator's
+  process was alive and renewing, but a stray character in its input box and a
+  window-name mismatch stopped every poke - 93 unread, and nothing failed over
+  because the lease followed the process.
+
+  | condition | who sees it | then |
+  |---|---|---|
+  | 1. the holder's process is gone, stalled (section 4) or its machine is silent | the holder's machine: no able candidate, so no renewal | the standby machine takes over when the row is 180 s old |
+  | 2. the orchestrator is **stuck**: idle while its oldest unread inbox message is over 10 min old | the holder's machine, every tick: the orch candidate is dropped (`stuck pid=<n>: oldest unread <s>s > 600s, idle <s>s` in `NO-LOCAL-AGENT`) | the same: no renewal, the standby takes over 180 s later |
+
+  *Unread* = an inbox message (`<root>/<orch id>/inbox/*.json`) that arrived
+  after the agent's last activity. *Last activity* = the newest write of a
+  transcript in the agent's project dir (`<HOME>/.claude/projects/<cwd>/*.jsonl`,
+  every prompt, tool call and tool result). *Idle* = no turn in progress (no
+  `…(12s · …)` spinner in the pane footer), so a long tool call is busy, not
+  stuck. A message read before the last activity never counts, so an inbox
+  nobody archives does not trip an agent that works. No transcript or no pane
+  found = not stuck (fails open). Knob `LEASE_UNREAD_MAX` (600 s; 0 = off,
+  rule 1 only). Only the orch role has condition 2.
+
+  The stuck orchestrator stays out until its transcript grows past the unread
+  message (the poke lands, a human clears its input), then its machine takes
+  the role back on priority. **The owner gets ONE DM per take-over** (a
+  failover, not a handback): from the new holder's desk to `LEASE_OWNER`, else
+  `ASKS_OWNER` of `lease.conf` (`LEASE_OWNER_CMD` replaces it); no owner set =
+  one `WARN` in `lease.log`, nothing sent. Logged as `OWNER-DM orch take-over`.
+
 - **Only the holder acts.** The loop mirrors the result into the local lease
   files the agents read: `$SPOOL_ROOT/dispatch/lease` (dispatch) and
   `lease.orch` (orchestrator), one line `<ID>@<box> <epoch>`. **An agent acts
@@ -288,7 +317,10 @@ resource, and its age would have come from each machine's own clock.
   `sat` first in BOTH machines' `lease.conf`.
 - Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` simulates two
   machines against a hub stub (CAS, expiry at 181 s, priority handback, local
-  order, lost race, unreachable hub, hub clock). The hub side is tested by
+  order, lost race, unreachable hub, hub clock, stalled agents, and section
+  15: a stuck holder fails over with one owner DM, a busy one does not, the
+  `LEASE_UNREAD_MAX=0` control renews it, a dead one still fails over at
+  181 s). The hub side is tested by
   `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
 
 ### 4.2 Messages and reports across machines (specs/058 N1, CLE-77919)
@@ -468,4 +500,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (CLE-77929: rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.6.0 · updated: 2026-10-02 · last-edit: 2026-10-02T03:10:00Z -->
+<!-- version: 0.7.0 · updated: 2026-10-02 · last-edit: 2026-10-02T18:45:00Z -->

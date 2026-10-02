@@ -48,6 +48,8 @@
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's box, default its desk box id (spl_desk_box_default)
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
+# @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
+# @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -605,12 +607,89 @@ spl_fleet_rank() {
 spl_fleet_candidate() {
   local id
   case "$1" in
-    orch) [[ -n "$(spl_lease_agent_able "$LEASE_ORCH")" ]] && echo "$LEASE_ORCH" ;;
+    orch)
+      local pid why
+      pid="$(spl_lease_agent_able "$LEASE_ORCH")"
+      [[ -n "$pid" ]] || return 0
+      why="$(spl_fleet_stuck "$LEASE_ORCH" "$pid")"
+      [[ -z "$why" ]] && { echo "$LEASE_ORCH"; return 0; }
+      printf 'stuck pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$LEASE_ORCH" 2>/dev/null ;;
     dispatch)
       for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
         [[ -n "$(spl_lease_agent_able "$id")" ]] && { echo "$id"; return; }
       done ;;
   esac
+}
+
+# Take-over condition 2 (owner, 27f01e16, 2026-10-02): an orchestrator that is
+# alive and able but STUCK - idle while a message waits. On 2026-10-02
+# 16:37Z-18:27Z a stray character in its input box stopped every poke: 93
+# unread, and nothing failed over because the lease follows the process.
+# Stuck = the oldest inbox message that arrived AFTER the agent's last activity
+# is older than LEASE_UNREAD_MAX s (600; 0 = off) and no turn is in progress.
+# - last activity: the newest mtime of a transcript (*.jsonl) in the agent's
+#   project dir (<HOME>/.claude/projects/<cwd, non-alphanumerics as ->), which
+#   grows with every prompt, tool call and tool result;
+# - a turn in progress: the spinner "…(12s · ↓ 214 tokens)" in the pane footer;
+#   a long tool call writes nothing to the transcript but shows the spinner
+#   (a frozen spinner is spl_lease_stall's case, not this one);
+# - a message read and handled earlier is older than the last activity, so an
+#   inbox nobody archives never counts against an agent that is working.
+# Prints why when stuck. Fails OPEN: no transcript or no pane = not stuck.
+# The stuck orchestrator is no candidate, so its machine stops renewing and the
+# standby machine takes over by rule 1 (silent > LEASE_STALE).
+spl_fleet_stuck() {
+  local id="$1" pid="$2" max="${LEASE_UNREAD_MAX:-600}" act text now oldest
+  [[ "$max" =~ ^[0-9]+$ ]] && (( max > 0 )) || return 0
+  act="$(spl_lease_activity "$pid" 2>/dev/null)"
+  [[ "$act" =~ ^[0-9]+$ ]] || return 0
+  oldest="$(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f -name '*.json' -newermt "@$act" \
+    -printf '%T@\n' 2>/dev/null | sort -n | head -1)"
+  oldest="${oldest%.*}"
+  [[ "$oldest" =~ ^[0-9]+$ ]] || return 0
+  now="$(spl_lease_now)"
+  (( now - oldest > max )) || return 0
+  text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
+  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}" | grep -qE -- '…[[:space:]]*\([0-9][^)]*\)' && return 0
+  echo "oldest unread $((now - oldest))s > ${max}s, idle $((now - act))s"
+}
+
+# The epoch of <pid>'s last transcript write; empty when unknown.
+# LEASE_ACTIVITY_CMD (called with the pid) replaces it in the tests.
+spl_lease_activity() {
+  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" home cwd dir
+  [[ -n "${LEASE_ACTIVITY_CMD:-}" ]] && { $LEASE_ACTIVITY_CMD "$pid"; return; }
+  declare -F spool_proc_environ >/dev/null || return 0
+  home="$(spool_proc_environ "$root" "$pid" 2>/dev/null | tr '\0' '\n' | sed -n 's/^HOME=//p' | head -1)"
+  cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
+  [[ -z "$cwd" ]] && cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
+  [[ -n "$home" && -n "$cwd" ]] || return 0
+  dir="$home/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$cwd")"
+  local -a q=(find "$dir" -maxdepth 1 -name '*.jsonl' -printf '%T@\n')
+  # the agent user's home is its own: read it through the owner
+  if [[ -r "$dir" ]]; then "${q[@]}" 2>/dev/null; else spool_proc_as_owner "$root" "$pid" "${q[@]}"; fi |
+    sort -n | tail -1 | cut -d. -f1
+}
+
+# The owner hears ONE message per orchestrator take-over (27f01e16): a DM
+# from the new holder's desk to LEASE_OWNER, else lease.conf ASKS_OWNER (the
+# owner leg of the asks, 4.3). LEASE_OWNER_CMD replaces the DM (the text on
+# stdin). In the background: a slow hub must not stall the tick.
+spl_fleet_owner_dm() {
+  local who="$1" text="$2" owner="${LEASE_OWNER:-${ASKS_OWNER:-}}"
+  if [[ -n "${LEASE_OWNER_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $LEASE_OWNER_CMD <<<"$text" >/dev/null 2>&1 || spl_lease_log "WARN owner DM failed (LEASE_OWNER_CMD)"
+    spl_lease_log "OWNER-DM orch take-over: $who"; return 0
+  fi
+  [[ -n "$owner" ]] || owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9][0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | head -1)"
+  [[ "$owner" =~ ^HUM-[0-9]+$ ]] ||
+    { spl_lease_log "WARN orch take-over by $who: no owner to tell (LEASE_OWNER, or ASKS_OWNER in lease.conf)"; return 0; }
+  ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="${who%@*}" DESK_TO="$owner" \
+      DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
+      timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" -a do_spl_desk_reply \
+      >>"$LEASE_DIR/owner-dm.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
+  spl_lease_log "OWNER-DM orch take-over: $who -> $owner"
 }
 
 # Why each local agent of a role is not a candidate: "<id>: <why>; ...".
@@ -650,6 +729,9 @@ spl_fleet_role_tick() {
       [[ "$FW" == true ]] && echo "$now" > "$ok"
       [[ "$FW" == true && -n "$before" && "${before##*@}" != "$me" ]] &&
         spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}") -> $(spl_fleet_rank "$me"))"
+      # a failover (not a priority handback) of the orchestrator: tell the owner once
+      [[ "$FW" == true && "$role" == orch && -n "$before" && "${before##*@}" != "$me" ]] && (( age > LEASE_STALE )) &&
+        spl_fleet_owner_dm "$want" "Orchestrator failover: $want took over from $before, silent ${age}s - its process is gone, stalled, or it sat idle with an unread message older than $(( ${LEASE_UNREAD_MAX:-600} / 60 )) min. $want acts for the fleet now and hands back when $before is able again."
     else
       spl_fleet_unreachable "$role" "$now" "$out"; return 0
     fi

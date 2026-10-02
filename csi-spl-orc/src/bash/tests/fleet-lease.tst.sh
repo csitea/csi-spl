@@ -32,6 +32,14 @@
 #      frozen >= 45 s) is no candidate: pc's stalled master hands to pc's
 #      failover; pc's whole trio stalled lets the lease go stale and the
 #      satellite takes over; the banner under an idle line is able
+#  15. take-over condition 2 (27f01e16): an orchestrator alive but STUCK (idle,
+#      an inbox message newer than its last transcript write and > 600 s old)
+#      is no candidate - the satellite takes the orch role 181 s later and the
+#      owner gets ONE DM; a busy holder (fresh unread, or a turn in progress)
+#      keeps it; LEASE_UNREAD_MAX=0 (the old rule) is the control; a dead
+#      holder still fails over at 181 s (and DMs once); a handback DMs nobody
+#  Fixtures only in a mktemp root: the test refuses to run where its roots
+#  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,6 +50,7 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
+case "$(readlink -f "$T")" in /var/spool-hub|/var/spool-hub/*) echo "FAIL: refusing to run inside the live spool root ($T)"; exit 1 ;; esac
 mkdir -p "$T/bin" "$T/hub" "$T/pc/proc" "$T/sat/proc"
 
 cat >"$T/bin/send" <<'STUB'
@@ -273,6 +282,71 @@ stall 100 '✻ Brewed for 16s · done'; stall 101 '✻ Brewed for 16s · done'; 
 tick pc 20300
 [[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc ]] &&
   pass "14. turns done (banner still shown), pc takes both back on priority" || fail "14. hub $(hubh dispatch)/$(hubh orch)"
+
+# --- 15. take-over condition 2: a stuck-but-alive orchestrator -------------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/act"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+# the last transcript write of pid N is $T/act/N (none = unknown, fails open)
+printf '#!/usr/bin/env bash\ncat "%s/act/$1" 2>/dev/null\n' "$T" >"$T/bin/act"
+printf '#!/usr/bin/env bash\ncat >>"%s/owner-dm"\n' "$T" >"$T/bin/owner"
+chmod +x "$T/bin/act" "$T/bin/owner"
+T15=(LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER_CMD="$T/bin/owner")
+idle() { printf '✻ Brewed for 16s\n❯ x\n────\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
+busy() { printf '✢ Compiling… (%ss · ↓ 214 tokens)\n❯ \n────\n  ⏵⏵ auto mode on\n' "${2:-40}" >"$T/pane/$1"; }
+msg() { mkdir -p "$T/$1/spool/$2/inbox"; touch -d "@$3" "$T/$1/spool/$2/inbox/$3--$2--m.json"; }
+dms() { grep -c '^Orchestrator failover' "$T/owner-dm" 2>/dev/null || true; }
+[[ "$T/pc/spool" != /var/spool-hub* && "$T/sat/spool" != /var/spool-hub* ]] || { echo "FAIL: 15. a fixture root is the live spool"; exit 1; }
+idle 100; echo 30000 >"$T/act/100"
+tick pc 30000 "${T15[@]}"; tick sat 30000 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc ]] && pass "15. pc's orchestrator holds orch (idle, inbox empty)" || fail "15. setup: hub $(hubh orch)"
+# busy holder: a fresh unread (60 s) while it works, and an old one under a running turn
+echo 30595 >"$T/act/100"; msg pc CLE-001 30540
+tick pc 30600 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc && "$(logc pc 'NO-LOCAL-AGENT orch')" == 0 ]] &&
+  pass "15. busy holder: a message read before its last activity keeps the lease" || fail "15. busy: $(cat "$T/pc/spool/dispatch/lease.log")"
+msg pc CLE-001 30610; busy 100
+tick pc 31300 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc && "$(logc pc 'NO-LOCAL-AGENT orch')" == 0 ]] &&
+  pass "15. busy holder: a turn in progress (long tool call) keeps it despite an unread 690 s old" || fail "15. spinner: $(cat "$T/pc/spool/dispatch/lease.log")"
+# stuck: idle, the unread from 30610 waits > 600 s
+idle 100
+tick pc 31200 "${T15[@]}" LEASE_UNREAD_MAX=600
+[[ "$(hubh orch)" == CLE-001@pc ]] && pass "15. an unread 590 s old is not stuck yet" || fail "15. early: hub $(hubh orch)"
+tick pc 31211 "${T15[@]}" LEASE_UNREAD_MAX=0
+[[ "$(hubh orch)" == CLE-001@pc && "$(logc pc 'NO-LOCAL-AGENT orch')" == 0 ]] &&
+  pass "15. control: LEASE_UNREAD_MAX=0 (the old, process-only rule) renews the stuck holder" || fail "15. control: $(cat "$T/pc/spool/dispatch/lease.log")"
+tick pc 31212 "${T15[@]}"; tick pc 31272 "${T15[@]}"
+[[ "$(logc pc 'NO-LOCAL-AGENT orch.*CLE-001: stuck pid=100: oldest unread 602s')" == 1 && "$(hubh dispatch)" == CLE-002@pc ]] &&
+  pass "15. stuck holder: pc stops renewing orch (logged once, with why) and keeps dispatch" || fail "15. stuck: $(cat "$T/pc/spool/dispatch/lease.log")"
+tick sat 31391 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc ]] && pass "15. the satellite waits the 180 s" || fail "15. sat early: hub $(hubh orch)"
+tick sat 31392 "${T15[@]}"; tick sat 31450 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@sat && "$(hubh dispatch)" == CLE-002@pc && "$(sentc sat 'CLE-001 :: FLEET LEASE orch: you are now ACTIVE')" == 1 ]] &&
+  pass "15. 181 s later the satellite's orchestrator takes orch over; dispatch stays on pc" || fail "15. takeover: hub $(hubh orch)/$(hubh dispatch): $(cat "$T/sat/spool/dispatch/lease.log")"
+[[ "$(dms)" == 1 && "$(grep -c 'CLE-001@sat took over from CLE-001@pc, silent 181s' "$T/owner-dm")" == 1 && "$(logc sat 'OWNER-DM orch take-over')" == 1 ]] &&
+  pass "15. the owner gets ONE DM for the take-over" || fail "15. dm: $(cat "$T/owner-dm" 2>&1)"
+tick pc 31460 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@sat && "$(mirror pc orch)" == CLE-001@sat ]] &&
+  pass "15. still stuck: pc does not take it back on priority" || fail "15. stuck handback: hub $(hubh orch)"
+# it works again (the poke landed): its transcript grows past the unread -> handback, no DM
+echo 31500 >"$T/act/100"
+tick pc 31510 "${T15[@]}"; tick sat 31520 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc && "$(dms)" == 1 && "$(sentc sat 'CLE-001 :: FLEET LEASE orch: STANDBY')" == 1 ]] &&
+  pass "15. active again: priority handback to pc, the owner is not DMed for a handback" || fail "15. handback: hub $(hubh orch) dms $(dms)"
+# dead holder (rule 1, the control): still fails over at 181 s, one more DM
+kill_agent pc 100
+tick pc 31570 "${T15[@]}"; tick sat 31690 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@pc ]] && pass "15. dead holder: 180 s is not stale" || fail "15. dead early: hub $(hubh orch)"
+tick sat 31691 "${T15[@]}"
+[[ "$(hubh orch)" == CLE-001@sat && "$(dms)" == 2 ]] &&
+  pass "15. dead holder: the satellite takes over at 181 s, one DM" || fail "15. dead: hub $(hubh orch) dms $(dms)"
+# no owner leg: the take-over is logged with a WARN, nothing sent
+rm -rf "$T/hub"/*; agent pc 100 CLE-001; echo 31700 >"$T/act/100"
+tick pc 31700 LEASE_ACTIVITY_CMD="$T/bin/act"; kill_agent pc 100
+tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER= ASKS_OWNER=
+[[ "$(hubh orch)" == CLE-001@sat && "$(logc sat 'WARN orch take-over by CLE-001@sat: no owner to tell')" == 1 && "$(dms)" == 2 ]] &&
+  pass "15. no owner configured: one WARN, nothing sent" || fail "15. no owner: $(tail -3 "$T/sat/spool/dispatch/lease.log")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -152,7 +152,7 @@ func TestChannelInviteBackfillsEarlierPosts(t *testing.T) {
 		map[string]string{"id": "CLE-35", "box": "box-desk"}); code != http.StatusCreated {
 		t.Fatalf("re-invite: %d", code)
 	}
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { return len(pokes()) > 2 })
 	if n := len(pokes()); n != 2 {
 		t.Fatalf("re-invite poked again: %v", pokes())
 	}
@@ -201,7 +201,7 @@ func TestChannelBackfillOnHelloAndOldClient(t *testing.T) {
 	// An old client: no features in its hello. Nothing is sent, the seat
 	// stays pending.
 	rb := e.rawBox(tid, d, []string{"CLE-35"}, nil)
-	time.Sleep(200 * time.Millisecond)
+	watch(200*time.Millisecond, func() bool { p, _ := bf.PendingBackfills(ctx, tid, "box-desk"); return len(p) != 1 })
 	if p, _ := bf.PendingBackfills(ctx, tid, "box-desk"); len(p) != 1 {
 		t.Fatalf("old client: pending %+v, want the one seat", p)
 	}

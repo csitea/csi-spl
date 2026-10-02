@@ -113,8 +113,25 @@ SQL
   fi
 
   local out
-  out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-    -v tenant="$SPL_PURGE_TENANT" -v boxes="$SPL_PURGE_BOXES" -v idle="$SPL_PURGE_IDLE" -v want="$want" <<'SQL'
+  out="$(_spl_box_purge_sql |
+    spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
+    -v tenant="$SPL_PURGE_TENANT" -v boxes="$SPL_PURGE_BOXES" -v idle="$SPL_PURGE_IDLE" -v want="$want")" || { do_log "FATAL the purge statement failed on $ENV/$SPL_PURGE_TENANT (nothing was committed): $out"; return 1; }
+
+  local line npins nboxes nroster nsubs ok gone
+  line="$(tail -n1 <<<"$out")"
+  read -r npins nboxes nroster nsubs ok gone <<<"$line"
+  [[ "$ok" == t ]] || {
+    do_log "FATAL $npins of $want pin(s) matched in $ENV/$SPL_PURGE_TENANT: ROLLED BACK, nothing was deleted. A box that said hello within $SPL_PURGE_IDLE h is held back on purpose."
+    return 1
+  }
+  do_log "OK purged $npins box(es) from $ENV/$SPL_PURGE_TENANT ($GCP_ACCOUNT): $gone — pins=$npins boxes=$nboxes roster=$nroster channel_subscriptions=$nsubs; messages, deliveries and pins_history kept"
+}
+
+# _spl_box_purge_sql: the one-transaction purge - delete the subscriptions,
+# roster rows, boxes and pins of the requested boxes that are idle past :idle
+# hours, COMMIT only when :want pins went, and echo the counts as one line.
+_spl_box_purge_sql() {
+  cat <<'SQL'
 BEGIN;
 SET LOCAL app.tenant_id = :'tenant';
 WITH req AS (SELECT unnest(string_to_array(:'boxes', ' ')) AS box_id),
@@ -147,16 +164,6 @@ ROLLBACK;
 \endif
 \echo :npins :nboxes :nroster :nsubs :ok :gone
 SQL
-  )" || { do_log "FATAL the purge statement failed on $ENV/$SPL_PURGE_TENANT (nothing was committed): $out"; return 1; }
-
-  local line npins nboxes nroster nsubs ok gone
-  line="$(tail -n1 <<<"$out")"
-  read -r npins nboxes nroster nsubs ok gone <<<"$line"
-  [[ "$ok" == t ]] || {
-    do_log "FATAL $npins of $want pin(s) matched in $ENV/$SPL_PURGE_TENANT: ROLLED BACK, nothing was deleted. A box that said hello within $SPL_PURGE_IDLE h is held back on purpose."
-    return 1
-  }
-  do_log "OK purged $npins box(es) from $ENV/$SPL_PURGE_TENANT ($GCP_ACCOUNT): $gone — pins=$npins boxes=$nboxes roster=$nroster channel_subscriptions=$nsubs; messages, deliveries and pins_history kept"
 }
 
 # Remove the box-scoped local state, so the next probe/e2e run re-pins instead

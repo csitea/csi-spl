@@ -53,8 +53,8 @@ do_wui_up() {
     docker volume rm "${LDE_COMPOSE_PROJECT}_$v" >/dev/null 2>&1 && do_log "INFO removed legacy volume ${LDE_COMPOSE_PROJECT}_$v"
   done
 
-  local url="http://localhost:$LDE_WUI_PORT/" code="" t
-  for t in $(seq 1 "${LDE_WUI_READY_TIMEOUT:-300}"); do
+  local url="http://localhost:$LDE_WUI_PORT/" code=""
+  for _ in $(seq 1 "${LDE_WUI_READY_TIMEOUT:-300}"); do
     code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$url")
     [[ "$code" == 200 ]] && break
     sleep 1

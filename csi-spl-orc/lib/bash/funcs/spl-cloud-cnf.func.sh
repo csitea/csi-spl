@@ -374,8 +374,7 @@ spl_sql_proxy_start() {
       { unset CSQL_PROXY_TOKEN; do_log "FATAL could not start $SPL_SQL_PROXY_IMAGE"; return 1; }
   fi
   unset CSQL_PROXY_TOKEN
-  local i
-  for i in $(seq 1 60); do
+  for _ in $(seq 1 60); do
     (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null && { do_log "INFO Cloud SQL proxy up: 127.0.0.1:$SPL_PROXY_PORT -> $SPL_SQL_CONN"; return 0; }
     sleep 0.5
   done

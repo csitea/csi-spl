@@ -108,8 +108,8 @@ _sai_check_pg() {
 }
 
 _sai_check_gcs() {
-  local base="http://127.0.0.1:$LDE_GCS_PORT/storage/v1" code i
-  for i in $(seq 1 20); do
+  local base="http://127.0.0.1:$LDE_GCS_PORT/storage/v1" code
+  for _ in $(seq 1 20); do
     code=$(curl -s -o /dev/null -w '%{http_code}' "$base/b?project=lde") && [[ "$code" == 200 ]] && break
     sleep 0.5
   done
@@ -137,8 +137,8 @@ _sai_check_migrate() {
 _sai_check_serve() {
   _sai_has_verb serve || { _sai_record serve BLOCKED "spool has no 'serve' verb on this tree"; return; }
   lde_compose up -d --no-deps hub >/dev/null 2>&1 || { _sai_record serve FAIL "compose up hub failed"; return; }
-  local url="http://$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT/healthz" code="" t
-  for t in $(seq 1 $(( ${SPOOL_HUB_READY_TIMEOUT:-30} * 2 ))); do
+  local url="http://$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT/healthz" code=""
+  for _ in $(seq 1 $(( ${SPOOL_HUB_READY_TIMEOUT:-30} * 2 ))); do
     code=$(curl -s -o /dev/null -w '%{http_code}' --resolve "$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT:127.0.0.1" "$url")
     [[ "$code" == 200 ]] && break
     sleep 0.5

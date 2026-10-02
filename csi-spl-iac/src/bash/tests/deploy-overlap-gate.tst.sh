@@ -10,7 +10,8 @@
 #        ci-<sha>-v<version> tags, never the release tag itself
 #     3. deploy promotes that exact tag (tags add) and still falls back to its
 #        own build + push
-#     4. verify still needs test success
+#     4. verify still needs test success; deploy sets up Go even when the
+#        image was promoted (do_spl_db_bootstrap builds spool, run 37071957656)
 #   WUI (30)
 #     5. the "Wait for the suite" gate sits before the mint, and every step
 #        that claims a tag or touches the site comes after it
@@ -54,6 +55,9 @@ if 'pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${IMAGE_REF##*:}"' not in img or 'doc
     bad.append("deploy does not promote ci-<sha>-v<minted version>")
 if not any("do_build_push_hub_image" in str(s.get("run", "")) for s in steps): bad.append("deploy lost its own build + push fallback")
 if ids.index("ver") > ids.index("img"): bad.append("deploy reads the registry before the mint")
+# the migrate step builds spool whether or not the image was promoted (run 37071957656)
+go = [s for s in steps if "actions/setup-go" in str(s.get("uses", ""))]
+if not go or "steps.img.outputs.exists" in str(go[0].get("if", "")): bad.append("deploy's setup-go is skipped when the image exists, but do_spl_db_bootstrap still builds spool")
 if "needs.test.result == 'success'" not in str(j["verify"].get("if", "")): bad.append("verify if: lacks needs.test.result == 'success'")
 print("\n".join(bad))
 PY

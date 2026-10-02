@@ -546,8 +546,12 @@ jobs:
       # cache: keyed on go.sum, restores the cold ~21 s std-lib+deps compile to
       # ~1.5 s on a hit (measured 2026-09-29) -- this hosted runner is cold each
       # run, unlike the persistent-HOME self-hosted 10_ci-quality box.
-      - name: Set up Go (only to build a new image)
-        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && steps.img.outputs.exists == 'false'
+      # NOT gated on steps.img.outputs.exists: do_spl_db_bootstrap below builds
+      # `spool` too, and the runner's own Go is older than go.mod's (run
+      # 37071957656: a promoted prebuilt image skipped this step, the migrate
+      # step then failed "go.mod requires go >= 1.25.14 (running go 1.24.13)").
+      - name: Set up Go (the image build and the migrate step's spool build)
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod

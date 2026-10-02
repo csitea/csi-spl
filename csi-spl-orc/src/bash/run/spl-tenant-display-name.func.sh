@@ -17,7 +17,7 @@ do_spl_tenant_display_name() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" name dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   name="$(printf '%s' "${DISPLAY_NAME-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   [[ -n "$name" && ${#name} -le 200 && "$name" != *$'\n'* && "$name" != *$'\r'* ]] \
     || { do_log "FATAL DISPLAY_NAME must be one line of 1..200 characters, got: '${DISPLAY_NAME-}'"; return 1; }

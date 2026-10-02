@@ -31,7 +31,7 @@ do_spl_msg_edit_probe() {
   do_require_bin yq python3 || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" api fqdn
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
   fqdn="$(yq -r '.env.dns.fqdn // ""' "$SPL_CNF")"

@@ -21,7 +21,7 @@ do_spl_hub_invite_revoke() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" email="${INVITE_EMAIL:-}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { do_log "FATAL INVITE_EMAIL is not an email: '$email'"; return 1; }
   email="${email,,}"
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

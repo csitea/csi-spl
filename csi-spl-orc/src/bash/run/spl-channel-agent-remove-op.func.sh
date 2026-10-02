@@ -30,7 +30,7 @@ do_spl_channel_agent_remove_op() {
   local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1 a
   local -a ids=()
   declare -A seen=()
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   [[ "$ch" == general ]] && ch=lobby
   case "$ch" in

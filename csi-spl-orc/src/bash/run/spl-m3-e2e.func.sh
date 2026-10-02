@@ -89,7 +89,7 @@ do_spl_m3_e2e() {
   [[ "${ENV:-}" == prd ]] && TENANT_ID="${TENANT_ID:-e2e}"
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   if [[ "$ENV" == prd ]]; then
     spl_m3_prd_prepare "$tenant" || return 1
   fi

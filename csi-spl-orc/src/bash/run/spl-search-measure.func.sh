@@ -25,7 +25,7 @@
 do_spl_search_measure() {
   do_require_bin yq psql python3 || return 1
   local tenant="${TENANT_ID:-}" n="${MEASURE_N:-15}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$n" =~ ^[0-9]{1,2}$ ]] && ((n >= 3 && n <= 50)) || { do_log "FATAL MEASURE_N must be 3..50, got: $n"; return 1; }
   local to="${MEASURE_TIMEOUT_MS:-5000}"
   [[ "$to" =~ ^[0-9]{3,5}$ ]] && ((to >= 100 && to <= 60000)) || { do_log "FATAL MEASURE_TIMEOUT_MS must be 100..60000, got: $to"; return 1; }

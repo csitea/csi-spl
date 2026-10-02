@@ -37,7 +37,7 @@ do_spl_hub_invite() {
   spl_hub_operator_url || return 1
   local tenant="${TENANT_ID:-}" email="${INVITE_EMAIL:-}" invby="${INVITED_BY:-}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" ttl="${TTL_HOURS:-}" nomail="${NO_MAIL:-0}" role dry=1
   role="$(spl_role_id "${INVITE_ROLE:-developer}")" || { do_log "FATAL INVITE_ROLE must be a role id ($SPL_ROLE_IDS), got: '${INVITE_ROLE:-}'"; return 1; }
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { do_log "FATAL INVITE_EMAIL is not an email: '$email'"; return 1; }
   [[ -z "$invby" || "$invby" =~ ^(HUM-[0-9]+|operator)$ ]] || { do_log "FATAL INVITED_BY must be a HUM-* id or 'operator', got: '$invby'"; return 1; }
   [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }

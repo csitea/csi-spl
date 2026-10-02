@@ -183,6 +183,13 @@ open(sys.argv[2], "w").write(key + "\n")
 EOF_PY
 }
 
+# spl_require_tenant_slug <tenant> -> 0 when <tenant> is a tenant slug
+# ([a-z0-9][a-z0-9-]{0,31}); otherwise logs the FATAL every action printed
+# when it carried this check inline, and returns 1.
+spl_require_tenant_slug() {
+  [[ "${1-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '${1-}'"; return 1; }
+}
+
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise
 spl_dry_run() {
   local d="${DRY_RUN:-1}"

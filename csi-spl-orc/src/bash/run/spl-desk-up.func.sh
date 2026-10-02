@@ -149,7 +149,7 @@ spl_desk_show_pane() {
 # actions. box-wui is the hub's own signing box and is never a desk.
 spl_desk_validate() {
   local tenant="$1" box="$2" agent="$3"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ && "${agent%%-*}" != BOX ]] || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 }

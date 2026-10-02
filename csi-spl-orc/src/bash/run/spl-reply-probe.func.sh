@@ -42,7 +42,7 @@ do_spl_reply_probe() {
   stamp="$(date -u +%Y%m%d%H%M%S)"
   local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-rpp-$stamp}" wait="${PROBE_WAIT_SECS:-30}"
   local member="${PROBE_MEMBER:-PRB-9975}" to="${PROBE_OPEN_TO:-HUM-27}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$tenant" != t1 ]] || { do_log "FATAL TENANT_ID=t1 is a real tenant: run the probe in a test tenant (e2e)"; return 1; }
   [[ "$wait" =~ ^[0-9]+$ ]] && (( wait >= 1 && wait <= 600 )) || { do_log "FATAL PROBE_WAIT_SECS must be 1..600, got: '$wait'"; return 1; }
   [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||

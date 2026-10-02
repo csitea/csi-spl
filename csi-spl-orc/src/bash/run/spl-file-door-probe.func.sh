@@ -32,7 +32,7 @@ do_spl_file_door_probe() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" other="${STRANGER_BOX:-box-orc-stranger}"
   local agent="${PROBE_AGENT:-ORC-1}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   local b
   for b in "$box" "$other"; do
     [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$b" != box-wui ]] || { do_log "FATAL '$b' is not a box id (box-wui is reserved)"; return 1; }

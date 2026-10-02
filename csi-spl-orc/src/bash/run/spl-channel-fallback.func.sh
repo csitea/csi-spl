@@ -21,7 +21,7 @@ do_spl_channel_fallback() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" off="${NO_FALLBACK:-}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   [[ "$off" == 0 || "$off" == 1 ]] || { do_log "FATAL NO_FALLBACK must be 1 (off) or 0 (on), got: '$off'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

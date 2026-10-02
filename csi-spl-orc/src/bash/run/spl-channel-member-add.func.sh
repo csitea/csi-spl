@@ -30,7 +30,7 @@ do_spl_channel_member_add() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" email="${EMAIL:-}" ch="${CHANNEL:-}" dry=1 raw
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   raw="$ch"
   [[ "$ch" == general ]] && ch=lobby

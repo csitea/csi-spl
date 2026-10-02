@@ -40,7 +40,7 @@ do_spl_backfill_probe() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" n="${PROBE_POSTS:-3}" box="${PROBE_BOX:-box-bfprobe}"
   local poster="${PROBE_POSTER:-PRB-9871}" target="${PROBE_AGENT:-PRB-9872}" wait="${PROBE_WAIT_SECS:-60}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= 20 )) || { do_log "FATAL PROBE_POSTS must be 1..20, got: '$n'"; return 1; }
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL PROBE_WAIT_SECS must be a whole number, got: '$wait'"; return 1; }
   [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||

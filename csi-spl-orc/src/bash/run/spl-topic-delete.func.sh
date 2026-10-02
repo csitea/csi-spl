@@ -38,7 +38,7 @@ do_spl_topic_delete() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" task="${TASK_ID:-}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   [[ "$task" =~ $uuid_re ]] || { do_log "FATAL TASK_ID must be a lowercase task uuid, got: '$task'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

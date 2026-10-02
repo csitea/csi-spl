@@ -17,7 +17,7 @@ do_spl_rbac_probe() {
   do_require_bin yq python3 || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" api
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   if [[ -n "${PROBE_EXPECT_ROLE:-}" ]]; then
     spl_role_id "$PROBE_EXPECT_ROLE" >/dev/null || { do_log "FATAL PROBE_EXPECT_ROLE is not a role id: '$PROBE_EXPECT_ROLE'"; return 1; }
   fi

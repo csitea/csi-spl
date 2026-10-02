@@ -30,7 +30,7 @@ do_spl_channel_privacy_probe() {
   do_require_bin yq python3 || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" task="${TASK_ID:-}" api file="${FILE_ID:-}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   if [[ -n "$file" ]]; then
     [[ "$file" =~ ^[0-9a-f]{64}$ ]] || { do_log "FATAL FILE_ID must be 64 hex chars, got: '$file'"; return 1; }
     [[ "${FILE_WANT:-}" =~ ^(200|404)$ ]] || { do_log "FATAL FILE_WANT must be 200 or 404 with FILE_ID"; return 1; }

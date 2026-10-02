@@ -42,7 +42,7 @@ do_spl_reply_count_probe() {
   stamp="$(date -u +%Y%m%d%H%M%S)"
   local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-rcp-$stamp}" newer="${PROBE_NEWER:-8}"
   local member="${PROBE_MEMBER:-PRB-9976}" human="${PROBE_HUMAN:-HUM-1}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$tenant" != t1 ]] || { do_log "FATAL TENANT_ID=t1 is a real tenant: run the probe in a test tenant (e2e)"; return 1; }
   [[ "$newer" =~ ^[0-9]+$ ]] && (( newer >= 1 && newer <= 20 )) || { do_log "FATAL PROBE_NEWER must be 1..20, got: '$newer'"; return 1; }
   [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||

@@ -24,7 +24,7 @@ do_spl_tenant_member_role() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" role from="" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
   role="$(spl_role_id "${MEMBER_ROLE:-}")" || { do_log "FATAL MEMBER_ROLE must be a role id ($SPL_ROLE_IDS), got: '${MEMBER_ROLE:-}'"; return 1; }
   if [[ -n "${FROM_ROLE:-}" ]]; then

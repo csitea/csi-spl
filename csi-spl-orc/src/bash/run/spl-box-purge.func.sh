@@ -50,7 +50,7 @@ do_spl_box_purge() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" idle="${PURGE_MIN_IDLE_HOURS:-24}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$idle" =~ ^[0-9]+$ ]] && (( idle <= 8760 )) || { do_log "FATAL PURGE_MIN_IDLE_HOURS must be 0..8760, got: '$idle'"; return 1; }
   (( idle > 0 )) || do_log "WARN PURGE_MIN_IDLE_HOURS=0: a box that said hello a second ago can be purged"
 

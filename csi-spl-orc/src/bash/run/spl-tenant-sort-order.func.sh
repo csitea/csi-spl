@@ -18,7 +18,7 @@ do_spl_tenant_sort_order() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" order="${SORT_ORDER:-}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   if [[ "$order" == none ]]; then order=''
   elif [[ "$order" =~ ^[1-9][0-9]{0,5}$ ]] && (( order <= 100000 )); then :
   else do_log "FATAL SORT_ORDER must be 1..100000 or none, got: '${SORT_ORDER:-}'"; return 1; fi

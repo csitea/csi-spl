@@ -23,7 +23,7 @@ do_spl_tenant_responders() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" dry=1 a list=() seen=" "
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ -n "${AGENTS:-}" ]] || { do_log "FATAL AGENTS must name agent ids (e.g. \"CLE-001 GRK-3\") or be none"; return 1; }
   if [[ "$AGENTS" != none ]]; then
     read -r -a list <<<"$AGENTS"

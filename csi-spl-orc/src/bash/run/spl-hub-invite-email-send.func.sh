@@ -27,7 +27,7 @@ do_spl_hub_invite_email_send() {
   do_spl_cloud_cnf || return 1
   spl_hub_operator_url || return 1
   local tenant="${TENANT_ID:-}" email="${EMAIL:-${INVITE_EMAIL:-}}" locale="${LOCALE:-}" dry=1
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { do_log "FATAL EMAIL is not an email: '$email'"; return 1; }
   [[ -z "$locale" || "$locale" =~ ^[a-z]{2}$ ]] || { do_log "FATAL LOCALE must be a two-letter locale, got: '$locale'"; return 1; }
   email="${email,,}"

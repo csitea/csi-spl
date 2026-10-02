@@ -40,7 +40,7 @@ do_spl_channel_agent_add_op() {
   [[ "$allowdef" == 0 || "$allowdef" == 1 ]] || { do_log "FATAL ALLOW_DEFAULT_CHANNEL must be 0 or 1, got: '$allowdef'"; return 1; }
   local -a ids=()
   declare -A seen=()
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   raw="$ch"
   [[ "$ch" == general ]] && ch=lobby

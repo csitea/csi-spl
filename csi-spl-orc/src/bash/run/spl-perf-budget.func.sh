@@ -37,7 +37,7 @@ do_spl_perf_budget() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   local n="${PERF_N:-12}" warm="${PERF_WARMUP:-1}" req="${PERF_REQUIRE:-live}"
   [[ "$n" =~ ^[0-9]+$ && "$warm" =~ ^[0-9]+$ ]] || { do_log "FATAL PERF_N and PERF_WARMUP must be whole numbers"; return 1; }
   [[ "$req" == live || "$req" == ci || "$req" == none ]] || { do_log "FATAL PERF_REQUIRE must be live, ci or none, got: '$req'"; return 1; }

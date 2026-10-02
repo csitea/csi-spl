@@ -56,7 +56,7 @@ do_spl_tenant_member_add() {
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" email="${EMAIL:-}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" role dry=1
   local create="${CREATE_HUMAN:-0}" name="${DISPLAY_NAME:-}" pwfile="${PASSWORD_FILE:-}"
-  [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
+  spl_require_tenant_slug "$tenant" || return 1
   [[ -z "$ordby" || "$ordby" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL ORDERED_BY must be a HUM-* id, got: '$ordby'"; return 1; }
   [[ ${#ordvia} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
   [[ "$create" == 0 || "$create" == 1 ]] || { do_log "FATAL CREATE_HUMAN must be 0 or 1, got: '$create'"; return 1; }

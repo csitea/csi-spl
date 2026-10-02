@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -30,17 +31,37 @@ func (s *Server) handleViewLocate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "view_door", "a member session is required")
 		return
 	}
-	ctx := store.WithMemo(r.Context())
+	ids := make([]string, 0, len(tenants))
 	for _, t := range tenants {
-		ok, err := s.o.Store.HasTopicOrMessage(ctx, t.TenantID, id)
+		ids = append(ids, t.TenantID)
+	}
+	found, err := s.locateTopicOrMessage(store.WithMemo(r.Context()), ids, id)
+	switch {
+	case err != nil:
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "locate")
+	case found != "":
+		writeJSON(w, http.StatusOK, map[string]string{"id": id, "tenant": found})
+	default:
+		writeErr(w, http.StatusNotFound, "not_found", "no topic or message with that id in your tenants")
+	}
+}
+
+// locateTopicOrMessage is the first of tenants holding id, "" when none (perf
+// r4 G2): one store batch for every tenant, each probed in its own scope,
+// where the loop paid one round trip a tenant. A store without
+// store.SetReads keeps the loop.
+func (s *Server) locateTopicOrMessage(ctx context.Context, tenants []string, id string) (string, error) {
+	if sr, ok := s.o.Store.(store.SetReads); ok {
+		return sr.LocateTopicOrMessage(ctx, tenants, id)
+	}
+	for _, t := range tenants {
+		ok, err := s.o.Store.HasTopicOrMessage(ctx, t, id)
 		if err != nil {
-			writeErr(w, http.StatusServiceUnavailable, "unavailable", "locate")
-			return
+			return "", err
 		}
 		if ok {
-			writeJSON(w, http.StatusOK, map[string]string{"id": id, "tenant": t.TenantID})
-			return
+			return t, nil
 		}
 	}
-	writeErr(w, http.StatusNotFound, "not_found", "no topic or message with that id in your tenants")
+	return "", nil
 }

@@ -206,17 +206,15 @@ func (s *Server) handleTenantChannels(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return
 	}
+	set := s.channelSettings(r.Context(), t.ID, rows, fb)
 	out := []tenantChannelRow{}
 	for _, c := range rows {
 		v := tenantChannelRow{Channel: c.ChannelID, Name: c.Name, Description: c.Description, Visibility: "members",
-			Agents: c.Agents, Messages: c.Count, CreatedBy: c.CreatedBy, Archivable: !store.ChannelPublic(c.ChannelID)}
+			Agents: c.Agents, Messages: c.Count, CreatedBy: c.CreatedBy, Archivable: !store.ChannelPublic(c.ChannelID),
+			Members: set[c.ChannelID].Humans, NoFallback: set[c.ChannelID].NoFallback}
 		if store.ChannelPublic(c.ChannelID) {
 			v.Visibility = "default"
-		} else if ms, err := s.o.Store.ChannelHumanMembers(r.Context(), t.ID, c.ChannelID); err == nil {
-			v.Members = len(ms)
-		}
-		if off, err := fb.ChannelNoFallback(r.Context(), t.ID, c.ChannelID); err == nil {
-			v.NoFallback = off
+			v.Members = 0
 		}
 		if !c.CreatedAt.IsZero() {
 			at := rfc(c.CreatedAt)
@@ -229,6 +227,36 @@ func (s *Server) handleTenantChannels(w http.ResponseWriter, r *http.Request) {
 		out = append(out, v)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "channels": out})
+}
+
+// channelSettings is every listed channel's members + no_fallback (perf r4
+// G2): one store batch, where the loop read both once per channel. A store
+// without store.SetReads, or a failed batch, gets the per-channel reads; a
+// failed one of those reads the zero value, as the list always did.
+func (s *Server) channelSettings(ctx context.Context, tenant string, rows []store.ChannelStat, fb store.Fallbacks) map[string]store.ChannelSetting {
+	ids := make([]string, 0, len(rows))
+	for _, c := range rows {
+		ids = append(ids, c.ChannelID)
+	}
+	if sr, ok := s.o.Store.(store.SetReads); ok {
+		if set, err := sr.ChannelSettings(ctx, tenant, ids); err == nil {
+			return set
+		}
+	}
+	set := make(map[string]store.ChannelSetting, len(ids))
+	for _, ch := range ids {
+		var v store.ChannelSetting
+		if !store.ChannelPublic(ch) {
+			if ms, err := s.o.Store.ChannelHumanMembers(ctx, tenant, ch); err == nil {
+				v.Humans = len(ms)
+			}
+		}
+		if off, err := fb.ChannelNoFallback(ctx, tenant, ch); err == nil {
+			v.NoFallback = off
+		}
+		set[ch] = v
+	}
+	return set
 }
 
 // tenantChannel resolves {channel} for an admin route: any channel of the

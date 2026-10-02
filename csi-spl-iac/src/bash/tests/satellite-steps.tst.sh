@@ -29,12 +29,14 @@ fails=0
 [[ -d "$VM" && -d "$BUD" ]] && pass "059 and 060 steps exist" || fail "059/060 step dir missing"
 
 # --- 1. exactly one ingress rule, tcp/22 --------------------------------------
+# grep reads the files itself: 'cat *.tf | grep -q' under pipefail fails when
+# grep -q exits before cat has written the next file (SIGPIPE, rc 141; 5/40 runs).
 one_ssh_rule() {
   local dir=$1 n ports
   n=$(cat "$dir"/*.tf | grep -cE '^resource "google_compute_firewall"')
   ports=$(cat "$dir"/*.tf | grep -E '^\s*ports\s*=' | tr -d ' ')
   [[ "$n" == 1 && "$ports" == 'ports=["22"]' ]] \
-    && cat "$dir"/*.tf | grep -qE '^\s*direction\s*=\s*"INGRESS"'
+    && grep -qhE '^\s*direction\s*=\s*"INGRESS"' "$dir"/*.tf
 }
 one_ssh_rule "$VM" && pass "060 has one firewall rule: INGRESS tcp/22" || fail "060 firewall is not exactly one INGRESS tcp/22 rule"
 grep -qx 'ssh_source_ranges = \["35.235.240.0/20"\]' "$CNF/prd/tf/060-gcp-vm-satellite.vars.tfvars" \

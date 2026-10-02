@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -69,7 +70,7 @@ func (s *Server) canReadChannel(ctx context.Context, tenant, channel, human stri
 	if channel == "" || human == "" || store.ChannelPublic(channel) {
 		return true, nil
 	}
-	ms, err := s.o.Store.ChannelHumanMembers(ctx, tenant, store.NormalizeChannel(channel))
+	ms, err := s.channelHumans(ctx, tenant, store.NormalizeChannel(channel))
 	if err != nil {
 		return false, err
 	}
@@ -102,6 +103,7 @@ func (s *Server) canReadMessage(ctx context.Context, tenant string, m store.Edit
 // the refusal (404 as for a missing id, 500 on a lookup error). ok=true =
 // the caller may go on and learn the message exists.
 func (s *Server) messageDoor(w http.ResponseWriter, r *http.Request, tenant string, m store.EditableMessage) bool {
+	s.openMembersMemo(r.Context())
 	reader, ok := s.readerID(r, tenant)
 	if !ok {
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
@@ -160,7 +162,7 @@ func (s *Server) channelMemberSet(ctx context.Context, tenant, channel string) m
 	if channel == "" || store.ChannelPublic(channel) {
 		return nil
 	}
-	ms, err := s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
+	ms, err := s.channelHumans(ctx, tenant, channel)
 	if err != nil {
 		// Fail closed: an empty set reaches nobody, which is the safe end of
 		// a lookup failure on a members-only channel.
@@ -171,4 +173,68 @@ func (s *Server) channelMemberSet(ctx context.Context, tenant, channel string) m
 		out[m] = true
 	}
 	return out
+}
+
+// Request memo of channel_humans (perf round 4 G1). A message route asked for
+// the same channel's members for its door (messageDoor, a target's
+// canReadChannel) and again for every fan-out set: kind, archive and
+// reaction 2 reads, promote 3, move 4, merge-topic 5. messageDoor opens a
+// memo on its request's context and the rest of that request reads each
+// channel once.
+//
+// It is NOT a cache: it is dropped when the request's context ends, so a
+// member removed between two requests is out on the next one (025 FR-004,
+// as store.WithMemo). It is opened only by messageDoor, whose routes never
+// change channel membership; the membership routes never carry one. A
+// lookup error is never memoised. A context that never ends (Background,
+// WithoutCancel) gets no memo, so nothing outlives the request.
+type membersMemo struct {
+	mu sync.Mutex
+	m  map[[2]string][]string
+}
+
+type membersMemoKey struct {
+	s   *Server
+	ctx context.Context
+}
+
+// membersMemos maps an open request to its memo. It is keyed on the
+// request's context rather than carried in it because messageDoor cannot
+// hand its caller a new context.
+var membersMemos sync.Map
+
+func (s *Server) openMembersMemo(ctx context.Context) {
+	if ctx.Done() == nil {
+		return
+	}
+	k := membersMemoKey{s, ctx}
+	if _, loaded := membersMemos.LoadOrStore(k, &membersMemo{m: map[[2]string][]string{}}); !loaded {
+		context.AfterFunc(ctx, func() { membersMemos.Delete(k) })
+	}
+}
+
+// channelHumans is Store.ChannelHumanMembers through the request's memo,
+// when messageDoor opened one. Callers only read the list.
+func (s *Server) channelHumans(ctx context.Context, tenant, channel string) ([]string, error) {
+	if ctx.Done() == nil {
+		return s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
+	}
+	v, ok := membersMemos.Load(membersMemoKey{s, ctx})
+	if !ok {
+		return s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
+	}
+	mm, k := v.(*membersMemo), [2]string{tenant, channel}
+	mm.mu.Lock()
+	ms, hit := mm.m[k]
+	mm.mu.Unlock()
+	if hit {
+		return ms, nil
+	}
+	ms, err := s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
+	if err == nil {
+		mm.mu.Lock()
+		mm.m[k] = ms
+		mm.mu.Unlock()
+	}
+	return ms, err
 }

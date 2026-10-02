@@ -109,7 +109,8 @@ func TestChannelHumansReadOncePerRequest(t *testing.T) {
 	// reads is the most channel_humans reads the request may make. Before G1
 	// (n=5, memory and Postgres alike): kind 2, archive 2, reaction 2,
 	// promote 3, move 4, merge-topic 5; fanoutMove's one read for a
-	// same-channel move took promote to 2.
+	// same-channel move took promote to 2, and the request memo of
+	// privacy.go takes every route to one read per channel it touches.
 	routes := []struct {
 		name   string
 		reads  int64
@@ -117,17 +118,17 @@ func TestChannelHumansReadOncePerRequest(t *testing.T) {
 		path   func(g moveRig) string
 		body   func(g moveRig) any
 	}{
-		{"kind", 2, http.MethodPatch, func(g moveRig) string { return "/v1/messages/" + g.card + "/kind" },
+		{"kind", 1, http.MethodPatch, func(g moveRig) string { return "/v1/messages/" + g.card + "/kind" },
 			func(moveRig) any { return map[string]string{"kind": "blocker"} }},
-		{"archive", 2, http.MethodPut, func(g moveRig) string { return "/v1/messages/" + g.card + "/archive" },
+		{"archive", 1, http.MethodPut, func(g moveRig) string { return "/v1/messages/" + g.card + "/archive" },
 			func(moveRig) any { return nil }},
-		{"reaction", 2, http.MethodPut, func(g moveRig) string { return "/v1/messages/" + g.card + "/reactions" },
+		{"reaction", 1, http.MethodPut, func(g moveRig) string { return "/v1/messages/" + g.card + "/reactions" },
 			func(moveRig) any { return map[string]string{"emoji": "👍"} }},
-		{"promote", 2, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.r3 + "/promote-topic" },
+		{"promote", 1, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.r3 + "/promote-topic" },
 			func(moveRig) any { return map[string]any{} }},
-		{"move", 4, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.card + "/move" },
+		{"move", 2, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.card + "/move" },
 			func(moveRig) any { return map[string]string{"to_channel": "ops"} }},
-		{"merge-topic", 5, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.card + "/merge-topic" },
+		{"merge-topic", 2, http.MethodPost, func(g moveRig) string { return "/v1/messages/" + g.card + "/merge-topic" },
 			func(g moveRig) any { return map[string]any{"to_task": g.U} }},
 	}
 	for _, rt := range routes {

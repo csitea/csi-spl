@@ -1512,9 +1512,6 @@ textarea.in-code {
     top: auto;
     bottom: calc(100% + 4px);
   }
-  /* owner, t1 2026-10-02 - the grip (OmniboxGrip) straddles the free edge:
-     4 px more room on that side so its target stays off the field */
-  .composer.composer--dock.composer--dock { padding-top: 10px; }
   .composer.composer--dock.composer--dock[data-dragging=true] {
     opacity: .9;
     transition: none;
@@ -1526,7 +1523,7 @@ textarea.in-code {
   .composer.composer--dock.composer--dock[data-phone-pos=top] {
     top: var(--top-bar-h);
     bottom: auto;
-    padding: 6px calc(8px + env(safe-area-inset-right, 0px)) 10px calc(8px + env(safe-area-inset-left, 0px));
+    padding: 6px calc(8px + env(safe-area-inset-right, 0px)) 6px calc(8px + env(safe-area-inset-left, 0px));
     border-top: 0;
     border-bottom: 1px solid var(--color-border);
     background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%);

@@ -179,19 +179,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* A 48 x 24 target straddling the box's free edge (the top edge at the
-   bottom and in the corner, the bottom edge at the top); the drawn pill is
-   the bottom-sheet grabber everyone knows */
+   bottom and in the corner, the bottom edge at the top), 16 px outside and
+   8 px inside, so it ends in the dock's 6 px padding + the field's border
+   (the dock keeps its <= 8 px edge, composer-mode-cue.test.mjs 390 6); the
+   drawn pill is the bottom-sheet grabber everyone knows */
 .omni-grip {
   position: absolute;
   inset-inline: 0;
-  top: -14px;
+  top: -16px;
   height: 24px;
   display: flex;
   justify-content: center;
   pointer-events: none;
   z-index: 2;
 }
-.omni-grip[data-pos=top] { top: auto; bottom: -14px; }
+.omni-grip[data-pos=top] { top: auto; bottom: -16px; }
 .omni-grip__btn {
   pointer-events: auto;
   display: inline-grid;

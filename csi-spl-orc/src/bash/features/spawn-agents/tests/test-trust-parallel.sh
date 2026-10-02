@@ -16,6 +16,9 @@ set -uo pipefail
 
 N="${TRUST_TEST_N:-8}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+# trust-workdir.sh resolves the spool env: a sandbox root, never the live one
+# and its box.env (CLE-77923, seen under strace).
+export SPOOL_ROOT="$TMP/spool" SPOOL_TEST=1; mkdir -p "$SPOOL_ROOT"
 FAKE="$TMP/fake-claude.py"
 cat >"$FAKE" <<'PY'
 import json, os, random, sys, time

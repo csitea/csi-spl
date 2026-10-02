@@ -4,6 +4,8 @@
 # Usage: bash csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# CLE-77923: under SPOOL_TEST=1 the send/notify path refuses the live root.
+export SPOOL_TEST=1
 rc=0
 for t in "$HERE"/test-*.sh; do
   echo "== ${t##*/} =="

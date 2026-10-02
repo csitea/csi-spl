@@ -172,14 +172,17 @@ fi
 
 # --- helpers ---------------------------------------------------------------
 
-# Normalise an agent id: cle-7 -> CLE-07. Pad a SHORT number up to 2 digits, but
+# Normalise an agent id: C-004 -> c-004 (specs/061: lower case, 3 digits,
+# never padded); legacy cle-7 -> CLE-07. Pad a SHORT legacy number up to 2 digits, but
 # NEVER reformat the width of an id that is already >=2 digits -- CLE-001 and
 # CLE-01 are DIFFERENT ids, and re-parsing "001" as a decimal (10#001=1) then
 # printing %02d gave "CLE-01", so an agent like CLE-001 closing its own window
 # resolved the wrong (or no) target.
 norm_id() {
   local t p n
-  t="$(printf '%s' "${1:-}" | tr '[:lower:]' '[:upper:]' | tr -d ' ')"
+  t="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+  if [[ "$t" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]]; then printf '%s' "$t"; return 0; fi
+  t="$(printf '%s' "$t" | tr '[:lower:]' '[:upper:]')"
   if printf '%s' "$t" | grep -qE '^[A-Z]+-?[0-9]+$'; then
     p="$(printf '%s' "$t" | grep -oE '^[A-Z]+')"
     n="$(printf '%s' "$t" | grep -oE '[0-9]+$')"
@@ -215,13 +218,13 @@ an_strip() {
   case "$n" in
     '> '*|'? '*|'! '*)
       rest="$(an_strip "${n:2}")"
-      if printf '%s' "$rest" | grep -qE '^(CLE|GRK|AGY|QWN)-[0-9]+([[:space:]]|$)'; then
+      if printf '%s' "$rest" | grep -qE "^${SPOOL_AGENT_ID_RX}([[:space:]]|\$)"; then
         id="${rest%% *}"; tail="${rest#"$id"}"; tail="${tail# }"
         case "$tail" in '>'|'?'|'!') tail="" ;; '> '*|'? '*|'! '*) tail="${tail:2}" ;; esac
         printf '%s %s%s' "$id" "${n:0:1}" "${tail:+ $tail}"; return 0
       fi ;;
   esac
-  if [[ "$n" =~ ^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$ ]]; then
+  if [[ "$n" =~ ^${SPOOL_PARTICIPANT_RX}@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$ ]]; then
     printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0   # "<ID>@<box>" (specs/058)
   fi
   case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
@@ -311,7 +314,7 @@ AGENT_ID=""
 
 if [[ -n "$AGENT_ARG" ]]; then
   if ! AGENT_ID="$(norm_id "$AGENT_ARG")"; then
-    echo "tmux-close-window: --agent must look like CLE-07 / GRK-2 / AGY-03 / QWN-01, got: $AGENT_ARG" >&2
+    echo "tmux-close-window: --agent must look like c-004 / CLE-07 / GRK-2 / AGY-03 / QWN-01, got: $AGENT_ARG" >&2
     exit 2
   fi
 elif [[ -n "${MCP_BOT_AGENT_ID:-}" ]]; then

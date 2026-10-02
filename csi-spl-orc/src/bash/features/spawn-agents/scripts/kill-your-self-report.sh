@@ -22,14 +22,14 @@ echo "date:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # The id: the session's own env first, then the worktree path, then the window.
 ID="${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-}}" SRC=env
-if [ -z "$ID" ] && [[ "$WORKDIR" =~ (CLE|GRK|AGY|QWN)-([0-9]+) ]]; then ID="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}" SRC=path; fi
+if [ -z "$ID" ] && [[ "$WORKDIR" =~ (^|[^A-Za-z0-9])${SPOOL_AGENT_ID_RX}([^0-9]|$) ]]; then ID="${BASH_REMATCH[2]}" SRC=path; fi
 wname=""
 if [ -n "${TMUX_PANE:-}" ]; then
   spool_tmux_argv
   wname="$("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{window_name}' 2>/dev/null | awk -F '\t' -v p="$TMUX_PANE" '$1 == p { print $2; exit }')"
-  if [ -z "$ID" ]; then ID="$(an_strip "$wname" | grep -oE '^(CLE|GRK|AGY|QWN)-[0-9]+' || true)"; SRC=window; fi
+  if [ -z "$ID" ]; then ID="$(an_strip "$wname" | grep -oE "^${SPOOL_AGENT_ID_RX}" || true)"; SRC=window; fi
 fi
-case "${ID%%-*}" in CLE) kind=claude ;; GRK) kind=grok ;; AGY) kind=agy ;; QWN) kind=qwen ;; *) kind=unknown ;; esac
+kind="$(spl_kind_of_agent_id "$ID")" || kind=unknown
 echo "agent id: ${ID:-unknown}${ID:+ (from $SRC)}   kind: $kind"
 echo "window:   ${wname:-n/a}"
 if [ -n "$ID" ] && [ -d "$SPOOL_ROOT/$ID/inbox" ]; then

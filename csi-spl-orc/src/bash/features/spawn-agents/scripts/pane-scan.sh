@@ -141,7 +141,7 @@ while IFS='|' read -r wn p; do
     esac
   fi
 done < <("${TM[@]}" list-panes -a -F '#{window_name}|#{pane_id}' 2>/dev/null \
-           | grep -E '^([A-Za-z0-9][A-Za-z0-9._-]*: )?(CLE|GRK|AGY|QWN)-[0-9]+')
+           | grep -E "^([A-Za-z0-9][A-Za-z0-9._-]*: )?${SPOOL_AGENT_ID_RX}")
 
 echo
 echo "RESIDUE (poke text stuck in a prompt) : $nres   <- must be 0"

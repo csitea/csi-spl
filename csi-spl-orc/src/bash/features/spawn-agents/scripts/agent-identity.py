@@ -53,8 +53,11 @@ import time
 
 KINDS = ("claude", "grok", "agy", "qwen")
 LOADERS = ("node", "nodejs", "bun", "deno")
-ID_RE = re.compile(r"^(CLE|GRK|AGY|QWN)-[0-9]+$")
-NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])((?:CLE|GRK|AGY|QWN)-[0-9]+)(?![0-9])")
+# The agent id grammar of lib/spool-env.inc.sh (specs/061): c-004, and the
+# legacy CLE-07 that readers keep accepting (history keeps it).
+AGENT_ID = r"(?:[acgq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
+ID_RE = re.compile(r"^" + AGENT_ID + r"$")
+NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])(" + AGENT_ID + r")(?![0-9])")
 BADGES = (">", "?", "!")
 VOLATILE = ("updated_at",)          # never part of the hash, never a reason to rewrite
 FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", "model", "permission_mode",
@@ -212,7 +215,7 @@ def claude_session(proc, pid, env, start):
 
 
 # "<ID>@<box>" at the head of a name: the box is display (specs/058).
-AT_BOX = re.compile(r"^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
+AT_BOX = re.compile(r"^((?:[acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+))@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
 
 
 def strip_name(name):
@@ -224,7 +227,7 @@ def strip_name(name):
     if n[:2] in ("> ", "? ", "! "):                          # a badge an older writer put first
         n = n[2:]
     n = AT_BOX.sub(r"\1", n)                                 # "CLE-07@sat" (specs/058)
-    m = re.match(r"^((?:CLE|GRK|AGY|QWN)-[0-9]+)(?: (.*))?$", n)
+    m = re.match(r"^(" + AGENT_ID + r")(?: (.*))?$", n)
     if not m:
         return "", name
     rest = m.group(2) or ""
@@ -482,7 +485,7 @@ def badge_of(name):
     n = AT_BOX.sub(r"\1", re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", name))
     if n[:2] in ("> ", "? ", "! "):
         return n[0]
-    m = re.match(r"^(?:CLE|GRK|AGY|QWN)-[0-9]+ ([>?!])(?: |$)", n)
+    m = re.match(AGENT_ID + r" ([>?!])(?: |$)", n)
     return m.group(1) if m else ""
 
 

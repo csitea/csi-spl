@@ -81,14 +81,17 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from spool_redact import redact  # noqa: E402
 
-ID_RE = re.compile(r"^[A-Z]{2,4}-[0-9]+$")
+# A participant id, as lib/spool-env.inc.sh SPOOL_ID_RE (specs/061): c-004, and
+# the legacy CLE-07 that readers keep accepting.
+PID = r"(?:[acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)"
+ID_RE = re.compile(r"^" + PID + r"$")
 HUM_RE = re.compile(r"^HUM-[A-Za-z0-9_-]{1,64}$")
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # A line another AGENT typed into this pane: the inbox doorbell (bare, or the
 # shell-inert `: 'INBOX ...'` form inbox-send.sh types) and the desk's
 # `: 'SPOOL ...'` poke line. Mirrored as typed by that agent, never as a human.
-MACHINE_LINE = re.compile(r"^(?::\s*')?(?:INBOX|SPOOL) [A-Z]{2,4}-[0-9]+\b")
-LINE_SENDER = (re.compile(r"--([A-Z]{2,4}-[0-9]+)--"), re.compile(r"\bfrom ([A-Z]{2,4}-[0-9]+)\b"))
+MACHINE_LINE = re.compile(r"^(?::\s*')?(?:INBOX|SPOOL) " + PID + r"\b")
+LINE_SENDER = (re.compile(r"--(" + PID + r")--"), re.compile(r"\bfrom (" + PID + r")\b"))
 
 
 def line_sender(line):

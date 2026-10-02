@@ -10,6 +10,10 @@ T_FEAT="$(cd "$T_HERE/.." && pwd)"
 T_SCRIPTS="$T_FEAT/scripts"
 T_REPO="$(cd "$T_FEAT/../../../../.." && pwd)"
 
+# specs/061 FR-004: the legacy-id cutoff reads SPOOL_NOW. Pinned before it,
+# so these fixtures' CLE-07 ids do not turn the suite red at the cutoff.
+export SPOOL_NOW="${SPOOL_NOW:-2026-10-02T12:00:00Z}"
+
 T_PASS=0; T_FAIL=0
 ok()   { T_PASS=$((T_PASS + 1)); echo "ok   - $*"; }
 nok()  { T_FAIL=$((T_FAIL + 1)); echo "FAIL - $*"; }

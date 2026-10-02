@@ -50,7 +50,9 @@ case "$verb" in
   put)  action=do_spl_lane_put; vars+=("LANE_STATE=live") ;;
   done) action=do_spl_lane_put; vars+=("LANE_STATE=done") ;;
 esac
-if [ "$verb" != list ] && ! printf '%s\n' "${vars[@]}" | grep -qE '^LANE_AGENT=[A-Z]{2,4}-[0-9]+$'; then
+_lane_agent=""
+for _v in "${vars[@]}"; do case "$_v" in LANE_AGENT=*) _lane_agent="${_v#LANE_AGENT=}" ;; esac; done
+if [ "$verb" != list ] && ! spl_is_agent_id "$_lane_agent"; then
   echo "lane-map.sh: $verb needs --agent <ID>" >&2; exit 64
 fi
 

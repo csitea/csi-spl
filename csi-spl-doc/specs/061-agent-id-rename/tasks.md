@@ -17,8 +17,8 @@ Deadline marker: legacy ids end `2026-10-02T20:59:59Z` (spec section 0).
 - [ ] T020 L2 `src/utils/agent-id.mjs` + the FR-005 pin test against the Go constant
 - [ ] T021 L2 the 15 WUI regex sites call it; mention chips for `@c-004@<box>`
 - [ ] T022 L2 deploy WUI dev+prd; e2e on the generated bundle
-- [ ] T030 L3a `spool-env.inc.sh`: `spl_is_agent_id`, `spl_is_participant_id`, `SPOOL_LEGACY_ID_UNTIL`, `SPOOL_NOW` + FR-005 pin test
-- [ ] T031 L3a spawn-agents scripts, libs and python parsers use the helpers; window parsing accepts `c-NNN`
+- [x] T030 L3a `spool-env.inc.sh`: `spl_is_agent_id`, `spl_is_participant_id`, `SPOOL_LEGACY_ID_UNTIL`, `SPOOL_NOW` + FR-005 pin test
+- [x] T031 L3a spawn-agents scripts, libs and python parsers use the helpers; window parsing accepts `c-NNN`
 - [ ] T032 L3b the about 40 `run/spl-*.func.sh` validators use the helpers (not the rotation files)
 - [ ] T040 Deploy gate (FR-007): dev+prd live, satellite pulled and `spool` rebuilt
 

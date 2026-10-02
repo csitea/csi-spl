@@ -22,7 +22,7 @@
 #   5. MCP_BOT_AGENT_ID / SPOOL_AGENT_ID exported, then the CLI
 #
 # Options:
-#   --as <ID>          the agent id (^[A-Z]{2,4}-[0-9]+$)
+#   --as <ID>          the agent id (c-004, or the legacy CLE-07: specs/061)
 #   --env dev|prd|dev,prd|self  default: every env with this desk on the box
 #                      (self: a self-hosted hub, seated by install.sh --env self)
 #   --tenant <slug>    default t1
@@ -58,6 +58,8 @@ MIRROR_PY="$_here/spool-mirror.py"
 
 # shellcheck source=../../../../../lib/bash/funcs/spl-desk-box.func.sh
 . "$ORC/lib/bash/funcs/spl-desk-box.func.sh"
+# shellcheck source=../lib/spool-env.inc.sh
+. "$FEAT/lib/spool-env.inc.sh"
 OPERATOR="" AS="" ENVN="${SPOOL_AGENT_ENVS:-}" TENANT="t1" BOX="$(spl_desk_box_default)" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
 usage() { sed -n '/^#   spool-agent.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [ "$#" -gt 0 ]; do
@@ -167,7 +169,7 @@ pick_id() {
 }
 ID="${AS:-${MCP_BOT_AGENT_ID:-}}"
 if [ -n "$ID" ]; then
-  [[ "$ID" =~ ^[A-Z]{2,4}-[0-9]+$ && "${ID%%-*}" != BOX ]] || { say "not an agent id: '$ID'"; exit 2; }
+  spl_is_agent_id "$ID" || { say "not an agent id: '$ID'"; exit 2; }
 else
   ID="$(pick_id)" || { say "no free $PREFIX id on $SEAT_ROOT"; exit 4; }
 fi

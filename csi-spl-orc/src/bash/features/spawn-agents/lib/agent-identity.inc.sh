@@ -25,6 +25,9 @@
 # AI_PANES_FILE (the pane list instead of asking tmux).
 
 AI_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The id grammar (specs/061): c-004, and the legacy CLE-07.
+# shellcheck source=spool-env.inc.sh
+[ -n "${SPOOL_AGENT_ID_RX:-}" ] || . "$AI_LIB_DIR/spool-env.inc.sh"
 AI_PY="$AI_LIB_DIR/../scripts/agent-identity.py"
 # shellcheck source=proc-owner.inc.sh
 . "$AI_LIB_DIR/proc-owner.inc.sh"
@@ -58,7 +61,7 @@ ai_adopt() { ai_panes | ai_py adopt "$1" "$2"; }
 # windows already carry - so a box that always showed one never loses it.
 ai_tag() {
   local t="${SPOOL_BOX_TAG:-${BOX_TAG:-}}"
-  [ -n "$t" ] || t="$(ai_panes | cut -f5 | sed -nE 's/^([A-Za-z0-9][A-Za-z0-9._-]*): (CLE|GRK|AGY|QWN)-[0-9]+.*/\1/p' \
+  [ -n "$t" ] || t="$(ai_panes | cut -f5 | sed -nE "s/^([A-Za-z0-9][A-Za-z0-9._-]*): ${SPOOL_AGENT_ID_RX}.*/\\1/p" \
     | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
   printf '%s' "$t"
 }
@@ -172,7 +175,7 @@ ai_live_ids() {
   for f in "$(ai_dir)"/*.json; do
     [ -e "$f" ] || continue
     id="${f##*/}"; id="${id%.json}"
-    [[ "$id" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] || continue
+    [[ "$id" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || continue
     ai_alive_fast "$id" >/dev/null && printf '%s\n' "$id"
   done
   return 0

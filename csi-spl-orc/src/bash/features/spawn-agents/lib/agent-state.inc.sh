@@ -18,9 +18,15 @@
 AN_TAG_TOKEN_RE='^[A-Za-z0-9][A-Za-z0-9._-]*$'
 # The SHAPE of another box's tag: three characters, a lowercase letter first.
 AN_TAG_SHAPE_RE='^[a-z][a-z0-9]{2}$'
-AN_ID_HEAD_RE='^(CLE|GRK|AGY|QWN)-[0-9]+([[:space:]]|$)'
+# The id grammar (c-004, and the legacy CLE-07: specs/061) lives in
+# spool-env.inc.sh; agent-top.sh sources only this file.
+if [ -z "${SPOOL_AGENT_ID_RX:-}" ]; then
+  # shellcheck source=spool-env.inc.sh
+  . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/spool-env.inc.sh"
+fi
+AN_ID_HEAD_RE="^${SPOOL_AGENT_ID_RX}([[:space:]]|\$)"
 # "<ID>@<box>" at the head of a name (specs/058).
-AN_ID_AT_RE='^([A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)$'
+AN_ID_AT_RE="^${SPOOL_PARTICIPANT_RX}@[a-z0-9][a-z0-9-]{0,31}(([[:space:]].*)?)\$"
 
 an_tag() { printf '%s' "${SPOOL_BOX_TAG:-${BOX_TAG:-${AGENT_TOP_TAG:-}}}"; }
 
@@ -61,7 +67,7 @@ an_decorate() {  # NAME -> "<ID>@<tag> rest" (or "<tag>: NAME"); never double-ta
   local n tag id
   n="$(an_strip "${1-}")"; tag="$(an_tag)"
   [ -n "$tag" ] || { printf '%s' "$n"; return 0; }
-  id="$(printf '%s' "$n" | grep -oE '^[A-Z]{2,4}-[0-9]+' || true)"
+  id="$(printf '%s' "$n" | grep -oE "^${SPOOL_PARTICIPANT_RX}" || true)"
   if [ "${SPOOL_NAME_STYLE:-at}" != colon ] && [ -n "$id" ]; then
     printf '%s@%s%s' "$id" "$tag" "${n#"$id"}"
   else
@@ -141,7 +147,7 @@ name_badge() {  # NAME -> its badge token, or none
 # First launcher argv - spawn-<kind>.sh <ID>, or restore-<kind>[-plain].sh <ID>
 # for a session resumed after a restart - in a `ps -o args=` dump on stdin.
 # Both this harness's launchers and the frozen engine's carry that argv.
-launcher_from_ps() { grep -oE "(spawn|restore)-(claude|grok|agy|qwen)(-plain)?\.sh [A-Z]+-[0-9]+" | head -1; }
+launcher_from_ps() { grep -oE "(spawn|restore)-(claude|grok|agy|qwen)(-plain)?\.sh ${SPOOL_PARTICIPANT_RX}" | head -1; }
 
 # "KIND ID" of the agent in a pane's session, from a `ps -o args=` dump on
 # stdin, or nothing when the pane holds no agent. The process tree, never the
@@ -154,7 +160,7 @@ agent_of_ps() {
   dump="$(cat)"
   launch="$(printf '%s\n' "$dump" | launcher_from_ps || true)"
   if [ -n "$launch" ]; then printf '%s %s\n' "$(kind_from_launch "$launch")" "${launch##* }"; return 0; fi
-  id="$(printf '%s\n' "$dump" | grep -oE "(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=[\"']?[A-Z]{2,4}-[0-9]+" | head -1 | grep -oE '[A-Z]{2,4}-[0-9]+$' || true)"
+  id="$(printf '%s\n' "$dump" | grep -oE "(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=[\"']?${SPOOL_PARTICIPANT_RX}" | head -1 | grep -oE "${SPOOL_PARTICIPANT_RX}\$" || true)"
   [ -n "$id" ] || return 0
   kind="$(printf '%s\n' "$dump" | grep -oE "(^|[ /'\"])(claude|grok|agy|qwen)([ '\"]|$)" | head -1 | tr -d " /'\"" || true)"
   printf '%s %s\n' "${kind:--}" "$id"

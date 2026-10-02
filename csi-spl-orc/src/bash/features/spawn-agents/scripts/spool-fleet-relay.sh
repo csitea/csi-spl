@@ -27,7 +27,8 @@
 set -uo pipefail
 
 say() { echo "spool-fleet-relay: $*" >&2; }
-ID_RE='^[A-Z]{2,4}-[0-9]+$'
+# shellcheck source=../lib/spool-env.inc.sh
+. "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/spool-env.inc.sh"
 
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0
 while [ "$#" -gt 0 ]; do
@@ -42,7 +43,7 @@ while [ "$#" -gt 0 ]; do
     *) say "unknown argument: $1"; exit 2 ;;
   esac
 done
-[[ "$FROM" =~ $ID_RE && "$TO" =~ $ID_RE && -n "$KIND" && "$BODY_SET" = 1 ]] ||
+spl_is_participant_id "$FROM" && spl_is_participant_id "$TO" && [[ -n "$KIND" && "$BODY_SET" = 1 ]] ||
   { say "usage: --from <ID> --to <ID> --kind <k> --body <text> [--task <uuid>]"; exit 2; }
 [[ -z "$TOBOX" || "$TOBOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad --to-box '$TOBOX'"; exit 2; }
 

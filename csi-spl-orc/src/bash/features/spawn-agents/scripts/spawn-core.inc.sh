@@ -10,8 +10,8 @@
 #     dirs are $SPOOL_ROOT/<ID>/{inbox,outbox,archive} and it is on the roster
 #     because that dir exists (trust-modes §4). The registry of spawns
 #     (id, kind, pane, rundir, spawned-utc) is $SPOOL_ROOT/registry.tsv.
-#   - TITLE is a spool agent id: ^[A-Z]{2,4}-[0-9]+$, never a BOX- prefix,
-#     and it must match the adapter's own prefix.
+#   - TITLE is a spool agent id (c-004, or the legacy CLE-07: specs/061),
+#     never a BOX- prefix, and its letter / prefix must name the adapter's kind.
 #   - the seed prompt teaches the SPOOL protocol instead of the markdown inbox:
 #     `spool recv --as <ID>` to read, `spool-send.sh` (spool send + tmux poke)
 #     to write, v:1 objects, unsigned in local mode.
@@ -199,8 +199,8 @@ spawn_main() {
   # Guard: TITLE is the agent's spool id. An empty or garbled one would
   # collapse WORKTREE_DIR to "<repo>-wt/" and MSGDIR to the spool root itself.
   spool_valid_id "$TITLE" 2>/dev/null \
-    || _sp_fail "invalid session TITLE '${TITLE}' — expected a spool agent id like ${SPAWN_ID_PREFIX}-07 (^[A-Z]{2,4}-[0-9]+\$, never BOX-)."
-  [ "${TITLE%%-*}" = "$SPAWN_ID_PREFIX" ] \
+    || _sp_fail "invalid session TITLE '${TITLE}' — expected a spool agent id like ${SPAWN_ID_PREFIX}-07 (${SPOOL_ID_RE}, never BOX-)."
+  [ "$(spl_kind_of_agent_id "$TITLE")" = "$SPAWN_KIND" ] \
     || _sp_fail "TITLE '${TITLE}' does not carry the ${SPAWN_KIND} prefix ${SPAWN_ID_PREFIX}-"
   [ -n "$WORKDIR" ] || _sp_fail "usage: ${SPAWN_ADAPTER##*/} <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]"
 

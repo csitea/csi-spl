@@ -41,7 +41,10 @@
 set -uo pipefail
 
 say() { echo "spool-mcp: $*" >&2; }
-ID_RE='^[A-Z]{2,4}-[0-9]+$'
+# The id grammar of spool-env.inc.sh's SPOOL_ID_RE (specs/061: c-004, and the
+# legacy CLE-07) - inlined: this file is installed as a copy. The hub refuses a
+# legacy id after the cutoff, so this copy carries no clock.
+ID_RE='^([acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)$'
 
 SERVE=0 AS=""
 while [ "$#" -gt 0 ]; do
@@ -67,7 +70,7 @@ agent_id() {
   if [ -z "$id" ] && [ -n "$pane" ]; then
     w="$(sudo -n -u "$SPOOL_MCP_BOX_USER" tmux -S "${CLE_TMUX_SOCK:-/tmp/tmux-$(id -u "$SPOOL_MCP_BOX_USER")/default}" \
           display-message -p -t "$pane" '#W' 2>/dev/null)"
-    id="$(printf '%s\n' "$w" | sed -nE 's/^([A-Za-z0-9][A-Za-z0-9._-]*: )?([A-Z]{2,4}-[0-9]+)( .*)?$/\2/p')"
+    id="$(printf '%s\n' "$w" | sed -nE 's/^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)(@[a-z0-9][a-z0-9-]*)?( .*)?$/\2/p')"
   fi
   printf '%s' "$id"
 }

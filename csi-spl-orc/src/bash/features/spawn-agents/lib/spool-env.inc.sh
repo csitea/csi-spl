@@ -36,8 +36,9 @@
 # and the environment always wins over the file. Write it with
 # scripts/box-config.sh.
 #
-# Agent ids follow SPEC-spool-identity-routing.md §2: ^[A-Z]{2,4}-[0-9]+$,
-# unique per box, and BOX is never an agent prefix.
+# Agent ids follow specs/061 §2: c-004 (^[acgq]-[0-9]{3}$), and until
+# SPOOL_LEGACY_ID_UNTIL the legacy CLE-07 form too. Unique per box, and BOX is
+# never an agent prefix. The helpers below are the ONE place that grammar lives.
 
 # 0 when the tree's build output is OLDER than the last commit to the sources
 # it is built from: it may not speak today's protocol. Measured 2026-10-02:
@@ -71,7 +72,101 @@ _spool_bin_fallback() {  # BUILT
 
 # This file's own directory: its sibling libs (agent-identity.inc.sh) load from it.
 _SPOOL_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SPOOL_ID_RE='^[A-Z]{2,4}-[0-9]+$'
+
+# specs/061 §0: the instant the legacy agent ids (CLE-/AGY-/GRK-/QWN-) stop
+# being accepted on a write path. A copy of the Go agentid.LegacyUntil, the
+# source; tests/test-agent-id.sh fails when the two differ (FR-005).
+SPOOL_LEGACY_ID_UNTIL='2026-10-02T20:59:59Z'
+# Unanchored ERE fragments, for parsing window names and pane text. Readers
+# take both forms whatever the clock: history keeps legacy ids for good
+# (FR-006). SPOOL_AGENT_ID_RX and SPOOL_PARTICIPANT_RX each open exactly ONE
+# capture group (the id), so BASH_REMATCH / sed \N indices stay countable.
+SPOOL_AGENT_ID_NEW_RX='[acgq]-[0-9]{3}'
+# shellcheck disable=SC2034  # read by the scripts that source this file
+SPOOL_AGENT_ID_RX="(${SPOOL_AGENT_ID_NEW_RX}|CLE-[0-9]+|GRK-[0-9]+|AGY-[0-9]+|QWN-[0-9]+)"
+# The legacy half is the pre-061 participant grammar, so HUM-17 and test ids
+# (ORC-1) still parse.
+SPOOL_PARTICIPANT_RX="(${SPOOL_AGENT_ID_NEW_RX}|[A-Z]{2,4}-[0-9]+)"
+SPOOL_ID_RE="^${SPOOL_PARTICIPANT_RX}\$"
+
+# The clock the legacy cutoff reads (FR-004), as ISO-8601 UTC. SPOOL_NOW pins
+# it (tests set it, so CI never turns red at the cutoff on its own); it takes
+# 2026-10-02T12:00:00Z or epoch seconds. Fork-free.
+spl_now_var() {  # VAR
+  local _n="${SPOOL_NOW:-}"
+  if [ -z "$_n" ]; then
+    TZ=UTC printf -v _n '%(%Y-%m-%dT%H:%M:%SZ)T' -1
+  elif [[ "$_n" =~ ^[0-9]+$ ]]; then
+    TZ=UTC printf -v _n '%(%Y-%m-%dT%H:%M:%SZ)T' "$_n"
+  fi
+  printf -v "$1" '%s' "$_n"
+}
+
+# 0 while the legacy form is still accepted on a write path (now <= cutoff).
+spl_legacy_id_ok() {
+  local _now
+  spl_now_var _now
+  ! [[ "$_now" > "$SPOOL_LEGACY_ID_UNTIL" ]]
+}
+
+# 0 when ID has the legacy shape (CLE-07, HUM-17, ORC-1), else 1.
+spl_is_legacy_id() {  # ID
+  [[ "${1:-}" =~ ^[A-Z]{2,4}-[0-9]+$ ]]
+}
+
+# The new id a legacy id was renamed to (specs/061 §5: the alias table
+# $SPOOL_ROOT/agent-id-aliases.tsv, old<TAB>new<TAB>...), else ID itself.
+spl_agent_id_resolve() {  # ID
+  local id="${1:-}" old new _r f="${SPOOL_ROOT:-/var/spool-hub}/agent-id-aliases.tsv"
+  if spl_is_legacy_id "$id" && [ -r "$f" ]; then
+    while IFS=$'\t' read -r old new _r; do
+      [ "$old" = "$id" ] && [ -n "$new" ] && { printf '%s' "$new"; return 0; }
+    done < "$f"
+  fi
+  printf '%s' "$id"
+}
+
+# 0 when agent id ID may be used on a write path, else 1 with the FR-003
+# reason on stderr: the new form always, the legacy form until the cutoff.
+_spl_id_write_ok() {  # ID
+  spl_is_legacy_id "$1" || return 0
+  spl_legacy_id_ok && return 0
+  local to
+  to="$(spl_agent_id_resolve "$1")"
+  [ "$to" = "$1" ] && to="c-0NN"
+  echo "spool-env: $1 is retired as an id; use ${to} (legacy ids ended ${SPOOL_LEGACY_ID_UNTIL}, specs/061)" >&2
+  return 1
+}
+
+# 0 when ID is an agent id: c-004, or (until the cutoff) a legacy agent id.
+# HUM-/GST-/BOX- are participants, never agents.
+spl_is_agent_id() {  # ID
+  local id="${1:-}"
+  [[ "$id" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]] && { [ "${id#?-}" != 000 ]; return; }
+  spl_is_legacy_id "$id" || return 1
+  case "${id%%-*}" in HUM|GST|BOX) return 1 ;; esac
+  _spl_id_write_ok "$id"
+}
+
+# 0 when ID is any participant: an agent id (as spl_is_agent_id), or
+# HUM-/GST-/BOX-NN, which 061 leaves unchanged.
+spl_is_participant_id() {  # ID
+  local id="${1:-}"
+  [[ "$id" =~ $SPOOL_ID_RE ]] || return 1
+  case "${id%%-*}" in HUM|GST|BOX) return 0 ;; esac
+  _spl_id_write_ok "$id"
+}
+
+# The kind an agent id belongs to, by its letter (new) or prefix (legacy).
+spl_kind_of_agent_id() {  # ID -> KIND
+  case "${1:-}" in
+    c-*|CLE-*) printf 'claude' ;;
+    g-*|GRK-*) printf 'grok' ;;
+    a-*|AGY-*) printf 'agy' ;;
+    q-*|QWN-*) printf 'qwen' ;;
+    *) return 1 ;;
+  esac
+}
 
 # The kinds this feature can launch, and the id prefix each one owns.
 spool_prefix_of_kind() {  # KIND -> PREFIX
@@ -96,7 +191,7 @@ spool_valid_id() {  # ID
     echo "spool-env: '${id}' uses the forbidden prefix BOX (identity-routing §2)" >&2
     return 1
   fi
-  return 0
+  spl_is_participant_id "$id"
 }
 
 # SPOOL_FLEET_ENV / SPOOL_FLEET_TENANT (specs/058 N1): the hub env + tenant

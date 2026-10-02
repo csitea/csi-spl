@@ -76,7 +76,7 @@ PIDFILE="${AGENT_TOP_PIDFILE:-/tmp/agent-top-badge-loop.pid}"
 # never strips a tag the box has always shown.
 if [ -z "$(an_tag)" ]; then
   AGENT_TOP_TAG="$("${TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null \
-    | sed -nE -e 's/^([A-Za-z0-9][A-Za-z0-9._-]*): (CLE|GRK|AGY|QWN)-[0-9]+.*/\1/p' -e 's/^(CLE|GRK|AGY|QWN)-[0-9]+@([a-z0-9][a-z0-9-]*).*/\2/p' | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+    | sed -nE -e "s/^([A-Za-z0-9][A-Za-z0-9._-]*): ${SPOOL_AGENT_ID_RX}.*/\\1/p" -e "s/^${SPOOL_AGENT_ID_RX}@([a-z0-9][a-z0-9-]*).*/\\2/p" | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
 fi
 
 registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else the newest live one of ID
@@ -121,7 +121,7 @@ collect_rows() {  # TSV: id kind state window branch rundir pending pane target
   while IFS='|' read -r target wname _wid role pane pid; do
     [ -n "$pane" ] || continue
     bare="$(an_strip "$wname")"
-    printf '%s' "$bare" | grep -qE '^(CLE|GRK|AGY|QWN)-[0-9]+' || continue
+    printf '%s' "$bare" | grep -qE "^${SPOOL_AGENT_ID_RX}" || continue
     id="$(printf '%s' "$bare" | grep -oE '^[A-Za-z]+-[0-9]+')"
     has_launcher=0 kind=- launch=""
     if [ -n "$pid" ]; then

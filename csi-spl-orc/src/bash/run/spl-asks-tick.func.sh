@@ -26,6 +26,9 @@
 # @param ASKS_OWNER_CMD (optional) - replaces the DM leg: run with the text on stdin and ASK_JSON in the environment
 # @param ASKS_SEND (optional, tests) - replaces spool-send.sh
 # @param ASKS_HOLDER (optional, tests) - the holder as <ID>@<box>, instead of lease.orch
+# @param ASKS_TICK_WAIT (optional) - seconds to wait for a tick already running (the lease loop's), default 60
+# @description Every tick ends with ONE summary line (holder, open, unacked, due), so a
+# @description tick that had nothing to do says so instead of printing nothing.
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_asks_tick
 # @example ASKS_RERAISE_MIN=5 ASKS_OWNER_MIN=30 ./run -a do_spl_asks_tick
@@ -35,7 +38,8 @@ do_spl_asks_tick() {
   local lock
   lock="$(spool_asks_dir)/.tick.lock" || { do_log "FATAL no journal dir under $SPOOL_ROOT"; return 1; }
   exec 7>>"$lock"
-  flock -n 7 || { do_log "INFO an asks tick already runs"; return 0; }
+  # wait, not skip: a manual tick that meets the lease loop's must still run
+  flock -w "${ASKS_TICK_WAIT:-60}" 7 || { do_log "WARN another asks tick held the lock ${ASKS_TICK_WAIT:-60}s: skipped"; return 0; }
   spl_asks_sync_pending
   local holder
   holder="$(spl_asks_holder)"
@@ -50,9 +54,20 @@ do_spl_asks_tick() {
   local rows
   spl_asks_load || return 1
   rows="$(jq -c '[.[] | select(.state == "open" or .state == "acked")]' <<<"$ASKS_ROWS")"
+  spl_asks_summary "$holder" "$rows"
   spl_asks_handover "$holder" "$rows" || spl_asks_reraise "$holder" "$rows"
   spl_asks_owner "$holder" "$rows"
   return 0
+}
+
+# One line: what this tick sees and what is due, before it acts.
+spl_asks_summary() {
+  jq -r --arg h "$1" --argjson r "$(( ${ASKS_RERAISE_MIN:-15} * 60 ))" --argjson o "$(( ${ASKS_OWNER_MIN:-60} * 60 ))" \
+    --arg rm "${ASKS_RERAISE_MIN:-15}" --arg om "${ASKS_OWNER_MIN:-60}" --arg hub "$ASKS_HUB_STATE" '
+    "asks tick: holder \($h), hub \($hub): \(length) open (\([.[] | select(.state == "open")] | length) unacked, \([.[] | select(.state == "acked")] | length) acked); "
+    + "re-raise due \([.[] | select(.quiet_s >= $r and (.state == "open" or .overdue))] | length) (quiet >= \($rm) min); "
+    + "owner due \([.[] | select(.state == "open" and .age_s >= $o and ((.escalated_at // "") == ""))] | length) (open >= \($om) min)"' <<<"$2" |
+    while IFS= read -r line; do do_log "INFO $line"; done
 }
 
 # The orch holder as <ID>@<box>: ASKS_HOLDER, else the fleet lease mirror

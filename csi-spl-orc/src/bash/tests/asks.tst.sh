@@ -62,6 +62,8 @@ def out(r):
     o = dict(r); o["age_s"] = int(now - r["c"]); o["quiet_s"] = int(now - max(r["u"], r.get("r") or 0))
     o["created_at"], o["updated_at"], o["raised_at"], o["escalated_at"] = iso(r["c"]), iso(r["u"]), iso(r.get("r")), iso(r.get("e"))
     for k in ("c", "u", "r", "e"): o.pop(k, None)
+    for k in ("deadline_at", "acked_by", "closed_by", "reason", "raised_at", "escalated_at"):  # the hub's omitempty
+        if o.get(k) == "": o.pop(k)
     return o
 def save(): json.dump(rows, open(path, "w"))
 box = os.environ.get("SPOOL_DESK_BOX", "box-desk")
@@ -223,8 +225,17 @@ else fail "sat handover: $(cat "$T/sat/send.log" 2>/dev/null) / $out"; fi
 
 # 5. re-raise ------------------------------------------------------------------
 : >"$T/sat/send.log"
-on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=15 >/dev/null
+# the lease loop's tick holds the lock: a manual tick waits for it instead of skipping
+( flock 9; sleep 3 ) 9>>"$T/sat/spool/asks/.tick.lock" &
+sleep 0.5
+out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=15 ASKS_TICK_WAIT=20)"
+wait
 [[ ! -s "$T/sat/send.log" ]] && pass "no re-raise inside ASKS_RERAISE_MIN" || fail "early re-raise: $(cat "$T/sat/send.log")"
+[[ "$out" == *"asks tick: holder CLE-001@sat, hub ok: 2 open (2 unacked, 0 acked); re-raise due 0 (quiet >= 15 min); owner due 0 (open >= 60 min)"* ]] &&
+  pass "a tick with nothing due says so in one summary line - and it ran after waiting out the held lock" || fail "summary / lock wait: $out"
+n1="$(grep -c ' mirror ' "$T/sat/spool/asks/journal.log")"
+on sat do_spl_asks_open ASKS_FLEET=main >/dev/null; on sat do_spl_asks_open ASKS_FLEET=main >/dev/null
+[[ "$(grep -c ' mirror ' "$T/sat/spool/asks/journal.log")" == "$n1" ]] && pass "an unchanged hub row is not re-mirrored on every read" || fail "mirror churn: $(tail -3 "$T/sat/spool/asks/journal.log")"
 on sat 'ASK_ID='"${A1:0:8}"' do_spl_ask_ack' ASKS_FLEET=main >/dev/null
 [[ "$(hubrow "$A1" | jq -r '.state + " " + .acked_by')" == "acked CLE-001@sat" ]] && pass "ack: in progress, by CLE-001@sat (the default actor is this machine's orchestrator)" || fail "ack: $(hubrow "$A1")"
 on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 >/dev/null

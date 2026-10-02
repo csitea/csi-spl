@@ -179,7 +179,9 @@ spl_asks_mirror() {
     id="$(jq -r '.ask_id' <<<"$row")"
     cur="$(spool_ask_journal_get "$id" 2>/dev/null)" || cur=""
     if [[ -n "$cur" ]] && [[ "$(jq -r '.synced' <<<"$cur")" == false ]]; then continue; fi
-    if [[ -n "$cur" ]] && [[ "$(jq -c '[.state, .raised_n, .acked_by, .closed_by]' <<<"$cur")" == "$(jq -c '[.state, .raised_n, .acked_by, .closed_by]' <<<"$row")" ]]; then continue; fi
+    # the hub omits empty fields: compare them as "" so an unchanged row is not rewritten
+    local key='[.state, (.raised_n // 0), (.acked_by // ""), (.closed_by // ""), (.escalated_at // "")]'
+    if [[ -n "$cur" ]] && [[ "$(jq -c "$key" <<<"$cur")" == "$(jq -c "$key" <<<"$row")" ]]; then continue; fi
     jq -c '{ask_id, role: (.role // "orch"), kind, from, to: "", topic, summary, deadline_at: (.deadline_at // ""), state,
             acked_by: (.acked_by // ""), closed_by: (.closed_by // ""), reason: (.reason // ""),
             raised_n, raised_at: (.raised_at // ""), escalated_at: (.escalated_at // ""),

@@ -11,7 +11,8 @@ import {
   channelView,
   dmFollow,
   dropFromTotals,
-  mergePage,
+  catchUpQuery,
+  mergeCatchUp,
   mergeTopicTotals,
   channelSlug,
   dmActivity,
@@ -65,7 +66,7 @@ export const useChannelStore = defineStore('channel', () => {
   const channels = ref<ChannelInfo[]>([])
   const active = ref<string | null>(null)
   const peer = ref<string | null>(null)
-  /* replaced whole on every change (mergeLive / mergePage / applyEdit ...),
+  /* replaced whole on every change (mergeLive / mergeCatchUp / applyEdit ...),
      never mutated in place, so the rows need no deep proxies (CLE-35075) */
   const messages = shallowRef<FeedMessage[]>([])
   const unread = ref<Record<string, number>>({})
@@ -288,10 +289,16 @@ export const useChannelStore = defineStore('channel', () => {
   async function catchUp() {
     if (api.mock) return refresh()
     const where = { channel: active.value, peer: peer.value }
+    /* R2-2: only the topics changed after the newest row held; the hub
+       answers the full page when it cannot vouch for the delta */
+    const q = catchUpQuery(messages.value)
     try {
-      const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50 }))
+      const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50,
+        ...(q ? { changedSince: q.since, rx: q.rx } : {}) }))
       if (where.channel !== active.value || where.peer !== peer.value) return
-      messages.value = mergePage(messages.value, (page.messages || []).map(feedRow) as unknown as FeedMessage[])
+      const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      messages.value = mergeCatchUp(messages.value, fresh,
+        { delta: page.delta === true, goneTasks: page.goneTasks, goneMsgs: page.goneMsgs, sinceAt: q ? q.sinceAt : '' }) as FeedMessage[]
       totals.value = mergeTopicTotals(totals.value, page.totals)
       follow()
     } catch (e) {

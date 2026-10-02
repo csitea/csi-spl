@@ -1065,3 +1065,71 @@ export function mergePage(rows, incoming) {
   }
   return list
 }
+
+/** R2-2: the most held reaction counts a catch-up sends (hub view_delta.go deltaMaxHeld). */
+export const CATCH_UP_RX_MAX = 200
+
+/** Hub receive time of a row in ms; 0 when it has none. */
+function receivedMs(m) {
+  return Date.parse(String((m && (m.received_at || m.ts)) || '')) || 0
+}
+
+/** Reaction rows (actor x emoji) on m, as the hub counts them. */
+function reactionRows(m) {
+  const list = Array.isArray(m && m.reactions) ? m.reactions : []
+  return list.reduce((n, r) => n + (Array.isArray(r && r.actors) ? r.actors.length : 0), 0)
+}
+
+/**
+ * R2-2 reconnect delta: what a catch-up tells the hub. `since` is the cursor
+ * of the newest row held (hub receive time) and `rx` is `<msg_id>~<n>` for
+ * every held row with reactions, so a reaction REMOVED in the gap - which
+ * leaves nothing behind on the hub - is found by its count. null = read the
+ * full page: no row with a cursor is held, or more reacted rows than the hub
+ * takes.
+ */
+export function catchUpQuery(rows) {
+  let best = null
+  const rx = []
+  for (const m of rows || []) {
+    if (!m || m.pending || m.topic_row) continue
+    const at = receivedMs(m)
+    if (m.cursor && at && (!best || at > best.at)) best = { at, since: String(m.cursor), sinceAt: String(m.received_at || m.ts) }
+    const n = reactionRows(m)
+    if (n > 0 && m.msg_id) rx.push(`${m.msg_id}~${n}`)
+  }
+  if (!best || rx.length > CATCH_UP_RX_MAX) return null
+  return { since: best.since, sinceAt: best.sinceAt, rx }
+}
+
+/**
+ * R2-2: merge a catch-up answer into the held rows. Unlike mergePage, a held
+ * row is REPLACED by its fresh copy, in place and never re-sorted, so an
+ * edit, kind change, reaction or move made while the socket was down shows -
+ * on the delta and on the full page alike (mergePage kept the stale row).
+ * A delta (`delta: true`) also drops every row of a gone task and each gone
+ * msg (archived, moved out), and adds a row the feed did not hold only when
+ * its topic is held or it arrived after `sinceAt`: a changed OLD topic the
+ * feed never loaded does not appear in the middle of its history.
+ */
+export function mergeCatchUp(rows, incoming, { delta = false, goneTasks = [], goneMsgs = [], sinceAt = '' } = {}) {
+  const goneT = new Set((goneTasks || []).map(String))
+  const goneM = new Set((goneMsgs || []).map(String))
+  const list = (rows || []).filter((m) => !m || !(goneM.has(String(m.msg_id || '')) || goneT.has(String(m.task_id || ''))))
+  const at = new Map(list.map((m, i) => [m && m.msg_id, i]))
+  const heldTasks = new Set(list.map((m) => String((m && m.task_id) || '')).filter(Boolean))
+  const floor = Date.parse(String(sinceAt || '')) || 0
+  for (const m of incoming || []) {
+    if (!m || !m.msg_id) continue
+    const i = at.get(m.msg_id)
+    if (i !== undefined) {
+      const held = list[i]
+      list[i] = held.topic_row || held.pending ? m : { ...held, ...m }
+      continue
+    }
+    if (delta && !heldTasks.has(String(m.task_id || '')) && !(receivedMs(m) > floor)) continue
+    at.set(m.msg_id, list.length)
+    list.push(m)
+  }
+  return list
+}

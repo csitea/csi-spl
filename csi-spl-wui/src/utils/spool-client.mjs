@@ -538,7 +538,7 @@ export function createSpoolClient({
      * returns. A hub without it ignores the parameter and rows carry no
      * `inline` (callers read those topics one by one, as before).
      */
-    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0, dmCounts = false, dmRead = [] } = {}) {
+    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0, dmCounts = false, dmRead = [], since, rx = [] } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -564,6 +564,11 @@ export function createSpoolClient({
         q.set('dm_counts', 'true')
         for (const mark of dmRead || []) q.append('dm_read', String(mark))
       }
+      /* R2-2: a reconnect asks for the topics changed after its newest cursor */
+      if (since) {
+        q.set('since', String(since))
+        for (const r of rx || []) q.append('rx', String(r))
+      }
       const data = await live(`/v1/view/topics?${q}`)
       const rows = (data && data.topics) || []
       return {
@@ -576,6 +581,10 @@ export function createSpoolClient({
           return row
         }),
         next: (data && data.next) || null,
+        /* R2-2: true = only the changed topics; false / absent = the full page */
+        delta: !!(data && data.delta === true),
+        goneTasks: (data && Array.isArray(data.gone_tasks) && data.gone_tasks) || [],
+        goneMsgs: (data && Array.isArray(data.gone_msgs) && data.gone_msgs) || [],
       }
     },
     /**
@@ -824,8 +833,10 @@ export function createSpoolClient({
      * view list (view-v1 §4.3), each read newest-first (§4.4) and merged.
      * `next` is the §4.3 cursor — pass it as `before` for the next older
      * window of topics, until `next` is null. Mock has no server pages.
+     * `changedSince` + `rx` (R2-2, channel-feed catchUpQuery): only the topics
+     * changed after that cursor; `delta` says whether the hub answered so.
      */
-    async listMessages({ channel, peer, limit = 50, since, topics = 20, before } = {}) {
+    async listMessages({ channel, peer, limit = 50, since, topics = 20, before, changedSince, rx } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -838,7 +849,8 @@ export function createSpoolClient({
       /* CLE-34984 / T122: one request for the whole page where the hub
          inlines each topic's newest `limit` messages; a topic the answer
          carries no messages for is read on its own, as before. */
-      const list = await api.listTopics({ limit: topics, before, perTopic: limit <= PER_TOPIC_MAX ? limit : 0, ...filter })
+      const delta = changedSince && !before ? { since: changedSince, rx } : {}
+      const list = await api.listTopics({ limit: topics, before, perTopic: limit <= PER_TOPIC_MAX ? limit : 0, ...filter, ...delta })
       /* A topic is read newest first, so one with more messages than `limit`
          loses its opening line - and with it the middle card, because every
          later line may be is_parent 0. The oldest message is read on its own
@@ -874,7 +886,8 @@ export function createSpoolClient({
          count comes from the hub's row (topicReplies), not from held lines. */
       const totals = {}
       for (const t of list.topics) if (t.task_id) totals[t.task_id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
-      return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals }
+      return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals,
+        delta: list.delta, goneTasks: list.goneTasks, goneMsgs: list.goneMsgs }
     },
     /**
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub

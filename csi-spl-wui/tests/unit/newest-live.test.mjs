@@ -233,7 +233,7 @@ describe('wiring (no view polls in live mode)', () => {
   it('the channel store follows the open DM peer and catches up by merge', () => {
     const s = read('stores/channel.ts')
     assert.match(s, /subscribePeer\(/)
-    assert.match(s, /mergePage\(/)
+    assert.match(s, /mergeCatchUp\(/) // R2-2: replaces held rows, mergePage kept them stale
     assert.match(read('composables/useSpoolEvents.ts'), /channel\.catchUp\(\)/)
   })
 

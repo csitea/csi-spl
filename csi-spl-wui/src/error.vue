@@ -43,7 +43,11 @@
 
 <script setup lang="ts">
 import type { NuxtError } from '#app'
-import ErrorNotice from '@/components/common/ErrorNotice.vue'
+/* CLE-77925: Nuxt imports this page statically, so a static ErrorNotice put
+   it, UiIcon and the whole icon table in every first load. It shows only for
+   a non-404 error; if its chunk cannot load, the page still says what
+   happened and links home. */
+const ErrorNotice = defineAsyncComponent(() => import('@/components/common/ErrorNotice.vue'))
 
 const props = defineProps<{ error: NuxtError }>()
 

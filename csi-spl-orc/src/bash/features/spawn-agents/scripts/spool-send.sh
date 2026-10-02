@@ -35,10 +35,20 @@
 # means the message WAS delivered — only the pane was left alone. Local mode is
 # unsigned: the written object carries no `sig`.
 #
+# Asks (CLE-77929, SPEC-spool-fleet-roles.md 4.3): a blocker or task sent to
+# the orchestrator (--to orchestrator, or the orchestrator's id) is ALSO an
+# ask: it is journaled under $SPOOL_ROOT/asks/<msg id>.json before this
+# script returns and pushed to the hub (rdb 0097) in the background, so it
+# stays OPEN until the acting orchestrator - or its successor on any machine -
+# acks and closes it. Fire and forget: the sender never has to re-send.
+# --ask <blocker|task|escalation> makes any send an ask; --no-ask (or
+# SPOOL_ASKS=0) makes none; --ask-deadline <RFC 3339 UTC> sets when it is due.
+#
 # Usage:
 #   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator> --kind task|result|note|reject|blocker|msg
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
+#                 [--ask <kind> | --no-ask] [--ask-deadline <ts>]
 #   spool-send.sh --poke-only --to <ID> [--from <ID>]   # ring, send nothing
 #
 # stdout: spool's JSON result {delivery, msg_id, task_id, ts}, then one
@@ -64,6 +74,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-poke-queue.inc.sh"
 # shellcheck source=../lib/spool-fleet.inc.sh
 . "$_here/../lib/spool-fleet.inc.sh"
+# shellcheck source=../lib/spool-asks.inc.sh
+. "$_here/../lib/spool-asks.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -72,6 +84,7 @@ usage() {
 }
 
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
+ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""
 EXTRA=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -86,6 +99,11 @@ while [ "$#" -gt 0 ]; do
     --file-ref|--file-id|--dir-ref|--dir-blob)
                  [ "$#" -ge 2 ] || usage; EXTRA+=("$1" "$2"); shift 2 ;;
     --no-poke)   POKE=0; shift ;;
+    --ask)       [ "$#" -ge 2 ] || usage; ASK_KIND="$2"; shift 2
+                 case "$ASK_KIND" in blocker|task|escalation) ;; *) echo "ERROR: --ask must be blocker|task|escalation" >&2; exit 2 ;; esac ;;
+    --no-ask)    NO_ASK=1; shift ;;
+    --ask-deadline) [ "$#" -ge 2 ] || usage; ASK_DEADLINE="$2"; shift 2
+                 [[ "$ASK_DEADLINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { echo "ERROR: --ask-deadline must be RFC 3339 UTC, e.g. 2026-10-02T06:00:00Z" >&2; exit 2; } ;;
     --poke-only) POKE_ONLY=1; shift ;;
     -h|--help)   usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
@@ -175,6 +193,27 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   if [ "${DELIVERY:-}" = local ]; then
     spool_notice_record "$TO" \
       "$(spool_notice_head_in "$TO" "$_nk" "$_nf" "$TASK" "$MSGID")" "$_nb" || true
+  fi
+
+  # ---- the ask record (CLE-77929) -------------------------------------------
+  # Journaled HERE, synchronously, so the ask exists on disk before this
+  # script returns; the hub leg runs in the background and never delays or
+  # fails the send. A missed hub leg is pushed by the next lease tick.
+  _ak="$(spool_ask_wanted "$TO" "$KIND" "$ASK_KIND" "$NO_ASK")"
+  if [ -n "$_ak" ] && [ -n "$MSGID" ] && [ "$FROM" != "$TO" ]; then
+    _ato="$TO"; [ -n "$TO_BOX" ] && _ato="$TO@$TO_BOX"
+    if spool_ask_journal_open "$MSGID" "$_ak" "$FROM@$(spool_fleet_box)" "$_ato" "$TASK" \
+         "$(spool_ask_summary "$BODY")" "$ASK_DEADLINE"; then
+      echo "ask: open ${MSGID:0:8} ($_ak) - tracked until the orchestrator closes it" >&2
+      if [ -n "${SPOOL_ASKS_SYNC_CMD:-}" ]; then
+        # shellcheck disable=SC2086 # a command line, split on purpose
+        $SPOOL_ASKS_SYNC_CMD "$MSGID" >/dev/null 2>&1 || true
+      elif [ "${SPOOL_TEST:-0}" != 1 ]; then
+        ( timeout 90 bash "$_here/asks.sh" sync >>"$(spool_asks_dir)/sync.log" 2>&1 & ) 2>/dev/null
+      fi
+    else
+      echo "ask: WARN ${MSGID:0:8} was delivered but not journaled as an ask" >&2
+    fi
   fi
 fi
 

@@ -257,6 +257,7 @@ spl_lease_locked() {
 # the failover has no live process either; logged once).
 spl_lease_watch_tick() {
   local m="$LEASE_MASTER" f="$LEASE_FAILOVER" age fpid
+  spl_lease_asks_tick
   spl_lease_read
   age=$(( $(spl_lease_now) - LT ))
   # a fresh lease ends a "nobody dispatches" episode, so the next one is logged
@@ -579,7 +580,7 @@ spl_fleet_apply() {
   spl_lease_log "FLEET $role: ${prev:-none} -> $holder"
   for id in $(spl_fleet_role_agents "$role"); do
     if [[ "$holder" == "$id@$LEASE_MACHINE" ]]; then
-      spl_lease_tell "$id" "FLEET LEASE $role: you are now ACTIVE (fleet $LEASE_FLEET, was ${prev:-none}). Act for the whole fleet until told STANDBY; pick up what the previous holder left unanswered (do_spl_unanswered_sweep)."
+      spl_lease_tell "$id" "FLEET LEASE $role: you are now ACTIVE (fleet $LEASE_FLEET, was ${prev:-none}). Act for the whole fleet until told STANDBY; pick up what the previous holder left unanswered (do_spl_unanswered_sweep) and every open ask to the orchestrator (do_spl_orch_inbox: ack, then close each)."
     elif [[ "$prev" == "$id@$LEASE_MACHINE" ]]; then
       spl_lease_tell "$id" "FLEET LEASE $role: STANDBY - $holder holds it now. Finish the message in hand, then do not route, spawn or post; read and stay ready."
     fi
@@ -592,6 +593,21 @@ spl_fleet_apply() {
 spl_lease_fleet_tick() {
   spl_fleet_role_tick orch
   spl_fleet_role_tick dispatch
+  spl_lease_asks_tick
+  return 0
+}
+
+# The asks timer (CLE-77929, SPEC-spool-fleet-roles.md 4.3): every machine
+# pushes its journal asks to the hub, and the orch holder's machine re-raises
+# what nobody acked (do_spl_asks_tick). Its own process, so it runs the
+# current code and can never stall or kill the lease; it serialises itself.
+# LEASE_ASKS=0 turns it off (the tests' default, under SPOOL_TEST=1).
+spl_lease_asks_tick() {
+  local on="${LEASE_ASKS:-1}"
+  [[ "${SPOOL_TEST:-0}" == 1 ]] && on="${LEASE_ASKS:-0}"
+  [[ "$on" == 1 ]] || return 0
+  ( SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" timeout "${LEASE_ASKS_TIMEOUT:-120}" "${LEASE_RUN:-$PROJ_PATH/run}" \
+      -a do_spl_asks_tick >>"$LEASE_DIR/asks.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
   return 0
 }
 

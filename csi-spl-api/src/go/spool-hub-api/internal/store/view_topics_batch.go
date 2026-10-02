@@ -156,9 +156,9 @@ var _ TopicsDMCounter = (*Postgres)(nil)
 
 // dmTS is a received_at as the hub sends it (time.RFC3339Nano in UTC: no
 // trailing zero, no dot on a whole second), so the read cursor compares to
-// it as the WUI's string did. Postgres holds microseconds.
-const dmTS = `(to_char(p.received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS')
-	|| COALESCE('.' || NULLIF(rtrim(to_char(p.received_at AT TIME ZONE 'UTC', 'US'), '0'), ''), '') || 'Z')`
+// it as the WUI's string did. to_json prints ISO 8601 whatever the session
+// DateStyle; Postgres holds microseconds.
+const dmTS = `((to_json(l.received_at AT TIME ZONE 'UTC') #>> '{}') || 'Z')`
 
 // dmEnd is dmPeerOf's label of one end (id, box) when it is not us ($S),
 // not empty and not the broadcast id.
@@ -194,41 +194,41 @@ func (s *Postgres) ViewTopicsDMCounts(ctx context.Context, tenant string, q Topi
 	n := len(args)
 	args = append(args, q.Reader, peers, tss, ids)
 	arg := func(i int) string { return "$" + strconv.Itoa(n+i) }
-	sql := strings.NewReplacer("$S", arg(1)+"::text").Replace(`WITH page AS (
-			SELECT t.task_id, m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
+	// The page is MATERIALIZED so the cursors join it once, not once per
+	// topic inside the LATERAL loop (1.6 -> 1.0 ms local, 24 topics).
+	sql := strings.NewReplacer("$S", arg(1)+"::text").Replace(`WITH l AS MATERIALIZED (
+			SELECT t.task_id, m.msg_id, m.received_at, m.from_id, m.typed_by, m.channel,
+				CASE ` + dmEnd("m.from_id", "m.from_box") + ` ` + dmEnd("m.to_id", "m.to_box") + ` ELSE '' END AS peer
 			FROM unnest($2::uuid[]) AS t(task_id)
 			CROSS JOIN LATERAL (
 				SELECT m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
 				FROM messages m
 				WHERE m.tenant_id = $1 AND m.task_id = t.task_id AND m.expires_at > $3 AND ` + door + `
 				ORDER BY m.received_at DESC, m.msg_id::text DESC
-				LIMIT $4) m),
-		lines AS (
-			SELECT p.task_id, p.channel IS NULL AS dm, p.msg_id::text AS id, ` + dmTS + ` AS ts,
-				CASE ` + dmEnd("p.from_id", "p.from_box") + ` ` + dmEnd("p.to_id", "p.to_box") + ` ELSE '' END AS peer,
-				p.from_id <> '' AND NOT (split_part($S, '@', 1) <> '' AND (split_part(p.from_id, '@', 1) = split_part($S, '@', 1)
-					OR (split_part(COALESCE(p.typed_by, ''), '@', 1) ~ '^HUM-[0-9]+$'
-						AND split_part(COALESCE(p.typed_by, ''), '@', 1) = split_part($S, '@', 1)))) AS theirs
-			FROM page p)
+				LIMIT $4) m)
 		SELECT l.task_id, l.peer,
-			count(*) FILTER (WHERE l.dm AND l.theirs AND l.peer <> '' AND (r.ts IS NULL OR r.ts = ''
-				OR CASE WHEN l.ts <> r.ts THEN l.ts COLLATE "C" > r.ts COLLATE "C" ELSE l.id <> r.id END)),
-			count(*) FILTER (WHERE l.dm AND l.peer <> ''),
-			(sum(count(*)) OVER (PARTITION BY l.task_id))::bigint
-		FROM lines l
+			count(*) FILTER (WHERE l.channel IS NULL AND l.peer <> '' AND l.from_id <> ''
+				AND NOT (split_part($S, '@', 1) <> '' AND (split_part(l.from_id, '@', 1) = split_part($S, '@', 1)
+					OR (l.typed_by IS NOT NULL AND split_part(l.typed_by, '@', 1) ~ '^HUM-[0-9]+$'
+						AND split_part(l.typed_by, '@', 1) = split_part($S, '@', 1))))
+				AND (r.ts IS NULL OR r.ts = '' OR CASE WHEN ` + dmTS + ` <> r.ts
+					THEN ` + dmTS + ` COLLATE "C" > r.ts COLLATE "C" ELSE l.msg_id::text <> r.id END)),
+			count(*) FILTER (WHERE l.channel IS NULL AND l.peer <> ''),
+			count(*)
+		FROM l
 		LEFT JOIN unnest(` + arg(2) + `::text[], ` + arg(3) + `::text[], ` + arg(4) + `::text[]) AS r(peer, ts, id) ON r.peer = l.peer
 		GROUP BY l.task_id, l.peer`)
 	err := s.queryTenant(ctx, tenant, sql, args, func(rows pgx.Rows) error {
 		var task, peer string
-		var unread, total, page int
-		if err := rows.Scan(&task, &peer, &unread, &total, &page); err != nil {
+		var unread, total, lines int
+		if err := rows.Scan(&task, &peer, &unread, &total, &lines); err != nil {
 			return err
 		}
 		c, ok := out[task]
 		if !ok {
 			c = TopicDMCounts{Unread: map[string]int{}, Total: map[string]int{}}
 		}
-		c.Page = page
+		c.Page += lines
 		if unread > 0 {
 			c.Unread[peer] = unread
 		}

@@ -15,10 +15,10 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [x] T012 L1 rdb migration: widen CHECKs in 0001/0005/0047/0096/0097 to both grammars; table `agent_id_aliases` (FR-006) + PG test
 - [x] T013 L1 alias resolve at the edge (send, recv, lease, lane, ask, `cmd/spool` flags); FR-003 refusal after the deadline; `GET /api/v1/agent-aliases`
 - [x] T014 L1 deploy hub dev+prd; live check: `c-004` and a legacy id both accepted
-- [ ] T015 L1b rdb migration: lanes keyed on (agent_id, agent_box); back-fill the box of every existing roster, lane, ask and lease row (spec 3.3.1, FR-015)
-- [ ] T016 L1b store look-ups by bare id take the box, resolve rule single box / refused when ambiguous; `spool` + HTTP API accept `c-004@<box>`; `agentid.LegacyUntil` (and its bash/WUI copies) = `2026-10-03T20:59:59Z`
-- [ ] T017 L1b PG collision test: `c-004@box-desk` and `c-004@<sat box>` coexist in roster, lanes, asks, leases; each one's mail reaches only that agent
-- [ ] T018 L1b deploy hub dev+prd; migration applied with `do_spl_db_bootstrap` on both; dev `spool send` to `c-004@box-desk` and a legacy id
+- [x] T015 L1b rdb migration: lanes keyed on (agent_id, agent_box); back-fill the box of every existing roster, lane, ask and lease row (spec 3.3.1, FR-015) (rdb 0102, 3bffda3a; applied dev+prd 2026-10-02 07:47Z)
+- [x] T016 L1b store look-ups by bare id take the box, resolve rule single box / refused when ambiguous; `spool` + HTTP API accept `c-004@<box>`; `agentid.LegacyUntil` (and its bash/WUI copies) = `2026-10-03T20:59:59Z` (af5018c3, 3bffda3a; the cutoff constant moved with L1 0d4a4cb9 / L3a 3dbb82d8)
+- [x] T017 L1b PG collision test: `c-004@box-desk` and `c-004@<sat box>` coexist in roster, lanes, asks, leases; each one's mail reaches only that agent (`TestAgentAtBoxCollision` store, `TestSendToAgentAtBoxReachesOnlyThatAgent` hub; hub-pg.tst.sh green)
+- [x] T018 L1b deploy hub dev+prd; migration applied with `do_spl_db_bootstrap` on both; dev `spool send` to `c-004@box-desk` and a legacy id (`/version` dev+prd = 3bffda3a v6.3.8; dev proof on probe boxes box-l1b-a/b: each c-004@box got only its mail, legacy CLE-77962 delivered, bare c-004 refused ambiguous_to_box, two c-004 lane rows)
 - [x] T020 L2 `src/utils/agent-id.mjs` + the FR-005 pin test against the Go constant
 - [x] T021 L2 the 15 WUI regex sites call it; mention chips for `@c-004@<box>`
 - [x] T022 L2 deploy WUI dev+prd; e2e on the generated bundle

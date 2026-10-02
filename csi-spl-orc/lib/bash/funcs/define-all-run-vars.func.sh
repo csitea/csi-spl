@@ -55,7 +55,14 @@ do_define_all_run_vars() {
   # Change directory to project path
   cd "$PROJ_PATH" || exit 1
 
-  # Set user and group information
+  do_define_identity_run_vars
+
+  do_print_all_run_vars
+}
+
+# do_define_identity_run_vars: export the user, group, uid, gid and os of the
+# shell (each kept when already set).
+do_define_identity_run_vars() {
   export GROUP
   GROUP="${GROUP:-$(id -gn 2>/dev/null || ps -o group,supgrp $$ | tail -n 1 | awk '{print $1}')}"
   
@@ -75,8 +82,11 @@ do_define_all_run_vars() {
   # Determine operating system
   export OS
   OS="${OS:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+}
 
-  # Print out all declared variables for verification (optional)
+# do_print_all_run_vars: print every variable do_define_all_run_vars declares,
+# one NAME=value per line, for verification.
+do_print_all_run_vars() {
   echo "Declared variables:"
   for var in HOST_NAME RUN_UNIT PROJ_PATH APP_PATH APP_NAME ORG_PATH BASE_PATH PROJ ENV GROUP USER UID GID OS LOG_DIR LOG_FILE UTL_PROJ_PATH ORC_PROJ_PATH IAC_PROJ_PATH API_PROJ_PATH WUI_PROJ_PATH CNF_PROJ_PATH TPG_PROJ_PATH BOT_PROJ_PATH HOME_UTL_PROJ_PATH HOME_ORC_PROJ_PATH HOME_IAC_PROJ_PATH HOME_API_PROJ_PATH HOME_WUI_PROJ_PATH HOME_CNF_PROJ_PATH HOME_TPG_PROJ_PATH HOME_TPL_PROJ_PATH HOME_BOT_PROJ_PATH; do
     printf '%s=%s\n' "$var" "${!var}"

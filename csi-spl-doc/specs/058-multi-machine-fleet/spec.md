@@ -299,11 +299,21 @@ The hub keys four things on the box id: pins, the roster, `channel_subscriptions
 | step | what | goes offline? |
 |---|---|---|
 | `pin` | mint the new box's key, pin it with the tenant root key (`do_spl_desk_pin` self mode) | no |
-| `copy` | copy `box_operators` + `channel_subscriptions` rows to the new box, `backfilled_at` set (no back-fill burst; removals carry over too) | no |
+| `copy` | copy `box_operators` + `channel_subscriptions` + `agent_id_aliases` rows to the new box, `backfilled_at` set (no back-fill burst; removals and legacy-id aliases carry over too), and move the LIVE `fleet_lanes` rows to it | no |
 | `drain` | cron pause; old sidecar down; the seated agents recorded in `<desk>/rebox-seated.txt` and their dirs parked; ONE `spool hub-sync` as the old box: its hello announces an EMPTY roster, and it pulls every delivery still queued for it into the inboxes (fleet copy + pane notice) | yes, until `seat` |
 | `seat` | the recorded agents seated on the new box, seated-only, mutes kept | back online |
 | `resume` | remove the cron pause | — |
+| `verify` | READ-ONLY, runs under the DRY_RUN default: per box the pin, roster, channel seats and unacked deliveries; fails while a drained old box still has an unacked delivery | — |
 | `retire` | drain again (a WUI DM from an old `<ID>@box-desk` page queues for the old box), delete its subscription/operator rows, revoke its pin | — |
+
+`TENANT_ID=all` runs one step for every tenant whose old-box desk is pinned on this machine, stopping at the first failure.
+
+Lessons of the home box's `box-desk` -> `<box>` window (2026-10-02, dev first):
+
+- **Write the pause one cron tick (3 min) BEFORE `drain`.** `drain` writes it, but a desk cron tick that started seconds earlier still re-seated the old box (dev t1, 21:51Z): the roster then shows the agents on BOTH boxes and a DM to a bare id is refused `ambiguous_to_box`. Re-running `drain` with the pause in place cleared it.
+- **`drain` may exit 1 on a stale local pin** of an unrelated box in the desk's `pins/` cache (`pin_conflict (local pin for box-orc-probe ...)`) after the sync itself completed (`"pending":0` in `rebox-drain.log`, roster empty). `verify` is the check that counts.
+- **Run the steps from the shared checkout, not a worktree:** `seat` starts the new sidecar with `SPOOL_NOTIFY_CMD` under `$APP_PATH`, so a worktree path dies with the worktree.
+- `box.env SPOOL_DESK_BOX` is also the lease machine and the orch rotation's box (`ROTATE_BOX`): flip it only between rotations, never while one is open.
 
 Between `drain` and `seat` an agent is on no roster for seconds. A box send to it is refused loudly, not queued and lost. After `retire`, a DM from an old `<ID>@box-desk` page is refused (`unpinned_box`); the DM list shows the `<ID>@<new box>` peers.
 

@@ -22,8 +22,8 @@
 // Unit-tested by tests/unit/root-locale-redirect.test.mjs.
 
 /**
- * Crawlers are exempt: `/` stays the default-locale home and hreflang
- * alternates (useLocaleHead) already point them at the other 18 locales.
+ * Crawlers are exempt: `/` stays the default-locale home (the WUI is
+ * noindex and ships no hreflang alternates since perf round 3 P3-22).
  * Without this, a renderer with an en-US `navigator.languages` (Googlebot)
  * would see `/` as a redirect to `/en/` and the bg home would drop out.
  */

@@ -23,9 +23,10 @@ import { settingsQuerySection } from '~/utils/settings-nav.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
-// fetch, and the document lang/dir + hreflang alternates come from
-// useLocaleHead exactly as the donor does (spec 021). The rest of the SEO
-// shell is left out on purpose — the WUI is noindex.
+// fetch, and the document lang/dir come from useLocaleHead (spec 021). The
+// SEO shell is left out on purpose — the WUI is noindex, nofollow — and that
+// now includes the 39 hreflang alternates + canonical link useLocaleHead's
+// `seo` wrote into every document (perf round 3 P3-22: ~1.9 KB raw each).
 const appVersion = String(useRuntimeConfig().public.appVersion || '')
 /* SPL-959: set by plugins/tenant-host.client.ts on a tenant host the viewer is not a member of */
 const tenantNotMember = useState<{ tenant: string, home: string, pending?: string }>('tenant-host-not-member', () => ({ tenant: '', home: '', pending: '' }))
@@ -44,7 +45,7 @@ const rtlLocales: Record<string, true> = { he: true }
 const i18nHead = useLocaleHead({
   dir: true,
   lang: true,
-  seo: true,
+  seo: false,
 })
 
 function docDir(): 'ltr' | 'rtl' {
@@ -79,7 +80,6 @@ useHead(() => {
       /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
       'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
     },
-    link: [...(i18nHead.value.link || [])],
     meta: appVersion ? [{ name: 'version', content: appVersion }] : [],
   }
 })

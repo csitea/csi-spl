@@ -79,7 +79,10 @@ describe('issues column widths', () => {
   it('the sheet wires every column: a grip per header, data-col per cell, a CSS rule per column', () => {
     const vue = readFileSync(join(SRC, 'pages/issues.vue'), 'utf8')
     assert.match(vue, /class="issues-col-grip"[\s\S]{0,700}@pointerdown="onGripDown\(\$event, c\.col\)"/)
-    assert.match(vue, /lastGripDown\.col === col && now - lastGripDown\.at < 400\)[\s\S]{0,80}void fitColumn\(col\)/)
+    /* the grip handlers live in composables/useIssueColumnGrips (CLE-77915) */
+    const grips = readFileSync(join(SRC, 'composables/useIssueColumnGrips.ts'), 'utf8')
+    assert.match(vue, /useIssueColumnGrips\(/)
+    assert.match(grips, /lastGripDown\.col === col && now - lastGripDown\.at < 400\)[\s\S]{0,80}void fitColumn\(col\)/)
     assert.match(vue, /@keydown\.alt\.left="onGripKey\(\$event, c\.col\)"/)
     assert.match(vue, /@keydown\.alt\.right="onGripKey\(\$event, c\.col\)"/)
     assert.match(vue, /:class="colWidthClasses\(colWidths\)" :style="colWidthVars\(colWidths\)"/)

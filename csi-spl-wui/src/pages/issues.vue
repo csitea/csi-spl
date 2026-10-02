@@ -925,8 +925,8 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
-import { useIssueColumns } from '~/composables/useIssueColumns'
-import { COLW_MAX, colMin, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, saveColWidths, withColWidth } from '~/utils/issues-colw.mjs'
+import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
+import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
@@ -1266,101 +1266,10 @@ const sheetColumns = computed(() => [
   { col: 'updated', name: t('issues.sort_updated'), cls: '' },
 ])
 const serverSort = computed(() => hubSort(sheetSort.value))
-/* owner, topic beb4024f: resizable columns. A width set by dragging a
-   header's edge (or the arrow keys on it) is the PERSON's (SPL-1132: the
-   issues_columns claim kept on the hub, one PUT per gesture); signed out it
-   is kept per browser. A column with no width keeps the automatic layout.
-   colWidths is what the table draws: a drag writes it on every move, the
-   store only on release. */
-const issueCols = useIssueColumns({ load: loadColWidths, save: saveColWidths })
-const colWidths = ref<Record<string, number>>({})
-let colDragging = false
-watch(issueCols.widths, (w) => { if (!colDragging) colWidths.value = { ...w } })
-function setColWidth(col: string, px: number) {
-  colWidths.value = withColWidth(colWidths.value, col, px)
-  issueCols.save(colWidths.value)
-}
-function headerWidth(grip: EventTarget | null): number {
-  const th = grip instanceof HTMLElement ? grip.closest('th') : null
-  return th ? th.getBoundingClientRect().width : 0
-}
-function isRtl(el: EventTarget | null): boolean {
-  return el instanceof HTMLElement && getComputedStyle(el).direction === 'rtl'
-}
-/* preventDefault on pointerdown (no text selection while dragging) also
-   swallows the browser's dblclick, so a second press on the same grip
-   within the double-click time is the double-click */
-let lastGripDown = { col: '', at: 0 }
-function onGripDown(ev: PointerEvent, col: string) {
-  if (ev.button !== 0) return
-  const grip = ev.currentTarget as HTMLElement
-  ev.preventDefault()
-  ev.stopPropagation()
-  const now = ev.timeStamp || Date.now()
-  if (lastGripDown.col === col && now - lastGripDown.at < 400) {
-    lastGripDown = { col: '', at: 0 }
-    void fitColumn(col)
-    return
-  }
-  lastGripDown = { col, at: now }
-  const startX = ev.clientX
-  const startW = headerWidth(grip)
-  const rtl = isRtl(grip)
-  grip.setPointerCapture?.(ev.pointerId)
-  grip.dataset.dragging = 'true'
-  colDragging = true
-  const move = (e: PointerEvent) => {
-    const w = dragWidth(startW, e.clientX - startX, rtl, col)
-    if (w != null) colWidths.value = withColWidth(colWidths.value, col, w)
-  }
-  const end = () => {
-    grip.removeEventListener('pointermove', move)
-    grip.removeEventListener('pointerup', end)
-    grip.removeEventListener('pointercancel', end)
-    delete grip.dataset.dragging
-    colDragging = false
-    issueCols.save(colWidths.value)
-  }
-  grip.addEventListener('pointermove', move)
-  grip.addEventListener('pointerup', end)
-  grip.addEventListener('pointercancel', end)
-}
-/* A double-click fits the column to its content: every cell of it is
-   shrunk to its floor for one synchronous measure, and each cell asks for
-   its width plus whatever its content still overflows by (a clipped title,
-   an ellipsised name). Nothing paints in between. */
-async function fitColumn(col: string) {
-  colWidths.value = withColWidth(colWidths.value, col, 0)
-  await nextTick()
-  const table = pageEl.value?.querySelector<HTMLElement>('.issues-table')
-  if (!table) return
-  const cells = [...table.querySelectorAll<HTMLElement>(`[data-col="${col}"]`)]
-  const saved = cells.map((el) => el.style.cssText)
-  for (const el of cells) {
-    el.style.width = '1%'
-    el.style.minWidth = '0'
-    el.style.maxWidth = 'none'
-  }
-  let need = 0
-  for (const el of cells) {
-    let over = 0
-    for (const d of [el, ...el.querySelectorAll<HTMLElement>('*')]) {
-      /* only an element that clips (overflow not visible) hides content; an
-         inline span reads clientWidth 0 and must not count */
-      if (d.scrollWidth > d.clientWidth + 1 && getComputedStyle(d).overflowX !== 'visible') over = Math.max(over, d.scrollWidth - d.clientWidth)
-    }
-    need = Math.max(need, el.getBoundingClientRect().width + over)
-  }
-  cells.forEach((el, i) => { el.style.cssText = saved[i] })
-  if (need > 0) setColWidth(col, Math.ceil(need))
-}
-function onGripKey(ev: KeyboardEvent, col: string) {
-  const w = keyWidth(colWidths.value[col] || headerWidth(ev.currentTarget), ev.key, isRtl(ev.currentTarget), col)
-  if (w == null) return
-  ev.preventDefault()
-  ev.stopPropagation()
-  setColWidth(col, w)
-}
+/* resizable columns: composables/useIssueColumnGrips (owner, topic beb4024f) */
+const { issueCols, colWidths, onGripDown, onGripKey } = useIssueColumnGrips({
+  table: () => pageEl.value?.querySelector<HTMLElement>('.issues-table'),
+})
 function toggleSort(col: string) {
   sheetSort.value = nextSort(col, sheetSort.value)
 }

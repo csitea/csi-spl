@@ -5,7 +5,7 @@ description: Rename THIS agent's tmux window to "<ID> <title>", keeping the agen
 
 # /riname — rename your tmux window
 
-Pass your OWN agent id (the `CLE-nn` / `GRK-nn` / `AGY-nn` / `QWN-nn` in your
+Pass your OWN agent id (the `c-NNN` / `g-NNN` / `a-NNN` / `q-NNN`, or a legacy `CLE-nn`, in your
 window name, also in `$MCP_BOT_AGENT_ID`). `--agent` survives a sudo hop, which
 strips `$TMUX_PANE`; the script validates the target against the live window
 list and fails loudly rather than renaming the wrong window.

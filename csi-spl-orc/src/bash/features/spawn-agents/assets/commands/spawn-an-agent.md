@@ -5,7 +5,7 @@ description: >
   task's difficulty against your own maximum capacity, then run /qwen-spawn
   (under 60%, the cheap lane) or /claude-spawn (60% or more, or unsure). Use when
   the user says "spawn an agent", "give this to an agent", or hands you work that
-  belongs in another lane. A leading CLE-nn / GRK-nn / AGY-nn / QWN-nn id sends
+  belongs in another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN id (or a legacy CLE-nn) sends
   the rest to that agent instead.
 ---
 
@@ -16,7 +16,7 @@ spawn steps in this turn, and report which one you picked and why.
 
 ## 1. Message mode
 
-If the first word is an agent id (`CLE-nn`, `GRK-nn`, `AGY-nn`, `QWN-nn`), send
+If the first word is an agent id (`c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, or a legacy `CLE-nn`), send
 the rest to that agent (section 2 of its launcher command) and stop.
 
 ## 2. Pick the launcher

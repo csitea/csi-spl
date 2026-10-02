@@ -2,18 +2,18 @@
 name: agy-spawn
 description: >
   Spawn a new antigravity (agy) agent in its own detached tmux window, auto-titled
-  AGY-01, AGY-02, ... with its own git worktree and spool mailbox - or send a
-  message to an already-running AGY-nn through the spool. Use when the user runs
-  /agy-spawn, asks to spawn or start a new agy worker, open a AGY window, or
-  send a prompt to a running AGY-nn agent.
+  a-004, a-005, ... with its own git worktree and spool mailbox - or send a
+  message to an already-running a-NNN through the spool. Use when the user runs
+  /agy-spawn, asks to spawn or start a new agy worker, open a a-NNN window, or
+  send a prompt to a running a-NNN agent.
 ---
 
-# /agy-spawn — spawn a antigravity (agy) worker (AGY-nn) or message a running one
+# /agy-spawn — spawn a antigravity (agy) worker (a-NNN) or message a running one
 
 | Invocation | Mode |
 |---|---|
-| `/agy-spawn <brief...>` | **Spawn** a new `AGY-nn` window with that brief |
-| `/agy-spawn AGY-nn <message...>` | **Message** the running `AGY-nn` through the spool |
+| `/agy-spawn <brief...>` | **Spawn** a new `a-NNN` window with that brief |
+| `/agy-spawn a-NNN <message...>` | **Message** the running `a-NNN` through the spool |
 | `/agy-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
 ## 1. Spawn
@@ -24,7 +24,7 @@ The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
 yourself or close a finished agent first, and say which you did.
 
 ```bash
-tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?(CLE|GRK|AGY|QWN)-[0-9]+'
+tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
 ### 1.2 Write the brief to a file
@@ -36,7 +36,7 @@ is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and ho
 
 ### 1.3 Start the window
 
-`spawn-window.sh` allocates the next free `AGY-nn`, claims its spool dir in
+`spawn-window.sh` allocates the next free `a-NNN`, claims its spool dir in
 the shared spool root (so it and its orchestrator `{{ORCHESTRATOR_ID}}` read one mailbox),
 creates a git worktree `<repo>-wt/<ID>` on a branch off the trunk, and starts
 agy in a DETACHED window. It prints `<ID> <PANE>`. The last argument is the
@@ -58,7 +58,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
-## 2. Message a running AGY-nn
+## 2. Message a running a-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
 (the spool for this harness, the older markdown inbox during a switch-over),
@@ -67,7 +67,7 @@ pane line is only the doorbell, and a non-zero exit after `via:` still means
 it was delivered unless the script says "nothing delivered".
 
 ```bash
-SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> AGY-nn --kind task --file <message-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> a-NNN --kind task --file <message-file>
 ```
 
 Reports sent to you, not seen yet:

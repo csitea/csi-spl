@@ -136,8 +136,15 @@ older tools sending a bare id still find exactly one agent.
 
 ### 3.3 Agent ids
 
-Every machine allocates fresh ids inside its own **band**
-(`SPOOL_AGENT_ID_RANGE`, F1). Bands are written in this spec and are disjoint:
+**The bands below ENDED with the legacy ids (specs/061 §3.3, owner
+2026-10-02).** Every machine now numbers `004-999` on its own (`c-004`...),
+from a per-machine cursor that rolls `999 -> 004`, and an agent is unique as
+`<ID>@<box>`: the hub keys agents on (id, box) (061 §3.3.1).
+`next-agent-id.sh` ignores `SPOOL_AGENT_ID_RANGE`; a box.env line that still
+sets it is harmless and may be dropped. Kept for the history of the legacy ids:
+
+Every machine allocated fresh ids inside its own **band**
+(`SPOOL_AGENT_ID_RANGE`, F1). Bands were written in this spec and were disjoint:
 
 | machine | band | note |
 |---|---|---|

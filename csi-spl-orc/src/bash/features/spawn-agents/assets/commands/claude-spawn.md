@@ -2,18 +2,18 @@
 name: claude-spawn
 description: >
   Spawn a new Claude Code agent in its own detached tmux window, auto-titled
-  CLE-01, CLE-02, ... with its own git worktree and spool mailbox - or send a
-  message to an already-running CLE-nn through the spool. Use when the user runs
-  /claude-spawn, asks to spawn or start a new claude worker, open a CLE window, or
-  send a prompt to a running CLE-nn agent.
+  c-004, c-005, ... with its own git worktree and spool mailbox - or send a
+  message to an already-running c-NNN through the spool. Use when the user runs
+  /claude-spawn, asks to spawn or start a new claude worker, open a c-NNN window, or
+  send a prompt to a running c-NNN agent.
 ---
 
-# /claude-spawn — spawn a Claude Code worker (CLE-nn) or message a running one
+# /claude-spawn — spawn a Claude Code worker (c-NNN) or message a running one
 
 | Invocation | Mode |
 |---|---|
-| `/claude-spawn <brief...>` | **Spawn** a new `CLE-nn` window with that brief |
-| `/claude-spawn CLE-nn <message...>` | **Message** the running `CLE-nn` through the spool |
+| `/claude-spawn <brief...>` | **Spawn** a new `c-NNN` window with that brief |
+| `/claude-spawn c-NNN <message...>` | **Message** the running `c-NNN` through the spool |
 | `/claude-spawn` (no args) | Ask what the new session should work on; never spawn empty |
 
 ## 1. Spawn
@@ -24,7 +24,7 @@ The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
 yourself or close a finished agent first, and say which you did.
 
 ```bash
-tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?(CLE|GRK|AGY|QWN)-[0-9]+'
+tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
 ### 1.2 Write the brief to a file
@@ -36,7 +36,7 @@ is disjoint; `--check <path,...>` exits 3 naming the lane that owns one), and ho
 
 ### 1.3 Start the window
 
-`spawn-window.sh` allocates the next free `CLE-nn`, claims its spool dir in
+`spawn-window.sh` allocates the next free `c-NNN`, claims its spool dir in
 the shared spool root (so it and its orchestrator `{{ORCHESTRATOR_ID}}` read one mailbox),
 creates a git worktree `<repo>-wt/<ID>` on a branch off the trunk, and starts
 claude in a DETACHED window. It prints `<ID> <PANE>`. The last argument is the
@@ -76,7 +76,7 @@ The window is created with `new-window -d`; never `select-window` or
 tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}'
 ```
 
-## 2. Message a running CLE-nn
+## 2. Message a running c-NNN
 
 `agent-send.sh` reaches the agent through the mailbox it was spawned with
 (the spool for this harness, the older markdown inbox during a switch-over),
@@ -85,7 +85,7 @@ pane line is only the doorbell, and a non-zero exit after `via:` still means
 it was delivered unless the script says "nothing delivered".
 
 ```bash
-SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> CLE-nn --kind task --file <message-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> c-NNN --kind task --file <message-file>
 ```
 
 Reports sent to you, not seen yet:

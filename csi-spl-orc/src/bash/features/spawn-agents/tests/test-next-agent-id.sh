@@ -77,7 +77,7 @@ eq "a stale band in the env is ignored" c-004 "$(SPOOL_ROOT="$T_TMP/sw2" SPOOL_A
 
 # Races: 12 concurrent allocations, 12 distinct ids, no gap, no double claim.
 r race
-for i in $(seq 1 12); do ( bash "$NAI" --kind claude >"$T_TMP/race.$i" 2>&1 ) & done
+for i in $(seq 1 12); do ( bash "$NAI" --kind claude >"$T_TMP/race.$i" 2>"$T_TMP/race-err.$i" ) & done
 wait
 eq "12 racing spawns get 12 distinct ids" 12 "$(cat "$T_TMP"/race.* | sort -u | grep -cE '^c-[0-9]{3}$')"
 eq "...004..015 with no gap" "c-004 c-015" "$(cat "$T_TMP"/race.* | sort | sed -n '1p;$p' | tr '\n' ' ' | sed 's/ $//')"

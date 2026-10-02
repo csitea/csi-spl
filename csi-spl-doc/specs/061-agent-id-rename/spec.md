@@ -69,14 +69,14 @@ start. The satellite keeps its current ids until the hub keys on `@box`.
 exactly as `CLE-001`..`003` today (`SPEC-spool-fleet-roles.md`). They are
 claimed (`--claim`), never allocated.
 
-**Proposed, needs the owner (Q1):** `001`..`003` are reserved for EVERY kind:
+**Decided by the owner (Q1, 2026-10-02 ~10:00Z):** `001`..`003` are reserved for EVERY kind:
 `a-001`, `g-001`, `q-001` are never handed out either. One rule for every
 kind, and no `a-001` reads like the orchestrator.
 
 ### 3.2 Counter
 
-**Proposed, needs the owner (Q2):** ONE counter per machine, shared by all
-kinds. The number alone names one agent on a machine (`c-004` and `a-004`
+**Decided by the owner (Q2, 2026-10-02 ~10:00Z):** ONE counter per machine,
+shared by all kinds. The number alone names one agent on a machine (`c-004` and `a-004`
 never coexist), so "004" in a sentence is unambiguous. A per-kind counter
 gives each kind its own 996 numbers, but then "004" names up to four agents.
 
@@ -223,8 +223,8 @@ global `~/.claude/CLAUDE.md`, and the seed prompts of live agents.
 
 | Q | question | recommendation |
 |---|---|---|
-| Q1 | Are `001`-`003` reserved for every kind, or only for `c-`? | every kind |
-| Q2 | One counter shared by all kinds, or one per kind? | one shared counter per machine |
+| Q1 | ANSWERED 2026-10-02 ~10:00Z (owner, via CLE-001): `001`-`003` are reserved for every kind. Built as `ID_ROLE_LETTERS=acgq` in `next-agent-id.sh` (L4) | (decided) |
+| Q2 | ANSWERED 2026-10-02 ~10:00Z (owner, via CLE-001): one counter per machine, shared by all kinds. Built as `ID_COUNTER=machine` in `next-agent-id.sh` (L4) | (decided) |
 | Q3 | ANSWERED 2026-10-02 ~06:50Z: "the first real work started with the wrong id the ids should be 00n till 999 with c aka his first number should have been c-004". Full `004-999` on every machine, unique as `c-NNN@<box>` (section 3.3). ~06:52Z, option "1": "Do it properly." The hub keys on `@box` first (L1b, section 3.3.1); cutoff moved to `2026-10-03T20:59:59Z` | (decided) |
 | Q4 | Agent ids are also the ticket key in commit subjects and branch names (104 distinct since yesterday). With rollover, `c-004` names a different lane every few days. What is the commit key now? | branch `c-004-<topic>`; commit scope `(<module>, <topic>)`, for example `(api, agent-id-rename)` |
 | Q5 | `@CLE-001` mentions inside OLD message bodies: render them as plain text after the deadline, or rewrite them through the alias table at render time, forever? | plain text; the stored body is history |

@@ -31,7 +31,7 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 
 - [x] T050 L4 `next-agent-id.sh`: per-machine cursor over `004-999` (no bands), rollover `999 -> 004`, the 5 skip rules, 24 h quarantine (FR-008) + tests (`SPOOL_ID_COUNTER` / `SPOOL_ID_ROLE_LETTERS` are the Q2 / Q1 switches; `spawn-window.sh` and `spool-agent.sh` take the new ids)
 - [x] T051 L4 `do_spl_agent_id_retire` (spec 3.6) + the `/exit-clean` hook + test (`scripts/agent-id-retire.sh`, `tmux-close-window.sh --retire`; the reaper of 3.6 and the in-quarantine `reject` bounce are not built)
-- [ ] T052 L4 skills: count regex and examples (FR-010)
+- [x] T052 L4 skills: count regex and examples (FR-010) (the 7 `assets/commands/*.md`; 058 §3.3 bands ended; box.env docs; Q1/Q2 recorded as decided in §7)
 - [ ] T060 L5 `do_spl_agent_id_map` (DRY_RUN default; written once) + test
 - [ ] T061 L5 `do_spl_agent_id_rename` (FR-011) + test; run it for every live non-role agent (owner go for the prd hub rows)
 - [ ] T062 L5 `do_spl_agent_id_legacy_report` (FR-013)

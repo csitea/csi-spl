@@ -45,12 +45,12 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 spool_env_resolve
 
-# ---- the two owner switches (specs/061 §7, not yet confirmed) -------------
-# Q1: which kinds keep 001-003 as role numbers. Recommended and built: every
-# kind. "Only c-" flips this line to: ID_ROLE_LETTERS=c
+# ---- the two owner switches (specs/061 §7, decided 2026-10-02 ~10:00Z) ----
+# Q1: which kinds keep 001-003 as role numbers. Owner: every kind.
+# "Only c-" would flip this line to: ID_ROLE_LETTERS=c
 ID_ROLE_LETTERS="${SPOOL_ID_ROLE_LETTERS:-acgq}"
 # Q2: one counter per machine shared by all kinds (c-004 and a-004 never
-# coexist). Recommended and built: machine. "One per kind" flips this line to:
+# coexist). Owner: machine. "One per kind" would flip this line to:
 # ID_COUNTER=kind
 ID_COUNTER="${SPOOL_ID_COUNTER:-machine}"
 

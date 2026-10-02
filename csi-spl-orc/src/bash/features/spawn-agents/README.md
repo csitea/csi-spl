@@ -69,8 +69,10 @@ the reference does it:
 
 Everything is set through env vars. None of them bakes in a user, a host or a
 box. The box config `$SPOOL_BOX_ENV` (default `$SPOOL_ROOT/box.env`) holds this
-box's defaults for `SPOOL_AGENT_USER`, `SPOOL_RUN_AS_AGENT`, `SPOOL_AGENT_ID_RANGE`,
-`SPOOL_DESK_BOX` and the `*_BIN` paths, so a spawn with no env still runs the agent as the right user; the
+box's defaults for `SPOOL_AGENT_USER`, `SPOOL_RUN_AS_AGENT`,
+`SPOOL_DESK_BOX` and the `*_BIN` paths (`SPOOL_AGENT_ID_RANGE`, the specs/058
+id band, is still read but ignored since specs/061 §3.3: every machine numbers
+`004-999`), so a spawn with no env still runs the agent as the right user; the
 environment always wins over it.
 
 | var | default |

@@ -34,7 +34,8 @@ for kv in "$@"; do
   if [ "$k" = SPOOL_AGENT_USER ] && [ -n "$v" ] && ! getent passwd "$v" >/dev/null; then
     echo "box-config: no such user '$v'" >&2; exit 2
   fi
-  # specs/058: a machine's own desk box id and agent-id band.
+  # specs/058: a machine's own desk box id and agent-id band (the band is
+  # ignored since specs/061 §3.3: every machine numbers 004-999).
   if [ "$k" = SPOOL_DESK_BOX ] && [ -n "$v" ] && { ! [[ "$v" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || [ "$v" = box-wui ]; }; then
     echo "box-config: SPOOL_DESK_BOX must be a box id (^[a-z0-9][a-z0-9-]{0,31}\$, not box-wui), got '$v'" >&2; exit 2
   fi

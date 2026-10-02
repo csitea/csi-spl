@@ -88,7 +88,9 @@ export function buildRootLocaleRedirectScript(opts) {
     // `/<code>` (no trailing slash) is the canonical i18n route — the same
     // form switchLocalePath emits — and what Firebase cleanUrls serves
     // directly; `/<code>/` would cost an extra 301 hop on hosting.
-    'if(r&&r!==' + def + ')location.replace("/"+r+location.search+location.hash);',
+    // window.__spoolLeaving: the later head scripts (signed-out redirect,
+    // early session probe) stay home while this document is replaced.
+    'if(r&&r!==' + def + '){try{window.__spoolLeaving=1}catch(e){}location.replace("/"+r+location.search+location.hash);}',
     '}catch(e){}})();',
   ].join('')
 }

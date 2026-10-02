@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { takeEarlySession } from '~/utils/early-session.mjs'
+import { writeSignedOutHint } from '~/utils/signed-out-hint.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -54,6 +55,17 @@ export const useSessionStore = defineStore('session', () => {
   const claims = ref<SessionClaims | null>(null)
 
   const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
+
+  /* P3-02: the document-head script sends a reader to /login before any JS
+     loads when this browser last read 'out' (utils/signed-out-hint.mjs).
+     'unknown' and 'loading' say nothing, so they leave the hint as it is. */
+  if (import.meta.client && !useSpoolApi().mock) {
+    const siteUrl = String(useRuntimeConfig().public.siteUrl || '')
+    watch(state, (s) => {
+      if (s !== 'in' && s !== 'out') return
+      writeSignedOutHint(document, s === 'out', { hostname: location.hostname, protocol: location.protocol, siteUrl })
+    })
+  }
 
   /*
    * a member session means the view reads ride the cookie, so the

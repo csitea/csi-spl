@@ -42,6 +42,7 @@
       :data-suggested="p === suggested ? 'true' : undefined"
       :href="startHref(p, redirect, tenant, authBase, loginHint)"
       rel="nofollow"
+      @click="leavingToSignIn"
     >
       <span class="social-auth__mark" aria-hidden="true">
         <svg
@@ -109,6 +110,7 @@ import {
   startHref,
 } from '@/utils/auth-client.mjs'
 import { noteError } from '@/composables/errorJournal.mjs'
+import { writeSignedOutHint } from '@/utils/signed-out-hint.mjs'
 import { useAuthBase, useAuthClient } from '@/composables/useAuthClient'
 
 withDefaults(defineProps<{
@@ -124,6 +126,13 @@ withDefaults(defineProps<{
 
 const { t } = useI18n({ useScope: 'global' })
 const authBase = useAuthBase()
+const siteUrl = String(useRuntimeConfig().public.siteUrl || '')
+
+/* P3-02: the hub lands the signed-in reader on a product page; a "signed
+   out" hint left behind would send that page to /login first. */
+function leavingToSignIn() {
+  writeSignedOutHint(document, false, { hostname: location.hostname, protocol: location.protocol, siteUrl })
+}
 const auth = useAuthClient()
 
 type Status = 'idle' | 'ok' | 'unavailable'

@@ -12,6 +12,7 @@ import type { NuxtPage } from "@nuxt/schema"
 import { addTemplate, addTypeTemplate } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
+import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 
@@ -439,10 +440,15 @@ export default defineNuxtConfig({
           tagPosition: "head",
           tagPriority: "critical",
         },
-        // P3-03: the session probe leaves at parse time; the app adopts it
-        // (src/utils/early-session-script.mjs). A mock build never probes.
+        // P3-02: a signed-out reader (this browser's hint) goes to /login
+        // before any JS loads; P3-03: the session probe leaves at parse time
+        // and the app adopts it. Redirect first: the probe stays home when the
+        // document leaves. A mock build has no sign-in and never probes.
         ...(wuiUseMock() === "0"
-          ? [{ innerHTML: buildEarlySessionScript({ authBase }), tagPosition: "head" as const, tagPriority: "critical" as const }]
+          ? [
+              { innerHTML: buildSignedOutRedirectScript({ locales: I18N_LOCALES.map((l) => l.code), defaultLocale: DEFAULT_LOCALE }), tagPosition: "head" as const, tagPriority: "critical" as const },
+              { innerHTML: buildEarlySessionScript({ authBase }), tagPosition: "head" as const, tagPriority: "critical" as const },
+            ]
           : []),
       ],
       meta: [

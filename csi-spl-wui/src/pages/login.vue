@@ -35,6 +35,7 @@ import { useSessionStore } from '~/stores/session'
 import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthCopy } from '~/composables/useAuthCopy'
+import { takeEarlyLoginFlag } from '~/utils/signed-out-hint.mjs'
 
 definePageMeta({ layout: 'login' })
 
@@ -83,6 +84,18 @@ watch(authError.value, (code) => {
 }, { immediate: true })
 
 onMounted(() => { void session.probe() })
+
+/* P3-02: the document-head script sent this tab here on this browser's
+   "signed out" hint. A hint can be stale (signed in where the WUI did not
+   see it): a session that reads 'in' goes on to the page asked for. */
+let earlyLogin = import.meta.client && takeEarlyLoginFlag(window.sessionStorage)
+if (earlyLogin) {
+  watch(() => [session.state, redirectQ.settled.value] as const, ([s, settled]) => {
+    if (!earlyLogin || !settled || s === 'loading') return
+    earlyLogin = false
+    if (s === 'in') void navigateTo(redirect.value, { replace: true })
+  }, { immediate: true })
+}
 </script>
 
 <style scoped>

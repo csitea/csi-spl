@@ -76,6 +76,28 @@ func (s *Memory) SaveReadMarks(_ context.Context, tenant, humanID string, marks 
 	return nil
 }
 
+// withStoredChannelMarksLocked is reads with the reader's stored ch: marks
+// merged in, the later per channel (Postgres: channelMarksCTE).
+func (s *Memory) withStoredChannelMarksLocked(tenant, reader string, reads map[string]ReadMark) map[string]ReadMark {
+	out := make(map[string]ReadMark, len(reads))
+	for k, m := range reads {
+		out[k] = m
+	}
+	if reader == "" {
+		return out
+	}
+	for k, m := range s.readMarks {
+		id, ok := strings.CutPrefix(k[2], "ch:")
+		if !ok || k[0] != tenant || k[1] != reader {
+			continue
+		}
+		if was, ok := out[id]; !ok || newer(m.At, m.MsgID, was.At, was.MsgID) {
+			out[id] = ReadMark{At: m.At, MsgID: m.MsgID}
+		}
+	}
+	return out
+}
+
 // threadReadLocked: the reader read this line inside its thread (a t: mark at
 // or past it). Memory twin of threadReadSQL.
 func (s *Memory) threadReadLocked(tenant, reader string, m *Message) bool {

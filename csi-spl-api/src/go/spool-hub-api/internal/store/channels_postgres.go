@@ -297,8 +297,8 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	// transaction of 5 + len(reads) round trips). Results come back in queue
 	// order, so the unread counts see the counts the stats read stored, and
 	// the archived-hidden read subtracts from what the unread reads set.
-	reqs := append([]tenantRead{cs.channelsRead(), cs.countsRead(now, reader)}, cs.unreadReads(reads, now, reader)...)
-	reqs = append(reqs, cs.hiddenUnreadRead(reads, now, reader, lobby), cs.membersRead())
+	reqs := []tenantRead{cs.channelsRead(), cs.countsRead(now, reader), cs.markedUnreadRead(reads, now, reader, lobby),
+		cs.hiddenUnreadRead(reads, now, reader, lobby), cs.membersRead()}
 	if err := s.queryTenantBatch(ctx, tenant, reqs...); err != nil {
 		return nil, err
 	}
@@ -391,70 +391,73 @@ func (cs *channelStats) countsRead(now time.Time, reader string) tenantRead {
 		}}
 }
 
-// unreadReads counts, per read mark, the messages after it - less the lines
-// the reader already read inside their thread (rdb 0098 t: marks, CLE-77930:
-// a thread read from Flow or on another device is not new in its channel).
-// A mark only
-// matters for a channel with messages, which is known only once the counts
-// read is scanned: every mark is queued, and one for a channel without
-// messages is scanned and dropped.
-func (cs *channelStats) unreadReads(reads map[string]ReadMark, now time.Time, reader string) []tenantRead {
-	ids := make([]string, 0, len(reads))
-	for id := range reads {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	out := make([]tenantRead, 0, len(ids))
-	for _, id := range ids {
-		mark := reads[id]
-		out = append(out, tenantRead{`SELECT count(*)::int FROM messages
-				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)
-				AND ($6::text IS NULL OR (from_id IS DISTINCT FROM $6 AND typed_by IS DISTINCT FROM $6))` + threadReadSQL("messages", "$1", "$6"),
-			[]any{cs.tenant, id, now, mark.At, mark.MsgID, nullIfEmpty(reader)}, func(r pgx.Rows) error {
-				var unread int
-				if err := r.Scan(&unread); err != nil {
-					return err
-				}
-				if st, ok := cs.by[id]; ok && st.Count > 0 {
-					st.Unread = unread
-				}
-				return nil
-			}})
-	}
-	return out
-}
+// channelMarksCTE is mk: each channel's read mark - the later of the read=
+// cursor ($3..$5) and the reader's stored ch: mark ($6, rdb 0098, CLE-77930:
+// a channel read on another device is read here too). Read in the same batch
+// statement, so the stored marks cost no round trip of their own.
+const channelMarksCTE = `pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
+		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
+			WHERE $6::text IS NOT NULL AND tenant_id = $1 AND member_id = $6 AND mark_key LIKE 'ch:%'),
+		mk AS (SELECT DISTINCT ON (ch) ch, at, id FROM (SELECT ch, at, id FROM pm UNION ALL SELECT ch, at, id FROM sm) x ORDER BY ch, at DESC, id DESC)`
 
-// hiddenUnreadRead takes out of each channel's unread the lines its feed
-// hides as archived (specs/041: archivedHideSQL - the line's own card, its
-// task's card, its parent task's card, the lobby's excepted). CLE-77930
-// (owner, t1 bf737f3f): "2 new messages, then I go there and there is
-// nothing new for me" - on prd t1, 20 of 305 others' channel lines in 24 h
-// landed in a topic already archived, and every line of a topic archived
-// before it was read stayed counted. Driven from the archived cards (222 in
-// t1), so the counts read keeps its index-only scan. Same unread test as
-// countsRead / unreadReads: after the channel's mark when it has one (and
-// then not read inside its thread), and not the reader's own line (OwnLine).
-func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
+// markArgs is $1..$7 of the two unread reads: tenant, now, the read= marks as
+// arrays, the reader (NULL = none) and the lobby task.
+func (cs *channelStats) markArgs(reads map[string]ReadMark, now time.Time, reader, lobby string) []any {
 	ids := make([]string, 0, len(reads))
 	ats := make([]time.Time, 0, len(reads))
 	msgs := make([]string, 0, len(reads))
 	for id, m := range reads {
 		ids, ats, msgs = append(ids, id), append(ats, m.At), append(msgs, m.MsgID)
 	}
-	return tenantRead{`WITH z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL),
+	return []any{cs.tenant, now, ids, ats, msgs, nullIfEmpty(reader), lobby}
+}
+
+// markedUnreadRead is the unread of every channel the reader has a mark for
+// (mk): the lines after it that are not their own (OwnLine, typed_by
+// included), not already read inside their thread (rdb 0098 t: marks: a
+// thread read from Flow or on another device is not new in its channel), and
+// not hidden by the feed as archived (specs/041 archivedHideSQL, CLE-77930:
+// on prd t1, 20 of 305 others' lines in 24 h landed in a topic already
+// archived). One statement for every mark (it was one per read= mark). A
+// mark only matters for a channel with messages, known once the counts read
+// is scanned, so a mark of an empty channel is scanned and dropped.
+func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
+	return tenantRead{`WITH ` + channelMarksCTE + `
+		SELECT mk.ch, c.n FROM mk CROSS JOIN LATERAL (SELECT count(*)::int AS n FROM messages m
+			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2 AND (m.received_at, m.msg_id::text) > (mk.at, mk.id)
+			AND ($6::text IS NULL OR (m.from_id IS DISTINCT FROM $6 AND m.typed_by IS DISTINCT FROM $6))` +
+		threadReadSQL("m", "$1", "$6") + archivedHideSQL("m", "$1", "$7") + `) c`,
+		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
+			var id string
+			var unread int
+			if err := r.Scan(&id, &unread); err != nil {
+				return err
+			}
+			if st, ok := cs.by[id]; ok && st.Count > 0 {
+				st.Unread = unread
+			}
+			return nil
+		}}
+}
+
+// hiddenUnreadRead takes the lines the feed hides as archived out of the
+// unread of a channel the reader has NO mark for (countsRead counted every
+// other line there; markedUnreadRead filters a marked one itself). Driven
+// from the archived cards (222 in prd t1), so the counts read keeps its
+// index-only scan.
+func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
+	return tenantRead{`WITH ` + channelMarksCTE + `,
+		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL),
 		h AS (
 			SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id
 			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id
-			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $4
-			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $4)
+			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7
+			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7)
 		SELECT m.channel, count(*)::int FROM h JOIN messages m ON m.tenant_id = $1 AND m.msg_id = h.msg_id
-		LEFT JOIN unnest($5::text[], $6::timestamptz[], $7::text[]) AS mk(ch, at, id) ON mk.ch = m.channel
-		WHERE m.channel IS NOT NULL AND m.expires_at > $2
-			AND (mk.ch IS NULL OR (m.received_at, m.msg_id::text) > (mk.at, mk.id))
-			AND ($3::text IS NULL OR (m.from_id IS DISTINCT FROM $3 AND (mk.ch IS NULL OR m.typed_by IS DISTINCT FROM $3)))
-			AND (mk.ch IS NULL OR (TRUE` + threadReadSQL("m", "$1", "$3") + `))
+		WHERE m.channel IS NOT NULL AND m.expires_at > $2 AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
+			AND ($6::text IS NULL OR m.from_id IS DISTINCT FROM $6)
 		GROUP BY m.channel`,
-		[]any{cs.tenant, now, nullIfEmpty(reader), lobby, ids, ats, msgs}, func(r pgx.Rows) error {
+		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
 			var id string
 			var hidden int
 			if err := r.Scan(&id, &hidden); err != nil {

@@ -368,6 +368,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
+	reads = s.withStoredChannelMarksLocked(tenant, reader, reads)
 	by := map[string]*ChannelStat{}
 	get := func(id string) *ChannelStat {
 		st := by[id]

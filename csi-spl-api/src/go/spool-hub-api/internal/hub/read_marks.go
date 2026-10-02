@@ -1,10 +1,8 @@
 package hub
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -17,7 +15,8 @@ import (
 // read on the phone stayed new on the desktop. GET /v1/me/reads answers every
 // mark; PUT /v1/me/reads moves the marks it names forward (never back) and
 // answers them all, so a tab merges what other devices read. GET
-// /v1/view/channels counts unread against these marks as well as its read=.
+// /v1/view/channels counts unread against these marks as well as its read=
+// (store channelMarksCTE, inside the stats batch: no extra round trip).
 
 // wireReadMark is one mark on the wire: ts/id are the WUI cursor's, cursor
 // the view-v1 one (a channel row's last_cursor), count a thread's seen total.
@@ -35,31 +34,6 @@ const readMarkSkew = time.Minute
 func (s *Server) readMarkStore() (store.ReadMarks, bool) {
 	rm, ok := s.o.Store.(store.ReadMarks)
 	return rm, ok
-}
-
-// storedChannelReads merges the reader's stored ch: marks into reads (the
-// later one wins per channel). A lookup error leaves reads as the client
-// sent them: the badge then counts as it did before rdb 0098.
-func (s *Server) storedChannelReads(ctx context.Context, tenant, hum string, reads map[string]store.ReadMark) {
-	rm, ok := s.readMarkStore()
-	if !ok || hum == "" {
-		return
-	}
-	marks, err := rm.ReadMarksOf(ctx, tenant, hum)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("read marks read")
-		return
-	}
-	for k, m := range marks {
-		id, ok := strings.CutPrefix(k, "ch:")
-		if !ok {
-			continue
-		}
-		id = store.NormalizeChannel(id)
-		if was, ok := reads[id]; !ok || m.At.After(was.At) || (m.At.Equal(was.At) && m.MsgID > was.MsgID) {
-			reads[id] = store.ReadMark{At: m.At, MsgID: m.MsgID}
-		}
-	}
 }
 
 func wireReadMarks(marks map[string]store.ReadMark) map[string]wireReadMark {

@@ -112,14 +112,22 @@ const tenantSelectStyle = computed(() => {
 /* The box is only as wide as the widest name in its own font. The arrow
    is the next flex item, TENANT_DESKTOP_ARROW_GAP_PX after that edge, so a clamped
    bar cannot slide the arrow back over the name. Re-measured when the list,
-   the font-size setting (html data-font-size), or the viewport changes. */
+   the font-size setting (html data-font-size), or the viewport changes.
+   W4 (perf round 4): at <= 820 px the box is display:none (TopBarTenant is
+   the phone's switcher), so nothing is measured there; the viewport
+   listener measures once the box is shown. */
 function applyTenantSelectWidth() {
   const sel = tenantSelectEl.value
   if (!sel) return
+  if (tenantBoxHidden(sel)) return
   const labels = tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant'))
   const text = widestLabelWidth(labels, (label) => measureControlText(sel, label))
   if (labels.some((label) => label.length > 0) && !(text > 0)) return
   if (Math.abs(tenantTextPx.value - text) > 0.01) tenantTextPx.value = text
+}
+function tenantBoxHidden(sel: HTMLElement) {
+  const view = sel.ownerDocument?.defaultView
+  return !!view && typeof view.matchMedia === 'function' && view.matchMedia(MOBILE_STACK_QUERY).matches
 }
 watch(
   () => tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant')).join('\n'),

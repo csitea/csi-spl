@@ -183,8 +183,45 @@ export function tenantNameArrowGapPx(box) {
   return rtl ? nameEnd - arrowNear : arrowNear - nameEnd
 }
 
+/** One 2D context per document, reused by every measure (null: no canvas). */
+const textContexts = new WeakMap()
+
+function textContext(doc) {
+  if (textContexts.has(doc)) return textContexts.get(doc)
+  let ctx = null
+  try {
+    const canvas = doc.createElement('canvas')
+    ctx = canvas && typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null
+  } catch {
+    ctx = null
+  }
+  if (ctx && typeof ctx.measureText !== 'function') ctx = null
+  textContexts.set(doc, ctx)
+  return ctx
+}
+
+/** `cs`'s font as a canvas `font` string (no line-height; small-caps kept). */
+function canvasFont(cs) {
+  const caps = cs.fontVariantCaps === 'small-caps' ? 'small-caps' : ''
+  return [cs.fontStyle, caps, cs.fontWeight, cs.fontSize, cs.fontFamily]
+    .filter((part) => part && part !== 'normal')
+    .join(' ')
+}
+
+function transformText(text, transform) {
+  if (transform === 'uppercase') return text.toUpperCase()
+  if (transform === 'lowercase') return text.toLowerCase()
+  if (transform === 'capitalize') return text.replace(/(^|\s)(\S)/gu, (m, sp, ch) => sp + ch.toUpperCase())
+  return text
+}
+
 /**
- * Width of `text` in `source`'s computed font, via a hidden probe span.
+ * W4 (perf round 4, round-3 P3-07): width of `text` in `source`'s computed
+ * font, by one canvas `measureText` - no probe in the DOM, so no forced
+ * layout. Spaces collapse and letter- / word-spacing are added the way
+ * the probe's DOM line did.
+ * Font feature settings a canvas cannot draw fall back to the probe span.
+ * Within TENANT_TEXT_PAD_PX of the probe (tests/e2e/tenant-text-measure).
  * Returns NaN when there is no document to measure in.
  *
  * @param {unknown} source an element whose computed font is the control's
@@ -192,17 +229,52 @@ export function tenantNameArrowGapPx(box) {
  * @returns {number}
  */
 export function measureControlText(source, text) {
+  const cs = controlStyle(source)
+  if (!cs) return NaN
+  const doc = source.ownerDocument
+  const ctx = textContext(doc)
+  const font = canvasFont(cs)
+  const features = cs.fontFeatureSettings
+  if (!ctx || !font || (features && features !== 'normal')) return probeControlText(doc, cs, text)
+  ctx.font = font
+  if ('fontKerning' in ctx && cs.fontKerning) ctx.fontKerning = cs.fontKerning
+  /* white-space: nowrap, as the probe drew it: runs collapse, ends trim */
+  const drawn = transformText(String(text ?? '').replace(/[ \t\n\r\f]+/g, ' ').trim(), cs.textTransform)
+  let w = ctx.measureText(drawn).width
+  const letter = parseFloat(cs.letterSpacing)
+  if (Number.isFinite(letter) && letter !== 0) w += letter * [...drawn].length
+  const word = parseFloat(cs.wordSpacing)
+  if (Number.isFinite(word) && word !== 0) w += word * (drawn.match(/ /g) || []).length
+  return w
+}
+
+/**
+ * The same width through a hidden probe span: one forced layout per call.
+ * The fallback of measureControlText, and the reference its test compares to.
+ *
+ * @param {unknown} source an element whose computed font is the control's
+ * @param {unknown} text
+ * @returns {number}
+ */
+export function measureControlTextProbe(source, text) {
+  const cs = controlStyle(source)
+  return cs ? probeControlText(source.ownerDocument, cs, text) : NaN
+}
+
+/** `source`'s computed style, or null when there is no document to measure in. */
+function controlStyle(source) {
   const el = source && typeof source === 'object' ? source : null
   const doc = el && el.ownerDocument
   const view = doc && doc.defaultView
-  if (!doc || !doc.body || !view || typeof view.getComputedStyle !== 'function') return NaN
-  let cs
+  if (!doc || !doc.body || !view || typeof view.getComputedStyle !== 'function') return null
   try {
-    cs = view.getComputedStyle(el)
+    return view.getComputedStyle(el) || null
   } catch {
-    return NaN
+    return null
   }
-  if (!cs) return NaN
+}
+
+function probeControlText(doc, cs, text) {
   const probe = doc.createElement('span')
   probe.setAttribute('data-tenant-measure', '')
   probe.style.position = 'absolute'

@@ -106,6 +106,9 @@ _warm_wui_edge_curl() {
 # curl's own --compressed header, which is not a browser's: the crawl only
 # discovers, the fetch pass warms.
 _warm_wui_edge_crawl() {
+  # byte order for sort and comm, whatever the runner's locale: comm needs both
+  # inputs in one order, and the path list must not depend on LANG
+  local LC_ALL=C
   local base="$1" w="$2" max="${WARM_WUI_MAX_FILES:-2000}" par="${WARM_WUI_PARALLEL:-2}"
   local level=0 i p code ctype
   curl -fsS --compressed --max-time 30 "$base/" -o "$w/index.html" \

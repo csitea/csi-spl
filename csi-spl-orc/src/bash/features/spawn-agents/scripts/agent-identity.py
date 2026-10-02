@@ -20,6 +20,10 @@ Usage: agent-identity.py --dir DIR [--proc-root ROOT] CMD [ARGS]
                   RENAME<TAB>pane<TAB>old<TAB>new per agent window whose name
                   is not the one derived from its record; the caller renames
   set-title ID T  set ID's title (what riname does); reconcile then renames
+  adopt ID PID    record ID from that ONE live pid, even while another live
+                  process carries the same id (the hourly rotation's overlap,
+                  spec 060 FR-006): pokes then reach the new session at once;
+                  `record` keeps a conflicting id's record, so this one holds
   restore-plan [--since UTC] [--until UTC] [--ids "ID ..."]
                   the records a reboot restore starts again (RESTORE rows) and
                   the ones it refuses (REFUSE + reason); see the action
@@ -675,6 +679,27 @@ def cmd_set_title(args, proc):
     return 0
 
 
+def cmd_adopt(args, proc):
+    """Record ID from pid PID only (spec 060 FR-006). With two live processes
+    on one id, merge() keeps the old record (a conflict); the rotation names
+    which one is the agent now, so the map routes pokes to it."""
+    live, _ = facts(proc, read_panes(sys.stdin))
+    mine = [f for f in live if f["id"] == args.id and str(f["pid"]) == str(args.pid)]
+    if not mine:
+        print("adopt: pid %s is not a live agent carrying %s" % (args.pid, args.id))
+        return 4
+    recs = load(args.dir)
+    new, changes, _ = merge({args.id: recs[args.id]} if args.id in recs else {}, mine)
+    if changes:
+        os.makedirs(args.dir, exist_ok=True)
+        write_json(os.path.join(args.dir, args.id + ".json"), {k: new[args.id].get(k) for k in FIELDS})
+        recs[args.id] = new[args.id]
+        write_json(os.path.join(args.dir, "index.json"),
+                   {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    print("adopt: %s -> pid %s pane %s" % (args.id, args.pid, mine[0].get("pane_id")))
+    return 0
+
+
 def cmd_alive(args, proc):
     r = load(args.dir).get(args.id)
     if not r or not r.get("alive") or not r.get("pid"):
@@ -718,6 +743,9 @@ def main():
     st.add_argument("title")
     a = sub.add_parser("alive")
     a.add_argument("id")
+    ad = sub.add_parser("adopt")
+    ad.add_argument("id")
+    ad.add_argument("pid")
     args = ap.parse_args()
     proc = Proc(args.proc_root)
     if args.cmd == "facts":
@@ -735,6 +763,8 @@ def main():
         return cmd_set_title(args, proc)
     if args.cmd == "restore-plan":
         return cmd_restore_plan(args, proc)
+    if args.cmd == "adopt":
+        return cmd_adopt(args, proc)
     if args.cmd == "hash":
         print(map_hash(load(args.dir)))
         return 0

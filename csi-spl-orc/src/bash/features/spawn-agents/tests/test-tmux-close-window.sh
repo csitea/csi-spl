@@ -10,6 +10,9 @@
 #   4. a registry pane whose window names ANOTHER id -> exit 4, nothing closed
 #   5. --defer on a pane with no agent CLI closes it after the grace, and logs
 #      the target to CLOSE_LOG_DIR
+#   6. T-EXITCLEAN-RETIRING (spec 060 FR-016): --agent CLE-001 --defer from a
+#      retiring window closes THAT window, never the new CLE-001 (control: from
+#      outside it resolves to the new one); from another window it is refused
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -52,4 +55,19 @@ for _ in $(seq 1 20); do alive "$P8" || break; sleep 0.5; done
 check "5. the deferred close lands" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P8'"
 has "5. the log records the target" "closing window" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null)"
 check "5. the victim survives the whole run" alive "$VICTIM"
+
+# --- 6. T-EXITCLEAN-RETIRING (spec 060 FR-016) ------------------------------------------
+NEWP="$(t_window 'CLE-001@tbox' 'sleep 600')"
+OLDP="$(t_window 'CLE-001-0405Z-retiring' 'sleep 600')"
+out="$(bash "$SUT" --agent CLE-001 --dry-run 2>&1)"
+has "6. control: --agent CLE-001 from outside resolves to the NEW window" "$NEWP" "$out"
+out="$(CLE_TMUX_PANE="$OLDP" bash "$SUT" --agent CLE-001 --dry-run 2>&1)"
+has "6. from the retiring pane it resolves to the retiring window" "$OLDP" "$out"
+hasnt "6. ... not the new one" "$NEWP" "$out"
+CLE_TMUX_PANE="$OLDP" bash "$SUT" --agent CLE-001 --defer --timeout 10 >"$T_TMP/o" 2>&1; eq "6. --defer from the retiring pane returns 0" 0 "$?"
+for _ in $(seq 1 20); do alive "$OLDP" || break; sleep 0.5; done
+check "6. the retiring window is closed" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$OLDP'"
+check "6. the NEW window survives" alive "$NEWP"
+CLE_TMUX_PANE="$VICTIM" bash "$SUT" --agent CLE-001 --defer --timeout 10 >"$T_TMP/o" 2>&1; eq "6. --defer from another window's pane is refused (4)" 4 "$?"
+check "6. ... and the new window survives" alive "$NEWP"
 t_done

@@ -331,6 +331,23 @@ elif [[ -n "$AGENT_ARG" ]]; then
     exit 3
   fi
   SOURCE="--agent $AGENT_ID"
+  # spec 060 FR-016: the hourly role rotation renames the old session's
+  # window <ID>-<hhmm>Z-retiring and starts a NEW <ID>, so --agent <ID> now
+  # resolves to the new window. A caller sitting in a retiring window of that
+  # id (its own pane, $TMUX_PANE / $CLE_TMUX_PANE ...) closes ITS window.
+  # A --defer (the self-teardown of /exit-clean) whose own pane is a
+  # different window is refused: it would close another session's window.
+  _caller="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}"
+  if [[ -n "$_caller" && "$_caller" != "$PANE" ]] && pane_exists "$_caller"; then
+    _cname="$(pane_window_name "$_caller")"
+    if [[ "$_cname" =~ ^${AGENT_ID}-[0-9]{4}Z-retiring ]]; then
+      PANE="$_caller"; SOURCE="the caller's retiring window of $AGENT_ID"
+    elif [[ "$DEFER" -eq 1 ]]; then
+      echo "tmux-close-window: REFUSED — --agent $AGENT_ID resolves to pane $PANE, but the caller's own pane $_caller" >&2
+      echo "                   is window '$_cname'; a self-teardown never closes another window; closed nothing" >&2
+      exit 4
+    fi
+  fi
 elif [[ -n "$TARGET_ARG" ]]; then
   SOURCE="explicit target"
 elif [[ -n "${TMUX_PANE:-}" ]]; then

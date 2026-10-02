@@ -50,6 +50,10 @@ ai_py() { python3 "$AI_PY" --dir "$(ai_dir)" --proc-root "${AI_PROC_ROOT:-/proc}
 
 ai_record() { ai_panes | ai_py record "$@"; }
 
+# Record ID from that one pid while another live process still carries the
+# id (the hourly rotation's overlap, spec 060 FR-006).
+ai_adopt() { ai_panes | ai_py adopt "$1" "$2"; }
+
 # The box tag: configured (SPOOL_BOX_TAG, BOX_TAG), else the one most agent
 # windows already carry - so a box that always showed one never loses it.
 ai_tag() {

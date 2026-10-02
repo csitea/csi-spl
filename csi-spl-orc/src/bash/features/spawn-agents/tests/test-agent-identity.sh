@@ -15,7 +15,8 @@
 #   3. the hash changes exactly when a record changes: a process gone ->
 #      alive:false and a new hash; the same facts again -> the same hash
 #   4. an id two live processes carry is a CONFLICT, never recorded; a
-#      process with no id in its environment is skipped with the reason
+#      process with no id in its environment is skipped with the reason;
+#      adopt records the one pid a rotation names (spec 060 FR-006)
 #   5. check: consistent -> exit 0; two windows whose names are swapped ->
 #      exit 1 naming both; a record that says alive with no process ->
 #      drift; a record edited by hand -> the index hash drifts
@@ -105,6 +106,16 @@ out="$(act do_spl_agent_identity_record)"
 has "4. an id two live processes carry is a conflict" "CONFLICT CLE-1: carried by 2 live processes (pids 102 402)" "$out"
 hasnt "4. ... and is not planned" "PLAN CLE-1" "$out"
 has "4. a process with no agent id is skipped, with the reason" "SKIP pid 502 (claude): its environment carries no agent id" "$out"
+# adopt (spec 060 FR-006): the rotation names which of the two is the agent now
+cp "$AI_PANES_FILE" "$T_TMP/panes.keep"; printf 't\t@4\t%%4\t400\tCLE-1-0405Z-retiring\n' >> "$AI_PANES_FILE"
+out="$(ai_adopt CLE-1 402)"
+has "4. adopt records the named pid despite the conflict" "adopt: CLE-1 -> pid 402 pane %4" "$out"
+eq "4. ... so the map routes CLE-1 to its pane" "%4" "$(ai_pane_of CLE-1 "$(cut -f3 "$AI_PANES_FILE")")"
+out="$(act do_spl_agent_identity_record DRY_RUN=0)"
+eq "4. ... and a record pass during the overlap keeps it" "402" "$(rec CLE-1 pid)"
+has "4. adopt refuses a pid that does not carry the id" "is not a live agent carrying CLE-1" "$(ai_adopt CLE-1 502)"
+out="$(ai_adopt CLE-1 102)"; eq "4. adopt back: the old pid again" "%1" "$(ai_pane_of CLE-1 "$(cut -f3 "$AI_PANES_FILE")")"
+cp "$T_TMP/panes.keep" "$AI_PANES_FILE"
 rm -rf "$P/400" "$P/402" "$P/502"
 
 # --- 5 --------------------------------------------------------------------------

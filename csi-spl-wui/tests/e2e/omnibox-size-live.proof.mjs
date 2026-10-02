@@ -86,6 +86,8 @@ const room = (f) => f.vh - f.barBottom
 async function drag(p, handle, x, y) {
   const f = await facts(p)
   const a = { x: f[handle].cx, y: f[handle].cy }
+  x = Math.min(f.vw - 1, Math.max(1, x))
+  y = Math.min(f.vh - 1, Math.max(1, y))
   await p.touchscreen.touchStart(a.x, a.y)
   for (let i = 1; i <= 12; i++) {
     await p.touchscreen.touchMove(a.x + ((x - a.x) * i) / 12, a.y + ((y - a.y) * i) / 12)
@@ -97,9 +99,14 @@ async function drag(p, handle, x, y) {
 }
 
 async function pick(p, sel) {
-  await p.tap('[data-testid=omnibox-grip]')
-  await sleep(400)
-  await p.tap(`[data-testid=omnibox-grip-menu] ${sel}`)
+  for (let i = 0; i < 3; i++) {
+    if (!(await p.$('[data-testid=omnibox-grip-menu]'))) await p.tap('[data-testid=omnibox-grip]')
+    const item = await p.waitForSelector(`[data-testid=omnibox-grip-menu] ${sel}`, { timeout: 2000 }).catch(() => null)
+    if (item) {
+      await item.tap()
+      break
+    }
+  }
   await sleep(600)
   return facts(p)
 }

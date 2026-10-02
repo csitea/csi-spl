@@ -114,6 +114,10 @@ const facts = (p) => p.evaluate(() => {
 async function dragGrip(p, x, y, handle = 'grip') {
   const f = await facts(p)
   const a = { x: f[handle].cx, y: f[handle].cy }
+  /* on the screen: a finger cannot leave it (a target past the edge made the
+     next tap on the grip miss on CI, wf11 73706a65) */
+  x = Math.min(f.vw - 1, Math.max(1, x))
+  y = Math.min(f.vh - 1, Math.max(1, y))
   await p.touchscreen.touchStart(a.x, a.y)
   const n = 12
   for (let i = 1; i <= n; i++) {
@@ -265,10 +269,16 @@ async function phone(browser) {
 /** The room a height share is of: under the top bar, no keyboard here. */
 const room = (f) => f.vh - f.barBottom
 
+/* the menu by tap; waits for it and taps the grip again when a tap was lost */
 async function pickMenu(p, sel) {
-  await p.tap('[data-testid=omnibox-grip]')
-  await sleep(300)
-  await p.tap(`[data-testid=omnibox-grip-menu] ${sel}`)
+  for (let i = 0; i < 3; i++) {
+    if (!(await p.$('[data-testid=omnibox-grip-menu]'))) await p.tap('[data-testid=omnibox-grip]')
+    const item = await p.waitForSelector(`[data-testid=omnibox-grip-menu] ${sel}`, { timeout: 2000 }).catch(() => null)
+    if (item) {
+      await item.tap()
+      break
+    }
+  }
   await sleep(500)
   return facts(p)
 }

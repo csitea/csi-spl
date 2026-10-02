@@ -145,7 +145,13 @@ async function run(browser, base, width, height, touch) {
   await shot(p, `${tag}-3-dragged`)
 
   /* ---- 4. the left panel follows at once (desktop draws it beside) -------- */
+  /* CLE-77934: a rail tab is built when first opened, and the open Settings
+     dialog keeps the rail from switching, so the reader's way to see it:
+     close Settings, open Channels - the new order, with no reload. (This
+     step used to read the hidden Channels panel built on the first idle.) */
   if (width >= 1024) {
+    await p.keyboard.press('Escape')
+    await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: NAV }, LIST)
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
     const follows = await until(p, ({ sel, want }) => JSON.stringify([...document.querySelectorAll(sel)].map((e) => e.getAttribute('data-order'))) === JSON.stringify(want), { sel: PANEL, want: want3 })
     ok(`${tag} 4 the left panel draws the new order without a reload`, follows, await p.$$eval(PANEL, (els) => els.map((e) => e.getAttribute('data-order'))))

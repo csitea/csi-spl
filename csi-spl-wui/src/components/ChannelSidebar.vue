@@ -98,7 +98,7 @@
     </div>
     <div class="sidebar-body">
       <div
-        v-if="tab === 'dm' || tabsWarm"
+        v-if="tab === 'dm' || tabsBuilt.dm"
         v-show="tab === 'dm'"
         id="sidebar-panel-dm"
         class="sidebar-panel"
@@ -191,7 +191,7 @@
     </div>
       </div>
       <div
-        v-if="tab === 'channels' || tabsWarm"
+        v-if="tab === 'channels' || tabsBuilt.channels"
         v-show="tab === 'channels'"
         id="sidebar-panel-channels"
         class="sidebar-panel"
@@ -383,7 +383,7 @@
     />
       </div>
       <div
-        v-if="tab === 'topics' || tabsWarm"
+        v-if="tab === 'topics' || tabsBuilt.topics"
         v-show="tab === 'topics'"
         id="sidebar-panel-topics"
         class="sidebar-panel"
@@ -434,7 +434,7 @@
         </div>
       </div>
       <div
-        v-if="tab === 'flow' || tabsWarm"
+        v-if="tab === 'flow' || tabsBuilt.flow"
         v-show="tab === 'flow'"
         id="sidebar-panel-flow"
         class="sidebar-panel"
@@ -461,7 +461,7 @@
       </div>
       <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
-        v-if="tab === 'issues' || tabsWarm"
+        v-if="tab === 'issues' || tabsBuilt.issues"
         v-show="tab === 'issues' && issueEpics.length"
         id="sidebar-panel-issues"
         class="sidebar-panel"
@@ -476,7 +476,7 @@
       </div>
       <!-- the personal Event log; the list lives on /events -->
       <div
-        v-if="tab === 'events' || tabsWarm"
+        v-if="tab === 'events' || tabsBuilt.events"
         v-show="tab === 'events'"
         id="sidebar-panel-events"
         class="sidebar-panel"
@@ -491,7 +491,7 @@
            person's card (avatar, role, last seen, interests) opens in the
            middle pane at /people/<id>, like a DM feed. -->
       <div
-        v-if="tab === 'people' || tabsWarm"
+        v-if="tab === 'people' || tabsBuilt.people"
         v-show="tab === 'people'"
         id="sidebar-panel-people"
         class="sidebar-panel"
@@ -527,7 +527,7 @@
            (Claude / Antigravity / Grok / Qwen, from the id prefix). The card at
            /agents/<id@box> shows the kind, box and liveness. -->
       <div
-        v-if="tab === 'agents' || tabsWarm"
+        v-if="tab === 'agents' || tabsBuilt.agents"
         v-show="tab === 'agents'"
         id="sidebar-panel-agents"
         class="sidebar-panel"
@@ -563,7 +563,7 @@
            and grouped by status so it scales past one box; the chosen box's
            card at /boxes/<id> lists the people AND agents on it. -->
       <div
-        v-if="tab === 'boxes' || tabsWarm"
+        v-if="tab === 'boxes' || tabsBuilt.boxes"
         v-show="tab === 'boxes'"
         id="sidebar-panel-boxes"
         class="sidebar-panel"
@@ -770,16 +770,19 @@ const tab = ref<SideTab>('dm')
 const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'agents', 'boxes'])
 /* the first render builds the open rail tab only. The other tabs
    (a v-show each) were built with it and hidden: on / the flow tab alone was
-   915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page. They
-   are built once the browser is first idle (at most 1.5 s later), and are
-   kept from then on, so a tab switch and a script that clicks a row in a
-   hidden tab see the same DOM as before. */
-const tabsWarm = ref(false)
-onMounted(() => {
-  const warm = () => { tabsWarm.value = true }
-  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(warm, { timeout: 1500 })
-  else window.setTimeout(warm, 200)
-})
+   915 nodes nobody sees, on /lobby the hidden tabs were 30 % of the page.
+   CLE-77934: a tab is built the first time it is opened and kept from then
+   on (a switch back shows it at once). They used to be built all together
+   on the first idle (at most 1.5 s in): ~2 000 nodes in one task, just as
+   the reader reached for the rail. Measured with do_spl_wui_perf_first_load
+   (dev host, local bundles, A/B interleaved, n=10): first-screen DOM
+   3 739 -> 2 165 nodes (phone 3 880 -> 2 554); main-thread JS between the
+   rail and the Flow list 4.6 -> 0.5 s (phone CPU 4x: 2.2 -> 0.5 s). */
+const tabsBuilt = reactive<Partial<Record<SideTab, boolean>>>({})
+/* not immediate: the route sets the real tab during setup, so the 'dm' the
+   ref starts with is never built unless it is shown */
+watch(tab, (open) => { tabsBuilt[open] = true })
+onMounted(() => { tabsBuilt[tab.value] = true })
 /* The topics list names each row from the opening of its first message. */
 function topicRowTitle(subject: string, fallback: string) {
   const text = topicOpening(subject)

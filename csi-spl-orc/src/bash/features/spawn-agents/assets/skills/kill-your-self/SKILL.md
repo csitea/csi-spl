@@ -9,7 +9,7 @@ description: >
 # /kill-your-self — finish this agent cleanly
 
 Order is hard: **commit and push the finished work → report → schedule the
-window close → `/exit` (status 0)**. Never force-kill the agent CLI, never
+window close → end the turn (the caller then sends `/exit`, status 0)**. Never force-kill the agent CLI, never
 close the window before `/exit`.
 
 This is an alias of `/exit-clean`; the two follow the same steps.
@@ -53,7 +53,14 @@ Pass YOUR OWN id; the helper refuses any window that does not carry it.
 bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer
 ```
 
-Then run `/exit`.
+Then end your turn: your last message is the one-line report, nothing after it.
+
+`/exit` is a built-in CLI command, not a tool: you cannot run it, and asking
+the human to type it is wrong. Whoever invoked this skill ends the session
+once your turn is over: the hourly rotation's RETIRE step types `/exit` into
+this pane when it reads idle (and closes the window itself, so a retiring
+session whose successor carries the same id skips the close above), and the
+deferred close kills the window after its timeout.
 
 ## 4. Arguments
 

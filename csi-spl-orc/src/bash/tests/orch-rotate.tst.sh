@@ -31,6 +31,9 @@
 #  11. T-ORCH-PENDING-INPUT: a multi-row input the Escape put back is emptied
 #      whole and exactly /exit-clean is submitted; control: an empty box gets
 #      no C-c; a box that never reads the command: no Enter, SIGTERM
+#  12. T-ORCH-EXIT-SKILL-ONLY: /exit-clean's turn ends with the pid alive ->
+#      RETIRE types /exit, no SIGTERM; control: a pane that never turns idle
+#      gets no /exit, and the SIGTERM line carries the screen
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -69,6 +72,9 @@ EOF
 # only, C-c every row (on an empty box it only arms the exit hint), Enter
 # submits the WHOLE box ("submit" in the log). Escape moves a queued.<pane>
 # message back into the box, as a busy claude does with a queued poke.
+# skillonly.<pane>: /exit-clean runs the skill and ENDS THE TURN with the
+# process alive (a model cannot run the built-in /exit, 2026-10-02 0805Z and
+# 0905Z); the screen turns idle unless skillbusy.<pane>; only /exit ends it.
 cat >"$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 P="$T/tmux/panes"; L="$T/tmux/log"
@@ -101,7 +107,9 @@ case "$cmd" in
       [ -f "$T/tmux/escape-stops.$tgt" ] && printf 'working on the satellite drill\n  ⎿  Interrupted · What should Claude do instead?\n❯ \n' >"$T/tmux/screen.$tgt"
     elif [ "$k" = Enter ]; then
       b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; echo "submit $tgt $(printf '%s' "$b" | tr '\n' '|')" >>"$L"
-      case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac
+      if [ "$b" = /exit-clean ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
+        [ -f "$T/tmux/skillbusy.$tgt" ] || printf 'Handoff sent. I cannot run /exit myself.\n❯ \n' >"$T/tmux/screen.$tgt"
+      else case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
       : >"$T/tmux/typed.$tgt"
     fi ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; echo "kill $tgt" >>"$L" ;;
@@ -366,6 +374,23 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   grep -q "RETIRE WAIT pid 1001: '/exit-clean' never read back, no Enter: SIGTERM" "$T/o" && grep -q '^kill -TERM 1001$' "$T/kill.log" &&
   pass "11. a box that never reads the command: one retry, no Enter, logged, SIGTERM" ||
   fail "11. nobox rc=$rc $(grep RETIRE "$T/o") $(grep submit "$T/tmux/log")"
+
+# --- 12. T-ORCH-EXIT-SKILL-ONLY (CLE-77975): the skill cannot run /exit ---------------------------
+world; touch "$T/tmux/skillonly.%2"
+act DRY_RUN=0 ROTATE_EXIT_WAIT=6 ROTATE_EXIT_SETTLE=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] &&
+  [[ "$(grep '^submit %2 ' "$T/tmux/log" | tr '\n' ',')" == 'submit %2 /exit-clean,submit %2 /exit,' ]] &&
+  grep -qE "RETIRE WAIT pid 1001 idle and alive [0-9]+s after '/exit-clean': '/exit' typed" "$T/o" &&
+  ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null && grep -q ' RETIRE OK pid 1001 gone' "$T/o" &&
+  pass "12. /exit-clean ends its turn alive: RETIRE types /exit, no SIGTERM" ||
+  fail "12. skill-only rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"
+world; touch "$T/tmux/skillonly.%2" "$T/tmux/skillbusy.%2"
+act DRY_RUN=0 ROTATE_EXIT_WAIT=3 ROTATE_EXIT_SETTLE=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] &&
+  grep -q "RETIRE WAIT pid 1001 alive 3s after '/exit-clean': SIGTERM; screen: working on the satellite drill|✻ Cogitating (12s · esc to interrupt)" "$T/o" &&
+  grep -q '^kill -TERM 1001$' "$T/kill.log" &&
+  pass "12. control: a pane still busy gets no /exit; SIGTERM logs the screen" ||
+  fail "12. busy rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

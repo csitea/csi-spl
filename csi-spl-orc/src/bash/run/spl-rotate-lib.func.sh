@@ -11,7 +11,7 @@
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
 #   spl_rotate_restore ID OLD_PANE NEW_PANE the failure path: new closed, old name and map entry back (FR-013, FR-014, FR-027)
-#   spl_rotate_retire PANE PID              /exit-clean, wait, TERM, wait, KILL (FR-015)
+#   spl_rotate_retire PANE PID              /exit-clean, /exit once its turn ends, wait, TERM, wait, KILL (FR-015)
 #   spl_rotate_ack_wait ID RID TIMEOUT      the new session's result on task <role>-rotate-<rid> in <ID>/outbox (FR-041)
 #   spl_rotate_ack_send ROLE ID             the ROTATE_CMD=ack sender, run by the new session (FR-041)
 #   spl_rotate_alert ROLE RID PHASE REASON  an ask (blocker) + an immediate owner DM (FR-075)
@@ -56,9 +56,9 @@ spl_rotate_conf() {
   : "${ROTATE:=1}" "${ROTATE_ORCH:=1}" "${ROTATE_DISPATCH:=1}"
   : "${ROTATE_MIN_AGE:=3300}" "${ROTATE_IDLE_SEC:=10}" "${ROTATE_IDLE_GRACE:=60}" "${ROTATE_ESC_WAIT:=30}"
   : "${ROTATE_START_WAIT:=120}" "${ROTATE_ACK_TIMEOUT:=900}" "${ROTATE_EXIT_WAIT:=300}" "${ROTATE_TERM_WAIT:=30}"
-  : "${ROTATE_NEW_EXIT_WAIT:=30}" "${ROTATE_POLL:=5}" "${ROTATE_BOOT_GRACE:=900}" "${ROTATE_HANDOFF_KEEP_DAYS:=7}"
+  : "${ROTATE_NEW_EXIT_WAIT:=30}" "${ROTATE_EXIT_SETTLE:=10}" "${ROTATE_POLL:=5}" "${ROTATE_BOOT_GRACE:=900}" "${ROTATE_HANDOFF_KEEP_DAYS:=7}"
   for k in ROTATE ROTATE_ORCH ROTATE_DISPATCH ROTATE_MIN_AGE ROTATE_IDLE_SEC ROTATE_IDLE_GRACE ROTATE_ESC_WAIT \
-           ROTATE_START_WAIT ROTATE_ACK_TIMEOUT ROTATE_EXIT_WAIT ROTATE_TERM_WAIT ROTATE_NEW_EXIT_WAIT ROTATE_POLL \
+           ROTATE_START_WAIT ROTATE_ACK_TIMEOUT ROTATE_EXIT_WAIT ROTATE_TERM_WAIT ROTATE_NEW_EXIT_WAIT ROTATE_EXIT_SETTLE ROTATE_POLL \
            ROTATE_BOOT_GRACE ROTATE_HANDOFF_KEEP_DAYS; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
@@ -556,13 +556,16 @@ spl_rotate_type() {
   [[ "$ROTATE_INPUT_READ" == "$cmd" ]]
 }
 
-# spl_rotate_end PANE PID CMD WAIT TERM_WAIT: CMD typed into the emptied input
-# box and Enter only once the box reads exactly CMD (one retry; a busy session
-# queues it), then SIGTERM after WAIT s, SIGKILL after TERM_WAIT s more. A box
-# that never reads CMD gets no Enter and goes straight to SIGTERM. Each
-# fallback logged. 0 once gone.
+# spl_rotate_end PANE PID CMD WAIT TERM_WAIT [THEN]: CMD typed into the
+# emptied input box and Enter only once the box reads exactly CMD (one retry;
+# a busy session queues it), then SIGTERM after WAIT s, SIGKILL after
+# TERM_WAIT s more. A box that never reads CMD gets no Enter and goes straight
+# to SIGTERM. THEN (once): typed the same way when the pid is still alive
+# ROTATE_EXIT_SETTLE s after the Enter and the pane reads idle, i.e. CMD's
+# turn has ended without ending the process. Each fallback logged, the
+# SIGTERM one with the pane's last rows. 0 once gone.
 spl_rotate_end() {
-  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" t0 try typed=0
+  local pane="$1" pid="$2" cmd="$3" wait="$4" twait="$5" then="${6:-}" t0 try typed=0
   spl_rotate_alive "$pid" || return 0
   for try in 1 2; do
     spl_rotate_type "$pane" "$cmd" && { typed=1; break; }
@@ -570,8 +573,21 @@ spl_rotate_end() {
   done
   if (( typed )); then
     spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
-    t0=$SECONDS; while (( SECONDS - t0 < wait )); do spl_rotate_alive "$pid" || return 0; sleep 1; done
-    spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${wait}s after '$cmd': SIGTERM"
+    t0=$SECONDS; while (( SECONDS - t0 < wait )); do
+      spl_rotate_alive "$pid" || return 0
+      if [[ -n "$then" ]] && (( SECONDS - t0 >= ${ROTATE_EXIT_SETTLE:-10} )) && spl_rotate_idle "$pane"; then
+        spl_rotate_alive "$pid" || return 0
+        if spl_rotate_type "$pane" "$then"; then
+          spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
+          spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid idle and alive $((SECONDS - t0))s after '$cmd': '$then' typed"
+        else
+          spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid idle after '$cmd', but its box reads '$(printf '%s' "$ROTATE_INPUT_READ" | tr '\n' '|' | cut -c1-120)', not '$then'"
+        fi
+        then=""
+      fi
+      sleep 1
+    done
+    spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${wait}s after '$cmd': SIGTERM; screen: $(spl_rotate_screen_tail "$pane")"
   else
     spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid: '$cmd' never read back, no Enter: SIGTERM"
   fi
@@ -583,9 +599,20 @@ spl_rotate_end() {
   return 1
 }
 
-# spl_rotate_retire PANE PID: /exit-clean, ROTATE_EXIT_WAIT (300 s), TERM,
-# ROTATE_TERM_WAIT (30 s), KILL. Non-zero = it survived SIGKILL.
-spl_rotate_retire() { spl_rotate_end "$1" "$2" /exit-clean "$ROTATE_EXIT_WAIT" "$ROTATE_TERM_WAIT"; }
+# spl_rotate_screen_tail PANE: the pane's last 4 non-blank rows on one line
+# (rules and the box marker dropped), so a SIGTERM line says what was on screen.
+spl_rotate_screen_tail() {
+  spl_rotate_screen "$1" | grep -vE '^[[:space:]]*$|^─+$|^❯[[:space:]]*$' | tail -n 4 |
+    sed -E 's/^[[:space:]]+//' | tr '\n' '|' | cut -c1-240 || true
+}
+
+# spl_rotate_retire PANE PID: /exit-clean; then /exit once its turn ends with
+# the process alive (a model cannot run the built-in /exit, so the skill's
+# last step never ends the session: 0805Z and 0905Z on 2026-10-02 were
+# SIGTERMed 300 s later, 0605Z and 0705Z were closed by the skill's deferred
+# window-close timeout); ROTATE_EXIT_WAIT (300 s), TERM, ROTATE_TERM_WAIT
+# (30 s), KILL. Non-zero = it survived SIGKILL.
+spl_rotate_retire() { spl_rotate_end "$1" "$2" /exit-clean "$ROTATE_EXIT_WAIT" "$ROTATE_TERM_WAIT" /exit; }
 
 # ---- ACK (FR-041) ----------------------------------------------------------------
 

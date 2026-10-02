@@ -145,6 +145,22 @@ It cannot see a poke that never arrived.
   over 180 s later. This does not fail open: no pong is a verdict.
 - **[software]** A missing pane is logged every hour, not once.
 
+**Input from the stopped lanes.**
+- Condition 2 (stuck) is already on master as 931cd8d0, decided on the
+  holder's own machine: about 10 min + 180 s to a take-over. 15 new checks in
+  `fleet-lease.tst.sh` section 15 pass; no live drill yet. Its "idle" signal
+  reads the claude TUI spinner text, which breaks if the TUI changes. In Go,
+  **[software]** a Claude Code hook writes a heartbeat file on every prompt
+  and tool call, and the verdict reads that instead of the pane.
+- Pokes by pane (WIP, branch `c-040-poke-by-pane`, not on master) measured
+  both causes of the 16:37Z-18:27Z deafness: (a) the pane lookup matched the
+  id literally, and every record still said `CLE-001` while the agent was
+  `c-001` (exit 5); (b) one stray `p` in the input box refused every poke
+  (exit 6) until the poke was dropped at 300 s. Its design: **[software]**
+  one resolver over the whole alias set; a stale one-line draft is cleared,
+  the poke submitted and the draft typed back; after 3 refusals and 180 s,
+  ONE "`<id>` is DEAF" alert. Its fake-TUI test is 50/50 with a control.
+
 **Phase.** 2: first pokes by pane (the stopped c-040's branch), so the ping
 lands where the agent is; then the rule (the stopped c-039's branch).
 
@@ -438,5 +454,15 @@ Each needs a yes, a no or a number before its phase starts.
 6. **Safe mode (4.11):** a new holder may not spawn until it has acked its
    hand-over list (or 10 min pass). Accept?
 7. **Build order (section 7):** phases 0-5 as listed, one at a time?
+8. **Draft swap (4.3, phase 2):** may the poke clear a stale one-line
+   draft in an agent's input box, submit, and type the draft back (guards:
+   unchanged 60 s, one line, cursor after the text)? Or alert only?
+9. **Who hears "orchestrator is DEAF"** (and the stuck take-over): the
+   dispatch holder (an agent, today), or the owner directly by desk DM?
+10. **Stuck rule for dispatchers too?** Condition 2 covers only the
+    orchestrator today.
+11. **Heartbeat by hook (4.3):** replace the TUI-spinner "idle" signal with a
+    hook-written heartbeat file, and publish it to the hub so the standby can
+    decide remotely when the holder's own loop is down?
 
 <!-- version: 0.1.0 · updated: 2026-10-02 · last-edit: 2026-10-02T22:00:00Z -->

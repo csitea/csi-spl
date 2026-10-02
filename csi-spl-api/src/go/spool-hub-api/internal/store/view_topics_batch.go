@@ -143,3 +143,65 @@ func (s *Postgres) attachDeliveriesAndReactions(ctx context.Context, tenant stri
 				return nil
 			}})
 }
+
+// TopicMsgMeta is the slice of one message the DM counts read (cut 1 of the
+// DB payload audit 2026-10-02): who and when, never the envelope.
+type TopicMsgMeta struct {
+	MsgID      string
+	ReceivedAt time.Time
+	FromID     string
+	FromBox    string
+	ToID       string
+	ToBox      string
+	TypedBy    string
+	Channel    string // messages.channel, where the row is now ("" = a DM)
+}
+
+// TopicsMetaReader is the thin batch read a store may offer for the DM
+// counts. Without it the hub falls back to one ViewTopic per topic.
+type TopicsMetaReader interface {
+	ViewTopicsMeta(ctx context.Context, tenant string, q TopicsMsgQuery) (map[string][]TopicMsgMeta, error)
+}
+
+var _ TopicsMetaReader = (*Postgres)(nil)
+
+// ViewTopicsMeta is ViewTopicsMessages without the envelope, the deliveries
+// and the reactions: the same rows (door, order, PerTopic) in one round trip.
+func (s *Postgres) ViewTopicsMeta(ctx context.Context, tenant string, q TopicsMsgQuery) (map[string][]TopicMsgMeta, error) {
+	out := map[string][]TopicMsgMeta{}
+	tasks := make([]string, 0, len(q.TaskIDs))
+	for _, t := range q.TaskIDs {
+		if canonUUIDRe.MatchString(t) {
+			tasks = append(tasks, t)
+		}
+	}
+	if len(tasks) == 0 || q.PerTopic <= 0 {
+		return out, nil
+	}
+	door, args := topicsDoor(q, []any{tenant, tasks, q.Now, pgLimit(q.PerTopic)})
+	// The two uuids travel in binary (16 B, not 36) and pgx formats them.
+	err := s.queryTenant(ctx, tenant, `SELECT t.task_id, m.msg_id, m.received_at, m.from_id, m.from_box,
+			m.to_id, m.to_box, COALESCE(m.typed_by, ''), COALESCE(m.channel, '')
+		FROM unnest($2::uuid[]) WITH ORDINALITY AS t(task_id, n)
+		CROSS JOIN LATERAL (
+			SELECT m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.task_id = t.task_id AND m.expires_at > $3 AND `+door+`
+			ORDER BY m.received_at DESC, m.msg_id::text DESC
+			LIMIT $4) m
+		ORDER BY t.n, m.received_at DESC, m.msg_id::text DESC`, args,
+		func(rows pgx.Rows) error {
+			var task string
+			var v TopicMsgMeta
+			if err := rows.Scan(&task, &v.MsgID, &v.ReceivedAt, &v.FromID, &v.FromBox, &v.ToID, &v.ToBox,
+				&v.TypedBy, &v.Channel); err != nil {
+				return err
+			}
+			out[task] = append(out[task], v)
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

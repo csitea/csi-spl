@@ -54,6 +54,7 @@ func TestRoundTripsPerRequest(t *testing.T) {
 	wsjson.Write(ctx, c, map[string]string{"type": "hello"}) //nolint:errcheck
 	w := &wuiClient{t: t, c: c}
 	w.read("welcome")
+	dmTask := uuid4()
 	send := func(body string) wuiFrame {
 		wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": "lobby", "body": body}) //nolint:errcheck
 		return w.read("ack")
@@ -66,6 +67,11 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		for j := 0; j < 3; j++ {
 			channelFrame(t, c, uuid4(), task, "tasks", fmt.Sprintf("task %d line %d", i, j))
 		}
+	}
+	r.e.pin(tenant, r.e.box(tenant, "box-a", "CLE-07"))
+	for i := 0; i < 3; i++ { // a DM topic of 3 lines, for the DM seed
+		wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": dmTask, "to": "CLE-07", "body": fmt.Sprintf("dm %d", i)}) //nolint:errcheck
+		w.read("ack")
 	}
 
 	get := func(path string) func() error {
@@ -106,6 +112,10 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
 		// WUI used to add one topics/{id} read (6 round trips) per topic.
 		{"GET topics?channel&per_topic=30", 2, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
+		// DB payload cut 1: the DM seed counts per-peer unread/total in the hub
+		// from a thin read; per_topic=50 inlined the envelopes and read their
+		// deliveries and reactions too (measured 5/9 -> 4/5 here, n=3).
+		{"GET topics?dm&dm_counts", 4, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
 		// DB payload cut 7: the message and its box-wui delivery (sent) in one
 		// statement; insert + enqueue + claim took three (it was 5).
 		{"WS wui send (lobby) -> ack", 3, func() error { send("probe"); return nil }},

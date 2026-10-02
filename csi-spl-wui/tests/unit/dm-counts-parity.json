@@ -1,0 +1,119 @@
+{
+  "about": "DB payload cut 1 (audit 2026-10-02): the DM rail counts the WUI made from ?dm=true&per_topic=50 and the counts the hub now sends (dm_counts=true) must agree. Read by tests/unit/dm-counts-parity.test.mjs (utils/channel-feed.mjs unreadFromDms / dmTotalsFromDms) and by the hub's internal/hub/view_dm_counts_test.go (dmCounts). received_at is the hub's own format (RFC 3339, nanoseconds, trailing zeros trimmed, UTC).",
+  "cases": [
+    {
+      "name": "the sender: own lines and own terminal lines never new (CLE-77889)",
+      "self": "HUM-4",
+      "cursors": {},
+      "topics": [
+        { "count": 3, "participants": ["HUM-4@box-wui", "HUM-9@box-wui"], "messages": [
+          { "msg_id": "a", "from": "HUM-4", "from_box": "box-wui", "to": "HUM-9", "to_box": "box-wui", "received_at": "2026-10-01T10:00:00Z" },
+          { "msg_id": "b", "from": "HUM-9", "from_box": "box-wui", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-10-01T10:01:00Z" },
+          { "msg_id": "c", "from": "HUM-4", "from_box": "box-wui", "to": "HUM-9", "to_box": "box-wui", "received_at": "2026-10-01T10:02:00Z" }
+        ] },
+        { "count": 2, "participants": ["CLE-001@box-desk", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "d", "from": "CLE-001", "from_box": "box-desk", "to": "HUM-4", "to_box": "box-wui", "typed_by": "HUM-4", "received_at": "2026-10-01T10:03:00Z" },
+          { "msg_id": "e", "from": "CLE-001", "from_box": "box-desk", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-10-01T10:04:00Z" }
+        ] }
+      ],
+      "expect": {
+        "unread": { "dm:HUM-9@box-wui": 1, "dm:CLE-001@box-desk": 1 },
+        "total": { "dm:HUM-9@box-wui": 3, "dm:CLE-001@box-desk": 2 }
+      }
+    },
+    {
+      "name": "the receiver: the sender lines are new for them",
+      "self": "HUM-9",
+      "cursors": {},
+      "topics": [
+        { "count": 3, "participants": ["HUM-4@box-wui", "HUM-9@box-wui"], "messages": [
+          { "msg_id": "a", "from": "HUM-4", "from_box": "box-wui", "to": "HUM-9", "to_box": "box-wui", "received_at": "2026-10-01T10:00:00Z" },
+          { "msg_id": "b", "from": "HUM-9", "from_box": "box-wui", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-10-01T10:01:00Z" },
+          { "msg_id": "c", "from": "HUM-4", "from_box": "box-wui", "to": "HUM-9", "to_box": "box-wui", "received_at": "2026-10-01T10:02:00Z" }
+        ] }
+      ],
+      "expect": {
+        "unread": { "dm:HUM-4@box-wui": 2 },
+        "total": { "dm:HUM-4@box-wui": 3 }
+      }
+    },
+    {
+      "name": "cursors: older read, exact (ts, id) read, same ts other id new, empty ts all new, someone else typing is not own; strings compare as the WUI does, so '09:00:00Z' sorts after '09:00:00.5Z'",
+      "self": "HUM-4",
+      "cursors": {
+        "dm:EZB-1@box-e2e-b": { "ts": "2026-09-19T10:30:00Z", "id": "" },
+        "dm:EZA-1@box-e2e-a": { "ts": "2026-09-19T09:00:00.123456Z", "id": "b1" },
+        "dm:EZC-1@box-e2e-c": { "ts": "", "id": "" },
+        "dm:CLE-07@box-desk": { "ts": "2026-09-19T09:00:00.5Z", "id": "" }
+      },
+      "topics": [
+        { "count": 3, "participants": ["EZB-1@box-e2e-b", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "a3", "from": "HUM-4", "from_box": "box-wui", "to": "EZB-1", "to_box": "box-e2e-b", "received_at": "2026-09-19T11:05:00Z" },
+          { "msg_id": "a2", "from": "EZB-1", "from_box": "box-e2e-b", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T11:00:00Z" },
+          { "msg_id": "a1", "from": "EZB-1", "from_box": "box-e2e-b", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T10:00:00Z" }
+        ] },
+        { "count": 2, "participants": ["EZA-1@box-e2e-a", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "b2", "from": "EZA-1", "from_box": "box-e2e-a", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T09:00:00.123456Z" },
+          { "msg_id": "b1", "from": "EZA-1", "from_box": "box-e2e-a", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T09:00:00.123456Z" }
+        ] },
+        { "count": 1, "participants": ["EZC-1@box-e2e-c", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "c1", "from": "EZC-1", "from_box": "box-e2e-c", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-01T00:00:00Z" }
+        ] },
+        { "count": 2, "participants": ["CLE-07@box-desk", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "d2", "from": "CLE-07", "from_box": "box-desk", "to": "HUM-4", "to_box": "box-wui", "typed_by": "HUM-17", "received_at": "2026-09-19T09:00:00.49Z" },
+          { "msg_id": "d1", "from": "CLE-07", "from_box": "box-desk", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T09:00:00Z" }
+        ] }
+      ],
+      "expect": {
+        "unread": { "dm:EZB-1@box-e2e-b": 1, "dm:EZA-1@box-e2e-a": 1, "dm:EZC-1@box-e2e-c": 1, "dm:CLE-07@box-desk": 1 },
+        "total": { "dm:EZB-1@box-e2e-b": 3, "dm:EZA-1@box-e2e-a": 2, "dm:EZC-1@box-e2e-c": 1, "dm:CLE-07@box-desk": 2 }
+      }
+    },
+    {
+      "name": "a line older than the cursor by a fraction of a second is read",
+      "self": "HUM-4",
+      "cursors": { "dm:CLE-08@box-desk": { "ts": "2026-09-19T09:00:00.5Z", "id": "" } },
+      "topics": [
+        { "count": 1, "participants": ["CLE-08@box-desk", "HUM-4@box-wui"], "messages": [
+          { "msg_id": "e1", "from": "CLE-08", "from_box": "box-desk", "to": "HUM-4", "to_box": "box-wui", "received_at": "2026-09-19T09:00:00.4Z" }
+        ] }
+      ],
+      "expect": { "unread": {}, "total": { "dm:CLE-08@box-desk": 1 } }
+    },
+    {
+      "name": "a topic held only in part adds the hub count to each end that is not us; a channel line in a DM topic never counts",
+      "self": "HUM-1",
+      "cursors": { "dm:CLE-1@box-desk": { "ts": "2026-10-01T12:00:00Z", "id": "" } },
+      "topics": [
+        { "count": 60, "participants": ["CLE-1@box-desk", "HUM-1@box-wui"], "messages": [
+          { "msg_id": "p1", "from": "CLE-1", "from_box": "box-desk", "to": "HUM-1", "to_box": "box-wui", "received_at": "2026-10-01T12:00:01Z" }
+        ] },
+        { "count": 2, "participants": ["CLE-2@box-desk", "HUM-1@box-wui"], "messages": [
+          { "msg_id": "q2", "from": "CLE-2", "from_box": "box-desk", "to": "HUM-1", "to_box": "box-wui", "channel": "ops", "received_at": "2026-10-01T12:00:02Z" },
+          { "msg_id": "q1", "from": "CLE-2", "from_box": "box-desk", "to": "HUM-1", "to_box": "box-wui", "received_at": "2026-10-01T12:00:01Z" }
+        ] }
+      ],
+      "expect": {
+        "unread": { "dm:CLE-1@box-desk": 1, "dm:CLE-2@box-desk": 1 },
+        "total": { "dm:CLE-1@box-desk": 60, "dm:CLE-2@box-desk": 1 }
+      }
+    },
+    {
+      "name": "a broadcast end (ALL-0) is never a peer; a partial topic with it counts the other ends only",
+      "self": "HUM-1",
+      "cursors": {},
+      "topics": [
+        { "count": 5, "participants": ["ALL-0@box-desk", "CLE-3@box-desk", "HUM-1@box-wui"], "messages": [
+          { "msg_id": "r2", "from": "CLE-3", "from_box": "box-desk", "to": "ALL-0", "to_box": "box-desk", "received_at": "2026-10-01T12:00:02Z" }
+        ] },
+        { "count": 1, "participants": ["ALL-0@box-desk", "HUM-1@box-wui"], "messages": [
+          { "msg_id": "s1", "from": "HUM-1", "from_box": "box-wui", "to": "ALL-0", "to_box": "box-desk", "received_at": "2026-10-01T12:00:03Z" }
+        ] }
+      ],
+      "expect": {
+        "unread": { "dm:CLE-3@box-desk": 1 },
+        "total": { "dm:CLE-3@box-desk": 5 }
+      }
+    }
+  ]
+}

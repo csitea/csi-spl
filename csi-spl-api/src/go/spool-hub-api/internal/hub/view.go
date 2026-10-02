@@ -462,6 +462,9 @@ type viewTopic struct {
 	// GET /v1/view/topics/{task_id}?order=desc&limit=N, and that read's next.
 	Messages     *[]viewMsg `json:"messages,omitempty"`
 	MessagesNext *string    `json:"messages_next,omitempty"`
+	// dm_counts=true only: the reader's per-peer DM unread and total
+	// (view_dm_counts.go), so the DM seed needs no per_topic page.
+	DM *viewDMCounts `json:"dm,omitempty"`
 }
 
 // Typed envelopes for the hottest view reads (channels, topics, one topic
@@ -582,6 +585,10 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		}
 		per = n
 	}
+	counts, reads, ok := dmCountsWanted(w, r)
+	if !ok {
+		return
+	}
 	if c := r.URL.Query().Get("before"); c != "" {
 		at, id, err := decCursor(c)
 		if err != nil {
@@ -607,6 +614,9 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		out = append(out, topicView(row))
 	}
 	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out) {
+		return
+	}
+	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
 		return
 	}
 	writeJSON(w, http.StatusOK, topicsBody{Topics: out, Next: next})

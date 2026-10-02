@@ -2,6 +2,7 @@ package hubclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -138,7 +139,7 @@ func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message
 		default:
 			var he *HubError
 			if errors.As(serr, &he) && he.clientError() {
-				c.reject(pending) // a 4xx will never be accepted, whoever sends it
+				c.reject(pending, serr) // a 4xx will never be accepted, whoever sends it
 			}
 			return "", serr
 		}
@@ -176,7 +177,7 @@ func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Me
 		// re-announces and resends, or rejects if the agent is not hosted.
 		return wire.DeliveryPending, nil
 	case errors.As(err, &he) && he.clientError():
-		s.c.reject(pending)
+		s.c.reject(pending, err)
 		return "", err
 	case err != nil:
 		return wire.DeliveryPending, nil // 5xx: retry on the next flush
@@ -232,15 +233,52 @@ func (c *Client) writePending(m *msg.Message, env *wire.Envelope, typedBy string
 	return p, writeAtomic(p, raw)
 }
 
-func (c *Client) reject(pending string) {
+// reasonSuffix names the file beside a rejected envelope that says why it was
+// rejected (rejectReason as JSON). Like typedBySuffix it is not *.json, so
+// nothing ever mistakes it for an envelope.
+const reasonSuffix = ".reason"
+
+// rejectReason is why an envelope left pending/ for good: the hub's refusal
+// (Status + Token + Detail) or, with Status 0, a local one - an envelope this
+// binary cannot parse or validate (Error).
+type rejectReason struct {
+	At     string `json:"at"`
+	Status int    `json:"status,omitempty"`
+	Token  string `json:"token,omitempty"`
+	Detail string `json:"detail,omitempty"`
+	Error  string `json:"error"`
+}
+
+// reject moves a pending envelope that will never be accepted to rejected/,
+// and says why: one ERROR log line plus a <file>.reason beside it. A move
+// without a reason is a message lost in silence: on prd 2026-10-02 two
+// box-rsp -> c-002 sends sat in rejected/ with no trace, and the cause
+// (a sidecar binary older than the c-NNN id grammar) had to be dug out of
+// the binary itself.
+func (c *Client) reject(pending string, why error) {
 	if pending == "" {
 		return
 	}
 	dst := filepath.Join(c.rejectedDir(), filepath.Base(pending))
-	if err := os.MkdirAll(c.rejectedDir(), 0o775); err == nil {
-		os.Rename(pending, dst)                             //nolint:errcheck
-		os.Rename(pending+typedBySuffix, dst+typedBySuffix) //nolint:errcheck
+	if err := os.MkdirAll(c.rejectedDir(), 0o775); err != nil {
+		return
 	}
+	os.Rename(pending, dst)                             //nolint:errcheck
+	os.Rename(pending+typedBySuffix, dst+typedBySuffix) //nolint:errcheck
+	r := rejectReason{At: time.Now().UTC().Format(time.RFC3339)}
+	if why != nil {
+		r.Error = why.Error()
+	}
+	var he *HubError
+	if errors.As(why, &he) {
+		r.Status, r.Token, r.Detail = he.Status, he.Token, he.Detail
+	}
+	if raw, err := json.Marshal(r); err == nil {
+		writeAtomic(dst+reasonSuffix, append(raw, '\n')) //nolint:errcheck
+	}
+	c.Log.Error().Str("box", c.Cfg.BoxID).Str("file", dst).Int("status", r.Status).
+		Str("token", r.Token).Str("detail", r.Detail).Str("error", r.Error).
+		Msg("moved a pending envelope to rejected/: it will never be delivered")
 }
 
 // Pending lists the pending-flush envelope files, oldest first.
@@ -278,12 +316,12 @@ func (s *Session) Flush(ctx context.Context) (int, error) {
 		}
 		env, err := wire.ParseEnvelope(raw)
 		if err != nil {
-			s.c.reject(p)
+			s.c.reject(p, err)
 			return n, fmt.Errorf("pending %s: %w", filepath.Base(p), err)
 		}
 		m, err := env.Inner()
 		if err != nil {
-			s.c.reject(p)
+			s.c.reject(p, err)
 			return n, fmt.Errorf("pending %s: %w", filepath.Base(p), err)
 		}
 		d, err := s.sendPending(ctx, env, m, p, pendingTypedBy(p))

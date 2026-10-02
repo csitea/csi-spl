@@ -1,6 +1,8 @@
 package hubclient
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -74,7 +76,7 @@ func TestPendingOldestFirstAndReject(t *testing.T) {
 	if string(raw) != string(want) {
 		t.Fatal("pending file is not the signed envelope bytes")
 	}
-	c.reject(p1)
+	c.reject(p1, &HubError{Token: "bad_sig", Status: 400, Detail: "nope"})
 	left, err := c.Pending()
 	if err != nil || len(left) != 1 || left[0] != p2 {
 		t.Fatalf("after reject pending=%v err=%v", left, err)
@@ -85,5 +87,31 @@ func TestPendingOldestFirstAndReject(t *testing.T) {
 	}
 	if _, err := os.Stat(p1); !os.IsNotExist(err) {
 		t.Fatal("rejected pending file still in pending/")
+	}
+}
+
+// A pending envelope this binary cannot read is rejected by the flush with a
+// LOCAL reason (status 0, the parse error) beside it - the prd 2026-10-02
+// shape: an old sidecar could not validate the c-NNN id and left no trace.
+func TestFlushRejectsUnreadableWithReason(t *testing.T) {
+	c := testClient(t)
+	p := filepath.Join(c.pendingDir(), "20261002T223918Z--6e21fc60-5143-4c09-ada5-9c416e23c673.json")
+	if err := writeAtomic(p, []byte("{not an envelope")); err != nil {
+		t.Fatal(err)
+	}
+	s := &Session{c: c}
+	if _, err := s.Flush(context.Background()); err == nil {
+		t.Fatal("want the flush to return the parse error")
+	}
+	if left, _ := c.Pending(); len(left) != 0 {
+		t.Fatalf("pending still holds %v", left)
+	}
+	raw, err := os.ReadFile(filepath.Join(c.rejectedDir(), filepath.Base(p)) + reasonSuffix)
+	if err != nil {
+		t.Fatalf("no reason beside the rejected envelope: %v", err)
+	}
+	var r rejectReason
+	if err := json.Unmarshal(raw, &r); err != nil || r.Status != 0 || r.Token != "" || r.Error == "" || r.At == "" {
+		t.Fatalf("reason = %s (%v), want a local reason: status 0, the parse error, a time", raw, err)
 	}
 }

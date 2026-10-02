@@ -227,9 +227,14 @@ func TestFlushHTTP400StopsRetryWith78(t *testing.T) {
 		t.Fatalf("T012 still pending: %v", left)
 	}
 	rejDir := filepath.Join(a.cfg.SpoolRoot, ".hub", "rejected")
-	ents, _ := os.ReadDir(rejDir)
-	if len(ents) != 1 {
-		t.Fatalf("T012 rejected count %d", len(ents))
+	envs, _ := filepath.Glob(filepath.Join(rejDir, "*.json"))
+	if len(envs) != 1 {
+		t.Fatalf("T012 rejected count %d", len(envs))
+	}
+	// and says why, beside it: the hub's status and token.
+	if why, err := os.ReadFile(envs[0] + ".reason"); err != nil ||
+		!bytes.Contains(why, []byte(`"status":400`)) || !bytes.Contains(why, []byte(`"token":"bad_sig"`)) {
+		t.Fatalf("T012 reason = %s (%v), want status 400 token bad_sig", why, err)
 	}
 	// A second flush must not retry the refused envelope.
 	r2, err := a.c.Sync(ctx)

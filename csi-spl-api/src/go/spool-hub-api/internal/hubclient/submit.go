@@ -204,6 +204,7 @@ func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn)
 	}
 	env, err := wire.ParseEnvelope(req.Env)
 	if err != nil {
+		s.c.Log.Warn().Err(err).Str("box", s.c.Cfg.BoxID).Msg("submit refused: the envelope does not parse")
 		reply(submitResponse{Error: err.Error()})
 		return
 	}
@@ -215,8 +216,12 @@ func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn)
 	case errors.As(err, &he):
 		// A hub refusal is the CLI's to act on (a 4xx rejects the pending
 		// file); pass the token through rather than flattening it to a string.
+		// Logged here too: the CLI that acts on it may log nowhere anyone reads.
+		s.c.Log.Warn().Str("box", s.c.Cfg.BoxID).Str("to_box", env.ToBox).Int("status", he.Status).
+			Str("token", he.Token).Str("detail", he.Detail).Msg("submit refused by the hub")
 		reply(submitResponse{Error: he.Detail, Token: he.Token, Status: he.Status})
 	case err != nil:
+		s.c.Log.Warn().Err(err).Str("box", s.c.Cfg.BoxID).Str("to_box", env.ToBox).Msg("submit not sent; the CLI keeps it pending")
 		reply(submitResponse{Error: err.Error()})
 	default:
 		reply(submitResponse{Delivery: f.Delivery})

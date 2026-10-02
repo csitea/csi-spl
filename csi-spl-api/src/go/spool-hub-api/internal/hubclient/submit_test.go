@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -332,9 +333,18 @@ func TestSubmitRefusalRejectsPendingLikeDial(t *testing.T) {
 	if len(left) != 0 {
 		t.Fatalf("a permanently refused envelope stayed pending: %v", left)
 	}
-	ents, _ := os.ReadDir(c.rejectedDir())
-	if len(ents) != 1 {
-		t.Fatalf("rejected/ holds %d files, want 1", len(ents))
+	envs, _ := filepath.Glob(filepath.Join(c.rejectedDir(), "*.json"))
+	if len(envs) != 1 {
+		t.Fatalf("rejected/ holds %d envelopes, want 1", len(envs))
+	}
+	// The move says why (prd 2026-10-02: two rejected/ files with no trace).
+	raw, err := os.ReadFile(envs[0] + reasonSuffix)
+	if err != nil {
+		t.Fatalf("no reason beside the rejected envelope: %v", err)
+	}
+	var r rejectReason
+	if err := json.Unmarshal(raw, &r); err != nil || r.Status != http.StatusBadRequest || r.Token != "bad_sig" || r.Detail != "nope" {
+		t.Fatalf("reason = %s (%v), want status 400 token bad_sig detail nope", raw, err)
 	}
 }
 

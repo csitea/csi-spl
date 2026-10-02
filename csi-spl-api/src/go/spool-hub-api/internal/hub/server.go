@@ -58,6 +58,10 @@ type Options struct {
 	// once, instead of at the next relay tick. false = off, so a rig that
 	// asserts the relay tick sees no early delivery.
 	Wake bool
+	// WakeWUI (spec 059 S3): fan a message another process stored out to
+	// the browser sockets this process holds (store.WUIWaker). false = off,
+	// so a rig with two servers on one store sees each line once per socket.
+	WakeWUI bool
 	// UnansweredGrace (SPL-1225): a signed human post that no agent replied to
 	// in its topic within this grace is escalated to the tenant's responder by
 	// the relay sweep, whatever the (stale) roster says about who is online.
@@ -168,6 +172,7 @@ type Server struct {
 	// it walked the whole map on EVERY mint, under mu).
 	tokenSweptAt time.Time
 	wui          map[*wuiConn]struct{} // browser live sockets (wui.go)
+	fanned       fannedSet             // wui_wake.go (spec 059 S3), its own lock
 	humans       humanIDs
 	online       map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
 	closing      bool

@@ -21,24 +21,35 @@ const (
 	wakeBackoffMax = 30 * time.Second
 )
 
-// RunWake listens until ctx ends, reconnecting with backoff. It does nothing
-// when Options.Wake is off or the store cannot announce.
+// RunWake listens until ctx ends, reconnecting with backoff: the box
+// wake-up (Options.Wake) and the browser fan-out of messages stored by
+// another process (Options.WakeWUI, wui_wake.go), on one connection. It does
+// nothing when both are off or the store cannot announce.
 func (s *Server) RunWake(ctx context.Context) {
-	w, ok := s.o.Store.(store.Waker)
-	if !s.o.Wake || !ok {
-		return
+	w, canBox := s.o.Store.(store.Waker)
+	ww, canWUI := s.o.Store.(store.WUIWaker)
+	var onBox, onWUI func(tenant, key string)
+	if s.o.Wake && canBox {
+		kick := make(chan [2]string, wakeQueue)
+		go s.wakeWorker(ctx, kick)
+		onBox = kicker(kick)
 	}
-	kick := make(chan [2]string, wakeQueue)
-	go s.wakeWorker(ctx, kick)
+	if s.o.WakeWUI && canWUI {
+		kick := make(chan [2]string, wuiWakeQueue)
+		go s.wuiWakeWorker(ctx, ww, kick)
+		onWUI = kicker(kick)
+	}
+	listen := func() error { return w.ListenWake(ctx, onBox) }
+	switch {
+	case onBox == nil && onWUI == nil:
+		return
+	case canWUI:
+		listen = func() error { return ww.ListenWakes(ctx, onBox, onWUI) }
+	}
 	backoff := wakeBackoffMin
 	for ctx.Err() == nil {
 		start := time.Now()
-		err := w.ListenWake(ctx, func(tenant, box string) {
-			select {
-			case kick <- [2]string{tenant, box}:
-			default:
-			}
-		})
+		err := listen()
 		if ctx.Err() != nil {
 			return
 		}
@@ -52,6 +63,16 @@ func (s *Server) RunWake(ctx context.Context) {
 		case <-time.After(backoff):
 		}
 		backoff = min(2*backoff, wakeBackoffMax)
+	}
+}
+
+// kicker queues a wake-up without blocking the listener; a full queue drops it.
+func kicker(kick chan<- [2]string) func(tenant, key string) {
+	return func(tenant, key string) {
+		select {
+		case kick <- [2]string{tenant, key}:
+		default:
+		}
 	}
 }
 

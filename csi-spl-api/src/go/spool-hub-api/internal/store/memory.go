@@ -244,6 +244,7 @@ func (s *Memory) InsertMessage(_ context.Context, m Message) (bool, error) {
 	}
 	c := m
 	s.messages[k] = &c
+	s.wake.notifyWUI(m.TenantID, m.MsgID) // spec 059 S3; listeners run on their own goroutines
 	return true, nil
 }
 

@@ -277,6 +277,10 @@ type Hub struct {
 	// holds is pushed the moment it commits (Postgres LISTEN/NOTIFY,
 	// hub/wake.go), not at the next QueueRelay tick. false = the poll only.
 	Wake bool `env:"SPOOL_HUB_WAKE" envDefault:"true"`
+	// spec 059 S3: a message another hub process stored reaches the browser
+	// sockets this process holds (the same LISTEN connection,
+	// hub/wui_wake.go). false = only the storing process's browsers get it live.
+	WakeWUI bool `env:"SPOOL_HUB_WAKE_WUI" envDefault:"true"`
 	// SPL-1225: the relay also escalates a signed human post that no agent
 	// replied to in its topic within this grace to the tenant's responder,
 	// regardless of what the (stale, dir-derived) box-desk roster says about

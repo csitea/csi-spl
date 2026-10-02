@@ -785,6 +785,22 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	return s.commitRowTyped(ctx, tenant, env, m, isParent, "")
 }
 
+// insertRow stores row. DB payload cut 7: box-wui's row is written sent
+// with the message (sentInOne), one round trip instead of insert + enqueue +
+// claim.
+func (s *Server) insertRow(ctx context.Context, row store.Message) (inserted, sentInOne bool, err error) {
+	if s.o.WakeWUI { // spec 059 S3: the caller fans it out itself
+		s.fanned.add([2]string{row.TenantID, row.MsgID})
+	}
+	si, sentInOne := s.o.Store.(store.SentInserter)
+	if sentInOne = sentInOne && row.ToBox == WUIBox; sentInOne {
+		inserted, err = si.InsertMessageSent(ctx, row, row.ReceivedAt.Add(s.o.QueueTTL))
+	} else {
+		inserted, err = s.o.Store.InsertMessage(ctx, row)
+	}
+	return inserted, sentInOne, err
+}
+
 // commitRowTyped is commitRow with a VERIFIED typed_by (onSend's FR-010
 // checks); "" = the agent wrote it. It is stored and fanned out to browsers
 // only: the envelope pushed to boxes is the signed one, unchanged.
@@ -818,16 +834,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 	}
-	// DB payload cut 7: box-wui's row is written sent with the message, one
-	// round trip instead of insert + enqueue + claim.
-	si, sentInOne := s.o.Store.(store.SentInserter)
-	sentInOne = sentInOne && env.ToBox == WUIBox
-	var inserted bool
-	if sentInOne {
-		inserted, err = si.InsertMessageSent(ctx, row, now.Add(s.o.QueueTTL))
-	} else {
-		inserted, err = s.o.Store.InsertMessage(ctx, row)
-	}
+	inserted, sentInOne, err := s.insertRow(ctx, row)
 	if err != nil {
 		return c, err
 	}

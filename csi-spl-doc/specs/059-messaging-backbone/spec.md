@@ -136,6 +136,8 @@ What each option adds that we do not have: (b)-(e) let the hub run more than one
 
 Carry the WUI fan-out events (`task`, `channel`, `peer`) on the same channel. A browser on a retired revision then keeps getting lines until it reloads (F3). This is the precondition for `max_instances > 1`.
 
+Built (S3): the statement that stores a message also runs `pg_notify('spool_wui', '<tenant>|<msg_id>')` (a CTE of `insertMessageSQL`, so the WUI send stays at cut 7's 3 round trips). Every hub process listens on it over the S1 connection (no extra connection), skips a tenant it holds no browser of, skips a msg id it fanned out itself (a 4096-entry recent set the storing process fills before its insert), loads the row (`FanoutRow`) and runs the same `fanoutWUI`. The memory store fans out in process. `SPOOL_HUB_WAKE_WUI` (default on) turns it off. Edits, reactions, deletes and the `channel` sidebar frame are not carried yet.
+
 ### 6.3 Step 3 — 053 S1/S2 (`TAck`)
 
 "Sent" becomes "a live agent was poked" (F6). Spec 053 owns it; this spec only orders it after step 1.
@@ -248,8 +250,8 @@ The plan is one design for the whole stack. CLE-77931 builds the whole-stack row
 | fetch long-poll / leader notify | `pg_notify('spool_wake', tenant|box)` in the commit transaction; every hub process `LISTEN`s and pushes to the sockets it holds; the 5 s relay poll stays as the backstop | 5 s poll | **S1** |
 | **consumer commit after processing** | **the box sends `commit {seq, outcome}` after the inbox write + poke (outcome = 053's TAck); the hub stores `box_offsets.committed_seq`. A hello replays `seq > committed_seq`, not "rows still queued"** | none: "sent" = written to the socket (T3: 6 / 10 lost) | **S2** (FeatureCommit). Acceptance: spike T3 on today's path reads 0 lost |
 | idempotent consumer | the inbox file name dedups a replayed seq | yes | — |
-| consumer seek / replay | hello `from_seq`; browsers reconnect with a `since` cursor (`received_at, msg_id`) and get the gap from the DB, on any process | revision poll + catch-up read | **S3** |
-| cross-instance fan-out | browser events on the same wake channel, so `max_instances > 1` becomes possible | one instance only | **S3** |
+| consumer seek / replay | hello `from_seq`; browsers reconnect with a `since` cursor (`received_at, msg_id`) and get the gap from the DB, on any process | browsers: yes, before S3 - after a reconnect the WUI reads `GET /v1/view/topics/{id}?after=<cursor>` (`stores/live.ts` `catchUpAfterReconnect`), a stateless DB read any process answers; boxes: `from_seq` not yet | **S3** (browsers: nothing to build) |
+| cross-instance fan-out | browser events on the same wake channel, so `max_instances > 1` becomes possible | new messages: yes (`spool_wui`, §6.2); edits, reactions, deletes: one instance only | **S3** |
 | consumer lag | per box `next_seq - 1 - committed_seq` and the age of the oldest uncommitted row: `do_spl_consumer_lag` + an alert; feeds 053's escalation | the unheard sweep (heuristic) | **S4** |
 | retention | queue rows expire after `QueueTTL` (7 days); committed rows are pruned; tiered message retention unchanged. An uncommitted row for a dead box (the 70 test-box rows on prd) is reported as lag, not kept silently | expiry only | **S4** |
 | consumer group (one member active) | a box id = a group with one live member (the last hello wins, 4409); a takeover = a rebalance (058) | yes | — |

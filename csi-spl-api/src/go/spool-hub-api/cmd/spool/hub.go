@@ -110,7 +110,7 @@ func cmdServe() int {
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
-	go srv.RunWake(ctx)                 // spec 059 S1
+	go srv.RunWake(ctx)                 // spec 059 S1 + S3
 	return serveUntilDone(ctx, hc, log, srv)
 }
 
@@ -206,6 +206,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,
 		Fallback:        hc.Fallback,
 		Wake:            hc.Wake,
+		WakeWUI:         hc.WakeWUI,
 		UnansweredGrace: hc.UnansweredGrace,
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,

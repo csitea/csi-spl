@@ -331,15 +331,19 @@ func (s *Postgres) Roster(ctx context.Context, tenant string) (map[string][]stri
 // the stored envelope in the same round trip (DB payload cut 7): the CTE's
 // INSERT .. ON CONFLICT DO NOTHING RETURNING says whether this call wrote the
 // row, and `old` reads the statement's snapshot, which holds a row committed
-// before it and never the one ins writes. %s is the delivery CTE, or "".
+// before it and never the one ins writes. `nfy` announces a stored row to
+// the browser sockets of every hub process (spec 059 S3, store/wui_wake.go):
+// Postgres sends it only on commit, and the outer SELECT reads it so it runs.
+// %s is the delivery CTE, or "".
 const insertMessageSQL = `WITH ins AS (
 		INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts,
 			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, parent_task_id, is_parent, typed_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		ON CONFLICT (tenant_id, msg_id) DO NOTHING
 		RETURNING 1),
-	old AS (SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2)%s
-	SELECT EXISTS (SELECT 1 FROM ins), (SELECT env FROM old)`
+	old AS (SELECT env FROM messages WHERE tenant_id = $1 AND msg_id = $2),
+	nfy AS (SELECT pg_notify('` + WUIWakeChannel + `', $1 || '|' || $2::text) FROM ins)%s
+	SELECT EXISTS (SELECT 1 FROM ins), (SELECT env FROM old), (SELECT count(*) FROM nfy)`
 
 // sentDeliveryClaim makes a delivery insert claim a row left queued, as
 // ClaimSent would; the row it inserts is already sent and acked.
@@ -393,7 +397,8 @@ func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires tim
 	}
 	var inserted bool
 	var old []byte
-	if err := s.queryRowTenant(ctx, m.TenantID, sql, args, &inserted, &old); err != nil {
+	var notified int64
+	if err := s.queryRowTenant(ctx, m.TenantID, sql, args, &inserted, &old, &notified); err != nil {
 		return false, mapFK(err)
 	}
 	if inserted {

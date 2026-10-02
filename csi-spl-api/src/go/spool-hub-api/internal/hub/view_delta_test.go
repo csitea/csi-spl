@@ -29,6 +29,7 @@ type deltaList struct {
 	Delta     *bool    `json:"delta"`
 	GoneTasks []string `json:"gone_tasks"`
 	GoneMsgs  []string `json:"gone_msgs"`
+	Sync      string   `json:"sync"`
 }
 
 type deltaMsg struct {
@@ -140,7 +141,15 @@ func TestViewTopicsSinceDelta(t *testing.T) {
 	}
 
 	// Nothing changed: no topic, and the held reaction count matches.
-	want("quiet", read(rx))
+	quiet := read(rx)
+	want("quiet", quiet)
+	// sync is a cursor at the hub's clock: a since= from it is a delta too.
+	if raw, err := base64.RawURLEncoding.DecodeString(quiet.Sync); err != nil || !strings.HasSuffix(string(raw), "|sync") {
+		t.Fatalf("quiet: sync %q is not a cursor", quiet.Sync)
+	}
+	if code, _, b := r.get(t, tenant, "/v1/view/topics?channel=feedback&since="+url.QueryEscape(quiet.Sync)); code != http.StatusOK || !strings.Contains(b, `"delta":true`) {
+		t.Fatalf("since=sync: %d %s", code, b)
+	}
 
 	// An edit.
 	ed := st.(store.MessageEdits)
@@ -237,7 +246,7 @@ func TestViewTopicsSinceDelta(t *testing.T) {
 		t.Fatalf("long gap: want the full page with delta false: %d %s", code, body)
 	}
 	// CONTROL: without since the body is the §4.3 shape, no delta keys.
-	if _, _, b := r.get(t, tenant, "/v1/view/topics?channel=feedback"); strings.Contains(b, `"delta"`) || strings.Contains(b, "gone_") {
+	if _, _, b := r.get(t, tenant, "/v1/view/topics?channel=feedback"); strings.Contains(b, `"delta"`) || strings.Contains(b, "gone_") || strings.Contains(b, `"sync"`) {
 		t.Fatalf("delta keys without since: %s", b)
 	}
 	// Refusals.

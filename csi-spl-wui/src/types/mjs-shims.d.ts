@@ -75,6 +75,7 @@ declare module '~/utils/spool-client.mjs' {
       delta: boolean
       goneTasks: string[]
       goneMsgs: string[]
+      sync: string
     }>
     getTopic(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{
       task_id: string
@@ -109,7 +110,7 @@ declare module '~/utils/spool-client.mjs' {
       changedSince?: string
       rx?: string[]
     }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null, totals?: Record<string, { count: number, last_ts: string }>,
-      delta?: boolean, goneTasks?: string[], goneMsgs?: string[] }>
+      delta?: boolean, goneTasks?: string[], goneMsgs?: string[], sync?: string }>
     listRoster(): Promise<unknown>
     sendMessage(opts: {
       channel?: string | null
@@ -337,7 +338,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function dmFollow(current: string, view?: { peer?: string | null }): { sub: string, unsub: string, next: string }
   export function mergePage<T>(rows: T[], incoming: T[]): T[]
   export const CATCH_UP_RX_MAX: number
-  export function catchUpQuery(rows: unknown[]): { since: string, sinceAt: string, rx: string[] } | null
+  export function cursorTime(cursor: string): number
+  export function catchUpQuery(rows: unknown[], sync?: string): { since: string, sinceAt: string, rx: string[] } | null
   export function mergeCatchUp<T>(rows: T[], incoming: T[], opts?: { delta?: boolean, goneTasks?: string[], goneMsgs?: string[], sinceAt?: string }): T[]
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]

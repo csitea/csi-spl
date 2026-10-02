@@ -482,6 +482,9 @@ type topicsBody struct {
 	Delta     *bool    `json:"delta,omitempty"`
 	GoneTasks []string `json:"gone_tasks,omitempty"`
 	GoneMsgs  []string `json:"gone_msgs,omitempty"`
+	// Sync is the hub's clock at this read as a cursor: the next since= may
+	// start here, so a change already caught up is not sent again.
+	Sync *string `json:"sync,omitempty"`
 }
 
 type topicBody struct {
@@ -651,8 +654,8 @@ func (s *Server) deltaScope(w http.ResponseWriter, r *http.Request, t store.Tena
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return body, false
 	}
-	delta := a != nil
-	body.Delta = &delta
+	delta, sync := a != nil, encCursor(sq.Now, "sync")
+	body.Delta, body.Sync = &delta, &sync
 	if a != nil {
 		sq.TaskIDs, sq.Limit = a.tasks, len(a.tasks)+1 // never a next page
 		body.GoneTasks, body.GoneMsgs = a.goneTasks, a.goneMsgs

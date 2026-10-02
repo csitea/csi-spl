@@ -82,7 +82,7 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
   it('DM feed asks dm=true&peer=', async () => {
     const { fn, calls } = stubFetch([[(u) => u.startsWith('/v1/view/topics?'), [200, { topics: [], next: null }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    assert.deepEqual(await c.listMessages({ peer: 'CLE-07@box-a' }), { messages: [], next: null, totals: {}, delta: false, goneTasks: [], goneMsgs: [] })
+    assert.deepEqual(await c.listMessages({ peer: 'CLE-07@box-a' }), { messages: [], next: null, totals: {}, delta: false, goneTasks: [], goneMsgs: [], sync: '' })
     const q = new URL(calls[0].url, 'http://x').searchParams
     assert.equal(q.get('dm'), 'true')
     assert.equal(q.get('peer'), 'CLE-07@box-a')

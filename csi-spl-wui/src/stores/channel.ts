@@ -286,16 +286,20 @@ export const useChannelStore = defineStore('channel', () => {
    * After a socket reconnect (013 US7 FR-015): re-read the first page and
    * merge it by msg_id, so older pages already loaded and pending sends stay.
    */
+  /* R2-2: the hub's `sync` cursor from the last catch-up of this feed */
+  let catchUpSync = { key: '', cursor: '' }
   async function catchUp() {
     if (api.mock) return refresh()
     const where = { channel: active.value, peer: peer.value }
-    /* R2-2: only the topics changed after the newest row held; the hub
-       answers the full page when it cannot vouch for the delta */
-    const q = catchUpQuery(messages.value)
+    const key = `${where.channel || ''}|${where.peer || ''}`
+    /* R2-2: only the topics changed after the newest row held (or the last
+       sync); the hub answers the full page when it cannot vouch for a delta */
+    const q = catchUpQuery(messages.value, catchUpSync.key === key ? catchUpSync.cursor : '')
     try {
       const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50,
         ...(q ? { changedSince: q.since, rx: q.rx } : {}) }))
       if (where.channel !== active.value || where.peer !== peer.value) return
+      catchUpSync = { key, cursor: page.sync || '' }
       const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       messages.value = mergeCatchUp(messages.value, fresh,
         { delta: page.delta === true, goneTasks: page.goneTasks, goneMsgs: page.goneMsgs, sinceAt: q ? q.sinceAt : '' }) as FeedMessage[]

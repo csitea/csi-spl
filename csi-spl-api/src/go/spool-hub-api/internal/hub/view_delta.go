@@ -23,6 +23,10 @@ import (
 // every list) and gone_msgs are lobby rows archived since and rows moved out
 // of the listed channel: the browser drops them.
 //
+// Every since= answer carries `sync`, a cursor at the hub's clock when it
+// read: the browser's next since= is the later of it and its newest row, so a
+// change it has caught up is not sent again on the next reconnect.
+//
 // The hub answers the ordinary full page, with `delta: false`, when it
 // cannot vouch for the delta: since is older than deltaMaxAge, the gap holds
 // more changes than one answer should carry, or the store has no change

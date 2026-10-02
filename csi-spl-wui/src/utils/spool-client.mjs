@@ -585,6 +585,7 @@ export function createSpoolClient({
         delta: !!(data && data.delta === true),
         goneTasks: (data && Array.isArray(data.gone_tasks) && data.gone_tasks) || [],
         goneMsgs: (data && Array.isArray(data.gone_msgs) && data.gone_msgs) || [],
+        sync: (data && typeof data.sync === 'string' && data.sync) || '',
       }
     },
     /**
@@ -887,7 +888,7 @@ export function createSpoolClient({
       const totals = {}
       for (const t of list.topics) if (t.task_id) totals[t.task_id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
       return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals,
-        delta: list.delta, goneTasks: list.goneTasks, goneMsgs: list.goneMsgs }
+        delta: list.delta, goneTasks: list.goneTasks, goneMsgs: list.goneMsgs, sync: list.sync }
     },
     /**
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub

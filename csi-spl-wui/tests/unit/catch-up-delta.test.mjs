@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CATCH_UP_RX_MAX, catchUpQuery, mergeCatchUp, mergePage } from '../../src/utils/channel-feed.mjs'
+import { CATCH_UP_RX_MAX, catchUpQuery, cursorTime, mergeCatchUp, mergePage } from '../../src/utils/channel-feed.mjs'
 import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -30,6 +30,15 @@ describe('catchUpQuery: what a reconnect tells the hub', () => {
     assert.equal(q.since, 'c-b2')
     assert.equal(q.sinceAt, '2026-10-02T10:00:02.5Z')
     assert.deepEqual(q.rx, ['a2~2'])
+  })
+  it('a later sync cursor from the last catch-up wins; an earlier one does not; sinceAt stays the newest row', () => {
+    const cur = (at) => Buffer.from(`${at}|sync`).toString('base64url')
+    assert.equal(cursorTime(cur('2026-10-02T10:00:03Z')), Date.parse('2026-10-02T10:00:03Z'))
+    assert.equal(cursorTime('not a cursor'), 0)
+    const later = catchUpQuery(held(), cur('2026-10-02T10:05:00Z'))
+    assert.equal(later.since, cur('2026-10-02T10:05:00Z'))
+    assert.equal(later.sinceAt, '2026-10-02T10:00:02.5Z')
+    assert.equal(catchUpQuery(held(), cur('2026-10-02T09:00:00Z')).since, 'c-b2')
   })
   it('pending sends and topic rows never set the cursor', () => {
     const rows = [...held(), row('p', 'B', '2026-10-02T11:00:00Z', { pending: true }), row('t', 't', '2026-10-02T12:00:00Z', { topic_row: true })]
@@ -99,7 +108,7 @@ describe('the client sends since= and rx=, and reads the delta answer', () => {
   }
   it('listMessages({ changedSince, rx }) -> one topics read with since= and rx=, delta and gone lists back', async () => {
     const calls = []
-    const body = { topics: [], next: null, delta: true, gone_tasks: ['B'], gone_msgs: ['a1'] }
+    const body = { topics: [], next: null, delta: true, gone_tasks: ['B'], gone_msgs: ['a1'], sync: 'c-sync' }
     const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: fetchFor(calls, body) })
     const page = await c.listMessages({ channel: 'feedback', limit: 50, changedSince: 'c-b2', rx: ['a2~2'] })
     const q = new URL(calls[0]).searchParams
@@ -110,6 +119,7 @@ describe('the client sends since= and rx=, and reads the delta answer', () => {
     assert.equal(page.delta, true)
     assert.deepEqual(page.goneTasks, ['B'])
     assert.deepEqual(page.goneMsgs, ['a1'])
+    assert.equal(page.sync, 'c-sync')
   })
   it('a hub without since= (no delta key) reads as the full page; no since= without changedSince', async () => {
     const calls = []
@@ -122,7 +132,8 @@ describe('the client sends since= and rx=, and reads the delta answer', () => {
   it('the channel store catch-up sends its catchUpQuery and merges with mergeCatchUp', () => {
     const src = readFileSync(join(here, '../../src/stores/channel.ts'), 'utf8')
     const body = src.slice(src.indexOf('async function catchUp()'), src.indexOf('function applyEdited'))
-    assert.match(body, /catchUpQuery\(messages\.value\)/)
+    assert.match(body, /catchUpQuery\(messages\.value, catchUpSync\.key === key \? catchUpSync\.cursor : ''\)/)
+    assert.match(body, /catchUpSync = \{ key, cursor: page\.sync \|\| '' \}/)
     assert.match(body, /changedSince: q\.since, rx: q\.rx/)
     assert.match(body, /mergeCatchUp\(/)
     assert.doesNotMatch(body, /mergePage\(/)

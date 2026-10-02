@@ -1080,15 +1080,27 @@ function reactionRows(m) {
   return list.reduce((n, r) => n + (Array.isArray(r && r.actors) ? r.actors.length : 0), 0)
 }
 
+/** The time inside a view cursor (base64url of `<RFC 3339>|<id>`) in ms; 0 when it is not one. */
+export function cursorTime(cursor) {
+  try {
+    const raw = atob(String(cursor || '').replace(/-/g, '+').replace(/_/g, '/'))
+    return Date.parse(raw.split('|')[0]) || 0
+  } catch {
+    return 0
+  }
+}
+
 /**
  * R2-2 reconnect delta: what a catch-up tells the hub. `since` is the cursor
- * of the newest row held (hub receive time) and `rx` is `<msg_id>~<n>` for
- * every held row with reactions, so a reaction REMOVED in the gap - which
- * leaves nothing behind on the hub - is found by its count. null = read the
- * full page: no row with a cursor is held, or more reacted rows than the hub
- * takes.
+ * of the newest row held (hub receive time) - or the `sync` cursor the last
+ * catch-up answered, when that is later, so a change already caught up is
+ * not sent again - and `rx` is `<msg_id>~<n>` for every held row with
+ * reactions, so a reaction REMOVED in the gap - which leaves nothing behind
+ * on the hub - is found by its count. `sinceAt` stays the newest row's time
+ * (mergeCatchUp's floor). null = read the full page: no row with a cursor is
+ * held, or more reacted rows than the hub takes.
  */
-export function catchUpQuery(rows) {
+export function catchUpQuery(rows, sync = '') {
   let best = null
   const rx = []
   for (const m of rows || []) {
@@ -1099,7 +1111,8 @@ export function catchUpQuery(rows) {
     if (n > 0 && m.msg_id) rx.push(`${m.msg_id}~${n}`)
   }
   if (!best || rx.length > CATCH_UP_RX_MAX) return null
-  return { since: best.since, sinceAt: best.sinceAt, rx }
+  const since = cursorTime(sync) > best.at ? String(sync) : best.since
+  return { since, sinceAt: best.sinceAt, rx }
 }
 
 /**

@@ -389,16 +389,16 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
   })
   it('the page asks with UiConfirm and the client sends DELETE', () => {
     const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
-    const client = readFileSync(new URL('../../src/utils/spool-client.mjs', import.meta.url), 'utf8')
+    const client = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
     assert.match(page, /<UiConfirm[\s\S]*?testid="issues-delete"/)
     assert.match(page, /api\.deleteIssue\(issue\.key\)/)
-    assert.match(client, /async deleteIssue\(ref[^)]*\) \{[\s\S]*?method: 'DELETE'/)
+    assert.match(client, /async function deleteIssue\(ctx, ref[^)]*\) \{[\s\S]*?method: 'DELETE'/)
   })
   it('SPL-1226: cascade archive/delete client + mock', () => {
-    const client = readFileSync(new URL('../../src/utils/spool-client.mjs', import.meta.url), 'utf8')
+    const client = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
     // the client passes ?cascade=1 through to the hub on both verbs
-    assert.match(client, /async deleteIssue\(ref, \{ cascade = false \} = \{\}\)/)
-    assert.match(client, /async archiveIssue\(ref, \{ cascade = false \} = \{\}\)[\s\S]*?\/archive/)
+    assert.match(client, /async function deleteIssue\(ctx, ref, \{ cascade = false \} = \{\}\)/)
+    assert.match(client, /async function archiveIssue\(ctx, ref, \{ cascade = false \} = \{\}\)[\s\S]*?\/archive/)
     const m = createMockIssues({ me: 'HUM-1' })
     const epic = m.create({ title: 'Epic', kind: 'epic' }).issue
     const child = m.create({ title: 'Child', epic: epic.key }).issue

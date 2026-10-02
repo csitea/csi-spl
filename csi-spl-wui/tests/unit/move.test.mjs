@@ -328,8 +328,11 @@ describe('menu and wiring', () => {
     assert.match(src('src/pages/channel/[name].vue'), /await redirectMoved\(n\)/)
   })
   it('no new request header (a CORS preflight would break sign-in)', () => {
-    const client = src('src/utils/spool-client.mjs')
-    const block = client.slice(client.indexOf('async moveTopic('), client.indexOf('async moveInfo('))
+    const client = src('src/utils/spool-client-lazy.mjs') /* P3-30: the move calls live there */
+    const from = client.indexOf('async function moveTopic(')
+    const to = client.indexOf('async function moveInfo(')
+    assert.ok(from > 0 && to > from, 'control: both move calls are in the lazy client')
+    const block = client.slice(from, to)
     assert.doesNotMatch(block, /headers: \{[^}]*(x-|authorization)/i)
   })
   it('every locale has the move strings with the same placeholders', () => {

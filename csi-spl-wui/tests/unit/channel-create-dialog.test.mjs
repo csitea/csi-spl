@@ -103,7 +103,7 @@ describe('the dialog collects a title AND a description', () => {
 
 describe('the description round-trips (channels-v1 §5.1 / §5.2, rdb 0027)', () => {
   it('is sent ONLY when there is one, so a plain create still works on an older hub', () => {
-    const client = src('src/utils/spool-client.mjs')
+    const client = src('src/utils/spool-client-lazy.mjs') /* P3-30: createChannel lives there */
     /* the hub rejects unknown fields (DisallowUnknownFields): an unconditional
        `description` would turn every create into 400 bad_json against a hub
        that predates rdb 0027 */

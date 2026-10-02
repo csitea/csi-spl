@@ -181,4 +181,19 @@ has "6. the reply comes back to the lane's own inbox" '"the reply"' "$got"
 has "6. ... its from carries @box" '"from":"CLE-77913@box-desk"' "$(printf '%s' "$got" | tr -d ' \n')"
 [ -n "$r" ] || nok "6. the local reply send printed nothing"
 
+# ---- 7. specs/061 3.6: a retired id inside its quarantine bounces, never relays ---------
+rows() { printf 'c-009\tclaude\t%%5\t/x\t20261002T080000Z\t%s\n' "$(date -u -d "$1" +%Y%m%dT%H%M%SZ)" >"$B/registry.retired.tsv"; }
+rows '-1 hour'
+n0="$(wc -l <"$T_TMP/hub.log")"
+out="$(on "$B" bash "$SS" --from CLE-100004 --to c-009 --kind task --body 'to the old holder' 2>&1)"; rc=$?
+eq "7. a retired id inside the quarantine: exit 14 (the binary's 4)" 14 "$rc"
+has "7. ... and says so" "c-009 was retired on this machine" "$out"
+eq "7. ... not relayed to the hub" "$n0" "$(wc -l <"$T_TMP/hub.log")"
+check "7. ... no mailbox minted for c-009" test ! -e "$B/c-009"
+rej="$(SPOOL_ROOT="$B" "$SPOOL_BIN" recv --as CLE-100004 2>/dev/null | tr -d ' \n')"
+has "7. the sender holds a reject from c-009" '"from":"c-009","kind":"reject"' "$(printf '%s' "$rej" | python3 -c 'import json,sys; m=[x for x in json.load(sys.stdin) if x["kind"]=="reject"]; print(json.dumps({"from":m[0]["from"],"kind":m[0]["kind"]},separators=(",",":")) if m else "")')"
+rows '-25 hours'
+on "$B" bash "$SS" --from CLE-100004 --to c-009 --kind task --body x >/dev/null 2>&1; rc=$?
+eq "7. past the quarantine it is relayed as before (the fake hub knows no c-009: 13)" 13 "$rc"
+
 t_done

@@ -129,9 +129,18 @@ func (s *Store) KnownLocal(id string) bool {
 }
 
 // SendKnown is Send to an id KnownLocal accepts; any other id is refused with
-// ErrUnknownRecipient before anything is written.
+// ErrUnknownRecipient before anything is written - or, when this machine
+// retired it inside the quarantine, bounced (BounceRetired: a reject in the
+// sender's inbox, ErrRetiredRecipient).
 func (s *Store) SendKnown(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
 	if msg.ValidID(to) && !s.KnownLocal(to) {
+		if _, ok := s.RetiredInQuarantine(to, time.Now().UTC()); ok {
+			m, err := s.Compose(from, to, taskID, kind, body, atts)
+			if err != nil {
+				return nil, err
+			}
+			return nil, s.BounceRetired(m)
+		}
 		return nil, fmt.Errorf("%w: %s has no inbox under %s and is not in its registry.tsv; "+
 			"it lives on another machine (spool-send.sh relays it through the hub) or does not exist; nothing was written",
 			ErrUnknownRecipient, to, s.cfg.SpoolRoot)
@@ -504,7 +513,8 @@ func atomicMove(src, dst string) error {
 }
 
 // ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse,
-// 3 unknown local recipient (specs/058 N1), 1 other.
+// 3 unknown local recipient (specs/058 N1), 4 a retired recipient inside its
+// quarantine (specs/061 3.6), 1 other.
 // Local mode raises neither sign error; they are kept for hub mode (003).
 func ExitCode(err error) int {
 	switch {
@@ -514,6 +524,8 @@ func ExitCode(err error) int {
 		return 78
 	case errors.Is(err, ErrUnknownRecipient):
 		return 3
+	case errors.Is(err, ErrRetiredRecipient):
+		return 4
 	default:
 		return 1
 	}

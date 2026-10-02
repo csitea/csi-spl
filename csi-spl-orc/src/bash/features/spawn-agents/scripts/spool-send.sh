@@ -132,7 +132,10 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")
   args+=("${EXTRA[@]}")
-  if [ -n "$TO_BOX" ] || ! spool_fleet_local "$TO"; then
+  # specs/061 3.6: an id this machine retired inside its quarantine is not
+  # relayed (the hub could hand it to another machine's holder of the same
+  # number): the binary bounces it, a reject into the sender's inbox, exit 4.
+  if [ -n "$TO_BOX" ] || { ! spool_fleet_local "$TO" && ! spool_fleet_retired "$TO"; }; then
     # specs/058 N1: not on this machine. Attachments are local paths/blobs this
     # machine holds, so a relay carries the body only.
     [ "${#EXTRA[@]}" -eq 0 ] || { echo "ERROR: ${TO} is on another machine; --file-*/--dir-* attachments do not cross machines (send a path in the body). Nothing was sent." >&2; exit 2; }
@@ -150,6 +153,10 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     # script rings the pane itself, below, so it can report the outcome as its
     # exit code; letting both fire would show the message twice.
     out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"; rc=$?
+    if [ "$rc" -eq 4 ]; then
+      echo "ERROR: ${TO} was retired on this machine less than ${SPOOL_ID_QUARANTINE_H:-24} h ago; nothing was delivered, a reject is in ${FROM}'s inbox" >&2
+      exit 14
+    fi
     if [ "$rc" -ne 0 ]; then
       echo "ERROR: '${SPOOL_BIN} send' failed (rc=${rc}); nothing was delivered" >&2
       exit $((10 + rc))

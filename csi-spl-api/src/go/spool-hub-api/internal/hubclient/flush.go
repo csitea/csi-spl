@@ -36,7 +36,15 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 	if err != nil {
 		return "", err
 	}
+	st := spool.New(c.Cfg)
 	toBox, err := c.ResolveToBox(m.To, explicitToBox)
+	// specs/061 3.6: an id this box retired inside the quarantine, addressed
+	// here (or announced by no other box), bounces to its sender as a reject.
+	if (err == nil && toBox == own) || (err != nil && explicitToBox == "") {
+		if berr := st.BounceRetired(m); berr != nil {
+			return "", berr
+		}
+	}
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +52,6 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 	if err != nil {
 		return "", err
 	}
-	st := spool.New(c.Cfg)
 	if toBox == own {
 		if _, err := st.Deliver(m); err != nil {
 			return "", err

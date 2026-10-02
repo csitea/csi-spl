@@ -9,6 +9,10 @@
 #
 #   spool_fleet_local <id>        0 when <id> is an agent of THIS machine's root
 #                                 (its dir, or a registry.tsv row)
+#   spool_fleet_retired <id>      0 when THIS machine retired <id> less than
+#                                 SPOOL_ID_QUARANTINE_H (24) hours ago
+#                                 (registry.retired.tsv, specs/061 3.6): a send
+#                                 to it is not relayed, the binary bounces it
 #   spool_fleet_box               this machine's desk box (the <box> of
 #                                 <ID>@<box>): LEASE_MACHINE, else SPOOL_DESK_BOX
 #                                 (env, box.env), else box-desk
@@ -37,6 +41,15 @@ spool_fleet_local() {  # ID
   [ -d "$SPOOL_ROOT/$id" ] && return 0
   [ -r "$SPOOL_ROOT/registry.tsv" ] &&
     cut -f1 "$SPOOL_ROOT/registry.tsv" | sed -E 's/^.*: //; s/@.*//' | grep -qx -- "$id"
+}
+
+# The wall clock, as the binary's bounce reads it (SPOOL_NOW is not its clock).
+spool_fleet_retired() {  # ID
+  local f="$SPOOL_ROOT/registry.retired.tsv" cut
+  [ -r "$f" ] || return 1
+  cut="$(date -u -d "-${SPOOL_ID_QUARANTINE_H:-24} hours" +%Y%m%dT%H%M%SZ)" || return 1
+  awk -F'\t' -v id="$1" -v c="$cut" '{ k = $1; sub(/^.*: /, "", k); sub(/@.*/, "", k) }
+    k == id && $6 > c { hit = 1 } END { exit !hit }' "$f"
 }
 
 spool_fleet_box() {

@@ -100,6 +100,19 @@ type Config struct {
 	// contracts/migration.md §5): 1 until every reader is deployed. Readers
 	// accept 1 and 2 whatever this says. 0 (a Config built in code) = msg.Version.
 	MsgVersion int `env:"SPOOL_MSG_VERSION" envDefault:"1"`
+	// IDQuarantineH is how long a retired agent id stays quarantined
+	// (specs/061 3.5-3.6, the allocator's SPOOL_ID_QUARANTINE_H): a message
+	// to it inside that window bounces to its sender as a reject.
+	// 0 (a Config built in code) = 24.
+	IDQuarantineH int `env:"SPOOL_ID_QUARANTINE_H" envDefault:"24"`
+}
+
+// IDQuarantine is IDQuarantineH as a duration, 24 h when it is not positive.
+func (c *Config) IDQuarantine() time.Duration {
+	if c.IDQuarantineH <= 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(c.IDQuarantineH) * time.Hour
 }
 
 // NotifyTimeoutOr is NotifyTimeout, or 10s for a Config built in code.

@@ -4,12 +4,8 @@
 // Run: node tests/unit/channel-invite.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  channelInviteCandidates,
-  createSpoolClient,
-  inviteErrorToken,
-  isPublicChannel,
-} from '../../src/utils/spool-client.mjs'
+import { createSpoolClient, isPublicChannel } from '../../src/utils/spool-client.mjs'
+import { channelInviteCandidates, inviteErrorToken } from '../../src/utils/channel-members.mjs'
 
 function stubFetch(routes) {
   const calls = []

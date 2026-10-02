@@ -313,9 +313,9 @@ import {
   filterAgentsContains,
   filterPeopleContains,
   inviteErrorToken,
-  rosterHumanIds,
   viewerHumanId,
-} from '~/utils/spool-client.mjs'
+} from '~/utils/channel-members.mjs'
+import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'

@@ -20,7 +20,7 @@ import {
   filterPeopleContains,
   signedInHuman,
   viewerHumanId,
-} from '../../src/utils/spool-client.mjs'
+} from '../../src/utils/channel-members.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')

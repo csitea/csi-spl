@@ -1,9 +1,4 @@
-declare module '~/utils/spool-client.mjs' {
-  export function sha256Hex(buf: ArrayBuffer): Promise<string>
-  export function credentialsFor(door: string): 'include' | 'omit'
-  export function normalizeChannelId(channel: string): string
-  export function isPublicChannel(channel: string): boolean
-  export function rosterHumanIds(roster: Record<string, readonly string[]> | null | undefined): string[]
+declare module '~/utils/channel-members.mjs' {
   export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[]
   export function filterPeopleContains(ids: readonly string[] | null | undefined, query?: string, names?: Record<string, string> | null): string[]
   export function filterAgentsContains(rows: readonly { id?: string, box?: string }[] | null | undefined, query?: string): { id: string, box: string }[]
@@ -21,6 +16,14 @@ declare module '~/utils/spool-client.mjs' {
   export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string, online?: boolean, seated?: boolean }[] | null | undefined): { people: string[], agents: { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }[] }
   export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string
   export function aboutChannelDescription(row: { description?: string } | null | undefined): string
+}
+
+declare module '~/utils/spool-client.mjs' {
+  export function sha256Hex(buf: ArrayBuffer): Promise<string>
+  export function credentialsFor(door: string): 'include' | 'omit'
+  export function normalizeChannelId(channel: string): string
+  export function isPublicChannel(channel: string): boolean
+  export function rosterHumanIds(roster: Record<string, readonly string[]> | null | undefined): string[]
   export function createSpoolClient(opts?: {
     base?: string
     fetchFn?: typeof fetch

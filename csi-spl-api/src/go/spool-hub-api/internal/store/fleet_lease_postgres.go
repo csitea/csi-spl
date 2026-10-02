@@ -22,6 +22,30 @@ func (s *Postgres) GetFleetLease(ctx context.Context, tenant, fleet, role string
 	return l, err
 }
 
+func (s *Postgres) FleetLeases(ctx context.Context, tenant string, now time.Time) ([]FleetLease, error) {
+	var out []FleetLease
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		out = nil
+		rows, err := tx.Query(ctx, `SELECT fleet, role, holder, box, gen, renewed_at FROM fleet_leases
+			WHERE tenant_id = $1`, tenant)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var l FleetLease
+			if err := rows.Scan(&l.Fleet, &l.Role, &l.Holder, &l.Box, &l.Gen, &l.RenewedAt); err != nil {
+				return err
+			}
+			l.RenewedAt = l.RenewedAt.UTC()
+			l.Age = now.Sub(l.RenewedAt)
+			out = append(out, l)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
 func readFleetLease(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, now time.Time) (FleetLease, error) {
 	l := FleetLease{Fleet: fleet, Role: role}
 	err := tx.QueryRow(ctx, `SELECT holder, box, gen, renewed_at FROM fleet_leases

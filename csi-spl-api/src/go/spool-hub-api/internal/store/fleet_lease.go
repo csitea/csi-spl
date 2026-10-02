@@ -40,6 +40,9 @@ type FleetLeases interface {
 	// race is ErrConflict with the CURRENT row, so the caller decides again
 	// without a second read.
 	CASFleetLease(ctx context.Context, tenantID, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error)
+	// FleetLeases reads every lease row of the tenant, all fleets and roles
+	// (spec 059 S5: a channel post for a role goes to its holder's box).
+	FleetLeases(ctx context.Context, tenantID string, now time.Time) ([]FleetLease, error)
 }
 
 type memLease struct {
@@ -60,6 +63,18 @@ func (s *Memory) fleetLeaseLocked(tenant, fleet, role string, now time.Time) Fle
 		l.Holder, l.Box, l.Gen, l.RenewedAt, l.Age = r.holder, r.box, r.gen, r.at, now.Sub(r.at)
 	}
 	return l
+}
+
+func (s *Memory) FleetLeases(_ context.Context, tenant string, now time.Time) ([]FleetLease, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []FleetLease
+	for k := range s.leases {
+		if k[0] == tenant {
+			out = append(out, s.fleetLeaseLocked(tenant, k[1], k[2], now))
+		}
+	}
+	return out, nil
 }
 
 func (s *Memory) CASFleetLease(_ context.Context, tenant, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error) {

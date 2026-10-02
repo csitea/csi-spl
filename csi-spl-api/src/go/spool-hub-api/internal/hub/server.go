@@ -58,6 +58,10 @@ type Options struct {
 	// once, instead of at the next relay tick. false = off, so a rig that
 	// asserts the relay tick sees no early delivery.
 	Wake bool
+	// RoleLeaseStale (spec 059 S5, role_group.go): a fleet lease not renewed
+	// for this long no longer narrows a channel post to its holder's box.
+	// 0 = DefaultRoleLeaseStale, the lease loops' LEASE_STALE.
+	RoleLeaseStale time.Duration
 	// WakeWUI (spec 059 S3): fan a message another process stored out to
 	// the browser sockets this process holds (store.WUIWaker). false = off,
 	// so a rig with two servers on one store sees each line once per socket.

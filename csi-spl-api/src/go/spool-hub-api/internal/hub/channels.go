@@ -239,6 +239,9 @@ func withoutAgent(agents []string, id string) []string {
 // member box, and the other members sitting on it are exactly what the owner
 // rule is about. Enqueue is idempotent per (msg_id, box), so the second row is
 // a no-op insert and only the recv frame's agents list changes.
+//
+// A role agent (spec 059 S5, role_group.go) counts only on the box holding
+// its role's fleet lease, so a role seated on two machines gets the post once.
 func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, canon []byte) {
 	if channel == "" || env.Sig == "" {
 		return
@@ -250,6 +253,7 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 	}
 	fromBrowser := env.FromBox == WUIBox
 	agentPost := !fromBrowser && env.Channel != ""
+	seats := s.roleSeats(ctx, tenant).seated(members)
 	now := s.o.Now()
 	for box, agents := range members {
 		if box == WUIBox || (!fromBrowser && box == env.ToBox) {
@@ -261,6 +265,7 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 			}
 			agents = withoutAgent(agents, m.From)
 		}
+		agents = seats.filter(box, agents)
 		if len(channelTargets(agents)) == 0 {
 			continue
 		}
@@ -279,6 +284,9 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 // when nothing there is a member any more and the row is only there for the
 // channel (it stays queued and expires by TTL); a delivery to the envelope's
 // own to_box always stands - msg.to is on that box whether or not it joined.
+// A role agent whose role is held on another box is left out (spec 059 S5),
+// unless that empties the list: then the row was routed here for it before
+// the lease moved, and it is delivered rather than lost (role_group.go).
 func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]string, bool) {
 	e, err := wire.ParseEnvelope(raw)
 	if err != nil || e.Channel == "" {
@@ -294,6 +302,9 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 		if m, err := e.Inner(); err == nil {
 			mine = withoutAgent(mine, m.From)
 		}
+	}
+	if held := s.roleSeats(ctx, x.tenant).seated(members).filter(x.box, mine); len(held) > 0 {
+		mine = held
 	}
 	a := channelTargets(mine)
 	return a, own || len(a) > 0

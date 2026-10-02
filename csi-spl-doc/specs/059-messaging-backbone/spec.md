@@ -255,7 +255,7 @@ The plan is one design for the whole stack. CLE-77931 builds the whole-stack row
 | consumer lag | per box `next_seq - 1 - committed_seq` and the age of the oldest uncommitted row: `do_spl_consumer_lag` + an alert; feeds 053's escalation | the unheard sweep (heuristic) | **S4** |
 | retention | queue rows expire after `QueueTTL` (7 days); committed rows are pruned; tiered message retention unchanged. An uncommitted row for a dead box (the 70 test-box rows on prd) is reported as lag, not kept silently | expiry only | **S4** |
 | consumer group (one member active) | a box id = a group with one live member (the last hello wins, 4409); a takeover = a rebalance (058) | yes | — |
-| consumer group for a role | a channel post routed to the **role holder's** box (`fleet_leases`) instead of every member box, so a dispatcher seated on two machines handles each post once | per member box (058 H7) | **S5**, with CLE-77911 |
+| consumer group for a role | a channel post routed to the **role holder's** box (`fleet_leases`) instead of every member box, so a dispatcher seated on two machines handles each post once | yes: a role agent (001 orch, 002 / 003 dispatch, spec 058 §3.0) gets the post only on its role's lease holder box; every other member as before (`hub/role_group.go`, §11.4) | **S5**, with CLE-77911 |
 | exactly-once (transactions) | not copied: at-least-once + the idempotent consumer, as the spike shows that is enough | — | — |
 
 ### 11.2 Asks to the orchestrator (CLE-77929): a work queue = Kafka's share group (KIP-932)
@@ -280,4 +280,17 @@ The pgq prototype in §10 is this same share-group shape (row claim + lease + pe
 
 S1 (offset + wake), then S2 (commit; closes the T3 loss), then S3 (browsers), then S4 (lag + retention), then S5 (role group). The asks deltas go in parallel. Each step lands on dev and prd before the next one starts.
 
-<!-- version: 0.2.0 · updated: 2026-10-02 -->
+### 11.4 S5 handover: posts in flight when the role lease moves
+
+| case | what the hub does |
+|---|---|
+| the lease moves (CAS on `gen`, 058 §3.5) | the route is read from `fleet_leases` when the post commits, so the next post goes to the new holder's box |
+| a row already queued for the old holder | stays with that box and is delivered when it drains (at-least-once, never dropped); the old holder's agent is on STANDBY and does not act, the new one sweeps what was left unanswered (`do_spl_unanswered_sweep`) |
+| a recv frame for a box that also hosts lane members | its agents list re-reads the lease and leaves out a role agent held elsewhere, unless that empties it |
+| a stalled holder (lease not renewed for `RoleLeaseStale`, 180 s = `LEASE_STALE`) | the lease is ignored: the post fans out to every member box as before S5 |
+| no lease, an unreadable lease, or a holder box that seats none of the role's agents in that channel | fan-out as before S5 |
+| a spec 060 rotation | keeps `<ID>@<box>`, so it moves nothing here |
+
+Tests: `TestChannelPostRoleGroup` (memory and Postgres).
+
+<!-- version: 0.2.1 · updated: 2026-10-02 -->

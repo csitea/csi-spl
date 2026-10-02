@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -144,31 +145,36 @@ func (s *Postgres) attachDeliveriesAndReactions(ctx context.Context, tenant stri
 			}})
 }
 
-// TopicMsgMeta is the slice of one message the DM counts read (cut 1 of the
-// DB payload audit 2026-10-02): who and when, never the envelope.
-type TopicMsgMeta struct {
-	MsgID      string
-	ReceivedAt time.Time
-	FromID     string
-	FromBox    string
-	ToID       string
-	ToBox      string
-	TypedBy    string
-	Channel    string // messages.channel, where the row is now ("" = a DM)
+// TopicsDMCounter is the DM counts a store may offer for the topic list
+// (dm_counts=true). Without it the hub falls back to one ViewTopic per topic
+// and DMPageCounts.
+type TopicsDMCounter interface {
+	ViewTopicsDMCounts(ctx context.Context, tenant string, q TopicsMsgQuery, reads map[string]DMRead) (map[string]TopicDMCounts, error)
 }
 
-// TopicsMetaReader is the thin batch read a store may offer for the DM
-// counts. Without it the hub falls back to one ViewTopic per topic.
-type TopicsMetaReader interface {
-	ViewTopicsMeta(ctx context.Context, tenant string, q TopicsMsgQuery) (map[string][]TopicMsgMeta, error)
+var _ TopicsDMCounter = (*Postgres)(nil)
+
+// dmTS is a received_at as the hub sends it (time.RFC3339Nano in UTC: no
+// trailing zero, no dot on a whole second), so the read cursor compares to
+// it as the WUI's string did. Postgres holds microseconds.
+const dmTS = `(to_char(p.received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS')
+	|| COALESCE('.' || NULLIF(rtrim(to_char(p.received_at AT TIME ZONE 'UTC', 'US'), '0'), ''), '') || 'Z')`
+
+// dmEnd is dmPeerOf's label of one end (id, box) when it is not us ($S),
+// not empty and not the broadcast id.
+func dmEnd(id, box string) string {
+	return `WHEN ` + id + ` NOT IN ('', $S, 'ALL-0') THEN ` + id + ` || CASE WHEN ` + box + ` <> '' THEN '@' || ` + box + ` ELSE '' END`
 }
 
-var _ TopicsMetaReader = (*Postgres)(nil)
-
-// ViewTopicsMeta is ViewTopicsMessages without the envelope, the deliveries
-// and the reactions: the same rows (door, order, PerTopic) in one round trip.
-func (s *Postgres) ViewTopicsMeta(ctx context.Context, tenant string, q TopicsMsgQuery) (map[string][]TopicMsgMeta, error) {
-	out := map[string][]TopicMsgMeta{}
+// ViewTopicsDMCounts is DMPageCounts in SQL (DB payload round 2, R2-4): the
+// same page as ViewTopicsMessages (door, order, PerTopic), counted with one
+// GROUP BY per (topic, peer) in one round trip, so the hub reads ~24 rows
+// instead of every line's metadata. The rules are DMPageCounts' line for
+// line: own lines and own terminal lines (CLE-77889) are never new, a
+// channel row is no DM, the cursor compares as strings (CLE-77873), and the
+// total counts every DM line under its peer (CLE-77845).
+func (s *Postgres) ViewTopicsDMCounts(ctx context.Context, tenant string, q TopicsMsgQuery, reads map[string]DMRead) (map[string]TopicDMCounts, error) {
+	out := map[string]TopicDMCounts{}
 	tasks := make([]string, 0, len(q.TaskIDs))
 	for _, t := range q.TaskIDs {
 		if canonUUIDRe.MatchString(t) {
@@ -179,27 +185,59 @@ func (s *Postgres) ViewTopicsMeta(ctx context.Context, tenant string, q TopicsMs
 		return out, nil
 	}
 	door, args := topicsDoor(q, []any{tenant, tasks, q.Now, pgLimit(q.PerTopic)})
-	// The two uuids travel in binary (16 B, not 36) and pgx formats them.
-	err := s.queryTenant(ctx, tenant, `SELECT t.task_id, m.msg_id, m.received_at, m.from_id, m.from_box,
-			m.to_id, m.to_box, COALESCE(m.typed_by, ''), COALESCE(m.channel, '')
-		FROM unnest($2::uuid[]) WITH ORDINALITY AS t(task_id, n)
-		CROSS JOIN LATERAL (
-			SELECT m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
-			FROM messages m
-			WHERE m.tenant_id = $1 AND m.task_id = t.task_id AND m.expires_at > $3 AND `+door+`
-			ORDER BY m.received_at DESC, m.msg_id::text DESC
-			LIMIT $4) m
-		ORDER BY t.n, m.received_at DESC, m.msg_id::text DESC`, args,
-		func(rows pgx.Rows) error {
-			var task string
-			var v TopicMsgMeta
-			if err := rows.Scan(&task, &v.MsgID, &v.ReceivedAt, &v.FromID, &v.FromBox, &v.ToID, &v.ToBox,
-				&v.TypedBy, &v.Channel); err != nil {
-				return err
-			}
-			out[task] = append(out[task], v)
-			return nil
-		})
+	peers := make([]string, 0, len(reads))
+	tss := make([]string, 0, len(reads))
+	ids := make([]string, 0, len(reads))
+	for p, c := range reads {
+		peers, tss, ids = append(peers, p), append(tss, c.TS), append(ids, c.MsgID)
+	}
+	n := len(args)
+	args = append(args, q.Reader, peers, tss, ids)
+	arg := func(i int) string { return "$" + strconv.Itoa(n+i) }
+	sql := strings.NewReplacer("$S", arg(1)+"::text").Replace(`WITH page AS (
+			SELECT t.task_id, m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
+			FROM unnest($2::uuid[]) AS t(task_id)
+			CROSS JOIN LATERAL (
+				SELECT m.msg_id, m.received_at, m.from_id, m.from_box, m.to_id, m.to_box, m.typed_by, m.channel
+				FROM messages m
+				WHERE m.tenant_id = $1 AND m.task_id = t.task_id AND m.expires_at > $3 AND ` + door + `
+				ORDER BY m.received_at DESC, m.msg_id::text DESC
+				LIMIT $4) m),
+		lines AS (
+			SELECT p.task_id, p.channel IS NULL AS dm, p.msg_id::text AS id, ` + dmTS + ` AS ts,
+				CASE ` + dmEnd("p.from_id", "p.from_box") + ` ` + dmEnd("p.to_id", "p.to_box") + ` ELSE '' END AS peer,
+				p.from_id <> '' AND NOT (split_part($S, '@', 1) <> '' AND (split_part(p.from_id, '@', 1) = split_part($S, '@', 1)
+					OR (split_part(COALESCE(p.typed_by, ''), '@', 1) ~ '^HUM-[0-9]+$'
+						AND split_part(COALESCE(p.typed_by, ''), '@', 1) = split_part($S, '@', 1)))) AS theirs
+			FROM page p)
+		SELECT l.task_id, l.peer,
+			count(*) FILTER (WHERE l.dm AND l.theirs AND l.peer <> '' AND (r.ts IS NULL OR r.ts = ''
+				OR CASE WHEN l.ts <> r.ts THEN l.ts COLLATE "C" > r.ts COLLATE "C" ELSE l.id <> r.id END)),
+			count(*) FILTER (WHERE l.dm AND l.peer <> ''),
+			(sum(count(*)) OVER (PARTITION BY l.task_id))::bigint
+		FROM lines l
+		LEFT JOIN unnest(` + arg(2) + `::text[], ` + arg(3) + `::text[], ` + arg(4) + `::text[]) AS r(peer, ts, id) ON r.peer = l.peer
+		GROUP BY l.task_id, l.peer`)
+	err := s.queryTenant(ctx, tenant, sql, args, func(rows pgx.Rows) error {
+		var task, peer string
+		var unread, total, page int
+		if err := rows.Scan(&task, &peer, &unread, &total, &page); err != nil {
+			return err
+		}
+		c, ok := out[task]
+		if !ok {
+			c = TopicDMCounts{Unread: map[string]int{}, Total: map[string]int{}}
+		}
+		c.Page = page
+		if unread > 0 {
+			c.Unread[peer] = unread
+		}
+		if total > 0 {
+			c.Total[peer] = total
+		}
+		out[task] = c
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}

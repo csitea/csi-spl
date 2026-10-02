@@ -52,10 +52,10 @@ func TestDMCountsMatchWUIFixture(t *testing.T) {
 	for _, c := range fx.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			// the cursors as the WUI sends them (dmReadParams): dm: keys with a time
-			reads := map[string]dmCursor{}
+			reads := map[string]store.DMRead{}
 			for k, v := range c.Cursors {
 				if len(k) > 3 && k[:3] == "dm:" && v.TS != "" {
-					reads[k[3:]] = dmCursor{ts: v.TS, id: v.ID}
+					reads[k[3:]] = store.DMRead{TS: v.TS, MsgID: v.ID}
 				}
 			}
 			unread, total := map[string]int{}, map[string]int{}
@@ -69,7 +69,7 @@ func TestDMCountsMatchWUIFixture(t *testing.T) {
 					msgs = append(msgs, store.TopicMsgMeta{MsgID: m.MsgID, ReceivedAt: at, FromID: m.From, FromBox: m.FromBox,
 						ToID: m.To, ToBox: m.ToBox, TypedBy: m.TypedBy, Channel: m.Channel})
 				}
-				got := dmCounts(viewTopic{Count: tp.Count, Participants: tp.Participants}, msgs, c.Self, reads)
+				got := dmCounts(viewTopic{Count: tp.Count, Participants: tp.Participants}, store.DMPageCounts(msgs, c.Self, reads), c.Self)
 				for p, n := range got.Unread {
 					unread["dm:"+p] += n
 				}
@@ -89,7 +89,7 @@ func TestDMCountsMatchWUIFixture(t *testing.T) {
 
 func TestParseDMReads(t *testing.T) {
 	got, ok := parseDMReads([]string{"CLE-1@box-desk~2026-10-01T10:00:00.5Z~m1", "HUM-2@box-wui~2026-10-01T11:00:00Z~"})
-	if !ok || got["CLE-1@box-desk"] != (dmCursor{"2026-10-01T10:00:00.5Z", "m1"}) || got["HUM-2@box-wui"] != (dmCursor{"2026-10-01T11:00:00Z", ""}) {
+	if !ok || got["CLE-1@box-desk"] != (store.DMRead{TS: "2026-10-01T10:00:00.5Z", MsgID: "m1"}) || got["HUM-2@box-wui"] != (store.DMRead{TS: "2026-10-01T11:00:00Z"}) {
 		t.Fatalf("%v %v", got, ok)
 	}
 	for _, bad := range []string{"no-tilde", "~2026-10-01T10:00:00Z"} {

@@ -1,0 +1,6 @@
+Lay-What: When an agent's name is reused by a new agent, a direct conversation now shows a line marking where the new one took over.
+Lay-How: The server remembers when each agent name was taken by its current owner, and the app draws a quiet "new holder since" line at that point.
+Lay-Why: Old and new agents with the same name were mixed together in one conversation, so it looked like one agent said both.
+Tech-What: Hub stamps agent_seats.seated_at when an id enters a box roster; GET /v1/view/roster carries boxes[].seated_at; the WUI DM view draws a "New holder since" divider.
+Tech-How: SetRoster writes agent_seats only for newly announced ids; seatsProbe (to_regclass, rechecked each minute) keeps the hub working before rdb 0107; seat-divider.mjs places the divider; 19 locales.
+Tech-Why: Spec 061 reuses agent ids after a 24 h quarantine and history keeps the bare id, so a DM could not tell two holders apart.

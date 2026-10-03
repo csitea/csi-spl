@@ -10,7 +10,7 @@ do_tf_destroy() {
   do_tf_init
 
   tf_destroy_log_fle=$PROJ_PATH/dat/log/tf_destroy.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
-  test -f $tf_destroy_log_fle && rm -f $tf_destroy_log_fle
+  test -f "$tf_destroy_log_fle" && rm -f "$tf_destroy_log_fle"
 
   # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
 
@@ -24,10 +24,10 @@ do_tf_destroy() {
   #set -x
   sleep 5
   {
-    terraform -chdir=$tf_run_path init -backend-config=$backend_config_path \
+    terraform -chdir="$tf_run_path" init -backend-config="$backend_config_path" \
       -upgrade -reconfigure 2>&1 &&
-      terraform -chdir=$tf_run_path destroy -var-file=$vars_path -auto-approve -lock=false 2>&1
-  } | tee -a $tf_destroy_log_fle
+      terraform -chdir="$tf_run_path" destroy -var-file="$vars_path" -auto-approve -lock=false 2>&1
+  } | tee -a "$tf_destroy_log_fle"
   set +x
 
   do_log "INFO STOP  ::: tf_destroy for step $tf_proj"

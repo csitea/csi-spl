@@ -160,6 +160,17 @@ Install the receiver on each machine that should accept remote spawns:
 `features/spawn-agents/tests/test-spawn-remote.sh` (holder spawns, non-holder
 refused) and `tests/spawn-remote-cron.tst.sh`.
 
+Live proof on the PC, 2026-10-03 (n=1 each, trunk `09599f27`, receiver cron
+installed with `DRY_RUN=0`), request to its own box with a no-op brief:
+
+| sender | result | serve.log |
+|---|---|---|
+| `c-076` (not the holder) | exit 4, `refused by <box>: only the fleet orch lease holder (c-001@<box>) may spawn here`, 46 s | `REFUSED ... c-076 not the fleet orch lease holder` |
+| `c-001` (the holder) | exit 0, `c-089@<box> %627`, 52 s; registry row `c-089 claude %627 /var/tmp`; agent answered "noop" as the agent user; window then closed | `SPAWNED ... c-089@<box> %627 claude noop-proof` |
+
+Not yet proven: the satellite -> PC leg through the hub relay (same code path
+as the tested relay of 1.4; needs the orchestrator lease on the satellite).
+
 ## 3. Split proposal: what stays on the PC, what moves to the satellite
 
 Classified from the live lane map at 06:21Z: n=36 scoped lane agents on the

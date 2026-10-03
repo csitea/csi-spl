@@ -1,0 +1,6 @@
+Lay-What: Tapping a notification when the app is not yet open now takes you to the message again.
+Lay-How: When the app starts on a page that needs the extra translations, it loads them first, so the tap's navigation is not cancelled.
+Lay-Why: A cold start on such a page cancelled the jump to the tapped message and left you on the start page.
+Tech-What: A cold boot onto a route outside the first screen loads the second i18n catalogue during the plugin, so Nuxt's initial replace no longer cancels a replayed notification tap.
+Tech-How: i18n-more.client.ts awaits the load in plugin setup instead of in the route guard, so both navigations pass the guard on a resolved promise.
+Tech-Why: wf11 notification-open check 8 was red since 1f0e9a1c: the guard delayed the push to /m/<id> until after app:created's forced replace started.

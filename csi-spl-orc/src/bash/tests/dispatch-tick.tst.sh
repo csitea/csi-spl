@@ -122,6 +122,17 @@ grep -qx 'DISPATCH gap GAP w1 OD seats: unseated, seat them with do_spl_desk_up 
 cp "$T/w1.keep" "$SUBS/w1.txt"; tick ENV=dev
 grep -q '^DISPATCH cleared GAP w1 OD seats' "$T/o" && pass "5b. seated again: cleared" || fail "5b. cleared: $(cat "$T/o")"
 
+# --- 5c. SILENT while the fleet lease is held on another box (c-001, sat 2026-10-03) ----------
+mkdir -p "$T/state/desk/w1/box-desk/spool/CLE-002/inbox"
+cp "$SUBS/w1.txt" "$T/w1.keep"; echo 'hum|6|0' >>"$SUBS/w1.txt"
+echo "CLE-002@box-desk $(date +%s)" >"$S/dispatch/lease"; tick ENV=dev
+grep -q '^DISPATCH gap GAP w1 inbound: the workspace receives nothing' "$T/o" &&
+  pass "5c. lease held on this box: a silent desk is a GAP (the control)" || fail "5c. control: $(cat "$T/o")"
+echo "CLE-002@other-box $(date +%s)" >"$S/dispatch/lease"; tick ENV=dev
+grep -q '^DISPATCH cleared GAP w1 inbound' "$T/o" && ! grep -q '^DISPATCH gap GAP w1 inbound' "$T/o" &&
+  pass "5c. lease held on another box: the silent desk here is no GAP" || fail "5c. remote: $(cat "$T/o")"
+cp "$T/w1.keep" "$SUBS/w1.txt"; echo "CLE-003 $(date +%s)" >"$S/dispatch/lease"; tick ENV=dev
+
 # --- 6. failing subscribe ------------------------------------------------------------------
 echo 'chan|other' >>"$SUBS/w1.txt"
 tick FAIL_ADD=other; rc=$?

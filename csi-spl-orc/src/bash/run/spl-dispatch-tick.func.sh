@@ -56,6 +56,11 @@ do_spl_dispatch_tick() {
     done >"$tmp/gaps"
   # CLE-77876: humans post, the dispatchers receive nothing; the counts are
   # the value, so one silent workspace stays one item while it lasts
+  # The fleet dispatch lease held on another box (spec fleet-roles 4.1): its
+  # desk receives the posts, this box's is silent by design - the same
+  # exemption as do_spl_dispatch_check's inbound row; UNSIGNED still counts
+  spl_lease_read; spl_lease_conf
+  if spl_lease_remote && [[ "$LH" != *@unreachable ]]; then sed -i '/^SILENT /d' "$tmp/sub"; fi
   sed -n 's/^SILENT \([^ ]*\) \([^:]*\): \(.*\)$/GAP \1 inbound: \3 (\2)/p; s/^UNSIGNED \([^ ]*\) \([^,]*\), \(.*\)$/GAP \1 unsigned posts: \3 (\2)/p' \
     "$tmp/sub" >>"$tmp/gaps"
   # an OD seat of a fleet box the workspace does not seat (owner 2026-10-03:

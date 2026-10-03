@@ -314,3 +314,77 @@ are open on it at once.
 No Q9 lane: the owner answered "q9 the data is anonymous" (10.1), so
 there is no per-workspace opt-out. Q6 = 30 days keeps L1's constant; Q2 = yes
 keeps L6 and section 3.1 as written.
+
+## 12. Result of the section 5 overhead A/B (lane L9, 2026-10-03, c-133)
+
+**Verdict: FAIL against the bar (not demonstrated within 3 %). `perf.rum_enabled`
+stays `false` on prd; no cnf was changed.** Two rows miss "each median within
+3 %": main thread on desktop, and send / open. The box was heavily loaded
+throughout by the rest of the fleet (load average 6 rising to 35 on 16 cores).
+Between runs, one arm's median moved by up to 40 %. So this result shows that
+the overhead is *not proven under 3 %*. It does not show that the overhead is
+over 3 %.
+
+### 12.1 What ran
+
+| field | value |
+|---|---|
+| tree | `8d20601bc` (L6 on top of L1..L8): one `nuxt generate` per arm with dev's `NUXT_PUBLIC_*` values (wf30's list), app version `1.1.3-ab0` / `1.1.3-ab1` |
+| arms | A = `NUXT_PUBLIC_PERF_RUM=0`, B = `NUXT_PUBLIC_PERF_RUM=1`, nothing else differs (`perfRum:0` / `perfRum:1` in `index.html`) |
+| how | each bundle served by `tests/e2e/lib/serve-hosting-h2.mjs` (A :8471, B :8472) under the real dev host via `LOCAL_MAP` / `LOCAL_MAP_B`; the dev hub answered both arms |
+| first load | `perf-first-load.timing.mjs`, dev t1 apex, warm cache, d1440 + m390 (CPU 4x), rounds interleaved A,B / B,A in one run; run 1 n=7, run 2 n=15 per arm per profile, pooled **n=22** |
+| send / open | `perf-baseline-live.proof.mjs` on the dev t1 tenant host, N=1 per call, calls interleaved A,B / B,A, **n=5** per arm, d1440 + m390-4g. SEND=1 posted 21 probe messages into the dev t1 lobby (c-002 checked: all on dev, 0 on prd). By the orchestrator's decision (2026-10-03), the send row is not run in t1 again |
+| initial JS | `perf-budget.py bundle` on each arm's output |
+| hub | `ENV=dev do_spl_hub_route_latency`: 6 h before the collector (03:00..09:00Z) vs 3 h after it (09:15..12:15Z) |
+
+### 12.2 Numbers (medians, B vs A)
+
+| row | metric | profile | A off | B on | delta | n per arm | bar |
+|---|---|---|---|---|---|---|---|
+| first load | rail ms | d1440 | 1315 | 1224 | -7.0 % | 22 | pass |
+| first load | flow ms | d1440 | 1768 | 1707 | -3.5 % | 22 | pass |
+| first load | rail ms | m390 | 3395 | 3128 | -7.9 % | 22 | pass |
+| first load | flow ms | m390 | 4783 | 4899 | +2.4 % | 22 | pass |
+| main thread | TBT ms | d1440 | 534 | 573 | **+7.4 %** | 22 | **fail** |
+| main thread | longest task ms | d1440 | 300 | 318 | **+6.0 %** | 22 | **fail** |
+| main thread | TBT ms | m390 | 2442 | 2176 | -10.9 % | 22 | pass |
+| main thread | longest task ms | m390 | 1494 | 1344 | -10.1 % | 22 | pass |
+| send / open | send confirmed ms | d1440 | 191 | 167 | -12.6 % | 5 | pass |
+| send / open | open topic ms | d1440 | 80 | 147 | **+84 %** | 5 | **fail** |
+| send / open | send confirmed ms | m390-4g | 325 | 353 | **+8.6 %** | 5 | **fail** |
+| send / open | open topic ms | m390-4g | 297 | 264 | -11.1 % | 5 | pass |
+| initial JS | `ci_initial_gzip_kb` | - | 146.9 | 146.9 | +0.0 KB | 1 | pass |
+| hub | `POST /v1/perf/samples` | - | - | p50 5.9 / p95 8.8 ms | 0 5xx | 83 calls | see 12.3 |
+
+How noisy this is:
+
+- **The runs disagree.** Run 1 (n=7) measured desktop TBT -49 % and phone flow
+  +5.1 %. Run 2 (n=15) measured desktop TBT +16 % and phone flow -5.2 %.
+- **Desktop open topic is bimodal.** Both arms show values near 70..80 ms and
+  near 150..185 ms, and B drew more of the high ones.
+- **Desktop script time is the one consistent signal.** CDP ScriptDuration is
+  +7.4 % pooled (102 -> 110 ms; paired median +17 %). That fits the lazy
+  collector chunk being parsed and run inside the probe's "2.5 s after the Flow
+  list" window.
+
+### 12.3 The rows that pass on their own terms
+
+- **Initial JS.** The collector is not in the initial chunk: it is
+  `DM8SgNN6.js` (3.95 KB gzip). The `perf-rum` plugin loads it with a dynamic
+  `import()`, and only when `perfRum` is `1`. Initial gzip is 146.9 KB in both
+  arms (budget 155).
+- **Hub.** The before and after windows span different hub revisions
+  (00344..00357 vs 00359..00361) and different traffic, so the send and view
+  route deltas cannot be attributed to the ingest route. The ingest route
+  itself served 83 calls at p50 5.9 / p95 8.8 / max 32 ms with 0 5xx.
+
+### 12.4 What would turn this into a pass
+
+- Re-run 12.1 on an idle box with n >= 15 per arm, and only then read 3 %. The
+  rows that fail here are inside this run's noise.
+- If desktop TBT is still above 3 % on an idle box, start the collector
+  chunk's import from `requestIdleCallback` instead of `onNuxtReady`, so its
+  parse leaves the load's tail.
+
+Evidence (box-local, not in git): `first-load.json` of both runs, 10
+`baseline.json`, and each bundle's `perf-budget` JSON.

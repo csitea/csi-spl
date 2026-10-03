@@ -33,10 +33,23 @@ export function useTopicRowActions() {
     return rows.value[String(taskId || '')] || null
   }
 
+  /* HUM-10 (phone swipe on a Topics row): a second caller awaits the read
+     already in flight instead of seeing the 'loading' placeholder */
+  const inflight = new Map<string, Promise<void>>()
+
   /** Find the row's card and ask the hub what the viewer may do. Once per row. */
-  async function resolve(taskId: string) {
+  function resolve(taskId: string): Promise<void> {
     const task = String(taskId || '')
-    if (!task || rows.value[task]) return
+    if (!task) return Promise.resolve()
+    const pending = inflight.get(task)
+    if (pending) return pending
+    if (rows.value[task]) return Promise.resolve()
+    const run = read(task).finally(() => inflight.delete(task))
+    inflight.set(task, run)
+    return run
+  }
+
+  async function read(task: string) {
     rows.value = { ...rows.value, [task]: { state: 'loading', msgId: '', canArchive: false, canDelete: false, replies: 0 } }
     const lobby = String(live.lobbyTaskId.value || '')
     let found: RowTopicState = rowTopicState(null, '')
@@ -75,17 +88,20 @@ export function useTopicRowActions() {
     rows.value = next
   }
 
-  async function archive(taskId: string) {
+  /** true once the topic is archived (the row swipe snaps back otherwise) */
+  async function archive(taskId: string): Promise<boolean> {
     const task = String(taskId || '')
     const row = stateOf(task)
-    if (!row || row.state !== 'ready' || !row.canArchive) return
+    if (!row || row.state !== 'ready' || !row.canArchive) return false
     try {
       await api.archiveTopic(row.msgId, true)
       drop([task, row.msgId], [row.msgId])
       /* SPL-1264: offer Undo (the same endpoint, archived=false) for 0.7 s */
       archiveUndo.offerUndo(row.msgId, 'rail')
+      return true
     } catch (e) {
       noteError({ source: 'topic-archive', name: 'TopicArchive', message: i18n.t(topicErrorKey(e, 'archive')), error: e })
+      return false
     }
   }
 

@@ -19,13 +19,37 @@
         {{ tr('pages.index.empty') }}
       </p>
       <!-- SPL-986: each row has the rail's row menu, with the card's Archive /
-           Delete once the hub said the viewer may (specs/041 §3.5) -->
+           Delete once the hub said the viewer may (specs/041 §3.5).
+           HUM-10 (t1 548c17ae): on a phone a swipe LEFT on the row archives
+           the topic (composables/useTopicRowSwipe.ts) -->
       <div
         v-for="t in viewer.topics"
         :key="t.task_id"
         class="topic-row-wrap"
+        :class="{
+          'topic-row-wrap--swipe': swipeOn,
+          'topic-row-wrap--swiping': swipeTask === t.task_id && swipeDx !== 0,
+          'topic-row-wrap--swipe-settle': swipeTask === t.task_id && swipeSettle,
+        }"
+        :style="swipeTask === t.task_id && swipeDx !== 0 ? { '--swipe-dx': `${-swipeDx}px`, '--swipe-w': `${swipeDx}px` } : undefined"
+        :data-swipe-archive="swipeOn ? 'true' : undefined"
         @contextmenu.prevent="openTopicMenu(t.task_id)"
+        @pointerdown="swipeDown($event, t.task_id)"
+        @pointermove="swipeMove"
+        @pointerup="swipeUp"
+        @pointercancel="swipeCancel"
+        @click.capture="swipeSwallowClick"
       >
+      <div
+        v-if="swipeTask === t.task_id && swipeDx !== 0"
+        class="topic-swipe-reveal"
+        data-testid="topic-swipe-reveal"
+        :data-armed="swipeArmed ? 'true' : undefined"
+        aria-hidden="true"
+      >
+        <UiIcon name="archive" :size="20" />
+        <span v-if="swipeArmed" class="topic-swipe-reveal__text">{{ tr('feed.swipe_archive') }}</span>
+      </div>
       <a
         class="topic-row"
         :class="{ selected: openedTopicId === t.task_id, 'is-archived': t.archived_at }"
@@ -86,6 +110,7 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
+import { useTopicRowSwipe } from '~/composables/useTopicRowSwipe'
 import { namedLine, topicStarter } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
@@ -255,6 +280,27 @@ function openTopicMenu(taskId: string) {
   rowMenu.value = taskId
   void resolveTopicRow(taskId)
 }
+/* HUM-10 (owner, t1 548c17ae): a phone swipe LEFT on a row archives its
+   topic, through the row menu's own Archive above */
+const {
+  on: swipeOn,
+  task: swipeTask,
+  dx: swipeDx,
+  armed: swipeArmed,
+  settle: swipeSettle,
+  down: swipeDown,
+  move: swipeMove,
+  up: swipeUp,
+  cancel: swipeCancel,
+  swallowClick: swipeSwallowClick,
+} = useTopicRowSwipe({
+  allowed: (taskId) => {
+    const row = topicRowState(taskId)
+    return !row || row.state === 'loading' ? null : row.state === 'ready' && row.canArchive
+  },
+  prepare: resolveTopicRow,
+  archive: archiveTopicRow,
+})
 </script>
 
 <style scoped>
@@ -268,4 +314,38 @@ function openTopicMenu(taskId: string) {
   align-items: start;
 }
 .topic-row__main { min-width: 0; }
+/* HUM-10: the phone row swipe (useTopicRowSwipe), MessageCard's look. pan-y
+   leaves the vertical scroll to the browser and gives the horizontal move to
+   the row; the row slides by --swipe-dx and the strip, pinned just past the
+   end it uncovers (--swipe-w wide), shows the archive icon (accent once past
+   the threshold, with "Release to archive"). */
+.topic-row-wrap--swipe { touch-action: pan-y; }
+.topic-row-wrap--swiping,
+.topic-row-wrap--swipe-settle { transform: translateX(var(--swipe-dx, 0px)); }
+.topic-row-wrap--swipe-settle { transition: transform 0.18s ease-out; }
+:global(html[dir="rtl"]) .topic-row-wrap--swiping,
+:global(html[dir="rtl"]) .topic-row-wrap--swipe-settle { transform: translateX(calc(-1 * var(--swipe-dx, 0px))); }
+.topic-swipe-reveal {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(-1 * var(--swipe-w, 0px));
+  width: var(--swipe-w, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-inline-end: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  background: var(--color-selected);
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+.topic-swipe-reveal[data-armed] { background: var(--color-accent); color: var(--color-on-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .topic-row-wrap--swipe-settle { transition: none; }
+}
 </style>

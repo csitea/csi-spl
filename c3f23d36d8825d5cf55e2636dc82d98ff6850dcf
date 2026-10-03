@@ -1,0 +1,6 @@
+Lay-What: Lets each of the two leading roles have its own order of preferred machines.
+Lay-How: Two new optional settings rank the machines for the coordinating role and for the reply role separately.
+Lay-Why: The owner wants the coordinator on one machine by default while the reply role stays where it is.
+Tech-What: LEASE_PRIORITY_ORCH and LEASE_PRIORITY_DISPATCH rank one role each; unset falls back to LEASE_PRIORITY.
+Tech-How: spl-dispatch-lease.func.sh reads the per-role line; SPEC-spool-fleet-roles.md documents it; dispatch-lease 19 and fleet-lease 6b tests.
+Tech-Why: One shared ranking could not put the orchestrator and the dispatchers on different machines.

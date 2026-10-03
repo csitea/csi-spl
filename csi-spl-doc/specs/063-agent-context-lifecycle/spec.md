@@ -175,16 +175,34 @@ cheaply, and picked up mechanically:
 
 - every agent appends one line to `<state>/<ID>/NOTES.md` when it decides
   something, starts a sub-step, or abandons an approach (append-only,
-  `<ts> <kind> <one line>`, kinds `task|decided|tried|next|waiting`);
-- the handoff copies the last 40 lines into a new section 1b.
+  `<ts> <kind> <one line>`, kinds `task|decided|tried|failed|next|waiting`;
+  a `failed` line says what was tried, that it failed, and why);
+- the handoff copies the last 40 lines into a new section 1b, and EVERY
+  `tried` / `failed` line of the task (not only the tail) into section 1c.
 
-Template (sections in order; 1b and 6b are new, the rest is 060 section 6):
+Two rules from a-086's review (`csi-spl-doc/doc/md/agy-opinion-b.md`,
+`572f4156`), accepted by the orchestrator:
+
+- **Negative knowledge is a required section.** Every hand-over (seat
+  rotation, lane restart, hold) carries section 1c "tried and failed". An
+  empty one says `none recorded` explicitly, so a reader can tell "nothing
+  failed" from "the section was dropped". Reason: the costliest repeat after
+  a restart is a dead end tried again.
+- **No raw pane scrape.** The distil carries structured git and spool state
+  instead of the old pane's last terminal lines (ANSI codes, banners,
+  half tool outputs, tmux wraps). This replaces 060 section 6 row 2, whose
+  D1 named "the last terminal lines"; the capture stays available as a
+  local debug file next to the handoff, never read by the seed.
+
+Template (sections in order; 1b, 1c and 6b are new, 2 is replaced, the
+rest is 060 section 6):
 
 | # | section | source | cap |
 |---|---|---|---|
 | 1 | header: rid, role or task, `<ID>@<box>`, age, context at restart, reason (`clock`, `size`, `fail-compact`) | `/proc`, transcript | 12 lines |
 | 1b | **NOTES: the task and its done-criteria, decisions + why, tried and failed, the next step, what it waits on** | `NOTES.md` tail | 40 lines |
-| 2 | in flight: the old pane's last terminal lines | tmux | 60 lines |
+| 1c | **tried and failed (required): every `tried`/`failed` line of the task, or `none recorded`** | `NOTES.md` | 30 lines |
+| 2 | in flight, structured: `git status --short`, the unpushed commits (`git log origin/master..HEAD --oneline`), the branch; the last spool message sent and received (header + first 160 chars) | git, spool | 40 lines |
 | 3 | open asks | `do_spl_asks_open` | 40 rows |
 | 4 | the old session's outbox, last 60 min | outbox | 40 rows |
 | 5 | unread inbox | inbox | 20 rows |
@@ -194,9 +212,8 @@ Template (sections in order; 1b and 6b are new, the rest is 060 section 6):
 | 8 | session tail | transcript | 20 blocks |
 | 9 | memory files by name | memory dir | names |
 
-A LANE distil skips sections 3, 6, 6b and 7, and adds two: the branch with
-its unpushed commits (`git log origin/master..HEAD --oneline`), and the
-brief path.
+A LANE distil skips sections 3, 6, 6b and 7 (it stays scoped to its own
+worktree, branch, commits, NOTES and spool), and adds the brief path.
 
 - Measured reason: 6/31 new seats went back into the old transcript and
   15/31 listed the tmux windows in their first 20 calls (3.3); 1b and 6b
@@ -238,8 +255,10 @@ The lane keeps its id, worktree and branch; only the process is new.
 
 ### 7.3 Fallbacks
 
-- the restart's SPAWN fails -> a manual `/compact` into the old pane
-  (R-L1 alternative A, R-R2), plus a note to the orchestrator;
+- the restart's SPAWN fails -> what `seat_fail_action` says (section 11):
+  `compact` (default) types `/compact` into the old pane (R-L1 alternative
+  A, R-R2); `respawn` kills the pane's process and spawns fresh from the
+  hold state (a-086's option); either way a note to the orchestrator;
 - `/compact` fails too or the pane is wedged -> the orchestrator closes
   the lane and respawns it from the hold dir (section 1.1's hold rule).
 
@@ -303,6 +322,8 @@ fail-closed NULLIF shape (the `fleet_lanes` 0096 policy pair), plus
 | `seat_compact_min_ctx_k` | 400 | 100..950 | R-R2: ...and only when the seat is above N k |
 | `size_check_every_min` | 10 | 5..60 | how often the size check runs (the cron line fires every 5 min; the check skips runs until N is due) |
 | `notes_tail_lines` | 40 | 0..200 | R-D1: lines of `NOTES.md` copied into handoff section 1b (0 = section off) |
+| `seat_fail_action` | `compact` | `compact`, `respawn` | R-R2 / 7.3: after `seat_compact_after_fails` failures, compact in place, or kill and respawn from the hold state (a-086's option) |
+| `lane_restart_wall_min` | 0 (off) | 0, 10..240 | restart a lane after N min of wall time, independent of context (a-086's option: 30) |
 | `lane_checkpoint_min` | 0 (off) | 0, 10..240 | c-077 practice 11: at N min of wall time a lane lands what is green and posts one status line; off until c-077's plan is decided |
 
 - `lane_checkpoint_min` is c-077's limit, owned here as a number only:
@@ -311,6 +332,13 @@ fail-closed NULLIF shape (the `fleet_lanes` 0096 policy pair), plus
   median 73 min, p90 191 min, 41 of 50 lanes over 30 min. Wall time
   includes CI waits, so it is a time limit, not a context one; the
   context rules above stay the trigger for restarts.
+- a-086's dissent (`agy-opinion-b.md`) is two settings, not defaults: a
+  stricter lane restart is `lane_restart_ctx_k = 200` plus
+  `lane_restart_wall_min = 30`, and "never type /compact into a wedged
+  pane" is `seat_fail_action = respawn`. The defaults stay the approved
+  Q1..Q3 values; the admin can switch per workspace and section 12 shows
+  the effect. Measured cost of the 200k option: 58 of 130 lanes crossed
+  200k (section 4).
 - Validation: the CHECK on each column = the "allowed" range, and the hub
   refuses a PATCH outside it with 400 and the key name. One Go table of
   `{key, default, min, max}` is the source for the hub; its test pins the

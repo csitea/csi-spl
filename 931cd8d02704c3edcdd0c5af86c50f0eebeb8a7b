@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Lets a standby agent take over coordination when the active one is stuck, not only when it is gone; this is internal team tooling and nothing changes for users.

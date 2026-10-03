@@ -119,6 +119,36 @@ INJECTED_BLOCKS = re.compile(
 INJECTED_LINES = re.compile(r"^(?:CLI RESTARTED IN PLACE\b|\[SYSTEM NOTIFICATION\b|Caveat: The messages below were generated\b)")
 
 
+# An answer that only reports the agent's own machinery is no answer to a
+# person (owner no-filler rule, HUM-10, 2026-10-03: such a message "does not
+# bring any additional value to the human reader"). Traced to this mirror: prd
+# msg b3a233f9, 13:47:21Z, "I restarted the watcher on my inbox and the dispatch
+# lease ... I still hold the lease ... my inbox is empty. Waiting on c-001 ...".
+# STATUS_OPENER: an answer whose first line is a watcher, lease, poll, inbox or
+# waiting report is dropped whole. PROGRESS_LINE: a spinner or tool-progress
+# line inside a real answer is cut; the answer text around it goes out.
+STATUS_OPENER = re.compile(
+    r"^\W*(?:"
+    r"(?:i(?:'ve|\s+have)?\s+)?(?:re-?)?(?:start|restart|arm|renew|resume|check)(?:ed)?\b[^.\n]*"
+    r"\b(?:watcher|lease|poll(?:er|ing)?|monitor|inbox)\b"
+    r"|(?:i\s+)?(?:still\s+)?hold\s+(?:the\s+)?(?:dispatch\s+)?lease\b"
+    r"|(?:my\s+)?inbox\s+is\s+(?:still\s+)?empty\b"
+    r"|no\s+new\s+(?:messages?|mail|tasks?)\b"
+    r"|(?:still\s+)?(?:waiting|polling|watching)\b"
+    r"|(?:standing\s+by|on\s+standby|idle)\b"
+    r"|(?:watcher|lease|poll(?:er)?)\s*(?::|is\b|held\b|renewed\b|armed\b|expired\b)"
+    r")", re.I)
+PROGRESS_LINE = re.compile(r"^\s*(?:[\u2800-\u28ff\u273b\u2722\u2736\u2733\u23bf]|\u25cf\s+\w+\()")
+
+
+def answer_text(text):
+    """The part of an answer a person reads: spinner / tool-progress lines cut;
+    '' when what is left is only a status report."""
+    t = "\n".join(ln for ln in str(text or "").split("\n") if not PROGRESS_LINE.match(ln)).strip()
+    first = next((ln for ln in t.split("\n") if ln.strip()), "")
+    return "" if not t or STATUS_OPENER.match(first) else t
+
+
 def human_text(text):
     """The part of a prompt a person typed: every injected block removed
     (closed or cut off), then nothing at all if what is left is only an
@@ -505,6 +535,10 @@ def post_one(seat, agent, event, text, session):
     except OSError:
         pass
     human, task = turn["to"], turn["task"]
+    text = answer_text(text)
+    if not text:
+        log(adir, "skip answer: status only (watcher, lease, poll, spinner or tool progress), no answer for a person")
+        return "skipped"
     body, counts = redact(text)
     body = clip_body(body)
     env = seat_env(seat)

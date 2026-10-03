@@ -12,6 +12,10 @@
 #      DM trigger is posted (the check can fail)
 #   4. the echo kinds: a typed web UI line (A), a peer's poke line (B), a
 #      terminal prompt (C) and a task notification (D) are not posted
+#   4b. owner no-filler rule: a status-only answer (watcher, lease, poll,
+#      inbox, waiting) is not posted even on a DM-triggered turn; spinner and
+#      tool-progress lines are cut from a real answer. CONTROL: a real answer
+#      that mentions a lease is posted
 #   5. an answer is posted once per session: the same text again is skipped;
 #      one DM trigger answers one turn
 #   6. the topic and the human come from the trigger, not from the last DM
@@ -170,6 +174,21 @@ has "4. a terminal prompt's turn is the terminal's" "turn: terminal" "$(cat "$A/
 post answer "after a poke" d2 >/dev/null
 eq "4. ... and their answers neither" "$n4" "$(nsends)"
 check "4. the typed marker of an echoed line is still consumed" test ! -e "$A/.mirror/typed/4-1"
+
+# --- 4b. status-only answers are never posted, even to a DM -----------------------
+n4b=$(nsends)
+# The traced shape: prd msg b3a233f9, 13:47:21Z, a watcher/lease status report.
+turn dm HUM-3 "$T1" "q4b1" $'I restarted the watcher on my inbox and the dispatch lease, since the first one had expired. I still hold the lease (c-002@box, renewed 58 s ago), and my inbox is empty.\n\nWaiting on c-001 for five things:\n\n| topic | waiting for |\n|---|---|\n| 77540e6f | status text |' s4b1
+turn dm HUM-3 "$T1" "q4b2" "Still waiting on CI for c36a92dc." s4b2
+turn dm HUM-3 "$T1" "q4b3" "Inbox is empty; standing by." s4b3
+turn dm HUM-3 "$T1" "q4b4" "Lease: c-001@box 12" s4b4
+turn dm HUM-3 "$T1" "q4b5" $'\u280b Polling the hub\u2026\n\u23bf  Running\u2026' s4b5
+eq "4b. status-only answers (watcher/lease, waiting, inbox, lease line, spinner) post nothing" "$n4b" "$(nsends)"
+has "4b. ... and the log says why" "status only" "$(tail -1 "$A/.mirror/mirror.log")"
+turn dm HUM-3 "$T1" "q4b6" $'\u25cf Bash(git push)\nPushed: the fix is on master.\n\u280b Working\u2026' s4b6
+eq "4b. tool-progress lines are cut, the answer text goes out" "Pushed: the fix is on master." "$(body_of_last)"
+turn dm HUM-3 "$T1" "q4b7" "The lease moved to c-001 because yours expired; nothing else changed." s4b7
+eq "4b. CONTROL: a real answer that mentions a lease is posted" "The lease moved to c-001 because yours expired; nothing else changed." "$(body_of_last)"
 
 # --- 5. an answer once per session; one trigger, one answer -------------------------
 turn dm HUM-3 "$T1" "q5" "the answer" s9; n1=$(nsends)

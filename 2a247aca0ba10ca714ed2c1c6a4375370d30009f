@@ -1,0 +1,6 @@
+Lay-What: A topic now gets at most one automatic "Seen" reply, even when the duty of replying moves from one computer to another.
+Lay-How: Before replying, the helper asks the server whether any computer already replied "Seen" in that topic, and stays silent if one did.
+Lay-Why: After the duty moved between computers, the same topic got a second "Seen" reply, which was noise.
+Tech-What: orc responder checks the hub for an existing RSP-* row before posting a Seen; when the hub cannot answer it waits, then gives up with a WARN.
+Tech-How: spl-responder-run asks `spool hub-rsp` for an unknown topic; a pending Seen waits in <desk>/seen-pending, retried each pass, dropped after RESP_HUB_WAIT 900 s; responder-cross-box.tst.sh.
+Tech-Why: The seen-topics ledger and outbox are per machine, so after a dispatch-lease failover the new machine did not know the topic was answered.

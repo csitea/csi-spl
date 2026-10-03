@@ -142,6 +142,18 @@ type Message struct {
 	// SPL-1024 (rdb 0069): where the row was moved from; zero = at home.
 	// Only Moves.MoveTopic / MoveMessage write it.
 	Move MoveMark
+	// Spec 068 (rdb 0110): the peer claim. The insert path never takes them
+	// from the writer: Responsible (<id>@<box>) and NeedsPeer are set at
+	// insert (claimDefaults, the 0110 trigger), the rest only by
+	// MessageClaims. The Postgres message reads do not scan them.
+	Responsible    string
+	LockedUntil    time.Time
+	ResponsibleGen int64
+	ClaimN         int
+	HandledAt      time.Time
+	HandledHow     string
+	NotBy          []string
+	NeedsPeer      bool
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).
@@ -272,6 +284,9 @@ type Store interface {
 
 	// Asks to the orchestrator, tracked until closed (rdb 0097, CLE-77929).
 	FleetAsks
+
+	// The peer claim on a message (rdb 0110, spec 068 4.1).
+	MessageClaims
 
 	// Legacy agent id -> new id, written once (rdb 0101, spec 061).
 	AgentAliases

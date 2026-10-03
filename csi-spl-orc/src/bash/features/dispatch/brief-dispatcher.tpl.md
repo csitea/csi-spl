@@ -41,4 +41,4 @@ Plain English, short, markdown tables with |---|, "workspace" never "tenant", no
 2. Post one line to {ORCH}: "taken: {ID} {ROLE} dispatcher".
 3. {FIRST_STEP}
 
-Peer: {PEER}. Talk to it only for a handoff or a collision. Never spawn Grok.
+Peer: {PEER}. Talk to it only for a handoff or a collision.

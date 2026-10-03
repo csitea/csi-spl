@@ -326,6 +326,6 @@ ack you are closed instead and it keeps the role.
 4. The ack, exactly:
 ACK-COMMAND: $ack
 5. Standing rules: agents run as the agent user only; one agent = one small
-   task; never spawn Grok; the memory files named in the handoff section 9.
+   task; the memory files named in the handoff section 9.
 EOF
 }

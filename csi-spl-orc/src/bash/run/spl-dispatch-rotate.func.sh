@@ -407,7 +407,7 @@ the role.
 ACK-COMMAND: $ack
 
 Standing rules: agents run as the agent user only; one agent = one small
-task; never spawn Grok.
+task.
 EOF
 }
 

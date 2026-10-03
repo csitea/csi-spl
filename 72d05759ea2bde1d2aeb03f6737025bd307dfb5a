@@ -1,0 +1,6 @@
+Lay-What: Adding a reaction or changing a message's kind now takes fewer trips to the database, so it is quicker.
+Lay-How: The server writes the change and reads back the result in one go instead of several separate steps.
+Lay-Why: Each extra trip to the database adds waiting time to a click.
+Tech-What: store AddReaction is one CTE statement; SetKind is scope + FOR UPDATE + one CTE write in one batch.
+Tech-How: reactions_postgres.go and message_kind_postgres.go fold the follow-up read into the write; returning_write_test.go covers not-found, retention and 32 concurrent SetKind.
+Tech-Why: Perf round 4 G6: PATCH kind 15 -> 8 and PUT reaction 13 -> 10 round trips (n=5).

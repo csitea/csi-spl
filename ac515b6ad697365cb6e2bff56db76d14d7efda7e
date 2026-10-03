@@ -1,0 +1,6 @@
+Lay-What: Internal tidy-up of how name lookups check for an entry; nothing you see changes.
+Lay-How: The same check is now written in the shorter, modern form the browser already supports.
+Lay-Why: Shorter code is easier to read and maintain, with no change to behaviour.
+Tech-What: WUI mention-autocomplete, channel-members and prefs use Object.hasOwn instead of hasOwnProperty.call.
+Tech-How: Five call sites swapped one-for-one; the null/object guards in front of them are kept.
+Tech-Why: Refactor round 2 row 9: ES2022 Object.hasOwn is the same own-key check and already ships in the bundle.

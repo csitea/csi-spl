@@ -8,7 +8,7 @@
 # @description   2. <spool root>/dispatch/lease.conf (the lease opt-in)
 # @description   3. both briefs, rendered from features/dispatch/brief-dispatcher.tpl.md
 # @description   4. each dispatcher's worktree <repo>-wt/<id>, BEFORE its spawn
-# @description   5. its .claude/settings.local.json allowing ONLY desk replies
+# @description   5. its .claude/settings.local.json allowing desk replies, posts and archives (as itself)
 # @description      (+ the path in git's info/exclude). A running session does
 # @description      not load a settings file created after it started: that
 # @description      is reported as RELAUNCH, never done here
@@ -280,12 +280,17 @@ spl_dispatch_reply_cmd() {
   echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply"
 }
 
-# The one permission a dispatcher gets beyond auto mode: desk replies as
-# itself (DESK_AGENT=<id>) on this ENV. do_spl_dispatch_check proves it
-# matches spl_dispatch_reply_cmd.
+# The permissions a dispatcher gets beyond auto mode: as itself
+# (DESK_AGENT=<id>) on this ENV it may reply in a topic, open a new channel
+# topic and archive a topic (owner, 2026-10-03 18:26Z, t1 d40c3e2f: "The
+# dispatchers must be able to post. The dispatcher should be doing everything
+# as well."). do_spl_dispatch_check proves the reply rule matches
+# spl_dispatch_reply_cmd.
 spl_dispatch_settings_json() {
-  printf '{\n  "permissions": {\n    "allow": [\n      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a do_spl_desk_reply)"\n    ]\n  }\n}\n' \
-    "$DISPATCH_BOX_USER" "$ENV" "$1"
+  local a
+  for a in do_spl_desk_reply do_spl_desk_post do_spl_topic_archive; do
+    printf '      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$ENV" "$1" "$a"
+  done | sed '$!s/$/,/' | { printf '{\n  "permissions": {\n    "allow": [\n'; cat; printf '    ]\n  }\n}\n'; }
 }
 
 spl_dispatch_settings() {
@@ -294,7 +299,7 @@ spl_dispatch_settings() {
   if cmp -s "$SPL_DISPATCH_TMP/settings" "$f"; then
     spl_dispatch_ok settings "$f"
   else
-    spl_dispatch_do settings "write $f (desk replies only)" \
+    spl_dispatch_do settings "write $f (desk reply / post / archive as $id)" \
       bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/settings" "$f" || return 1
   fi
   exc="$(git -C "$DISPATCH_REPO" rev-parse --git-common-dir 2>/dev/null)/info/exclude"

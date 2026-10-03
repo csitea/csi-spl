@@ -13,6 +13,10 @@
 #   6. T-EXITCLEAN-RETIRING (spec 060 FR-016): --agent CLE-001 --defer from a
 #      retiring window closes THAT window, never the new CLE-001 (control: from
 #      outside it resolves to the new one); from another window it is refused
+#   7. spec 061 ids (c-097 / g-113 / a-091 / q-004) resolve EXACTLY: lower-case
+#      kind, 3 digits, never re-padded, in both the <ID>@<box> and the tagged
+#      "<tag>: <ID>" window shape, never a look-alike ("C-97"). Control: the
+#      pre-c0ec0735 norm_id (10#n, %02d) turns c-097 into C-97 and misses it
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -70,4 +74,41 @@ check "6. the retiring window is closed" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET'
 check "6. the NEW window survives" alive "$NEWP"
 CLE_TMUX_PANE="$VICTIM" bash "$SUT" --agent CLE-001 --defer --timeout 10 >"$T_TMP/o" 2>&1; eq "6. --defer from another window's pane is refused (4)" 4 "$?"
 check "6. ... and the new window survives" alive "$NEWP"
+# --- 7. spec 061 ids resolve exactly (/exit-clean left c-097's window open) ---------------
+NC="$(t_window 'c-097@tbox' 'sleep 600')"
+NG="$(t_window 'tbox: g-113 wip' 'sleep 600')"
+NA="$(t_window 'a-091@tbox' 'sleep 600')"
+NQ="$(t_window 'tbox: q-004' 'sleep 600')"
+DECOY="$(t_window 'C-97@tbox' 'sleep 600')"
+for pair in "c-097:$NC" "G-113:$NG" "a-091:$NA" "q-004:$NQ"; do
+  id="${pair%%:*}"; pane="${pair#*:}"
+  out="$(bash "$SUT" --agent "$id" --dry-run 2>&1)"; eq "7. --agent $id --dry-run exits 0" 0 "$?"
+  has "7. --agent $id resolves its own pane" "pane=$pane " "$out"
+  has "7. ... as ${id,,}: lower case, never re-padded" "via --agent ${id,,}" "$out"
+done
+hasnt "7. c-097 never resolves the look-alike C-97" "$DECOY" "$(bash "$SUT" --agent c-097 --dry-run 2>&1)"
+# Control: the same script with the pre-c0ec0735 norm_id spliced in (beside
+# a lib/ link, which it loads relative to itself).
+mkdir -p "$T_TMP/old/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/old/lib"
+cat >"$T_TMP/old-norm.sh" <<'OLDNORM'
+norm_id() {
+  local t p n
+  t="$(printf '%s' "${1:-}" | tr '[:lower:]' '[:upper:]' | tr -d ' ')"
+  if printf '%s' "$t" | grep -qE '^[A-Z]+-?[0-9]+$'; then
+    p="$(printf '%s' "$t" | grep -oE '^[A-Z]+')"
+    n="$(printf '%s' "$t" | grep -oE '[0-9]+$')"
+    printf '%s-%02d' "$p" "$((10#$n))"
+    return 0
+  fi
+  return 1
+}
+OLDNORM
+awk -v f="$T_TMP/old-norm.sh" '/^norm_id\(\) \{/ { while ((getline l < f) > 0) print l; skip = 1; next }
+  skip { if (/^}/) skip = 0; next } { print }' "$SUT" >"$T_TMP/old/scripts/tmux-close-window.sh"
+out="$(bash "$T_TMP/old/scripts/tmux-close-window.sh" --agent c-097 --dry-run 2>&1)"
+has "7. control: the old norm_id turns c-097 into C-97" "'C-97'" "$out"
+hasnt "7. control: ... and misses c-097's window" "pane=$NC " "$out"
+bash "$SUT" --agent c-097 >"$T_TMP/o" 2>&1; eq "7. --agent c-097 closes its window (exit 0)" 0 "$?"
+check "7. c-097's window is gone" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$NC'"
+check "7. the look-alike C-97 window survives" alive "$DECOY"
 t_done

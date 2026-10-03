@@ -1,7 +1,5 @@
-// Topic d4bc9db4 (owner): the phone composer dock's buttons are Back, Attach
-// and Send. Since t1 932eeefc (owner, 2026-10-03: "Move both the play button
-// and the attachment to the bottom menu, 2 mm on the left") Attach and Send
-// lead the bar and Back stays after the field: Attach | Send | field | Back. The camera button is gone (a photo is taken through
+// Topic d4bc9db4 (owner): the phone composer dock's button row is
+// Back | Attach | Send. The camera button is gone (a photo is taken through
 // Attach: the OS picker offers the camera), Attach sits in the middle, and
 // Back is the top bar's "<" (MobileBack) - the same stack.pop(), so a tap on
 // either lands on the same route and level. Back stays in thumb reach while
@@ -9,8 +7,8 @@
 // to go back and forth"). The desktop row is unchanged (the control).
 //
 //   phone (390x844, hasTouch):
-//     1 no camera button, no capture input; Attach, Send, Back left to right,
-//       Attach and Send side by side, each a 44 px target
+//     1 no camera button, no capture input; Back, Attach, Send left to right,
+//       Attach centred between them, each a 44 px target
 //     2 level 1: Back is shown but disabled (nothing below to go back to)
 //     3 level 3: the dock's Back lands where the top bar's "<" lands
 //     4 level 2: the same, 2 -> 1
@@ -129,10 +127,10 @@ async function phone(browser) {
   await sleep(600)
   const r1 = await rowFacts(p)
   const ids = r1 ? r1.buttons.map((b) => b.id) : []
-  const [attach, send, back] = r1 ? r1.buttons : []
-  ok('390px 1 no camera; Attach, Send, Back left to right; Attach and Send side by side; 44 px targets',
-    Boolean(r1 && r1.docked && !r1.camera && ids.join(',') === 'attach,send,dock-back'
-      && send.cx - attach.cx <= TAP + 8 && back.label
+  const [back, attach, send] = r1 ? r1.buttons : []
+  ok('390px 1 no camera; Back, Attach, Send left to right; Attach centred; 44 px targets',
+    Boolean(r1 && r1.docked && !r1.camera && ids.join(',') === 'dock-back,attach,send'
+      && Math.abs(attach.cx - (back.cx + send.cx) / 2) <= 1 && back.label
       && r1.buttons.every((b) => b.w >= TAP && b.h >= TAP)), r1)
   ok('390px 2 level 1: Back is shown and disabled', Boolean(back && back.id === 'dock-back' && back.disabled), back)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'dock-buttons-390-level1.png') })

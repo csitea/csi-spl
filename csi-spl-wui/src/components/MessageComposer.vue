@@ -1432,20 +1432,13 @@ textarea.in-code {
 .composer-mode-glyph[data-glyph=thread-tree] { color: var(--color-mode-reply, var(--color-accent)); }
 .composer.omnibox--global .has-mode-glyph textarea { padding-inline-start: 24px; }
 .omnibox--bottom.omnibox--global .composer-mode-glyph { top: 20px; }
-/* owner, t1 932eeefc (2026-10-03): "Move both the play button and the
-   attachment to the bottom menu, 2 mm on the left" - "the bottom bar where
-   the omnibox is". In that bar (the phone dock at the bottom or in the
-   bottom-right corner, the desktop dock) Attach and GO lead the line, the
-   first one 8 px (~2 mm at 96 dpi) from the bar's left edge, and the field
-   follows; the phone's Back stays after the field. The row hands its buttons
-   to the box's flex line (display: contents) so each is ordered on its own;
-   the DOM, and with it every handler and Ctrl/Cmd+Enter, is unchanged. */
-.omnibox--bottom .composer-row,
-.composer--dock:not([data-phone-pos=top]) .composer-row { display: contents; }
-.omnibox--bottom .composer-row > .attach,
-.omnibox--bottom .composer-row > .composer-go,
-.composer--dock:not([data-phone-pos=top]) .composer-row > .attach,
-.composer--dock:not([data-phone-pos=top]) .composer-row > .composer-go { order: -1; }
+/* owner, t1 932eeefc (2026-10-03): Attach + GO stay at the RIGHT end of the
+   bottom bar, "just a bit 2 mm on the left to align with the scroll till
+   bottom button": 8 px (~2 mm) further in, so on a phone GO's right edge
+   lines up with the thread's round scroll-to-bottom arrow (LiveFeed
+   .thread-jump, 16 px from the edge; the dock's own padding is 8 px). The
+   desktop bottom dock takes the same 8 px. The top positions keep theirs. */
+.omnibox--bottom .composer-row { margin-inline-end: 8px; }
 /*
  * SPL-991 — the phone dock (see `docked`). The doubled .composer beats
  * main.css's `.composer.omnibox--global ...` rules without !important.
@@ -1522,6 +1515,7 @@ textarea.in-code {
   .composer--dock.composer--dock .omnibox-resize,
   .composer--dock.composer--dock .composer-go__tip { display: none; }
   .composer--dock.composer--dock .composer-row { align-self: flex-end; gap: 2px; }
+  .composer--dock.composer--dock:not([data-phone-pos=top]) .composer-row { margin-inline-end: 8px; }
   .composer--dock.composer--dock .composer-row button,
   .composer--dock.composer--dock .composer-row .composer-go {
     width: var(--tap);

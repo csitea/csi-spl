@@ -120,16 +120,12 @@ function cue(p) {
           w: Math.round(a.width),
         }
       })(),
-      /* the dock's own padding around the box (phone): form edge -> field
-         border above, form edge -> the leading control at the side (owner,
-         t1 932eeefc: Attach + GO lead the bar, so that is Attach) */
+      /* the dock's own padding around the box (phone): form edge -> field border */
       gap: (() => {
         if (!field || f.getAttribute('data-docked') !== 'true') return null
         const a = f.getBoundingClientRect()
         const b = field.getBoundingClientRect()
-        const lead = Math.min(...[field, ...f.querySelectorAll('.composer-row > button')]
-          .filter((el) => el.getClientRects().length).map((el) => el.getBoundingClientRect().left))
-        return { top: Math.round(b.top - a.top), left: Math.round(lead - a.left) }
+        return { top: Math.round(b.top - a.top), left: Math.round(b.left - a.left) }
       })(),
       placeholder: f.querySelector('textarea')?.placeholder || '',
       go: go ? go.getAttribute('aria-label') : '',

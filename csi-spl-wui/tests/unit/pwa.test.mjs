@@ -1,6 +1,6 @@
-// PWA install (mobile step 1): a manifest, its icons and a service worker
-// that caches nothing, so the WUI installs to a phone home screen without
-// ever serving a stale bundle after a deploy.
+// PWA install (mobile step 1): a manifest, its icons and a service worker,
+// so the WUI installs to a phone home screen. Since W9 the worker keeps an
+// app shell that never outlives a deploy (sw-app-shell.test.mjs).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
@@ -29,11 +29,23 @@ describe('pwa', () => {
     assert.ok(existsSync(join(WUI, 'src/public/icons/apple-touch-icon.png')))
   })
 
-  it('the service worker caches nothing and serves nothing', () => {
+  it('W9: the service worker caches only the app shell, keyed by build, with its own kill switch', () => {
     const sw = src('src/public/sw.js').replace(/^\s*\/\/.*$/gm, '')
-    assert.doesNotMatch(sw, /addEventListener\(\s*['"]fetch['"]/)
-    assert.doesNotMatch(sw, /\.put\(|\.addAll\(|respondWith/)
-    assert.match(sw, /caches\.delete/)
+    /* behaviour: tests/unit/sw-app-shell.test.mjs drives the fetch handler */
+    assert.match(sw, /const SHELL_CACHE = 'spool-shell-v1'/)
+    assert.match(sw, /navigationPreload\.enable\(\)/)
+    assert.match(sw, /k !== SHELL_CACHE\)\.map\(\(k\) => caches\.delete\(k\)\)/)
+    assert.doesNotMatch(sw, /\.addAll\(/, 'no precache: only documents the network just served')
+  })
+
+  it('W9: a stale-shell notice from the worker moves the tab by build-watch rules', () => {
+    const p = src('src/plugins/pwa.client.ts')
+    assert.match(p, /const SHELL_STALE = 'spool:shell-stale'/)
+    assert.match(src('src/public/sw.js'), /const SHELL_STALE = 'spool:shell-stale'/)
+    assert.match(p, /decide\(\{ running: watch\.value\.running, live, busy: pageBusy\(\), guard \}\)/)
+    assert.match(p, /const guard = readReloadGuard\(\)/)
+    assert.match(p, /if \(act === 'reload'\) return reloadForBuild\(live\)/)
+    assert.match(p, /idleSeen = pageBusy\(\) \? 0 : idleSeen \+ 1/)
   })
 
   it('SPL-990: the viewport covers the notch and resizes for the keyboard', () => {

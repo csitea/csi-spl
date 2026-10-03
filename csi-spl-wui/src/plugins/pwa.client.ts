@@ -8,7 +8,14 @@
 // manifest and its 192 px icon while the first screen's chunks were still
 // loading - 2 requests / 36.7 KB before the left rail on prd's cold first
 // load (do_spl_wui_perf_first_load_net). Install needs neither earlier.
+import { IDLE_POLL_MS, decide, normCommit, pageBusy } from '~/utils/build-watch.mjs'
+import { readReloadGuard, reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
+
 const MANIFEST_HREF = '/manifest.webmanifest'
+// W9: public/sw.js answered this tab from its app shell while the network
+// (read in the background) already names another build - see sw.js.
+const SHELL_STALE = 'spool:shell-stale'
+const SHELL_ASK = 'spool:shell-ask'
 
 export default defineNuxtPlugin(() => {
   onNuxtReady(() => {
@@ -26,6 +33,57 @@ export default defineNuxtPlugin(() => {
   })
   if (import.meta.dev) return
   if (!('serviceWorker' in navigator)) return
+  // W9: a tab the worker's shell answered with build A while the network
+  // now serves B moves to B by build-watch's own rules (SPL-1006): idle ->
+  // reload (a reload always goes to the network, never to the shell), a
+  // draft or dialog -> the "new version" bar, and the per-tab reload guard
+  // still holds. The worker pushes SHELL_STALE when it learns of B; a push
+  // that lands before this plugin listens is lost, so the tab also asks
+  // (SHELL_ASK) once it listens. Both run the same idempotent check, and only
+  // once the app is ready: a location.reload() during boot is cancelled by
+  // the boot's own navigations (measured: 3 of 20 swaps kept A with the
+  // reload guard set, so build-watch then only showed its bar).
+  const ownBuild = String(useRuntimeConfig().app.buildId || '')
+  const watch = useBuildWatch()
+  let acted = ''
+  let ready = false
+  let early: { type?: string, build?: string, commit?: string } | null = null
+  onNuxtReady(() => {
+    ready = true
+    if (early) onShellBuild(early)
+  })
+  function onShellBuild(d: { type?: string, build?: string, commit?: string } | null) {
+    if (!d || d.type !== SHELL_STALE || !d.build || d.build === ownBuild || d.build === acted) return
+    if (!ready) {
+      early = d
+      return
+    }
+    const live = normCommit(d.commit)
+    if (!live) return
+    acted = d.build
+    watch.value.live = live
+    const guard = readReloadGuard()
+    const act = decide({ running: watch.value.running, live, busy: pageBusy(), guard })
+    if (act === 'reload') return reloadForBuild(live)
+    watch.value.prompt = act === 'prompt'
+    // as build-watch: a busy page reloads by itself once idle on two reads
+    // in a row, unless this tab already reloaded for that build (bar only)
+    if (act !== 'prompt' || guard === live) return
+    let idleSeen = 0
+    const idleTimer = setInterval(() => {
+      idleSeen = pageBusy() ? 0 : idleSeen + 1
+      if (idleSeen < 2) return
+      clearInterval(idleTimer)
+      reloadForBuild(live)
+    }, IDLE_POLL_MS)
+  }
+  navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => onShellBuild(e.data))
+  const sw = navigator.serviceWorker.controller
+  if (sw) {
+    const ch = new MessageChannel()
+    ch.port1.onmessage = (e: MessageEvent) => { ch.port1.close(); onShellBuild(e.data) }
+    sw.postMessage({ type: SHELL_ASK }, [ch.port2])
+  }
   // CLE-77890: a phone keeps one tab alive for days and a single-page app
   // never navigates, so the browser would not look for a new worker. Ask
   // whenever the tab comes back (at most once a minute); the new one

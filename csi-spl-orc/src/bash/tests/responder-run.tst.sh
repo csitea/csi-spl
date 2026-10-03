@@ -33,7 +33,9 @@ SH
 mkdir -p "$T/spool"
 
 # in_resp sources the funcs with every cloud/spool leg stubbed. spl_desk_spool
-# emits a canned inbox on recv; do_spl_desk_reply logs a call instead of posting.
+# emits a canned inbox on recv and 0 RSP rows on hub-rsp (no other machine:
+# the cross-machine case is responder-cross-box.tst.sh); do_spl_desk_reply
+# logs a call instead of posting.
 in_resp() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" \
     SPOOL_TEST=1 SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/spool/box.env" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" \
@@ -46,7 +48,7 @@ in_resp() {
     do_spl_cloud_cnf() { SPL_STATE_DIR="'"$T"'/state/dev"; SPL_CNF="'"$T"'/env.yaml"; SPL_ORG_APP="csi-spl"; export SPL_STATE_DIR SPL_CNF SPL_ORG_APP; return 0; }
     yq() { echo "api.example.net"; }
     spl_host_spool() { return 0; }
-    spl_desk_spool() { case "$*" in *"-- recv"*) cat "'"$T"'/inbox.json";; *) echo "{}";; esac; }
+    spl_desk_spool() { case "$*" in *"-- recv"*) cat "'"$T"'/inbox.json";; *"-- hub-rsp"*) echo "{\"rsp\": 0}";; *) echo "{}";; esac; }
     do_spl_desk_reply() { echo "reply DESK_TO=$DESK_TO DESK_TASK=$DESK_TASK" >>"$REPLY_LOG"; return 0; }
     eval "$SNIPPET"'
 }

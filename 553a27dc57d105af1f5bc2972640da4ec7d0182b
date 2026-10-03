@@ -1,0 +1,6 @@
+Lay-What: On a phone, tapping a link to another topic inside a message now opens that topic.
+Lay-How: When such a link is followed, the topic that was open closes so the page the link leads to can be seen; "Back" returns to the message.
+Lay-Why: Tapping the link seemed to do nothing, because the new page opened hidden behind the topic that stayed on screen.
+Tech-What: WUI phone: a forward route change to another path without ?topic= closes the open topic pane.
+Tech-How: topic-pane.mjs routeLeavesTopic, wired in layouts/default.vue via router.afterEach; Back/Forward are excluded via history.listen; unit route-leaves-topic and e2e phone-topic-link.
+Tech-Why: The topic pane is level 3 and the only panel on screen, so an in-post /t/<id> link changed the URL and the hidden page under it.

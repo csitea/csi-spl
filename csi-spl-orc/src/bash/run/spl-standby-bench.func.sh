@@ -56,10 +56,12 @@ do_spl_standby_bench() {
 
   # which vendors this box has: a CLI on PATH, and for grok a login
   local -a plan=() skipped=()
-  local vendor have_claude=0 have_grok=0
+  local vendor have_claude=0 have_grok=0 login
   command -v claude >/dev/null 2>&1 && have_claude=1
   if command -v grok >/dev/null 2>&1; then
-    timeout 30 grok models 2>&1 | grep -qi 'logged in' && have_grok=1 || skipped+=("grok: CLI present, not logged in")
+    # captured first: `grok models | grep -q` dies of SIGPIPE under pipefail
+    login="$(timeout 30 grok models 2>&1)" || true
+    [[ "${login,,}" == *"logged in"* ]] && have_grok=1 || skipped+=("grok: CLI present, not logged in ($(head -1 <<<"$login" | cut -c1-120))")
   fi
   (( have_claude )) || skipped+=("claude: no CLI on PATH")
   for m in $models; do

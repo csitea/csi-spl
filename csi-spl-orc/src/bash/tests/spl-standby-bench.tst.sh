@@ -50,6 +50,8 @@ import json, os, sys, time
 a = sys.argv[1:]
 if "--version" in a: print("grok 9.9.9 (stub)"); sys.exit(0)
 if a[:1] == ["models"]:
+    if os.environ.get("STUB_GROK_LOGIN", "1") == "1":  # the listing comes later, as the real CLI's
+        print("You are logged in with stub.", flush=True); time.sleep(0.3); print("Available models:\n  - grok-fast"); sys.exit(0)
     print("You are logged in with stub." if os.environ.get("STUB_GROK_LOGIN", "1") == "1" else "Not signed in."); sys.exit(0)
 open(os.environ["STUB_LOG"], "a").write("grok " + " ".join(a) + "\n")
 open(os.environ["STUB_PIDS"], "a").write(f"{os.getpid()}\n")

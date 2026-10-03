@@ -14,6 +14,7 @@
 export const TENANT_SETTINGS_SECTIONS = [
   { id: 'members', label: 'tenant_settings.members', perm: 'members.invite' },
   { id: 'agents', label: 'tenant_settings.agents', perm: 'tenant.settings' },
+  { id: 'split', label: 'tenant_settings.split', perm: 'tenant.settings' },
   { id: 'channels', label: 'tenant_settings.channels', perm: 'tenant.settings' },
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
 ]

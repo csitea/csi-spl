@@ -29,6 +29,17 @@ func (s *Server) tenantSettingsStore(w http.ResponseWriter) (store.TenantSetting
 	return ts, fb, true
 }
 
+type agentSplitJSON struct {
+	Claude int `json:"claude"`
+	Grok   int `json:"grok"`
+	Agy    int `json:"agy"`
+	Qwen   int `json:"qwen"`
+}
+
+func agentSplitJSONFrom(a store.AgentSplit) agentSplitJSON {
+	return agentSplitJSON{Claude: a.Claude, Grok: a.Grok, Agy: a.Agy, Qwen: a.Qwen}
+}
+
 type tenantSettingsBody struct {
 	TenantID      string `json:"tenant_id"`
 	DisplayName   string `json:"display_name"`
@@ -41,6 +52,8 @@ type tenantSettingsBody struct {
 	// IssuePrefix is the key prefix of the tenant's issues (W16, spec 047);
 	// "" when this hub's store keeps no issues.
 	IssuePrefix string `json:"issue_prefix"`
+	// AgentSplit is the vendor guideline (rdb 0109). The hub does not enforce it.
+	AgentSplit agentSplitJSON `json:"agent_split"`
 }
 
 func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t store.Tenant, ts store.TenantSettings, fb store.Fallbacks) {
@@ -66,7 +79,8 @@ func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t s
 	}
 	writeJSON(w, http.StatusOK, tenantSettingsBody{TenantID: t.ID, DisplayName: cfg.DisplayName,
 		DefaultLocale: cfg.DefaultLocale, TopicArchivePolicy: store.EffectiveArchivePolicy(cfg.TopicArchivePolicy),
-		Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix})
+		Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix,
+		AgentSplit: agentSplitJSONFrom(cfg.AgentSplit)})
 }
 
 // GET /v1/tenant/settings
@@ -82,7 +96,7 @@ func (s *Server) handleTenantSettings(w http.ResponseWriter, r *http.Request) {
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 
-// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?}
+// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?, agent_split?}
 func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.TenantSettings)
 	if !ok {
@@ -93,11 +107,12 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var body struct {
-		DisplayName        *string   `json:"display_name"`
-		DefaultLocale      *string   `json:"default_locale"`
-		TopicArchivePolicy *string   `json:"topic_archive_policy"`
-		Responders         *[]string `json:"responders"`
-		IssuePrefix        *string   `json:"issue_prefix"`
+		DisplayName        *string          `json:"display_name"`
+		DefaultLocale      *string          `json:"default_locale"`
+		TopicArchivePolicy *string          `json:"topic_archive_policy"`
+		Responders         *[]string        `json:"responders"`
+		IssuePrefix        *string          `json:"issue_prefix"`
+		AgentSplit         *agentSplitPatch `json:"agent_split"`
 	}
 	if !decodeMembers(w, r, &body) {
 		return
@@ -119,9 +134,13 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	if body.DisplayName != nil || body.DefaultLocale != nil || body.TopicArchivePolicy != nil {
+	split, okSplit := patchAgentSplit(w, body.AgentSplit)
+	if !okSplit {
+		return
+	}
+	if body.DisplayName != nil || body.DefaultLocale != nil || body.TopicArchivePolicy != nil || split != nil {
 		err := ts.SetTenantConfig(r.Context(), t.ID, store.TenantConfigPatch{DisplayName: body.DisplayName,
-			DefaultLocale: body.DefaultLocale, TopicArchivePolicy: body.TopicArchivePolicy})
+			DefaultLocale: body.DefaultLocale, TopicArchivePolicy: body.TopicArchivePolicy, AgentSplit: split})
 		switch {
 		case errors.Is(err, store.ErrBadTenantConfig):
 			writeErr(w, http.StatusBadRequest, "bad_setting", "display_name is one line of at most 200 characters; default_locale is a supported locale or empty; topic_archive_policy is everyone, admins or starter")
@@ -146,8 +165,35 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Bool("name", body.DisplayName != nil).
 		Bool("locale", body.DefaultLocale != nil).Bool("archive_policy", body.TopicArchivePolicy != nil).
 		Bool("responders", body.Responders != nil).
-		Bool("issue_prefix", body.IssuePrefix != nil).Msg("tenant.settings_changed")
+		Bool("issue_prefix", body.IssuePrefix != nil).
+		Bool("agent_split", split != nil).Msg("tenant.settings_changed")
 	s.writeTenantSettings(w, r, t, ts, fb)
+}
+
+// agentSplitPatch is the optional agent_split object on PATCH /v1/tenant/settings.
+type agentSplitPatch struct {
+	Claude *int `json:"claude"`
+	Grok   *int `json:"grok"`
+	Agy    *int `json:"agy"`
+	Qwen   *int `json:"qwen"`
+}
+
+// patchAgentSplit checks the four shares. A nil patch leaves the stored
+// split. ok=false: it already wrote bad_split.
+func patchAgentSplit(w http.ResponseWriter, in *agentSplitPatch) (*store.AgentSplit, bool) {
+	if in == nil {
+		return nil, true
+	}
+	if in.Claude == nil || in.Grok == nil || in.Agy == nil || in.Qwen == nil {
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy and qwen, whole numbers from 0 to 100 that sum to 100")
+		return nil, false
+	}
+	got := store.AgentSplit{Claude: *in.Claude, Grok: *in.Grok, Agy: *in.Agy, Qwen: *in.Qwen}
+	if !got.Valid() {
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy and qwen, whole numbers from 0 to 100 that sum to 100")
+		return nil, false
+	}
+	return &got, true
 }
 
 // responderList dedupes the PATCH responder ids in order and checks each is

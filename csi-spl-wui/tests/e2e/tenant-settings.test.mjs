@@ -91,7 +91,7 @@ try {
   await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
   ok('2 it opens the first section, Members', path(p).endsWith('/tenant-settings/members'), path(p))
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
-  ok('3 the Settings layout lists Members, Agents, Channels, General', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-channels,tenant-settings-nav-general', nav)
+  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general', nav)
 
   // 2. Members: the users list and edit pane, embedded
   await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })
@@ -129,6 +129,37 @@ try {
   await p.waitForSelector('[data-test=tenant-responders-notice]', { visible: true, timeout: 5000 }).catch(() => null)
   const order = await attrs(p, '[data-test=tenant-responder-row]', 'data-agent')
   ok('8 Agents adds a responder, moves it up and saves', order.join() === 'GRK-03,CLE-01', order)
+
+  // 3b. Vendor split: four numbers, a live sum, the guideline note
+  await p.click('[data-test=tenant-settings-nav-split]')
+  await p.waitForSelector('[data-test=tenant-split-note]', { visible: true, timeout: 10000 })
+  const note = await text(p, '[data-test=tenant-split-note]')
+  const sum0 = await text(p, '[data-test=tenant-split-sum]')
+  ok('8c Vendor split says it is a guideline and starts at 100', note === 'guideline, not a quota' && sum0.includes('100'), { note, sum0 })
+  const setNum = async (sel, value) => {
+    await p.$eval(sel, (el, v) => {
+      el.value = v
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    }, value)
+  }
+  await setNum('[data-test=tenant-split-qwen]', '9')
+  await sleep(100)
+  const off = { sum: await text(p, '[data-test=tenant-split-sum]'), disabled: await p.$eval('[data-test=tenant-split-save]', (el) => el.disabled) }
+  ok('8d a sum other than 100 keeps Save off', off.sum.includes('109') && off.disabled === true, off)
+  await setNum('[data-test=tenant-split-claude]', '30')
+  await setNum('[data-test=tenant-split-qwen]', '10')
+  await sleep(100)
+  const enabled = await p.$eval('[data-test=tenant-split-save]', (el) => el.disabled)
+  ok('8e a sum of 100 enables Save', enabled === false)
+  await p.click('[data-test=tenant-split-save]')
+  await p.waitForSelector('[data-test=tenant-split-notice]', { visible: true, timeout: 5000 }).catch(() => null)
+  const savedSplit = {
+    notice: await text(p, '[data-test=tenant-split-notice]'),
+    claude: await p.$eval('[data-test=tenant-split-claude]', (el) => el.value),
+    qwen: await p.$eval('[data-test=tenant-split-qwen]', (el) => el.value),
+  }
+  ok('8f Vendor split saves', savedSplit.notice !== '' && savedSplit.claude === '30' && savedSplit.qwen === '10', savedSplit)
 
   // 4. Channels: no-fallback + archive
   await p.click('[data-test=tenant-settings-nav-channels]')

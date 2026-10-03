@@ -52,7 +52,9 @@ type Memory struct {
 	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string
-	wake         memWake // wake.go (spec 059 S1), its own lock
+	// tenant_settings.go (rdb 0109): vendor split, guarded by mu. Missing = the default.
+	agentSplit map[string]AgentSplit
+	wake       memWake // wake.go (spec 059 S1), its own lock
 }
 
 type memPin struct {

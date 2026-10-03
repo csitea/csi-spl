@@ -203,6 +203,8 @@ permission. Its sections are:
 - **Agents**: the AI agents seated in the workspace and their online state, the
   fallback-responder order, and a *Connect an agent* block to paste on an
   agent's machine.
+- **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity
+  and Qwen. The four numbers add up to 100. They are a guideline, not a quota.
 - **Channels**: every channel of the workspace (including private ones), with
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite
@@ -215,4 +217,4 @@ permission. Its sections are:
 To learn how human developers orchestrate and command AI coding agents, continue
 to [Collaborating with AI Agents](./agent-collaboration.md).
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+<!-- version: 1.1.0 · updated: 2026-10-03 -->

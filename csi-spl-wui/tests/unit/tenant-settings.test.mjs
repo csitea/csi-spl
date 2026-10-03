@@ -24,8 +24,8 @@ const admin = normalizeMe({ human_id: 'HUM-1', role: 'admin', permissions: all }
 const owner = normalizeMe({ human_id: 'HUM-2', role: 'biz_owner', permissions: [...all, 'billing.manage'] })
 const dev = normalizeMe({ human_id: 'HUM-3', role: 'developer', permissions: ['topics.read', 'notes.send', 'channels.manage'] })
 const ids = (me, o) => tenantSettingsSections(me, o).map((s) => s.id).join(',')
-ok('admin sees every section', ids(admin) === 'members,agents,channels,general', ids(admin))
-ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,channels,general')
+ok('admin sees every section', ids(admin) === 'members,agents,split,channels,general', ids(admin))
+ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,split,channels,general')
 ok('CONTROL: a developer sees no entry', !tenantSettingsVisible(dev) && ids(dev) === '')
 ok('CONTROL: no answer does NOT fail open', !tenantSettingsVisible(null) && !tenantSettingsVisible(normalizeMe({})))
 ok('members.invite alone shows Members only', ids(normalizeMe({ permissions: ['members.invite'] })) === 'members')
@@ -44,6 +44,22 @@ ok('settings reader', s.tenantId === 't1' && s.displayName === 'Acme' && s.defau
 ok('archive policy reader: absent / unknown = everyone', s.topicArchivePolicy === 'everyone' && normalizeTenantSettings({ topic_archive_policy: 'bogus' }).topicArchivePolicy === 'everyone')
 ok('archive policy reader: admins / starter pass', normalizeTenantSettings({ topic_archive_policy: 'admins' }).topicArchivePolicy === 'admins' && normalizeTenantSettings({ topic_archive_policy: 'starter' }).topicArchivePolicy === 'starter')
 ok('archive policy options, in order', TOPIC_ARCHIVE_POLICY_OPTIONS.join() === 'everyone,admins,starter')
+ok('vendor split: absent = the default 40/50/10/0', s.agentSplit.claude === 40 && s.agentSplit.grok === 50 && s.agentSplit.agy === 10 && s.agentSplit.qwen === 0)
+ok('vendor split: a saved 100 is kept', normalizeTenantSettings({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10 } }).agentSplit.qwen === 10)
+ok('vendor split: a sum other than 100 falls back to the default', normalizeTenantSettings({ agent_split: { claude: 40, grok: 50, agy: 10, qwen: 10 } }).agentSplit.qwen === 0)
+{
+  const mp = createMockTenant()
+  ok('mock: fresh split is 40/50/10/0', mp.settings().agent_split.claude === 40 && mp.settings().agent_split.qwen === 0)
+  const saved = mp.patch({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10 } })
+  ok('mock: a split that sums to 100 is saved', saved.agent_split.claude === 30 && saved.agent_split.qwen === 10)
+  ok('CONTROL mock: a split off 100 is bad_split', throws(() => mp.patch({ agent_split: { claude: 40, grok: 50, agy: 10, qwen: 10 } }), 'bad_split') && mp.settings().agent_split.claude === 30)
+}
+const splitPage = readFileSync(new URL('../../src/pages/tenant-settings/split.vue', import.meta.url), 'utf8')
+ok('Vendor split page has one input per kind, a live sum and the guideline note',
+  splitPage.includes('data-test="tenant-split-claude"') && splitPage.includes('data-test="tenant-split-grok"') &&
+  splitPage.includes('data-test="tenant-split-agy"') && splitPage.includes('data-test="tenant-split-qwen"') &&
+  splitPage.includes('data-test="tenant-split-sum"') && splitPage.includes("t('tenant_settings.split_note')") &&
+  splitPage.includes('agent_split:'))
 {
   const mp = createMockTenant()
   ok('mock: fresh workspace archives for everyone', mp.settings().topic_archive_policy === 'everyone')

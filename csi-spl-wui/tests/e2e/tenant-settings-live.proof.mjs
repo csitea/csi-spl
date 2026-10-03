@@ -88,8 +88,8 @@ try {
   await icon.click()
   await a.p.waitForSelector('[data-test=tenant-settings-nav]', { visible: true, timeout: 20000 })
   const nav = await a.p.$$eval('[data-test=tenant-settings-nav] a', (els) => els.map((e) => e.getAttribute('data-test').replace('tenant-settings-nav-', '')))
-  step('A2 the Settings layout: Members, Agents, Channels, General', nav.join() === 'members,agents,channels,general', { nav })
-  for (const s of ['agents', 'channels', 'general']) {
+  step('A2 the Settings layout: Members, Agents, Vendor split, Channels, General', nav.join() === 'members,agents,split,channels,general', { nav })
+  for (const s of ['agents', 'split', 'channels', 'general']) {
     await a.p.click(`[data-test=tenant-settings-nav-${s}]`)
     const ok = await a.p.waitForSelector(`[data-test=tenant-settings-${s}]`, { visible: true, timeout: 20000 }).then(() => true).catch(() => false)
     await sleep(1500)

@@ -98,7 +98,7 @@ declare module '~/utils/spool-client.mjs' {
     revokeTenantInvite(email: string): Promise<null>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean }): Promise<null>
     getTenantSettings(): Promise<unknown>
-    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string }): Promise<unknown>
+    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number } }): Promise<unknown>
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>
@@ -1419,8 +1419,12 @@ declare module '~/utils/tenant-settings-nav.mjs' {
 }
 
 declare module '~/utils/tenant-settings.mjs' {
-  export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string, topicArchivePolicy: string }
+  export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number }
+  export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string, topicArchivePolicy: string, agentSplit: AgentSplit }
   export const TOPIC_ARCHIVE_POLICY_OPTIONS: readonly string[]
+  export const AGENT_SPLIT_KINDS: readonly string[]
+  export const DEFAULT_AGENT_SPLIT: AgentSplit
+  export function agentSplitOf(raw: unknown): AgentSplit
   export type TenantChannel = { channel: string, name: string, description: string, visibility: 'default' | 'members', members: number, agents: number, messages: number, noFallback: boolean, createdBy: string, lastTs: string, archivable: boolean }
   export function normalizeTenantSettings(body: unknown): TenantSettings
   export function normalizeTenantChannels(body: unknown): TenantChannel[]

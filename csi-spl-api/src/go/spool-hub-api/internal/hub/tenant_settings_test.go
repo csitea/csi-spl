@@ -27,6 +27,7 @@ func TestTenantSettingsForbidden(t *testing.T) {
 		}{
 			{http.MethodGet, "/v1/tenant/settings", rbac.TenantSettings, nil},
 			{http.MethodPatch, "/v1/tenant/settings", rbac.TenantSettings, map[string]any{"display_name": "x"}},
+			{http.MethodPatch, "/v1/tenant/settings", rbac.TenantSettings, map[string]any{"agent_split": map[string]int{"claude": 25, "grok": 25, "agy": 25, "qwen": 25}}},
 			{http.MethodGet, "/v1/tenant/channels", rbac.TenantSettings, nil},
 			{http.MethodPatch, "/v1/tenant/channels/lobby", rbac.TenantSettings, map[string]any{"no_fallback": true}},
 			{http.MethodDelete, "/v1/tenant/channels/lobby", rbac.TenantSettings, nil},
@@ -259,5 +260,67 @@ func TestTenantSettingsMemberPatch(t *testing.T) {
 		if code, body := call(t, e, tid, http.MethodPatch, "/v1/members/"+dev, admin, bad); code != http.StatusBadRequest {
 			t.Errorf("bad %s: %d %v, want 400", name, code, body)
 		}
+	}
+}
+
+// The vendor split is a guideline stored on the workspace. A fresh tenant is
+// claude 40, grok 50, agy 10, qwen 0. A partial patch leaves it. A split that
+// is not four whole numbers summing to 100 is refused and does not stick.
+func TestTenantSettingsAgentSplit(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	admin := seat(t, e, tid, rbac.Admin)
+
+	code, body := call(t, e, tid, http.MethodGet, "/v1/tenant/settings", admin, nil)
+	if code != 200 {
+		t.Fatalf("fresh: %d %v", code, body)
+	}
+	assertSplit(t, body, 40, 50, 10, 0)
+
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{
+		"agent_split": map[string]int{"claude": 30, "grok": 40, "agy": 20, "qwen": 10},
+	})
+	if code != 200 {
+		t.Fatalf("patch: %d %v", code, body)
+	}
+	assertSplit(t, body, 30, 40, 20, 10)
+
+	code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, map[string]any{"display_name": "Acme"})
+	if code != 200 || body["display_name"] != "Acme" {
+		t.Fatalf("name: %d %v", code, body)
+	}
+	assertSplit(t, body, 30, 40, 20, 10)
+
+	for name, bad := range map[string]any{
+		"sum":     map[string]any{"agent_split": map[string]int{"claude": 40, "grok": 50, "agy": 10, "qwen": 10}},
+		"range":   map[string]any{"agent_split": map[string]int{"claude": 101, "grok": 0, "agy": 0, "qwen": -1}},
+		"missing": map[string]any{"agent_split": map[string]int{"claude": 40, "grok": 50, "agy": 10}},
+		"float":   map[string]any{"agent_split": map[string]any{"claude": 40.5, "grok": 49.5, "agy": 10, "qwen": 0}},
+		"extra":   map[string]any{"agent_split": map[string]any{"claude": 40, "grok": 50, "agy": 10, "qwen": 0, "opus": 0}},
+	} {
+		code, body = call(t, e, tid, http.MethodPatch, "/v1/tenant/settings", admin, bad)
+		want := "bad_split"
+		if name == "float" || name == "extra" {
+			want = "bad_json"
+		}
+		if code != http.StatusBadRequest || body["error"] != want {
+			t.Errorf("bad %s: %d %v, want 400 %s", name, code, body, want)
+		}
+	}
+	code, body = call(t, e, tid, http.MethodGet, "/v1/tenant/settings", admin, nil)
+	if code != 200 {
+		t.Fatalf("reread: %d %v", code, body)
+	}
+	assertSplit(t, body, 30, 40, 20, 10)
+}
+
+func assertSplit(t *testing.T, body map[string]any, c, g, a, q float64) {
+	t.Helper()
+	m, ok := body["agent_split"].(map[string]any)
+	if !ok {
+		t.Fatalf("agent_split: %v", body["agent_split"])
+	}
+	if m["claude"] != c || m["grok"] != g || m["agy"] != a || m["qwen"] != q {
+		t.Fatalf("split %v, want %v %v %v %v", m, c, g, a, q)
 	}
 }

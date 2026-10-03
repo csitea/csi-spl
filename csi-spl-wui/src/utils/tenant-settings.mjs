@@ -23,11 +23,36 @@ export function normalizeTenantSettings(body) {
     issuePrefix: str(b.issue_prefix),
     /* CLE-77819: "Who can archive topics"; an absent / unknown value is the default */
     topicArchivePolicy: TOPIC_ARCHIVE_POLICY_OPTIONS.includes(b.topic_archive_policy) ? b.topic_archive_policy : 'everyone',
+    /* rdb 0109: a guideline. Absent, junk or a sum other than 100 is the default. */
+    agentSplit: agentSplitOf(b.agent_split),
   }
 }
 
 /** CLE-77819: the "Who can archive topics" choices, in the order General lists them. */
 export const TOPIC_ARCHIVE_POLICY_OPTIONS = Object.freeze(['everyone', 'admins', 'starter'])
+
+/** Vendor kinds, in the order the settings page lists them. */
+export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen'])
+
+/** Owner's current split. qwen is 0 so the four sum to 100. */
+export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0 })
+
+/**
+ * Four whole-number shares that sum to 100. Anything else (absent, a
+ * fraction, a share outside 0..100, a sum other than 100) is the default.
+ */
+export function agentSplitOf(raw) {
+  const src = raw && typeof raw === 'object' ? raw : null
+  if (!src) return { ...DEFAULT_AGENT_SPLIT }
+  const out = {}
+  for (const k of AGENT_SPLIT_KINDS) {
+    const n = src[k]
+    if (!Number.isInteger(n) || n < 0 || n > 100) return { ...DEFAULT_AGENT_SPLIT }
+    out[k] = n
+  }
+  const sum = AGENT_SPLIT_KINDS.reduce((total, k) => total + out[k], 0)
+  return sum === 100 ? out : { ...DEFAULT_AGENT_SPLIT }
+}
 
 /** The issue key prefix as the hub stores it (upper-cased), or '' when the hub would refuse it. */
 export function issuePrefixOf(s) {
@@ -72,6 +97,6 @@ export function moveItem(list, i, delta) {
 /** The i18n key for a failed tenant-settings call's hub token. */
 export function tenantSettingsErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
-  const known = ['forbidden', 'bad_setting', 'bad_responder', 'channel_public', 'unknown_channel', 'shared_account', 'bad_name', 'bad_locale', 'last_admin', 'last_owner', 'self']
+  const known = ['forbidden', 'bad_setting', 'bad_split', 'bad_responder', 'channel_public', 'unknown_channel', 'shared_account', 'bad_name', 'bad_locale', 'last_admin', 'last_owner', 'self']
   return 'tenant_settings.error.' + (known.includes(token) ? token : 'generic')
 }

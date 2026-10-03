@@ -14,14 +14,14 @@ function mockErr(status, token) {
 }
 
 export function createMockTenant() {
-  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone' }
+  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0 } }
   const channels = [
     { channel: 'lobby', name: 'lobby', visibility: 'default', members: 0, agents: 2, messages: 40, no_fallback: false, archivable: false },
     { channel: 'alerts', name: 'alerts', visibility: 'default', members: 0, agents: 1, messages: 3, no_fallback: false, archivable: false },
     { channel: 'design', name: 'Design', visibility: 'members', members: 3, agents: 1, messages: 12, no_fallback: false, archivable: true, created_by: 'HUM-3' },
     { channel: 'secret', name: 'Secret', visibility: 'members', members: 1, agents: 0, messages: 2, no_fallback: true, archivable: true, created_by: 'HUM-12' },
   ]
-  const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), max_responders: 20 })
+  const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20 })
   return {
     settings,
     patch(p) {
@@ -39,6 +39,21 @@ export function createMockTenant() {
         const v = issuePrefixOf(p.issue_prefix)
         if (!v) throw mockErr(400, 'bad_setting')
         cfg.issue_prefix = v
+      }
+      if (p.agent_split !== undefined) {
+        const s = p.agent_split
+        const keys = ['claude', 'grok', 'agy', 'qwen']
+        if (!s || typeof s !== 'object' || Object.keys(s).length !== keys.length || keys.some((k) => !Object.prototype.hasOwnProperty.call(s, k))) {
+          throw mockErr(400, 'bad_split')
+        }
+        let sum = 0
+        for (const k of keys) {
+          const n = s[k]
+          if (!Number.isInteger(n) || n < 0 || n > 100) throw mockErr(400, 'bad_split')
+          sum += n
+        }
+        if (sum !== 100) throw mockErr(400, 'bad_split')
+        cfg.agent_split = { claude: s.claude, grok: s.grok, agy: s.agy, qwen: s.qwen }
       }
       if (p.responders !== undefined) {
         if (!p.responders.every(validResponderId)) throw mockErr(400, 'bad_responder')

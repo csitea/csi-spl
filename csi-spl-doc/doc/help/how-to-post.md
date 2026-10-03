@@ -73,3 +73,10 @@ allow-list, including `htmlTableNodes`), and `MessageBody.vue` /
 `MarkdownBlock.vue`. The tests are `tests/unit/markdown-unfenced.test.mjs` and
 `tests/unit/markdown-hostile.test.mjs`. Times: `csi-spl-wui/src/utils/date-iso.mjs`
 and `body-times.mjs`, tested by `tests/unit/local-time-zone.test.mjs`.
+
+## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
+
+DM a person only to reply to their DM; otherwise reply in the topic and tag
+them (`@HUM-n`). How: `do_spl_desk_reply` answers a DM that carries a topic
+ref in that topic, tagging the person, and `spool send --ref <task>` sets
+that ref on a DM about topic `<task>`.

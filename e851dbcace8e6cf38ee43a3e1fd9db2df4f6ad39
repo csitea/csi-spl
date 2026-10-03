@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes the automatic quality checks build the test version of the app once instead of three times; nothing a user sees changes.

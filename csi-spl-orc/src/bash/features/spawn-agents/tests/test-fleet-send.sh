@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # specs/058 N1: sends and reports across two simulated machines.
+# Section 8 (spec 068 L4): --to orchestrator -> peers behind the seats switch.
 #
 # Two spool roots stand for the box machine (A) and the satellite (B). The hub
 # leg is SPOOL_FLEET_RELAY_CMD: a fake hub that looks the recipient up in a
@@ -198,5 +199,97 @@ has "7. the sender holds a reject from c-009" '"from":"c-009","kind":"reject"' "
 rows '-25 hours'
 on "$B" bash "$SS" --from CLE-100004 --to c-009 --kind task --body x >/dev/null 2>&1; rc=$?
 eq "7. past the quarantine it is relayed as before (the fake hub knows no c-009: 13)" 13 "$rc"
+
+# ---- 8. spec 068 L4: --to orchestrator -> peers, behind the seats switch --------------
+# The peers hub stub: the contract of 068 4.1 under a flock. A send to `peers`
+# is one row (needs_peer); `claim --poll` locks free rows for one seat (SKIP
+# LOCKED); `--check` is the fence; `--done` is refused for a seat that is not
+# responsible. PEERS_DOWN=<file> present = the hub leg fails (hub down).
+PH="$T_TMP/peers-db"; mkdir -p "$PH"
+cat >"$T_TMP/peers-hub.py" <<'PY'
+import fcntl, json, os, sys, uuid
+st = os.environ["PEERS_HUB"]; a = sys.argv[1:]
+if os.path.exists(os.path.join(st, "down")): print("dial: connection refused", file=sys.stderr); sys.exit(1)
+lk = open(os.path.join(st, "lock"), "w"); fcntl.flock(lk, fcntl.LOCK_EX)
+p = os.path.join(st, "db.json"); db = json.load(open(p)) if os.path.exists(p) else []
+def save(): json.dump(db, open(p, "w"))
+if a[0] != "claim":
+    o = dict(zip(a[0::2], a[1::2]))
+    if o.get("--to") != "peers": print("stub: only to peers", file=sys.stderr); sys.exit(3)
+    m = {"msg_id": str(uuid.uuid4()), "task_id": o.get("--task", str(uuid.uuid4())), "ts": "2026-10-03T12:00:00Z", "from": o["--from"],
+         "to": "peers", "kind": o["--kind"], "body": o["--body"], "files": [], "needs_peer": True, "responsible": None, "responsible_gen": 0, "handled": ""}
+    db.append(m); save(); print(json.dumps({"delivery": "sent", "msg_id": m["msg_id"], "task_id": m["task_id"], "ts": m["ts"]}, separators=(",", ":"))); sys.exit(0)
+op = a[1].lstrip("-"); o = dict(zip(a[2::2], a[3::2]))
+if op == "done": o = dict(zip(a[3::2], a[4::2])); o["--msg"] = a[2]
+seat = o.get("--seat", ""); m = next((r for r in db if r["msg_id"] == o.get("--msg")), None)
+if op == "poll":
+    out = []
+    for r in db:
+        if len(out) >= int(o["--max"]): break
+        if r["needs_peer"] and not r["handled"] and r["responsible"] is None:
+            r["responsible"] = seat; r["responsible_gen"] += 1; out.append({k: r[k] for k in ("msg_id", "responsible_gen", "task_id", "ts", "from", "to", "kind", "body", "files")})
+    save(); print(json.dumps(out)); sys.exit(0)
+if op == "check": sys.exit(0 if m and m["responsible"] == seat and m["responsible_gen"] == int(o["--gen"]) else 1)
+if op == "done":
+    if not m or m["responsible"] != seat:
+        print("hub refused: not_responsible (409): %s holds it" % (m and m["responsible"]), file=sys.stderr); sys.exit(1)
+    if "--gen" in o and int(o["--gen"]) != m["responsible_gen"]: print("hub refused: gen moved", file=sys.stderr); sys.exit(1)
+    m["handled"] = o.get("--how", "answered"); save(); print(json.dumps({"seat": seat, "msgs": 1})); sys.exit(0)
+sys.exit(2)
+PY
+printf '#!/usr/bin/env bash\nexec python3 "%s/peers-hub.py" "$@"\n' "$T_TMP" >"$T_TMP/peers-hub"; chmod +x "$T_TMP/peers-hub"
+pdb() { jq -r "$1" "$PH/db.json" 2>/dev/null; }
+onp() { local root="$1"; shift; env SPOOL_ROOT="$root" PEERS_HUB="$PH" SPOOL_FLEET_RELAY_CMD="$T_TMP/peers-hub" "$@"; }
+SEATS="c-001 c-002 g-003 g-004"
+
+# CONTROL: no seat file = today's routing, the lease holder (order A)
+nA="$(n_in "$A/CLE-001/inbox")"; nB="$(n_in "$B/CLE-001/inbox")"
+out="$(on "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind result --body 'report, no seats' --no-poke 2>&1)"; rc=$?
+eq "8. CONTROL no peer/seats: the report goes to the lease holder (CLE-001@sat), exit 0" "0 $((nB + 1))" "$rc $(n_in "$B/CLE-001/inbox")"
+has "8. ... and says so" "to: orchestrator = CLE-001@sat" "$out"
+check "8. ... the peers hub got nothing" test ! -e "$PH/db.json"
+out="$(onp "$A" bash "$SS" --from CLE-77913 --to peers --kind result --body x 2>&1)"; rc=$?
+eq "8. --to peers without a seat: refused, exit 2" 2 "$rc"
+has "8. ... naming the switch" "peer/seats" "$out"
+mkdir -p "$A/peer"; printf '# comment only\n' >"$A/peer/seats"
+on "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind result --body x --no-poke >/dev/null 2>&1
+eq "8. a seats file with no seat line keeps the switch off" "$((nB + 2))" "$(n_in "$B/CLE-001/inbox")"
+
+# the switch on: 4 seats, ONE report, exactly ONE responsible
+printf 'c-001 claude\nc-002 claude\ng-003 grok\ng-004 grok\n' >"$A/peer/seats"
+out="$(onp "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind result --task 0c0ffee0-0000-4000-8000-000000000068 --body 'one report' 2>&1)"; rc=$?
+eq "8. seats on: --to orchestrator, exit 0" 0 "$rc"
+has "8. ... resolves to the peers" "to: orchestrator = peers" "$out"
+has "8. ... the hub's delivery" '"delivery":"sent"' "$out"
+has "8. ... no pane is rung by the sender" "poke: peers" "$out"
+eq "8. ONE message on the hub, to peers, needs_peer" "1 peers true" "$(pdb 'length') $(pdb '.[0].to') $(pdb '.[0].needs_peer')"
+eq "8. ... on the sender's topic" 0c0ffee0-0000-4000-8000-000000000068 "$(pdb '.[0].task_id')"
+eq "8. ... no copy to the lease holder" "$((nB + 2)) $nA" "$(n_in "$B/CLE-001/inbox") $(n_in "$A/CLE-001/inbox")"
+for s in $SEATS; do ( PEERS_HUB="$PH" "$T_TMP/peers-hub" claim --poll --seat "$s@box-desk" --max 3 --ttl 120 >"$T_TMP/poll.$s" ) & done; wait
+got="$(for s in $SEATS; do jq -r --arg s "$s" '.[] | $s' "$T_TMP/poll.$s"; done)"
+eq "8. 4 seats poll at once: exactly 1 responsible (n=4 pollers, 1 report)" 1 "$(grep -c . <<<"$got")"
+eq "8. ... the hub row names that seat" "${got}@box-desk" "$(pdb '.[0].responsible')"
+out="$(SPOOL_TO_PEERS=0 onp "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind note --body 'forced off' --no-poke 2>&1)"
+has "8. SPOOL_TO_PEERS=0 forces the old routing with seats present" "to: orchestrator = CLE-001@sat" "$out"
+echo hi >"$T_TMP/f8.txt"
+onp "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind note --body x --file-ref "$T_TMP/f8.txt" >/dev/null 2>&1
+eq "8. an attachment to the peers: exit 2, nothing on the hub" "2 1" "$? $(pdb length)"
+
+# hub down: ONE file in the local peers inbox; this machine's seats take it by
+# L3's local lock (the real spl_peer_hub_down), exactly one of them
+touch "$PH/down"
+out="$(onp "$A" bash "$SS" --from CLE-77913 --to orchestrator --kind blocker --body 'report, hub down' 2>&1)"; rc=$?
+eq "8. hub down: still delivered, exit 0" 0 "$rc"
+has "8. ... to the local peers inbox" '"delivery":"peers-local"' "$out"
+eq "8. ... one file there, nothing on the hub" "1 1" "$(n_in "$A/peers/inbox") $(pdb length)"
+eq "8. ... the sender keeps its outbox copy" 1 "$(grep -l 'report, hub down' "$A/CLE-77913/outbox/"*.json 2>/dev/null | wc -l)"
+mid="$(jq -r .msg_id "$A"/peers/inbox/*.json)"
+for s in $SEATS; do
+  ( do_log() { :; }; export SPOOL_ROOT="$A" PEER_BOX=box-desk PEER_POKE_CMD=true LEASE_DIR="$T_TMP/lease"
+    . "$T_REPO/csi-spl-orc/src/bash/run/spl-peer-poll.func.sh"
+    spl_peer_init ro && mkdir -p "$PEER_DIR/$s/seen" && spl_peer_hub_down "$s" ) >/dev/null 2>&1 &
+done; wait
+eq "8. 4 seats, hub down: exactly 1 local lock on the report" 1 "$(grep -c . "$A/claims/$mid" 2>/dev/null)"
+eq "8. ... delivered into exactly 1 seat's inbox" 1 "$(grep -l "\"$mid\"" "$A"/[cg]-00[1-4]/inbox/*.json 2>/dev/null | wc -l)"
 
 t_done

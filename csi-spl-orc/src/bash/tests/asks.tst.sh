@@ -38,6 +38,10 @@
 #      a jq argument fails: Argument list too long)
 #  12. the orchestrator view on 5000 inbox files and that book: section 2
 #      and the archive count are right (CONTROL: the old --argjson asks fails)
+#  13. spec 068 L4 peers: with 4 seats a blocker to the orchestrator is ONE
+#      hub message to peers, still an ask; exactly 1 seat is responsible;
+#      ack/done are its message's lock (3 seats refused, book untouched);
+#      CONTROL: SPOOL_TO_PEERS=0 = the book's lock
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -421,6 +425,82 @@ sec2="$(sed -n "${o2:-1},${o3:-1}p" <<<"$out")"
   pass "view 2 on 5000 inbox files and the big book lists the untracked blocker, not the tracked ones" || fail "big view 2 (rc=$rc): ${out:0:600}"
 [[ "$out" == *"INFO 4998 handled message(s) can move to archive/"* ]] &&
   pass "the archive count on the big inbox: 4997 old notes + 1 closed ask = 4998" || fail "big archive count: $(grep -i archive <<<"$out")"
+
+# 13. spec 068 L4: peers - the ask's lock moves to its message --------------
+# sat gets 4 seats (peer/seats). A blocker --to orchestrator goes to the hub as
+# ONE message to peers (the relay stub below stores it, needs_peer); it is
+# journaled as an ask (the book keeps its fields). 4 seats poll; exactly one
+# is responsible. asks.sh ack is that message's fence and done its close: the
+# responsible seat closes, the other 3 are refused and the book is untouched.
+PH="$T/peers"; mkdir -p "$PH"
+cat >"$T/bin/peers.py" <<'PY'
+import fcntl, json, os, sys, uuid
+st = os.environ["PEERS_HUB"]; a = sys.argv[1:]
+lk = open(os.path.join(st, "lock"), "w"); fcntl.flock(lk, fcntl.LOCK_EX)
+p = os.path.join(st, "db.json"); db = json.load(open(p)) if os.path.exists(p) else []
+def save(): json.dump(db, open(p, "w"))
+if a[0] != "claim":
+    o = dict(zip(a[0::2], a[1::2]))
+    if o.get("--to") != "peers": sys.exit(3)
+    m = {"msg_id": str(uuid.uuid4()), "task_id": o.get("--task", str(uuid.uuid4())), "ts": "2026-10-03T12:00:00Z", "from": o["--from"], "to": "peers",
+         "kind": o["--kind"], "body": o["--body"], "files": [], "needs_peer": True, "responsible": None, "responsible_gen": 0, "handled": ""}
+    db.append(m); save(); print(json.dumps({"delivery": "sent", "msg_id": m["msg_id"], "task_id": m["task_id"], "ts": m["ts"]}, separators=(",", ":"))); sys.exit(0)
+op = a[1].lstrip("-"); o = dict(zip(a[2::2], a[3::2]))
+if op == "done": o = dict(zip(a[3::2], a[4::2])); o["--msg"] = a[2]
+seat = o.get("--seat", ""); m = next((r for r in db if r["msg_id"] == o.get("--msg")), None)
+if op == "poll":
+    out = []
+    for r in db:
+        if len(out) < int(o["--max"]) and not r["handled"] and r["responsible"] is None:
+            r["responsible"] = seat; r["responsible_gen"] += 1; out.append({k: r[k] for k in ("msg_id", "responsible_gen", "task_id", "ts", "from", "to", "kind", "body", "files")})
+    save(); print(json.dumps(out)); sys.exit(0)
+if op == "check": sys.exit(0 if m and m["responsible"] == seat and m["responsible_gen"] == int(o["--gen"]) else 1)
+if op == "done":
+    if not m or m["responsible"] != seat:
+        print("hub refused: not_responsible (409): %s holds it" % (m and m["responsible"]), file=sys.stderr); sys.exit(1)
+    m["handled"] = o.get("--how", "answered"); save(); print("{}"); sys.exit(0)
+sys.exit(2)
+PY
+printf '#!/usr/bin/env bash\nexec python3 "%s/bin/peers.py" "$@"\n' "$T" >"$T/bin/peers"; chmod +x "$T/bin/peers"
+# the orc ./run stub asks.sh hands the book close to: one line per call
+mkdir -p "$T/orc"; printf '#!/usr/bin/env bash\necho "$2 ASK_ID=$ASK_ID ASK_STATE=${ASK_STATE:-} ASK_BY=${ASK_BY:-}" >>"%s/orc.log"\n' "$T" >"$T/orc/run"; chmod +x "$T/orc/run"
+asks() {  # <seat> <asks.sh args...>
+  local s="$1"; shift
+  local -a e; mapfile -t e < <(menv sat)
+  env "${e[@]}" SPOOL_AGENT_ID="$s" ASKS_ORC="$T/orc" ASKS_CLAIM_CMD="$T/bin/peers" PEERS_HUB="$PH" bash "$SCRIPTS/asks.sh" "$@"
+}
+SEATS="c-001 c-002 g-003 g-004"
+mkdir -p "$T/sat/spool/peer"; printf 'c-001 claude\nc-002 claude\ng-003 grok\ng-004 grok\n' >"$T/sat/spool/peer/seats"
+mapfile -t e < <(menv sat)
+out="$(env "${e[@]}" SPOOL_ASKS_SYNC_CMD=true PEERS_HUB="$PH" SPOOL_FLEET_RELAY=1 SPOOL_FLEET_RELAY_CMD="$T/bin/peers" \
+  bash "$SCRIPTS/spool-send.sh" --from CLE-002 --to orchestrator --kind blocker --body 'BLOCKER: peers own this' 2>&1)"
+P1="$(msgid "$out")"
+[[ -n "$P1" && "$out" == *"orchestrator = peers"* && "$(jq length "$PH/db.json")" == 1 && "$(jq -r '.[0].to' "$PH/db.json")" == peers ]] &&
+  pass "peers: one blocker --to orchestrator is ONE hub message to peers" || fail "peers send: $out"
+j="$(jrn sat "$P1")"
+[[ "$(jq -r '.state + " " + .kind + " " + .to' <<<"$j")" == "open blocker peers" ]] && pass "peers: it is journaled as an ask under the hub msg id (the book keeps its fields)" || fail "peers journal: $j"
+for s in $SEATS; do ( PEERS_HUB="$PH" "$T/bin/peers" claim --poll --seat "$s@sat" --max 3 --ttl 120 >"$T/poll.$s" ) & done; wait
+R=""; n=0
+for s in $SEATS; do
+  k="$(jq length "$T/poll.$s")"; n=$((n + k))
+  # the poll loop's delivery: the claimed row, with its gen, in the seat's inbox
+  (( k > 0 )) && { R="$s"; mkdir -p "$T/sat/spool/$s/inbox"; jq -c '.[0] + {v: 1, to: "'"$s"'"}' "$T/poll.$s" >"$T/sat/spool/$s/inbox/m.json"; }
+done
+[[ "$n" == 1 && -n "$R" ]] && pass "peers: 4 seats poll one report: exactly 1 responsible ($R)" || fail "peers poll: n=$n"
+ok=0; refused=0
+for s in $SEATS; do
+  if asks "$s" ack "${P1:0:8}" >/dev/null 2>&1; then ok=$((ok + 1)); else [[ $? == 1 ]] && refused=$((refused + 1)); fi
+done
+[[ "$ok $refused" == "1 3" && "$(asks "$R" ack "${P1:0:8}" 2>&1)" == *"mine"* ]] && pass "peers: ack is the message's fence: 1 seat mine, 3 refused (exit 1)" || fail "peers ack: ok=$ok refused=$refused"
+: >"$T/orc.log"
+for s in $SEATS; do [[ "$s" == "$R" ]] && continue; asks "$s" "done" "$P1" >/dev/null 2>&1; [[ $? == 1 ]] || fail "peers: $s's done was not refused"; done
+[[ "$(jq -r '.[0].handled' "$PH/db.json")" == "" && ! -s "$T/orc.log" ]] && pass "peers: done by the 3 other seats is refused; message open, book untouched" || fail "peers done others: $(cat "$T/orc.log")"
+out="$(asks "$R" "done" "${P1:0:8}" 2>&1)"; rc=$?
+[[ $rc == 0 && "$(jq -r '.[0].handled' "$PH/db.json")" == answered && "$(cat "$T/orc.log")" == "do_spl_ask_close ASK_ID=$P1 ASK_STATE=done ASK_BY=$R@sat" ]] &&
+  pass "peers: the responsible seat's done closes the message (answered), then the ask in the book, by that seat" || fail "peers done (rc=$rc): $out / $(cat "$T/orc.log")"
+: >"$T/orc.log"
+out="$(SPOOL_TO_PEERS=0 asks "$R" ack "${P1:0:8}" 2>&1)"
+[[ "$(cat "$T/orc.log")" == "do_spl_ask_ack ASK_ID=${P1:0:8} ASK_STATE= ASK_BY=" ]] && pass "CONTROL: switch off (SPOOL_TO_PEERS=0): ack is the book's lock again (do_spl_ask_ack)" || fail "control off: $out / $(cat "$T/orc.log")"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

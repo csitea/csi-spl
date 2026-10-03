@@ -30,6 +30,15 @@
 # `--to orchestrator` is whoever holds the fleet lease's orch role
 # (lib/spool-fleet.inc.sh), not a fixed id on this machine.
 #
+# Peers (spec 068 4.1, lane L4), behind a switch that is OFF until this
+# machine has a seat: with a seat line in $SPOOL_ROOT/peer/seats (L3's gate,
+# written by L7; SPOOL_TO_PEERS=1|0 forces it) `--to orchestrator` (and
+# `--to peers`) is ONE message to the peers: handed to the hub as
+# `to: peers`, where exactly one seat claims it (`spool claim --poll`). Hub
+# or desk unreachable: it is written once into $SPOOL_ROOT/peers/inbox/,
+# where the seats of this machine take it by the local lock (L3). No pane is
+# rung: the seats' poll loop rings its own. Without a seat nothing changes.
+#
 # The FILE is the source of truth; the pane line is the second leg (trust-modes
 # §2: local mode = file + poll). Every non-zero exit below 10 therefore still
 # means the message WAS delivered — only the pane was left alone. Local mode is
@@ -45,7 +54,7 @@
 # SPOOL_ASKS=0) makes none; --ask-deadline <RFC 3339 UTC> sets when it is due.
 #
 # Usage:
-#   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator> --kind task|result|note|reject|blocker|msg
+#   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator|peers> --kind task|result|note|reject|blocker|msg
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #                 [--ask <kind> | --no-ask] [--ask-deadline <ts>]
@@ -113,6 +122,31 @@ send_lane_topic() {  # ID
     sort | head -1 | cut -f2
 }
 
+# 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else a
+# seat line in <root>/peer/seats, parsed as do_spl_peer_poll parses it.
+send_to_peers_on() {
+  case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
+  [ -r "$SPOOL_ROOT/peer/seats" ] &&
+    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+}
+
+# The hub-down leg of a peers send: ONE v:1 object in <root>/peers/inbox (the
+# seats' local lock reads it) and the sender's outbox copy; prints spool's
+# result shape with delivery "peers-local".
+send_peers_local() {
+  local id task ts f
+  id="$(cat /proc/sys/kernel/random/uuid)"; task="${TASK:-$(cat /proc/sys/kernel/random/uuid)}"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  f="$(date -u +%Y%m%dT%H%M%SZ)--${FROM}--${id:0:8}.json"
+  mkdir -p "$SPOOL_ROOT/peers/inbox" "$SPOOL_ROOT/$FROM/outbox" || return 1
+  jq -n -c --arg id "$id" --arg t "$task" --arg ts "$ts" --arg f "$FROM" --arg k "$KIND" --arg b "$BODY" \
+    '{v: 1, msg_id: $id, task_id: $t, ts: $ts, from: $f, to: "peers", kind: $k, body: $b, files: []}' \
+    >"$SPOOL_ROOT/peers/inbox/.$f.tmp" || return 1
+  cp "$SPOOL_ROOT/peers/inbox/.$f.tmp" "$SPOOL_ROOT/$FROM/outbox/$f" 2>/dev/null || true
+  mv -f "$SPOOL_ROOT/peers/inbox/.$f.tmp" "$SPOOL_ROOT/peers/inbox/$f" || return 1
+  printf '{"delivery":"peers-local","msg_id":"%s","task_id":"%s","ts":"%s"}\n' "$id" "$task" "$ts"
+}
+
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
 ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""
 EXTRA=()
@@ -141,17 +175,27 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
-if [ "$TO" = orchestrator ]; then
-  TO="$(spool_fleet_orchestrator)"
-  echo "to: orchestrator = ${TO}" >&2
+PEERS=0
+if [ "$TO" = orchestrator ] || [ "$TO" = peers ]; then
+  if send_to_peers_on; then
+    PEERS=1
+    [ "$TO" = orchestrator ] && echo "to: orchestrator = peers (a seat in ${SPOOL_ROOT}/peer/seats)" >&2
+    TO=peers
+  elif [ "$TO" = peers ]; then
+    echo "ERROR: --to peers needs a seat in ${SPOOL_ROOT}/peer/seats (spec 068); none here. Nothing was sent." >&2; exit 2
+  else
+    TO="$(spool_fleet_orchestrator)"
+    echo "to: orchestrator = ${TO}" >&2
+  fi
 fi
+[ "$PEERS" -eq 0 ] || [ "$POKE_ONLY" -eq 0 ] || { echo "ERROR: --poke-only rings one agent, not the peers" >&2; exit 2; }
 TO_BOX=""
 case "$TO" in
   *@*) TO_BOX="${TO##*@}"; TO="${TO%@*}"
        [[ "$TO_BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "ERROR: bad box in --to: '${TO_BOX}'" >&2; exit 2; }
        [ "$TO_BOX" = "$(spool_fleet_box)" ] && TO_BOX="" ;;
 esac
-spool_valid_id "$TO" || exit 2
+[ "$PEERS" -eq 1 ] || spool_valid_id "$TO" || exit 2
 [ -z "$FROM" ] || spool_valid_id "$FROM" || exit 2
 
 if [ "$POKE_ONLY" -eq 0 ]; then
@@ -163,7 +207,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   # A task on a second topic makes one lane carry two contexts: it re-reads
   # both, and neither closes. Measured 2026-10-03 on the spool archive, n=35
   # worker lanes that got a task in 24 h: 8 got a second task topic.
-  if [ "$KIND" = task ] && [ "$FROM" != "$TO" ] && [ -z "$TO_BOX" ]; then
+  if [ "$KIND" = task ] && [ "$FROM" != "$TO" ] && [ -z "$TO_BOX" ] && [ "$PEERS" -eq 0 ]; then
     _lt="$(send_lane_topic "$TO")"
     if [ -n "$_lt" ] && [ "$_lt" != "$TASK" ]; then
       if [ "${SPOOL_SECOND_TOPIC_OK:-0}" = 1 ]; then
@@ -186,7 +230,22 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   # specs/061 3.6: an id this machine retired inside its quarantine is not
   # relayed (the hub could hand it to another machine's holder of the same
   # number): the binary bounces it, a reject into the sender's inbox, exit 4.
-  if [ -n "$TO_BOX" ] || { ! spool_fleet_local "$TO" && ! spool_fleet_retired "$TO"; }; then
+  if [ "$PEERS" -eq 1 ]; then
+    # spec 068 L4: one message to the peers, never a copy per seat. The hub
+    # leg first (to: peers, claimed by exactly one seat of any machine); the
+    # local peers inbox only when the hub leg fails, so no message is ever
+    # both on the hub and in the local lock.
+    [ "${#EXTRA[@]}" -eq 0 ] || { echo "ERROR: a message to the peers carries no --file-*/--dir-* attachment (send a path in the body). Nothing was sent." >&2; exit 2; }
+    rargs=(--from "$FROM" --to peers --kind "$KIND" --body "$BODY")
+    [ -n "$TASK" ] && rargs+=(--task "$TASK")
+    if out="$(spool_fleet_relay "${rargs[@]}")"; then
+      RELAY=1
+    else
+      rc=$?
+      echo "peers: the hub leg failed (rc=${rc}); written to ${SPOOL_ROOT}/peers/inbox for this machine's seats (local lock)" >&2
+      out="$(send_peers_local)" || { echo "ERROR: cannot write ${SPOOL_ROOT}/peers/inbox; nothing was delivered" >&2; exit 11; }
+    fi
+  elif [ -n "$TO_BOX" ] || { ! spool_fleet_local "$TO" && ! spool_fleet_retired "$TO"; }; then
     # specs/058 N1: not on this machine. Attachments are local paths/blobs this
     # machine holds, so a relay carries the body only.
     [ "${#EXTRA[@]}" -eq 0 ] || { echo "ERROR: ${TO} is on another machine; --file-*/--dir-* attachments do not cross machines (send a path in the body). Nothing was sent." >&2; exit 2; }
@@ -257,7 +316,11 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   # Journaled HERE, synchronously, so the ask exists on disk before this
   # script returns; the hub leg runs in the background and never delays or
   # fails the send. A missed hub leg is pushed by the next lease tick.
-  _ak="$(spool_ask_wanted "$TO" "$KIND" "$ASK_KIND" "$NO_ASK")"
+  # Peers (spec 068 L4): a blocker or task to the peers is an ask too; the
+  # book keeps its fields, the lock is the message's (asks.sh ack|done).
+  _af="$ASK_KIND"
+  [ "$PEERS" -eq 1 ] && [ -z "$_af" ] && case "$KIND" in blocker|task) _af="$KIND" ;; esac
+  _ak="$(spool_ask_wanted "$TO" "$KIND" "$_af" "$NO_ASK")"
   if [ -n "$_ak" ] && [ -n "$MSGID" ] && [ "$FROM" != "$TO" ]; then
     _ato="$TO"; [ -n "$TO_BOX" ] && _ato="$TO@$TO_BOX"
     if spool_ask_journal_open "$MSGID" "$_ak" "$FROM@$(spool_fleet_box)" "$_ato" "$TASK" \
@@ -275,6 +338,10 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   fi
 fi
 
+if [ "$PEERS" -eq 1 ]; then
+  echo "poke: peers (the seat that claims it is rung by its poll loop)"
+  exit 0
+fi
 if [ "$POKE_ONLY" -eq 0 ] && [ "$RELAY" -eq 1 ]; then
   echo "poke: remote (${TO} is on another machine; its sidecar rings the pane there)"
   exit 0

@@ -580,7 +580,25 @@ function onClick(ev: MouseEvent) {
 
 const MENU_PASS = 'a, button, input, textarea, select'
 
+/*
+ * HUM-10 (owner, t1 86698d8a): on a phone a thumb held on the card's TEXT is
+ * the browser's own long press: it selects a word, with handles and the
+ * native copy pop-up, so part of a message can be copied. The text is the
+ * one selectable part of the card (the CSS below); the card's own long press
+ * (the menu, or the topic lift) stays on the rest of it, and the ⋯ button
+ * opens the menu from anywhere.
+ */
+const TEXT_SELECT = '.msg-body'
+let touchOnText = false
+function onTextTouch(ev: PointerEvent): boolean {
+  const el = ev.target as HTMLElement | null
+  touchOnText = ev.pointerType === 'touch' && !editing.value && Boolean(el?.closest?.(TEXT_SELECT))
+  return touchOnText
+}
+
 function onContextMenu(ev: MouseEvent) {
+  /* HUM-10 (86698d8a): the browser's selection pop-up, not the card menu */
+  if (touchOnText) return
   /* HUM-10: Android's long press fires contextmenu while the finger is still
      on a card it may lift; the hold (or its release in place) decides */
   if (rowDrag.state !== 'idle') {
@@ -848,7 +866,8 @@ async function swipeCommit() {
 function onRowDown(ev: PointerEvent) {
   /* HUM-10: a finger on a topic card it may move lifts it on the hold (the
      long-press menu then opens on a release in place, see rowDrag) */
-  if (touchLift.value && ev.pointerType === 'touch') rowDrag.down(ev)
+  if (onTextTouch(ev)) longPress.cancel()
+  else if (touchLift.value && ev.pointerType === 'touch') rowDrag.down(ev)
   else longPress.down(ev)
   if (swipeArchive.value && !removing.value) swipe.down(ev)
 }
@@ -1850,6 +1869,13 @@ async function save() {
     user-select: none;
   }
   .msg textarea { -webkit-user-select: text; user-select: text; }
+  /* HUM-10 (owner, t1 86698d8a): except its text, where a long press is the
+     browser's own selection (handles, the native copy pop-up) */
+  .msg :deep(.msg-body) {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
   .msg > .avatar { width: 32px; height: 32px; }
   .msg-main { display: contents; }
   .msg-main > * { grid-column: 1 / -1; min-width: 0; }

@@ -1,0 +1,6 @@
+Lay-What: Adds a safe command to set which machine is preferred for each leading role.
+Lay-How: It shows the change first, and only writes it, with a backup, when asked to.
+Lay-Why: Editing this by hand risked a mistake that would stop the roles from starting.
+Tech-What: New do_spl_lease_rank sets LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH in lease.conf; dry run by default, APPLY=1 writes.
+Tech-How: Atomic write after a lease.conf.bak-<UTC> backup, idempotent; refuses a ranking without this machine or a non-fleet lease.conf; spl-lease-rank.tst.sh 21 checks.
+Tech-Why: Spec 064 L1: the per-role ranking needs a named action, not a hand edit.

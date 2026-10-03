@@ -235,3 +235,14 @@ is no puppeteer cache to seed (`grep -rn "cache/puppeteer" csi-spl-wui/tests` ->
 `pnpm box=9.15.4 satellite=9.15.4`, `terraform 1.9.8/1.9.8`,
 `google-chrome box=153.0.8010 satellite=154.0.8037`, `img-postgres` and
 `img-fake-gcs` present on both machines.
+
+### 4.2 First headless browser e2e on the satellite (spec 064 L5, 2026-10-03)
+
+One WUI e2e file on the generated mock bundle, the way workflow 11 runs it,
+by c-057 on the satellite at trunk `03ccae90` (n=1). Before it, in the WUI
+dir as the box user: `pnpm install --frozen-lockfile` (9 s) and
+`NUXT_PUBLIC_USE_MOCK=1 NUXT_PUBLIC_DEFAULT_LOCALE=en pnpm run generate` (54 s).
+
+| command (from `csi-spl-wui`, as the box user) | Chrome | result | wall | satellite load during it |
+|---|---|---|---|---|
+| `CI=1 CHROME_PATH=/usr/bin/google-chrome bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e console-errors` | 154.0.8037.97 (headless) | PASS, 7 routes, `zero console errors`, `all 1 file(s) passed` | 13 s | `load average` 4.44 .. 4.67 on `nproc 16` (3 samples, 5 s apart; 4.44 before) |

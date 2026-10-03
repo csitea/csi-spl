@@ -64,13 +64,15 @@ do_spl_release_note_bans_seed() {
 }
 
 # spl_release_note_bans_render <workflow> -> the distribution-hygiene Sweep's
-# patterns as RE2, one per line, on stdout. Refuses (non-zero, nothing on
-# stdout) a workflow with no Sweep patterns or a pattern RE2 cannot take.
+# patterns as RE2, one per line, on stdout; a sweep line may go on with its
+# allow-list args (or a `\` continuation), only the pattern is taken. Refuses
+# (non-zero, nothing on stdout) a workflow with no Sweep patterns or a pattern
+# RE2 cannot take.
 spl_release_note_bans_render() {
   local wf="$1" body pats p out=""
   [[ -f "$wf" ]] || { do_log "FATAL no workflow at $wf"; return 1; }
   body="$(yq -r '.jobs."distribution-hygiene".steps[] | select(.name == "Sweep") | .run' "$wf" 2>/dev/null)"
-  pats="$(sed -nE "s/^[[:space:]]*sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'([^']+)'[[:space:]]*$/\1/p" <<<"$body")"
+  pats="$(sed -nE "s/^[[:space:]]*sweep[[:space:]]+\"[^\"]*\"[[:space:]]+'([^']+)'([[:space:]].*)?$/\1/p" <<<"$body")"
   [[ -n "$pats" ]] || { do_log "FATAL no distribution-hygiene Sweep patterns in $wf -- nothing to seed"; return 1; }
   while IFS= read -r p; do
     # lookarounds only NARROW a ban; RE2 has none, so drop them (a wider ban)

@@ -10,6 +10,7 @@
 #            refused; no pattern is in any output or gcloud argv; every gcloud
 #            call carries --account.
 #          CONTROLS (synthetic workflows): a lookahead is dropped (wider ban);
+#          a sweep line with allow-list args / a continuation yields its pattern;
 #          a backreference is refused and stores nothing; a workflow with no
 #          Sweep patterns is refused.
 #          No assertion prints a pattern: the real ones are personal data.
@@ -88,6 +89,10 @@ mkwf() {  # <pattern> -> a synthetic workflow with one Sweep line
 }
 mkwf '(?i)\balpha\b(?!-beta)|gamma'
 [[ "$(render "$T/wf.yml" 2>/dev/null)" == '(?i)\balpha\b|gamma' ]] && pass "control: a lookahead is dropped (the ban only widens)" || fail "control lookahead: $(render "$T/wf.yml" 2>&1)"
+# a sweep line that goes on with allow-list args and a \ continuation (ci 10
+# since a21178f2) still yields its pattern, and only its pattern
+printf 'jobs:\n  distribution-hygiene:\n    steps:\n      - name: Sweep\n        run: |\n          sweep "a" %s \\\n                "$allow_line" "a key"\n          sweep "b" %s "$re" "inline args"\n          sweep "c" %s\n' "'(?i)alpha'" "'beta'" "'gamma'" >"$T/wf.yml"
+[[ "$(render "$T/wf.yml" 2>/dev/null)" == $'(?i)alpha\nbeta\ngamma' ]] && pass "control: a sweep line with allow-list args or a continuation yields just its pattern" || fail "control continuation: $(render "$T/wf.yml" 2>&1 | wc -l) line(s)"
 mkwf '(alpha)\1'
 o=$(render "$T/wf.yml" 2>/dev/null); rc=$?
 [[ $rc -ne 0 && -z "$o" ]] && pass "control: a backreference is refused with nothing rendered" || fail "control backref: rc=$rc"

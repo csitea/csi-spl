@@ -1,0 +1,6 @@
+Lay-What: Typing on a phone feels smoother because the app no longer re-measures the whole screen each time the keyboard moves.
+Lay-How: All parts of the app now share one gentle listener for screen size changes, and keyboard movement only updates what depends on it.
+Lay-Why: The keyboard sliding in triggered heavy work that made typing feel sluggish.
+Tech-What: WUI useKeyboardInset subscribes to one shared passive, rAF-coalesced utils/viewport-resize.mjs source that also hears visualViewport.
+Tech-How: useTouchUi.ts drops 3 active listeners and the mount innerHeight read; new e2e kb-inset and unit viewport-source tests.
+Tech-Why: Perf round 4 W5: apply self median 101.9 -> 32.9 ms; non-passive viewport listeners 4 -> 1.

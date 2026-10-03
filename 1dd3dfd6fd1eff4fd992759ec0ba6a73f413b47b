@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes the automated language test retry once on a known network hiccup of the test machines and say what failed; nothing a user sees changes.

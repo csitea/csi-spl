@@ -1,0 +1,6 @@
+Lay-What: People whose browser is not in English now open the app in their language in one step, a bit faster.
+Lay-How: The web host now picks the right language page right away, using your saved choice or your browser's language.
+Lay-Why: Before, the first visit loaded an English page and then a second page in your language, which was slower.
+Tech-What: Firebase Hosting i18n answers / with the prerendered /<code> page; rootLocaleRedirect.mjs only replaceStates when the served lang matches.
+Tech-How: render-wui-firebase-json.sh stages localized-files/<code>_ALL from the build and emits the i18n key; pages mirror i18n_redirected into firebase-language-override.
+Tech-Why: Perf round 4 W10: a non-English first visit to / cost two documents; fi rail median 3697 -> 3424 ms (n=6).

@@ -71,6 +71,10 @@
     {
       "slug": "boxes",
       "title": "Boxes"
+    },
+    {
+      "slug": "release-notes",
+      "title": "How to write the release note of a commit (agents and humans)"
     }
   ]
 }

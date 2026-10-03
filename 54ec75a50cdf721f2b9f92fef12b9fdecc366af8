@@ -1,0 +1,6 @@
+Lay-What: Adds a shorter way for assistants to read their incoming messages, showing just the sender, topic and text.
+Lay-How: A new option prints each message as a short header and its text, leaving out the technical wrapping.
+Lay-Why: The coordinator reads many messages, and the wrapping was about a third of what it had to read.
+Tech-What: spool recv --compact prints from, kind, task_id [files=N] and the body per message; the JSON default is unchanged.
+Tech-How: cmd/spool/main.go adds the flag; recv_compact_test.go covers it.
+Tech-Why: Token practice 09: a 28-message inbox was 14606 B as JSON, 10342 B compact (-29.2%).

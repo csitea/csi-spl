@@ -1,0 +1,6 @@
+Lay-What: On a phone, typing a long message no longer jumps back to the top; you can see where you are typing.
+Lay-How: The typing box now grows without jumping, and keeps the spot where you type in view.
+Lay-Why: People could not see the end of a long message while typing it, which made writing on a phone frustrating.
+Tech-What: WUI MessageComposer fitGlobalBox sizes text that only grew without the height: auto collapse; a shrink restores the scroll; an end caret stays visible.
+Tech-How: MessageComposer.vue changes the fit; composer-long-msg.test.mjs drives IME composition via CDP at 390x844, desktop 1440 as control.
+Tech-Why: The IME commits each word and every refit through height: auto reset scrollTop to 0 (caret hidden after 146/160 words).

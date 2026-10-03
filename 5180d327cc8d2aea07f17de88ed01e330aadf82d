@@ -1,0 +1,6 @@
+Lay-What: The latest version of the app is now always released, even when a newer change cancels a release that was waiting its turn.
+Lay-How: After each release run, a separate step checks whether the newest change went out and, if not, starts one more release for it.
+Lay-Why: Some changes never reached the live app because the release meant to ship them was silently dropped.
+Tech-What: Workflow 30 gains a job outside its concurrency lock that dispatches workflow 30 at trunk head when the run did not ship it.
+Tech-How: New wui-deploy-newest.sh (with its .tst.sh) compares the shipped sha with trunk head and dispatches; the deploy keeps its concurrency group so a firebase deploy is never killed mid-flight.
+Tech-Why: GitHub cancels a PENDING run when a newer push wants the concurrency group, even with cancel-in-progress false, so trunk head could go undeployed.

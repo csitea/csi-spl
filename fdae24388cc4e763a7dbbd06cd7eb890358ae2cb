@@ -1,0 +1,6 @@
+Lay-What: Reorganises the emoji picker and two settings switches so they share common behaviour; nothing on screen changes.
+Lay-How: The press-and-hold for emoji names and the save logic for settings now each live in one shared piece.
+Lay-Why: The same logic copied into several places tends to drift apart and break in only one of them.
+Tech-What: WUI new composables useLongPressName (EmojiPicker) and useSettingSave (DebugPaneSetting, SubmitKeySetting).
+Tech-How: Long press keeps 350 ms hold and 900 ms linger with timer cleanup on unmount; useSettingSave holds the one-at-a-time guard and status line; unit 2677 pass before and after.
+Tech-Why: Refactor round 1 #21: duplicated component logic extracted; behaviour-preserving.

@@ -1,0 +1,2 @@
+Lay-What: Adds a proposal for how the agent team's roles should fail over automatically, modelled on a well-known storage system.
+Lay-Why: Role handovers had failed in practice; the owner asked for a design to approve before any code.

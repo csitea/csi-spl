@@ -1,0 +1,6 @@
+Lay-What: Creating an issue is faster.
+Lay-How: The server now does the checks and the save in two trips to the database instead of six to eight.
+Lay-Why: Each separate trip added waiting time to every new issue.
+Tech-What: CreateIssue runs as two batches on one connection: reads and checks, then counter upsert, insert and commit.
+Tech-How: issues_postgres.go sends ROLLBACK on any failure; txIssueRefs shares the reads with UpdateIssue; TestCreateIssueBatchRollsBack covers unknown tenant, label and parent.
+Tech-Why: Perf round 4 G3: create 6 -> 2 round trips plain, 8 -> 2 with label and parent (n=5).

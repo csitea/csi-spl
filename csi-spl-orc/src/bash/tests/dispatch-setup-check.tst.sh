@@ -148,10 +148,15 @@ b="$S/dispatch/briefs/brief-dispatcher-c-002.md"
 grep -q 'You are \*\*c-002\*\*, the \*\*master dispatcher' "$b" && grep -q 'w1, w2' "$b" && grep -q 'sudo -u boxuser env ENV=prd' "$b" &&
   ! grep -qE '\{(ID|ROLE|PEER|ORCH|MASTER|FAILOVER|SPOOL_ROOT|POSTS_DIR|ENV|TENANTS|ORC|BOX_USER|LEASE_RULE|FIRST_STEP)\}' "$b" &&
   pass "4. the brief is rendered with ids, workspaces and the box user" || fail "4. brief: $(head -5 "$b")"
-# CLE-77938 (owner 2026-10-02): a new ask never goes to a running lane; the orchestrator spawns a new one.
-grep -q 'You never forward a new ask to a running lane' "$b" && grep -q '^| a \*\*new ask\*\* .*| escalate to \*\*c-001\*\*' "$b" &&
+# CLE-77938 (owner 2026-10-02): a new ask never goes to a running lane. Owner
+# 2026-10-03: the OD that takes a post answers it, owns the topic, does the
+# work itself, and spawns a NEW lane only for real lane work; 3-minute answers.
+grep -q 'You never forward a new ask to a running lane' "$b" && grep -q '^| a \*\*new ask that is real lane work\*\* .*| spawn a NEW lane' "$b" &&
   ! grep -q 'about an area a \*\*live lane owns\*\*' "$b" &&
-  pass "4. the brief escalates every new ask for a new lane" || fail "4. new-ask rule: $(grep -n 'new ask\|lane owns' "$b")"
+  pass "4. the brief gives every new lane-work ask a new lane" || fail "4. new-ask rule: $(grep -n 'new ask\|lane owns' "$b")"
+grep -q 'answered within 3 minutes' "$b" && grep -q 'you own that topic' "$b" && grep -q 'Do the work yourself' "$b" &&
+  ! grep -q 'does not read raw traffic' "$b" &&
+  pass "4. the brief carries the owner rule of 2026-10-03: take, answer, own the topic, 3 minutes" || fail "4. owner rule: $(sed -n 1,20p "$b")"
 
 # --- 5. refusals ---------------------------------------------------------------------------
 setup ENV=stg >/dev/null 2>&1 && fail "5. ENV=stg accepted" || pass "5. ENV=stg refused"

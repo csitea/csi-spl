@@ -1,9 +1,10 @@
 # Spool fleet roles: orchestrator and dispatchers
 
 How the agents that run a box split the work of reading traffic, deciding, and
-doing. Owner decision 2026-10-01: the orchestrator stops reading raw traffic;
-two dispatchers (a master and a failover) route every message, and only
-decisions reach the orchestrator.
+doing. Owner decision 2026-10-01: two dispatchers (a master and a failover)
+route every message. Owner decisions 2026-10-03 (sections 2.1, 3): every OD
+seat (orchestrator, master, failover) is in every channel, and the OD that
+takes a post answers it and owns that topic.
 
 ## 1. Roles
 
@@ -12,8 +13,8 @@ Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-re
 
 | id | role | does | never does |
 |---|---|---|---|
-| `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved) | reads the raw message stream; routes routine traffic |
-| `c-002` | master dispatcher | routes every inbound message to the lane that owns it; delivers agents' owner texts to their topics after checking the claim; escalates decisions to `c-001` | codes, commits, deploys, spawns, closes agents, decides |
+| `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved); in every channel (2.1), it takes a post only as section 3 says | takes a post the dispatch lease holder has taken; routes routine traffic |
+| `c-002` | master dispatcher | takes every new post (section 3): answers it itself and owns its topic; does the work itself when it fits its session, spawns a new lane when it is real lane work; delivers agents' owner texts to their topics after checking the claim; escalates decisions to `c-001` | runs the prd operations its harness refuses (those stay `c-001`'s); decides for the owner |
 | `c-003` | failover dispatcher | the same as `c-002`, but only while it holds the lease (section 4) | dispatches while on standby |
 | `c-NNN` | lane agents | one brief each: build, test, land, prove live, report to `c-001` | route other lanes' traffic |
 
@@ -42,10 +43,10 @@ on every turn.
 | a lane waits more than about an hour for an owner answer | park its context (branch, held commit, the open question) in `/var/tmp/c-parent-level/dispatch/hold/<topic>/`, close it, and respawn from the hold dir when the answer comes |
 
 "Stand by in case the owner answers later" is not a reason to keep an agent
-open, and neither is "it could take the next ask". The dispatchers apply the
-first two rows: they forward only a follow-up to the owning lane, and escalate
-every new ask to the acting orchestrator for a new lane. `c-001` applies the
-rest.
+open, and neither is "it could take the next ask". The OD that took the post
+applies the first two rows (section 3): it forwards only a follow-up to the
+owning lane, and a new ask that is real lane work gets a NEW lane, which it
+spawns itself. `c-001` applies the rest.
 
 **When a human ends the discussion, the agent ends too.** A human closes or
 archives the topic, or says in any words that it is done or no longer active:
@@ -71,26 +72,97 @@ The dispatchers are seated on every workspace desk the box serves
 (`do_spl_desk_up DESK_AGENT=c-002`, and `c-003`). `c-001` stays seated
 too, so a post that names it still reaches it.
 
-A channel created later gets both dispatchers on the next desk reconcile tick
+A channel created later gets every OD seat on the next desk reconcile tick
 (`do_spl_dispatch_tick`: `do_spl_dispatch_subscribe DRY_RUN=0` every tick,
-dev and prd, while `lease.conf` exists; a changed `GAP`/`DEAD` set is logged, a
-new prd `GAP` goes to the lease holder and to the orchestrator after an hour open).
+dev and prd, while `lease.conf` exists; a changed `GAP`/`DEAD`/`UNSEATED` set
+is logged, a new prd `GAP` goes to the lease holder and to the orchestrator
+after an hour open).
 
-## 3. The routing rule
+### 2.1 Every OD seat is in every channel
 
-For each message the lease holder does exactly one thing, then archives it:
+Owner (HUM-10, t1 `d40c3e2f`, 2026-10-03 ~18:25Z), verbatim: *"Of course
+every OD should be a member of every channel because they are the ones to
+take in whatever comes and decide what to do."* This reverses the
+2026-10-01 rule (both dispatchers in every channel, the orchestrator in none).
 
-| the message is | the dispatcher |
+| what | rule |
 |---|---|
+| who | every OD seat: `LEASE_ORCH`, `LEASE_MASTER`, `LEASE_FAILOVER` (`c-001`..`c-003`) |
+| where | on every box of the fleet: this machine's desk box plus, in fleet mode, every box of `LEASE_PRIORITY` / `_ORCH` / `_DISPATCH` (`DISPATCH_FLEET_BOXES` overrides) |
+| which channels | every live channel of every non-test workspace, the default ones included; `#issues` and the retired `#tasks` excluded |
+| done by | `do_spl_dispatch_subscribe` (setup step 10, and every desk reconcile tick through `do_spl_dispatch_tick`) |
+| a seat the workspace does not roster | the hub refuses its subscription (`not_a_member`): reported `UNSEATED`, a GAP in `do_spl_dispatch_check`, fixed by seating it (`do_spl_desk_up`), never by the subscribe |
+| verified by | `do_spl_dispatch_check`: per channel `OD seats n/m`, any missing seat a GAP; per workspace the unseated seats |
+
+A new channel is covered by the next tick, not by the hub on create: the
+hub has no record of which ids are a fleet's OD seats (they live in each
+machine's `lease.conf`), and a post in the gap is caught by the unanswered
+sweep (3.2) and by the 3-minute rule (3).
+
+Membership decides who RECEIVES a post, not who answers it: section 3.
+
+## 3. The routing rule: the OD that takes a post owns it
+
+Owner (HUM-10, t1 `d40c3e2f`, 2026-10-03 ~18:26Z), verbatim: *"The
+dispatchers must be able to post. The dispatcher should be doing everything
+as well. We need to set up this system so that anyone writing anything
+should get answered within 3 minutes. Once an orchestrator dispatcher takes
+something, then he answers but he keeps the context of that discussion so
+he becomes the owner of that discussion."*
+
+**Every human post is answered within 3 minutes.** (How fast the model's
+first words appear is a separate design, not this section's.)
+
+Every OD seat receives every channel post (2.1). Exactly one of them takes
+it, so a post never gets two answers:
+
+| the post | who takes it |
+|---|---|
+| in a topic an OD already owns | the owner (below); every other OD that receives it leaves it, and forwards it to the owner if it reached only them |
+| new (a new topic, or a topic no OD owns) | the dispatch lease holder (section 4), at once |
+| names an OD (`@c-001`) | that OD |
+| still unanswered after 2 minutes (no agent reply in the topic) | the orchestrator lease holder, as the 3-minute backstop; it then owns the topic |
+
+A seat on standby (the failover while the master holds the lease, the other
+machine's trio while this one holds it) reads and takes nothing.
+
+**The taker answers the post itself and owns that topic.** It keeps the
+topic's context and answers every follow-up there; it does not hand the
+conversation to another agent. Ownership ends when a human closes the
+topic (section 1.1).
+
+**The taker does the work itself** when it fits in its own session: an
+answer, a status, a lookup, a check. Only real lane work (a code change to
+build, test, land and deploy) goes to a lane: the taker spawns a NEW lane
+for it (never a running one, section 1.1), stays the owner, and posts the
+lane's result in the topic. What stays with `c-001`: prd operations a
+dispatcher's harness refuses, and decisions; a question only the owner can
+answer is posted as a blocker in the topic.
+
+**The owner record.** Spec 068's claim is the record: a human channel post
+in a seated workspace is a peer message, and the seat that claims it is
+stored in `messages.responsible` (`<id>@<box>`, rdb 0110,
+`internal/store/message_claim.go`); the owner of a topic is the
+`responsible` of its opening post. Until the 068 poll loops run, nothing
+claims, and the owner is the OD whose reply is the first agent reply in the
+topic (its `from_id@from_box`): every OD sees that reply in the topic
+itself.
+
+For each message the taker does exactly one thing, then archives it:
+
+| the message is | the taker |
+|---|---|
+| a question or ask it can answer or do in its own session | answers it in the topic, now |
+| real lane work (a new ask needing a build, test, land, deploy) | spawns a new lane, says so in the topic, stays the owner and posts the result |
 | a follow-up to a live lane's own task (an answer it asked for, a correction to that same ask) | forwards it verbatim, with topic and message id, to that lane |
 | a status question | asks the owning lane for a one-paragraph status and posts it in the asker's topic |
 | an agent's owner text ("post this in topic X") | checks the claim (section 3.1), then posts it verbatim with its screenshots |
-| a new ask (any new piece of work, even in a live lane's code or topic; section 1.1), a decision, an approval, anything needing a spawn, close, deploy or production action, or anything unclear | escalates to `c-001` in one message: who asked, where, the exact words, what it needs |
+| a decision, an approval, a prd operation its harness refuses | escalates to `c-001` in one message: who asked, where, the exact words, what it needs; keeps the topic and posts the outcome |
 | a duplicate or chatter | archives it, no reply |
 
-Ownership comes from the spool registry, the window names and the
-orchestrator's lane table. A dispatcher never guesses an owner; it asks
-`c-001`.
+Ownership of a lane's code comes from the spool registry, the window names
+and the orchestrator's lane table. An OD never guesses which lane owns
+something; it asks `c-001`.
 
 ### 3.1 A "live" claim is checked before it is posted
 
@@ -502,6 +574,7 @@ end to end in every seated workspace.
 | lease renew + watch loops | `do_spl_dispatch_lease` with tests (a replay of the 2026-10-01 live failover test); ensured every 5 min by the desk reconcile cron; repo loops live since 2026-10-01 06:28Z; the interim watch loop is stopped, the interim renew loop is stopped by the orchestrator at cutover |
 | setup and verify on a new machine | `do_spl_dispatch_setup` (DRY_RUN plan, idempotent) + `do_spl_dispatch_check`; prompt: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md) |
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
+| every OD seat in every channel (2.1) | code on trunk 2026-10-03 (`do_spl_dispatch_subscribe` / `_check` / `_tick`); applied per env by the orchestrator with `DRY_RUN=0` |
 | web UI posts reach the dispatchers | done 2026-10-01: `do_spl_dispatch_subscribe` put both dispatchers in every channel of all 6 workspaces and took the orchestrator out (the hub delivers to a channel's subscribed agents; the fallback list only when none is online). `do_spl_dispatch_check`: no gap. t1 proven on live traffic: 227 human posts reached the master, the orchestrator only DMs and @mentions |
 | a channel created after the subscribe | done 2026-10-01: `do_spl_dispatch_tick` on every desk reconcile tick re-runs the subscribe (one read per workspace, no write when nothing changed) and reports a changed gap set: `DISPATCH` lines in the cron log; on prd one `dispatch-gaps` note to the lease holder per new `GAP`, the orchestrator once when it is still open after an hour; test workspaces (`<spool root>/dispatch/test-workspaces`, shared with the sweep) left out |
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
@@ -512,4 +585,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.7.0 · updated: 2026-10-02 · last-edit: 2026-10-02T18:45:00Z -->
+<!-- version: 0.8.0 · updated: 2026-10-03 · last-edit: 2026-10-03T19:00:00Z -->

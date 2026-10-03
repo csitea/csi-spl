@@ -82,7 +82,7 @@ The steps, in the order the action runs them:
 | `desk` | seats the dispatcher in each workspace where it has no seat |
 | `legacy-registry` | copies the registry row when `DISPATCH_LEGACY_REGISTRY` is set |
 | `lease-loops` | starts the renew and watch loops when they are not running |
-| channel subscriptions | `do_spl_dispatch_subscribe`: both dispatchers in every channel of every workspace (default channels included), the orchestrator in none. The hub delivers a web UI post to a channel's SUBSCRIBED agents and uses the fallback list only when none is online, so a channel the orchestrator sits in and the dispatchers do not reaches the orchestrator alone. It reads the hub DB even in the dry run; `DISPATCH_SUBSCRIBE=0` skips it. Dead subscriptions (no live process) are reported as `DEAD`, never removed |
+| channel subscriptions | `do_spl_dispatch_subscribe`: every OD seat (orchestrator, master, failover) of every fleet box in every channel of every workspace (default channels included; owner 2026-10-03, SPEC-spool-fleet-roles.md 2.1). The hub delivers a web UI post to a channel's SUBSCRIBED agents and uses the fallback list only when none is online. An OD seat the workspace does not seat is reported `UNSEATED` (seat it with `do_spl_desk_up`). It reads the hub DB even in the dry run; `DISPATCH_SUBSCRIBE=0` skips it. Dead subscriptions (no live process) are reported as `DEAD`, never removed |
 | unanswered sweep | `do_spl_unanswered_sweep_install_cron`: one crontab line (`# csi-spl:unanswered-sweep`) running the unanswered-post sweep every 10 min, which sends the lease holder the topics in every workspace whose last message is a human's ([SPEC section 3.2](SPEC-spool-fleet-roles.md)). The dry run prints the crontab diff; `DISPATCH_SWEEP=0` skips it |
 
 ### 3.3 Relaunch a session that started before its settings
@@ -282,4 +282,4 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
-<!-- version: 0.3.0 · updated: 2026-10-01 · last-edit: 2026-10-01T19:30:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-03 · last-edit: 2026-10-03T19:00:00Z -->

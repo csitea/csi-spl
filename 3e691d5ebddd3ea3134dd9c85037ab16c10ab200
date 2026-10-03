@@ -1,0 +1,6 @@
+Lay-What: Fixes the build-worker setup command, which wrongly reported a failure on a working install.
+Lay-How: It now checks whether the background service is actually running instead of trusting the installer's last message.
+Lay-Why: The setup stopped with an error even though everything had worked.
+Tech-What: do_gh_runner_add judges rootless docker by the systemd unit being active, not by the setup tool's exit code.
+Tech-How: gh-runner-add.func.sh checks the unit state after dockerd-rootless-setuptool.sh.
+Tech-Why: The Debian setup tool ends with $BIN/docker version where no docker binary exists, so it exits 1 after starting the unit.

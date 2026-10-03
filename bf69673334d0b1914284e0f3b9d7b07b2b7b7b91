@@ -1,0 +1,6 @@
+Lay-What: The app starts faster because the code for editing, admin and issue actions now loads only when first used.
+Lay-How: The actions you take after the first screen, such as editing a message or managing members, are fetched the first time you use them.
+Lay-Why: Every visitor downloaded the code for all those actions at start even when only reading.
+Tech-What: 48 spool-client writer, admin and issue methods move to utils/spool-client-lazy.mjs; spool-client.mjs keeps first-screen reads plus one async stub per name.
+Tech-How: Each stub imports the lazy chunk on first call so callers' await is unchanged; the lazy module exports one name read as a member to avoid Nuxt auto-import collisions; initial-js-trims.test.mjs guards it.
+Tech-Why: P3-30: ci_initial_gzip_kb 149.1 -> 145.1 (n=1 before, n=2 after).

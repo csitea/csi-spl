@@ -1,0 +1,6 @@
+Lay-What: The server now splits the count of your unread messages into those in channels and those in direct messages.
+Lay-How: The same count the app already asks for now comes in two parts that add up to the total.
+Lay-Why: The app needs these two numbers to show a red count on the Channels and Direct messages tabs.
+Tech-What: Hub Flow counts and unread carry channels + dms (summing to total) on the same route and WS frame.
+Tech-How: Two more FILTER columns on the single flowCountsSQL scan (memory and postgres stores); the flow-v1 contract documents the fields.
+Tech-Why: Owner request for per-kind red numbers on the rail; one scan avoids a second read per refresh.

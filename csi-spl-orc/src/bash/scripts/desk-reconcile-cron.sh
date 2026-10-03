@@ -239,6 +239,19 @@ if [ "${DESK_ALL_TENANTS:-1}" != 0 ]; then
   say "INFO do_spl_desk_up_tenants exit $trc"
   [ "$rc" = 0 ] && [ "$trc" != 0 ] && rc=1
 fi
+
+# The OTHER desk boxes of every tenant (box-rsp, box-ci, ...): the two passes
+# above reconcile only the default desk box, so on prd 2026-10-02 all 6 box-rsp
+# sidecars ran a deleted spool binary that predated the c-NNN ids and RSP-01's
+# relays went to .hub/rejected. A dead or stale sidecar there is restarted; a
+# box retired by do_spl_desk_rebox (box-desk) is never touched.
+# DESK_OTHER_BOXES=0 turns it off without touching the main reconcile.
+if [ "${DESK_OTHER_BOXES:-1}" != 0 ]; then
+  ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DRY_RUN=0 ./run -a do_spl_desk_up_boxes )
+  brc=$?
+  say "INFO do_spl_desk_up_boxes exit $brc"
+  [ "$rc" = 0 ] && [ "$brc" != 0 ] && rc=1
+fi
 fi
 
 # The dispatchers on every channel of every workspace (2026-10-01: two channels

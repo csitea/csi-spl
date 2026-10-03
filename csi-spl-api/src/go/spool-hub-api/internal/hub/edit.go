@@ -298,20 +298,57 @@ func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.Editab
 	if err := json.Unmarshal(canon, &e); err != nil {
 		return
 	}
-	frame := map[string]any{"type": editedFrame, "task_id": m.TaskID, "msg_id": m.MsgID,
-		"cursor": encCursor(m.ReceivedAt, m.MsgID), "received_at": rfc(m.ReceivedAt),
-		"envelope": e.Msg, "env": json.RawMessage(canon)}
-	if m.Channel != "" {
-		frame["channel"] = m.Channel
-	}
-	if e.ParentTaskID != "" {
-		frame["parent_task_id"] = e.ParentTaskID
-	}
-	editedFields(frame, at, by, rev)
-	kindFields(frame, m.Kind, m.KindSetAt, m.KindSetBy)
+	frame := newEditedMsg(m, canon, e, at, by, rev)
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck
 	}
+}
+
+// editedMsg is the message_edited frame (contract §3). Its fields are in key
+// order, so it encodes byte for byte as the map it replaced (encoding/json
+// sorts map keys); the embedded pointers carry editedFields' and kindFields'
+// all-or-nothing groups, so a nil one omits exactly the keys they omit
+// (perf round 4, G12).
+type editedMsg struct {
+	Channel string `json:"channel,omitempty"`
+	Cursor  string `json:"cursor"`
+	*editedMark
+	Env      json.RawMessage `json:"env"`
+	Envelope json.RawMessage `json:"envelope"`
+	*kindMark
+	MsgID        string `json:"msg_id"`
+	ParentTaskID string `json:"parent_task_id,omitempty"`
+	ReceivedAt   string `json:"received_at"`
+	Revision     int    `json:"revision,omitempty"` // set only with editedMark, as editedFields
+	TaskID       string `json:"task_id"`
+	Type         string `json:"type"`
+}
+
+type editedMark struct {
+	EditedAt string `json:"edited_at"`
+	EditedBy string `json:"edited_by"`
+}
+
+type kindMark struct {
+	Kind      string `json:"kind"`
+	KindSetAt string `json:"kind_set_at"`
+	KindSetBy string `json:"kind_set_by"`
+}
+
+func newEditedMsg(m store.EditableMessage, canon []byte, e wire.Envelope, at time.Time, by string, rev int) *editedMsg {
+	f := &editedMsg{Channel: m.Channel, Cursor: encCursor(m.ReceivedAt, m.MsgID),
+		Env: json.RawMessage(canon), Envelope: e.Msg, MsgID: m.MsgID,
+		ParentTaskID: e.ParentTaskID, ReceivedAt: rfc(m.ReceivedAt), TaskID: m.TaskID, Type: editedFrame}
+	if !at.IsZero() {
+		f.editedMark = &editedMark{EditedAt: rfc(at), EditedBy: by}
+		if rev > 0 {
+			f.Revision = rev
+		}
+	}
+	if !m.KindSetAt.IsZero() {
+		f.kindMark = &kindMark{Kind: m.Kind, KindSetAt: rfc(m.KindSetAt), KindSetBy: m.KindSetBy}
+	}
+	return f
 }
 
 // deletedFrame tells every open thread to drop the row. It is not a second
@@ -398,13 +435,23 @@ func (s *Server) fanoutDeleted(ctx context.Context, tenant string, m store.Edita
 	if len(targets) == 0 {
 		return
 	}
-	frame := map[string]any{"type": deletedFrame, "task_id": m.TaskID, "msg_id": m.MsgID}
-	if m.Channel != "" {
-		frame["channel"] = m.Channel
-	}
+	frame := newDeletedMsg(m)
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck
 	}
+}
+
+// deletedMsg is the message_deleted frame, its fields in key order like
+// editedMsg's (perf round 4, G12).
+type deletedMsg struct {
+	Channel string `json:"channel,omitempty"`
+	MsgID   string `json:"msg_id"`
+	TaskID  string `json:"task_id"`
+	Type    string `json:"type"`
+}
+
+func newDeletedMsg(m store.EditableMessage) *deletedMsg {
+	return &deletedMsg{Channel: m.Channel, MsgID: m.MsgID, TaskID: m.TaskID, Type: deletedFrame}
 }
 
 // editPreflight answers CORS preflight for PATCH and DELETE

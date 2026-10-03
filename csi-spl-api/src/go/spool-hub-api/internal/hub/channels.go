@@ -312,8 +312,17 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 
 // ---- presence (wui-live-ws.md §3.2) --------------------------------------------
 
-func presenceFrame(peer, status string) map[string]string {
-	return map[string]string{"type": "presence", "peer": peer, "status": status}
+// presenceMsg is the presence frame. Its fields are in key order, so it
+// encodes byte for byte as the map it replaced (encoding/json sorts map keys):
+// a typed frame costs no map and no key sort per write (perf round 4, G12).
+type presenceMsg struct {
+	Peer   string `json:"peer"`
+	Status string `json:"status"`
+	Type   string `json:"type"`
+}
+
+func presenceFrame(peer, status string) presenceMsg {
+	return presenceMsg{Peer: peer, Status: status, Type: "presence"}
 }
 
 // presence pushes one frame per agent to every browser socket of tenant.
@@ -329,9 +338,16 @@ func (s *Server) presence(ctx context.Context, tenant, box string, agents []stri
 		}
 	}
 	s.mu.Unlock()
+	if len(targets) == 0 {
+		return
+	}
+	frames := make([]presenceMsg, len(agents)) // once per agent, not per agent x socket
+	for i, a := range agents {
+		frames[i] = presenceFrame(a+"@"+box, status)
+	}
 	for _, c := range targets {
-		for _, a := range agents {
-			c.write(ctx, presenceFrame(a+"@"+box, status)) //nolint:errcheck
+		for i := range frames {
+			c.write(ctx, &frames[i]) //nolint:errcheck
 		}
 	}
 }

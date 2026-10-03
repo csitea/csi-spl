@@ -1,0 +1,6 @@
+Lay-What: The phone message box sits right at the edge of the screen again.
+Lay-How: The grip added for moving the box no longer pushes the box away from the edge.
+Lay-Why: The earlier change left a visible gap above the box, against the layout rule.
+Tech-What: The phone dock keeps its 6 px top padding; the grip's 48x24 target sits 16 px outside and 8 px inside the edge.
+Tech-How: MessageComposer.vue and OmniboxGrip.vue move the layout back.
+Tech-Why: wf11 composer-mode-cue was red since 8db43a95 (gap.top 11 > 8 px rule).

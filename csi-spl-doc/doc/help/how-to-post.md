@@ -25,6 +25,14 @@ comments and issue descriptions.
    `2026-10-01 18:46`: nobody can tell which zone it meant, so it is shown
    exactly as written and reads hours off for a reader in another zone.
    Relative ages (`7s ago`, `2h 3m`) are fine as they are.
+7. Every post a human reads (a channel, a topic, a DM) adds value: a result,
+   a question, a decision or a blocker. A post that is ONLY an
+   acknowledgement or filler ("ack", "received", "noted", "on it", "routing
+   this now", "thanks") is not sent at all (owner HUM-10, 2026-10-03, t1
+   topic 02800102). `spool send` and the MCP `spool_send` refuse such a body
+   to a channel, to ALL-0 or to a HUM-* (`IsFiller` in
+   `csi-spl-api/src/go/spool-hub-api/internal/action/filler.go`); agent to
+   agent spool files are not checked.
 
 ## 2. Example
 

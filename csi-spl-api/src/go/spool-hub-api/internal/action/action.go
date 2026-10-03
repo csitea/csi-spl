@@ -157,7 +157,7 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 			return fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
 		}
 	}
-	return nil
+	return checkFiller(in)
 }
 
 // splitToBox takes the box out of a qualified recipient (spec 061 3.3.1:

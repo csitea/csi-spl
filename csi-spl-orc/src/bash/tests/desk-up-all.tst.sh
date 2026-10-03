@@ -74,11 +74,14 @@ chmod +x "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts/desk-reconcile-cron.sh"
 printf '#!/bin/sh\nexit 0\n' >"$CO/$(basename "$PROJ_ROOT")/run"
 chmod +x "$CO/$(basename "$PROJ_ROOT")/run"
 
+# The default desk box comes from the box's live box.env (SPOOL_DESK_BOX=<box>
+# on a renamed box), so pin both to nothing: the tests read box-desk everywhere.
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" \
+  env -u SPOOL_DESK_BOX PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" \
       STUB_LOG="$T/calls.log" STUB_CRONTAB="$T/crontab.txt" \
       SPL_ORG_APP="$(basename "$PROJ_ROOT" | sed 's/-orc$//')" \
       SPOOL_ROOT="$T/spool" SPOOL_BOX_USER="$(id -un)" SPOOL_TMUX_SOCKET="$T/nosuch.sock" \
+      SPOOL_BOX_ENV="$T/no-box.env" \
       PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
     # This stub reproduces the ONE property of run.sh do_log that this file

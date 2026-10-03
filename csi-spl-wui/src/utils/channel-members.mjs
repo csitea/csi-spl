@@ -33,7 +33,7 @@ export function channelInviteCandidates(rosterIds, memberIds) {
  */
 export function filterPeopleContains(ids, query, names = null) {
   const q = String(query || '').trim().toLowerCase()
-  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
+  const nameOf = (id) => (names && typeof names === 'object' && Object.hasOwn(names, id) ? String(names[id] || '') : '')
   const out = []
   for (const raw of ids || []) {
     const id = String(raw || '')

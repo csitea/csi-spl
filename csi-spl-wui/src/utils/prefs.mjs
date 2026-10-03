@@ -55,7 +55,7 @@ export function memoryStore(init = {}) {
   const m = { ...init }
   return {
     getItem(key) {
-      return Object.prototype.hasOwnProperty.call(m, key) ? m[key] : null
+      return Object.hasOwn(m, key) ? m[key] : null
     },
     setItem(key, value) {
       m[key] = String(value)

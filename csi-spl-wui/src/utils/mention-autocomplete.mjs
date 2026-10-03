@@ -44,7 +44,7 @@ export function filterRosterMentions(peers, query, names = null) {
   const allowed = rows.filter((p) => p && isAgentId(p.id))
   const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()
   if (!q) return allowed.slice()
-  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
+  const nameOf = (id) => (names && typeof names === 'object' && Object.hasOwn(names, id) ? String(names[id] || '') : '')
   return allowed.filter((p) => {
     const id = String(p.id || '').toLocaleLowerCase()
     const label = String(p.label || '').toLocaleLowerCase()
@@ -62,7 +62,7 @@ export function filterRosterMentions(peers, query, names = null) {
  */
 export function ownerMentions(owners, query, names = null, selfId = '', isOnline = null) {
   const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()
-  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
+  const nameOf = (id) => (names && typeof names === 'object' && Object.hasOwn(names, id) ? String(names[id] || '') : '')
   const seen = new Set()
   const out = []
   for (const raw of Array.isArray(owners) ? owners : []) {
@@ -130,7 +130,7 @@ const NAME_END = '(?![\\p{L}\\p{N}_-])'
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 function cleanName(names, id) {
-  const has = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id)
+  const has = names && typeof names === 'object' && Object.hasOwn(names, id)
   return has ? String(names[id] || '').replace(BIDI, '').replace(/\s+/g, ' ').trim() : ''
 }
 

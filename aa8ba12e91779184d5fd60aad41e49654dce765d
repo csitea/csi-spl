@@ -1,0 +1,6 @@
+Lay-What: Tidies two small scripts so they count and read files directly; nothing a user sees changes.
+Lay-How: Removes extra steps that passed data through another program for no reason, and adds two test cases.
+Lay-Why: Extra steps add cost and can hide errors.
+Tech-What: do_export_json_section_vars_as_tf_vars lets jq read $json_file; spl_desk_purge_pokes counts a glob array instead of ls -1 | wc -l.
+Tech-How: export-json-section-vars-as-tf-vars.func.sh and spl-desk-up.func.sh; desk-actions.tst.sh +2 cases.
+Tech-Why: Refactor round 1 #26: needless cat and ls | wc pipelines.

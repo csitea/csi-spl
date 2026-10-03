@@ -1,8 +1,9 @@
 # 065: the release notes table, one row per commit, lay and technical
 
-Status: **draft for the owner, Q1..Q14 open** (section 9). Spec only; no
-code, workflow, gate or `CLAUDE.md` was touched.
-Draft 2026-10-03, c-053.
+Status: **owner answering** (section 10): Q1..Q3, Q5, Q9..Q13 yes, Q8 no;
+Q4 being explained; Q4, Q6, Q7, Q14 open (section 11). Build lanes: section
+12. Spec only; no code, workflow, gate or `CLAUDE.md` was touched.
+Draft 2026-10-03, c-053; answers folded in 2026-10-03, c-067.
 Related: [047 deployability](../047-spool-deployability/) (W10, the weekly
 stable release, workflow `55_release-stable.yml`), the version mint
 `do_release_version` (`csi-spl-orc/src/bash/run/release-version.func.sh`),
@@ -245,6 +246,8 @@ the noise 7 row c rules out).
 
 ## 8. Build order (after the owner answers)
 
+Superseded by the lane table in section 12; kept as the original order.
+
 1. The trailer rule as one help page in `csi-spl-doc/doc/help/` (the 4.1
    example), pointed to from the agent seed prompt.
 2. The pre-push lint part `release-note` (warning mode) + its test.
@@ -289,3 +292,65 @@ the noise 7 row c rules out).
     the link? yes / no
 14. **Q14** Should the deploy workflows also post the links themselves?
     yes / no (recommended: no, ~105 deploys a day)
+
+## 10. Owner answers (t1 topic `4a31aa83`, 2026-10-03 from ~04:30Z)
+
+Verbatim as relayed by the orchestrator (dictated text, kept as received).
+Relayed by the orchestrator (c-001) and, for Q11, by the c-002 desk; rows in
+the order they arrived.
+
+| Q | owner, verbatim | reading |
+|---|---|---|
+| Q8 | "#8, no." | no daily digest post. Option 7 d is dropped; per-deploy posts (7 c) were never offered |
+| Q9 | "#9, yes." | the weekly stable GitHub release (workflow 55) gains the lay column |
+| Q10 | "On number 10 yes." | the note link is `<wui host>/releases/<sha>` (and `/releases/v<X.Y.Z>`), opening the same modal (7.2) |
+| Q12 | "#12, yes." | every "released to dev/prd" post carries the note link per sha; the seed prompt teaches it and `do_release_note_link` prints it (7.3) |
+| Q13 | "#13, yes." | the dispatcher WARNS on a released post without the link and never blocks it (7.3) |
+| Q1 | "On one, yes." | option C: six trailers in the commit message, shown from a hub DB table in the WUI (section 3) |
+| Q2 | "Onto yes" | read as "On two, yes" (dictated): the six fields Lay-What/How/Why + Tech-What/How/Why, one line each (4.1) |
+| Q3 | "#3, yes." | the pre-push gate refuses a commit without the note, CI is the backstop, and a deploy is never blocked by it (5.1) |
+| Q11 | "On number 11 yes." | every signed-in user can open the notes, not only admins (7.1 item 5); relayed by c-002, reached its desk ~04:39Z |
+| Q4 | "On the 4th explain" | not an answer yet: the owner asked for Q4 to be explained. A five-line explanation went to the orchestrator for delivery at 04:39Z (recommendation: yes, one week of warnings). Open |
+| Q5 | "On 5, number yes." | yes: doc-only commits need only Lay-What and Lay-Why; test/CI-only commits may say `Release-Note: skip` plus one `Lay-Why:` (5.2) |
+
+## 11. Still open
+
+Verbatim from section 9:
+
+- **Q4** One week as a warning before refusing? yes / no (explanation
+  requested and sent; answer pending)
+- **Q6** Backfill, pick one: none / since the last stable, subject only
+  (recommended) / last 100 versions written by an agent
+- **Q7** The notes open in ONE modal from the version pop-up at the
+  bottom (desktop footer and phone strip), listing every version with its
+  commit hashes, and a click on a hash shows that commit's note (7.1)?
+  yes / no
+- **Q14** Should the deploy workflows also post the links themselves?
+  yes / no (recommended: no, ~105 deploys a day)
+
+## 12. Build lanes
+
+Small lanes, one task each, disjoint files. "After" names the lane whose
+contract it needs on trunk first; a lane gated on an open question waits for
+it. Paths checked on `origin/master` 2026-10-03: `ls
+csi-spl-rdb/src/sql/postgres/spool-hub/ | tail -1` -> `0105_agent_lifecycle.sql`,
+so the migration is `0106` or the next free number at build time (the 0105
+in section 8 is taken).
+
+| lane | task | files (only these) | test | after / gated on |
+|---|---|---|---|---|
+| L1 | the trailer rule as one help page (4.1 example, 5.2 special commits) | `csi-spl-doc/doc/help/release-notes.md` (new) | `./run -a do_check_dist_hygiene`; `./run -a do_check_pre_push_lint` (md links) | none |
+| L2 | pre-push part `release-note`, WARNING mode: checks the six trailers (or the 5.2 forms) on every commit in the pushed range | `csi-spl-iac/src/bash/run/check-release-note.func.sh` (new), the one part line in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`, `csi-spl-iac/src/bash/tests/check-release-note.tst.sh` (new) | the new `.tst.sh`: full note passes, missing / empty trailer warns, doc-only and `Release-Note: skip` pass; `check-pre-push.tst.sh` stays green | L1 (the rule it checks) |
+| L3 | migration + store for `release_note` (4.2 columns, `state`) | `csi-spl-rdb/src/sql/postgres/spool-hub/0106_release_note.sql` (new), `csi-spl-api/src/go/spool-hub-api/internal/store/release_note*.go` (new) | store test on POSTGRES: `PRE_PUSH_TIER=full ./run -a do_check_pre_push` | none |
+| L4 | hub endpoints: ingest (trailers + hygiene filter), `GET /v1/release-notes?before=&limit=50`, `GET /v1/release-notes/<sha>` | `csi-spl-api/src/go/spool-hub-api/internal/hub/release_notes*.go` (new) and its route line | Go tests incl. the hygiene filter dropping a banned name; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | L3; every signed-in user may read (Q11 yes) |
+| L5 | deploy-time ingest: the deploy parses the new commits' trailers and calls the L4 ingest with the minted version | `csi-spl-orc/src/bash/run/release-note-ingest.func.sh` (new), one step in `.github/workflows/20_hub-build-deploy.yml`, `csi-spl-orc/src/bash/tests/release-note-ingest.tst.sh` (new) | the `.tst.sh` (trailer parse, `state` ok / missing / skip / revert); `do_check_pre_push_lint` (actionlint) | L4 |
+| L6 | `ReleaseNotesDialog` from both version cards + the `/releases/<ref>` route | `csi-spl-wui/src/components/ReleaseNotesDialog.vue` (new), `ChannelSidebar.vue` and `MobileStatusStrip.vue` (button only), `csi-spl-wui/src/pages/releases/[ref].vue` (new), `csi-spl-wui/tests/e2e/release-notes.spec.ts` (new) | `pnpm run typecheck`; e2e on desktop AND phone width against a generated bundle | L4 contract (may mock it); gated on **Q7** |
+| L7 | `do_release_note_link SHA= ENV=` prints `<sha> v<X.Y.Z> <link>`, host from cnf | `csi-spl-orc/src/bash/run/release-note-link.func.sh` (new), `csi-spl-orc/src/bash/tests/release-note-link.tst.sh` (new) | the `.tst.sh` (no literal host; unknown sha fails) | none |
+| L8 | seed prompt: the report asks for `sha + note link` per released commit | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh` (closing-steps text only) | the spawn-core / seed tests that cover that text; `do_check_dist_hygiene` | L7 |
+| L9 | dispatcher warning on a released post with a sha but no `/releases/` link | the dispatcher relay file, named at build time (`grep -c release csi-spl-orc/src/bash/run/spl-dispatch-check.func.sh` -> 0: that action checks dispatchers, not post content), + its `.tst.sh` | its `.tst.sh`: warns, never drops the post | L7 |
+| L10 | weekly stable notes gain the lay column (Q9) | `csi-spl-orc/src/bash/run/release-stable.func.sh` | `csi-spl-orc/src/bash/tests/release-stable.tst.sh` (+ a case for `state=missing`) | L5 (rows to read) |
+| L11 | the refusal: `release-note` part refuses; CI backstop job | `check-release-note.func.sh` (mode switch), `.github/workflows/10_ci-quality.yml` (one job) | `check-release-note.tst.sh` refusal cases; actionlint | L2; gated on **Q4** (yes = after one week of warnings, with the compliance n; no = ships with L2) |
+| L12 | backfill | `release-note-ingest.func.sh` (one mode) | its `.tst.sh` | L5; gated on **Q6** |
+
+Not built: the daily digest (Q8 no); deploy workflows posting links (Q14,
+open, recommended no).

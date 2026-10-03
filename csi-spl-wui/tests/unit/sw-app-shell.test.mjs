@@ -20,18 +20,23 @@ const FRESH_MS = 30000
 const doc = (build, commit = 'a1b2c3d4e5f6') =>
   `<!DOCTYPE html><html><head><script>window.__NUXT__={};window.__NUXT__.config={public:{buildCommit:"${commit}"},app:{baseURL:"/",buildId:"${build}"}}</script></head></html>`
 
+// No fake here uses Node's Response.clone(): its undici (Node 20) ties the
+// original's body to the clone's lifetime, so once a dropped clone is garbage
+// collected the original reads as consumed ("Response.clone: Body has already
+// been consumed") - a flake that depended on when GC ran. A clone is a fresh
+// Response of the same body, and Cache Storage keeps the body, not the object,
+// as a browser does.
+
 /** A network response as a browser hands it to the worker (type basic). */
-function net(body, { status = 200, type = 'basic', redirected = false, ctype = 'text/html; charset=utf-8' } = {}) {
+function net(body, opts = {}) {
+  const { status = 200, type = 'basic', redirected = false, ctype = 'text/html; charset=utf-8' } = opts
   const r = new Response(body, { status, headers: { 'content-type': ctype, 'content-security-policy': "default-src 'self'", 'content-encoding': 'br' } })
   Object.defineProperty(r, 'type', { value: type })
   Object.defineProperty(r, 'redirected', { value: redirected })
-  const clone = r.clone.bind(r)
-  r.clone = () => net.wrap(clone(), type, redirected)
-  return r
-}
-net.wrap = (r, type, redirected) => {
-  Object.defineProperty(r, 'type', { value: type })
-  Object.defineProperty(r, 'redirected', { value: redirected })
+  r.clone = () => {
+    if (r.bodyUsed) throw new TypeError('Response.clone: Body has already been consumed.')
+    return net(body, opts)
+  }
   return r
 }
 
@@ -42,8 +47,14 @@ function fakeCaches() {
     const m = stores.get(name)
     const key = (r) => (typeof r === 'string' ? r : r.url)
     return {
-      match: async (r) => { const v = m.get(key(r)); return v ? v.clone() : undefined },
-      put: async (r, res) => { m.set(key(r), res) },
+      match: async (r) => {
+        const v = m.get(key(r))
+        return v ? new Response(v.body, { status: v.status, statusText: v.statusText, headers: v.headers }) : undefined
+      },
+      put: async (r, res) => {
+        const { status, statusText, headers } = res
+        m.set(key(r), { body: await res.text(), status, statusText, headers: new Headers(headers) })
+      },
       keys: async () => [...m.keys()].map((url) => ({ url })),
       delete: async (r) => m.delete(key(r)),
     }

@@ -1,0 +1,6 @@
+Lay-What: The Flow tab's counter is now a calm grey, and the Channels and Direct messages tabs show a red count of new messages in conversations you take part in.
+Lay-How: The app uses the server's new split of unread messages into channels and direct messages, and colours each tab's number to match.
+Lay-Why: The red Flow number looked like an alarm, while the tabs that really needed attention showed no count at all.
+Tech-What: WUI rail: Flow badge uses --color-bg-3 (neutral); Channels and DM tabs show the hub's per-kind unread in --color-danger.
+Tech-How: flow-badge.mjs gains railFromUnread; the flow store keeps channels/dms from the existing counts frame; ChannelSidebar renders them; a hub without the split keeps the pip.
+Tech-Why: Owner request: the Flow count is not an alarm, and unread per kind was already sent by the hub (previous release) but not shown.

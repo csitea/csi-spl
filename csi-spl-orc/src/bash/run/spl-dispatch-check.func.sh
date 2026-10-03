@@ -5,7 +5,9 @@
 # @description fact, then exits 1 when any row is a GAP:
 # @description   per dispatcher: its claude process (found by SPOOL_AGENT_ID),
 # @description   model, permission mode (must be auto), desk settings loaded
-# @description   (the session started after its settings.local.json), a desk
+# @description   (the session started after its settings.local.json) and their
+# @description   allow rule matching the desk-reply command its brief teaches
+# @description   (one command, no &&/;/|/$()), a desk
 # @description   seat in every workspace, unread inbox messages
 # @description   the lease: holder is a dispatcher and its age is under LEASE_STALE
 # @description   the renew and watch loops: each holds its run lock
@@ -58,6 +60,9 @@ do_spl_dispatch_check() {
       wt="$(spl_dispatch_worktree "$id")"
       if [[ ! -f "$wt/.claude/settings.local.json" ]]; then
         row "$id desk-reply permission" "no $wt/.claude/settings.local.json" "GAP run do_spl_dispatch_setup"
+      elif ! spl_dispatch_reply_allowed "$id" "$wt/.claude/settings.local.json"; then
+        row "$id desk-reply permission" "no allow rule matches the brief's desk-reply command" \
+          "GAP the taught command is not one command the rule allows: DRY_RUN=0 do_spl_dispatch_setup, relaunch $id"
       elif spl_dispatch_stale_settings "$pid" "$wt/.claude/settings.local.json"; then
         row "$id desk-reply permission" "written after the session started" "GAP relaunch $id"
       else
@@ -146,6 +151,34 @@ spl_dispatch_model() {
   else
     spool_proc_as_owner "$root" "$pid" bash -c "$pick" _ "$dir" "$sid"
   fi | cut -d'"' -f4
+}
+
+# 0 when the desk-reply command <id>'s brief teaches (the first `...` span
+# naming do_spl_desk_reply; no brief: spl_dispatch_reply_cmd) is ONE command
+# and an allow rule Bash(<glob>) in <settings> matches it, * matching anything.
+# 2026-10-03: the check said "loaded ok" while c-002's prd reply, taught as
+# `cd <main checkout> && ... DESK_BODY="$(cat f)" ...`, was refused.
+spl_dispatch_reply_allowed() {
+  local brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$1.md"
+  python3 - "$2" "$brief" "$(spl_dispatch_reply_cmd "$1")" <<'PY'
+import json, os, re, sys
+settings, brief, default = sys.argv[1:4]
+cmd = default
+if os.path.isfile(brief):
+    spans = [s for s in re.findall(r"`([^`]*)`", open(brief).read()) if "do_spl_desk_reply" in s]
+    cmd = spans[0] if spans else ""
+if not cmd or re.search(r"&&|\|\||[;|`\n]|\$\(", cmd):
+    sys.exit(1)
+try:
+    rules = json.load(open(settings)).get("permissions", {}).get("allow", [])
+except (OSError, ValueError):
+    sys.exit(1)
+for r in rules:
+    m = re.fullmatch(r"Bash\((.*)\)", r, re.S)
+    if m and re.fullmatch(".*".join(map(re.escape, m.group(1).split("*"))), cmd, re.S):
+        sys.exit(0)
+sys.exit(1)
+PY
 }
 
 # One row per channel of workspace <t>: both dispatchers in, the orchestrator out.

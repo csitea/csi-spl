@@ -13,7 +13,7 @@ idempotent, so re-running a step that is already done changes nothing.
 | master dispatcher | a Claude Code session with a fixed agent id (default `CLE-002`), auto permission mode, its own worktree |
 | failover dispatcher | the same, default `CLE-003`; it stays on standby until the lease promotes it |
 | desks | each dispatcher is seated in every workspace, so web UI posts reach it |
-| desk-reply permission | each dispatcher's worktree allows `do_spl_desk_reply` and nothing else beyond auto mode |
+| desk-reply permission | each dispatcher's worktree allows `do_spl_desk_reply` as itself (`DESK_AGENT=<id>`) and nothing else beyond auto mode; its brief teaches the one command that rule matches (run from its own worktree, body in `DESK_BODY_FILE`) |
 | post-drop dir | where a dispatcher leaves a post its harness refused, for the orchestrator to post |
 | heartbeat lease | the renew + watch loops of `do_spl_dispatch_lease`, kept running by the desk reconcile cron |
 
@@ -146,7 +146,7 @@ cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_check
 | `<id> process` | no live session carries that id: run the setup again |
 | `<id> permission mode` | the session is not in auto mode: respawn it |
 | `<id> model` | with `DISPATCH_MODEL` set, the session runs another model |
-| `<id> desk-reply permission` | the settings file is missing, or newer than the session (3.3) |
+| `<id> desk-reply permission` | the settings file is missing, its allow rule does not match the command the brief teaches, or it is newer than the session (3.3) |
 | `<id> desks` | the workspaces it has no seat in |
 | `<id> unread` | more than `DISPATCH_UNREAD_MAX` (default 20) messages wait in its inbox |
 | `lease` | the holder is not a dispatcher, or the lease is older than 180 s (fleet mode: a fresh holder on the other machine is `ok`, this one stands by) |

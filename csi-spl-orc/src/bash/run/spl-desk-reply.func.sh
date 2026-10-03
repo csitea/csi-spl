@@ -37,7 +37,9 @@
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the answering agent id (the pane's id)
-# @param DESK_BODY - required: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param DESK_BODY - required unless DESK_BODY_FILE: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param DESK_BODY_FILE (optional) - read the answer text from this file instead
+# @param   (the dispatcher's one-command form: no $(cat ...) for the harness to judge)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
@@ -63,6 +65,11 @@ do_spl_desk_reply() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
+  if [[ -n "${DESK_BODY_FILE:-}" ]]; then
+    [[ -z "$body" ]] || { do_log "FATAL set DESK_BODY or DESK_BODY_FILE, not both"; return 1; }
+    [[ -f "$DESK_BODY_FILE" && -r "$DESK_BODY_FILE" ]] || { do_log "FATAL DESK_BODY_FILE is not a readable file: '$DESK_BODY_FILE'"; return 1; }
+    body="$(cat "$DESK_BODY_FILE")"
+  fi
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' f files=()
   read -r -a files <<<"${DESK_FILES:-}"

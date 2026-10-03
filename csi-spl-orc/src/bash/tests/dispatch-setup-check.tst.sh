@@ -15,6 +15,10 @@
 #      settings not loaded, model mismatch, the unanswered sweep never ran,
 #      a hub / WUI input unserved past the grace (CLE-77918)
 #   8. setup step 11: the sweep cron line is PLANned, then written once
+#   9. the desk-reply rule (2026-10-03, c-002's prd reply refused while the
+#      check said "loaded ok"): the brief teaches ONE command, run from the
+#      seat's own worktree, that the allow rule matches; a compound taught
+#      command, or a rule that matches nothing taught, is a GAP
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -90,7 +94,7 @@ setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && -f "$S/dispatch/lease.conf" && "$(stat -c %a "$S/dispatch/posts")" == 2777 && -f "$R-wt/c-003/.claude/settings.local.json" ]] &&
   grep -qx '.claude/settings.local.json' "$R/.git/info/exclude" &&
   pass "2. DRY_RUN=0 writes posts dir, lease.conf, briefs, settings, exclude" || fail "2. live: rc=$rc $(cat "$T/o")"
-grep -q 'sudo -u boxuser env ENV=prd \* ./run -a do_spl_desk_reply' "$R-wt/c-002/.claude/settings.local.json" &&
+grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_desk_reply)' "$R-wt/c-002/.claude/settings.local.json" &&
   pass "2. the settings allow desk replies only" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
 for id in c-002 c-003; do touch -d '2025-12-31 00:00:00' "$R-wt/$id/.claude/settings.local.json"; done
 setup >"$T/o" 2>&1
@@ -282,6 +286,35 @@ echo ROTATE_DISPATCH=0 >"$S/dispatch/rotate.conf"; check >"$T/o" 2>&1
 grep -q '| dispatch rotation | switched off (rotate.conf) | ok |' "$T/o" && pass "7. rotation switched off: no rotation GAP" || fail "7. switch: $(grep 'dispatch rotation' "$T/o")"
 rm -f "$S/dispatch/rotate.conf" "$S/dispatch/rotate.dispatch.last"
 gap "the dispatcher rotation never ran (FR-072)" 'dispatch rotation \| never ran \| GAP'
+
+# --- 9. the desk-reply rule matches the taught command ------------------------------------------
+b="$S/dispatch/briefs/brief-dispatcher-c-002.md"
+taught="$(grep -o '`sudo -u boxuser env ENV=prd [^`]*do_spl_desk_reply`' "$b" | head -1)"
+[[ "$taught" == *"DESK_AGENT=c-002 "*"DESK_BODY_FILE=<file> "* && "$taught" != *'$('* && "$taught" != *'&&'* ]] &&
+  grep -qF "You post from \`$R-wt/c-002/csi-spl-orc\`" "$b" &&
+  pass "9. the brief teaches one command, body from a file, run from the seat's own worktree" || fail "9. taught: '$taught' $(grep -n do_spl_desk_reply "$b")"
+nine() { check DISPATCH_CHECK_SUBS=0 DISPATCH_SWEEP=0 DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1; grep 'desk-reply permission' "$T/o"; }
+nine | grep -q '| c-002 desk-reply permission | loaded | ok |' &&
+  pass "9. the rule matches the taught command: ok" || fail "9. match: $(grep desk-reply "$T/o")"
+# the control: the compound form c-002 was refused on (cd outside the worktree, body via $(cat))
+cp "$b" "$T/b.keep"
+python3 - "$b" <<'PY2'
+import re, sys
+s = open(sys.argv[1]).read()
+s = re.sub(r"`sudo -u boxuser env ENV=prd [^`]*do_spl_desk_reply`",
+           lambda m: '`cd /x/csi-spl-orc && sudo -u boxuser env ENV=prd TENANT_ID=<workspace> DESK_AGENT=c-002 DRY_RUN=0 DESK_BODY="$(cat <file>)" ./run -a do_spl_desk_reply`', s)
+open(sys.argv[1], "w").write(s)
+PY2
+nine | grep -qE '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' &&
+  pass "9. control: a compound taught command -> GAP" || fail "9. compound: $(grep desk-reply "$T/o")"
+cp "$T/b.keep" "$b"
+# a rule that matches no taught command (another seat's id)
+cp "$R-wt/c-002/.claude/settings.local.json" "$T/s.keep"
+sed -i 's/DESK_AGENT=c-002/DESK_AGENT=c-003/' "$R-wt/c-002/.claude/settings.local.json"
+touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
+nine | grep -qE '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' &&
+  pass "9. a rule that matches no taught command -> GAP" || fail "9. rule: $(grep desk-reply "$T/o")"
+cp "$T/s.keep" "$R-wt/c-002/.claude/settings.local.json"; touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
 
 # --- 8. setup step 11: the sweep cron ----------------------------------------------------------
 rm -f "$T/crontab"

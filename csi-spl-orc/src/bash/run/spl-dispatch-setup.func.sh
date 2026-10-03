@@ -258,6 +258,7 @@ spl_dispatch_render() {
   ID="$1" ROLE="$2" PEER="$3" LEASE_RULE="$4" FIRST_STEP="$5" ORCH="$DISPATCH_ORCH" MASTER="$DISPATCH_MASTER" \
   FAILOVER="$DISPATCH_FAILOVER" SROOT="${SPOOL_ROOT:-/var/spool-hub}" POSTS="$DISPATCH_POSTS_DIR" ENVN="$ENV" \
   TENANTS="$(echo "$DISPATCH_TENANTS" | sed 's/ /, /g')" ORC="$PROJ_PATH" BOXU="$DISPATCH_BOX_USER" \
+  REPLY_CMD="$(spl_dispatch_reply_cmd "$1")" WT_ORC="$(spl_dispatch_worktree "$1")/csi-spl-orc" \
   python3 - "$tpl" <<'PY'
 import os, sys
 s = open(sys.argv[1]).read()
@@ -265,21 +266,31 @@ e = os.environ
 for k, v in {"ID": e["ID"], "ROLE": e["ROLE"], "PEER": e["PEER"], "LEASE_RULE": e["LEASE_RULE"],
              "FIRST_STEP": e["FIRST_STEP"], "ORCH": e["ORCH"], "MASTER": e["MASTER"],
              "FAILOVER": e["FAILOVER"], "SPOOL_ROOT": e["SROOT"], "POSTS_DIR": e["POSTS"],
-             "ENV": e["ENVN"], "TENANTS": e["TENANTS"], "ORC": e["ORC"], "BOX_USER": e["BOXU"]}.items():
+             "ENV": e["ENVN"], "TENANTS": e["TENANTS"], "ORC": e["ORC"], "BOX_USER": e["BOXU"],
+             "REPLY_CMD": e["REPLY_CMD"], "WT_ORC": e["WT_ORC"]}.items():
     s = s.replace("{" + k + "}", v)
 sys.stdout.write(s)
 PY
 }
 
-# The one permission a dispatcher gets beyond auto mode: desk replies.
+# The desk-reply command the brief teaches <id>: ONE command (no cd, no $(),
+# no &&: the harness judges each part of a compound line on its own), run from
+# the seat's own worktree csi-spl-orc, the body read from a file.
+spl_dispatch_reply_cmd() {
+  echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply"
+}
+
+# The one permission a dispatcher gets beyond auto mode: desk replies as
+# itself (DESK_AGENT=<id>) on this ENV. do_spl_dispatch_check proves it
+# matches spl_dispatch_reply_cmd.
 spl_dispatch_settings_json() {
-  printf '{\n  "permissions": {\n    "allow": [\n      "Bash(sudo -u %s env ENV=%s * ./run -a do_spl_desk_reply)"\n    ]\n  }\n}\n' \
-    "$DISPATCH_BOX_USER" "$ENV"
+  printf '{\n  "permissions": {\n    "allow": [\n      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a do_spl_desk_reply)"\n    ]\n  }\n}\n' \
+    "$DISPATCH_BOX_USER" "$ENV" "$1"
 }
 
 spl_dispatch_settings() {
   local id="$1" wt="$2" f="$2/.claude/settings.local.json" exc pid
-  spl_dispatch_settings_json > "$SPL_DISPATCH_TMP/settings"
+  spl_dispatch_settings_json "$id" > "$SPL_DISPATCH_TMP/settings"
   if cmp -s "$SPL_DISPATCH_TMP/settings" "$f"; then
     spl_dispatch_ok settings "$f"
   else

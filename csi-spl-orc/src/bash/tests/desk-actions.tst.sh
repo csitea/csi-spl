@@ -8,7 +8,7 @@
 #   2. the dry runs of do_spl_desk_up / _reply / _down / _probe make no gcloud,
 #      curl, docker or spool call. CONTROL: the stub log records one when made
 #   3. do_spl_desk_reply refuses a bad kind, a non-HUM DESK_TO and a non-uuid
-#      DESK_TASK before it reads anything
+#      DESK_TASK before it reads anything; DESK_BODY_FILE carries the body
 #   8. do_spl_desk_post (specs/038) refuses a bad channel / kind / body / file
 #  10. do_spl_desk_edit (specs/032 §10) refuses a bad MSG_ID / empty body /
 #      both body sources, then runs `spool edit --msg-id --as` and names a
@@ -99,6 +99,21 @@ for bad in "DESK_KIND=shout" "DESK_TO=CLE-00" "DESK_TO=HUM-1'--" "DESK_TASK=not-
   else
     grep -q FATAL "$T/o" && pass "do_spl_desk_reply refuses $bad" ||
       fail "do_spl_desk_reply refuses $bad without saying why: $(cat "$T/o")"
+  fi
+done
+
+# 2026-10-03: the dispatchers' one-command form reads the body from
+# DESK_BODY_FILE; both sources, or an unreadable file, are refused.
+echo 'hi from a file' >"$T/body.md"
+SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY_FILE="$T/body.md" >"$T/o" 2>&1
+grep -q 'OK DRY_RUN nothing was sent' "$T/o" && pass "do_spl_desk_reply takes the body from DESK_BODY_FILE" ||
+  fail "do_spl_desk_reply DESK_BODY_FILE: $(cat "$T/o")"
+for bad in "DESK_BODY=hi DESK_BODY_FILE=$T/body.md" "DESK_BODY_FILE=$T/no-such-file"; do
+  # shellcheck disable=SC2086
+  if SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 $bad >"$T/o" 2>&1; then
+    fail "do_spl_desk_reply refuses $bad: $(cat "$T/o")"
+  else
+    grep -q 'FATAL.*DESK_BODY' "$T/o" && pass "do_spl_desk_reply refuses $bad" || fail "do_spl_desk_reply refuses $bad without saying why: $(cat "$T/o")"
   fi
 done
 

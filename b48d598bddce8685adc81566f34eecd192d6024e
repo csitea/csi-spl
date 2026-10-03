@@ -1,0 +1,6 @@
+Lay-What: Adds a report that lists helper assistants that have been working on one task for more than half an hour.
+Lay-How: For each such helper it shows how long it has run, and how long since it last saved work or sent a message.
+Lay-Why: Long-running tasks cost more and often mean a helper is stuck, so they should be easy to spot.
+Tech-What: New lane-age-report.sh and do_spl_lane_age_report: <ID> <age-min> <last-push-age-min> <last-spool-msg-age-min>.
+Tech-How: Read-only from registry.tsv, the worktree's last commit and outbox mtimes; role seats, torn-down worktrees and dead panes skipped; test-lane-age-report.sh.
+Tech-Why: Token round 1 practice 11: 41 of 50 lanes ran past 30 minutes on one subject.

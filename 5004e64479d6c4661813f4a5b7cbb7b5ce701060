@@ -1,0 +1,6 @@
+Lay-What: Reorganises how the events page and the deadline picker do their sums; nothing on screen changes.
+Lay-How: The calculations move into small separate pieces that are now each checked on their own.
+Lay-Why: Logic that is buried inside a screen is hard to test; separated, a mistake in it is caught before release.
+Tech-What: WUI events.vue row building moves to utils/event-rows.mjs eventRowsOf; DeadlinePicker placement maths to utils/popover-clamp.mjs clampPopover.
+Tech-How: place() keeps only the DOM reads and calls clampPopover({anchor,w,h,vw,vh,edge,gap}); new unit tests event-rows (5) and popover-clamp (6).
+Tech-Why: Refactor round 1 #19: pure helpers extracted from components so they can be unit tested; behaviour-preserving.

@@ -28,6 +28,7 @@
       :data-testid="testid"
       :data-test="dataTest || undefined"
       @keydown="onMenuKey"
+      @pointerdown="armed = true"
       @contextmenu.prevent
     >
       <ul role="menu" class="point-menu__items" :class="block + '__items'" :aria-label="label">
@@ -49,7 +50,7 @@
             :aria-disabled="item.disabled ? 'true' : undefined"
             :aria-describedby="item.disabled && item.hintKey ? hintId + item.id : undefined"
             :title="item.disabled && item.hintKey ? t(item.hintKey) : undefined"
-            @click.stop="choose(item.id, item.disabled)"
+            @click.stop="choose(item.id, item.disabled, $event)"
           >
             <UiIcon :name="item.icon" :size="16" />
             <span class="point-menu__text" :class="block + '__text'">
@@ -118,8 +119,18 @@ const { root, sheet, onMenuKey } = usePointMenu({
 })
 const hintId = useId() + '-why-'
 
+/* A sheet entry acts only on a tap that STARTED in the sheet (SheetBackdrop's
+   rule). The finger that long-pressed a card lifts over the sheet that just
+   appeared, and a tall sheet (MessageMenu's, t1 7a6be5a3) reaches up under
+   it: the lift's click chose the entry there and closed the menu - measured
+   at 360x740, the lift at y 167 on Add emoji, the sheet's top at 125. A key
+   (Enter / Space) clicks with detail 0 and still chooses. */
+const armed = ref(false)
+watch(() => props.open, (o) => { if (o) armed.value = false })
+
 /* choose first: the host reads its open row before close clears it */
-function choose(id: string, disabled?: boolean) {
+function choose(id: string, disabled?: boolean, ev?: MouseEvent) {
+  if (sheet.value && ev && ev.detail > 0 && !armed.value) return
   /* a disabled entry does nothing and keeps the menu open: its reason stays readable */
   if (disabled) return
   emit('choose', id)

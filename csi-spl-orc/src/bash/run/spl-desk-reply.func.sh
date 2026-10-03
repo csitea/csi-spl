@@ -95,43 +95,73 @@ do_spl_desk_reply() {
   spl_host_spool || return 1
 
   local ans_to ans_task ans_msg ans_head ans_ref=""
+  _spl_desk_reply_choose || return $?
+
+  local ids=()
+  _spl_desk_reply_put_files "$d" "$box" "$tenant" "$hub" "${files[@]}" || return 1
+
+  local sent route=dm sent_task="$ans_task"
+  _spl_desk_reply_send || return 1
+  SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" \
+    _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head"
+  # The watermark of this desk's conversation: what "newer than the last
+  # answer" means next time. It is a hint, not a record - losing it only makes
+  # the next run ask instead of choosing.
+  python3 -c 'import json,sys; open(sys.argv[1],"w").write(json.dumps({"to":sys.argv[2],"task":sys.argv[3],"ts":sys.argv[4]}))' \
+    "$d/answered" "$ans_to" "$ans_task" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null ||
+    do_log "WARN could not record which conversation $agent just answered ($d/answered)"
+  if [[ "${DESK_ACK:-0}" == 1 ]]; then
+    spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
+      do_log "WARN could not archive $agent's inbox after the answer"
+  fi
+  do_log "OK $agent answered $ans_to in topic $sent_task ($kind${ans_ref:+, $route}); the sidecar flushes it to $hub"
+}
+
+# _spl_desk_reply_choose: the conversation to answer, into the caller's
+# ans_to / ans_task / ans_msg / ans_head / ans_ref (do_spl_desk_reply's locals;
+# it reads d, box, tenant, hub, agent, to, task, uuid_re). 3 nothing newer to
+# answer, 4 several conversations waiting, 1 with the FATAL on a failure.
+_spl_desk_reply_choose() {
   if [[ -n "$to" && "$task" =~ $uuid_re ]]; then
     # Owner rule (prd t1 topic b280b0e8, 2026-09-29): a full topic id plus the
     # human means post THERE, full stop - no inbox read at all, so a busy
     # desk's undrained inbox (which once overran ARG_MAX) cannot block it.
     ans_to="$to"; ans_task="$task"; ans_msg=""; ans_head=""
-  else
-    local recvf pick prc=0
-    recvf="$(mktemp "${TMPDIR:-/tmp}/spl-desk-recv.XXXXXX")" || { do_log "FATAL could not make a temp file for $agent's inbox"; return 1; }
-    # The recv JSON lands in a FILE, never a shell word: an inbox is never
-    # drained, so a busy desk (CLE-001) whose JSON went on argv overran ARG_MAX
-    # and python never ran (measured 2026-09-29: "Argument list too long", the
-    # pick empty, a waiting topic lost). spl_desk_pick reads the file by path.
-    if ! spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" >"$recvf" 2>&1; then
-      do_log "FATAL recv --as $agent on $box: $(cat "$recvf")"; rm -f "$recvf"; return 1
-    fi
-    pick="$(spl_desk_pick "$recvf" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
-    (( prc == 0 )) && ans_ref="$(_spl_desk_reply_ref "$recvf" "$(cut -f3 <<<"$pick")")"
-    rm -f "$recvf"
-    if (( prc == 3 )); then
-      do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox); name a topic with DESK_TASK to answer in it regardless"; return 3
-    elif (( prc == 4 )); then
-      do_log "FATAL $agent has more than one conversation waiting; name one with DESK_TO and DESK_TASK (or DESK_ANY=1):"
-      do_log "FATAL $pick"
-      return 4
-    elif (( prc == 5 )); then
-      do_log "FATAL $pick"; return 1
-    elif (( prc != 0 )); then
-      do_log "FATAL cannot choose a conversation to answer: $pick"; return 1
-    fi
-    IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
-    [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
+    return 0
   fi
+  local recvf pick prc=0
+  recvf="$(mktemp "${TMPDIR:-/tmp}/spl-desk-recv.XXXXXX")" || { do_log "FATAL could not make a temp file for $agent's inbox"; return 1; }
+  # The recv JSON lands in a FILE, never a shell word: an inbox is never
+  # drained, so a busy desk (CLE-001) whose JSON went on argv overran ARG_MAX
+  # and python never ran (measured 2026-09-29: "Argument list too long", the
+  # pick empty, a waiting topic lost). spl_desk_pick reads the file by path.
+  if ! spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" >"$recvf" 2>&1; then
+    do_log "FATAL recv --as $agent on $box: $(cat "$recvf")"; rm -f "$recvf"; return 1
+  fi
+  pick="$(spl_desk_pick "$recvf" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
+  (( prc == 0 )) && ans_ref="$(_spl_desk_reply_ref "$recvf" "$(cut -f3 <<<"$pick")")"
+  rm -f "$recvf"
+  if (( prc == 3 )); then
+    do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox); name a topic with DESK_TASK to answer in it regardless"; return 3
+  elif (( prc == 4 )); then
+    do_log "FATAL $agent has more than one conversation waiting; name one with DESK_TO and DESK_TASK (or DESK_ANY=1):"
+    do_log "FATAL $pick"
+    return 4
+  elif (( prc == 5 )); then
+    do_log "FATAL $pick"; return 1
+  elif (( prc != 0 )); then
+    do_log "FATAL cannot choose a conversation to answer: $pick"; return 1
+  fi
+  IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
+  [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
+}
 
-  local ids=()
-  _spl_desk_reply_put_files "$d" "$box" "$tenant" "$hub" "${files[@]}" || return 1
-
-  local sent rc=0 route=dm sent_task="$ans_task" ref_args=()
+# _spl_desk_reply_send: send the answer into the caller's sent / route /
+# sent_task (do_spl_desk_reply's locals). Spec 067 rule 2: a DM about topic T
+# (ans_ref) is answered IN T tagging the human; edge 2 falls back to the DM
+# with --ref T. 1 with the FATAL when the send fails.
+_spl_desk_reply_send() {
+  local rc=0 ref_args=()
   if [[ -n "$ans_ref" ]]; then
     if _spl_desk_reply_can_read "$d" "$box" "$tenant" "$hub" "$ans_ref"; then
       sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
@@ -153,19 +183,6 @@ do_spl_desk_reply() {
       --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}")" || rc=$?
   fi
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
-  SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" \
-    _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head"
-  # The watermark of this desk's conversation: what "newer than the last
-  # answer" means next time. It is a hint, not a record - losing it only makes
-  # the next run ask instead of choosing.
-  python3 -c 'import json,sys; open(sys.argv[1],"w").write(json.dumps({"to":sys.argv[2],"task":sys.argv[3],"ts":sys.argv[4]}))' \
-    "$d/answered" "$ans_to" "$ans_task" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null ||
-    do_log "WARN could not record which conversation $agent just answered ($d/answered)"
-  if [[ "${DESK_ACK:-0}" == 1 ]]; then
-    spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
-      do_log "WARN could not archive $agent's inbox after the answer"
-  fi
-  do_log "OK $agent answered $ans_to in topic $sent_task ($kind${ans_ref:+, $route}); the sidecar flushes it to $hub"
 }
 
 # _spl_desk_reply_summary <env> <tenant> <box> <agent> <kind> <to> <task>

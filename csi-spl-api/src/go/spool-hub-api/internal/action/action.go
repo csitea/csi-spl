@@ -23,6 +23,9 @@ import (
 // typedByRe is rdb 0006 humans.human_id: a typed_by claim names a human.
 var typedByRe = regexp.MustCompile(`^HUM-[0-9]+$`)
 
+// refRe is a ref_task_id claim: a topic uuid (the hub lower-cases it).
+var refRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
 // channelRe is the hub's channel id (store.ValidChannelID, channels-v1 §1).
 var channelRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
@@ -59,6 +62,11 @@ type SendArgs struct {
 	// (specs/036 FR-009, `spool send --typed-by`). Hub mode only: it rides on
 	// the send frame and the hub accepts it only for a bound box operator.
 	TypedBy string
+	// Ref is the channel topic (task_id) this DM is about (spec 067 3.3,
+	// `spool send --ref`). Hub mode only: it rides on the send frame as
+	// ref_task_id, never in the envelope, and the hub keeps it only when the
+	// sender may read the topic.
+	Ref string
 	// Answers makes the send the answer to that message (spec 068 4.2,
 	// `spool send --answers <msg_id> [--if-gen <n>]`), from the seat that
 	// holds it on responsible_gen IfGen. Hub mode only, never queued: the hub
@@ -171,7 +179,29 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 			return fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
 		}
 	}
+	if err := checkRef(cfg, *in); err != nil {
+		return err
+	}
 	return checkFiller(in)
+}
+
+// checkRef refuses a --ref the hub could not store: it names the topic a DM
+// is about, so it needs hub mode, a uuid, and a DM (not a channel post or an
+// answer, which have no ref_task_id).
+func checkRef(cfg *config.Config, in SendArgs) error {
+	switch {
+	case in.Ref == "":
+		return nil
+	case cfg.HubURL == "":
+		return fmt.Errorf("--ref needs hub mode ($SPOOL_HUB_URL)")
+	case !refRe.MatchString(in.Ref):
+		return fmt.Errorf("--ref must be a topic uuid (task_id), got %q", in.Ref)
+	case in.Channel != "":
+		return fmt.Errorf("--ref names the topic a DM is about: drop --channel and reply in the topic with --task")
+	case in.Answers != "":
+		return fmt.Errorf("--ref names the topic a DM is about: drop --answers")
+	}
+	return nil
 }
 
 // checkPeers routes a send to the peer seats (spec 068 4.1, --to peers): hub
@@ -281,7 +311,7 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 	case in.Channel != "":
 		d, err = hc.SendChannelTyped(ctx, m, in.Channel, in.TypedBy)
 	default:
-		d, err = hc.SendMessageTyped(ctx, m, in.ToBox, in.TypedBy)
+		d, err = hc.SendMessageClaims(ctx, m, in.ToBox, hubclient.Claims{TypedBy: in.TypedBy, RefTaskID: in.Ref})
 	}
 	if err != nil {
 		return SendResult{}, err

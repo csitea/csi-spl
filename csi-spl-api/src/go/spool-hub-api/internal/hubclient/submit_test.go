@@ -38,6 +38,8 @@ type fakeHub struct {
 	envs [][]byte
 	// typed is each send frame's typed_by (specs/036 FR-009), "" when absent.
 	typed []string
+	// refs is each send frame's ref_task_id (spec 067 3.3), "" when absent.
+	refs []string
 	// refuse, when set, answers every send with this error token instead.
 	refuse *wire.Frame
 	// reorder, when set, answers each send after a delay that ALTERNATES long,
@@ -91,6 +93,7 @@ func newFakeHub(t *testing.T) *fakeHub {
 			h.mu.Lock()
 			h.envs = append(h.envs, append([]byte(nil), f.Env...))
 			h.typed = append(h.typed, f.TypedBy)
+			h.refs = append(h.refs, f.RefTaskID)
 			refuse := h.refuse
 			h.mu.Unlock()
 			id := wire.InnerMsgID(f.Env)
@@ -144,6 +147,12 @@ func (h *fakeHub) typedBy() []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return append([]string(nil), h.typed...)
+}
+
+func (h *fakeHub) refTasks() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.refs...)
 }
 
 func (h *fakeHub) sent() [][]byte {
@@ -239,22 +248,22 @@ func TestSubmitAndDialSendIdenticalBytes(t *testing.T) {
 	}
 
 	// (a) the dial path: no sidecar listening.
-	p1, err := c.writePending(m, env, "")
+	p1, err := c.writePending(m, env, Claims{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d, err := c.sendNow(context.Background(), env, m, p1, ""); err != nil || d != wire.DeliverySent {
+	if d, err := c.sendNow(context.Background(), env, m, p1, Claims{}); err != nil || d != wire.DeliverySent {
 		t.Fatalf("dial path: delivery=%q err=%v", d, err)
 	}
 
 	// (b) the submit path: the sidecar holds the warm session.
 	stop := sidecarUp(t, c)
 	defer stop()
-	p2, err := c.writePending(m, env, "")
+	p2, err := c.writePending(m, env, Claims{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d, err := c.sendNow(context.Background(), env, m, p2, ""); err != nil || d != wire.DeliverySent {
+	if d, err := c.sendNow(context.Background(), env, m, p2, Claims{}); err != nil || d != wire.DeliverySent {
 		t.Fatalf("submit path: delivery=%q err=%v", d, err)
 	}
 

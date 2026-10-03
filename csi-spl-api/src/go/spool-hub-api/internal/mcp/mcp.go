@@ -34,14 +34,15 @@ type PutFileIn struct {
 
 // SendIn is the input of spool_send.
 type SendIn struct {
-	From    string   `json:"from,omitempty" jsonschema:"sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other"`
-	To      string   `json:"to,omitempty" jsonschema:"recipient agent id, e.g. CLE-07; empty for a channel post"`
-	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
-	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)"`
-	Body    string   `json:"body" jsonschema:"message text; a longer post uses markdown (headers, bold, lists, GFM pipe tables), no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
-	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
-	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`
-	Channel string   `json:"channel,omitempty" jsonschema:"hub mode only: post into this channel id (e.g. spool-hub-devel) as a new topic every member reads, like a human's post; leave to empty (or ALL-0) and to_box empty; refused unless the sender is a member"`
+	From      string   `json:"from,omitempty" jsonschema:"sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other"`
+	To        string   `json:"to,omitempty" jsonschema:"recipient agent id, e.g. CLE-07; empty for a channel post"`
+	TaskID    string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
+	Kind      string   `json:"kind" jsonschema:"one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)"`
+	Body      string   `json:"body" jsonschema:"message text; a longer post uses markdown (headers, bold, lists, GFM pipe tables), no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
+	FileIDs   []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
+	ToBox     string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`
+	Channel   string   `json:"channel,omitempty" jsonschema:"hub mode only: post into this channel id (e.g. spool-hub-devel) as a new topic every member reads, like a human's post; leave to empty (or ALL-0) and to_box empty; refused unless the sender is a member"`
+	RefTaskID string   `json:"ref_task_id,omitempty" jsonschema:"hub mode only: the channel topic (task_id uuid) this DM is about (== spool send --ref); kept only when the sender may read that topic"`
 }
 
 // RecvIn is the input of spool_recv.
@@ -156,7 +157,7 @@ func (t tools) send(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sd
 	}
 	out, err := action.SendCtx(ctx, t.cfg, action.SendArgs{
 		From: from, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
-		ToBox: in.ToBox, Channel: in.Channel,
+		ToBox: in.ToBox, Channel: in.Channel, Ref: in.RefTaskID,
 	})
 	if err != nil {
 		return nil, out, toolErr(err)

@@ -33,6 +33,12 @@ func (c *Client) SendMessage(ctx context.Context, m *msg.Message, explicitToBox 
 // queued send still carries it, and the hub accepts it only against a
 // box_operators binding (FR-010) - else typed_by_not_bound, a 4xx.
 func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitToBox, typedBy string) (string, error) {
+	return c.SendMessageClaims(ctx, m, explicitToBox, Claims{TypedBy: typedBy})
+}
+
+// SendMessageClaims is SendMessage with the send frame's claims (typed_by,
+// ref_task_id) outside the signed envelope, kept beside the pending file.
+func (c *Client) SendMessageClaims(ctx context.Context, m *msg.Message, explicitToBox string, cl Claims) (string, error) {
 	own, priv, err := c.box()
 	if err != nil {
 		return "", err
@@ -71,11 +77,11 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 	if err != nil {
 		return "", err
 	}
-	pending, err := c.writePending(m, env, typedBy)
+	pending, err := c.writePending(m, env, cl)
 	if err != nil {
 		return "", err
 	}
-	delivery, err := c.sendNow(ctx, env, m, pending, typedBy)
+	delivery, err := c.sendNow(ctx, env, m, pending, cl)
 	if toBox == own && err == nil {
 		return wire.DeliveryLocal, nil // mirrored; the local copy is the delivery
 	}
@@ -130,6 +136,11 @@ func (c *Client) SendAnswerMessage(ctx context.Context, m *msg.Message, explicit
 // other members on THIS box receive it back from the hub like any member.
 // Queued and flushed like any cross-box send.
 func (c *Client) SendChannelTyped(ctx context.Context, m *msg.Message, channel, typedBy string) (string, error) {
+	return c.SendChannelClaims(ctx, m, channel, Claims{TypedBy: typedBy})
+}
+
+// SendChannelClaims is SendChannelTyped with every send-frame claim.
+func (c *Client) SendChannelClaims(ctx context.Context, m *msg.Message, channel string, cl Claims) (string, error) {
 	own, priv, err := c.box()
 	if err != nil {
 		return "", err
@@ -141,11 +152,11 @@ func (c *Client) SendChannelTyped(ctx context.Context, m *msg.Message, channel, 
 	if err != nil {
 		return "", err
 	}
-	pending, err := c.writePending(m, env, typedBy)
+	pending, err := c.writePending(m, env, cl)
 	if err != nil {
 		return "", err
 	}
-	return c.sendNow(ctx, env, m, pending, typedBy)
+	return c.sendNow(ctx, env, m, pending, cl)
 }
 
 // sendNow delivers one already-signed, already-pending envelope.
@@ -159,13 +170,13 @@ func (c *Client) SendChannelTyped(ctx context.Context, m *msg.Message, channel, 
 // Without a sidecar (or with SPOOL_SUBMIT_SOCKET=off) it falls through to the
 // unchanged role=cli dial, so a box that runs no sidecar behaves exactly as it
 // did before 030.
-func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message, pending, typedBy string) (string, error) {
+func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message, pending string, cl Claims) (string, error) {
 	if len(m.Files) == 0 { // blobs need the REST upload a cli session carries
 		raw, err := env.Marshal()
 		if err != nil {
 			return "", err
 		}
-		switch d, serr := c.submit(ctx, raw, typedBy); {
+		switch d, serr := c.submit(ctx, raw, cl); {
 		case serr == nil:
 			removePending(pending)
 			return d, nil
@@ -192,10 +203,10 @@ func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message
 		return "", err // e.g. an unpinned box: kept pending for a later flush
 	}
 	defer sess.Close()
-	return sess.sendPending(ctx, env, m, pending, typedBy)
+	return sess.sendPending(ctx, env, m, pending, cl)
 }
 
-func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Message, pending, typedBy string) (string, error) {
+func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Message, pending string, cl Claims) (string, error) {
 	for _, a := range m.Files {
 		if a.Mode != "blob" {
 			continue
@@ -207,7 +218,7 @@ func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Me
 			return "", err
 		}
 	}
-	f, err := s.SendTyped(ctx, env, typedBy)
+	f, err := s.SendClaims(ctx, env, cl)
 	var he *HubError
 	switch {
 	case errors.Is(err, ErrUnreachable):
@@ -232,22 +243,33 @@ func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Me
 // lists only *.json, so the sidecar is never mistaken for an envelope.
 const typedBySuffix = ".typed_by"
 
-// removePending drops a delivered pending envelope and its typed_by file.
+// refTaskSuffix is typedBySuffix for the ref_task_id claim (spec 067 3.3).
+const refTaskSuffix = ".ref_task_id"
+
+// claimSuffixes are the claim files a pending envelope may carry.
+var claimSuffixes = []string{typedBySuffix, refTaskSuffix}
+
+// removePending drops a delivered pending envelope and its claim files.
 func removePending(pending string) {
 	if pending == "" {
 		return
 	}
-	os.Remove(pending)                 //nolint:errcheck
-	os.Remove(pending + typedBySuffix) //nolint:errcheck
+	os.Remove(pending) //nolint:errcheck
+	for _, sfx := range claimSuffixes {
+		os.Remove(pending + sfx) //nolint:errcheck
+	}
 }
 
-// pendingTypedBy reads a pending envelope's typed_by claim ("" = none).
-func pendingTypedBy(pending string) string {
-	b, err := os.ReadFile(pending + typedBySuffix)
-	if err != nil {
-		return ""
+// pendingClaims reads a pending envelope's claims ("" each = none).
+func pendingClaims(pending string) Claims {
+	read := func(sfx string) string {
+		b, err := os.ReadFile(pending + sfx)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(b))
 	}
-	return strings.TrimSpace(string(b))
+	return Claims{TypedBy: read(typedBySuffix), RefTaskID: read(refTaskSuffix)}
 }
 
 func (c *Client) pendingDir() string  { return filepath.Join(c.Cfg.HubDir(), "pending") }
@@ -256,17 +278,20 @@ func (c *Client) rejectedDir() string { return filepath.Join(c.Cfg.HubDir(), "re
 // writePending stores the signed envelope as <ts>--<msg_id>.json (oldest-first
 // by name). Flush sends these exact bytes: no re-sign, ts and to_box unchanged.
 //
-// A typed_by claim is written FIRST, beside it, so a flush that sees the
-// envelope always sees its claim too.
-func (c *Client) writePending(m *msg.Message, env *wire.Envelope, typedBy string) (string, error) {
+// Its claims (typed_by, ref_task_id) are written FIRST, beside it, so a flush
+// that sees the envelope always sees its claims too.
+func (c *Client) writePending(m *msg.Message, env *wire.Envelope, cl Claims) (string, error) {
 	raw, err := env.Marshal()
 	if err != nil {
 		return "", err
 	}
 	stamp := strings.NewReplacer("-", "", ":", "").Replace(m.TS)
 	p := filepath.Join(c.pendingDir(), stamp+"--"+m.MsgID+".json")
-	if typedBy != "" {
-		if err := writeAtomic(p+typedBySuffix, []byte(typedBy+"\n")); err != nil {
+	for sfx, v := range map[string]string{typedBySuffix: cl.TypedBy, refTaskSuffix: cl.RefTaskID} {
+		if v == "" {
+			continue
+		}
+		if err := writeAtomic(p+sfx, []byte(v+"\n")); err != nil {
 			return "", err
 		}
 	}
@@ -303,8 +328,10 @@ func (c *Client) reject(pending string, why error) {
 	if err := os.MkdirAll(c.rejectedDir(), 0o775); err != nil {
 		return
 	}
-	os.Rename(pending, dst)                             //nolint:errcheck
-	os.Rename(pending+typedBySuffix, dst+typedBySuffix) //nolint:errcheck
+	os.Rename(pending, dst) //nolint:errcheck
+	for _, sfx := range claimSuffixes {
+		os.Rename(pending+sfx, dst+sfx) //nolint:errcheck
+	}
 	r := rejectReason{At: time.Now().UTC().Format(time.RFC3339)}
 	if why != nil {
 		r.Error = why.Error()
@@ -364,7 +391,7 @@ func (s *Session) Flush(ctx context.Context) (int, error) {
 			s.c.reject(p, err)
 			return n, fmt.Errorf("pending %s: %w", filepath.Base(p), err)
 		}
-		d, err := s.sendPending(ctx, env, m, p, pendingTypedBy(p))
+		d, err := s.sendPending(ctx, env, m, p, pendingClaims(p))
 		if err != nil {
 			return n, err
 		}

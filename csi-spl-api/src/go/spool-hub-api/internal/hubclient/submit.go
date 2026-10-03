@@ -51,11 +51,13 @@ const submitReplyTimeout = 30 * time.Second
 //
 // TypedBy is the send frame's typed_by claim (specs/036 FR-009). A sidecar
 // older than it decodes leniently and drops it, so the line is posted as the
-// agent: the same fallback as an older hub.
+// agent: the same fallback as an older hub. RefTaskID (spec 067 3.3) is the
+// same: an older sidecar drops it and the DM is stored without its topic.
 type submitRequest struct {
-	V       int             `json:"v"`
-	Env     json.RawMessage `json:"env"`
-	TypedBy string          `json:"typed_by,omitempty"`
+	V         int             `json:"v"`
+	Env       json.RawMessage `json:"env"`
+	TypedBy   string          `json:"typed_by,omitempty"`
+	RefTaskID string          `json:"ref_task_id,omitempty"`
 }
 
 // submitResponse is one line out. Delivery is the hub's `sent` frame value on
@@ -74,7 +76,7 @@ var errNoSidecar = errors.New("no submit listener")
 // submit hands raw to a local sidecar and returns the hub's delivery. It
 // returns errNoSidecar when there is nothing to hand it to, which is not a
 // failure: it is the pre-030 path.
-func (c *Client) submit(ctx context.Context, raw []byte, typedBy string) (string, error) {
+func (c *Client) submit(ctx context.Context, raw []byte, cl Claims) (string, error) {
 	path := c.Cfg.SubmitPath()
 	if path == "" {
 		return "", errNoSidecar
@@ -88,7 +90,7 @@ func (c *Client) submit(ctx context.Context, raw []byte, typedBy string) (string
 	}
 	defer conn.Close()
 
-	line, err := json.Marshal(submitRequest{V: 1, Env: raw, TypedBy: typedBy})
+	line, err := json.Marshal(submitRequest{V: 1, Env: raw, TypedBy: cl.TypedBy, RefTaskID: cl.RefTaskID})
 	if err != nil {
 		return "", err
 	}
@@ -209,7 +211,7 @@ func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn)
 		return
 	}
 	s.mu.Lock()
-	f, err := sess.SendTyped(ctx, env, req.TypedBy)
+	f, err := sess.SendClaims(ctx, env, Claims{TypedBy: req.TypedBy, RefTaskID: req.RefTaskID})
 	s.mu.Unlock()
 	var he *HubError
 	switch {

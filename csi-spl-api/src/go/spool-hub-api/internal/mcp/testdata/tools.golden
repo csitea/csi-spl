@@ -169,6 +169,10 @@
           "description": "one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)",
           "type": "string"
         },
+        "ref_task_id": {
+          "description": "hub mode only: the channel topic (task_id uuid) this DM is about (== spool send --ref); kept only when the sender may read that topic",
+          "type": "string"
+        },
         "task_id": {
           "description": "topic uuid; a new one is minted when empty",
           "type": "string"

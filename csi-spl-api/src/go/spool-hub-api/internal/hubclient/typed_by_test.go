@@ -30,14 +30,14 @@ func TestTypedByRidesTheFrameOnEveryPath(t *testing.T) {
 	ctx := context.Background()
 
 	// (a) the dial path.
-	p1, err := c.writePending(m, env, "HUM-7")
+	p1, err := c.writePending(m, env, Claims{TypedBy: "HUM-7"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if b, err := os.ReadFile(p1 + typedBySuffix); err != nil || strings.TrimSpace(string(b)) != "HUM-7" {
 		t.Fatalf("pending typed_by file: %q %v", b, err)
 	}
-	if d, err := c.sendNow(ctx, env, m, p1, "HUM-7"); err != nil || d != wire.DeliverySent {
+	if d, err := c.sendNow(ctx, env, m, p1, Claims{TypedBy: "HUM-7"}); err != nil || d != wire.DeliverySent {
 		t.Fatalf("dial: %q %v", d, err)
 	}
 	if _, err := os.Stat(p1 + typedBySuffix); !os.IsNotExist(err) {
@@ -46,17 +46,17 @@ func TestTypedByRidesTheFrameOnEveryPath(t *testing.T) {
 
 	// (b) the submit socket.
 	stop := sidecarUp(t, c)
-	p2, err := c.writePending(m, env, "HUM-7")
+	p2, err := c.writePending(m, env, Claims{TypedBy: "HUM-7"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d, err := c.sendNow(ctx, env, m, p2, "HUM-7"); err != nil || d != wire.DeliverySent {
+	if d, err := c.sendNow(ctx, env, m, p2, Claims{TypedBy: "HUM-7"}); err != nil || d != wire.DeliverySent {
 		t.Fatalf("submit: %q %v", d, err)
 	}
 	stop()
 
 	// (c) a queued send: only the pending files exist, the flush reads the claim.
-	if _, err := c.writePending(m, env, "HUM-7"); err != nil {
+	if _, err := c.writePending(m, env, Claims{TypedBy: "HUM-7"}); err != nil {
 		t.Fatal(err)
 	}
 	sess, err := c.Dial(ctx, wire.RoleCLI)
@@ -69,11 +69,11 @@ func TestTypedByRidesTheFrameOnEveryPath(t *testing.T) {
 	sess.Close()
 
 	// (d) CONTROL: a plain send carries no claim.
-	p4, _ := c.writePending(m, env, "")
+	p4, _ := c.writePending(m, env, Claims{})
 	if _, err := os.Stat(p4 + typedBySuffix); !os.IsNotExist(err) {
 		t.Fatalf("an unclaimed send wrote a typed_by file: %v", err)
 	}
-	if _, err := c.sendNow(ctx, env, m, p4, ""); err != nil {
+	if _, err := c.sendNow(ctx, env, m, p4, Claims{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,11 +101,11 @@ func TestTypedByRefusalRejectsBothFiles(t *testing.T) {
 	priv, _ := sign.LoadPrivate(c.Cfg.KeysDir, "box-a")
 	m := compose(t, c, "not bound")
 	env, _ := wire.NewEnvelope(priv, "box-a", "box-b", m)
-	p, err := c.writePending(m, env, "HUM-7")
+	p, err := c.writePending(m, env, Claims{TypedBy: "HUM-7"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.sendNow(context.Background(), env, m, p, "HUM-7")
+	_, err = c.sendNow(context.Background(), env, m, p, Claims{TypedBy: "HUM-7"})
 	if err == nil || !strings.Contains(err.Error(), "typed_by_not_bound") {
 		t.Fatalf("want typed_by_not_bound, got %v", err)
 	}

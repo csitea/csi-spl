@@ -610,7 +610,24 @@ func (s *Session) Send(ctx context.Context, env *wire.Envelope) (wire.Frame, err
 // SendTyped is Send with a typed_by claim on the frame (specs/036 FR-009),
 // outside the signed envelope; "" sends the plain frame.
 func (s *Session) SendTyped(ctx context.Context, env *wire.Envelope, typedBy string) (wire.Frame, error) {
-	return s.sendFrame(ctx, env, wire.Frame{TypedBy: typedBy})
+	return s.SendClaims(ctx, env, Claims{TypedBy: typedBy})
+}
+
+// Claims are a send frame's fields outside the signed envelope: a box decodes
+// the inner msg strictly, so a claim an older box would refuse rides the
+// frame instead. A zero Claims sends the plain frame.
+type Claims struct {
+	// TypedBy is the HUM-* who typed the line at the terminal (specs/036 FR-009).
+	TypedBy string
+	// RefTaskID is the channel topic a DM is about (spec 067 3.3,
+	// `spool send --ref`). The hub keeps it only when the sender may read
+	// the topic, and never sets it on msg.Message (internal/hub/dm_ref.go).
+	RefTaskID string
+}
+
+// SendClaims is Send with cl on the frame.
+func (s *Session) SendClaims(ctx context.Context, env *wire.Envelope, cl Claims) (wire.Frame, error) {
+	return s.sendFrame(ctx, env, wire.Frame{TypedBy: cl.TypedBy, RefTaskID: cl.RefTaskID})
 }
 
 // SendAnswer is Send for a post that answers msg answers (spec 068 4.2),
@@ -619,7 +636,8 @@ func (s *Session) SendAnswer(ctx context.Context, env *wire.Envelope, answers st
 	return s.sendFrame(ctx, env, wire.Frame{Answers: answers, IfGen: gen})
 }
 
-// sendFrame sends env on a send frame carrying extra's typed_by / answers.
+// sendFrame sends env on a send frame carrying extra's typed_by /
+// ref_task_id / answers.
 func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.Frame) (wire.Frame, error) {
 	raw, err := env.Marshal()
 	if err != nil {
@@ -631,7 +649,7 @@ func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.
 	}
 	id := m.MsgID
 	send := func() (wire.Frame, error) {
-		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, Answers: extra.Answers, IfGen: extra.IfGen}, wire.TSent,
+		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, RefTaskID: extra.RefTaskID, Answers: extra.Answers, IfGen: extra.IfGen}, wire.TSent,
 			func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
 	}
 	f, err := send()

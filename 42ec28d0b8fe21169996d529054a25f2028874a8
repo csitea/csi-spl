@@ -1,0 +1,6 @@
+Lay-What: The Members page now says whether an invitation email was sent, and when, instead of wrongly saying "not sent".
+Lay-How: The page reads the time the email went out, re-opens an existing invitation instead of making a new one, and says plainly when a resend had to wait.
+Lay-Why: An admin who invited someone twice was told the email never went out, even though it had, and could not tell what had happened.
+Tech-What: WUI Members row and user pane show "sent <time>" from mailed_at; inviting an address with an open invite opens that invite; Send/Resend report sent, rate_limited or not sent.
+Tech-How: tenant-users.mjs formats mailed_at and the send outcome; UserEditPane reuses the open invite; the mock hub applies the hub's reset + 10-minute gap; users-admin e2e 10e-10g cover it.
+Tech-Why: The page judged "sent" from mail_count, which a re-invite resets to 0 while mailed_at stays, so a mailed invite read "not sent" after a second submit.

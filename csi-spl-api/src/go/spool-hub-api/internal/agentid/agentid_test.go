@@ -161,3 +161,14 @@ func TestNumberAndLetter(t *testing.T) {
 		t.Error("Letter")
 	}
 }
+
+func TestSplitAtBox(t *testing.T) {
+	for in, want := range map[string][2]string{
+		"c-004@box-a": {"c-004", "box-a"}, "c-004": {"c-004", ""}, "": {"", ""},
+		"c-004@": {"c-004", ""}, "@box-a": {"", "box-a"}, "c-004@box-a@x": {"c-004", "box-a@x"},
+	} {
+		if id, box := SplitAtBox(in); id != want[0] || box != want[1] {
+			t.Errorf("SplitAtBox(%q) = %q, %q, want %q, %q", in, id, box, want[0], want[1])
+		}
+	}
+}

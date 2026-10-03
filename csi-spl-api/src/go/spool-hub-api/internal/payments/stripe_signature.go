@@ -28,15 +28,15 @@ func VerifyStripe(header, body, secret string, now time.Time) error {
 		sigs  []string
 	)
 	for _, part := range strings.Split(header, ",") {
-		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
-		if len(kv) != 2 {
+		k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
 			continue
 		}
-		switch kv[0] {
+		switch k {
 		case "t":
-			tsRaw = kv[1]
+			tsRaw = v
 		case "v1":
-			sigs = append(sigs, kv[1])
+			sigs = append(sigs, v)
 		}
 	}
 	if tsRaw == "" || len(sigs) == 0 {

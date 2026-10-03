@@ -50,12 +50,8 @@ func compressJSON(next http.Handler) http.Handler {
 func acceptsGzip(values []string) bool {
 	for _, v := range values {
 		for len(v) > 0 {
-			part := v
-			if i := strings.IndexByte(v, ','); i >= 0 {
-				part, v = v[:i], v[i+1:]
-			} else {
-				v = ""
-			}
+			var part string
+			part, v, _ = strings.Cut(v, ",")
 			name, params, _ := strings.Cut(part, ";")
 			if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
 				continue

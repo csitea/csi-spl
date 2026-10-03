@@ -76,10 +76,8 @@ func Number(s string) string {
 
 // SplitAtBox splits "<id>@<box>" (spec 058); box is "" without an @.
 func SplitAtBox(s string) (id, box string) {
-	if i := strings.IndexByte(s, '@'); i >= 0 {
-		return s[:i], s[i+1:]
-	}
-	return s, ""
+	id, box, _ = strings.Cut(s, "@")
+	return id, box
 }
 
 // IsAtBox reports whether s is "<participant>@<box>" (a lease holder).

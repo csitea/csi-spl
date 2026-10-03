@@ -13,7 +13,10 @@
 # @description line; idempotent. It points at the same self-updating checkout
 # @description as the desk reconcile (<shared checkout>-desk-cron,
 # @description DESK_CRON_SRC overrides; an agent worktree is refused). One line
-# @description per machine that should accept remote spawns.
+# @description per machine that should accept remote spawns. The line does NOT
+# @description self-update (DESK_CRON_SELF_UPDATE defaults to 0 here): the desk
+# @description reconcile already moves that checkout to trunk every 3 minutes,
+# @description and a fetch + checkout every minute would race its index.lock.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param SPAWN_REMOTE_CRON_ACTION (optional) - install (default) | remove | check
 # @param CRON_REMOVE (optional) - 1 = SPAWN_REMOTE_CRON_ACTION=remove
@@ -34,7 +37,7 @@ do_spl_spawn_remote_install_cron() {
 
   local tag src script logdir line current pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:spawn-remote"
-  spl_desk_cron_src || return 1
+  DESK_CRON_SELF_UPDATE="${DESK_CRON_SELF_UPDATE:-0}" spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
   script="$src/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh"
   logdir="${SPAWN_REMOTE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/spawn-remote}"

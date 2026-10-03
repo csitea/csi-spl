@@ -1,0 +1,6 @@
+Lay-What: Notification sounds are longer, richer and louder, and you now hear an alert for messages that arrived while your connection was briefly down.
+Lay-How: Each sound is a short tune of repeated notes of under a second, and after a reconnect the app checks what it missed and plays one alert for it.
+Lay-Why: Some sounds were silent on Linux with Chrome, all were too short, and messages that came in during a reconnect only raised a badge with no sound.
+Tech-What: Every notification sound is a 0.6-0.8 s motif of non-sine notes near -14 dBFS; a socket reconnect's catch-up read pings once for channels and DMs whose hub count grew.
+Tech-How: notify.mjs builds the motifs with a hold-and-decay envelope and a 1.5 s context close grace; notification.ts compares counts after the catch-up read; notify.client.ts wires it; unit tests cover both.
+Tech-Why: Measured on a PipeWire null sink (n=5): the old 0.10-0.24 s sounds were cut by the audio device waking, and Chrome stops an idle output stream after ~30 s, so a kept-open context cannot help.

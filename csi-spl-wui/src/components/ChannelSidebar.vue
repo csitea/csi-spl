@@ -42,8 +42,12 @@
         <UiIcon :name="item.icon" :size="20" />
         <!-- SPL-989: the phone's level-1 strip names each section; hidden above 820 px -->
         <span class="sidebar-tab__label" aria-hidden="true">{{ t(item.labelKey) }}</span>
-        <!-- spec 062: the Flow tab carries the hub's number (unseen + unread), 99+ above 99 -->
-        <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count" data-testid="sidebar-tab-flow-count" :aria-label="t('flow.badge', { n: flowLabel })">{{ flowLabel }}</span>
+        <!-- spec 062: the Flow tab carries the hub's number (unseen + unread), 99+ above 99,
+             as a neutral theme-grey badge (owner, t1 f4e6c677) -->
+        <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count sidebar-tab__count--neutral" data-testid="sidebar-tab-flow-count" :aria-label="t('flow.badge', { n: flowLabel })">{{ flowLabel }}</span>
+        <!-- owner (t1 f4e6c677): Channels and Direct messages carry the red number of new
+             messages in the viewer's own discussions (the hub's Flow unread, split) -->
+        <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :data-testid="'sidebar-tab-' + item.id + '-count'" :aria-label="t('flow.badge', { n: railCount(item.id) })">{{ railCount(item.id) }}</span>
         <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
       </div>
@@ -87,7 +91,8 @@
           >
             <UiIcon :name="item.icon" :size="20" />
             <span class="sidebar-tab__label">{{ t(item.labelKey) }}</span>
-            <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count">{{ flowLabel }}</span>
+            <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count sidebar-tab__count--neutral">{{ flowLabel }}</span>
+            <span v-else-if="railCount(item.id)" class="sidebar-tab__count">{{ railCount(item.id) }}</span>
             <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
           <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
@@ -746,7 +751,7 @@ import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
-import { useFlowBadge } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowRail } from '~/composables/useFlowBadge'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
@@ -933,8 +938,22 @@ watch(() => api.mock || session.state === 'in', (on) => {
     .then((m) => nuxtApp.runWithContext(() => m.useFlowStore().startBadge()))
     .catch(() => { flowStarted = false })
 }, { immediate: true })
-const flowLabel = computed(() => (flowBadge.value > 0 ? (flowBadge.value > 99 ? '99+' : String(flowBadge.value)) : ''))
+function countLabel(n: number) {
+  return n > 0 ? (n > 99 ? '99+' : String(n)) : ''
+}
+const flowLabel = computed(() => countLabel(flowBadge.value))
+/* owner (t1 f4e6c677): once the hub splits its Flow unread (flowRail set),
+   Channels and Direct messages show it as a number, and no pip at 0 */
+const flowRail = useFlowRail()
+function railCount(id: SideTab) {
+  const r = flowRail.value
+  if (!r) return ''
+  if (id === 'channels') return countLabel(r.channels)
+  if (id === 'dm') return countLabel(r.dms)
+  return ''
+}
 function tabUnread(id: SideTab) {
+  if ((id === 'dm' || id === 'channels') && flowRail.value) return false
   if (id === 'dm') return dmUnread.value
   if (id === 'channels') return channelUnread.value
   if (id === 'flow') return flowBadge.value < 0 && flowUnread.value
@@ -1570,6 +1589,13 @@ async function onCreate() {
   line-height: 16px;
   text-align: center;
   pointer-events: none;
+}
+/* owner (t1 f4e6c677): the Flow number is no alarm - the theme's grey, a
+   step darker than the background (lighter on the dark theme), edged */
+.sidebar-tab__count--neutral {
+  background: var(--color-bg-3);
+  color: var(--color-fg);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
 }
 .sidebar-tab__pip {
   position: absolute;

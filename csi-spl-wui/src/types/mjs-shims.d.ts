@@ -319,7 +319,9 @@ declare module '~/utils/flow-entries.mjs' {
 }
 
 declare module '~/utils/flow-badge.mjs' {
-  export interface FlowCounts { mention: number, reply: number, dm: number, total: number }
+  export interface FlowCounts { mention: number, reply: number, dm: number, total: number, channels?: number, dms?: number }
+  export interface FlowRail { channels: number, dms: number }
+  export function railFromUnread(unread: FlowCounts | null | undefined): FlowRail | null
   export type FlowKind = 'mention' | 'reply' | 'dm'
   export type FlowScope = 'mine' | 'all'
   export const FLOW_KINDS: readonly FlowKind[]

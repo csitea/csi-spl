@@ -55,7 +55,22 @@ function facts(page) {
       return el ? { n: Number(el.getAttribute('data-count')), pressed: el.getAttribute('aria-pressed') } : null
     }
     const c = document.querySelector(count)
+    /* owner (t1 f4e6c677): a badge's fill, against the theme's grey and its danger red */
+    const fill = (css) => {
+      const probe = document.createElement('span')
+      probe.style.background = css
+      document.body.appendChild(probe)
+      const bg = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return bg
+    }
+    const rail = (id) => document.querySelector(`[data-testid=sidebar-tab-${id}-count]`)?.textContent.trim() || ''
     return {
+      fill: c ? getComputedStyle(c).backgroundColor : '',
+      grey: fill('var(--color-bg-3)'),
+      red: fill('var(--color-danger)'),
+      dmFill: document.querySelector('[data-testid=sidebar-tab-dm-count]') ? getComputedStyle(document.querySelector('[data-testid=sidebar-tab-dm-count]')).backgroundColor : '',
+      rail: { dm: rail('dm'), channels: rail('channels'), channelsPip: Boolean(document.querySelector('[data-testid=sidebar-tab-channels-unread]')) },
       ids: rows.map((e) => e.getAttribute('data-msg-id')),
       count: c ? c.textContent.trim() : '',
       title: document.title,
@@ -86,6 +101,9 @@ try {
     let f = await facts(p)
     ok(`${tag}: the Flow tab shows the hub's number before the pane opens`, shown && f.count === '1', { count: f.count })
     ok(`${tag}: the tab title leads with it (FR-013)`, f.title.startsWith('(1) '), { title: f.title })
+    ok(`${tag}: the Flow number is the theme grey, not the red (t1 f4e6c677)`, f.fill === f.grey && f.fill !== f.red, { fill: f.fill, grey: f.grey, red: f.red })
+    ok(`${tag}: Direct messages carries the red number of my new DMs`, f.rail.dm === '1' && f.dmFill === f.red, { rail: f.rail, dmFill: f.dmFill })
+    ok(`${tag}: Channels shows no number (nothing new in my discussions) and no pip`, f.rail.channels === '' && !f.rail.channelsPip, f.rail)
 
     /* Q4: opening the pane clears it; Mine (Q1 default) lists only my event */
     await p.click('[data-testid=sidebar-tab-flow]')
@@ -95,6 +113,7 @@ try {
     ok(`${tag}: Mine is the default`, f.mine === 'true' && f.all === 'false', { mine: f.mine, all: f.all })
     ok(`${tag}: Mine lists only what concerns me`, f.ids.length === 1 && f.ids[0] === MINE, f.ids)
     ok(`${tag}: opening the Flow clears the number`, f.count === '' && !/^\(\d+\+?\) /.test(f.title), { count: f.count, title: f.title })
+    ok(`${tag}: opening the Flow keeps the DM number (it counts unread, not unseen)`, f.rail.dm === '1', f.rail)
     ok(`${tag}: the chips split the unread (DM 1, mention 0, reply 0)`, f.chips.dm?.n === 1 && f.chips.mention?.n === 0 && f.chips.reply?.n === 0, f.chips)
 
     /* a 0 chip does not filter; the DM chip does, and a second click clears it */

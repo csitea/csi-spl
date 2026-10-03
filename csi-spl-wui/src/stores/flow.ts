@@ -4,10 +4,10 @@ import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { useFlowBadge } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowRail } from '~/composables/useFlowBadge'
 import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
-import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowScope, syncAppBadge } from '~/utils/flow-badge.mjs'
+import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
 import { storageGet, storageSet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
@@ -69,6 +69,7 @@ export const useFlowStore = defineStore('flow', () => {
   /** The pane is on screen: a new event is seen at once. */
   const paneOpen = ref(false)
   const badge = useFlowBadge()
+  const rail = useFlowRail()
   const mineOn = computed(() => scope.value === 'mine' && available.value !== false)
 
   /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
@@ -161,7 +162,10 @@ export const useFlowStore = defineStore('flow', () => {
     const next = parseFlowCounts(c)
     if (next) counts.value = next
     const chips = parseFlowCounts(u)
-    if (chips) unread.value = chips
+    if (chips) {
+      unread.value = chips
+      rail.value = railFromUnread(chips)
+    }
     if (!counts.value) return
     available.value = true
     badge.value = counts.value.total

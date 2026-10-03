@@ -15,6 +15,7 @@ import {
   mockFlowEvents,
   parseFlowCounts,
   parseFlowScope,
+  railFromUnread,
   syncAppBadge,
 } from '../../src/utils/flow-badge.mjs'
 import { flowEventEntry, flowUnread, mergeMine } from '../../src/utils/flow-entries.mjs'
@@ -45,6 +46,33 @@ describe('parseFlowCounts', () => {
   })
   it('folds a poke into mention and sums when no total (Q5)', () => {
     assert.deepEqual(parseFlowCounts({ mention: 1, poke: 2, dm: 1 }), { mention: 3, reply: 0, dm: 1, total: 4 })
+  })
+  it('keeps the hub split by channels / dms when it sends one (t1 f4e6c677)', () => {
+    assert.deepEqual(parseFlowCounts({ mention: 2, reply: 5, dm: 1, total: 8, channels: 7, dms: 1 }),
+      { mention: 2, reply: 5, dm: 1, total: 8, channels: 7, dms: 1 })
+    assert.deepEqual(parseFlowCounts({ mention: 1, total: 1, channels: -3, dms: 'x' }),
+      { mention: 1, reply: 0, dm: 0, total: 1, channels: 0, dms: 0 })
+  })
+})
+
+describe('rail numbers: Channels and Direct messages (owner, t1 f4e6c677)', () => {
+  it('the hub unread split, or null from a hub without it (the pip stays)', () => {
+    assert.deepEqual(railFromUnread(parseFlowCounts({ mention: 1, reply: 2, dm: 3, channels: 3, dms: 3 })), { channels: 3, dms: 3 })
+    assert.equal(railFromUnread(parseFlowCounts({ mention: 1, reply: 2, dm: 3 })), null)
+    assert.equal(railFromUnread(null), null)
+  })
+  it('Channels and DM tabs carry the red number; the Flow number is the neutral grey badge', () => {
+    const side = read('../../src/components/ChannelSidebar.vue')
+    assert.match(side, /data-testid="sidebar-tab-flow-count" class="sidebar-tab__count sidebar-tab__count--neutral"|class="sidebar-tab__count sidebar-tab__count--neutral"[^>]*data-testid="sidebar-tab-flow-count"/)
+    assert.match(side, /:data-testid="'sidebar-tab-' \+ item\.id \+ '-count'"/)
+    const css = side.slice(side.indexOf('.sidebar-tab__count--neutral {'))
+    assert.match(css, /^\.sidebar-tab__count--neutral \{[^}]*background: var\(--color-bg-3\)/)
+    assert.doesNotMatch(css.slice(0, css.indexOf('}')), /--color-danger/)
+  })
+  it('the store fills the rail from the hub unread, never from message frames', () => {
+    const store = read('../../src/stores/flow.ts')
+    assert.match(store, /rail\.value = railFromUnread\(/)
+    assert.match(read('../../src/composables/useFlowBadge.ts'), /export function useFlowRail\(\)/)
   })
 })
 
@@ -115,9 +143,9 @@ describe('mock flow (spec 2.1; the hub counts in live mode)', () => {
   })
   it('counts unseen and unopened', () => {
     const evs = mockFlowEvents(feed, SELF)
-    assert.deepEqual(mockFlowCounts(evs), { mention: 1, reply: 1, dm: 1, total: 3 })
-    assert.deepEqual(mockFlowCounts(evs, '2026-10-02T10:02:00Z'), { mention: 0, reply: 0, dm: 1, total: 1 })
-    assert.deepEqual(mockFlowCounts(evs, '', new Set(['b'])), { mention: 0, reply: 1, dm: 1, total: 2 })
+    assert.deepEqual(mockFlowCounts(evs), { mention: 1, reply: 1, dm: 1, total: 3, channels: 2, dms: 1 })
+    assert.deepEqual(mockFlowCounts(evs, '2026-10-02T10:02:00Z'), { mention: 0, reply: 0, dm: 1, total: 1, channels: 0, dms: 1 })
+    assert.deepEqual(mockFlowCounts(evs, '', new Set(['b'])), { mention: 0, reply: 1, dm: 1, total: 2, channels: 1, dms: 1 })
   })
 })
 

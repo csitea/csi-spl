@@ -9,3 +9,14 @@ const total = ref(-1)
 export function useFlowBadge() {
   return total
 }
+
+/**
+ * Owner (t1 f4e6c677): the Channels and Direct messages tabs' numbers, the
+ * hub's unread in the viewer's own discussions split by channel / DM. Null
+ * = not known (no counts yet, or a hub without the split): the pip stays.
+ */
+const rail = ref<{ channels: number, dms: number } | null>(null)
+
+export function useFlowRail() {
+  return rail
+}

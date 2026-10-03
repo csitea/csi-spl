@@ -49,7 +49,24 @@ export function parseFlowCounts(raw) {
   if (!raw || typeof raw !== 'object') return null
   const out = { mention: whole(raw.mention) + whole(raw.poke), reply: whole(raw.reply), dm: whole(raw.dm), total: 0 }
   out.total = raw.total === undefined ? out.mention + out.reply + out.dm : whole(raw.total)
+  /* the split by a channel line / a DM, when the hub sends it (t1 f4e6c677) */
+  if (raw.channels !== undefined || raw.dms !== undefined) {
+    out.channels = whole(raw.channels)
+    out.dms = whole(raw.dms)
+  }
   return out
+}
+
+/**
+ * Owner (t1 f4e6c677): the red numbers on the Channels and Direct messages
+ * tabs - the new messages only in the discussions the viewer takes part in,
+ * which is the Flow's own unread set split by where the line is. Null from
+ * a hub that does not split (the tabs keep their pip).
+ * @returns {{ channels: number, dms: number } | null}
+ */
+export function railFromUnread(unread) {
+  if (!unread || unread.channels === undefined) return null
+  return { channels: whole(unread.channels), dms: whole(unread.dms) }
 }
 
 /** The tab's number: '' at 0 (hidden), '99+' above 99 (Q3). */
@@ -121,12 +138,15 @@ export function mockFlowEvents(messages, self) {
  * = never) and not opened (`opened` = msg ids), split by kind.
  */
 export function mockFlowCounts(events, seen = '', opened = new Set()) {
-  const counts = { mention: 0, reply: 0, dm: 0 }
+  const counts = { mention: 0, reply: 0, dm: 0, channels: 0, dms: 0 }
   for (const e of events || []) {
     if (opened.has(String(e.msg_id))) continue
     if (seen && !(String(e.at) > String(seen))) continue
     const k = flowEventKind(e.kind)
-    if (k) counts[k]++
+    if (!k) continue
+    counts[k]++
+    if (e.channel) counts.channels++
+    else counts.dms++
   }
   return parseFlowCounts(counts)
 }

@@ -1,0 +1,6 @@
+Lay-What: Tidies two infrastructure scripts so one step can no longer leave stray values behind for the next step; nothing a user sees changes.
+Lay-How: Each script now keeps its working values to itself and drops one it never used.
+Lay-Why: A value left over from one step could quietly change what a later step in the same run did.
+Tech-What: do_tf_state_list and do_tf_state_pull declare backend_config_path local and drop the unused vars_path.
+Tech-How: tf-state-list.func.sh and tf-state-pull.func.sh add a local declaration and remove the dead assignment; tf_run_path and tf_proj stay global for do_tf_init.
+Tech-Why: Both variables leaked as globals into later actions of the same ./run; every other reader assigns its own (refactor round 1, #23).

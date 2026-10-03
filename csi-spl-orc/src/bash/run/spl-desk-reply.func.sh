@@ -28,6 +28,13 @@
 # @description   3. `spool send --from <agent> --to <hum> --task <task>
 # @description      --to-box box-wui --kind <DESK_KIND>`; the desk's hub-run
 # @description      sidecar flushes it to the hub
+# @description   4. spec 067 rule 2: when the answered message is a DM about a
+# @description      channel topic T (its ref_task_id, else the poke DM's
+# @description      "needs you in <wui>/t/<T>" link), the answer goes IN T,
+# @description      tagging the person (@HUM-n). It falls back to the DM,
+# @description      carrying --ref T, when this desk cannot read T (hub-tail
+# @description      returns nothing) or the post into T fails (edge 2). The
+# @description      DESK_TO + full DESK_TASK form reads no message: no T.
 # @description A body that says released / deployed with a commit sha but no
 # @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
 # @description ask the lane to add the line do_release_note_link prints. A
@@ -79,7 +86,7 @@ do_spl_desk_reply() {
   hub="$SPL_HUB_URL"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind${files[*]:+ and ${#files[@]} file(s)}"
+    do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind${files[*]:+ and ${#files[@]} file(s)}; a DM about a topic is answered in that topic (spec 067)"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to answer."
     return 0
@@ -87,7 +94,7 @@ do_spl_desk_reply() {
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
-  local ans_to ans_task ans_msg ans_head
+  local ans_to ans_task ans_msg ans_head ans_ref=""
   if [[ -n "$to" && "$task" =~ $uuid_re ]]; then
     # Owner rule (prd t1 topic b280b0e8, 2026-09-29): a full topic id plus the
     # human means post THERE, full stop - no inbox read at all, so a busy
@@ -104,6 +111,7 @@ do_spl_desk_reply() {
       do_log "FATAL recv --as $agent on $box: $(cat "$recvf")"; rm -f "$recvf"; return 1
     fi
     pick="$(spl_desk_pick "$recvf" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
+    (( prc == 0 )) && ans_ref="$(_spl_desk_reply_ref "$recvf" "$(cut -f3 <<<"$pick")")"
     rm -f "$recvf"
     if (( prc == 3 )); then
       do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox); name a topic with DESK_TASK to answer in it regardless"; return 3
@@ -123,11 +131,30 @@ do_spl_desk_reply() {
   local ids=()
   _spl_desk_reply_put_files "$d" "$box" "$tenant" "$hub" "${files[@]}" || return 1
 
-  local sent rc=0
-  sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-    --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}")" || rc=$?
+  local sent rc=0 route=dm sent_task="$ans_task" ref_args=()
+  if [[ -n "$ans_ref" ]]; then
+    if _spl_desk_reply_can_read "$d" "$box" "$tenant" "$hub" "$ans_ref"; then
+      sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
+        --task "$ans_ref" --to-box box-wui --kind "$kind" --body "$(_spl_desk_reply_tag "$ans_to" "$body")" "${ids[@]}")" || rc=$?
+      if (( rc == 0 )); then
+        route=topic; sent_task="$ans_ref"
+      else
+        do_log "WARN could not post in topic $ans_ref ($sent): answering $ans_to in the DM instead (spec 067 edge 2)"
+        route=dm-fallback; rc=0
+      fi
+    else
+      do_log "WARN $agent cannot read topic $ans_ref (this box holds none of it): answering $ans_to in the DM instead (spec 067 edge 2)"
+      route=dm-fallback
+    fi
+  fi
+  if [[ "$route" != topic ]]; then
+    [[ "$route" == dm-fallback ]] && ref_args=(--ref "$ans_ref")
+    sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
+      --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}")" || rc=$?
+  fi
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
-  SPL_SENT="$sent" _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head"
+  SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" \
+    _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head"
   # The watermark of this desk's conversation: what "newer than the last
   # answer" means next time. It is a hint, not a record - losing it only makes
   # the next run ask instead of choosing.
@@ -138,12 +165,13 @@ do_spl_desk_reply() {
     spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
       do_log "WARN could not archive $agent's inbox after the answer"
   fi
-  do_log "OK $agent answered $ans_to in topic $ans_task ($kind); the sidecar flushes it to $hub"
+  do_log "OK $agent answered $ans_to in topic $sent_task ($kind${ans_ref:+, $route}); the sidecar flushes it to $hub"
 }
 
 # _spl_desk_reply_summary <env> <tenant> <box> <agent> <kind> <to> <task>
 # <answered msg> <answered head>: the JSON line of an answer, with the send
-# result from SPL_SENT.
+# result from SPL_SENT. With SPL_REF (spec 067) it adds ref_task_id and route:
+# topic (answered in it), dm-fallback (edge 2) or dm.
 _spl_desk_reply_summary() {
   python3 - "$@" <<'EOF_PY'
 import json, os, sys
@@ -153,10 +181,60 @@ try:
     sent = json.loads(sent)
 except ValueError:
     pass
-print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "kind": kind,
-                  "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
-                  "send": sent}, sort_keys=True))
+row = {"env": env, "tenant": tenant, "box": box, "agent": agent, "kind": kind,
+       "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
+       "send": sent}
+if os.environ.get("SPL_REF"):
+    row["ref_task_id"], row["route"] = os.environ["SPL_REF"], os.environ.get("SPL_ROUTE", "")
+print(json.dumps(row, sort_keys=True))
 EOF_PY
+}
+
+# _spl_desk_reply_ref <recv file> <msg_id>: the channel topic T the answered
+# message is about (spec 067 3.3), or nothing. Only a DM counts (a channel post
+# is to ALL-0 and already lives in its topic). T is the message's ref_task_id
+# when a box reader carries it, else the poke DM's link: the WUI's poke body
+# is "<author> needs you in <wui>/t/<T>: ..." (mention-poke.mjs pokeBody).
+_spl_desk_reply_ref() {
+  python3 - "${1:-}" "${2:-}" <<'EOF_PY'
+import json, re, sys
+src, msg_id = sys.argv[1], sys.argv[2]
+UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+try:
+    with open(src) as f:
+        msgs = json.load(f) or []
+except (OSError, ValueError):
+    sys.exit(0)
+m = next((x for x in msgs if isinstance(x, dict) and msg_id and x.get("msg_id") == msg_id), None) if isinstance(msgs, list) else None
+if not m or str(m.get("to", "")) in ("", "ALL-0"):
+    sys.exit(0)
+ref = str(m.get("ref_task_id", "")).lower()
+if not re.fullmatch(UUID, ref):
+    hit = re.search(r"needs you in \S*/t/(" + UUID + r")\b", str(m.get("body", "")), re.I)
+    ref = hit.group(1).lower() if hit else ""
+if ref and ref != str(m.get("task_id", "")).lower():
+    print(ref)
+EOF_PY
+}
+
+# _spl_desk_reply_can_read <state dir> <box> <tenant> <hub> <task>: 0 when
+# this desk box holds any message of topic <task> on the hub (hub-tail serves
+# only what the box holds), i.e. its agent sees the topic. Edge 2: never tag a
+# person into a topic the answer cannot be seen in.
+_spl_desk_reply_can_read() {
+  local out
+  out="$(spl_desk_spool "$1" "$2" "$3" "$4" -- hub-tail --task "$5" --json 2>/dev/null)" || return 1
+  grep -q '^{' <<<"$out"
+}
+
+# _spl_desk_reply_tag <human> <body>: body tagging the human (@HUM-n) once:
+# a body that already tags them is left as it is.
+_spl_desk_reply_tag() {
+  if grep -qE "(^|[^A-Za-z0-9_-])@$1([^A-Za-z0-9_-]|\$)" <<<"$2"; then
+    printf '%s' "$2"
+  else
+    printf '@%s %s' "$1" "$2"
+  fi
 }
 
 # _spl_desk_reply_body_file: DESK_BODY_FILE's text into the caller's body

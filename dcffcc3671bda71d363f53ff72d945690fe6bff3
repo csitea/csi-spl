@@ -1,0 +1,6 @@
+Lay-What: The new page on writing release notes also appears in the app's help.
+Lay-How: The app's copy of the help pages was refreshed from the source pages.
+Lay-Why: The app's help would otherwise miss the new page, and a check blocks that.
+Tech-What: src/public/help-md gains release-notes.md and its pages.json entry.
+Tech-How: Regenerated with sync-help.mjs; no hand edits.
+Tech-Why: help-sync.test.mjs fails while src/public/help-md drifts from csi-spl-doc/doc/help.

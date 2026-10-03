@@ -90,7 +90,7 @@ export function highlightSegments(text, highlights) {
     .sort((x, y) => x[0] - y[0])
   const merged = []
   for (const [a, b] of spans) {
-    const last = merged[merged.length - 1]
+    const last = merged.at(-1)
     if (last && a <= last[1]) last[1] = Math.max(last[1], b)
     else merged.push([a, b])
   }

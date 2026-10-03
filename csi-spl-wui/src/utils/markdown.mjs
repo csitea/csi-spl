@@ -109,7 +109,7 @@ function textOf(children) {
 function inline(tokens, breaks = false) {
   const root = el(null)
   const stack = [root]
-  const top = () => stack[stack.length - 1]
+  const top = () => stack.at(-1)
   for (const tok of tokens || []) {
     if (tok.nesting === 1) {
       let node
@@ -248,7 +248,7 @@ export function htmlTableNodes(html) {
   const s = String(html ?? '')
   const root = el(null)
   const stack = [root]
-  const top = () => stack[stack.length - 1]
+  const top = () => stack.at(-1)
   const text = (t) => {
     if (!t) return
     if (TABLE_PARTS.has(top().tag) && !t.trim()) return
@@ -292,7 +292,7 @@ export function markdownTree(src, { breaks = false, html = false } = {}) {
   const tokens = md(html).parse(String(src ?? ''), {})
   const root = el(null)
   const stack = [root]
-  const top = () => stack[stack.length - 1]
+  const top = () => stack.at(-1)
   for (const tok of tokens) {
     if (tok.nesting === 1) {
       let node

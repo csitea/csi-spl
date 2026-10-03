@@ -257,7 +257,7 @@ export function createTokenEmitter() {
     addText(value) {
       if (value === '') return
       const cls = this.cls
-      const last = this.tokens[this.tokens.length - 1]
+      const last = this.tokens.at(-1)
       // adjacent runs of the same scope are one token: fewer spans, and the
       // line splitter downstream has less to walk
       if (last && last.cls === cls) last.text += value
@@ -316,11 +316,11 @@ export function tokensToLines(tokens) {
     const parts = normalizeNewlines(tok.text).split('\n')
     parts.forEach((part, i) => {
       if (i > 0) lines.push([])
-      if (part !== '') lines[lines.length - 1].push({ text: part, cls: tok.cls })
+      if (part !== '') lines.at(-1).push({ text: part, cls: tok.cls })
     })
   }
   // a trailing newline closes the last line rather than opening an empty one
-  if (lines.length > 1 && lines[lines.length - 1].length === 0) lines.pop()
+  if (lines.length > 1 && lines.at(-1).length === 0) lines.pop()
   return lines
 }
 

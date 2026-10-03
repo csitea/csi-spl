@@ -1,0 +1,6 @@
+Lay-What: Makes reading a conversation from the server faster, with exactly the same content returned.
+Lay-How: The server cleans up each stored message in one quick pass instead of unpacking and repacking it.
+Lay-Why: This runs for every message of every conversation you open, so it adds up to noticeable waiting.
+Tech-What: hub trimEnv trims the stored envelope in one pass without maps; the old map path stays as trimEnvMap for inputs it declines.
+Tech-How: view.go validates once and copies members in sorted order with json.Marshal escaping; view_trim_golden_test.go pins identical bytes (n=3000 x 3 + fuzz).
+Tech-Why: Perf round 4 G9: per-message map decode/encode cost chat_80B 20.6 us / 88 allocs, now 4.13 us / 1 alloc.

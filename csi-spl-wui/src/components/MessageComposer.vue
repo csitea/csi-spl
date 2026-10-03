@@ -520,9 +520,22 @@ function fitGlobalBox() {
       return
     }
   }
-  el.style.height = 'auto'
+  /* owner, t1 d3bbe2c2: "I cannot see the last part of the msg WHERE AM I
+     typing" / "something with the scroll resets it up" - the 'auto' measure
+     drops the field's scroll to the top while a phone keyboard composes
+     (measured: scrollTop 0, the caret 441 px under the box). Text that only
+     grew needs no collapse; after one, the scroll goes back, and a caret at
+     the end stays in view. */
   const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
-  el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+  if (el.scrollHeight > el.clientHeight) {
+    el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+  } else {
+    const scrolled = el.scrollTop
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+    el.scrollTop = scrolled
+  }
+  if (document.activeElement === el && el.selectionEnd === el.value.length) el.scrollTop = el.scrollHeight
 }
 function startResize(ev: PointerEvent) {
   const el = inputEl.value

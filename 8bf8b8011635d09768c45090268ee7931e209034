@@ -1,0 +1,6 @@
+Lay-What: On a phone, holding a finger on a message to open its menu no longer picks a menu item by accident when you lift the finger.
+Lay-How: A menu item now reacts only to a tap that also started on the menu.
+Lay-Why: The bigger menu opened under the finger, so lifting it chose "Add emoji" and closed the menu before you could choose.
+Tech-What: WUI UiPointMenu on a bottom sheet ignores a click whose press did not start in the sheet; keyboard activation still works.
+Tech-How: UiPointMenu applies SheetBackdrop's rule (entry acts only on a pointer down inside the sheet; click detail 0 passes).
+Tech-Why: The taller card sheet put an entry under the long-pressing finger, and the lift's click selected it; the mobile-messages e2e was red.

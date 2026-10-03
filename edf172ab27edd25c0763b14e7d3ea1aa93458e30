@@ -1,0 +1,6 @@
+Lay-What: On a phone, swiping a message card left now archives it, and swiping right opens its menu.
+Lay-How: Each swipe direction has its own action; a swipe that starts at the left edge of the screen still means "go back".
+Lay-Why: The owner asked for archiving on one swipe and the menu on the other, as is common in phone apps.
+Tech-What: WUI MessageCard: swipe left = archive (strip + "Archived - Undo"), swipe right = the card menu at the lift point; Back-zone starts are refused.
+Tech-How: swipe-archive.mjs gains two directions; canRight refuses a start in swipeInBackZone (isMobileBackSwipe's rule); MessageCard calls openMenuAt; unit and 390x844 touch e2e.
+Tech-Why: Owner request; the old single-direction swipe left no gesture for the menu on a touch screen.

@@ -225,7 +225,7 @@ for b in box-a box-b; do
   pub="$(on "$b" keygen)"
   on "$b" pin --box "$b" --pubkey "$pub" --root-key "$WORK/root.key" >/dev/null
 done
-mkdir -p "$WORK/box-a/spool/GRK-03" "$WORK/box-b/spool/CLE-07"
+mkdir -p "$WORK/box-a/spool/g-003" "$WORK/box-b/spool/c-007"
 on box-b hub-sync >/dev/null
 on box-a hub-sync >/dev/null
 ok "box-a and box-b pinned by the tenant root; hello accepted (hub-sync exit 0)"
@@ -237,46 +237,46 @@ set +e; on box-x hub-sync >/dev/null 2>&1; rc=$?; set -e
 ok "unpinned box refused at hello (exit 78)"
 
 # 4. receiver offline -> queued; drained by hub-sync
-out="$(on box-a send --from GRK-03 --to CLE-07 --kind task --body "build it")"
+out="$(on box-a send --from g-003 --to c-007 --kind task --body "build it")"
 echo "$out" | grep -q '"delivery":"queued"' || fail "offline send: $out"
 task="$(echo "$out" | sed 's/.*"task_id":"\([^"]*\)".*/\1/')"
 on box-b hub-sync | grep -q '"delivered":1' || fail "box-b drain"
-on box-b recv --as CLE-07 --ack | grep -q '"body":"build it"' || fail "box-b recv"
+on box-b recv --as c-007 --ack | grep -q '"body":"build it"' || fail "box-b recv"
 ok "offline receiver: delivery=queued, drained on hello, recv returns the task"
 
 # 5. live daemon -> sent
 env $(box box-b) "$BIN" hub-run >>"$WORK/run-b.log" 2>&1 &
 RUN_PID=$!
 sleep 1
-out="$(on box-a send --from GRK-03 --to CLE-07 --task "$task" --kind note --body "live")"
+out="$(on box-a send --from g-003 --to c-007 --task "$task" --kind note --body "live")"
 echo "$out" | grep -q '"delivery":"sent"' || fail "live send: $out"
 for _ in $(seq 1 50); do
-  on box-b recv --as CLE-07 | grep -q '"body":"live"' && break
+  on box-b recv --as c-007 | grep -q '"body":"live"' && break
   sleep 0.1
 done
-on box-b recv --as CLE-07 | grep -q '"body":"live"' || fail "hub-run did not write the live frame"
+on box-b recv --as c-007 | grep -q '"body":"live"' || fail "hub-run did not write the live frame"
 ok "live receiver (hub-run): delivery=sent, written to the inbox"
 
 # 6. result back to box-a
-out="$(on box-b send --from CLE-07 --to GRK-03 --task "$task" --kind result --body "done")"
+out="$(on box-b send --from c-007 --to g-003 --task "$task" --kind result --body "done")"
 echo "$out" | grep -q '"delivery":"queued"' || fail "result send: $out"
 on box-a hub-sync >/dev/null
-on box-a recv --as GRK-03 | grep -q '"kind":"result"' || fail "result not received"
+on box-a recv --as g-003 | grep -q '"kind":"result"' || fail "result not received"
 ok "kind=result crossed back (queued -> hub-sync)"
 
 # 7. hub down -> pending (exit 0); hub back -> flush; the daemon reconnects and receives
 stop_hub
-out="$(on box-a send --from GRK-03 --to CLE-07 --task "$task" --kind note --body "while down")"
+out="$(on box-a send --from g-003 --to c-007 --task "$task" --kind note --body "while down")"
 echo "$out" | grep -q '"delivery":"pending"' || fail "hub-down send: $out"
-on box-a send --from GRK-03 --to GRK-03 --kind note --body "self" | grep -q '"delivery":"local"' || fail "same-box with hub down"
+on box-a send --from g-003 --to g-003 --kind note --body "self" | grep -q '"delivery":"local"' || fail "same-box with hub down"
 ok "hub down: cross-box delivery=pending (exit 0), same-box still local"
 start_hub
 on box-a hub-sync | grep -q '"flushed":1' || fail "flush"
 for _ in $(seq 1 150); do
-  on box-b recv --as CLE-07 | grep -q '"body":"while down"' && break
+  on box-b recv --as c-007 | grep -q '"body":"while down"' && break
   sleep 0.2
 done
-on box-b recv --as CLE-07 | grep -q '"body":"while down"' || fail "daemon did not reconnect and receive the flushed message"
+on box-b recv --as c-007 | grep -q '"body":"while down"' || fail "daemon did not reconnect and receive the flushed message"
 ok "hub back: flush sent the pending envelope; hub-run reconnected and received it"
 
 # 8. the topic from the hub

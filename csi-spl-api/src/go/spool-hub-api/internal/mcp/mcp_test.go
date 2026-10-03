@@ -46,8 +46,8 @@ func newHarness(t *testing.T) *harness {
 	// Local mode: no keys, no pins on either side.
 	cliCfg := testkit.NewConfig(t)
 	mcpCfg := testkit.NewConfig(t)
-	testkit.Agents(t, cliCfg, "CLE-07")
-	testkit.Agents(t, mcpCfg, "CLE-07")
+	testkit.Agents(t, cliCfg, "c-007")
+	testkit.Agents(t, mcpCfg, "c-007")
 
 	ctx := context.Background()
 	ct, st := sdk.NewInMemoryTransports()
@@ -190,16 +190,16 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 	json.Unmarshal([]byte(cliPut), &put)
 
 	// send
-	cliSend, _, rc := h.run("send", "--from", "GRK-03", "--to", "CLE-07", "--task", task,
+	cliSend, _, rc := h.run("send", "--from", "g-003", "--to", "c-007", "--task", task,
 		"--kind", "task", "--body", "review this", "--file-id", put.FileID)
-	mcpSend, isErr := h.call("spool_send", map[string]any{"from": "GRK-03", "to": "CLE-07",
+	mcpSend, isErr := h.call("spool_send", map[string]any{"from": "g-003", "to": "c-007",
 		"task_id": task, "kind": "task", "body": "review this", "file_ids": []string{put.FileID}})
 	if rc != 0 || isErr {
 		t.Fatalf("send: rc=%d isErr=%v content=%v", rc, isErr, mcpSend)
 	}
 	h.same("send return", cliSend, mcpSend[0])
-	h.sameTree("CLE-07/inbox")
-	h.sameTree("GRK-03/outbox")
+	h.sameTree("c-007/inbox")
+	h.sameTree("g-003/outbox")
 
 	// tail, human and NDJSON
 	cliTail, _, _ := h.run("tail", "--task", task)
@@ -210,15 +210,15 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 	h.same("tail --json", cliTailJ+"\n", mcpTailJ[0])
 
 	// recv --ack, then an empty recv
-	cliRecv, _, rc := h.run("recv", "--as", "CLE-07", "--ack")
-	mcpRecv, isErr := h.call("spool_recv", map[string]any{"as": "CLE-07", "ack": true})
+	cliRecv, _, rc := h.run("recv", "--as", "c-007", "--ack")
+	mcpRecv, isErr := h.call("spool_recv", map[string]any{"as": "c-007", "ack": true})
 	if rc != 0 || isErr {
 		t.Fatalf("recv: rc=%d isErr=%v content=%v", rc, isErr, mcpRecv)
 	}
 	h.same("recv --ack", cliRecv, mcpRecv[0])
-	h.sameTree("CLE-07")
-	cliRecv, _, _ = h.run("recv", "--as", "CLE-07")
-	mcpRecv, _ = h.call("spool_recv", map[string]any{"as": "CLE-07"})
+	h.sameTree("c-007")
+	cliRecv, _, _ = h.run("recv", "--as", "c-007")
+	mcpRecv, _ = h.call("spool_recv", map[string]any{"as": "c-007"})
 	if cliRecv != "[]" || mcpRecv[0] != "[]" {
 		t.Errorf("second recv: cli %q mcp %q, want []", cliRecv, mcpRecv[0])
 	}
@@ -239,8 +239,8 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 	}
 
 	// unsigned: an agent with no key and no pin sends on both sides
-	cliU, _, rc := h.run("send", "--from", "AGY-09", "--to", "CLE-07", "--task", task, "--kind", "note", "--body", "hi")
-	mcpU, isErr := h.call("spool_send", map[string]any{"from": "AGY-09", "to": "CLE-07", "task_id": task, "kind": "note", "body": "hi"})
+	cliU, _, rc := h.run("send", "--from", "a-009", "--to", "c-007", "--task", task, "--kind", "note", "--body", "hi")
+	mcpU, isErr := h.call("spool_send", map[string]any{"from": "a-009", "to": "c-007", "task_id": task, "kind": "note", "body": "hi"})
 	if rc != 0 || isErr {
 		t.Fatalf("unsigned send: rc=%d isErr=%v content=%v", rc, isErr, mcpU)
 	}
@@ -248,7 +248,7 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 	if !strings.Contains(cliU, `"delivery":"local"`) {
 		t.Errorf("send result must carry delivery=local: %s", cliU)
 	}
-	h.sameTree("CLE-07")
+	h.sameTree("c-007")
 
 	// refusal: a corrupted blob fails get-file with exit 78 == tool error
 	for _, sd := range []side{h.cli, h.mcp} {
@@ -272,7 +272,7 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 func TestRecvMalformedIsToolError(t *testing.T) {
 	h := newHarness(t)
 	for _, sd := range []side{h.cli, h.mcp} {
-		dir := filepath.Join(sd.cfg.SpoolRoot, "CLE-07", "inbox")
+		dir := filepath.Join(sd.cfg.SpoolRoot, "c-007", "inbox")
 		if err := os.MkdirAll(dir, 0o775); err != nil {
 			t.Fatal(err)
 		}
@@ -280,8 +280,8 @@ func TestRecvMalformedIsToolError(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	cliOut, cliErr, rc := h.run("recv", "--as", "CLE-07")
-	mcpOut, isErr := h.call("spool_recv", map[string]any{"as": "CLE-07"})
+	cliOut, cliErr, rc := h.run("recv", "--as", "c-007")
+	mcpOut, isErr := h.call("spool_recv", map[string]any{"as": "c-007"})
 	if rc != 1 {
 		t.Fatalf("malformed CLI exit = %d, want 1", rc)
 	}

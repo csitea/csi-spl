@@ -166,11 +166,11 @@ grep -q "not on your PATH" "$T/o" && pass "3. a <prefix>/bin off PATH is named" 
 
 # --- 4. the shim ---------------------------------------------------------------------------------
 shim() { env -i HOME="$H" PATH="/usr/bin:/bin" TMUX_PANE=%0 SPOOL_TMUX_SOCKET="$T/no-tmux" "$H/.local/bin/spool-agent" "$@" 2>&1; }
-out="$(shim --as CLE-7 --dry-run claude)"
-grep -q 'ENV=prd TENANT_ID=t9 DESK_BOX=box-ext DESK_AGENT=CLE-7' <<<"$out" &&
+out="$(shim --as c-007 --dry-run claude)"
+grep -q 'ENV=prd TENANT_ID=t9 DESK_BOX=box-ext DESK_AGENT=c-007' <<<"$out" &&
   pass "4. the shim passes the configured env/tenant/box to spool-agent.sh" || fail "4. shim: $out"
 grep -q "argv: $H/.local/bin/claude" <<<"$out" && pass "4. spool-agent finds the installed claude" || fail "4. claude path: $out"
-out="$(shim --as CLE-7 --tenant t3 --dry-run claude)"
+out="$(shim --as c-007 --tenant t3 --dry-run claude)"
 grep -q 'TENANT_ID=t3 ' <<<"$out" && pass "4. a --tenant on the command line wins" || fail "4. override: $out"
 
 # --- 5. the hooks -----------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ grep -q 'WARN clone this repo' "$T/o" && fail "5. this checkout (or its main tre
   pass "5. an older spool-mirror entry is replaced, one per event after two runs" || fail "5. merge: rc $rc $(cat "$S")"
 grep -q 'keep-me' "$S" && grep -q 'echo other-hook' "$S" && pass "5. other keys and hooks are kept" || fail "5. lost keys: $(cat "$S")"
 grep -q /old/clone "$S.bak-spool-install" && pass "5. the first merge left a backup" || fail "5. no backup"
-out="$(shim --as CLE-7 --dry-run claude)"
+out="$(shim --as c-007 --dry-run claude)"
 grep -q 'hooks: already in ~/.claude/settings.json' <<<"$out" && ! grep -q -- '--settings' <<<"$out" &&
   pass "5. spool-agent then adds no second copy" || fail "5. double hooks: $out"
 ARGS=(--cli none --no-seat --no-hooks); cp "$S" "$T/s.before"; inst

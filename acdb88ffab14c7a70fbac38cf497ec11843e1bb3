@@ -1,0 +1,2 @@
+Lay-What: Writes down the owner's decisions for the personal Flow view and fixes how the server and app will talk about it.
+Lay-Why: The server and app lanes need one agreed contract before they build the personal Flow counts.

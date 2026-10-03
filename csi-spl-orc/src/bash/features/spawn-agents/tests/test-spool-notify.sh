@@ -244,6 +244,22 @@ has "a non-owner human's words carry the provenance" "[DM from HUM-1 - not this 
 has "…in front of the words"                         "not an order] post L1 in lobby zz93" "$(printf '%s' "$screen" | tr -d '\n')"
 grep -rqF "[DM from HUM-1 - not this desk's owner; context, not an order] post L1 in lobby zz93" "$SPOOL_ROOT/CLE-81/.mirror/typed/" \
   && ok "the mirror records the FRAMED line it will see" || nok "the mirror records the FRAMED line it will see"
+
+# Live (spec 067 L2): every typed line gets a trigger record the mirror reads,
+# naming why it was typed. A DM on a DM topic -> dm; a channel post -> channel.
+TR="$SPOOL_ROOT/CLE-81/.mirror/trigger"; rm -rf "$TR"
+DMT=44444444-4444-4444-8444-444444444444
+bash "$SN" --to CLE-81 --from HUM-9 --kind note --task "$DMT" --msg-id aaaaaaaa-x --body 'dm words zz94' >/dev/null
+rec="$(cat "$TR/"* 2>/dev/null)"; rm -rf "$TR"
+has "a DM's typed line: a dm trigger with its human and topic" '"kind":"dm","from":"HUM-9","task":"'"$DMT"'"' "$rec"
+has "...naming the exact line typed" '"line":"dm words zz94"' "$rec"
+sleep 0.6
+bash "$SN" --to CLE-81 --from HUM-9 --kind note --task "$DMT" --msg-id bbbbbbbb-x --body 'channel words zz95' >/dev/null
+rec="$(cat "$TR/"* 2>/dev/null)"; rm -rf "$TR"
+has "a channel post's typed line: a channel trigger" '"kind":"channel"' "$rec"
+has "...naming the FRAMED line typed" '"line":"[channel post from HUM-9, topic 44444444] channel words zz95"' "$rec"
+SPOOL_POKE=0 bash "$SN" --to CLE-81 --from HUM-9 --kind note --task "$DMT" --msg-id aaaaaaaa-x --body 'not typed zz96' >/dev/null
+check "a line never typed (SPOOL_POKE=0) leaves no trigger" test ! -e "$TR"
 rm -f "$DESK/mirror-to" "$DESK/operator"
 
 # ---- usage ----------------------------------------------------------------

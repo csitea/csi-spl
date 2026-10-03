@@ -4,9 +4,17 @@
 
 A desk agent already RECEIVES its human's web UI DMs in its terminal (the desk
 sidecar types them into the prompt, specs/028). This is the other direction:
-every prompt typed in the agent's terminal and every final answer the agent
-gives is posted into the agent's DM with that human, so the conversation reads
-the same in both places.
+the agent's answer to a human's DM is posted back into THAT DM, so the
+conversation reads the same in both places.
+
+Only a DM-triggered turn is answered (specs/067 L2, rule 1). The notifier
+records why it typed each line (<seat>/spool/<agent>/.mirror/trigger/: dm,
+channel or task); the prompt hook looks its line up and remembers the turn's
+trigger (.mirror/turn); the answer hook posts only when that trigger is a DM,
+into that DM's topic, and consumes it. A turn started by a channel post, a peer
+agent's poke, a task notification or the terminal posts nothing: the agent's
+real reply reaches the channel by do_spl_desk_reply / spool send. Prompts
+themselves are never posted (the echo kinds A-D of spec 067 section 2.1).
 
 Two halves, because the two sides run as two users:
 
@@ -17,25 +25,18 @@ Two halves, because the two sides run as two users:
          agent's turn never waits on the network. It ALWAYS exits 0: a mirror
          that fails must never block a prompt or keep an agent working.
   post   runs as the BOX user (the owner of the desk state). For every desk
-         seat of the agent it drops what came FROM the web UI, redacts, picks
-         the DM topic and runs `spool send`; the seat's hub-run sidecar
-         flushes it to the hub.
+         seat of the agent: a prompt records the turn's trigger; an answer to
+         a DM-triggered turn is redacted and sent with `spool send` into that
+         DM; the seat's hub-run sidecar flushes it to the hub.
 
 Nothing is posted twice:
-  - a line the desk TYPED into the prompt (a human's web UI message) was
-    recorded by the notifier in <seat>/spool/<agent>/.mirror/typed/; the
-    prompt hook drops every line that matches one, so it never echoes back
-  - a `: 'SPOOL ...'` poke line and an `INBOX <ID>:` doorbell are machine
-    text, not the human's words, and are dropped too
   - the mirror post goes FROM the agent TO the human on box-wui: the hub never
     dispatches it back to the desk, so the agent is not poked by its own post
+  - one DM trigger answers one turn: the answer consumes it
   - the same answer text twice in a row for one session is posted once
 
-The topic: the DM topic the human last wrote to this agent in
-(<seat>/spool/<agent>/.mirror/peer, written by the notifier); else the topic
-this mirror used before (.mirror/topic); else a new topic is minted on the
-first post and remembered. The human: that peer; else SPOOL_MIRROR_TO
-(no default: a human id is per env).
+The human and the topic: the DM's sender and topic, from the trigger. No
+literal and no fallback: a turn with no DM trigger posts nothing.
 
 Opt out per seat: touch <seat>/spool/<agent>/.no-mirror.
 
@@ -46,14 +47,12 @@ Usage:
   spool-mirror.py topic <seat>/spool/<agent>       -> "<human>\t<task>"
   spool-mirror.py remember <seat>/spool/<agent> <human> <task>
   spool-mirror.py operator <seat>[/spool/<agent>] HUM-n|--clear
-                      who types at this desk (or this one seat): its prompts
-                      are posted AS that human (typed_by, hub-verified)
+                      who types at this desk (or this one seat); the notifier
+                      counts that human as a desk owner
 
 Environment (post):
   SPOOL_MIRROR_SEATS  glob of desk dirs, default
                       $HOME/.local/share/csi-spl/cloud/*/desk/*/*
-  SPOOL_MIRROR_TO     the human when the desk names none (<desk>/mirror-to);
-                      unset + no peer + no desk file = the post is skipped
   SPOOL_MIRROR_SPOOL  the spool binary, default <env dir>/bin/spool
   SPOOL_MIRROR_DRY    1 = print the send argv instead of running it
 Environment (hook):
@@ -89,20 +88,10 @@ HUM_RE = re.compile(r"^HUM-[A-Za-z0-9_-]{1,64}$")
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # A line another AGENT typed into this pane: the inbox doorbell (bare, or the
 # shell-inert `: 'INBOX ...'` form inbox-send.sh types) and the desk's
-# `: 'SPOOL ...'` poke line. Mirrored as typed by that agent, never as a human.
+# `: 'SPOOL ...'` poke line. A turn it starts is an agent's, never a DM's.
 MACHINE_LINE = re.compile(r"^(?::\s*')?(?:INBOX|SPOOL) " + PID + r"\b")
-LINE_SENDER = (re.compile(r"--(" + PID + r")--"), re.compile(r"\bfrom (" + PID + r")\b"))
-
-
-def line_sender(line):
-    for pat in LINE_SENDER:
-        m = pat.search(line)
-        if m:
-            return m.group(1)
-    return ""
 BODY_MAX = 60000          # the hub's MaxBodyBytes is 64 KiB
-TYPED_TTL = 3600          # a typed marker older than this no longer matches
-PROMPT_PREFIX = "[terminal] "
+TYPED_TTL = 3600          # a typed marker / trigger older than this no longer matches
 
 
 def norm(s):
@@ -153,8 +142,11 @@ def hook_extract(ev):
         text = ev.get("prompt")
         if text is None:
             text = ev.get("userPrompt") or ev.get("message") or ""
-        text = human_text(text)
-        return ("prompt", text, session) if text else None
+        if not str(text or "").strip():
+            return None
+        # An injection-only prompt (a task notification) still starts a turn:
+        # it is passed on EMPTY, so the turn is recorded as no DM's.
+        return ("prompt", human_text(text), session)
     if name in ("Stop", "stop"):
         if ev.get("reason") not in (None, "", "end_turn"):
             return None  # grok's session-end Stop carries no new answer
@@ -304,36 +296,60 @@ def typed_lines(agent_dir, now):
     return out
 
 
-def prompt_keep(agent_dir, text, now, agent_lines=None):
-    """Drop the lines that came from the web UI; set aside the lines another
-    agent typed (into agent_lines, when given - else they are dropped).
-    -> (kept text, dropped count). A consumed typed marker is removed, so the
-    SAME words typed by the human in the terminal later are mirrored."""
+def triggers(agent_dir, now):
+    """Why the notifier typed each recent line: {normalised line: (path, record)}."""
+    out = {}
+    for p in sorted(glob.glob(os.path.join(agent_dir, ".mirror", "trigger", "*"))):
+        try:
+            if now - os.path.getmtime(p) > TYPED_TTL:
+                os.unlink(p)
+                continue
+        except OSError:
+            continue
+        rec = _read_json(p)
+        if rec.get("line"):
+            out[norm(rec["line"])] = (p, rec)  # the newest record of a line wins
+    return out
+
+
+def turn_trigger(agent_dir, text, now):
+    """The trigger of the turn this prompt starts (spec 067 L2):
+    {"kind": "dm", "to": HUM, "task": T} when a line of it is a human's DM the
+    desk typed, else {"kind": channel|task|agent|terminal|cli}. The matched
+    trigger and typed records are consumed; old ones expire."""
     typed = typed_lines(agent_dir, now)
-    whole = norm(text)
-    if whole in typed:
-        _unlink(typed[whole])
-        return "", 1
-    kept, dropped = [], 0
-    for line in text.split("\n"):
+    trig = triggers(agent_dir, now)
+    kinds, dm = [], None
+    for line in [text] + text.split("\n"):
         n = norm(line)
-        if n and n in typed:
+        if not n:
+            continue
+        if n in typed:
             _unlink(typed.pop(n))
-            dropped += 1
-        elif n and MACHINE_LINE.match(n):
-            # A doorbell naming a HUMAN sender is the desk announcing that
-            # human's own message (a pane not on the alternate screen gets the
-            # poke line, not the words): it is already in the DM, and a human
-            # never types a doorbell. Measured 2026-09-25 18:55Z (CLE-34973):
-            # AGY-3493 posted "[typed by HUM-10] : 'SPOOL AGY-3493: task from
-            # HUM-10 ..." back to the owner.
-            if agent_lines is None or line_sender(n).startswith(("HUM-", "GST-")):
-                dropped += 1
+        if n in trig:
+            p, rec = trig.pop(n)
+            _unlink(p)
+            if rec.get("kind") == "dm" and HUM_RE.match(str(rec.get("from", ""))) \
+                    and UUID_RE.match(str(rec.get("task", ""))):
+                dm = dm or {"kind": "dm", "to": rec["from"], "task": rec["task"]}
             else:
-                agent_lines.append(n)
-        else:
-            kept.append(line)
-    return "\n".join(kept).strip("\n"), dropped
+                # a dm record naming no human or no topic is no DM to answer
+                kinds.append("task" if rec.get("kind") == "dm" else str(rec.get("kind") or "task"))
+    if dm:
+        return dm
+    if kinds:
+        return {"kind": kinds[0]}
+    if any(MACHINE_LINE.match(norm(ln)) for ln in text.split("\n")):
+        return {"kind": "agent"}
+    return {"kind": "terminal" if text.strip() else "cli"}
+
+
+def take_turn(agent_dir):
+    """Read and consume the current turn's trigger: one DM answers one turn."""
+    p = os.path.join(agent_dir, ".mirror", "turn")
+    t = _read_json(p)
+    _unlink(p)
+    return t
 
 
 def _unlink(p):
@@ -353,7 +369,9 @@ def _read_json(p):
 
 
 def pick_topic(agent_dir):
-    """-> (human, task or '') - see the module doc."""
+    """-> (human, task or ''): the DM topic the human last wrote in (.mirror/peer),
+    else the one a post last landed in (.mirror/topic). For the `topic`
+    subcommand; a post takes its DM from the turn's trigger, never from here."""
     peer = _read_json(os.path.join(agent_dir, ".mirror", "peer"))
     human, task = str(peer.get("to", "")), str(peer.get("task", ""))
     if HUM_RE.match(human) and UUID_RE.match(task):
@@ -376,20 +394,6 @@ def pick_topic(agent_dir):
     if mine.get("to") == human and UUID_RE.match(str(mine.get("task", ""))):
         return human, mine["task"]
     return human, ""
-
-
-def operator_of(seat, adir):
-    """The human at this terminal (FR-012): the seat's .mirror/operator, else
-    the desk's <seat>/operator. Explicit only - never guessed, because a
-    refused claim on a QUEUED send is dropped by the hub, not re-posted."""
-    for p in (os.path.join(adir, ".mirror", "operator"), os.path.join(seat, "operator")):
-        try:
-            v = open(p).read().strip()
-        except OSError:
-            continue
-        if HUM_RE.match(v):
-            return v
-    return ""
 
 
 def set_operator(path, human):
@@ -470,76 +474,53 @@ def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
     now = time.time()
     if event == "prompt":
+        # Never posted (spec 067: the echo kinds A-D). It only says what
+        # started the turn, so the answer knows whether it answers a DM.
         text = human_text(text)
-        if not text:
-            log(adir, "skip prompt: only CLI-injected content (system-reminder, task-notification, ...)")
+        if session and not first_sighting(adir, session, event, text, now):
+            log(adir, "skip prompt: a second hook fired for the same prompt of this session")
             return "skipped"
-        agent_lines = []
-        text, dropped = prompt_keep(adir, text, now, agent_lines)
-        if agent_lines:
-            # Typed by another agent: posted from THIS agent's seat, marked
-            # with the typing agent, never with a human's typed_by.
-            by = line_sender(agent_lines[0]) or "an agent"
-            post_one(seat, agent, "agent-typed", f"[typed by {by}] " + "\n".join(agent_lines), session)
-        if not text.strip():
-            if not agent_lines:
-                log(adir, f"skip prompt: every line came from the web UI ({dropped})")
-            return "skipped"
-        body = text
-    elif event == "agent-typed":
-        body = text
-    else:
-        h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
-        last = os.path.join(adir, ".mirror", "last-answer")
-        try:
-            if open(last).read().strip() == h:
-                log(adir, "skip answer: the same answer was already posted for this session")
-                return "skipped"
-        except OSError:
-            pass
-        body = text
-    if session and not first_sighting(adir, session, event, body, now):
-        log(adir, f"skip {event}: a second hook fired for the same {event} of this session")
+        turn = turn_trigger(adir, text, now)
+        os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
+        with open(os.path.join(adir, ".mirror", "turn.tmp"), "w") as f:
+            json.dump(turn, f)
+        os.replace(os.path.join(adir, ".mirror", "turn.tmp"), os.path.join(adir, ".mirror", "turn"))
+        log(adir, "turn: " + (f"dm from {turn['to']} task {turn['task']}" if turn["kind"] == "dm"
+                              else f"{turn['kind']} - its answer is not posted"))
+        return "recorded"
+    if session and not first_sighting(adir, session, event, text, now):
+        log(adir, "skip answer: a second hook fired for the same answer of this session")
         return "skipped"
-    body, counts = redact(body)
+    turn = take_turn(adir)
+    if turn.get("kind") != "dm" or not HUM_RE.match(str(turn.get("to", ""))) \
+            or not UUID_RE.match(str(turn.get("task", ""))):
+        log(adir, f"skip answer: the turn was not started by a DM ({turn.get('kind') or 'no prompt recorded'})")
+        return "skipped"
+    h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
+    last = os.path.join(adir, ".mirror", "last-answer")
+    try:
+        if open(last).read().strip() == h:
+            log(adir, "skip answer: the same answer was already posted for this session")
+            return "skipped"
+    except OSError:
+        pass
+    human, task = turn["to"], turn["task"]
+    body, counts = redact(text)
     body = clip_body(body)
-    human, task = pick_topic(adir)
-    if not human:
-        log(adir, f"skip {event}: no human to post to on this desk (no DM peer, no {seat}/mirror-to, no SPOOL_MIRROR_TO)")
-        return "skipped"
     env = seat_env(seat)
     if "SPOOL_HUB_URL" not in env:
         log(adir, f"FAIL {event}: no live sidecar to read the hub url from")
         return "failed"
     spool = os.environ.get("SPOOL_MIRROR_SPOOL") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))), "bin", "spool")
-    # FR-009..FR-012: a prompt the operator typed goes out AS that human
-    # (typed_by, hub-verified) with no [terminal] prefix. Refused, or a spool
-    # binary that predates the flag: re-post the old way, prefixed.
-    op = operator_of(seat, adir) if event == "prompt" else ""
-
-    def argv_for(typed_by):
-        b = body if typed_by or event != "prompt" else PROMPT_PREFIX + body
-        a = [spool, "send", "--from", agent, "--to", human, "--to-box", "box-wui",
-             "--kind", "note", "--body", b]
-        if task:
-            a += ["--task", task]
-        if typed_by:
-            a += ["--typed-by", typed_by]
-        return a
-    argv = argv_for(op)
+    argv = [spool, "send", "--from", agent, "--to", human, "--to-box", "box-wui",
+            "--kind", "note", "--task", task, "--body", body]
     if os.environ.get("SPOOL_MIRROR_DRY") == "1":
         # A dry run writes no state: no topic, no watermark, no log line.
         print(json.dumps({"seat": seat, "argv": argv, "env": env, "redactions": counts}, sort_keys=True))
         return "dry"
     r = subprocess.run(argv, env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
     rc, out = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
-    if rc != 0 and op and ("typed_by_not_bound" in out or "typed-by" in out):
-        why = "not bound on the hub" if "typed_by_not_bound" in out else "this spool binary has no --typed-by"
-        log(adir, f"typed_by {op} refused ({why}): re-posting as {agent}")
-        op = ""
-        r = subprocess.run(argv_for(""), env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
-        rc, out = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
     if rc != 0:
         log(adir, f"FAIL {event} -> {human}: rc {rc}: {out[:300]}")
         return "failed"
@@ -547,14 +528,11 @@ def post_one(seat, agent, event, text, session):
         sent = json.loads(out.splitlines()[-1])
     except (ValueError, IndexError):
         sent = {}
-    got_task = str(sent.get("task_id", "")) or task
-    os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
-    remember_topic(adir, human, got_task)
-    if event == "answer":
-        with open(os.path.join(adir, ".mirror", "last-answer"), "w") as f:
-            f.write(h)
-    log(adir, f"OK {event} -> {human} task {got_task} msg {sent.get('msg_id', '?')} "
-              f"({len(body)} chars, redactions {counts or 'none'}){' typed_by ' + op if op else ''}")
+    remember_topic(adir, human, task)
+    with open(last, "w") as f:
+        f.write(h)
+    log(adir, f"OK {event} -> {human} task {task} msg {sent.get('msg_id', '?')} "
+              f"({len(body)} chars, redactions {counts or 'none'})")
     return "posted"
 
 
@@ -578,7 +556,7 @@ def post_main(args):
         print("usage: post --agent ID --event prompt|answer [--session S] < text", file=sys.stderr)
         return 64
     text = sys.stdin.read()
-    if not text.strip():
+    if not text.strip() and event == "answer":
         return 0
     # Every seat (dev, prd, ...) in parallel: one spool send is ~80-100 ms and
     # they were serial (measured 2026-09-25: 2 seats 198-257 ms).

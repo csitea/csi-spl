@@ -81,11 +81,11 @@ eq "3. agent-identity.py reads c-004" "c-004 c-004 > True True False ['CLE-77957
 py="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$T_SCRIPTS/spool-mirror.py" <<'PY'
 import importlib.util, sys
 s = importlib.util.spec_from_file_location("sm", sys.argv[1]); m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
-print(bool(m.ID_RE.match("c-004")), bool(m.ID_RE.match("HUM-17")), m.line_sender(": 'SPOOL c-004: from c-005 x'"),
+print(bool(m.ID_RE.match("c-004")), bool(m.ID_RE.match("HUM-17")),
       bool(m.MACHINE_LINE.match(": 'SPOOL c-004: x")))
 PY
 )"
-eq "3. spool-mirror.py reads c-004" "True True c-005 True" "$py"
+eq "3. spool-mirror.py reads c-004" "True True True" "$py"
 
 # 4. FR-005: one instant, pinned in every module
 spec="$T_REPO/csi-spl-doc/specs/061-agent-id-rename/spec.md"

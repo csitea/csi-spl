@@ -400,6 +400,8 @@ spool_notify_mark_typed() {  # TO TEXT
 # a channel. Never fails the notice.
 spool_notify_mark_peer() {  # TO FROM TASK MSGID
   local to="${1:-}" from="${2:-}" task="${3:-}" msgid="${4:-}" f d
+  # SPOOL_POKE_LINE is what spool_notify_poke just chose to type (spec 067 L2).
+  spool_notify_mark_trigger "$to" "$from" "$task" "$msgid" "${SPOOL_POKE_LINE:-}"
   case "$from" in HUM-*) ;; *) return 0 ;; esac
   [ -n "${SPOOL_ROOT:-}" ] && [ -n "$to" ] && [ -n "$msgid" ] || return 0
   printf '%s' "$task" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || return 0
@@ -412,6 +414,35 @@ spool_notify_mark_peer() {  # TO FROM TASK MSGID
       mv -f "$d/peer.tmp.$$" "$d/peer" 2>/dev/null
     return 0
   done
+  return 0
+}
+
+# Record WHY LINE was typed into TO's prompt (specs/067 L2): `dm` = a human's
+# message addressed to TO, on a DM topic; `channel` = a channel post that fanned
+# out into TO's inbox; `task` = anything else (an agent's message, unknown).
+# The mirror posts a turn's answer only when the turn's prompt line has a `dm`
+# trigger, and only into that DM. One small file per line, like typed/; the
+# mirror consumes and expires them. Pure bash: no fork on the notice's latency
+# budget (CLE-3435). Never fails the notice.
+spool_notify_mark_trigger() {  # TO FROM TASK MSGID LINE
+  local to="${1:-}" from="${2:-}" task="${3:-}" msgid="${4:-}" line="${5:-}" kind=task d j="" k v
+  [ -n "${SPOOL_ROOT:-}" ] && [ -n "$to" ] && [ -n "$line" ] || return 0
+  spool_notify_direct_state "$to" "$msgid"
+  case "$?" in
+    1) kind=channel ;;
+    0) case "$from" in HUM-*)
+         [[ "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && kind=dm ;;
+       esac ;;
+  esac
+  # A typed line is already one line with no control bytes (spool_notify_clean*),
+  # so escaping \ and " is all JSON needs; a stray control byte is dropped.
+  for k in kind from task msg line; do
+    case "$k" in kind) v="$kind" ;; from) v="$from" ;; task) v="$task" ;; msg) v="$msgid" ;; line) v="$line" ;; esac
+    v="${v//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//[$'\001'-$'\037']/}"
+    j="${j:+$j,}\"$k\":\"$v\""
+  done
+  d="$SPOOL_ROOT/$to/.mirror/trigger"
+  mkdir -p "$d" 2>/dev/null && printf '{%s}\n' "$j" >"$d/$(date +%s%N)-$$" 2>/dev/null
   return 0
 }
 

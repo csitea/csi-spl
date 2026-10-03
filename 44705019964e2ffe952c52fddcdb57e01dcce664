@@ -1,0 +1,6 @@
+Lay-What: A helper's final report is now short, with the full details saved to a file it points to.
+Lay-How: The report keeps the outcome, the numbers and the change ids within a size limit, and puts the rest in a linked file.
+Lay-Why: Long final reports cost the coordinator time to read, and most of it was detail it rarely needs.
+Tech-What: kill-your-self-report.sh --result builds a body capped at 800 chars plus a detail path; longer text goes to $SPOOL_ROOT/reports/<id>.md.
+Tech-How: The exit-clean skill says so; test-kill-your-self-result.sh covers the cap and the overflow file.
+Tech-Why: Token practice 07: exit-clean results were long and repeated detail the orchestrator did not need.

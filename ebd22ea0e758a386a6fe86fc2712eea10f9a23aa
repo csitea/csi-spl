@@ -1,0 +1,6 @@
+Lay-What: Simplifies how two labels are chosen in the pane divider and error notice; nothing on screen changes.
+Lay-How: A chain of "if this, else that" choices is replaced by a simple lookup table.
+Lay-Why: A table is easier to read, and a forgotten case is flagged when the app is built.
+Tech-What: WUI PaneDivider aria-label and ErrorNotice copy title read a Record keyed by the union type instead of nested ternaries.
+Tech-How: Records typed over 'sidebar'|'topic'|'issue' and CopyState; ?? keeps the resize_topic fallback; t() stays in the computed; unit 2688/2688.
+Tech-Why: Refactor round 1 #18: nested ternaries can miss a new case silently.

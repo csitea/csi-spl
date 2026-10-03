@@ -1,0 +1,18 @@
+{
+  "browser": {
+    "browserName": "firefox",
+    "userDataDir": "__MCP_BOT_HOME__/ff-profile",
+    "launchOptions": {
+      "channel": "moz-firefox",
+      "executablePath": "__MCP_BOT_HOME__/firefox/firefox",
+      "headless": false,
+      "args": ["--marionette"],
+      "firefoxUserPrefs": {
+        "marionette.port": 2929,
+        "browser.shell.checkDefaultBrowser": false,
+        "browser.aboutConfig.showWarning": false,
+        "browser.startup.homepage_override.mstone": "ignore"
+      }
+    }
+  }
+}

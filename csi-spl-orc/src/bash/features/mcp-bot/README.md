@@ -1,19 +1,22 @@
-# mcp-bot — a headless Chrome for AI agents, one profile per agent
+# mcp-bot — a browser for AI agents, one profile per agent
 
-`scripts/mcp-start-chrome.sh` is the stdio entrypoint of a Playwright MCP
-server (`@playwright/mcp`) that drives Google Chrome. Each agent gets its own
-browser profile, so N agents can hold N browsers at once.
+`scripts/mcp-start-chrome.sh` (the agents' `chrome` MCP) and
+`scripts/mcp-start.sh` (their `firefox` MCP) are the stdio entrypoints of a
+Playwright MCP server (`@playwright/mcp`). Each agent gets its own browser
+profile, so N agents can hold N browsers at once.
 
 Ported from the box engine's mcp-bot feature, which is frozen for harness
-work. This copy is canonical. The Firefox launcher and its profile reaper were
-not ported.
+work (the Firefox launcher and its profile reaper in spec 069 lane Y1). This
+copy is canonical.
 
 ## 1. Layout
 
 | path | role |
 |---|---|
 | `scripts/mcp-start-chrome.sh` | the entrypoint: picks the profile, writes the per-agent config, runs the server behind the idle relay |
-| `assets/mcp-config-chrome.json` | base `@playwright/mcp` config; `__MCP_BOT_HOME__` is replaced at install |
+| `scripts/mcp-start.sh` | the Firefox entrypoint: clones the base profile `ff-profile` per agent, runs the server under the desktop session |
+| `scripts/reap-profiles.sh` | removes retired `ff-profile-<ID>` clones; run by `mcp-start.sh` on every start (`MCP_BOT_REAP=0` turns it off) |
+| `assets/mcp-config-chrome.json`, `assets/mcp-config.json` | base `@playwright/mcp` configs; `__MCP_BOT_HOME__` is replaced at install |
 | `tests/run-all-tests.sh` | every test; each builds its own `MCP_BOT_HOME` under a tmp dir |
 
 Runtime state lives under `MCP_BOT_HOME` (default `~/.local/mcp-bot`) of the
@@ -22,21 +25,20 @@ desktop user and is never committed: `cr-profile-<ID>/` per agent,
 
 ## 2. Install
 
-### 2.1 Link the entrypoint
+### 2.1 Link the entrypoints and seed the configs
 
-The symlink makes the deployed script track this checkout.
+`spool-install/install.sh` does it, run as the desktop user (step
+`spool-install/steps/y1-mcp-bot.sh`): `mcp-start.sh`, `mcp-start-chrome.sh`
+and `reap-profiles.sh` in `MCP_BOT_HOME` become symlinks into this checkout
+(a link pointing elsewhere is repointed, a regular file is left alone and
+reported), and a missing base config is seeded from `assets/`. A live config
+is never rewritten. `SPOOL_INSTALL_MCP_BOT=0` skips the step. The plan alone:
 
 ```bash
-mkdir -p "$HOME/.local/mcp-bot/run" && ln -sfn "$PWD/csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start-chrome.sh" "$HOME/.local/mcp-bot/mcp-start-chrome.sh"
+bash csi-spl-orc/src/bash/features/spool-install/install.sh --dry-run --no-seat --cli none
 ```
 
-### 2.2 Seed the base config (first install only)
-
-```bash
-[ -f "$HOME/.local/mcp-bot/mcp-config-chrome.json" ] || sed "s|__MCP_BOT_HOME__|$HOME/.local/mcp-bot|g" csi-spl-orc/src/bash/features/mcp-bot/assets/mcp-config-chrome.json > "$HOME/.local/mcp-bot/mcp-config-chrome.json"
-```
-
-### 2.3 Harness entry
+### 2.2 Harness entry
 
 The agent user runs the entrypoint as the desktop user (`<BOX_USER>`) and
 forwards its id, in the agent CLI's MCP config:
@@ -46,6 +48,8 @@ forwards its id, in the agent CLI's MCP config:
            "args": ["-u", "<BOX_USER>", "-H", "--preserve-env=MCP_BOT_AGENT_ID",
                     "<MCP_BOT_HOME>/mcp-start-chrome.sh"]}
 ```
+
+The `firefox` entry is the same with `<MCP_BOT_HOME>/mcp-start.sh`.
 
 A running agent picks up a changed entrypoint only when its CLI restarts.
 
@@ -85,6 +89,11 @@ Each close is logged to stderr (the CLI's MCP server log) as
 `idle <N>s >= <limit>s: closing browser pid <PID>`.
 
 ## 5. Tests
+
+`tests/test-install-links.sh` runs the install step in a sandbox `HOME`
+seeded with links into a stand-in engine, and checks that all three
+entrypoints end up resolving into this checkout. `tests/test-reap-profiles.sh`
+is the reaper's suite (master guard, liveness, age).
 
 `tests/test-chrome-idle.sh` needs no browser: a fake `npx` records the bytes
 the server is sent, and sleeping processes carrying `--user-data-dir` stand in

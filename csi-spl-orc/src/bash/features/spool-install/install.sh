@@ -443,6 +443,7 @@ fi
 . "$_here/steps/y7-tmux-links.sh" && { spool_install_y7_tmux_links "$HOME" "$DATA/tmux-agent-status.conf" "$DRY" || die 6 "cannot repoint ~/.tmux.conf"; }
 
 . "$_here/steps/y10-run-completion.sh" && spl_install_run_completion "$ORC" "$HOME/.bashrc" "$DRY" || die 7 "run completion: cannot update $HOME/.bashrc"
+. "$_here/steps/y1-mcp-bot.sh" && y1_mcp_bot "$ORC/src/bash/features/mcp-bot" || die $? "mcp-bot: cannot link the browser MCP entrypoints (spec 069 Y1)"
 
 source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
 

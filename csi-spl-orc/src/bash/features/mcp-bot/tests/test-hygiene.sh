@@ -9,8 +9,12 @@ hits() { grep -rnE "$1" "$T_FEAT" --include="*.sh" --include="*.md" --include="*
 
 eq "no path into the reference engine" "" "$(hits "/ysg-box|ysg-box/")"
 eq "no literal users, boxes or homes" "" "$(hits "\bysg\b|ai-usr|claude-user|\btnk\b|/home/[a-z]")"
+eq "the install step (spool-install/steps/y1-mcp-bot.sh) is clean too" "" \
+  "$(grep -nE '/ysg-box|ysg-box/|\bysg\b|ai-usr|/home/[a-z]' "$T_FEAT/../spool-install/steps/y1-mcp-bot.sh" || true)"
 eq "config template keeps its placeholder" 1 "$(grep -c "__MCP_BOT_HOME__/cr-profile" "$T_FEAT/assets/mcp-config-chrome.json")"
-check "config template is JSON" python3 -m json.tool "$T_FEAT/assets/mcp-config-chrome.json" >/dev/null
+for j in "$T_FEAT"/assets/*.json; do
+  check "config template is JSON: ${j##*/}" python3 -m json.tool "$j" >/dev/null
+done
 
 for f in "$T_FEAT"/scripts/*.sh "$T_FEAT"/tests/*.sh; do
   check "parses: ${f#"$T_FEAT"/}" bash -n "$f"

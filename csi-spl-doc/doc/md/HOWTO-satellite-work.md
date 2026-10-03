@@ -120,6 +120,46 @@ Load during the api suite: `load average: 5.65` on `nproc 4` (idle before:
 0.23). The PC at the same time: `load average: 54.15` on `nproc 16`, 33 agent
 processes (n=1 sample each).
 
+### 2.2 Spawning on another machine through the spool (no ssh)
+
+The satellite cannot ssh to the PC (behind NAT: `ssh: Could not resolve
+hostname`, measured 2026-10-03), so an orchestrator on the satellite starts a
+PC lane with a spool message instead. Same arguments as `spawn-window.sh`, plus
+the target box; `WORKDIR` is a path on the TARGET machine, the brief is read
+locally and travels as text:
+
+    bash $S/spawn-remote.sh --box <box> claude auto /opt/csi/csi-spl brief.md <slug>
+
+It prints `<ID>@<box> <pane>` once the target answers (`--wait`, default 300 s;
+`--wait 0` prints `task <task_id>` and returns). Exit 4 = refused (reason on
+stderr), 5 = no reply yet.
+
+How it works: the request is a `task` to `<LEASE_ORCH>@<box>` (the role id
+every machine has; `--to` overrides) whose body opens with `spawn-request v1`.
+On the target, `spawn-remote.sh --serve` runs every minute from the box user's
+crontab, finds it in that inbox or archive, and runs ITS OWN `spawn-window.sh`
+(its `box.env`: agent user, CLI paths, tag, id range). The reply is a `result`
+(`spawn-reply v1`, `agent:`, `pane:`) on the same task.
+
+- **Only the fleet orch lease holder** may spawn: `from` must equal
+  `<root>/dispatch/lease.orch` on the target (`<ID>@<box>`; a bare local
+  `from` is `<ID>@<this box>`; with no lease.orch, the local `LEASE_ORCH`;
+  `none@unreachable` accepts nobody). Anything else is refused, logged and
+  answered with a `reject`.
+- **The brief is data**: written to `<root>/spawn-remote/briefs/<msg_id>.md`
+  and passed as a path. kind, title, workdir and slug are checked against
+  strict patterns on both sides; nothing is evaluated.
+- Each request is handled once (`<root>/spawn-remote/seen`); every verdict is
+  one line in `<root>/spawn-remote/serve.log`.
+
+Install the receiver on each machine that should accept remote spawns:
+
+    cd csi-spl-orc && DRY_RUN=0 ./run -a do_spl_spawn_remote_install_cron
+
+`SPAWN_REMOTE_CRON_ACTION=check` verifies it. Tests:
+`features/spawn-agents/tests/test-spawn-remote.sh` (holder spawns, non-holder
+refused) and `tests/spawn-remote-cron.tst.sh`.
+
 ## 3. Split proposal: what stays on the PC, what moves to the satellite
 
 Classified from the live lane map at 06:21Z: n=36 scoped lane agents on the
@@ -152,7 +192,7 @@ Every manual step taken in sections 1..2. Input for the next lanes.
 | 3 | **fixed 90a78b17** (1.3, 1.4). Relayed envelope drops the box: lands as `"from":"CLE-001"`, so CLE-001@box-desk reads a message from itself | named the box in the body | the relay writes `from` as `<ID>@<box>` (or a `from_box` field) | S |
 | 4 | every satellite command is `ssh satellite 'sudo -iu <BOX_USER> bash -lc "..."'`, three quoting levels, IAP NumPy warning on stderr | typed it per call | one named action `do_satellite_run CMD=...` (stdin passed through, IAP noise filtered) | S |
 | 5 | files to the satellite: `scp` cannot read a lane agent's private temp dir | piped over ssh into `install` | `do_satellite_run` takes stdin, or `do_satellite_put SRC= DST=` | S |
-| 6 | spawning on the satellite from the PC: copy brief + `spawn-window.sh` over ssh | 2 ssh calls | `spawn-window.sh --box sat` (or a `task` to the satellite's orchestrator that spawns) | M |
+| 6 | **fixed** (2.2). spawning on another machine: copy brief + `spawn-window.sh` over ssh, and no way at all from the satellite to the PC (NAT) | 2 ssh calls | `spawn-remote.sh --box <box>`: a spool request the target's `--serve` cron tick spawns from, orch lease holder only | M |
 | 7 | `spawn-core.inc.sh` seed text has a backquoted `add` inside a double-quoted string: bash runs it (`line 165: add: command not found`) and every seed prompt reads "ON THE , THEN COMMIT" | none | quote it as `'git add'` | S |
 | 8 | the seed prompt on the satellite names the orchestrator "CLE-00" | none (brief named the reply target) | resolve `SPOOL_ORCHESTRATOR_ID` from the fleet lease, not a local default | S |
 | 9 | the seed prompt orders commit + push + CI watch for a measure-only lane | the brief overrode it | a measure-only seed variant (no INTEGRATION block) | S |

@@ -5,7 +5,8 @@
 #          row); plant one link into the engine and one cron line calling it
 #          and the check fails (exit 1) naming both; an unreadable crontab is
 #          exit 2, never a pass. crontab, ps and tmux are stubbed; the system
-#          paths are a sandbox dir.
+#          paths are a sandbox dir; root's crontab is not read (a CI runner
+#          has no sudo to it).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -37,7 +38,7 @@ chmod +x "$T/stub/"*
 run_check() {
   env -u SPOOL_BOX_USER -u SPOOL_AGENT_USER -u YSG_BOX_DEPS_PATTERN \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_CRONTAB="$T/crontab" PROJ_PATH="$PROJ_ROOT" \
-    YSG_BOX_DEPS_USERS="$(id -un)" YSG_BOX_DEPS_SYS_PATHS="$T/sys" \
+    YSG_BOX_DEPS_USERS="$(id -un)" YSG_BOX_DEPS_CRON_USERS="$(id -un)" YSG_BOX_DEPS_SYS_PATHS="$T/sys" \
     YSG_BOX_DEPS_TMUX_SOCKET="$T/no-socket" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }

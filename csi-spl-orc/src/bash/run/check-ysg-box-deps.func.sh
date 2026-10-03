@@ -18,6 +18,8 @@
 # @param YSG_BOX_DEPS_USERS (optional) - space-separated users; default the
 #   box user (SPOOL_BOX_USER, else this checkout's owner) plus SPOOL_AGENT_USER
 #   and the members of SPOOL_ROOT_GROUP (default spool-agents)
+# @param YSG_BOX_DEPS_CRON_USERS (optional) - whose crontabs are read; default
+#   the users above plus root
 # @param YSG_BOX_DEPS_PATTERN (optional) - ERE of an engine path; default
 #   'ysg-box(-[a-z]+)?/|/opt/<box user>/' - a PATH into the engine, its
 #   worktrees or the box user's /opt dir (a file NAMED ysg-box-* is no row)
@@ -44,7 +46,7 @@ do_check_ysg_box_deps() {
   fi
   out=$(mktemp) || return 2
 
-  for u in $users root; do ysg_box_deps_cron "$u" || ysg_box_deps_err "cannot read the crontab of $u"; done
+  for u in ${YSG_BOX_DEPS_CRON_USERS:-$users root}; do ysg_box_deps_cron "$u" || ysg_box_deps_err "cannot read the crontab of $u"; done
   for u in $users; do
     h=$(ysg_box_deps_home "$u") || { ysg_box_deps_err "no home for user $u"; continue; }
     ysg_box_deps_as "$u" true 2>/dev/null || { ysg_box_deps_err "cannot read as $u (sudo -n -u $u refused)"; continue; }
@@ -60,7 +62,7 @@ do_check_ysg_box_deps() {
   cat "$out.s"
   rows=$(grep -c . "$out.s")
   rm -f "$out" "$out.s"
-  do_log "INFO users: $users root; pattern: $pat"
+  do_log "INFO users: $users; crontabs: ${YSG_BOX_DEPS_CRON_USERS:-$users root}; pattern: $pat"
   if (( errs )); then
     do_log "FAIL $errs population(s) could not be read; $rows dependency row(s) in what was read"; return 2
   fi

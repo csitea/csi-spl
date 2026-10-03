@@ -1,0 +1,6 @@
+Lay-What: The server now tells the Members page the time each invitation email was sent.
+Lay-How: The list of members and invitations carries one more field: when the invitation email went out, or nothing if it never did.
+Lay-Why: Without that time the page could only guess, and it guessed "not sent" for invitations that had been mailed.
+Tech-What: GET /v1/members returns mailed_at per invite (null = never mailed).
+Tech-How: member_directory.go selects invites.mailed_at; members_admin.go maps it into the response; a store test covers create, send and re-invite.
+Tech-Why: A re-invite (POST /v1/members/invites) resets mail_count to 0 but keeps mailed_at, so mail_count alone misreported a mailed invite.

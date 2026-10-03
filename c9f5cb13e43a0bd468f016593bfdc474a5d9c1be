@@ -1,0 +1,6 @@
+Lay-What: The app's text loads and starts a little faster, especially on phones.
+Lay-How: Plain sentences are now shipped as plain text rather than in a heavier pre-processed form, and turned back into the same words in the browser.
+Lay-Why: Most of the app's text has no placeholders, yet each sentence carried extra structure that the phone had to download and unpack.
+Tech-What: Static messages (1 123 of 1 271 en) ship as plain strings instead of compiled ASTs; a message compiler returns them unchanged and hands every AST to vue-i18n's own compile.
+Tech-How: split-catalogue.mjs plainStatics writes the second catalogues directly and the core ones through a post vite transform; plugins/0.i18n-plain-messages.ts registers the compiler before vue-i18n; a unit test translates every en key both ways.
+Tech-Why: P3-20: en core catalogue 52.5 -> 35.4 KB raw, nuxt-i18n deep copies 2.96 -> 0.71 ms, phone i18n chunk self time 132 -> 96 ms (n=9).

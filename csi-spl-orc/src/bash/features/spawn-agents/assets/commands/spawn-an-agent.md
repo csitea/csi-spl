@@ -55,6 +55,8 @@ it looks. A user who names a launcher wins over the pick.
   it must NOT touch.
 - Pass the paths it will own as `SPAWN_LANE_FILES=<path,...>` (and its topic as
   `SPAWN_LANE_TOPIC`) to the launcher: the spawn writes them into its lane row.
+- Where it starts: a new lane goes to the fleet box with the fewest busy agents
+  (the lane map's `BOX` header lines); `SPAWN_BOX=local` or `SPAWN_BOX=<box>` pins it.
 
 ## 4. Spawn
 

@@ -27,13 +27,33 @@
 # Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, 5 no session,
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
-# `spawn` mutex with its fence held; do_spl_peer_gate says why).
+# `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
+# remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below).
 #
 # PEER GATE: with <spool root>/peer/seats present, a seat (PEER_SEAT, else
 # SPOOL_AGENT_ID) spawns only for the message it holds (PEER_MSG, PEER_GEN):
 # do_spl_peer_gate re-checks that fence and takes the fleet mutex `spawn`
 # first, so two seats never spawn at once past the 40-window ceiling. A dry
 # run only reads the mutex. No seats file (order A) = the gate is not called.
+#
+# PLACEMENT (owner GO 2026-10-03): a NEW lane (TITLE auto) starts on the fleet
+# box with the fewest BUSY agents, so lanes stop piling onto the box the
+# orchestrator runs on. The count is the fleet lane map's load
+# (`lane-map.sh --json`, .load: live rows of the last 2 h per box, role seats
+# not counted; boxes from lease.conf). Another box wins only with strictly
+# fewer busy agents (a tie stays here) and only a box with a live row (it is
+# up); the lane then starts there through `spawn-remote.sh --box <box>`, and
+# stdout is its "<ID>@<box> <PANE>". It runs only in a fleet (LANE_FLEET, or
+# LEASE_FLEET in lease.conf) and only while THIS box holds the orch lease (the
+# remote serve accepts nobody else). A remote spawn that fails, is refused or
+# does not answer within SPAWN_REMOTE_WAIT falls back to this box, with a
+# WARN on stderr. SPAWN_BOX=<box> always wins (local, or this box's id, =
+# here), and never falls back (exit 8): lanes that need one box's checkout
+# or browser set it. The remote serve's spawn-window never re-places: that
+# box does not hold the orch lease. An explicit
+# TITLE is never moved without SPAWN_BOX. Seams (tests): SPAWN_PLACE_MAP_CMD
+# prints the lane map JSON, SPAWN_REMOTE_CMD replaces spawn-remote.sh; a dry
+# run without SPAWN_REMOTE_CMD prints the PLAN and stops ("auto@<box> -").
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -49,6 +69,53 @@ case "$KIND" in claude|grok|agy|qwen) ;; *) usage ;; esac
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
 [ ! -e "${SPOOL_ROOT}/dispatch/box.leave" ] || { echo "spawn-window: this machine is draining ($(head -c 200 "${SPOOL_ROOT}/dispatch/box.leave")): spawn on another box, or run ./run -a do_spl_box_join here" >&2; exit 6; }
+# shellcheck source=../lib/spool-fleet.inc.sh
+. "$HERE/../lib/spool-fleet.inc.sh"
+# The box this lane starts on; "" = here.
+place_box() {
+  local want="${SPAWN_BOX:-}" here json holder="" fleet
+  here="$(spool_fleet_box)"
+  case "$want" in local|"$here") return 0 ;; esac
+  if [ -n "$want" ]; then
+    [[ "$want" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spawn-window: SPAWN_BOX must be local or ONE box id, got '$want'" >&2; return 2; }
+    printf '%s' "$want"; return 0
+  fi
+  [ "$TITLE" = auto ] || return 0
+  fleet="${LANE_FLEET:-$(_spool_fleet_conf LEASE_FLEET)}"
+  [ -n "$fleet" ] || return 0
+  [ -r "$SPOOL_ROOT/dispatch/lease.orch" ] && read -r holder _ <"$SPOOL_ROOT/dispatch/lease.orch"
+  case "$holder" in ""|*@"$here") ;; *) return 0 ;; esac
+  if [ -n "${SPAWN_PLACE_MAP_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    json="$($SPAWN_PLACE_MAP_CMD 2>/dev/null | grep -m1 '^{')"
+  else
+    json="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$HERE/lane-map.sh" --json 2>/dev/null | grep -m1 '^{')"
+  fi
+  jq -e '.load | type == "array"' >/dev/null 2>&1 <<<"$json" ||
+    { echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
+  jq -r --arg here "$here" '.load as $l
+    | ([$l[] | select(.box == $here) | .busy] + [0])[0] as $mine
+    | [$l[] | select(.live and .box != $here and .busy < $mine)] | sort_by(.busy) | .[0].box // empty' <<<"$json"
+}
+TARGET="$(place_box)" || exit $?
+if [ -n "$TARGET" ]; then
+  echo "spawn-window: placing ${TITLE} on ${TARGET} (${SPAWN_BOX:+SPAWN_BOX}${SPAWN_BOX:-fewest busy agents}), not on $(spool_fleet_box)" >&2
+  if [ "${SPAWN_DRY_RUN:-0}" = 1 ] && [ -z "${SPAWN_REMOTE_CMD:-}" ]; then
+    printf 'PLAN %-10s %s\n' place "$TARGET" remote "spawn-remote.sh --box $TARGET $KIND $TITLE ${*:3}"
+    printf '%s@%s -\n' "$TITLE" "$TARGET"
+    exit 0
+  fi
+  if [ -n "${SPAWN_REMOTE_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$($SPAWN_REMOTE_CMD --box "$TARGET" "$KIND" "$TITLE" "${@:3}")"; rc=$?
+  else
+    out="$(bash "$HERE/spawn-remote.sh" --box "$TARGET" "$KIND" "$TITLE" "${@:3}")"; rc=$?
+  fi
+  line="$(printf '%s\n' "$out" | grep -E '^[A-Za-z][A-Za-z0-9-]*@[a-z0-9-]+ (%[0-9]+|-)$' | tail -1)"
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then printf '%s\n' "$line"; exit 0; fi
+  [ -z "${SPAWN_BOX:-}" ] || { echo "spawn-window: the spawn on SPAWN_BOX=${TARGET} did not start (spawn-remote exit ${rc})" >&2; exit 8; }
+  echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s, so it may still start there): starting here instead" >&2
+fi
 if [ -f "${SPOOL_ROOT}/peer/seats" ]; then
   gate_dry=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && gate_dry=1
   PEER_GATE_ROLE=spawn PEER_GATE_DRY="$gate_dry" SPOOL_ROOT="$SPOOL_ROOT" \

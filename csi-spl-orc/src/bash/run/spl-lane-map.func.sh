@@ -49,8 +49,10 @@ do_spl_lane_map() {
   [[ "${LANE_ALL:-0}" == 1 ]] || rows="$(jq -c '[.[] | select(.state == "live")]' <<<"$rows")"
 
   if [[ "$fmt" == json ]]; then
-    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" '{fleet: $f, hub: $h, lanes: .}' <<<"$rows"
+    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" --argjson load "$(spl_lane_load "$rows")" \
+      '{fleet: $f, hub: $h, load: $load, lanes: .}' <<<"$rows"
   elif [[ -z "${LANE_CHECK:-}" ]]; then
+    spl_lane_load_header "$(spl_lane_load "$rows")"
     spl_lane_table_recent "$rows"
   fi
   if [[ -n "${LANE_CHECK:-}" ]]; then
@@ -168,6 +170,43 @@ spl_lane_table_recent() {
   spl_lane_table "$shown"
   hidden=$(( $(jq length <<<"$1") - $(jq length <<<"$shown") ))
   (( hidden == 0 )) || echo "$hidden older rows hidden (--all)"
+}
+
+# The load per box, as a JSON array of {box, here, live, busy, seats, mem}:
+# busy = the live rows the default table shows (younger than LANE_RECENT_S;
+# rows with no age only while the hub is down) that are not role seats; seats = the
+# role seats among them (001-003, and the ids lease.conf names: they run the
+# fleet, they are not build load); live = the box has any such row, so it is
+# up. The boxes: this one first, then the lease.conf rankings
+# (LEASE_PRIORITY*), then any other box a row names. mem = MemAvailable here
+# (/proc/meminfo; LANE_MEMINFO in the tests), "?" for another box: none
+# publishes one yet. spawn-window.sh places a lane by it; the table prints it
+# as its header.
+spl_lane_load() {
+  local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" conf_boxes="" seat_ids="" mem="?" kb
+  if [[ -r "$f" ]]; then
+    conf_boxes="$(sed -n 's/^LEASE_PRIORITY[A-Z_]*=\([a-z0-9,-]*\)$/\1/p' "$f" | tr ',' '\n' | grep -E '^[a-z0-9][a-z0-9-]{0,31}$')"
+    seat_ids="$(sed -n 's/^LEASE_\(MASTER\|FAILOVER\|ORCH\)=\([A-Za-z0-9-]*\)$/\2/p' "$f")"
+  fi
+  kb="$(awk '$1 == "MemAvailable:" {print $2; exit}' "${LANE_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
+  [[ "$kb" =~ ^[0-9]+$ ]] && mem="$(awk -v k="$kb" 'BEGIN {printf "%.1fG", k / 1048576}')"
+  jq -c --arg here "$LANE_BOX" --arg mem "$mem" --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" \
+    --arg conf "$conf_boxes" --arg seats "$seat_ids" '
+    ($seats | split("\n") | map(select(length > 0))) as $ids
+    | def seat: test("^[A-Za-z]+-00[1-3]$") or (. as $a | $ids | index($a) != null);
+    [.[] | select(.state == "live" and ((.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok")))] as $r
+    | ([$here] + ($conf | split("\n")) + [$r[].agent_box] | map(select(length > 0))) as $all
+    | reduce $all[] as $b ([]; if index($b) then . else . + [$b] end)
+    | map(. as $b | [$r[] | select(.agent_box == $b)] as $on
+        | {box: $b, here: ($b == $here), live: (($on | length) > 0),
+           busy: ([$on[] | select(.agent_id | seat | not)] | length),
+           seats: ([$on[] | select(.agent_id | seat)] | length),
+           mem: (if $b == $here then $mem else "?" end)})' <<<"$1"
+}
+
+# One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`.
+spl_lane_load_header() {
+  jq -r '.[] | "BOX \(.box)\(if .here then " (here)" else "" end)  busy \(.busy)  seats \(.seats)  mem \(.mem)\(if .live then "" else "  (no live row)" end)"' <<<"$1"
 }
 
 # Exit 3 when a live lane of another agent lists a path that overlaps one in

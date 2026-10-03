@@ -156,6 +156,8 @@ out="$(on sat do_spl_lane_map "${F[@]}")"
 [[ "$out" == *CLE-77920@box-desk* && "$out" != *CLE-100001@sat* && "$(tail -1 <<<"$out")" == "1 older rows hidden (--all)" ]] &&
   pass "the default map shows a 1h59m row, hides a 2h one, footer counts it" || fail "age hiding: $out"
 all="$(on sat do_spl_lane_map "${F[@]}" LANE_ALL=1)"
+[[ "$(grep -c '^BOX ' <<<"$all")" == 2 ]] && pass "the map opens with one BOX load line per box" || fail "BOX header: $all"
+all="$(grep -v '^BOX ' <<<"$all")"
 want="$(on sat 'spl_lane_init; spl_lane_table "$(spl_lane_merge "$(spl_lane_hub --fleet main)" "$(spl_lane_local_rows)")"' "${F[@]}")"
 [[ "$all" == "$want" && "$all" == *CLE-100001@sat* && "$all" != *"rows hidden"* ]] &&
   pass "LANE_ALL=1 prints every row, the whole table with no footer" || fail "LANE_ALL table: $all /// $want"

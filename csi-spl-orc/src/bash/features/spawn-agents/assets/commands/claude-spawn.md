@@ -46,6 +46,8 @@ branch slug.
 SPOOL_ROOT={{SPOOL_ROOT}} SPOOL_ORCHESTRATOR_ID={{ORCHESTRATOR_ID}} bash {{HARNESS_DIR}}/scripts/spawn-window.sh claude auto <repo-dir> <brief-file> <short-slug>
 ```
 
+In a fleet, an `auto` lane starts on the box with the fewest busy agents and prints `<ID>@<box> <PANE>`; `SPAWN_BOX=local` (or `=<box>`) pins it.
+
 `SPAWN_DRY_RUN=1` in front prints the plan and changes nothing. A working dir
 that is not a git checkout runs in place, with no worktree.
 

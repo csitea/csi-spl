@@ -1,0 +1,6 @@
+Lay-What: The server now offers each person their own Flow and keeps its number up to date live on all their devices.
+Lay-How: The app can ask for your Flow and its counts, and the server pushes a new count to every open window of yours whenever something arrives or you read it.
+Lay-Why: The personal Flow needs a source for its list and a live number that matches across phone and desktop.
+Tech-What: GET /v1/view/flow (page plus counts/unread, counts_only, kind, before), the flow WS frame, and PUT /v1/me/reads accepting f:seen and f:<msg_id>.
+Tech-How: hub/flow.go serves the route; fanoutWUI pushes a stored line's events and counts to members' sockets on every process; a read-mark write notifies spool_wui so each wake worker pushes a counts-only frame; TestRoundTripsPerRequest pins flow at 1.
+Tech-Why: Spec 062 L3 per contracts/flow-v1.md; the send stays at 2 round trips.

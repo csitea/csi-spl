@@ -185,6 +185,7 @@ declare module '~/utils/spool-client.mjs' {
       next: string
       counts: import('~/utils/flow-badge.mjs').FlowCounts | null
       unread: import('~/utils/flow-badge.mjs').FlowCounts | null
+      keys: Record<string, number> | null
     }>
     /** spec 062 §2.4: write f:seen / f:<msg_id> read marks. */
     markFlow(marks: Record<string, { ts: string, id?: string }>): Promise<unknown>
@@ -331,6 +332,9 @@ declare module '~/utils/flow-badge.mjs' {
   export function parseFlowScope(raw: unknown): FlowScope
   export function flowEventKind(kind: unknown): FlowKind | ''
   export function parseFlowCounts(raw: unknown): FlowCounts | null
+  export function parseFlowKeys(raw: unknown): Record<string, number> | null
+  export function flowPlaceKey(e: unknown): string
+  export function mockFlowKeys(events: unknown[], opened?: Set<string>): Record<string, number> | null
   export function badgeLabel(n: unknown): string
   export function syncAppBadge(nav: unknown, n: unknown): boolean
   export function eventAsMessage(ev: unknown): Record<string, unknown> | null

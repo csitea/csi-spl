@@ -80,6 +80,9 @@ async function open(browser, hum, cursors) {
   const p = await ctx.newPage()
   await p.setViewport({ width: 1200, height: 760 })
   await p.evaluateOnNewDocument(() => { window.__errs = []; window.addEventListener('error', (e) => window.__errs.push(String(e.message || ''))) })
+  /* the rows' own count, as a hub without Flow `keys` draws it (t1 77540e6f:
+     with keys, tests/e2e/unread-sum.test.mjs) */
+  await p.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.mock.flow-keys', 'off') } catch { /* */ } })
   await p.evaluateOnNewDocument((c) => { try { localStorage.setItem('spool.read-cursors', JSON.stringify(c)) } catch { /* */ } }, cursors)
   await p.goto(`${BASE}/lobby`, { waitUntil: 'load', timeout: NAV })
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })

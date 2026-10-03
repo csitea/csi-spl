@@ -20,3 +20,15 @@ const rail = ref<{ channels: number, dms: number } | null>(null)
 export function useFlowRail() {
   return rail
 }
+
+/**
+ * Owner (t1 77540e6f): the hub's Flow unread per sidebar row (ch:<channel>,
+ * dm:<peer>, t:<task_id>), the one source of every row badge and section
+ * number. Null = not known (no counts yet, or a hub without `keys`): the
+ * rows keep their own counts.
+ */
+const keys = ref<Record<string, number> | null>(null)
+
+export function useFlowKeys() {
+  return keys
+}

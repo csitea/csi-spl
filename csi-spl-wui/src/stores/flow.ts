@@ -4,10 +4,10 @@ import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import { useFlowBadge, useFlowRail } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
 import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
-import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
+import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
 import { storageGet, storageSet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
@@ -70,6 +70,8 @@ export const useFlowStore = defineStore('flow', () => {
   const paneOpen = ref(false)
   const badge = useFlowBadge()
   const rail = useFlowRail()
+  /** The hub's unread per sidebar row (owner, t1 77540e6f). */
+  const rowKeys = useFlowKeys()
   const mineOn = computed(() => scope.value === 'mine' && available.value !== false)
 
   /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
@@ -158,7 +160,7 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   /** The hub's counts land: the badge, the app icon (FR-013) and, while the pane is open, seen again. */
-  function setCounts(c: unknown, u: unknown) {
+  function setCounts(c: unknown, u: unknown, k?: unknown) {
     const next = parseFlowCounts(c)
     if (next) counts.value = next
     const chips = parseFlowCounts(u)
@@ -166,6 +168,8 @@ export const useFlowStore = defineStore('flow', () => {
       unread.value = chips
       rail.value = railFromUnread(chips)
     }
+    const perRow = parseFlowKeys(k)
+    if (perRow) rowKeys.value = perRow
     if (!counts.value) return
     available.value = true
     badge.value = counts.value.total
@@ -195,7 +199,7 @@ export const useFlowStore = defineStore('flow', () => {
       const last = r.events[r.events.length - 1] as { cursor?: unknown } | undefined
       mineNext.value = r.next ? String((last && last.cursor) || r.next) : ''
       mineLoaded.value = true
-      setCounts(r.counts, r.unread)
+      setCounts(r.counts, r.unread, r.keys)
     } catch (e) {
       if (!flowRefused(e)) error.value = String((e as Error)?.message || e)
     } finally {
@@ -207,7 +211,7 @@ export const useFlowStore = defineStore('flow', () => {
   async function readCounts() {
     try {
       const r = await withSessionRetry(api, () => api.listFlow({ countsOnly: true, self: self() }))
-      setCounts(r.counts, r.unread)
+      setCounts(r.counts, r.unread, r.keys)
     } catch (e) {
       flowRefused(e)
     }
@@ -215,7 +219,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   /** A `flow` frame: the hub's counts, and the new event when there is one. */
   function onFlowFrame(f: Record<string, unknown>) {
-    setCounts(f.counts, f.unread)
+    setCounts(f.counts, f.unread, f.keys)
     const ev = f.event as { kind?: string } | null | undefined
     if (!ev || !mineLoaded.value) return
     const k = ev.kind === 'poke' ? 'mention' : ev.kind

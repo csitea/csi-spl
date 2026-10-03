@@ -11,10 +11,10 @@
  */
 import { channelSlug } from './channel-feed.mjs'
 import { channelsFromView, normalizeViewMessage } from './view-api.mjs'
-import { storageSetJson } from './prefs.mjs'
+import { storageGet, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
-import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, parseFlowCounts } from './flow-badge.mjs'
+import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1072,9 +1072,12 @@ function mockFlowMarks(state) {
  * Spec 062 §4.2: the viewer's flow events, a page (`before` = the hub's
  * cursor), optionally one kind; `countsOnly` reads the counts alone. The hub
  * filters and counts (FR-008); the mock derives both from its feed for `self`.
- * Returns { events, next, counts, unread } (counts = the badge, unread = the
- * chips; either null when the hub sends none).
+ * Returns { events, next, counts, unread, keys } (counts = the badge, unread
+ * = the chips, keys = unread per sidebar row; each null when the hub sends none).
  */
+/** MOCK ONLY: 'off' makes the mock Flow answer without `keys`, as an older hub. */
+const MOCK_FLOW_KEYS_OFF = 'spool.mock.flow-keys'
+
 async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '' } = {}) {
   const { live, mock, state } = ctx
   if (mock) {
@@ -1082,11 +1085,13 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     const all = mockFlowEvents(state.messages, self)
     const counts = mockFlowCounts(all, marks.seen, marks.opened)
     const unread = mockFlowCounts(all, '', marks.opened)
-    if (countsOnly) return { events: [], next: '', counts, unread }
+    /* MOCK_FLOW_KEYS_OFF: the mock answers as a hub without `keys` (the rows keep their own counts) */
+    const keys = storageGet(MOCK_FLOW_KEYS_OFF) === 'off' ? null : mockFlowKeys(all, marks.opened)
+    if (countsOnly) return { events: [], next: '', counts, unread, keys }
     const pick = kind ? all.filter((e) => flowEventKind(e.kind) === kind) : all
     const from = Number(before) || 0
     const page = pick.slice(from, from + limit).map((e, i) => ({ ...e, cursor: String(from + i + 1), unread: !marks.opened.has(String(e.msg_id)) }))
-    return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread }
+    return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread, keys }
   }
   const q = new URLSearchParams()
   if (countsOnly) q.set('counts_only', 'true')
@@ -1101,6 +1106,7 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     next: String(data.next || ''),
     counts: parseFlowCounts(data.counts),
     unread: parseFlowCounts(data.unread),
+    keys: parseFlowKeys(data.keys),
   }
 }
 

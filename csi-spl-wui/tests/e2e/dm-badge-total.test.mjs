@@ -89,6 +89,9 @@ async function run(browser, base, width) {
   await p.setViewport({ width, height: phone ? 844 : 760, isMobile: phone, hasTouch: phone })
   await p.evaluateOnNewDocument(() => { window.__errs = []; window.addEventListener('error', (e) => window.__errs.push(String(e.message || ''))) })
   /* the reader had read the DM up to its third line */
+  /* the rows' own count, as a hub without Flow `keys` draws it (t1 77540e6f:
+     with keys, tests/e2e/unread-sum.test.mjs) */
+  await p.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.mock.flow-keys', 'off') } catch { /* */ } })
   await p.evaluateOnNewDocument((peer, ts) => { try { localStorage.setItem('spool.read-cursors', JSON.stringify({ [`dm:${peer}`]: { ts, id: 'l3' } })) } catch { /* */ } }, PEER, CURSOR)
 
   await p.goto(`${base}/lobby`, { waitUntil: 'load', timeout: NAV })

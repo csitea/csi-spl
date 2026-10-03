@@ -5,9 +5,9 @@
  * the Mine / All choice. Pure, no Vue; loaded lazily with the Flow store.
  *
  * Contract (spec 3.2 / 4.2):
- *   GET /v1/view/flow?limit=&before=&kind=   { events, next, counts, unread? }
- *   GET /v1/view/flow?counts_only=true       { counts, unread? }
- *   WS  { type: 'flow', counts, unread?, event: <thin entry> | null }
+ *   GET /v1/view/flow?limit=&before=&kind=   { events, next, counts, unread?, keys? }
+ *   GET /v1/view/flow?counts_only=true       { counts, unread?, keys? }
+ *   WS  { type: 'flow', counts, unread?, keys?, event: <thin entry> | null }
  *   PUT /v1/me/reads  marks f:seen (the pane opened) and f:<msg_id> (an entry opened)
  */
 
@@ -67,6 +67,44 @@ export function parseFlowCounts(raw) {
 export function railFromUnread(unread) {
   if (!unread || unread.channels === undefined) return null
   return { channels: whole(unread.channels), dms: whole(unread.dms) }
+}
+
+/**
+ * Owner (t1 77540e6f): a section's unread total is the sum of its rows. The
+ * hub's `keys` are the Flow's unread per row - ch:<channel> or dm:<peer>,
+ * and t:<task_id> - counted from the same lines as `unread`, so every row
+ * badge and every section number reads this one map. Whole counts > 0 only;
+ * null from a hub that sends none (the rows keep their own counts).
+ * @returns {Record<string, number> | null}
+ */
+export function parseFlowKeys(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out = {}
+  for (const [k, v] of Object.entries(raw)) {
+    const n = whole(v)
+    if (n && /^(ch|dm|t):./.test(k)) out[k] = n
+  }
+  return out
+}
+
+/** The hub's flowPlaceKey: a channel line's channel, a DM's sender as dmPeerOf labels it. */
+export function flowPlaceKey(e) {
+  const m = e || {}
+  if (m.channel) return `ch:${m.channel}`
+  return m.from_box ? `dm:${m.from}@${m.from_box}` : `dm:${m.from || ''}`
+}
+
+/**
+ * MOCK ONLY: the hub's `keys` over `events`: the unopened ones, each once
+ * under its place and once under its topic.
+ */
+export function mockFlowKeys(events, opened = new Set()) {
+  const keys = {}
+  for (const e of events || []) {
+    if (opened.has(String(e.msg_id)) || !flowEventKind(e.kind)) continue
+    for (const k of [flowPlaceKey(e), `t:${e.task_id || ''}`]) keys[k] = (keys[k] || 0) + 1
+  }
+  return parseFlowKeys(keys)
 }
 
 /** The tab's number: '' at 0 (hidden), '99+' above 99 (Q3). */

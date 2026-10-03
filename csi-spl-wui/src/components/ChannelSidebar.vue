@@ -169,15 +169,15 @@
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
       <HumanName class="label" :id="p.id" :box="p.box" stacked />
-      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread" data-test="dm-badge">{{ notes.dmBadge('dm:' + p.label) }}</span>
-      <span v-else-if="notes.dmTotalBadge('dm:' + p.label)" class="badge-total" data-test="dm-total">{{ notes.dmTotalBadge('dm:' + p.label) }}</span>
+      <span v-if="unreadOf('dm:' + p.label)" class="badge-unread" data-test="dm-badge">{{ dmBadgeLabel(p.label) }}</span>
+      <span v-else-if="dmTotalLabel(p.label)" class="badge-total" data-test="dm-total">{{ dmTotalLabel(p.label) }}</span>
     </NuxtLink>
     <RowMutedButton v-if="mutedPeers[p.label]" :name="peerName(p.id, p.box)" @unmute="togglePeer('mute', p.label)" />
     <SidebarRowMenu
       :menu-id="'dm:' + p.label"
       :name="peerName(p.id, p.box)"
       :href="localePath('/dm/' + encodeURIComponent(p.label))"
-      :unread="!!notes.unread['dm:' + p.label]"
+      :unread="!!unreadOf('dm:' + p.label)"
 
       :person="true"
       :admin="peerAdmin"
@@ -263,14 +263,14 @@
       <span class="label">{{ c.name }}</span>
       <span v-if="retentionLabel(c)" class="retention muted" :title="t('sidebar.retention_title', { retention: retentionLabel(c) })">{{ retentionLabel(c) }}</span>
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
-      <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
+      <span v-if="unreadOf('ch:' + c.channel_id)" class="badge-unread" data-testid="channel-unread">{{ notes.previewUnread(unreadOf('ch:' + c.channel_id)) }}</span>
     </NuxtLink>
     <RowMutedButton v-if="isChannelMuted(c.channel_id)" :name="c.name" @unmute="toggleChannelMute(c.channel_id)" />
     <SidebarRowMenu
       :menu-id="'ch:' + c.channel_id"
       :name="c.name"
       :href="localePath('/channel/' + c.channel_id)"
-      :unread="!!notes.unread['ch:' + c.channel_id]"
+      :unread="!!unreadOf('ch:' + c.channel_id)"
       :channel="true"
       :properties="showProperties(c.channel_id)"
       :deletable="deletableChannel(c.channel_id)"
@@ -423,12 +423,13 @@
         >
           <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
+          <span v-if="unreadOf('t:' + row.task_id)" class="badge-unread" data-testid="topic-unread">{{ notes.previewUnread(unreadOf('t:' + row.task_id)) }}</span>
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"
           :name="topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id)"
           :href="localePath('/t/' + row.task_id)"
-          :unread="false"
+          :unread="!!unreadOf('t:' + row.task_id)"
           :open="rowMenu === 'th:' + row.task_id"
           :topic-archive="topicRowState(row.task_id)?.canArchive"
           :topic-delete="topicRowState(row.task_id)?.canDelete"
@@ -714,7 +715,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useSearchStore } from '~/stores/search'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
-import { MUTED_CHANNELS_KEY, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
+import { MUTED_CHANNELS_KEY, dmBadgeText, dmTotalText, loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
 /* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
@@ -751,7 +752,8 @@ import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
-import { useFlowBadge, useFlowRail } from '~/composables/useFlowBadge'
+import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
+import { flowDmPeers, rowUnread, sectionTotal } from '~/utils/flow-keys.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
@@ -945,7 +947,29 @@ const flowLabel = computed(() => countLabel(flowBadge.value))
 /* owner (t1 f4e6c677): once the hub splits its Flow unread (flowRail set),
    Channels and Direct messages show it as a number, and no pip at 0 */
 const flowRail = useFlowRail()
+/* owner (t1 77540e6f): once the hub sends its per-row unread (flowKeys), a
+   section's number is the sum of the badges on the rows it lists - one map
+   for both, so "7 new" never sits over rows that show nothing */
+const flowKeys = useFlowKeys()
+function unreadOf(key: string) {
+  return rowUnread(flowKeys.value, notes.unread, key)
+}
+function dmBadgeLabel(label: string) {
+  const key = 'dm:' + label
+  return flowKeys.value ? dmBadgeText(unreadOf(key), notes.dmTotal[key] || 0) : notes.dmBadge(key)
+}
+function dmTotalLabel(label: string) {
+  const key = 'dm:' + label
+  return flowKeys.value ? dmTotalText(notes.dmTotal[key] || 0) : notes.dmTotalBadge(key)
+}
 function railCount(id: SideTab) {
+  const k = flowKeys.value
+  if (k) {
+    if (id === 'channels') return countLabel(sectionTotal(k, 'ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
+    if (id === 'dm') return countLabel(sectionTotal(k, 'dm:', peers.value.map((p) => p.label)))
+    if (id === 'topics') return countLabel(sectionTotal(k, 't:', topicRows.value.map((t) => String(t.task_id || ''))))
+    return ''
+  }
   const r = flowRail.value
   if (!r) return ''
   if (id === 'channels') return countLabel(r.channels)
@@ -953,6 +977,7 @@ function railCount(id: SideTab) {
   return ''
 }
 function tabUnread(id: SideTab) {
+  if ((id === 'dm' || id === 'channels' || id === 'topics') && flowKeys.value) return false
   if ((id === 'dm' || id === 'channels') && flowRail.value) return false
   if (id === 'dm') return dmUnread.value
   if (id === 'channels') return channelUnread.value
@@ -1088,8 +1113,11 @@ const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
 const peers = computed(() => (acting.value ? [] : pinRows(
-  orderPeers(withDmPeers(roster.peers, channel.dmAt, roster.self ? roster.self.id : live.identity.value), channel.dmAt)
-    .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
+  /* owner (t1 77540e6f): a peer with unread lines always has a row, even one
+     no roster lists any more (a retired agent), so the number can be read */
+  withDmPeers(orderPeers(withDmPeers(roster.peers, channel.dmAt, roster.self ? roster.self.id : live.identity.value), channel.dmAt),
+    flowDmPeers(flowKeys.value), roster.self ? roster.self.id : live.identity.value)
+    .filter((p) => unreadOf('dm:' + p.label) > 0 || (!hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label]))),
   pinnedPeers.value,
 )))
 /* CLE-77794: People lists every tenant member (the reader too, marked "you");

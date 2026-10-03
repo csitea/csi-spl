@@ -1,0 +1,6 @@
+Lay-What: Takes back the earlier change that let the price list be kept for five minutes, because it did not make anything faster.
+Lay-How: The server goes back to sending a fresh price list every time; the faster work-flow view change stays.
+Lay-Why: The web host overrides the setting anyway, so it only added complexity with no gain.
+Tech-What: GET /api/v1/checkout/plan back to no-store; plan_cache_test.go removed; the flow ETag stays.
+Tech-How: payments/handler.go drops the public, max-age=300 header.
+Tech-Why: The hosting ** header rule sets max-age=0 over the hub's header, so TTFB showed no gain (126/125 vs 121/117 ms, n=10, x-cache MISS both).

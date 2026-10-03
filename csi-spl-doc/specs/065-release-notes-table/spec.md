@@ -331,14 +331,15 @@ Small lanes, one task each, disjoint files. "After" names the lane whose
 contract it needs on trunk first; a lane gated on an open question waits for
 it. Paths checked on `origin/master` 2026-10-03: `ls
 csi-spl-rdb/src/sql/postgres/spool-hub/ | tail -1` -> `0105_agent_lifecycle.sql`,
-so the migration is `0106` or the next free number at build time (the 0105
-in section 8 is taken).
+so the migration was `0106` or the next free number at build time; 0106 and
+0107 were taken by then, so L3 shipped `0108_release_note.sql` (table
+`release_notes`, store `release_note*.go`).
 
 | lane | task | files (only these) | test | after / gated on |
 |---|---|---|---|---|
 | L1 | the trailer rule as one help page (4.1 example, 5.2 special commits) | `csi-spl-doc/doc/help/release-notes.md` (new) | `./run -a do_check_dist_hygiene`; `./run -a do_check_pre_push_lint` (md links) | none |
 | L2 | pre-push part `release-note`, WARNING mode: checks the six trailers (or the 5.2 forms) on every commit in the pushed range | `csi-spl-iac/src/bash/run/check-release-note.func.sh` (new), the one part line in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`, `csi-spl-iac/src/bash/tests/check-release-note.tst.sh` (new) | the new `.tst.sh`: full note passes, missing / empty trailer warns, doc-only and `Release-Note: skip` pass; `check-pre-push.tst.sh` stays green | L1 (the rule it checks) |
-| L3 | migration + store for `release_note` (4.2 columns, `state`) | `csi-spl-rdb/src/sql/postgres/spool-hub/0106_release_note.sql` (new), `csi-spl-api/src/go/spool-hub-api/internal/store/release_note*.go` (new) | store test on POSTGRES: `PRE_PUSH_TIER=full ./run -a do_check_pre_push` | none |
+| L3 | migration + store for `release_note` (4.2 columns, `state`) | `csi-spl-rdb/src/sql/postgres/spool-hub/0108_release_note.sql` (new), `csi-spl-api/src/go/spool-hub-api/internal/store/release_note*.go` (new) | store test on POSTGRES: `PRE_PUSH_TIER=full ./run -a do_check_pre_push` | none |
 | L4 | hub endpoints: ingest (trailers + hygiene filter, `state` incl. `backfill`), `GET /v1/release-notes?before=&limit=50`, `GET /v1/release-notes/<sha>` | `csi-spl-api/src/go/spool-hub-api/internal/hub/release_notes*.go` (new) and its route line | Go tests incl. the hygiene filter dropping a banned name; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | L3; every signed-in user may read (Q11 yes) |
 | L5 | deploy-time ingest: the deploy parses the new commits' trailers and calls the L4 ingest with the minted version | `csi-spl-orc/src/bash/run/release-note-ingest.func.sh` (new), one step in `.github/workflows/20_hub-build-deploy.yml`, `csi-spl-orc/src/bash/tests/release-note-ingest.tst.sh` (new) | the `.tst.sh` (trailer parse, `state` ok / missing / skip / revert); `do_check_pre_push_lint` (actionlint) | L4 |
 | L6 | `ReleaseNotesDialog` from both version cards + the `/releases/<ref>` route (Q7 yes); `state=backfill` rows say "written after the fact" | `csi-spl-wui/src/components/ReleaseNotesDialog.vue` (new), `ChannelSidebar.vue` and `MobileStatusStrip.vue` (button only), `csi-spl-wui/src/pages/releases/[ref].vue` (new), `csi-spl-wui/tests/e2e/release-notes.spec.ts` (new) | `pnpm run typecheck`; e2e on desktop AND phone width against a generated bundle | L4 contract (may mock it) |

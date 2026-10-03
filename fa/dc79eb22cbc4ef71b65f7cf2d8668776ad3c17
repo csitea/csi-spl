@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes an automatic quality check report a full disk as a setup failure instead of a false result; nothing changes for users.

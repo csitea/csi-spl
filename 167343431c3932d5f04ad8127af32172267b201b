@@ -1,0 +1,6 @@
+Lay-What: Messages with formatting open a little faster the first time.
+Lay-How: The text formatter now uses the browser's own way of reading special characters instead of downloading a large table of them.
+Lay-Why: The formatter carried a big lookup table that the browser can already do for free.
+Tech-What: The client build aliases `entities` to entities-browser.mjs, which decodes named entities with a detached textarea; node keeps the real package.
+Tech-How: nuxt.config.ts adds the alias; the strict variant keeps legacy-prefix names as is; entities-browser.test.mjs checks parity on all 1511 names.
+Tech-Why: P3-19: the markdown chunk 49 170 -> 27 012 B gzip (-22.2 KB), 0 differences in Chrome over 1522 inputs.

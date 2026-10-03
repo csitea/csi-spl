@@ -1,0 +1,6 @@
+Lay-What: The starting instructions given to each new worker agent are now about a third as long, keeping the rules and dropping the stories behind them.
+Lay-How: The background stories moved into one separate document that the instructions link to; a test keeps the instructions under a size limit.
+Lay-Why: Every new worker read the long text in full, which cost time and money without changing what it had to do.
+Tech-What: orc spawn seed: INTEGRATION keeps rules (1)-(8) only; anecdotes move to lane-integration-rules.md; SCOPE and DEPLOY-GATE drop what CLAUDE.md states.
+Tech-How: spawn-core.inc.sh text trimmed (claude seed 21,269 -> 7,789 B); test-spawn-seed-size.sh pins the 8,000 B cap, every rule and the doc link.
+Tech-Why: Token plan 02: the seed was mostly history, re-read by every spawned agent.

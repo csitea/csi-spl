@@ -82,10 +82,9 @@ export const useSearchStore = defineStore('search', () => {
       const api = useSpoolApi()
       const cursor = String(g.next || '')
       const page = await withSessionRetry(api, () => api.search({ q: q.value, cursor }))
-      if (mine === seq && result.value) {
-        const { mergeSearchPage } = await import('~/utils/search-results.mjs') // off the first paint (027 budget)
-        result.value = mergeSearchPage(result.value, page)
-      }
+      if (mine !== seq || !result.value) return
+      const { mergeSearchPage } = await import('~/utils/search-results.mjs') // off the first paint (027 budget)
+      result.value = mergeSearchPage(result.value, page)
     } catch (e) {
       if (mine === seq) error.value = toError(e)
     } finally {

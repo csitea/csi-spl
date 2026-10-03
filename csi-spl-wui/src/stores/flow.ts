@@ -326,11 +326,10 @@ export const useFlowStore = defineStore('flow', () => {
     opened.value = new Set([...opened.value, key])
     /* FR-006: a Mine entry opened from the Flow is read on every device (f:<msg_id>) */
     const e = mine.value.find((r) => r.key === key)
-    if (e && e.fresh !== false) {
-      void api.markFlow({ ['f:' + e.msg_id]: { ts: new Date().toISOString(), id: e.msg_id } })
-        .then(() => (api.mock ? readCounts() : undefined))
-        .catch(() => { /* the place's own read mark still covers it later */ })
-    }
+    if (!e || e.fresh === false) return
+    void api.markFlow({ ['f:' + e.msg_id]: { ts: new Date().toISOString(), id: e.msg_id } })
+      .then(() => (api.mock ? readCounts() : undefined))
+      .catch(() => { /* the place's own read mark still covers it later */ })
   }
 
   /** A message deleted here (not a live frame) leaves the stream too. */

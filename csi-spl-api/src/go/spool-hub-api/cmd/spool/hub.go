@@ -870,6 +870,37 @@ func cmdHubGetFile(cfg *config.Config, args []string) int {
 	return 0
 }
 
+// cmdHubRSP prints {"task_id", "rsp"}: how many of the task's messages an
+// RSP-* responder sent, from any box (c-082). Exit 1 when the hub cannot say.
+func cmdHubRSP(cfg *config.Config, args []string) int {
+	fs := flag.NewFlagSet("hub-rsp", flag.ContinueOnError)
+	task := fs.String("task", "", "task id")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *task == "" {
+		return fail(fmt.Errorf("--task is required"))
+	}
+	c, err := boxClient(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	c.Log = zerolog.Nop()
+	ctx, stop := interruptible()
+	defer stop()
+	sess, err := c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		return fail(err)
+	}
+	defer sess.Close()
+	n, err := sess.RSPCount(ctx, *task)
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]any{"task_id": *task, "rsp": n}))
+	return 0
+}
+
 // cmdHubTail prints a task's hub topic (human lines, or --json NDJSON of the
 // inner v:1); --follow keeps printing new messages until signalled.
 func cmdHubTail(cfg *config.Config, args []string) int {

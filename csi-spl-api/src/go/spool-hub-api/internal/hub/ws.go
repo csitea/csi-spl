@@ -921,12 +921,41 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "tail read failed")
 		return
 	}
+	if f.RSPCount && !f.Follow {
+		s.onTailRSPCount(ctx, x, f.TaskID, len(envs) > 0)
+		return
+	}
 	for _, e := range envs {
 		if err := x.write(ctx, wire.Frame{Type: wire.TTailMsg, Env: e}); err != nil {
 			return
 		}
 	}
 	x.write(ctx, wire.Frame{Type: wire.TTailEnd, TaskID: f.TaskID, Count: len(envs)}) //nolint:errcheck
+}
+
+// onTailRSPCount answers a rsp_count tail (c-082): how many of the task's
+// messages an RSP-* responder sent, from ANY box - the one fact a box may
+// learn about envelopes it does not hold, and only for a task it holds
+// something of (holds=false reads 0, like an unknown task_id).
+func (s *Server) onTailRSPCount(ctx context.Context, x *session, taskID string, holds bool) {
+	n := 0
+	if holds {
+		envs, err := s.o.Store.TaskEnvelopes(ctx, x.tenant, taskID)
+		if err != nil {
+			x.fail(ctx, "", "internal", http.StatusInternalServerError, "tail read failed")
+			return
+		}
+		for _, raw := range envs {
+			e, err := wire.ParseEnvelope(raw)
+			if err != nil {
+				continue
+			}
+			if m, err := e.Inner(); err == nil && strings.HasPrefix(m.From, "RSP-") {
+				n++
+			}
+		}
+	}
+	x.write(ctx, wire.Frame{Type: wire.TTailEnd, TaskID: taskID, Count: n, RSPCount: true}) //nolint:errcheck
 }
 
 // notifyTail sends a newly stored envelope to every follower of its task in

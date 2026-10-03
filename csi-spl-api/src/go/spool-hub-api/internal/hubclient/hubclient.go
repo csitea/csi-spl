@@ -605,6 +605,42 @@ func (s *Session) fromNotYetAnnounced(err error, from string) bool {
 	return serr == nil && slices.Contains(local, from)
 }
 
+// RSPCount asks the hub how many of a task's messages an RSP-* responder
+// sent, from any box (c-082): the cross-machine half of the responder's "at
+// most one Seen per topic". An error when the hub cannot answer, including an
+// older hub whose tail_end does not echo rsp_count - never a guessed 0.
+func (s *Session) RSPCount(ctx context.Context, taskID string) (int, error) {
+	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
+	err := wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TTail, TaskID: taskID, RSPCount: true})
+	cancel()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrUnreachable, err)
+	}
+	timeout := time.After(s.c.timeout())
+	for {
+		select {
+		case r := <-s.replies:
+			switch r.Type {
+			case wire.TTailMsg:
+				return 0, errors.New("the hub streamed the tail: it does not answer rsp_count")
+			case wire.TTailEnd:
+				if !r.RSPCount {
+					return 0, errors.New("the hub does not answer rsp_count")
+				}
+				return r.Count, nil
+			case wire.TError:
+				return 0, &HubError{Token: r.Error, Status: r.Status, Detail: r.Detail}
+			}
+		case <-s.done:
+			return 0, fmt.Errorf("%w: socket closed", ErrUnreachable)
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-timeout:
+			return 0, fmt.Errorf("%w: no tail_end", ErrUnreachable)
+		}
+	}
+}
+
 // Tail streams a task's stored envelopes to fn, oldest first; with follow it
 // keeps streaming live ones until ctx ends.
 func (s *Session) Tail(ctx context.Context, taskID string, follow bool, fn func(*wire.Envelope)) (int, error) {

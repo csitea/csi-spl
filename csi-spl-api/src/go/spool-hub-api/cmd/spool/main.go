@@ -52,6 +52,7 @@
 //	hub-sync                   one role=box session: hello, pins, drain queue, flush
 //	hub-run                    box daemon: hold the session, reconnect with backoff
 //	hub-tail --task <uuid> [--follow] [--json]
+//	hub-rsp --task <uuid>      {"task_id","rsp"}: RSP-* messages in the topic, any box
 //	hub-get-file --file-id <sha256>   download one file from the hub (read door proof)
 //	version
 //
@@ -120,6 +121,7 @@ a box and its hub ($SPOOL_HUB_URL):
   hub-sync            one session: push the outbox, pull the inbox
   hub-run             the same, held open until signalled (the box sidecar)
   hub-tail            print a topic from the hub (--follow keeps printing)
+  hub-rsp             how many RSP-* messages a topic holds on the hub, any box
   hub-get-file        fetch a file by id from the hub into the local blob store
 
 running a hub:
@@ -216,6 +218,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdHubRun(cfg)
 	case "hub-tail":
 		return cmdHubTail(cfg, rest)
+	case "hub-rsp": // c-082
+		return cmdHubRSP(cfg, rest)
 	case "hub-get-file":
 		return cmdHubGetFile(cfg, rest)
 	case "issue": // specs/039 FR-008

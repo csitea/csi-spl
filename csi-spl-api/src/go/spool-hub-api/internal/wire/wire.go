@@ -174,6 +174,14 @@ type Frame struct {
 	Follow bool `json:"follow,omitempty"`
 	Count  int  `json:"count,omitempty"`
 
+	// tail / tail_end (c-082): RSPCount on a tail asks only HOW MANY of the
+	// task's messages a responder (an RSP-* id) sent, from ANY box, so a
+	// second machine's responder sees the first one's "Seen" after a lease
+	// failover. No envelope is streamed; tail_end echoes RSPCount with the
+	// number in Count. A task the box holds nothing of reads 0 (the tail
+	// door). An older hub ignores the flag and its tail_end lacks it.
+	RSPCount bool `json:"rsp_count,omitempty"`
+
 	// recv / backfill_end (SPL-987, specs/038 FR-020..): the channel whose
 	// earlier posts a newly seated agent is being back-filled with. On recv
 	// it marks the frame as a back-fill copy for exactly Agents (msg.to is

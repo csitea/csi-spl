@@ -1,0 +1,6 @@
+Lay-What: Live message updates from the server are smaller, so they reach your screen with less data.
+Lay-How: The server leaves out details the app can work out itself, and compresses even small updates.
+Lay-Why: Every live update repeated information the app already knew, wasting data on every message.
+Tech-What: The WUI message frame drops the cursor and env fields a default already gives (channel, msg.task_id, files [], sig "", box-wui ends); deflate starts at 128 B.
+Tech-How: hub/wui.go trims the frame; wui_frame_trim_test.go pins it; the WUI (d61c0264) rebuilds the fields.
+Tech-Why: R2-3: at the library's 512 B no-takeover floor the trimmed frame went out uncompressed and larger.

@@ -46,6 +46,10 @@ type PendingInvite struct {
 	Invite
 	CreatedAt time.Time
 	MailCount int
+	// MailedAt is the last invitation mail (nil = never). A re-invite resets
+	// MailCount but keeps MailedAt (FR-016's gap), so the page reads this,
+	// not the count, to say whether and when the invite was mailed.
+	MailedAt *time.Time
 	// OrderedByName is OrderedBy's display name (rdb 0084), "" when none.
 	OrderedByName string
 }
@@ -104,6 +108,10 @@ func (s *Memory) ListInvites(_ context.Context, tenant string) ([]PendingInvite,
 	for k, in := range s.hum.invites {
 		if k[0] == tenant && !in.accepted {
 			p := PendingInvite{Invite: in.Invite, CreatedAt: in.createdAt, MailCount: in.mailCount}
+			if in.mailedAt != nil {
+				at := *in.mailedAt
+				p.MailedAt = &at
+			}
 			if in.OrderedBy != "" {
 				if ho, ok := s.hum.humans[in.OrderedBy]; ok {
 					p.OrderedByName = ho.name
@@ -178,14 +186,14 @@ func listMembersRead(tenant string, out *[]Member) tenantRead {
 
 func (s *Postgres) ListInvites(ctx context.Context, tenant string) ([]PendingInvite, error) {
 	out := []PendingInvite{}
-	err := s.queryTenant(ctx, tenant, `SELECT ti.tenant_id, ti.email, ti.role, ti.invited_by, ti.expires_at, ti.created_at, ti.mail_count,
+	err := s.queryTenant(ctx, tenant, `SELECT ti.tenant_id, ti.email, ti.role, ti.invited_by, ti.expires_at, ti.created_at, ti.mail_count, ti.mailed_at,
 			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via
 		FROM tenant_invites ti LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
 		WHERE ti.tenant_id = $1 AND ti.accepted_at IS NULL ORDER BY ti.created_at, ti.email`,
 		[]any{tenant}, func(rows pgx.Rows) error {
 			var p PendingInvite
 			var orderedBy, orderedVia *string
-			if err := rows.Scan(&p.TenantID, &p.Email, &p.Role, &p.InvitedBy, &p.ExpiresAt, &p.CreatedAt, &p.MailCount,
+			if err := rows.Scan(&p.TenantID, &p.Email, &p.Role, &p.InvitedBy, &p.ExpiresAt, &p.CreatedAt, &p.MailCount, &p.MailedAt,
 				&orderedBy, &p.OrderedByName, &orderedVia); err != nil {
 				return err
 			}

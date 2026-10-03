@@ -52,6 +52,9 @@ type inviteRow struct {
 	ExpiresAt string `json:"expires_at"`
 	Expired   bool   `json:"expired"`
 	MailCount int    `json:"mail_count"`
+	// MailedAt is the last invitation mail (null = never mailed). It
+	// survives a re-invite, which resets mail_count (HUM-10 2026-10-03).
+	MailedAt *string `json:"mailed_at"`
 	// Provenance (CLE-77778, rdb 0084): who ordered this invite, that human's
 	// display name, and via which agent. "" when unknown (historic operator).
 	OrderedBy     string `json:"ordered_by"`
@@ -119,9 +122,14 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 		out.Members = append(out.Members, row)
 	}
 	for _, in := range ins {
-		out.Invites = append(out.Invites, inviteRow{Email: in.Email, Role: in.Role, InvitedBy: in.InvitedBy,
+		row := inviteRow{Email: in.Email, Role: in.Role, InvitedBy: in.InvitedBy,
 			CreatedAt: rfc(in.CreatedAt), ExpiresAt: rfc(in.ExpiresAt), Expired: !now.Before(in.ExpiresAt), MailCount: in.MailCount,
-			OrderedBy: in.OrderedBy, OrderedByName: in.OrderedByName, OrderedVia: in.OrderedVia})
+			OrderedBy: in.OrderedBy, OrderedByName: in.OrderedByName, OrderedVia: in.OrderedVia}
+		if in.MailedAt != nil {
+			at := rfc(*in.MailedAt)
+			row.MailedAt = &at
+		}
+		out.Invites = append(out.Invites, row)
 	}
 	// System roles in the spec's order, then any tenant role by id.
 	seen := map[string]bool{}

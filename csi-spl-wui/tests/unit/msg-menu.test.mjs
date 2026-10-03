@@ -41,6 +41,14 @@ describe('msgMenuItems', () => {
     assert.deepEqual(topic.slice(-2), ['archive', 'delete-topic'])
   })
 
+  it('t1 7a6be5a3: on the phone sheet Archive follows Edit, up from before Delete; Delete stays last; the desktop keeps Archive before Delete', () => {
+    const all = { editable: true, kind: true, moveChannel: true, mergeTopic: true, topic: true }
+    assert.deepEqual(msgMenuItems({ ...all, touch: true }).map((i) => i.id), ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'archive', 'kind', 'move-channel', 'merge-topic', 'delete-topic'])
+    assert.deepEqual(msgMenuItems(all).map((i) => i.id), ['open', 'copy', 'edit', 'move-channel', 'merge-topic', 'archive', 'delete-topic'])
+    const locked = msgMenuItems({ touch: true, moveChannel: false, topicArchive: true, locks: { edit: 'e', move: 'm', merge: 'g', delete: 'd' } }).map((i) => i.id)
+    assert.deepEqual(locked, ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'archive', 'move-channel', 'merge-topic', 'delete-topic'])
+  })
+
   it('names each action from the catalogue', () => {
     for (const item of msgMenuItems({ editable: true })) {
       assert.match(item.labelKey, /^feed\.msg_menu\./)

@@ -1,7 +1,8 @@
 <!-- Right-click menu on a message. Same panel as a channel row: icon plus
      the action name, Escape and a click outside close it, arrows move.
      SPL-991: at <= 820 px it is a bottom sheet (long-press or the ⋯ button),
-     over a dimmed page a tap on which closes it. -->
+     over a dimmed page a tap on which closes it.
+     t1 7a6be5a3: that sheet opens WHOLE - see the style below. -->
 <template>
   <UiPointMenu
     :open="open"
@@ -113,3 +114,21 @@ function choose(id: string) {
   else if (id === 'promote-topic') emit('promote-topic')
 }
 </script>
+
+<style>
+/* t1 7a6be5a3 (owner: "the menu not appearing whole and one having to slide
+   it up"): the shared sheet stops at 70dvh, and a topic card's sheet is 11
+   rows, some with a reason line - taller than 70dvh on most phones, so its
+   last rows sat under the fold. This sheet may use the whole visual viewport
+   above the keyboard bar (the sheet still grows only as tall as its rows);
+   on a short screen the rows tighten so it fits without scrolling.
+   (0,4,0) beats SheetBackdrop's :root .touch-sheet.touch-sheet (0,3,0). */
+:root .msg-menu.touch-sheet.touch-sheet {
+  max-height: calc(100dvh - var(--kb-inset, 0px) - 8px);
+}
+@media (max-height: 700px) {
+  :root .msg-menu.touch-sheet.touch-sheet { padding-top: 6px; }
+  :root .msg-menu.touch-sheet.touch-sheet::before { margin-bottom: 4px; }
+  :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { min-height: 40px; padding-block: 4px; }
+}
+</style>

@@ -34,6 +34,10 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * (`kind`; the desktop keeps that on the kind badge). The desktop menu is
  * unchanged.
  *
+ * t1 7a6be5a3 (owner): on the phone sheet Archive, the most used entry, sits
+ * right after Edit (before Kind, Move and Merge), higher up for the thumb;
+ * Delete stays last. The desktop keeps Archive next to Delete.
+ *
  * CLE-77891 (HUM-24): a topic card's menu has the same shape for every viewer.
  * `locks` (utils/topic-menu.mjs topicMenuLocks) names, per entry, why the
  * viewer may not use it; such an entry is still listed, `disabled` with that
@@ -65,6 +69,12 @@ export function msgMenuItems(opts = {}) {
   if (touch) items.push({ id: 'copy-text', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' })
   items.push(copy)
   gated(editable, edit, locks.edit)
+  // CLE-77819: Archive and Delete are gated apart - a member the card is
+  // addressed to may archive but not delete. `topic` stays the both-shorthand.
+  const wantArchive = Boolean(o.topic || o.topicArchive)
+  const wantDelete = Boolean(o.topic || o.topicDelete)
+  const archive = () => gated(wantArchive, { id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' }, locks.archive)
+  if (touch) archive()
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
@@ -75,11 +85,7 @@ export function msgMenuItems(opts = {}) {
   // 8f588edd: a reply can also be PROMOTED into a new topic of its own - the
   // keyboard / touch way to do what the drag into the topics list does.
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
-  // CLE-77819: Archive and Delete are gated apart - a member the card is
-  // addressed to may archive but not delete. `topic` stays the both-shorthand.
-  const wantArchive = Boolean(o.topic || o.topicArchive)
-  const wantDelete = Boolean(o.topic || o.topicDelete)
-  gated(wantArchive, { id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' }, locks.archive)
+  if (!touch) archive()
   if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
   else if (editable && !wantArchive) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
   return items

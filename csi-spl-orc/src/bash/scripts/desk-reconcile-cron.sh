@@ -214,7 +214,17 @@ fi
 # and FIRST, so a slow or failing reconcile never delays the lease after a
 # reboot. Its result does not change the reconcile's exit code.
 # DESK_LEASE=0 turns it off.
-if [ "${DESK_LEASE:-1}" != 0 ]; then
+#
+# THE PEER SWITCH (spec 068 6.2, lane L6): once do_spl_peer_crons APPLY=1 has
+# moved this box to the peer crons it writes <spool root>/peer/crons.applied,
+# and from then on the peers route and decide: this step and the dispatch tick
+# below are cut. No file (every box until the staged hand-over) = no change.
+peer_cut=0
+if [ -e "${SPOOL_ROOT:-/var/spool-hub}/peer/crons.applied" ]; then
+  peer_cut=1
+  say "INFO peer crons applied (${SPOOL_ROOT:-/var/spool-hub}/peer/crons.applied): the lease ensure and the dispatch tick are cut (spec 068 6.2)"
+fi
+if [ "${DESK_LEASE:-1}" != 0 ] && [ "$peer_cut" = 0 ]; then
   ( cd "$ORC" && env LEASE_CMD=ensure ./run -a do_spl_dispatch_lease )
   say "INFO do_spl_dispatch_lease ensure exit $?"
 fi
@@ -280,8 +290,9 @@ fi
 # was re-run by hand), and the dispatcher gaps reported when they CHANGE.
 # A no-op without <spool root>/dispatch/lease.conf; only its "DISPATCH " lines
 # reach this log, so a tick with nothing new logs nothing.
-# DESK_DISPATCH=0 turns it off without touching the reconcile.
-if [ "${DESK_DISPATCH:-1}" != 0 ]; then
+# DESK_DISPATCH=0 turns it off without touching the reconcile; the peer
+# switch above cuts it too.
+if [ "${DESK_DISPATCH:-1}" != 0 ] && [ "$peer_cut" = 0 ]; then
   dout="$(cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" ./run -a do_spl_dispatch_tick 2>&1)"
   drc=$?
   printf '%s\n' "$dout" | grep '^DISPATCH ' | while IFS= read -r l; do say "INFO $l"; done

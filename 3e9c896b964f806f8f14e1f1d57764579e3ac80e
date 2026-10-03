@@ -1,0 +1,6 @@
+Lay-What: In the side list of topics, an archived topic's title is no longer squeezed to one word per line.
+Lay-How: The "Archived" label now moves under the title instead of taking space beside it.
+Lay-Why: Archived topics were hard to read in the list because their titles were crushed.
+Tech-What: WUI sidebar Topics row: the ArchivedBadge wraps below the title, which keeps its full width.
+Tech-How: Three lines of CSS in main.css let the row wrap the badge onto its own line.
+Tech-Why: The badge was a flex sibling that took width from the title, which then broke after every word.

@@ -2,7 +2,9 @@
      as well ... people use boxes and agents use boxes"): a box's card. Its id
      and machine tag, whether it is online, when it last checked in, and who is
      seated on it — BOTH the people (their browser / app sessions) AND the agents
-     — each linked to their People / Agents card. Read from /v1/view/roster. -->
+     — each linked to their People / Agents card. Read from /v1/view/roster.
+     Machines only (owner, t1 topic b3bf3d13): a link to the browser pseudo-box
+     (/boxes/box-wui) is not a machine, so it goes back to the Boxes list. -->
 <template>
   <div class="feed-col" data-test="box-page">
     <header class="feed-header">
@@ -78,7 +80,7 @@
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
-import { boxByID } from '~/utils/box-rows.mjs'
+import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 
 const route = useRoute()
@@ -89,6 +91,9 @@ const { t } = useI18n({ useScope: 'global' })
 const boxId = computed(() => decodeURIComponent(String(route.params.id || '')))
 const box = computed(() => boxByID(boxId.value, roster.people, roster.boxes))
 const lastHello = computed(() => (box.value.lastHello ? isoDateTime(box.value.lastHello) : t('people.never_seen')))
+
+/* machines only: the browser box has no card, its old link lands on the list */
+if (isBrowserBox(boxId.value)) void navigateTo(localePath('/boxes'), { replace: true })
 
 /* the roster is already loaded for the DM list; refresh once so a deep link
    straight to this card (no sidebar visited yet) still has the seats. */

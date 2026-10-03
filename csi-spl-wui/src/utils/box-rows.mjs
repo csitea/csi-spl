@@ -7,6 +7,12 @@
 // box", so this is built for many boxes: it never assumes a single box-desk,
 // and the rail filters and groups by status.
 //
+// Machines only (owner, t1 topic b3bf3d13, blocker d0139fd8: "It should show
+// only machines"): the browser pseudo-box (box-wui, where a person's web-app
+// session is seated) is not a machine, so boxRows() leaves it out — the rail
+// list, the filter and the count all read from it, so they agree. A person
+// shows on a box only when seated on a machine box.
+//
 // The roster the DM list already loaded is the source (view-v1 §4.1): the
 // box -> [ids] map (peopleRows carries {id, box, online} per seat) and the
 // boxes[] detail (online + last_hello_at, keyed by box_id). No extra fetch.
@@ -42,16 +48,16 @@ export function boxTag(id) {
 }
 
 /**
- * One row per box, built from the roster. Each row carries the box id, its tag,
- * whether it is the browser box, its liveness and last hello, and the seats on
+ * One row per MACHINE box, built from the roster; the browser box (box-wui) is
+ * skipped, seats and detail alike. Each row carries the box id, its tag,
+ * whether it is the browser box (always false here), its liveness and last hello, and the seats on
  * it split into people (HUM-*) and agents (<PREFIX>-<n>), each seat the
  * {id, box, online} peopleRows shape so a card can link straight to
  * /people/<id> or /agents/<id@box>.
  *
  * A box is online when its boxes[] detail says so, or — for a box with no
- * detail (the browser box) — when anyone seated on it is online. Sorted online
- * first, then machine boxes before the browser box, then by id, so the rail is
- * stable as boxes come and go.
+ * detail — when anyone seated on it is online. Sorted online first, then by
+ * id, so the rail is stable as boxes come and go.
  *
  * @param {Seat[]} people peopleRows()
  * @param {Record<string, { online?: boolean, last_hello_at?: string }>} [boxesDetail]
@@ -68,10 +74,10 @@ export function boxRows(people, boxesDetail = {}) {
     return /** @type {BoxRow} */ (byBox.get(box))
   }
   /* every box named in the detail, even one with no seat yet */
-  for (const box of Object.keys(boxesDetail || {})) if (box) ensure(box)
+  for (const box of Object.keys(boxesDetail || {})) if (box && !isBrowserBox(box)) ensure(box)
   for (const p of Array.isArray(people) ? people : []) {
     const box = String((p && p.box) || '')
-    if (!box) continue
+    if (!box || isBrowserBox(box)) continue
     const row = ensure(box)
     if (isHumanId(p.id)) row.people.push(p)
     else if (isAgentId(p.id)) row.agents.push(p)
@@ -85,9 +91,7 @@ export function boxRows(people, boxesDetail = {}) {
     row.userCount = row.people.length + row.agents.length
     out.push(row)
   }
-  out.sort((a, b) => (Number(b.online) - Number(a.online))
-    || (Number(a.browser) - Number(b.browser))
-    || a.id.localeCompare(b.id))
+  out.sort((a, b) => (Number(b.online) - Number(a.online)) || a.id.localeCompare(b.id))
   return out
 }
 

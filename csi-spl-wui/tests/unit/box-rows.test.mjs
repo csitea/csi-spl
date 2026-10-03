@@ -5,6 +5,9 @@
 // machine boxes with agents, a machine box that hosts both a human and an
 // agent, and the browser box with humans only.
 //
+// Machines only (owner, t1 topic b3bf3d13: "It should show only machines"):
+// the browser box is in the fixture so the tests prove it is left OUT.
+//
 // Run: node tests/unit/box-rows.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -45,30 +48,35 @@ describe('boxTag / isBrowserBox', () => {
 
 describe('boxRows', () => {
   const rows = boxRows(PEOPLE, BOXES)
-  it('one row per box (many boxes, not one)', () => {
-    assert.equal(rows.length, 4)
-    assert.deepEqual(rows.map((r) => r.id).sort(), ['box-a', 'box-b', 'box-desk', 'box-wui'])
+  it('one row per machine box (many boxes, not one)', () => {
+    assert.equal(rows.length, 3)
+    assert.deepEqual(rows.map((r) => r.id).sort(), ['box-a', 'box-b', 'box-desk'])
+  })
+  it('machines only: the browser box (box-wui) is not a row, a machine box still is', () => {
+    assert.equal(rows.some((r) => r.id === 'box-wui'), false)
+    assert.equal(rows.some((r) => r.browser), false)
+    // control: a machine box with a human seated on it keeps that human
+    assert.deepEqual(rows.find((r) => r.id === 'box-desk').people.map((p) => p.id), ['HUM-9'])
+    // even when the detail names box-wui, it stays out
+    const withWuiDetail = boxRows(PEOPLE, { ...BOXES, 'box-wui': { online: true, last_hello_at: '' } })
+    assert.deepEqual(withWuiDetail.map((r) => r.id).sort(), ['box-a', 'box-b', 'box-desk'])
   })
   it('splits each box\'s seats into people AND agents, with the user count', () => {
     const desk = rows.find((r) => r.id === 'box-desk')
     assert.deepEqual(desk.people.map((p) => p.id), ['HUM-9'])
     assert.deepEqual(desk.agents.map((a) => a.id), ['CLE-07'])
     assert.equal(desk.userCount, 2)
-    const wui = rows.find((r) => r.id === 'box-wui')
-    assert.deepEqual(wui.people.map((p) => p.id).sort(), ['HUM-1', 'HUM-2'])
-    assert.equal(wui.agents.length, 0)
-    assert.equal(wui.browser, true)
-    assert.equal(wui.tag, 'wui')
   })
   it('online is the detail flag, or any seat online for a detail-less box', () => {
     assert.equal(rows.find((r) => r.id === 'box-a').online, true)
     assert.equal(rows.find((r) => r.id === 'box-b').online, false)
-    // box-wui has no detail; HUM-1 is online, so the box reads online
-    assert.equal(rows.find((r) => r.id === 'box-wui').online, true)
+    // box-c has no detail; its agent is online, so the box reads online
+    const c = boxRows([{ id: 'CLE-12', box: 'box-c', label: 'CLE-12@box-c', online: true }], {})
+    assert.equal(c[0].online, true)
   })
-  it('sorts online first, machine boxes before the browser box, then by id', () => {
-    // online: box-a, box-desk, box-wui (browser last of the online) ; offline: box-b
-    assert.deepEqual(rows.map((r) => r.id), ['box-a', 'box-desk', 'box-wui', 'box-b'])
+  it('sorts online first, then by id', () => {
+    // online: box-a, box-desk ; offline: box-b
+    assert.deepEqual(rows.map((r) => r.id), ['box-a', 'box-desk', 'box-b'])
   })
   it('a box named only in the detail (no seat yet) still lists, with zero users', () => {
     const withEmpty = boxRows([], { 'box-nea': { online: true, last_hello_at: '' } })
@@ -101,11 +109,12 @@ describe('boxByID', () => {
 describe('filterBoxes', () => {
   const rows = boxRows(PEOPLE, BOXES)
   it('matches id or tag, case-insensitively; empty keeps all', () => {
-    assert.equal(filterBoxes(rows, '').length, 4)
-    assert.deepEqual(filterBoxes(rows, 'desk').map((r) => r.id), ['box-desk'])
-    assert.deepEqual(filterBoxes(rows, 'WUI').map((r) => r.id), ['box-wui'])
+    assert.equal(filterBoxes(rows, '').length, 3)
+    assert.deepEqual(filterBoxes(rows, 'DESK').map((r) => r.id), ['box-desk'])
+    // the browser box is not a row, so the filter cannot find it either
+    assert.equal(filterBoxes(rows, 'wui').length, 0)
     // "box-" is in every id, so it keeps all
-    assert.equal(filterBoxes(rows, 'box-').length, 4)
+    assert.equal(filterBoxes(rows, 'box-').length, 3)
     assert.equal(filterBoxes(rows, 'zzz').length, 0)
   })
 })

@@ -425,18 +425,20 @@ func (c *Client) Run(ctx context.Context) error {
 // warm socket instead of dialling its own. The listener lives and dies with the
 // session: between reconnects there is nothing to submit to, and a CLI that
 // finds no listener dials as it did before 030.
+//
+// Everything hold does runs under hctx, which ends with the session as well as
+// with ctx: a session that keepalive has declared dead cancels the pin
+// refresh, probe or flush in flight, and hold returns at once. Before, those
+// REST calls ran under the daemon's never-ending ctx, so one that hit a
+// silent hub kept hold parked for ever on a session already closed - the
+// process up, the box deaf (prd t1 desk, 2026-10-03 11:36Z, 16 min).
 func (c *Client) hold(ctx context.Context, sess *Session) error {
 	defer sess.Close()
-	sctx, stopSubmit := context.WithCancel(ctx)
-	defer stopSubmit()
-	if srv, err := c.Listen(); err != nil {
-		// Not fatal: the box keeps working, every send just pays the dial.
-		c.Log.Warn().Err(err).Str("socket", c.Cfg.SubmitPath()).Msg("submit listener not opened; sends will dial")
-	} else if srv != nil {
-		defer srv.Close()
-		go srv.Serve(sctx, sess)
-		c.Log.Info().Str("socket", c.Cfg.SubmitPath()).Msg("submit listener up")
-	}
+	hctx, stop := context.WithCancel(ctx)
+	defer stop()
+	defer context.AfterFunc(sess.ctx, stop)()
+	ctx = hctx
+	defer c.serveSubmit(ctx, sess)()
 	if _, err := sess.Flush(ctx); err != nil {
 		c.Log.Warn().Err(err).Msg("flush")
 	}
@@ -471,12 +473,14 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
-		case <-sess.Done():
-			if sess.CloseCode() == wire.CloseSuperseded {
-				return ErrSuperseded
+			select {
+			case <-sess.Done(): // the read loop ended: was it a 4409?
+				return sess.endErr()
+			default:
+				return nil
 			}
-			return nil
+		case <-sess.Done():
+			return sess.endErr()
 		case <-pins.C:
 			if err := sess.SyncPins(ctx); err != nil {
 				if stranded("pin refresh", err) {
@@ -501,4 +505,30 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 			}
 		}
 	}
+}
+
+// serveSubmit opens the box-local submit socket on sess for as long as ctx
+// lives, and returns the func that closes it. A listener that will not open
+// is not fatal: the box keeps working, every send just pays the dial.
+func (c *Client) serveSubmit(ctx context.Context, sess *Session) func() {
+	sctx, stopSubmit := context.WithCancel(ctx)
+	srv, err := c.Listen()
+	if err != nil {
+		c.Log.Warn().Err(err).Str("socket", c.Cfg.SubmitPath()).Msg("submit listener not opened; sends will dial")
+	}
+	if srv == nil {
+		return stopSubmit
+	}
+	go srv.Serve(sctx, sess)
+	c.Log.Info().Str("socket", c.Cfg.SubmitPath()).Msg("submit listener up")
+	return func() { stopSubmit(); srv.Close() }
+}
+
+// endErr is what hold returns for a session whose read loop has ended:
+// ErrSuperseded on 4409 (a newer hello took the box), else nil (redial).
+func (s *Session) endErr() error {
+	if s.CloseCode() == wire.CloseSuperseded {
+		return ErrSuperseded
+	}
+	return nil
 }

@@ -113,6 +113,18 @@ type Client struct {
 	// only the old one had minted. That refusal is the signal this probe
 	// reads.
 	SessionProbe time.Duration
+	// RESTTimeout bounds one REST call whose ctx carries no deadline of its
+	// own. 0 = defaultRESTTimeout.
+	//
+	// The default client has no Timeout, and the daemon's ctx never ends, so
+	// before this a REST call to a hub that silently stopped answering
+	// (accepts the TCP connection, never replies) blocked for ever. Measured
+	// on the prd t1 desk 2026-10-03 11:36Z: "did not answer a ping" was the
+	// last line of hub-run.log, the process stayed up, and no "hub session up"
+	// followed for 16 min until a watch script restarted it. The ping had
+	// closed the socket, but hold was parked in a pin refresh (or the read
+	// loop in an attachment fetch) and never saw the session end.
+	RESTTimeout time.Duration
 	// Warn receives the operator warnings (a private key loaded from inside
 	// SPOOL_ROOT). nil = os.Stderr.
 	Warn io.Writer
@@ -135,6 +147,17 @@ func (c *Client) now() time.Time {
 		return time.Now()
 	}
 	return c.Now()
+}
+
+// defaultRESTTimeout is generous for an attachment and still ends a stall
+// well inside the time a desk notices a silent sidecar.
+const defaultRESTTimeout = 60 * time.Second
+
+func (c *Client) restTimeout() time.Duration {
+	if c.RESTTimeout <= 0 {
+		return defaultRESTTimeout
+	}
+	return c.RESTTimeout
 }
 
 func (c *Client) timeout() time.Duration {
@@ -256,6 +279,13 @@ type Session struct {
 	queueEnd chan int
 	done     chan struct{}
 	closeErr error
+	// ctx lives as long as the session: cancelled when the read loop ends,
+	// when keepalive declares the socket dead, or on Close. Work done on the
+	// session's behalf (the read loop's attachment fetches, hold's REST
+	// calls) runs under it, so a dead socket can never strand that work -
+	// and the work can never keep a dead session looking alive.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// pinConflict is a local pin the hub has rotated and this box refused to
 	// overwrite. The daemon logs it and stays connected; hub-sync still
 	// returns it (exit 78).
@@ -300,10 +330,12 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		token: wel.UploadToken, replies: make(chan wire.Frame, 64), queueEnd: make(chan int, 1),
 		done: make(chan struct{}),
 	}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.tokenExp, _ = time.Parse(time.RFC3339, wel.UploadTokenExpiresAt)
 	c.saveRoster(wel.Roster)
 	if role == wire.RoleBox {
 		if err := s.syncPinsOnDial(ctx); err != nil {
+			s.cancel()
 			conn.CloseNow() //nolint:errcheck
 			return nil, err
 		}
@@ -442,6 +474,7 @@ func (s *Session) keepalive() {
 					s.c.Log.Warn().Err(err).Dur("after", wait).
 						Msg("hub socket did not answer a ping; closing it so the session reconnects")
 				}
+				s.cancel()
 				s.conn.CloseNow() //nolint:errcheck
 				return
 			}
@@ -450,6 +483,7 @@ func (s *Session) keepalive() {
 }
 
 func (s *Session) readLoop() {
+	defer s.cancel() // runs after close(done): hold reads closeErr first
 	defer close(s.done)
 	for {
 		var f wire.Frame
@@ -464,11 +498,11 @@ func (s *Session) readLoop() {
 			var err error
 			switch {
 			case f.Backfill != "":
-				err = s.receiveBackfill(context.Background(), f.Env, f.Agents, f.Backfill)
+				err = s.receiveBackfill(s.ctx, f.Env, f.Agents, f.Backfill)
 			case f.Fallback != "":
-				err = s.receiveFallback(context.Background(), f.Env, f.Agents, f.Fallback)
+				err = s.receiveFallback(s.ctx, f.Env, f.Agents, f.Fallback)
 			default:
-				err = s.receive(context.Background(), f.Env, f.Agents)
+				err = s.receive(s.ctx, f.Env, f.Agents)
 				s.commit(f.Env, err)
 			}
 			if err != nil {
@@ -496,7 +530,14 @@ func (s *Session) readLoop() {
 }
 
 // Close ends the session normally.
-func (s *Session) Close() { s.conn.Close(websocket.StatusNormalClosure, "") } //nolint:errcheck
+func (s *Session) Close() {
+	s.cancel()
+	s.conn.Close(websocket.StatusNormalClosure, "") //nolint:errcheck
+}
+
+// Lost is closed once the session is over for any reason: the read loop
+// ended, keepalive found the socket dead, or Close.
+func (s *Session) Lost() <-chan struct{} { return s.ctx.Done() }
 
 // Done is closed when the socket ends; CloseCode then reports why.
 func (s *Session) Done() <-chan struct{} { return s.done }
@@ -843,6 +884,11 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 	u, err := s.c.endpoint(path)
 	if err != nil {
 		return err
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.c.restTimeout())
+		defer cancel()
 	}
 	tok, err := s.uploadToken(ctx)
 	if err != nil {

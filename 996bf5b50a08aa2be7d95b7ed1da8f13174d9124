@@ -1,0 +1,6 @@
+Lay-What: The practice version of the app used for testing now shows archived topics the same way as the real one.
+Lay-How: Its stand-in server keeps an archived topic's first message and its topic panel shows the "Archived" label.
+Lay-Why: Tests run against the practice version could not see the archive mark, so they could not prove it works.
+Tech-What: WUI mock path: the topic read keeps the topic's own archived card and TopicPane sets archivedAt, as against the live hub.
+Tech-How: spool-client.mjs mock no longer drops the archived card from GET /v1/view/topics/{task}; TopicPane's mock branch reads archived_at.
+Tech-Why: The mock filtered archived rows like the lobby feed does, so a mock topic took its title from the first reply and never showed the badge.

@@ -1,0 +1,6 @@
+Lay-What: Opening a conversation or the direct-messages list is quicker, because the server asks the database fewer times.
+Lay-How: Questions that used to be asked one after another now travel together in one trip.
+Lay-Why: Every extra trip to the database adds waiting before the screen fills in.
+Tech-What: GET /v1/view/topics/{id} and /v1/view/topics?dm/?peer go 3 -> 2 DB round trips.
+Tech-How: store ViewTopicDoor batches TopicAccess with the page; ViewTopicsUnlessClone rides the act-as clone gate on the DM walk; new pipelined-read and 403 tests.
+Tech-Why: Perf round 4 G7: gate reads ran as separate round trips before the reads they guarded.

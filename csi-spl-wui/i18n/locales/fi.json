@@ -1599,5 +1599,33 @@
     "empty_mine": "Sinulle ei ole vielä mitään. Täällä näkyvät maininnat, vastaukset ketjuissasi ja yksityisviestit.",
     "mention_in": "Mainitsi sinut kohteessa {place}",
     "badge": "Virta: {n} uutta sinulle"
+  },
+  "release_notes": {
+    "open": "Release notes",
+    "title": "Release notes",
+    "filter": "Filter: version, commit, area or words",
+    "you_are_here": "you are here",
+    "newer_live": "newer, not loaded yet",
+    "unversioned": "Not in a version yet",
+    "load_older": "Load older versions",
+    "back": "All versions",
+    "lay": "In plain words",
+    "tech": "Technical",
+    "what": "What",
+    "how": "How",
+    "why": "Why",
+    "state_missing": "No note: committed before notes were required.",
+    "state_backfill": "Written after the fact",
+    "state_skip": "No visible change",
+    "state_revert": "Revert",
+    "badge_missing": "no note",
+    "open_commit": "Open the commit",
+    "copy_link": "Copy the link to this note",
+    "empty": "No release notes yet.",
+    "no_match": "Nothing matches the filter.",
+    "off": "This workspace keeps no release notes yet.",
+    "error": "Could not load the release notes.",
+    "not_found": "No release note for {ref} yet: it may not be deployed yet.",
+    "bad_ref": "Not a commit or a version: {ref}"
   }
 }

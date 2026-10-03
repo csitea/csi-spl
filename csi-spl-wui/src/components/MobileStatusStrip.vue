@@ -65,8 +65,12 @@
         <span>{{ t('build.newer_live', { commit: newerLive }) }}</span>
         <button type="button" class="status-strip__reload" @click="reloadForBuild(buildWatch.live)">{{ t('build.reload') }}</button>
       </span>
+      <!-- spec 065 L6: the desktop card's "Release notes", the same modal -->
+      <button type="button" class="status-strip__reload" data-test="status-strip-version-notes" @click="openReleaseNotes">{{ t('release_notes.open') }}</button>
     </div>
   </footer>
+  <!-- outside the strip: it unmounts while the keyboard is up (the filter box) -->
+  <LazyReleaseNotesDialog v-if="releaseNotesOpen" v-model:open="releaseNotesOpen" />
 </template>
 
 <script setup lang="ts">
@@ -120,6 +124,8 @@ const open = ref<'' | 'health' | 'version'>('')
 const barEl = ref<HTMLElement | null>(null)
 function close() { open.value = '' }
 function toggle(which: 'health' | 'version') { open.value = open.value === which ? '' : which }
+const releaseNotesOpen = ref(false)
+function openReleaseNotes() { close(); releaseNotesOpen.value = true }
 function onOutside(ev: Event) {
   const el = barEl.value
   if (el && ev.target instanceof Node && el.contains(ev.target)) return

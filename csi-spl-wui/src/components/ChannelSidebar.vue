@@ -676,6 +676,8 @@
               <span>{{ t('build.newer_live', { commit: newerLive }) }}</span>
               <button type="button" class="vs-pop__reload" data-test="app-version-reload" @click.stop="reloadForBuild(buildWatch.live)">{{ t('build.reload') }}</button>
             </span>
+            <!-- spec 065 L6: every version and its commits' notes, one modal -->
+            <button type="button" class="vs-pop__reload" data-test="app-version-notes" @click.stop="releaseNotesOpen = true">{{ t('release_notes.open') }}</button>
           </span>
         </span>
       </div>
@@ -699,6 +701,7 @@
          child of .sidebar so the collapse CSS hides its siblings and keeps only
          this strip. -->
     <PaneCollapseToggle pane="channels" />
+    <LazyReleaseNotesDialog v-if="releaseNotesOpen" v-model:open="releaseNotesOpen" />
   </nav>
 </template>
 
@@ -1366,6 +1369,7 @@ const versionLabel = computed(() => String(version.value || '').trim())
 const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
 /* the card also opens by a tap (touch has no hover) and closes on Esc */
 const vsOpen = ref(false)
+const releaseNotesOpen = ref(false)
 /* owner 2026-09-27 (topic 82b9c309): a click or tap anywhere outside the
    card closes it. Closing also drops the focus, since :focus-within would
    otherwise keep the card painted after vsOpen is false. */

@@ -1,0 +1,6 @@
+Lay-What: Tidies the custom-domain checking scripts; nothing a user sees changes.
+Lay-How: Data is handed to the reading tool directly rather than through an extra step, and a new test covers the scripts.
+Lay-Why: The extra step could change certain values by accident and cost a little time.
+Tech-What: do_spl_domain_verify and spl_mapping_cert_poll use jq <<<"$x" instead of echo | jq (9 sites).
+Tech-How: spl-domain-verify.func.sh and spl-wait-for-mapping-cert.func.sh; new domain-verify.tst.sh stubs gcloud and curl, 13/13 before and after.
+Tech-Why: Refactor round 1 #25: echo mangles values starting with -n/-e and the pipe adds a subshell.

@@ -1,0 +1,6 @@
+Lay-What: Adds two settings that decide whether the app measures its own speed in real browsers, and for how many visits.
+Lay-How: Each environment's settings file gets an on/off switch and a share of visits to sample; the app is built with those values.
+Lay-Why: Speed measurement should be tried on the test site first and stay off on the live site until it is proven.
+Tech-What: cnf env.perf.rum_enabled and env.perf.sample_rate per env (dev on, prd off, rate 1.0), passed into the WUI build.
+Tech-How: do_tpl_gen renders the cnf; workflow 30 exports NUXT_PUBLIC_PERF_RUM and NUXT_PUBLIC_PERF_SAMPLE_RATE on both generate steps; nuxt.config.ts adds runtimeConfig.public.perfRum (default off) and perfSampleRate.
+Tech-Why: Spec 066 L4: the real-user performance sampler needs a per-env switch from the single cnf source of truth, not a value baked into the code.

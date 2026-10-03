@@ -24,7 +24,8 @@
 # with `tmux -S $SPOOL_TMUX_SOCKET list-windows -a`. Run it as anyone: tmux calls
 # hop to $SPOOL_BOX_USER when needed.
 #
-# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, 5 no session.
+# Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, 5 no session,
+# 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -39,6 +40,7 @@ case "$KIND" in claude|grok|agy|qwen) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
+[ ! -e "${SPOOL_ROOT}/dispatch/box.leave" ] || { echo "spawn-window: this machine is draining ($(head -c 200 "${SPOOL_ROOT}/dispatch/box.leave")): spawn on another box, or run ./run -a do_spl_box_join here" >&2; exit 6; }
 
 # The session first: an id is claimed only once there is a window to put it
 # in, so a spawn that cannot start leaves no orphan claim behind.

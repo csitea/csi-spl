@@ -1,0 +1,6 @@
+Lay-What: Setting up a machine now clears out stale terminal shortcuts left behind by the old tooling.
+Lay-How: The setup removes the dead shortcuts and points the terminal settings at the current, maintained ones.
+Lay-Why: A dozen dead shortcuts would make the terminal start with errors for the agent user.
+Tech-What: install.sh step y7-tmux-links removes ~/.tmux symlinks into the old engine and repoints ~/.tmux.conf.
+Tech-How: Engine source-file lines are repointed at the csi-spl snippet or commented out, with a backup; then the links are removed; idempotent, --dry-run aware.
+Tech-Why: An engine test once ran its tmux install against a real home, leaving 12 broken links and two source-file lines (spec 069 2.3).

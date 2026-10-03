@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Releases reach the live sites sooner because the build now runs while the tests run; nothing changes in the app itself.

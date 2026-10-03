@@ -1,0 +1,6 @@
+Lay-What: Stops a false alarm about unanswered messages on the backup machine.
+Lay-How: When another machine is the one answering, the backup now reports that as fine instead of flagging a gap.
+Lay-Why: The backup kept warning about a problem that was not there, which hid real warnings.
+Tech-What: The dispatch check's sweep row reports ok (remote holder) while another machine holds the dispatch lease.
+Tech-How: spl-unanswered-sweep.func.sh checks the lease holder before reading unanswered.last; an unreachable hub still falls through to the file; unanswered-sweep 9b + control.
+Tech-Why: The standby sweep never rewrites unanswered.last, so a stale sent=FAILED from when it held the lease read GAP every tick.

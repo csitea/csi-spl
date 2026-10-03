@@ -1,0 +1,6 @@
+Lay-What: When a topic is opened directly, the server now says whether it is archived, when, and by whom.
+Lay-How: Reading a single topic now includes its archive date and who archived it, if it is archived.
+Lay-Why: A topic opened from a link or a notification looked live even when it was archived, because the app was never told.
+Tech-What: GET /v1/view/topics/{task} answers archived_at / archived_by (omitempty) when the topic is archived.
+Tech-How: view.go calls store.TopicArchived (memory + postgres over messages_archived) on a first or reverse-window read only; after= polls and the lobby never carry it; contract topic-archive-v1 updated.
+Tech-Why: Lists hide archived topics, but a read by id still answered and carried no archive stamp, so the WUI drew it as live.

@@ -1,0 +1,6 @@
+Lay-What: A fix to the script that catches up missed app releases now itself triggers a release.
+Lay-How: The list of files whose change starts an app release now includes that catch-up script.
+Lay-Why: Otherwise a repair to the release process would sit unused until some other change happened to start a release.
+Tech-What: Workflow 30 (WUI build and deploy) runs when the WUI catch-up script changes.
+Tech-How: One path added to the paths allow-list of 30_wui-build-deploy.yml.
+Tech-Why: Workflow 30 deploys only on its path allow-list, and the catch-up script was not on it although it is part of the deploy.

@@ -1,0 +1,6 @@
+Lay-What: The second machine now runs the regular background jobs that used to run only on the owner's computer.
+Lay-How: Its automatic setup installs the same scheduled jobs: the regular tidy-up, the weekly full scan and the temporary-file clean-up.
+Lay-Why: When the owner's computer was off, those jobs did not run at all.
+Tech-What: Satellite role 10 installs the dev desk reconcile (*/3), the weekly full scan (Fri 17:00) and the tmp scratch sweep (:17).
+Tech-How: roles/10_rotation_cron/tasks/main.yml calls each job's named install action as the right user; satellite-ansible test 17 runs them against a stub.
+Tech-Why: Spec 064 L4: these crons ran only on the PC, so they stopped whenever it was off.

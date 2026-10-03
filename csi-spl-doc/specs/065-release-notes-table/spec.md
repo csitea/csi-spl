@@ -1,6 +1,6 @@
 # 065: the release notes table, one row per commit, lay and technical
 
-Status: **draft for the owner, Q1..Q9 open** (section 9). Spec only; no
+Status: **draft for the owner, Q1..Q14 open** (section 9). Spec only; no
 code, workflow, gate or `CLAUDE.md` was touched.
 Draft 2026-10-03, c-053.
 Related: [047 deployability](../047-spool-deployability/) (W10, the weekly
@@ -162,6 +162,86 @@ No history is rewritten.
 | e. the weekly stable GitHub release gains the lay column | self-hosters get plain notes too | a GitHub page, not the WUI |
 
 **Recommendation: a + b + e now; d only if the owner wants a push; never c.**
+Sections 7.1..7.3 then fix (a) and (b) as the owner set them.
+
+### 7.1 Entry point: the version pop-up at the bottom (owner, t1 `4a31aa83`, 03:32Z and 03:33Z)
+
+> "There should be a modal dialog presenting all of the versions and the
+> commit hashes , both on desktop and mobile so that when A User clicks on
+> the c.version of the role he/she should be able to see those notes per
+> commit and eac time an agent informs for a commit released into prd or dev
+> he should also post the link to that release note"
+
+> "All of this this should be accessible from the version pop-up in the
+> bottom"
+
+What exists today (cite):
+
+| surface | file | today |
+|---|---|---|
+| desktop | `csi-spl-wui/src/components/ChannelSidebar.vue` lines 632..670 (`data-test="app-version-wrap"`, card `app-version-card`) | the footer version; hover/click opens a small card with the commit sha, a copy button and a "newer build, reload" line |
+| phone | `csi-spl-wui/src/components/MobileStatusStrip.vue` lines 36..64 (`status-strip-version`, card `status-strip-version-card`) | the same card in the bottom status strip |
+| dialog shell | `csi-spl-wui/src/components/UiDialog.vue` (sizes `sm..xl`, `card`) | the shared modal every dialog uses |
+
+`grep -n 'release' csi-spl-wui/src/components/ChannelSidebar.vue csi-spl-wui/src/components/MobileStatusStrip.vue` -> nothing: neither card links to any notes today.
+
+The change (this replaces a stand-alone `/releases` page as the main
+reading path):
+
+1. Both version cards gain one button, **"Release notes"**. It opens ONE
+   modal, `ReleaseNotesDialog`, built on `UiDialog` (`xl` on desktop,
+   full screen on a phone: the same component, so both surfaces show the
+   same thing).
+2. The modal lists **every version**, newest first. The running version is
+   open and marked "you are here"; a newer one that is live but not yet
+   loaded is marked as in the card today. Each version row shows its
+   commit hashes (short sha + subject + kind + area).
+3. A click on a commit hash opens that commit's note in the modal: the lay
+   What / How / Why first, the technical three below, plus the full sha, a
+   copy button and the link to the commit. `state=missing` rows say so
+   plainly ("no note: committed before notes were required").
+4. A filter box (version, sha prefix, area, words) and paging of versions
+   (about 105 a day, row 3): the modal loads the latest 50 versions and
+   fetches older ones on scroll, from one hub endpoint
+   `GET /v1/release-notes?before=<version>&limit=50` and
+   `GET /v1/release-notes/<sha>`.
+5. "c.version" in the owner's text is read as the version shown in that
+   pop-up; the modal is reachable by EVERY signed-in user, not only admins
+   (Q11).
+
+### 7.2 A stable link per note
+
+Every note has one link, built from the WUI host in cnf (no literal host):
+
+```text
+https://<<run-time>>.csitea.net/releases/<sha>
+```
+
+- `<sha>` may be the full sha or a 7+ char prefix; `/releases/v<X.Y.Z>` opens
+  that version's list.
+- The route loads the app and opens `ReleaseNotesDialog` on that note, so
+  the link and the footer button show the same modal, not two pages.
+- The link exists the moment the commit is on trunk: the row is ingested on
+  deploy, and until then the modal shows the trailers read straight from
+  the commit with "not deployed yet".
+- The dev WUI and the prd WUI each serve the link; a post names the one the
+  commit was released to.
+
+### 7.3 The link in every "released to dev / prd" post
+
+Rule: an agent post that says a commit reached dev or prd carries that
+commit's note link (7.2), one per sha.
+
+| where it is enforced | how | recommendation |
+|---|---|---|
+| the lane seed prompt (`csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh`, the closing-steps text) | the report template asks for `sha + note link` per released commit | **yes**: it is where every lane learns its report shape |
+| a helper that prints the line | `./run -a do_release_note_link SHA=<sha> ENV=<env>` prints `<sha> v<X.Y.Z> <link>`, so nobody hand-builds the URL | **yes** |
+| the dispatcher | before relaying a lane's result to the owner, a check flags a post that says released/deployed with a sha but no `/releases/` link, and asks the lane to add it | **yes, as a warning** (`do_spl_dispatch_check` today checks the dispatchers, not post content: `grep -c release csi-spl-orc/src/bash/run/spl-dispatch-check.func.sh` -> 0) |
+| the hub refusing the post | would block a message | **no**: a missing link must not lose a report |
+
+The deploy workflows (20 / 30) could also post the links themselves; that
+is offered as Q14, not recommended now (it is a channel post per deploy,
+the noise 7 row c rules out).
 
 ## 8. Build order (after the owner answers)
 
@@ -170,9 +250,12 @@ No history is rewritten.
 2. The pre-push lint part `release-note` (warning mode) + its test.
 3. Migration `0105_release_note.sql` (next free number at build time), the
    hub ingest at deploy time, and the hygiene filter on ingest.
-4. The WUI `/releases` page + the version link.
-5. After a week of warnings: the refusal, and the CI backstop job.
-6. The workflow 55 notes gain the lay column.
+4. `ReleaseNotesDialog` from both version cards (desktop + phone), the
+   `/releases/<sha>` route, the two hub read endpoints, e2e on both widths.
+5. `do_release_note_link` + the seed-prompt report line + the dispatcher
+   warning (7.3).
+6. After a week of warnings: the refusal, and the CI backstop job.
+7. The workflow 55 notes gain the lay column.
 
 ## 9. Owner questions
 
@@ -187,9 +270,22 @@ No history is rewritten.
    commits may say `Release-Note: skip`? yes / no
 6. **Q6** Backfill, pick one: none / since the last stable, subject only
    (recommended) / last 100 versions written by an agent
-7. **Q7** A WUI page `/releases`, with the footer version linking to it?
+7. **Q7** The notes open in ONE modal from the version pop-up at the
+   bottom (desktop footer and phone strip), listing every version with its
+   commit hashes, and a click on a hash shows that commit's note (7.1)?
    yes / no
 8. **Q8** A daily digest post in a channel as well? yes / no (per-deploy
    posts are not offered: ~105 a day)
 9. **Q9** Add the lay column to the weekly stable GitHub release notes?
    yes / no
+10. **Q10** The note link is `<wui host>/releases/<sha>` (or
+    `/releases/v<X.Y.Z>`), opening the same modal? yes / no
+11. **Q11** Every signed-in user can open the notes, not only admins?
+    yes / no
+12. **Q12** Every "released to dev/prd" post must carry the note link per
+    sha, taught in the lane seed prompt with a helper that prints it?
+    yes / no
+13. **Q13** The dispatcher warns (does not block) on a released post without
+    the link? yes / no
+14. **Q14** Should the deploy workflows also post the links themselves?
+    yes / no (recommended: no, ~105 deploys a day)

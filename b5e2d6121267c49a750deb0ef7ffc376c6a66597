@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: The shell-script quality check runs about five times faster; nothing changes for users.

@@ -1,0 +1,6 @@
+Lay-What: On a phone, a reply thread now has a round arrow button that jumps to the newest or the oldest message.
+Lay-How: Away from the newest end the arrow takes you there; once you are at the newest end it takes you back to the start.
+Lay-Why: Long threads on a phone took many swipes to get from one end to the other.
+Tech-What: WUI LiveFeed shows a thread-jump button on a phone thread pane (holdScroll), pointing to the newest or the oldest end.
+Tech-How: thread-jump.mjs computes show/dir/top from the .feed-body scroll; a ResizeObserver re-measures when the pane appears; scrollTo honours reduced motion; new feed.jump_oldest key in 19 locales.
+Tech-Why: The phone thread pane had a "new messages" pill only, and no way to reach the oldest end quickly.

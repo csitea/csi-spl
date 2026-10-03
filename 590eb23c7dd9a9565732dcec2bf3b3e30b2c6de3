@@ -1,0 +1,6 @@
+Lay-What: An internal database measuring tool no longer fails at random when asked to measure only some of its checks.
+Lay-How: The tool now reads the list of check names all at once instead of through a stream that could be cut short.
+Lay-Why: The random failure turned the shared quality checks red for no real reason.
+Tech-What: orc spl-db-hot-measure MEASURE_ONLY filter reads the names from a here-string instead of a pipe into grep -q.
+Tech-How: One line in spl-db-hot-measure.func.sh; a forced repro with a slow producer fails 20/20 before and 0/20 after.
+Tech-Why: grep -q exits on its first match, so under pipefail the printf producer's SIGPIPE failed the check intermittently.

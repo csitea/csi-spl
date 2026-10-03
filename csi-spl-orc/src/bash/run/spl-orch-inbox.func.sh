@@ -39,8 +39,10 @@ do_spl_orch_inbox() {
   spl_asks_table "$(jq -c '[.[] | select(.state == "open" or .state == "acked")]' <<<"$rows")"
   echo
   echo "== 2. UNTRACKED blocker/task in $dir (not in the ask book), newest first =="
-  jq -r --argjson asks "$rows" --argjson n "${ORCH_INBOX_UNTRACKED:-20}" '
-    ($asks | map({key: .ask_id, value: true}) | from_entries) as $known
+  # the ask book goes in as a file, never as an argument: past 128 KiB in one
+  # argument exec fails with "Argument list too long" (2026-10-03)
+  jq -r --slurpfile asks <(printf '%s' "$rows") --argjson n "${ORCH_INBOX_UNTRACKED:-20}" '
+    (($asks[0] // []) | map({key: .ask_id, value: true}) | from_entries) as $known
     | [.[] | select((.kind == "blocker" or .kind == "task") and (($known[.msg_id] // false) | not))]
     | sort_by(.ts) | reverse | .[0:$n][]
     | [.ts, .kind, .from, (.task_id[0:8]), .msg_id[0:8], .line] | @tsv' <<<"$msgs" | column -t -s $'\t'
@@ -76,8 +78,8 @@ spl_orch_inbox_msgs() {
 # whose ask is closed. Moved only with ORCH_INBOX_ARCHIVE=1.
 spl_orch_inbox_archive() {
   local dir="$1" files n f moved=0
-  files="$(jq -r --argjson asks "$3" --argjson keep "$(( ${ORCH_INBOX_KEEP_MIN:-60} * 60 ))" --argjson now "$(date -u +%s)" '
-    ($asks | map({key: .ask_id, value: .state}) | from_entries) as $st
+  files="$(jq -r --slurpfile asks <(printf '%s' "$3") --argjson keep "$(( ${ORCH_INBOX_KEEP_MIN:-60} * 60 ))" --argjson now "$(date -u +%s)" '
+    (($asks[0] // []) | map({key: .ask_id, value: .state}) | from_entries) as $st
     | .[] | select(
         (.kind != "blocker" and .kind != "task" and ($now - ((.ts | sub("\\.[0-9]+"; "") | fromdateiso8601? ) // $now)) >= $keep)
         or (($st[.msg_id] // "") | IN("done", "declined", "dead")))

@@ -36,6 +36,8 @@
 #      without an owner leg it is dead-lettered saying nobody was told
 #  11. a hub book past ARG_MAX (3 MB) is listed (CONTROL: the same book as
 #      a jq argument fails: Argument list too long)
+#  12. the orchestrator view on 5000 inbox files and that book: section 2
+#      and the archive count are right (CONTROL: the old --argjson asks fails)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -389,6 +391,36 @@ n="$(jq -r 'select(.hub == "ok") | .asks | length' <<<"$out" 2>/dev/null | tail 
 [[ $rc -eq 0 && "$n" == 30 && "$out" != *"too long"* ]] && pass "do_spl_asks_open lists the ARG_MAX-sized book from the hub (30 rows, hub ok)" || fail "big book (rc=$rc, n=$n): ${out:0:300}"
 out="$(on sat do_spl_asks_open ASKS_FLEET=big 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"dddddddd"* && "$out" == *"1 open"* ]] && pass "the table view of the big book shows its one open ask" || fail "big table (rc=$rc): ${out:0:300}"
+
+# 12. the orchestrator's view on a big inbox and the big book (2026-10-03:
+# spl-orch-inbox.func.sh lines 42 and 84 "jq: Argument list too long", so
+# section 2 and the archive count were silently empty)
+ib="$T/sat/spool/CLE-77929/inbox"
+python3 - "$ib" <<'PY'
+import json, os, sys
+d = sys.argv[1]
+def put(i, kind, mid, body, ts):
+    json.dump({"v": 1, "msg_id": mid, "task_id": "eeeeeeee-%04d" % i, "ts": ts, "from": "CLE-0%03d" % (i % 7 + 2), "to": "CLE-77929",
+               "kind": kind, "body": body, "files": []}, open(os.path.join(d, "20261003T080000Z--x--%05d.json" % i), "w"))
+put(0, "blocker", "ffffffff-0000-4fff-8fff-ffffffffffff", "untracked big-inbox ask", "2026-10-03T08:00:00Z")
+put(1, "blocker", "dddddddd-0000-4444-8444-444444444444", "tracked open ask", "2026-10-03T07:00:00Z")
+put(2, "blocker", "dddddddd-0001-4444-8444-444444444444", "tracked closed ask", "2026-10-03T07:00:00Z")
+for i in range(3, 5000):
+    put(i, "note", "cccccccc-%04d-4ccc-8ccc-cccccccccccc" % i, "big inbox note %d" % i, "2026-10-01T10:00:00Z")
+PY
+rows="$(on sat 'spl_asks_init && spl_asks_load && printf "%s" "$ASKS_ROWS"' ASKS_FLEET=big 2>/dev/null)"
+msgs="$(on sat 'spl_orch_inbox_msgs "'"$ib"'"')"
+err="$(jq -r --argjson asks "$rows" '.[0].file' <<<"$msgs" 2>&1 >/dev/null)"; rc=$?
+(( ${#rows} > 3000000 )) && [[ "$(jq length <<<"$msgs")" == 5000 && $rc -ne 0 && "$err" == *"Argument list too long"* ]] &&
+  pass "CONTROL: 5000 inbox files with the ${#rows}-byte book as --argjson asks (the old lines 42/84) fail: Argument list too long" ||
+  fail "big inbox control (rc=$rc, ${#rows} bytes, $(jq length <<<"$msgs") msgs): $err"
+out="$(on sat do_spl_orch_inbox ORCH_ID=CLE-77929 ASKS_FLEET=big ORCH_INBOX_KEEP_MIN=0 2>&1)"; rc=$?
+o2="$(grep -n '== 2. UNTRACKED' <<<"$out" | cut -d: -f1)"; o3="$(grep -n '== 3. FYI' <<<"$out" | cut -d: -f1)"
+sec2="$(sed -n "${o2:-1},${o3:-1}p" <<<"$out")"
+[[ $rc -eq 0 && "$out" != *"too long"* && "$sec2" == *"untracked big-inbox ask"* && "$sec2" != *"tracked open ask"* && "$sec2" != *"tracked closed ask"* ]] &&
+  pass "view 2 on 5000 inbox files and the big book lists the untracked blocker, not the tracked ones" || fail "big view 2 (rc=$rc): ${out:0:600}"
+[[ "$out" == *"INFO 4998 handled message(s) can move to archive/"* ]] &&
+  pass "the archive count on the big inbox: 4997 old notes + 1 closed ask = 4998" || fail "big archive count: $(grep -i archive <<<"$out")"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

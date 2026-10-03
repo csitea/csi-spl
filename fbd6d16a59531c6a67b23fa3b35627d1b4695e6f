@@ -1,0 +1,6 @@
+Lay-What: Adds workspace settings for when helper assistants restart, and a log of each restart, which an admin can change.
+Lay-How: A settings table holds the limits with safe defaults, and every restart, hand-over or change is recorded for later study.
+Lay-Why: The owner wants to tune these limits by experiment and see the effect in real numbers.
+Tech-What: rdb 0105 agent_lifecycle_config + agent_lifecycle_events; GET/PATCH /v1/tenant/agent-lifecycle and .../events; spool lifecycle CLI.
+Tech-How: Store LifecycleKeys holds defaults pinned to the CHECKs; RLS FORCE NULLIF pair; patch logs config_change; box side rides lane frames; 90-day prune.
+Tech-Why: Spec 063 sections 11-12: lifecycle numbers must be per-workspace config with a dedicated event log.

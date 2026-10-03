@@ -1,0 +1,6 @@
+Lay-What: On a phone you can now select and copy part of a message's text by pressing and holding on it.
+Lay-How: Pressing and holding on the message text now starts the phone's normal text selection; pressing and holding on the card's top line still opens the menu.
+Lay-Why: The whole card reacted to a long press with its menu, so there was no way to copy just part of a message.
+Tech-What: WUI MessageCard: .msg-body is user-selectable at <= 820 px, and a touch starting on it skips the card long press.
+Tech-How: The long-press handler returns early for touches on .msg-body and does not prevent contextmenu; the header keeps menu and topic lift; e2e phone-longpress-select.
+Tech-Why: The card was user-select: none with a long press anywhere opening the menu, which blocked native selection.

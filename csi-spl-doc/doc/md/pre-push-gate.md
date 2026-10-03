@@ -1,11 +1,26 @@
-# Pre-push gate — lint parts
+# Pre-push gate — fast tier and lint parts
 
 The reference for what `./run -a do_check_pre_push_lint` (and the lint leg of
 the pre-push hook, `./run -a do_check_pre_push`) runs. The rule itself lives in
 the repo [CLAUDE.md](../../../CLAUDE.md): run the cheap gate for the tree you
 touched, before you push.
 
-## 1. Lint parts
+## 1. The hook's FAST tier
+
+The pre-push HOOK runs `do_check_pre_push` in its FAST tier (CLE-77824,
+owner 2026-10-01; it had grown to 16 min for iac and >10 min for api, so
+pushes race-lost trunk for hours). It runs only the parts the push touches
+(`origin/master...HEAD`), re-uses a part's green verdict while the paths that
+part reads are unchanged (a rebase over other lanes' commits re-runs
+nothing), FAILS on a missing tool instead of WARNing, and writes one
+`PART <part> PASS|PASS-cached|WARN-pre-existing trunk=<sha>|FAIL|SKIP-untouched <secs>`
+line per part to `~/.cache/csi-spl/pre-push.log`. Moved to CI only, because
+each costs minutes and workflow 10 (and the 20 deploy gate) already runs it
+on every push and fails on a skip: api `go test -race` (plain `go test`
+stays), `build-stripped`, `hub-pg` (~384 s), `hub-gcs`; iac tests whose
+header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
+
+## 2. Lint parts
 
 **Lint parts** (CLE-77829, owner 2026-10-01: "why cannot they be ran via
 shell actions locally before someone pushes?!"). The hook runs each GitHub

@@ -1,0 +1,2 @@
+Lay-What: The help page on release notes now says the check will start refusing changes one week after it starts warning.
+Lay-Why: It records the owner's decision on when the rule becomes strict.

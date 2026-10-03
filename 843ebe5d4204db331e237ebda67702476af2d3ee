@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Fixes the internal dispatcher rotation after the agent id change; nothing changes for users.

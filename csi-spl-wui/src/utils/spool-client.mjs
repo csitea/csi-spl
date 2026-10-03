@@ -439,7 +439,9 @@ export function createSpoolClient({
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
       if (mock) {
-        const all = topicMessages(state.messages, id)
+        /* t1 404cd808: the hub's topic read keeps the topic's own archived
+           card (only the lobby feed hides archived rows), so the mock does too */
+        const all = topicMessages([...state.messages, ...(state.archived || [])], id)
         /* t1 8fb802cd: the hub's archive stamp, as its own rule reads it */
         const arch = (state.archived || []).find((m) => m.archived_at && (m.msg_id === id || m.task_id === id))
         const stamp = arch && !after ? { archived_at: arch.archived_at, archived_by: arch.archived_by } : {}

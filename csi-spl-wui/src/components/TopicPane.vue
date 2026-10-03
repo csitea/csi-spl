@@ -186,7 +186,12 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   olderCursor.value = null
   oldestRow.value = null
   archivedAt.value = ''
-  if (api.mock || !open || !id) return
+  if (!open || !id) return
+  if (api.mock) {
+    /* t1 404cd808: the mock pane holds no read, but marks an archived topic as the live one does */
+    void withSessionRetry(api, () => api.getTopic(id, { limit: 1 })).then((d) => { if (topic.parentTaskId === id) archivedAt.value = archiveStamp(d) }).catch(() => {})
+    return
+  }
   loading.value = true
   try {
     const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW })) as { messages?: SpoolMessage[], next?: string | null }

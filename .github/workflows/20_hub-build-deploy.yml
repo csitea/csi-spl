@@ -290,7 +290,7 @@ jobs:
           SH
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       # dev, then prd: each env pushes as its OWN identity (key, else WIF),
       # the one its deploy leg uses; the prd auth replaces the dev one.
@@ -523,7 +523,7 @@ jobs:
 
       - name: Set up Cloud SDK
         if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
-        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Is the image already in the registry?
         id: img

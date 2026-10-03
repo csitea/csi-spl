@@ -21,8 +21,8 @@ import (
 
 // Answer-once refusal tokens.
 const (
-	TokenAnswered       = "answered"
-	TokenNotResponsible = "not_responsible"
+	TokenAnswered       = wire.TokenAnswered
+	TokenNotResponsible = wire.TokenNotResponsible
 )
 
 // claimAnswer runs the guard for f; nil, nil when f answers nothing. On

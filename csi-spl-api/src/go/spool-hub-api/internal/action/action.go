@@ -17,6 +17,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // typedByRe is rdb 0006 humans.human_id: a typed_by claim names a human.
@@ -58,6 +59,13 @@ type SendArgs struct {
 	// (specs/036 FR-009, `spool send --typed-by`). Hub mode only: it rides on
 	// the send frame and the hub accepts it only for a bound box operator.
 	TypedBy string
+	// Answers makes the send the answer to that message (spec 068 4.2,
+	// `spool send --answers <msg_id> [--if-gen <n>]`), from the seat that
+	// holds it on responsible_gen IfGen. Hub mode only, never queued: the hub
+	// stores it only from that seat and only once (exit ExitAnswered /
+	// ExitNotResponsible otherwise).
+	Answers string
+	IfGen   int64
 	// Channel makes the send a POST INTO that channel (specs/038): a new
 	// topic every member of the channel reads, exactly like a human's post -
 	// to ALL-0, to_box box-wui, the channel signed into the envelope. Hub mode
@@ -129,8 +137,14 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 	if err := splitToBox(cfg, in); err != nil {
 		return err
 	}
+	if err := checkPeers(cfg, in); err != nil {
+		return err
+	}
 	if in.ToBox != "" && cfg.HubURL == "" {
 		return fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	}
+	if err := checkAnswers(cfg, *in); err != nil {
+		return err
 	}
 	if in.Channel != "" {
 		in.Channel = ChannelID(in.Channel)
@@ -158,6 +172,40 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 		}
 	}
 	return checkFiller(in)
+}
+
+// checkPeers routes a send to the peer seats (spec 068 4.1, --to peers): hub
+// mode only, since a seat claims it on the hub, and signed to the hub's box,
+// msg.PeersToBox, so no box inbox receives it.
+func checkPeers(cfg *config.Config, in *SendArgs) error {
+	if in.To != msg.PeersID {
+		return nil
+	}
+	switch {
+	case cfg.HubURL == "":
+		return fmt.Errorf("--to %s needs hub mode ($SPOOL_HUB_URL): a peer seat claims it on the hub", msg.PeersID)
+	case in.ToBox != "" && in.ToBox != msg.PeersToBox:
+		return fmt.Errorf("--to %s reaches no box (a seat claims it): drop --to-box %s", msg.PeersID, in.ToBox)
+	}
+	in.ToBox = msg.PeersToBox
+	return nil
+}
+
+// checkAnswers refuses an --answers / --if-gen the hub could not guard.
+func checkAnswers(cfg *config.Config, in SendArgs) error {
+	switch {
+	case in.Answers == "" && in.IfGen == 0:
+		return nil
+	case in.Answers == "":
+		return fmt.Errorf("--if-gen needs --answers <msg_id>")
+	case cfg.HubURL == "":
+		return fmt.Errorf("--answers needs hub mode ($SPOOL_HUB_URL): the hub guards the answer")
+	case in.IfGen < 0:
+		return fmt.Errorf("--if-gen must be >= 0 (the responsible_gen the seat claimed)")
+	case in.Channel != "":
+		return fmt.Errorf("--answers replies to one message: drop --channel")
+	}
+	return nil
 }
 
 // splitToBox takes the box out of a qualified recipient (spec 061 3.3.1:
@@ -227,9 +275,12 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 		hc = hubclient.New(cfg)
 	}
 	var d string
-	if in.Channel != "" {
+	switch {
+	case in.Answers != "":
+		d, err = hc.SendAnswerMessage(ctx, m, in.ToBox, in.Answers, in.IfGen)
+	case in.Channel != "":
 		d, err = hc.SendChannelTyped(ctx, m, in.Channel, in.TypedBy)
-	} else {
+	default:
 		d, err = hc.SendMessageTyped(ctx, m, in.ToBox, in.TypedBy)
 	}
 	if err != nil {
@@ -296,11 +347,29 @@ func JSON(v any) string {
 	return string(out)
 }
 
+// Exit codes of `spool send --answers` (spec 068 4.2): the hub refused the
+// answer because the message is already answered, or because this seat is
+// not its responsible on --if-gen. A shell caller branches on them.
+const (
+	ExitAnswered       = 5
+	ExitNotResponsible = 6
+)
+
 // ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse
-// (unpinned author, bad signature, hash mismatch), 1 other.
+// (unpinned author, bad signature, hash mismatch), 5 answered, 6
+// not_responsible, 1 other.
 func ExitCode(err error) int {
 	if errors.Is(err, files.ErrHashMismatch) {
 		return 78
+	}
+	var he *hubclient.HubError
+	if errors.As(err, &he) {
+		switch he.Token {
+		case wire.TokenAnswered:
+			return ExitAnswered
+		case wire.TokenNotResponsible:
+			return ExitNotResponsible
+		}
 	}
 	return spool.ExitCode(err)
 }

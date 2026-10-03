@@ -574,7 +574,7 @@ func (s *Server) sendSenderRefusal(ctx context.Context, x *session, env *wire.En
 }
 
 // sendRouteRefusal: the sender resolved and signed a valid to_box that is
-// pinned in this tenant.
+// pinned in this tenant; a message to the peers is signed to the hub's box.
 func (s *Server) sendRouteRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message) *frameRefusal {
 	if env.ToBox == "" {
 		roster, _ := s.o.Store.Roster(ctx, x.tenant)
@@ -591,6 +591,10 @@ func (s *Server) sendRouteRefusal(ctx context.Context, x *session, env *wire.Env
 	}
 	if !msg.ValidBoxID(env.ToBox) {
 		return &frameRefusal{"bad_json", http.StatusBadRequest, "to_box is not a valid box id"}
+	}
+	if m.To == msg.PeersID && env.ToBox != msg.PeersToBox {
+		// spec 068 4.1: no box owns a message to the peers; a seat claims it
+		return &frameRefusal{"bad_json", http.StatusBadRequest, "a message to " + msg.PeersID + " is signed to_box " + msg.PeersToBox}
 	}
 	if !s.toBoxKnown(ctx, x.tenant, env.ToBox) {
 		return &frameRefusal{"unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant"}

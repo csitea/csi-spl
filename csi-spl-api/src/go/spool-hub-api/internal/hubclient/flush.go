@@ -82,6 +82,46 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 	return delivery, err
 }
 
+// SendAnswerMessage sends m as the answer to message answers (spec 068 4.2)
+// from the seat that holds it on responsible_gen gen. Unlike SendMessage it
+// is never queued: the hub's guard decides now, and a later flush would post
+// it without the guard. A refusal is a 409 HubError (wire.TokenAnswered,
+// wire.TokenNotResponsible); the outbox is written only once the hub took it.
+func (c *Client) SendAnswerMessage(ctx context.Context, m *msg.Message, explicitToBox, answers string, gen int64) (string, error) {
+	own, priv, err := c.box()
+	if err != nil {
+		return "", err
+	}
+	toBox, err := c.ResolveToBox(m.To, explicitToBox)
+	if err != nil {
+		return "", err
+	}
+	env, err := wire.NewEnvelope(priv, own, toBox, m)
+	if err != nil {
+		return "", err
+	}
+	sess, err := c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		return "", err
+	}
+	defer sess.Close()
+	for _, a := range m.Files {
+		if a.Mode == "blob" {
+			if err := sess.UploadFile(ctx, a.FileID); err != nil {
+				return "", err
+			}
+		}
+	}
+	f, err := sess.SendAnswer(ctx, env, answers, gen)
+	if err != nil {
+		return "", err
+	}
+	if err := spool.New(c.Cfg).WriteOutbox(m); err != nil {
+		return "", err
+	}
+	return f.Delivery, nil
+}
+
 // SendChannelTyped posts m into channel (specs/038): the agent's broadcast,
 // the same shape a human's post has - msg.to ALL-0, to_box box-wui (no box
 // owns a channel post; the hub builds one delivery per member box and shows

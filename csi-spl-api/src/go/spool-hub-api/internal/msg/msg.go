@@ -172,8 +172,8 @@ func (m *Message) Validate() error {
 	if !ValidID(m.From) {
 		return fmt.Errorf("from %q is not a valid agent id", m.From)
 	}
-	if !ValidID(m.To) {
-		return fmt.Errorf("to %q is not a valid agent id", m.To)
+	if !ValidTo(m.To) {
+		return fmt.Errorf("to %q is not a valid agent id (nor %s)", m.To, PeersID)
 	}
 	if !validKinds[m.Kind] {
 		return fmt.Errorf("kind %q is not one of "+KindList, m.Kind)
@@ -223,6 +223,21 @@ func (a Attachment) validate() error {
 func ValidID(s string) bool {
 	return agentid.IsParticipant(s) && !strings.HasPrefix(s, "BOX-")
 }
+
+// PeersID is the `to` of a message to the peer seats (spec 068 4.1): a report
+// to "the orchestrator" that whichever seat polls first claims. Only ever a
+// recipient, never a sender. The hub stores it with needs_peer and pushes it
+// to no box: it is signed to_box PeersToBox, and a seat takes it with
+// `spool claim --poll`.
+const PeersID = "peers"
+
+// PeersToBox is the to_box a message to PeersID is signed with: the hub's own
+// box, which no box session receives (a human's post has the same).
+const PeersToBox = "box-wui"
+
+// ValidTo reports whether s may be a message's `to`: a participant id, or
+// PeersID.
+func ValidTo(s string) bool { return s == PeersID || ValidID(s) }
 
 // ValidBoxID reports whether s is a well-formed box id.
 func ValidBoxID(s string) bool { return boxRe.MatchString(s) }

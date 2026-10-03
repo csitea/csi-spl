@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
 // The peer claim on a message (spec 068 4.1, rdb 0110, lane L1). Four peer
@@ -31,8 +32,8 @@ import (
 // responsible seat at a time.
 
 // PeersID is the to_id of a message to the peers (spec 068 4.1: a report to
-// "the orchestrator" reaches the hub as to_id 'peers').
-const PeersID = "peers"
+// "the orchestrator" reaches the hub as to_id 'peers'); msg.PeersID.
+const PeersID = msg.PeersID
 
 // The claim knobs the hub enforces (spec 068 section 7).
 const (

@@ -177,8 +177,8 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 // Compose builds and validates an unsigned message without writing it.
 // Hub mode (003) composes first, then decides where the message goes.
 func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
-	if !msg.ValidID(from) || !msg.ValidID(to) {
-		return nil, fmt.Errorf("from/to must be valid agent ids")
+	if !msg.ValidID(from) || !msg.ValidTo(to) {
+		return nil, fmt.Errorf("from/to must be valid agent ids (to may be %s)", msg.PeersID)
 	}
 	if taskID == "" {
 		taskID = uid.New()

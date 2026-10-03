@@ -12,6 +12,8 @@
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	          [--to-box <box_id>]   (hub mode only, spec 003)
+//	          [--answers <msg_id> [--if-gen <n>]]   (hub mode, spec 068 4.2)
+//	          --to peers: to the peer seats, claimed with `spool claim --poll` (hub mode)
 //	recv    --as <id> [--ack] [--compact]   --compact: one block per message,
 //	          `from kind task_id [files=N]` then the body (no v, msg_id, ts)
 //	put-file <path>            put-dir <path>
@@ -63,7 +65,8 @@
 //
 // Exit codes: 0 ok, 3 send: --to is not an agent of this local spool root
 // (specs/058 N1: it lives on another machine), 78 verify/refuse (hash mismatch; in hub mode also a bad or
-// unpinned box signature), 1 other.
+// unpinned box signature), 5 send --answers: already answered, 6 send
+// --answers: not the responsible seat on --if-gen, 1 other.
 package main
 
 import (
@@ -312,6 +315,8 @@ func cmdSend(cfg *config.Config, args []string) int {
 	fs.Var(&dirRefs, "dir-ref", "attach a dir by on-box path reference (repeatable)")
 	putFile := fs.String("put-file", "", "convenience: blob this file then attach it")
 	toBox := fs.String("to-box", "", "hub mode: recipient box id (needed when --to exists on several boxes)")
+	answers := fs.String("answers", "", "hub mode: this post answers that msg_id (spec 068 4.2); never queued; exit 5 answered, 6 not_responsible")
+	ifGen := fs.Int64("if-gen", 0, "with --answers: the responsible_gen the seat claimed the message on (spool claim --poll)")
 	channel := fs.String("channel", "", "hub mode: post into this channel (a new topic every member reads, to ALL-0), like a human's post; the hub refuses it unless --from is a member")
 	typedBy := fs.String("typed-by", "", "hub mode: the HUM-<n> who typed this line at --from's terminal; the hub refuses it (typed_by_not_bound) unless that human is bound as this box's operator")
 	if err := fs.Parse(args); err != nil {
@@ -326,6 +331,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
 		PutFile: *putFile, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
+		Answers: *answers, IfGen: *ifGen,
 	})
 	if err != nil {
 		return fail(err)

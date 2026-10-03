@@ -119,6 +119,15 @@ const (
 // that agent re-announces and resends; any other sender cannot post as it.
 const TokenFromNotAnnounced = "from_not_announced"
 
+// Answer-once refusals (spec 068 4.2), both 409 on a send frame that carries
+// answers=<msg_id>: another post already answered that message, or the
+// sender's seat is not its responsible on if_gen. `spool send --answers`
+// exits with a distinct code for each.
+const (
+	TokenAnswered       = "answered"
+	TokenNotResponsible = "not_responsible"
+)
+
 // WS close codes (http-v1.md §2.5).
 const (
 	CloseBadFrame     = 4400

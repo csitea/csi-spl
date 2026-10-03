@@ -1,0 +1,6 @@
+Lay-What: The app's core code is a bit smaller, so it loads slightly faster.
+Lay-How: A part of the underlying framework that the app never uses is now left out of the build.
+Lay-Why: Every visitor downloaded framework code that nothing in the app called.
+Tech-What: Vue is built without the Options API (vite.vue.features.optionsAPI = false).
+Tech-How: One setting in nuxt.config.ts; a scan of every client chunk found no Options API use outside Vue core.
+Tech-Why: P3-21: vendor-vue gzip 50 286 -> 48 563 B; ci_initial_gzip_kb 148.9 -> 147.2.

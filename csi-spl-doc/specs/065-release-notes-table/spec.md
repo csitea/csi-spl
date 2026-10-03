@@ -2,7 +2,7 @@
 
 Status: **owner answering** (section 10): Q1..Q3, Q5, Q7, Q9..Q13 yes, Q8
 and Q14 no, Q6 backfill by at least three agents (option to be confirmed);
-Q4 explained, answer open (section 11). Build lanes: section
+Q4 answered: yes, one week of warnings then refuse (section 10). Build lanes: section
 12. Spec only; no code, workflow, gate or `CLAUDE.md` was touched.
 Draft 2026-10-03, c-053; answers folded in 2026-10-03, c-067.
 Related: [047 deployability](../047-spool-deployability/) (W10, the weekly
@@ -311,7 +311,8 @@ the order they arrived.
 | Q2 | "Onto yes" | read as "On two, yes" (dictated): the six fields Lay-What/How/Why + Tech-What/How/Why, one line each (4.1) |
 | Q3 | "#3, yes." | the pre-push gate refuses a commit without the note, CI is the backstop, and a deploy is never blocked by it (5.1) |
 | Q11 | "On number 11 yes." | every signed-in user can open the notes, not only admins (7.1 item 5); relayed by c-002, reached its desk ~04:39Z |
-| Q4 | "On the 4th explain" | not an answer yet: the owner asked for Q4 to be explained. The five-line explanation (recommendation: yes, one week of warnings) was posted to the owner ~04:47Z. Open |
+| Q4 | "On the 4th explain" | not an answer yet: the owner asked for Q4 to be explained. The five-line explanation (recommendation: yes, one week of warnings) was posted to the owner ~04:47Z |
+| Q4 | "for q4 2. - one week of warnnings thna refuses" | answered ~05:36Z: option 2 of the ~04:47Z explanation (msg `26a61af8`) = YES, one week of warnings, then refuse (reading by c-001) |
 | Q7 | "On number 7 yes." | ONE modal from the bottom version pop-up, desktop footer and phone strip, every version with its hashes, a click on a hash shows the note (7.1) |
 | Q14 | "#14, no." | the deploy workflows do not post the links themselves |
 | Q6 | "Well, dedicate at least three agents to backfill. The backfill doesn't have as great a quality as the commits after this change." | backfill YES, written by at least three agents in parallel; backfilled notes may be of lower quality than new ones. Of the three options only "last 100 versions written by an agent" needs agents, so it is taken: **to be confirmed by the orchestrator**. Backfilled rows get `state=backfill` (a reading, not asked) so the WUI can show they were written after the fact |
@@ -321,8 +322,6 @@ the order they arrived.
 
 Verbatim from section 9:
 
-- **Q4** One week as a warning before refusing? yes / no (explanation
-  requested and posted ~04:47Z; answer pending)
 - **Q6 scope** (orchestrator to confirm): "last 100 versions written by an
   agent", read from "dedicate at least three agents to backfill".
 
@@ -347,7 +346,7 @@ in section 8 is taken).
 | L8 | seed prompt: the report asks for `sha + note link` per released commit | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh` (closing-steps text only) | the spawn-core / seed tests that cover that text; `do_check_dist_hygiene` | L7 |
 | L9 | dispatcher warning on a released post with a sha but no `/releases/` link | the dispatcher relay file, named at build time (`grep -c release csi-spl-orc/src/bash/run/spl-dispatch-check.func.sh` -> 0: that action checks dispatchers, not post content), + its `.tst.sh` | its `.tst.sh`: warns, never drops the post | L7 |
 | L10 | weekly stable notes gain the lay column (Q9) | `csi-spl-orc/src/bash/run/release-stable.func.sh` | `csi-spl-orc/src/bash/tests/release-stable.tst.sh` (+ a case for `state=missing`) | L5 (rows to read) |
-| L11 | the refusal: `release-note` part refuses; CI backstop job | `check-release-note.func.sh` (mode switch), `.github/workflows/10_ci-quality.yml` (one job) | `check-release-note.tst.sh` refusal cases; actionlint | L2; gated on **Q4** (yes = after one week of warnings, with the compliance n; no = ships with L2) |
+| L11 | the refusal: `release-note` part refuses; CI backstop job | `check-release-note.func.sh` (mode switch), `.github/workflows/10_ci-quality.yml` (one job) | `check-release-note.tst.sh` refusal cases; actionlint | L2; **Q4 = yes**: starts one week after L2 is live in WARNING mode (L2 is not on `origin/master` yet, so one week after L2 lands); its report states the warning count / compliance n over that week |
 | L12 | ingest backfill mode: reads `refs/notes/release-notes-backfill-*` as well, rows `state=backfill`; a note on `refs/notes/release-notes` (6.1) still wins | `release-note-ingest.func.sh` (one mode), `release-note-ingest.tst.sh` | its `.tst.sh`: backfill note -> `state=backfill`; a 6.1 correction overrides it | L5; Q6 scope confirmed |
 | L13a | write backfill notes, versions 1..34 of the 100 before the version where L2 went live (newest first) | git notes on its own ref `refs/notes/release-notes-backfill-a` only; no file in the tree | `check-release-note.func.sh` (L2) over every note in the range: six trailers or a 5.2 form; the ingest hygiene filter on the note text | L2; Q6 scope confirmed |
 | L13b | the same, versions 35..67 | `refs/notes/release-notes-backfill-b` only | as L13a | as L13a |

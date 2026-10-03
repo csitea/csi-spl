@@ -103,6 +103,8 @@ out="$(SPAWN_LANE_SCOPE='lane map' SPAWN_LANE_FILES=a/b,c SPAWN_LANE_TOPIC=t-1 b
 has "git: SPAWN_LANE_* fill the row" "--scope 'lane map' --files 'a/b,c' --topic 't-1'" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
+# spec 065 L8: the report carries sha + note link per released commit.
+has "git: report asks for sha + note link" "Report sha + note link per released commit ('SHA=<sha> ENV=<env> ./run -a do_release_note_link')" "$prompt"
 # SPL-1253: the deploy-gate footer rides every git-repo brief.
 has "git: deploy-gate footer names the pre-push command" "./run -a do_check_pre_push" "$prompt"
 has "git: deploy-gate footer requires Postgres, not memory" "must run on POSTGRES" "$prompt"

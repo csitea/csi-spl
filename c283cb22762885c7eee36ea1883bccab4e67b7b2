@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Fixes an automated test that read the wrong machine's settings; nothing a user sees changes.

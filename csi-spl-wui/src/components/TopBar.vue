@@ -81,7 +81,9 @@
     </div>
     </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
-      <div class="top-bar__lang"><LanguageSwitcher /></div>
+      <!-- perf r4 W6: not mounted on a phone (the avatar sheet has it), so
+           its async chunk is not fetched there either -->
+      <div v-if="!phone" class="top-bar__lang"><LanguageSwitcher /></div>
       <UserMenu />
     </div>
   </header>
@@ -104,6 +106,7 @@ import TopBarTenant from '~/components/TopBarTenant.vue'
 import TenantDropBox from '~/components/TenantDropBox.vue'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
+import { usePhone } from '~/composables/useTouchUi'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -120,6 +123,7 @@ const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
 /* topic c6994436: the Omnibox's place (Settings -> Behaviour), never on a phone */
 const atBottom = useOmniboxDock()
+const phone = usePhone()
 const dockSelector = `#${DOCK_ID}`
 /* the bar's search button: the box is at the bottom now, `/search ` goes in it */
 function openSearch() {
@@ -355,7 +359,6 @@ onUnmounted(() => {
     padding-top: calc(var(--top-bar-inset-top) + env(safe-area-inset-top, 0px));
     padding-inline: calc(4px + env(safe-area-inset-left, 0px)) calc(8px + env(safe-area-inset-right, 0px));
   }
-  .top-bar__lang { display: none; }
   /* SPL-1025 (owner, topic f8950b7f): [logo] [tenant ▾] ... [avatar]. Of the
      start group only the logo stays - the same 28 px image in a 44 px target;
      the desktop drop box hides itself here and the theme is in the avatar menu */

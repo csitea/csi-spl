@@ -110,7 +110,7 @@ func safeRedirect(raw string) string {
 	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
 		return "/"
 	}
-	for i := 0; i < len(raw); i++ {
+	for i := range len(raw) {
 		if c := raw[i]; c <= 0x20 || c == 0x7f || c == '\\' {
 			return "/"
 		}
@@ -124,7 +124,7 @@ func validTenant(t string) bool {
 	if t == "" || len(t) > 63 || t[0] == '-' || t[len(t)-1] == '-' {
 		return false
 	}
-	for i := 0; i < len(t); i++ {
+	for i := range len(t) {
 		c := t[i]
 		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
 			return false

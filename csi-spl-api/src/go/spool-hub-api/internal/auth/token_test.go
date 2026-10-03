@@ -67,7 +67,7 @@ func TestSafeRedirect(t *testing.T) {
 
 func TestValidTenant(t *testing.T) {
 	for in, want := range map[string]bool{"t1": true, "acme-dev": true, "": false, "-x": false,
-		"Acme": false, "a.b": false, strings.Repeat("a", 64): false} {
+		"Acme": false, "a.b": false, "t\u00e9n": false, "t1\xff": false, strings.Repeat("a", 64): false} {
 		if validTenant(in) != want {
 			t.Errorf("validTenant(%q) != %v", in, want)
 		}

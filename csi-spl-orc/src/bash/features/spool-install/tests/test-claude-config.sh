@@ -125,7 +125,7 @@ step "$H" SPOOL_INSTALL_CLAUDE_CONFIG=0 2>/dev/null
 [ -z "$(ls -A "$H/.claude")" ] && pass "5: SPOOL_INSTALL_CLAUDE_CONFIG=0 skips the step" || fail "5: the off switch wrote a file"
 
 # ── 6. hygiene of the assets ─────────────────────────────────────────────────
-hits=$(grep -rnIP '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\btnk\b|/home/(?!runner\b)[a-z][a-z0-9_-]*/|@gmail\.com' "$ASSETS" "$STEP")
+hits=$(grep -rnIP '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\btnk\b|/home/(?!runner\b)[a-z][a-z0-9_-]*/|@gmail\.com' "$ASSETS" "$STEP" "${STEP%.sh}.py")
 [ -z "$hits" ] && pass "6: no banned literal in the assets or the step" || { fail "6: banned literal"; echo "$hits"; }
 
 # ── 7. the diff against today's CLAUDE.md = only the personal fragments ──────

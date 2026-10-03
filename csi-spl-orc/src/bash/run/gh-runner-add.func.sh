@@ -156,9 +156,13 @@ do_gh_runner_add() {
   local uid t=0; uid="$(id -u "$user")"
   until sudo test -S "/run/user/$uid/bus" || ((t++ >= 20)); do sleep 1; done
   if ! ghr_as "$user" systemctl --user is-active --quiet docker; then
-    ghr_as "$user" "$GH_RUNNER_SETUPTOOL" install >/dev/null 2>&1 \
-      || { do_log "FATAL rootless docker setup failed for $user: sudo -u $user XDG_RUNTIME_DIR=/run/user/$uid $GH_RUNNER_SETUPTOOL install"; return 1; }
+    # its exit code is not the verdict: debian's copy ends with
+    # `$BIN/docker version`, $BIN being contrib/, where no docker is - so it
+    # fails AFTER writing and starting the unit. The unit being active is.
+    ghr_as "$user" "$GH_RUNNER_SETUPTOOL" install >/dev/null 2>&1
     ghr_as "$user" systemctl --user enable --now docker >/dev/null 2>&1
+    ghr_as "$user" systemctl --user is-active --quiet docker \
+      || { do_log "FATAL rootless docker setup failed for $user: sudo -u $user XDG_RUNTIME_DIR=/run/user/$uid $GH_RUNNER_SETUPTOOL install"; return 1; }
     do_log "OK rootless docker running for $user"
   fi
   ghr_as "$user" env DOCKER_HOST="unix:///run/user/$uid/docker.sock" docker info >/dev/null 2>&1 \

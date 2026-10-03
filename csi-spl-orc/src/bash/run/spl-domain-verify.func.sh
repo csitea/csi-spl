@@ -52,8 +52,8 @@ do_spl_domain_verify() {
 
     if [[ "${LIST:-0}" == 1 ]]; then
       out="$(curl -sS -H "Authorization: Bearer $token" "$api/webResource")" || exit 1
-      echo "$out" | jq -r '.items[]?.site.identifier' 
-      echo "$out" | jq -e '.error' >/dev/null 2>&1 && { do_log "FATAL $(echo "$out" | jq -c '.error.message')"; exit 1; }
+      jq -r '.items[]?.site.identifier' <<<"$out"
+      jq -e '.error' <<<"$out" >/dev/null 2>&1 && { do_log "FATAL $(jq -c '.error.message' <<<"$out")"; exit 1; }
       do_log "OK listed the web resources $account owns"
       exit 0
     fi
@@ -61,20 +61,20 @@ do_spl_domain_verify() {
     if [[ "${VERIFY:-0}" == 1 ]]; then
       out="$(curl -sS -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
         "$api/webResource?verificationMethod=DNS_CNAME" -d "${site}}")" || exit 1
-      echo "$out" | jq -e --arg a "$account" '.owners | index($a)' >/dev/null 2>&1 || {
-        do_log "FATAL $account is not an owner of $domain: $(echo "$out" | jq -c '.error.message // .')"
+      jq -e --arg a "$account" '.owners | index($a)' <<<"$out" >/dev/null 2>&1 || {
+        do_log "FATAL $account is not an owner of $domain: $(jq -c '.error.message // .' <<<"$out")"
         exit 1
       }
-      do_log "OK $account is a verified owner of $domain (owners: $(echo "$out" | jq -c '.owners'))"
+      do_log "OK $account is a verified owner of $domain (owners: $(jq -c '.owners' <<<"$out"))"
       exit 0
     fi
 
     out="$(curl -sS -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
       "$api/token" -d "${site},\"verificationMethod\":\"DNS_CNAME\"}")" || exit 1
     local tok src tgt
-    tok="$(echo "$out" | jq -r '.token // ""')"
+    tok="$(jq -r '.token // ""' <<<"$out")"
     read -r src tgt <<<"$tok"
-    [[ -n "$src" && -n "$tgt" ]] || { do_log "FATAL no DNS_CNAME token for $domain: $(echo "$out" | jq -c '.error.message // .')"; exit 1; }
+    [[ -n "$src" && -n "$tgt" ]] || { do_log "FATAL no DNS_CNAME token for $domain: $(jq -c '.error.message // .' <<<"$out")"; exit 1; }
     [[ "$src" == *.* ]] || src="$src.$domain"
     printf '      verification_records:\n        - source: %s.\n          target: %s.\n' "${src%.}" "${tgt%.}"
     do_log "OK token for $account on $domain: add the entry above to steps.005-gcp-domain-verification in $ENV.env.yaml, re-render, provision 005, then VERIFY=1"

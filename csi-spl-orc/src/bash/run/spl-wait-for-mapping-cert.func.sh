@@ -57,9 +57,9 @@ spl_mapping_cert_poll() {
     js="$(gcloud beta run domain-mappings describe --domain="$domain" --region="$region" \
       --project="$project" --account="$account" --format=json 2>/dev/null)"
     [[ -n "$js" ]] || js='{}'
-    status="$(echo "$js" | jq -r '[.status.conditions[]? | select(.type=="CertificateProvisioned")][0].status // ""' 2>/dev/null)"
+    status="$(jq -r '[.status.conditions[]? | select(.type=="CertificateProvisioned")][0].status // ""' <<<"$js" 2>/dev/null)"
     if [[ $attempt == 1 ]]; then
-      records="$(echo "$js" | jq -r '.status.resourceRecords[]? | "\(.name // "@") \(.type) \(.rrdata)"' 2>/dev/null)"
+      records="$(jq -r '.status.resourceRecords[]? | "\(.name // "@") \(.type) \(.rrdata)"' <<<"$js" 2>/dev/null)"
       [[ -n "$records" ]] && do_log "INFO $domain asks for DNS: $(tr '\n' ';' <<<"$records")"
     fi
     if [[ "$status" == True ]]; then

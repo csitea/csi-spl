@@ -150,15 +150,17 @@ spl_asks_rows() {
       do_log "WARN the hub did not answer: these are this machine's journal asks only" >&2
     fi
   fi
-  jq -c -n --argjson hub "${hub:-[]}" --argjson ok "$ok" --arg role "${ASKS_ROLE:-orch}" --argjson now "$now" --slurpfile loc <(spool_ask_journal_list) '
+  # the hub's book goes in on stdin, never as an argument: past ARG_MAX (or
+  # 128 KiB in one argument) exec fails with "Argument list too long"
+  jq -c --argjson ok "$ok" --arg role "${ASKS_ROLE:-orch}" --argjson now "$now" --slurpfile loc <(spool_ask_journal_list) '
     def secs: if . == null or . == "" then null else (sub("\\.[0-9]+"; "") | fromdateiso8601) end;
-    ($hub | map(. + {src: "hub"})) as $h
+    map(. + {src: "hub"}) as $h
     | ($h | map({key: .ask_id, value: true}) | from_entries) as $known
     | $h + [ $loc[] | select((.role // "orch") == $role) | select(($known[.ask_id] // false) | not) | select(.synced == false or ($ok | not))
              | . + {src: "journal", age_s: ($now - (.created_at | secs)),
                     quiet_s: ($now - ([(.updated_at | secs), (.raised_at | secs // 0)] | max))} ]
     | map(. + {overdue: ((.deadline_at | secs) as $d | $d != null and $d < $now and (.state == "open" or .state == "acked"))})
-    | sort_by((if .state == "open" or .state == "acked" then 0 else 1 end), -(.age_s // 0))'
+    | sort_by((if .state == "open" or .state == "acked" then 0 else 1 end), -(.age_s // 0))' <<<"${hub:-[]}"
 }
 
 # spl_asks_rows into ASKS_ROWS in THIS shell (not a $(...) subshell), so the

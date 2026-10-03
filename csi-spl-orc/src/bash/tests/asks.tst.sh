@@ -34,6 +34,8 @@
 #      delivery limit an ask is no longer raised, goes to the owner once and
 #      is dead-lettered with the reason (CONTROL: no limit = raised again);
 #      without an owner leg it is dead-lettered saying nobody was told
+#  11. a hub book past ARG_MAX (3 MB) is listed (CONTROL: the same book as
+#      a jq argument fails: Argument list too long)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -368,6 +370,25 @@ out="$(on sat do_spl_asks_open ASKS_FLEET=kq)"
 printf 'LEASE_ORCH=CLE-001\n' >"$T/pc/spool/dispatch/lease.conf"
 out="$(on pc do_spl_asks_open HUB_DOWN=1)"
 [[ "$out" == *"${A3:0:8}"* && "$out" == *"hub: off"* ]] && pass "without a fleet the journal alone answers (one-machine behaviour)" || fail "no fleet: $out"
+
+# 11. a book past ARG_MAX (sat 2026-10-03: line 153 "jq: Argument list too long")
+python3 - "$T/hub/big.json" <<'PY'
+import json, sys, time
+t = time.time() - 600
+rows = [{"ask_id": "dddddddd-%04d-4444-8444-444444444444" % i, "role": "orch", "kind": "blocker", "from": "CLE-002@sat", "topic": "",
+         "summary": "big %04d " % i + "x" * 100000, "deadline_at": "", "state": "open" if i == 0 else "done", "acked_by": "",
+         "closed_by": "CLE-001@sat" if i else "", "reason": "", "raised_n": 0, "writer_box": "sat", "c": t + i, "u": t + i} for i in range(30)]
+json.dump(rows, open(sys.argv[1], "w"))
+PY
+book="$(env HUB_DIR="$T/hub" "$T/bin/hub" ask list --fleet big --role orch --all | jq -c .asks)"
+err="$(jq -c -n --argjson hub "$book" 'length' 2>&1 >/dev/null)"; rc=$?
+(( ${#book} > 3000000 )) && [[ $rc -ne 0 && "$err" == *"Argument list too long"* ]] &&
+  pass "CONTROL: the ${#book}-byte book as --argjson (the old line 153) fails: Argument list too long" || fail "big control (rc=$rc, ${#book} bytes): $err"
+out="$(on sat do_spl_asks_open ASKS_FLEET=big ASKS_ALL=1 ASKS_FORMAT=json 2>&1)"; rc=$?
+n="$(jq -r 'select(.hub == "ok") | .asks | length' <<<"$out" 2>/dev/null | tail -1)"
+[[ $rc -eq 0 && "$n" == 30 && "$out" != *"too long"* ]] && pass "do_spl_asks_open lists the ARG_MAX-sized book from the hub (30 rows, hub ok)" || fail "big book (rc=$rc, n=$n): ${out:0:300}"
+out="$(on sat do_spl_asks_open ASKS_FLEET=big 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"dddddddd"* && "$out" == *"1 open"* ]] && pass "the table view of the big book shows its one open ask" || fail "big table (rc=$rc): ${out:0:300}"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

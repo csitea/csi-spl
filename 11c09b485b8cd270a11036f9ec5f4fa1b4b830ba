@@ -1,0 +1,6 @@
+Lay-What: Re-running the setup of message coordination on a computer no longer forgets which computer is preferred for each role.
+Lay-How: The setup now carries over the per-role preference settings when it rewrites its configuration file.
+Lay-Why: Running setup again quietly reset those preferences, so the wrong computer could take a role.
+Tech-What: orc do_spl_dispatch_setup keeps LEASE_PRIORITY_ORCH and LEASE_PRIORITY_DISPATCH on a re-run.
+Tech-How: spl_dispatch_lease_conf_text carries both keys in either fleet branch and keeps the current line order, so an unchanged re-run is byte-identical; dispatch-setup-check.tst.sh.
+Tech-Why: The conf rewrite carried over only a fixed list of LEASE_* keys, so the per-role ranks were dropped and ranking fell back to LEASE_PRIORITY.

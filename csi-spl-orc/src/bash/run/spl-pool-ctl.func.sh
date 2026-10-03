@@ -16,12 +16,17 @@
 # @description POOL_CMD picks the verb:
 # @description   status  - one row per runtime: running | stopped | missing.
 # @description             Read-only, always
-# @description   start   - drop the env's reconcile pause marker, then start
-# @description             every row (each step is idempotent)
-# @description   ensure  - start, unless the env is paused: then nothing
+# @description   start   - drop the env's reconcile pause marker (and, with the
+# @description             box rows, the lease pause), then start every row
+# @description             (each step is idempotent)
+# @description   ensure  - start, unless the env is paused: then nothing; the
+# @description             lease stays down while the lease pause is fresh
 # @description   stop    - write the pause marker <spool root>/.desk-reconcile.
 # @description             <env>.pause (the reconcile then leaves the desks
-# @description             alone for DESK_PAUSE_MAX_SECS), stop every row in
+# @description             alone for DESK_PAUSE_MAX_SECS) and, with the box
+# @description             rows, <spool root>/dispatch/lease.pause (the
+# @description             reconcile then does not re-take the lease, spec 071
+# @description             4.4), stop every row in
 # @description             reverse order. A stopped row is skipped: twice is a
 # @description             no-op
 # @description   restart - stop, then start
@@ -73,6 +78,7 @@ do_spl_pool_ctl() {
 pool_ctl_init() {
   POOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   POOL_PAUSE="$POOL_ROOT/.desk-reconcile.$ENV.pause"
+  POOL_LEASE_PAUSE="$POOL_ROOT/dispatch/lease.pause"
   POOL_SERVE_PIDF="${POOL_SERVE_PID:-$POOL_ROOT/pool/serve.pid}"
   POOL_STATE="${SPL_STATE_DIR:-$HOME/.local/share/${SPL_ORG_APP:-csi-spl}/cloud/$ENV}"
   POOL_BOX_ENV="$(pool_ctl_conf LEASE_ENV)"; POOL_BOX_ENV="${POOL_BOX_ENV:-prd}"
@@ -161,6 +167,7 @@ pool_ctl_status() {
   local t b v up line tag any=0 why seat
   echo "pool-ctl status: env=$ENV box-env=$POOL_BOX_ENV state=$POOL_STATE root=$POOL_ROOT"
   [[ -e "$POOL_PAUSE" ]] && echo "PAUSED $POOL_PAUSE: $(head -c 200 "$POOL_PAUSE" 2>/dev/null)"
+  [[ -e "$POOL_LEASE_PAUSE" ]] && echo "PAUSED $POOL_LEASE_PAUSE: $(head -c 200 "$POOL_LEASE_PAUSE" 2>/dev/null)"
   while read -r t b; do
     [[ -n "$t" ]] || continue; any=1
     if spl_desk_alive "$(pool_ctl_desk_pidf "$t" "$b")"; then
@@ -212,11 +219,28 @@ pool_ctl_cron_mute() {
     sed -n "s/.*DESK_MUTE=['\"]\{0,1\}\([A-Za-z0-9 _-]*\)['\"]\{0,1\} .*/\1/p" | head -1
 }
 
-pool_ctl_paused() {
+# pool_ctl_fresh <marker> - 0 when it exists and is no older than
+# DESK_PAUSE_MAX_SECS, the age the reconcile itself honours
+pool_ctl_fresh() {
   local age
-  [[ -e "$POOL_PAUSE" ]] || return 1
-  age=$(( $(date +%s) - $(stat -c %Y "$POOL_PAUSE" 2>/dev/null || date +%s) ))
+  [[ -e "$1" ]] || return 1
+  age=$(( $(date +%s) - $(stat -c %Y "$1" 2>/dev/null || date +%s) ))
   [[ "$age" -le "${DESK_PAUSE_MAX_SECS:-1800}" ]]
+}
+pool_ctl_paused() { pool_ctl_fresh "$POOL_PAUSE"; }
+
+# pool_ctl_mark <write|rm> <marker> - the pause markers (PLAN in a dry run)
+pool_ctl_mark() {
+  if [[ "$1" == rm ]]; then
+    [[ -e "$2" ]] || return 0
+    if [[ "$dry" == 1 ]]; then echo "PLAN pause: rm $2"; else rm -f "$2"; echo "DO   pause: removed $2"; fi
+    return 0
+  fi
+  if [[ "$dry" == 1 ]]; then echo "PLAN pause: write $2"; return 0; fi
+  if ! { mkdir -p "$(dirname "$2")" && printf 'pool-ctl stop %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${USER:-$(id -un)}" >"$2"; }; then
+    do_log "FATAL cannot write $2 - nothing stopped (the reconcile would restart it)"; return 1
+  fi
+  echo "DO   pause: wrote $2"
 }
 
 pool_ctl_start() {
@@ -225,16 +249,18 @@ pool_ctl_start() {
   if [[ "$verb" == ensure ]] && pool_ctl_paused; then
     do_log "INFO env $ENV is paused by $POOL_PAUSE: ensure leaves every row alone"; return 0
   fi
-  if [[ "$verb" == start && -e "$POOL_PAUSE" ]]; then
-    if [[ "$dry" == 1 ]]; then echo "PLAN pause: rm $POOL_PAUSE"; else rm -f "$POOL_PAUSE"; echo "DO   pause: removed $POOL_PAUSE"; fi
+  if [[ "$verb" == start ]]; then
+    pool_ctl_mark rm "$POOL_PAUSE"
+    (( box_rows )) && pool_ctl_mark rm "$POOL_LEASE_PAUSE"
   fi
   mute="${DESK_MUTE-$(pool_ctl_cron_mute)}"
   pool_ctl_call desk ENV="$ENV" TENANT_ID="$POOL_TENANT_ID" DESK_MUTE="$mute" DRY_RUN=0 do_spl_desk_up_all
   pool_ctl_call desk -u TENANT_ID ENV="$ENV" DESK_SKIP_TENANTS="$POOL_TENANT_ID" DESK_MUTE="$mute" DRY_RUN=0 do_spl_desk_up_tenants
   pool_ctl_call desk -u TENANT_ID ENV="$ENV" DRY_RUN=0 do_spl_desk_up_boxes
   if (( box_rows )); then
-    if [[ -f "$LEASE_CONF" ]]; then pool_ctl_call lease LEASE_CMD=ensure do_spl_dispatch_lease
-    else echo "SKIP lease: no $LEASE_CONF"; fi
+    if [[ ! -f "$LEASE_CONF" ]]; then echo "SKIP lease: no $LEASE_CONF"
+    elif pool_ctl_fresh "$POOL_LEASE_PAUSE"; then echo "SKIP lease: paused by $POOL_LEASE_PAUSE (POOL_CMD=start lifts it)"
+    else pool_ctl_call lease LEASE_CMD=ensure do_spl_dispatch_lease; fi
     if [[ -n "$(spl_peer_seats)" ]]; then pool_ctl_call peer do_spl_peer_ensure
     else echo "SKIP peer: no seat in $PEER_SEATS"; fi
   else
@@ -253,13 +279,8 @@ pool_ctl_start() {
 pool_ctl_stop() {
   local t b seat v up box_rows=0
   [[ "$ENV" == "$POOL_BOX_ENV" ]] && box_rows=1
-  if [[ "$dry" == 1 ]]; then echo "PLAN pause: write $POOL_PAUSE"
-  else
-    if ! { mkdir -p "$POOL_ROOT" && printf 'pool-ctl stop %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${USER:-$(id -un)}" >"$POOL_PAUSE"; }; then
-      do_log "FATAL cannot write $POOL_PAUSE - nothing stopped (the reconcile would restart it)"; return 1
-    fi
-    echo "DO   pause: wrote $POOL_PAUSE"
-  fi
+  pool_ctl_mark write "$POOL_PAUSE" || return 1
+  if (( box_rows )) && [[ -f "$LEASE_CONF" ]]; then pool_ctl_mark write "$POOL_LEASE_PAUSE" || return 1; fi
   if pool_ctl_serve_alive; then pool_ctl_serve_stop
   elif [[ -s "$POOL_SERVE_PIDF" ]]; then pool_ctl_serve_refuse_note
   fi

@@ -22,7 +22,8 @@
 #   7. DRY_RUN defaults to 1: start makes no call. CONTROL: 2 made them
 #   8. ENV=dev never stops the box rows of the prd box env. CONTROL: 3 stopped
 #      them with ENV = box env
-#   9. ensure while paused touches nothing. CONTROL: ensure unpaused starts
+#   9. ensure while paused touches nothing; with only the lease pause it
+#      starts the rest and keeps the lease down. CONTROL: ensure unpaused starts
 #  10. each `# csi-spl:<tag>` crontab line is a cron:<tag> row
 # No real crontab, no real tmux, no cloud call.
 #------------------------------------------------------------------------------
@@ -188,6 +189,8 @@ else fail "3 stop (rc $rc) then status should be all stopped: $(cat "$T/stop.out
   fail "3 CONTROL: the rows never read running - check 3 proves nothing"
 [[ -e "$T/root/.desk-reconcile.dev.pause" ]] && pass "3 stop wrote the reconcile pause marker" ||
   fail "3 stop wrote no pause marker: the reconcile would re-seat the desks"
+[[ -e "$T/root/dispatch/lease.pause" ]] && pass "3 stop (box env) wrote the lease pause: the reconcile will not re-take the lease (spec 071 4.4)" ||
+  fail "3 stop wrote no lease pause: the next reconcile tick re-takes the lease"
 
 # ---- 4. stop twice -----------------------------------------------------------
 : >"$T/calls.log"
@@ -204,6 +207,12 @@ if [[ "$(calls)" == 0 && "$out" == *"is paused by"* ]]; then pass "9 ensure whil
 else fail "9 ensure while paused made $(calls) call(s): $out"; fi
 rm -f "$T/root/.desk-reconcile.dev.pause"
 out="$(ctl POOL_CMD=ensure DRY_RUN=0)"
+st="$(ctl POOL_CMD=status)"
+if grep -q '^lease  *stopped' <<<"$st" && [[ "$(grep -c '^peer:c-20[12]  *running' <<<"$st")" == 2 ]] && grep -q 'SKIP lease: paused by' <<<"$out"; then
+  pass "9 ensure with only the lease paused starts the rest and keeps the lease down"
+else fail "9 ensure re-took a paused lease: $out // $st"; fi
+rm -f "$T/root/dispatch/lease.pause"
+out="$(ctl POOL_CMD=ensure DRY_RUN=0)"
 if (( $(calls) > 0 )) && [[ "$(rows "$(ctl POOL_CMD=status)" | grep -c ' running ')" == 5 ]]; then
   pass "9 CONTROL: ensure unpaused starts every row"
 else fail "9 CONTROL: ensure unpaused did not start the rows: $out"; fi
@@ -215,6 +224,7 @@ st="$(ctl POOL_CMD=status)"
 if grep -q '^lease  *running' <<<"$st" && [[ "$(grep -c '^peer:c-20[12]  *running' <<<"$st")" == 2 ]] && grep -q 'SKIP lease, peer' <<<"$out"; then
   pass "8 ENV=dev stop with box env prd: the lease and peer loops keep running"
 else fail "8 ENV=dev stop touched the prd box rows: $out // $st"; fi
+[[ ! -e "$T/root/dispatch/lease.pause" ]] && pass "8 ... and wrote no lease pause" || fail "8 ENV=dev stop paused the prd lease"
 grep -q '^desk:t1/box-desk  *stopped' <<<"$st" && pass "8 ... and the dev desks did stop" || fail "8 the dev desks did not stop: $st"
 sed -i 's/^LEASE_ENV=prd$/LEASE_ENV=dev/' "$T/root/dispatch/lease.conf"
 ctl POOL_CMD=stop DRY_RUN=0 >/dev/null
@@ -223,6 +233,8 @@ ctl POOL_CMD=stop DRY_RUN=0 >/dev/null
 touch "$T/built"
 : >"$T/calls.log"
 out="$(ctl POOL_CMD=start DRY_RUN=0)"
+[[ ! -e "$T/root/dispatch/lease.pause" && ! -e "$T/root/.desk-reconcile.dev.pause" ]] && pass "start lifts both pause markers" ||
+  fail "start left a pause marker: $(ls -a "$T/root" "$T/root/dispatch")"
 st="$(ctl POOL_CMD=status)"
 if grep -q '^pool_serve ENV=dev' "$T/calls.log" && grep -q '^pool-serve  *running' <<<"$st" && ! grep -q 'not built' <<<"$st"; then
   pass "5 CONTROL: a binary with 'pool serve' runs do_spl_pool_serve and reads running"

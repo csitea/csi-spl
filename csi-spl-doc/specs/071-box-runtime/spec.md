@@ -1,6 +1,6 @@
 # 071: box runtime - one start/stop action, one deploy action
 
-Status: **draft v0.1**. Lane A (c-142) writes this spec and builds
+Status: **draft v0.2** (v0.2: the 4.4 gap is closed by the lease pause). Lane A (c-142) writes this spec and builds
 `do_spl_pool_ctl` (section 4). Lane B builds `do_spl_box_deploy` (section 5)
 on this contract. Draft 2026-10-03, c-142, on tree `origin/master` @
 `e69fbb44`.
@@ -112,9 +112,9 @@ ENV=<dev|prd> POOL_CMD=<start|stop|status|restart|ensure> [DRY_RUN=1] ./run -a d
 
 | verb | does, in order |
 |---|---|
-| `start` | Removes the env's reconcile pause marker. Then the desk rows: `do_spl_desk_up_all` (`TENANT_ID=$POOL_TENANT`), `do_spl_desk_up_tenants` (the other tenants), `do_spl_desk_up_boxes`, the same three steps a reconcile tick runs. Then `LEASE_CMD=ensure`, `do_spl_peer_ensure`, and `do_spl_pool_serve` when it is built. Every step is idempotent, so a second `start` is a no-op |
-| `ensure` | The same as `start`, but it keeps a pause marker. While the env is paused (marker no older than `DESK_PAUSE_MAX_SECS`), it touches no row at all. This is the verb a cron may call |
-| `stop` | Writes the pause marker `<spool root>/.desk-reconcile.<env>.pause` (body: `pool-ctl stop <utc> <user>`), so the reconcile does not re-seat what was just stopped. Then, in reverse order: stops `pool-serve` by its pid file, `spl_peer_stop` for each seat, `LEASE_CMD=stop`, and `do_spl_desk_down DESK_ALL=1` for each desk whose sidecar is live. A row that is already stopped or missing is skipped, so `stop` twice is a no-op |
+| `start` | Removes the env's reconcile pause marker and, with the box rows, the lease pause. Then the desk rows: `do_spl_desk_up_all` (`TENANT_ID=$POOL_TENANT`), `do_spl_desk_up_tenants` (the other tenants), `do_spl_desk_up_boxes`, the same three steps a reconcile tick runs. Then `LEASE_CMD=ensure`, `do_spl_peer_ensure`, and `do_spl_pool_serve` when it is built. Every step is idempotent, so a second `start` is a no-op |
+| `ensure` | The same as `start`, but it keeps a pause marker. While the env is paused (marker no older than `DESK_PAUSE_MAX_SECS`), it touches no row at all. While only the lease pause is fresh, it starts every row except the lease. This is the verb a cron may call |
+| `stop` | Writes the pause marker `<spool root>/.desk-reconcile.<env>.pause` (body: `pool-ctl stop <utc> <user>`), so the reconcile does not re-seat what was just stopped. With the box rows, it also writes `<spool root>/dispatch/lease.pause`, so no reconcile tick (dev or prd) re-takes the lease (4.4). Then, in reverse order: stops `pool-serve` by its pid file, `spl_peer_stop` for each seat, `LEASE_CMD=stop`, and `do_spl_desk_down DESK_ALL=1` for each desk whose sidecar is live. A row that is already stopped or missing is skipped, so `stop` twice is a no-op |
 | `restart` | `stop`, then `start` |
 | `status` | One line per row: `<row> <running|stopped|missing> <detail>`. `missing` means the box has no such runtime: no `lease.conf`, no peer seat, or `pool serve` not built (detail: `not built yet (spec 070 L3)`). Exit 0 |
 
@@ -131,16 +131,25 @@ ENV=<dev|prd> POOL_CMD=<start|stop|status|restart|ensure> [DRY_RUN=1] ./run -a d
 - **prd**: `status` is read-only. A prd `start`, `stop` or `restart` needs
   the owner's go. Agents send the exact command to the orchestrator.
 
-### 4.4 Known gap (not closed by lane A)
+### 4.4 The lease pause (closed in v0.2)
 
-`desk-reconcile-cron.sh` runs `LEASE_CMD=ensure` *before* it reads the pause
-marker. So after a `stop`, the next reconcile tick of the box env (5 min or
-less) starts the lease loop again. The pause marker also expires after
-`DESK_PAUSE_MAX_SECS` (1800 s). A `stop` therefore holds for up to 30 min,
-not forever. A durable stop removes the crons
-(`BOX_DEPLOY_CMD=remove`, section 5). The narrow fix is to make the
-reconcile's lease ensure honour the pause marker. It changes an existing
-script, so it goes to c-001 as a separate commit.
+`desk-reconcile-cron.sh` used to run `LEASE_CMD=ensure` on every tick, both
+dev and prd, *before* it read the pause marker and regardless of it. So
+the next tick re-took a lease that a `stop` had just released. The per-env
+desk pause cannot hold the lease, because a rebox (spec 058 6.5) pauses the
+desks and must keep dispatching.
+
+The fix (c-001's go, 2026-10-03) adds a separate, box-level marker,
+`<spool root>/dispatch/lease.pause`. The reconcile skips the lease ensure
+while that marker is no older than `DESK_PAUSE_MAX_SECS` (1800 s). A stale
+marker is ignored with a WARN, the same rule as the desk pause.
+`do_spl_pool_ctl stop` writes it when it stops the box rows, and `start`
+removes it. Gates: `desk-cron-trunk.tst.sh` check 10 and
+`spl-pool-ctl.tst.sh` checks 3, 8 and 9.
+
+A `stop` still holds for at most `DESK_PAUSE_MAX_SECS`, by design: a box
+that was forgotten in the stopped state comes back by itself. A longer stop
+removes the crons (`BOX_DEPLOY_CMD=remove`, section 5).
 
 ## 5. `do_spl_box_deploy` (lane B)
 
@@ -214,4 +223,4 @@ A run on `<pc box>` with `ENV=dev` then shows `POOL_CMD=status` all
 | A (c-142) | this spec, `spl-pool-ctl.func.sh`, `tests/spl-pool-ctl.tst.sh` | stub test: start then status = all running, stop then status = all stopped, stop twice = no-op, `pool serve` absent = "not built yet", an interactive pane is never killed. Each check has a failing control |
 | B | `spl-box-deploy.func.sh` and its test | 5.3 |
 
-<!-- version: 0.1.0 · updated: 2026-10-03 -->
+<!-- version: 0.2.0 · updated: 2026-10-03 -->

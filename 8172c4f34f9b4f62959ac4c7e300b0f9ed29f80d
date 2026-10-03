@@ -1,0 +1,6 @@
+Lay-What: Fixes the release warm-up so it correctly sees which files were not yet ready near visitors.
+Lay-How: It now reads the delivery network's answer the right way and logs what it saw.
+Lay-Why: The first run reported that nothing needed warming, which was wrong, so the warm-up could not be trusted.
+Tech-What: warm-wui-edge and measure-wui-edge-warm count cold by the last (edge) x-cache entry being MISS and log a tally of raw values.
+Tech-How: curl write-out becomes tab-separated; both mocks answer shield-style values such as "MISS, HIT".
+Tech-Why: Workflow 31's first run read x-cache as one token equal to MISS, so a shielded "MISS, HIT" never counted: 0 of 704 cold.

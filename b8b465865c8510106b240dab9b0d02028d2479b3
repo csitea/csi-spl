@@ -1,0 +1,6 @@
+Lay-What: Four agent helpers (signed owner instructions, window colours, and two writing guides) now ship with the spool itself.
+Lay-How: The installer now owns these four files and replaces the old copies, keeping a backup of each.
+Lay-Why: The spool must run on a machine without the older personal toolbox it used to borrow these from.
+Tech-What: directive feature, tmux-window-color.sh and 4 command/skill assets move into csi-spl-orc; spool-install renders them with its marker.
+Tech-How: directive-env.inc.sh parses DIRECTIVE_* from $SPOOL_ROOT/box.env; y5-adopt-skills.sh moves unmarked engine copies aside before step 5b.
+Tech-Why: Spec 069 Y5: step 5b skipped unmarked files, so the engine-rendered copies (paths into the frozen engine) would never be replaced.

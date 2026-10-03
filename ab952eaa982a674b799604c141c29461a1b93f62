@@ -1,0 +1,6 @@
+Lay-What: Gives names to a few timing numbers in the settings and debug screens; nothing on screen changes.
+Lay-How: Each delay, such as how long "copied" stays shown, is now written once with a clear name.
+Lay-Why: A bare number is hard to understand and to adjust in the right place.
+Tech-What: WUI KeysSetting COPIED_RESET_MS (1500); DebugPanel CLOCK_TICK_MS (15000) and COPY_STATE_RESET_MS (2500).
+Tech-How: Constants at the top of the component scripts; same values; unit 2688/2688 before and after.
+Tech-Why: Refactor round 1 #14: magic timer numbers.

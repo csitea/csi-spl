@@ -1,0 +1,6 @@
+Lay-What: The sign-in page loads faster.
+Lay-How: The sign-in page waits until it is ready before fetching the rest of the app in the background.
+Lay-Why: The sign-in page was downloading about half of its data for the app behind it while the form itself was still loading.
+Tech-What: A signed-out document holds its <link rel=prefetch> tags until onNuxtReady.
+Tech-How: The prerender hook moves the prefetch links of login-layout documents into an inert template; prefetch-on-ready.client.ts restores them into head on onNuxtReady.
+Tech-Why: P3-04: /login asked for ~83 app chunks (313 KB of a 609 KB cold signed-out load) while the form loaded.

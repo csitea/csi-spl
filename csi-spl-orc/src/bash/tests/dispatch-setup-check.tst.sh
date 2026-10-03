@@ -248,6 +248,18 @@ cp "$T/w2.keep" "$SUBS/w2.txt"
 echo 'hum|6|2' >>"$SUBS/w2.txt"
 gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'
 gap "unsigned human posts (CLE-77876)" '\| w2 inbound \| 2 of 6 human posts .*\| GAP UNSIGNED \|'
+# 2026-10-03 (sat): the fleet lease held on another box - that box's desk gets
+# the posts, this one's is silent by design: no SILENT GAP, UNSIGNED still is
+echo 'hum|6|0' >"$T/hum"; cp "$T/w2.keep" "$SUBS/w2.txt"; cat "$T/hum" >>"$SUBS/w2.txt"
+echo "c-002@other-box $(date +%s)" >"$S/dispatch/lease"; check >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '| w2 inbound | this box'"'"'s desk is not the dispatch desk | ok (held by c-002@other-box) |' "$T/o" && ! grep -q 'SILENT' "$T/o" &&
+  pass "7. lease held on another box: the silent desk here is ok, no GAP" || fail "7. remote holder: rc=$rc $(grep -E 'inbound|GAP' "$T/o")"
+cp "$T/w2.keep" "$SUBS/w2.txt"; echo 'hum|6|2' >>"$SUBS/w2.txt"
+gap "lease held elsewhere: UNSIGNED still fires" '\| w2 inbound \| 2 of 6 human posts .*\| GAP UNSIGNED \|'
+cp "$T/w2.keep" "$SUBS/w2.txt"; cat "$T/hum" >>"$SUBS/w2.txt"
+echo "c-002@box-desk $(date +%s)" >"$S/dispatch/lease"
+gap "lease held on this box (<ID>@<box>): SILENT still fires" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'
+echo "c-002 $(date +%s)" >"$S/dispatch/lease"
 cp "$T/w2.keep" "$SUBS/w2.txt"
 # CLE-77918: a hub / WUI input unserved past the grace is a GAP row; the
 # served/oldest commits are its value, so the tick keys it on env+component

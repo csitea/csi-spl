@@ -73,6 +73,8 @@ do_spl_dispatch_check() {
     n="$(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f 2>/dev/null | wc -l)"
     (( n > max )) && row "$id unread" "$n" "GAP over $max" || row "$id unread" "$n" ok
   done
+  # the inbound rows judge the desk against the lease holder's box
+  spl_lease_read; spl_lease_conf
   if [[ "${DISPATCH_CHECK_SUBS:-1}" != 0 ]]; then
     spl_dispatch_with_subs spl_dispatch_check_tenant ||
       row "channel subscriptions" "could not read them for: $DISPATCH_TENANTS" "GAP see the log"
@@ -161,6 +163,12 @@ spl_dispatch_check_tenant() {
   done
   local l bad
   bad="$(spl_dispatch_inbound "$t" "$data")"
+  # The fleet dispatch lease held on another box (spec fleet-roles 4.1): its
+  # desk receives the posts, this box's desk is silent by design - no GAP.
+  if spl_lease_remote && [[ "$LH" != *@unreachable ]] && grep -q '^SILENT ' <<<"$bad"; then
+    bad="$(grep -v '^SILENT ' <<<"$bad")"
+    [[ -z "$bad" ]] && { row "$t inbound" "this box's desk is not the dispatch desk" "ok (held by $LH)"; return 0; }
+  fi
   if [[ -z "$bad" ]]; then
     l="$(sed -n 's/^hum|\([^|]*\)|.*/\1/p' <<<"$data" | head -1)"
     row "$t inbound" "${l:-0} human posts in ${DISPATCH_SILENCE_WINDOW:-120} min" ok

@@ -10,7 +10,8 @@
 #   4. a slow first token against a tight budget: verdict no, Q11 raised
 #   5. grok not logged in: skipped, claude alone
 #   6. a tool request in the call response: refused, counted, verdict no
-#   7. a hung agent: the turn times out, FAIL, the agent is stopped
+#   7. a hung agent: the turn times out, FAIL, the agent is stopped; a
+#      SIGTERM to the bench mid-turn stops its agent too
 #   8. CONTROL: a live stub IS seen by the liveness check
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -101,7 +102,7 @@ out=$(bench); rc=$?
 grep -q "claude:haiku grok:grok-fast" <<<"$out" && pass "dry run names the plan" || fail "dry run plan: $out"
 
 # --- 2. refusals -------------------------------------------------------------------------
-for bad in "ENV=prd" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=claude:" \
+for bad in "ENV=prd" "BENCH_THINKING=maybe" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=claude:" \
   "DRY_RUN=2" "BENCH_BUDGET_S=fast" "BENCH_CALL_TIMEOUT=0" "SPOOL_AGENT_USER=someone-else"; do
   fresh
   if bench "$bad" >"$T/o"; then fail "accepts $bad"; else
@@ -124,7 +125,8 @@ grep -q 'Q11\*\*: not raised' "$T/report.md" && grep -q '| claude CLI | 9.9.9 (s
 grep -qE '^\| tree \| `([0-9a-f]{40}|unknown)' "$T/report.md" && pass "report names the tree" || fail "tree: $(grep tree "$T/report.md")"
 grep -q "claude '-p' '--input-format' 'stream-json'" "$T/calls.log" && grep -q "'--tools' ''" "$T/calls.log" \
   && grep -q "'--system-prompt'" "$T/calls.log" && grep -q "'--setting-sources' ''" "$T/calls.log" \
-  && pass "claude: headless, no tools, no settings, replaced system prompt" || fail "claude argv: $(cat "$T/calls.log")"
+  && grep -q "'--settings' '{\"alwaysThinkingEnabled\": false}'" "$T/calls.log" \
+  && pass "claude: headless, no tools, no settings, thinking off, replaced system prompt" || fail "claude argv: $(cat "$T/calls.log")"
 grep -q "grok agent --no-leader -m grok-fast --reasoning-effort low stdio" "$T/calls.log" && pass "grok: ACP stdio, effort low" \
   || fail "grok argv: $(cat "$T/calls.log")"
 [[ $(wc -l <"$T/pids") -eq 2 && -z "$(alive)" ]] && pass "both agents started, both stopped" || fail "pids=$(cat "$T/pids") alive=$(alive)"
@@ -153,6 +155,18 @@ fresh
 out=$(bench DRY_RUN=0 STUB_HANG=1 BENCH_CALL_TIMEOUT=1 BENCH_MODELS="claude:haiku"); rc=$?
 [[ $rc -ne 0 ]] && grep -q "FAIL a model has fewer than 20 good calls" <<<"$out" && [[ -s "$T/pids" && -z "$(alive)" ]] \
   && pass "hung agent: FAIL, the agent is stopped" || fail "hang: rc=$rc alive=$(alive) out=$out"
+
+# --- 7b. the bench is stopped (SIGTERM) mid-turn: it still stops its agent -----------------
+fresh
+bench DRY_RUN=0 STUB_HANG=1 BENCH_CALL_TIMEOUT=60 BENCH_MODELS="claude:haiku" >"$T/o" &
+bg=$!
+for _ in $(seq 1 50); do [[ -s "$T/pids" ]] && break; sleep 0.2; done
+sleep 0.5
+drv=$(ps -o ppid= -p "$(head -1 "$T/pids")" | tr -d ' ')
+[[ -n "$drv" ]] && kill -TERM "$drv"
+wait "$bg" 2>/dev/null
+[[ -n "$drv" && -s "$T/pids" && -z "$(alive)" ]] && pass "SIGTERM to the bench: its agent is stopped too" \
+  || fail "SIGTERM: drv=$drv alive=$(alive) out=$(cat "$T/o")"
 
 # --- 8. CONTROL: the liveness check sees a live stub -------------------------------------
 fresh

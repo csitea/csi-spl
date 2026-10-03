@@ -24,6 +24,7 @@
 # @param BENCH_MODELS (optional) - vendor:model list, default
 # @param                           "claude:haiku claude:sonnet grok:grok-4.7-build-fast grok:grok-4.7"
 # @param BENCH_EFFORT (optional) - low (default) | medium | high
+# @param BENCH_THINKING (optional) - off (default: claude's extended thinking off, W6) | on
 # @param BENCH_BUDGET_S (optional) - the first-token p95 budget, default 0.9 (hop 4)
 # @param BENCH_CALL_TIMEOUT (optional) - seconds per turn, default 60
 # @param BENCH_REPORT (optional) - default the spec 070 standby-bench.md in this tree
@@ -37,10 +38,11 @@ do_spl_standby_bench() {
   local dry=1 d="${DRY_RUN:-1}"
   [[ "$d" == 0 || "$d" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $d"; return 1; }
   [[ "$d" == 0 ]] && dry=0
-  local n="${BENCH_N:-20}" effort="${BENCH_EFFORT:-low}" budget="${BENCH_BUDGET_S:-0.9}" tmo="${BENCH_CALL_TIMEOUT:-60}"
+  local n="${BENCH_N:-20}" effort="${BENCH_EFFORT:-low}" thinking="${BENCH_THINKING:-off}" budget="${BENCH_BUDGET_S:-0.9}" tmo="${BENCH_CALL_TIMEOUT:-60}"
   local models="${BENCH_MODELS:-claude:haiku claude:sonnet grok:grok-4.7-build-fast grok:grok-4.7}"
   [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 20 && n <= 500 )) || { do_log "FATAL BENCH_N must be 20..500 (spec 070 L1: n >= 20), got: '$n'"; return 1; }
   [[ "$effort" =~ ^(low|medium|high)$ ]] || { do_log "FATAL BENCH_EFFORT must be low, medium or high, got: '$effort'"; return 1; }
+  [[ "$thinking" =~ ^(on|off)$ ]] || { do_log "FATAL BENCH_THINKING must be on or off, got: '$thinking'"; return 1; }
   [[ "$budget" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { do_log "FATAL BENCH_BUDGET_S must be seconds, got: '$budget'"; return 1; }
   [[ "$tmo" =~ ^[0-9]+$ ]] && (( tmo >= 1 )) || { do_log "FATAL BENCH_CALL_TIMEOUT must be whole seconds >= 1, got: '$tmo'"; return 1; }
   local m
@@ -78,7 +80,7 @@ do_spl_standby_bench() {
   local state="${SPL_STATE_DIR:-$HOME/.local/share/csi-spl/cloud/$ENV}/standby-bench"
   local report="${BENCH_REPORT:-$PROJ_PATH/../csi-spl-doc/specs/070-three-second-response/standby-bench.md}"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: start one standby per ${plan[*]} as $agent_user, a warm-up turn, then $n call responses each (effort $effort, budget ${budget}s p95 first token)"
+    do_log "INFO DRY_RUN would: start one standby per ${plan[*]} as $agent_user, a warm-up turn, then $n call responses each (effort $effort, thinking $thinking, budget ${budget}s p95 first token)"
     do_log "INFO DRY_RUN would write the rows under $state and the report to $report"
     do_log "OK DRY_RUN nothing was started. Re-run with DRY_RUN=0 to bench."
     return 0
@@ -96,11 +98,12 @@ do_spl_standby_bench() {
   (( have_grok )) && grok_ver="$(grok --version 2>/dev/null | head -1)"
   BENCH_CWD="$cwd" BENCH_ROWS="$state/$stamp.jsonl" BENCH_REPORT_PATH="$report" BENCH_SHA="${sha}${dirty}" \
     BENCH_STAMP="$stamp" BENCH_CLAUDE_VER="$claude_ver" BENCH_GROK_VER="$grok_ver" BENCH_SKIPPED="$(printf '%s\n' "${skipped[@]}")" \
-    python3 - "$n" "$effort" "$budget" "$tmo" "${plan[@]}" <<'EOF_PY' || rc=$?
+    python3 - "$n" "$effort" "$budget" "$tmo" "$thinking" "${plan[@]}" <<'EOF_PY' || rc=$?
 import json, os, queue, signal, statistics, subprocess, sys, threading, time
 
-N, EFFORT, BUDGET, TMO = int(sys.argv[1]), sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
-PLAN = sys.argv[5:]
+N, EFFORT, BUDGET, TMO, THINKING = int(sys.argv[1]), sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), sys.argv[5]
+PLAN = sys.argv[6:]
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))   # a stopped bench still stops its agents (finally)
 CWD, ROWS, REPORT = os.environ["BENCH_CWD"], os.environ["BENCH_ROWS"], os.environ["BENCH_REPORT_PATH"]
 
 SYSTEM = ("You are a standby agent on a team message board. Answer the newest post in about 80 tokens, "
@@ -184,7 +187,7 @@ class Claude:
         self.a = Agent(["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                         "--include-partial-messages", "--model", model, "--effort", EFFORT, "--tools", "",
                         "--strict-mcp-config", "--setting-sources", "", "--no-session-persistence",
-                        "--system-prompt", SYSTEM])
+                        "--system-prompt", SYSTEM, "--settings", json.dumps({"alwaysThinkingEnabled": THINKING == "on"})])
     def ready(self): pass
     def turn(self, text):
         r = {"first": None, "last": None, "end": None, "out_tokens": None, "model": None, "tools": 0, "chars": 0}
@@ -294,7 +297,7 @@ lines = [
     f"| claude CLI | {os.environ['BENCH_CLAUDE_VER']} |",
     f"| grok CLI | {os.environ['BENCH_GROK_VER']} |",
     f"| n per model | {N} call responses after one warm-up turn, sent one at a time to ONE standby |",
-    f"| effort | {EFFORT} |",
+    f"| effort | {EFFORT}; claude extended thinking {THINKING}; grok has no off switch (its lowest reasoning effort is used) |",
     f"| runs as | the agent user, never the human's; every agent stopped at the end: {'yes' if not leaks else 'NO: ' + ', '.join(leaks)} |",
     "",
     "## 1. Results (seconds from the stdin write)",
@@ -334,7 +337,8 @@ lines += ["", "## 3. What it answers", "",
                           ": a warm standby turn does not reach the first token in budget; options (a), (b), (c) of section 6.2 are the owner's."),
           "", "## 4. Method", "",
           "- claude: `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages "
-          f"--model <m> --effort {EFFORT} --tools \"\" --strict-mcp-config --setting-sources \"\" --no-session-persistence --system-prompt <short>`; "
+          f"--model <m> --effort {EFFORT} --tools \"\" --strict-mcp-config --setting-sources \"\" --no-session-persistence --system-prompt <short> "
+          f"--settings '{{\"alwaysThinkingEnabled\":{str(THINKING == 'on').lower()}}}'`; "
           "one user message per stdin line. First / last token = the first / last `text_delta`; output tokens from the turn's usage (thinking included).",
           f"- grok: `grok agent --no-leader -m <m> --reasoning-effort {EFFORT} stdio` (ACP JSON-RPC), then `session/new` and "
           "`session/set_config_option` (model, reasoning_effort). First / last token = the first / last `agent_message_chunk`; "

@@ -9,7 +9,10 @@
 # @description (channel_subscriptions); the workspace fallback list fires only
 # @description when none is online. The fleet's boxes: this machine's desk box,
 # @description plus, in fleet mode (lease.conf LEASE_FLEET), every box of
-# @description LEASE_PRIORITY / _ORCH / _DISPATCH. Which seat answers is the
+# @description LEASE_PRIORITY / _ORCH / _DISPATCH; a box that seats no OD seat
+# @description at all in a workspace is not judged there (ABSENT, report only: a
+# @description retired ranking entry, or a box whose own desks check flags the
+# @description workspace). Which seat answers is the
 # @description leases' business (spec 2.1, 3), not the subscription's.
 # @description Per seated workspace and per live channel (default ones
 # @description included; #issues and the retired #tasks excluded):
@@ -147,14 +150,17 @@ spl_dispatch_subscribe_tenant() {
   local -a chans=()
   mapfile -t chans < <(sed -n 's/^chan|//p' <<<"$data")
   (( ${#chans[@]} )) || { do_log "FATAL $t: no channel at all - is that the right workspace?"; return 1; }
-  for fb in $(spl_dispatch_fleet_boxes); do
+  local boxes absent
+  boxes="$(spl_dispatch_served_boxes "$data")"
+  absent="$(spl_dispatch_fleet_boxes | grep -vxF -f <(printf '%s\n' $boxes) | tr '\n' ' ')"
+  for fb in $boxes; do
     for a in $(spl_dispatch_od_ids); do
       spl_dispatch_rostered "$data" "$fb" "$a" || unseated+="${unseated:+ }$a@$fb"
     done
   done
   for ch in "${chans[@]}"; do
     local right=1
-    for fb in $(spl_dispatch_fleet_boxes); do
+    for fb in $boxes; do
       missing=""
       for a in $(spl_dispatch_od_ids); do
         spl_dispatch_rostered "$data" "$fb" "$a" || { right=0; continue; }
@@ -166,7 +172,7 @@ spl_dispatch_subscribe_tenant() {
       (( SPL_DISPATCH_DRY )) || _spl_channel_agent_add_op_run "$t" "$ch" "$fb" "$missing" 1 ||
         SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
     done
-    for fb in $(spl_dispatch_fleet_boxes); do
+    for fb in $boxes; do
       for a in $(spl_dispatch_od_ids); do
         old="$(spl_dispatch_legacy_of "$a")"
         [[ -n "$old" ]] && spl_dispatch_subbed "$data" "$ch" "$fb" "$a" && spl_dispatch_subbed "$data" "$ch" "$fb" "$old" || continue
@@ -184,6 +190,7 @@ spl_dispatch_subscribe_tenant() {
     done
     [[ -n "$dead" ]] && { n_dead=$((n_dead + 1)); echo "DEAD $t #$ch $dead (no live process on this box; report only)"; }
   done
+  [[ -n "${absent// /}" ]] && echo "ABSENT $t ${absent% } (no OD seat of that box in $t: not judged here; report only)"
   [[ -n "$unseated" ]] && echo "UNSEATED $t $unseated (no roster row in $t: seat it with do_spl_desk_up; report only)"
   spl_dispatch_inbound "$t" "$data"
   echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add OD seat add(s), $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions, $(wc -w <<<"$unseated") OD seat(s) unseated"
@@ -213,6 +220,16 @@ spl_dispatch_fleet_boxes() {
     [[ -n "${LEASE_FLEET:-}" ]] && l+=",${LEASE_PRIORITY:-},${LEASE_PRIORITY_ORCH:-},${LEASE_PRIORITY_DISPATCH:-}"
   fi
   tr ', ' '\n\n' <<<"$l" | awk 'NF && !seen[$0]++'
+}
+
+# The fleet boxes that seat at least one OD seat in the workspace of <data>.
+spl_dispatch_served_boxes() {
+  local fb a
+  for fb in $(spl_dispatch_fleet_boxes); do
+    for a in $(spl_dispatch_od_ids); do
+      spl_dispatch_rostered "$1" "$fb" "$a" && { echo "$fb"; break; }
+    done
+  done
 }
 
 # 0 when the workspace's roster in <data> has <agent> on <box>.

@@ -184,18 +184,20 @@ PY
 }
 
 # One row per channel of workspace <t>: every seated OD seat of every fleet
-# box in it (a missing one is a GAP), and one row for the OD seats the
-# workspace does not seat at all (the hub refuses their subscription).
+# box that serves <t> in it (a missing one is a GAP), and one row for the OD
+# seats of those boxes <t> does not seat (the hub refuses their subscription).
+# A box with no OD seat in <t> at all is its own desks row's business.
 spl_dispatch_check_tenant() {
-  local t="$1" data="$2" ch fb a want have miss unseated=""
-  for fb in $(spl_dispatch_fleet_boxes); do
+  local t="$1" data="$2" ch fb a want have miss unseated="" boxes
+  boxes="$(spl_dispatch_served_boxes "$data")"
+  for fb in $boxes; do
     for a in $(spl_dispatch_od_ids); do
       spl_dispatch_rostered "$data" "$fb" "$a" || unseated+=" $a@$fb"
     done
   done
   for ch in $(sed -n 's/^chan|//p' <<<"$data"); do
     want=0 have=0 miss=""
-    for fb in $(spl_dispatch_fleet_boxes); do
+    for fb in $boxes; do
       for a in $(spl_dispatch_od_ids); do
         spl_dispatch_rostered "$data" "$fb" "$a" || continue
         want=$((want + 1))

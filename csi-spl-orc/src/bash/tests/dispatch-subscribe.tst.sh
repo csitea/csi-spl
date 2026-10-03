@@ -14,7 +14,8 @@
 #   4. a failing runner fails the action; a missing workspace file fails it
 #   5. a complete workspace plans nothing
 #   8. fleet mode: every box of the lease rankings gets its rostered OD seats;
-#      an unrostered one is UNSEATED (report only), never added
+#      an unrostered one is UNSEATED (report only), never added; a box with no
+#      OD seat in the workspace at all is ABSENT (report only)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -149,7 +150,7 @@ grep -q 'remove w7 lobby box-desk CLE-002' "$T/calls" && grep -q 'remove w7 lobb
 
 # --- 8. fleet mode: every box of the lease rankings ---------------------------------------
 mkdir -p "$T/spool/dispatch"
-printf 'LEASE_FLEET=main\nLEASE_PRIORITY=box-desk,box-sat\nLEASE_PRIORITY_ORCH=box-sat,box-desk\n' >"$T/spool/dispatch/lease.conf"
+printf 'LEASE_FLEET=main\nLEASE_PRIORITY=box-desk,box-sat,box-old\nLEASE_PRIORITY_ORCH=box-sat,box-desk\n' >"$T/spool/dispatch/lease.conf"
 printf "chan|lobby\n${ODS}ros|box-sat|c-001\nros|box-sat|c-002\nsub|lobby|box-desk|c-001|invite\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|lobby|box-sat|c-002|invite\n" >"$SUBS/w8.txt"
 : >"$T/calls"
 run DISPATCH_TENANTS=w8; rc=$?
@@ -158,6 +159,8 @@ run DISPATCH_TENANTS=w8; rc=$?
 grep -qx 'UNSEATED w8 c-003@box-sat (no roster row in w8: seat it with do_spl_desk_up; report only)' "$T/o" &&
   ! grep -q 'PLAN add w8 .*c-003 (box-sat)' "$T/o" &&
   pass "8. an OD seat the workspace does not roster is reported UNSEATED, never added" || fail "8. unseated: $(cat "$T/o")"
+grep -qx 'ABSENT w8 box-old (no OD seat of that box in w8: not judged here; report only)' "$T/o" && ! grep -q 'box-old' <(grep -v '^ABSENT' "$T/o") &&
+  pass "8. a ranking box with no OD seat in the workspace (a retired box id) is ABSENT, never UNSEATED or planned" || fail "8. absent: $(cat "$T/o")"
 run DISPATCH_TENANTS=w8 DRY_RUN=0
 [[ "$(cat "$T/calls")" == 'add w8 lobby box-sat c-001 1' ]] && pass "8. DRY_RUN=0 adds exactly that seat" || fail "8. calls: $(cat "$T/calls")"
 run DISPATCH_TENANTS=w8 DISPATCH_FLEET_BOXES=box-desk

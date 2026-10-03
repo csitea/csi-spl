@@ -98,7 +98,9 @@ spl_db_hot_measure_sql() {
   local name found=0 j i
   if [[ -n "$only" ]]; then
     for name in ${only//,/ }; do
-      spl_db_hot_measure_names | grep -qxF "$name" || { do_log "FATAL MEASURE_ONLY names no statement: $name" >&2; return 1; }
+      # A here-string, not a pipe: grep -q exits on its first match and, under
+      # pipefail, the producer's SIGPIPE would fail the check (CI 37092928543).
+      grep -qxF -- "$name" <<<"$(spl_db_hot_measure_names)" || { do_log "FATAL MEASURE_ONLY names no statement: $name" >&2; return 1; }
     done
   fi
   echo "SELECT set_config('app.tenant_id', '$tenant', false), set_config('statement_timeout', '$to', false), set_config('plan_cache_mode', '$pc', false);"

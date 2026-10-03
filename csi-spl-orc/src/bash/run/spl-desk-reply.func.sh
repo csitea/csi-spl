@@ -28,6 +28,10 @@
 # @description   3. `spool send --from <agent> --to <hum> --task <task>
 # @description      --to-box box-wui --kind <DESK_KIND>`; the desk's hub-run
 # @description      sidecar flushes it to the hub
+# @description A body that says released / deployed with a commit sha but no
+# @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
+# @description ask the lane to add the line do_release_note_link prints. A
+# @description warning only - the answer is still sent, unchanged.
 # @description Prints one JSON line (msg_id, task_id, to, kind, the answered
 # @description message's id and its first characters). No secret is read.
 # @description Exit 3 when nothing newer than this desk's last answer is
@@ -177,6 +181,31 @@ _spl_desk_reply_check_args() {
   for f in "$@"; do
     [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
   done
+  _spl_desk_reply_release_warn "$body"
+  return 0
+}
+
+# _spl_desk_reply_release_warn <body>: spec 065 7.3 (L9). A post that says
+# released / deployed and names a commit sha carries that sha's note link
+# (`/releases/<sha>`). One WARN per sha without one, naming the command that
+# prints the line, so the dispatcher asks the lane for it before the owner
+# reads the post. Never refuses: a missing link must not lose a report.
+# A sha is 7..40 lowercase hex with a digit AND a letter; topic UUIDs are
+# skipped. A link covers a sha when either is a prefix of the other.
+_spl_desk_reply_release_warn() {
+  local body="$1" sha l covered links=() seen=" "
+  grep -qiE '\b(released|deployed)\b' <<<"$body" || return 0
+  mapfile -t links < <(grep -oE '/releases/[0-9a-f]{7,40}' <<<"$body" | sed 's#^/releases/##')
+  while read -r sha; do
+    [[ -n "$sha" && "$sha" =~ [0-9] && "$sha" =~ [a-f] && "$seen" != *" $sha "* ]] || continue
+    seen+="$sha "
+    covered=0
+    for l in "${links[@]}"; do [[ "$l" == "$sha"* || "$sha" == "$l"* ]] && { covered=1; break; }; done
+    (( covered )) && continue
+    do_log "WARN release-note link missing: the post says released/deployed with sha $sha but no /releases/ link; ask the lane to add it (./run -a do_release_note_link SHA=$sha ENV=<dev|prd>). The post is sent unchanged."
+  done < <(sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}//g; s#/releases/[0-9a-f]+##g' <<<"$body" |
+    grep -oE '\b[0-9a-f]{7,40}\b')
+  return 0
 }
 
 # _spl_desk_reply_put_files <state dir> <box> <tenant> <hub> <file>...: upload

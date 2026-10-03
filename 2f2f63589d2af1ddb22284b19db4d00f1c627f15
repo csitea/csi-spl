@@ -1,0 +1,6 @@
+Lay-What: When a computer leaves the group, its duties now go only to a computer that is actually running, and only live workers are told to wrap up.
+Lay-How: A duty handed over must be confirmed by the receiving computer within a short time; otherwise the next one is tried, and the duty stays put if none answers.
+Lay-Why: A test run showed duties being handed to a computer that had been switched off for hours.
+Tech-What: orc do_spl_box_leave hands roles only to a box whose lease loop renews them, and drains only panes alive on this box.
+Tech-How: Wait BOX_LEAVE_RENEW_WAIT (LEASE_PERIOD + 30 s) for the renewal, else next in rank, else write the role back with a WARN; stale registry rows get no drain note; spl-box-leave.tst.sh.
+Tech-Why: The hub keeps no heartbeat for a box that holds nothing, so the next box in rank could be dead (spec 064 L9).
